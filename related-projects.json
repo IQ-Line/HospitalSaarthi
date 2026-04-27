@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Related projects for The-HIMS architecture and ADR reference",
+  "projects": [
+    {
+      "id": "himsPlatform",
+      "path": "/home/ayushiqline/projects/demoHis/himsPlatform",
+      "preferredBranch": "main",
+      "description": "Original mostly-complete implementation of the AIIMS EOI. Entirely vibe-coded by engineers working from vibe-coded PRDs from product people. Reference for feature scope and initial implementation patterns.",
+      "type": "monorepo",
+      "status": "reference"
+    },
+    {
+      "id": "IQSandbox",
+      "path": "/home/ayushiqline/projects/hims-iqsandbox-comparison/IQSandbox",
+      "preferredBranch": "main",
+      "description": "Vibe-coded app built and reviewed by product/designers only, no engineering involvement. Validated through manual live product review. Reference for UX patterns and product expectations.",
+      "type": "monorepo",
+      "status": "reference"
+    },
+    {
+      "id": "hims-production",
+      "path": "/home/ayushiqline/projects/hims",
+      "preferredBranch": "hims_dev",
+      "description": "Current production deployment. OPD HIMS with full ABHA Integration, FT certified by NHA and ABDM. Built by junior engineers. Reference for integration patterns and compliance requirements.",
+      "type": "polyrepo",
+      "status": "production"
+    },
+    {
+      "id": "toy-poc-sdlc-demo",
+      "path": "/home/ayushiqline/projects/exp/toy-poc-sdlc-demo",
+      "preferredBranch": "main",
+      "description": "Prototype for powerful CI with proper gates. Contains strong architecture opinions code-wise. Reference for CI/CD patterns, quality gates, and architectural best practices.",
+      "type": "monorepo",
+      "status": "prototype"
+    }
+  ],
+  "thisProject": {
+    "id": "The-HIMS",
+    "path": "/home/ayushiqline/projects/draft/The-HIMS",
+    "preferredBranch": "main",
+    "description": "Integration-first, highly modular HIMS software platform. New architecture incorporating learnings from all reference projects.",
+    "type": "monorepo",
+    "status": "planning"
+  }
+}
