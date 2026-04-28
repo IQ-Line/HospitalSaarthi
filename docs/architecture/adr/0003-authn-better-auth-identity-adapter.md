@@ -49,7 +49,7 @@ These capabilities eliminate the federation gap that was previously Keycloak's p
 **Negative / accepted trade-offs:**
 
 - better-auth is a younger library than Keycloak. Its ecosystem (plugins, community knowledge base) is smaller. We accept this because the `IdentityProvider` interface limits our surface-area dependency — if better-auth is ever abandoned, the adapter pattern isolates the replacement to one module.
-- Federation adapters (Entra, Okta, Keycloak-as-external-IdP, SAML) must be built and maintained by the platform team. Keycloak provides these out of the box. We accept this because the adapters are thin OIDC/SAML clients, and the alternative — operating Keycloak — carries a higher ongoing cost for the team's skill profile.
+- While better-auth v1.5+ covers OIDC, SAML, and SCIM natively, edge-case federation scenarios (custom hospital SSO systems with non-standard protocols) may require building thin custom adapters. The Generic OAuth plugin handles most standards-compliant IdPs via configuration, but proprietary protocols are out of scope. We accept this because such edge cases are rare and the adapter pattern makes them localized.
 - No built-in admin UI for identity management. The User Management module must build its own administrative interface for user provisioning, role assignment, and session management. This is acceptable because we need a tenant-aware admin UI integrated into the platform's application shell, which Keycloak's admin console would not provide.
 
 **Follow-up actions:**
@@ -82,7 +82,7 @@ These capabilities eliminate the federation gap that was previously Keycloak's p
 - *Good:* Works identically in service mode (Kubernetes) and embedded mode (single-process lite deployment).
 - *Good:* The team can debug and extend the AuthN pipeline with their existing skills.
 - *Bad:* Younger project than Keycloak. Fewer battle-tested deployments in regulated environments.
-- *Bad:* Federation adapters must be built and maintained by the platform team.
+- *Bad:* Edge-case federation (non-standard hospital SSO protocols) may require thin custom adapters. Standard IdPs (OIDC, SAML, SCIM) are covered natively via plugins.
 - *Bad:* No built-in admin UI — User Management must build its own.
 
 ### Auth0 / managed SaaS identity

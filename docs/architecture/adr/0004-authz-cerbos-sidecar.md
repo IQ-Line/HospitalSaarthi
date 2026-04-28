@@ -51,7 +51,7 @@ Key verified facts supporting this decision:
 
 - Cerbos is a younger project than OPA. Its community and ecosystem are smaller. We accept this because Cerbos's feature set covers our requirements, the YAML policy format is a significant team productivity advantage, and the sidecar deployment model means we are not dependent on a centralized Cerbos service that would be difficult to replace.
 - Every module pod runs a Cerbos sidecar container, increasing per-pod resource consumption (memory and CPU). Cerbos's in-memory policy evaluation is lightweight (the PDP binary is ~30MB, typical memory usage under 50MB), but this is a non-zero overhead multiplied by every replica of every module. We accept this because the latency and availability benefits of co-location outweigh the resource cost.
-- Cerbos policies are YAML, which is less expressive than Rego for complex logical compositions. If a policy requires deeply nested conditional logic, YAML becomes unwieldy. We accept this because the overwhelming majority of HIMS authorization rules are role + attribute + tenant checks — exactly what Cerbos's policy model is optimized for. The rare complex case can use Cerbos's derived roles and condition expressions.
+- Cerbos policies are YAML with CEL (Common Expression Language) condition blocks. For the rare authorization rule that requires complex conditional logic beyond role + attribute + tenant checks, CEL expressions support arbitrary nesting and composition. This is less flexible than Rego's general-purpose logic programming, but in practice HIMS authorization rules are well within Cerbos's expressiveness — and the readability advantage of YAML over Rego is substantial for the team.
 
 **Follow-up actions:**
 
@@ -88,7 +88,7 @@ Key verified facts supporting this decision:
 - *Good:* No hard limit on nesting depth. Resource hierarchy modeled via convention in resource kinds (e.g., `opd:registration:patient_search`), action wildcards, scoped policies (up to 4 levels), and arbitrarily nested attributes in CEL conditions.
 - *Good:* Production adoption by Salesforce, Chargebee, and others — evidence of viability at scale.
 - *Bad:* Younger project than OPA. Smaller community and fewer third-party integrations.
-- *Bad:* YAML is less expressive than a general-purpose policy language for deeply nested conditional logic.
+- *Bad:* YAML with CEL conditions is less flexible than Rego for general-purpose logic programming, though CEL supports arbitrary nesting and composition for the rare complex case.
 - *Bad:* Per-pod sidecar adds resource overhead (mitigated by Cerbos's lightweight footprint).
 
 ### Custom authorization middleware per module
