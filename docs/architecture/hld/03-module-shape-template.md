@@ -77,7 +77,7 @@ Module teams will choose the appropriate strategy per endpoint. The platform SDK
 
 ## 3. Identity adapter
 
-Each module independently verifies the identity of every incoming request. The BFF (Backend For Frontend) performs JWT signature verification as an optimization — to reject obviously invalid tokens before they reach modules — but the BFF is not a security boundary. Modules do not trust the BFF's verification; they verify again. This is the zero-trust posture described in [AuthN/AuthZ Flow](04-authn-authz-flow.md) and recorded in [TODO: ADR-0015].
+Each module independently verifies the identity of every incoming request. The BFF (Backend For Frontend) performs JWT signature verification as an optimization — to reject obviously invalid tokens before they reach modules — but the BFF is not a security boundary. Modules do not trust the BFF's verification; they verify again. This is the zero-trust posture described in [AuthN/AuthZ Flow](04-authn-authz-flow.md) and recorded in [ADR-0015](../adr/0015-bff-role-zero-trust.md).
 
 ### Token verification
 
@@ -126,7 +126,7 @@ This decoupling means:
 - A hospital with an Okta deployment configures the Okta adapter; modules are unchanged.
 - Mixed configurations (some users on better-auth, some federated) are supported by routing based on the `iss` claim.
 
-The identity adapter configuration (which IdP, JWKS URL, issuer whitelist) is pulled from the Configurator (see [Section 8](#8-configurator-integration)) and cached locally. [TODO: ADR-0003]
+The identity adapter configuration (which IdP, JWKS URL, issuer whitelist) is pulled from the Configurator (see [Section 8](#8-configurator-integration)) and cached locally. [ADR-0003](../adr/0003-authn-better-auth-identity-adapter.md)
 
 ---
 
@@ -134,7 +134,7 @@ The identity adapter configuration (which IdP, JWKS URL, issuer whitelist) is pu
 
 ### Logical view vs. physical view
 
-**Logical view.** There is one policy authority across the entire HIMS platform. Policies are defined once, versioned in a single Git repository, tested in CI via `cerbos test`, and distributed as compiled bundles. A policy that says "only a doctor with an active appointment can view a patient's EMR" is written once and evaluated consistently whether the request enters via OPD, IPD, or the Emergency module. [TODO: ADR-0004]
+**Logical view.** There is one policy authority across the entire HIMS platform. Policies are defined once, versioned in a single Git repository, tested in CI via `cerbos test`, and distributed as compiled bundles. A policy that says "only a doctor with an active appointment can view a patient's EMR" is written once and evaluated consistently whether the request enters via OPD, IPD, or the Emergency module. [ADR-0004](../adr/0004-authz-cerbos-sidecar.md)
 
 **Physical view.** Each module pod runs its own Cerbos PDP sidecar. The sidecar loads the compiled policy bundle at startup (or on bundle update via a sidecar watcher). Policy evaluation happens in-memory on the same machine as the module — no network call to a central PDP. Cerbos evaluates policies in-memory with sub-millisecond latency for typical policy sets. ([Cerbos docs: Architecture](https://docs.cerbos.dev/cerbos/latest/))
 
@@ -161,7 +161,7 @@ Policies define the *rules* ("a user with role `pharmacist` in department `pharm
 - **Department and ward hierarchies** (department `cardiology` is under division `medicine`)
 - **Tenant-specific scope overrides** (tenant A allows nurses to order labs; tenant B does not)
 
-This data is managed through the platform's admin UI and stored in the User Management module's database (for roles and assignments) and the Master & Tenant Data module (for hierarchies and overrides). It is UI-configurable because it changes frequently — new staff join, roles change, departments restructure — and requiring a Git commit for each change is not viable. [TODO: ADR-0005]
+This data is managed through the platform's admin UI and stored in the User Management module's database (for roles and assignments) and the Master & Tenant Data module (for hierarchies and overrides). It is UI-configurable because it changes frequently — new staff join, roles change, departments restructure — and requiring a Git commit for each change is not viable. [ADR-0005](../adr/0005-policy-as-code-permission-data-as-config.md)
 
 ### Principal diversity
 
@@ -178,7 +178,7 @@ All principal kinds flow through the same Cerbos policy substrate. A policy can 
 
 ### Tenant isolation as base policy
 
-Every resource policy in the platform inherits from a base `tenant-isolation` policy. This policy enforces that a principal with `iq_tenant_id: A` can never access resources belonging to `iq_tenant_id: B`, regardless of roles or any other attributes. This is not opt-in; it is structural. A module team cannot accidentally omit tenant isolation because the base policy is inherited, not copied. [TODO: ADR-0012]
+Every resource policy in the platform inherits from a base `tenant-isolation` policy. This policy enforces that a principal with `iq_tenant_id: A` can never access resources belonging to `iq_tenant_id: B`, regardless of roles or any other attributes. This is not opt-in; it is structural. A module team cannot accidentally omit tenant isolation because the base policy is inherited, not copied. [ADR-0012](../adr/0012-multi-tenancy-isolation-strategy.md)
 
 ---
 
@@ -254,7 +254,7 @@ The `iq_tenant_id` in the event envelope ensures that events are tenant-scoped e
 
 ### Event bus technology
 
-The event bus technology is an open decision. Kafka, NATS, RabbitMQ, and cloud-managed equivalents (Azure Service Bus, Azure Event Hubs) are all under consideration. The module shape template does not depend on which bus is chosen; modules publish and consume events through a thin event-bus adapter (analogous to the identity adapter). [OPEN: Event bus technology — see System Overview open questions] [TODO: ADR-0009]
+The event bus technology is an open decision. Kafka, NATS, RabbitMQ, and cloud-managed equivalents (Azure Service Bus, Azure Event Hubs) are all under consideration. The module shape template does not depend on which bus is chosen; modules publish and consume events through a thin event-bus adapter (analogous to the identity adapter). [OPEN: Event bus technology — see System Overview open questions] [ADR-0009](../adr/0009-event-driven-inter-module-communication.md)
 
 ---
 
@@ -303,7 +303,7 @@ When a module makes a synchronous call to another module, this must be:
 - **Protected by a circuit breaker** — if the target module is unavailable, the calling module degrades gracefully (e.g., allows the registration to proceed with a "pending EMPI check" flag) rather than failing the entire request.
 - **Authenticated** — the calling module uses a service-account JWT (see [Section 4, Principal diversity](#principal-diversity)). The target module's PEP evaluates the service-account principal against Cerbos policies.
 
-[TODO: ADR-0008]
+[ADR-0008 — Module shape and boundaries](../adr/0008-module-shape-and-boundaries.md)
 
 ---
 
@@ -333,7 +333,7 @@ Modules pull configuration from the Configurator at startup and cache it locally
 
 If the Configurator is unavailable when a module attempts to refresh its configuration, the module continues operating with its cached configuration. This is a hard requirement. The Configurator is not in the request hot path; it is a control-plane service. A Configurator outage must not degrade clinical operations.
 
-If a module starts for the first time and cannot reach the Configurator at all (cold start with no cache), the module will use hardcoded defaults and log a critical alert. This scenario indicates a deployment issue, not a runtime one. [TODO: ADR-0006]
+If a module starts for the first time and cannot reach the Configurator at all (cold start with no cache), the module will use hardcoded defaults and log a critical alert. This scenario indicates a deployment issue, not a runtime one. [ADR-0006](../adr/0006-four-core-platform-modules.md)
 
 ---
 
@@ -352,7 +352,7 @@ Many systems in the Indian healthcare ecosystem — lab analyzers, existing HIS 
 - **Inbound:** The Integration Hub's Inbound Gateway receives HL7v2 messages, translates them to the target module's internal API format (or FHIR), and calls the module.
 - **Outbound:** The Integration Hub's Outbound Connector receives events or API calls from modules and translates them to HL7v2 for the external system.
 
-This means a module team never writes HL7v2 parsing code. The Integration Hub owns that complexity. [TODO: ADR-0010] [TODO: ADR-0011]
+This means a module team never writes HL7v2 parsing code. The Integration Hub owns that complexity. [ADR-0010](../adr/0010-fhir-hl7-interop-standards.md) [ADR-0011](../adr/0011-integration-hub-split.md)
 
 ### DICOM
 
@@ -374,7 +374,7 @@ A request without a valid `iq_tenant_id` is rejected. There is no "default tenan
 
 The default data isolation strategy is **shared database, tenant differentiator column**. Every table that stores tenant-scoped data includes an `iq_tenant_id` column. Every query includes a `WHERE iq_tenant_id = :iq_tenant_id` clause. The PEP middleware's `PlanResources` integration (see [Section 2](#2-pep-middleware)) injects this automatically for authorization-filtered queries.
 
-For tenants with strict hardware-isolation requirements (e.g., a government hospital requiring physical data separation), the same logical model is preserved — shared schema, `iq_tenant_id` column — but the data layer uses **Citus sharding on `iq_tenant_id`** to place that tenant's data on dedicated hardware. Module code does not change; `WHERE iq_tenant_id = X` works identically whether the tenant is co-located or on a dedicated shard. [Assumption: Azure Database for PostgreSQL Flexible Server with Citus; conceptually equivalent sharding is available on other database choices.] [TODO: ADR-0012]
+For tenants with strict hardware-isolation requirements (e.g., a government hospital requiring physical data separation), the same logical model is preserved — shared schema, `iq_tenant_id` column — but the data layer uses **Citus sharding on `iq_tenant_id`** to place that tenant's data on dedicated hardware. Module code does not change; `WHERE iq_tenant_id = X` works identically whether the tenant is co-located or on a dedicated shard. [Assumption: Azure Database for PostgreSQL Flexible Server with Citus; conceptually equivalent sharding is available on other database choices.] [ADR-0012](../adr/0012-multi-tenancy-isolation-strategy.md)
 
 ### Tenant-specific authorization
 

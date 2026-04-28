@@ -16,11 +16,11 @@ The following items are genuinely unresolved. They are surfaced here so the meet
 
 3. **Configurator UI scope.** The Configurator's admin interface ships as part of the platform's single web application (route-separated from clinical UIs, sharing the same application shell). A separate admin application may be considered in a future phase if operational or UX requirements justify the split.
 
-4. **Event bus technology.** Not chosen. Kafka, NATS, RabbitMQ, and cloud-managed equivalents (Azure Service Bus, Azure Event Hubs) are all viable. A dedicated ADR will be produced after the architectural shape is agreed. [TODO: ADR-0009]
+4. **Event bus technology.** Not chosen. Kafka, NATS, RabbitMQ, and cloud-managed equivalents (Azure Service Bus, Azure Event Hubs) are all viable. A dedicated ADR will be produced after the architectural shape is agreed. [ADR-0009](../adr/0009-event-driven-inter-module-communication.md)
 
-5. **Cerbos policy storage.** The default is Git-based policy authoring with bundle distribution to Cerbos PDP (Policy Decision Point) sidecars. Cerbos's Admin API with database-backed policies is an escape hatch for runtime policy changes. The default position is: do not enable Admin API until evidence demands it. [TODO: ADR-0004]
+5. **Cerbos policy storage.** The default is Git-based policy authoring with bundle distribution to Cerbos PDP (Policy Decision Point) sidecars. Cerbos's Admin API with database-backed policies is an escape hatch for runtime policy changes. The default position is: do not enable Admin API until evidence demands it. [ADR-0004](../adr/0004-authz-cerbos-sidecar.md)
 
-6. **EMPI deduplication algorithm.** This will be a multi-quarter investment. The starting position aligns with the ABDM/NHA duplicate identification rule already implemented in the production `hims-production` project: phonetically similar name, age within ±2 years, same gender, same phone number. More sophisticated probabilistic matching (Fellegi-Sunter family) will be added when real data warrants it. [TODO: ADR-0007]
+6. **EMPI deduplication algorithm.** This will be a multi-quarter investment. The starting position aligns with the ABDM/NHA duplicate identification rule already implemented in the production `hims-production` project: phonetically similar name, age within ±2 years, same gender, same phone number. More sophisticated probabilistic matching (Fellegi-Sunter family) will be added when real data warrants it. [ADR-0007](../adr/0007-empi-dedicated-platform-service.md)
 
 ---
 
@@ -109,7 +109,7 @@ Modules that produce or consume clinical data will expose FHIR (Fast Healthcare 
 
 The FHIR boundary is the interoperability contract. A module's internal data model may differ from the FHIR representation — the module is responsible for mapping between the two. This keeps modules free to optimize their internal storage while maintaining a stable external contract.
 
-[TODO: ADR-0010 — FHIR/HL7 as interop standards]
+[ADR-0010 — FHIR/HL7 as interop standards](../adr/0010-fhir-hl7-interop-standards.md)
 
 ### 3.2 Per-module data ownership
 
@@ -117,19 +117,19 @@ Each module owns its data exclusively. No module reads another module's database
 
 This constraint makes modules independently deployable and replaceable. It also means that a module deployed in fragmented mode can function without sibling modules, as long as it receives the events or API responses it needs from whatever system occupies that role (platform module or legacy).
 
-[TODO: ADR-0008 — Module shape and boundaries]
+[ADR-0008 — Module shape and boundaries](../adr/0008-module-shape-and-boundaries.md)
 
 ### 3.3 No cross-module synchronous dependencies by default
 
 Modules communicate via asynchronous events as the default path. Synchronous inter-module HTTP calls are permitted as exceptions when the interaction is request-response by nature (e.g., EMPI lookup during patient registration), but they must not create tight coupling. The calling module must handle the called module being unavailable.
 
-[TODO: ADR-0009 — Event-driven inter-module communication]
+[ADR-0009 — Event-driven inter-module communication](../adr/0009-event-driven-inter-module-communication.md)
 
 ### 3.4 Federated identity
 
 The platform runs its own identity service (User Management, wrapping better-auth) but does not require all users to authenticate against it. Modules accept tokens from any configured identity provider, verified via JWKS (JSON Web Key Set) endpoints. A hospital running a single platform module can point it at their existing Active Directory / Entra ID / Okta / Keycloak instance. The User Management module provisions a shadow record on first federated login (JIT provisioning) and syncs via SCIM (System for Cross-domain Identity Management) where supported.
 
-[TODO: ADR-0003 — AuthN with better-auth + identity adapter pattern]
+[ADR-0003 — AuthN with better-auth + identity adapter pattern](../adr/0003-authn-better-auth-identity-adapter.md)
 
 ### 3.5 Authorization as a cross-cutting policy layer
 
@@ -137,8 +137,8 @@ Every module enforces authorization via a Cerbos PDP sidecar communicating over 
 
 Cerbos principals include humans, service accounts, organizations, and automated agents. All flow through the same policy substrate. This means authorization is uniform: a service-to-service call is governed by the same policy engine as a doctor's click.
 
-[TODO: ADR-0004 — AuthZ with Cerbos sidecar]  
-[TODO: ADR-0005 — Policy-as-code, permission-data-as-config split]
+[ADR-0004 — AuthZ with Cerbos sidecar](../adr/0004-authz-cerbos-sidecar.md)
+[ADR-0005 — Policy-as-code, permission-data-as-config split](../adr/0005-policy-as-code-permission-data-as-config.md)
 
 ---
 
@@ -232,17 +232,52 @@ The platform uses a two-level hierarchy: **Organization → Tenant(s)**. An orga
 
 The `iq_tenant_id` is a claim in the JWT issued at authentication time. Every API request carries the tenant context. Modules extract `iq_tenant_id` from the verified token and scope all data operations to it. Cross-tenant operations (consolidated analytics across an organization, org-wide reporting) use an organization-level principal with explicit Cerbos policies — this does not bypass tenant isolation but is an authorized cross-tenant access pattern. The detailed organization-tenant model is deferred to [hld/06-multi-tenancy.md](./06-multi-tenancy.md) in Part B.
 
+**Hierarchy depth.** The data model is intentionally flat: Organization → Tenant, two levels. Deeper organizational structures (hospital chain → regional group → individual hospital → department → ward) are represented as **organizational metadata** — hierarchy tables or attributes — not as nested tenants or nested organizations. Data isolation and authorization scoping are always at the tenant level (`iq_tenant_id`). Hierarchy metadata drives reporting dashboards, admin UIs, and aggregate views, but does not affect the data partition boundary.
+
+Multiple instances of the same department within a tenant (e.g., two pharmacy locations in a large hospital) are modeled as **locations or departments within the tenant**, expressed as Cerbos authorization attributes, not as separate tenants. A pharmacist assigned to "Pharmacy - Building A" has a Cerbos scope attribute; data is still partitioned by `iq_tenant_id`, not by pharmacy location.
+
 ### 6.2 Data isolation
 
 The default isolation model is a shared database with a tenant differentiator column. Every table that holds tenant-specific data includes an `iq_tenant_id` column, and every query is scoped to the authenticated tenant. This is enforced at the data access layer, not left to application code.
 
 For tenants with regulatory or contractual requirements for stronger isolation, the same logical model (shared schema, `iq_tenant_id` column) is preserved, but the data layer uses Citus sharding on `iq_tenant_id` to place a tenant's data on dedicated hardware. This achieves physical data separation without changing the data model or module code — `WHERE iq_tenant_id = X` works the same whether the data is co-located or on a dedicated shard (assuming Azure Database for PostgreSQL Flexible Server with Citus, or equivalent sharding on other database choices). The Configurator stores the isolation level per tenant.
 
-[TODO: ADR-0012 — Multi-tenancy isolation strategy]
+[ADR-0012 — Multi-tenancy isolation strategy](../adr/0012-multi-tenancy-isolation-strategy.md)
 
 ### 6.3 Tenant-specific authorization
 
 Cerbos supports scoped policies ([Cerbos scoped policies](https://docs.cerbos.dev/cerbos/latest/policies/scoped_policies)). Tenant-specific authorization rules are expressed as Cerbos scopes, not policy forks. A base policy defines the platform-wide rules; a tenant scope can tighten or adjust rules for a specific hospital. The `iq_tenant_id` from the JWT is passed as a scope identifier to Cerbos. This means tenant isolation is a base policy that all resource policies inherit — a misconfigured feature policy cannot accidentally leak data across tenants because the tenant isolation layer is structurally separate.
+
+### 6.4 User identity and multi-context assignment
+
+Users exist at the **platform level**, above any single organization or tenant. A user is a person (or service account) with a globally unique platform identity. Users are assigned to one or more organizations, and within each organization, to one or more tenants with context-specific roles.
+
+This model reflects real-world healthcare practice: a consulting cardiologist may practice at two hospitals (different orgs), a pathologist may serve three facilities within a hospital chain (same org, different tenants), and administrative staff may manage multiple tenants within an org.
+
+**Assignment model:**
+
+Each user has a set of assignments: `[(org_id, iq_tenant_id, roles[])]`. A user may have multiple assignments across different orgs and tenants.
+
+**Active context:**
+
+At login, the user selects (or the system determines via subdomain) their active context — one `org_id` and one `iq_tenant_id`. The JWT carries:
+
+- `user_id` — global, immutable platform identity
+- `org_id` — the active organization
+- `iq_tenant_id` — the active tenant
+- `roles` — the roles for the active context only
+
+Switching context (e.g., a doctor moving from Hospital A to Hospital B) produces a new JWT with the new active org/tenant/roles. The user's global identity remains the same.
+
+**Login UX models:**
+
+The platform supports both:
+- **Subdomain-based:** `hospital-a.platform.in` — tenant determined by URL, user authenticates within that context. Appropriate for on-prem and branded deployments.
+- **Tenant-switcher:** Single URL, user logs in and selects or switches between their assigned contexts. Appropriate for SaaS deployments. Similar to Slack's workspace switcher.
+
+The BFF resolves which model is active per organization via Configurator config. Both models produce the same JWT structure.
+
+This is analogous to AWS IAM's model: a user exists globally and assumes roles in different accounts. The User Management module owns the global user record and the assignment table. Shadow records for federated users (see [HLD 02 §1](02-core-modules.md#1-user-management)) are also global — a doctor who federates via Okta at Hospital A is recognized as the same person at Hospital B.
 
 ---
 
@@ -262,7 +297,7 @@ User Management retains a shadow record for every user who has ever acted on the
 
 Clinical emergencies require access to data outside a user's normal authorization scope. The architecture supports break-glass access: a clinician can override normal access controls by declaring an emergency reason. The Cerbos policy for break-glass requires: (a) the principal to have a role eligible for emergency override, (b) a stated reason captured at request time, and (c) post-hoc review — every break-glass event is flagged for mandatory review by a compliance officer. The audit record for a break-glass event captures the full context: who, what, when, why (the stated reason), and the subsequent review disposition.
 
-[TODO: ADR-NNNN]
+[TODO: ADR — Audit and compliance strategy (Part B)]
 
 ---
 

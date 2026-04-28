@@ -31,7 +31,7 @@ User Management is the identity authority for every principal that acts on the s
 
 The module wraps better-auth ([better-auth docs](https://www.better-auth.com/docs)) for local authentication (username/password, MFA) and federates to external Identity Providers (IdPs) via a thin `IdentityProvider` adapter interface. This interface abstracts the IdP so that the rest of the platform does not care whether a user authenticated against better-auth locally, against Microsoft Entra ID, against Okta, or against a hospital's existing Keycloak instance. The adapter produces a platform-standard JWT (JSON Web Token) regardless of the upstream source.
 
-[TODO: ADR-0003 — AuthN with better-auth + identity adapter pattern]
+[ADR-0003 — AuthN with better-auth + identity adapter pattern](../adr/0003-authn-better-auth-identity-adapter.md)
 
 ### 1.2 Owns
 
@@ -100,7 +100,7 @@ EMPI (Enterprise Master Patient Index) is the identity authority for every patie
 
 A patient may be known by different identifiers in different contexts: an ABHA (Ayushman Bharat Health Account) number from the national health ID system, a Medical Record Number (MRN) from a legacy HIS, an insurance policy ID, a phone number used at OPD registration. The EMPI links these identifiers to a single canonical patient identity and detects when two apparently different patients are actually the same person (deduplication).
 
-[TODO: ADR-0007 — EMPI as a dedicated platform service]
+[ADR-0007 — EMPI as a dedicated platform service](../adr/0007-empi-dedicated-platform-service.md)
 
 ### 2.2 Rationale for EMPI as a core module
 
@@ -259,7 +259,7 @@ The Configurator is not on the hot path of clinical workflows. No patient-facing
 
 - **Module enablement changes are deferred.** Enabling or disabling a module for a tenant requires the Configurator. Deferred until recovery.
 
-**Cache TTL trade-off:** A longer TTL means greater resilience to Configurator outages but slower propagation of configuration changes. A reasonable default is 5 minutes for feature flags (which may need rapid toggling) and 1 hour for module configuration (which changes infrequently). These values are themselves configurable via the Configurator. [TODO: ADR-0006]
+**Cache TTL trade-off:** A longer TTL means greater resilience to Configurator outages but slower propagation of configuration changes. A reasonable default is 5 minutes for feature flags (which may need rapid toggling) and 1 hour for module configuration (which changes infrequently). These values are themselves configurable via the Configurator. [ADR-0006 — Four core platform modules](../adr/0006-four-core-platform-modules.md)
 
 **Recovery:** When the Configurator comes back, modules that detect stale cache entries (via ETag comparison on next poll) refresh their configuration. No manual intervention required. Any configuration changes that were made during the outage (queued in the admin UI, or applied directly to the Configurator's database) take effect as modules refresh.
 
@@ -278,6 +278,18 @@ The module provides a single API that returns the effective reference data for a
 **Approach B — Separate types.** Global master data and tenant data are distinct types stored separately with no inheritance relationship. Tenants either copy the global dataset and customize it, or consuming modules query both sources and merge at the application level. *Advantages:* simpler mental model, clear data ownership — the global team manages master data, tenant admins manage their own. *Disadvantages:* massive duplication if tenants copy full catalogs (drug catalogs have thousands of entries), synchronization burden when global data updates (every tenant copy must be updated for drug recalls, new ICD codes), and if consuming modules merge instead, each module implements its own merge logic — a consistency risk.
 
 [OPEN: The EM and co-lead prefer separate types for simplicity. The recommendation is inheritance contained within the module, invisible to consumers. This is a meeting decision point — present both approaches with the trade-offs above.]
+
+**Scope of reference data ownership.** Master Data owns ALL reference catalogs used by the platform, including catalogs that only one module consumes. Examples:
+
+- **Drug catalog** — consumed primarily by Pharmacy and OPD (prescriptions), but owned by Master Data.
+- **Lab test catalog** — consumed primarily by Lab, but owned by Master Data.
+- **Radiology procedure catalog** — consumed primarily by Radiology, but owned by Master Data.
+- **ICD codes, SNOMED CT, LOINC** — consumed by multiple modules, owned by Master Data.
+- **Department and ward master** — consumed by authorization (Cerbos attributes) and scheduling, owned by Master Data.
+
+The principle: modules own their **operational data** (orders, results, visits, prescriptions — the records created during clinical workflows). Master Data owns the **reference data** those operations reference (the catalogs, code systems, and hierarchies that change infrequently and must be consistent across modules).
+
+This distinction matters for cache strategy: reference data is read-mostly and cache-aggressively with long TTLs. Operational data is read-write and not centrally cached.
 
 Regardless of the internal approach, this is a read-mostly service. Clinical modules query it constantly but rarely write to it. Writes are administrative: updating a drug catalog when a new drug is approved, adding ICD codes when WHO publishes a revision, adjusting a tenant's formulary.
 

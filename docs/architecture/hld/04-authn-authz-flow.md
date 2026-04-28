@@ -10,7 +10,7 @@ Cross-references: [System Overview](01-system-overview.md) for the identity plan
 
 ### 1.1 Primary AuthN provider
 
-The platform uses [better-auth](https://www.better-auth.com/docs) as the primary Authentication (AuthN) provider. better-auth is not exposed directly to modules. It is wrapped behind a thin `IdentityProvider` interface owned by the User Management core module. This interface defines the contract — issue token, verify token, refresh token, revoke session — and allows the underlying provider to be replaced without module-level changes [TODO: ADR-0003].
+The platform uses [better-auth](https://www.better-auth.com/docs) as the primary Authentication (AuthN) provider. better-auth is not exposed directly to modules. It is wrapped behind a thin `IdentityProvider` interface owned by the User Management core module. This interface defines the contract — issue token, verify token, refresh token, revoke session — and allows the underlying provider to be replaced without module-level changes ([ADR-0003](../adr/0003-authn-better-auth-identity-adapter.md)).
 
 ### 1.2 Federation
 
@@ -82,7 +82,7 @@ Each module pod deploys a Cerbos PDP as a sidecar container. The module communic
 - **Availability.** Each module's authorization is independent. A problem with one module's sidecar does not affect other modules.
 - **Scalability.** Authorization scales with the module — more module replicas means more PDP capacity, with no central bottleneck.
 
-Logically, there is one policy authority (one set of policies). Physically, every module pod runs its own PDP evaluating those same policies. [TODO: ADR-0004]
+Logically, there is one policy authority (one set of policies). Physically, every module pod runs its own PDP evaluating those same policies. [ADR-0004](../adr/0004-authz-cerbos-sidecar.md)
 
 ### 3.3 Policies as code
 
@@ -196,7 +196,7 @@ The BFF is an optimization layer, not a security boundary. If the BFF is comprom
 
 This design means modules can be deployed behind the BFF or accessed directly (e.g., by other modules making service-to-service calls) with the same security guarantees.
 
-`[TODO: ADR-0015]`
+[ADR-0015 — BFF role and zero-trust between modules](../adr/0015-bff-role-zero-trust.md)
 
 ---
 
@@ -291,6 +291,46 @@ Cerbos also supports an [Admin API with database-backed storage](https://docs.ce
 The default token lifetime is 15 minutes with refresh tokens. For clinical workflows where a doctor may be actively working for hours, the refresh mechanism must be seamless. The exact refresh strategy (silent refresh via BFF, rotating refresh tokens) is not yet decided.
 
 `[OPEN: needs decision — token refresh UX for long clinical sessions]`
+
+---
+
+## 12. Frontend authorization
+
+Authorization decisions on the frontend are a **UX optimization**, not a security boundary. The backend always re-checks via Cerbos. Frontend permission data can be stale; the backend PDP is authoritative.
+
+### 12.1 Permission map on login
+
+On login or context switch, the frontend calls a dedicated permissions endpoint. This endpoint uses Cerbos's `PlanResources` API to compute what the active user can access — which modules, which features within each module, and which actions (read, write, delete) per feature. The result is a structured permission map:
+
+```json
+{
+  "opd": { "registration": { "read": true, "write": true }, "prescription": { "read": true, "write": false } },
+  "lab": { "orders": { "read": true, "write": true }, "results": { "read": true, "write": false } },
+  "pharmacy": { "dispensing": { "read": false, "write": false } }
+}
+```
+
+This map is cached client-side for the session duration and refreshed on context switch.
+
+### 12.2 Cerbos client SDKs
+
+Cerbos provides official client libraries for frontend integration:
+
+- **`@cerbos/react`** — React hooks for per-component authorization checks. A `<CerbosProvider>` wraps the app; individual components use `useIsAllowed()` or `useCheckResource()` hooks to conditionally render based on the user's permissions.
+- **`@cerbos/http`** — Browser-compatible HTTP client for direct PDP communication.
+- **`@cerbos/embedded`** — Runs a WebAssembly PDP on-device, evaluating policies locally without network calls. Relevant for offline or low-connectivity scenarios (rural health centers).
+
+### 12.3 UI rendering pattern
+
+UI components conditionally render based on the permission map:
+
+- **Navigation:** Module tabs and menu items are shown/hidden based on top-level module access.
+- **Features within a module:** Feature sections, buttons, and form fields are shown/hidden or disabled based on feature-level permissions.
+- **Actions:** Write/delete buttons are disabled for read-only users. The UI never shows a button that the backend will reject.
+
+This is enforced at the component level via the React SDK hooks or a permission-checking utility, not by manual `if` checks scattered throughout the UI code.
+
+[ADR-0004 — AuthZ with Cerbos sidecar](../adr/0004-authz-cerbos-sidecar.md) | [ADR-0015 — BFF role and zero-trust](../adr/0015-bff-role-zero-trust.md)
 
 ---
 
