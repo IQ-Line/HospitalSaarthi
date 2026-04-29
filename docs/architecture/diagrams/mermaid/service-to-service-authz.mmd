@@ -1,0 +1,34 @@
+sequenceDiagram
+    autonumber
+    participant OPD as OPD Module
+    participant Lab as Lab Module
+    participant LPEP as Lab PEP
+    participant LCer as Lab Cerbos PDP<br/>(sidecar)
+    participant LDB as Lab Database
+    participant Bus as Event Bus
+
+    Note over OPD,Bus: Doctor orders a lab test — OPD calls Lab via service account
+
+    OPD->>OPD: Doctor's request authorized<br/>at OPD boundary (user principal)
+
+    OPD->>Lab: POST /lab/orders<br/>(OPD service-account JWT)
+    Note over OPD,Lab: JWT claims: {sub: opd-svc,<br/>kind: service, iq_tenant_id: hospital_a}
+
+    Lab->>LPEP: Intercept request
+    LPEP->>LPEP: Construct principal from JWT
+    Note over LPEP: Principal: {id: opd-svc,<br/>kind: service, roles: [opd_service]}
+
+    LPEP->>LCer: CheckResources (loopback gRPC)
+    Note over LPEP,LCer: Resource: {kind: lab:order}<br/>Action: create
+
+    LCer->>LCer: Evaluate service-account policy<br/>→ opd_service + lab:order:create = ALLOW
+    LCer-->>LPEP: EFFECT_ALLOW
+
+    LPEP->>Lab: Proceed to business logic
+
+    Lab->>LDB: Create lab order<br/>(iq_tenant_id, patient EMPI ID,<br/>test codes, originating_user_id)
+    Note over LDB: originating_user_id preserved<br/>for audit trail (not for authz)
+
+    LDB-->>Lab: Order saved
+    Lab->>Bus: Publish lab.order.created event
+    Lab-->>OPD: 201 Created (order ID)

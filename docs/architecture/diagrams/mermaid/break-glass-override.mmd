@@ -1,0 +1,45 @@
+sequenceDiagram
+    autonumber
+    actor Doc as Emergency Doctor
+    participant FE as Frontend (SPA)
+    participant OPD as OPD Module
+    participant PEP as PEP Middleware
+    participant Cerbos as Cerbos PDP<br/>(sidecar)
+    participant DB as OPD Database
+    participant Audit as Audit Stream
+
+    Note over Doc,Audit: Doctor needs psychiatric records outside their department — normal access denied
+
+    Doc->>FE: View patient record<br/>(psychiatric, different dept)
+    FE->>OPD: GET /opd/patients/{id}/records<br/>(Bearer JWT)
+
+    OPD->>PEP: Intercept request
+    PEP->>Cerbos: CheckResources (loopback gRPC)
+    Note over PEP,Cerbos: Principal: {doctor, dept: cardiology}<br/>Resource: {sensitivity: psychiatric,<br/>  dept: psychiatry}<br/>Action: view
+
+    Cerbos-->>PEP: EFFECT_DENY
+    PEP-->>FE: 403 Forbidden
+
+    FE-->>Doc: Access denied — Break Glass available
+
+    Doc->>FE: Activate Break Glass<br/>(enter reason: "emergency consult")
+    FE->>OPD: GET /opd/patients/{id}/records<br/>+ X-Break-Glass: true<br/>+ X-Break-Glass-Reason: "emergency consult"
+
+    OPD->>PEP: Intercept with break-glass flag
+    PEP->>Cerbos: CheckResources (loopback gRPC)
+    Note over PEP,Cerbos: Same principal + resource,<br/>but action now: view:break_glass<br/>+ attr: {reason: "emergency consult"}
+
+    Cerbos->>Cerbos: Break-glass policy evaluates:<br/>→ role physician = eligible<br/>→ reason field present = required<br/>→ ALLOW with review_required flag
+
+    Cerbos-->>PEP: EFFECT_ALLOW<br/>+ metadata: {review_required: true}
+
+    PEP->>Audit: Log break-glass access<br/>(who, what, when, reason,<br/>review_required: true)
+
+    PEP->>OPD: Proceed with audit flag
+
+    OPD->>DB: Fetch psychiatric record
+    DB-->>OPD: Record data
+    OPD-->>FE: 200 OK (record data)
+    FE-->>Doc: Record displayed<br/>(banner: "Break Glass — under review")
+
+    Note over Audit: Post-hoc review workflow triggered<br/>→ compliance officer reviews within 24h

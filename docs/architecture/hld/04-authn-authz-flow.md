@@ -111,6 +111,51 @@ The split between policy-as-code and data-as-config is deliberate and load-beari
 
 If policies and data are mixed, either operational changes require code deployments (too slow) or policy changes bypass code review (too risky). The split gives each type of change the governance model it needs ([NIST SP 800-162, §3.2 — ABAC Concepts](https://csrc.nist.gov/pubs/sp/800/162/final)).
 
+### 3.6 AuthZ configuration pipeline and runtime evaluation
+
+The following diagram traces both the deploy-time policy lifecycle (how policies get from Git to the sidecar) and the request-time evaluation chain (how a single authorization check resolves through nested scoping — base tenant isolation, resource policy, derived roles, scoped policy overrides, and CEL conditions).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Dev as Policy Author
+    participant Git as Git Repository
+    participant CI as CI Pipeline
+    participant Bundle as Policy Bundle
+    participant Sidecar as Cerbos PDP (sidecar)
+    participant PEP as PEP Middleware
+    participant App as Module Business Logic
+
+    Note over Dev,Bundle: CONFIGURATION — policy-as-code pipeline
+    Dev->>Git: Push YAML policy files
+    Git->>CI: PR triggers pipeline
+    CI->>CI: cerbos compile + cerbos test
+    alt Tests pass
+        CI->>Bundle: Build + distribute policy bundle
+        Bundle->>Sidecar: Sidecar pulls updated bundle
+        Sidecar->>Sidecar: Pre-compile policies in memory
+    else Tests fail
+        CI-->>Dev: PR blocked — fix policy
+    end
+
+    Note over PEP,App: CONSUMPTION — runtime evaluation with nested scoping
+    App->>PEP: Incoming request
+    PEP->>PEP: Construct CheckResources request
+
+    PEP->>Sidecar: CheckResources (loopback gRPC)
+    Note over Sidecar: Policy resolution chain:
+    Sidecar->>Sidecar: 1. Base tenant isolation (principal.tenant == resource.tenant?)
+    Sidecar->>Sidecar: 2. Resource policy for opd:consultation:notes
+    Sidecar->>Sidecar: 3. Derived role check (treating_physician?)
+    Sidecar->>Sidecar: 4. Scoped policy (tenant-specific override)
+    Sidecar->>Sidecar: 5. CEL condition evaluation
+    Sidecar-->>PEP: EFFECT_DENY + matched policy metadata
+    PEP-->>App: 403 Forbidden
+    Note over PEP: Decision logged to audit stream
+```
+
+Source file: [`diagrams/mermaid/authz-config-and-consumption.mmd`](../diagrams/mermaid/authz-config-and-consumption.mmd)
+
 ---
 
 ## 4. Request authorization flow
@@ -174,7 +219,34 @@ This separation exists because: (a) the OPD module has already authorized the us
 
 Service-to-service authorization uses the same Cerbos policy infrastructure as user authorization. There is no separate service mesh authorization layer. Cerbos policies for service accounts define which service can call which endpoints on which other service. This keeps authorization logic in one place rather than splitting it between application-level Cerbos and infrastructure-level service mesh policies.
 
-`[TODO: diagram — service-to-service AuthZ sequence]`
+```mermaid
+sequenceDiagram
+    autonumber
+    participant OPD as OPD Module
+    participant Lab as Lab Module
+    participant LPEP as Lab PEP
+    participant LCer as Lab Cerbos PDP (sidecar)
+    participant LDB as Lab Database
+    participant Bus as Event Bus
+
+    Note over OPD,Bus: Doctor orders lab test — OPD calls Lab via service account
+
+    OPD->>OPD: Doctor's request authorized at OPD boundary
+    OPD->>Lab: POST /lab/orders (OPD service-account JWT)
+    Note over OPD,Lab: JWT: {sub: opd-svc, kind: service, iq_tenant_id: hospital_a}
+
+    Lab->>LPEP: Intercept request
+    LPEP->>LCer: CheckResources (loopback gRPC)
+    Note over LPEP,LCer: Principal: {opd-svc, kind: service}<br/>Action: lab:order:create
+    LCer-->>LPEP: EFFECT_ALLOW
+    LPEP->>Lab: Proceed
+
+    Lab->>LDB: Create lab order (originating_user_id for audit)
+    Lab->>Bus: Publish lab.order.created event
+    Lab-->>OPD: 201 Created
+```
+
+Source file: [`diagrams/mermaid/service-to-service-authz.mmd`](../diagrams/mermaid/service-to-service-authz.mmd)
 
 ---
 
@@ -270,7 +342,39 @@ The platform supports a **break-glass** mechanism:
 
 Break-glass access is policy-controlled, not a backdoor. The rules governing when it is available, who can invoke it, and what review is required are all expressed as Cerbos policies — code-reviewed, tested, and auditable like any other policy.
 
-`[TODO: diagram — break-glass sequence]`
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Doc as Emergency Doctor
+    participant FE as Frontend (SPA)
+    participant OPD as OPD Module
+    participant PEP as PEP Middleware
+    participant Cerbos as Cerbos PDP (sidecar)
+    participant Audit as Audit Stream
+
+    Doc->>FE: View patient record (psychiatric, different dept)
+    FE->>OPD: GET /opd/patients/{id}/records
+    OPD->>PEP: Intercept request
+    PEP->>Cerbos: CheckResources
+    Cerbos-->>PEP: EFFECT_DENY
+    PEP-->>FE: 403 Forbidden
+    FE-->>Doc: Access denied — Break Glass available
+
+    Doc->>FE: Activate Break Glass (enter reason)
+    FE->>OPD: GET with X-Break-Glass + reason
+    OPD->>PEP: Intercept with break-glass flag
+    PEP->>Cerbos: CheckResources (action: view:break_glass)
+    Note over Cerbos: Break-glass policy: physician + reason present → ALLOW with review flag
+    Cerbos-->>PEP: EFFECT_ALLOW + review_required
+    PEP->>Audit: Log break-glass access (who, what, when, reason)
+    PEP->>OPD: Proceed with audit flag
+    OPD-->>FE: 200 OK (record data)
+    FE-->>Doc: Record displayed (banner: under review)
+
+    Note over Audit: Post-hoc review triggered → compliance officer reviews within 24h
+```
+
+Source file: [`diagrams/mermaid/break-glass-override.mmd`](../diagrams/mermaid/break-glass-override.mmd)
 
 ---
 

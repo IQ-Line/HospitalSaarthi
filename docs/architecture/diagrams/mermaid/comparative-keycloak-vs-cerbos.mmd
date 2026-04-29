@@ -1,0 +1,41 @@
+sequenceDiagram
+    autonumber
+
+    box rgb(80, 30, 30) Option A — Keycloak Authorization Services (REJECTED)
+    participant ModA as Module Pod
+    participant NetA as Network
+    participant KC as Keycloak Server<br/>(centralized, JVM)
+    participant DBA as Keycloak DB
+    end
+
+    Note over ModA,DBA: Keycloak AuthZ — centralized evaluation
+
+    ModA->>NetA: Authorization request (HTTP/REST)
+    Note over NetA: Network hop required —<br/>Keycloak runs as separate<br/>JVM cluster (512MB–1GB RAM)
+
+    NetA->>KC: Evaluate permission
+    KC->>DBA: Fetch policies + permission data<br/>(stored in DB, not Git)
+    DBA-->>KC: Policies + data
+    KC->>KC: UMA evaluation<br/>(resource owner model —<br/>poor fit for institutional access)
+    KC-->>NetA: Permission result
+    NetA-->>ModA: ALLOW/DENY
+
+    Note over ModA,DBA: Latency: 5–50ms (network + JVM + DB I/O)<br/>SPOF: Keycloak cluster down = ALL modules lose AuthZ<br/>Policies: UI/REST only, no Git, no PR review, no CI tests
+
+    Note over ModA,DBA: ─────────────────────────────────────
+
+    box rgb(20, 50, 30) Option B — Cerbos Sidecar (CHOSEN)
+    participant ModB as Module Pod
+    participant Cer as Cerbos PDP<br/>(sidecar, ~30MB)
+    end
+
+    Note over ModB,Cer: Cerbos — co-located evaluation
+
+    ModB->>Cer: CheckResources (loopback gRPC)
+    Note over Cer: localhost — no network hop<br/>Policies pre-compiled in memory<br/>from Git-versioned YAML bundle
+
+    Cer->>Cer: Evaluate: tenant isolation<br/>→ resource policy → derived roles<br/>→ scoped policy → CEL conditions
+
+    Cer-->>ModB: EFFECT_ALLOW + policy metadata
+
+    Note over ModB,Cer: Latency: <1ms (in-memory, loopback)<br/>No SPOF: each pod has its own PDP<br/>Policies: Git-versioned, PR-reviewed, CI-tested<br/>Memory: ~30–50MB per sidecar

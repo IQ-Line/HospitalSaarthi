@@ -1,0 +1,52 @@
+sequenceDiagram
+    autonumber
+    actor Clerk as Front-Desk Clerk
+    participant FE as Frontend (SPA)
+    participant BFF as BFF / API Gateway
+    participant OPD as OPD Module
+    participant PEP as PEP Middleware
+    participant Cerbos as Cerbos PDP<br/>(sidecar)
+    participant EMPI as EMPI Service
+    participant DB as OPD Database
+    participant Bus as Event Bus
+
+    Clerk->>FE: Enter patient details
+    FE->>BFF: POST /opd/patients (Bearer JWT)
+
+    Note over BFF: Verify JWT signature<br/>via JWKS (cached)
+    BFF->>BFF: Signature valid, not expired
+
+    BFF->>OPD: Forward request + JWT
+
+    Note over OPD: Identity adapter verifies<br/>JWT independently (zero-trust)
+    OPD->>OPD: Construct Principal from claims<br/>(user_id, iq_tenant_id, roles, dept)
+
+    OPD->>PEP: Intercept before business logic
+    PEP->>Cerbos: CheckResources over loopback gRPC
+    Note over PEP,Cerbos: Principal: {clerk, roles:[front_desk]}<br/>Resource: {kind: opd:patient}<br/>Action: register
+
+    Cerbos->>Cerbos: Evaluate: base tenant isolation<br/>→ resource policy → scoped policy
+    Cerbos-->>PEP: EFFECT_ALLOW
+
+    PEP->>OPD: Proceed to business logic
+
+    OPD->>EMPI: SearchPatient(name, DOB, phone)
+    Note over EMPI: Dedup check — exact match<br/>on (name, DOB, phone)
+
+    alt Patient exists
+        EMPI-->>OPD: Matched patient (EMPI ID)
+        OPD-->>FE: 200 OK (existing patient record)
+        FE-->>Clerk: Patient already registered (show record)
+    else New patient
+        EMPI->>EMPI: Create canonical patient record
+        EMPI-->>OPD: New EMPI ID
+
+        OPD->>DB: Create OPD registration<br/>(EMPI ID, iq_tenant_id, visit details)
+        DB-->>OPD: Registration saved
+
+        OPD->>Bus: Publish patient.registered event
+        Note over Bus: Consumed by downstream modules<br/>(billing, queue management, audit)
+
+        OPD-->>FE: 201 Created (registration + EMPI ID)
+        FE-->>Clerk: Registration confirmed
+    end

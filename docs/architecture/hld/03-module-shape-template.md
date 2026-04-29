@@ -37,9 +37,42 @@ In service mode, every module ships as a Kubernetes pod containing three contain
 
 The pod is the deployment atom. Scaling the module means scaling the pod; each replica carries its own Cerbos PDP sidecar. There is no shared PDP cluster — this is deliberate. A module's authorization decisions depend only on its own sidecar, not on network availability to a central PDP. This is the physical view of the zero-trust model described in [AuthN/AuthZ Flow](04-authn-authz-flow.md).
 
-`[TODO: diagram — module anatomy]`
+**Module anatomy diagram** — open [`diagrams/excalidraw/module-anatomy.excalidraw`](../diagrams/excalidraw/module-anatomy.excalidraw) in [excalidraw.com](https://excalidraw.com) for the full interactive view. A simplified Mermaid rendition follows:
 
-The module anatomy diagram (Excalidraw, to be added in P3) will show: the pod boundary, the three internal components, loopback gRPC between the service and the Cerbos sidecar, the identity adapter within the service container, inbound request flow from the BFF, outbound event publication, and the database owned by the module.
+```mermaid
+flowchart TB
+    REQ["Request from BFF"] --> POD
+
+    subgraph POD["Kubernetes Pod (e.g., OPD Module)"]
+        subgraph SVC["Module Service Container"]
+            IA["Identity Adapter (library)<br/>JWT verification via JWKS · Principal construction"]
+            PEP["PEP Middleware (shared SDK)<br/>CheckResources / PlanResources"]
+            BIZ["Business Logic (Ports & Adapters)<br/>Domain layer · Application services"]
+            DBA["DB Adapter<br/>(module's own schema)"]
+            EVP["Event Publisher<br/>(domain events out)"]
+            EVC["Event Consumer<br/>(subscriptions from other modules)"]
+        end
+
+        subgraph CERBOS["Cerbos PDP Sidecar"]
+            ENG["Policy Engine<br/>(in-memory, ~30MB)"]
+            POL["YAML Policies<br/>(Git bundle mount)"]
+            DER["Derived Roles · Scoped Policies · CEL"]
+            AUD["Decision Audit Log"]
+        end
+    end
+
+    PEP <-->|"loopback gRPC<br/>(localhost)"| ENG
+
+    DBA --> DB["Module Database<br/>(PostgreSQL schema)"]
+    EVP --> BUS["Event Bus<br/>(async domain events)"]
+    EVC -.-> BUS
+    GIT["Git Policy Repo<br/>(CI → bundle)"] -.-> POL
+
+    IA --> PEP --> BIZ --> DBA
+    BIZ --> EVP
+```
+
+Source file: [`diagrams/excalidraw/module-anatomy.excalidraw`](../diagrams/excalidraw/module-anatomy.excalidraw)
 
 ---
 
@@ -467,9 +500,52 @@ These FHIR endpoints serve both internal consumers (the patient portal's "my med
 
 Internally, the Pharmacy module stores dispensation data in a relational schema optimized for its operational queries. The FHIR mapping happens at the API boundary.
 
-`[TODO: diagram — OPD patient registration sequence]`
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Clerk as Front-Desk Clerk
+    participant FE as Frontend (SPA)
+    participant BFF as BFF / API Gateway
+    participant OPD as OPD Module
+    participant PEP as PEP Middleware
+    participant Cerbos as Cerbos PDP (sidecar)
+    participant EMPI as EMPI Service
+    participant DB as OPD Database
+    participant Bus as Event Bus
 
-The OPD patient registration sequence diagram (Mermaid, to be added in P3) will exercise the full module shape template: a front-desk staff member registers a walk-in patient through the BFF, the OPD module's identity adapter verifies the JWT, the PEP checks authorization via Cerbos, the OPD module calls EMPI synchronously for dedup check (a justified synchronous call), a patient record is created, events are published, and the audit trail is captured.
+    Clerk->>FE: Enter patient details
+    FE->>BFF: POST /opd/patients (Bearer JWT)
+    Note over BFF: Verify JWT signature via JWKS (cached)
+    BFF->>OPD: Forward request + JWT
+    Note over OPD: Identity adapter verifies JWT independently (zero-trust)
+    OPD->>OPD: Construct Principal from claims
+
+    OPD->>PEP: Intercept before business logic
+    PEP->>Cerbos: CheckResources over loopback gRPC
+    Cerbos->>Cerbos: Evaluate: tenant isolation → resource policy → scoped policy
+    Cerbos-->>PEP: EFFECT_ALLOW
+    PEP->>OPD: Proceed to business logic
+
+    OPD->>EMPI: SearchPatient(name, DOB, phone)
+    Note over EMPI: Dedup check — exact match on (name, DOB, phone)
+
+    alt Patient exists
+        EMPI-->>OPD: Matched patient (EMPI ID)
+        OPD-->>FE: 200 OK (existing patient record)
+        FE-->>Clerk: Patient already registered (show record)
+    else New patient
+        EMPI->>EMPI: Create canonical patient record
+        EMPI-->>OPD: New EMPI ID
+        OPD->>DB: Create OPD registration (EMPI ID, iq_tenant_id)
+        OPD->>Bus: Publish patient.registered event
+        OPD-->>FE: 201 Created
+        FE-->>Clerk: Registration confirmed
+    end
+```
+
+Source file: [`diagrams/mermaid/opd-patient-registration.mmd`](../diagrams/mermaid/opd-patient-registration.mmd)
+
+This sequence exercises the full module shape template: identity adapter (JWT verification), PEP middleware (Cerbos check), a justified synchronous EMPI call (dedup), event publication, and audit capture.
 
 ---
 

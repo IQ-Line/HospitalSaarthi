@@ -71,7 +71,39 @@ A hospital running only the Pharmacy module of the HIMS platform still needs pat
 
 This is the architectural enabler for fragmented adoption — a hospital does not need to replace everything at once. It can adopt one module and connect the rest through the Integration Hub.
 
-`[TODO: diagram — external hospital fragmented adoption]`
+```mermaid
+sequenceDiagram
+    autonumber
+    participant LIS as Legacy HIS
+    participant IGW as Inbound Gateway
+    participant Map as Mapping / Translation Engine
+    participant Pharm as Pharmacy Module
+    participant PEP as PEP Middleware
+    participant Cerbos as Cerbos PDP (sidecar)
+    participant DB as Pharmacy Database
+    participant Bus as Event Bus
+
+    Note over LIS,Bus: Hospital runs Pharmacy module only — legacy HIS handles OPD, IPD, Lab
+
+    LIS->>IGW: HL7v2 OMP (pharmacy order) via mTLS
+    Note over IGW: Authenticate · Validate HL7v2 · Rate-limit
+    IGW->>Map: Route to mapping engine
+    Map->>Map: Translate HL7v2 → internal event<br/>(map legacy codes → platform IDs)
+    Map->>Pharm: POST /pharmacy/orders (service-account JWT)
+
+    Pharm->>PEP: Intercept request
+    PEP->>Cerbos: CheckResources (loopback gRPC)
+    Note over PEP,Cerbos: Principal: {legacy_his, kind: partner}
+    Cerbos-->>PEP: EFFECT_ALLOW
+    PEP->>Pharm: Proceed
+
+    Pharm->>DB: Create prescription order (iq_tenant_id)
+    Pharm->>Bus: Publish order.created event
+    Pharm-->>IGW: 201 Created
+    IGW-->>LIS: HL7v2 ACK
+```
+
+Source file: [`diagrams/mermaid/fragmented-adoption.mmd`](../diagrams/mermaid/fragmented-adoption.mmd)
 
 ---
 

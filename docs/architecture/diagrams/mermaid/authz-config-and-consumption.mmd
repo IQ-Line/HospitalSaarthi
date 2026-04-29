@@ -1,0 +1,54 @@
+sequenceDiagram
+    autonumber
+
+    box rgb(40, 40, 60) Policy Lifecycle (deploy-time)
+    actor Dev as Policy Author
+    participant Git as Git Repository
+    participant CI as CI Pipeline
+    participant Bundle as Policy Bundle<br/>Distribution
+    end
+
+    box rgb(30, 60, 40) Runtime Evaluation (request-time)
+    participant Sidecar as Cerbos PDP<br/>(sidecar per pod)
+    participant PEP as PEP Middleware
+    participant App as Module Business Logic
+    end
+
+    Note over Dev,Bundle: CONFIGURATION — policy-as-code pipeline
+
+    Dev->>Git: Push YAML policy files
+    Note over Git: resource policies, derived roles,<br/>scoped policies (per-tenant overrides),<br/>test fixtures
+
+    Git->>CI: PR triggers pipeline
+
+    CI->>CI: cerbos compile (validate syntax)
+    CI->>CI: cerbos test (run policy tests<br/>against fixture data)
+
+    alt Tests pass
+        CI->>Bundle: Build + distribute policy bundle
+        Bundle->>Sidecar: Sidecar pulls updated bundle<br/>(Git sync or bundle fetch)
+        Sidecar->>Sidecar: Pre-compile policies in memory
+    else Tests fail
+        CI-->>Dev: PR blocked — fix policy
+    end
+
+    Note over PEP,App: CONSUMPTION — runtime evaluation with nested scoping
+
+    App->>PEP: Incoming request
+    PEP->>PEP: Construct CheckResources request
+    Note over PEP: Principal: {doctor, roles:[physician],<br/>  attr: {dept: cardiology, tenant: hospital_a}}<br/>Resource: {kind: opd:consultation:notes,<br/>  attr: {tenant: hospital_a, sensitivity: psychiatric}}<br/>Action: view
+
+    PEP->>Sidecar: CheckResources (loopback gRPC)
+
+    Note over Sidecar: Policy resolution chain:
+
+    Sidecar->>Sidecar: 1. Base tenant isolation policy<br/>→ principal.tenant == resource.tenant?
+    Sidecar->>Sidecar: 2. Resource policy for opd:consultation:notes<br/>→ role physician + action view = ALLOW<br/>   UNLESS sensitivity == psychiatric
+    Sidecar->>Sidecar: 3. Derived role check<br/>→ treating_physician? (doctor-patient<br/>   assignment lookup via attr)
+    Sidecar->>Sidecar: 4. Scoped policy (hospital_a)<br/>→ tenant override: psychiatric notes<br/>   require treating_physician role
+    Sidecar->>Sidecar: 5. CEL condition evaluation<br/>→ resource.sensitivity == "psychiatric"<br/>   && !principal.derived_roles.contains(<br/>   "treating_physician") → DENY
+
+    Sidecar-->>PEP: EFFECT_DENY + matched policy metadata
+
+    PEP-->>App: 403 Forbidden (opaque to client)
+    Note over PEP: Decision logged to audit stream:<br/>who, what, when, which policy matched

@@ -1,8 +1,18 @@
 # HLD 01 — System Overview
 
 **Status:** First draft for alignment meeting  
-**Last updated:** 2026-04-27  
+**Last updated:** 2026-04-29  
 **Related:** [02-core-modules.md](./02-core-modules.md) | [03-module-shape-template.md](./03-module-shape-template.md) | [04-authn-authz-flow.md](./04-authn-authz-flow.md) | [05-integration-and-interop.md](./05-integration-and-interop.md)
+
+---
+
+## Executive summary
+
+This document proposes the high-level architecture for a Hospital Information Management System covering the full AIIMS New Delhi "Digital AIIMS" EOI scope — approximately 38 functional areas spanning clinical operations, diagnostics, administration, and academic management. The central design constraint is **fragmented adoption**: hospitals must be able to deploy as few as one or two modules alongside their existing legacy systems, with a standards-based integration layer (FHIR R4, HL7v2) bridging the gap, and grow toward a full platform deployment over time without re-architecture. This constraint drives every major decision — per-module data ownership, event-driven inter-module communication, federated identity, and a multi-tenant data model that serves AIIMS on dedicated infrastructure and a small district hospital on shared cloud from the same codebase.
+
+The architecture is organized around **four core platform modules** that are always deployed (User Management for staff/system identity, EMPI for patient identity, Configurator for tenant provisioning and feature control, Master & Tenant Data for reference datasets), a **uniform module shape template** that every feature module follows (independently deployable pods with an identity adapter, PEP authorization middleware, a Cerbos policy sidecar, event publishers/consumers, and FHIR boundaries), and a **policy-as-code authorization model** where access rules are YAML files versioned in Git and tested in CI, while the runtime permission data — role assignments, department scopes, tenant-specific overrides — is managed through an admin UI and evaluated by Cerbos at sub-millisecond latency via a co-located sidecar per pod.
+
+This document and its four companions ([Core Modules](./02-core-modules.md), [Module Shape Template](./03-module-shape-template.md), [AuthN/AuthZ Flow](./04-authn-authz-flow.md), [Integration & Interop](./05-integration-and-interop.md)) are presented for alignment. Six open questions are listed in [Section 1](#1-open-questions) below — these are the items that need the room's input before detailed module design proceeds.
 
 ---
 
@@ -95,7 +105,68 @@ This constraint drives almost every architectural decision:
 - No synchronous inter-module dependencies by default. Modules communicate via events. A module that cannot reach a sibling module must degrade, not fail.
 - Identity federation — the platform's identity layer must federate to external IdPs (Identity Providers) so that a hospital running one platform module alongside a legacy system does not force its users into a second login.
 
-[TODO: diagram — system context]
+**System context diagram** — open [`diagrams/excalidraw/system-context.excalidraw`](../diagrams/excalidraw/system-context.excalidraw) in [excalidraw.com](https://excalidraw.com) for the full interactive view. A simplified Mermaid rendition (GitHub-friendly) follows:
+
+```mermaid
+flowchart TB
+    subgraph Users
+        CU["Clinical Users<br/>(doctors, nurses, clerks)"]
+        HA["Hospital Admins"]
+    end
+
+    subgraph External["External Systems"]
+        IdP["External IdPs<br/>(Entra ID, Okta, SSO)"]
+        LIS["Legacy HIS"]
+        ABDM["ABDM / NHA"]
+    end
+
+    BFF["BFF / API Gateway<br/>JWT signature verification only"]
+
+    subgraph Platform["HIMS Platform"]
+        subgraph Core["Core Platform Modules (always-on)"]
+            UM["User Management<br/>(better-auth)"]
+            EMPI["EMPI /<br/>Patient Identity"]
+            CFG["Configurator<br/>(control plane)"]
+            MTD["Master &<br/>Tenant Data"]
+        end
+
+        subgraph Feature["Feature Modules (hospital adopts subset)"]
+            OPD["OPD"]
+            IPD["IPD"]
+            PHM["Pharmacy"]
+            LAB["Lab"]
+            MORE["… + 34 more"]
+        end
+
+        CERBOS["Cerbos PDP sidecar per pod — YAML policies, Git-versioned, CI-tested"]
+
+        BUS["Event Bus (FHIR R4 payloads for clinical, lean domain for operational)"]
+
+        subgraph Integration["Integration Hub"]
+            IGW["Inbound Gateway<br/>(HL7v2/FHIR from legacy)"]
+            OBC["Outbound Connector<br/>(ABDM, insurers, reporting)"]
+        end
+    end
+
+    subgraph Tenants["Multi-Tenant Data Layer"]
+        TA["Tenant A<br/>(AIIMS Delhi)"]
+        TB["Tenant B<br/>(District Hospital)"]
+        TC["Tenant C<br/>(Private Pharmacy)"]
+        TN["… N tenants"]
+    end
+
+    CU --> BFF
+    HA --> BFF
+    BFF --> Core
+    BFF --> Feature
+    IdP -.->|OIDC / SAML / SCIM| UM
+    LIS -->|HL7v2 / FHIR R4| IGW
+    ABDM <-->|ABDM FHIR / webhooks| OBC
+    Core --> BUS
+    Feature --> BUS
+    BUS --> Integration
+    Platform --> Tenants
+```
 
 ---
 
@@ -186,7 +257,7 @@ Every Operational Plane module:
 - Pulls reference data from the Reference Plane (cached).
 - Communicates with peer Operational Plane modules via events (or, in fragmented deployments, via the Integration Hub to legacy systems occupying that role).
 
-[TODO: diagram — system context]
+See the [system context diagram above](#23-the-central-constraint-fragmented-adoption) for the full visual.
 
 ---
 
@@ -340,7 +411,39 @@ This is not a different architecture — it is the same module code packaged dif
 
 [Assumption: lite deployment is an aspiration, not a first-release requirement. The module shape template is designed to enable it, but the initial implementation targets service mode. Lite mode is a packaging exercise that can follow once the module libraries are stable.]
 
-[TODO: diagram — tenant onboarding]
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Admin as Platform Operator
+    participant Cfg as Configurator
+    participant UM as User Management
+    participant EMPI as EMPI Service
+    participant MTD as Master & Tenant Data
+    participant FM as Feature Modules
+    participant Bus as Event Bus
+
+    Admin->>Cfg: Create tenant (name, type, modules)
+    Cfg->>Cfg: Provision iq_tenant_id
+    Cfg->>UM: Create initial admin user
+    UM->>UM: Provision auth config (IdP, SCIM, Cerbos scope)
+    UM-->>Cfg: Admin user created
+    Cfg->>Bus: Publish tenant.provisioned event
+
+    par Parallel initialization
+        Bus->>EMPI: tenant.provisioned
+        EMPI->>EMPI: Initialize tenant-scoped patient index
+    and
+        Bus->>MTD: tenant.provisioned
+        MTD->>MTD: Make global reference datasets available
+    and
+        Bus->>FM: tenant.provisioned
+        FM->>FM: Initialize tenant-scoped schema/tables
+    end
+
+    Cfg->>Admin: Tenant provisioned (admin login URL)
+```
+
+Source file: [`diagrams/mermaid/tenant-onboarding.mmd`](../diagrams/mermaid/tenant-onboarding.mmd)
 
 ---
 

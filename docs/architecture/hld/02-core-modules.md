@@ -374,7 +374,7 @@ When a new hospital is onboarded:
 6. **Master & Tenant Data** makes global reference datasets available to the new tenant (no tenant overrides yet — they will be added by the hospital admin post-onboarding).
 7. Each enabled **feature module** receives the `tenant.provisioned` event and initializes its tenant-scoped schema/tables.
 
-[TODO: diagram — tenant onboarding sequence will be embedded here in P3]
+See the [tenant onboarding sequence diagram in the System Overview](01-system-overview.md#8-deployment-and-multi-tenancy) for the full visual. Source file: [`diagrams/mermaid/tenant-onboarding.mmd`](../diagrams/mermaid/tenant-onboarding.mmd)
 
 ### 5.2 Patient-facing request flow
 

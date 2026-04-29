@@ -1,0 +1,38 @@
+sequenceDiagram
+    autonumber
+    participant LIS as Legacy HIS<br/>(Hospital's existing system)
+    participant IGW as Inbound Gateway<br/>(Integration Hub)
+    participant Map as Mapping / Translation<br/>Engine
+    participant Pharm as Pharmacy Module
+    participant PEP as PEP Middleware
+    participant Cerbos as Cerbos PDP<br/>(sidecar)
+    participant DB as Pharmacy Database
+    participant Bus as Event Bus
+
+    Note over LIS,Bus: Hospital runs Pharmacy module only — legacy HIS handles OPD, IPD, Lab
+
+    LIS->>IGW: HL7v2 OMP (pharmacy order)<br/>via mTLS
+    Note over IGW: Authenticate (mTLS cert)<br/>Validate HL7v2 format<br/>Rate-limit check
+
+    IGW->>Map: Route to mapping engine
+
+    Map->>Map: Translate HL7v2 OMP →<br/>internal PrescriptionOrder event
+    Note over Map: Map legacy drug codes →<br/>platform drug catalog IDs<br/>Map legacy patient MRN →<br/>EMPI ID (via lookup)
+
+    Map->>Pharm: POST /pharmacy/orders<br/>(service-account JWT)
+
+    Pharm->>PEP: Intercept request
+    PEP->>Cerbos: CheckResources (loopback gRPC)
+    Note over PEP,Cerbos: Principal: {legacy_his, kind: partner}<br/>Resource: {kind: pharmacy:order}<br/>Action: create
+
+    Cerbos-->>PEP: EFFECT_ALLOW
+
+    PEP->>Pharm: Proceed
+
+    Pharm->>DB: Create prescription order<br/>(iq_tenant_id, EMPI ID, drugs)
+    DB-->>Pharm: Order saved
+
+    Pharm->>Bus: Publish order.created event
+
+    Pharm-->>IGW: 201 Created (order ID)
+    IGW-->>LIS: HL7v2 ACK

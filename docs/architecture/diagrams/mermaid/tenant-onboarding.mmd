@@ -1,0 +1,41 @@
+sequenceDiagram
+    autonumber
+    actor Admin as Platform Operator
+    participant Cfg as Configurator
+    participant UM as User Management
+    participant EMPI as EMPI Service
+    participant MTD as Master &<br/>Tenant Data
+    participant FM as Feature Modules<br/>(OPD, Pharmacy, Lab…)
+    participant Bus as Event Bus
+
+    Admin->>Cfg: Create tenant<br/>(name, type, isolation level, enabled modules)
+
+    Cfg->>Cfg: Provision iq_tenant_id<br/>Initialize tenant config record
+
+    Cfg->>UM: Create initial admin user<br/>(admin credentials, iq_tenant_id)
+
+    UM->>UM: Provision tenant auth config<br/>(IdP selection, SCIM endpoints,<br/>Cerbos scope identifier)
+
+    UM-->>Cfg: Admin user created
+
+    Cfg->>Bus: Publish tenant.provisioned event
+    Note over Bus: Event payload includes:<br/>iq_tenant_id, enabled modules,<br/>data isolation level
+
+    par Parallel initialization
+        Bus->>EMPI: tenant.provisioned
+        EMPI->>EMPI: Initialize tenant-scoped<br/>patient index (empty)
+        EMPI-->>Bus: Ready
+    and
+        Bus->>MTD: tenant.provisioned
+        MTD->>MTD: Make global reference datasets<br/>available to new tenant<br/>(ICD, drug catalog, SNOMED…)
+        Note over MTD: No tenant overrides yet —<br/>hospital admin adds later
+        MTD-->>Bus: Ready
+    and
+        Bus->>FM: tenant.provisioned
+        FM->>FM: Initialize tenant-scoped<br/>schema / tables per module
+        FM-->>Bus: Ready
+    end
+
+    Cfg->>Admin: Tenant provisioned<br/>(admin login URL, initial credentials)
+
+    Note over Admin,FM: Hospital admin logs in → configures<br/>departments, wards, roles, IdP federation,<br/>reference data overrides

@@ -61,6 +61,42 @@ Key verified facts supporting this decision:
 - [ ] Define the Cerbos sidecar container spec for the standard module pod (resource limits, health checks, policy bundle mount).
 - [ ] Confirm Cerbos policy storage strategy: Git + bundle distribution as default, Admin API disabled. See [HLD 04 §11.1](../hld/04-authn-authz-flow.md#111-cerbos-policy-storage-and-distribution).
 
+## Comparative flow: Keycloak AuthZ vs Cerbos sidecar
+
+The following diagram illustrates why a centralized Keycloak Authorization Services model was rejected in favor of the Cerbos sidecar model. The key differences are visible in the request path: network hop vs loopback, JVM memory footprint vs lightweight PDP, and UI-managed policies vs Git-versioned YAML.
+
+```mermaid
+sequenceDiagram
+    autonumber
+
+    Note over ModA,DBA: REJECTED — Keycloak AuthZ (centralized)
+    participant ModA as Module Pod
+    participant NetA as Network
+    participant KC as Keycloak Server (JVM, 512MB–1GB)
+    participant DBA as Keycloak DB
+
+    ModA->>NetA: Authorization request (HTTP)
+    NetA->>KC: Evaluate permission
+    KC->>DBA: Fetch policies (stored in DB, not Git)
+    DBA-->>KC: Policies
+    KC->>KC: UMA evaluation (poor fit for institutional access)
+    KC-->>ModA: ALLOW/DENY
+
+    Note over ModA,DBA: Latency: 5–50ms · SPOF · No Git/CI/PR review
+
+    Note over ModB,Cer: CHOSEN — Cerbos Sidecar (co-located)
+    participant ModB as Module Pod
+    participant Cer as Cerbos PDP (sidecar, ~30MB)
+
+    ModB->>Cer: CheckResources (loopback gRPC)
+    Cer->>Cer: In-memory eval: tenant isolation → resource → scoped → CEL
+    Cer-->>ModB: EFFECT_ALLOW + metadata
+
+    Note over ModB,Cer: Latency: <1ms · No SPOF · Git-versioned, CI-tested
+```
+
+Source file: [`diagrams/mermaid/comparative-keycloak-vs-cerbos.mmd`](../diagrams/mermaid/comparative-keycloak-vs-cerbos.mmd)
+
 ## Pros and cons of the options
 
 ### OPA (Open Policy Agent) with Rego sidecar

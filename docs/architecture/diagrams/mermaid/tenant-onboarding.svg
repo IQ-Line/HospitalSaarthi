@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1650.7050000000002 986" width="1650.7050000000002" height="986" style="--bg:#ffffff;--fg:#1f2328;--line:#d1d9e0;--accent:#0969da;--muted:#59636e;background:var(--bg)">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap');
+  text { font-family: 'Inter', system-ui, sans-serif; }
+  svg {
+    /* Derived from --bg and --fg (overridable via --line, --accent, etc.) */
+    --_text:          var(--fg);
+    --_text-sec:      var(--muted, color-mix(in srgb, var(--fg) 60%, var(--bg)));
+    --_text-muted:    var(--muted, color-mix(in srgb, var(--fg) 40%, var(--bg)));
+    --_text-faint:    color-mix(in srgb, var(--fg) 25%, var(--bg));
+    --_line:          var(--line, color-mix(in srgb, var(--fg) 30%, var(--bg)));
+    --_arrow:         var(--accent, color-mix(in srgb, var(--fg) 50%, var(--bg)));
+    --_node-fill:     var(--surface, color-mix(in srgb, var(--fg) 3%, var(--bg)));
+    --_node-stroke:   var(--border, color-mix(in srgb, var(--fg) 20%, var(--bg)));
+    --_group-fill:    var(--bg);
+    --_group-hdr:     color-mix(in srgb, var(--fg) 5%, var(--bg));
+    --_inner-stroke:  color-mix(in srgb, var(--fg) 12%, var(--bg));
+    --_key-badge:     color-mix(in srgb, var(--fg) 10%, var(--bg));
+  }
+</style>
+<defs>
+  <marker id="seq-arrow" markerWidth="8" markerHeight="4.8" refX="8" refY="2.4" orient="auto-start-reverse">
+    <polygon points="0 0, 8 2.4, 0 4.8" fill="var(--_arrow)" />
+  </marker>
+  <marker id="seq-arrow-open" markerWidth="8" markerHeight="4.8" refX="8" refY="2.4" orient="auto-start-reverse">
+    <polyline points="0 0, 8 2.4, 0 4.8" fill="none" stroke="var(--_arrow)" stroke-width="1" />
+  </marker>
+</defs>
+<rect x="550.6" y="378" width="882.9" height="518" rx="0" ry="0" fill="none" stroke="var(--_node-stroke)" stroke-width="1" />
+<rect x="550.6" y="378" width="201.01999999999998" height="18" fill="var(--_group-hdr)" stroke="var(--_node-stroke)" stroke-width="1" />
+<text x="556.6" y="387" dy="0.35em" font-size="11" font-weight="600" fill="var(--_text-sec)">par [Parallel initialization]</text>
+<line x1="550.6" y1="564" x2="1433.5" y2="564" stroke="var(--_line)" stroke-width="0.75" stroke-dasharray="6 4" />
+<line x1="550.6" y1="738" x2="1433.5" y2="738" stroke="var(--_line)" stroke-width="0.75" stroke-dasharray="6 4" />
+<line x1="106.775" y1="70" x2="106.775" y2="956" stroke="var(--_line)" stroke-width="0.75" stroke-dasharray="6 4" />
+<line x1="282.45000000000005" y1="70" x2="282.45000000000005" y2="956" stroke="var(--_line)" stroke-width="0.75" stroke-dasharray="6 4" />
+<line x1="450.975" y1="70" x2="450.975" y2="956" stroke="var(--_line)" stroke-width="0.75" stroke-dasharray="6 4" />
+<line x1="619.5" y1="70" x2="619.5" y2="956" stroke="var(--_line)" stroke-width="0.75" stroke-dasharray="6 4" />
+<line x1="820.2" y1="70" x2="820.2" y2="956" stroke="var(--_line)" stroke-width="0.75" stroke-dasharray="6 4" />
+<line x1="1124.575" y1="70" x2="1124.575" y2="956" stroke="var(--_line)" stroke-width="0.75" stroke-dasharray="6 4" />
+<line x1="1375.325" y1="70" x2="1375.325" y2="956" stroke="var(--_line)" stroke-width="0.75" stroke-dasharray="6 4" />
+<line x1="106.775" y1="90" x2="282.45000000000005" y2="90" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#seq-arrow)" />
+<text x="194.6125" y="84" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-muted)">Create tenant&lt;br/&gt;(name, type, isolation level, enabled modules)</text>
+<polyline points="282.45000000000005,130 312.45000000000005,130 312.45000000000005,150 282.45000000000005,150" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#seq-arrow)" />
+<text x="318.45000000000005" y="140" dy="0.35em" font-size="11" font-weight="400" fill="var(--_text-muted)">Provision iq_tenant_id&lt;br/&gt;Initialize tenant config record</text>
+<line x1="282.45000000000005" y1="200" x2="450.975" y2="200" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#seq-arrow)" />
+<text x="366.71250000000003" y="194" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-muted)">Create initial admin user&lt;br/&gt;(admin credentials, iq_tenant_id)</text>
+<polyline points="450.975,240 480.975,240 480.975,260 450.975,260" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#seq-arrow)" />
+<text x="486.975" y="250" dy="0.35em" font-size="11" font-weight="400" fill="var(--_text-muted)">Provision tenant auth config&lt;br/&gt;(IdP selection, SCIM endpoints,&lt;br/&gt;Cerbos scope identifier)</text>
+<line x1="450.975" y1="310" x2="282.45000000000005" y2="310" stroke="var(--_line)" stroke-width="0.75" stroke-dasharray="6 4" marker-end="url(#seq-arrow)" />
+<text x="366.71250000000003" y="304" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-muted)">Admin user created</text>
+<line x1="282.45000000000005" y1="350" x2="1375.325" y2="350" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#seq-arrow)" />
+<text x="828.8875" y="344" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-muted)">Publish tenant.provisioned event</text>
+<line x1="1375.325" y1="418" x2="619.5" y2="418" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#seq-arrow)" />
+<text x="997.4125" y="412" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-muted)">tenant.provisioned</text>
+<polyline points="619.5,458 649.5,458 649.5,478 619.5,478" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#seq-arrow)" />
+<text x="655.5" y="468" dy="0.35em" font-size="11" font-weight="400" fill="var(--_text-muted)">Initialize tenant-scoped&lt;br/&gt;patient index (empty)</text>
+<line x1="619.5" y1="528" x2="1375.325" y2="528" stroke="var(--_line)" stroke-width="0.75" stroke-dasharray="6 4" marker-end="url(#seq-arrow)" />
+<text x="997.4125" y="522" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-muted)">Ready</text>
+<line x1="1375.325" y1="592" x2="820.2" y2="592" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#seq-arrow)" />
+<text x="1097.7625" y="586" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-muted)">tenant.provisioned</text>
+<polyline points="820.2,632 850.2,632 850.2,652 820.2,652" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#seq-arrow)" />
+<text x="856.2" y="642" dy="0.35em" font-size="11" font-weight="400" fill="var(--_text-muted)">Make global reference datasets&lt;br/&gt;available to new tenant&lt;br/&gt;(ICD, drug catalog, SNOMED…)</text>
+<line x1="820.2" y1="702" x2="1375.325" y2="702" stroke="var(--_line)" stroke-width="0.75" stroke-dasharray="6 4" marker-end="url(#seq-arrow)" />
+<text x="1097.7625" y="696" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-muted)">Ready</text>
+<line x1="1375.325" y1="766" x2="1124.575" y2="766" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#seq-arrow)" />
+<text x="1249.95" y="760" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-muted)">tenant.provisioned</text>
+<polyline points="1124.575,806 1154.575,806 1154.575,826 1124.575,826" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#seq-arrow)" />
+<text x="1160.575" y="816" dy="0.35em" font-size="11" font-weight="400" fill="var(--_text-muted)">Initialize tenant-scoped&lt;br/&gt;schema / tables per module</text>
+<line x1="1124.575" y1="876" x2="1375.325" y2="876" stroke="var(--_line)" stroke-width="0.75" stroke-dasharray="6 4" marker-end="url(#seq-arrow)" />
+<text x="1249.95" y="870" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-muted)">Ready</text>
+<line x1="282.45000000000005" y1="916" x2="106.775" y2="916" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#seq-arrow)" />
+<text x="194.6125" y="910" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-muted)">Tenant provisioned&lt;br/&gt;(admin login URL, initial credentials)</text>
+<rect x="1129.9450000000002" y="354" width="490.76" height="27" fill="var(--_group-hdr)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+<polygon points="1614.7050000000002,354 1620.7050000000002,360 1614.7050000000002,360" fill="var(--_inner-stroke)" />
+<text x="1375.3250000000003" y="367.5" text-anchor="middle" dy="0.35em" font-size="11" font-weight="400" fill="var(--_text-muted)">Event payload includes:&lt;br/&gt;iq_tenant_id, enabled modules,&lt;br/&gt;data isolation level</text>
+<rect x="654.9000000000001" y="636" width="330.6" height="27" fill="var(--_group-hdr)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+<polygon points="979.5000000000001,636 985.5000000000001,642 979.5000000000001,642" fill="var(--_inner-stroke)" />
+<text x="820.2" y="649.5" text-anchor="middle" dy="0.35em" font-size="11" font-weight="400" fill="var(--_text-muted)">No tenant overrides yet —&lt;br/&gt;hospital admin adds later</text>
+<rect x="290.21500000000003" y="920" width="650.9200000000001" height="27" fill="var(--_group-hdr)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+<polygon points="935.1350000000001,920 941.1350000000001,926 935.1350000000001,926" fill="var(--_inner-stroke)" />
+<text x="615.6750000000001" y="933.5" text-anchor="middle" dy="0.35em" font-size="11" font-weight="400" fill="var(--_text-muted)">Hospital admin logs in → configures&lt;br/&gt;departments, wards, roles, IdP federation,&lt;br/&gt;reference data overrides</text>
+<g transform="translate(88.775,32) scale(1.5)">
+  <path d="M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" fill="none" stroke="var(--_line)" stroke-width="0.6666666666666666" />
+  <path d="M15 10C15 11.6569 13.6569 13 12 13C10.3431 13 9 11.6569 9 10C9 8.34315 10.3431 7 12 7C13.6569 7 15 8.34315 15 10Z" fill="none" stroke="var(--_line)" stroke-width="0.6666666666666666" />
+  <path d="M5.62842 18.3563C7.08963 17.0398 9.39997 16 12 16C14.6 16 16.9104 17.0398 18.3716 18.3563" fill="none" stroke="var(--_line)" stroke-width="0.6666666666666666" />
+</g>
+<text x="106.775" y="84" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)">Platform Operator</text>
+<rect x="223.55000000000004" y="30" width="117.80000000000001" height="40" rx="4" ry="4" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="1" />
+<text x="282.45000000000005" y="50" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="var(--_text)">Configurator</text>
+<rect x="381.35" y="30" width="139.25" height="40" rx="4" ry="4" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="1" />
+<text x="450.975" y="50" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="var(--_text)">User Management</text>
+<rect x="560.6" y="30" width="117.80000000000001" height="40" rx="4" ry="4" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="1" />
+<text x="619.5" y="50" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="var(--_text)">EMPI Service</text>
+<rect x="718.4000000000001" y="30" width="203.60000000000002" height="40" rx="4" ry="4" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="1" />
+<text x="820.2" y="50" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="var(--_text)">Master &amp;&lt;br/&gt;Tenant Data</text>
+<rect x="962" y="30" width="325.15000000000003" height="40" rx="4" ry="4" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="1" />
+<text x="1124.575" y="50" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="var(--_text)">Feature Modules&lt;br/&gt;(OPD, Pharmacy, Lab…)</text>
+<rect x="1327.15" y="30" width="96.35000000000001" height="40" rx="4" ry="4" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="1" />
+<text x="1375.325" y="50" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="var(--_text)">Event Bus</text>
+</svg>
