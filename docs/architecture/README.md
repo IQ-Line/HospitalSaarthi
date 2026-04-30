@@ -18,6 +18,12 @@ Start here if you want to understand **what problem we're solving** before readi
 
 - [Problem Statement](problem-statement/README.md) — constraints, scenarios, stakeholders, regulatory requirements, and open questions. Solution-agnostic — designed so a reader can independently evaluate or propose architectures.
 
+## Analysis
+
+- [Rework vs. Rebuild](analysis/01-rework-vs-rebuild.md) — thorough evaluation of the production HIMS codebase. Examines data layer coupling, ABDM portability, authorization gaps, and clinical domain complexity to arrive at a build-new-port-patterns recommendation.
+- [Module Build Order](analysis/02-module-build-order.md) — phased build plan optimized for fastest path to production HIMS feature parity, then expansion toward full AIIMS EOI scope. Includes dependency graph, team allocation, natural module groupings, and the charge-capture event pattern.
+- [Database Principles](analysis/03-database-principles.md) — ground rules for schema design across all modules. Covers Citus distribution, tenant isolation, cross-module boundaries, audit columns, extension strategy, and a schema review checklist. **Read before designing DB diagrams.**
+
 ## Supporting documents
 
 - [Architecture Decision Records](adr/README.md) — individual decisions with context, alternatives, and rationale.

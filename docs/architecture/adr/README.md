@@ -18,6 +18,7 @@ Decisions are recorded as Markdown ADRs ([MADR format](https://adr.github.io/mad
 | [0010](0010-fhir-hl7-interop-standards.md) | FHIR/HL7 as interop standards | Proposed |
 | [0011](0011-integration-hub-split.md) | Integration Hub split (inbound/outbound, shared control plane) | Proposed |
 | [0012](0012-multi-tenancy-isolation-strategy.md) | Multi-tenancy isolation strategy | Proposed |
+| [0013](0013-single-database-engine-postgresql.md) | Single database engine (PostgreSQL) | Proposed |
 | [0015](0015-bff-role-zero-trust.md) | BFF role and zero-trust between modules | Proposed |
 
 ## How to use
