@@ -12,6 +12,12 @@ For the **morning meeting**, start here:
 4. [AuthN/AuthZ Flow](hld/04-authn-authz-flow.md) — end-to-end identity and access narrative.
 5. [Integration and Interop](hld/05-integration-and-interop.md) — Integration Hub, FHIR/HL7 boundaries, ABDM.
 
+## Problem statement
+
+Start here if you want to understand **what problem we're solving** before reading how we propose to solve it:
+
+- [Problem Statement](problem-statement/README.md) — constraints, scenarios, stakeholders, regulatory requirements, and open questions. Solution-agnostic — designed so a reader can independently evaluate or propose architectures.
+
 ## Supporting documents
 
 - [Architecture Decision Records](adr/README.md) — individual decisions with context, alternatives, and rationale.
