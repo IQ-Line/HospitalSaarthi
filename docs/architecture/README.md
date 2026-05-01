@@ -24,6 +24,11 @@ Start here if you want to understand **what problem we're solving** before readi
 - [Module Build Order](analysis/02-module-build-order.md) — phased build plan optimized for fastest path to production HIMS feature parity, then expansion toward full AIIMS EOI scope. Includes dependency graph, team allocation, natural module groupings, and the charge-capture event pattern.
 - [Database Principles](analysis/03-database-principles.md) — ground rules for schema design across all modules. Covers Citus distribution, tenant isolation, cross-module boundaries, audit columns, extension strategy, and a schema review checklist. **Read before designing DB diagrams.**
 
+## Low-level design
+
+- [User Management — Schema Design](lld/user-management/01-schema-design.md) — three-layer auth data model, capability-based authorization data, org-level users, Citus distribution strategy. Includes [ERD](lld/user-management/user-management.erd.json).
+- [User Management — Scenarios](lld/user-management/02-scenarios.md) — 15 real-world scenarios showing how the schema handles onboarding, multi-tenant login, delegations, clearances, department transfers, service accounts, SCIM sync, compliance audits, and more.
+
 ## Supporting documents
 
 - [Architecture Decision Records](adr/README.md) — individual decisions with context, alternatives, and rationale.
