@@ -26,39 +26,52 @@ The HIMS platform requires an authentication layer that supports both direct cre
 
 Chosen option: **better-auth behind an IdentityProvider interface**, because it gives us full control over the authentication pipeline and token format while the adapter pattern decouples modules from the underlying IdP — hospitals bring their own identity system without any module-level code changes, and the solution runs entirely on-premises with zero cloud dependencies.
 
+**Key revisions since initial proposal (2026-05-03):**
+
+- **Username-primary login:** The username plugin makes `ba_users.username` the primary login credential. Email is not used for login. `ba_users.email` is a synthetic identity anchor (`{username}@auth.internal`) satisfying better-auth's NOT NULL UNIQUE constraint without depending on external infrastructure.
+- **BFF Token Handler:** The BFF's role expands from signature verification only to session lifecycle management. JWTs are 1-2 minutes (not 15), refresh tokens stored in HttpOnly cookies. Solves the JWT revocation gap and long clinical session support.
+- **Two-tier federation:** Tier 1 = direct OIDC/SAML via better-auth plugins. Tier 2 = shared Keycloak cluster with one realm per legacy hospital (OIDC bridge). Former Tier 2 (hospital deploys own broker) eliminated.
+- **OAuth 2.1 Provider:** Replaces the deprecated OIDC Provider plugin. Production-ready with RFC 7009/7662/7591 support.
+- **Recovery tier model:** 5-tier recovery system (`standard`, `delegated`, `phone_recovery`, `admin_only`, `federated`) as a first-class platform workflow.
+- **AuthN provider replaceability:** The `IdentityProvider` interface contract is formalized. Synthetic emails make migration to Keycloak practical — they're meaningless internal keys that get discarded, not migrated. All platform-owned data (roles, capabilities, recovery tiers, identity links) survives a provider switch.
+
 As of v1.5+, better-auth natively covers the federation capabilities that historically required a heavyweight IAM server like Keycloak:
 
-- **OIDC federation** via the SSO plugin — supports Entra ID, Okta, Keycloak, Auth0, and Google as external IdPs with configuration, not custom code.
-- **SAML 2.0** — both SP-initiated and IdP-initiated flows, with self-service IdP configuration per tenant.
-- **SCIM provisioning** (v1.5+) — including Microsoft Entra ID compatibility for automated user/group synchronization with external directories.
-- **Custom OAuth2/OIDC providers** via the Generic OAuth plugin — any standards-compliant IdP can be added through configuration alone.
-- **OIDC Provider mode** — better-auth can act as an OIDC Provider itself (dynamic client registration, JWKS endpoints), enabling the platform to be the identity source for third-party systems that need to integrate with it.
-
-These capabilities eliminate the federation gap that was previously Keycloak's primary justification over library-based AuthN solutions. The `IdentityProvider` adapter pattern remains the module-facing contract, but the underlying federation machinery is now built-in rather than custom.
+- **OIDC federation** via the SSO plugin — supports Entra ID, Okta, Keycloak, Auth0, and Google.
+- **SAML 2.0** — both SP-initiated and IdP-initiated flows.
+- **SCIM provisioning** (v1.5+) — including Microsoft Entra ID compatibility.
+- **Custom OAuth2/OIDC providers** via the Generic OAuth plugin.
+- **OAuth 2.1 Provider mode** — the platform can act as an identity source for third-party systems (dynamic client registration, JWKS endpoints, custom claims).
 
 ### Consequences
 
 **Positive:**
 
-- Every module consumes the same `IdentityProvider` interface regardless of whether the tenant uses better-auth natively, federates to Entra ID, or uses hospital SSO. Module code is IdP-agnostic.
-- The User Management module owns the full token lifecycle — issue, verify, refresh, revoke — and controls exactly which claims appear in every JWT. This guarantees the claim contract that Cerbos policies depend on.
-- JIT provisioning creates shadow records on first federated login, providing an unbroken audit chain from external identity to every platform action. SCIM synchronization keeps shadow records current where the external IdP supports it.
-- better-auth is a TypeScript library that runs in-process with User Management. No separate JVM, no Wildfly/Quarkus server to operate, no separate HA cluster to maintain.
-- On-premises deployments carry no external identity dependency. The full AuthN stack ships with the platform.
+- Every module consumes the same `IdentityProvider` interface regardless of IdP. Module code is IdP-agnostic.
+- User Management owns the full token lifecycle and controls exactly which claims appear in every JWT.
+- JIT provisioning creates shadow records for federated users, providing an unbroken audit chain. SCIM keeps shadow records current.
+- better-auth is a TypeScript library that runs in-process with User Management. No separate JVM or HA cluster.
+- On-premises deployments carry no external identity dependency.
+- Synthetic emails decouple the AuthN identity anchor from business logic and external infrastructure, making provider replacement practical.
+- The BFF Token Handler pattern eliminates the need for a distributed token blocklist while supporting 12-hour clinical sessions.
 
 **Negative / accepted trade-offs:**
 
-- better-auth is a younger library than Keycloak. Its ecosystem (plugins, community knowledge base) is smaller. We accept this because the `IdentityProvider` interface limits our surface-area dependency — if better-auth is ever abandoned, the adapter pattern isolates the replacement to one module.
-- While better-auth v1.5+ covers OIDC, SAML, and SCIM natively, edge-case federation scenarios (custom hospital SSO systems with non-standard protocols) may require building thin custom adapters. The Generic OAuth plugin handles most standards-compliant IdPs via configuration, but proprietary protocols are out of scope. We accept this because such edge cases are rare and the adapter pattern makes them localized.
-- No built-in admin UI for identity management. The User Management module must build its own administrative interface for user provisioning, role assignment, and session management. This is acceptable because we need a tenant-aware admin UI integrated into the platform's application shell, which Keycloak's admin console would not provide.
+- better-auth is a younger library than Keycloak. We accept this because the `IdentityProvider` interface limits our dependency surface, and the synthetic email pattern makes migration to an alternative provider (including Keycloak) a single-adapter replacement.
+- Edge-case federation (non-standard hospital SSO) may require thin custom adapters.
+- No built-in admin UI — User Management builds its own tenant-aware admin interface.
+- BFF becomes stateful (cookie store for refresh tokens). BFF outage blocks new JWT issuance but does not affect in-flight requests.
 
 **Follow-up actions:**
 
-- [ ] Define the `IdentityProvider` interface contract in the User Management LLD, including `verifyToken`, `getJWKS`, `refreshToken`, and `revokeSession` operations.
-- [ ] Implement the better-auth native adapter as the default `IdentityProvider` implementation.
-- [ ] Implement the Entra ID / OIDC federation adapter as the first external IdP integration (highest demand among target hospitals).
-- [ ] Define the JWT claim schema as a platform-level contract shared with the PEP middleware SDK.
-- [ ] Determine token refresh strategy for long clinical sessions (open question from [HLD 04 §11.2](../hld/04-authn-authz-flow.md#112-token-lifetime-and-refresh-strategy)).
+- [x] Define the `IdentityProvider` interface contract — see [design spec §10.4](../../superpowers/specs/2026-05-03-authn-authz-revision-design.md#104-the-identityprovider-interface-contract).
+- [ ] Implement the `BetterAuthIdentityProvider` as the default implementation.
+- [ ] Implement Entra ID / OIDC federation adapter as the first external IdP integration.
+- [ ] Define the JWT claim schema as a platform-level contract shared with PEP middleware SDK.
+- [x] Determine token refresh strategy — BFF Token Handler pattern (1-2 min JWTs + HttpOnly refresh cookie). See [design spec §5](../../superpowers/specs/2026-05-03-authn-authz-revision-design.md#5-bff-token-handler-pattern).
+- [ ] Implement the recovery tier model and admin recovery workflows (Flows A, B, C).
+- [ ] **Federation POC:** Verify SSO `provisionUser` hook can link a synthetic-email local user to an IdP account with a different email, end-to-end.
+- [ ] Implement the required better-auth configuration checklist from [design spec §14](../../superpowers/specs/2026-05-03-authn-authz-revision-design.md#14-required-better-auth-configuration).
 
 ## Pros and cons of the options
 
@@ -80,6 +93,7 @@ These capabilities eliminate the federation gap that was previously Keycloak's p
 - *Good:* Full control over the token lifecycle. Claims are defined in application code, not in an external server's configuration UI.
 - *Good:* The `IdentityProvider` adapter pattern decouples all modules from the specific AuthN implementation. Federation to Entra, Okta, or any OIDC/SAML provider is a new adapter, not a module change.
 - *Good:* Works identically in service mode (Kubernetes) and embedded mode (single-process lite deployment).
+- *Good:* OAuth 2.1 Provider plugin (replaces deprecated OIDC Provider) enables the platform to act as an identity source for third-party systems — dynamic client registration, JWKS endpoints, custom token claims.
 - *Good:* The team can debug and extend the AuthN pipeline with their existing skills.
 - *Bad:* Younger project than Keycloak. Fewer battle-tested deployments in regulated environments.
 - *Bad:* Edge-case federation (non-standard hospital SSO protocols) may require thin custom adapters. Standard IdPs (OIDC, SAML, SCIM) are covered natively via plugins.
@@ -106,3 +120,6 @@ These capabilities eliminate the federation gap that was previously Keycloak's p
   - better-auth, "OIDC Provider Plugin", https://better-auth.com/docs/plugins/oidc-provider, accessed 2026-04-28
   - NIST, "SP 800-63C: Digital Identity Guidelines — Federation and Assertions", https://pages.nist.gov/800-63-4/sp800-63c.html, accessed 2026-04-28
   - OpenID Foundation, "OpenID Connect Core 1.0", https://openid.net/specs/openid-connect-core-1_0.html, accessed 2026-04-28
+  - better-auth, "OAuth 2.1 Provider Plugin", https://better-auth.com/docs/plugins/oauth-provider, accessed 2026-05-03 (replaces deprecated OIDC Provider)
+  - better-auth, "Username Plugin", https://better-auth.com/docs/plugins/username, accessed 2026-05-03
+  - better-auth, "JWT Plugin", https://better-auth.com/docs/plugins/jwt, accessed 2026-05-03
