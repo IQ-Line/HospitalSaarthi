@@ -62,6 +62,25 @@
           "default": "active",
           "check": "status IN ('active', 'inactive', 'suspended')"
         },
+        "recovery_tier": {
+          "type": "TEXT",
+          "nullable": false,
+          "default": "admin_only",
+          "check": "recovery_tier IN ('standard', 'delegated', 'phone_recovery', 'admin_only', 'federated')",
+          "description": "Governs which recovery paths are available when user is locked out. See 01-schema-design.md §15."
+        },
+        "phone_auth_enabled": {
+          "type": "BOOLEAN",
+          "nullable": false,
+          "default": false,
+          "description": "Whether this user's phone number can be used for OTP-based login and recovery. False if phone is shared."
+        },
+        "must_change_password": {
+          "type": "BOOLEAN",
+          "nullable": false,
+          "default": false,
+          "description": "When true, user must change password before accessing clinical modules. Set by admin recovery Flow A."
+        },
         "created_at": {
           "type": "TIMESTAMPTZ",
           "nullable": false,
@@ -1090,7 +1109,7 @@
       ]
     },
     "ba_users": {
-      "description": "better-auth managed \u2014 user credentials and profile. NOT directly modified by platform code.",
+      "description": "better-auth managed \u2014 user credentials and profile. NOT directly modified by platform code. Username is the primary login credential; email is a synthetic identity anchor ({username}@auth.internal).",
       "distribution": "distributed",
       "managed_by": "better-auth",
       "columns": {
@@ -1098,13 +1117,19 @@
           "type": "UUID",
           "nullable": false
         },
+        "username": {
+          "type": "TEXT",
+          "nullable": false,
+          "description": "Org-assigned login credential. Primary login method (via username plugin)."
+        },
         "name": {
           "type": "TEXT",
           "nullable": false
         },
         "email": {
           "type": "TEXT",
-          "nullable": false
+          "nullable": false,
+          "description": "Synthetic identity anchor: {username}@auth.internal. Non-routable. Never used for login, email sending, or business logic."
         },
         "email_verified": {
           "type": "BOOLEAN",
@@ -1126,6 +1151,13 @@
       },
       "primary_key": [
         "id"
+      ],
+      "indexes": [
+        {
+          "columns": ["username"],
+          "name": "idx_ba_users_username",
+          "unique": true
+        }
       ],
       "note": "Distributed by id (not iq_tenant_id) because a single auth user may belong to multiple tenants. Only queried during login."
     },
@@ -1250,6 +1282,188 @@
               "id"
             ]
           }
+        }
+      ]
+    },
+    "jwks": {
+      "description": "better-auth managed (JWT plugin) — JWKS key storage. Private keys encrypted at rest with AES-256-GCM by default.",
+      "distribution": "local",
+      "managed_by": "better-auth",
+      "columns": {
+        "id": {
+          "type": "TEXT",
+          "nullable": false,
+          "description": "Key identifier (kid), included in JWT header for key selection"
+        },
+        "publicKey": {
+          "type": "TEXT",
+          "nullable": false,
+          "description": "PEM-encoded public key — served via JWKS endpoint"
+        },
+        "privateKey": {
+          "type": "TEXT",
+          "nullable": false,
+          "description": "PEM-encoded private key — encrypted at rest with AES-256-GCM by default. DO NOT disable encryption."
+        },
+        "createdAt": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        "expiresAt": {
+          "type": "TIMESTAMPTZ",
+          "nullable": true,
+          "description": "After this timestamp, key is not used for signing. Null if rotation is not configured."
+        }
+      },
+      "primary_key": ["id"],
+      "note": "Local table (not distributed). Few rows. Queried for token signing and JWKS endpoint serving."
+    },
+    "delegated_recovery_routes": {
+      "description": "Maps delegated-tier users to sub-addressed admin mailbox recovery routes. Platform-owned.",
+      "distribution": "distributed",
+      "columns": {
+        "iq_tenant_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "Citus distribution key"
+        },
+        "id": {
+          "type": "UUID",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "Target user (FK to users.id)"
+        },
+        "base_email_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "FK to the admin/org base mailbox record"
+        },
+        "address": {
+          "type": "TEXT",
+          "nullable": false,
+          "description": "Full sub-addressed email (e.g., it.admin+emp042@hospital.com)"
+        },
+        "verified": {
+          "type": "BOOLEAN",
+          "nullable": false,
+          "default": false,
+          "description": "Whether deliverability has been tested"
+        },
+        "last_delivery_check": {
+          "type": "TIMESTAMPTZ",
+          "nullable": true,
+          "description": "Timestamp of last deliverability probe"
+        },
+        "created_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        }
+      },
+      "primary_key": ["iq_tenant_id", "id"],
+      "foreign_keys": [
+        {
+          "columns": ["iq_tenant_id", "user_id"],
+          "references": {
+            "table": "users",
+            "columns": ["iq_tenant_id", "id"]
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "columns": ["iq_tenant_id", "user_id"],
+          "name": "idx_recovery_routes_user",
+          "unique": true,
+          "note": "One recovery route per user per tenant"
+        }
+      ]
+    },
+    "auth_identity_links": {
+      "description": "Explicit IdP-subject to platform-user mapping for federation account linking. Platform-owned.",
+      "distribution": "distributed",
+      "columns": {
+        "iq_tenant_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "Citus distribution key"
+        },
+        "id": {
+          "type": "UUID",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "Platform user (FK to users.id)"
+        },
+        "auth_user_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "better-auth user (logical FK to ba_users.id)"
+        },
+        "provider_id": {
+          "type": "TEXT",
+          "nullable": false,
+          "description": "IdP identifier (e.g., 'entra_id', 'hospital_keycloak_realm_x')"
+        },
+        "issuer": {
+          "type": "TEXT",
+          "nullable": false,
+          "description": "OIDC issuer URL of the external IdP"
+        },
+        "subject": {
+          "type": "TEXT",
+          "nullable": false,
+          "description": "External IdP subject identifier (sub claim)"
+        },
+        "claim_snapshot": {
+          "type": "JSONB",
+          "nullable": true,
+          "description": "Last-seen claims from the IdP token (name, email, groups). Updated on each login."
+        },
+        "linked_by": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "Admin who created the link (FK to users.id)"
+        },
+        "linked_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        }
+      },
+      "primary_key": ["iq_tenant_id", "id"],
+      "foreign_keys": [
+        {
+          "columns": ["iq_tenant_id", "user_id"],
+          "references": {
+            "table": "users",
+            "columns": ["iq_tenant_id", "id"]
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "columns": ["iq_tenant_id", "provider_id", "subject"],
+          "name": "idx_identity_links_provider_subject",
+          "unique": true,
+          "note": "One link per IdP subject per tenant — prevents duplicate linking"
+        },
+        {
+          "columns": ["iq_tenant_id", "user_id"],
+          "name": "idx_identity_links_user",
+          "note": "Find all IdP links for a user"
         }
       ]
     }
@@ -1498,6 +1712,30 @@
         "columns": [
           "id"
         ]
+      },
+      "type": "many-to-one"
+    },
+    {
+      "name": "recovery_route_user",
+      "from": {
+        "table": "delegated_recovery_routes",
+        "columns": ["iq_tenant_id", "user_id"]
+      },
+      "to": {
+        "table": "users",
+        "columns": ["iq_tenant_id", "id"]
+      },
+      "type": "many-to-one"
+    },
+    {
+      "name": "identity_link_user",
+      "from": {
+        "table": "auth_identity_links",
+        "columns": ["iq_tenant_id", "user_id"]
+      },
+      "to": {
+        "table": "users",
+        "columns": ["iq_tenant_id", "id"]
       },
       "type": "many-to-one"
     }
