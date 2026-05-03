@@ -189,21 +189,60 @@ The cache is refreshed on `user.updated` and `role-assignment.changed` events fr
 | `roles` | `role_assignments` | Array of role names assigned to this user in this tenant |
 | `department` | `user_department_assignments` | Primary department ID |
 | `org_id` | `users.org_id` | Organization ID, if applicable (null for single-tenant users) |
+| `jti` | AuthN service | Unique token ID for audit correlation and replay detection |
 | `iss` | AuthN service | Issuer identifier |
-| `exp` | AuthN service | Expiration timestamp (default 15 min) |
+| `exp` | AuthN service | Expiration timestamp (1-2 minutes — Token Handler pattern, see §16) |
 | `iat` | AuthN service | Issued-at timestamp |
 
-**What is NOT in the JWT:** Capabilities, delegations, clearances. These are resolved by the PEP at request time from cached User Management data (see §7). This keeps JWTs compact and avoids capability staleness between token refreshes.
+**What is NOT in the JWT:** Capabilities, delegations, clearances, email. Capabilities/delegations/clearances are resolved by the PEP at request time from cached User Management data (see §7). Email is excluded because `ba_users.email` is a synthetic internal key with no business meaning (see §9.1). This keeps JWTs compact and avoids staleness between token refreshes.
 
 ---
 
 ## 9. better-auth managed tables
 
-better-auth manages its own tables for credential storage, session tracking, and OAuth account linking. These tables live in the `user_management` schema but are **not directly modified by platform code** — they are managed by the better-auth library through its adapter interface.
+better-auth manages its own tables for credential storage, session tracking, OAuth account linking, and JWKS key management. These tables live in the `user_management` schema but are **not directly modified by platform code** — they are managed by the better-auth library through its adapter interface. Session revocation, password resets, and user management operations MUST use `auth.api.*` methods, never direct SQL.
 
 The link between better-auth and platform data is `users.auth_user_id` → `ba_users.id`. This is a logical reference, not a database foreign key, because better-auth's schema is managed by the library and may change across versions.
 
 Table names are prefixed with `ba_` to distinguish them from platform-owned tables.
+
+**Username as primary login credential:** The username plugin adds `ba_users.username` (TEXT, NOT NULL, UNIQUE) as the primary login field. Users authenticate with username + password — email is never shown on the login form and is never used for authentication.
+
+**`jwks` table:** The JWT plugin manages a `jwks` table for JWKS key storage. Keys are DB-persisted (surviving pod restarts), with private keys encrypted at rest using AES-256-GCM by default. Key rotation must be explicitly configured — see §17 for details.
+
+### 9.1 Synthetic email as identity anchor
+
+better-auth requires `ba_users.email` to be NOT NULL and UNIQUE. Since real emails cannot be unique across tenants (Indian hospitals regularly have multiple staff sharing one email), and making the identity anchor depend on external mail infrastructure would violate the fragmented adoption constraint, all `ba_users.email` values use a non-routable synthetic pattern:
+
+```
+ba_users.email = "{username}@auth.internal"
+```
+
+**Why synthetic, not sub-addressed:** An earlier design proposed sub-addressed emails (`admin+N@hospital.com`). This was rejected after adversarial review because:
+
+- It couples the AuthN identity anchor to tenant mail server features (many Indian hospitals run legacy Exchange/government mail that does not support RFC 5233 sub-addressing)
+- Changing `ba_users.email` when a user gets their own email triggers better-auth's internal email verification, session invalidation, and account linking logic — unnecessary mutation of the identity anchor
+- It creates social engineering risk: password reset emails to an admin inbox allow anyone with inbox access to hijack delegated accounts
+
+The `@auth.internal` domain is non-routable. `ba_users.email` is an internal key that never changes, never leaks to business logic, and never depends on external infrastructure. Real emails, recovery routes, and contact info belong exclusively in platform-owned tables.
+
+**Separation of concerns:**
+
+| Concern | Where it lives | Mutability |
+|---------|---------------|------------|
+| AuthN identity anchor | `ba_users.email` = `{username}@auth.internal` | Never changes (username is immutable) |
+| Business contact email | `users.email` (nullable, non-unique) | User or admin can update freely |
+| Recovery email route | `delegated_recovery_routes` or `users.email` | Platform-managed, per recovery tier (§15) |
+| Phone contact/auth | `ba_users.phoneNumber` (via phone plugin) | User-updatable with OTP verification |
+
+**Precedent in better-auth source code:**
+
+- The phone-number plugin uses `getTempEmail()` for phone-only users
+- The anonymous plugin uses `getAnonUserEmail()` for anonymous users
+- Source contains `TODO(#9124)` acknowledging email should be nullable in v2
+- GitHub issues #2059, #2215, #2402 confirm community demand for non-unique/nullable email
+
+**Security invariant:** Synthetic email values must never appear in JWTs, logs, UI, or any end-user-visible context. The `definePayload` callback on the JWT plugin explicitly excludes email from token claims.
 
 ---
 
@@ -252,6 +291,9 @@ Each audit record captures who made the change, when, the old and new values (as
 | `department_projection` | all four | Projection table — synced from events, `last_synced` replaces audit columns per [principle §8](../../analysis/03-database-principles.md#8-projection-tables-are-first-class-schema-citizens) |
 | `permission_change_audit` | all four | IS the audit trail — uses `changed_at`/`changed_by`. Meta-auditing is unnecessary. |
 | `ba_*` tables | `created_by`, `updated_by` | Managed by better-auth library, not platform code |
+| `delegated_recovery_routes` | `created_by`, `updated_by` | Operational table — changes are logged in `permission_change_audit` instead |
+| `auth_identity_links` | `updated_at`, `updated_by` | Create/delete pattern — links are created and revoked, not edited. Uses `linked_by`/`linked_at` as semantic `created_by`/`created_at`. |
+| `jwks` | all four | better-auth managed (JWT plugin). Uses `createdAt` in library convention. |
 
 ---
 
@@ -274,6 +316,9 @@ Each audit record captures who made the change, when, the old and new values (as
 | `ba_users` | Distributed by `id` | better-auth managed; NOT distributed by tenant (auth_user_id spans tenants) |
 | `ba_sessions` | Distributed by `user_id` | better-auth managed |
 | `ba_accounts` | Distributed by `user_id` | better-auth managed |
+| `jwks` | **Local table** (single coordinator node) | better-auth managed; few rows, queried for token signing/verification only |
+| `delegated_recovery_routes` | Distributed by `iq_tenant_id` | Co-located with `users`; queried during password reset |
+| `auth_identity_links` | Distributed by `iq_tenant_id` | Co-located with `users`; queried during SSO callback |
 
 ### Co-location note
 
@@ -287,8 +332,160 @@ The better-auth tables are a special case: `ba_users` cannot be distributed by `
 
 This schema design introduces concepts not yet explicit in the HLD. The following documents need updates:
 
-- [ ] **HLD-04 §3.4** — mention capabilities explicitly as the bridge between policy-as-code and data-as-config. Currently says "role definitions, role assignments, department hierarchies, tenant-specific scope overrides" — should add capabilities.
-- [ ] **HLD-04 §1.5** — add `org_id` to the JWT claims table.
-- [ ] **HLD-04 §4 Step 2** — mention PEP enrichment (resolving capabilities, delegations, clearances from cache) alongside the current "additional attributes may be fetched" language.
-- [ ] **ADR-0005** — reference capabilities as the mechanism that makes tenant-specific authorization configurable without policy changes. Currently describes the principle; capabilities are the implementation.
+- [ ] **HLD-04 §1.2** — two-tier federation strategy + account linking workflow summary
+- [ ] **HLD-04 §1.5** — add `jti`, `org_id` to JWT claims. Change `exp` default from 15 min to 1-2 min.
+- [ ] **HLD-04 §1.6** — JWT plugin, DB-persisted keys, rotation, encryption, grace period.
+- [ ] **HLD-04 §2** — username-based login, Token Handler, BFF role expanded.
+- [ ] **HLD-04 §3.4** — add capabilities explicitly as the bridge between policy-as-code and data-as-config.
+- [ ] **HLD-04 §4 Step 2** — mention PEP enrichment (resolving capabilities, delegations, clearances from cache).
+- [ ] **HLD-04 §7** — Token Handler session management (add §7.4).
+- [ ] **HLD-04 §11** — replace `[OPEN]` markers with decisions.
+- [ ] **HLD-04 new §13** — OAuth 2.1 Provider.
+- [ ] **HLD-04 new §14** — Recovery tier model summary.
+- [ ] **ADR-0003** — username plugin, synthetic email, two-tier federation, recovery tier model, replaceability boundary. Replace OIDC Provider with OAuth 2.1 Provider.
+- [ ] **ADR-0005** — reference capabilities as the mechanism implementing the policy/data split.
+- [ ] **ADR-0015** — Token Handler. BFF role = "signature verification + session lifecycle management."
 - [ ] **HLD-02 §1.2** — add capabilities, delegations, and clearances to User Management's "Owns" list.
+
+---
+
+## 15. Recovery tier model
+
+Recovery (how a user regains access when locked out) is a **first-class platform workflow**, not a generic better-auth email reset. Different users have different recovery options based on their identity assurance tier. The tier is stored on `users.recovery_tier` and governs which recovery paths are available.
+
+### Tier definitions
+
+| Tier | Who | Login | Primary Recovery | Explicitly Disabled |
+|------|-----|-------|-----------------|---------------------|
+| `standard` | Staff with own verified email | Username+pwd | Self-serve email reset via `users.email` | — |
+| `delegated` | Staff without email, org has verified admin mailbox | Username+pwd | Admin-initiated reset, delegated email route, magic link | Self-serve email reset |
+| `phone_recovery` | Staff with verified unique phone | Username+pwd, Phone OTP | Phone OTP reset, admin reset | Self-serve email reset |
+| `admin_only` | Staff without email, phone, or reliable mail route | Username+pwd | Admin direct password set, in-person | Email reset, magic link |
+| `federated` | Staff bound to external IdP | SSO | IdP-managed | Local reset (unless break-glass) |
+
+### Recovery routing
+
+The platform intercepts better-auth's `sendResetPassword` callback and routes based on `users.recovery_tier`. For `standard` tier, the reset email goes to `users.email`. For `delegated` tier, it goes through `delegated_recovery_routes`. For `phone_recovery`, `admin_only`, and `federated` tiers, the email is suppressed — recovery uses a different channel.
+
+`revokeSessionsOnPasswordReset` MUST be set to `true` (it is off by default in better-auth). Without this, old sessions survive password resets — a critical security gap.
+
+### Delegated recovery routes
+
+The `delegated_recovery_routes` table maps delegated-tier users to a base admin mailbox:
+
+| Column | Purpose |
+|--------|---------|
+| `iq_tenant_id` | Tenant context |
+| `user_id` | Target user (FK to `users`) |
+| `base_email_id` | FK to the admin/org base mailbox record |
+| `address` | Full sub-addressed email (e.g., `it.admin+emp042@hospital.com`) |
+| `verified` | Whether deliverability has been tested |
+| `last_delivery_check` | Timestamp of last probe |
+
+The `+N` suffix must use a stable identifier (employee_id, staff code) — never CSV row index. Deliverability is tested at tenant onboarding: a probe email to `base+hims-test@domain` must succeed before delegated routes are enabled.
+
+### Admin recovery workflows
+
+Three concrete flows, all gated by Cerbos authorization and admin step-up authentication:
+
+- **Flow A — Admin direct password set:** Admin sets temp password via `auth.api.setUserPassword()`, revokes sessions via `auth.api.revokeUserSessions()`, sets `users.must_change_password = true`. Hands temp password to user in person.
+- **Flow B — Admin-generated magic link:** Admin triggers `auth.api.signInMagicLink` with `metadata: { adminGenerated: true }`. The `sendMagicLink` callback intercepts the URL (does not email it). Admin delivers via QR code, WhatsApp, SMS, or printed slip.
+- **Flow C — Delegated email route:** User clicks "Forgot Password" → platform routes reset through `delegated_recovery_routes` → admin receives email, delivers reset link to user.
+
+See design spec §3.3–§3.5 for full implementation details including code patterns.
+
+---
+
+## 16. BFF Token Handler interaction
+
+The BFF's role expands from "signature verification only" ([ADR-0015](../../adr/0015-bff-role-zero-trust.md)) to "signature verification + session lifecycle management" via the Token Handler pattern.
+
+### How it works
+
+1. User authenticates (username + password, or federated IdP redirect)
+2. BFF receives auth response, stores the **refresh token** in an HttpOnly, SameSite=Strict, Secure cookie
+3. BFF issues a **short-lived JWT** (1-2 min) to the SPA
+4. SPA attaches JWT to API requests as a Bearer token
+5. When JWT expires, SPA calls BFF refresh endpoint
+6. BFF uses stored refresh token to obtain new JWT from better-auth
+7. SPA receives new JWT — seamless, no re-authentication
+
+### What this solves
+
+- **JWT revocation gap:** Token lifetime is 1-2 minutes. Maximum exposure after revocation = token lifetime. No distributed blocklist needed.
+- **Long clinical sessions:** Refresh is seamless. A doctor can work for 12 hours without interruption.
+- **XSS token theft:** Refresh token is in HttpOnly cookie — JavaScript cannot read it.
+
+### What stays the same
+
+Zero-trust per-module verification is preserved. Modules verify JWTs independently against JWKS. The BFF being stateful (cookie store) does not affect downstream modules — they see a standard JWT.
+
+### Immediate revocation path
+
+1. Admin suspends user → `users.status = 'suspended'`
+2. Admin invalidates sessions → `auth.api.revokeUserSessions({ body: { userId } })`
+3. BFF's next refresh attempt fails (no valid session) → user forced to re-login → blocked by suspended status
+4. Maximum exposure: 1-2 minutes (current JWT lifetime)
+
+---
+
+## 17. JWKS key management
+
+JWKS key management is handled by better-auth's JWT plugin with DB-persisted keys. This is a definitive architectural decision, not deferred to implementation.
+
+### `jwks` table
+
+| Column | Type | Purpose |
+|--------|------|---------|
+| `id` / `kid` | TEXT | Key identifier, included in JWT header for key selection |
+| `alg` | TEXT | Algorithm (EdDSA default; ES256, RS256, PS256 supported) |
+| `publicKey` | TEXT | PEM-encoded public key — served via JWKS endpoint |
+| `privateKey` | TEXT | PEM-encoded private key — encrypted at rest with AES-256-GCM by default |
+| `createdAt` | TIMESTAMPTZ | Key creation timestamp |
+| `expiresAt` | TIMESTAMPTZ | Expiration — after this, key is not used for signing |
+
+### Key rotation
+
+Key rotation is **disabled by default**. The platform MUST explicitly configure:
+
+- `rotationInterval`: How often a new key is generated (production value likely 7-14 days)
+- `gracePeriod`: How long old keys remain valid for verification after rotation (likely 2× rotation interval)
+
+During grace period, both old and new keys appear in the JWKS response. Modules verify JWTs by matching the `kid` header to the correct key. After grace period, old keys are removed from JWKS.
+
+### JWKS endpoint
+
+Published at `/.well-known/jwks.json`. Modules cache the JWKS with a TTL aligned to the rotation schedule.
+
+### Pod-restart safety
+
+Keys are in the database, not in memory. Pod restarts, rolling deployments, and horizontal scaling all work — every instance reads the same keys from the DB.
+
+### KMS integration path
+
+The JWT plugin supports a custom `sign` function for delegating signing to external KMS (Azure Key Vault, AWS KMS). Future enhancement, not MVP.
+
+---
+
+## 18. Phone number auth
+
+Phone number auth is supplementary, not primary. A user can have both username+password and phone OTP as login methods, resolving to the same credential account.
+
+### Phone-only registration flow
+
+1. OTP sent to phone → user verifies
+2. `signUpOnVerification.getTempEmail` returns `{username}@auth.internal` — username is assigned before the callback fires
+3. Platform creates `users` record
+4. **Critical:** `setPassword` must be called separately — `signUpOnVerification` creates the user record but NOT the credential account (password hash). Without this, `signIn.username` will fail.
+5. User can now log in via username+password or phone+OTP
+
+### Shared phone guard
+
+In rural India, family members often share a phone. Phone-based login becomes ambiguous if two users share a number.
+
+**Rule:** Phone can be used for auth only when:
+- Phone is verified via OTP
+- Phone is unique among auth-enabled users in the same identity scope
+- `users.phone_auth_enabled = true` (platform-controlled flag)
+
+If a phone is shared, it is stored as contact data only — not enabled for login or OTP recovery.
