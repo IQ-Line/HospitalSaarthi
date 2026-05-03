@@ -24,7 +24,7 @@ The HIMS platform uses a Backend For Frontend (BFF) as the entry point for clien
 
 ## Decision outcome
 
-Chosen option: **BFF for signature verification only + per-module zero-trust**, because the BFF is an optimization layer (routing, token format validation, response aggregation) and not a security boundary. Each module verifies tokens and evaluates Cerbos policies independently, ensuring that authorization is enforced identically whether the request arrives from the BFF, from another module, or from an external system — and ensuring that a BFF compromise does not cascade into unauthorized access across the platform.
+Chosen option: **BFF for signature verification + session lifecycle management (Token Handler)**, because the BFF is an optimization layer (routing, token format validation, response aggregation) and not a security boundary. The BFF's role expands from pure signature verification to include refresh token storage and short-lived JWT reissuance — the Token Handler pattern — while each module continues to verify tokens and evaluate Cerbos policies independently.
 
 ### Consequences
 
@@ -35,6 +35,9 @@ Chosen option: **BFF for signature verification only + per-module zero-trust**, 
 - N+1 authorization mitigation works naturally. Each module's PEP uses `PlanResources` and bulk `CheckResources` with its co-located Cerbos sidecar. These optimizations are impossible at the BFF, which lacks access to module-specific resource attributes and database queries.
 - The BFF stays simple. It verifies token signatures (JWKS lookup, cached), routes requests, and optionally aggregates responses. It does not need a Cerbos sidecar, does not need to understand module-specific resource types, and does not need to be updated when authorization policies change.
 - Service-to-service calls (e.g., OPD module calling Lab module) follow the same authorization path as user-initiated calls — the Lab module's PEP checks the OPD service account's Cerbos policies. There is no separate "internal" trust model.
+- Short-lived JWTs (1-2 minutes) reduce the revocation window to near-zero. No distributed token blocklist is needed — revoking a session means the next refresh attempt fails, and the maximum exposure is one JWT lifetime.
+- Refresh tokens are stored in HttpOnly, SameSite=Strict, Secure cookies. JavaScript cannot access them, mitigating XSS-based token theft.
+- Long clinical sessions (12+ hours) are supported seamlessly. The refresh cycle is invisible to the user.
 
 **Negative / accepted trade-offs:**
 
@@ -42,6 +45,7 @@ Chosen option: **BFF for signature verification only + per-module zero-trust**, 
 - Each module pod includes a Cerbos sidecar, increasing total cluster resource consumption compared to a single centralized PDP at the BFF. We accept this because the per-pod resource overhead is small (Cerbos PDP is ~30MB memory) and the availability and latency benefits are substantial — see [ADR-0004](./0004-authz-cerbos-sidecar.md).
 - The BFF cannot provide fine-grained error responses for authorization failures. A request that passes BFF signature verification but fails module-level authorization returns 403 from the module, not from the BFF. The frontend must handle both 401 (BFF: invalid/expired token) and 403 (module: unauthorized action). This is standard HTTP semantics and not a real burden on frontend development.
 - Cerbos policy changes must be distributed to every module's sidecar, not just one central PDP. The bundle distribution mechanism (Git-based CI pipeline pushing compiled bundles) handles this, but the rollout surface is larger. We accept this because the same bundle distribution infrastructure is already required by the sidecar-per-pod model chosen in [ADR-0004](./0004-authz-cerbos-sidecar.md).
+- The BFF is now stateful — it stores refresh token cookies. A BFF outage blocks new JWT issuance. However, existing JWTs remain valid until expiry (1-2 min), and modules continue processing in-flight requests. This is a bounded failure mode.
 
 **Follow-up actions:**
 
@@ -50,6 +54,8 @@ Chosen option: **BFF for signature verification only + per-module zero-trust**, 
 - [ ] Document the request flow for each entry path (BFF, service-to-service, Integration Hub) showing that the same PEP evaluation occurs regardless of entry point.
 - [ ] Implement request-scoped PEP caching to ensure that repeated authorization checks within a single request (e.g., list rendering with per-row action buttons) do not cause redundant Cerbos calls.
 - [ ] Define the service-account JWT issuance and rotation process for inter-module calls.
+- [ ] Implement BFF Token Handler: refresh token cookie management, JWT reissuance endpoint, session revocation propagation.
+- [ ] Configure JWT plugin: `expirationTime: "2m"`, `rotationInterval`, `gracePeriod`. See [design spec §14](../../superpowers/specs/2026-05-03-authn-authz-revision-design.md#14-required-better-auth-configuration).
 
 ## Pros and cons of the options
 
@@ -63,7 +69,7 @@ Chosen option: **BFF for signature verification only + per-module zero-trust**, 
 - *Bad:* N+1 mitigation (`PlanResources`, bulk `CheckResources`) cannot work at the BFF because the BFF does not have access to module databases or resource attributes. Modules would need to implement their own authorization for list views anyway, undermining the centralization argument.
 - *Bad:* Fragmented deployments (no BFF) lose all authorization. A module deployed standalone has no protection.
 
-### BFF for signature verification only + per-module zero-trust
+### BFF for signature verification + session lifecycle (Token Handler) + per-module zero-trust
 
 - *Good:* Modules are self-contained security perimeters. Authorization works identically regardless of request entry point.
 - *Good:* BFF compromise does not cascade. Defense in depth is structural, not aspirational.
@@ -71,6 +77,8 @@ Chosen option: **BFF for signature verification only + per-module zero-trust**, 
 - *Good:* The BFF stays simple and does not need to track module-specific authorization semantics.
 - *Good:* Fragmented deployments without a BFF have full authorization coverage.
 - *Good:* Aligns with NIST SP 800-207 zero-trust architecture principles: "no implicit trust is granted to assets or user accounts based solely on their physical or network location."
+- *Good:* Token Handler pattern — 1-2 min JWTs, HttpOnly refresh cookies — eliminates JWT revocation gap without distributed blocklist.
+- *Good:* Supports 12+ hour clinical sessions seamlessly.
 - *Bad:* Redundant token verification (BFF + module). Negligible performance cost but conceptually inelegant.
 - *Bad:* Per-module Cerbos sidecars increase cluster resource consumption relative to a single central PDP.
 - *Bad:* Policy distribution must reach every sidecar, not just one central point.
