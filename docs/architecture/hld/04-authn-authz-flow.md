@@ -406,23 +406,15 @@ Source file: [`diagrams/mermaid/break-glass-override.mmd`](../diagrams/mermaid/b
 
 ---
 
-## 11. Open questions
+## 11. Resolved questions
 
 ### 11.1 Cerbos policy storage and distribution
 
-The default approach is Git-based: policies are committed to a Git repository, compiled and tested in CI, and distributed to Cerbos sidecars as bundles. This gives full version control and auditability.
-
-Cerbos also supports an [Admin API with database-backed storage](https://docs.cerbos.dev/cerbos/latest/configuration/storage), which allows runtime policy changes without a Git commit and deployment cycle. This is an escape hatch for scenarios where policies must change faster than a deployment cycle allows (e.g., emergency regulatory changes).
-
-**The decision:** default to Git + bundle distribution. Do not enable the Admin API until there is concrete evidence that the deployment cycle is too slow for a specific class of policy changes. If enabled, Admin API changes must still be synced back to Git as the source of record.
-
-`[OPEN: needs decision — confirm Cerbos policy storage strategy with EM]`
+**Decision:** Git + bundle distribution. Policies are committed to a Git repository, compiled and tested in CI (`cerbos compile` + `cerbos test`), and distributed to Cerbos sidecars as bundles. The Admin API with database-backed storage is not enabled unless concrete evidence shows the deployment cycle is too slow for a specific class of policy changes. If enabled, Admin API changes must still be synced back to Git as the source of record.
 
 ### 11.2 Token lifetime and refresh strategy
 
-The default token lifetime is 15 minutes with refresh tokens. For clinical workflows where a doctor may be actively working for hours, the refresh mechanism must be seamless. The exact refresh strategy (silent refresh via BFF, rotating refresh tokens) is not yet decided.
-
-`[OPEN: needs decision — token refresh UX for long clinical sessions]`
+**Decision:** BFF Token Handler pattern. Token lifetime is 1-2 minutes (not 15 minutes). The BFF stores refresh tokens in HttpOnly cookies and seamlessly reissues JWTs on expiry. This solves the JWT revocation gap (maximum exposure = token lifetime) and supports long clinical sessions (12+ hours) without interruption. See §7.4 and [User Management LLD §16](../lld/user-management/01-schema-design.md).
 
 ---
 
@@ -466,6 +458,40 @@ This is enforced at the component level via the React SDK hooks or a permission-
 
 ---
 
+## 13. OAuth 2.1 Provider
+
+When the platform acts as an identity source for third-party systems (e.g., clinical systems that need SSO into the platform, Integration Hub partners, future mobile apps), it uses better-auth's **OAuth 2.1 Provider plugin** (the older OIDC Provider plugin is deprecated).
+
+The plugin provides:
+- `/.well-known/openid-configuration` discovery document
+- JWKS endpoint (integrated with the JWT plugin key management from §1.6)
+- Authorization endpoint with PKCE (mandatory per OAuth 2.1)
+- Token endpoint with `authorization_code`, `refresh_token`, and `client_credentials` grant types
+- Token revocation ([RFC 7009](https://datatracker.ietf.org/doc/html/rfc7009))
+- Token introspection ([RFC 7662](https://datatracker.ietf.org/doc/html/rfc7662))
+
+Custom claims injection ensures third-party tokens include `iq_tenant_id`, `roles`, `department`, and `org_id` — the same claim contract used internally.
+
+---
+
+## 14. Recovery tier model
+
+Recovery (how a user regains access when locked out) is a first-class platform workflow, not a generic password-reset email. Users are classified into five recovery tiers (`standard`, `delegated`, `phone_recovery`, `admin_only`, `federated`), each with different allowed recovery paths.
+
+The recovery tier is stored on the platform `users` table and drives routing in better-auth's `sendResetPassword` callback:
+
+- **Standard:** Self-serve email reset via `users.email`
+- **Delegated:** Reset routed to admin mailbox via `delegated_recovery_routes` table
+- **Phone recovery:** Phone OTP reset
+- **Admin only:** Admin sets password directly via `auth.api.setUserPassword()`
+- **Federated:** IdP-managed recovery
+
+Three admin recovery workflows (direct password set, admin-generated magic link, delegated email route) are all gated by Cerbos authorization, admin step-up authentication, and full audit trail.
+
+See [User Management LLD §15](../lld/user-management/01-schema-design.md) and [design spec §3](../../superpowers/specs/2026-05-03-authn-authz-revision-design.md#3-recovery-tier-model) for full details.
+
+---
+
 ## References
 
 - [better-auth documentation](https://www.better-auth.com/docs) — AuthN provider
@@ -475,3 +501,6 @@ This is enforced at the component level via the React SDK hooks or a permission-
 - [RFC 7517 — JSON Web Key](https://datatracker.ietf.org/doc/html/rfc7517) — JWKS standard
 - [RFC 7644 — SCIM Protocol](https://datatracker.ietf.org/doc/html/rfc7644) — identity provisioning standard
 - [ISO 27789 — Audit trails for electronic health records](https://www.iso.org/standard/44315.html) — healthcare audit requirements
+- [OAuth 2.1 draft](https://datatracker.ietf.org/doc/draft-ietf-oauth-v2-1/) — PKCE mandatory, implicit grant removed
+- [RFC 7009 — OAuth 2.0 Token Revocation](https://datatracker.ietf.org/doc/html/rfc7009)
+- [RFC 7662 — OAuth 2.0 Token Introspection](https://datatracker.ietf.org/doc/html/rfc7662)
