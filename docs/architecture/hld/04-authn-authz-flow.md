@@ -14,7 +14,15 @@ The platform uses [better-auth](https://www.better-auth.com/docs) as the primary
 
 ### 1.2 Federation
 
-Modules can be configured to federate authentication to external Identity Providers (IdPs). The platform supports federation with Microsoft Entra ID (formerly Azure AD), Okta, Keycloak, and hospital-specific SSO systems via OIDC and SAML 2.0. Federation configuration is managed per tenant through the Configurator module. A hospital that already runs Entra ID for staff accounts does not need to maintain a separate set of credentials in the HIMS — their existing directory is the source of truth for identity.
+The platform supports a **two-tier federation strategy** for external Identity Providers:
+
+**Tier 1 — Direct federation (modern IdPs):** For hospitals running modern IdPs (Microsoft Entra ID, Okta, PingIdentity, Auth0), better-auth's SSO plugin (OIDC) and SAML plugin connect directly. Configuration is per-tenant via the Configurator module.
+
+**Tier 2 — Shared Keycloak broker (legacy IdPs):** For hospitals with legacy/non-standard identity systems that cannot speak OIDC or modern SAML, the platform operates a shared Keycloak cluster. Each legacy hospital gets its own realm (full logical isolation). Each realm bridges to the hospital's legacy IdP and exposes an OIDC endpoint that better-auth consumes as a standard federated IdP.
+
+**Account linking:** When a hospital that already has local users deploys an IdP, existing users must be explicitly linked to their IdP identity by an admin using employee_id or HR-id matching — never by email alone. This is managed through an `auth_identity_links` table. See [User Management LLD §15](../lld/user-management/01-schema-design.md) and [design spec §9](../../superpowers/specs/2026-05-03-authn-authz-revision-design.md#9-federation-account-linking) for the full linking workflow.
+
+A hospital that already runs Entra ID for staff accounts does not need to maintain a separate set of credentials in the HIMS — their existing directory is the source of truth for identity.
 
 ### 1.3 JIT provisioning
 
@@ -34,15 +42,21 @@ Authentication produces a signed JWT (JSON Web Token). The JWT payload includes 
 | `iq_tenant_id` | The tenant (hospital) context for this session |
 | `roles` | Array of role identifiers assigned to this user within this tenant |
 | `department` | Department or ward context, if applicable |
-| `iss` | Issuer — the platform's AuthN service or the federated IdP |
-| `exp` | Expiration timestamp |
+| `org_id` | Organization ID for multi-hospital users (null for single-tenant users) |
+| `jti` | Unique token ID for audit correlation and replay detection |
+| `iss` | Issuer — the platform's AuthN service |
+| `exp` | Expiration timestamp (1-2 minutes — Token Handler pattern) |
 | `iat` | Issued-at timestamp |
 
-Tokens are short-lived (configurable per tenant; default 15 minutes). Refresh tokens are used for session continuity.
+Tokens are short-lived (1-2 minutes, managed by the BFF Token Handler). The BFF stores refresh tokens in HttpOnly cookies and seamlessly reissues JWTs on expiry — doctors can work for 12-hour shifts without re-authentication. See [ADR-0015](../adr/0015-bff-role-zero-trust.md) for the Token Handler pattern.
+
+**What is NOT in the JWT:** Email (the synthetic `ba_users.email` has no business meaning), capabilities, delegations, clearances. These are resolved by the PEP at request time. See [User Management LLD §7](../lld/user-management/01-schema-design.md#7-pep-enrichment-pattern).
 
 ### 1.6 JWKS-based verification
 
-The AuthN service publishes a JWKS (JSON Web Key Set) endpoint. Any service holding the public keys can verify a JWT signature locally without calling back to the AuthN service. This is the foundation for the zero-trust verification model described in sections 2 and 7 ([RFC 7517 — JSON Web Key](https://datatracker.ietf.org/doc/html/rfc7517)).
+The AuthN service publishes a JWKS (JSON Web Key Set) endpoint at `/.well-known/jwks.json`. Any service holding the public keys can verify a JWT signature locally without calling back to the AuthN service. This is the foundation for the zero-trust verification model described in sections 2 and 7 ([RFC 7517 — JSON Web Key](https://datatracker.ietf.org/doc/html/rfc7517)).
+
+**Key management:** JWKS keys are managed by better-auth's JWT plugin and persisted in a database `jwks` table — surviving pod restarts and horizontal scaling. Private keys are encrypted at rest with AES-256-GCM by default. Key rotation is configured with an explicit `rotationInterval` (e.g., 7 days) and `gracePeriod` (e.g., 14 days) during which both old and new keys are served. See [User Management LLD §17](../lld/user-management/01-schema-design.md).
 
 ---
 
@@ -50,11 +64,11 @@ The AuthN service publishes a JWKS (JSON Web Key Set) endpoint. Any service hold
 
 The following walk-through traces a request from user login to authorized action.
 
-**Step 1 — User login.** The user (e.g., a front-desk clerk) navigates to the HIMS web application and enters credentials. If the tenant is configured for direct authentication, better-auth validates the credentials. If the tenant is configured for federation, the user is redirected to the external IdP (e.g., hospital Entra ID) for authentication.
+**Step 1 — User login.** The user navigates to the HIMS web application and enters their **username** and password. If the tenant is configured for direct authentication, better-auth validates the credentials via the username plugin. If the tenant is configured for federation, the user clicks "Sign in with [Hospital IdP]" and is redirected to the external IdP for authentication.
 
 **Step 2 — Token issuance.** On successful authentication, the `IdentityProvider` interface issues a JWT containing the claims listed in section 1.5. For federated users, JIT provisioning (section 1.3) runs if no shadow record exists, ensuring the `sub` claim always maps to a platform-internal `user_id`.
 
-**Step 3 — Client receives JWT.** The frontend stores the JWT and attaches it to every subsequent API request as a `Bearer` token in the `Authorization` header.
+**Step 3 — Token Handler issues JWT.** The BFF receives the authentication response from better-auth, stores the **refresh token** in an HttpOnly, SameSite=Strict, Secure cookie, and issues a **short-lived JWT** (1-2 minutes) to the SPA. The SPA stores the JWT and attaches it to every subsequent API request as a `Bearer` token. When the JWT expires, the SPA silently refreshes via the BFF's refresh endpoint — no re-authentication needed.
 
 **Step 4 — BFF receives request.** The BFF (Backend For Frontend) / API Gateway receives the request. It verifies the JWT signature against the JWKS endpoint. This is signature verification only — the BFF does not evaluate authorization policies. If the signature is invalid or the token is expired, the BFF rejects the request with a `401 Unauthorized` before it reaches any module. See section 7 for the BFF's limited role.
 
@@ -96,6 +110,7 @@ While policies are code, the **data** that policies evaluate against is UI-confi
 
 - Role definitions (what roles exist in a given tenant)
 - Role assignments (which users hold which roles)
+- **Capabilities** (what actions each role is allowed to perform — the bridge between policies-as-code and data-as-config)
 - Department and ward hierarchies
 - Tenant-specific scope overrides (e.g., "in this hospital, nurses can order labs; in that hospital, they cannot")
 
@@ -164,7 +179,7 @@ This section traces the authorization path for a single request after the JWT ha
 
 **Step 1 — PEP middleware intercepts.** Every module implements PEP middleware as specified in the [Module Shape Template](03-module-shape-template.md). The middleware fires before business logic on every request that touches a protected resource.
 
-**Step 2 — Principal extraction.** The PEP extracts the `Principal` from the verified JWT claims: `user_id`, `iq_tenant_id`, `roles[]`, `department`. Additional attributes (e.g., specialty, license status) may be fetched from the module's local cache of User Management data.
+**Step 2 — Principal extraction and enrichment.** The PEP extracts the `Principal` from the verified JWT claims: `user_id`, `iq_tenant_id`, `roles[]`, `department`, `org_id`. It then enriches the principal with **capabilities** (by resolving `roles[]` → `role_capabilities` → `capabilities`), **active delegations**, and **clearances** — all from the module's local cache of User Management data. See [User Management LLD §7 — PEP enrichment pattern](../lld/user-management/01-schema-design.md#7-pep-enrichment-pattern).
 
 **Step 3 — Request packaging.** The PEP constructs a Cerbos `CheckResources` request containing:
 - **Principal:** `{ id: user_id, roles: [...], attr: { iq_tenant_id, department, ... } }`
@@ -269,6 +284,19 @@ The BFF is an optimization layer, not a security boundary. If the BFF is comprom
 This design means modules can be deployed behind the BFF or accessed directly (e.g., by other modules making service-to-service calls) with the same security guarantees.
 
 [ADR-0015 — BFF role and zero-trust between modules](../adr/0015-bff-role-zero-trust.md)
+
+### 7.4 Token Handler session management
+
+The BFF's role expands beyond signature verification to include **session lifecycle management** via the Token Handler pattern:
+
+- The BFF stores refresh tokens in HttpOnly, SameSite=Strict, Secure cookies
+- The BFF issues 1-2 minute JWTs to the SPA
+- When a JWT expires, the SPA calls the BFF's refresh endpoint, which uses the cookie-stored refresh token to obtain a new JWT from better-auth
+- If the session has been revoked (e.g., admin suspended the user), the refresh fails and the user is redirected to login
+
+This expansion does not weaken the zero-trust model. Modules still verify JWTs independently against JWKS — they do not know or care about the Token Handler. They see a standard JWT with a short lifetime, which is strictly better for security than the previous 15-minute default.
+
+The BFF becomes stateful (it stores cookies), introducing a new consequence: if the BFF is down, new JWT issuance stops. However, existing JWTs remain valid until expiry, and modules continue processing in-flight requests. See [User Management LLD §16](../lld/user-management/01-schema-design.md).
 
 ---
 
