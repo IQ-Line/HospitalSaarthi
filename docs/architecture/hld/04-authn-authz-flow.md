@@ -6,6 +6,20 @@ Cross-references: [System Overview](01-system-overview.md) for the identity plan
 
 ---
 
+## Implementation phasing
+
+This document describes the full authentication and authorization architecture. Not all of it ships at once. Sections are tagged with their implementation phase:
+
+| Phase | Scope | Rationale |
+|-------|-------|-----------|
+| **Phase 1 — MVP** | Username+password login, synthetic email, Token Handler (1-2 min JWTs), JWKS key management, `admin_only` + `standard` recovery, `must_change_password` | The minimum viable identity stack. Every data structure introduced here (`ba_users.username`, `users.recovery_tier`, `jwks` table) must exist from day one — retrofitting them requires data migration across every tenant. |
+| **Phase 2 — Post-launch** | Phone auth, `delegated` + `phone_recovery` tiers, `delegated_recovery_routes` table, magic link recovery | Serves hospitals with no-email staff. Depends on Phase 1 schema being in place (`recovery_tier` column, `sendResetPassword` routing). Adding these tiers is additive — no schema migration, just new enum values and a new table. |
+| **Phase 3 — Federation** | Two-tier federation (direct OIDC/SAML + Keycloak broker), `auth_identity_links` table, OAuth 2.1 Provider, `federated` tier, SCIM-driven tier upgrades | Serves hospitals with existing IdPs. Designed now because the synthetic email decision and the `auth_user_id` linking model must be compatible with federation from day one — discovering an incompatibility after 50 hospitals are onboarded would force a rewrite. |
+
+**Why design ahead:** The identity model's core data structures (synthetic email as identity anchor, `auth_user_id` link between AuthN and business layers, `recovery_tier` column, `IdentityProvider` interface) are foundation decisions that Phase 2 and 3 features build on top of. Designing these phases now validates that the MVP foundation supports future needs without schema changes or architectural rework. The scenarios for future phases are the proof that the foundation holds.
+
+---
+
 ## 1. Authentication architecture
 
 ### 1.1 Primary AuthN provider
@@ -13,6 +27,8 @@ Cross-references: [System Overview](01-system-overview.md) for the identity plan
 The platform uses [better-auth](https://www.better-auth.com/docs) as the primary Authentication (AuthN) provider. better-auth is not exposed directly to modules. It is wrapped behind a thin `IdentityProvider` interface owned by the User Management core module. This interface defines the contract — issue token, verify token, refresh token, revoke session — and allows the underlying provider to be replaced without module-level changes ([ADR-0003](../adr/0003-authn-better-auth-identity-adapter.md)).
 
 ### 1.2 Federation
+
+> **Phase 3 — Federation**
 
 The platform supports a **two-tier federation strategy** for external Identity Providers:
 
@@ -460,6 +476,8 @@ This is enforced at the component level via the React SDK hooks or a permission-
 
 ## 13. OAuth 2.1 Provider
 
+> **Phase 3 — Federation**
+
 When the platform acts as an identity source for third-party systems (e.g., clinical systems that need SSO into the platform, Integration Hub partners, future mobile apps), it uses better-auth's **OAuth 2.1 Provider plugin** (the older OIDC Provider plugin is deprecated).
 
 The plugin provides:
@@ -475,6 +493,8 @@ Custom claims injection ensures third-party tokens include `iq_tenant_id`, `role
 ---
 
 ## 14. Recovery tier model
+
+> **Phase 1 (MVP):** `standard` and `admin_only` tiers. **Phase 2:** `delegated`, `phone_recovery` tiers. **Phase 3:** `federated` tier.
 
 Recovery (how a user regains access when locked out) is a first-class platform workflow, not a generic password-reset email. Users are classified into five recovery tiers (`standard`, `delegated`, `phone_recovery`, `admin_only`, `federated`), each with different allowed recovery paths.
 

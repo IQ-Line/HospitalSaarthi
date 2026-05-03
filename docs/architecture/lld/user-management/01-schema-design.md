@@ -7,6 +7,8 @@
 **ERD (visual):** [`user-management.erd.json`](./user-management.erd.json) — open in VS Code with ERD Editor extension  
 **Schema reference:** [`schema-reference.json`](./schema-reference.json) — full column descriptions, indexes, check constraints, Citus distribution notes
 
+**Phasing:** Sections §15–§18 are tagged with their implementation phase (MVP, Post-launch, or Federation). Future-phase sections validate that the MVP schema supports later features without migrations. See [HLD-04 — Implementation phasing](../../hld/04-authn-authz-flow.md) for the full phase breakdown.
+
 ---
 
 ## 1. Three-layer auth data model
@@ -351,6 +353,8 @@ This schema design introduces concepts not yet explicit in the HLD. The followin
 
 ## 15. Recovery tier model
 
+> **Phase 1 (MVP):** `standard` and `admin_only` tiers, `must_change_password`, `recovery_tier` column. **Phase 2:** `delegated`, `phone_recovery` tiers, `delegated_recovery_routes` table, magic link (Flow B). **Phase 3:** `federated` tier.
+
 Recovery (how a user regains access when locked out) is a **first-class platform workflow**, not a generic better-auth email reset. Different users have different recovery options based on their identity assurance tier. The tier is stored on `users.recovery_tier` and governs which recovery paths are available.
 
 ### Tier definitions
@@ -398,6 +402,8 @@ See design spec §3.3–§3.5 for full implementation details including code pat
 
 ## 16. BFF Token Handler interaction
 
+> **Phase 1 — MVP**
+
 The BFF's role expands from "signature verification only" ([ADR-0015](../../adr/0015-bff-role-zero-trust.md)) to "signature verification + session lifecycle management" via the Token Handler pattern.
 
 ### How it works
@@ -430,6 +436,8 @@ Zero-trust per-module verification is preserved. Modules verify JWTs independent
 ---
 
 ## 17. JWKS key management
+
+> **Phase 1 — MVP** (KMS integration path is future)
 
 JWKS key management is handled by better-auth's JWT plugin with DB-persisted keys. This is a definitive architectural decision, not deferred to implementation.
 
@@ -468,6 +476,8 @@ The JWT plugin supports a custom `sign` function for delegating signing to exter
 ---
 
 ## 18. Phone number auth
+
+> **Phase 2 — Post-launch**
 
 Phone number auth is supplementary, not primary. A user can have both username+password and phone OTP as login methods, resolving to the same credential account.
 

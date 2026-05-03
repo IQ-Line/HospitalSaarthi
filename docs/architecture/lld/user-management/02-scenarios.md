@@ -6,6 +6,8 @@
 
 **Notation:** SQL-style pseudocode shows data states, not literal queries. Column lists are abbreviated to the relevant ones. System-initiated actions (platform seeding, SCIM sync) use well-known service-account UUIDs from the `users` table (e.g., `svc-platform-seed`, `svc-scim-sync`) — shown as readable names here for clarity.
 
+**Phasing:** Scenarios §16–§32 are tagged with their implementation phase (MVP, Post-launch, or Federation). Scenarios for future phases validate that the MVP foundation supports those features without schema changes — they are the proof that the base design holds. See [HLD-04 — Implementation phasing](../../hld/04-authn-authz-flow.md) for the full phase breakdown.
+
 ---
 
 ## 1. Tenant onboarding — setting up a new hospital
@@ -776,6 +778,8 @@ When Nurse Patel accesses Ward B patient data:
 
 ## 16. Token Handler refresh — seamless refresh during long clinical session
 
+> **Phase 1 — MVP**
+
 **Scenario:** Dr. Sharma is in the middle of a 6-hour outpatient clinic. Her JWT expires every 1-2 minutes but she should never be interrupted.
 
 ### What happens
@@ -805,6 +809,8 @@ If an admin had revoked Dr. Sharma's session during those 1-2 minutes, the BFF's
 ---
 
 ## 17. Key rotation — JWKS rotation with grace period
+
+> **Phase 1 — MVP**
 
 **Scenario:** The platform's JWKS keys are rotated per the configured schedule (e.g., every 7 days).
 
@@ -842,6 +848,8 @@ Modules cache the JWKS with a TTL (e.g., 1 hour). On rotation, modules will fetc
 
 ## 18. Standard-tier password reset — user with own email self-serves
 
+> **Phase 1 — MVP**
+
 **Scenario:** Dr. Sharma (recovery_tier = `standard`, `users.email = 'sharma@example.com'`) forgets her password.
 
 ### What happens
@@ -867,6 +875,8 @@ Dr. Sharma clicks the reset link in her email, sets a new password. `revokeSessi
 ---
 
 ## 19. Delegated-tier password reset — admin-initiated, delegated email route
+
+> **Phase 2 — Post-launch**
 
 **Scenario:** Nurse Patel (recovery_tier = `delegated`, no personal email) is locked out.
 
@@ -917,6 +927,8 @@ She clicks the link, sets a new password, and logs in.
 
 ## 20. Admin-only tier recovery — direct password set, in-person handoff
 
+> **Phase 1 — MVP**
+
 **Scenario:** Ward attendant Raju (recovery_tier = `admin_only`, no email, no phone for auth) is locked out.
 
 ### What happens
@@ -959,6 +971,8 @@ Raju enters username and temp password. `must_change_password = true` forces a p
 
 ## 21. Magic link recovery — admin generates link, delivers via QR/SMS
 
+> **Phase 2 — Post-launch**
+
 **Scenario:** Lab technician Anand (recovery_tier = `delegated`) needs password recovery, but the admin mailbox is temporarily down.
 
 ### What happens
@@ -992,6 +1006,8 @@ The magic link is single-use (`allowedAttempts: 1`), expires in 5 minutes (`expi
 ---
 
 ## 22. Phone-only user sets up username/password — credential account creation
+
+> **Phase 2 — Post-launch**
 
 **Scenario:** Community health worker Priya registers with her phone number (no email).
 
@@ -1037,6 +1053,8 @@ users:
 
 ## 23. Shared phone number — contact only, no phone auth
 
+> **Phase 2 — Post-launch**
+
 **Scenario:** Two nurses at a rural PHC share a family phone number `+919111222333`.
 
 ### What happens
@@ -1079,6 +1097,8 @@ Both nurses log in with username + password only.
 ---
 
 ## 24. Federation after 1,000 local users — explicit linking, duplicate prevention
+
+> **Phase 3 — Federation**
 
 **Scenario:** AIIMS Delhi deploys Microsoft Entra ID. 1,000 staff already have local username+password accounts.
 
@@ -1131,6 +1151,8 @@ Dr. Sharma clicks "Sign in with AIIMS ID" → redirected to Entra → authentica
 
 ## 25. Federated user email differs from synthetic — link by subject, not email
 
+> **Phase 3 — Federation**
+
 **Scenario:** Dr. Sharma's Entra email is `sharma@aiims.edu`, but her `ba_users.email` is `sharma.cardiology@auth.internal`. Auto-linking by email would fail.
 
 ### What happens
@@ -1151,6 +1173,8 @@ This scenario demonstrates why explicit linking (§24) is necessary:
 ---
 
 ## 26. SCIM pushes real email for delegated user — recovery tier upgrade
+
+> **Phase 3 — Federation**
 
 **Scenario:** Nurse Patel (recovery_tier = `delegated`) gets her own AIIMS email when the hospital rolls out email for all staff via SCIM.
 
@@ -1186,6 +1210,8 @@ The `delegated_recovery_routes` entry for `usr-666` is soft-deleted or marked in
 ---
 
 ## 27. Admin mailbox changes — delegated route migration with audit
+
+> **Phase 2 — Post-launch**
 
 **Scenario:** AIIMS Delhi's IT admin mailbox changes from `it.admin@aiims.edu` to `helpdesk@aiims.edu`.
 
@@ -1227,6 +1253,8 @@ permission_change_audit:
 
 ## 28. Admin mailbox compromised — disable delegated recovery, rotate, revoke
 
+> **Phase 2 — Post-launch**
+
 **Scenario:** The IT admin mailbox `it.admin@aiims.edu` is compromised. All delegated recovery routes using it must be disabled immediately.
 
 ### What happens
@@ -1262,6 +1290,8 @@ For each user who had a delegated route through the compromised mailbox:
 ---
 
 ## 29. 2FA recovery for delegated user — backup codes on screen only, never emailed
+
+> **Phase 2 — Post-launch**
 
 **Scenario:** Nurse Meera (recovery_tier = `delegated`) enables TOTP 2FA and later loses her authenticator app.
 
@@ -1301,6 +1331,8 @@ On next login, Nurse Meera is prompted to set up TOTP again.
 
 ## 30. Shared workstation — fast user switching, re-auth before clinical action
 
+> **Phase 1 — MVP**
+
 **Scenario:** Emergency department has a shared workstation. Multiple staff use it during a shift.
 
 ### What happens
@@ -1329,6 +1361,8 @@ When Dr. Kapoor attempts to prescribe a controlled substance, the module's PEP e
 ---
 
 ## 31. BFF down during clinical session — existing JWTs expire, operational behavior
+
+> **Phase 1 — MVP**
 
 **Scenario:** The BFF goes down for 5 minutes during a busy clinic.
 
@@ -1359,6 +1393,8 @@ Modules that received valid JWTs before the outage continue processing those req
 ---
 
 ## 32. Training/sandbox environment — prevent unsafe credential practices from normalizing
+
+> **Phase 1 — MVP**
 
 **Scenario:** Hospital sets up a training environment for new staff to learn the system.
 
@@ -1402,18 +1438,19 @@ Sandbox tenant data is on a separate Citus shard. Cerbos tenant isolation ensure
 
 ## Summary: what the schema handles
 
-| Category | Scenarios | Key schema features |
-|----------|-----------|-------------------|
-| **Tenant lifecycle** | §1 onboarding, §14 feature rollout, §32 sandbox | `iq_tenant_id` distribution, `is_system` roles, capabilities reference table |
-| **User lifecycle** | §2 onboarding, §7 transfer, §13 security incident, §22 phone setup | `users.status`, department assignments, `ba_users.username`, synthetic email |
-| **Multi-tenancy** | §3 multi-tenant login, §4 role customization | `auth_user_id` linking, per-tenant `role_capabilities`, Token Handler |
-| **Authorization granularity** | §4 capabilities, §6 clearances, §15 ward scoping | `role_capabilities`, `user_clearances`, `role_assignments.scope_type` |
-| **Delegation** | §5 superintendent delegation | `delegations` with time bounds, PEP enrichment |
-| **Non-human principals** | §8 service accounts, §9 agents | `users.kind` (user/service/agent), same capability model |
-| **External integration** | §10 SCIM, §24 federation, §25 email mismatch, §26 SCIM upgrade | `idp_configurations`, `auth_identity_links`, `employee_id` |
-| **Recovery** | §18 standard, §19 delegated, §20 admin-only, §21 magic link, §29 2FA | `recovery_tier`, `delegated_recovery_routes`, `must_change_password` |
-| **Phone auth** | §22 phone setup, §23 shared phone | `phone_auth_enabled`, phone-only registration flow |
-| **Token lifecycle** | §16 refresh, §17 key rotation, §31 BFF down | `jwks`, Token Handler, JWKS caching |
-| **Operations** | §11 audit, §27 mailbox migration, §28 mailbox compromise, §30 shared workstation | `permission_change_audit`, `delegated_recovery_routes` lifecycle |
-| **Compliance** | §11 audit, §13 incident, §29 2FA recovery | `permission_change_audit` with `reason`, `status` lifecycle |
-| **Organization** | §12 regional director | `org_id`, `scope_level: 'organization'` |
+| Category | Scenarios | Phase | Key schema features |
+|----------|-----------|-------|-------------------|
+| **Tenant lifecycle** | §1 onboarding, §14 feature rollout, §32 sandbox | MVP | `iq_tenant_id` distribution, `is_system` roles, capabilities reference table |
+| **User lifecycle** | §2 onboarding, §7 transfer, §13 security incident | MVP | `users.status`, department assignments, `ba_users.username`, synthetic email |
+| **Multi-tenancy** | §3 multi-tenant login, §4 role customization | MVP | `auth_user_id` linking, per-tenant `role_capabilities`, Token Handler |
+| **Authorization granularity** | §4 capabilities, §6 clearances, §15 ward scoping | MVP | `role_capabilities`, `user_clearances`, `role_assignments.scope_type` |
+| **Delegation** | §5 superintendent delegation | MVP | `delegations` with time bounds, PEP enrichment |
+| **Non-human principals** | §8 service accounts, §9 agents | MVP | `users.kind` (user/service/agent), same capability model |
+| **Token lifecycle** | §16 refresh, §17 key rotation, §31 BFF down | MVP | `jwks`, Token Handler, JWKS caching |
+| **Recovery (MVP)** | §18 standard, §20 admin-only | MVP | `recovery_tier`, `must_change_password` |
+| **Recovery (extended)** | §19 delegated, §21 magic link, §29 2FA | Post-launch | `delegated_recovery_routes`, admin workflows |
+| **Phone auth** | §22 phone setup, §23 shared phone | Post-launch | `phone_auth_enabled`, phone-only registration flow |
+| **Operations** | §11 audit, §27 mailbox migration, §28 mailbox compromise, §30 shared workstation | Mixed | `permission_change_audit`, `delegated_recovery_routes` lifecycle |
+| **External integration** | §10 SCIM, §24 federation, §25 email mismatch, §26 SCIM upgrade | Federation | `idp_configurations`, `auth_identity_links`, `employee_id` |
+| **Compliance** | §11 audit, §13 incident, §29 2FA recovery | Mixed | `permission_change_audit` with `reason`, `status` lifecycle |
+| **Organization** | §12 regional director | MVP | `org_id`, `scope_level: 'organization'` |
