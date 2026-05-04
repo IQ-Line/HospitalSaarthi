@@ -1,0 +1,13 @@
+{
+  "name": "configurator-svc",
+  "tags": ["type:service", "scope:configurator", "language:typescript"],
+  "targets": {
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npx tsx watch src/main.ts",
+        "cwd": "services/configurator-svc"
+      }
+    }
+  }
+}
