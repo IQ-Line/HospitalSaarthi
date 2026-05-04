@@ -29,13 +29,4 @@ export {
   configuratorSchema,
   organizations,
   tenants,
-  moduleProjection,
-  configSchemaProjection,
-  featureFlagProjection,
-  tenantModules,
-  tenantFeatureFlags,
-  tenantModuleConfigs,
-  integrationProfiles,
-  tenantProvisioningLog,
-  configChangeAudit,
 } from "./schema/tables.js";
