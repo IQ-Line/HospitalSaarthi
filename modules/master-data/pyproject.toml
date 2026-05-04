@@ -1,0 +1,35 @@
+[project]
+name = "hims-master-data"
+version = "0.1.0"
+description = "Master Data service for the HIMS platform."
+requires-python = ">=3.12"
+dependencies = [
+    "alembic",
+    "fastapi",
+    "pydantic",
+    "pydantic-settings",
+    "psycopg[binary]",
+    "pyjwt",
+    "sqlalchemy",
+    "uvicorn[standard]",
+]
+
+[dependency-groups]
+dev = [
+    "httpx",
+    "pytest",
+    "pytest-asyncio",
+    "ruff",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"

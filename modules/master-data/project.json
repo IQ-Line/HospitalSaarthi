@@ -1,0 +1,30 @@
+{
+  "name": "master-data",
+  "tags": ["type:module", "scope:master-data", "language:python"],
+  "targets": {
+    "serve": {
+      "command": "uv run uvicorn app.main:app --host 0.0.0.0 --port 8010 --reload",
+      "options": {
+        "cwd": "modules/master-data"
+      }
+    },
+    "lint": {
+      "command": "uv run ruff check .",
+      "options": {
+        "cwd": "modules/master-data"
+      }
+    },
+    "test": {
+      "command": "uv run pytest",
+      "options": {
+        "cwd": "modules/master-data"
+      }
+    },
+    "migrate": {
+      "command": "uv run alembic upgrade head",
+      "options": {
+        "cwd": "modules/master-data"
+      }
+    }
+  }
+}

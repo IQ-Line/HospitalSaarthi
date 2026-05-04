@@ -1,0 +1,7 @@
+services:
+  master-data:
+    build: .
+    ports:
+      - "8010:8010"
+    env_file:
+      - .env.example
