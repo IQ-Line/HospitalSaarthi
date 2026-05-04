@@ -1,0 +1,68 @@
+You are working in the HIMS Platform monorepo — a Hospital Information Management System targeting AIIMS EOI scope (~38 modules). Nx monorepo, TypeScript-first.
+
+# Architecture docs (read before making changes)
+
+- docs/architecture/lld/repo-structure/01-monorepo-setup.md — monorepo layout, module layers, paradigm rules
+- docs/architecture/lld/frontend/01-frontend-structure.md — Zustand, TanStack Router, permissions, React Query
+- docs/architecture/hld/03-module-shape-template.md — contract every module follows
+- docs/architecture/analysis/03-database-principles.md — schema rules, Citus distribution
+
+# Stack
+
+Backend: Fastify v5, Node.js 24, Drizzle ORM, PostgreSQL+Citus, Cerbos (authz), better-auth (authn)
+Frontend: React 19, TanStack Router v1 (file-based routing), TanStack Query v5, Zustand, TanStack Table v8, TanStack Virtual v3, React Hook Form v7, Tailwind v4, @pulse/* UI components
+Tooling: Nx 22, pnpm, Vitest, Playwright, k6, ESLint 10 flat config
+
+# Critical rules
+
+1. SPEC FIRST: Every module's API defined in specs/openapi/<module>.v1.yaml before handler code.
+2. NO CROSS-MODULE IMPORTS: modules/* cannot import from other modules/*. Use events (async) or generated OpenAPI clients (sync).
+3. USE-CASES ARE FUNCTIONS: One factory function per file, dependencies injected as parameters. Data-access adapters are classes implementing port interfaces.
+4. ZUSTAND SELECTORS ALWAYS: useStore(s => s.field), never bare useStore(). Use useShallow for multi-value selects.
+5. TENANT_ID ON EVERY TABLE: Citus-distributed. No exceptions.
+6. FRONTEND AUTH IS UX, NOT SECURITY: usePermissionsStore gates UI. Backend Cerbos PDP is authoritative.
+7. NO CROSS-SCHEMA FOREIGN KEYS: Modules own separate DB schemas. Use events or API calls for cross-module data.
+8. RICH EVENT PAYLOADS: Events carry all fields consumers might project, not just IDs.
+
+# Module structure
+
+modules/<name>/src/
+  ports.ts              → Repository interfaces
+  domain/               → Types, value objects, entities with lifecycle behavior
+  use-cases/            → One function per file, deps injected as params
+  data-access/          → Drizzle repos implementing ports (classes with constructor injection)
+  http-handlers/        → Intent-based API handlers (functions)
+  rest-handlers/        → RESTful CRUD endpoints (functions)
+  events/publishers/    → Domain event emitters
+  events/consumers/     → Handlers for events from other modules
+  projections/          → Local read copies of other modules' data
+  schema/               → Drizzle table definitions + migrations
+  router.ts             → Mounts all handlers as Fastify plugin
+  index.ts              → Public API exports
+
+# Frontend structure
+
+services/web/src/
+  routes/               → TanStack Router file-based routes (routeTree.gen.ts is auto-generated)
+  features/<module>/    → api/ (query key factory, queries, mutations), components/, store.ts
+  stores/               → Global Zustand: auth.store.ts, tenant.store.ts, permissions.store.ts, ui-prefs.store.ts
+  lib/                  → api-client.ts, query-client.ts, cerbos-client.ts, permissions.ts
+  styles/               → Tailwind v4 + Pulse OKLCH variables
+
+# Paradigm rule (deterministic, not a preference)
+
+Stateless logic = functions (use-cases, handlers, event handlers)
+Stateful components = classes (data-access adapters, event bus adapters, domain entities with lifecycle)
+The layer determines the paradigm. See 01-monorepo-setup.md §2.5.
+
+# Pulse UI packages
+
+packages/pulse-* are UI components from IQSandbox, adapted for TanStack Router. Use the components. Do NOT follow IQSandbox's architectural patterns — they were built without engineering oversight.
+
+# What NOT to do
+
+- Do not run tsc or tsc --noEmit (freezes on WSL2). Use dev server HMR or Vitest.
+- Do not put business logic in data-access layer — that belongs in use-cases.
+- Do not use React Context for state management — use Zustand stores.
+- Do not create god-classes or god-stores. One store per feature module, one use-case per file.
+- Do not import directly from data-access in use-cases — go through ports.ts interfaces.

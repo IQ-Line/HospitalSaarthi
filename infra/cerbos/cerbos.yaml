@@ -1,0 +1,19 @@
+server:
+  httpListenAddr: ':3592'
+  grpcListenAddr: ':3593'
+
+storage:
+  driver: disk
+  disk:
+    directory: /policies
+    watchForChanges: true
+
+schema:
+  enforcement: reject
+
+audit:
+  enabled: true
+  backend: local
+  local:
+    storagePath: /tmp/cerbos-audit
+    retentionPeriod: 168h

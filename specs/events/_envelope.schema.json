@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hims-platform/schemas/event-envelope",
+  "title": "DomainEvent Envelope",
+  "description": "Standard envelope wrapping every domain event in the HIMS platform. All fields are required.",
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "source_module",
+    "iq_tenant_id",
+    "timestamp",
+    "correlation_id",
+    "actor_id",
+    "schema_version",
+    "payload"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "UUIDv7 — unique, time-sortable event identifier"
+    },
+    "event_type": {
+      "type": "string",
+      "pattern": "^[a-z]+\\.[a-z][a-z0-9-]*\\.[a-z][a-z0-9-]*$",
+      "description": "Dot-separated: <module>.<entity>.<action>. Example: empi.patient.created",
+      "examples": [
+        "empi.patient.created",
+        "user-management.user.updated",
+        "configurator.tenant.provisioned"
+      ]
+    },
+    "source_module": {
+      "type": "string",
+      "description": "Module that published the event"
+    },
+    "iq_tenant_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Tenant scope — every event is tenant-scoped"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp of when the event occurred"
+    },
+    "correlation_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Propagated from the originating request for distributed tracing"
+    },
+    "actor_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "User or service account that triggered the action"
+    },
+    "schema_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semver of the payload schema. Consumers can route on this.",
+      "examples": ["1.0.0"]
+    },
+    "payload": {
+      "type": "object",
+      "description": "Event-specific data. Schema defined per event_type in the module's events spec."
+    }
+  },
+  "additionalProperties": false
+}

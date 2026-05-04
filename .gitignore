@@ -1,6 +1,21 @@
-# Claude Code skill installations (reinstallable from skills-lock.json)
-.agents/
-.claude/
+# Dependencies
+node_modules/
+.pnp.*
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Generated
+routeTree.gen.ts
+
+# Nx
+.nx/
+
+# Environment
+.env
+.env.local
+.env.*.local
 
 # OS
 .DS_Store
@@ -13,8 +28,19 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Node (future)
-node_modules/
-dist/
-.env
-.env.*
+# Testing
+coverage/
+
+# Docker volumes
+infra/docker/volumes/
+
+# Claude Code
+.agents/
+.claude/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.mypy_cache/
+.ruff_cache/

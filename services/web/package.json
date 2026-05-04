@@ -1,0 +1,43 @@
+{
+  "name": "@hims/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@pulse/blocks": "workspace:*",
+    "@pulse/constants": "workspace:*",
+    "@pulse/layouts": "workspace:*",
+    "@pulse/patterns": "workspace:*",
+    "@pulse/ui": "workspace:*",
+    "@pulse/utils": "workspace:*",
+    "@cerbos/http": "^0.28.0",
+    "@cerbos/react": "^0.3.5",
+    "@hookform/resolvers": "^5.0.1",
+    "@tanstack/react-query": "^5.75.5",
+    "@tanstack/react-query-devtools": "^5.75.5",
+    "@tanstack/react-router": "^1.120.6",
+    "@tanstack/react-router-devtools": "^1.120.6",
+    "@tanstack/react-table": "^8.21.3",
+    "@tanstack/react-virtual": "^3.13.6",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-hook-form": "^7.56.4",
+    "zod": "^3.25.7",
+    "zustand": "^5.0.5"
+  },
+  "devDependencies": {
+    "@tanstack/router-plugin": "^1.120.3",
+    "@tailwindcss/vite": "^4.1.7",
+    "@types/react": "^19.1.4",
+    "@types/react-dom": "^19.1.5",
+    "@vitejs/plugin-react": "^4.5.2",
+    "tailwindcss": "^4.1.7",
+    "typescript": "^6.0.3",
+    "vite": "^7.0.1"
+  }
+}

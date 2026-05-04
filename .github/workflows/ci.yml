@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
+  NODE_VERSION: '24'
+  PNPM_VERSION: '10'
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: citusdata/citus:12.1
+        env:
+          POSTGRES_USER: hims
+          POSTGRES_PASSWORD: hims
+          POSTGRES_DB: hims_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U hims"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+      cerbos:
+        image: ghcr.io/cerbos/cerbos:latest
+        ports:
+          - 3593:3593
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - uses: nrwl/nx-set-shas@v4
+
+      # Stage 1: Static analysis
+      - name: Lint
+        run: npx nx affected -t lint --parallel=3
+
+      # Stage 2: Type checking
+      # - name: Typecheck
+      #   run: npx nx affected -t typecheck --parallel=3
+
+      # Stage 3: Spec validation
+      # - name: Validate specs
+      #   run: npx nx affected -t validate-spec
+
+      # Stage 4: Unit tests
+      - name: Test
+        run: npx nx affected -t test --parallel=2
+
+      # Stage 5: Integration tests
+      # - name: Integration tests
+      #   run: npx nx affected -t test:integration
+      #   env:
+      #     DATABASE_URL: postgresql://hims:hims@localhost:5432/hims_test
+      #     CERBOS_URL: localhost:3593
+
+      # Stage 6: Cerbos policy tests
+      # - name: Cerbos policy tests
+      #   run: cd infra/cerbos && cerbos test
+
+      # Stage 7: E2E tests (when applicable)
+      # - name: E2E tests
+      #   run: npx nx affected -t e2e
+
+      # Stage 8: AI code review (when configured)
+      # - name: AI code review
+      #   run: npx nx affected -t ai-review

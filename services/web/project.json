@@ -1,0 +1,24 @@
+{
+  "name": "web",
+  "tags": ["type:app", "scope:frontend"],
+  "targets": {
+    "serve": {
+      "command": "vite",
+      "options": {
+        "cwd": "services/web"
+      }
+    },
+    "build": {
+      "command": "vite build",
+      "options": {
+        "cwd": "services/web"
+      }
+    },
+    "preview": {
+      "command": "vite preview",
+      "options": {
+        "cwd": "services/web"
+      }
+    }
+  }
+}

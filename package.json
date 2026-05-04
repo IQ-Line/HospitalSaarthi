@@ -1,0 +1,27 @@
+{
+  "name": "hims-platform",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "nx run-many -t serve",
+    "lint": "nx affected -t lint",
+    "test": "nx affected -t test",
+    "build": "nx run-many -t build",
+    "ci:pr": "nx affected -t lint typecheck test"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["nx", "esbuild"]
+  },
+  "devDependencies": {
+    "@nx/eslint": "^22.7.1",
+    "@nx/js": "^22.7.1",
+    "eslint": "^10.3.0",
+    "nx": "^22.7.1",
+    "prettier": "^3.8.3",
+    "typescript": "^6.0.3"
+  }
+}
