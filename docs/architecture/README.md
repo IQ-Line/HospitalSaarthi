@@ -28,6 +28,9 @@ Start here if you want to understand **what problem we're solving** before readi
 
 - [User Management — Schema Design](lld/user-management/01-schema-design.md) — three-layer auth data model, capability-based authorization data, org-level users, Citus distribution strategy. Includes [ERD](lld/user-management/user-management.erd.json).
 - [User Management — Scenarios](lld/user-management/02-scenarios.md) — 15 real-world scenarios showing how the schema handles onboarding, multi-tenant login, delegations, clearances, department transfers, service accounts, SCIM sync, compliance audits, and more.
+- [Configurator — Schema Design](lld/configurator/01-schema-design.md) — two-layer data model (platform reference + tenant config), org/tenant hierarchy, module registry and enablement, feature flags, module configuration schemas, integration profiles, provisioning workflow. Includes [ERD](lld/configurator/configurator.erd.json).
+- [**Monorepo Structure and Developer Guide**](lld/repo-structure/01-monorepo-setup.md) — repository layout, package taxonomy, internal module structure (onion layers), spec-first OpenAPI contracts, CI pipeline, deployment modes (service/embedded/offline), and how to add a new module. **Read before writing any code.**
+- [**Frontend Structure and Developer Guide**](lld/frontend/01-frontend-structure.md) — Zustand store architecture (global + feature layering), TanStack Router file-based routing, Cerbos permission integration, React Query patterns, TanStack Table/Virtual usage, and how to add a new frontend feature.
 
 ## Supporting documents
 

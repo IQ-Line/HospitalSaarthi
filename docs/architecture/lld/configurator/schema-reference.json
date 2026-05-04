@@ -1,0 +1,887 @@
+{
+  "$schema": "erd/v1",
+  "schema": "configurator",
+  "description": "Configurator core module — control plane for tenant registry, module enablement, feature flags, module configuration, and integration profiles. See 01-schema-design.md for rationale.",
+  "citus": {
+    "distribution_column": "iq_tenant_id",
+    "reference_tables": [
+      "organizations",
+      "tenants",
+      "modules",
+      "module_config_schemas",
+      "feature_flags"
+    ]
+  },
+  "entities": {
+    "organizations": {
+      "description": "Parent entities that own one or more tenants. Hospital chains, medical colleges, standalone hospitals, government networks.",
+      "distribution": "reference",
+      "columns": {
+        "id": {
+          "type": "UUID",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "type": "TEXT",
+          "nullable": false,
+          "description": "Organization display name"
+        },
+        "slug": {
+          "type": "TEXT",
+          "nullable": false,
+          "unique": true,
+          "description": "URL-friendly unique identifier (e.g., aiims, apollo-hospitals)"
+        },
+        "type": {
+          "type": "TEXT",
+          "nullable": false,
+          "check": "type IN ('hospital_chain', 'medical_college', 'standalone_hospital', 'government_network')"
+        },
+        "status": {
+          "type": "TEXT",
+          "nullable": false,
+          "default": "active",
+          "check": "status IN ('active', 'suspended', 'decommissioned')"
+        },
+        "contact_email": {
+          "type": "TEXT",
+          "nullable": true,
+          "description": "Primary contact email for the organization"
+        },
+        "contact_phone": {
+          "type": "TEXT",
+          "nullable": true,
+          "description": "Primary contact phone"
+        },
+        "address": {
+          "type": "TEXT",
+          "nullable": true,
+          "description": "Registered address"
+        },
+        "metadata": {
+          "type": "JSONB",
+          "nullable": true,
+          "description": "Flexible org-level metadata (regulatory registration IDs, logo URLs, etc.)"
+        },
+        "created_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        },
+        "created_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Platform operator who created this organization"
+        },
+        "updated_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Last modifier"
+        }
+      },
+      "primary_key": ["id"],
+      "indexes": [
+        {
+          "columns": ["slug"],
+          "name": "idx_organizations_slug",
+          "unique": true,
+          "note": "Slug lookup for URL routing"
+        },
+        {
+          "columns": ["status"],
+          "name": "idx_organizations_status",
+          "note": "Filter active organizations in admin listing"
+        }
+      ]
+    },
+
+    "tenants": {
+      "description": "Tenant registry. Each row represents a hospital/facility deployment. Few rows total, queried by every module for tenant context.",
+      "distribution": "reference",
+      "columns": {
+        "iq_tenant_id": {
+          "type": "UUID",
+          "nullable": false,
+          "default": "gen_random_uuid()",
+          "description": "Tenant identifier — used as the distribution key in all other module schemas"
+        },
+        "org_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "Parent organization. FK to organizations.id."
+        },
+        "parent_tenant_id": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Parent tenant within the same org. NULL = root-level tenant. Self-reference to tenants.iq_tenant_id. Organizational metadata only — no config inheritance, no access propagation, no decommissioning cascade."
+        },
+        "name": {
+          "type": "TEXT",
+          "nullable": false,
+          "description": "Tenant display name (e.g., AIIMS Delhi, Apollo Chennai)"
+        },
+        "slug": {
+          "type": "TEXT",
+          "nullable": false,
+          "unique": true,
+          "description": "URL-friendly unique identifier (e.g., aiims-delhi)"
+        },
+        "type": {
+          "type": "TEXT",
+          "nullable": false,
+          "check": "type IN ('full_platform', 'fragmented', 'lite')",
+          "description": "Deployment model. fragmented = subset of modules, co-existing with legacy systems (the primary adoption model per ADR-0002)."
+        },
+        "provisioning_status": {
+          "type": "TEXT",
+          "nullable": false,
+          "default": "provisioning",
+          "check": "provisioning_status IN ('provisioning', 'active', 'suspended', 'decommissioned')",
+          "description": "Lifecycle state. Transitions: provisioning→active, active→suspended, suspended→active, active→decommissioned, suspended→decommissioned."
+        },
+        "data_isolation_level": {
+          "type": "TEXT",
+          "nullable": false,
+          "default": "shared",
+          "check": "data_isolation_level IN ('shared', 'isolated')",
+          "description": "Controls Citus shard placement. shared = co-located with other tenants. isolated = dedicated hardware. Module code is identical either way."
+        },
+        "cerbos_scope_key": {
+          "type": "TEXT",
+          "nullable": false,
+          "unique": true,
+          "description": "Scope identifier for Cerbos tenant-specific policy overrides. Published to the Cerbos policy deployment pipeline."
+        },
+        "timezone": {
+          "type": "TEXT",
+          "nullable": false,
+          "default": "Asia/Kolkata",
+          "description": "IANA timezone identifier for this tenant"
+        },
+        "locale": {
+          "type": "TEXT",
+          "nullable": false,
+          "default": "en-IN",
+          "description": "Default locale for this tenant (BCP 47 tag)"
+        },
+        "metadata": {
+          "type": "JSONB",
+          "nullable": true,
+          "description": "Tenant-level metadata (branding colors, logo URL, regulatory flags, NABH accreditation status)"
+        },
+        "created_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        },
+        "created_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Platform operator who provisioned this tenant"
+        },
+        "updated_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Last modifier"
+        }
+      },
+      "primary_key": ["iq_tenant_id"],
+      "indexes": [
+        {
+          "columns": ["slug"],
+          "name": "idx_tenants_slug",
+          "unique": true,
+          "note": "Slug lookup for URL routing and tenant resolution"
+        },
+        {
+          "columns": ["org_id"],
+          "name": "idx_tenants_org",
+          "note": "List all tenants for an organization"
+        },
+        {
+          "columns": ["parent_tenant_id"],
+          "name": "idx_tenants_parent",
+          "note": "List child tenants of a parent (tree view in admin UI)"
+        },
+        {
+          "columns": ["provisioning_status"],
+          "name": "idx_tenants_status",
+          "note": "Filter active tenants"
+        },
+        {
+          "columns": ["cerbos_scope_key"],
+          "name": "idx_tenants_cerbos_scope",
+          "unique": true,
+          "note": "Resolve tenant from Cerbos scope key"
+        }
+      ]
+    },
+
+    "modules": {
+      "description": "Registry of all deployable modules — 4 core + ~38 feature modules from the AIIMS EOI scope. Platform-defined.",
+      "distribution": "reference",
+      "columns": {
+        "id": {
+          "type": "UUID",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "type": "TEXT",
+          "nullable": false,
+          "unique": true,
+          "description": "Machine-readable name (e.g., opd, pharmacy, user_management). Used as module_id in APIs and events."
+        },
+        "display_name": {
+          "type": "TEXT",
+          "nullable": false,
+          "description": "Human-readable name (e.g., OPD / Outpatient Department)"
+        },
+        "description": {
+          "type": "TEXT",
+          "nullable": true,
+          "description": "Module purpose summary"
+        },
+        "category": {
+          "type": "TEXT",
+          "nullable": false,
+          "check": "category IN ('core', 'clinical', 'administrative', 'support')"
+        },
+        "is_core": {
+          "type": "BOOLEAN",
+          "nullable": false,
+          "default": "false",
+          "description": "True for the 4 core modules (User Management, EMPI, Configurator, Master Data). Core modules cannot be disabled."
+        },
+        "version": {
+          "type": "TEXT",
+          "nullable": false,
+          "default": "0.0.0",
+          "description": "Current deployed version (semver)"
+        },
+        "created_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        }
+      },
+      "primary_key": ["id"],
+      "indexes": [
+        {
+          "columns": ["name"],
+          "name": "idx_modules_name",
+          "unique": true,
+          "note": "Lookup by machine-readable name"
+        },
+        {
+          "columns": ["category"],
+          "name": "idx_modules_category",
+          "note": "Filter modules by category in admin UI"
+        }
+      ]
+    },
+
+    "module_config_schemas": {
+      "description": "Each module's declared configuration schema. Modules register these during deployment. The Configurator renders admin UI forms from them.",
+      "distribution": "reference",
+      "columns": {
+        "id": {
+          "type": "UUID",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "module_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "Module this schema belongs to. FK to modules.id."
+        },
+        "schema_version": {
+          "type": "TEXT",
+          "nullable": false,
+          "default": "1.0.0",
+          "description": "Semver version of this schema. New module versions may introduce new schema versions."
+        },
+        "config_schema": {
+          "type": "JSONB",
+          "nullable": false,
+          "description": "JSON Schema (draft-07 or later) defining the module's configurable parameters — types, defaults, constraints, UI hints."
+        },
+        "defaults": {
+          "type": "JSONB",
+          "nullable": false,
+          "default": "{}",
+          "description": "Default values for all parameters. Used when a tenant has no explicit config for this module."
+        },
+        "created_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        }
+      },
+      "primary_key": ["id"],
+      "unique_constraints": [
+        {
+          "columns": ["module_id", "schema_version"],
+          "name": "uq_module_config_schemas_module_version",
+          "note": "One schema per module per version"
+        }
+      ],
+      "indexes": [
+        {
+          "columns": ["module_id"],
+          "name": "idx_module_config_schemas_module",
+          "note": "Look up all schema versions for a module"
+        }
+      ]
+    },
+
+    "feature_flags": {
+      "description": "Platform-wide feature flag definitions with defaults. Tenant overrides are in tenant_feature_flags.",
+      "distribution": "reference",
+      "columns": {
+        "id": {
+          "type": "UUID",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "type": "TEXT",
+          "nullable": false,
+          "unique": true,
+          "description": "Unique flag name (e.g., smart_parcha, ai_prescription_assist, opd_queue_v2)"
+        },
+        "description": {
+          "type": "TEXT",
+          "nullable": true,
+          "description": "What this flag controls and why it exists"
+        },
+        "flag_type": {
+          "type": "TEXT",
+          "nullable": false,
+          "default": "boolean",
+          "check": "flag_type IN ('boolean', 'percentage', 'string', 'json')",
+          "description": "boolean = on/off, percentage = 0-100 gradual rollout, string = variant selection, json = complex config"
+        },
+        "default_value": {
+          "type": "JSONB",
+          "nullable": false,
+          "default": "false",
+          "description": "Platform-wide default. Applied when no tenant-specific override exists."
+        },
+        "module_id": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Module this flag belongs to (NULL = platform-wide flag). FK to modules.id."
+        },
+        "value_schema": {
+          "type": "JSONB",
+          "nullable": true,
+          "description": "JSON Schema for validating override values when flag_type = 'json'. NULL for non-JSON flag types. Same validation pattern as module_config_schemas.config_schema."
+        },
+        "created_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        },
+        "created_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Platform operator who defined this flag"
+        },
+        "updated_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Last modifier"
+        }
+      },
+      "primary_key": ["id"],
+      "indexes": [
+        {
+          "columns": ["name"],
+          "name": "idx_feature_flags_name",
+          "unique": true,
+          "note": "Lookup by flag name (the primary access pattern)"
+        },
+        {
+          "columns": ["module_id"],
+          "name": "idx_feature_flags_module",
+          "note": "List all flags for a module"
+        }
+      ]
+    },
+
+    "tenant_modules": {
+      "description": "Module enablement per tenant. This is the mechanism behind fragmented adoption — a tenant sees only its enabled modules.",
+      "distribution": "distributed",
+      "columns": {
+        "iq_tenant_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "Citus distribution key"
+        },
+        "module_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "Module being enabled/disabled. FK to modules.id."
+        },
+        "is_enabled": {
+          "type": "BOOLEAN",
+          "nullable": false,
+          "default": "true",
+          "description": "Current enablement state. false = module is disabled but data is retained."
+        },
+        "is_core_override": {
+          "type": "BOOLEAN",
+          "nullable": false,
+          "default": "false",
+          "description": "True for core modules seeded during provisioning. These cannot be disabled via admin UI."
+        },
+        "enabled_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": true,
+          "description": "When the module was last enabled"
+        },
+        "disabled_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": true,
+          "description": "When the module was disabled (NULL if currently enabled)"
+        },
+        "enabled_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Admin who enabled/disabled this module"
+        },
+        "created_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Last modifier"
+        }
+      },
+      "primary_key": ["iq_tenant_id", "module_id"],
+      "check_constraints": [
+        {
+          "name": "chk_core_module_always_enabled",
+          "expression": "NOT (is_core_override AND NOT is_enabled)",
+          "note": "Core modules cannot be disabled — defense-in-depth against API bypass"
+        }
+      ],
+      "indexes": [
+        {
+          "columns": ["iq_tenant_id", "is_enabled"],
+          "name": "idx_tenant_modules_enabled",
+          "note": "List enabled modules for a tenant (BFF route filtering, module discovery)"
+        }
+      ]
+    },
+
+    "tenant_feature_flags": {
+      "description": "Per-tenant feature flag overrides. If no row exists for a flag+tenant, the platform default from feature_flags.default_value applies.",
+      "distribution": "distributed",
+      "columns": {
+        "iq_tenant_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "Citus distribution key"
+        },
+        "feature_flag_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "Flag being overridden. FK to feature_flags.id."
+        },
+        "value": {
+          "type": "JSONB",
+          "nullable": false,
+          "description": "Tenant-specific override value. Type depends on feature_flags.flag_type."
+        },
+        "is_enabled": {
+          "type": "BOOLEAN",
+          "nullable": false,
+          "default": "true",
+          "description": "Whether this override is active. false = tenant falls back to platform default."
+        },
+        "enabled_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": true,
+          "description": "When this override was activated"
+        },
+        "enabled_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Admin who activated this override"
+        },
+        "created_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Last modifier"
+        }
+      },
+      "primary_key": ["iq_tenant_id", "feature_flag_id"],
+      "indexes": [
+        {
+          "columns": ["iq_tenant_id", "is_enabled"],
+          "name": "idx_tenant_feature_flags_enabled",
+          "note": "List active overrides for a tenant"
+        }
+      ]
+    },
+
+    "tenant_module_configs": {
+      "description": "Actual configuration values per tenant per module. config_values JSONB is validated against module_config_schemas.config_schema.",
+      "distribution": "distributed",
+      "columns": {
+        "iq_tenant_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "Citus distribution key"
+        },
+        "module_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "Module this config applies to. FK to modules.id."
+        },
+        "config_values": {
+          "type": "JSONB",
+          "nullable": false,
+          "default": "{}",
+          "description": "Configuration values for this module in this tenant. Validated against the module's declared config_schema."
+        },
+        "schema_version": {
+          "type": "TEXT",
+          "nullable": false,
+          "default": "1.0.0",
+          "description": "Which config schema version these values target. Used for migration validation when a module upgrades its schema."
+        },
+        "etag": {
+          "type": "TEXT",
+          "nullable": false,
+          "description": "Content hash for conditional GETs (If-None-Match). Regenerated on every config update. Enables efficient polling without full-payload transfers."
+        },
+        "created_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        },
+        "created_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Admin who created the initial configuration for this module in this tenant"
+        },
+        "updated_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Admin who last modified this configuration"
+        }
+      },
+      "primary_key": ["iq_tenant_id", "module_id"],
+      "indexes": []
+    },
+
+    "integration_profiles": {
+      "description": "External system connections per tenant. Defines how a tenant connects to lab analyzers, ABDM, PACS, insurance systems, legacy HIS.",
+      "distribution": "distributed",
+      "columns": {
+        "iq_tenant_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "Citus distribution key"
+        },
+        "id": {
+          "type": "UUID",
+          "nullable": false,
+          "default": "gen_random_uuid()",
+          "description": "Profile identifier"
+        },
+        "name": {
+          "type": "TEXT",
+          "nullable": false,
+          "description": "Human-readable name (e.g., lab-analyzer-cobas-6000, abdm-gateway-prod, pacs-dcm4chee)"
+        },
+        "target_system": {
+          "type": "TEXT",
+          "nullable": false,
+          "description": "External system identifier (e.g., cobas-6000, abdm, dcm4chee, tpa-clearinghouse)"
+        },
+        "protocol": {
+          "type": "TEXT",
+          "nullable": false,
+          "check": "protocol IN ('fhir', 'hl7v2', 'dicom', 'rest', 'custom')",
+          "description": "Integration protocol family. Version is in protocol_version. Matches the inter-module communication hierarchy from HLD-03 §7."
+        },
+        "protocol_version": {
+          "type": "TEXT",
+          "nullable": true,
+          "description": "Specific version of the protocol the external system supports. FHIR: '4.0.1' (R4), '3.0.2' (STU3), '5.0.0' (R5). HL7v2: '2.3', '2.5', '2.5.1'. REST/custom: API version (e.g., 'v2'). NULL = not yet determined."
+        },
+        "direction": {
+          "type": "TEXT",
+          "nullable": false,
+          "check": "direction IN ('inbound', 'outbound', 'bidirectional')",
+          "description": "Data flow direction. inbound = external pushes to platform. outbound = platform pushes to external."
+        },
+        "connection_config": {
+          "type": "JSONB",
+          "nullable": false,
+          "description": "Endpoint URLs, timeouts, retry config, TLS settings. NOT credentials — those are in the vault."
+        },
+        "credential_vault_ref": {
+          "type": "TEXT",
+          "nullable": true,
+          "description": "Reference to the credential in the platform's secret store (e.g., Azure Key Vault path). Never store credentials directly."
+        },
+        "mapping_rules": {
+          "type": "JSONB",
+          "nullable": true,
+          "description": "Transformation and mapping rules consumed by the Integration Hub's transformation engine."
+        },
+        "is_active": {
+          "type": "BOOLEAN",
+          "nullable": false,
+          "default": "true",
+          "description": "Whether this integration is currently active. Deactivating preserves the config for re-activation."
+        },
+        "created_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        },
+        "created_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Admin who created this integration profile"
+        },
+        "updated_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Last modifier"
+        }
+      },
+      "primary_key": ["iq_tenant_id", "id"],
+      "indexes": [
+        {
+          "columns": ["iq_tenant_id", "protocol"],
+          "name": "idx_integration_profiles_protocol",
+          "note": "Filter integrations by protocol type"
+        },
+        {
+          "columns": ["iq_tenant_id", "is_active"],
+          "name": "idx_integration_profiles_active",
+          "note": "List active integrations for a tenant"
+        },
+        {
+          "columns": ["iq_tenant_id", "target_system"],
+          "name": "idx_integration_profiles_target",
+          "note": "Look up integrations by target system"
+        }
+      ]
+    },
+
+    "tenant_provisioning_log": {
+      "description": "Tracks provisioning workflow steps per tenant. Each provisioning run creates multiple step records. Provides visibility, retryability, and audit trail.",
+      "distribution": "distributed",
+      "columns": {
+        "iq_tenant_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "Citus distribution key — the tenant being provisioned"
+        },
+        "id": {
+          "type": "UUID",
+          "nullable": false,
+          "default": "gen_random_uuid()",
+          "description": "Log entry identifier"
+        },
+        "step": {
+          "type": "TEXT",
+          "nullable": false,
+          "check": "step IN ('org_created', 'tenant_created', 'core_modules_seeded', 'feature_flags_seeded', 'admin_user_created', 'event_published', 'downstream_acknowledged')",
+          "description": "Provisioning workflow step"
+        },
+        "status": {
+          "type": "TEXT",
+          "nullable": false,
+          "default": "pending",
+          "check": "status IN ('pending', 'in_progress', 'completed', 'failed', 'skipped')",
+          "description": "Step execution state. pending→in_progress→completed/failed. skipped for non-applicable steps."
+        },
+        "started_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": true,
+          "description": "When this step began execution"
+        },
+        "completed_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": true,
+          "description": "When this step finished (whether success or failure)"
+        },
+        "error_details": {
+          "type": "TEXT",
+          "nullable": true,
+          "description": "Error message if step failed. Used for diagnostics and retry decisions."
+        },
+        "initiated_by": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "Platform operator who triggered the provisioning workflow"
+        },
+        "created_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        }
+      },
+      "primary_key": ["iq_tenant_id", "id"],
+      "indexes": [
+        {
+          "columns": ["iq_tenant_id", "status"],
+          "name": "idx_tenant_provisioning_log_status",
+          "note": "Find incomplete/failed steps for retry"
+        },
+        {
+          "columns": ["iq_tenant_id", "step"],
+          "name": "idx_tenant_provisioning_log_step",
+          "note": "Check whether a specific step has been completed"
+        }
+      ]
+    },
+
+    "config_change_audit": {
+      "description": "All configuration changes — who changed what, when, and why. Configurator's equivalent of User Management's permission_change_audit.",
+      "distribution": "distributed",
+      "columns": {
+        "iq_tenant_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "Citus distribution key — the target tenant whose configuration was changed. For 'organization' entity type only: the acting admin's tenant context (since organizations have no natural tenant ID)."
+        },
+        "id": {
+          "type": "UUID",
+          "nullable": false,
+          "default": "gen_random_uuid()",
+          "description": "Audit record identifier"
+        },
+        "entity_type": {
+          "type": "TEXT",
+          "nullable": false,
+          "check": "entity_type IN ('tenant', 'organization', 'module_enablement', 'feature_flag', 'module_config', 'integration_profile')",
+          "description": "Type of entity that was changed. Organization changes are tracked with the acting admin's tenant context."
+        },
+        "entity_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "ID of the changed entity"
+        },
+        "action": {
+          "type": "TEXT",
+          "nullable": false,
+          "check": "action IN ('created', 'updated', 'enabled', 'disabled', 'suspended', 'reactivated', 'decommissioned')",
+          "description": "What was done to the entity"
+        },
+        "old_value": {
+          "type": "JSONB",
+          "nullable": true,
+          "description": "State before the change (null for 'created' actions)"
+        },
+        "new_value": {
+          "type": "JSONB",
+          "nullable": true,
+          "description": "State after the change (null for some destructive actions)"
+        },
+        "reason": {
+          "type": "TEXT",
+          "nullable": true,
+          "description": "Optional justification for the change (e.g., 'Billing dispute — suspended per ticket #1234')"
+        },
+        "changed_by": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "Admin who made the change (from JWT sub claim)"
+        },
+        "changed_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()",
+          "description": "When the change was made"
+        }
+      },
+      "primary_key": ["iq_tenant_id", "id"],
+      "indexes": [
+        {
+          "columns": ["iq_tenant_id", "entity_type"],
+          "name": "idx_config_change_audit_type",
+          "note": "Filter audit by entity type"
+        },
+        {
+          "columns": ["iq_tenant_id", "entity_id"],
+          "name": "idx_config_change_audit_entity",
+          "note": "All changes to a specific entity"
+        },
+        {
+          "columns": ["iq_tenant_id", "changed_at"],
+          "name": "idx_config_change_audit_time",
+          "note": "Chronological audit trail per tenant"
+        },
+        {
+          "columns": ["iq_tenant_id", "changed_by"],
+          "name": "idx_config_change_audit_actor",
+          "note": "All changes made by a specific admin"
+        }
+      ]
+    }
+  }
+}
