@@ -43,9 +43,9 @@ Chosen option: **Event-driven async as default with sync as exception**, because
 
 **Follow-up actions:**
 
-- [ ] Select the event bus technology (Kafka, NATS, RabbitMQ, or cloud-managed equivalent) in a dedicated ADR. The module shape and event contract are bus-agnostic by design.
+- [ ] Select the event bus technology (Kafka, NATS, RabbitMQ, or cloud-managed equivalent) in a dedicated ADR when cross-module event volume justifies the infrastructure. The module shape and event contract are bus-agnostic by design.
 - [ ] Define the event schema governance process: who reviews event schema changes, how breaking changes are communicated, and whether a schema registry is required.
-- [ ] Build the event-bus adapter for both service mode (external bus) and embedded mode (in-process dispatcher) as part of the platform SDK.
+- [x] Build the event-bus adapter for both service mode and embedded mode — see [ADR-0017](./0017-in-process-event-bus-phase-0.md). Phase 0 uses `InProcessEventBus`; the broker-backed adapter is built when the bus technology is selected.
 - [ ] Document the criteria for when a synchronous inter-module call is justified, including the required circuit-breaker and graceful-degradation patterns.
 - [ ] Define the event payload standard: FHIR R4 resources for clinical events, lean domain payloads for operational events. Specify which event types carry FHIR payloads vs. domain-specific payloads, and document the mapping from event_type to expected payload schema (cross-ref [ADR-0010](./0010-fhir-hl7-interop-standards.md)).
 

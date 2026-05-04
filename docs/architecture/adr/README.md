@@ -20,6 +20,10 @@ Decisions are recorded as Markdown ADRs ([MADR format](https://adr.github.io/mad
 | [0012](0012-multi-tenancy-isolation-strategy.md) | Multi-tenancy isolation strategy | Proposed |
 | [0013](0013-single-database-engine-postgresql.md) | Single database engine (PostgreSQL) | Proposed |
 | [0015](0015-bff-role-zero-trust.md) | BFF role and zero-trust between modules | Proposed |
+| [0016](0016-polyglot-nx-monorepo-spec-first-contracts.md) | Polyglot Nx monorepo with spec-first OpenAPI contracts | Proposed |
+| [0017](0017-in-process-event-bus-phase-0.md) | InProcessEventBus as Phase 0 event transport | Proposed |
+| [0018](0018-frontend-stack-zustand-tanstack-router.md) | Frontend stack: Zustand, TanStack Router, TanStack Query | Proposed |
+| [0019](0019-fastify-node24-lts.md) | Fastify v5 as HTTP framework, Node.js 24 LTS as runtime | Proposed |
 
 ## How to use
 
