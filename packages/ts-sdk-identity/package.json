@@ -1,0 +1,19 @@
+{
+  "name": "@hims/ts-sdk-identity",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "peerDependencies": {
+    "fastify": ">=5.0.0"
+  },
+  "dependencies": {
+    "fastify-plugin": "^5.1.0",
+    "jose": "^6.2.3"
+  },
+  "devDependencies": {
+    "fastify": "^5.0.0"
+  }
+}

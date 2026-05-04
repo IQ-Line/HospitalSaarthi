@@ -1,12 +1,15 @@
 {
   "$schema": "erd/v1",
   "schema": "configurator",
-  "description": "Configurator core module — control plane for tenant registry, module enablement, feature flag overrides, module configuration, and integration profiles. Module/feature registry tables (modules, module_config_schemas, feature_flags) are in master_data schema. See 01-schema-design.md for rationale.",
+  "description": "Configurator core module — control plane for tenant registry, module enablement, feature flag overrides, module configuration, and integration profiles. Module/feature registry data is owned by Master Data; the Configurator maintains local read projections synced via events. See 01-schema-design.md for rationale.",
   "citus": {
     "distribution_column": "iq_tenant_id",
     "reference_tables": [
       "organizations",
-      "tenants"
+      "tenants",
+      "module_projection",
+      "config_schema_projection",
+      "feature_flag_projection"
     ]
   },
   "entities": {
@@ -225,6 +228,165 @@
       ]
     },
 
+    "module_projection": {
+      "description": "Local read projection of Master Data's modules table. Synced via module.registered and module.updated events. The Configurator never queries master_data.modules directly.",
+      "distribution": "reference",
+      "columns": {
+        "id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "Module ID — matches master_data.modules.id (preserved from event payload)"
+        },
+        "name": {
+          "type": "TEXT",
+          "nullable": false,
+          "description": "Machine-readable module name (e.g., opd, pharmacy, user_management)"
+        },
+        "display_name": {
+          "type": "TEXT",
+          "nullable": false,
+          "description": "Human-readable module name for admin UI"
+        },
+        "category": {
+          "type": "TEXT",
+          "nullable": false,
+          "check": "category IN ('core', 'clinical', 'administrative', 'support')",
+          "description": "Module classification for admin UI grouping"
+        },
+        "is_core": {
+          "type": "BOOLEAN",
+          "nullable": false,
+          "description": "True for the 4 core modules. Used by provisioning to seed tenant_modules."
+        },
+        "version": {
+          "type": "TEXT",
+          "nullable": false,
+          "description": "Currently deployed semver version"
+        },
+        "synced_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()",
+          "description": "When this projection was last synced from a Master Data event"
+        }
+      },
+      "primary_key": ["id"],
+      "indexes": [
+        {
+          "columns": ["name"],
+          "name": "idx_module_projection_name",
+          "unique": true,
+          "note": "Module name lookup (matches master_data.modules unique constraint)"
+        }
+      ]
+    },
+
+    "config_schema_projection": {
+      "description": "Local read projection of Master Data's module_config_schemas table. Synced via config-schema.declared events. Used for config validation and admin UI form rendering.",
+      "distribution": "reference",
+      "columns": {
+        "id": {
+          "type": "UUID",
+          "nullable": false,
+          "default": "gen_random_uuid()",
+          "description": "Projection row ID"
+        },
+        "module_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "Module this schema belongs to. References module_projection.id."
+        },
+        "schema_version": {
+          "type": "TEXT",
+          "nullable": false,
+          "description": "Semver version of the config schema (e.g., 1.0.0, 1.1.0)"
+        },
+        "config_schema": {
+          "type": "JSONB",
+          "nullable": false,
+          "description": "JSON Schema (draft-07+) describing configurable parameters. Used for validation and admin UI rendering."
+        },
+        "defaults": {
+          "type": "JSONB",
+          "nullable": false,
+          "description": "Default config values. Served when a tenant has no explicit config for this module."
+        },
+        "synced_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()",
+          "description": "When this projection was last synced from a Master Data event"
+        }
+      },
+      "primary_key": ["id"],
+      "indexes": [
+        {
+          "columns": ["module_id", "schema_version"],
+          "name": "idx_config_schema_projection_module_version",
+          "unique": true,
+          "note": "One schema per module per version"
+        }
+      ]
+    },
+
+    "feature_flag_projection": {
+      "description": "Local read projection of Master Data's feature_flags table. Synced via feature-flag.defined and feature-flag.updated events. Used for flag resolution and admin UI.",
+      "distribution": "reference",
+      "columns": {
+        "id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "Flag ID — matches master_data.feature_flags.id (preserved from event payload)"
+        },
+        "name": {
+          "type": "TEXT",
+          "nullable": false,
+          "description": "Machine-readable flag name (e.g., enable_telemedicine, lab_auto_release)"
+        },
+        "flag_type": {
+          "type": "TEXT",
+          "nullable": false,
+          "check": "flag_type IN ('boolean', 'percentage', 'string', 'json')",
+          "description": "Determines validation and UI rendering for overrides"
+        },
+        "default_value": {
+          "type": "JSONB",
+          "nullable": false,
+          "description": "Platform-wide default. Applied when no tenant override exists."
+        },
+        "module_id": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Module this flag belongs to (NULL = platform-wide). References module_projection.id."
+        },
+        "value_schema": {
+          "type": "JSONB",
+          "nullable": true,
+          "description": "JSON Schema for json-type flags. Used to validate override values. Post-launch."
+        },
+        "synced_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()",
+          "description": "When this projection was last synced from a Master Data event"
+        }
+      },
+      "primary_key": ["id"],
+      "indexes": [
+        {
+          "columns": ["name"],
+          "name": "idx_feature_flag_projection_name",
+          "unique": true,
+          "note": "Flag name lookup (matches master_data.feature_flags unique constraint)"
+        },
+        {
+          "columns": ["module_id"],
+          "name": "idx_feature_flag_projection_module",
+          "note": "List flags for a specific module"
+        }
+      ]
+    },
+
     "tenant_modules": {
       "description": "Module enablement per tenant. This is the mechanism behind fragmented adoption — a tenant sees only its enabled modules.",
       "distribution": "distributed",
@@ -237,7 +399,7 @@
         "module_id": {
           "type": "UUID",
           "nullable": false,
-          "description": "Module being enabled/disabled. References master_data.modules.id (cross-schema, no FK)."
+          "description": "Module being enabled/disabled. References configurator.module_projection.id (local projection of Master Data's module registry)."
         },
         "is_enabled": {
           "type": "BOOLEAN",
@@ -311,7 +473,7 @@
         "feature_flag_id": {
           "type": "UUID",
           "nullable": false,
-          "description": "Flag being overridden. References master_data.feature_flags.id (cross-schema, no FK)."
+          "description": "Flag being overridden. References configurator.feature_flag_projection.id (local projection of Master Data's feature flag registry)."
         },
         "value": {
           "type": "JSONB",
@@ -372,7 +534,7 @@
         "module_id": {
           "type": "UUID",
           "nullable": false,
-          "description": "Module this config applies to. References master_data.modules.id (cross-schema, no FK)."
+          "description": "Module this config applies to. References configurator.module_projection.id (local projection of Master Data's module registry)."
         },
         "config_values": {
           "type": "JSONB",

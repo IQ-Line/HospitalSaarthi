@@ -1,0 +1,31 @@
+{
+  "name": "ts-sdk-testing",
+  "tags": ["type:sdk", "scope:platform"],
+  "targets": {
+    "build": {
+      "command": "tsc -p tsconfig.json",
+      "options": {
+        "cwd": "packages/ts-sdk-testing"
+      },
+      "outputs": ["{projectRoot}/dist"]
+    },
+    "test": {
+      "command": "vitest run",
+      "options": {
+        "cwd": "packages/ts-sdk-testing"
+      }
+    },
+    "lint": {
+      "command": "eslint src/",
+      "options": {
+        "cwd": "packages/ts-sdk-testing"
+      }
+    },
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "packages/ts-sdk-testing"
+      }
+    }
+  }
+}
