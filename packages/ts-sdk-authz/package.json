@@ -1,0 +1,20 @@
+{
+  "name": "@hims/ts-sdk-authz",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "peerDependencies": {
+    "fastify": ">=5.0.0"
+  },
+  "dependencies": {
+    "@cerbos/core": "^0.21.1",
+    "@cerbos/grpc": "^0.21.0",
+    "fastify-plugin": "^5.1.0"
+  },
+  "devDependencies": {
+    "fastify": "^5.0.0"
+  }
+}

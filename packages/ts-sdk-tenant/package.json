@@ -1,0 +1,18 @@
+{
+  "name": "@hims/ts-sdk-tenant",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "fastify-plugin": "^5.1.0"
+  },
+  "devDependencies": {
+    "fastify": "^5.0.0"
+  },
+  "peerDependencies": {
+    "fastify": ">=5.0.0"
+  }
+}
