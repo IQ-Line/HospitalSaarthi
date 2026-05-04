@@ -1,15 +1,12 @@
 {
   "$schema": "erd/v1",
   "schema": "configurator",
-  "description": "Configurator core module — control plane for tenant registry, module enablement, feature flags, module configuration, and integration profiles. See 01-schema-design.md for rationale.",
+  "description": "Configurator core module — control plane for tenant registry, module enablement, feature flag overrides, module configuration, and integration profiles. Module/feature registry tables (modules, module_config_schemas, feature_flags) are in master_data schema. See 01-schema-design.md for rationale.",
   "citus": {
     "distribution_column": "iq_tenant_id",
     "reference_tables": [
       "organizations",
-      "tenants",
-      "modules",
-      "module_config_schemas",
-      "feature_flags"
+      "tenants"
     ]
   },
   "entities": {
@@ -228,214 +225,6 @@
       ]
     },
 
-    "modules": {
-      "description": "Registry of all deployable modules — 4 core + ~38 feature modules from the AIIMS EOI scope. Platform-defined.",
-      "distribution": "reference",
-      "columns": {
-        "id": {
-          "type": "UUID",
-          "nullable": false,
-          "default": "gen_random_uuid()"
-        },
-        "name": {
-          "type": "TEXT",
-          "nullable": false,
-          "unique": true,
-          "description": "Machine-readable name (e.g., opd, pharmacy, user_management). Used as module_id in APIs and events."
-        },
-        "display_name": {
-          "type": "TEXT",
-          "nullable": false,
-          "description": "Human-readable name (e.g., OPD / Outpatient Department)"
-        },
-        "description": {
-          "type": "TEXT",
-          "nullable": true,
-          "description": "Module purpose summary"
-        },
-        "category": {
-          "type": "TEXT",
-          "nullable": false,
-          "check": "category IN ('core', 'clinical', 'administrative', 'support')"
-        },
-        "is_core": {
-          "type": "BOOLEAN",
-          "nullable": false,
-          "default": "false",
-          "description": "True for the 4 core modules (User Management, EMPI, Configurator, Master Data). Core modules cannot be disabled."
-        },
-        "version": {
-          "type": "TEXT",
-          "nullable": false,
-          "default": "0.0.0",
-          "description": "Current deployed version (semver)"
-        },
-        "created_at": {
-          "type": "TIMESTAMPTZ",
-          "nullable": false,
-          "default": "now()"
-        },
-        "updated_at": {
-          "type": "TIMESTAMPTZ",
-          "nullable": false,
-          "default": "now()"
-        }
-      },
-      "primary_key": ["id"],
-      "indexes": [
-        {
-          "columns": ["name"],
-          "name": "idx_modules_name",
-          "unique": true,
-          "note": "Lookup by machine-readable name"
-        },
-        {
-          "columns": ["category"],
-          "name": "idx_modules_category",
-          "note": "Filter modules by category in admin UI"
-        }
-      ]
-    },
-
-    "module_config_schemas": {
-      "description": "Each module's declared configuration schema. Modules register these during deployment. The Configurator renders admin UI forms from them.",
-      "distribution": "reference",
-      "columns": {
-        "id": {
-          "type": "UUID",
-          "nullable": false,
-          "default": "gen_random_uuid()"
-        },
-        "module_id": {
-          "type": "UUID",
-          "nullable": false,
-          "description": "Module this schema belongs to. FK to modules.id."
-        },
-        "schema_version": {
-          "type": "TEXT",
-          "nullable": false,
-          "default": "1.0.0",
-          "description": "Semver version of this schema. New module versions may introduce new schema versions."
-        },
-        "config_schema": {
-          "type": "JSONB",
-          "nullable": false,
-          "description": "JSON Schema (draft-07 or later) defining the module's configurable parameters — types, defaults, constraints, UI hints."
-        },
-        "defaults": {
-          "type": "JSONB",
-          "nullable": false,
-          "default": "{}",
-          "description": "Default values for all parameters. Used when a tenant has no explicit config for this module."
-        },
-        "created_at": {
-          "type": "TIMESTAMPTZ",
-          "nullable": false,
-          "default": "now()"
-        },
-        "updated_at": {
-          "type": "TIMESTAMPTZ",
-          "nullable": false,
-          "default": "now()"
-        }
-      },
-      "primary_key": ["id"],
-      "unique_constraints": [
-        {
-          "columns": ["module_id", "schema_version"],
-          "name": "uq_module_config_schemas_module_version",
-          "note": "One schema per module per version"
-        }
-      ],
-      "indexes": [
-        {
-          "columns": ["module_id"],
-          "name": "idx_module_config_schemas_module",
-          "note": "Look up all schema versions for a module"
-        }
-      ]
-    },
-
-    "feature_flags": {
-      "description": "Platform-wide feature flag definitions with defaults. Tenant overrides are in tenant_feature_flags.",
-      "distribution": "reference",
-      "columns": {
-        "id": {
-          "type": "UUID",
-          "nullable": false,
-          "default": "gen_random_uuid()"
-        },
-        "name": {
-          "type": "TEXT",
-          "nullable": false,
-          "unique": true,
-          "description": "Unique flag name (e.g., smart_parcha, ai_prescription_assist, opd_queue_v2)"
-        },
-        "description": {
-          "type": "TEXT",
-          "nullable": true,
-          "description": "What this flag controls and why it exists"
-        },
-        "flag_type": {
-          "type": "TEXT",
-          "nullable": false,
-          "default": "boolean",
-          "check": "flag_type IN ('boolean', 'percentage', 'string', 'json')",
-          "description": "boolean = on/off, percentage = 0-100 gradual rollout, string = variant selection, json = complex config"
-        },
-        "default_value": {
-          "type": "JSONB",
-          "nullable": false,
-          "default": "false",
-          "description": "Platform-wide default. Applied when no tenant-specific override exists."
-        },
-        "module_id": {
-          "type": "UUID",
-          "nullable": true,
-          "description": "Module this flag belongs to (NULL = platform-wide flag). FK to modules.id."
-        },
-        "value_schema": {
-          "type": "JSONB",
-          "nullable": true,
-          "description": "JSON Schema for validating override values when flag_type = 'json'. NULL for non-JSON flag types. Same validation pattern as module_config_schemas.config_schema."
-        },
-        "created_at": {
-          "type": "TIMESTAMPTZ",
-          "nullable": false,
-          "default": "now()"
-        },
-        "updated_at": {
-          "type": "TIMESTAMPTZ",
-          "nullable": false,
-          "default": "now()"
-        },
-        "created_by": {
-          "type": "UUID",
-          "nullable": true,
-          "description": "Platform operator who defined this flag"
-        },
-        "updated_by": {
-          "type": "UUID",
-          "nullable": true,
-          "description": "Last modifier"
-        }
-      },
-      "primary_key": ["id"],
-      "indexes": [
-        {
-          "columns": ["name"],
-          "name": "idx_feature_flags_name",
-          "unique": true,
-          "note": "Lookup by flag name (the primary access pattern)"
-        },
-        {
-          "columns": ["module_id"],
-          "name": "idx_feature_flags_module",
-          "note": "List all flags for a module"
-        }
-      ]
-    },
-
     "tenant_modules": {
       "description": "Module enablement per tenant. This is the mechanism behind fragmented adoption — a tenant sees only its enabled modules.",
       "distribution": "distributed",
@@ -448,7 +237,7 @@
         "module_id": {
           "type": "UUID",
           "nullable": false,
-          "description": "Module being enabled/disabled. FK to modules.id."
+          "description": "Module being enabled/disabled. References master_data.modules.id (cross-schema, no FK)."
         },
         "is_enabled": {
           "type": "BOOLEAN",
@@ -522,7 +311,7 @@
         "feature_flag_id": {
           "type": "UUID",
           "nullable": false,
-          "description": "Flag being overridden. FK to feature_flags.id."
+          "description": "Flag being overridden. References master_data.feature_flags.id (cross-schema, no FK)."
         },
         "value": {
           "type": "JSONB",
@@ -583,7 +372,7 @@
         "module_id": {
           "type": "UUID",
           "nullable": false,
-          "description": "Module this config applies to. FK to modules.id."
+          "description": "Module this config applies to. References master_data.modules.id (cross-schema, no FK)."
         },
         "config_values": {
           "type": "JSONB",
