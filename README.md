@@ -6,7 +6,7 @@ Integration-first, highly modular Hospital Information Management System.
 
 ```bash
 git clone <repo>
-cd hims-platform
+cd HospitalSaarthi
 make setup    # installs deps, starts docker, runs migrations
 make dev      # starts all services
 ```
