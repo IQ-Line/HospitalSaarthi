@@ -31,6 +31,7 @@ Start here if you want to understand **what problem we're solving** before readi
 - [Configurator — Schema Design](lld/configurator/01-schema-design.md) — two-layer data model (platform reference + tenant config), org/tenant hierarchy, module registry and enablement, feature flags, module configuration schemas, integration profiles, provisioning workflow. Includes [ERD](lld/configurator/configurator.erd.json).
 - [**Monorepo Structure and Developer Guide**](lld/repo-structure/01-monorepo-setup.md) — repository layout, package taxonomy, internal module structure (onion layers), spec-first OpenAPI contracts, CI pipeline, deployment modes (service/embedded/offline), and how to add a new module. **Read before writing any code.**
 - [**Frontend Structure and Developer Guide**](lld/frontend/01-frontend-structure.md) — Zustand store architecture (global + feature layering), TanStack Router file-based routing, Cerbos permission integration, React Query patterns, TanStack Table/Virtual usage, and how to add a new frontend feature.
+- [**Implementation Task Breakdown**](lld/implementation/01-task-breakdown.md) — Phase 0 (monorepo foundation) and Phase 1 (first modules) broken into parallelizable work streams with dependencies, exit criteria, and deliverables.
 
 ## Supporting documents
 
