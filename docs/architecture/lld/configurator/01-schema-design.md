@@ -7,13 +7,13 @@
 **ERD (visual):** [`configurator.erd.json`](./configurator.erd.json) — open in VS Code with ERD Editor extension  
 **Schema reference:** [`schema-reference.json`](./schema-reference.json) — full column descriptions, indexes, check constraints, Citus distribution notes
 
-**Design decision — module/feature registry ownership:** The module registry (`modules`, `module_config_schemas`) and feature flag definitions (`feature_flags`) are owned by the [Master Data module](../master-data/01-schema-design.md). The Configurator owns the per-tenant operational state: which modules are enabled, how they're configured, and which flag overrides apply. The Configurator API still serves the resolved/effective configuration by JOINing Master Data's reference tables with its own tenant-level tables — consuming modules talk to the Configurator, not Master Data, for config resolution. See [commit cec19ec](https://github.com/ayushwardhan-iqline/The-HIMS/commit/cec19ec) for the original single-module design.
+**Design decision — module/feature registry ownership:** The module registry (`modules`, `module_config_schemas`) and feature flag definitions (`feature_flags`) are owned by the [Master Data module](../master-data/01-schema-design.md). The Configurator owns the per-tenant operational state: which modules are enabled, how they're configured, and which flag overrides apply. The Configurator maintains **local read projections** of Master Data's registry tables (`module_projection`, `config_schema_projection`, `feature_flag_projection`) kept in sync via events — it never queries Master Data's schema directly. All JOINs are within the `configurator` schema. Consuming modules talk to the Configurator, not Master Data, for config resolution.
 
 **Phasing:** Most of the schema is MVP — the tables, columns, and constraints ship with the initial deployment. Subsections tagged **Post-launch** describe features that the MVP schema accommodates without migrations but that are not implemented in the first release. All Post-launch features are additive (new tables or nullable columns already present), never requiring migration of existing data.
 
 | Phase | What ships |
 |-------|-----------|
-| **MVP** | All 8 tables, all columns, all constraints. Tenant registry, module enablement, tenant-level feature flag overrides, module configuration with ETag polling + optimistic locking, integration profiles (ABDM + lab analyzers), provisioning workflow, config change audit. Module/feature registry is in [Master Data](../master-data/01-schema-design.md). |
+| **MVP** | All 11 tables, all columns, all constraints. Tenant registry, module enablement, tenant-level feature flag overrides, module configuration with ETag polling + optimistic locking, integration profiles (ABDM + lab analyzers), provisioning workflow, config change audit. 3 local projections of Master Data's registry (synced via events). |
 | **Post-launch** | Runtime hydration across schema versions, nested/scoped config structures, inter-tenant integration profiles, decommissioning workflow, tenant hierarchy tree view UI, `tenant.org_changed` event. |
 
 ---
@@ -25,9 +25,10 @@ The Configurator's data splits into two layers with different distribution strat
 | Layer | What | Citus mode | Changes via |
 |-------|------|------------|-------------|
 | **Platform reference** | Organizations, tenant registry | **Reference table** (replicated to all nodes) | Platform operator actions |
+| **Projections** | Local copies of Master Data's module registry, config schemas, feature flag definitions | **Reference table** (replicated to all nodes) | Event consumers (synced from Master Data events) |
 | **Tenant configuration** | Module enablement, flag overrides, config values, integration profiles | **Distributed by `iq_tenant_id`** | Admin UI, provisioning workflows, API |
 
-Module and feature reference data (what modules exist, what flags are defined, what config schemas are declared) lives in the [Master Data module](../master-data/01-schema-design.md). The Configurator JOINs those reference tables — which are also Citus reference tables replicated to all nodes — to resolve effective configuration per tenant.
+Module and feature reference data (what modules exist, what flags are defined, what config schemas are declared) is owned by the [Master Data module](../master-data/01-schema-design.md). The Configurator maintains **local read projections** of this data in its own schema, kept in sync via Master Data's domain events. All config resolution queries JOIN only within the `configurator` schema — no cross-schema queries.
 
 Tenant configuration data follows the standard distribution pattern: all of a tenant's configuration co-locates on the same shard as the tenant's data in other modules.
 
@@ -131,7 +132,7 @@ The module registry (`modules`), config schema declarations (`module_config_sche
 
 ### Module enablement (`tenant_modules`)
 
-Which modules are active for each tenant. This is the mechanism behind fragmented adoption — a hospital running only OPD + Lab + Pharmacy has three rows in `tenant_modules` (plus the four core modules, which are always enabled and seeded during provisioning). The `module_id` column references `master_data.modules.id` (cross-schema, no FK per [database principle §4](../../analysis/03-database-principles.md#4-no-cross-schema-foreign-keys)).
+Which modules are active for each tenant. This is the mechanism behind fragmented adoption — a hospital running only OPD + Lab + Pharmacy has three rows in `tenant_modules` (plus the four core modules, which are always enabled and seeded during provisioning). The `module_id` column references `configurator.module_projection.id` (local projection of Master Data's module registry, kept in sync via events).
 
 Design decisions:
 
@@ -143,7 +144,7 @@ Design decisions:
 
 ## 4. Feature flag overrides
 
-Feature flag definitions (`feature_flags`) are owned by [Master Data](../master-data/01-schema-design.md). The Configurator stores per-tenant overrides in `tenant_feature_flags` (distributed by `iq_tenant_id`) and serves the resolved effective value.
+Feature flag definitions are owned by [Master Data](../master-data/01-schema-design.md). The Configurator maintains a local projection (`feature_flag_projection`) synced via events, stores per-tenant overrides in `tenant_feature_flags` (distributed by `iq_tenant_id`), and serves the resolved effective value. All JOINs are within the `configurator` schema.
 
 ### Resolution logic
 
@@ -151,13 +152,13 @@ When a module calls the Configurator's feature flag API (`GET /flags/{flag_name}
 
 1. Look up `configurator.tenant_feature_flags` for this tenant + flag combination
 2. If override exists and `is_enabled = true`, return override `value`
-3. If no override, return `master_data.feature_flags.default_value`
+3. If no override, return `configurator.feature_flag_projection.default_value`
 
-This is a single cross-schema query with a LEFT JOIN from `master_data.feature_flags` (reference, replicated to all nodes) to `configurator.tenant_feature_flags` (distributed). The JOIN is always node-local.
+This is a single query with a LEFT JOIN from `configurator.feature_flag_projection` (reference, replicated to all nodes) to `configurator.tenant_feature_flags` (distributed). All tables are in the `configurator` schema.
 
 ### Flag resolution and module enablement
 
-The recommended flag resolution query includes a module enablement check: JOIN through `master_data.feature_flags.module_id` → `configurator.tenant_modules` to exclude flags for disabled modules. If a module is disabled for a tenant, its flag overrides are preserved in `tenant_feature_flags` (for re-enablement) but excluded from resolution results.
+The recommended flag resolution query includes a module enablement check: JOIN through `feature_flag_projection.module_id` → `configurator.tenant_modules` to exclude flags for disabled modules. If a module is disabled for a tenant, its flag overrides are preserved in `tenant_feature_flags` (for re-enablement) but excluded from resolution results.
 
 ### Cache TTL
 
@@ -169,7 +170,7 @@ Feature flags use a 5-minute cache TTL at consuming modules (per HLD-02 §3.5). 
 
 ### Config values (`tenant_module_configs`)
 
-Stores the actual configuration values for each module per tenant. The `config_values` JSONB column holds the settings, validated against the module's declared schema in `master_data.module_config_schemas`.
+Stores the actual configuration values for each module per tenant. The `config_values` JSONB column holds the settings, validated against the module's declared config schema via `configurator.config_schema_projection` (local projection of Master Data's `module_config_schemas`, kept in sync via events).
 
 This is a justified use of JSONB per [database principle §12](../../analysis/03-database-principles.md#12-json-columns-for-truly-unstructured-data-only): the shape of configuration varies per module (Pharmacy has dispensation windows, OPD has appointment slots, Lab has auto-release thresholds). A relational model would require either a module-specific config table per module (42+ tables) or an EAV pattern (worse). JSONB with JSON Schema validation is the right tool.
 
@@ -303,7 +304,7 @@ The decommissioning workflow does NOT delete `tenant_modules`, `tenant_feature_f
 
 Module registration (how modules announce themselves to the platform via migrations) is documented in the [Master Data LLD](../master-data/01-schema-design.md), since the target tables (`modules`, `module_config_schemas`, `feature_flags`) are owned by Master Data. See also [dev-doubts/01-analysis.md §3](./dev-doubts/01-analysis.md) for the original analysis.
 
-After a module registers itself in Master Data, a platform operator or hospital admin enables it for a tenant via the Configurator's admin UI — creating `tenant_modules` and `tenant_module_configs` rows in the Configurator schema.
+When a module registers itself in Master Data, the Configurator receives the resulting events (`module.registered`, `config-schema.declared`, `feature-flag.defined`) and upserts local projections. A platform operator or hospital admin then enables the module for specific tenants via the Configurator's admin UI — creating `tenant_modules` and `tenant_module_configs` rows in the Configurator schema. All resolution queries run entirely within the `configurator` schema using these projections.
 
 ---
 
@@ -362,6 +363,9 @@ Organization changes are not naturally tenant-scoped (organizations sit above te
 |-------|-------------|-------|-------|
 | `organizations` | **Reference table** | Yellow | Few rows, joined from any shard |
 | `tenants` | **Reference table** | Yellow | Few rows, queried by all modules |
+| `module_projection` | **Reference table** | Yellow | Local projection of Master Data's `modules`, synced via events |
+| `config_schema_projection` | **Reference table** | Yellow | Local projection of Master Data's `module_config_schemas`, synced via events |
+| `feature_flag_projection` | **Reference table** | Yellow | Local projection of Master Data's `feature_flags`, synced via events |
 | `tenant_modules` | Distributed by `iq_tenant_id` | Green | Co-located with all tenant data |
 | `tenant_feature_flags` | Distributed by `iq_tenant_id` | Green | Co-located with tenant data |
 | `tenant_module_configs` | Distributed by `iq_tenant_id` | Green | Co-located with tenant data |
@@ -369,13 +373,13 @@ Organization changes are not naturally tenant-scoped (organizations sit above te
 | `tenant_provisioning_log` | Distributed by `iq_tenant_id` | Green | Append-only, co-located |
 | `config_change_audit` | Distributed by `iq_tenant_id` | Green | Append-only, co-located |
 
-The module/feature registry tables (`modules`, `module_config_schemas`, `feature_flags`) are Citus reference tables in the [Master Data schema](../master-data/01-schema-design.md). JOINs from the Configurator's distributed tables to those Master Data reference tables are always node-local.
+All JOINs are within the `configurator` schema. The three projection tables replicate the module/feature registry data that Master Data owns — the Configurator never queries `master_data.*` directly.
 
 ### Co-location note
 
 All distributed tables use `iq_tenant_id` as the distribution key. JOINs between `tenant_modules`, `tenant_feature_flags`, `tenant_module_configs`, and `integration_profiles` within a single tenant are shard-local.
 
-JOINs from distributed tables to reference tables (`organizations`, `tenants`, and Master Data's `modules`, `feature_flags`, `module_config_schemas`) are always node-local because reference tables are replicated to every node.
+JOINs from distributed tables to reference tables (`organizations`, `tenants`, `module_projection`, `config_schema_projection`, `feature_flag_projection`) are always node-local because reference tables are replicated to every node.
 
 ### No blue tables
 
@@ -389,6 +393,9 @@ Unlike User Management (which has better-auth tables distributed by `id`/`user_i
 
 | Table | Missing | Justification |
 |-------|---------|---------------|
+| `module_projection` | `created_by`, `updated_by` | Synced from Master Data events — the author is the deployment pipeline, not a user. Uses `synced_at` instead of `updated_at`. |
+| `config_schema_projection` | `created_by`, `updated_by` | Same as `module_projection` — event-sourced, no user actor. |
+| `feature_flag_projection` | `created_by`, `updated_by` | Same as `module_projection` — event-sourced, no user actor. |
 | `tenant_modules` | standard names | Uses semantic equivalents: `enabled_at`/`enabled_by` for creation, `disabled_at` for soft-disable lifecycle |
 | `tenant_feature_flags` | `created_by` | Uses `enabled_by` as semantic `created_by` — overrides are activated (enabled) at creation time, same pattern as `tenant_modules` |
 | `tenant_provisioning_log` | `updated_at`, `updated_by` | Append-only steps — each step is written once with `started_at`/`completed_at`. Steps are not edited after completion. |
@@ -411,7 +418,19 @@ Unlike User Management (which has better-auth tables distributed by `id`/`user_i
 | `module.enabled` | Module enabled for tenant | `iq_tenant_id`, `module_id` | BFF (update route list), affected module |
 | `module.disabled` | Module disabled for tenant | `iq_tenant_id`, `module_id` | BFF (remove routes), affected module |
 
-Module/feature registry events (`module.registered`, `module.updated`, `feature-flag.defined`, `feature-flag.updated`) are published by the [Master Data module](../master-data/01-schema-design.md). The Configurator consumes `module.registered` to make newly deployed modules available for tenant enablement.
+### Events consumed (from Master Data)
+
+The Configurator subscribes to all module/feature registry events published by the [Master Data module](../master-data/01-schema-design.md) and upserts local projections on receipt:
+
+| Event consumed | Projection updated | Action |
+|----------------|--------------------|--------|
+| `module.registered` | `module_projection` | INSERT new module |
+| `module.updated` | `module_projection` | UPDATE version, display_name, category |
+| `config-schema.declared` | `config_schema_projection` | UPSERT schema + defaults for module/version |
+| `feature-flag.defined` | `feature_flag_projection` | INSERT new flag |
+| `feature-flag.updated` | `feature_flag_projection` | UPDATE default_value, value_schema, flag_type |
+
+All events carry rich payloads (all fields the projection needs), so the consumer never calls back to Master Data's API. If an event is missed (unlikely with InProcessEventBus; relevant when upgrading to a durable bus), a full-sync reconciliation job can rebuild projections from Master Data's API.
 
 ---
 
@@ -420,7 +439,7 @@ Module/feature registry events (`module.registered`, `module.updated`, `feature-
 The Configurator depends on:
 
 - **User Management** — for authentication and authorization of admin users. Platform operators and hospital admins must authenticate before modifying configuration. This dependency is via the identity adapter and PEP middleware (standard module shape), not via database-level coupling.
-- **Master Data** — for module registry (`modules`), config schema declarations (`module_config_schemas`), and feature flag definitions (`feature_flags`). The Configurator JOINs these reference tables when resolving effective configuration per tenant. This is a read-only dependency — the Configurator never writes to Master Data tables.
+- **Master Data** — for module registry, config schema declarations, and feature flag definitions. This is an **event-driven** dependency: the Configurator subscribes to Master Data's domain events and maintains local read projections (`module_projection`, `config_schema_projection`, `feature_flag_projection`) in its own schema. The Configurator never queries `master_data.*` directly — all resolution queries run within the `configurator` schema. If Master Data is temporarily unavailable, the Configurator continues serving from its projections (eventually consistent).
 
 The Configurator has no dependency on EMPI or any feature module. It is consumed by all modules (they read config from the Configurator's API), but that dependency is one-directional.
 
@@ -432,10 +451,12 @@ The Configurator has no dependency on EMPI or any feature module. It is consumed
 |--------|----------|-----------|-----------|
 | `users.org_id` | `user_management.users` | `configurator.organizations.id` | User Management |
 | `users.iq_tenant_id` | `user_management.users` | `configurator.tenants.iq_tenant_id` | User Management |
-| `tenant_modules.module_id` | `configurator.tenant_modules` | `master_data.modules.id` | Master Data |
-| `tenant_feature_flags.feature_flag_id` | `configurator.tenant_feature_flags` | `master_data.feature_flags.id` | Master Data |
-| `tenant_module_configs.module_id` | `configurator.tenant_module_configs` | `master_data.modules.id` | Master Data |
+| `tenant_modules.module_id` | `configurator.tenant_modules` | `configurator.module_projection.id` (local projection) | Configurator (projection sourced from Master Data) |
+| `tenant_feature_flags.feature_flag_id` | `configurator.tenant_feature_flags` | `configurator.feature_flag_projection.id` (local projection) | Configurator (projection sourced from Master Data) |
+| `tenant_module_configs.module_id` | `configurator.tenant_module_configs` | `configurator.module_projection.id` (local projection) | Configurator (projection sourced from Master Data) |
 | JWT `iq_tenant_id` claim | JWT payload | `configurator.tenants.iq_tenant_id` | All modules |
 | JWT `org_id` claim | JWT payload | `configurator.organizations.id` | All modules |
 
-Per [database principle §4](../../analysis/03-database-principles.md#4-no-cross-schema-foreign-keys), cross-schema references are plain ID columns without `REFERENCES` constraints. The `org_id` on `user_management.users` is a UUID that happens to correspond to `configurator.organizations.id`, and `module_id`/`feature_flag_id` on Configurator tables correspond to Master Data IDs — but there are no foreign keys enforcing these. The relationships are maintained through the provisioning workflow and event-driven consistency.
+Per [database principle §4](../../analysis/03-database-principles.md#4-no-cross-schema-foreign-keys), there are **no cross-schema references** from Configurator to Master Data. The Configurator's tenant tables reference local projections within the `configurator` schema, not `master_data.*` tables. The projection IDs match Master Data's source IDs by convention (the event consumer preserves the original UUID), but the FK relationship is local: `tenant_modules.module_id → configurator.module_projection.id`. Cross-module identity is maintained through event-driven sync, not database-level coupling.
+
+The `org_id` on `user_management.users` is a UUID that corresponds to `configurator.organizations.id` — a cross-schema reference maintained through the provisioning workflow (plain ID column, no `REFERENCES` constraint).

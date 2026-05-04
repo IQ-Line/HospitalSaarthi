@@ -147,12 +147,12 @@ For migration-triggered changes (module registration during deployment), `change
 
 The module/feature registry tables are the canonical example of reference data in Citus:
 1. **Row count.** ~42 modules, ~50 schemas, ~100–200 flags. Replication cost is negligible.
-2. **Universal read pattern.** The Configurator JOINs these tables on every config resolution call. Reference tables make these JOINs node-local from any shard.
+2. **Universal read pattern.** The Configurator subscribes to registry events and maintains local projections. Other modules may also need registry data in the future — reference table distribution ensures any node can serve it locally.
 3. **Write frequency.** Changes only during deployments or platform admin actions. The replication overhead of writes is trivial at this frequency.
 
-### Cross-schema JOINs
+### No cross-schema queries
 
-The Configurator's distributed tables (`tenant_modules`, `tenant_feature_flags`, `tenant_module_configs`) JOIN against Master Data's reference tables. Because reference tables are replicated to every Citus worker node, these JOINs are always node-local — no cross-node traffic, no performance penalty compared to same-schema JOINs.
+The Configurator does **not** query Master Data's tables directly. Instead, the Configurator maintains local read projections (`module_projection`, `config_schema_projection`, `feature_flag_projection`) in its own schema, kept in sync via the events listed in §9. All config resolution queries run entirely within the `configurator` schema. This follows the principle that each module queries only its own schema — cross-module data flows through events, not JOINs.
 
 ---
 
@@ -170,13 +170,15 @@ The Configurator's distributed tables (`tenant_modules`, `tenant_feature_flags`,
 
 ## 9. Events published
 
+All registry events carry **rich payloads** — every field the Configurator's projection consumer needs to upsert its local copy without calling back to Master Data's API. This follows the platform's "rich event payloads" principle (see CLAUDE.md).
+
 | Event | When | Payload includes | Consumers |
 |-------|------|-----------------|-----------|
-| `module.registered` | New module registers via migration | `module_id`, `name`, `category`, `is_core`, `version` | Configurator (make available for tenant enablement) |
-| `module.updated` | Module version bumped via migration | `module_id`, `name`, `old_version`, `new_version` | Configurator (flag tenants needing config migration review) |
-| `feature-flag.defined` | New flag defined | `flag_id`, `name`, `flag_type`, `module_id`, `default_value` | Configurator (make available for tenant overrides) |
-| `feature-flag.updated` | Flag default or metadata changed | `flag_id`, `name`, changed fields | Configurator (propagate to tenants without overrides) |
-| `config-schema.declared` | New config schema version registered | `module_id`, `schema_version` | Configurator (trigger runtime hydration for affected tenants) |
+| `module.registered` | New module registers via migration | `module_id`, `name`, `display_name`, `category`, `is_core`, `version` | Configurator (upsert `module_projection`) |
+| `module.updated` | Module version bumped via migration | `module_id`, `name`, `display_name`, `category`, `is_core`, `old_version`, `new_version` | Configurator (update `module_projection`, flag tenants needing config migration review) |
+| `feature-flag.defined` | New flag defined | `flag_id`, `name`, `flag_type`, `module_id`, `default_value`, `value_schema` | Configurator (upsert `feature_flag_projection`, make available for tenant overrides) |
+| `feature-flag.updated` | Flag default or metadata changed | `flag_id`, `name`, `flag_type`, `module_id`, `default_value`, `value_schema` | Configurator (update `feature_flag_projection`, propagate to tenants without overrides) |
+| `config-schema.declared` | New config schema version registered | `module_id`, `schema_version`, `config_schema`, `defaults` | Configurator (upsert `config_schema_projection`, trigger runtime hydration for affected tenants) |
 
 ### Post-launch events (healthcare reference data)
 
@@ -193,21 +195,21 @@ Master Data depends on:
 
 - **User Management** — for authentication and authorization of admin users managing registry data and (Post-launch) healthcare reference data. This dependency is via the identity adapter and PEP middleware (standard module shape), not via database-level coupling.
 
-Master Data has no dependency on the Configurator, EMPI, or any feature module. The dependency is one-directional: the Configurator reads Master Data's reference tables, not the other way around.
+Master Data has no dependency on the Configurator, EMPI, or any feature module. The dependency is one-directional: the Configurator subscribes to Master Data's domain events and maintains local read projections — Master Data never queries the Configurator's schema.
 
 ---
 
 ## 11. Cross-module identifier references
 
-| Column | On table | References | In module |
-|--------|----------|-----------|-----------|
-| `tenant_modules.module_id` | `configurator.tenant_modules` | `master_data.modules.id` | Configurator |
-| `tenant_feature_flags.feature_flag_id` | `configurator.tenant_feature_flags` | `master_data.feature_flags.id` | Configurator |
-| `tenant_module_configs.module_id` | `configurator.tenant_module_configs` | `master_data.modules.id` | Configurator |
-| `feature_flags.module_id` | `master_data.feature_flags` | `master_data.modules.id` | Same module (FK allowed) |
-| `module_config_schemas.module_id` | `master_data.module_config_schemas` | `master_data.modules.id` | Same module (FK allowed) |
+| Column | On table | References | In module | Mechanism |
+|--------|----------|-----------|-----------|-----------|
+| `module_projection.id` | `configurator.module_projection` | `master_data.modules.id` | Configurator | Event-synced projection (same UUID, no FK) |
+| `config_schema_projection.id` | `configurator.config_schema_projection` | `master_data.module_config_schemas.(module_id, schema_version)` | Configurator | Event-synced projection |
+| `feature_flag_projection.id` | `configurator.feature_flag_projection` | `master_data.feature_flags.id` | Configurator | Event-synced projection (same UUID, no FK) |
+| `feature_flags.module_id` | `master_data.feature_flags` | `master_data.modules.id` | Same module | Standard FK (intra-schema) |
+| `module_config_schemas.module_id` | `master_data.module_config_schemas` | `master_data.modules.id` | Same module | Standard FK (intra-schema) |
 
-Per [database principle §4](../../analysis/03-database-principles.md#4-no-cross-schema-foreign-keys), cross-schema references (Configurator → Master Data) are plain ID columns without `REFERENCES` constraints. Intra-schema references (`feature_flags.module_id` → `modules.id`, `module_config_schemas.module_id` → `modules.id`) use standard foreign keys.
+Per [database principle §4](../../analysis/03-database-principles.md#4-no-cross-schema-foreign-keys), there are **no cross-schema foreign keys**. The Configurator maintains local projections of Master Data's registry tables, synced via domain events. Projection IDs match the source IDs by convention (the event consumer preserves the original UUID). The Configurator's tenant tables reference these local projections, not `master_data.*` tables. Intra-schema references (`feature_flags.module_id` → `modules.id`, `module_config_schemas.module_id` → `modules.id`) use standard foreign keys.
 
 ---
 
