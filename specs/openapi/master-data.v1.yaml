@@ -1,0 +1,105 @@
+openapi: 3.1.0
+info:
+  title: HIMS Master Data API
+  version: 1.0.0
+  description: Read-only Master Data registry API for the first Python module learning slice.
+servers:
+  - url: /api/master-data
+security:
+  - bearerAuth: []
+paths:
+  /modules:
+    get:
+      operationId: listModules
+      summary: List registered platform modules
+      description: Returns deployable modules registered in the Master Data registry.
+      tags:
+        - Modules
+      parameters:
+        - name: category
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/ModuleCategory"
+          description: Filter modules by platform category.
+        - name: is_core
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: Filter core platform modules.
+      responses:
+        "200":
+          description: Registered modules.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModuleListResponse"
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Principal is not authorized to view Master Data.
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ModuleCategory:
+      type: string
+      enum:
+        - core
+        - clinical
+        - administrative
+        - support
+    Module:
+      type: object
+      required:
+        - id
+        - name
+        - display_name
+        - category
+        - is_core
+        - version
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          examples:
+            - user_management
+        display_name:
+          type: string
+          examples:
+            - User Management
+        category:
+          $ref: "#/components/schemas/ModuleCategory"
+        is_core:
+          type: boolean
+        version:
+          type: string
+          examples:
+            - 1.0.0
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    ModuleListResponse:
+      type: object
+      required:
+        - data
+        - total
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Module"
+        total:
+          type: integer
+          minimum: 0
