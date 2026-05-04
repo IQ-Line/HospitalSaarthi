@@ -4,6 +4,16 @@
 **Status:** Approved (design review complete, pending artifact updates)  
 **Scope:** Revise the User Management LLD, HLD-04, ADR-0003, and ADR-0015 to incorporate username-primary identity, BFF Token Handler pattern, JWKS key management, OAuth 2.1 Provider plugin, two-tier federation, recovery tier model, and AuthN provider replaceability boundary.
 
+**Implementation phasing:**
+
+| Phase | Sections | What ships |
+|-------|----------|------------|
+| **MVP** | §2, §3 (standard + admin_only tiers), §5, §6, §10, §11.1, §14, §15 | Username login, synthetic email, Token Handler, JWKS, admin/standard recovery, IdentityProvider interface, required config, security invariants |
+| **Post-launch** | §3 (delegated + phone_recovery tiers), §4, §13 (magic link + phone plugins) | Phone auth, delegated recovery, magic link recovery |
+| **Federation** | §3 (federated tier), §7, §8, §9, §13 (SSO + SAML + OAuth Provider plugins) | Two-tier federation, account linking, OAuth 2.1 Provider |
+
+Sections not listed (§1, §12, §16–§20) are cross-cutting or informational and apply to all phases. Future-phase sections are designed now to validate that the MVP foundation supports them without schema changes — see [design-process-learnings.md §5](../../architecture/design-process-learnings.md#5-design-future-phases-to-validate-the-foundation-not-to-build-them).
+
 ---
 
 ## 1. Problem Statement
@@ -100,6 +110,8 @@ They are not duplicates — they serve different layers with different lifecycle
 ---
 
 ## 3. Recovery Tier Model
+
+> **Phase 1 (MVP):** `standard` and `admin_only` tiers, `must_change_password`, `recovery_tier` column, recovery routing logic, Flow A (admin direct password set). **Phase 2:** `delegated` and `phone_recovery` tiers, `delegated_recovery_routes` table, Flow B (magic link), Flow C (delegated email route). **Phase 3:** `federated` tier.
 
 ### 3.1 Decision
 
@@ -225,6 +237,8 @@ Three concrete flows, all gated by Cerbos authorization and admin step-up authen
 ---
 
 ## 4. Phone Number Auth
+
+> **Phase 2 — Post-launch**
 
 ### 4.1 Integration with username auth
 
@@ -375,6 +389,8 @@ The JWT plugin supports a custom `sign` function for delegating signing to exter
 
 ## 7. OAuth 2.1 Provider Plugin
 
+> **Phase 3 — Federation**
+
 ### 7.1 Decision
 
 The platform uses better-auth's **OAuth 2.1 Provider plugin** (not the deprecated OIDC Provider plugin) when the platform acts as an identity source for third-party systems.
@@ -417,6 +433,8 @@ oauthProvider({
 ---
 
 ## 8. Two-Tier Federation Strategy
+
+> **Phase 3 — Federation**
 
 ### 8.1 Decision
 
@@ -461,6 +479,8 @@ In both cases, better-auth issues the final JWT. Downstream modules see no diffe
 ---
 
 ## 9. Federation Account Linking
+
+> **Phase: Federation (Phase 3).** The explicit linking workflow, `auth_identity_links` table, and SSO callback behavior all ship with federation. The MVP schema includes the `auth_identity_links` table definition so that no migration is needed when federation activates.
 
 ### 9.1 The problem
 
@@ -622,20 +642,20 @@ If we had used real sub-addressed emails in `ba_users.email`, migration would re
 
 ## 13. better-auth Plugin Stack
 
-| Plugin | Purpose | Status |
-|--------|---------|--------|
-| **Username** | Username-based sign-in | Required — primary login method |
-| **JWT** | JWKS key management, custom token claims, DB-persisted keys | Required — core infrastructure |
-| **Admin** | User provisioning, password set, session revocation, ban/unban | Required — admin recovery flows |
-| **Magic Link** | Admin-generated login links, passwordless recovery | Required — recovery Flow B |
-| **Phone Number** | Phone OTP auth, phone-based recovery | Required — supplementary auth |
-| **OAuth 2.1 Provider** | Platform as IdP for third parties | Required — replaces deprecated OIDC Provider |
-| **SSO** | OIDC federation to external IdPs (Tier 1) | Required — Entra, Okta, etc. |
-| **SAML** | SAML 2.0 federation (Tier 1) | Required — government/enterprise IdPs |
-| **Two Factor** | TOTP-based MFA | Optional — enabled per tenant, not MVP |
-| **Generic OAuth** | Custom OAuth2/OIDC providers | As needed — non-standard IdPs |
-| **Organization** | Multi-org user management | **Rejected** — see §16 |
-| **Sentinel** | Email normalization, disposable domain blocking | **Forbidden** — strips `+` suffixes, incompatible with sub-addressing in delegated recovery routes |
+| Plugin | Purpose | Status | Phase |
+|--------|---------|--------|-------|
+| **Username** | Username-based sign-in | Required — primary login method | MVP |
+| **JWT** | JWKS key management, custom token claims, DB-persisted keys | Required — core infrastructure | MVP |
+| **Admin** | User provisioning, password set, session revocation, ban/unban | Required — admin recovery flows | MVP |
+| **Magic Link** | Admin-generated login links, passwordless recovery | Required — recovery Flow B | Post-launch |
+| **Phone Number** | Phone OTP auth, phone-based recovery | Required — supplementary auth | Post-launch |
+| **OAuth 2.1 Provider** | Platform as IdP for third parties | Required — replaces deprecated OIDC Provider | Federation |
+| **SSO** | OIDC federation to external IdPs (Tier 1) | Required — Entra, Okta, etc. | Federation |
+| **SAML** | SAML 2.0 federation (Tier 1) | Required — government/enterprise IdPs | Federation |
+| **Two Factor** | TOTP-based MFA | Optional — enabled per tenant, not MVP | Post-launch |
+| **Generic OAuth** | Custom OAuth2/OIDC providers | As needed — non-standard IdPs | Federation |
+| **Organization** | Multi-org user management | **Rejected** — see §16 | — |
+| **Sentinel** | Email normalization, disposable domain blocking | **Forbidden** — strips `+` suffixes, incompatible with sub-addressing in delegated recovery routes | — |
 
 ---
 
