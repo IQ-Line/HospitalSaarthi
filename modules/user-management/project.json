@@ -1,0 +1,27 @@
+{
+  "name": "user-management",
+  "tags": ["type:module", "scope:user-management", "language:typescript"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "options": {
+        "outputPath": "dist/modules/user-management",
+        "main": "modules/user-management/src/index.ts",
+        "tsConfig": "modules/user-management/tsconfig.json"
+      }
+    },
+    "test": {
+      "executor": "@nx/js:node",
+      "options": {
+        "command": "vitest run",
+        "cwd": "modules/user-management"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "options": {
+        "lintFilePatterns": ["modules/user-management/src/**/*.ts"]
+      }
+    }
+  }
+}

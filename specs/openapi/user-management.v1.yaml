@@ -1,0 +1,765 @@
+openapi: 3.1.0
+info:
+  title: HIMS User Management API
+  version: 1.0.0
+  description: >
+    User Management module — identity authority for the HIMS platform.
+    Provides authentication (JWT-based), user CRUD, and role management.
+servers:
+  - url: /api/user-management/v1
+security:
+  - bearerAuth: []
+
+paths:
+  # ---------------------------------------------------------------------------
+  # Authentication (intent-based handlers)
+  # ---------------------------------------------------------------------------
+  /auth/login:
+    post:
+      operationId: login
+      summary: Authenticate with username and password
+      description: >
+        Validates credentials and returns a JWT pair (short-lived access token
+        + refresh token). The refresh token is intended for the BFF Token Handler
+        pattern — it should be stored in an HttpOnly cookie, never exposed to JS.
+      tags:
+        - Authentication
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Authentication successful.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          description: Invalid credentials.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/refresh:
+    post:
+      operationId: refreshToken
+      summary: Refresh an access token
+      description: >
+        Exchanges a valid refresh token for a new short-lived access token.
+        The refresh token itself may be rotated (returned as a new value).
+      tags:
+        - Authentication
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "200":
+          description: Token refreshed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefreshResponse"
+        "401":
+          description: Invalid or expired refresh token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      summary: Invalidate the current session
+      description: Revokes the session associated with the bearer token.
+      tags:
+        - Authentication
+      responses:
+        "204":
+          description: Session invalidated.
+        "401":
+          description: Missing or invalid bearer token.
+
+  # ---------------------------------------------------------------------------
+  # User CRUD (REST handlers)
+  # ---------------------------------------------------------------------------
+  /users:
+    get:
+      operationId: listUsers
+      summary: List users (paginated, filterable)
+      tags:
+        - Users
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/UserStatus"
+        - name: role
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter users who have this role name assigned.
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: Paginated user list.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserListResponse"
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Not authorized to list users.
+
+    post:
+      operationId: createUser
+      summary: Create a new user (admin action)
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserRequest"
+      responses:
+        "201":
+          description: User created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "400":
+          description: Validation error (e.g. duplicate username).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Not authorized to create users.
+        "409":
+          description: Username or email already exists in this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/{id}:
+    get:
+      operationId: getUserById
+      summary: Get a user by ID
+      tags:
+        - Users
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: User found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "401":
+          description: Missing or invalid bearer token.
+        "404":
+          description: User not found.
+
+    patch:
+      operationId: updateUser
+      summary: Update a user
+      tags:
+        - Users
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserRequest"
+      responses:
+        "200":
+          description: User updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "400":
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid bearer token.
+        "404":
+          description: User not found.
+
+  /users/{id}/deactivate:
+    post:
+      operationId: deactivateUser
+      summary: Deactivate a user
+      description: >
+        Sets the user status to 'inactive'. The user can no longer log in.
+        Active sessions are revoked.
+      tags:
+        - Users
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: User deactivated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Not authorized to deactivate users.
+        "404":
+          description: User not found.
+
+  # ---------------------------------------------------------------------------
+  # Role management (REST handlers)
+  # ---------------------------------------------------------------------------
+  /roles:
+    get:
+      operationId: listRoles
+      summary: List roles for the current tenant
+      tags:
+        - Roles
+      responses:
+        "200":
+          description: Role list.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleListResponse"
+        "401":
+          description: Missing or invalid bearer token.
+
+    post:
+      operationId: createRole
+      summary: Create a new role
+      tags:
+        - Roles
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRoleRequest"
+      responses:
+        "201":
+          description: Role created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleResponse"
+        "400":
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid bearer token.
+        "409":
+          description: Role name already exists in this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/{id}/roles:
+    post:
+      operationId: assignRoleToUser
+      summary: Assign a role to a user
+      tags:
+        - Roles
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: User ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignRoleRequest"
+      responses:
+        "201":
+          description: Role assigned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleAssignmentResponse"
+        "400":
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid bearer token.
+        "404":
+          description: User or role not found.
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # --- Enums ---
+    UserStatus:
+      type: string
+      enum:
+        - active
+        - inactive
+        - suspended
+
+    UserKind:
+      type: string
+      enum:
+        - user
+        - service
+        - agent
+
+    RecoveryTier:
+      type: string
+      enum:
+        - standard
+        - delegated
+        - phone_recovery
+        - admin_only
+        - federated
+
+    RoleStatus:
+      type: string
+      enum:
+        - active
+        - archived
+
+    RoleScopeLevel:
+      type: string
+      enum:
+        - tenant
+        - organization
+
+    # --- Authentication ---
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 1
+
+    LoginResponse:
+      type: object
+      required:
+        - access_token
+        - refresh_token
+        - token_type
+        - expires_in
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          examples:
+            - Bearer
+        expires_in:
+          type: integer
+          description: Access token lifetime in seconds.
+          examples:
+            - 120
+
+    RefreshRequest:
+      type: object
+      required:
+        - refresh_token
+      properties:
+        refresh_token:
+          type: string
+
+    RefreshResponse:
+      type: object
+      required:
+        - access_token
+        - token_type
+        - expires_in
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+          description: Rotated refresh token (if rotation is enabled).
+        token_type:
+          type: string
+          examples:
+            - Bearer
+        expires_in:
+          type: integer
+
+    # --- User ---
+    User:
+      type: object
+      required:
+        - id
+        - iq_tenant_id
+        - kind
+        - full_name
+        - status
+        - recovery_tier
+        - phone_auth_enabled
+        - must_change_password
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        iq_tenant_id:
+          type: string
+          format: uuid
+        auth_user_id:
+          type: string
+          format: uuid
+          nullable: true
+        kind:
+          $ref: "#/components/schemas/UserKind"
+        org_id:
+          type: string
+          format: uuid
+          nullable: true
+        employee_id:
+          type: string
+          nullable: true
+        full_name:
+          type: string
+        email:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        status:
+          $ref: "#/components/schemas/UserStatus"
+        recovery_tier:
+          $ref: "#/components/schemas/RecoveryTier"
+        phone_auth_enabled:
+          type: boolean
+        must_change_password:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+
+    CreateUserRequest:
+      type: object
+      required:
+        - username
+        - full_name
+        - password
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 64
+        full_name:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 8
+        email:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        kind:
+          $ref: "#/components/schemas/UserKind"
+        employee_id:
+          type: string
+          nullable: true
+        recovery_tier:
+          $ref: "#/components/schemas/RecoveryTier"
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        full_name:
+          type: string
+        email:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        employee_id:
+          type: string
+          nullable: true
+        status:
+          $ref: "#/components/schemas/UserStatus"
+        recovery_tier:
+          $ref: "#/components/schemas/RecoveryTier"
+
+    UserResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: "#/components/schemas/User"
+
+    UserListResponse:
+      type: object
+      required:
+        - data
+        - total
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+        total:
+          type: integer
+
+    # --- Role ---
+    Role:
+      type: object
+      required:
+        - id
+        - iq_tenant_id
+        - name
+        - display_name
+        - scope_level
+        - is_system
+        - status
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        iq_tenant_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        display_name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        scope_level:
+          $ref: "#/components/schemas/RoleScopeLevel"
+        is_system:
+          type: boolean
+        status:
+          $ref: "#/components/schemas/RoleStatus"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+
+    CreateRoleRequest:
+      type: object
+      required:
+        - name
+        - display_name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+        display_name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          nullable: true
+        scope_level:
+          $ref: "#/components/schemas/RoleScopeLevel"
+
+    RoleResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: "#/components/schemas/Role"
+
+    RoleListResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Role"
+
+    # --- Role Assignment ---
+    RoleAssignment:
+      type: object
+      required:
+        - id
+        - iq_tenant_id
+        - user_id
+        - role_id
+        - assigned_at
+        - assigned_by
+      properties:
+        id:
+          type: string
+          format: uuid
+        iq_tenant_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        role_id:
+          type: string
+          format: uuid
+        scope_type:
+          type: string
+          nullable: true
+          enum:
+            - department
+            - ward
+        scope_id:
+          type: string
+          format: uuid
+          nullable: true
+        assigned_at:
+          type: string
+          format: date-time
+        assigned_by:
+          type: string
+          format: uuid
+        revoked_at:
+          type: string
+          format: date-time
+          nullable: true
+        revoked_by:
+          type: string
+          format: uuid
+          nullable: true
+
+    AssignRoleRequest:
+      type: object
+      required:
+        - role_id
+      properties:
+        role_id:
+          type: string
+          format: uuid
+        scope_type:
+          type: string
+          enum:
+            - department
+            - ward
+        scope_id:
+          type: string
+          format: uuid
+
+    RoleAssignmentResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: "#/components/schemas/RoleAssignment"
+
+    # --- Shared ---
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+        message:
+          type: string

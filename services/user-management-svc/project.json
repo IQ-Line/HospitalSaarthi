@@ -1,0 +1,13 @@
+{
+  "name": "user-management-svc",
+  "tags": ["type:service", "scope:user-management", "language:typescript"],
+  "targets": {
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npx tsx watch src/main.ts",
+        "cwd": "services/user-management-svc"
+      }
+    }
+  }
+}
