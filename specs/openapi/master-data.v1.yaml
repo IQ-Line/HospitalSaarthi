@@ -21,13 +21,7 @@ paths:
           required: false
           schema:
             $ref: "#/components/schemas/ModuleCategory"
-          description: Filter modules by platform category.
-        - name: is_core
-          in: query
-          required: false
-          schema:
-            type: boolean
-          description: Filter core platform modules.
+          description: Filter modules by catalog category (not authorization).
       responses:
         "200":
           description: Registered modules.
@@ -58,9 +52,7 @@ components:
       required:
         - id
         - name
-        - display_name
         - category
-        - is_core
         - version
         - created_at
         - updated_at
@@ -72,14 +64,8 @@ components:
           type: string
           examples:
             - user_management
-        display_name:
-          type: string
-          examples:
-            - User Management
         category:
           $ref: "#/components/schemas/ModuleCategory"
-        is_core:
-          type: boolean
         version:
           type: string
           examples:

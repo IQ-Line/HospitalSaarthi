@@ -9,15 +9,13 @@ from app.main import create_app
 
 
 class FakeModuleRepository:
-    def list_modules(self, *, category=None, is_core=None):
+    def list_modules(self, *, category=None):
         now = datetime.now(UTC)
         return [
             SimpleNamespace(
                 id=uuid4(),
                 name="master_data",
-                display_name="Master Data",
                 category="core",
-                is_core=True,
                 version="1.0.0",
                 created_at=now,
                 updated_at=now,

@@ -22,33 +22,25 @@ CORE_MODULES = [
     {
         "id": "11111111-1111-4111-8111-111111111111",
         "name": "user_management",
-        "display_name": "User Management",
         "category": "core",
-        "is_core": True,
         "version": "1.0.0",
     },
     {
         "id": "22222222-2222-4222-8222-222222222222",
         "name": "configurator",
-        "display_name": "Configurator",
         "category": "core",
-        "is_core": True,
         "version": "1.0.0",
     },
     {
         "id": "33333333-3333-4333-8333-333333333333",
         "name": "empi",
-        "display_name": "EMPI",
         "category": "core",
-        "is_core": True,
         "version": "1.0.0",
     },
     {
         "id": "44444444-4444-4444-8444-444444444444",
         "name": "master_data",
-        "display_name": "Master Data",
         "category": "core",
-        "is_core": True,
         "version": "1.0.0",
     },
 ]
@@ -65,9 +57,7 @@ def upgrade() -> None:
             server_default=sa.text("uuid_generate_v4()"),
         ),
         sa.Column("name", sa.String(length=100), nullable=False),
-        sa.Column("display_name", sa.String(length=160), nullable=False),
         sa.Column("category", sa.String(length=32), nullable=False),
-        sa.Column("is_core", sa.Boolean(), nullable=False, server_default=sa.text("false")),
         sa.Column("version", sa.String(length=32), nullable=False),
         sa.Column(
             "created_at",
@@ -93,9 +83,7 @@ def upgrade() -> None:
         "modules",
         sa.column("id", postgresql.UUID(as_uuid=True)),
         sa.column("name", sa.String),
-        sa.column("display_name", sa.String),
         sa.column("category", sa.String),
-        sa.column("is_core", sa.Boolean),
         sa.column("version", sa.String),
         schema="master_data",
     )

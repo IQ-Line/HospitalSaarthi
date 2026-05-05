@@ -14,8 +14,7 @@ router = APIRouter(prefix="/modules", tags=["Modules"])
 def get_modules(
     repository: Annotated[ModuleRepository, Depends(get_module_repository)],
     category: Annotated[ModuleCategory | None, Query()] = None,
-    is_core: Annotated[bool | None, Query()] = None,
 ) -> ModuleListResponse:
-    modules = list_modules(repository, category=category, is_core=is_core)
+    modules = list_modules(repository, category=category)
     data = [ModuleResponse.model_validate(module) for module in modules]
     return ModuleListResponse(data=data, total=len(data))

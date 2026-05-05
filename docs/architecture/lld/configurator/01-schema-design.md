@@ -425,7 +425,7 @@ The Configurator subscribes to all module/feature registry events published by t
 | Event consumed | Projection updated | Action |
 |----------------|--------------------|--------|
 | `module.registered` | `module_projection` | INSERT new module |
-| `module.updated` | `module_projection` | UPDATE version, display_name, category |
+| `module.updated` | `module_projection` | UPDATE fields from payload (e.g. `version`, `slug`, `category`, tree fields — see [Master Data LLD](../master-data/01-schema-design.md)). |
 | `config-schema.declared` | `config_schema_projection` | UPSERT schema + defaults for module/version |
 | `feature-flag.defined` | `feature_flag_projection` | INSERT new flag |
 | `feature-flag.updated` | `feature_flag_projection` | UPDATE default_value, value_schema, flag_type |
