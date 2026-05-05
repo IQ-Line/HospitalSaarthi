@@ -1,0 +1,14 @@
+{
+  "name": "@hims/empi-svc",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@hims/empi": "workspace:*",
+    "@hims/ts-sdk-db": "workspace:*",
+    "@hims/ts-sdk-events": "workspace:*",
+    "@hims/ts-sdk-identity": "workspace:*",
+    "@hims/ts-sdk-tenant": "workspace:*",
+    "fastify": "^5.3.3"
+  }
+}

@@ -1,0 +1,189 @@
+import { eq, and, ilike, sql } from "drizzle-orm";
+import type { DbInstance } from "@hims/ts-sdk-db";
+import { patients } from "../schema/tables.js";
+import type { PatientRepo } from "../ports.js";
+import type {
+  Patient,
+  CreatePatientData,
+  UpdatePatientData,
+  PatientFilters,
+} from "../domain/patient.types.js";
+
+export class DrizzlePatientRepo implements PatientRepo {
+  constructor(private db: DbInstance) {}
+
+  async findAll(
+    tenantId: string,
+    filters?: PatientFilters,
+  ): Promise<{ data: Patient[]; total: number }> {
+    const page = filters?.page ?? 1;
+    const limit = filters?.limit ?? 20;
+    const offset = (page - 1) * limit;
+
+    const conditions = [
+      eq(patients.iq_tenant_id, tenantId),
+      sql`${patients.merged_into_id} IS NULL`,
+    ];
+
+    if (filters?.status) {
+      conditions.push(eq(patients.status, filters.status));
+    }
+    if (filters?.phone_number) {
+      conditions.push(eq(patients.phone_number, filters.phone_number));
+    }
+    if (filters?.uhid) {
+      conditions.push(eq(patients.uhid, filters.uhid));
+    }
+    if (filters?.abha_number) {
+      conditions.push(eq(patients.abha_number, filters.abha_number));
+    }
+    if (filters?.name) {
+      conditions.push(ilike(patients.full_name, `%${filters.name}%`));
+    }
+
+    const where = and(...conditions);
+
+    const [data, countResult] = await Promise.all([
+      this.db
+        .select()
+        .from(patients)
+        .where(where)
+        .limit(limit)
+        .offset(offset)
+        .orderBy(patients.created_at),
+      this.db
+        .select({ count: sql<number>`count(*)` })
+        .from(patients)
+        .where(where),
+    ]);
+
+    return {
+      data: data as Patient[],
+      total: Number(countResult[0]?.count ?? 0),
+    };
+  }
+
+  async findById(tenantId: string, id: string): Promise<Patient | undefined> {
+    const rows = await this.db
+      .select()
+      .from(patients)
+      .where(and(eq(patients.iq_tenant_id, tenantId), eq(patients.id, id)));
+    return (rows[0] as Patient) ?? undefined;
+  }
+
+  async findByUhid(
+    tenantId: string,
+    uhid: string,
+  ): Promise<Patient | undefined> {
+    const rows = await this.db
+      .select()
+      .from(patients)
+      .where(and(eq(patients.iq_tenant_id, tenantId), eq(patients.uhid, uhid)));
+    return (rows[0] as Patient) ?? undefined;
+  }
+
+  async findByPhone(tenantId: string, phone: string): Promise<Patient[]> {
+    const rows = await this.db
+      .select()
+      .from(patients)
+      .where(
+        and(
+          eq(patients.iq_tenant_id, tenantId),
+          eq(patients.phone_number, phone),
+          sql`${patients.merged_into_id} IS NULL`,
+        ),
+      );
+    return rows as Patient[];
+  }
+
+  async create(
+    data: CreatePatientData & { uhid: string; full_name: string },
+  ): Promise<Patient> {
+    const rows = await this.db
+      .insert(patients)
+      .values({
+        iq_tenant_id: data.iq_tenant_id,
+        uhid: data.uhid,
+        abha_number: data.abha_number ?? null,
+        salutation: data.salutation ?? null,
+        first_name: data.first_name,
+        middle_name: data.middle_name ?? null,
+        last_name: data.last_name ?? null,
+        full_name: data.full_name,
+        father_name: data.father_name ?? null,
+        mother_name: data.mother_name ?? null,
+        date_of_birth: data.date_of_birth ?? null,
+        year_of_birth: data.year_of_birth ?? null,
+        age_years: data.age_years ?? null,
+        age_months: data.age_months ?? null,
+        age_days: data.age_days ?? null,
+        gender: data.gender,
+        phone_number: data.phone_number,
+        alternate_phone: data.alternate_phone ?? null,
+        blood_group: data.blood_group ?? null,
+        occupation: data.occupation ?? null,
+        religion: data.religion ?? null,
+        caste: data.caste ?? null,
+        nationality: data.nationality ?? "Indian",
+        education: data.education ?? null,
+        emergency_contact_name: data.emergency_contact_name ?? null,
+        emergency_contact_relationship:
+          data.emergency_contact_relationship ?? null,
+        emergency_contact_phone: data.emergency_contact_phone ?? null,
+        registered_by: data.registered_by ?? null,
+        created_by: data.created_by ?? null,
+        updated_by: data.created_by ?? null,
+      })
+      .returning();
+    return rows[0] as Patient;
+  }
+
+  async update(
+    tenantId: string,
+    id: string,
+    data: UpdatePatientData,
+  ): Promise<Patient | undefined> {
+    const fullName = computeFullName(
+      data.first_name,
+      data.middle_name,
+      data.last_name,
+    );
+
+    const values: Record<string, unknown> = { ...data, updated_at: new Date() };
+    if (fullName !== undefined) {
+      values["full_name"] = fullName;
+    }
+
+    const rows = await this.db
+      .update(patients)
+      .set(values)
+      .where(and(eq(patients.iq_tenant_id, tenantId), eq(patients.id, id)))
+      .returning();
+    return (rows[0] as Patient) ?? undefined;
+  }
+
+  async updateStatus(
+    tenantId: string,
+    id: string,
+    status: string,
+    updatedBy: string | null,
+  ): Promise<Patient | undefined> {
+    const rows = await this.db
+      .update(patients)
+      .set({ status, updated_by: updatedBy, updated_at: new Date() })
+      .where(and(eq(patients.iq_tenant_id, tenantId), eq(patients.id, id)))
+      .returning();
+    return (rows[0] as Patient) ?? undefined;
+  }
+}
+
+function computeFullName(
+  firstName?: string,
+  middleName?: string | null,
+  lastName?: string | null,
+): string | undefined {
+  if (firstName === undefined) return undefined;
+  return [firstName?.trim(), middleName?.trim(), lastName?.trim()]
+    .filter(Boolean)
+    .join(" ");
+}
