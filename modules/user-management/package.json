@@ -1,0 +1,10 @@
+{
+  "name": "@hims/user-management",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "drizzle-orm": "^0.45.2",
+    "fastify": "^5.0.0"
+  }
+}
