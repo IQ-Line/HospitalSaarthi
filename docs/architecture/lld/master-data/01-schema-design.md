@@ -7,11 +7,11 @@
 **ERD (visual):** [`master-data.erd.json`](./master-data.erd.json) — open in VS Code with ERD Editor extension  
 **Schema reference:** [`schema-reference.json`](./schema-reference.json) — full column descriptions, indexes, check constraints, Citus distribution notes
 
-**Phasing:** The MVP ships the module/feature registry and its audit trail. Healthcare reference data (ICD codes, drug catalogs, LOINC, SNOMED, departments, etc.) is Post-launch — sketched in §12 to validate that the schema foundation holds, but not implemented in the first release.
+**Phasing:** The MVP ships the **platform catalog** (module tree, permission definitions, module–permission links, role templates, two-table picklists), the **Configurator contract** (config schemas and feature flag definitions), and **`registry_change_audit`**. Healthcare reference data (ICD codes, drug catalogs, LOINC, SNOMED, departments, etc.) is Post-launch — sketched in §17 to validate that the schema foundation holds, but not implemented in the first release.
 
 | Phase | What ships |
 |-------|-----------|
-| **MVP** | All 4 tables: `modules`, `module_config_schemas`, `feature_flags`, `registry_change_audit`. Module registration lifecycle. Events for module/feature registry changes. |
+| **MVP** | **Catalog (reference):** `modules` (including `parent_id` navigation tree, `slug`, `route_path`, `level`, `icon`, `is_active`), `permissions`, `module_permissions`, `system_roles`, `picklist_categories`, `picklist_values`. **Configurator integration (reference):** `module_config_schemas`, `feature_flags`. **Audit (distributed):** `registry_change_audit`. Lifecycle and events cover module registration plus catalog changes that projections need. |
 | **Post-launch** | Healthcare reference data tables (code systems, codes, code mappings, drug catalogs, department/ward master), tenant override mechanism (two-layer inheritance model per HLD §4.1), FHIR terminology endpoints. |
 
 ---
@@ -22,224 +22,259 @@ Master Data owns two distinct domains with different lifecycles:
 
 | Domain | What | Citus mode | Changes via | Phase |
 |--------|------|------------|-------------|-------|
-| **Module/feature registry** | What modules exist, what config schemas they declare, what feature flags are defined | **Reference table** (replicated to all nodes) | Deployment migrations, platform operator actions | MVP |
+| **Platform catalog + module/feature registry** | Module registry and admin tree; permission and role *definitions*; picklists; config schemas; feature flag definitions | **Reference table** (replicated to all nodes) | Deployment migrations, platform operator actions | MVP |
 | **Healthcare reference data** | ICD codes, drug catalogs, LOINC, SNOMED, departments, wards, fee schedules | **Reference** (global catalogs) + **Distributed** (tenant overrides) | Platform data team (global), hospital admins (tenant overrides) | Post-launch |
 
-The module/feature registry was originally part of the Configurator module. The EM and tech lead decided to consolidate all "what exists in the platform" reference data under Master Data, reserving the Configurator for per-tenant operational state (enablement, overrides, config values) and the resolution API. See the [Configurator LLD](../configurator/01-schema-design.md) for the rationale and the original design.
+The module and configurator-facing registry were originally part of the Configurator module. The EM and tech lead consolidated “what exists in the platform” under Master Data, reserving the Configurator for per-tenant operational state (enablement, overrides, config values) and the resolution API. See the [Configurator LLD](../configurator/01-schema-design.md) for the rationale.
+
+**Authorization boundary.** Rows in `permissions`, `module_permissions`, and `system_roles` describe the **catalog** (what can be named in policies and onboarding). **Cerbos** remains the runtime PDP; **User Management** owns assignments (which user holds which role, which tenant-scoped grants apply). Master Data does not store per-user permissions.
 
 ---
 
-## 2. Module registry (`modules`)
+## 2. Module registry and navigation tree (`modules`)
 
 Registry of all deployable modules — 4 core + ~38 feature modules from the AIIMS EOI scope. Platform-defined; no tenant creates modules.
 
-Each module registers itself during its first deployment (see §5 — Module registration lifecycle). The row exists as long as the module exists in the platform.
+`parent_id` adds a **bounded hierarchy** (see `level` check in [`schema-reference.json`](./schema-reference.json)) for admin IA and shell navigation: group headers and leaf modules share one table. **`name`** stays the stable identifier for APIs and events; **`slug`** is an additional URL-safe unique key for routing and external links.
 
 ### Design decisions
 
-- **`is_core` flag.** The four core modules (User Management, EMPI, Configurator, Master Data) are marked `is_core = true`. The Configurator's provisioning workflow seeds `tenant_modules` rows for all `is_core` modules and enforces a CHECK constraint preventing their disablement. The `is_core` flag here is the source of truth for which modules are core.
-- **`category` classification.** `core`, `clinical`, `administrative`, `support`. Used by the admin UI to organize the module catalog. Not an access control boundary — authorization is handled by Cerbos policies, not by category.
-- **`version` tracking.** Semver string updated by the module's deployment migration. The Configurator's runtime hydration logic (Post-launch) uses this to determine whether a module's config schema has been upgraded.
-- **Machine-readable `name`.** The `name` column is the stable identifier used in APIs, events, and cross-module references (e.g., `opd`, `pharmacy`, `user_management`). The `display_name` is for UI rendering only.
+- **`is_core` flag.** The four core modules are marked `is_core = true`. The Configurator's provisioning workflow seeds `tenant_modules` for all `is_core` modules and enforces a CHECK constraint preventing their disablement. This flag is the source of truth for core modules.
+- **`category` classification.** `core`, `clinical`, `administrative`, `support`. Used by the admin UI to organize the catalog. Not an access control boundary — Cerbos policies govern authorization.
+- **`version` tracking.** Semver updated by the module's deployment migration. Post-launch hydration may use this to detect config schema upgrades.
+- **`is_active`.** Soft-hide from default navigation without deleting registry rows (which would orphan projections and tenant state).
 
 ---
 
-## 3. Config schema declarations (`module_config_schemas`)
+## 3. Permission definitions (`permissions`)
+
+Platform-wide list of permission verbs with **`slug`** (policy-stable) and **`action`** (`create` \| `read` \| `update` \| `delete` \| `manage`). Seeded or extended by migrations and platform ops.
+
+---
+
+## 4. Module–permission mapping (`module_permissions`)
+
+Join table: which **`permissions`** apply to which **`modules`**. **`is_default`** hints suggested defaults when provisioning tenant role templates; it does not grant access by itself.
+
+---
+
+## 5. Role templates (`system_roles`)
+
+Named role **templates** (e.g. Ward Clerk). **`is_template`** distinguishes catalog rows from instantiated roles elsewhere. Real membership and Cerbos principal attributes live outside `master_data`.
+
+---
+
+## 6. Two-table picklists (`picklist_categories`, `picklist_values`)
+
+Standard **category → values** pattern for small, platform-wide enumerations (e.g. gender, marital status). **`value`** is the stored key; **`label`** is default UI text; **`metadata`** JSONB can carry icons or Post-launch coding metadata. Large clinical code systems remain in §17 (Post-launch).
+
+---
+
+## 7. Config schema declarations (`module_config_schemas`)
 
 Each module declares a JSON Schema describing its configurable parameters — types, defaults, constraints, UI hints. The Configurator reads these schemas to render admin UI forms and validate tenant config values.
 
 ### Design decisions
 
-- **One schema per module per version.** The `(module_id, schema_version)` unique constraint ensures that a module's v1.0.0 schema and v1.1.0 schema coexist. The Configurator's runtime hydration (Post-launch) merges the latest schema's defaults with the tenant's stored config values.
-- **`defaults` JSONB.** Default values for all configurable parameters. When a tenant has no explicit config for a module, the Configurator serves these defaults. This is the "zero-config works" principle — a newly enabled module has sensible behavior without admin intervention.
-- **`config_schema` JSONB.** JSON Schema (draft-07 or later). Used for validation and UI rendering. The Configurator validates `tenant_module_configs.config_values` against this schema before saving.
-- **No `created_by` / `updated_by`.** These schemas are declared by module deployments (code, not humans). The deployment pipeline is the author. Audit of "who deployed this version" belongs in the CI/CD system, not the database.
+- **One schema per module per version.** The `(module_id, schema_version)` unique constraint ensures coexistence of v1.0.0 and v1.1.0. The Configurator's runtime hydration (Post-launch) merges the latest schema's defaults with stored tenant values.
+- **`defaults` JSONB.** Default values when a tenant has no explicit config — the "zero-config works" principle.
+- **`config_schema` JSONB.** JSON Schema (draft-07 or later). The Configurator validates `tenant_module_configs.config_values` against this schema before saving.
+- **No `created_by` / `updated_by`.** Declared by module deployments (code). Audit of "who deployed" belongs in CI/CD.
 
 ---
 
-## 4. Feature flag definitions (`feature_flags`)
+## 8. Feature flag definitions (`feature_flags`)
 
 Platform-wide feature flag definitions with defaults. Tenant-specific overrides are stored in the Configurator's `tenant_feature_flags` table.
 
 ### Design decisions
 
-- **Flag types.** `boolean` (on/off), `percentage` (0–100 gradual rollout), `string` (variant selection), `json` (complex config). The type determines how the Configurator validates and applies overrides.
-- **`module_id` is nullable.** `NULL` = platform-wide flag (not tied to any module). Non-null = the flag belongs to a specific module and is excluded from resolution when that module is disabled for a tenant (the Configurator's flag resolution query handles this).
-- **`value_schema` for JSON flags (Post-launch).** When `flag_type = 'json'`, the `value_schema` column holds a JSON Schema for validating override values. Same validation pattern as `module_config_schemas.config_schema`. The column ships in MVP (nullable); validation logic is Post-launch since `json`-type flags are Post-launch.
-- **`default_value` JSONB.** The platform-wide default, applied when no tenant override exists. JSONB rather than TEXT to support all flag types uniformly (boolean `false`, percentage `50`, string `"variant_a"`, JSON objects).
+- **Flag types.** `boolean`, `percentage`, `string`, `json`. The type determines how the Configurator validates and applies overrides.
+- **`module_id` is nullable.** `NULL` = platform-wide flag. Non-null = flag scoped to a module (Configurator resolution may ignore when the module is disabled).
+- **`value_schema` for JSON flags (Post-launch).** When `flag_type = 'json'`, optional JSON Schema for override validation. Column ships in MVP (nullable).
+- **`default_value` JSONB.** Platform-wide default when no tenant override exists.
 
 ---
 
-## 5. Module registration lifecycle
+## 9. Module registration lifecycle
 
-Modules announce themselves to the platform via database migrations, not via runtime API calls. This ensures the registry is always consistent with what's deployed.
+Modules announce themselves via **database migrations**, not runtime API calls, so the registry always matches what is deployed.
 
 ### How it works
 
-1. **Module deploys.** The CI/CD pipeline runs the module's database migrations.
-2. **Migration seeds the registry.** The module's initial migration includes an `INSERT INTO master_data.modules ... ON CONFLICT (name) DO UPDATE SET version = ...` statement. This registers the module on first deploy and updates its version on subsequent deploys.
-3. **Config schema declaration.** If the module has configurable parameters, the same migration inserts a row into `master_data.module_config_schemas` with the schema and defaults.
-4. **Feature flag registration.** If the module defines feature flags, the migration inserts rows into `master_data.feature_flags`.
-5. **Master Data publishes events.** `module.registered` (or `module.updated`) event is emitted. The Configurator consumes this to make the module available for tenant enablement in the admin UI.
-6. **Tenant enablement is separate.** A platform operator or hospital admin enables the module for specific tenants via the Configurator's admin UI. This creates `tenant_modules` and optionally `tenant_module_configs` rows in the Configurator schema.
+1. **Module deploys.** CI/CD runs the module's migrations.
+2. **Migration seeds the registry.** `INSERT INTO master_data.modules ... ON CONFLICT (name) DO UPDATE` (or conflict target on `slug` where appropriate) registers the module and updates `version`.
+3. **Navigation fields.** Same migration sets `parent_id`, `slug`, `level`, `route_path`, `icon`, `is_active` consistently with the admin shell.
+4. **Catalog rows.** Migrations may insert **`permissions`**, **`module_permissions`**, **`system_roles`**, and **picklist** rows the module depends on.
+5. **Config schema declaration.** If the module is configurable, insert **`module_config_schemas`**.
+6. **Feature flag registration.** If the module defines flags, insert **`feature_flags`**.
+7. **Master Data publishes events.** `module.registered` / `module.updated` and (as needed) companion events for catalog rows — rich payloads for projections (§13).
+8. **Tenant enablement is separate.** Operators enable modules per tenant in the Configurator (`tenant_modules`, `tenant_module_configs`).
 
 ### Why migrations, not runtime API
 
-- **Deployment = registration.** A module that's deployed is available. A module that's not deployed can't register. Tying registration to migrations makes the registry an accurate reflection of what's running.
-- **No chicken-and-egg.** If registration required a runtime API call, the module would need Master Data to be running before it could register — creating a startup ordering dependency. Migrations run against the database directly, avoiding this.
-- **Idempotent.** `ON CONFLICT ... DO UPDATE` makes re-registration safe. Rolling back a deployment and re-deploying doesn't corrupt the registry.
-- **Version tracking is automatic.** The migration updates `version` on every deploy, so the registry always reflects the currently deployed version.
+- **Deployment = registration.** No startup ordering chicken-and-egg.
+- **Idempotent.** `ON CONFLICT ... DO UPDATE` keeps re-deploys safe.
+- **Version tracking** follows the migration that bumps `version`.
 
 ### Lifecycle states
 
-The `modules` table has no explicit `status` column. A module's availability is determined by whether it has a row in the table (registered = exists) and whether it's enabled per tenant in the Configurator's `tenant_modules` table. Deregistering a module (removing its row) is a platform operator action that should never happen in normal operations — it would orphan tenant enablement records and config values. The expected lifecycle is: register → upgrade → upgrade → ... (modules are never removed, only superseded).
+There is no separate `status` column on `modules`: presence in the table means registered; per-tenant enablement is in the Configurator. Removing a module row is a rare operator action that would orphan tenant state — expected path is register → upgrade → …
 
-See [Configurator dev-doubts/01-analysis.md §3](../configurator/dev-doubts/01-analysis.md) for the original analysis of this lifecycle.
+See [Configurator dev-doubts/01-analysis.md §3](../configurator/dev-doubts/01-analysis.md) for the original lifecycle analysis.
 
 ---
 
-## 6. Registry change audit (`registry_change_audit`)
+## 10. Registry change audit (`registry_change_audit`)
 
-All changes to module/feature registry data are recorded. This is Master Data's equivalent of the Configurator's `config_change_audit` for its domain.
+All changes to MVP catalog and registry data are recorded — Master Data's counterpart to the Configurator's `config_change_audit` for its domain.
 
 ### What is audited
 
-- Module registration and version updates
+- Module registration and tree/metadata updates
+- Permission, module-permission, role template, and picklist changes
 - Config schema declarations and updates
-- Feature flag definitions, default value changes, and flag metadata updates
+- Feature flag definitions and default/metadata updates
 
 ### Entity types
 
 ```
-'module'               — Module registered or updated
-'module_config_schema'  — Config schema declared or updated
-'feature_flag'          — Feature flag defined or updated
+'module'
+'module_config_schema'
+'feature_flag'
+'permission'
+'module_permission'
+'system_role'
+'picklist_category'
+'picklist_value'
 ```
 
 ### Actions
 
 ```
 'created'    — New entity registered/defined
-'updated'    — Entity modified (version bump, default change, schema upgrade)
+'updated'    — Entity modified
 ```
 
 ### Distribution strategy for audit
 
-Registry changes are platform-wide actions, not tenant-scoped. The audit record uses the acting admin's `iq_tenant_id` from their JWT as the distribution key — same pattern as the Configurator's organization-level audit exception (see [Configurator §9](../configurator/01-schema-design.md#9-config-change-audit)). This is acceptable because:
-- Registry changes are rare (module deployments, flag definitions)
-- "All changes to module X" is a platform admin query, not a hot path — scatter is fine
-- The acting admin is always authenticated in a tenant context
-
-For migration-triggered changes (module registration during deployment), `changed_by` is `NULL` and `iq_tenant_id` uses a designated platform-operations tenant ID. The audit record still captures what changed and when; the "who" is the deployment pipeline, tracked in CI/CD.
+Registry changes are platform-wide actions, but audit rows use the acting admin's **`iq_tenant_id`** from their JWT as the Citus key — same pattern as the Configurator's organization-level audit exception (see [Configurator §9](../configurator/01-schema-design.md#9-config-change-audit)). For migration-triggered changes, `changed_by` is `NULL` and `iq_tenant_id` uses a designated platform-operations tenant ID.
 
 ---
 
-## 7. Citus distribution strategy
+## 11. Citus distribution strategy
 
-| Table | Distribution | Color | Notes |
-|-------|-------------|-------|-------|
-| `modules` | **Reference table** | Yellow | Platform-defined, ~42 rows |
-| `module_config_schemas` | **Reference table** | Yellow | One per module per version, ~50–100 rows |
-| `feature_flags` | **Reference table** | Yellow | Platform-defined flag definitions, ~100–200 rows |
-| `registry_change_audit` | Distributed by `iq_tenant_id` | Green | Actor's tenant context, append-only |
+| Table | Distribution | Color (ERD) | Notes |
+|-------|-------------|-------------|-------|
+| `modules` | **Reference** | Yellow | Platform-defined, tens of rows |
+| `permissions` | **Reference** | Yellow | Definition catalog |
+| `module_permissions` | **Reference** | Yellow | Join rows |
+| `system_roles` | **Reference** | Yellow | Templates only |
+| `picklist_categories` | **Reference** | Yellow | Small enumerations |
+| `picklist_values` | **Reference** | Yellow | Values per category |
+| `module_config_schemas` | **Reference** | Yellow | One row per module per schema version |
+| `feature_flags` | **Reference** | Yellow | Flag definitions |
+| `registry_change_audit` | Distributed by `iq_tenant_id` | Green | Actor tenant context, append-only |
 
-### Why reference tables for the registry
-
-The module/feature registry tables are the canonical example of reference data in Citus:
-1. **Row count.** ~42 modules, ~50 schemas, ~100–200 flags. Replication cost is negligible.
-2. **Universal read pattern.** The Configurator subscribes to registry events and maintains local projections. Other modules may also need registry data in the future — reference table distribution ensures any node can serve it locally.
-3. **Write frequency.** Changes only during deployments or platform admin actions. The replication overhead of writes is trivial at this frequency.
+Reference tables replicate to all workers so any node can serve catalog reads locally. Writes are infrequent (deployments, platform ops).
 
 ### No cross-schema queries
 
-The Configurator does **not** query Master Data's tables directly. Instead, the Configurator maintains local read projections (`module_projection`, `config_schema_projection`, `feature_flag_projection`) in its own schema, kept in sync via the events listed in §9. All config resolution queries run entirely within the `configurator` schema. This follows the principle that each module queries only its own schema — cross-module data flows through events, not JOINs.
+The Configurator does **not** query `master_data.*` directly at runtime. It maintains local projections (`module_projection`, `config_schema_projection`, `feature_flag_projection`, and any future permission/picklist projections) in its own schema, synced via domain events (§13). Tenant tables reference projections, not `master_data` — per [database principle §4](../../analysis/03-database-principles.md#4-no-cross-schema-foreign-keys). Intra-schema FKs (`module_config_schemas.module_id` → `modules.id`, etc.) are normal PostgreSQL foreign keys.
 
 ---
 
-## 8. Audit column exceptions
+## 12. Audit column exceptions
 
-[Database principle §5](../../analysis/03-database-principles.md#5-every-table-has-standard-audit-columns) requires `created_at`, `updated_at`, `created_by`, `updated_by` on every table. The following tables deviate:
+[Database principle §5](../../analysis/03-database-principles.md#5-every-table-has-standard-audit-columns) requires `created_at`, `updated_at`, `created_by`, `updated_by` on every table where practical. The following deviate:
 
 | Table | Missing | Justification |
 |-------|---------|---------------|
-| `modules` | `created_by`, `updated_by` | Platform-seeded by deployments/migrations, not by users |
-| `module_config_schemas` | `created_by`, `updated_by` | Declared by module deployments, not user actions |
-| `registry_change_audit` | all four | IS the audit trail — uses `changed_at`/`changed_by`. Meta-auditing is unnecessary. |
+| `modules` | `created_by`, `updated_by` | Seeded by deployments/migrations |
+| `module_config_schemas` | `created_by`, `updated_by` | Declared by deployments |
+| `permissions`, `module_permissions`, `system_roles`, `picklist_categories`, `picklist_values` | `created_by`, `updated_by` | Same — catalog seeded/migrated; optional to add later for human edits |
+| `registry_change_audit` | standard four | IS the audit trail — uses `changed_at` / `changed_by` |
+
+`feature_flags` retains `created_by` / `updated_by` for operator-defined flags.
 
 ---
 
-## 9. Events published
+## 13. Events published
 
-All registry events carry **rich payloads** — every field the Configurator's projection consumer needs to upsert its local copy without calling back to Master Data's API. This follows the platform's "rich event payloads" principle (see CLAUDE.md).
+All registry events carry **rich payloads** — every field projection consumers need to upsert local copies without calling back to Master Data (see CLAUDE.md).
 
-| Event | When | Payload includes | Consumers |
-|-------|------|-----------------|-----------|
-| `module.registered` | New module registers via migration | `module_id`, `name`, `display_name`, `category`, `is_core`, `version` | Configurator (upsert `module_projection`) |
-| `module.updated` | Module version bumped via migration | `module_id`, `name`, `display_name`, `category`, `is_core`, `old_version`, `new_version` | Configurator (update `module_projection`, flag tenants needing config migration review) |
-| `feature-flag.defined` | New flag defined | `flag_id`, `name`, `flag_type`, `module_id`, `default_value`, `value_schema` | Configurator (upsert `feature_flag_projection`, make available for tenant overrides) |
-| `feature-flag.updated` | Flag default or metadata changed | `flag_id`, `name`, `flag_type`, `module_id`, `default_value`, `value_schema` | Configurator (update `feature_flag_projection`, propagate to tenants without overrides) |
-| `config-schema.declared` | New config schema version registered | `module_id`, `schema_version`, `config_schema`, `defaults` | Configurator (upsert `config_schema_projection`, trigger runtime hydration for affected tenants) |
+| Event | When | Payload includes (non-exhaustive) | Consumers |
+|-------|------|-------------------------------------|-----------|
+| `module.registered` | New module row | `module_id`, `name`, `slug`, `display_name`, `parent_id`, `category`, `is_core`, `version`, `level`, `icon`, `route_path`, `is_active` | Configurator (`module_projection`), admin shell |
+| `module.updated` | Module metadata or tree change | Above + `old_version`, `new_version` where applicable | Configurator, admin shell |
+| `feature-flag.defined` / `feature-flag.updated` | Flag rows | `flag_id`, `name`, `flag_type`, `module_id`, `default_value`, `value_schema` | Configurator (`feature_flag_projection`) |
+| `config-schema.declared` | New schema version | `module_id`, `schema_version`, `config_schema`, `defaults` | Configurator (`config_schema_projection`) |
+
+**Catalog extensions (permissions, module_permissions, system_roles, picklists):** emit dedicated events (e.g. `permission.defined`, `picklist-value.updated`) or batch `master-data.catalog-updated` with typed payloads — exact names can align with projection consumers when those projections are added; payloads must remain rich per platform rule.
 
 ### Post-launch events (healthcare reference data)
 
 | Event | When | Payload includes | Consumers |
 |-------|------|-----------------|-----------|
-| `master-data.updated` | Global reference dataset updated (new ICD codes, drug recalls) | `data_domain`, `version` | All modules caching reference data |
-| `tenant-override.changed` | Tenant-specific override created/modified/removed | `iq_tenant_id`, `data_domain`, `entity_id` | Affected modules (refresh tenant-specific cache) |
+| `master-data.updated` | Global reference dataset updated | `data_domain`, `version` | Modules caching reference data |
+| `tenant-override.changed` | Tenant override delta | `iq_tenant_id`, `data_domain`, `entity_id` | Affected modules |
 
 ---
 
-## 10. Dependencies
+## 14. Dependencies
 
-Master Data depends on:
-
-- **User Management** — for authentication and authorization of admin users managing registry data and (Post-launch) healthcare reference data. This dependency is via the identity adapter and PEP middleware (standard module shape), not via database-level coupling.
-
-Master Data has no dependency on the Configurator, EMPI, or any feature module. The dependency is one-directional: the Configurator subscribes to Master Data's domain events and maintains local read projections — Master Data never queries the Configurator's schema.
+Master Data depends on **User Management** for authenticated operators (identity adapter, PEP middleware). It does not depend on the Configurator, EMPI, or feature modules. The Configurator subscribes to Master Data events — one-directional.
 
 ---
 
-## 11. Cross-module identifier references
+## 15. Cross-module identifier references
 
 | Column | On table | References | In module | Mechanism |
-|--------|----------|-----------|-----------|-----------|
+|--------|----------|------------|-----------|-----------|
 | `module_projection.id` | `configurator.module_projection` | `master_data.modules.id` | Configurator | Event-synced projection (same UUID, no FK) |
-| `config_schema_projection.id` | `configurator.config_schema_projection` | `master_data.module_config_schemas.(module_id, schema_version)` | Configurator | Event-synced projection |
-| `feature_flag_projection.id` | `configurator.feature_flag_projection` | `master_data.feature_flags.id` | Configurator | Event-synced projection (same UUID, no FK) |
-| `feature_flags.module_id` | `master_data.feature_flags` | `master_data.modules.id` | Same module | Standard FK (intra-schema) |
-| `module_config_schemas.module_id` | `master_data.module_config_schemas` | `master_data.modules.id` | Same module | Standard FK (intra-schema) |
-
-Per [database principle §4](../../analysis/03-database-principles.md#4-no-cross-schema-foreign-keys), there are **no cross-schema foreign keys**. The Configurator maintains local projections of Master Data's registry tables, synced via domain events. Projection IDs match the source IDs by convention (the event consumer preserves the original UUID). The Configurator's tenant tables reference these local projections, not `master_data.*` tables. Intra-schema references (`feature_flags.module_id` → `modules.id`, `module_config_schemas.module_id` → `modules.id`) use standard foreign keys.
+| `config_schema_projection.*` | `configurator.config_schema_projection` | `master_data.module_config_schemas` identity | Configurator | Event-synced |
+| `feature_flag_projection.id` | `configurator.feature_flag_projection` | `master_data.feature_flags.id` | Configurator | Event-synced |
+| `feature_flags.module_id` | `master_data.feature_flags` | `master_data.modules.id` | Master Data | Intra-schema FK |
+| `module_config_schemas.module_id` | `master_data.module_config_schemas` | `master_data.modules.id` | Master Data | Intra-schema FK |
+| `modules.parent_id` | `master_data.modules` | `master_data.modules.id` | Master Data | Self-FK (tree) |
+| `module_permissions.module_id` | `master_data.module_permissions` | `master_data.modules.id` | Master Data | Intra-schema FK |
+| `module_permissions.permission_id` | `master_data.module_permissions` | `master_data.permissions.id` | Master Data | Intra-schema FK |
+| `picklist_values.category_id` | `master_data.picklist_values` | `master_data.picklist_categories.id` | Master Data | Intra-schema FK |
 
 ---
 
-## 12. Post-launch: Healthcare reference data (sketch)
+## 16. MVP vs implementation pace
 
-> **This section is a validation probe, not a build plan.** It sketches the healthcare reference data schema to prove that the MVP foundation holds — specifically, that adding these tables later requires no migration of existing data and no architectural rework. See [design-process-learnings.md §5](../../design-process-learnings.md) for why this matters.
+The **ERD and this document** describe the full MVP **`master_data`** contract (nine tables). Individual migrations may land tables in waves (for example, ship `modules` first, then permissions and picklists) as long as OpenAPI and migrations stay consistent with the adopted slice. [`schema-reference.json`](./schema-reference.json) is the column-level source of truth.
+
+---
+
+## 17. Post-launch: Healthcare reference data (sketch)
+
+> **Validation probe, not a build plan.** Proves the MVP foundation can absorb healthcare reference data without migrating existing catalog rows.
 
 ### Two-layer inheritance model
 
-Per HLD §4.1 (Approach A — recommended), global reference datasets are the platform-wide baseline. Tenant overrides layer on top as deltas. The Master Data API resolves inheritance internally and returns the merged result — consuming modules never see the two-layer model.
+Per HLD §4.1, global reference datasets are the baseline; tenant overrides are deltas. The Master Data API resolves inheritance; consumers see merged results.
 
 ### Planned tables (Post-launch)
 
 | Table | Distribution | Purpose |
 |-------|-------------|---------|
-| `code_systems` | Reference | Registry of code systems (ICD-10, ICD-11, LOINC, SNOMED CT, local) |
-| `codes` | Reference | Global code entries across all code systems |
-| `code_mappings` | Reference | Cross-walks between code systems (ICD-10 ↔ SNOMED CT) |
-| `tenant_code_overrides` | Distributed by `iq_tenant_id` | Tenant-specific additions, removals, display name overrides |
-| `drug_catalog` | Reference | Global drug catalog (formulations, dosages, interactions) |
-| `tenant_drug_overrides` | Distributed by `iq_tenant_id` | Hospital formulary — which drugs are stocked, local naming, pricing |
-| `departments` | Reference | Global department templates |
-| `tenant_departments` | Distributed by `iq_tenant_id` | Tenant's actual department list and hierarchy |
-| `wards` | Distributed by `iq_tenant_id` | Tenant-specific ward/bed structure |
+| `code_systems` | Reference | ICD-10, ICD-11, LOINC, SNOMED CT, local |
+| `codes` | Reference | Global code entries |
+| `code_mappings` | Reference | Cross-walks |
+| `tenant_code_overrides` | Distributed by `iq_tenant_id` | Tenant deltas |
+| `drug_catalog` | Reference | Global drug data |
+| `tenant_drug_overrides` | Distributed by `iq_tenant_id` | Formulary |
+| `departments` | Reference | Templates |
+| `tenant_departments` | Distributed by `iq_tenant_id` | Hospital structure |
+| `wards` | Distributed by `iq_tenant_id` | Ward/bed structure |
 
 ### Why the MVP schema accommodates this
 
-- The `master_data` schema namespace exists. Adding tables is a standard migration.
-- The registry tables (`modules`, `module_config_schemas`, `feature_flags`) are independent of healthcare reference data — no shared columns, no shared constraints.
-- The audit pattern (`registry_change_audit`) extends naturally: a `reference_data_change_audit` table (distributed by `iq_tenant_id`) captures changes to healthcare reference data. Different table, same pattern.
-- The Citus distribution strategy (reference for global, distributed for tenant overrides) is already established by the registry tables.
+- The `master_data` schema namespace already exists.
+- MVP catalog tables are orthogonal to healthcare code tables.
+- Audit pattern extends with a separate `reference_data_change_audit` if needed.
 
-No schema migration of MVP tables is required to add Post-launch healthcare reference data.
+No migration of existing MVP tables is required to add Post-launch healthcare reference data.
