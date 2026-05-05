@@ -17,9 +17,7 @@ class ModuleResponse(BaseModel):
 
     id: UUID
     name: str
-    display_name: str
     category: ModuleCategory
-    is_core: bool
     version: str
     created_at: datetime
     updated_at: datetime
