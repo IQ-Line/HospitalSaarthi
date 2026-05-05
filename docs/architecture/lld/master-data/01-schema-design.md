@@ -5,7 +5,8 @@
 **Related HLD:** [02-core-modules.md §4](../../hld/02-core-modules.md#4-master--tenant-data) | [03-module-shape-template.md §8](../../hld/03-module-shape-template.md#8-configurator-integration)  
 **Related ADRs:** [ADR-0002](../../adr/0002-multi-tenant-fragmentable-adoption.md) (Multi-tenant fragmentable adoption) | [ADR-0006](../../adr/0006-four-core-platform-modules.md) (Four core modules) | [ADR-0012](../../adr/0012-multi-tenancy-isolation-strategy.md) (Multi-tenancy isolation)  
 **ERD (visual):** [`master-data.erd.json`](./master-data.erd.json) — open in VS Code with ERD Editor extension  
-**Schema reference:** [`schema-reference.json`](./schema-reference.json) — full column descriptions, indexes, check constraints, Citus distribution notes
+**Schema reference:** [`schema-reference.json`](./schema-reference.json) — full column descriptions, indexes, check constraints, Citus distribution notes  
+**HTTP API (v1):** [`02-api-contracts.md`](./02-api-contracts.md) — standard headers/envelopes, endpoint index, response shapes ([OpenAPI](../../../../specs/openapi/master-data.v1.yaml))
 
 **Phasing:** The MVP ships the **platform catalog** (module tree, permission definitions, module–permission links, role templates, `picklist` + `picklist_values`) and the **Configurator contract** (config schemas and feature flag definitions). Catalog change history can be traced via **`created_*` / `updated_*`** columns on each row (and optionally platform observability outside this schema). Healthcare reference data (ICD codes, drug catalogs, LOINC, SNOMED, departments, etc.) is Post-launch — sketched in §16.
 
