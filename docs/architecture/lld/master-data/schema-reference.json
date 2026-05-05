@@ -1,18 +1,24 @@
 {
   "$schema": "erd/v1",
   "schema": "master_data",
-  "description": "Master Data core module — module/feature registry (MVP) and healthcare reference data backbone (Post-launch). Module registry tables moved from Configurator per EM/tech lead decision. See 01-schema-design.md for rationale.",
+  "description": "Master Data — platform catalog (modules tree, permission definitions, role templates, picklists), Configurator-facing registry (config schemas, feature flags), and audit. Healthcare reference data is Post-launch. See 01-schema-design.md.",
   "citus": {
     "distribution_column": "iq_tenant_id",
     "reference_tables": [
       "modules",
+      "permissions",
+      "module_permissions",
+      "system_roles",
+      "picklist_categories",
+      "picklist_values",
       "module_config_schemas",
       "feature_flags"
-    ]
+    ],
+    "notes": "All catalog/registry tables above are Citus reference tables (replicated). registry_change_audit is distributed by iq_tenant_id."
   },
   "entities": {
     "modules": {
-      "description": "Registry of all deployable modules — 4 core + ~38 feature modules from the AIIMS EOI scope. Platform-defined via deployment migrations.",
+      "description": "Deployable module registry plus admin/navigation tree. Rows are platform-defined (migrations). parent_id forms a bounded hierarchy for menus and IA; name remains the stable API/event identifier; slug is URL-safe and unique for routing.",
       "distribution": "reference",
       "columns": {
         "id": {
@@ -20,21 +26,32 @@
           "nullable": false,
           "default": "gen_random_uuid()"
         },
+        "parent_id": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Parent module for tree (NULL = root). FK → modules.id. ON DELETE RESTRICT recommended to avoid orphaning children."
+        },
         "name": {
           "type": "TEXT",
           "nullable": false,
           "unique": true,
-          "description": "Machine-readable name (e.g., opd, pharmacy, user_management). Used as module_id in APIs and events."
+          "description": "Stable machine name (e.g. opd, user_management). Used in APIs, events, cross-module references."
+        },
+        "slug": {
+          "type": "TEXT",
+          "nullable": false,
+          "unique": true,
+          "description": "URL-safe unique key for SPA routes and external links."
         },
         "display_name": {
           "type": "TEXT",
           "nullable": false,
-          "description": "Human-readable name (e.g., OPD / Outpatient Department)"
+          "description": "Human-readable label for admin UI."
         },
         "description": {
           "type": "TEXT",
           "nullable": true,
-          "description": "Module purpose summary"
+          "description": "Purpose summary."
         },
         "category": {
           "type": "TEXT",
@@ -45,13 +62,36 @@
           "type": "BOOLEAN",
           "nullable": false,
           "default": "false",
-          "description": "True for the 4 core modules (User Management, EMPI, Configurator, Master Data). Core modules cannot be disabled."
+          "description": "Four core modules (User Management, EMPI, Configurator, Master Data). Configurator provisioning uses this as source of truth."
         },
         "version": {
           "type": "TEXT",
           "nullable": false,
           "default": "0.0.0",
-          "description": "Current deployed version (semver). Updated by module deployment migrations."
+          "description": "Deployed semver; updated by module migrations."
+        },
+        "level": {
+          "type": "INT",
+          "nullable": false,
+          "default": "1",
+          "check": "level >= 1 AND level <= 4",
+          "description": "Tree depth for menus (bounded to avoid deep nesting)."
+        },
+        "icon": {
+          "type": "TEXT",
+          "nullable": true,
+          "description": "UI icon token (design system key)."
+        },
+        "route_path": {
+          "type": "TEXT",
+          "nullable": true,
+          "description": "Default SPA route path for this module entry (nullable for grouping-only nodes)."
+        },
+        "is_active": {
+          "type": "BOOLEAN",
+          "nullable": false,
+          "default": "true",
+          "description": "Catalog visibility; inactive nodes hidden from default admin navigation."
         },
         "created_at": {
           "type": "TIMESTAMPTZ",
@@ -70,18 +110,80 @@
           "columns": ["name"],
           "name": "idx_modules_name",
           "unique": true,
-          "note": "Lookup by machine-readable name"
+          "note": "Lookup by machine name"
+        },
+        {
+          "columns": ["slug"],
+          "name": "idx_modules_slug",
+          "unique": true,
+          "note": "Lookup by slug / routing"
+        },
+        {
+          "columns": ["parent_id"],
+          "name": "idx_modules_parent",
+          "note": "List children for tree build"
         },
         {
           "columns": ["category"],
           "name": "idx_modules_category",
-          "note": "Filter modules by category in admin UI"
+          "note": "Filter catalog by category"
         }
       ]
     },
 
-    "module_config_schemas": {
-      "description": "Each module's declared configuration schema. Modules register these during deployment. The Configurator reads these to render admin UI forms and validate tenant config values.",
+    "permissions": {
+      "description": "Platform permission definitions (labels, slugs, actions). These are catalog rows — not user assignments. Effective authorization remains Cerbos PDP; User Management owns role-to-user binding.",
+      "distribution": "reference",
+      "columns": {
+        "id": {
+          "type": "UUID",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "type": "TEXT",
+          "nullable": false,
+          "description": "Human-readable permission name."
+        },
+        "slug": {
+          "type": "TEXT",
+          "nullable": false,
+          "unique": true,
+          "description": "Stable permission key referenced in policies and UI gating hints."
+        },
+        "action": {
+          "type": "TEXT",
+          "nullable": false,
+          "check": "action IN ('create', 'read', 'update', 'delete', 'manage')",
+          "description": "Coarse action verb for policy grouping."
+        },
+        "description": {
+          "type": "TEXT",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        }
+      },
+      "primary_key": ["id"],
+      "indexes": [
+        {
+          "columns": ["slug"],
+          "name": "idx_permissions_slug",
+          "unique": true
+        }
+      ]
+    },
+
+    "module_permissions": {
+      "description": "Maps each module to the permission definitions it exposes or participates in. is_default suggests a starter set for new tenants; Cerbos resource policies remain authoritative at runtime.",
       "distribution": "reference",
       "columns": {
         "id": {
@@ -92,24 +194,264 @@
         "module_id": {
           "type": "UUID",
           "nullable": false,
-          "description": "Module this schema belongs to. FK to modules.id."
+          "description": "FK → modules.id"
+        },
+        "permission_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "FK → permissions.id"
+        },
+        "is_default": {
+          "type": "BOOLEAN",
+          "nullable": false,
+          "default": "false",
+          "description": "Suggested default inclusion when provisioning tenant role templates."
+        },
+        "created_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        }
+      },
+      "primary_key": ["id"],
+      "unique_constraints": [
+        {
+          "columns": ["module_id", "permission_id"],
+          "name": "uq_module_permissions_module_permission",
+          "note": "One link per module/permission pair"
+        }
+      ],
+      "indexes": [
+        {
+          "columns": ["module_id"],
+          "name": "idx_module_permissions_module"
+        },
+        {
+          "columns": ["permission_id"],
+          "name": "idx_module_permissions_permission"
+        }
+      ]
+    },
+
+    "system_roles": {
+      "description": "Named role templates (e.g. Ward Clerk, Lab Supervisor). is_template distinguishes catalog templates from instantiated roles (instantiation and assignment live in User Management). Slugs align with onboarding and policy documentation.",
+      "distribution": "reference",
+      "columns": {
+        "id": {
+          "type": "UUID",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "type": "TEXT",
+          "nullable": false,
+          "description": "Display name of the role template."
+        },
+        "slug": {
+          "type": "TEXT",
+          "nullable": false,
+          "unique": true,
+          "description": "Stable role template key."
+        },
+        "is_template": {
+          "type": "BOOLEAN",
+          "nullable": false,
+          "default": "true",
+          "description": "True for platform-shipped templates in this catalog."
+        },
+        "description": {
+          "type": "TEXT",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        }
+      },
+      "primary_key": ["id"],
+      "indexes": [
+        {
+          "columns": ["slug"],
+          "name": "idx_system_roles_slug",
+          "unique": true
+        }
+      ]
+    },
+
+    "picklist_categories": {
+      "description": "Picklist domain (two-table pattern). Categories are platform-owned reference entries (e.g. GENDER, MARITAL_STATUS).",
+      "distribution": "reference",
+      "columns": {
+        "id": {
+          "type": "UUID",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "type": "TEXT",
+          "nullable": false,
+          "description": "Display title for the category."
+        },
+        "code": {
+          "type": "TEXT",
+          "nullable": false,
+          "unique": true,
+          "description": "Uppercase stable code (e.g. GENDER)."
+        },
+        "description": {
+          "type": "TEXT",
+          "nullable": true
+        },
+        "is_system": {
+          "type": "BOOLEAN",
+          "nullable": false,
+          "default": "true",
+          "description": "Platform-defined vs hospital-extended (Post-launch overrides may use separate tables per HLD)."
+        },
+        "is_active": {
+          "type": "BOOLEAN",
+          "nullable": false,
+          "default": "true"
+        },
+        "created_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        }
+      },
+      "primary_key": ["id"],
+      "indexes": [
+        {
+          "columns": ["code"],
+          "name": "idx_picklist_categories_code",
+          "unique": true
+        }
+      ]
+    },
+
+    "picklist_values": {
+      "description": "Values for a picklist category. value is the stable stored key; label is locale-default display text; metadata holds UI hints (icon, color).",
+      "distribution": "reference",
+      "columns": {
+        "id": {
+          "type": "UUID",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "category_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "FK → picklist_categories.id"
+        },
+        "value": {
+          "type": "TEXT",
+          "nullable": false,
+          "description": "Stable value key stored in clinical records."
+        },
+        "label": {
+          "type": "TEXT",
+          "nullable": false,
+          "description": "Default display label."
+        },
+        "description": {
+          "type": "TEXT",
+          "nullable": true
+        },
+        "metadata": {
+          "type": "JSONB",
+          "nullable": true,
+          "description": "Optional JSON for icon, color, FHIR coding hints (Post-launch)."
+        },
+        "is_active": {
+          "type": "BOOLEAN",
+          "nullable": false,
+          "default": "true"
+        },
+        "is_default": {
+          "type": "BOOLEAN",
+          "nullable": false,
+          "default": "false"
+        },
+        "display_order": {
+          "type": "INT",
+          "nullable": false,
+          "default": "0"
+        },
+        "created_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        }
+      },
+      "primary_key": ["id"],
+      "unique_constraints": [
+        {
+          "columns": ["category_id", "value"],
+          "name": "uq_picklist_values_category_value",
+          "note": "No duplicate value keys within a category"
+        }
+      ],
+      "indexes": [
+        {
+          "columns": ["category_id"],
+          "name": "idx_picklist_values_category"
+        },
+        {
+          "columns": ["category_id", "display_order"],
+          "name": "idx_picklist_values_order",
+          "note": "Ordered dropdown rendering"
+        }
+      ]
+    },
+
+    "module_config_schemas": {
+      "description": "JSON Schema per module version for Configurator-driven admin UI and validation.",
+      "distribution": "reference",
+      "columns": {
+        "id": {
+          "type": "UUID",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "module_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "FK → modules.id"
         },
         "schema_version": {
           "type": "TEXT",
           "nullable": false,
-          "default": "1.0.0",
-          "description": "Semver version of this schema. New module versions may introduce new schema versions."
+          "default": "1.0.0"
         },
         "config_schema": {
           "type": "JSONB",
-          "nullable": false,
-          "description": "JSON Schema (draft-07 or later) defining the module's configurable parameters — types, defaults, constraints, UI hints."
+          "nullable": false
         },
         "defaults": {
           "type": "JSONB",
           "nullable": false,
-          "default": "{}",
-          "description": "Default values for all parameters. Used when a tenant has no explicit config for this module."
+          "default": "{}"
         },
         "created_at": {
           "type": "TIMESTAMPTZ",
@@ -126,21 +468,19 @@
       "unique_constraints": [
         {
           "columns": ["module_id", "schema_version"],
-          "name": "uq_module_config_schemas_module_version",
-          "note": "One schema per module per version"
+          "name": "uq_module_config_schemas_module_version"
         }
       ],
       "indexes": [
         {
           "columns": ["module_id"],
-          "name": "idx_module_config_schemas_module",
-          "note": "Look up all schema versions for a module"
+          "name": "idx_module_config_schemas_module"
         }
       ]
     },
 
     "feature_flags": {
-      "description": "Platform-wide feature flag definitions with defaults. Tenant-specific overrides are in configurator.tenant_feature_flags.",
+      "description": "Platform feature flag definitions. Tenant overrides remain in configurator.tenant_feature_flags.",
       "distribution": "reference",
       "columns": {
         "id": {
@@ -151,36 +491,31 @@
         "name": {
           "type": "TEXT",
           "nullable": false,
-          "unique": true,
-          "description": "Unique flag name (e.g., smart_parcha, ai_prescription_assist, opd_queue_v2)"
+          "unique": true
         },
         "description": {
           "type": "TEXT",
-          "nullable": true,
-          "description": "What this flag controls and why it exists"
+          "nullable": true
         },
         "flag_type": {
           "type": "TEXT",
           "nullable": false,
           "default": "boolean",
-          "check": "flag_type IN ('boolean', 'percentage', 'string', 'json')",
-          "description": "boolean = on/off, percentage = 0-100 gradual rollout, string = variant selection, json = complex config"
+          "check": "flag_type IN ('boolean', 'percentage', 'string', 'json')"
         },
         "default_value": {
           "type": "JSONB",
           "nullable": false,
-          "default": "false",
-          "description": "Platform-wide default. Applied when no tenant-specific override exists."
+          "default": "false"
         },
         "module_id": {
           "type": "UUID",
           "nullable": true,
-          "description": "Module this flag belongs to (NULL = platform-wide flag). FK to modules.id."
+          "description": "FK → modules.id; NULL = platform-wide"
         },
         "value_schema": {
           "type": "JSONB",
-          "nullable": true,
-          "description": "JSON Schema for validating override values when flag_type = 'json'. NULL for non-JSON flag types. Same validation pattern as module_config_schemas.config_schema. Column ships in MVP; validation is Post-launch."
+          "nullable": true
         },
         "created_at": {
           "type": "TIMESTAMPTZ",
@@ -194,13 +529,11 @@
         },
         "created_by": {
           "type": "UUID",
-          "nullable": true,
-          "description": "Platform operator who defined this flag (NULL for migration-seeded flags)"
+          "nullable": true
         },
         "updated_by": {
           "type": "UUID",
-          "nullable": true,
-          "description": "Last modifier"
+          "nullable": true
         }
       },
       "primary_key": ["id"],
@@ -208,87 +541,75 @@
         {
           "columns": ["name"],
           "name": "idx_feature_flags_name",
-          "unique": true,
-          "note": "Lookup by flag name (the primary access pattern)"
+          "unique": true
         },
         {
           "columns": ["module_id"],
-          "name": "idx_feature_flags_module",
-          "note": "List all flags for a module"
+          "name": "idx_feature_flags_module"
         }
       ]
     },
 
     "registry_change_audit": {
-      "description": "All module/feature registry changes — who registered/updated what, when. Master Data's audit trail for its MVP domain.",
+      "description": "Append-only audit for changes to all MVP catalog and registry entities in this schema.",
       "distribution": "distributed",
       "columns": {
         "iq_tenant_id": {
           "type": "UUID",
           "nullable": false,
-          "description": "Citus distribution key — the acting admin's tenant context from JWT. For migration-triggered changes: a designated platform-operations tenant ID."
+          "description": "Citus shard key — actor tenant from JWT, or platform-operations tenant for migration writes."
         },
         "id": {
           "type": "UUID",
           "nullable": false,
-          "default": "gen_random_uuid()",
-          "description": "Audit record identifier"
+          "default": "gen_random_uuid()"
         },
         "entity_type": {
           "type": "TEXT",
           "nullable": false,
-          "check": "entity_type IN ('module', 'module_config_schema', 'feature_flag')",
-          "description": "Type of registry entity that was changed"
+          "check": "entity_type IN ('module', 'module_config_schema', 'feature_flag', 'permission', 'module_permission', 'system_role', 'picklist_category', 'picklist_value')",
+          "description": "Which catalog entity changed"
         },
         "entity_id": {
           "type": "UUID",
-          "nullable": false,
-          "description": "ID of the changed entity"
+          "nullable": false
         },
         "action": {
           "type": "TEXT",
           "nullable": false,
-          "check": "action IN ('created', 'updated')",
-          "description": "What was done to the entity"
+          "check": "action IN ('created', 'updated')"
         },
         "old_value": {
           "type": "JSONB",
-          "nullable": true,
-          "description": "State before the change (null for 'created' actions)"
+          "nullable": true
         },
         "new_value": {
           "type": "JSONB",
-          "nullable": true,
-          "description": "State after the change"
+          "nullable": true
         },
         "changed_by": {
           "type": "UUID",
-          "nullable": true,
-          "description": "Admin who made the change (from JWT sub claim). NULL for migration-triggered changes."
+          "nullable": true
         },
         "changed_at": {
           "type": "TIMESTAMPTZ",
           "nullable": false,
-          "default": "now()",
-          "description": "When the change was made"
+          "default": "now()"
         }
       },
       "primary_key": ["iq_tenant_id", "id"],
       "indexes": [
         {
           "columns": ["iq_tenant_id", "entity_type"],
-          "name": "idx_registry_change_audit_type",
-          "note": "Filter audit by entity type"
+          "name": "idx_registry_change_audit_type"
         },
         {
           "columns": ["iq_tenant_id", "entity_id"],
-          "name": "idx_registry_change_audit_entity",
-          "note": "All changes to a specific entity"
+          "name": "idx_registry_change_audit_entity"
         },
         {
           "columns": ["iq_tenant_id", "changed_at"],
-          "name": "idx_registry_change_audit_time",
-          "note": "Chronological audit trail"
+          "name": "idx_registry_change_audit_time"
         }
       ]
     }
