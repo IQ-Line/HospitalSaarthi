@@ -53,6 +53,16 @@ def get_module_by_slug(repository: ModuleReader, slug: str) -> ModuleModel | Non
     return repository.get_module_by_slug(slug)
 
 
+def _level_from_parent_id(repository: ModuleRepository, parent_id: UUID | None) -> int:
+    """Tree depth: root ``parent_id is None`` → 1; else ``parent.level + 1`` (parent must exist)."""
+    if parent_id is None:
+        return 1
+    parent = repository.get_module_by_id(parent_id)
+    if parent is None:
+        return 1
+    return parent.level + 1
+
+
 def _would_create_cycle(
     repository: ModuleRepository,
     module_id: UUID,
@@ -81,8 +91,11 @@ def create_module(
     *,
     actor_id: UUID | None,
 ) -> ModuleModel:
+    """Persist ``level`` only from the tree: root → 1, child → ``parent.level + 1``.
+
+    ``ModuleCreate.level`` is ignored so body depth cannot disagree with ``parent_id``.
+    """
     parent_id = payload.parent_id
-    level = 1 if payload.level is None else payload.level
 
     if parent_id is not None:
         parent = repository.get_module_by_id(parent_id)
@@ -91,8 +104,8 @@ def create_module(
         if parent.level >= 4:
             raise MaxTreeDepthError
         level = parent.level + 1
-    elif payload.level is not None:
-        level = payload.level
+    else:
+        level = 1
 
     module = ModuleModel(
         name=payload.name,
@@ -134,16 +147,8 @@ def update_module(
             if _would_create_cycle(repository, module_id, new_parent_id):
                 raise InvalidParentCycleError
             module.parent_id = new_parent_id
-            module.level = parent.level + 1
         else:
             module.parent_id = None
-            if "level" in data:
-                module.level = data["level"]
-            else:
-                module.level = 1
-
-    if "level" in data and "parent_id" not in data:
-        module.level = data["level"]
 
     if "name" in data:
         module.name = data["name"]
@@ -162,6 +167,9 @@ def update_module(
         module.is_active = data["is_active"]
     if "is_deleted" in data:
         module.is_deleted = data["is_deleted"]
+
+    # ``level`` always follows ``parent_id`` (ignore a bare ``level`` that disagrees with the tree).
+    module.level = _level_from_parent_id(repository, module.parent_id)
 
     module.updated_by = actor_id
     return repository.update_module(module)

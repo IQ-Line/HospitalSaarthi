@@ -68,7 +68,10 @@ class ModuleCreate(BaseModel):
         default=None,
         ge=1,
         le=4,
-        description="Ignored when parent_id is set (computed as parent.level + 1).",
+        description=(
+            "Ignored on create: depth is always derived — root (no parent_id) → 1, "
+            "child → parent.level + 1."
+        ),
     )
     icon: str | None = None
     is_active: bool = True
@@ -85,7 +88,12 @@ class ModuleUpdate(BaseModel):
     version: str | None = None
     description: str | None = None
     parent_id: UUID | None = None
-    level: int | None = Field(default=None, ge=1, le=4)
+    level: int | None = Field(
+        default=None,
+        ge=1,
+        le=4,
+        description="Ignored: stored level is always recomputed from parent_id after update.",
+    )
     icon: str | None = None
     is_active: bool | None = None
     is_deleted: bool | None = Field(

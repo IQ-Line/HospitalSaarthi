@@ -173,6 +173,66 @@ def test_patch_cycle_returns_400(module_client: TestClient) -> None:
     assert cycle.json()["error"]["code"] == "BAD_REQUEST"
 
 
+def test_post_level_follows_parent_depth(module_client: TestClient) -> None:
+    root = module_client.post(
+        "/api/v1/master-data/modules",
+        json=_create_json("root_m", "root-slug"),
+    )
+    assert root.status_code == 201
+    assert root.json()["data"]["level"] == 1
+    rid = root.json()["data"]["id"]
+
+    child = module_client.post(
+        "/api/v1/master-data/modules",
+        json=_create_json("child_m", "child-slug", parent_id=rid),
+    )
+    assert child.status_code == 201
+    assert child.json()["data"]["level"] == 2
+    cid = child.json()["data"]["id"]
+
+    grand = module_client.post(
+        "/api/v1/master-data/modules",
+        json=_create_json("grand_m", "grand-slug", parent_id=cid),
+    )
+    assert grand.status_code == 201
+    assert grand.json()["data"]["level"] == 3
+    gid = grand.json()["data"]["id"]
+
+    leaf = module_client.post(
+        "/api/v1/master-data/modules",
+        json=_create_json("leaf_m", "leaf-slug", parent_id=gid),
+    )
+    assert leaf.status_code == 201
+    assert leaf.json()["data"]["level"] == 4
+
+
+def test_post_root_ignores_client_level_field(module_client: TestClient) -> None:
+    body = _create_json("r2", "root-two")
+    body["level"] = 4
+    r = module_client.post("/api/v1/master-data/modules", json=body)
+    assert r.status_code == 201
+    assert r.json()["data"]["level"] == 1
+
+
+def test_patch_level_field_does_not_override_tree(module_client: TestClient) -> None:
+    pa = module_client.post("/api/v1/master-data/modules", json=_create_json("pa", "pa-slug"))
+    assert pa.status_code == 201
+    id_a = pa.json()["data"]["id"]
+    pb = module_client.post(
+        "/api/v1/master-data/modules",
+        json=_create_json("pb", "pb-slug", parent_id=id_a),
+    )
+    assert pb.status_code == 201
+    id_b = pb.json()["data"]["id"]
+    assert pb.json()["data"]["level"] == 2
+    bad = module_client.patch(
+        f"/api/v1/master-data/modules/{id_b}",
+        json={"level": 1},
+    )
+    assert bad.status_code == 200
+    assert bad.json()["data"]["level"] == 2
+
+
 def test_delete_unknown_module_404(module_client: TestClient) -> None:
     r = module_client.delete(f"/api/v1/master-data/modules/{uuid4()}")
     assert r.status_code == 404
