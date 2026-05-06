@@ -4,11 +4,11 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
-from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
 
-from app.api.deps import get_module_repository
-from app.api.errors import error_payload
-from app.repositories.module_repository import DuplicateModuleKeyError, ModuleRepository
+from app.api.deps import get_module_repository, get_session
+from app.api.errors import ResourceNotFoundError
+from app.repositories.module_repository import ModuleRepository
 from app.schemas.module import (
     ModuleCategory,
     ModuleCreate,
@@ -18,11 +18,6 @@ from app.schemas.module import (
     ModuleUpdate,
 )
 from app.services.module_service import (
-    MAX_MODULE_TREE_LEVEL,
-    InvalidParentCycleError,
-    MaxTreeDepthError,
-    ModuleNotFoundError,
-    ParentModuleNotFoundError,
     create_module,
     get_module_by_id,
     get_module_by_slug,
@@ -33,11 +28,6 @@ from app.services.module_service import (
 )
 
 router = APIRouter(prefix="/modules", tags=["Modules"])
-
-_MAX_NESTING_EXCEEDED = (
-    "That parent is already at the deepest allowed nesting level ("
-    f"{MAX_MODULE_TREE_LEVEL})."
-)
 
 
 @router.get("", response_model=ModuleListResponse, summary="List registered platform modules")
@@ -64,30 +54,10 @@ def get_modules(
 def post_module(
     payload: ModuleCreate,
     repository: Annotated[ModuleRepository, Depends(get_module_repository)],
-) -> ModuleSingleResponse | JSONResponse:
-    try:
-        module = create_module(repository, payload, actor_id=None)
-    except DuplicateModuleKeyError:
-        return JSONResponse(
-            status_code=status.HTTP_409_CONFLICT,
-            content=error_payload(
-                "CONFLICT",
-                "Another active module already uses this name or slug.",
-            ),
-        )
-    except ParentModuleNotFoundError:
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content=error_payload(
-                "BAD_REQUEST",
-                "parent_id must reference an existing non-deleted module.",
-            ),
-        )
-    except MaxTreeDepthError:
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content=error_payload("BAD_REQUEST", _MAX_NESTING_EXCEEDED),
-        )
+    session: Annotated[Session, Depends(get_session)],
+) -> ModuleSingleResponse:
+    module = create_module(repository, payload, actor_id=None)
+    session.commit()
     return ModuleSingleResponse(data=ModuleResponse.model_validate(module))
 
 
@@ -99,16 +69,10 @@ def post_module(
 def get_module_by_slug_route(
     slug: str,
     repository: Annotated[ModuleRepository, Depends(get_module_repository)],
-) -> ModuleSingleResponse | JSONResponse:
+) -> ModuleSingleResponse:
     module = get_module_by_slug(repository, slug)
     if module is None:
-        return JSONResponse(
-            status_code=404,
-            content=error_payload(
-                "NOT_FOUND",
-                f"No module with slug '{slug}'.",
-            ),
-        )
+        raise ResourceNotFoundError(f"No module with slug '{slug}'.")
     return ModuleSingleResponse(data=ModuleResponse.model_validate(module))
 
 
@@ -125,14 +89,8 @@ def get_module_by_slug_route(
 def list_submodules_route(
     module_id: UUID,
     repository: Annotated[ModuleRepository, Depends(get_module_repository)],
-) -> ModuleListResponse | JSONResponse:
-    try:
-        rows = list_submodules(repository, module_id)
-    except ModuleNotFoundError:
-        return JSONResponse(
-            status_code=404,
-            content=error_payload("NOT_FOUND", "No module with this id."),
-        )
+) -> ModuleListResponse:
+    rows = list_submodules(repository, module_id)
     data = [ModuleResponse.model_validate(m) for m in rows]
     return ModuleListResponse(data=data, total=len(data))
 
@@ -145,16 +103,10 @@ def list_submodules_route(
 def get_module_by_id_route(
     module_id: UUID,
     repository: Annotated[ModuleRepository, Depends(get_module_repository)],
-) -> ModuleSingleResponse | JSONResponse:
+) -> ModuleSingleResponse:
     module = get_module_by_id(repository, module_id)
     if module is None:
-        return JSONResponse(
-            status_code=404,
-            content=error_payload(
-                "NOT_FOUND",
-                "No module with this id.",
-            ),
-        )
+        raise ResourceNotFoundError("No module with this id.")
     return ModuleSingleResponse(data=ModuleResponse.model_validate(module))
 
 
@@ -167,43 +119,10 @@ def patch_module(
     module_id: UUID,
     payload: ModuleUpdate,
     repository: Annotated[ModuleRepository, Depends(get_module_repository)],
-) -> ModuleSingleResponse | JSONResponse:
-    try:
-        module = update_module(repository, module_id, payload, actor_id=None)
-    except DuplicateModuleKeyError:
-        return JSONResponse(
-            status_code=status.HTTP_409_CONFLICT,
-            content=error_payload(
-                "CONFLICT",
-                "Another active module already uses this name or slug.",
-            ),
-        )
-    except ModuleNotFoundError:
-        return JSONResponse(
-            status_code=404,
-            content=error_payload("NOT_FOUND", "No module with this id."),
-        )
-    except ParentModuleNotFoundError:
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content=error_payload(
-                "BAD_REQUEST",
-                "parent_id must reference an existing non-deleted module.",
-            ),
-        )
-    except MaxTreeDepthError:
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content=error_payload("BAD_REQUEST", _MAX_NESTING_EXCEEDED),
-        )
-    except InvalidParentCycleError:
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content=error_payload(
-                "BAD_REQUEST",
-                "That parent_id would create a cycle in the module tree.",
-            ),
-        )
+    session: Annotated[Session, Depends(get_session)],
+) -> ModuleSingleResponse:
+    module = update_module(repository, module_id, payload, actor_id=None)
+    session.commit()
     return ModuleSingleResponse(data=ModuleResponse.model_validate(module))
 
 
@@ -215,12 +134,8 @@ def patch_module(
 def delete_module(
     module_id: UUID,
     repository: Annotated[ModuleRepository, Depends(get_module_repository)],
-) -> ModuleSingleResponse | JSONResponse:
-    try:
-        module = soft_delete_module(repository, module_id, actor_id=None)
-    except ModuleNotFoundError:
-        return JSONResponse(
-            status_code=404,
-            content=error_payload("NOT_FOUND", "No module with this id."),
-        )
+    session: Annotated[Session, Depends(get_session)],
+) -> ModuleSingleResponse:
+    module = soft_delete_module(repository, module_id, actor_id=None)
+    session.commit()
     return ModuleSingleResponse(data=ModuleResponse.model_validate(module))

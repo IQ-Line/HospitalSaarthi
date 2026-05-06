@@ -204,6 +204,40 @@ def test_get_submodules_direct_only(module_client: TestClient) -> None:
     assert slugs == {"ch-c1", "ch-c2"}
 
 
+def test_delete_parent_cascades_soft_delete_to_descendants(module_client: TestClient) -> None:
+    root = module_client.post(
+        "/api/v1/master-data/modules",
+        json=_create_json("cascade-r", "cascade-root"),
+    )
+    assert root.status_code == 201
+    rid = root.json()["data"]["id"]
+    child = module_client.post(
+        "/api/v1/master-data/modules",
+        json=_create_json("cascade-c", "cascade-child", parent_id=rid),
+    )
+    assert child.status_code == 201
+    cid = child.json()["data"]["id"]
+    grand = module_client.post(
+        "/api/v1/master-data/modules",
+        json=_create_json("cascade-g", "cascade-grand", parent_id=cid),
+    )
+    assert grand.status_code == 201
+    gid = grand.json()["data"]["id"]
+
+    d = module_client.delete(f"/api/v1/master-data/modules/{rid}")
+    assert d.status_code == 200
+    assert d.json()["data"]["is_deleted"] is True
+
+    # Descendants are soft-deleted too; detail and list endpoints hide them.
+    assert module_client.get(f"/api/v1/master-data/modules/{cid}").status_code == 404
+    assert module_client.get(f"/api/v1/master-data/modules/{gid}").status_code == 404
+    listed = module_client.get("/api/v1/master-data/modules")
+    assert listed.status_code == 200
+    slugs = {row["slug"] for row in listed.json()["data"]}
+    assert "cascade-child" not in slugs
+    assert "cascade-grand" not in slugs
+
+
 def test_get_submodules_empty_and_404(module_client: TestClient) -> None:
     leaf = module_client.post(
         "/api/v1/master-data/modules",

@@ -3,8 +3,9 @@ from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import IntegrityError
 
-from app.api.deps import get_module_repository
+from app.api.deps import get_module_repository, get_session
 from app.main import create_app
 
 
@@ -43,6 +44,9 @@ class FakeModuleRepository:
         row = _sample_module_row()
         return row if row.slug == slug else None
 
+    def commit(self) -> None:
+        return None
+
 
 def test_get_meta_returns_service_stamp() -> None:
     app = create_app()
@@ -75,7 +79,7 @@ def test_get_module_by_id_returns_wrapped_module() -> None:
     fixed_id = UUID("11111111-1111-4111-8111-111111111111")
 
     class Repo(FakeModuleRepository):
-        def get_module_by_id(self, module_id: UUID):
+        def get_module_by_id(self, module_id: UUID, *, include_deleted: bool = False):
             return _sample_module_row(id=fixed_id) if module_id == fixed_id else None
 
     app.dependency_overrides[get_module_repository] = lambda: Repo()
@@ -116,8 +120,16 @@ def test_post_module_201_with_fake_repository() -> None:
         def create_module(self, module):
             return _sample_module_row(id=fixed_id, name=module.name, slug=module.slug)
 
+    class DummySession:
+        def commit(self) -> None:
+            return None
+
+    def _dummy_session():
+        yield DummySession()
+
     app = create_app()
     app.dependency_overrides[get_module_repository] = lambda: CreatingRepo()
+    app.dependency_overrides[get_session] = _dummy_session
 
     response = TestClient(app).post(
         "/api/v1/master-data/modules",
@@ -131,3 +143,36 @@ def test_post_module_201_with_fake_repository() -> None:
     assert response.status_code == 201
     assert response.json()["data"]["id"] == str(fixed_id)
     assert response.json()["data"]["name"] == "new_mod"
+
+
+def test_post_module_check_violation_returns_400() -> None:
+    class BrokenRepo(FakeModuleRepository):
+        def create_module(self, _module):
+            raise IntegrityError(
+                "INSERT INTO master_data.modules ...",
+                {},
+                Exception('new row violates check constraint "modules_level_check"'),
+            )
+
+    class DummySession:
+        def commit(self) -> None:
+            return None
+
+    def _dummy_session():
+        yield DummySession()
+
+    app = create_app()
+    app.dependency_overrides[get_module_repository] = lambda: BrokenRepo()
+    app.dependency_overrides[get_session] = _dummy_session
+
+    response = TestClient(app).post(
+        "/api/v1/master-data/modules",
+        json={
+            "name": "new_mod",
+            "slug": "new-mod",
+            "category": "clinical",
+            "version": "1.0.0",
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "BAD_REQUEST"

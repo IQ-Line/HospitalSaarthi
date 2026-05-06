@@ -1,5 +1,10 @@
 """Partial unique indexes on name/slug so soft-deleted rows do not block reuse.
 
+Note: migration 002 first introduced full unique constraints (`modules_name_key`,
+`modules_slug_key`). This migration intentionally replaces them with partial unique
+indexes. On fresh databases that run all migrations sequentially, this means create-then-
+replace; this is expected and documents the historical evolution.
+
 Revision ID: 004_partial_unique (≤32 chars for alembic_version.version_num)
 Revises: 003_soft_delete_audit
 """

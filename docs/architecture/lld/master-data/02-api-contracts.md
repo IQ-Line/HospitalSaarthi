@@ -7,7 +7,7 @@
 
 ### Module registry — CRUD and auth
 
-Catalog rows live in PostgreSQL (`master_data.modules`). Operators create, update, and retire modules through the **Master Data HTTP API** (`POST`, `PATCH`, `DELETE`). **`DELETE` is always a soft-delete** (`is_deleted = true`); there is no hard row removal for normal catalog operations.
+Catalog rows live in PostgreSQL (`master_data.modules`). Operators create, update, and retire modules through the **Master Data HTTP API** (`POST`, `PATCH`, `DELETE`). **`DELETE` is a recursive soft-delete** (`is_deleted = true` on the target and active descendants); there is no hard row removal for normal catalog operations.
 
 - **Reads (`GET /modules`, …):** Return active rows (`is_deleted = false`). OpenAPI marks **`security: []`**; a gateway may still enforce identity.
 - **Mutations (`POST` / `PATCH` / `DELETE`):** Phase 0 Python handlers do **not** require `Authorization` at the app layer; OpenAPI uses **`security: []`** on these operations. Production should rely on an **API gateway** (or re-attached FastAPI **`Depends(require_superadmin)`**) before exposing writes. When JWT-based **`require_superadmin`** is enabled, a verified **`sub`** (UUID) fills **`created_by` / `updated_by`**; test-only and dev-bypass paths in **`app/utils/auth_policy.py`** intentionally leave those columns **`NULL`** (no synthetic actor UUIDs). Configure **`MASTER_DATA_JWT_SECRET`** for HS256 verification when JWT validation is on. See [`modules/master-data/.env.example`](../../../../modules/master-data/.env.example) and **`modules/master-data/tests/test_utils/test_auth_policy.py`**.
@@ -79,7 +79,7 @@ Typical status mapping:
 | `GET` | `/api/v1/master-data/modules/{moduleId}/submodules` | `listSubmodules` | Direct submodules (`parent_id = moduleId`); **full list, no pagination**; **200** + `ModuleListResponse`; **404** if parent missing or soft-deleted. |
 | `GET` | `/api/v1/master-data/modules/{moduleId}` | `getModuleById` | Get one module by UUID; **404** if missing or soft-deleted. |
 | `PATCH` | `/api/v1/master-data/modules/{moduleId}` | `updateModule` | Partial update; may set `is_deleted: false` to restore. |
-| `DELETE` | `/api/v1/master-data/modules/{moduleId}` | `deleteModule` | **Soft-delete** (`is_deleted = true`); **200** returns updated `Module`. |
+| `DELETE` | `/api/v1/master-data/modules/{moduleId}` | `deleteModule` | **Recursive soft-delete** (`is_deleted = true` on target + descendants); **200** returns updated parent `Module`. |
 
 Single-resource success envelope: **`ModuleSingleResponse`** — `{ "data": Module }` (see OpenAPI `ModuleSingleResponse`).
 

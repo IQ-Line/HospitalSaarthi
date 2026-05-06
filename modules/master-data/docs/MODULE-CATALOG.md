@@ -25,7 +25,7 @@ Cross-cutting HLD: [HLD 02 §4.2 — Owns (platform module registry)](../../../d
 | `001_initial_schema` | Creates `master_data.modules` with seed rows for core modules. Uses `gen_random_uuid()` defaults (no `uuid-ossp`). |
 | `002_extend_modules_catalog` | Adds LLD columns: `parent_id`, `slug`, `description`, `level`, `icon`, `is_active`; FK and indexes; backfills `slug` from `name`. |
 | `003_soft_delete_audit` | Adds `is_deleted` (soft delete; default `false`), optional `created_by` / `updated_by`, index on `is_deleted`. |
-| `004_partial_unique` | Replaces global unique on `name`/`slug` with **partial unique** indexes (`WHERE NOT is_deleted`) so soft-deleted rows do not block reuse of names/slugs. |
+| `004_partial_unique` | Replaces global unique on `name`/`slug` with **partial unique** indexes (`WHERE NOT is_deleted`) so soft-deleted rows do not block reuse of names/slugs (fresh DBs run 002 full unique first, then this replacement). |
 | `005_level_max_10` | Widens `modules.level` check constraint from **4** to **10** for deeper nesting. |
 
 **Run migrations on any machine** (same Alembic chain; only `MASTER_DATA_DATABASE_URL` changes):
@@ -61,7 +61,7 @@ Cross-cutting HLD: [HLD 02 §4.2 — Owns (platform module registry)](../../../d
 | `GET` | `/api/v1/master-data/modules/{moduleId}/submodules` | Direct submodules (`parent_id` = id); **full list, no pagination**; **404** if parent missing or soft-deleted. |
 | `GET` | `/api/v1/master-data/modules/{moduleId}` | **404** if missing or soft-deleted. |
 | `PATCH` | `/api/v1/master-data/modules/{moduleId}` | Partial update (`ModuleUpdate`); may set `is_deleted: false` to restore. |
-| `DELETE` | `/api/v1/master-data/modules/{moduleId}` | **Soft-delete**; returns updated `Module` with `is_deleted: true`. |
+| `DELETE` | `/api/v1/master-data/modules/{moduleId}` | **Soft-delete (recursive)**; marks target module and active descendants deleted; returns updated parent module. |
 
 Errors use **`ErrorResponse`** (`error.code`, `error.message`). **`tests/test_api/test_modules_crud_integration.py`** exercises full CRUD against SQLite + real repository.
 

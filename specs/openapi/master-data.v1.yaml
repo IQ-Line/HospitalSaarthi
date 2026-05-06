@@ -4,7 +4,7 @@ info:
   version: 1.0.0
   description: >
     HIMS Master Data catalog API — platform reference data (modules first; more surfaces phased in).
-    Base path `/api/v1/master-data`. DELETE on modules is a soft-delete (`is_deleted = true`).
+    Base path `/api/v1/master-data`. DELETE on modules is a recursive soft-delete (`is_deleted = true`).
     Gateway-level authentication (API keys / JWT) is expected before production; this spec does not
     model per-route security yet.
 servers:
@@ -233,7 +233,7 @@ paths:
     delete:
       operationId: deleteModule
       summary: Soft-delete a module
-      description: Sets `is_deleted = true`; does not remove the database row.
+      description: Sets `is_deleted = true` on this module and active descendants; no hard delete.
       tags:
         - Modules
       security: []

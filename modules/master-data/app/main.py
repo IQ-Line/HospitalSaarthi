@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app.api.errors import register_exception_handlers
 from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
@@ -35,6 +36,7 @@ def create_app() -> FastAPI:
     )
     app.add_middleware(BearerAuthContextMiddleware)
     app.add_middleware(RequestContextMiddleware)
+    register_exception_handlers(app)
     app.include_router(api_router, prefix=settings.api_prefix)
     return app
 

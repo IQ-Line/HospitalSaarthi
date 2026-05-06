@@ -72,7 +72,7 @@ def _level_from_parent_id(repository: ModuleRepository, parent_id: UUID | None) 
         return 1
     parent = repository.get_module_by_id(parent_id)
     if parent is None:
-        return 1
+        raise ParentModuleNotFoundError
     return parent.level + 1
 
 
@@ -191,6 +191,7 @@ def soft_delete_module(
     *,
     actor_id: UUID | None,
 ) -> ModuleModel:
+    """Soft-delete target module and all active descendants (recursive cascade)."""
     module = repository.get_module_by_id(module_id, include_deleted=True)
     if module is None:
         raise ModuleNotFoundError
@@ -198,4 +199,20 @@ def soft_delete_module(
         return module
     module.is_deleted = True
     module.updated_by = actor_id
-    return repository.update_module(module)
+    repository.update_module(module)
+
+    # Cascade soft-delete to descendants so no active rows keep parent_id pointing
+    # to a soft-deleted ancestor.
+    queue: list[UUID] = [module.id]
+    while queue:
+        parent_id = queue.pop(0)
+        children = repository.list_modules_by_parent_id(parent_id)
+        for child in children:
+            if child.is_deleted:
+                continue
+            child.is_deleted = True
+            child.updated_by = actor_id
+            repository.update_module(child)
+            queue.append(child.id)
+
+    return module

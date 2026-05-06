@@ -14,6 +14,22 @@ class DuplicateModuleKeyError(Exception):
     """Violates partial unique index on name or slug among active (non-deleted) rows."""
 
 
+def _is_unique_violation(exc: IntegrityError) -> bool:
+    """Best-effort DB-agnostic unique-constraint detection."""
+    orig = getattr(exc, "orig", None)
+    if orig is None:
+        return False
+    if getattr(orig, "pgcode", None) == "23505":
+        return True
+    if getattr(orig, "sqlite_errorcode", None) in (1555, 2067):
+        return True
+    text = str(orig).lower()
+    return (
+        "unique constraint failed" in text
+        or "duplicate key value violates unique constraint" in text
+    )
+
+
 class ModuleRepository:
     """Catalog rows. List/detail omit soft-deleted rows unless explicitly loaded for mutation."""
 
@@ -66,19 +82,21 @@ class ModuleRepository:
         self._session.add(module)
         try:
             self._session.flush()
-            self._session.commit()
         except IntegrityError as exc:
             self._session.rollback()
-            raise DuplicateModuleKeyError from exc
+            if _is_unique_violation(exc):
+                raise DuplicateModuleKeyError from exc
+            raise
         self._session.refresh(module)
         return module
 
     def update_module(self, module: ModuleModel) -> ModuleModel:
         try:
             self._session.flush()
-            self._session.commit()
         except IntegrityError as exc:
             self._session.rollback()
-            raise DuplicateModuleKeyError from exc
+            if _is_unique_violation(exc):
+                raise DuplicateModuleKeyError from exc
+            raise
         self._session.refresh(module)
         return module
