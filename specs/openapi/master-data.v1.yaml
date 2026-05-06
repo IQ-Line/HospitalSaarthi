@@ -2,17 +2,20 @@ openapi: 3.1.0
 info:
   title: HIMS Master Data API
   version: 1.0.0
-  description: Read-only Master Data registry API for the first Python module learning slice.
+  description: >
+    HIMS Master Data catalog API — platform reference data (modules first; more surfaces phased in).
+    Base path `/api/v1/master-data`. DELETE on modules is a recursive soft-delete (`is_deleted = true`).
+    Gateway-level authentication (API keys / JWT) is expected before production; this spec does not
+    model per-route security yet.
 servers:
-  - url: /api/master-data
-security:
-  - bearerAuth: []
+  - url: /api/v1/master-data
 paths:
   /modules:
     get:
       operationId: listModules
       summary: List registered platform modules
-      description: Returns deployable modules registered in the Master Data registry.
+      description: Returns active catalog modules (`is_deleted = false`).
+      security: []
       tags:
         - Modules
       parameters:
@@ -29,14 +32,227 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ModuleListResponse"
-        "401":
-          description: Missing or invalid bearer token.
+        "500":
+          description: Unexpected server error.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-        "403":
-          description: Principal is not authorized to view Master Data.
+    post:
+      operationId: createModule
+      summary: Create a module
+      description: Creates an active registry row.
+      tags:
+        - Modules
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ModuleCreate"
+      responses:
+        "201":
+          description: Module created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModuleSingleResponse"
+        "400":
+          description: Invalid parent or tree depth.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Name or slug already used by another active module.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /modules/by-slug/{slug}:
+    get:
+      operationId: getModuleBySlug
+      summary: Get one module by slug
+      security: []
+      tags:
+        - Modules
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+          description: URL-safe catalog slug (e.g. master-data).
+      responses:
+        "200":
+          description: Module found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModuleSingleResponse"
+        "404":
+          description: No module with this slug.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /modules/{moduleId}/submodules:
+    get:
+      operationId: listSubmodules
+      summary: List direct submodules
+      description: >
+        Active modules whose parent_id equals moduleId (one level below this parent).
+        Full result set in one response — no pagination. 404 if parent missing or soft-deleted;
+        200 with empty data if there are no submodules.
+      security: []
+      tags:
+        - Modules
+      parameters:
+        - name: moduleId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Parent module id (rows are direct submodules only).
+      responses:
+        "200":
+          description: All direct submodules (full list; possibly empty).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModuleListResponse"
+        "404":
+          description: Parent module id not found or soft-deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /modules/{moduleId}:
+    get:
+      operationId: getModuleById
+      summary: Get one module by id
+      security: []
+      tags:
+        - Modules
+      parameters:
+        - name: moduleId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Module found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModuleSingleResponse"
+        "404":
+          description: No module with this id (or soft-deleted).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateModule
+      summary: Update a module
+      tags:
+        - Modules
+      security: []
+      parameters:
+        - name: moduleId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ModuleUpdate"
+      responses:
+        "200":
+          description: Updated module.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModuleSingleResponse"
+        "400":
+          description: Invalid parent, cycle, or depth.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Module id not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Name or slug conflict with another active module.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteModule
+      summary: Soft-delete a module
+      description: Sets `is_deleted = true` on this module and active descendants; no hard delete.
+      tags:
+        - Modules
+      security: []
+      parameters:
+        - name: moduleId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Module marked deleted (`is_deleted` true).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModuleSingleResponse"
+        "404":
+          description: Module id not found.
           content:
             application/json:
               schema:
@@ -70,6 +286,8 @@ components:
               description: Stable error code for clients.
               examples:
                 - UNAUTHORIZED
+                - CONFLICT
+                - BAD_REQUEST
             message:
               type: string
               description: Human-readable summary.
@@ -80,7 +298,7 @@ components:
       example:
         error:
           code: FORBIDDEN
-          message: Principal is not allowed to read Master Data registry.
+          message: Principal is not allowed to mutate the Master Data registry.
           details: {}
     ModuleCategory:
       type: string
@@ -89,35 +307,138 @@ components:
         - clinical
         - administrative
         - support
+    ModuleCreate:
+      type: object
+      required:
+        - name
+        - slug
+        - category
+      properties:
+        name:
+          type: string
+          maxLength: 100
+        slug:
+          type: string
+          description: Unique among active modules (soft-deleted rows do not consume slug).
+        category:
+          $ref: "#/components/schemas/ModuleCategory"
+        version:
+          type: string
+          default: "0.0.0"
+        description:
+          type: string
+          nullable: true
+        parent_id:
+          type: string
+          format: uuid
+          nullable: true
+        icon:
+          type: string
+          nullable: true
+        is_active:
+          type: boolean
+          default: true
+    ModuleUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          maxLength: 100
+        slug:
+          type: string
+        category:
+          $ref: "#/components/schemas/ModuleCategory"
+        version:
+          type: string
+        description:
+          type: string
+          nullable: true
+        parent_id:
+          type: string
+          format: uuid
+          nullable: true
+        icon:
+          type: string
+          nullable: true
+        is_active:
+          type: boolean
+        is_deleted:
+          type: boolean
+          description: Set false to restore a soft-deleted module (superadmin).
     Module:
       type: object
       required:
         - id
         - name
+        - slug
         - category
         - version
+        - level
+        - is_active
+        - is_deleted
         - created_at
         - updated_at
       properties:
         id:
           type: string
           format: uuid
+        parent_id:
+          type: string
+          format: uuid
+          nullable: true
         name:
           type: string
           examples:
             - user_management
+        slug:
+          type: string
+          examples:
+            - user-management
+        description:
+          type: string
+          nullable: true
         category:
           $ref: "#/components/schemas/ModuleCategory"
         version:
           type: string
           examples:
             - 1.0.0
+        level:
+          type: integer
+          minimum: 1
+          maximum: 10
+        icon:
+          type: string
+          nullable: true
+        is_active:
+          type: boolean
+        is_deleted:
+          type: boolean
+          description: Soft-delete flag; read APIs return only rows with false.
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+          description: Superadmin user id (`sub`) when created via API; optional otherwise.
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+          description: Last mutating actor user id.
         created_at:
           type: string
           format: date-time
         updated_at:
           type: string
           format: date-time
+    ModuleSingleResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: "#/components/schemas/Module"
     ModuleListResponse:
       type: object
       required:

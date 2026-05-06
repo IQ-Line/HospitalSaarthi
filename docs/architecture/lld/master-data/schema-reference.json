@@ -63,8 +63,8 @@
           "type": "INT",
           "nullable": false,
           "default": "1",
-          "check": "level >= 1 AND level <= 4",
-          "description": "Tree depth for menus (bounded to avoid deep nesting)."
+          "check": "level >= 1 AND level <= 10",
+          "description": "Tree depth for menus (max levels adjustable via migration if product needs it)."
         },
         "icon": {
           "type": "TEXT",
@@ -77,6 +77,12 @@
           "default": "true",
           "description": "Catalog visibility; inactive nodes hidden from default admin navigation."
         },
+        "is_deleted": {
+          "type": "BOOLEAN",
+          "nullable": false,
+          "default": "false",
+          "description": "Soft-delete flag; rows kept for audit. APIs exclude deleted rows from list/detail by default; no hard DELETE for catalog lifecycle."
+        },
         "created_at": {
           "type": "TIMESTAMPTZ",
           "nullable": false,
@@ -86,6 +92,16 @@
           "type": "TIMESTAMPTZ",
           "nullable": false,
           "default": "now()"
+        },
+        "created_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Actor user id when row is created via authenticated flows; nullable for migration-only seeds."
+        },
+        "updated_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Last modifier user id; nullable when updates are deployment-driven."
         }
       },
       "primary_key": [
@@ -94,19 +110,28 @@
       "indexes": [
         {
           "columns": [
+            "is_deleted"
+          ],
+          "name": "idx_modules_is_deleted",
+          "note": "Filter active catalog rows"
+        },
+        {
+          "columns": [
             "name"
           ],
-          "name": "idx_modules_name",
+          "name": "modules_name_active_key",
           "unique": true,
-          "note": "Lookup by machine name"
+          "partial_where": "NOT is_deleted",
+          "note": "Unique machine name among active (non-deleted) rows"
         },
         {
           "columns": [
             "slug"
           ],
-          "name": "idx_modules_slug",
+          "name": "modules_slug_active_key",
           "unique": true,
-          "note": "Lookup by slug / routing"
+          "partial_where": "NOT is_deleted",
+          "note": "Unique slug among active rows; soft-delete frees the slug"
         },
         {
           "columns": [

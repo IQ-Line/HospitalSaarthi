@@ -1,11 +1,31 @@
+"""HTTP routes for the module registry (`/modules`)."""
+
 from typing import Annotated
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, status
+from sqlalchemy.orm import Session
 
-from app.api.deps import get_module_repository
+from app.api.deps import get_module_repository, get_session
+from app.api.errors import ResourceNotFoundError
 from app.repositories.module_repository import ModuleRepository
-from app.schemas.module import ModuleCategory, ModuleListResponse, ModuleResponse
-from app.services.module_service import list_modules
+from app.schemas.module import (
+    ModuleCategory,
+    ModuleCreate,
+    ModuleListResponse,
+    ModuleResponse,
+    ModuleSingleResponse,
+    ModuleUpdate,
+)
+from app.services.module_service import (
+    create_module,
+    get_module_by_id,
+    get_module_by_slug,
+    list_modules,
+    list_submodules,
+    soft_delete_module,
+    update_module,
+)
 
 router = APIRouter(prefix="/modules", tags=["Modules"])
 
@@ -18,3 +38,104 @@ def get_modules(
     modules = list_modules(repository, category=category)
     data = [ModuleResponse.model_validate(module) for module in modules]
     return ModuleListResponse(data=data, total=len(data))
+
+
+@router.post(
+    "",
+    response_model=ModuleSingleResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a module",
+    description=(
+        "Adds one catalog module. Omit **parent_id** for a top-level row. "
+        "To nest, set **parent_id** to another module’s id — each step is one level deeper "
+        "(parent → child → child, like folders). **level** is not sent; the API fills it."
+    ),
+)
+def post_module(
+    payload: ModuleCreate,
+    repository: Annotated[ModuleRepository, Depends(get_module_repository)],
+    session: Annotated[Session, Depends(get_session)],
+) -> ModuleSingleResponse:
+    module = create_module(repository, payload, actor_id=None)
+    session.commit()
+    return ModuleSingleResponse(data=ModuleResponse.model_validate(module))
+
+
+@router.get(
+    "/by-slug/{slug}",
+    response_model=ModuleSingleResponse,
+    summary="Get one module by slug",
+)
+def get_module_by_slug_route(
+    slug: str,
+    repository: Annotated[ModuleRepository, Depends(get_module_repository)],
+) -> ModuleSingleResponse:
+    module = get_module_by_slug(repository, slug)
+    if module is None:
+        raise ResourceNotFoundError(f"No module with slug '{slug}'.")
+    return ModuleSingleResponse(data=ModuleResponse.model_validate(module))
+
+
+@router.get(
+    "/{module_id}/submodules",
+    response_model=ModuleListResponse,
+    summary="List direct submodules",
+    description=(
+        "Every **active** module whose **parent_id** is this id (one tree level below). "
+        "Returns the **complete** list in one response (**no pagination**). "
+        "**404** if parent missing or soft-deleted; **200** with empty `data` if none."
+    ),
+)
+def list_submodules_route(
+    module_id: UUID,
+    repository: Annotated[ModuleRepository, Depends(get_module_repository)],
+) -> ModuleListResponse:
+    rows = list_submodules(repository, module_id)
+    data = [ModuleResponse.model_validate(m) for m in rows]
+    return ModuleListResponse(data=data, total=len(data))
+
+
+@router.get(
+    "/{module_id}",
+    response_model=ModuleSingleResponse,
+    summary="Get one module by id",
+)
+def get_module_by_id_route(
+    module_id: UUID,
+    repository: Annotated[ModuleRepository, Depends(get_module_repository)],
+) -> ModuleSingleResponse:
+    module = get_module_by_id(repository, module_id)
+    if module is None:
+        raise ResourceNotFoundError("No module with this id.")
+    return ModuleSingleResponse(data=ModuleResponse.model_validate(module))
+
+
+@router.patch(
+    "/{module_id}",
+    response_model=ModuleSingleResponse,
+    summary="Update a module",
+)
+def patch_module(
+    module_id: UUID,
+    payload: ModuleUpdate,
+    repository: Annotated[ModuleRepository, Depends(get_module_repository)],
+    session: Annotated[Session, Depends(get_session)],
+) -> ModuleSingleResponse:
+    module = update_module(repository, module_id, payload, actor_id=None)
+    session.commit()
+    return ModuleSingleResponse(data=ModuleResponse.model_validate(module))
+
+
+@router.delete(
+    "/{module_id}",
+    response_model=ModuleSingleResponse,
+    summary="Soft-delete a module",
+)
+def delete_module(
+    module_id: UUID,
+    repository: Annotated[ModuleRepository, Depends(get_module_repository)],
+    session: Annotated[Session, Depends(get_session)],
+) -> ModuleSingleResponse:
+    module = soft_delete_module(repository, module_id, actor_id=None)
+    session.commit()
+    return ModuleSingleResponse(data=ModuleResponse.model_validate(module))
