@@ -30,6 +30,17 @@ class ModuleRepository:
 
         return list(self._session.scalars(statement).all())
 
+    def list_modules_by_parent_id(self, parent_id: UUID) -> list[ModuleModel]:
+        statement = (
+            select(ModuleModel)
+            .where(
+                ModuleModel.parent_id == parent_id,
+                ModuleModel.is_deleted.is_(False),
+            )
+            .order_by(ModuleModel.name)
+        )
+        return list(self._session.scalars(statement).all())
+
     def get_module_by_id(
         self,
         module_id: UUID,

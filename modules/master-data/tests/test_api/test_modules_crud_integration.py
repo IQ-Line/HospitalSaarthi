@@ -173,6 +173,52 @@ def test_patch_cycle_returns_400(module_client: TestClient) -> None:
     assert cycle.json()["error"]["code"] == "BAD_REQUEST"
 
 
+def test_get_submodules_direct_only(module_client: TestClient) -> None:
+    root = module_client.post(
+        "/api/v1/master-data/modules",
+        json=_create_json("r", "ch-root"),
+    )
+    assert root.status_code == 201
+    rid = root.json()["data"]["id"]
+    c1 = module_client.post(
+        "/api/v1/master-data/modules",
+        json=_create_json("c1", "ch-c1", parent_id=rid),
+    )
+    c2 = module_client.post(
+        "/api/v1/master-data/modules",
+        json=_create_json("c2", "ch-c2", parent_id=rid),
+    )
+    assert c1.status_code == 201
+    assert c2.status_code == 201
+    sub = module_client.post(
+        "/api/v1/master-data/modules",
+        json=_create_json("sub1", "ch-sub1", parent_id=c1.json()["data"]["id"]),
+    )
+    assert sub.status_code == 201
+
+    kids = module_client.get(f"/api/v1/master-data/modules/{rid}/submodules")
+    assert kids.status_code == 200
+    body = kids.json()
+    assert body["total"] == 2
+    slugs = {row["slug"] for row in body["data"]}
+    assert slugs == {"ch-c1", "ch-c2"}
+
+
+def test_get_submodules_empty_and_404(module_client: TestClient) -> None:
+    leaf = module_client.post(
+        "/api/v1/master-data/modules",
+        json=_create_json("solo", "ch-solo"),
+    )
+    assert leaf.status_code == 201
+    lid = leaf.json()["data"]["id"]
+    empty = module_client.get(f"/api/v1/master-data/modules/{lid}/submodules")
+    assert empty.status_code == 200
+    assert empty.json()["total"] == 0
+
+    missing = module_client.get(f"/api/v1/master-data/modules/{uuid4()}/submodules")
+    assert missing.status_code == 404
+
+
 def test_post_nesting_reaches_max_depth_then_fails(module_client: TestClient) -> None:
     r = module_client.post(
         "/api/v1/master-data/modules",

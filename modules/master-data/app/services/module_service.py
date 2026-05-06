@@ -48,6 +48,16 @@ def list_modules(
     return repository.list_modules(category=category)
 
 
+def list_submodules(repository: ModuleRepository, parent_id: UUID) -> list[ModuleModel]:
+    """Return **all** active rows directly under ``parent_id`` (full list; no pagination).
+
+    Raises ``ModuleNotFoundError`` if the parent id is missing or soft-deleted.
+    """
+    if repository.get_module_by_id(parent_id) is None:
+        raise ModuleNotFoundError
+    return repository.list_modules_by_parent_id(parent_id)
+
+
 def get_module_by_id(repository: ModuleReader, module_id: UUID) -> ModuleModel | None:
     return repository.get_module_by_id(module_id)
 

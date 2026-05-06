@@ -27,6 +27,7 @@ from app.services.module_service import (
     get_module_by_id,
     get_module_by_slug,
     list_modules,
+    list_submodules,
     soft_delete_module,
     update_module,
 )
@@ -109,6 +110,31 @@ def get_module_by_slug_route(
             ),
         )
     return ModuleSingleResponse(data=ModuleResponse.model_validate(module))
+
+
+@router.get(
+    "/{module_id}/submodules",
+    response_model=ModuleListResponse,
+    summary="List direct submodules",
+    description=(
+        "Every **active** module whose **parent_id** is this id (one tree level below). "
+        "Returns the **complete** list in one response (**no pagination**). "
+        "**404** if parent missing or soft-deleted; **200** with empty `data` if none."
+    ),
+)
+def list_submodules_route(
+    module_id: UUID,
+    repository: Annotated[ModuleRepository, Depends(get_module_repository)],
+) -> ModuleListResponse | JSONResponse:
+    try:
+        rows = list_submodules(repository, module_id)
+    except ModuleNotFoundError:
+        return JSONResponse(
+            status_code=404,
+            content=error_payload("NOT_FOUND", "No module with this id."),
+        )
+    data = [ModuleResponse.model_validate(m) for m in rows]
+    return ModuleListResponse(data=data, total=len(data))
 
 
 @router.get(

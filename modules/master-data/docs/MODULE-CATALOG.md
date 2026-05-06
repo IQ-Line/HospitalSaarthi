@@ -58,6 +58,7 @@ Cross-cutting HLD: [HLD 02 §4.2 — Owns (platform module registry)](../../../d
 | `GET` | `/api/v1/master-data/modules` | List (`ModuleListResponse`); active rows only. Optional `category` query. |
 | `POST` | `/api/v1/master-data/modules` | Create (`ModuleCreate`); **201**; **409** on `name`/`slug` clash among active rows. |
 | `GET` | `/api/v1/master-data/modules/by-slug/{slug}` | **404** if missing or soft-deleted. |
+| `GET` | `/api/v1/master-data/modules/{moduleId}/submodules` | Direct submodules (`parent_id` = id); **full list, no pagination**; **404** if parent missing or soft-deleted. |
 | `GET` | `/api/v1/master-data/modules/{moduleId}` | **404** if missing or soft-deleted. |
 | `PATCH` | `/api/v1/master-data/modules/{moduleId}` | Partial update (`ModuleUpdate`); may set `is_deleted: false` to restore. |
 | `DELETE` | `/api/v1/master-data/modules/{moduleId}` | **Soft-delete**; returns updated `Module` with `is_deleted: true`. |

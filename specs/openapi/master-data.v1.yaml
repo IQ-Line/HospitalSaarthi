@@ -109,6 +109,44 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /modules/{moduleId}/submodules:
+    get:
+      operationId: listSubmodules
+      summary: List direct submodules
+      description: >
+        Active modules whose parent_id equals moduleId (one level below this parent).
+        Full result set in one response — no pagination. 404 if parent missing or soft-deleted;
+        200 with empty data if there are no submodules.
+      security: []
+      tags:
+        - Modules
+      parameters:
+        - name: moduleId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Parent module id (rows are direct submodules only).
+      responses:
+        "200":
+          description: All direct submodules (full list; possibly empty).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModuleListResponse"
+        "404":
+          description: Parent module id not found or soft-deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /modules/{moduleId}:
     get:
       operationId: getModuleById

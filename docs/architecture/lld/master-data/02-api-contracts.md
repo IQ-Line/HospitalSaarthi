@@ -76,6 +76,7 @@ Typical status mapping:
 | `GET` | `/api/v1/master-data/modules` | `listModules` | List active catalog modules (`is_deleted = false`); optional filter by catalog `category`. |
 | `POST` | `/api/v1/master-data/modules` | `createModule` | Create module; **201** + `ModuleSingleResponse`; **409** if `name`/`slug` conflicts with another active row. |
 | `GET` | `/api/v1/master-data/modules/by-slug/{slug}` | `getModuleBySlug` | Get one module by URL-safe `slug`; **404** if missing or soft-deleted. |
+| `GET` | `/api/v1/master-data/modules/{moduleId}/submodules` | `listSubmodules` | Direct submodules (`parent_id = moduleId`); **full list, no pagination**; **200** + `ModuleListResponse`; **404** if parent missing or soft-deleted. |
 | `GET` | `/api/v1/master-data/modules/{moduleId}` | `getModuleById` | Get one module by UUID; **404** if missing or soft-deleted. |
 | `PATCH` | `/api/v1/master-data/modules/{moduleId}` | `updateModule` | Partial update; may set `is_deleted: false` to restore. |
 | `DELETE` | `/api/v1/master-data/modules/{moduleId}` | `deleteModule` | **Soft-delete** (`is_deleted = true`); **200** returns updated `Module`. |
