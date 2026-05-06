@@ -173,37 +173,27 @@ def test_patch_cycle_returns_400(module_client: TestClient) -> None:
     assert cycle.json()["error"]["code"] == "BAD_REQUEST"
 
 
-def test_post_level_follows_parent_depth(module_client: TestClient) -> None:
-    root = module_client.post(
+def test_post_nesting_reaches_max_depth_then_fails(module_client: TestClient) -> None:
+    r = module_client.post(
         "/api/v1/master-data/modules",
-        json=_create_json("root_m", "root-slug"),
+        json=_create_json("d1", "depth-1"),
     )
-    assert root.status_code == 201
-    assert root.json()["data"]["level"] == 1
-    rid = root.json()["data"]["id"]
-
-    child = module_client.post(
+    assert r.status_code == 201
+    assert r.json()["data"]["level"] == 1
+    prev: str = r.json()["data"]["id"]
+    for lv in range(2, 11):
+        r = module_client.post(
+            "/api/v1/master-data/modules",
+            json=_create_json(f"n{lv}", f"depth-{lv}", parent_id=prev),
+        )
+        assert r.status_code == 201, r.text
+        assert r.json()["data"]["level"] == lv
+        prev = r.json()["data"]["id"]
+    overflow = module_client.post(
         "/api/v1/master-data/modules",
-        json=_create_json("child_m", "child-slug", parent_id=rid),
+        json=_create_json("too", "depth-overflow", parent_id=prev),
     )
-    assert child.status_code == 201
-    assert child.json()["data"]["level"] == 2
-    cid = child.json()["data"]["id"]
-
-    grand = module_client.post(
-        "/api/v1/master-data/modules",
-        json=_create_json("grand_m", "grand-slug", parent_id=cid),
-    )
-    assert grand.status_code == 201
-    assert grand.json()["data"]["level"] == 3
-    gid = grand.json()["data"]["id"]
-
-    leaf = module_client.post(
-        "/api/v1/master-data/modules",
-        json=_create_json("leaf_m", "leaf-slug", parent_id=gid),
-    )
-    assert leaf.status_code == 201
-    assert leaf.json()["data"]["level"] == 4
+    assert overflow.status_code == 400
 
 
 def test_post_rejects_level_in_body_extra_forbid(module_client: TestClient) -> None:

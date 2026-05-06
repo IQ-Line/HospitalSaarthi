@@ -34,7 +34,7 @@ class ModuleModel(TimestampMixin, Base):
             "category IN ('core', 'clinical', 'administrative', 'support')",
             name="modules_category_check",
         ),
-        CheckConstraint("level >= 1 AND level <= 4", name="modules_level_check"),
+        CheckConstraint("level >= 1 AND level <= 10", name="modules_level_check"),
         Index(
             "modules_name_active_key",
             "name",

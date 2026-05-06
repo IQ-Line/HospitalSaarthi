@@ -63,8 +63,8 @@
           "type": "INT",
           "nullable": false,
           "default": "1",
-          "check": "level >= 1 AND level <= 4",
-          "description": "Tree depth for menus (bounded to avoid deep nesting)."
+          "check": "level >= 1 AND level <= 10",
+          "description": "Tree depth for menus (max levels adjustable via migration if product needs it)."
         },
         "icon": {
           "type": "TEXT",

@@ -7,6 +7,9 @@ from app.models.module import ModuleModel
 from app.repositories.module_repository import ModuleRepository
 from app.schemas.module import ModuleCategory, ModuleCreate, ModuleUpdate
 
+# Deepest allowed stored ``level`` (root = 1). Raise migration + model check if this changes.
+MAX_MODULE_TREE_LEVEL = 10
+
 
 class ModuleReader(Protocol):
     def list_modules(self, *, category: ModuleCategory | None = None) -> list[ModuleModel]: ...
@@ -26,7 +29,7 @@ class ParentModuleNotFoundError(Exception):
 
 
 class MaxTreeDepthError(Exception):
-    """Cannot add or move under a parent at level 4."""
+    """Cannot add or move under a parent that is already at ``MAX_MODULE_TREE_LEVEL``."""
 
 
 class ModuleNotFoundError(Exception):
@@ -91,17 +94,14 @@ def create_module(
     *,
     actor_id: UUID | None,
 ) -> ModuleModel:
-    """Persist ``level`` only from the tree: root → 1, child → ``parent.level + 1``.
-
-    ``ModuleCreate.level`` is ignored so body depth cannot disagree with ``parent_id``.
-    """
+    """Persist ``level`` only from the tree: root → 1, child → ``parent.level + 1``."""
     parent_id = payload.parent_id
 
     if parent_id is not None:
         parent = repository.get_module_by_id(parent_id)
         if parent is None:
             raise ParentModuleNotFoundError
-        if parent.level >= 4:
+        if parent.level >= MAX_MODULE_TREE_LEVEL:
             raise MaxTreeDepthError
         level = parent.level + 1
     else:
@@ -142,7 +142,7 @@ def update_module(
             parent = repository.get_module_by_id(new_parent_id)
             if parent is None:
                 raise ParentModuleNotFoundError
-            if parent.level >= 4:
+            if parent.level >= MAX_MODULE_TREE_LEVEL:
                 raise MaxTreeDepthError
             if _would_create_cycle(repository, module_id, new_parent_id):
                 raise InvalidParentCycleError

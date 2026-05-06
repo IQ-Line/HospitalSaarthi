@@ -26,7 +26,11 @@ class ModuleResponse(BaseModel):
     description: str | None = None
     category: ModuleCategory
     version: str
-    level: int = Field(ge=1, le=4, description="Tree depth for navigation (bounded 1–4).")
+    level: int = Field(
+        ge=1,
+        le=10,
+        description="Nesting depth (parent → child → child …); computed by the API.",
+    )
     icon: str | None = Field(default=None, description="Optional UI icon token.")
     is_active: bool = Field(description="False hides the module from default admin navigation.")
     is_deleted: bool = Field(
@@ -69,7 +73,7 @@ class ModuleCreate(BaseModel):
 
 
 class ModuleUpdate(BaseModel):
-    """PATCH body — all fields optional (``level`` is never accepted; derived from ``parent_id``)."""
+    """PATCH — optional fields; ``level`` not accepted (computed from ``parent_id``)."""
 
     model_config = ConfigDict(extra="forbid")
 

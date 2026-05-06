@@ -18,6 +18,7 @@ from app.schemas.module import (
     ModuleUpdate,
 )
 from app.services.module_service import (
+    MAX_MODULE_TREE_LEVEL,
     InvalidParentCycleError,
     MaxTreeDepthError,
     ModuleNotFoundError,
@@ -31,6 +32,11 @@ from app.services.module_service import (
 )
 
 router = APIRouter(prefix="/modules", tags=["Modules"])
+
+_MAX_NESTING_EXCEEDED = (
+    "That parent is already at the deepest allowed nesting level ("
+    f"{MAX_MODULE_TREE_LEVEL})."
+)
 
 
 @router.get("", response_model=ModuleListResponse, summary="List registered platform modules")
@@ -49,9 +55,9 @@ def get_modules(
     status_code=status.HTTP_201_CREATED,
     summary="Create a module",
     description=(
-        "Registers a catalog row. **Do not send `level`** — it is not part of the request schema; "
-        "depth is computed: no `parent_id` → **1**, with `parent_id` → **parent.level + 1** "
-        "(max **4**)."
+        "Adds one catalog module. Omit **parent_id** for a top-level row. "
+        "To nest, set **parent_id** to another module’s id — each step is one level deeper "
+        "(parent → child → child, like folders). **level** is not sent; the API fills it."
     ),
 )
 def post_module(
@@ -79,10 +85,7 @@ def post_module(
     except MaxTreeDepthError:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content=error_payload(
-                "BAD_REQUEST",
-                "Cannot add a child under a module at tree depth 4.",
-            ),
+            content=error_payload("BAD_REQUEST", _MAX_NESTING_EXCEEDED),
         )
     return ModuleSingleResponse(data=ModuleResponse.model_validate(module))
 
@@ -165,10 +168,7 @@ def patch_module(
     except MaxTreeDepthError:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content=error_payload(
-                "BAD_REQUEST",
-                "Cannot attach under a module at tree depth 4.",
-            ),
+            content=error_payload("BAD_REQUEST", _MAX_NESTING_EXCEEDED),
         )
     except InvalidParentCycleError:
         return JSONResponse(

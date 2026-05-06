@@ -369,7 +369,7 @@ components:
         level:
           type: integer
           minimum: 1
-          maximum: 4
+          maximum: 10
         icon:
           type: string
           nullable: true
