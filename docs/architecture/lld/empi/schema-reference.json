@@ -117,16 +117,6 @@
           "nullable": true,
           "description": "Patient occupation. Free-text."
         },
-        "religion": {
-          "type": "TEXT",
-          "nullable": true,
-          "description": "Religion."
-        },
-        "caste": {
-          "type": "TEXT",
-          "nullable": true,
-          "description": "Caste category (General, OBC, SC, ST). Required for government hospital reporting."
-        },
         "nationality": {
           "type": "TEXT",
           "nullable": false,

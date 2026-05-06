@@ -45,8 +45,6 @@ export interface Patient {
   alternate_phone: string | null;
   blood_group: BloodGroup | null;
   occupation: string | null;
-  religion: string | null;
-  caste: string | null;
   nationality: string;
   education: string | null;
   emergency_contact_name: string | null;
@@ -80,8 +78,6 @@ export interface CreatePatientData {
   alternate_phone?: string | null;
   blood_group?: BloodGroup | null;
   occupation?: string | null;
-  religion?: string | null;
-  caste?: string | null;
   nationality?: string;
   education?: string | null;
   emergency_contact_name?: string | null;
@@ -109,8 +105,6 @@ export interface UpdatePatientData {
   alternate_phone?: string | null;
   blood_group?: BloodGroup | null;
   occupation?: string | null;
-  religion?: string | null;
-  caste?: string | null;
   nationality?: string;
   education?: string | null;
   emergency_contact_name?: string | null;

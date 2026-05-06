@@ -305,10 +305,6 @@ components:
           enum: ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
         occupation:
           type: string
-        religion:
-          type: string
-        caste:
-          type: string
         nationality:
           type: string
           default: Indian
@@ -359,10 +355,6 @@ components:
         blood_group:
           type: string
         occupation:
-          type: string
-        religion:
-          type: string
-        caste:
           type: string
         nationality:
           type: string

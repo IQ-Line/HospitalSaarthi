@@ -122,8 +122,6 @@ export class DrizzlePatientRepo implements PatientRepo {
         alternate_phone: data.alternate_phone ?? null,
         blood_group: data.blood_group ?? null,
         occupation: data.occupation ?? null,
-        religion: data.religion ?? null,
-        caste: data.caste ?? null,
         nationality: data.nationality ?? "Indian",
         education: data.education ?? null,
         emergency_contact_name: data.emergency_contact_name ?? null,

@@ -43,8 +43,6 @@ export const patients = empiSchema.table(
     alternate_phone: text("alternate_phone"),
     blood_group: text("blood_group"),
     occupation: text("occupation"),
-    religion: text("religion"),
-    caste: text("caste"),
     nationality: text("nationality").notNull().default("Indian"),
     education: text("education"),
     emergency_contact_name: text("emergency_contact_name"),

@@ -806,46 +806,6 @@
           "createAt": 1777700000000
         }
       },
-      "a3371443-2b96-404e-be42-079f2fcf529a": {
-        "id": "a3371443-2b96-404e-be42-079f2fcf529a",
-        "tableId": "5f3fe955-41f3-47c9-b23a-680775e31caa",
-        "name": "religion",
-        "comment": "Religion",
-        "dataType": "TEXT",
-        "default": "",
-        "options": 0,
-        "ui": {
-          "keys": 0,
-          "widthName": 64,
-          "widthComment": 60,
-          "widthDataType": 60,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
-      },
-      "93618d14-f970-4c28-963b-b3d08f70d696": {
-        "id": "93618d14-f970-4c28-963b-b3d08f70d696",
-        "tableId": "5f3fe955-41f3-47c9-b23a-680775e31caa",
-        "name": "caste",
-        "comment": "Caste category",
-        "dataType": "TEXT",
-        "default": "",
-        "options": 0,
-        "ui": {
-          "keys": 0,
-          "widthName": 60,
-          "widthComment": 84,
-          "widthDataType": 60,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
-      },
       "1c05c32e-9104-4933-994e-f5184224bc37": {
         "id": "1c05c32e-9104-4933-994e-f5184224bc37",
         "tableId": "5f3fe955-41f3-47c9-b23a-680775e31caa",
