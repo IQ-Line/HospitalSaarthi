@@ -1,4 +1,5 @@
-import { index, pgSchema, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { tenantColumn, auditColumns } from "@hims/ts-sdk-db";
+import { index, pgSchema, primaryKey, text, unique, uuid } from "drizzle-orm/pg-core";
 
 /** Citus: distributed by `iq_tenant_id` (see User Management LLD §13). */
 export const userManagementSchema = pgSchema("user_management");
@@ -6,16 +7,12 @@ export const userManagementSchema = pgSchema("user_management");
 export const users = userManagementSchema.table(
   "users",
   {
-    iq_tenant_id: uuid("iq_tenant_id").notNull(),
+    ...tenantColumn(),
     id: uuid("id").notNull().defaultRandom(),
     full_name: text("full_name").notNull(),
     email: text("email"),
     phone: text("phone"),
-    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updated_at: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow()
-      .$onUpdate(() => new Date()),
+    ...auditColumns(),
   },
   (t) => [primaryKey({ columns: [t.iq_tenant_id, t.id] })],
 );
@@ -23,11 +20,11 @@ export const users = userManagementSchema.table(
 export const role_assignments = userManagementSchema.table(
   "role_assignments",
   {
-    iq_tenant_id: uuid("iq_tenant_id").notNull(),
+    ...tenantColumn(),
     id: uuid("id").notNull().defaultRandom(),
     user_id: uuid("user_id").notNull(),
     role_id: uuid("role_id").notNull(),
-    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    ...auditColumns(),
   },
   (t) => [
     primaryKey({ columns: [t.iq_tenant_id, t.id] }),

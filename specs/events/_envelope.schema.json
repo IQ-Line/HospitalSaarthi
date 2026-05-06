@@ -23,7 +23,7 @@
     },
     "event_type": {
       "type": "string",
-      "pattern": "^[a-z]+\\.[a-z][a-z0-9-]*\\.[a-z][a-z0-9-]*$",
+      "pattern": "^[a-z][a-z0-9-]*\\.[a-z][a-z0-9-]*\\.[a-z][a-z0-9-]*$",
       "description": "Dot-separated: <module>.<entity>.<action>. Example: empi.patient.created",
       "examples": [
         "empi.patient.created",

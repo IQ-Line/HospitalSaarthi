@@ -1,7 +1,7 @@
-import type { AssignRoleInput, RoleAssignment, RoleAssignmentRepository } from "../ports.js";
+import type { DbInstance } from "@hims/ts-sdk-db";
+import type { AssignRoleInput, RoleAssignment, RoleAssignmentRepository } from "../ports/index.js";
 import { DuplicateRoleAssignmentError } from "../domain/errors.js";
 import { role_assignments } from "../schema/tables.js";
-import type { UserManagementDb } from "./user-repository.js";
 
 function isPostgresUniqueViolation(error: unknown): boolean {
   return (
@@ -21,7 +21,7 @@ function rowToRoleAssignment(row: {
 }
 
 export class DrizzleRoleAssignmentRepository implements RoleAssignmentRepository {
-  constructor(private readonly db: UserManagementDb) {}
+  constructor(private readonly db: DbInstance) {}
 
   async assignRole(tenantId: string, input: AssignRoleInput): Promise<RoleAssignment> {
     try {

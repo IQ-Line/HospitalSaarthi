@@ -1,4 +1,4 @@
-import type { AuthContext, Principal, PrincipalService } from "../ports.js";
+import type { AuthContext, Principal, PrincipalService } from "../ports/index.js";
 
 export type GetPrincipalDeps = {
   principalService: PrincipalService;

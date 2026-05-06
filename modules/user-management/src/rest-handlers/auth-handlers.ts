@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import type { AuthContext } from "../ports.js";
+import type { AuthContext } from "../ports/index.js";
 import { getPrincipal } from "../use-cases/get-principal.js";
 import type { GetPrincipalDeps } from "../use-cases/get-principal.js";
 import { getUserById } from "../use-cases/get-user.js";

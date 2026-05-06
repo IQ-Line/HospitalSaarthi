@@ -1,4 +1,4 @@
-import type { UpdateUserInput, User, UserRepository } from "../ports.js";
+import type { UpdateUserInput, User, UserRepository } from "../ports/index.js";
 
 export type UpdateUserDeps = {
   userRepository: UserRepository;

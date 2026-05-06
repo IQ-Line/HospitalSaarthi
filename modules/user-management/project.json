@@ -1,0 +1,18 @@
+{
+  "name": "user-management",
+  "tags": ["type:module", "scope:platform"],
+  "targets": {
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "modules/user-management"
+      }
+    },
+    "lint": {
+      "command": "eslint src/",
+      "options": {
+        "cwd": "modules/user-management"
+      }
+    }
+  }
+}

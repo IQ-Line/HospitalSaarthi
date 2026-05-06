@@ -1,18 +1,14 @@
+import type { DbInstance } from "@hims/ts-sdk-db";
 import { and, eq } from "drizzle-orm";
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import type { CreateUserInput, UpdateUserInput, User, UserRepository } from "../ports.js";
+import type { CreateUserInput, UpdateUserInput, User, UserRepository } from "../ports/index.js";
 import { role_assignments, users } from "../schema/tables.js";
-
-const schema = { users, role_assignments } as const;
-
-export type UserManagementDb = NodePgDatabase<typeof schema>;
 
 function rowToUser(row: { id: string; full_name: string }): User {
   return { id: row.id, full_name: row.full_name };
 }
 
 export class DrizzleUserRepository implements UserRepository {
-  constructor(private readonly db: UserManagementDb) {}
+  constructor(private readonly db: DbInstance) {}
 
   async createUser(tenantId: string, input: CreateUserInput): Promise<User> {
     const [row] = await this.db
@@ -46,6 +42,7 @@ export class DrizzleUserRepository implements UserRepository {
       full_name: string;
       email: string | null;
       phone: string | null;
+      updated_at: Date;
     }> = {};
 
     if (input.full_name !== undefined) {
@@ -61,6 +58,8 @@ export class DrizzleUserRepository implements UserRepository {
     if (Object.keys(patch).length === 0) {
       return this.getUserById(tenantId, userId);
     }
+
+    patch.updated_at = new Date();
 
     const [row] = await this.db
       .update(users)

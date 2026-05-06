@@ -1,4 +1,4 @@
-import type { User, UserRepository } from "../ports.js";
+import type { User, UserRepository } from "../ports/index.js";
 
 export type GetUserDeps = {
   userRepository: UserRepository;

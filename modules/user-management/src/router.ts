@@ -1,21 +1,19 @@
-import type { FastifyInstance, FastifyRequest } from "fastify";
-import { createInMemoryUserManagementDb } from "./data-access/in-memory-user-management-db.js";
-import { DrizzleRoleAssignmentRepository } from "./data-access/role-assignment-repository.js";
-import { DrizzleUserRepository, type UserManagementDb } from "./data-access/user-repository.js";
-import { registerAuthHandlers } from "./http-handlers/auth-handlers.js";
-import { registerRoleHandlers } from "./http-handlers/role-handlers.js";
-import { registerUserHandlers } from "./http-handlers/user-handlers.js";
-import type { AuthContext, EventPublisher, Principal, PrincipalService } from "./ports.js";
+import type { EventBus } from "@hims/ts-sdk-events";
+import type { FastifyInstance, FastifyPluginAsync, FastifyRequest } from "fastify";
+import fp from "fastify-plugin";
+import type {
+  AuthContext,
+  Principal,
+  PrincipalService,
+  RoleAssignmentRepository,
+  UserRepository,
+} from "./ports/index.js";
+import { registerAuthHandlers } from "./rest-handlers/auth-handlers.js";
+import { registerRoleHandlers } from "./rest-handlers/role-handlers.js";
+import { registerUserHandlers } from "./rest-handlers/user-handlers.js";
 
 const STUB_TENANT_ID = "550e8400-e29b-41d4-a716-446655440001";
 const STUB_USER_ID = "550e8400-e29b-41d4-a716-446655440002";
-
-function createNoOpEventPublisher(): EventPublisher {
-  return {
-    async publishUserCreated() {},
-    async publishRoleAssignmentChanged() {},
-  };
-}
 
 /** Minimal PEP stub until PrincipalService is implemented with real enrichment. */
 function createStubPrincipalService(): PrincipalService {
@@ -37,30 +35,37 @@ function createStubPrincipalService(): PrincipalService {
   };
 }
 
-/**
- * Registers User Management HTTP routes.
- * Omit `db` (or pass `undefined`) to use an in-memory stub; pass a Drizzle `UserManagementDb` for Postgres.
- */
-export function registerUserManagementRoutes(fastify: FastifyInstance, db?: UserManagementDb): void {
-  const resolvedDb = db ?? createInMemoryUserManagementDb();
-  const userRepository = new DrizzleUserRepository(resolvedDb);
-  const roleAssignmentRepository = new DrizzleRoleAssignmentRepository(resolvedDb);
-  const eventPublisher = createNoOpEventPublisher();
+export interface UserManagementPluginOptions {
+  userRepository: UserRepository;
+  roleAssignmentRepository: RoleAssignmentRepository;
+  eventBus: EventBus;
+  getTenantId?: (request: FastifyRequest) => string;
+  getUserId?: (request: FastifyRequest) => string;
+}
+
+const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> = async (
+  fastify,
+  options,
+) => {
+  const { userRepository, roleAssignmentRepository, eventBus } = options;
   const principalService = createStubPrincipalService();
 
-  const getTenantId = (_request: FastifyRequest) => STUB_TENANT_ID;
-  const getUserId = (_request: FastifyRequest) => STUB_USER_ID;
+  const getTenantId = options.getTenantId ?? ((_request: FastifyRequest) => STUB_TENANT_ID);
+  const getUserId = options.getUserId ?? ((_request: FastifyRequest) => STUB_USER_ID);
+  const getActorId = getUserId;
 
   registerUserHandlers(fastify, {
     getTenantId,
-    createUserDeps: { userRepository, eventPublisher },
+    getActorId,
+    createUserDeps: { userRepository, eventBus },
     getUserDeps: { userRepository },
     updateUserDeps: { userRepository },
   });
 
   registerRoleHandlers(fastify, {
     getTenantId,
-    assignRoleDeps: { roleAssignmentRepository, eventPublisher },
+    getActorId,
+    assignRoleDeps: { roleAssignmentRepository, eventBus },
   });
 
   registerAuthHandlers(fastify, {
@@ -69,4 +74,9 @@ export function registerUserManagementRoutes(fastify: FastifyInstance, db?: User
     getUserDeps: { userRepository },
     getPrincipalDeps: { principalService },
   });
-}
+};
+
+export const userManagementPlugin = fp(userManagementPluginImpl, {
+  fastify: "5.x",
+  name: "@hims/user-management",
+});

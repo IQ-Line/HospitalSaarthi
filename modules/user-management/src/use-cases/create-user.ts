@@ -1,22 +1,40 @@
-import type { CreateUserInput, EventPublisher, User, UserRepository } from "../ports.js";
+import type { CreateEnvelopeInput, EventBus } from "@hims/ts-sdk-events";
+import { createEnvelope } from "@hims/ts-sdk-events";
+import { USER_MANAGEMENT_EVENT_USER_CREATED } from "../events/constants.js";
+import type { CreateUserInput, User, UserRepository } from "../ports/index.js";
 
 export type CreateUserDeps = {
   userRepository: UserRepository;
-  eventPublisher: EventPublisher;
+  eventBus: EventBus;
+};
+
+export type CreateUserContext = {
+  tenantId: string;
+  actorId: string;
+  correlationId: string;
 };
 
 /**
- * Creates a tenant-scoped platform user and emits `user.created` (or equivalent) for consumers.
+ * Creates a tenant-scoped platform user and publishes `user-management.user.created`.
  */
 export async function createUser(
   deps: CreateUserDeps,
-  tenantId: string,
+  ctx: CreateUserContext,
   input: CreateUserInput,
 ): Promise<User> {
   if (typeof input.full_name !== "string" || input.full_name.trim() === "") {
     throw new Error("full_name is required");
   }
-  const user = await deps.userRepository.createUser(tenantId, input);
-  await deps.eventPublisher.publishUserCreated(tenantId, user);
+  const user = await deps.userRepository.createUser(ctx.tenantId, input);
+  const envelopeInput: CreateEnvelopeInput<{ id: string; full_name: string }> = {
+    event_type: USER_MANAGEMENT_EVENT_USER_CREATED,
+    source_module: "user-management",
+    iq_tenant_id: ctx.tenantId,
+    correlation_id: ctx.correlationId,
+    actor_id: ctx.actorId,
+    schema_version: "1.0.0",
+    payload: { id: user.id, full_name: user.full_name },
+  };
+  await deps.eventBus.publish(createEnvelope(envelopeInput));
   return user;
 }

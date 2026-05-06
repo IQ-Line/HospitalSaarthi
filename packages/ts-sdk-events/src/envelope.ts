@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import type { DomainEvent } from './types.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const EVENT_TYPE_RE = /^[a-z]+\.[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*$/;
+/** Three dot-separated segments: <module>.<entity>.<action> (module may contain hyphens, e.g. user-management). */
+const EVENT_TYPE_RE = /^[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*$/;
 const SEMVER_RE = /^\d+\.\d+\.\d+$/;
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 

@@ -1,5 +1,6 @@
+import { randomUUID } from "node:crypto";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import type { CreateUserInput, UpdateUserInput } from "../ports.js";
+import type { CreateUserInput, UpdateUserInput } from "../ports/index.js";
 import { createUser } from "../use-cases/create-user.js";
 import type { CreateUserDeps } from "../use-cases/create-user.js";
 import { getUserById } from "../use-cases/get-user.js";
@@ -10,6 +11,7 @@ import type { UpdateUserDeps } from "../use-cases/update-user.js";
 export type UserHandlersDeps = {
   /** Stub until tenant middleware wires `iq_tenant_id` from JWT. */
   getTenantId: (request: FastifyRequest) => string;
+  getActorId: (request: FastifyRequest) => string;
   createUserDeps: CreateUserDeps;
   getUserDeps: GetUserDeps;
   updateUserDeps: UpdateUserDeps;
@@ -25,8 +27,14 @@ function mapError(reply: FastifyReply, err: unknown) {
 export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandlersDeps): void {
   fastify.post<{ Body: CreateUserInput }>("/users", async (request, reply) => {
     const tenantId = deps.getTenantId(request);
+    const actorId = deps.getActorId(request);
+    const correlationId = randomUUID();
     try {
-      const user = await createUser(deps.createUserDeps, tenantId, request.body);
+      const user = await createUser(
+        deps.createUserDeps,
+        { tenantId, actorId, correlationId },
+        request.body,
+      );
       return reply.status(201).send(user);
     } catch (err) {
       return mapError(reply, err);

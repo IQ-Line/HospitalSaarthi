@@ -1,6 +1,5 @@
 /**
- * Port interfaces for User Management (Layer 3 platform data + AuthN adapter boundaries).
- * Implementations live in data-access / adapters; no DB or HTTP types here.
+ * Domain data shapes (entities, inputs, auth context) — no behavior, no infrastructure.
  */
 
 /** Matches OpenAPI `User` / `components.schemas.User`. */
@@ -23,12 +22,6 @@ export interface UpdateUserInput {
   phone?: string | null;
 }
 
-export interface UserRepository {
-  createUser(tenantId: string, input: CreateUserInput): Promise<User>;
-  getUserById(tenantId: string, userId: string): Promise<User | null>;
-  updateUser(tenantId: string, userId: string, input: UpdateUserInput): Promise<User | null>;
-}
-
 /** POST /role-assignments 201 response shape. */
 export interface RoleAssignment {
   id: string;
@@ -42,21 +35,10 @@ export interface AssignRoleInput {
   role_id: string;
 }
 
-export interface RoleAssignmentRepository {
-  assignRole(tenantId: string, input: AssignRoleInput): Promise<RoleAssignment>;
-}
-
 /** Verified JWT identity: platform `users.id` (`sub`) and `iq_tenant_id` for this session. */
 export interface AuthContext {
   userId: string;
   tenantId: string;
-}
-
-/**
- * Wraps better-auth / JWT verification. Resolves `sub` and `iq_tenant_id` from the active request.
- */
-export interface AuthProvider {
-  getAuthContext(): Promise<AuthContext | null>;
 }
 
 /** GET /auth/principal `attributes` object. */
@@ -74,17 +56,4 @@ export interface Principal {
   id: string;
   roles: string[];
   attributes: PrincipalAttributes;
-}
-
-/**
- * Builds the PEP-enriched principal (JWT claims + cached AuthZ data per LLD §7).
- * Callers pass verified context from {@link AuthProvider}; enrichment uses User Management data.
- */
-export interface PrincipalService {
-  getPrincipal(context: AuthContext): Promise<Principal>;
-}
-
-export interface EventPublisher {
-  publishUserCreated(tenantId: string, user: User): Promise<void>;
-  publishRoleAssignmentChanged(tenantId: string, assignment: RoleAssignment): Promise<void>;
 }

@@ -1,0 +1,19 @@
+{
+  "name": "@hims/user-management-svc",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/main.ts"
+  },
+  "dependencies": {
+    "@hims/ts-sdk-db": "workspace:*",
+    "@hims/ts-sdk-events": "workspace:*",
+    "@hims/user-management": "workspace:*",
+    "fastify": "^5.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3"
+  }
+}

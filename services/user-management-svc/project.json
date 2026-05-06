@@ -1,0 +1,25 @@
+{
+  "name": "user-management-svc",
+  "tags": ["type:app", "scope:platform"],
+  "targets": {
+    "serve": {
+      "command": "tsx src/main.ts",
+      "options": {
+        "cwd": "services/user-management-svc"
+      }
+    },
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "services/user-management-svc"
+      }
+    },
+    "build": {
+      "dependsOn": [],
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "services/user-management-svc"
+      }
+    }
+  }
+}
