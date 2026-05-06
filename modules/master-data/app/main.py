@@ -7,8 +7,8 @@ from app.api.errors import register_exception_handlers
 from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
+from app.middleware.auth_middleware import BearerAuthContextMiddleware
 from app.middleware.request_context import RequestContextMiddleware
-from app.utils.auth_middleware import BearerAuthContextMiddleware
 
 logger = logging.getLogger(__name__)
 

@@ -52,6 +52,9 @@ Registry of all deployable modules — 4 core + ~38 feature modules from the AII
 
 Platform-wide list of permission verbs with **`slug`** (policy-stable) and **`action`** (`create` \| `read` \| `update` \| `delete` \| `manage`). Seeded or extended by migrations and platform ops.
 
+CRUD is exposed under `/api/v1/master-data/permissions` (`GET/POST`) and
+`/api/v1/master-data/permissions/{permissionId}` (`GET/PATCH/DELETE`) with soft-delete semantics.
+
 ---
 
 ## 4. Module–permission mapping (`module_permissions`)
@@ -63,6 +66,8 @@ Join table: which **`permissions`** apply to which **`modules`**. Each row has i
 ## 5. Role templates (`system_roles`)
 
 Named role **templates** (e.g. Ward Clerk). **`is_template`** distinguishes catalog rows from instantiated roles elsewhere. Real membership and Cerbos principal attributes live outside `master_data`.
+
+Catalog CRUD is exposed under **`/api/v1/master-data/system-roles`** (see OpenAPI and [`02-api-contracts.md`](./02-api-contracts.md)); **`slug`** is unique among active rows (partial unique index), matching the **`permissions`** pattern.
 
 ---
 
@@ -153,9 +158,9 @@ The Configurator does **not** query `master_data.*` directly at runtime. It main
 | Table | Missing | Justification |
 |-------|---------|---------------|
 | `module_config_schemas` | `created_by`, `updated_by` | Declared by deployments |
-| `permissions`, `module_permissions`, `system_roles`, `picklist`, `picklist_values` | `created_by`, `updated_by` | Same — catalog seeded/migrated; optional to add later for human edits |
+| `module_permissions`, `system_roles`, `picklist`, `picklist_values` | `created_by`, `updated_by` | Catalog rows currently seeded/migrated; optional to add later for human edits |
 
-`feature_flags` retains `created_by` / `updated_by` for operator-defined flags.
+`permissions` and `feature_flags` retain `created_by` / `updated_by` for operator-defined edits.
 
 ---
 

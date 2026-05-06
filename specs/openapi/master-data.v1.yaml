@@ -10,6 +10,440 @@ info:
 servers:
   - url: /api/v1/master-data
 paths:
+  /permissions:
+    get:
+      operationId: listPermissions
+      summary: List permission definitions
+      description: Returns active permission catalog rows (`is_deleted = false`).
+      security: []
+      tags:
+        - Permissions
+      parameters:
+        - name: action
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/PermissionAction"
+          description: Optional action filter.
+      responses:
+        "200":
+          description: Permission catalog rows.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PermissionListResponse"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createPermission
+      summary: Create a permission
+      security: []
+      tags:
+        - Permissions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PermissionCreate"
+      responses:
+        "201":
+          description: Permission created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PermissionSingleResponse"
+        "400":
+          description: Invalid payload or constraint.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Slug conflict with another active permission.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /permissions/by-slug/{slug}:
+    get:
+      operationId: getPermissionBySlug
+      summary: Get one permission by slug
+      security: []
+      tags:
+        - Permissions
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Permission found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PermissionSingleResponse"
+        "404":
+          description: No permission with this slug.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /permissions/{permissionId}:
+    get:
+      operationId: getPermissionById
+      summary: Get one permission by id
+      security: []
+      tags:
+        - Permissions
+      parameters:
+        - name: permissionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Permission found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PermissionSingleResponse"
+        "404":
+          description: Permission id not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updatePermission
+      summary: Update a permission
+      security: []
+      tags:
+        - Permissions
+      parameters:
+        - name: permissionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PermissionUpdate"
+      responses:
+        "200":
+          description: Permission updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PermissionSingleResponse"
+        "400":
+          description: Invalid payload or constraint.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Permission id not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Slug conflict with another active permission.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deletePermission
+      summary: Soft-delete a permission
+      description: Sets `is_deleted = true`; no hard delete.
+      security: []
+      tags:
+        - Permissions
+      parameters:
+        - name: permissionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Permission marked deleted (`is_deleted` true).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PermissionSingleResponse"
+        "404":
+          description: Permission id not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /system-roles:
+    get:
+      operationId: listSystemRoles
+      summary: List system role templates
+      description: >
+        Active catalog rows (`is_deleted = false`). **`slug`** is unique per active row —
+        use one row per template (e.g. `ward-clerk`); do not reuse the same slug for different
+        meanings. Optional filter **`is_template`** selects template catalog rows vs future
+        non-template rows if introduced.
+      security: []
+      tags:
+        - System roles
+      parameters:
+        - name: is_template
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: When set, return only rows where `is_template` matches.
+      responses:
+        "200":
+          description: System role templates.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemRoleListResponse"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createSystemRole
+      summary: Create a system role template
+      description: >
+        Registers a named role **template** for onboarding and policy docs. User Management
+        owns runtime role assignment; this table is catalog only. **`slug`** must be unique
+        among non-deleted rows (409 if an active row already uses it).
+      security: []
+      tags:
+        - System roles
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SystemRoleCreate"
+      responses:
+        "201":
+          description: System role created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemRoleSingleResponse"
+        "400":
+          description: Invalid payload or constraint.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Slug conflict with another active system role.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /system-roles/by-slug/{slug}:
+    get:
+      operationId: getSystemRoleBySlug
+      summary: Get one system role by slug
+      security: []
+      tags:
+        - System roles
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: System role found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemRoleSingleResponse"
+        "404":
+          description: No system role with this slug.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /system-roles/{systemRoleId}:
+    get:
+      operationId: getSystemRoleById
+      summary: Get one system role by id
+      security: []
+      tags:
+        - System roles
+      parameters:
+        - name: systemRoleId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: System role found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemRoleSingleResponse"
+        "404":
+          description: System role id not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateSystemRole
+      summary: Update a system role template
+      security: []
+      tags:
+        - System roles
+      parameters:
+        - name: systemRoleId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SystemRoleUpdate"
+      responses:
+        "200":
+          description: System role updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemRoleSingleResponse"
+        "400":
+          description: Invalid payload or constraint.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: System role id not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Slug conflict with another active system role.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteSystemRole
+      summary: Soft-delete a system role template
+      description: Sets `is_deleted = true`; no hard delete.
+      security: []
+      tags:
+        - System roles
+      parameters:
+        - name: systemRoleId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: System role marked deleted (`is_deleted` true).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemRoleSingleResponse"
+        "404":
+          description: System role id not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /modules:
     get:
       operationId: listModules
@@ -307,6 +741,220 @@ components:
         - clinical
         - administrative
         - support
+    PermissionAction:
+      type: string
+      enum:
+        - create
+        - read
+        - update
+        - delete
+        - manage
+    PermissionCreate:
+      type: object
+      required:
+        - name
+        - slug
+        - action
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        action:
+          $ref: "#/components/schemas/PermissionAction"
+        description:
+          type: string
+          nullable: true
+        is_active:
+          type: boolean
+          default: true
+    PermissionUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        action:
+          $ref: "#/components/schemas/PermissionAction"
+        description:
+          type: string
+          nullable: true
+        is_active:
+          type: boolean
+        is_deleted:
+          type: boolean
+          description: Set false to restore a soft-deleted permission.
+    Permission:
+      type: object
+      required:
+        - id
+        - name
+        - slug
+        - action
+        - is_active
+        - is_deleted
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        action:
+          $ref: "#/components/schemas/PermissionAction"
+        description:
+          type: string
+          nullable: true
+        is_active:
+          type: boolean
+        is_deleted:
+          type: boolean
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    PermissionSingleResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: "#/components/schemas/Permission"
+    PermissionListResponse:
+      type: object
+      required:
+        - data
+        - total
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Permission"
+        total:
+          type: integer
+          minimum: 0
+    SystemRoleCreate:
+      type: object
+      required:
+        - name
+        - slug
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+          description: >
+            Stable template key (unique among active rows). One slug = one catalog template;
+            use distinct slugs per template (e.g. `ward-clerk`, `lab-supervisor`).
+        description:
+          type: string
+          nullable: true
+        is_template:
+          type: boolean
+          default: true
+          description: >
+            True for platform catalog templates. Instantiated tenant roles live outside
+            `master_data`.
+        is_active:
+          type: boolean
+          default: true
+    SystemRoleUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+          nullable: true
+        is_template:
+          type: boolean
+        is_active:
+          type: boolean
+        is_deleted:
+          type: boolean
+          description: Set false to restore a soft-deleted system role.
+    SystemRole:
+      type: object
+      required:
+        - id
+        - name
+        - slug
+        - is_template
+        - is_active
+        - is_deleted
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        is_template:
+          type: boolean
+        description:
+          type: string
+          nullable: true
+        is_active:
+          type: boolean
+        is_deleted:
+          type: boolean
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    SystemRoleSingleResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: "#/components/schemas/SystemRole"
+    SystemRoleListResponse:
+      type: object
+      required:
+        - data
+        - total
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/SystemRole"
+        total:
+          type: integer
+          minimum: 0
     ModuleCreate:
       type: object
       required:

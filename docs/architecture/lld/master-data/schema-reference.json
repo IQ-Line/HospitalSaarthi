@@ -166,7 +166,6 @@
         "slug": {
           "type": "TEXT",
           "nullable": false,
-          "unique": true,
           "description": "Stable permission key referenced in policies and UI gating hints."
         },
         "action": {
@@ -179,10 +178,32 @@
           "type": "TEXT",
           "nullable": true
         },
+        "is_active": {
+          "type": "BOOLEAN",
+          "nullable": false,
+          "default": "true",
+          "description": "Catalog visibility/enabled flag."
+        },
+        "is_deleted": {
+          "type": "BOOLEAN",
+          "nullable": false,
+          "default": "false",
+          "description": "Soft-delete flag; read APIs exclude deleted rows by default."
+        },
+        "created_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Actor user id when created through authenticated flows."
+        },
         "created_at": {
           "type": "TIMESTAMPTZ",
           "nullable": false,
           "default": "now()"
+        },
+        "updated_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Last modifier user id."
         },
         "updated_at": {
           "type": "TIMESTAMPTZ",
@@ -198,8 +219,10 @@
           "columns": [
             "slug"
           ],
-          "name": "idx_permissions_slug",
-          "unique": true
+          "name": "permissions_slug_active_key",
+          "unique": true,
+          "partial_where": "NOT is_deleted",
+          "note": "Unique slug among active rows."
         }
       ]
     },
@@ -297,8 +320,7 @@
         "slug": {
           "type": "TEXT",
           "nullable": false,
-          "unique": true,
-          "description": "Stable role template key."
+          "description": "Stable role template key; unique among active rows (partial unique index)."
         },
         "is_template": {
           "type": "BOOLEAN",
@@ -310,15 +332,37 @@
           "type": "TEXT",
           "nullable": true
         },
+        "is_active": {
+          "type": "BOOLEAN",
+          "nullable": false,
+          "default": "true",
+          "description": "Catalog visibility/enabled flag."
+        },
+        "is_deleted": {
+          "type": "BOOLEAN",
+          "nullable": false,
+          "default": "false",
+          "description": "Soft-delete flag; read APIs exclude deleted rows by default."
+        },
         "created_at": {
           "type": "TIMESTAMPTZ",
           "nullable": false,
           "default": "now()"
         },
+        "created_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Actor user id when created through authenticated flows."
+        },
         "updated_at": {
           "type": "TIMESTAMPTZ",
           "nullable": false,
           "default": "now()"
+        },
+        "updated_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Last modifier user id."
         }
       },
       "primary_key": [
@@ -329,8 +373,10 @@
           "columns": [
             "slug"
           ],
-          "name": "idx_system_roles_slug",
-          "unique": true
+          "name": "system_roles_slug_active_key",
+          "unique": true,
+          "partial_where": "NOT is_deleted",
+          "note": "Unique slug among active rows; soft-delete frees the slug"
         }
       ]
     },
