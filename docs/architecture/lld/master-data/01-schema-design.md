@@ -67,6 +67,8 @@ Join table: which **`permissions`** apply to which **`modules`**. Each row has i
 
 Named role **templates** (e.g. Ward Clerk). **`is_template`** distinguishes catalog rows from instantiated roles elsewhere. Real membership and Cerbos principal attributes live outside `master_data`.
 
+Catalog CRUD is exposed under **`/api/v1/master-data/system-roles`** (see OpenAPI and [`02-api-contracts.md`](./02-api-contracts.md)); **`slug`** is unique among active rows (partial unique index), matching the **`permissions`** pattern.
+
 ---
 
 ## 6. Two-table picklists (`picklist`, `picklist_values`)

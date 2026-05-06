@@ -86,6 +86,12 @@ Typical status mapping:
 | `GET` | `/api/v1/master-data/permissions/{permissionId}` | `getPermissionById` | Get one permission by id; **404** if missing or soft-deleted. |
 | `PATCH` | `/api/v1/master-data/permissions/{permissionId}` | `updatePermission` | Partial update; may set `is_deleted: false` to restore. |
 | `DELETE` | `/api/v1/master-data/permissions/{permissionId}` | `deletePermission` | Soft-delete permission (`is_deleted = true`); **200** returns updated row. |
+| `GET` | `/api/v1/master-data/system-roles` | `listSystemRoles` | List active system role templates; optional `is_template` filter. |
+| `POST` | `/api/v1/master-data/system-roles` | `createSystemRole` | Create role template; **201**; **409** if active slug already exists. |
+| `GET` | `/api/v1/master-data/system-roles/by-slug/{slug}` | `getSystemRoleBySlug` | Get one template by slug; **404** if missing or soft-deleted. |
+| `GET` | `/api/v1/master-data/system-roles/{systemRoleId}` | `getSystemRoleById` | Get one template by id; **404** if missing or soft-deleted. |
+| `PATCH` | `/api/v1/master-data/system-roles/{systemRoleId}` | `updateSystemRole` | Partial update (`SystemRoleUpdate`); may set `is_deleted: false` to restore. |
+| `DELETE` | `/api/v1/master-data/system-roles/{systemRoleId}` | `deleteSystemRole` | Soft-delete template (`is_deleted = true`); **200** returns updated row. |
 
 Single-resource success envelope: **`ModuleSingleResponse`** — `{ "data": Module }` (see OpenAPI `ModuleSingleResponse`).
 
@@ -137,7 +143,6 @@ These align with the MVP tables in [`schema-reference.json`](./schema-reference.
 | Method | Path (proposal) | Summary | Success response shape (proposal) |
 |--------|-----------------|--------|-------------------------------------|
 | `GET` | `/api/v1/master-data/module-permissions` | List module↔permission links | `{ "data": ModulePermission[], "total": int }` |
-| `GET` | `/api/v1/master-data/system-roles` | List role templates | `{ "data": SystemRole[], "total": int }` |
 | `GET` | `/api/v1/master-data/picklists` | List picklist domains | `{ "data": Picklist[], "total": int }` |
 | `GET` | `/api/v1/master-data/picklists/{picklistId}/values` | List values for a picklist | `{ "data": PicklistValue[], "total": int }` |
 | `GET` | `/api/v1/master-data/module-config-schemas` | List declared config schemas | `{ "data": ModuleConfigSchema[], "total": int }` (optional `module_id`, `schema_version`) |
@@ -182,6 +187,10 @@ These align with the MVP tables in [`schema-reference.json`](./schema-reference.
   "slug": "string",
   "is_template": true,
   "description": "string | null",
+  "is_active": true,
+  "is_deleted": false,
+  "created_by": "uuid | null",
+  "updated_by": "uuid | null",
   "created_at": "date-time",
   "updated_at": "date-time"
 }
@@ -256,7 +265,7 @@ These align with the MVP tables in [`schema-reference.json`](./schema-reference.
 }
 ```
 
-The implemented **`Module`** / **`ModuleCreate`** / **`ModuleUpdate`** and **`Permission`** / **`PermissionCreate`** / **`PermissionUpdate`** schemas cover current CRUD. **`created_by` / `updated_by`** are populated from a verified JWT **`sub`** only when **`require_superadmin`** (or equivalent) is attached and the token carries a UUID subject; otherwise they remain **`NULL`**. When you add the remaining §3.2 resources, extend OpenAPI in the same PR as Alembic — especially **`module_permissions.module_id`** → **`modules.id`** (respect soft-delete in joins or document tombstone behavior).
+The implemented **`Module`** / **`ModuleCreate`** / **`ModuleUpdate`**, **`Permission`** / **`PermissionCreate`** / **`PermissionUpdate`**, and **`SystemRole`** / **`SystemRoleCreate`** / **`SystemRoleUpdate`** schemas cover current CRUD. **`created_by` / `updated_by`** are populated from a verified JWT **`sub`** only when **`require_superadmin`** (or equivalent) is attached and the token carries a UUID subject; otherwise they remain **`NULL`**. When you add the remaining §3.2 resources, extend OpenAPI in the same PR as Alembic — especially **`module_permissions.module_id`** → **`modules.id`** (respect soft-delete in joins or document tombstone behavior).
 
 ---
 
