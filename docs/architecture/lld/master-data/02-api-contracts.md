@@ -10,7 +10,7 @@
 Catalog rows live in PostgreSQL (`master_data.modules`). Operators create, update, and retire modules through the **Master Data HTTP API** (`POST`, `PATCH`, `DELETE`). **`DELETE` is a recursive soft-delete** (`is_deleted = true` on the target and active descendants); there is no hard row removal for normal catalog operations.
 
 - **Reads (`GET /modules`, …):** Return active rows (`is_deleted = false`). OpenAPI marks **`security: []`**; a gateway may still enforce identity.
-- **Mutations (`POST` / `PATCH` / `DELETE`):** Phase 0 Python handlers do **not** require `Authorization` at the app layer; OpenAPI uses **`security: []`** on these operations. Production should rely on an **API gateway** (or re-attached FastAPI **`Depends(require_superadmin)`**) before exposing writes. When JWT-based **`require_superadmin`** is enabled, a verified **`sub`** (UUID) fills **`created_by` / `updated_by`**; test-only and dev-bypass paths in **`app/utils/auth_policy.py`** intentionally leave those columns **`NULL`** (no synthetic actor UUIDs). Configure **`MASTER_DATA_JWT_SECRET`** for HS256 verification when JWT validation is on. See [`modules/master-data/.env.example`](../../../../modules/master-data/.env.example) and **`modules/master-data/tests/test_utils/test_auth_policy.py`**.
+- **Mutations (`POST` / `PATCH` / `DELETE`):** Phase 0 Python handlers do **not** require `Authorization` at the app layer; OpenAPI uses **`security: []`** on these operations. Production should rely on an **API gateway** (or re-attached FastAPI **`Depends(require_superadmin)`**) before exposing writes. When JWT-based **`require_superadmin`** is enabled, a verified **`sub`** (UUID) fills **`created_by` / `updated_by`**; test-only and dev-bypass paths in **`app/middleware/auth_policy.py`** intentionally leave those columns **`NULL`** (no synthetic actor UUIDs). Configure **`MASTER_DATA_JWT_SECRET`** for HS256 verification when JWT validation is on. See [`modules/master-data/.env.example`](../../../../modules/master-data/.env.example) and **`modules/master-data/tests/test_utils/test_auth_policy.py`**.
 
 Initial environments may still **seed** baseline rows via Alembic migrations (see [§9](./01-schema-design.md#9-module-registration-lifecycle)); day-to-day catalog changes are via the API.
 
@@ -80,6 +80,12 @@ Typical status mapping:
 | `GET` | `/api/v1/master-data/modules/{moduleId}` | `getModuleById` | Get one module by UUID; **404** if missing or soft-deleted. |
 | `PATCH` | `/api/v1/master-data/modules/{moduleId}` | `updateModule` | Partial update; may set `is_deleted: false` to restore. |
 | `DELETE` | `/api/v1/master-data/modules/{moduleId}` | `deleteModule` | **Recursive soft-delete** (`is_deleted = true` on target + descendants); **200** returns updated parent `Module`. |
+| `GET` | `/api/v1/master-data/permissions` | `listPermissions` | List active permission definitions; optional `action` filter. |
+| `POST` | `/api/v1/master-data/permissions` | `createPermission` | Create permission definition; **201**; **409** if active slug already exists. |
+| `GET` | `/api/v1/master-data/permissions/by-slug/{slug}` | `getPermissionBySlug` | Get one permission by slug; **404** if missing or soft-deleted. |
+| `GET` | `/api/v1/master-data/permissions/{permissionId}` | `getPermissionById` | Get one permission by id; **404** if missing or soft-deleted. |
+| `PATCH` | `/api/v1/master-data/permissions/{permissionId}` | `updatePermission` | Partial update; may set `is_deleted: false` to restore. |
+| `DELETE` | `/api/v1/master-data/permissions/{permissionId}` | `deletePermission` | Soft-delete permission (`is_deleted = true`); **200** returns updated row. |
 
 Single-resource success envelope: **`ModuleSingleResponse`** — `{ "data": Module }` (see OpenAPI `ModuleSingleResponse`).
 
@@ -130,7 +136,6 @@ These align with the MVP tables in [`schema-reference.json`](./schema-reference.
 
 | Method | Path (proposal) | Summary | Success response shape (proposal) |
 |--------|-----------------|--------|-------------------------------------|
-| `GET` | `/api/v1/master-data/permissions` | List permission definitions | `{ "data": Permission[], "total": int }` |
 | `GET` | `/api/v1/master-data/module-permissions` | List module↔permission links | `{ "data": ModulePermission[], "total": int }` |
 | `GET` | `/api/v1/master-data/system-roles` | List role templates | `{ "data": SystemRole[], "total": int }` |
 | `GET` | `/api/v1/master-data/picklists` | List picklist domains | `{ "data": Picklist[], "total": int }` |
@@ -251,7 +256,7 @@ These align with the MVP tables in [`schema-reference.json`](./schema-reference.
 }
 ```
 
-The implemented **`Module`**, **`ModuleCreate`**, and **`ModuleUpdate`** schemas cover CRUD. **`created_by` / `updated_by`** are populated from a verified JWT **`sub`** only when **`require_superadmin`** (or equivalent) is attached and the token carries a UUID subject; otherwise they remain **`NULL`**. When you add the §3.2 resources, extend **`Permission`**, **`ModulePermission`**, etc. in OpenAPI in the same PR as Alembic — especially **`module_permissions.module_id`** → **`modules.id`** (respect soft-delete in joins or document tombstone behavior).
+The implemented **`Module`** / **`ModuleCreate`** / **`ModuleUpdate`** and **`Permission`** / **`PermissionCreate`** / **`PermissionUpdate`** schemas cover current CRUD. **`created_by` / `updated_by`** are populated from a verified JWT **`sub`** only when **`require_superadmin`** (or equivalent) is attached and the token carries a UUID subject; otherwise they remain **`NULL`**. When you add the remaining §3.2 resources, extend OpenAPI in the same PR as Alembic — especially **`module_permissions.module_id`** → **`modules.id`** (respect soft-delete in joins or document tombstone behavior).
 
 ---
 

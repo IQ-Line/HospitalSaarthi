@@ -9,12 +9,14 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
 from app.repositories.module_repository import DuplicateModuleKeyError
+from app.repositories.permission_repository import DuplicatePermissionKeyError
 from app.services.module_service import (
     InvalidParentCycleError,
     MaxTreeDepthError,
     ModuleNotFoundError,
     ParentModuleNotFoundError,
 )
+from app.services.permission_service import PermissionNotFoundError
 
 
 class ResourceNotFoundError(Exception):
@@ -40,6 +42,19 @@ def register_exception_handlers(app: FastAPI) -> None:
             content=error_payload(
                 "CONFLICT",
                 "Another active module already uses this name or slug.",
+            ),
+        )
+
+    @app.exception_handler(DuplicatePermissionKeyError)
+    async def _duplicate_permission_key(
+        _request: Request,
+        _exc: DuplicatePermissionKeyError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content=error_payload(
+                "CONFLICT",
+                "Another active permission already uses this slug.",
             ),
         )
 
@@ -78,6 +93,13 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=404,
             content=error_payload("NOT_FOUND", "No module with this id."),
+        )
+
+    @app.exception_handler(PermissionNotFoundError)
+    async def _permission_missing(_request: Request, _exc: PermissionNotFoundError) -> JSONResponse:
+        return JSONResponse(
+            status_code=404,
+            content=error_payload("NOT_FOUND", "No permission with this id."),
         )
 
     @app.exception_handler(ResourceNotFoundError)

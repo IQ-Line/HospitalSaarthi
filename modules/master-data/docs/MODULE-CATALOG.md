@@ -4,7 +4,7 @@ This document describes how the **modules** slice is implemented in the Python s
 
 ## Catalog lifecycle
 
-- **Runtime (Phase 0):** **`POST`**, **`PATCH`**, and **`DELETE`** on `/api/v1/master-data/modules` are **not** gated by this service’s bearer dependency; a gateway may still authenticate. **`DELETE` sets `is_deleted = true`** — no hard SQL delete in application flows. When **`require_superadmin`** is wired back, **`created_by` / `updated_by`** are set only from a verified JWT **`sub`** (UUID); test bypass / dev shared secret / **`auth_disabled`** leave those columns **`NULL`** (see **`app/utils/auth_policy.py`** and **`tests/test_utils/test_auth_policy.py`**). HS256 verification uses **`MASTER_DATA_JWT_SECRET`** when set — [`.env.example`](../.env.example).
+- **Runtime (Phase 0):** **`POST`**, **`PATCH`**, and **`DELETE`** on `/api/v1/master-data/modules` are **not** gated by this service’s bearer dependency; a gateway may still authenticate. **`DELETE` sets `is_deleted = true`** — no hard SQL delete in application flows. When **`require_superadmin`** is wired back, **`created_by` / `updated_by`** are set only from a verified JWT **`sub`** (UUID); test bypass / dev shared secret / **`auth_disabled`** leave those columns **`NULL`** (see **`app/middleware/auth_policy.py`** and **`tests/test_utils/test_auth_policy.py`**). HS256 verification uses **`MASTER_DATA_JWT_SECRET`** when set — [`.env.example`](../.env.example).
 - **Bootstrap:** Alembic still creates the table and may **seed** core modules (`001_initial_schema`, …). That complements API-driven catalog management; see [LLD §9](../../../docs/architecture/lld/master-data/01-schema-design.md#9-module-registration-lifecycle).
 
 Cross-cutting HLD: [HLD 02 §4.2 — Owns (platform module registry)](../../../docs/architecture/hld/02-core-modules.md#42-owns).
@@ -27,6 +27,7 @@ Cross-cutting HLD: [HLD 02 §4.2 — Owns (platform module registry)](../../../d
 | `003_soft_delete_audit` | Adds `is_deleted` (soft delete; default `false`), optional `created_by` / `updated_by`, index on `is_deleted`. |
 | `004_partial_unique` | Replaces global unique on `name`/`slug` with **partial unique** indexes (`WHERE NOT is_deleted`) so soft-deleted rows do not block reuse of names/slugs (fresh DBs run 002 full unique first, then this replacement). |
 | `005_level_max_10` | Widens `modules.level` check constraint from **4** to **10** for deeper nesting. |
+| `006_permissions_catalog` | Creates `permissions` table (action enum, soft-delete/audit columns) with active-slug unique index. |
 
 **Run migrations on any machine** (same Alembic chain; only `MASTER_DATA_DATABASE_URL` changes):
 
@@ -62,6 +63,12 @@ Cross-cutting HLD: [HLD 02 §4.2 — Owns (platform module registry)](../../../d
 | `GET` | `/api/v1/master-data/modules/{moduleId}` | **404** if missing or soft-deleted. |
 | `PATCH` | `/api/v1/master-data/modules/{moduleId}` | Partial update (`ModuleUpdate`); may set `is_deleted: false` to restore. |
 | `DELETE` | `/api/v1/master-data/modules/{moduleId}` | **Soft-delete (recursive)**; marks target module and active descendants deleted; returns updated parent module. |
+| `GET` | `/api/v1/master-data/permissions` | List active permission definitions (`PermissionListResponse`); optional `action` query filter. |
+| `POST` | `/api/v1/master-data/permissions` | Create (`PermissionCreate`); **201**; **409** on active slug clash. |
+| `GET` | `/api/v1/master-data/permissions/by-slug/{slug}` | **404** if missing or soft-deleted. |
+| `GET` | `/api/v1/master-data/permissions/{permissionId}` | **404** if missing or soft-deleted. |
+| `PATCH` | `/api/v1/master-data/permissions/{permissionId}` | Partial update (`PermissionUpdate`); may set `is_deleted: false` to restore. |
+| `DELETE` | `/api/v1/master-data/permissions/{permissionId}` | Soft-delete permission row; returns updated permission. |
 
 Errors use **`ErrorResponse`** (`error.code`, `error.message`). **`tests/test_api/test_modules_crud_integration.py`** exercises full CRUD against SQLite + real repository.
 

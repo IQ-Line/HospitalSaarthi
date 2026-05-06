@@ -8,7 +8,7 @@ import jwt
 import pytest
 
 from app.core.config import Settings
-from app.utils.auth_policy import AuthResolutionError, resolve_superadmin_actor
+from app.middleware.auth_policy import AuthResolutionError, resolve_superadmin_actor
 
 _JWT_HS256_TEST_SECRET = "a" * 32  # satisfies PyJWT minimum key length for HS256 tests
 
