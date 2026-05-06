@@ -49,9 +49,9 @@ def get_modules(
     status_code=status.HTTP_201_CREATED,
     summary="Create a module",
     description=(
-        "Registers a catalog row. **Depth (`level`)** is not read from the body: "
-        "no `parent_id` → root at **1**. With `parent_id` → **parent.level + 1** "
-        "(e.g. **2**, **3**, **4**). Max depth **4**; no child under a level-4 node."
+        "Registers a catalog row. **Do not send `level`** — it is not part of the request schema; "
+        "depth is computed: no `parent_id` → **1**, with `parent_id` → **parent.level + 1** "
+        "(max **4**)."
     ),
 )
 def post_module(

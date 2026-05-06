@@ -64,21 +64,12 @@ class ModuleCreate(BaseModel):
     version: str = Field(default="0.0.0")
     description: str | None = None
     parent_id: UUID | None = None
-    level: int | None = Field(
-        default=None,
-        ge=1,
-        le=4,
-        description=(
-            "Ignored on create: depth is always derived — root (no parent_id) → 1, "
-            "child → parent.level + 1."
-        ),
-    )
     icon: str | None = None
     is_active: bool = True
 
 
 class ModuleUpdate(BaseModel):
-    """PATCH body — all fields optional."""
+    """PATCH body — all fields optional (``level`` is never accepted; derived from ``parent_id``)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -88,12 +79,6 @@ class ModuleUpdate(BaseModel):
     version: str | None = None
     description: str | None = None
     parent_id: UUID | None = None
-    level: int | None = Field(
-        default=None,
-        ge=1,
-        le=4,
-        description="Ignored: stored level is always recomputed from parent_id after update.",
-    )
     icon: str | None = None
     is_active: bool | None = None
     is_deleted: bool | None = Field(

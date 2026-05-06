@@ -294,14 +294,6 @@ components:
           type: string
           format: uuid
           nullable: true
-        level:
-          type: integer
-          minimum: 1
-          maximum: 4
-          nullable: true
-          description: >
-            Ignored on create. Server sets depth from the tree: no parent_id → 1;
-            with parent_id → parent.level + 1 (max 4).
         icon:
           type: string
           nullable: true
@@ -328,11 +320,6 @@ components:
           type: string
           format: uuid
           nullable: true
-        level:
-          type: integer
-          minimum: 1
-          maximum: 4
-          description: Ignored; server recomputes from parent_id after update.
         icon:
           type: string
           nullable: true

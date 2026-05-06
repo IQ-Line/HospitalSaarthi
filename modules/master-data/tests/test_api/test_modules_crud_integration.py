@@ -206,31 +206,22 @@ def test_post_level_follows_parent_depth(module_client: TestClient) -> None:
     assert leaf.json()["data"]["level"] == 4
 
 
-def test_post_root_ignores_client_level_field(module_client: TestClient) -> None:
+def test_post_rejects_level_in_body_extra_forbid(module_client: TestClient) -> None:
     body = _create_json("r2", "root-two")
-    body["level"] = 4
+    body["level"] = 1
     r = module_client.post("/api/v1/master-data/modules", json=body)
-    assert r.status_code == 201
-    assert r.json()["data"]["level"] == 1
+    assert r.status_code == 422
 
 
-def test_patch_level_field_does_not_override_tree(module_client: TestClient) -> None:
+def test_patch_rejects_level_in_body_extra_forbid(module_client: TestClient) -> None:
     pa = module_client.post("/api/v1/master-data/modules", json=_create_json("pa", "pa-slug"))
     assert pa.status_code == 201
-    id_a = pa.json()["data"]["id"]
-    pb = module_client.post(
-        "/api/v1/master-data/modules",
-        json=_create_json("pb", "pb-slug", parent_id=id_a),
-    )
-    assert pb.status_code == 201
-    id_b = pb.json()["data"]["id"]
-    assert pb.json()["data"]["level"] == 2
-    bad = module_client.patch(
+    id_b = pa.json()["data"]["id"]
+    r = module_client.patch(
         f"/api/v1/master-data/modules/{id_b}",
         json={"level": 1},
     )
-    assert bad.status_code == 200
-    assert bad.json()["data"]["level"] == 2
+    assert r.status_code == 422
 
 
 def test_delete_unknown_module_404(module_client: TestClient) -> None:
