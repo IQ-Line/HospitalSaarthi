@@ -23,7 +23,7 @@ Master Data owns two distinct domains with different lifecycles:
 
 | Domain | What | Citus mode | Changes via | Phase |
 |--------|------|------------|-------------|-------|
-| **Platform catalog + module/feature registry** | Module registry and admin tree; permission and role *definitions*; picklists; config schemas; feature flag definitions | **Reference table** (replicated to all nodes) | Deployment migrations, platform operator actions | MVP |
+| **Platform catalog + module/feature registry** | Module registry and admin tree; permission and role *definitions*; picklists; config schemas; feature flag definitions | **Reference table** (replicated to all nodes) | Superadmin Master Data API, deployment migrations (seeds), platform operator actions | MVP |
 | **Healthcare reference data** | ICD codes, drug catalogs, LOINC, SNOMED, departments, wards, fee schedules | **Reference** (global catalogs) + **Distributed** (tenant overrides) | Platform data team (global), hospital admins (tenant overrides) | Post-launch |
 
 The module and configurator-facing registry were originally part of the Configurator module. The EM and tech lead consolidated “what exists in the platform” under Master Data, reserving the Configurator for per-tenant operational state (enablement, overrides, config values) and the resolution API. See the [Configurator LLD](../configurator/01-schema-design.md) for the rationale.
@@ -36,7 +36,7 @@ The module and configurator-facing registry were originally part of the Configur
 
 ## 2. Module registry and navigation tree (`modules`)
 
-Registry of all deployable modules — 4 core + ~38 feature modules from the AIIMS EOI scope. Platform-defined; no tenant creates modules.
+Registry of all deployable modules — 4 core + ~38 feature modules from the AIIMS EOI scope. **Tenants do not create modules.** Platform **superadmins** maintain the catalog via **`POST` / `PATCH` / `DELETE` (soft)** on the Master Data modules API; **`GET`** serves read models for shells and tooling. Migrations may still **seed** baseline rows in fresh environments (see §9).
 
 `parent_id` adds a **bounded hierarchy** (see `level` check in [`schema-reference.json`](./schema-reference.json)) for admin IA and shell navigation: group headers and leaf modules share one table. **`name`** stays the stable identifier for APIs and events; **`slug`** is a URL-safe unique key for routing and external links. **`description`** is optional narrative only. **`category`** (`core` \| `clinical` \| `administrative` \| `support`) groups modules in the **admin catalog** — it is not an access control boundary (Cerbos governs that). **Display labels**, **default routes**, and **which modules are mandatory for every tenant** still come from the shell / Configurator / convention (e.g. known `name`/`slug` sets), not from extra columns on `modules`.
 
@@ -100,28 +100,26 @@ Platform-wide feature flag definitions with defaults. Tenant-specific overrides 
 
 ## 9. Module registration lifecycle
 
-Modules announce themselves via **database migrations**, not runtime API calls, so the registry always matches what is deployed.
+The **authoritative day-to-day path** is the **Master Data modules API**: a platform **superadmin** creates and edits rows in `master_data.modules` (`POST` / `PATCH`). **Removal** is **`is_deleted = true`** via **`DELETE`** (soft delete only — no hard row delete in normal flows). **`name`** and **`slug`** are unique among **active** rows (partial unique indexes); a soft-deleted row frees its keys for reuse.
 
-### How it works
+### Bootstrap and CI (migrations still matter)
 
-1. **Module deploys.** CI/CD runs the module's migrations.
-2. **Migration seeds the registry.** `INSERT INTO master_data.modules ... ON CONFLICT (name) DO UPDATE` (or conflict target on `slug` where appropriate) registers the module and updates `version`.
-3. **Navigation fields.** Same migration sets `parent_id`, `slug`, `category`, `level`, `icon`, `is_active` consistently with the admin shell.
-4. **Catalog rows.** Migrations may insert **`permissions`**, **`module_permissions`**, **`system_roles`**, and **`picklist` / `picklist_values`** rows the module depends on.
-5. **Config schema declaration.** If the module is configurable, insert **`module_config_schemas`** (with **`slug`**).
-6. **Feature flag registration.** If the module defines flags, insert **`feature_flags`** (with **`slug`**).
-7. **Master Data publishes events.** `module.registered` / `module.updated` and (as needed) companion events for catalog rows — rich payloads for projections (§12).
-8. **Tenant enablement is separate.** Operators enable modules per tenant in the Configurator (`tenant_modules`, `tenant_module_configs`).
+Migrations remain useful to:
 
-### Why migrations, not runtime API
+1. **Create schema** and reference-table hooks (`001` …).
+2. **Seed** core modules in empty databases (`INSERT … ON CONFLICT … DO UPDATE` in Alembic).
+3. Ship **companion catalog data** the module owns (`permissions`, `module_config_schemas`, etc.) in the same deployment pipeline.
 
-- **Deployment = registration.** No startup ordering chicken-and-egg.
-- **Idempotent.** `ON CONFLICT ... DO UPDATE` keeps re-deploys safe.
-- **Version tracking** follows the migration that bumps `version`.
+Those seeds **do not replace** superadmin CRUD for ongoing catalog management unless your process chooses migration-only updates deliberately.
+
+### Event and tenant layers
+
+4. **Master Data publishes events.** `module.registered` / `module.updated` / soft-delete semantics — rich payloads for projections (§12).
+5. **Tenant enablement is separate.** Operators enable modules per tenant in the Configurator (`tenant_modules`, `tenant_module_configs`).
 
 ### Lifecycle states
 
-There is no separate `status` column on `modules`: presence in the table means registered; per-tenant enablement is in the Configurator. Removing a module row is a rare operator action that would orphan tenant state — expected path is register → upgrade → …
+There is no separate `status` column on `modules`: an active row (`is_deleted = false`) is part of the catalog; per-tenant enablement is in the Configurator. **Retiring** uses **`is_deleted = true`**, preserving FK integrity for historical joins while hiding the module from default **GET** list/detail responses.
 
 See [Configurator dev-doubts/01-analysis.md §3](../configurator/dev-doubts/01-analysis.md) for the original lifecycle analysis.
 
@@ -154,7 +152,6 @@ The Configurator does **not** query `master_data.*` directly at runtime. It main
 
 | Table | Missing | Justification |
 |-------|---------|---------------|
-| `modules` | `created_by`, `updated_by` | Seeded by deployments/migrations |
 | `module_config_schemas` | `created_by`, `updated_by` | Declared by deployments |
 | `permissions`, `module_permissions`, `system_roles`, `picklist`, `picklist_values` | `created_by`, `updated_by` | Same — catalog seeded/migrated; optional to add later for human edits |
 
@@ -168,7 +165,7 @@ All registry events carry **rich payloads** — every field projection consumers
 
 | Event | When | Payload includes (non-exhaustive) | Consumers |
 |-------|------|-------------------------------------|-----------|
-| `module.registered` | New module row | `module_id`, `name`, `slug`, `parent_id`, `description`, `category`, `version`, `level`, `icon`, `is_active` | Configurator (`module_projection`), admin shell |
+| `module.registered` | New module row | `module_id`, `name`, `slug`, `parent_id`, `description`, `category`, `version`, `level`, `icon`, `is_active`, `is_deleted` | Configurator (`module_projection`), admin shell |
 | `module.updated` | Module metadata or tree change | Above + `old_version`, `new_version` where applicable | Configurator, admin shell |
 | `feature-flag.defined` / `feature-flag.updated` | Flag rows | `flag_id`, `slug`, `name`, `flag_type`, `module_id`, `default_value`, `value_schema` | Configurator (`feature_flag_projection`) |
 | `config-schema.declared` | New schema version | `schema_id`, `slug`, `module_id`, `schema_version`, `config_schema`, `defaults` | Configurator (`config_schema_projection`) |

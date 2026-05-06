@@ -1,0 +1,52 @@
+"""Partial unique indexes on name/slug so soft-deleted rows do not block reuse.
+
+Revision ID: 004_partial_unique (≤32 chars for alembic_version.version_num)
+Revises: 003_soft_delete_audit
+"""
+
+from collections.abc import Sequence
+
+from alembic import op
+
+revision: str = "004_partial_unique"
+down_revision: str | Sequence[str] | None = "003_soft_delete_audit"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
+
+
+def upgrade() -> None:
+    op.drop_constraint("modules_slug_key", "modules", schema="master_data", type_="unique")
+    op.drop_constraint("modules_name_key", "modules", schema="master_data", type_="unique")
+
+    op.execute(
+        """
+        CREATE UNIQUE INDEX modules_name_active_key
+        ON master_data.modules (name)
+        WHERE NOT is_deleted
+        """
+    )
+    op.execute(
+        """
+        CREATE UNIQUE INDEX modules_slug_active_key
+        ON master_data.modules (slug)
+        WHERE NOT is_deleted
+        """
+    )
+
+
+def downgrade() -> None:
+    op.drop_index("modules_slug_active_key", table_name="modules", schema="master_data")
+    op.drop_index("modules_name_active_key", table_name="modules", schema="master_data")
+
+    op.create_unique_constraint(
+        "modules_name_key",
+        "modules",
+        ["name"],
+        schema="master_data",
+    )
+    op.create_unique_constraint(
+        "modules_slug_key",
+        "modules",
+        ["slug"],
+        schema="master_data",
+    )

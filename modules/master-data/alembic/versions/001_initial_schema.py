@@ -54,7 +54,8 @@ def upgrade() -> None:
             "id",
             postgresql.UUID(as_uuid=True),
             primary_key=True,
-            server_default=sa.text("uuid_generate_v4()"),
+            # gen_random_uuid() is built-in from PostgreSQL 13+ (no uuid-ossp extension).
+            server_default=sa.text("gen_random_uuid()"),
         ),
         sa.Column("name", sa.String(length=100), nullable=False),
         sa.Column("category", sa.String(length=32), nullable=False),
