@@ -7,8 +7,10 @@
     "start": "tsx src/main.ts"
   },
   "dependencies": {
+    "@fastify/sensible": "^6.0.4",
     "@hims/ts-sdk-db": "workspace:*",
     "@hims/ts-sdk-events": "workspace:*",
+    "@hims/ts-sdk-identity": "workspace:*",
     "@hims/user-management": "workspace:*",
     "fastify": "^5.0.0"
   },

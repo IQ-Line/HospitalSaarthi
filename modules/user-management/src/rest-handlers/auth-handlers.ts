@@ -1,13 +1,16 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { AuthContext } from "../ports/index.js";
+
+type RequestWithOptionalUser = FastifyRequest & { user?: unknown };
 import { getPrincipal } from "../use-cases/get-principal.js";
 import type { GetPrincipalDeps } from "../use-cases/get-principal.js";
 import { getUserById } from "../use-cases/get-user.js";
 import type { GetUserDeps } from "../use-cases/get-user.js";
 
 export type AuthHandlersDeps = {
+  /** Tenant from verified JWT (`iq_tenant_id` / `tenantId` on `request.user`). */
   getTenantId: (request: FastifyRequest) => string;
-  /** Stub until JWT `sub` is read from the request. */
+  /** Platform user id from verified JWT (`sub` / `userId` on `request.user`). */
   getUserId: (request: FastifyRequest) => string;
   getUserDeps: GetUserDeps;
   getPrincipalDeps: GetPrincipalDeps;
@@ -25,7 +28,7 @@ export function registerAuthHandlers(fastify: FastifyInstance, deps: AuthHandler
     const tenantId = deps.getTenantId(request);
     const userId = deps.getUserId(request);
     const user = await getUserById(deps.getUserDeps, tenantId, userId);
-    if (!user) {
+    if (user === null) {
       return reply.status(404).send({ message: "User not found for this tenant." });
     }
     return reply.send(user);
@@ -35,6 +38,7 @@ export function registerAuthHandlers(fastify: FastifyInstance, deps: AuthHandler
     const context: AuthContext = {
       tenantId: deps.getTenantId(request),
       userId: deps.getUserId(request),
+      requestUser: (request as RequestWithOptionalUser).user,
     };
     try {
       const principal = await getPrincipal(deps.getPrincipalDeps, context);

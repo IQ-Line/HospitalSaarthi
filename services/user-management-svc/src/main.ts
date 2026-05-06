@@ -1,5 +1,7 @@
+import sensible from "@fastify/sensible";
 import { createDb } from "@hims/ts-sdk-db";
 import { createEventBus } from "@hims/ts-sdk-events";
+import { identityPlugin } from "@hims/ts-sdk-identity";
 import Fastify, { type FastifyInstance } from "fastify";
 import {
   DrizzleRoleAssignmentRepository,
@@ -21,6 +23,12 @@ async function createApp(): Promise<FastifyInstance> {
 
   app.addHook("onClose", async () => {
     await eventBus.disconnect();
+  });
+
+  await app.register(sensible);
+
+  await app.register(identityPlugin, {
+    jwksUrl: process.env.JWKS_URL ?? "http://localhost:3001/.well-known/jwks.json",
   });
 
   const databaseUrl = process.env.DATABASE_URL?.trim();

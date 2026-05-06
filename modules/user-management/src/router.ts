@@ -1,3 +1,4 @@
+/// <reference types="@fastify/sensible" />
 import type { EventBus } from "@hims/ts-sdk-events";
 import type { FastifyInstance, FastifyPluginAsync, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
@@ -12,20 +13,71 @@ import { registerAuthHandlers } from "./rest-handlers/auth-handlers.js";
 import { registerRoleHandlers } from "./rest-handlers/role-handlers.js";
 import { registerUserHandlers } from "./rest-handlers/user-handlers.js";
 
-const STUB_TENANT_ID = "550e8400-e29b-41d4-a716-446655440001";
-const STUB_USER_ID = "550e8400-e29b-41d4-a716-446655440002";
+type RequestWithOptionalUser = FastifyRequest & { user?: unknown };
+
+function pickNonEmptyString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+/** Resolves tenant from identity (`iq_tenant_id` claim) or SDK Principal (`tenantId`). */
+function resolveTenantIdFromRequestUser(user: unknown): string | undefined {
+  if (user == null || typeof user !== "object") return undefined;
+  const u = user as Record<string, unknown>;
+  return pickNonEmptyString(u["iq_tenant_id"]) ?? pickNonEmptyString(u["tenantId"]);
+}
+
+/** Resolves user id from identity (`sub` claim) or SDK Principal (`userId`). */
+function resolveUserIdFromRequestUser(user: unknown): string | undefined {
+  if (user == null || typeof user !== "object") return undefined;
+  const u = user as Record<string, unknown>;
+  return pickNonEmptyString(u["sub"]) ?? pickNonEmptyString(u["userId"]);
+}
+
+function extractRolesFromRequestUser(user: unknown): string[] {
+  if (user == null || typeof user !== "object") return [];
+  const raw = (user as Record<string, unknown>)["roles"];
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((r): r is string => typeof r === "string");
+}
+
+/** JWT `org_id` or SDK-normalized `orgId` on `request.user`. */
+function extractOrgIdFromRequestUser(user: unknown): string | null {
+  if (user == null || typeof user !== "object") return null;
+  const u = user as Record<string, unknown>;
+  return pickNonEmptyString(u["org_id"]) ?? pickNonEmptyString(u["orgId"]) ?? null;
+}
+
+function defaultGetTenantId(request: FastifyRequest): string {
+  const user = (request as RequestWithOptionalUser).user;
+  if (user == null || typeof user !== "object") throw request.server.httpErrors.unauthorized();
+  const tenantId = resolveTenantIdFromRequestUser(user);
+  if (tenantId === undefined) throw request.server.httpErrors.unauthorized();
+  return tenantId;
+}
+
+function defaultGetUserId(request: FastifyRequest): string {
+  const user = (request as RequestWithOptionalUser).user;
+  if (user == null || typeof user !== "object") throw request.server.httpErrors.unauthorized();
+  const userId = resolveUserIdFromRequestUser(user);
+  if (userId === undefined) throw request.server.httpErrors.unauthorized();
+  return userId;
+}
 
 /** Minimal PEP stub until PrincipalService is implemented with real enrichment. */
 function createStubPrincipalService(): PrincipalService {
   return {
     async getPrincipal(context: AuthContext): Promise<Principal> {
+      const requestUser = context.requestUser;
+      const roles = extractRolesFromRequestUser(requestUser);
+      const orgId = extractOrgIdFromRequestUser(requestUser);
+
       return {
         id: context.userId,
-        roles: [],
+        roles,
         attributes: {
           iq_tenant_id: context.tenantId,
           department: null,
-          org_id: null,
+          org_id: orgId,
           capabilities: [],
           delegated_capabilities: [],
           clearances: {},
@@ -50,8 +102,8 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
   const { userRepository, roleAssignmentRepository, eventBus } = options;
   const principalService = createStubPrincipalService();
 
-  const getTenantId = options.getTenantId ?? ((_request: FastifyRequest) => STUB_TENANT_ID);
-  const getUserId = options.getUserId ?? ((_request: FastifyRequest) => STUB_USER_ID);
+  const getTenantId = options.getTenantId ?? defaultGetTenantId;
+  const getUserId = options.getUserId ?? defaultGetUserId;
   const getActorId = getUserId;
 
   registerUserHandlers(fastify, {

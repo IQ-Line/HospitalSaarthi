@@ -35,10 +35,15 @@ export interface AssignRoleInput {
   role_id: string;
 }
 
-/** Verified JWT identity: platform `users.id` (`sub`) and `iq_tenant_id` for this session. */
+/**
+ * Verified identity for principal resolution: normalized ids plus optional host payload.
+ * `requestUser` is Fastify `request.user` when the host registers identity middleware (e.g. JWT).
+ */
 export interface AuthContext {
   userId: string;
   tenantId: string;
+  /** Raw verified identity on the request (`request.user`), shape defined by the host / identity plugin. */
+  requestUser?: unknown;
 }
 
 /** GET /auth/principal `attributes` object. */

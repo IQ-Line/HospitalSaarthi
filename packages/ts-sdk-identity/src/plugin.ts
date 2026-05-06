@@ -15,7 +15,7 @@ async function identityPluginFn(
   fastify: FastifyInstance,
   options: IdentityPluginOptions,
 ): Promise<void> {
-  fastify.decorateRequest("user", null);
+  fastify.decorateRequest("user", undefined as unknown as Principal);
 
   fastify.addHook(
     "onRequest",

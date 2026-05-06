@@ -1,0 +1,108 @@
+# User Management domain events (Phase 1A.2)
+#
+# Envelope: each published message MUST be a complete DomainEvent satisfying:
+#   specs/events/_envelope.schema.json
+# Required top-level fields: event_id, event_type, source_module, iq_tenant_id,
+# timestamp, correlation_id, actor_id, schema_version, payload.
+#
+# This file defines the five 1A.2 event_type values and payload shape only.
+# source_module for these events MUST be "user-management".
+# schema_version in the envelope MUST be semver (e.g. 1.0.0).
+
+specVersion: "1.0"
+module: user-management
+envelope: ./_envelope.schema.json
+
+# Semantic names (1A.2) ↔ event_type (runtime / envelope)
+# - user.created        → user-management.user.created
+# - user.updated        → user-management.user.updated
+# - user.deactivated    → user-management.user.deactivated
+# - role.assigned       → user-management.role.assigned
+# - role.revoked        → user-management.role.revoked
+
+event_types:
+  user-management.user.created:
+    semantic: user.created
+    description: A tenant-scoped platform user was created.
+    payload:
+      type: object
+      required: [id, full_name]
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        full_name:
+          type: string
+        email:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+
+  user-management.user.updated:
+    semantic: user.updated
+    description: User profile fields were updated for a tenant.
+    payload:
+      type: object
+      required: [id]
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        full_name:
+          type: string
+        email:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+
+  user-management.user.deactivated:
+    semantic: user.deactivated
+    description: A user was deactivated for a tenant.
+    payload:
+      type: object
+      required: [id]
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        reason:
+          type: ["string", "null"]
+
+  user-management.role.assigned:
+    semantic: role.assigned
+    description: A role was assigned to a user within a tenant.
+    payload:
+      type: object
+      required: [id, user_id, role_id]
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        role_id:
+          type: string
+          format: uuid
+
+  user-management.role.revoked:
+    semantic: role.revoked
+    description: A role assignment was revoked for a user within a tenant.
+    payload:
+      type: object
+      required: [id, user_id, role_id]
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        role_id:
+          type: string
+          format: uuid

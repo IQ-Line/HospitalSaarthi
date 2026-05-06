@@ -42,7 +42,8 @@ export interface AuthProvider {
 
 /**
  * Builds the PEP-enriched principal (JWT claims + cached AuthZ data per LLD §7).
- * Callers pass verified context from {@link AuthProvider}; enrichment uses User Management data.
+ * Callers pass verified context from {@link AuthProvider}; {@link AuthContext.requestUser} carries
+ * the host’s `request.user` (e.g. JWT-derived principal) when supplied.
  */
 export interface PrincipalService {
   getPrincipal(context: AuthContext): Promise<Principal>;
