@@ -42,12 +42,6 @@ export interface PepMiddlewareOptions {
 
 declare module "fastify" {
   interface FastifyRequest {
-    user: {
-      userId: string;
-      tenantId: string;
-      orgId: string;
-      roles: string[];
-    };
     checkResource: (
       kind: string,
       id: string,

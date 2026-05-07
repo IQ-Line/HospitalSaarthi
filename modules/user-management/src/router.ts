@@ -105,7 +105,7 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
     getActorId,
     createUserDeps: { userRepository, eventBus },
     getUserDeps: { userRepository },
-    updateUserDeps: { userRepository },
+    updateUserDeps: { userRepository, eventBus },
   });
 
   registerRoleHandlers(fastify, {

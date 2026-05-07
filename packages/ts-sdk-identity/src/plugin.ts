@@ -5,12 +5,6 @@ import { verifyToken } from "./verify.js";
 
 const SKIP_PATHS = new Set(["/healthz", "/readyz", "/livez"]);
 
-declare module "fastify" {
-  interface FastifyRequest {
-    user: Principal;
-  }
-}
-
 async function identityPluginFn(
   fastify: FastifyInstance,
   options: IdentityPluginOptions,

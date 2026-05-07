@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
 import type { Value } from "@cerbos/core";
+import type { Principal } from "@hims/ts-sdk-identity";
 import type { AuthzPluginOptions, CheckResult, PlanResult } from "./types.js";
 import { closeCerbosClient, getCerbosClient } from "./client.js";
 import { DecisionCache } from "./decision-cache.js";
@@ -33,6 +34,8 @@ async function authzPluginFn(
   );
 
   fastify.addHook("onRequest", async (request: FastifyRequest) => {
+    const principal: Principal = request.user;
+
     request.checkResource = async (
       kind: string,
       id: string,
@@ -45,11 +48,11 @@ async function authzPluginFn(
 
       const result = await cerbos.checkResource({
         principal: {
-          id: request.user.userId,
-          roles: request.user.roles,
+          id: principal.userId,
+          roles: principal.roles,
           attr: {
-            iq_tenant_id: request.user.tenantId,
-            org_id: request.user.orgId,
+            iq_tenant_id: principal.tenantId,
+            org_id: principal.orgId,
           },
         },
         resource: { kind, id, ...(attr && { attr }) },
@@ -71,11 +74,11 @@ async function authzPluginFn(
 
       const result = await cerbos.planResources({
         principal: {
-          id: request.user.userId,
-          roles: request.user.roles,
+          id: principal.userId,
+          roles: principal.roles,
           attr: {
-            iq_tenant_id: request.user.tenantId,
-            org_id: request.user.orgId,
+            iq_tenant_id: principal.tenantId,
+            org_id: principal.orgId,
           },
         },
         resource: { kind, ...(attr && { attr }) },
@@ -94,9 +97,12 @@ async function authzPluginFn(
   fastify.addHook("preHandler", async (request, reply) => {
     if (reply.sent) return;
 
-    const target = await options.resolveTarget?.(request);
+    if (!options.resolveTarget) {
+      return;
+    }
+
+    const target = await options.resolveTarget(request);
     if (target === null || target === undefined) {
-      reply.code(403).send({ error: "Forbidden" });
       return;
     }
 

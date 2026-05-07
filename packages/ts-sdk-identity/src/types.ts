@@ -34,3 +34,9 @@ export interface IdentityPluginOptions {
   audience?: string;
   cacheTtlMs?: number;
 }
+
+declare module "fastify" {
+  interface FastifyRequest {
+    user: Principal;
+  }
+}

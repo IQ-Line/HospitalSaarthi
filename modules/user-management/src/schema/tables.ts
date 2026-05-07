@@ -1,5 +1,14 @@
 import { tenantColumn, auditColumns } from "@hims/ts-sdk-db";
-import { index, pgSchema, primaryKey, text, unique, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import {
+  check,
+  index,
+  pgSchema,
+  primaryKey,
+  text,
+  unique,
+  uuid,
+} from "drizzle-orm/pg-core";
 
 /** Citus: distributed by `iq_tenant_id` (see User Management LLD §13). */
 export const userManagementSchema = pgSchema("user_management");
@@ -12,9 +21,23 @@ export const users = userManagementSchema.table(
     full_name: text("full_name").notNull(),
     email: text("email"),
     phone: text("phone"),
+    /** better-auth / external identity anchor (nullable until linked). */
+    auth_user_id: uuid("auth_user_id"),
+    status: text("status").notNull().default("active"),
+    /** Login handle; unique per tenant when set (multiple NULLs allowed). */
+    username: text("username"),
+    /** Configurator `organizations.id` — logical reference only (no FK). */
+    org_id: uuid("org_id"),
     ...auditColumns(),
   },
-  (t) => [primaryKey({ columns: [t.iq_tenant_id, t.id] })],
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
+    check(
+      "users_status_chk",
+      sql`${t.status} in ('active', 'inactive', 'suspended')`,
+    ),
+    unique("uq_users_tenant_username").on(t.iq_tenant_id, t.username),
+  ],
 );
 
 export const role_assignments = userManagementSchema.table(

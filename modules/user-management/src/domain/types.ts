@@ -2,10 +2,19 @@
  * Domain data shapes (entities, inputs, auth context) — no behavior, no infrastructure.
  */
 
-/** Matches OpenAPI `User` / `components.schemas.User`. */
+/** Lifecycle state for platform user rows (LLD MVP). */
+export type UserStatus = "active" | "inactive" | "suspended";
+
+/** Matches OpenAPI `User` / `components.schemas.User`; `email` / `phone` are persisted fields for projections/events. */
 export interface User {
   id: string;
   full_name: string;
+  email?: string | null;
+  phone?: string | null;
+  auth_user_id?: string | null;
+  username?: string | null;
+  org_id?: string | null;
+  status: UserStatus;
 }
 
 /** POST /users request body. */
@@ -13,6 +22,8 @@ export interface CreateUserInput {
   full_name: string;
   email?: string | null;
   phone?: string | null;
+  username?: string | null;
+  org_id?: string | null;
 }
 
 /** PATCH /users/{id} request body (partial). */
@@ -20,6 +31,10 @@ export interface UpdateUserInput {
   full_name?: string;
   email?: string | null;
   phone?: string | null;
+  username?: string | null;
+  org_id?: string | null;
+  status?: UserStatus;
+  auth_user_id?: string | null;
 }
 
 /** POST /role-assignments 201 response shape. */

@@ -31,14 +31,24 @@ export async function createUser(
     tenantId: ctx.tenantId,
     actorId: ctx.actorId,
   });
-  const envelopeInput: CreateEnvelopeInput<{ id: string; full_name: string }> = {
+  const envelopeInput: CreateEnvelopeInput<{
+    id: string;
+    full_name: string;
+    email: string | null;
+    phone: string | null;
+  }> = {
     event_type: USER_MANAGEMENT_EVENT_USER_CREATED,
     source_module: "user-management",
     iq_tenant_id: envelopeIds.iq_tenant_id,
     correlation_id: ctx.correlationId,
     actor_id: envelopeIds.actor_id,
     schema_version: "1.0.0",
-    payload: { id: user.id, full_name: user.full_name },
+    payload: {
+      id: user.id,
+      full_name: user.full_name,
+      email: input.email ?? null,
+      phone: input.phone ?? null,
+    },
   };
   await deps.eventBus.publish(createEnvelope(envelopeInput));
   return user;

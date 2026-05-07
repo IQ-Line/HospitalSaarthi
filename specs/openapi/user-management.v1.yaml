@@ -104,6 +104,15 @@ paths:
                   type: string
                   nullable: true
                   description: Business contact phone.
+                username:
+                  type: string
+                  nullable: true
+                  description: Optional login handle; unique per tenant when set.
+                org_id:
+                  type: string
+                  format: uuid
+                  nullable: true
+                  description: Organization scope (configurator organizations.id); logical reference only.
       responses:
         "201":
           description: Platform user created for the tenant.
@@ -188,6 +197,24 @@ paths:
                   type: string
                   nullable: true
                   description: Business contact phone.
+                username:
+                  type: string
+                  nullable: true
+                  description: Optional login handle; unique per tenant when set.
+                org_id:
+                  type: string
+                  format: uuid
+                  nullable: true
+                  description: Organization scope (configurator organizations.id); logical reference only.
+                status:
+                  type: string
+                  enum: [active, inactive, suspended]
+                  description: Platform user lifecycle state.
+                auth_user_id:
+                  type: string
+                  format: uuid
+                  nullable: true
+                  description: External identity anchor (e.g. better-auth user id) when linked.
       responses:
         "200":
           description: User updated.
@@ -301,12 +328,39 @@ components:
       required:
         - id
         - full_name
+        - status
       properties:
         id:
           type: string
           format: uuid
         full_name:
           type: string
+        email:
+          type: string
+          nullable: true
+          description: Business contact email when stored.
+        phone:
+          type: string
+          nullable: true
+          description: Business contact phone when stored.
+        auth_user_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: External identity anchor when linked.
+        username:
+          type: string
+          nullable: true
+          description: Login handle when set.
+        org_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Organization scope when set.
+        status:
+          type: string
+          enum: [active, inactive, suspended]
+          description: Platform user lifecycle state.
     Principal:
       type: object
       required:

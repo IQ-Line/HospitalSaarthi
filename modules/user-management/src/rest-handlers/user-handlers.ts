@@ -52,8 +52,15 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
 
   fastify.patch<{ Params: { id: string }; Body: UpdateUserInput }>("/users/:id", async (request, reply) => {
       const tenantId = deps.getTenantId(request);
+      const actorId = deps.getActorId(request);
+      const correlationId = randomUUID();
       try {
-        const user = await updateUser(deps.updateUserDeps, tenantId, request.params.id, request.body ?? {});
+        const user = await updateUser(
+          deps.updateUserDeps,
+          { tenantId, actorId, correlationId },
+          request.params.id,
+          request.body ?? {},
+        );
         if (!user) {
           return reply.status(404).send({ message: "User not found for this tenant." });
         }

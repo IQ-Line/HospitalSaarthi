@@ -10,6 +10,7 @@ import type {
   RoleAssignment,
   UpdateUserInput,
   User,
+  UserStatus,
 } from "../domain/types.js";
 
 export type {
@@ -21,6 +22,7 @@ export type {
   RoleAssignment,
   UpdateUserInput,
   User,
+  UserStatus,
 } from "../domain/types.js";
 
 export interface UserRepository {
