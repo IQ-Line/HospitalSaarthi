@@ -14,16 +14,12 @@
     "ci:pr": "nx affected -t lint typecheck test"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["nx", "esbuild"],
-    "overrides": {
-      "drizzle-orm": "0.45.2"
-    }
+    "onlyBuiltDependencies": ["nx", "esbuild"]
   },
   "devDependencies": {
     "@nx/eslint": "^22.7.1",
     "@nx/js": "^22.7.1",
     "eslint": "^10.3.0",
-    "jose": "^6.2.3",
     "nx": "^22.7.1",
     "prettier": "^3.8.3",
     "typescript": "^6.0.3"

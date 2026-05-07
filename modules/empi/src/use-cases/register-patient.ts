@@ -1,9 +1,7 @@
 import type { EventBus } from "@hims/ts-sdk-events";
-import { createEnvelope } from "@hims/ts-sdk-events";
+import { createEmpiEnvelope } from "../lib/empi-envelope.js";
 import type { PatientRepo, SequenceRepo } from "../ports.js";
 import type { Patient, CreatePatientData } from "../domain/patient.types.js";
-import { randomUUID } from "node:crypto";
-import { actorIdOrRandom } from "../lib/actor-id.js";
 
 interface Deps {
   patientRepo: PatientRepo;
@@ -33,14 +31,11 @@ export async function registerPatient(
   const patient = await deps.patientRepo.create({ ...data, uhid, full_name: fullName });
 
   await deps.eventBus.publish(
-    createEnvelope({
-      event_type: "empi.patient.created",
-      source_module: "empi",
-      iq_tenant_id: patient.iq_tenant_id,
-      correlation_id: randomUUID(),
-      actor_id: actorIdOrRandom(data.created_by),
-      schema_version: "1.0.0",
-      payload: {
+    createEmpiEnvelope(
+      "empi.patient.created",
+      patient.iq_tenant_id,
+      data.created_by,
+      {
         id: patient.id,
         iq_tenant_id: patient.iq_tenant_id,
         uhid: patient.uhid,
@@ -53,7 +48,7 @@ export async function registerPatient(
         abha_number: patient.abha_number,
         status: patient.status,
       },
-    }),
+    ),
   );
 
   return patient;

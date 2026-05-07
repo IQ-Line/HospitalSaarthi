@@ -1,4 +1,4 @@
-import { eq, and, ilike, sql } from "drizzle-orm/sql";
+import { eq, and, ilike, sql } from "drizzle-orm";
 import type { DbInstance } from "@hims/ts-sdk-db";
 import { patients } from "../schema/tables.js";
 import type { PatientRepo } from "../ports.js";
@@ -8,80 +8,6 @@ import type {
   UpdatePatientData,
   PatientFilters,
 } from "../domain/patient.types.js";
-
-/** Keys accepted on PATCH; extras from JSON are ignored (avoids passing junk to Drizzle). */
-const UPDATE_PATIENT_KEYS = [
-  "salutation",
-  "first_name",
-  "middle_name",
-  "last_name",
-  "father_name",
-  "mother_name",
-  "date_of_birth",
-  "year_of_birth",
-  "age_years",
-  "age_months",
-  "age_days",
-  "gender",
-  "phone_number",
-  "alternate_phone",
-  "blood_group",
-  "occupation",
-  "nationality",
-  "education",
-  "emergency_contact_name",
-  "emergency_contact_relationship",
-  "emergency_contact_phone",
-  "abha_number",
-  "updated_by",
-] as const;
-
-const NULL_FORBIDDEN = new Set<keyof UpdatePatientData>([
-  "first_name",
-  "gender",
-  "phone_number",
-  "nationality",
-]);
-
-const SMALLINT_KEYS = new Set<keyof UpdatePatientData>([
-  "year_of_birth",
-  "age_years",
-  "age_months",
-  "age_days",
-]);
-
-function extractUpdatePatientPatch(
-  input: Record<string, unknown>,
-): UpdatePatientData {
-  const out: UpdatePatientData = {};
-  for (const key of UPDATE_PATIENT_KEYS) {
-    if (!Object.prototype.hasOwnProperty.call(input, key)) continue;
-    let v = input[key];
-    if (v === undefined) continue;
-    if (NULL_FORBIDDEN.has(key) && v === null) continue;
-
-    if (SMALLINT_KEYS.has(key)) {
-      if (v === null) {
-        (out as Record<string, unknown>)[key] = null;
-        continue;
-      }
-      const n = typeof v === "number" ? v : Number(v);
-      if (!Number.isFinite(n)) continue;
-      v = Math.trunc(n);
-    }
-
-    (out as Record<string, unknown>)[key] = v;
-  }
-  return out;
-}
-
-function buildFullName(
-  first: string,
-  middle: string | null | undefined,
-  last: string | null | undefined,
-): string {
-  return [first.trim(), middle?.trim(), last?.trim()].filter(Boolean).join(" ");
-}
 
 export class DrizzlePatientRepo implements PatientRepo {
   constructor(private db: DbInstance) {}
@@ -215,26 +141,16 @@ export class DrizzlePatientRepo implements PatientRepo {
     id: string,
     data: UpdatePatientData,
   ): Promise<Patient | undefined> {
-    const patch = extractUpdatePatientPatch(data as Record<string, unknown>);
-    const existing = await this.findById(tenantId, id);
-    if (!existing) return undefined;
+    const fullName = computeFullName(
+      data.first_name,
+      data.middle_name,
+      data.last_name,
+    );
 
-    if (Object.keys(patch).length === 0) {
-      return existing;
+    const values: Record<string, unknown> = { ...data, updated_at: new Date() };
+    if (fullName !== undefined) {
+      values["full_name"] = fullName;
     }
-
-    const first =
-      patch.first_name !== undefined ? patch.first_name : existing.first_name;
-    const middle =
-      patch.middle_name !== undefined ? patch.middle_name : existing.middle_name;
-    const last =
-      patch.last_name !== undefined ? patch.last_name : existing.last_name;
-
-    const values: Record<string, unknown> = {
-      ...patch,
-      full_name: buildFullName(first, middle, last),
-      updated_at: new Date(),
-    };
 
     const rows = await this.db
       .update(patients)
@@ -257,4 +173,15 @@ export class DrizzlePatientRepo implements PatientRepo {
       .returning();
     return (rows[0] as Patient) ?? undefined;
   }
+}
+
+function computeFullName(
+  firstName?: string,
+  middleName?: string | null,
+  lastName?: string | null,
+): string | undefined {
+  if (firstName === undefined) return undefined;
+  return [firstName?.trim(), middleName?.trim(), lastName?.trim()]
+    .filter(Boolean)
+    .join(" ");
 }

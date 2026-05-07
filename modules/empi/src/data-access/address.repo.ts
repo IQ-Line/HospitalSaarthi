@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm/sql";
+import { eq, and } from "drizzle-orm";
 import type { DbInstance } from "@hims/ts-sdk-db";
 import { patientAddresses } from "../schema/tables.js";
 import type { AddressRepo } from "../ports.js";

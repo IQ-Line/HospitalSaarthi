@@ -1,9 +1,7 @@
 import type { EventBus } from "@hims/ts-sdk-events";
-import { createEnvelope } from "@hims/ts-sdk-events";
-import { randomUUID } from "node:crypto";
+import { createEmpiEnvelope } from "../lib/empi-envelope.js";
 import type { PatientRepo } from "../ports.js";
 import type { Patient, PatientStatus } from "../domain/patient.types.js";
-import { actorIdOrRandom } from "../lib/actor-id.js";
 
 interface Deps {
   patientRepo: PatientRepo;
@@ -30,21 +28,18 @@ export async function changePatientStatus(
   if (!patient) return undefined;
 
   await deps.eventBus.publish(
-    createEnvelope({
-      event_type: "empi.patient.status-changed",
-      source_module: "empi",
-      iq_tenant_id: patient.iq_tenant_id,
-      correlation_id: randomUUID(),
-      actor_id: actorIdOrRandom(updatedBy),
-      schema_version: "1.0.0",
-      payload: {
+    createEmpiEnvelope(
+      "empi.patient.status-changed",
+      patient.iq_tenant_id,
+      updatedBy,
+      {
         id: patient.id,
         iq_tenant_id: patient.iq_tenant_id,
         uhid: patient.uhid,
         old_status: oldStatus,
         new_status: newStatus,
       },
-    }),
+    ),
   );
 
   return patient;

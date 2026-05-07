@@ -3,12 +3,7 @@
   "namedInputs": {
     "default": ["{projectRoot}/**/*", "sharedGlobals"],
     "sharedGlobals": ["{workspaceRoot}/tsconfig.base.json"],
-    "production": [
-      "default",
-      "!{projectRoot}/**/*.test.ts",
-      "!{projectRoot}/**/*.spec.ts",
-      "!{projectRoot}/test/**/*"
-    ]
+    "production": ["default", "!{projectRoot}/**/*.test.ts", "!{projectRoot}/**/*.spec.ts", "!{projectRoot}/test/**/*"]
   },
   "targetDefaults": {
     "build": {
@@ -29,6 +24,5 @@
       "cache": true
     }
   },
-  "defaultBase": "dev",
-  "analytics": false
+  "defaultBase": "dev"
 }

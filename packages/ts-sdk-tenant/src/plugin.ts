@@ -1,4 +1,4 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyPluginOptions } from "fastify";
 import fp from "fastify-plugin";
 import { tenantStorage } from "./context.js";
 
@@ -10,7 +10,7 @@ declare module "fastify" {
 
 function tenantPluginImpl(
   app: FastifyInstance,
-  _opts: Record<string, never>,
+  _opts: FastifyPluginOptions,
   done: (err?: Error) => void,
 ) {
   app.decorateRequest("tenantId", "");

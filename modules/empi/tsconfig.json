@@ -2,11 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "../../dist/modules/empi",
-    "baseUrl": "../../",
-    "paths": {
-      "@hims/ts-sdk-db": ["packages/ts-sdk-db/src/index.ts"],
-      "@hims/ts-sdk-events": ["packages/ts-sdk-events/src/index.ts"]
-    }
+    "baseUrl": "../../"
   },
   "include": ["src/**/*.ts"]
 }
