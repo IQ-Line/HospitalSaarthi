@@ -1,4 +1,6 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { Button } from '@pulse/ui/button';
+import { Card } from '@pulse/ui/card';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePermissionsStore } from '@/stores/permissions.store';
 import { useTenantStore } from '@/stores/tenant.store';
@@ -48,20 +50,18 @@ function LoginPage() {
   };
 
   return (
-    <div className="flex h-screen items-center justify-center bg-surface-dim">
-      <div className="w-full max-w-sm rounded-lg bg-surface p-8 shadow-md">
-        <h1 className="mb-6 text-2xl font-semibold text-center">HIMS Platform</h1>
-        <button
-          type="button"
-          onClick={handleDevLogin}
-          className="w-full rounded-md bg-primary px-4 py-2 text-white hover:bg-primary-dark transition-colors"
-        >
-          Dev Login
-        </button>
-        <p className="mt-4 text-center text-xs text-gray-400">
-          better-auth integration replaces this in production
-        </p>
-      </div>
+    <div className="flex h-screen items-center justify-center bg-muted">
+      <Card className="w-full max-w-sm">
+        <div className="px-6 pt-4 pb-2">
+          <h1 className="mb-6 text-2xl font-semibold text-center">HIMS Platform</h1>
+          <Button className="w-full" onClick={handleDevLogin}>
+            Dev Login
+          </Button>
+          <p className="mt-4 text-center text-xs text-muted-foreground">
+            better-auth integration replaces this in production
+          </p>
+        </div>
+      </Card>
     </div>
   );
 }

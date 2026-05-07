@@ -8,13 +8,22 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
+from app.repositories.module_permission_repository import DuplicateModulePermissionKeyError
 from app.repositories.module_repository import DuplicateModuleKeyError
+from app.repositories.permission_repository import DuplicatePermissionKeyError
+from app.repositories.system_role_repository import DuplicateSystemRoleKeyError
+from app.services.module_permission_service import (
+    InvalidModulePermissionReferenceError,
+    ModulePermissionNotFoundError,
+)
 from app.services.module_service import (
     InvalidParentCycleError,
     MaxTreeDepthError,
     ModuleNotFoundError,
     ParentModuleNotFoundError,
 )
+from app.services.permission_service import PermissionNotFoundError
+from app.services.system_role_service import SystemRoleNotFoundError
 
 
 class ResourceNotFoundError(Exception):
@@ -40,6 +49,71 @@ def register_exception_handlers(app: FastAPI) -> None:
             content=error_payload(
                 "CONFLICT",
                 "Another active module already uses this name or slug.",
+            ),
+        )
+
+    @app.exception_handler(DuplicatePermissionKeyError)
+    async def _duplicate_permission_key(
+        _request: Request,
+        _exc: DuplicatePermissionKeyError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content=error_payload(
+                "CONFLICT",
+                "Another active permission already uses this slug.",
+            ),
+        )
+
+    @app.exception_handler(DuplicateSystemRoleKeyError)
+    async def _duplicate_system_role_key(
+        _request: Request,
+        _exc: DuplicateSystemRoleKeyError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content=error_payload(
+                "CONFLICT",
+                "Another active system role already uses this slug.",
+            ),
+        )
+
+    @app.exception_handler(DuplicateModulePermissionKeyError)
+    async def _duplicate_module_permission_key(
+        _request: Request,
+        _exc: DuplicateModulePermissionKeyError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content=error_payload(
+                "CONFLICT",
+                (
+                    "Another active link already uses this slug or the same module "
+                    "and permission pair."
+                ),
+            ),
+        )
+
+    @app.exception_handler(InvalidModulePermissionReferenceError)
+    async def _invalid_mp_reference(
+        _request: Request,
+        exc: InvalidModulePermissionReferenceError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=400,
+            content=error_payload("BAD_REQUEST", exc.message),
+        )
+
+    @app.exception_handler(ModulePermissionNotFoundError)
+    async def _module_permission_missing(
+        _request: Request,
+        _exc: ModulePermissionNotFoundError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=404,
+            content=error_payload(
+                "NOT_FOUND",
+                "No module-permission link with this id.",
             ),
         )
 
@@ -78,6 +152,23 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=404,
             content=error_payload("NOT_FOUND", "No module with this id."),
+        )
+
+    @app.exception_handler(PermissionNotFoundError)
+    async def _permission_missing(_request: Request, _exc: PermissionNotFoundError) -> JSONResponse:
+        return JSONResponse(
+            status_code=404,
+            content=error_payload("NOT_FOUND", "No permission with this id."),
+        )
+
+    @app.exception_handler(SystemRoleNotFoundError)
+    async def _system_role_missing(
+        _request: Request,
+        _exc: SystemRoleNotFoundError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=404,
+            content=error_payload("NOT_FOUND", "No system role with this id."),
         )
 
     @app.exception_handler(ResourceNotFoundError)

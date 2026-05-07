@@ -1,7 +1,7 @@
 # Master Data — Schema Design
 
 **Module:** Master Data (core platform module)  
-**Schema name:** `master_data`  
+**PostgreSQL schema:** `public` (catalog tables for this service; no separate `master_data` schema in the database)  
 **Related HLD:** [02-core-modules.md §4](../../hld/02-core-modules.md#4-master--tenant-data) | [03-module-shape-template.md §8](../../hld/03-module-shape-template.md#8-configurator-integration)  
 **Related ADRs:** [ADR-0002](../../adr/0002-multi-tenant-fragmentable-adoption.md) (Multi-tenant fragmentable adoption) | [ADR-0006](../../adr/0006-four-core-platform-modules.md) (Four core modules) | [ADR-0012](../../adr/0012-multi-tenancy-isolation-strategy.md) (Multi-tenancy isolation)  
 **ERD (visual):** [`master-data.erd.json`](./master-data.erd.json) — open in VS Code with ERD Editor extension  
@@ -52,17 +52,24 @@ Registry of all deployable modules — 4 core + ~38 feature modules from the AII
 
 Platform-wide list of permission verbs with **`slug`** (policy-stable) and **`action`** (`create` \| `read` \| `update` \| `delete` \| `manage`). Seeded or extended by migrations and platform ops.
 
+CRUD is exposed under `/api/v1/master-data/permissions` (`GET/POST`) and
+`/api/v1/master-data/permissions/{permissionId}` (`GET/PATCH/DELETE`) with soft-delete semantics.
+
 ---
 
 ## 4. Module–permission mapping (`module_permissions`)
 
-Join table: which **`permissions`** apply to which **`modules`**. Each row has its own **`slug`** (unique) for stable external references. **`is_default`** hints suggested defaults when provisioning tenant role templates; it does not grant access by itself.
+Join table: which **`permissions`** apply to which **`modules`**. Each row has its own **`slug`** (unique among active rows, partial index) for stable external references. **`(module_id, permission_id)`** is unique among active rows so each pair appears at most once while not soft-deleted. **`is_default`** hints suggested defaults when provisioning tenant role templates; it does not grant access by itself.
+
+HTTP CRUD is under **`/api/v1/master-data/module-permissions`** (see OpenAPI). **`module_id`** / **`permission_id`** must reference **non-deleted** **`modules`** and **`permissions`** rows; writes validate this before insert/update (**400** when invalid).
 
 ---
 
 ## 5. Role templates (`system_roles`)
 
-Named role **templates** (e.g. Ward Clerk). **`is_template`** distinguishes catalog rows from instantiated roles elsewhere. Real membership and Cerbos principal attributes live outside `master_data`.
+Named role **templates** (e.g. Ward Clerk). **`is_template`** distinguishes catalog rows from instantiated roles elsewhere. Real membership and Cerbos principal attributes live outside this catalog (User Management / Cerbos).
+
+Catalog CRUD is exposed under **`/api/v1/master-data/system-roles`** (see OpenAPI and [`02-api-contracts.md`](./02-api-contracts.md)); **`slug`** is unique among active rows (partial unique index), matching the **`permissions`** pattern.
 
 ---
 
@@ -100,7 +107,7 @@ Platform-wide feature flag definitions with defaults. Tenant-specific overrides 
 
 ## 9. Module registration lifecycle
 
-The **authoritative day-to-day path** is the **Master Data modules API**: a platform **superadmin** creates and edits rows in `master_data.modules` (`POST` / `PATCH`). **Removal** is **`is_deleted = true`** via **`DELETE`** (soft delete only — no hard row delete in normal flows). **`name`** and **`slug`** are unique among **active** rows (partial unique indexes); a soft-deleted row frees its keys for reuse.
+The **authoritative day-to-day path** is the **Master Data modules API**: a platform **superadmin** creates and edits rows in `public.modules` (`POST` / `PATCH`). **Removal** is **`is_deleted = true`** via **`DELETE`** (soft delete only — no hard row delete in normal flows). **`name`** and **`slug`** are unique among **active** rows (partial unique indexes); a soft-deleted row frees its keys for reuse.
 
 ### Bootstrap and CI (migrations still matter)
 
@@ -138,11 +145,11 @@ See [Configurator dev-doubts/01-analysis.md §3](../configurator/dev-doubts/01-a
 | `module_config_schemas` | **Reference** | Yellow | One row per module per schema version |
 | `feature_flags` | **Reference** | Yellow | Flag definitions |
 
-All MVP `master_data` tables above are **reference tables** — replicated on every Citus worker so catalog reads are local.
+All MVP Master Data catalog tables above are **reference tables** — replicated on every Citus worker so catalog reads are local.
 
 ### No cross-schema queries
 
-The Configurator does **not** query `master_data.*` directly at runtime. It maintains local projections (`module_projection`, `config_schema_projection`, `feature_flag_projection`, and any future permission/picklist projections) in its own schema, synced via domain events (§12). Tenant tables reference projections, not `master_data` — per [database principle §4](../../analysis/03-database-principles.md#4-no-cross-schema-foreign-keys). Intra-schema FKs (`module_config_schemas.module_id` → `modules.id`, etc.) are normal PostgreSQL foreign keys.
+The Configurator does **not** query `public.*` Master Data tables directly at runtime. It maintains local projections (`module_projection`, `config_schema_projection`, `feature_flag_projection`, and any future permission/picklist projections) in its own schema, synced via domain events (§12). Tenant tables reference projections, not the Master Data catalog tables — per [database principle §4](../../analysis/03-database-principles.md#4-no-cross-schema-foreign-keys). Intra-schema FKs (`module_config_schemas.module_id` → `modules.id`, etc.) are normal PostgreSQL foreign keys.
 
 ---
 
@@ -153,9 +160,9 @@ The Configurator does **not** query `master_data.*` directly at runtime. It main
 | Table | Missing | Justification |
 |-------|---------|---------------|
 | `module_config_schemas` | `created_by`, `updated_by` | Declared by deployments |
-| `permissions`, `module_permissions`, `system_roles`, `picklist`, `picklist_values` | `created_by`, `updated_by` | Same — catalog seeded/migrated; optional to add later for human edits |
+| `module_permissions`, `system_roles`, `picklist`, `picklist_values` | `created_by`, `updated_by` | Catalog rows currently seeded/migrated; optional to add later for human edits |
 
-`feature_flags` retains `created_by` / `updated_by` for operator-defined flags.
+`permissions` and `feature_flags` retain `created_by` / `updated_by` for operator-defined edits.
 
 ---
 
@@ -191,21 +198,21 @@ Master Data depends on **User Management** for authenticated operators (identity
 
 | Column | On table | References | In module | Mechanism |
 |--------|----------|------------|-----------|-----------|
-| `module_projection.id` | `configurator.module_projection` | `master_data.modules.id` | Configurator | Event-synced projection (same UUID, no FK) |
-| `config_schema_projection.*` | `configurator.config_schema_projection` | `master_data.module_config_schemas` identity | Configurator | Event-synced |
-| `feature_flag_projection.id` | `configurator.feature_flag_projection` | `master_data.feature_flags.id` | Configurator | Event-synced |
-| `feature_flags.module_id` | `master_data.feature_flags` | `master_data.modules.id` | Master Data | Intra-schema FK |
-| `module_config_schemas.module_id` | `master_data.module_config_schemas` | `master_data.modules.id` | Master Data | Intra-schema FK |
-| `modules.parent_id` | `master_data.modules` | `master_data.modules.id` | Master Data | Self-FK (tree) |
-| `module_permissions.module_id` | `master_data.module_permissions` | `master_data.modules.id` | Master Data | Intra-schema FK |
-| `module_permissions.permission_id` | `master_data.module_permissions` | `master_data.permissions.id` | Master Data | Intra-schema FK |
-| `picklist_values.category_id` | `master_data.picklist_values` | `master_data.picklist.id` | Master Data | Intra-schema FK |
+| `module_projection.id` | `configurator.module_projection` | `public.modules.id` | Configurator | Event-synced projection (same UUID, no FK) |
+| `config_schema_projection.*` | `configurator.config_schema_projection` | `public.module_config_schemas` identity | Configurator | Event-synced |
+| `feature_flag_projection.id` | `configurator.feature_flag_projection` | `public.feature_flags.id` | Configurator | Event-synced |
+| `feature_flags.module_id` | `public.feature_flags` | `public.modules.id` | Master Data | Intra-schema FK |
+| `module_config_schemas.module_id` | `public.module_config_schemas` | `public.modules.id` | Master Data | Intra-schema FK |
+| `modules.parent_id` | `public.modules` | `public.modules.id` | Master Data | Self-FK (tree) |
+| `module_permissions.module_id` | `public.module_permissions` | `public.modules.id` | Master Data | Intra-schema FK |
+| `module_permissions.permission_id` | `public.module_permissions` | `public.permissions.id` | Master Data | Intra-schema FK |
+| `picklist_values.category_id` | `public.picklist_values` | `public.picklist.id` | Master Data | Intra-schema FK |
 
 ---
 
 ## 15. MVP vs implementation pace
 
-The **ERD and this document** describe the full MVP **`master_data`** contract (**eight** reference tables). Individual migrations may land tables in waves (for example, ship `modules` first, then permissions and picklists) as long as OpenAPI and migrations stay consistent with the adopted slice. [`schema-reference.json`](./schema-reference.json) is the column-level source of truth.
+The **ERD and this document** describe the full MVP **Master Data catalog** contract (**eight** reference tables). Individual migrations may land tables in waves (for example, ship `modules` first, then permissions and picklists) as long as OpenAPI and migrations stay consistent with the adopted slice. [`schema-reference.json`](./schema-reference.json) is the column-level source of truth.
 
 ---
 
@@ -233,7 +240,7 @@ Per HLD §4.1, global reference datasets are the baseline; tenant overrides are 
 
 ### Why the MVP schema accommodates this
 
-- The `master_data` schema namespace already exists.
+- Catalog DDL uses the default PostgreSQL **`public`** schema (no separate schema object required).
 - MVP catalog tables are orthogonal to healthcare code tables.
 - A dedicated audit or history table may be introduced later outside or alongside MVP tables if regulators require finer-grained change logs than row metadata.
 

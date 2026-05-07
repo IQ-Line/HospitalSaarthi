@@ -8,8 +8,8 @@ For local setup, see [`SETUP.md`](./SETUP.md).
 
 **`POST` / `PATCH` / `DELETE`** on `/modules` are open at the service layer for Phase 0; production will rely on an **API gateway** (or route deps) for JWT / API keys.
 
-- **`BearerAuthContextMiddleware`** (`app/utils/auth_middleware.py`): registers first in the stack; today it only marks public doc paths and does not reject traffic. Extend it when gateway JWT validation lands.
-- **`resolve_superadmin_actor`** / **`require_superadmin`** (`app/utils/auth_policy.py`, `app/api/auth.py`): use when routes opt back in. Non-JWT paths (tests, bypass, dev shared secret) return **no** actor UUID so **`created_by` / `updated_by`** stay **`NULL`** instead of fake users.
+- **`BearerAuthContextMiddleware`** (`app/middleware/auth_middleware.py`): registers first in the stack; today it only marks public doc paths and does not reject traffic. Extend it when gateway JWT validation lands.
+- **`resolve_superadmin_actor`** / **`require_superadmin`** (`app/middleware/auth_policy.py`, `app/api/auth.py`): use when routes opt back in. Non-JWT paths (tests, bypass, dev shared secret) return **no** actor UUID so **`created_by` / `updated_by`** stay **`NULL`** instead of fake users.
 - **`RequestContextMiddleware`**: sets **`X-Request-ID`** on every request.
 
 See **SETUP.md** (verification + auth notes) and **`tests/test_utils/test_auth_policy.py`** for policy behavior.

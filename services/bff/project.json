@@ -1,0 +1,13 @@
+{
+  "name": "bff",
+  "tags": ["type:service", "scope:bff", "language:typescript"],
+  "targets": {
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npx tsx watch src/main.ts",
+        "cwd": "services/bff"
+      }
+    }
+  }
+}

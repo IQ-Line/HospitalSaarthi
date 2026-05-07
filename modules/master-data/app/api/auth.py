@@ -1,7 +1,8 @@
 """Superadmin JWT / dev-bearer FastAPI dependency (optional on routes).
 
 Catalog routes may later ``Depends(require_superadmin)``; global context is prepared in
-``app.utils.auth_middleware.BearerAuthContextMiddleware`` without rejecting requests today.
+``app.middleware.auth_middleware.BearerAuthContextMiddleware`` without rejecting requests
+today.
 """
 
 from typing import Annotated
@@ -11,7 +12,7 @@ from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.core.config import get_settings
-from app.utils.auth_policy import AuthResolutionError, resolve_superadmin_actor
+from app.middleware.auth_policy import AuthResolutionError, resolve_superadmin_actor
 
 bearer_scheme = HTTPBearer(auto_error=False)
 

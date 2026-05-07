@@ -47,7 +47,6 @@ CORE_MODULES = [
 
 
 def upgrade() -> None:
-    op.execute("CREATE SCHEMA IF NOT EXISTS master_data")
     op.create_table(
         "modules",
         sa.Column(
@@ -77,7 +76,6 @@ def upgrade() -> None:
             name="modules_category_check",
         ),
         sa.UniqueConstraint("name", name="modules_name_key"),
-        schema="master_data",
     )
 
     modules_table = sa.table(
@@ -86,7 +84,6 @@ def upgrade() -> None:
         sa.column("name", sa.String),
         sa.column("category", sa.String),
         sa.column("version", sa.String),
-        schema="master_data",
     )
     op.bulk_insert(modules_table, CORE_MODULES)
 
@@ -95,7 +92,7 @@ def upgrade() -> None:
         DO $$
         BEGIN
             IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'create_reference_table') THEN
-                PERFORM create_reference_table('master_data.modules');
+                PERFORM create_reference_table('public.modules');
             END IF;
         EXCEPTION
             WHEN duplicate_object THEN
@@ -106,4 +103,4 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_table("modules", schema="master_data")
+    op.drop_table("modules")

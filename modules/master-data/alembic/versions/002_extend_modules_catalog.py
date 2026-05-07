@@ -1,4 +1,4 @@
-"""Align master_data.modules with schema-reference.json (LLD catalog).
+"""Align modules with schema-reference.json (LLD catalog).
 
 Revision ID: 002_extend_modules_catalog
 Revises: 001_initial_schema
@@ -22,17 +22,14 @@ def upgrade() -> None:
     op.add_column(
         "modules",
         sa.Column("parent_id", postgresql.UUID(as_uuid=True), nullable=True),
-        schema="master_data",
     )
     op.add_column(
         "modules",
         sa.Column("slug", sa.Text(), nullable=True),
-        schema="master_data",
     )
     op.add_column(
         "modules",
         sa.Column("description", sa.Text(), nullable=True),
-        schema="master_data",
     )
     op.add_column(
         "modules",
@@ -42,12 +39,10 @@ def upgrade() -> None:
             nullable=False,
             server_default="1",
         ),
-        schema="master_data",
     )
     op.add_column(
         "modules",
         sa.Column("icon", sa.Text(), nullable=True),
-        schema="master_data",
     )
     op.add_column(
         "modules",
@@ -57,13 +52,12 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("true"),
         ),
-        schema="master_data",
     )
 
     # Slug from machine name: replace underscores with hyphens.
     op.execute(
         """
-        UPDATE master_data.modules
+        UPDATE public.modules
         SET slug = replace(name, '_', '-')
         WHERE slug IS NULL
         """
@@ -74,14 +68,12 @@ def upgrade() -> None:
         "slug",
         existing_type=sa.Text(),
         nullable=False,
-        schema="master_data",
     )
 
     op.create_check_constraint(
         "modules_level_check",
         "modules",
         "level >= 1 AND level <= 4",
-        schema="master_data",
     )
 
     op.create_foreign_key(
@@ -90,8 +82,6 @@ def upgrade() -> None:
         referent_table="modules",
         local_cols=["parent_id"],
         remote_cols=["id"],
-        source_schema="master_data",
-        referent_schema="master_data",
         ondelete="RESTRICT",
     )
 
@@ -99,38 +89,34 @@ def upgrade() -> None:
         "modules_slug_key",
         "modules",
         ["slug"],
-        schema="master_data",
     )
     op.create_index(
         "idx_modules_parent",
         "modules",
         ["parent_id"],
-        schema="master_data",
     )
     op.create_index(
         "idx_modules_category",
         "modules",
         ["category"],
-        schema="master_data",
     )
 
 
 def downgrade() -> None:
-    op.drop_index("idx_modules_category", table_name="modules", schema="master_data")
-    op.drop_index("idx_modules_parent", table_name="modules", schema="master_data")
-    op.drop_constraint("modules_slug_key", "modules", schema="master_data", type_="unique")
+    op.drop_index("idx_modules_category", table_name="modules")
+    op.drop_index("idx_modules_parent", table_name="modules")
+    op.drop_constraint("modules_slug_key", "modules", type_="unique")
 
     op.drop_constraint(
         "modules_parent_id_fkey",
         "modules",
-        schema="master_data",
         type_="foreignkey",
     )
-    op.drop_constraint("modules_level_check", "modules", schema="master_data", type_="check")
+    op.drop_constraint("modules_level_check", "modules", type_="check")
 
-    op.drop_column("modules", "is_active", schema="master_data")
-    op.drop_column("modules", "icon", schema="master_data")
-    op.drop_column("modules", "level", schema="master_data")
-    op.drop_column("modules", "description", schema="master_data")
-    op.drop_column("modules", "slug", schema="master_data")
-    op.drop_column("modules", "parent_id", schema="master_data")
+    op.drop_column("modules", "is_active")
+    op.drop_column("modules", "icon")
+    op.drop_column("modules", "level")
+    op.drop_column("modules", "description")
+    op.drop_column("modules", "slug")
+    op.drop_column("modules", "parent_id")
