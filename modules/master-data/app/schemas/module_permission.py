@@ -51,8 +51,7 @@ class ModulePermissionUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     slug: str | None = Field(default=None, min_length=1)
-    module_id: UUID | None = None
-    permission_id: UUID | None = None
+    # Junction FK pair is immutable after creation. Re-pointing requires delete + create.
     is_default: bool | None = None
     is_active: bool | None = None
     is_deleted: bool | None = None

@@ -96,7 +96,7 @@ Typical status mapping:
 | `POST` | `/api/v1/master-data/module-permissions` | `createModulePermission` | Create link; **400** if module or permission missing/soft-deleted; **409** on slug or pair clash. |
 | `GET` | `/api/v1/master-data/module-permissions/by-slug/{slug}` | `getModulePermissionBySlug` | **404** if missing or soft-deleted. |
 | `GET` | `/api/v1/master-data/module-permissions/{modulePermissionId}` | `getModulePermissionById` | **404** if missing or soft-deleted. |
-| `PATCH` | `/api/v1/master-data/module-permissions/{modulePermissionId}` | `updateModulePermission` | Partial update (`ModulePermissionUpdate`). |
+| `PATCH` | `/api/v1/master-data/module-permissions/{modulePermissionId}` | `updateModulePermission` | Partial update (`slug` / flags only). To change `module_id` or `permission_id`, delete + create a new link. |
 | `DELETE` | `/api/v1/master-data/module-permissions/{modulePermissionId}` | `deleteModulePermission` | Soft-delete link; **200** returns updated row. |
 
 Single-resource success envelope: **`ModuleSingleResponse`** — `{ "data": Module }` (see OpenAPI `ModuleSingleResponse`).

@@ -127,14 +127,10 @@ def patch_module_permission(
         ModulePermissionRepository,
         Depends(get_module_permission_repository),
     ],
-    module_repository: Annotated[ModuleRepository, Depends(get_module_repository)],
-    permission_repository: Annotated[PermissionRepository, Depends(get_permission_repository)],
     session: Annotated[Session, Depends(get_session)],
 ) -> ModulePermissionSingleResponse:
     row = update_module_permission(
         mp_repository,
-        module_repository,
-        permission_repository,
         module_permission_id,
         payload,
         actor_id=None,
