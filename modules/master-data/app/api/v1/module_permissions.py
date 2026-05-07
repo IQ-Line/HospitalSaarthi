@@ -44,14 +44,18 @@ def get_module_permissions(
     repository: Annotated[ModulePermissionRepository, Depends(get_module_permission_repository)],
     module_id: Annotated[UUID | None, Query()] = None,
     permission_id: Annotated[UUID | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> ModulePermissionListResponse:
-    rows = list_module_permissions(
+    rows, total = list_module_permissions(
         repository,
         module_id=module_id,
         permission_id=permission_id,
+        limit=limit,
+        offset=offset,
     )
     data = [ModulePermissionResponse.model_validate(r) for r in rows]
-    return ModulePermissionListResponse(data=data, total=len(data))
+    return ModulePermissionListResponse(data=data, total=total)
 
 
 @router.post(

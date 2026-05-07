@@ -42,10 +42,14 @@ def list_module_permissions(
     *,
     module_id: UUID | None = None,
     permission_id: UUID | None = None,
-) -> list[ModulePermissionModel]:
+    limit: int = 50,
+    offset: int = 0,
+) -> tuple[list[ModulePermissionModel], int]:
     return repository.list_module_permissions(
         module_id=module_id,
         permission_id=permission_id,
+        limit=limit,
+        offset=offset,
     )
 
 

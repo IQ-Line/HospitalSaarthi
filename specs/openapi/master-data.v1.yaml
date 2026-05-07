@@ -451,7 +451,8 @@ paths:
       description: >
         Active junction rows (`is_deleted = false`). Optional filters **`module_id`** and/or
         **`permission_id`**. **`slug`** is unique per active row; **`(module_id, permission_id)`**
-        pair is unique among active rows (soft-delete frees both for reuse).
+        pair is unique among active rows (soft-delete frees both for reuse). Results are
+        paginated with **`limit`** and **`offset`**.
       security: []
       tags:
         - Module permissions
@@ -470,9 +471,26 @@ paths:
             type: string
             format: uuid
           description: Return links for this permission only.
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+          description: Page size.
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Number of matching rows to skip before page extraction.
       responses:
         "200":
-          description: Junction rows.
+          description: Junction rows (paged); `total` is full count after filters, before paging.
           content:
             application/json:
               schema:

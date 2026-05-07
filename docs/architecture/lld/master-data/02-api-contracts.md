@@ -27,7 +27,7 @@ Initial environments may still **seed** baseline rows via Alembic migrations (se
 | **IDs** | UUIDs as lowercase string with hyphens in JSON. |
 | **Authentication** | Module routes use **`security: []`** in OpenAPI (Phase 0). A gateway may add auth; optional service-layer JWT is documented in **`modules/master-data`** (`require_superadmin`, `auth_policy.py`). |
 | **Authorization** | Cerbos PDP is authoritative; API returns **403** when the principal is authenticated but not allowed (see [module shape template](../../hld/03-module-shape-template.md)). |
-| **List success envelope** | `{ "data": [ ... ], "total": <int> }` where `total` is the count of items in `data` for the current response (same semantics as the existing list endpoint; pagination query params TBD when added). |
+| **List success envelope** | `{ "data": [ ... ], "total": <int> }`. For paginated endpoints, `total` is the full count after filters (before `limit`/`offset`); for unpaginated endpoints, it equals `len(data)`. |
 | **Item success** | When a single-resource GET is added, prefer `{ "data": { ... } }` for consistency with list wrapping. |
 | **Errors** | JSON body per **§2**; use the appropriate 4xx/5xx status. |
 | **Idempotency** | Not required for module GET; optional `Idempotency-Key` may be added later for writes. |
@@ -92,7 +92,7 @@ Typical status mapping:
 | `GET` | `/api/v1/master-data/system-roles/{systemRoleId}` | `getSystemRoleById` | Get one template by id; **404** if missing or soft-deleted. |
 | `PATCH` | `/api/v1/master-data/system-roles/{systemRoleId}` | `updateSystemRole` | Partial update (`SystemRoleUpdate`); may set `is_deleted: false` to restore. |
 | `DELETE` | `/api/v1/master-data/system-roles/{systemRoleId}` | `deleteSystemRole` | Soft-delete template (`is_deleted = true`); **200** returns updated row. |
-| `GET` | `/api/v1/master-data/module-permissions` | `listModulePermissions` | List active module↔permission links; optional **`module_id`** / **`permission_id`** filters. |
+| `GET` | `/api/v1/master-data/module-permissions` | `listModulePermissions` | List active module↔permission links; optional **`module_id`** / **`permission_id`** filters; paginated via **`limit`**/**`offset`**. |
 | `POST` | `/api/v1/master-data/module-permissions` | `createModulePermission` | Create link; **400** if module or permission missing/soft-deleted; **409** on slug or pair clash. |
 | `GET` | `/api/v1/master-data/module-permissions/by-slug/{slug}` | `getModulePermissionBySlug` | **404** if missing or soft-deleted. |
 | `GET` | `/api/v1/master-data/module-permissions/{modulePermissionId}` | `getModulePermissionById` | **404** if missing or soft-deleted. |

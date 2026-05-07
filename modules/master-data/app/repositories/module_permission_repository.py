@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -37,17 +37,31 @@ class ModulePermissionRepository:
         *,
         module_id: UUID | None = None,
         permission_id: UUID | None = None,
-    ) -> list[ModulePermissionModel]:
+        limit: int,
+        offset: int,
+    ) -> tuple[list[ModulePermissionModel], int]:
+        filters = [ModulePermissionModel.is_deleted.is_(False)]
+        if module_id is not None:
+            filters.append(ModulePermissionModel.module_id == module_id)
+        if permission_id is not None:
+            filters.append(ModulePermissionModel.permission_id == permission_id)
+
+        total_statement: Select[tuple[int]] = select(func.count()).select_from(
+            ModulePermissionModel
+        )
+        for condition in filters:
+            total_statement = total_statement.where(condition)
+        total = int(self._session.scalar(total_statement) or 0)
+
         statement: Select[tuple[ModulePermissionModel]] = (
             select(ModulePermissionModel)
-            .where(ModulePermissionModel.is_deleted.is_(False))
+            .where(*filters)
             .order_by(ModulePermissionModel.slug)
+            .offset(offset)
+            .limit(limit)
         )
-        if module_id is not None:
-            statement = statement.where(ModulePermissionModel.module_id == module_id)
-        if permission_id is not None:
-            statement = statement.where(ModulePermissionModel.permission_id == permission_id)
-        return list(self._session.scalars(statement).all())
+        rows = list(self._session.scalars(statement).all())
+        return rows, total
 
     def get_module_permission_by_id(
         self,

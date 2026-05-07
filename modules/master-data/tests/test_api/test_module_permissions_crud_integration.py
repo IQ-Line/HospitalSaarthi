@@ -177,6 +177,34 @@ def test_module_permission_duplicate_slug_and_pair(mp_client: TestClient) -> Non
     assert dup_pair.status_code == 409
 
 
+def test_module_permission_list_pagination(mp_client: TestClient) -> None:
+    mid = _post_module(mp_client, "Paginated", "paginated-mod")
+    p1 = _post_permission(mp_client, "PA", "perm-a")
+    p2 = _post_permission(mp_client, "PB", "perm-b")
+    p3 = _post_permission(mp_client, "PC", "perm-c")
+
+    for slug, pid in [
+        ("paginated-mod--perm-a", p1),
+        ("paginated-mod--perm-b", p2),
+        ("paginated-mod--perm-c", p3),
+    ]:
+        r = mp_client.post(
+            "/api/v1/master-data/module-permissions",
+            json={
+                "slug": slug,
+                "module_id": str(mid),
+                "permission_id": str(pid),
+            },
+        )
+        assert r.status_code == 201, r.text
+
+    page = mp_client.get("/api/v1/master-data/module-permissions?limit=2&offset=1")
+    assert page.status_code == 200
+    body = page.json()
+    assert body["total"] == 3
+    assert len(body["data"]) == 2
+
+
 def test_module_permission_invalid_module_reference(mp_client: TestClient) -> None:
     pid = _post_permission(mp_client, "Px", "perm-x")
     bad = mp_client.post(
