@@ -1,6 +1,6 @@
 {
   "$schema": "erd/v1",
-  "schema": "master_data",
+  "schema": "public",
   "description": "Master Data \u2014 platform catalog (modules tree, permission definitions, role templates, picklists), Configurator-facing registry (config schemas, feature flags). Healthcare reference data is Post-launch. See 01-schema-design.md.",
   "citus": {
     "distribution_column": "iq_tenant_id",
@@ -63,8 +63,8 @@
           "type": "INT",
           "nullable": false,
           "default": "1",
-          "check": "level >= 1 AND level <= 4",
-          "description": "Tree depth for menus (bounded to avoid deep nesting)."
+          "check": "level >= 1 AND level <= 10",
+          "description": "Tree depth for menus (max levels adjustable via migration if product needs it)."
         },
         "icon": {
           "type": "TEXT",
@@ -77,6 +77,12 @@
           "default": "true",
           "description": "Catalog visibility; inactive nodes hidden from default admin navigation."
         },
+        "is_deleted": {
+          "type": "BOOLEAN",
+          "nullable": false,
+          "default": "false",
+          "description": "Soft-delete flag; rows kept for audit. APIs exclude deleted rows from list/detail by default; no hard DELETE for catalog lifecycle."
+        },
         "created_at": {
           "type": "TIMESTAMPTZ",
           "nullable": false,
@@ -86,6 +92,16 @@
           "type": "TIMESTAMPTZ",
           "nullable": false,
           "default": "now()"
+        },
+        "created_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Actor user id when row is created via authenticated flows; nullable for migration-only seeds."
+        },
+        "updated_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Last modifier user id; nullable when updates are deployment-driven."
         }
       },
       "primary_key": [
@@ -94,19 +110,28 @@
       "indexes": [
         {
           "columns": [
+            "is_deleted"
+          ],
+          "name": "idx_modules_is_deleted",
+          "note": "Filter active catalog rows"
+        },
+        {
+          "columns": [
             "name"
           ],
-          "name": "idx_modules_name",
+          "name": "modules_name_active_key",
           "unique": true,
-          "note": "Lookup by machine name"
+          "partial_where": "NOT is_deleted",
+          "note": "Unique machine name among active (non-deleted) rows"
         },
         {
           "columns": [
             "slug"
           ],
-          "name": "idx_modules_slug",
+          "name": "modules_slug_active_key",
           "unique": true,
-          "note": "Lookup by slug / routing"
+          "partial_where": "NOT is_deleted",
+          "note": "Unique slug among active rows; soft-delete frees the slug"
         },
         {
           "columns": [
@@ -141,7 +166,6 @@
         "slug": {
           "type": "TEXT",
           "nullable": false,
-          "unique": true,
           "description": "Stable permission key referenced in policies and UI gating hints."
         },
         "action": {
@@ -154,10 +178,32 @@
           "type": "TEXT",
           "nullable": true
         },
+        "is_active": {
+          "type": "BOOLEAN",
+          "nullable": false,
+          "default": "true",
+          "description": "Catalog visibility/enabled flag."
+        },
+        "is_deleted": {
+          "type": "BOOLEAN",
+          "nullable": false,
+          "default": "false",
+          "description": "Soft-delete flag; read APIs exclude deleted rows by default."
+        },
+        "created_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Actor user id when created through authenticated flows."
+        },
         "created_at": {
           "type": "TIMESTAMPTZ",
           "nullable": false,
           "default": "now()"
+        },
+        "updated_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Last modifier user id."
         },
         "updated_at": {
           "type": "TIMESTAMPTZ",
@@ -173,8 +219,10 @@
           "columns": [
             "slug"
           ],
-          "name": "idx_permissions_slug",
-          "unique": true
+          "name": "permissions_slug_active_key",
+          "unique": true,
+          "partial_where": "NOT is_deleted",
+          "note": "Unique slug among active rows."
         }
       ]
     },
@@ -190,18 +238,17 @@
         "slug": {
           "type": "TEXT",
           "nullable": false,
-          "unique": true,
-          "description": "Stable key for this module\u2013permission link (e.g. derived from module and permission slugs)."
+          "description": "Stable key for this module\u2013permission link (e.g. derived from module and permission slugs); unique among active rows."
         },
         "module_id": {
           "type": "UUID",
           "nullable": false,
-          "description": "FK \u2192 modules.id"
+          "description": "FK \u2192 modules.id (RESTRICT delete)."
         },
         "permission_id": {
           "type": "UUID",
           "nullable": false,
-          "description": "FK \u2192 permissions.id"
+          "description": "FK \u2192 permissions.id (RESTRICT delete)."
         },
         "is_default": {
           "type": "BOOLEAN",
@@ -209,49 +256,75 @@
           "default": "false",
           "description": "Suggested default inclusion when provisioning tenant role templates."
         },
+        "is_active": {
+          "type": "BOOLEAN",
+          "nullable": false,
+          "default": "true",
+          "description": "Catalog visibility / enabled flag for this link."
+        },
+        "is_deleted": {
+          "type": "BOOLEAN",
+          "nullable": false,
+          "default": "false",
+          "description": "Soft-delete; read APIs omit deleted rows by default."
+        },
         "created_at": {
           "type": "TIMESTAMPTZ",
           "nullable": false,
           "default": "now()"
         },
+        "created_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Actor user id when created through authenticated flows."
+        },
         "updated_at": {
           "type": "TIMESTAMPTZ",
           "nullable": false,
           "default": "now()"
+        },
+        "updated_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Last modifier user id."
         }
       },
       "primary_key": [
         "id"
-      ],
-      "unique_constraints": [
-        {
-          "columns": [
-            "module_id",
-            "permission_id"
-          ],
-          "name": "uq_module_permissions_module_permission",
-          "note": "One link per module/permission pair"
-        }
       ],
       "indexes": [
         {
           "columns": [
             "module_id"
           ],
-          "name": "idx_module_permissions_module"
+          "name": "idx_module_permissions_module",
+          "note": "Filter links by module"
         },
         {
           "columns": [
             "permission_id"
           ],
-          "name": "idx_module_permissions_permission"
+          "name": "idx_module_permissions_permission",
+          "note": "Filter links by permission"
         },
         {
           "columns": [
             "slug"
           ],
-          "name": "idx_module_permissions_slug",
-          "unique": true
+          "name": "module_permissions_slug_active_key",
+          "unique": true,
+          "partial_where": "NOT is_deleted",
+          "note": "Unique slug among active rows; soft-delete frees the slug"
+        },
+        {
+          "columns": [
+            "module_id",
+            "permission_id"
+          ],
+          "name": "module_permissions_module_permission_active_key",
+          "unique": true,
+          "partial_where": "NOT is_deleted",
+          "note": "At most one active link per module/permission pair"
         }
       ]
     },
@@ -272,8 +345,7 @@
         "slug": {
           "type": "TEXT",
           "nullable": false,
-          "unique": true,
-          "description": "Stable role template key."
+          "description": "Stable role template key; unique among active rows (partial unique index)."
         },
         "is_template": {
           "type": "BOOLEAN",
@@ -285,15 +357,37 @@
           "type": "TEXT",
           "nullable": true
         },
+        "is_active": {
+          "type": "BOOLEAN",
+          "nullable": false,
+          "default": "true",
+          "description": "Catalog visibility/enabled flag."
+        },
+        "is_deleted": {
+          "type": "BOOLEAN",
+          "nullable": false,
+          "default": "false",
+          "description": "Soft-delete flag; read APIs exclude deleted rows by default."
+        },
         "created_at": {
           "type": "TIMESTAMPTZ",
           "nullable": false,
           "default": "now()"
         },
+        "created_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Actor user id when created through authenticated flows."
+        },
         "updated_at": {
           "type": "TIMESTAMPTZ",
           "nullable": false,
           "default": "now()"
+        },
+        "updated_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Last modifier user id."
         }
       },
       "primary_key": [
@@ -304,8 +398,10 @@
           "columns": [
             "slug"
           ],
-          "name": "idx_system_roles_slug",
-          "unique": true
+          "name": "system_roles_slug_active_key",
+          "unique": true,
+          "partial_where": "NOT is_deleted",
+          "note": "Unique slug among active rows; soft-delete frees the slug"
         }
       ]
     },

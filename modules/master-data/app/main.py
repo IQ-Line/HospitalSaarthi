@@ -1,8 +1,24 @@
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
+from app.api.errors import register_exception_handlers
 from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
+from app.middleware.auth_middleware import BearerAuthContextMiddleware
+from app.middleware.request_context import RequestContextMiddleware
+
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    get_settings.cache_clear()
+    settings = get_settings()
+    logger.info("Master Data listening under prefix %s", settings.api_prefix)
+    yield
 
 
 def create_app() -> FastAPI:
@@ -12,8 +28,15 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="HIMS Master Data API",
         version="0.1.0",
-        description="Python Master Data service learning slice.",
+        description=(
+            "Platform catalog and reference data for HIMS. "
+            "API version is carried in the URL path (`/api/v1/master-data`)."
+        ),
+        lifespan=lifespan,
     )
+    app.add_middleware(BearerAuthContextMiddleware)
+    app.add_middleware(RequestContextMiddleware)
+    register_exception_handlers(app)
     app.include_router(api_router, prefix=settings.api_prefix)
     return app
 
