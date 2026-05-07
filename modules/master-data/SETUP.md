@@ -227,7 +227,7 @@ Until the platform gateway enforces identity, this service does **not** require 
 | **`resolve_superadmin_actor`** | Shared rules for **`require_superadmin`**. Only a real JWT **`sub`** (UUID) becomes an audit actor; test bypass / dev bearer / **`auth_disabled`** yield **`None`** (no placeholder user rows). |
 | **`require_superadmin`** | FastAPI **`Depends`** — not attached to catalog routes today. |
 
-Optional env vars for turning those paths back on are in [`.env.example`](.env.example). **`RequestContextMiddleware`** reads or generates **`X-Request-ID`**, echoes it on responses, and makes it available for logs and outbound calls (see `app/clients/http.py`).
+Optional env vars for turning those paths back on are in [`.env.example`](.env.example). **`RequestContextMiddleware`** always sets **`X-Request-ID`**.
 
 ---
 
