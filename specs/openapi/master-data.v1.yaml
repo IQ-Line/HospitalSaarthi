@@ -610,6 +610,10 @@ paths:
     patch:
       operationId: updateModulePermission
       summary: Update a module↔permission link
+      description: >
+        Update metadata (`slug`, `is_default`, `is_active`, `is_deleted`) on an existing link.
+        `module_id` and `permission_id` are immutable after creation; to change the pair, delete
+        the old link and create a new one.
       security: []
       tags:
         - Module permissions
@@ -634,7 +638,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ModulePermissionSingleResponse"
         "400":
-          description: Invalid foreign keys or payload.
+          description: Invalid payload.
           content:
             application/json:
               schema:
@@ -1233,12 +1237,6 @@ components:
       properties:
         slug:
           type: string
-        module_id:
-          type: string
-          format: uuid
-        permission_id:
-          type: string
-          format: uuid
         is_default:
           type: boolean
         is_active:

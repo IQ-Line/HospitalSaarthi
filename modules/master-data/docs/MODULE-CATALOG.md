@@ -29,11 +29,11 @@ Cross-cutting HLD: [HLD 02 §4.2 — Owns (platform module registry)](../../../d
 | `005_level_max_10` | Widens `modules.level` check constraint from **4** to **10** for deeper nesting. |
 | `006_permissions_catalog` | Creates `permissions` table (action enum, soft-delete/audit columns) with active-slug unique index. |
 | `007_system_roles_catalog` | Creates `system_roles` (templates; soft-delete/audit, partial unique on `slug`). |
-| `008_module_permissions_catalog` | Creates `module_permissions` (FKs to `modules` / `permissions`, partial uniques on `slug` and `(module_id, permission_id)`). |
+| `008_module_permissions` | Creates `module_permissions` (FKs to `modules` / `permissions`, partial uniques on `slug` and `(module_id, permission_id)`). |
 
 All catalog tables are created in the PostgreSQL **`public`** schema (same default as most services).
 
-**If an older database already has tables under `master_data`:** either migrate data manually (move tables to `public`, update search paths, re-stamp Alembic) or refresh that database from an empty state and run **`alembic upgrade head`** again—the revised migration chain targets **`public`**, not **`master_data`**.
+**If an older database already has tables under `master_data`:** do **not** reset seeded environments. Use a one-time DBA migration: move/rename tables to `public`, recreate constraints/indexes if needed, then align Alembic with `uv run alembic stamp <current_revision>` and continue with `uv run alembic upgrade head`. For local throwaway DBs only, a clean rebuild is acceptable.
 
 **Run migrations on any machine** (same Alembic chain; only `MASTER_DATA_DATABASE_URL` changes):
 
