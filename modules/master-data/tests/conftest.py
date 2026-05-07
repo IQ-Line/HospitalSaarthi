@@ -23,9 +23,7 @@ def _api_prefix_for_tests() -> Iterator[None]:
 
 @pytest.fixture()
 def sqlite_session() -> Iterator[Session]:
-    engine = create_engine("sqlite:///:memory:").execution_options(
-        schema_translate_map={"master_data": None}
-    )
+    engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
 
     session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)

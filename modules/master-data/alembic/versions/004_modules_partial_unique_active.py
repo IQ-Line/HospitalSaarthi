@@ -20,38 +20,36 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.drop_constraint("modules_slug_key", "modules", schema="master_data", type_="unique")
-    op.drop_constraint("modules_name_key", "modules", schema="master_data", type_="unique")
+    op.drop_constraint("modules_slug_key", "modules", type_="unique")
+    op.drop_constraint("modules_name_key", "modules", type_="unique")
 
     op.execute(
         """
         CREATE UNIQUE INDEX modules_name_active_key
-        ON master_data.modules (name)
+        ON public.modules (name)
         WHERE NOT is_deleted
         """
     )
     op.execute(
         """
         CREATE UNIQUE INDEX modules_slug_active_key
-        ON master_data.modules (slug)
+        ON public.modules (slug)
         WHERE NOT is_deleted
         """
     )
 
 
 def downgrade() -> None:
-    op.drop_index("modules_slug_active_key", table_name="modules", schema="master_data")
-    op.drop_index("modules_name_active_key", table_name="modules", schema="master_data")
+    op.drop_index("modules_slug_active_key", table_name="modules")
+    op.drop_index("modules_name_active_key", table_name="modules")
 
     op.create_unique_constraint(
         "modules_name_key",
         "modules",
         ["name"],
-        schema="master_data",
     )
     op.create_unique_constraint(
         "modules_slug_key",
         "modules",
         ["slug"],
-        schema="master_data",
     )

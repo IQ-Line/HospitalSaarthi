@@ -23,7 +23,7 @@ def system_role_sqlite_session() -> Iterator[Session]:
         "sqlite://",
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
-    ).execution_options(schema_translate_map={"master_data": None})
+    )
 
     @event.listens_for(engine, "connect")
     def _sqlite_fk(_dbapi_connection, _connection_record) -> None:

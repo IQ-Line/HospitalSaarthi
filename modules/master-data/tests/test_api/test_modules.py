@@ -149,7 +149,7 @@ def test_post_module_check_violation_returns_400() -> None:
     class BrokenRepo(FakeModuleRepository):
         def create_module(self, _module):
             raise IntegrityError(
-                "INSERT INTO master_data.modules ...",
+                "INSERT INTO modules ...",
                 {},
                 Exception('new row violates check constraint "modules_level_check"'),
             )

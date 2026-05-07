@@ -1,4 +1,4 @@
-"""Database access for `master_data.modules` — reads and writes."""
+"""Database access for `public.modules` — reads and writes."""
 
 from uuid import UUID
 

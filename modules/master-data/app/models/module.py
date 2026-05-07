@@ -1,4 +1,4 @@
-"""SQLAlchemy model for the platform module registry (`master_data.modules`).
+"""SQLAlchemy model for the platform module registry (`public.modules`).
 
 Columns match ``schema-reference.json`` / LLD: tree (`parent_id`, `level`), stable keys
 (`name`, `slug`), catalog metadata (`category`, `version`, `is_active`),
@@ -57,7 +57,7 @@ class ModuleModel(TimestampMixin, Base):
 
     parent_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("master_data.modules.id", ondelete="RESTRICT"),
+        ForeignKey("modules.id", ondelete="RESTRICT"),
         nullable=True,
     )
 

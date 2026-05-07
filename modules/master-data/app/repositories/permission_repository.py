@@ -1,4 +1,4 @@
-"""Database access for permission catalog (`master_data.permissions`)."""
+"""Database access for permission catalog (`public.permissions`)."""
 
 from uuid import UUID
 

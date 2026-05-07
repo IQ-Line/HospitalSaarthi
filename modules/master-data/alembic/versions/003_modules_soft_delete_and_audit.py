@@ -1,4 +1,4 @@
-"""Add soft-delete and optional audit UUIDs to master_data.modules (ERD / DB principles).
+"""Add soft-delete and optional audit UUIDs to modules (ERD / DB principles).
 
 Revision ID: 003_soft_delete_audit (≤32 chars for alembic_version.version_num)
 Revises: 002_extend_modules_catalog
@@ -27,29 +27,25 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("false"),
         ),
-        schema="master_data",
     )
     # UUID identifiers only — no FK to user_management (cross-schema rule).
     op.add_column(
         "modules",
         sa.Column("created_by", postgresql.UUID(as_uuid=True), nullable=True),
-        schema="master_data",
     )
     op.add_column(
         "modules",
         sa.Column("updated_by", postgresql.UUID(as_uuid=True), nullable=True),
-        schema="master_data",
     )
     op.create_index(
         "idx_modules_is_deleted",
         "modules",
         ["is_deleted"],
-        schema="master_data",
     )
 
 
 def downgrade() -> None:
-    op.drop_index("idx_modules_is_deleted", table_name="modules", schema="master_data")
-    op.drop_column("modules", "updated_by", schema="master_data")
-    op.drop_column("modules", "created_by", schema="master_data")
-    op.drop_column("modules", "is_deleted", schema="master_data")
+    op.drop_index("idx_modules_is_deleted", table_name="modules")
+    op.drop_column("modules", "updated_by")
+    op.drop_column("modules", "created_by")
+    op.drop_column("modules", "is_deleted")

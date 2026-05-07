@@ -92,6 +92,12 @@ Typical status mapping:
 | `GET` | `/api/v1/master-data/system-roles/{systemRoleId}` | `getSystemRoleById` | Get one template by id; **404** if missing or soft-deleted. |
 | `PATCH` | `/api/v1/master-data/system-roles/{systemRoleId}` | `updateSystemRole` | Partial update (`SystemRoleUpdate`); may set `is_deleted: false` to restore. |
 | `DELETE` | `/api/v1/master-data/system-roles/{systemRoleId}` | `deleteSystemRole` | Soft-delete template (`is_deleted = true`); **200** returns updated row. |
+| `GET` | `/api/v1/master-data/module-permissions` | `listModulePermissions` | List active module↔permission links; optional **`module_id`** / **`permission_id`** filters. |
+| `POST` | `/api/v1/master-data/module-permissions` | `createModulePermission` | Create link; **400** if module or permission missing/soft-deleted; **409** on slug or pair clash. |
+| `GET` | `/api/v1/master-data/module-permissions/by-slug/{slug}` | `getModulePermissionBySlug` | **404** if missing or soft-deleted. |
+| `GET` | `/api/v1/master-data/module-permissions/{modulePermissionId}` | `getModulePermissionById` | **404** if missing or soft-deleted. |
+| `PATCH` | `/api/v1/master-data/module-permissions/{modulePermissionId}` | `updateModulePermission` | Partial update (`ModulePermissionUpdate`). |
+| `DELETE` | `/api/v1/master-data/module-permissions/{modulePermissionId}` | `deleteModulePermission` | Soft-delete link; **200** returns updated row. |
 
 Single-resource success envelope: **`ModuleSingleResponse`** — `{ "data": Module }` (see OpenAPI `ModuleSingleResponse`).
 
@@ -142,7 +148,6 @@ These align with the MVP tables in [`schema-reference.json`](./schema-reference.
 
 | Method | Path (proposal) | Summary | Success response shape (proposal) |
 |--------|-----------------|--------|-------------------------------------|
-| `GET` | `/api/v1/master-data/module-permissions` | List module↔permission links | `{ "data": ModulePermission[], "total": int }` |
 | `GET` | `/api/v1/master-data/picklists` | List picklist domains | `{ "data": Picklist[], "total": int }` |
 | `GET` | `/api/v1/master-data/picklists/{picklistId}/values` | List values for a picklist | `{ "data": PicklistValue[], "total": int }` |
 | `GET` | `/api/v1/master-data/module-config-schemas` | List declared config schemas | `{ "data": ModuleConfigSchema[], "total": int }` (optional `module_id`, `schema_version`) |
@@ -173,6 +178,10 @@ These align with the MVP tables in [`schema-reference.json`](./schema-reference.
   "module_id": "uuid",
   "permission_id": "uuid",
   "is_default": false,
+  "is_active": true,
+  "is_deleted": false,
+  "created_by": "uuid | null",
+  "updated_by": "uuid | null",
   "created_at": "date-time",
   "updated_at": "date-time"
 }
@@ -265,7 +274,7 @@ These align with the MVP tables in [`schema-reference.json`](./schema-reference.
 }
 ```
 
-The implemented **`Module`** / **`ModuleCreate`** / **`ModuleUpdate`**, **`Permission`** / **`PermissionCreate`** / **`PermissionUpdate`**, and **`SystemRole`** / **`SystemRoleCreate`** / **`SystemRoleUpdate`** schemas cover current CRUD. **`created_by` / `updated_by`** are populated from a verified JWT **`sub`** only when **`require_superadmin`** (or equivalent) is attached and the token carries a UUID subject; otherwise they remain **`NULL`**. When you add the remaining §3.2 resources, extend OpenAPI in the same PR as Alembic — especially **`module_permissions.module_id`** → **`modules.id`** (respect soft-delete in joins or document tombstone behavior).
+The implemented **`Module`** / **`ModuleCreate`** / **`ModuleUpdate`**, **`Permission`** / **`PermissionCreate`** / **`PermissionUpdate`**, **`SystemRole`** / **`SystemRoleCreate`** / **`SystemRoleUpdate`**, and **`ModulePermission`** / **`ModulePermissionCreate`** / **`ModulePermissionUpdate`** schemas cover current CRUD. **`created_by` / `updated_by`** are populated from a verified JWT **`sub`** only when **`require_superadmin`** (or equivalent) is attached and the token carries a UUID subject; otherwise they remain **`NULL`**. When you add the remaining §3.2 resources, extend OpenAPI in the same PR as Alembic (e.g. **picklists**, **module config schemas**, **feature flags**); keep join tables and foreign keys consistent with soft-delete rules in `schema-reference.json`.
 
 ---
 

@@ -444,6 +444,234 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /module-permissions:
+    get:
+      operationId: listModulePermissions
+      summary: List module↔permission links
+      description: >
+        Active junction rows (`is_deleted = false`). Optional filters **`module_id`** and/or
+        **`permission_id`**. **`slug`** is unique per active row; **`(module_id, permission_id)`**
+        pair is unique among active rows (soft-delete frees both for reuse).
+      security: []
+      tags:
+        - Module permissions
+      parameters:
+        - name: module_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Return links for this module only.
+        - name: permission_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Return links for this permission only.
+      responses:
+        "200":
+          description: Junction rows.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModulePermissionListResponse"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createModulePermission
+      summary: Create a module↔permission link
+      description: >
+        **`module_id`** and **`permission_id`** must reference **active** (non-deleted) catalog
+        rows. **400** if either side is missing or soft-deleted. **409** if **`slug`** or the
+        module/permission pair duplicates another active link.
+      security: []
+      tags:
+        - Module permissions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ModulePermissionCreate"
+      responses:
+        "201":
+          description: Link created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModulePermissionSingleResponse"
+        "400":
+          description: Invalid foreign keys or payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Slug or module/permission pair conflicts with another active link.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /module-permissions/by-slug/{slug}:
+    get:
+      operationId: getModulePermissionBySlug
+      summary: Get one link by slug
+      security: []
+      tags:
+        - Module permissions
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Link found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModulePermissionSingleResponse"
+        "404":
+          description: No link with this slug.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /module-permissions/{modulePermissionId}:
+    get:
+      operationId: getModulePermissionById
+      summary: Get one link by id
+      security: []
+      tags:
+        - Module permissions
+      parameters:
+        - name: modulePermissionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Link found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModulePermissionSingleResponse"
+        "404":
+          description: Link id not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateModulePermission
+      summary: Update a module↔permission link
+      security: []
+      tags:
+        - Module permissions
+      parameters:
+        - name: modulePermissionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ModulePermissionUpdate"
+      responses:
+        "200":
+          description: Link updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModulePermissionSingleResponse"
+        "400":
+          description: Invalid foreign keys or payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Link id not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Slug or module/permission pair conflicts with another active link.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteModulePermission
+      summary: Soft-delete a module↔permission link
+      description: Sets `is_deleted = true`; no hard delete.
+      security: []
+      tags:
+        - Module permissions
+      parameters:
+        - name: modulePermissionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Link marked deleted (`is_deleted` true).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModulePermissionSingleResponse"
+        "404":
+          description: Link id not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /modules:
     get:
       operationId: listModules
@@ -952,6 +1180,115 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SystemRole"
+        total:
+          type: integer
+          minimum: 0
+    ModulePermissionCreate:
+      type: object
+      required:
+        - slug
+        - module_id
+        - permission_id
+      additionalProperties: false
+      properties:
+        slug:
+          type: string
+          description: >
+            Stable key for this link (unique among active rows). Convention: combine module and
+            permission slugs, e.g. `opd--opd-create` or `opd:opd:create`.
+        module_id:
+          type: string
+          format: uuid
+        permission_id:
+          type: string
+          format: uuid
+        is_default:
+          type: boolean
+          default: false
+          description: Suggested default when provisioning tenant templates (hint only).
+        is_active:
+          type: boolean
+          default: true
+    ModulePermissionUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        slug:
+          type: string
+        module_id:
+          type: string
+          format: uuid
+        permission_id:
+          type: string
+          format: uuid
+        is_default:
+          type: boolean
+        is_active:
+          type: boolean
+        is_deleted:
+          type: boolean
+          description: Set false to restore a soft-deleted link.
+    ModulePermission:
+      type: object
+      required:
+        - id
+        - slug
+        - module_id
+        - permission_id
+        - is_default
+        - is_active
+        - is_deleted
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        module_id:
+          type: string
+          format: uuid
+        permission_id:
+          type: string
+          format: uuid
+        is_default:
+          type: boolean
+        is_active:
+          type: boolean
+        is_deleted:
+          type: boolean
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    ModulePermissionSingleResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: "#/components/schemas/ModulePermission"
+    ModulePermissionListResponse:
+      type: object
+      required:
+        - data
+        - total
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModulePermission"
         total:
           type: integer
           minimum: 0
