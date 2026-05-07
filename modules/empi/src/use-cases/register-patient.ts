@@ -2,6 +2,8 @@ import type { EventBus } from "@hims/ts-sdk-events";
 import { createEnvelope } from "@hims/ts-sdk-events";
 import type { PatientRepo, SequenceRepo } from "../ports.js";
 import type { Patient, CreatePatientData } from "../domain/patient.types.js";
+import { randomUUID } from "node:crypto";
+import { actorIdOrRandom } from "../lib/actor-id.js";
 
 interface Deps {
   patientRepo: PatientRepo;
@@ -32,9 +34,13 @@ export async function registerPatient(
 
   await deps.eventBus.publish(
     createEnvelope({
-      type: "patient.created",
-      source: "empi",
-      data: {
+      event_type: "empi.patient.created",
+      source_module: "empi",
+      iq_tenant_id: patient.iq_tenant_id,
+      correlation_id: randomUUID(),
+      actor_id: actorIdOrRandom(data.created_by),
+      schema_version: "1.0.0",
+      payload: {
         id: patient.id,
         iq_tenant_id: patient.iq_tenant_id,
         uhid: patient.uhid,

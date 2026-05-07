@@ -3,7 +3,7 @@
   "tags": ["type:service", "scope:empi", "language:typescript"],
   "targets": {
     "serve": {
-      "command": "tsx watch src/main.ts",
+      "command": "pnpm exec tsx watch src/main.ts",
       "options": {
         "cwd": "services/empi-svc"
       }

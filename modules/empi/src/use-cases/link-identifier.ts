@@ -1,6 +1,8 @@
 import type { EventBus } from "@hims/ts-sdk-events";
 import { createEnvelope } from "@hims/ts-sdk-events";
+import { randomUUID } from "node:crypto";
 import type { IdentifierRepo } from "../ports.js";
+import { actorIdOrRandom } from "../lib/actor-id.js";
 import type {
   PatientIdentifier,
   CreateIdentifierData,
@@ -19,9 +21,13 @@ export async function linkIdentifier(
 
   await deps.eventBus.publish(
     createEnvelope({
-      type: "patient.identifier-linked",
-      source: "empi",
-      data: {
+      event_type: "empi.patient.identifier-linked",
+      source_module: "empi",
+      iq_tenant_id: identifier.iq_tenant_id,
+      correlation_id: randomUUID(),
+      actor_id: actorIdOrRandom(data.created_by),
+      schema_version: "1.0.0",
+      payload: {
         id: identifier.id,
         iq_tenant_id: identifier.iq_tenant_id,
         patient_id: identifier.patient_id,

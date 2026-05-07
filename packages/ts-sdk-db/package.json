@@ -15,7 +15,8 @@
     "build": "tsc -b tsconfig.json"
   },
   "dependencies": {
-    "drizzle-orm": "^0.45.2"
+    "drizzle-orm": "^0.45.2",
+    "pg": "^8.20.0"
   },
   "peerDependencies": {
     "drizzle-orm": ">=0.44.0"

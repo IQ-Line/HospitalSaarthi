@@ -9,6 +9,10 @@
     "@hims/ts-sdk-events": "workspace:*",
     "@hims/ts-sdk-identity": "workspace:*",
     "@hims/ts-sdk-tenant": "workspace:*",
-    "fastify": "^5.3.3"
+    "fastify": "^5.3.3",
+    "drizzle-orm": "^0.45.2"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0"
   }
 }

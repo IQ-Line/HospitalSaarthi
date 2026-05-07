@@ -22,6 +22,20 @@
       "options": {
         "lintFilePatterns": ["modules/empi/src/**/*.ts"]
       }
+    },
+    "db-generate": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "modules/empi",
+        "command": "drizzle-kit generate --config=drizzle.config.ts"
+      }
+    },
+    "db-migrate": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "modules/empi",
+        "command": "node ./scripts/run-migrate.mjs"
+      }
     }
   }
 }
