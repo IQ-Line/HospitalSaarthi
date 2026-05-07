@@ -1,4 +1,5 @@
 import {
+  auditColumns,
   pgSchema,
   uuid,
   text,
@@ -6,9 +7,8 @@ import {
   uniqueIndex,
   index,
   check,
-} from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
-import { auditColumns } from "@hims/ts-sdk-db";
+  sql,
+} from "@hims/ts-sdk-db";
 
 export const configuratorSchema = pgSchema("configurator");
 

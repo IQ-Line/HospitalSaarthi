@@ -14,7 +14,10 @@
     "ci:pr": "nx affected -t lint typecheck test"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["nx", "esbuild"]
+    "onlyBuiltDependencies": [
+      "nx",
+      "esbuild"
+    ]
   },
   "devDependencies": {
     "@nx/eslint": "^22.7.1",
