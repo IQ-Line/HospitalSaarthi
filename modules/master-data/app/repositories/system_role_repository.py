@@ -1,4 +1,4 @@
-"""Database access for system role templates (`master_data.system_roles`)."""
+"""Database access for system role templates (`public.system_roles`)."""
 
 from uuid import UUID
 

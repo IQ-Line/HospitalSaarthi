@@ -1,4 +1,4 @@
-"""Add permissions catalog table (`master_data.permissions`).
+"""Add permissions catalog table (`public.permissions`).
 
 Revision ID: 006_permissions_catalog
 Revises: 005_level_max_10
@@ -60,13 +60,12 @@ def upgrade() -> None:
             "action IN ('create', 'read', 'update', 'delete', 'manage')",
             name="permissions_action_check",
         ),
-        schema="master_data",
     )
 
     op.execute(
         """
         CREATE UNIQUE INDEX permissions_slug_active_key
-        ON master_data.permissions (slug)
+        ON public.permissions (slug)
         WHERE NOT is_deleted
         """
     )
@@ -76,7 +75,7 @@ def upgrade() -> None:
         DO $$
         BEGIN
             IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'create_reference_table') THEN
-                PERFORM create_reference_table('master_data.permissions');
+                PERFORM create_reference_table('public.permissions');
             END IF;
         EXCEPTION
             WHEN duplicate_object THEN
@@ -87,5 +86,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("permissions_slug_active_key", table_name="permissions", schema="master_data")
-    op.drop_table("permissions", schema="master_data")
+    op.drop_index("permissions_slug_active_key", table_name="permissions")
+    op.drop_table("permissions")

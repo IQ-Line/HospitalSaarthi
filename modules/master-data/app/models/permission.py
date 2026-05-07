@@ -1,4 +1,4 @@
-"""SQLAlchemy model for permission catalog (`master_data.permissions`)."""
+"""SQLAlchemy model for permission catalog (`public.permissions`)."""
 
 from __future__ import annotations
 

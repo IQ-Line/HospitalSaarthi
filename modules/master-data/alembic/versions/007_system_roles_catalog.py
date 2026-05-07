@@ -1,4 +1,4 @@
-"""Add system role templates table (`master_data.system_roles`).
+"""Add system role templates table (`public.system_roles`).
 
 Revision ID: 007_system_roles_catalog
 Revises: 006_permissions_catalog
@@ -61,13 +61,12 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.func.now(),
         ),
-        schema="master_data",
     )
 
     op.execute(
         """
         CREATE UNIQUE INDEX system_roles_slug_active_key
-        ON master_data.system_roles (slug)
+        ON public.system_roles (slug)
         WHERE NOT is_deleted
         """
     )
@@ -77,7 +76,7 @@ def upgrade() -> None:
         DO $$
         BEGIN
             IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'create_reference_table') THEN
-                PERFORM create_reference_table('master_data.system_roles');
+                PERFORM create_reference_table('public.system_roles');
             END IF;
         EXCEPTION
             WHEN duplicate_object THEN
@@ -91,6 +90,5 @@ def downgrade() -> None:
     op.drop_index(
         "system_roles_slug_active_key",
         table_name="system_roles",
-        schema="master_data",
     )
-    op.drop_table("system_roles", schema="master_data")
+    op.drop_table("system_roles")

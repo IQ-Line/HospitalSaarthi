@@ -1,4 +1,4 @@
-"""SQLAlchemy model for system role templates (`master_data.system_roles`)."""
+"""SQLAlchemy model for system role templates (`public.system_roles`)."""
 
 from __future__ import annotations
 

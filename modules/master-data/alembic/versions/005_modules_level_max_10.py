@@ -15,20 +15,18 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.drop_constraint("modules_level_check", "modules", schema="master_data", type_="check")
+    op.drop_constraint("modules_level_check", "modules", type_="check")
     op.create_check_constraint(
         "modules_level_check",
         "modules",
         "level >= 1 AND level <= 10",
-        schema="master_data",
     )
 
 
 def downgrade() -> None:
-    op.drop_constraint("modules_level_check", "modules", schema="master_data", type_="check")
+    op.drop_constraint("modules_level_check", "modules", type_="check")
     op.create_check_constraint(
         "modules_level_check",
         "modules",
         "level >= 1 AND level <= 4",
-        schema="master_data",
     )
