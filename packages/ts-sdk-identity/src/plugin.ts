@@ -32,6 +32,7 @@ async function identityPluginFn(
       try {
         request.user = await verifyToken(token, options);
       } catch {
+        fastify.log.warn({ path: request.url }, "JWT verification failed");
         reply.code(401).send({ error: "Invalid or expired token" });
       }
     },

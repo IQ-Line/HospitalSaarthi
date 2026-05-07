@@ -1,0 +1,16 @@
+---
+# User Management — role assignment operations (tenant-scoped).
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "role_assignment"
+  version: default
+  rules:
+    - actions:
+        - "role.assign"
+      effect: EFFECT_ALLOW
+      roles:
+        - admin
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id

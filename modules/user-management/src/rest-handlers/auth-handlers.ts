@@ -25,26 +25,26 @@ function mapError(reply: FastifyReply, err: unknown) {
 
 export function registerAuthHandlers(fastify: FastifyInstance, deps: AuthHandlersDeps): void {
   fastify.get("/auth/me", async (request, reply) => {
-    const tenantId = deps.getTenantId(request);
-    const userId = deps.getUserId(request);
-    const user = await getUserById(deps.getUserDeps, tenantId, userId);
-    if (user === null) {
-      return reply.status(404).send({ message: "User not found for this tenant." });
-    }
-    return reply.send(user);
+      const tenantId = deps.getTenantId(request);
+      const userId = deps.getUserId(request);
+      const user = await getUserById(deps.getUserDeps, tenantId, userId);
+      if (user === null) {
+        return reply.status(404).send({ message: "User not found for this tenant." });
+      }
+      return reply.send(user);
   });
 
   fastify.get("/auth/principal", async (request, reply) => {
-    const context: AuthContext = {
-      tenantId: deps.getTenantId(request),
-      userId: deps.getUserId(request),
-      requestUser: (request as RequestWithOptionalUser).user,
-    };
-    try {
-      const principal = await getPrincipal(deps.getPrincipalDeps, context);
-      return reply.send(principal);
-    } catch (err) {
-      return mapError(reply, err);
-    }
+      const context: AuthContext = {
+        tenantId: deps.getTenantId(request),
+        userId: deps.getUserId(request),
+        requestUser: (request as RequestWithOptionalUser).user,
+      };
+      try {
+        const principal = await getPrincipal(deps.getPrincipalDeps, context);
+        return reply.send(principal);
+      } catch (err) {
+        return mapError(reply, err);
+      }
   });
 }

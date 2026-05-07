@@ -1,6 +1,7 @@
 import type { CreateEnvelopeInput, EventBus } from "@hims/ts-sdk-events";
 import { createEnvelope } from "@hims/ts-sdk-events";
 import { USER_MANAGEMENT_EVENT_USER_CREATED } from "../events/constants.js";
+import { mapAuthContextToEventEnvelope } from "../events/map-auth-context-to-envelope.js";
 import type { CreateUserInput, User, UserRepository } from "../ports/index.js";
 
 export type CreateUserDeps = {
@@ -26,12 +27,16 @@ export async function createUser(
     throw new Error("full_name is required");
   }
   const user = await deps.userRepository.createUser(ctx.tenantId, input);
+  const envelopeIds = mapAuthContextToEventEnvelope({
+    tenantId: ctx.tenantId,
+    actorId: ctx.actorId,
+  });
   const envelopeInput: CreateEnvelopeInput<{ id: string; full_name: string }> = {
     event_type: USER_MANAGEMENT_EVENT_USER_CREATED,
     source_module: "user-management",
-    iq_tenant_id: ctx.tenantId,
+    iq_tenant_id: envelopeIds.iq_tenant_id,
     correlation_id: ctx.correlationId,
-    actor_id: ctx.actorId,
+    actor_id: envelopeIds.actor_id,
     schema_version: "1.0.0",
     payload: { id: user.id, full_name: user.full_name },
   };

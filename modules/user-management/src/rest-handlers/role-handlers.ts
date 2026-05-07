@@ -23,18 +23,18 @@ function mapError(reply: FastifyReply, err: unknown) {
 
 export function registerRoleHandlers(fastify: FastifyInstance, deps: RoleHandlersDeps): void {
   fastify.post<{ Body: AssignRoleInput }>("/role-assignments", async (request, reply) => {
-    const tenantId = deps.getTenantId(request);
-    const actorId = deps.getActorId(request);
-    const correlationId = randomUUID();
-    try {
-      const assignment = await assignRole(
-        deps.assignRoleDeps,
-        { tenantId, actorId, correlationId },
-        request.body,
-      );
-      return reply.status(201).send(assignment);
-    } catch (err) {
-      return mapError(reply, err);
-    }
+      const tenantId = deps.getTenantId(request);
+      const actorId = deps.getActorId(request);
+      const correlationId = randomUUID();
+      try {
+        const assignment = await assignRole(
+          deps.assignRoleDeps,
+          { tenantId, actorId, correlationId },
+          request.body,
+        );
+        return reply.status(201).send(assignment);
+      } catch (err) {
+        return mapError(reply, err);
+      }
   });
 }

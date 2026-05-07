@@ -5,7 +5,10 @@ export interface HimsJwtPayload extends JoseJWTPayload {
   iq_tenant_id: string;
   org_id: string;
   roles: string[];
-  session_id: string;
+  session_id?: string;
+  kind?: string;
+  department?: string;
+  idp?: string;
   iat: number;
   exp: number;
   iss: string;
@@ -17,6 +20,9 @@ export interface Principal {
   orgId: string;
   roles: string[];
   sessionId: string;
+  kind?: string;
+  department?: string;
+  idp?: string;
   iat: number;
   exp: number;
   iss: string;

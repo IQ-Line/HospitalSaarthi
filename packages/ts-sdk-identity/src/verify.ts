@@ -9,7 +9,10 @@ function toPrincipal(payload: HimsJwtPayload): Principal {
     tenantId: payload.iq_tenant_id,
     orgId: payload.org_id,
     roles: payload.roles,
-    sessionId: payload.session_id,
+    sessionId: payload.session_id ?? "",
+    kind: payload.kind,
+    department: payload.department,
+    idp: payload.idp,
     iat: payload.iat,
     exp: payload.exp,
     iss: payload.iss,
@@ -25,7 +28,7 @@ export async function verifyToken(
   const verifyOpts: JWTVerifyOptions = {};
   if (options.issuer) verifyOpts.issuer = options.issuer;
   if (options.audience) verifyOpts.audience = options.audience;
-  verifyOpts.requiredClaims = ["sub", "iq_tenant_id", "org_id", "roles", "session_id"];
+  verifyOpts.requiredClaims = ["sub", "iq_tenant_id", "org_id", "roles"];
 
   const { payload } = await jwtVerify<HimsJwtPayload>(token, keyFn, verifyOpts);
 

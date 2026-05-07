@@ -9,7 +9,7 @@ import { updateUser } from "../use-cases/update-user.js";
 import type { UpdateUserDeps } from "../use-cases/update-user.js";
 
 export type UserHandlersDeps = {
-  /** Stub until tenant middleware wires `iq_tenant_id` from JWT. */
+  /** Tenant scope for persistence (typically JWT-derived via router). */
   getTenantId: (request: FastifyRequest) => string;
   getActorId: (request: FastifyRequest) => string;
   createUserDeps: CreateUserDeps;
@@ -26,40 +26,40 @@ function mapError(reply: FastifyReply, err: unknown) {
 
 export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandlersDeps): void {
   fastify.post<{ Body: CreateUserInput }>("/users", async (request, reply) => {
-    const tenantId = deps.getTenantId(request);
-    const actorId = deps.getActorId(request);
-    const correlationId = randomUUID();
-    try {
-      const user = await createUser(
-        deps.createUserDeps,
-        { tenantId, actorId, correlationId },
-        request.body,
-      );
-      return reply.status(201).send(user);
-    } catch (err) {
-      return mapError(reply, err);
-    }
+      const tenantId = deps.getTenantId(request);
+      const actorId = deps.getActorId(request);
+      const correlationId = randomUUID();
+      try {
+        const user = await createUser(
+          deps.createUserDeps,
+          { tenantId, actorId, correlationId },
+          request.body,
+        );
+        return reply.status(201).send(user);
+      } catch (err) {
+        return mapError(reply, err);
+      }
   });
 
   fastify.get<{ Params: { id: string } }>("/users/:id", async (request, reply) => {
-    const tenantId = deps.getTenantId(request);
-    const user = await getUserById(deps.getUserDeps, tenantId, request.params.id);
-    if (!user) {
-      return reply.status(404).send({ message: "User not found for this tenant." });
-    }
-    return reply.send(user);
-  });
-
-  fastify.patch<{ Params: { id: string }; Body: UpdateUserInput }>("/users/:id", async (request, reply) => {
-    const tenantId = deps.getTenantId(request);
-    try {
-      const user = await updateUser(deps.updateUserDeps, tenantId, request.params.id, request.body ?? {});
+      const tenantId = deps.getTenantId(request);
+      const user = await getUserById(deps.getUserDeps, tenantId, request.params.id);
       if (!user) {
         return reply.status(404).send({ message: "User not found for this tenant." });
       }
       return reply.send(user);
-    } catch (err) {
-      return mapError(reply, err);
-    }
+  });
+
+  fastify.patch<{ Params: { id: string }; Body: UpdateUserInput }>("/users/:id", async (request, reply) => {
+      const tenantId = deps.getTenantId(request);
+      try {
+        const user = await updateUser(deps.updateUserDeps, tenantId, request.params.id, request.body ?? {});
+        if (!user) {
+          return reply.status(404).send({ message: "User not found for this tenant." });
+        }
+        return reply.send(user);
+      } catch (err) {
+        return mapError(reply, err);
+      }
   });
 }

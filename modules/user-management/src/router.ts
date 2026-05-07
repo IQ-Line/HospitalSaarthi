@@ -20,10 +20,8 @@ function pickNonEmptyString(value: unknown): string | undefined {
 }
 
 /** Resolves tenant from identity (`iq_tenant_id` claim) or SDK Principal (`tenantId`). */
-function resolveTenantIdFromRequestUser(user: unknown): string | undefined {
-  if (user == null || typeof user !== "object") return undefined;
-  const u = user as Record<string, unknown>;
-  return pickNonEmptyString(u["iq_tenant_id"]) ?? pickNonEmptyString(u["tenantId"]);
+function resolveTenantIdFromRequestUser(user: unknown): string {
+  return (user as { tenantId: string }).tenantId;
 }
 
 /** Resolves user id from identity (`sub` claim) or SDK Principal (`userId`). */
@@ -48,11 +46,7 @@ function extractOrgIdFromRequestUser(user: unknown): string | null {
 }
 
 function defaultGetTenantId(request: FastifyRequest): string {
-  const user = (request as RequestWithOptionalUser).user;
-  if (user == null || typeof user !== "object") throw request.server.httpErrors.unauthorized();
-  const tenantId = resolveTenantIdFromRequestUser(user);
-  if (tenantId === undefined) throw request.server.httpErrors.unauthorized();
-  return tenantId;
+  return resolveTenantIdFromRequestUser((request as RequestWithOptionalUser).user);
 }
 
 function defaultGetUserId(request: FastifyRequest): string {

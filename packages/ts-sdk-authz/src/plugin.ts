@@ -8,10 +8,11 @@ import { DecisionCache } from "./decision-cache.js";
 const CACHE_KEY = Symbol("authzDecisionCache");
 
 function getCache(request: FastifyRequest): DecisionCache {
-  let cache = (request as Record<symbol, DecisionCache>)[CACHE_KEY];
+  const cacheHolder = request as unknown as Record<symbol, DecisionCache>;
+  let cache = cacheHolder[CACHE_KEY];
   if (!cache) {
     cache = new DecisionCache();
-    (request as Record<symbol, DecisionCache>)[CACHE_KEY] = cache;
+    cacheHolder[CACHE_KEY] = cache;
   }
   return cache;
 }
@@ -22,8 +23,14 @@ async function authzPluginFn(
 ): Promise<void> {
   const cerbos = getCerbosClient(options);
 
-  fastify.decorateRequest("checkResource", null);
-  fastify.decorateRequest("planResources", null);
+  fastify.decorateRequest(
+    "checkResource",
+    undefined as unknown as FastifyRequest["checkResource"],
+  );
+  fastify.decorateRequest(
+    "planResources",
+    undefined as unknown as FastifyRequest["planResources"],
+  );
 
   fastify.addHook("onRequest", async (request: FastifyRequest) => {
     request.checkResource = async (
@@ -82,6 +89,27 @@ async function authzPluginFn(
 
   fastify.addHook("onResponse", async (request: FastifyRequest) => {
     getCache(request).clear();
+  });
+
+  fastify.addHook("preHandler", async (request, reply) => {
+    if (reply.sent) return;
+
+    const target = await options.resolveTarget?.(request);
+    if (target === null || target === undefined) {
+      reply.code(403).send({ error: "Forbidden" });
+      return;
+    }
+
+    const result = await request.checkResource(
+      target.kind,
+      target.id,
+      target.action,
+      target.attr,
+    );
+
+    if (!result.isAllowed(target.action)) {
+      reply.code(403).send({ error: "Forbidden" });
+    }
   });
 
   fastify.addHook("onClose", () => {

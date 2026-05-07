@@ -328,6 +328,9 @@ importers:
 
   services/user-management-svc:
     dependencies:
+      '@cerbos/grpc':
+        specifier: ^0.21.0
+        version: 0.21.0
       '@fastify/sensible':
         specifier: ^6.0.4
         version: 6.0.4

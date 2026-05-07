@@ -1,0 +1,17 @@
+---
+# User Management (1A.11) — baseline resource policy.
+# Cerbos defaults to EFFECT_DENY when no rule matches.
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "user"
+  version: default
+  rules:
+    - actions:
+        - "user.create"
+      effect: EFFECT_ALLOW
+      roles:
+        - admin
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id

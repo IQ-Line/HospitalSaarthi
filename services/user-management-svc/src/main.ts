@@ -1,8 +1,11 @@
 import sensible from "@fastify/sensible";
+import { authzPlugin } from "@hims/ts-sdk-authz";
 import { createDb } from "@hims/ts-sdk-db";
 import { createEventBus } from "@hims/ts-sdk-events";
 import { identityPlugin } from "@hims/ts-sdk-identity";
 import Fastify, { type FastifyInstance } from "fastify";
+import { resolveCerbosGrpcTarget } from "./cerbos.js";
+import { resolveUserManagementAuthzTarget } from "./authz-target-resolver.js";
 import {
   DrizzleRoleAssignmentRepository,
   DrizzleUserRepository,
@@ -30,6 +33,10 @@ async function createApp(): Promise<FastifyInstance> {
   await app.register(identityPlugin, {
     jwksUrl: process.env.JWKS_URL ?? "http://localhost:3001/.well-known/jwks.json",
   });
+  await app.register(authzPlugin, {
+    cerbosUrl: resolveCerbosGrpcTarget(),
+    resolveTarget: resolveUserManagementAuthzTarget,
+  });
 
   const databaseUrl = process.env.DATABASE_URL?.trim();
   const usePostgres = databaseUrl !== undefined && databaseUrl.length > 0;
@@ -50,6 +57,7 @@ async function createApp(): Promise<FastifyInstance> {
     userRepository,
     roleAssignmentRepository,
   });
+
   return app;
 }
 
