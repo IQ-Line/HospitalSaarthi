@@ -15,6 +15,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   ShieldCheck,
+  Users,
 } from 'lucide-react';
 import { Button } from '@pulse/ui/button';
 import { useAuthStore } from '@/stores/auth.store';
@@ -215,7 +216,7 @@ function MasterDataNavSection({
           <NavLink
             to="/master-data/system-roles"
             label="System Roles"
-            icon={LayoutGrid}
+            icon={Users}
             collapsed={collapsed}
             nested
           />

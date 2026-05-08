@@ -22,12 +22,16 @@ import { DataTable } from '@/components/data-table';
 import {
   useCreateSystemRole,
   useDeleteSystemRole,
+  usePatchSystemRole,
   useSystemRoles,
   useUpdateSystemRole,
 } from '@/features/master-data/api';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { EntityRowActions } from '@/features/master-data/components/entity-row-actions';
 import { MasterDataPageShell } from '@/features/master-data/components/master-data-page-shell';
+import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
+import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
+import { rowMatchesSearch } from '@/features/master-data/table-search';
 import { systemRoleFormSchema, type SystemRoleFormValues } from '@/features/master-data/validation';
 import type { SystemRole } from '@/features/master-data/types';
 
@@ -36,6 +40,7 @@ export const Route = createFileRoute('/_authenticated/master-data/system-roles')
 });
 
 function SystemRolesPage() {
+  const [tableSearch, setTableSearch] = useState('');
   const [templateFilter, setTemplateFilter] = useState<'all' | 'template' | 'non-template'>('all');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<SystemRole | null>(null);
@@ -50,6 +55,7 @@ function SystemRolesPage() {
 
   const createMutation = useCreateSystemRole();
   const updateMutation = useUpdateSystemRole(editingRole?.id ?? '');
+  const patchMutation = usePatchSystemRole();
   const deleteMutation = useDeleteSystemRole();
 
   const createForm = useForm<SystemRoleFormValues>({
@@ -74,6 +80,12 @@ function SystemRolesPage() {
     },
   });
 
+  const filteredRoles = useMemo(() => {
+    return roles.filter((r) =>
+      rowMatchesSearch(tableSearch, r.name, r.slug, String(r.is_template)),
+    );
+  }, [roles, tableSearch]);
+
   const columns = useMemo<ColumnDef<SystemRole, unknown>[]>(
     () => [
       { accessorKey: 'name', header: 'Name' },
@@ -94,10 +106,26 @@ function SystemRolesPage() {
       {
         accessorKey: 'is_active',
         header: 'Status',
-        cell: ({ getValue }) => (
-          <Badge variant={getValue<boolean>() ? 'default' : 'outline'}>
-            {getValue<boolean>() ? 'Active' : 'Inactive'}
-          </Badge>
+        cell: ({ row }) => (
+          <TableActiveToggle
+            active={row.original.is_active}
+            disabled={
+              patchMutation.isPending &&
+              patchMutation.variables?.id === row.original.id
+            }
+            onCheckedChange={(next) => {
+              if (next === row.original.is_active) return;
+              patchMutation.mutate(
+                { id: row.original.id, input: { is_active: next } },
+                {
+                  onSuccess: () =>
+                    toast.success(
+                      next ? 'System role activated' : 'System role deactivated',
+                    ),
+                },
+              );
+            }}
+          />
         ),
       },
       {
@@ -122,7 +150,7 @@ function SystemRolesPage() {
         ),
       },
     ],
-    [deleteMutation.isPending, editForm],
+    [deleteMutation.isPending, editForm, patchMutation.isPending, patchMutation.variables],
   );
 
   const onCreateSubmit = createForm.handleSubmit(async (values) => {
@@ -187,9 +215,16 @@ function SystemRolesPage() {
       }
     >
       <div className="rounded-lg border">
+        <div className="p-3 border-b">
+          <MasterDataTableToolbar
+            value={tableSearch}
+            onChange={setTableSearch}
+            placeholder="Search name, slug…"
+          />
+        </div>
         <DataTable
           columns={columns}
-          data={roles}
+          data={filteredRoles}
           isLoading={isLoading}
           emptyTitle="No system roles found"
           emptyDescription="Create role templates for role provisioning."

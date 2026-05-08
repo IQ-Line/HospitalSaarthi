@@ -85,3 +85,18 @@ export function useDeleteModulePermission() {
     },
   });
 }
+
+export function usePatchModulePermission() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: ModulePermissionUpdateInput }) =>
+      apiClient<ModulePermissionSingleResponse>(`${BASE}/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(input),
+      }),
+    onSuccess: (result, { id }) => {
+      qc.setQueryData(masterDataKeys.modulePermissionDetail(id), result);
+      qc.invalidateQueries({ queryKey: masterDataKeys.modulePermissionsRoot() });
+    },
+  });
+}

@@ -30,11 +30,15 @@ import {
   useCreateModule,
   useDeleteModule,
   useModules,
+  usePatchModule,
   useUpdateModule,
 } from '@/features/master-data/api';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { EntityRowActions } from '@/features/master-data/components/entity-row-actions';
 import { MasterDataPageShell } from '@/features/master-data/components/master-data-page-shell';
+import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
+import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
+import { rowMatchesSearch } from '@/features/master-data/table-search';
 import { moduleFormSchema, type ModuleFormValues } from '@/features/master-data/validation';
 import type { Module, ModuleCategory } from '@/features/master-data/types';
 
@@ -50,6 +54,7 @@ const moduleCategoryOptions: Array<{ value: ModuleCategory; label: string }> = [
 ];
 
 function ModulesPage() {
+  const [tableSearch, setTableSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<ModuleCategory | 'all'>('all');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingModule, setEditingModule] = useState<Module | null>(null);
@@ -62,6 +67,7 @@ function ModulesPage() {
 
   const createMutation = useCreateModule();
   const updateMutation = useUpdateModule(editingModule?.id ?? '');
+  const patchMutation = usePatchModule();
   const deleteMutation = useDeleteModule();
 
   const createForm = useForm<ModuleFormValues>({
@@ -99,6 +105,19 @@ function ModulesPage() {
     return modules.filter((module) => module.id !== editingModule.id);
   }, [editingModule, modules]);
 
+  const filteredModules = useMemo(() => {
+    return modules.filter((m) =>
+      rowMatchesSearch(
+        tableSearch,
+        m.name,
+        m.slug,
+        m.category,
+        m.version,
+        String(m.level),
+      ),
+    );
+  }, [modules, tableSearch]);
+
   const columns = useMemo<ColumnDef<Module, unknown>[]>(
     () => [
       { accessorKey: 'name', header: 'Name' },
@@ -123,10 +142,26 @@ function ModulesPage() {
       {
         accessorKey: 'is_active',
         header: 'Status',
-        cell: ({ getValue }) => (
-          <Badge variant={getValue<boolean>() ? 'default' : 'outline'}>
-            {getValue<boolean>() ? 'Active' : 'Inactive'}
-          </Badge>
+        cell: ({ row }) => (
+          <TableActiveToggle
+            active={row.original.is_active}
+            disabled={
+              patchMutation.isPending &&
+              patchMutation.variables?.id === row.original.id
+            }
+            onCheckedChange={(next) => {
+              if (next === row.original.is_active) return;
+              patchMutation.mutate(
+                { id: row.original.id, input: { is_active: next } },
+                {
+                  onSuccess: () =>
+                    toast.success(
+                      next ? 'Module activated' : 'Module deactivated',
+                    ),
+                },
+              );
+            }}
+          />
         ),
       },
       {
@@ -154,7 +189,7 @@ function ModulesPage() {
         ),
       },
     ],
-    [deleteMutation.isPending, editForm],
+    [deleteMutation.isPending, editForm, patchMutation.isPending, patchMutation.variables],
   );
 
   const onCreateSubmit = createForm.handleSubmit(async (values) => {
@@ -223,9 +258,16 @@ function ModulesPage() {
       }
     >
       <div className="rounded-lg border">
+        <div className="p-3 border-b">
+          <MasterDataTableToolbar
+            value={tableSearch}
+            onChange={setTableSearch}
+            placeholder="Search name, slug, category, version…"
+          />
+        </div>
         <DataTable
           columns={columns}
-          data={modules}
+          data={filteredModules}
           isLoading={isLoading}
           emptyTitle="No modules found"
           emptyDescription="Create a module to start building your catalog."

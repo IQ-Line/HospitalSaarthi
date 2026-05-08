@@ -30,12 +30,16 @@ import {
   useDeleteModulePermission,
   useModulePermissions,
   useModules,
+  usePatchModulePermission,
   usePermissions,
   useUpdateModulePermission,
 } from '@/features/master-data/api';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { EntityRowActions } from '@/features/master-data/components/entity-row-actions';
 import { MasterDataPageShell } from '@/features/master-data/components/master-data-page-shell';
+import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
+import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
+import { rowMatchesSearch } from '@/features/master-data/table-search';
 import {
   modulePermissionFormSchema,
   modulePermissionUpdateSchema,
@@ -49,6 +53,7 @@ export const Route = createFileRoute('/_authenticated/master-data/module-permiss
 });
 
 function ModulePermissionsPage() {
+  const [tableSearch, setTableSearch] = useState('');
   const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingLink, setEditingLink] = useState<ModulePermission | null>(null);
@@ -78,6 +83,7 @@ function ModulePermissionsPage() {
 
   const createMutation = useCreateModulePermission();
   const updateMutation = useUpdateModulePermission(editingLink?.id ?? '');
+  const patchMutation = usePatchModulePermission();
   const deleteMutation = useDeleteModulePermission();
 
   const createForm = useForm<ModulePermissionFormValues>({
@@ -103,6 +109,17 @@ function ModulePermissionsPage() {
   useEffect(() => {
     createForm.setValue('module_id', selectedModuleId ?? '');
   }, [createForm, selectedModuleId]);
+
+  const filteredLinks = useMemo(() => {
+    return links.filter((link) =>
+      rowMatchesSearch(
+        tableSearch,
+        link.slug,
+        moduleNameById.get(link.module_id),
+        permissionNameById.get(link.permission_id),
+      ),
+    );
+  }, [links, moduleNameById, permissionNameById, tableSearch]);
 
   const columns = useMemo<ColumnDef<ModulePermission, unknown>[]>(
     () => [
@@ -133,10 +150,26 @@ function ModulePermissionsPage() {
       {
         accessorKey: 'is_active',
         header: 'Status',
-        cell: ({ getValue }) => (
-          <Badge variant={getValue<boolean>() ? 'default' : 'outline'}>
-            {getValue<boolean>() ? 'Active' : 'Inactive'}
-          </Badge>
+        cell: ({ row }) => (
+          <TableActiveToggle
+            active={row.original.is_active}
+            disabled={
+              patchMutation.isPending &&
+              patchMutation.variables?.id === row.original.id
+            }
+            onCheckedChange={(next) => {
+              if (next === row.original.is_active) return;
+              patchMutation.mutate(
+                { id: row.original.id, input: { is_active: next } },
+                {
+                  onSuccess: () =>
+                    toast.success(
+                      next ? 'Assignment activated' : 'Assignment deactivated',
+                    ),
+                },
+              );
+            }}
+          />
         ),
       },
       {
@@ -159,7 +192,14 @@ function ModulePermissionsPage() {
         ),
       },
     ],
-    [deleteMutation.isPending, editForm, moduleNameById, permissionNameById],
+    [
+      deleteMutation.isPending,
+      editForm,
+      moduleNameById,
+      permissionNameById,
+      patchMutation.isPending,
+      patchMutation.variables,
+    ],
   );
 
   const onCreateSubmit = createForm.handleSubmit(async (values) => {
@@ -231,9 +271,16 @@ function ModulePermissionsPage() {
       }
     >
       <div className="rounded-lg border">
+        <div className="p-3 border-b">
+          <MasterDataTableToolbar
+            value={tableSearch}
+            onChange={setTableSearch}
+            placeholder="Search slug, module, permission…"
+          />
+        </div>
         <DataTable
           columns={columns}
-          data={links}
+          data={filteredLinks}
           isLoading={isLoading}
           emptyTitle="No module permissions found"
           emptyDescription="Add an assignment to map module access."

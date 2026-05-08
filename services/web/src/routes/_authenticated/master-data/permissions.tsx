@@ -29,12 +29,16 @@ import { DataTable } from '@/components/data-table';
 import {
   useCreatePermission,
   useDeletePermission,
+  usePatchPermission,
   usePermissions,
   useUpdatePermission,
 } from '@/features/master-data/api';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { EntityRowActions } from '@/features/master-data/components/entity-row-actions';
 import { MasterDataPageShell } from '@/features/master-data/components/master-data-page-shell';
+import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
+import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
+import { rowMatchesSearch } from '@/features/master-data/table-search';
 import {
   permissionActionSchema,
   permissionFormSchema,
@@ -47,6 +51,7 @@ export const Route = createFileRoute('/_authenticated/master-data/permissions')(
 });
 
 function PermissionsPage() {
+  const [tableSearch, setTableSearch] = useState('');
   const [actionFilter, setActionFilter] = useState<PermissionAction | 'all'>('all');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingPermission, setEditingPermission] = useState<Permission | null>(null);
@@ -59,6 +64,7 @@ function PermissionsPage() {
 
   const createMutation = useCreatePermission();
   const updateMutation = useUpdatePermission(editingPermission?.id ?? '');
+  const patchMutation = usePatchPermission();
   const deleteMutation = useDeletePermission();
 
   const createForm = useForm<PermissionFormValues>({
@@ -85,6 +91,17 @@ function PermissionsPage() {
 
   const actionOptions = useMemo(() => permissionActionSchema.options, []);
 
+  const filteredPermissions = useMemo(() => {
+    return permissions.filter((p) =>
+      rowMatchesSearch(
+        tableSearch,
+        p.name,
+        p.slug,
+        p.action,
+      ),
+    );
+  }, [permissions, tableSearch]);
+
   const columns = useMemo<ColumnDef<Permission, unknown>[]>(
     () => [
       { accessorKey: 'name', header: 'Name' },
@@ -101,10 +118,26 @@ function PermissionsPage() {
       {
         accessorKey: 'is_active',
         header: 'Status',
-        cell: ({ getValue }) => (
-          <Badge variant={getValue<boolean>() ? 'default' : 'outline'}>
-            {getValue<boolean>() ? 'Active' : 'Inactive'}
-          </Badge>
+        cell: ({ row }) => (
+          <TableActiveToggle
+            active={row.original.is_active}
+            disabled={
+              patchMutation.isPending &&
+              patchMutation.variables?.id === row.original.id
+            }
+            onCheckedChange={(next) => {
+              if (next === row.original.is_active) return;
+              patchMutation.mutate(
+                { id: row.original.id, input: { is_active: next } },
+                {
+                  onSuccess: () =>
+                    toast.success(
+                      next ? 'Permission activated' : 'Permission deactivated',
+                    ),
+                },
+              );
+            }}
+          />
         ),
       },
       {
@@ -129,7 +162,7 @@ function PermissionsPage() {
         ),
       },
     ],
-    [deleteMutation.isPending, editForm],
+    [deleteMutation.isPending, editForm, patchMutation.isPending, patchMutation.variables],
   );
 
   const onCreateSubmit = createForm.handleSubmit(async (values) => {
@@ -189,9 +222,16 @@ function PermissionsPage() {
       }
     >
       <div className="rounded-lg border">
+        <div className="p-3 border-b">
+          <MasterDataTableToolbar
+            value={tableSearch}
+            onChange={setTableSearch}
+            placeholder="Search name, slug, action…"
+          />
+        </div>
         <DataTable
           columns={columns}
-          data={permissions}
+          data={filteredPermissions}
           isLoading={isLoading}
           emptyTitle="No permissions found"
           emptyDescription="Create a permission to begin role mapping."

@@ -78,3 +78,19 @@ export function useDeleteModule() {
     },
   });
 }
+
+/** PATCH by id (for table row actions without knowing id at hook init time). */
+export function usePatchModule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: ModuleUpdateInput }) =>
+      apiClient<ModuleSingleResponse>(`${BASE}/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(input),
+      }),
+    onSuccess: (result, { id }) => {
+      qc.setQueryData(masterDataKeys.moduleDetail(id), result);
+      qc.invalidateQueries({ queryKey: masterDataKeys.modulesRoot() });
+    },
+  });
+}

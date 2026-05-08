@@ -68,3 +68,18 @@ export function useDeleteSystemRole() {
     },
   });
 }
+
+export function usePatchSystemRole() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: SystemRoleUpdateInput }) =>
+      apiClient<SystemRoleSingleResponse>(`${BASE}/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(input),
+      }),
+    onSuccess: (result, { id }) => {
+      qc.setQueryData(masterDataKeys.systemRoleDetail(id), result);
+      qc.invalidateQueries({ queryKey: masterDataKeys.systemRoles() });
+    },
+  });
+}

@@ -23,15 +23,31 @@ const upstreams: UpstreamRoute[] = [
   // { prefix: '/api/v1/empi', upstream: process.env['EMPI_URL'] ?? 'http://localhost:3003' },
 ];
 
+function isDevBrowserOrigin(origin: string | undefined): boolean {
+  if (!origin) return true;
+  try {
+    const { hostname } = new URL(origin);
+    return (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname.endsWith('.localhost')
+    );
+  } catch {
+    return false;
+  }
+}
+
 async function main() {
   const app = Fastify({ logger: true });
 
   await app.register(cors, {
-    origin: [
-      'http://localhost:5173',
-      'http://localhost:4200',
-    ],
+    /* Browser PATCH + JSON + custom headers preflight; allow typical dev URLs (127.0.0.1 vs localhost). */
+    origin: (origin, cb) => {
+      cb(null, isDevBrowserOrigin(origin));
+    },
     credentials: true,
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'iq_tenant_id'],
   });
 
   for (const route of upstreams) {
