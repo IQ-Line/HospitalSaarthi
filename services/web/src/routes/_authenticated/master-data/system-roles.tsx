@@ -22,7 +22,6 @@ import { DataTable } from '@/components/data-table';
 import {
   useCreateSystemRole,
   useDeleteSystemRole,
-  usePatchSystemRole,
   useSystemRoles,
   useUpdateSystemRole,
 } from '@/features/master-data/api';
@@ -30,9 +29,16 @@ import { EntityFormDialog } from '@/features/master-data/components/entity-form-
 import { EntityRowActions } from '@/features/master-data/components/entity-row-actions';
 import { MasterDataPageShell } from '@/features/master-data/components/master-data-page-shell';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
+import { ReadOnlyRow } from '@/features/master-data/components/read-only-row';
 import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
+import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { rowMatchesSearch } from '@/features/master-data/table-search';
-import { systemRoleFormSchema, type SystemRoleFormValues } from '@/features/master-data/validation';
+import { toSlug } from '@/features/master-data/utils';
+import {
+  EMPTY_SYSTEM_ROLE_FORM_VALUES,
+  systemRoleFormSchema,
+  type SystemRoleFormValues,
+} from '@/features/master-data/validation';
 import type { SystemRole } from '@/features/master-data/types';
 
 export const Route = createFileRoute('/_authenticated/master-data/system-roles')({
@@ -54,30 +60,17 @@ function SystemRolesPage() {
   const roles = data?.data ?? [];
 
   const createMutation = useCreateSystemRole();
-  const updateMutation = useUpdateSystemRole(editingRole?.id ?? '');
-  const patchMutation = usePatchSystemRole();
+  const updateMutation = useUpdateSystemRole();
   const deleteMutation = useDeleteSystemRole();
 
   const createForm = useForm<SystemRoleFormValues>({
     resolver: zodResolver(systemRoleFormSchema),
-    defaultValues: {
-      name: '',
-      slug: '',
-      description: null,
-      is_template: true,
-      is_active: true,
-    },
+    defaultValues: EMPTY_SYSTEM_ROLE_FORM_VALUES,
   });
 
   const editForm = useForm<SystemRoleFormValues>({
     resolver: zodResolver(systemRoleFormSchema),
-    defaultValues: {
-      name: '',
-      slug: '',
-      description: null,
-      is_template: true,
-      is_active: true,
-    },
+    defaultValues: EMPTY_SYSTEM_ROLE_FORM_VALUES,
   });
 
   const filteredRoles = useMemo(() => {
@@ -110,18 +103,20 @@ function SystemRolesPage() {
           <TableActiveToggle
             active={row.original.is_active}
             disabled={
-              patchMutation.isPending &&
-              patchMutation.variables?.id === row.original.id
+              updateMutation.isPending &&
+              updateMutation.variables?.id === row.original.id
             }
             onCheckedChange={(next) => {
               if (next === row.original.is_active) return;
-              patchMutation.mutate(
+              updateMutation.mutate(
                 { id: row.original.id, input: { is_active: next } },
                 {
                   onSuccess: () =>
                     toast.success(
                       next ? 'System role activated' : 'System role deactivated',
                     ),
+                  onError: (err) =>
+                    toast.error(mutationErrorMessage(err)),
                 },
               );
             }}
@@ -150,28 +145,43 @@ function SystemRolesPage() {
         ),
       },
     ],
-    [deleteMutation.isPending, editForm, patchMutation.isPending, patchMutation.variables],
+    [deleteMutation.isPending, editForm, updateMutation.isPending, updateMutation.variables],
   );
 
   const onCreateSubmit = createForm.handleSubmit(async (values) => {
-    await createMutation.mutateAsync(values);
-    toast.success('System role created');
-    setIsCreateOpen(false);
-    createForm.reset();
+    try {
+      await createMutation.mutateAsync(values);
+      toast.success('System role created');
+      setIsCreateOpen(false);
+      createForm.reset(EMPTY_SYSTEM_ROLE_FORM_VALUES);
+    } catch (err) {
+      toast.error(mutationErrorMessage(err));
+    }
   });
 
   const onEditSubmit = editForm.handleSubmit(async (values) => {
     if (!editingRole) return;
-    await updateMutation.mutateAsync(values);
-    toast.success('System role updated');
-    setEditingRole(null);
+    try {
+      await updateMutation.mutateAsync({
+        id: editingRole.id,
+        input: values,
+      });
+      toast.success('System role updated');
+      setEditingRole(null);
+    } catch (err) {
+      toast.error(mutationErrorMessage(err));
+    }
   });
 
   const onDeleteConfirm = async () => {
     if (!deletingRole) return;
-    await deleteMutation.mutateAsync(deletingRole.id);
-    toast.success('System role deleted');
-    setDeletingRole(null);
+    try {
+      await deleteMutation.mutateAsync(deletingRole.id);
+      toast.success('System role deleted');
+      setDeletingRole(null);
+    } catch (err) {
+      toast.error(mutationErrorMessage(err));
+    }
   };
 
   if (error) {
@@ -236,7 +246,7 @@ function SystemRolesPage() {
         onOpenChange={(open) => {
           setIsCreateOpen(open);
           if (!open) {
-            createForm.reset();
+            createForm.reset(EMPTY_SYSTEM_ROLE_FORM_VALUES);
           }
         }}
         title="Create System Role"
@@ -372,24 +382,6 @@ function SystemRoleFormFields({ form }: SystemRoleFormFieldsProps) {
           />
         </div>
       </div>
-    </div>
-  );
-}
-
-function toSlug(value?: string | null) {
-  if (!value) return '';
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
-function ReadOnlyRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-4 border-b pb-2 last:border-b-0 last:pb-0">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium text-right">{value}</span>
     </div>
   );
 }

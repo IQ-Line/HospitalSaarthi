@@ -29,7 +29,6 @@ import { DataTable } from '@/components/data-table';
 import {
   useCreatePermission,
   useDeletePermission,
-  usePatchPermission,
   usePermissions,
   useUpdatePermission,
 } from '@/features/master-data/api';
@@ -37,9 +36,13 @@ import { EntityFormDialog } from '@/features/master-data/components/entity-form-
 import { EntityRowActions } from '@/features/master-data/components/entity-row-actions';
 import { MasterDataPageShell } from '@/features/master-data/components/master-data-page-shell';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
+import { ReadOnlyRow } from '@/features/master-data/components/read-only-row';
 import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
+import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { rowMatchesSearch } from '@/features/master-data/table-search';
+import { toSlug } from '@/features/master-data/utils';
 import {
+  EMPTY_PERMISSION_FORM_VALUES,
   permissionActionSchema,
   permissionFormSchema,
   type PermissionFormValues,
@@ -63,30 +66,17 @@ function PermissionsPage() {
   const permissions = data?.data ?? [];
 
   const createMutation = useCreatePermission();
-  const updateMutation = useUpdatePermission(editingPermission?.id ?? '');
-  const patchMutation = usePatchPermission();
+  const updateMutation = useUpdatePermission();
   const deleteMutation = useDeletePermission();
 
   const createForm = useForm<PermissionFormValues>({
     resolver: zodResolver(permissionFormSchema),
-    defaultValues: {
-      name: '',
-      slug: '',
-      action: 'read',
-      description: null,
-      is_active: true,
-    },
+    defaultValues: EMPTY_PERMISSION_FORM_VALUES,
   });
 
   const editForm = useForm<PermissionFormValues>({
     resolver: zodResolver(permissionFormSchema),
-    defaultValues: {
-      name: '',
-      slug: '',
-      action: 'read',
-      description: null,
-      is_active: true,
-    },
+    defaultValues: EMPTY_PERMISSION_FORM_VALUES,
   });
 
   const actionOptions = useMemo(() => permissionActionSchema.options, []);
@@ -122,18 +112,20 @@ function PermissionsPage() {
           <TableActiveToggle
             active={row.original.is_active}
             disabled={
-              patchMutation.isPending &&
-              patchMutation.variables?.id === row.original.id
+              updateMutation.isPending &&
+              updateMutation.variables?.id === row.original.id
             }
             onCheckedChange={(next) => {
               if (next === row.original.is_active) return;
-              patchMutation.mutate(
+              updateMutation.mutate(
                 { id: row.original.id, input: { is_active: next } },
                 {
                   onSuccess: () =>
                     toast.success(
                       next ? 'Permission activated' : 'Permission deactivated',
                     ),
+                  onError: (err) =>
+                    toast.error(mutationErrorMessage(err)),
                 },
               );
             }}
@@ -162,28 +154,43 @@ function PermissionsPage() {
         ),
       },
     ],
-    [deleteMutation.isPending, editForm, patchMutation.isPending, patchMutation.variables],
+    [deleteMutation.isPending, editForm, updateMutation.isPending, updateMutation.variables],
   );
 
   const onCreateSubmit = createForm.handleSubmit(async (values) => {
-    await createMutation.mutateAsync(values);
-    toast.success('Permission created');
-    setIsCreateOpen(false);
-    createForm.reset();
+    try {
+      await createMutation.mutateAsync(values);
+      toast.success('Permission created');
+      setIsCreateOpen(false);
+      createForm.reset(EMPTY_PERMISSION_FORM_VALUES);
+    } catch (err) {
+      toast.error(mutationErrorMessage(err));
+    }
   });
 
   const onEditSubmit = editForm.handleSubmit(async (values) => {
     if (!editingPermission) return;
-    await updateMutation.mutateAsync(values);
-    toast.success('Permission updated');
-    setEditingPermission(null);
+    try {
+      await updateMutation.mutateAsync({
+        id: editingPermission.id,
+        input: values,
+      });
+      toast.success('Permission updated');
+      setEditingPermission(null);
+    } catch (err) {
+      toast.error(mutationErrorMessage(err));
+    }
   });
 
   const onDeleteConfirm = async () => {
     if (!deletingPermission) return;
-    await deleteMutation.mutateAsync(deletingPermission.id);
-    toast.success('Permission deleted');
-    setDeletingPermission(null);
+    try {
+      await deleteMutation.mutateAsync(deletingPermission.id);
+      toast.success('Permission deleted');
+      setDeletingPermission(null);
+    } catch (err) {
+      toast.error(mutationErrorMessage(err));
+    }
   };
 
   if (error) {
@@ -243,7 +250,7 @@ function PermissionsPage() {
         onOpenChange={(open) => {
           setIsCreateOpen(open);
           if (!open) {
-            createForm.reset();
+            createForm.reset(EMPTY_PERMISSION_FORM_VALUES);
           }
         }}
         title="Create Permission"
@@ -403,22 +410,4 @@ function PermissionFormFields({ form, actionOptions }: PermissionFormFieldsProps
 
 function capitalize(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
-}
-
-function toSlug(value?: string | null) {
-  if (!value) return '';
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
-function ReadOnlyRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-4 border-b pb-2 last:border-b-0 last:pb-0">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium text-right">{value}</span>
-    </div>
-  );
 }

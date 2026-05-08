@@ -57,15 +57,16 @@ export function useCreateModulePermission() {
   });
 }
 
-export function useUpdateModulePermission(id: string) {
+/** PATCH — `{ id, input }` from dialogs and row toggles. */
+export function useUpdateModulePermission() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: ModulePermissionUpdateInput) =>
+    mutationFn: ({ id, input }: { id: string; input: ModulePermissionUpdateInput }) =>
       apiClient<ModulePermissionSingleResponse>(`${BASE}/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(input),
       }),
-    onSuccess: (result) => {
+    onSuccess: (result, { id }) => {
       qc.setQueryData(masterDataKeys.modulePermissionDetail(id), result);
       qc.invalidateQueries({ queryKey: masterDataKeys.modulePermissionsRoot() });
     },
@@ -81,21 +82,6 @@ export function useDeleteModulePermission() {
       }),
     onSuccess: (_result, id) => {
       qc.removeQueries({ queryKey: masterDataKeys.modulePermissionDetail(id) });
-      qc.invalidateQueries({ queryKey: masterDataKeys.modulePermissionsRoot() });
-    },
-  });
-}
-
-export function usePatchModulePermission() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, input }: { id: string; input: ModulePermissionUpdateInput }) =>
-      apiClient<ModulePermissionSingleResponse>(`${BASE}/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(input),
-      }),
-    onSuccess: (result, { id }) => {
-      qc.setQueryData(masterDataKeys.modulePermissionDetail(id), result);
       qc.invalidateQueries({ queryKey: masterDataKeys.modulePermissionsRoot() });
     },
   });

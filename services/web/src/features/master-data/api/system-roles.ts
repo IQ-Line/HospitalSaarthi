@@ -13,7 +13,7 @@ const BASE = '/api/v1/master-data/system-roles';
 export function useSystemRoles(isTemplate?: boolean) {
   const params = isTemplate === undefined ? '' : `?is_template=${isTemplate}`;
   return useQuery({
-    queryKey: [...masterDataKeys.systemRoles(), isTemplate ?? 'all'],
+    queryKey: masterDataKeys.systemRoles(isTemplate),
     queryFn: () => apiClient<SystemRoleListResponse>(`${BASE}${params}`),
   });
 }
@@ -35,22 +35,23 @@ export function useCreateSystemRole() {
         body: JSON.stringify(input),
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: masterDataKeys.systemRoles() });
+      qc.invalidateQueries({ queryKey: masterDataKeys.systemRolesRoot() });
     },
   });
 }
 
-export function useUpdateSystemRole(id: string) {
+/** PATCH — `{ id, input }` from dialogs and row toggles. */
+export function useUpdateSystemRole() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: SystemRoleUpdateInput) =>
+    mutationFn: ({ id, input }: { id: string; input: SystemRoleUpdateInput }) =>
       apiClient<SystemRoleSingleResponse>(`${BASE}/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(input),
       }),
-    onSuccess: (result) => {
+    onSuccess: (result, { id }) => {
       qc.setQueryData(masterDataKeys.systemRoleDetail(id), result);
-      qc.invalidateQueries({ queryKey: masterDataKeys.systemRoles() });
+      qc.invalidateQueries({ queryKey: masterDataKeys.systemRolesRoot() });
     },
   });
 }
@@ -63,23 +64,8 @@ export function useDeleteSystemRole() {
         method: 'DELETE',
       }),
     onSuccess: (_data, id) => {
-      qc.invalidateQueries({ queryKey: masterDataKeys.systemRoles() });
+      qc.invalidateQueries({ queryKey: masterDataKeys.systemRolesRoot() });
       qc.removeQueries({ queryKey: masterDataKeys.systemRoleDetail(id) });
-    },
-  });
-}
-
-export function usePatchSystemRole() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, input }: { id: string; input: SystemRoleUpdateInput }) =>
-      apiClient<SystemRoleSingleResponse>(`${BASE}/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(input),
-      }),
-    onSuccess: (result, { id }) => {
-      qc.setQueryData(masterDataKeys.systemRoleDetail(id), result);
-      qc.invalidateQueries({ queryKey: masterDataKeys.systemRoles() });
     },
   });
 }

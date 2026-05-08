@@ -92,3 +92,45 @@ export type PermissionFormValues = z.infer<typeof permissionFormSchema>;
 export type SystemRoleFormValues = z.infer<typeof systemRoleFormSchema>;
 export type ModulePermissionFormValues = z.infer<typeof modulePermissionFormSchema>;
 export type ModulePermissionUpdateValues = z.infer<typeof modulePermissionUpdateSchema>;
+
+/** Single source of truth for reset / dialog close (avoid drifting defaults). */
+export const EMPTY_MODULE_FORM_VALUES: ModuleFormValues = {
+  name: '',
+  slug: '',
+  category: 'core',
+  version: '0.0.0',
+  description: null,
+  parent_id: null,
+  icon: null,
+  is_active: true,
+};
+
+export const EMPTY_PERMISSION_FORM_VALUES: PermissionFormValues = {
+  name: '',
+  slug: '',
+  action: 'read',
+  description: null,
+  is_active: true,
+};
+
+export const EMPTY_SYSTEM_ROLE_FORM_VALUES: SystemRoleFormValues = {
+  name: '',
+  slug: '',
+  description: null,
+  is_template: true,
+  is_active: true,
+};
+
+export const EMPTY_MODULE_PERMISSION_UPDATE_VALUES: ModulePermissionUpdateValues = {
+  slug: '',
+  is_default: false,
+  is_active: true,
+};
+
+export const EMPTY_MODULE_PERMISSION_FORM_VALUES: ModulePermissionFormValues = {
+  slug: '',
+  module_id: '',
+  permission_id: '',
+  is_default: false,
+  is_active: true,
+};

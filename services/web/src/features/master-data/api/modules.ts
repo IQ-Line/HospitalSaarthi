@@ -2,7 +2,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { masterDataKeys } from './query-keys';
 import type {
-  Module,
   ModuleCategory,
   ModuleCreateInput,
   ModuleListResponse,
@@ -50,15 +49,16 @@ export function useCreateModule() {
   });
 }
 
-export function useUpdateModule(id: string) {
+/** PATCH — pass `{ id, input }` from dialogs and inline toggles (single stable mutation per screen). */
+export function useUpdateModule() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: ModuleUpdateInput) =>
+    mutationFn: ({ id, input }: { id: string; input: ModuleUpdateInput }) =>
       apiClient<ModuleSingleResponse>(`${BASE}/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(input),
       }),
-    onSuccess: (result) => {
+    onSuccess: (result, { id }) => {
       qc.setQueryData(masterDataKeys.moduleDetail(id), result);
       qc.invalidateQueries({ queryKey: masterDataKeys.modulesRoot() });
     },
@@ -75,22 +75,6 @@ export function useDeleteModule() {
     onSuccess: (_data, id) => {
       qc.invalidateQueries({ queryKey: masterDataKeys.modulesRoot() });
       qc.removeQueries({ queryKey: masterDataKeys.moduleDetail(id) });
-    },
-  });
-}
-
-/** PATCH by id (for table row actions without knowing id at hook init time). */
-export function usePatchModule() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, input }: { id: string; input: ModuleUpdateInput }) =>
-      apiClient<ModuleSingleResponse>(`${BASE}/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(input),
-      }),
-    onSuccess: (result, { id }) => {
-      qc.setQueryData(masterDataKeys.moduleDetail(id), result);
-      qc.invalidateQueries({ queryKey: masterDataKeys.modulesRoot() });
     },
   });
 }

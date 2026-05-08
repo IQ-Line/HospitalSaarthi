@@ -14,7 +14,7 @@ const BASE = '/api/v1/master-data/permissions';
 export function usePermissions(action?: PermissionAction) {
   const params = action ? `?action=${action}` : '';
   return useQuery({
-    queryKey: [...masterDataKeys.permissions(), action ?? 'all'],
+    queryKey: masterDataKeys.permissions(action),
     queryFn: () => apiClient<PermissionListResponse>(`${BASE}${params}`),
   });
 }
@@ -36,22 +36,23 @@ export function useCreatePermission() {
         body: JSON.stringify(input),
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: masterDataKeys.permissions() });
+      qc.invalidateQueries({ queryKey: masterDataKeys.permissionsRoot() });
     },
   });
 }
 
-export function useUpdatePermission(id: string) {
+/** PATCH — `{ id, input }` from dialogs and row toggles. */
+export function useUpdatePermission() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: PermissionUpdateInput) =>
+    mutationFn: ({ id, input }: { id: string; input: PermissionUpdateInput }) =>
       apiClient<PermissionSingleResponse>(`${BASE}/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(input),
       }),
-    onSuccess: (result) => {
+    onSuccess: (result, { id }) => {
       qc.setQueryData(masterDataKeys.permissionDetail(id), result);
-      qc.invalidateQueries({ queryKey: masterDataKeys.permissions() });
+      qc.invalidateQueries({ queryKey: masterDataKeys.permissionsRoot() });
     },
   });
 }
@@ -64,23 +65,8 @@ export function useDeletePermission() {
         method: 'DELETE',
       }),
     onSuccess: (_data, id) => {
-      qc.invalidateQueries({ queryKey: masterDataKeys.permissions() });
+      qc.invalidateQueries({ queryKey: masterDataKeys.permissionsRoot() });
       qc.removeQueries({ queryKey: masterDataKeys.permissionDetail(id) });
-    },
-  });
-}
-
-export function usePatchPermission() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, input }: { id: string; input: PermissionUpdateInput }) =>
-      apiClient<PermissionSingleResponse>(`${BASE}/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(input),
-      }),
-    onSuccess: (result, { id }) => {
-      qc.setQueryData(masterDataKeys.permissionDetail(id), result);
-      qc.invalidateQueries({ queryKey: masterDataKeys.permissions() });
     },
   });
 }

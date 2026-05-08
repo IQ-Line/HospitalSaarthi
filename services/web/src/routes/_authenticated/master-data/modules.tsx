@@ -30,16 +30,22 @@ import {
   useCreateModule,
   useDeleteModule,
   useModules,
-  usePatchModule,
   useUpdateModule,
 } from '@/features/master-data/api';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { EntityRowActions } from '@/features/master-data/components/entity-row-actions';
 import { MasterDataPageShell } from '@/features/master-data/components/master-data-page-shell';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
+import { ReadOnlyRow } from '@/features/master-data/components/read-only-row';
 import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
+import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { rowMatchesSearch } from '@/features/master-data/table-search';
-import { moduleFormSchema, type ModuleFormValues } from '@/features/master-data/validation';
+import { toSlug } from '@/features/master-data/utils';
+import {
+  EMPTY_MODULE_FORM_VALUES,
+  moduleFormSchema,
+  type ModuleFormValues,
+} from '@/features/master-data/validation';
 import type { Module, ModuleCategory } from '@/features/master-data/types';
 
 export const Route = createFileRoute('/_authenticated/master-data/modules')({
@@ -66,36 +72,17 @@ function ModulesPage() {
   const modules = data?.data ?? [];
 
   const createMutation = useCreateModule();
-  const updateMutation = useUpdateModule(editingModule?.id ?? '');
-  const patchMutation = usePatchModule();
+  const updateMutation = useUpdateModule();
   const deleteMutation = useDeleteModule();
 
   const createForm = useForm<ModuleFormValues>({
     resolver: zodResolver(moduleFormSchema),
-    defaultValues: {
-      name: '',
-      slug: '',
-      category: 'core',
-      version: '0.0.0',
-      description: null,
-      parent_id: null,
-      icon: null,
-      is_active: true,
-    },
+    defaultValues: EMPTY_MODULE_FORM_VALUES,
   });
 
   const editForm = useForm<ModuleFormValues>({
     resolver: zodResolver(moduleFormSchema),
-    defaultValues: {
-      name: '',
-      slug: '',
-      category: 'core',
-      version: '0.0.0',
-      description: null,
-      parent_id: null,
-      icon: null,
-      is_active: true,
-    },
+    defaultValues: EMPTY_MODULE_FORM_VALUES,
   });
 
   const parentOptions = useMemo(() => {
@@ -146,18 +133,20 @@ function ModulesPage() {
           <TableActiveToggle
             active={row.original.is_active}
             disabled={
-              patchMutation.isPending &&
-              patchMutation.variables?.id === row.original.id
+              updateMutation.isPending &&
+              updateMutation.variables?.id === row.original.id
             }
             onCheckedChange={(next) => {
               if (next === row.original.is_active) return;
-              patchMutation.mutate(
+              updateMutation.mutate(
                 { id: row.original.id, input: { is_active: next } },
                 {
                   onSuccess: () =>
                     toast.success(
                       next ? 'Module activated' : 'Module deactivated',
                     ),
+                  onError: (err) =>
+                    toast.error(mutationErrorMessage(err)),
                 },
               );
             }}
@@ -189,37 +178,43 @@ function ModulesPage() {
         ),
       },
     ],
-    [deleteMutation.isPending, editForm, patchMutation.isPending, patchMutation.variables],
+    [deleteMutation.isPending, editForm, updateMutation.isPending, updateMutation.variables],
   );
 
   const onCreateSubmit = createForm.handleSubmit(async (values) => {
-    await createMutation.mutateAsync(values);
-    toast.success('Module created');
-    setIsCreateOpen(false);
-    createForm.reset({
-      name: '',
-      slug: '',
-      category: 'core',
-      version: '0.0.0',
-      description: null,
-      parent_id: null,
-      icon: null,
-      is_active: true,
-    });
+    try {
+      await createMutation.mutateAsync(values);
+      toast.success('Module created');
+      setIsCreateOpen(false);
+      createForm.reset(EMPTY_MODULE_FORM_VALUES);
+    } catch (err) {
+      toast.error(mutationErrorMessage(err));
+    }
   });
 
   const onEditSubmit = editForm.handleSubmit(async (values) => {
     if (!editingModule) return;
-    await updateMutation.mutateAsync(values);
-    toast.success('Module updated');
-    setEditingModule(null);
+    try {
+      await updateMutation.mutateAsync({
+        id: editingModule.id,
+        input: values,
+      });
+      toast.success('Module updated');
+      setEditingModule(null);
+    } catch (err) {
+      toast.error(mutationErrorMessage(err));
+    }
   });
 
   const onDeleteConfirm = async () => {
     if (!deletingModule) return;
-    await deleteMutation.mutateAsync(deletingModule.id);
-    toast.success('Module deleted');
-    setDeletingModule(null);
+    try {
+      await deleteMutation.mutateAsync(deletingModule.id);
+      toast.success('Module deleted');
+      setDeletingModule(null);
+    } catch (err) {
+      toast.error(mutationErrorMessage(err));
+    }
   };
 
   if (error) {
@@ -279,7 +274,7 @@ function ModulesPage() {
         onOpenChange={(open) => {
           setIsCreateOpen(open);
           if (!open) {
-            createForm.reset();
+            createForm.reset(EMPTY_MODULE_FORM_VALUES);
           }
         }}
         title="Create Module"
@@ -488,20 +483,3 @@ function ModuleFormFields({ form, modules }: ModuleFormFieldsProps) {
   );
 }
 
-function toSlug(value?: string | null) {
-  if (!value) return '';
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
-function ReadOnlyRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-4 border-b pb-2 last:border-b-0 last:pb-0">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium text-right">{value}</span>
-    </div>
-  );
-}

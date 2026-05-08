@@ -30,7 +30,6 @@ import {
   useDeleteModulePermission,
   useModulePermissions,
   useModules,
-  usePatchModulePermission,
   usePermissions,
   useUpdateModulePermission,
 } from '@/features/master-data/api';
@@ -38,9 +37,13 @@ import { EntityFormDialog } from '@/features/master-data/components/entity-form-
 import { EntityRowActions } from '@/features/master-data/components/entity-row-actions';
 import { MasterDataPageShell } from '@/features/master-data/components/master-data-page-shell';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
+import { ReadOnlyRow } from '@/features/master-data/components/read-only-row';
 import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
+import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { rowMatchesSearch } from '@/features/master-data/table-search';
 import {
+  EMPTY_MODULE_PERMISSION_FORM_VALUES,
+  EMPTY_MODULE_PERMISSION_UPDATE_VALUES,
   modulePermissionFormSchema,
   modulePermissionUpdateSchema,
   type ModulePermissionFormValues,
@@ -82,28 +85,20 @@ function ModulePermissionsPage() {
   }, [modules]);
 
   const createMutation = useCreateModulePermission();
-  const updateMutation = useUpdateModulePermission(editingLink?.id ?? '');
-  const patchMutation = usePatchModulePermission();
+  const updateMutation = useUpdateModulePermission();
   const deleteMutation = useDeleteModulePermission();
 
   const createForm = useForm<ModulePermissionFormValues>({
     resolver: zodResolver(modulePermissionFormSchema),
     defaultValues: {
-      slug: '',
+      ...EMPTY_MODULE_PERMISSION_FORM_VALUES,
       module_id: selectedModuleId ?? '',
-      permission_id: '',
-      is_default: false,
-      is_active: true,
     },
   });
 
   const editForm = useForm<ModulePermissionUpdateValues>({
     resolver: zodResolver(modulePermissionUpdateSchema),
-    defaultValues: {
-      slug: '',
-      is_default: false,
-      is_active: true,
-    },
+    defaultValues: EMPTY_MODULE_PERMISSION_UPDATE_VALUES,
   });
 
   useEffect(() => {
@@ -154,18 +149,20 @@ function ModulePermissionsPage() {
           <TableActiveToggle
             active={row.original.is_active}
             disabled={
-              patchMutation.isPending &&
-              patchMutation.variables?.id === row.original.id
+              updateMutation.isPending &&
+              updateMutation.variables?.id === row.original.id
             }
             onCheckedChange={(next) => {
               if (next === row.original.is_active) return;
-              patchMutation.mutate(
+              updateMutation.mutate(
                 { id: row.original.id, input: { is_active: next } },
                 {
                   onSuccess: () =>
                     toast.success(
                       next ? 'Assignment activated' : 'Assignment deactivated',
                     ),
+                  onError: (err) =>
+                    toast.error(mutationErrorMessage(err)),
                 },
               );
             }}
@@ -197,36 +194,48 @@ function ModulePermissionsPage() {
       editForm,
       moduleNameById,
       permissionNameById,
-      patchMutation.isPending,
-      patchMutation.variables,
+      updateMutation.isPending,
+      updateMutation.variables,
     ],
   );
 
   const onCreateSubmit = createForm.handleSubmit(async (values) => {
-    await createMutation.mutateAsync(values);
-    toast.success('Module permission linked');
-    setIsCreateOpen(false);
-    createForm.reset({
-      slug: '',
-      module_id: selectedModuleId ?? '',
-      permission_id: '',
-      is_default: false,
-      is_active: true,
-    });
+    try {
+      await createMutation.mutateAsync(values);
+      toast.success('Module permission linked');
+      setIsCreateOpen(false);
+      createForm.reset({
+        ...EMPTY_MODULE_PERMISSION_FORM_VALUES,
+        module_id: selectedModuleId ?? '',
+      });
+    } catch (err) {
+      toast.error(mutationErrorMessage(err));
+    }
   });
 
   const onEditSubmit = editForm.handleSubmit(async (values) => {
     if (!editingLink) return;
-    await updateMutation.mutateAsync(values);
-    toast.success('Module permission updated');
-    setEditingLink(null);
+    try {
+      await updateMutation.mutateAsync({
+        id: editingLink.id,
+        input: values,
+      });
+      toast.success('Module permission updated');
+      setEditingLink(null);
+    } catch (err) {
+      toast.error(mutationErrorMessage(err));
+    }
   });
 
   const onDeleteConfirm = async () => {
     if (!deletingLink) return;
-    await deleteMutation.mutateAsync(deletingLink.id);
-    toast.success('Module permission deleted');
-    setDeletingLink(null);
+    try {
+      await deleteMutation.mutateAsync(deletingLink.id);
+      toast.success('Module permission deleted');
+      setDeletingLink(null);
+    } catch (err) {
+      toast.error(mutationErrorMessage(err));
+    }
   };
 
   if (error) {
@@ -293,11 +302,8 @@ function ModulePermissionsPage() {
           setIsCreateOpen(open);
           if (!open) {
             createForm.reset({
-              slug: '',
+              ...EMPTY_MODULE_PERMISSION_FORM_VALUES,
               module_id: selectedModuleId ?? '',
-              permission_id: '',
-              is_default: false,
-              is_active: true,
             });
           }
         }}
@@ -555,11 +561,3 @@ function ModulePermissionUpdateFields({ form }: ModulePermissionUpdateFieldsProp
   );
 }
 
-function ReadOnlyRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-4 border-b pb-2 last:border-b-0 last:pb-0">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium text-right">{value}</span>
-    </div>
-  );
-}

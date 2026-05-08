@@ -1,4 +1,4 @@
-import type { ModuleCategory } from '../types';
+import type { ModuleCategory, PermissionAction } from '../types';
 
 export const masterDataKeys = {
   all: ['master-data'] as const,
@@ -10,10 +10,17 @@ export const masterDataKeys = {
   moduleBySlug: (slug: string) => [...masterDataKeys.modules(), 'slug', slug] as const,
   submodules: (parentId: string) => [...masterDataKeys.modules(), parentId, 'submodules'] as const,
 
-  permissions: () => [...masterDataKeys.all, 'permissions'] as const,
+  permissionsRoot: () => [...masterDataKeys.all, 'permissions'] as const,
+  permissions: (action?: PermissionAction) =>
+    [...masterDataKeys.permissionsRoot(), action ?? 'all'] as const,
   permissionDetail: (id: string) => [...masterDataKeys.permissions(), id] as const,
 
-  systemRoles: () => [...masterDataKeys.all, 'system-roles'] as const,
+  systemRolesRoot: () => [...masterDataKeys.all, 'system-roles'] as const,
+  systemRoles: (isTemplate?: boolean) =>
+    [
+      ...masterDataKeys.systemRolesRoot(),
+      isTemplate === undefined ? 'all' : isTemplate ? 'template' : 'non-template',
+    ] as const,
   systemRoleDetail: (id: string) => [...masterDataKeys.systemRoles(), id] as const,
 
   modulePermissionsRoot: () => [...masterDataKeys.all, 'module-permissions'] as const,
@@ -24,13 +31,12 @@ export const masterDataKeys = {
     offset?: number,
   ) =>
     [
-      ...masterDataKeys.all,
-      'module-permissions',
+      ...masterDataKeys.modulePermissionsRoot(),
       moduleId ?? 'all-modules',
       permissionId ?? 'all-permissions',
       limit ?? 50,
       offset ?? 0,
     ] as const,
   modulePermissionDetail: (id: string) =>
-    [...masterDataKeys.all, 'module-permissions', id] as const,
+    [...masterDataKeys.modulePermissionsRoot(), id] as const,
 } as const;
