@@ -1,5 +1,5 @@
-import { eq, and, ilike, sql } from "drizzle-orm";
 import type { DbInstance } from "@hims/ts-sdk-db";
+import { and, eq, ilike, sql } from "@hims/ts-sdk-db";
 import { patients } from "../schema/tables.js";
 import type { PatientRepo } from "../ports.js";
 import type {
@@ -8,6 +8,33 @@ import type {
   UpdatePatientData,
   PatientFilters,
 } from "../domain/patient.types.js";
+
+/** Only these columns may be updated via PATCH; blocks id/uhid/iq_tenant_id/status/etc. from request spillover. */
+const UPDATE_PATIENT_ALLOWED_KEYS = [
+  "salutation",
+  "first_name",
+  "middle_name",
+  "last_name",
+  "father_name",
+  "mother_name",
+  "date_of_birth",
+  "year_of_birth",
+  "age_years",
+  "age_months",
+  "age_days",
+  "gender",
+  "phone_number",
+  "alternate_phone",
+  "blood_group",
+  "occupation",
+  "nationality",
+  "education",
+  "emergency_contact_name",
+  "emergency_contact_relationship",
+  "emergency_contact_phone",
+  "abha_number",
+  "updated_by",
+] as const satisfies readonly (keyof UpdatePatientData)[];
 
 export class DrizzlePatientRepo implements PatientRepo {
   constructor(private db: DbInstance) {}
@@ -141,15 +168,32 @@ export class DrizzlePatientRepo implements PatientRepo {
     id: string,
     data: UpdatePatientData,
   ): Promise<Patient | undefined> {
-    const fullName = computeFullName(
-      data.first_name,
-      data.middle_name,
-      data.last_name,
-    );
+    const existing = await this.findById(tenantId, id);
+    if (!existing) return undefined;
 
-    const values: Record<string, unknown> = { ...data, updated_at: new Date() };
-    if (fullName !== undefined) {
-      values["full_name"] = fullName;
+    const patch = pickAllowedPatientPatch(data);
+    const nameInRequest =
+      "first_name" in data ||
+      "middle_name" in data ||
+      "last_name" in data;
+
+    if (Object.keys(patch).length === 0 && !nameInRequest) {
+      return existing;
+    }
+
+    const values: Record<string, unknown> = {
+      ...patch,
+      updated_at: new Date(),
+    };
+
+    if (nameInRequest) {
+      const first =
+        data.first_name !== undefined ? data.first_name : existing.first_name;
+      const middle =
+        data.middle_name !== undefined ? data.middle_name : existing.middle_name;
+      const last =
+        data.last_name !== undefined ? data.last_name : existing.last_name;
+      values["full_name"] = joinFullName(first, middle, last);
     }
 
     const rows = await this.db
@@ -175,13 +219,21 @@ export class DrizzlePatientRepo implements PatientRepo {
   }
 }
 
-function computeFullName(
-  firstName?: string,
-  middleName?: string | null,
-  lastName?: string | null,
-): string | undefined {
-  if (firstName === undefined) return undefined;
-  return [firstName?.trim(), middleName?.trim(), lastName?.trim()]
-    .filter(Boolean)
-    .join(" ");
+function pickAllowedPatientPatch(
+  data: UpdatePatientData,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of UPDATE_PATIENT_ALLOWED_KEYS) {
+    if (!Object.prototype.hasOwnProperty.call(data, key)) continue;
+    out[key] = data[key];
+  }
+  return out;
+}
+
+function joinFullName(
+  first: string,
+  middle: string | null | undefined,
+  last: string | null | undefined,
+): string {
+  return [first.trim(), middle?.trim(), last?.trim()].filter(Boolean).join(" ");
 }

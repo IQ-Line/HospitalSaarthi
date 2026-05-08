@@ -3,8 +3,8 @@
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
-    "baseUrl": "../../",
-    "ignoreDeprecations": "6.0"
+    // Drop inherited `paths` (monorepo @hims/* → packages/...) so we do not need `baseUrl` or `ignoreDeprecations` (TS 6 / IDE compatibility).
+    "paths": {}
   },
   "include": ["src"]
 }

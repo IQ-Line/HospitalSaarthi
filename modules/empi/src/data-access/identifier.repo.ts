@@ -1,5 +1,5 @@
-import { eq, and } from "drizzle-orm";
 import type { DbInstance } from "@hims/ts-sdk-db";
+import { and, eq } from "@hims/ts-sdk-db";
 import { patientIdentifiers } from "../schema/tables.js";
 import type { IdentifierRepo } from "../ports.js";
 import type {

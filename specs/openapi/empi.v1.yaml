@@ -139,6 +139,9 @@ paths:
     patch:
       operationId: changePatientStatus
       summary: Change patient status
+      description: |
+        Allowed transitions: active ↔ inactive; active or inactive → deceased.
+        `deceased` is terminal (cannot return to active/inactive).
       tags: [Patients]
       parameters:
         - $ref: "#/components/parameters/PatientId"
@@ -162,6 +165,12 @@ paths:
                 $ref: "#/components/schemas/Patient"
         "404":
           description: Patient not found
+        "409":
+          description: Disallowed status transition (e.g. deceased → active)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvalidStatusTransition"
 
   /patients/{id}/identifiers:
     post:
@@ -254,6 +263,13 @@ paths:
           description: Address not found
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Platform access token; must include `iq_tenant_id` claim for tenant scoping.
+
   parameters:
     PatientId:
       name: id
@@ -265,6 +281,20 @@ components:
       description: Patient UUID
 
   schemas:
+    InvalidStatusTransition:
+      type: object
+      required: [error, from, to]
+      properties:
+        error:
+          type: string
+          enum: [invalid_status_transition]
+        from:
+          type: string
+          enum: [active, inactive, deceased]
+        to:
+          type: string
+          enum: [active, inactive, deceased]
+
     CreatePatientRequest:
       type: object
       required: [first_name, gender, phone_number]

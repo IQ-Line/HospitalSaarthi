@@ -2,6 +2,13 @@ import type { FastifyInstance, FastifyPluginOptions } from "fastify";
 import fp from "fastify-plugin";
 import { tenantStorage } from "./context.js";
 
+function asSingleHeaderValue(
+  value: string | string[] | undefined,
+): string | undefined {
+  if (Array.isArray(value)) return value[0];
+  return value;
+}
+
 declare module "fastify" {
   interface FastifyRequest {
     tenantId: string;
@@ -22,13 +29,22 @@ function tenantPluginImpl(
       | Record<string, unknown>
       | undefined;
 
-    const tenantId = (user?.iq_tenant_id as string) ?? undefined;
+    const headerTenantId =
+      asSingleHeaderValue(
+        request.headers["iq_tenant_id"] as string | string[] | undefined,
+      ) ??
+      asSingleHeaderValue(
+        request.headers["x-tenant-id"] as string | string[] | undefined,
+      );
+
+    const tenantId =
+      headerTenantId ?? ((user?.iq_tenant_id as string) || undefined);
 
     if (!tenantId) {
       return reply.code(400).send({
         statusCode: 400,
         error: "Bad Request",
-        message: "Missing iq_tenant_id in JWT claims",
+        message: "Missing tenant id (iq_tenant_id header or x-tenant-id header)",
       });
     }
 

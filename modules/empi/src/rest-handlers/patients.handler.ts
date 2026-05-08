@@ -1,3 +1,4 @@
+/// <reference path="../fastify.d.ts" />
 import type { FastifyInstance } from "fastify";
 import type { EventBus } from "@hims/ts-sdk-events";
 import type {
@@ -6,12 +7,43 @@ import type {
   IdentifierRepo,
   SequenceRepo,
 } from "../ports.js";
+import type { PatientFilters, PatientStatus } from "../domain/patient.types.js";
+import type {
+  ChangePatientStatusRequestBody,
+  CreateAddressRequestBody,
+  LinkIdentifierRequestBody,
+  RegisterPatientRequestBody,
+  UpdateAddressRequestBody,
+  UpdatePatientRequestBody,
+} from "../domain/api.types.js";
 import { registerPatient } from "../use-cases/register-patient.js";
 import { updatePatient } from "../use-cases/update-patient.js";
 import { searchPatients } from "../use-cases/search-patients.js";
 import { getPatient } from "../use-cases/get-patient.js";
 import { changePatientStatus } from "../use-cases/change-patient-status.js";
 import { linkIdentifier } from "../use-cases/link-identifier.js";
+import {
+  changePatientStatusBodySchema,
+  createAddressBodySchema,
+  createIdentifierBodySchema,
+  createPatientBodySchema,
+  paramsPatientAndAddressSchema,
+  paramsPatientAndIdentifierSchema,
+  paramsPatientIdSchema,
+  searchPatientsQuerySchema,
+  updateAddressBodySchema,
+  updatePatientBodySchema,
+} from "./patient-schemas.js";
+
+interface SearchPatientsQuerystring {
+  name?: string;
+  phone?: string;
+  uhid?: string;
+  abha_number?: string;
+  status?: PatientStatus;
+  page?: string;
+  limit?: string;
+}
 
 interface HandlerDeps {
   patientRepo: PatientRepo;
@@ -19,134 +51,200 @@ interface HandlerDeps {
   identifierRepo: IdentifierRepo;
   sequenceRepo: SequenceRepo;
   eventBus: EventBus;
-  getTenantNumericCode: (tenantId: string) => string;
+  getTenantNumericCode: (tenantId: string) => Promise<string>;
 }
 
 export function registerPatientsHandler(
   app: FastifyInstance,
   deps: HandlerDeps,
 ): void {
-  // POST /patients — register a new patient
-  app.post("/patients", async (request, reply) => {
-    const tenantId = (request as any).tenantId as string;
-    const body = request.body as Record<string, unknown>;
-
-    const patient = await registerPatient(
-      {
-        patientRepo: deps.patientRepo,
-        sequenceRepo: deps.sequenceRepo,
-        eventBus: deps.eventBus,
-        getTenantNumericCode: deps.getTenantNumericCode,
+  app.post<{ Body: RegisterPatientRequestBody }>(
+    "/patients",
+    {
+      schema: {
+        body: createPatientBodySchema,
       },
-      { ...body, iq_tenant_id: tenantId } as any,
-    );
-
-    return reply.code(201).send(patient);
-  });
-
-  // GET /patients — search/list patients
-  app.get("/patients", async (request, reply) => {
-    const tenantId = (request as any).tenantId as string;
-    const query = request.query as Record<string, string>;
-
-    const result = await searchPatients(
-      { patientRepo: deps.patientRepo },
-      tenantId,
-      {
-        name: query["name"],
-        phone_number: query["phone"],
-        uhid: query["uhid"],
-        abha_number: query["abha_number"],
-        status: query["status"] as any,
-        page: query["page"] ? Number(query["page"]) : undefined,
-        limit: query["limit"] ? Number(query["limit"]) : undefined,
-      },
-    );
-
-    return reply.send(result);
-  });
-
-  // GET /patients/:id — get patient with addresses and identifiers
-  app.get("/patients/:id", async (request, reply) => {
-    const tenantId = (request as any).tenantId as string;
-    const { id } = request.params as { id: string };
-
-    const detail = await getPatient(
-      {
-        patientRepo: deps.patientRepo,
-        addressRepo: deps.addressRepo,
-        identifierRepo: deps.identifierRepo,
-      },
-      tenantId,
-      id,
-    );
-
-    if (!detail) return reply.code(404).send({ error: "Patient not found" });
-    return reply.send(detail);
-  });
-
-  // PATCH /patients/:id — update demographics
-  app.patch("/patients/:id", async (request, reply) => {
-    const tenantId = (request as any).tenantId as string;
-    const { id } = request.params as { id: string };
-    const body = request.body as Record<string, unknown>;
-
-    const patient = await updatePatient(
-      { patientRepo: deps.patientRepo, eventBus: deps.eventBus },
-      tenantId,
-      id,
-      body as any,
-    );
-
-    if (!patient) return reply.code(404).send({ error: "Patient not found" });
-    return reply.send(patient);
-  });
-
-  // PATCH /patients/:id/status — change status
-  app.patch("/patients/:id/status", async (request, reply) => {
-    const tenantId = (request as any).tenantId as string;
-    const { id } = request.params as { id: string };
-    const { status } = request.body as { status: string };
-
-    const patient = await changePatientStatus(
-      { patientRepo: deps.patientRepo, eventBus: deps.eventBus },
-      tenantId,
-      id,
-      status as any,
-      null,
-    );
-
-    if (!patient) return reply.code(404).send({ error: "Patient not found" });
-    return reply.send(patient);
-  });
-
-  // POST /patients/:id/identifiers — link an identifier
-  app.post("/patients/:id/identifiers", async (request, reply) => {
-    const tenantId = (request as any).tenantId as string;
-    const { id: patientId } = request.params as { id: string };
-    const body = request.body as Record<string, unknown>;
-
-    const identifier = await linkIdentifier(
-      { identifierRepo: deps.identifierRepo, eventBus: deps.eventBus },
-      {
-        iq_tenant_id: tenantId,
-        patient_id: patientId,
-        identifier_type: body["identifier_type"] as any,
-        identifier_value: body["identifier_value"] as string,
-        issuing_system: body["issuing_system"] as string | undefined,
-        created_by: body["created_by"] as string | undefined,
-      },
-    );
-
-    return reply.code(201).send(identifier);
-  });
-
-  // DELETE /patients/:id/identifiers/:identifierId — deactivate
-  app.delete(
-    "/patients/:id/identifiers/:identifierId",
+    },
     async (request, reply) => {
-      const tenantId = (request as any).tenantId as string;
-      const { identifierId } = request.params as { identifierId: string };
+      const tenantId = request.tenantId;
+      const body = request.body;
+
+      const patient = await registerPatient(
+        {
+          patientRepo: deps.patientRepo,
+          sequenceRepo: deps.sequenceRepo,
+          eventBus: deps.eventBus,
+          getTenantNumericCode: deps.getTenantNumericCode,
+        },
+        { ...body, iq_tenant_id: tenantId },
+      );
+
+      return reply.code(201).send(patient);
+    },
+  );
+
+  app.get<{ Querystring: SearchPatientsQuerystring }>(
+    "/patients",
+    {
+      schema: {
+        querystring: searchPatientsQuerySchema,
+      },
+    },
+    async (request, reply) => {
+      const tenantId = request.tenantId;
+      const query = request.query;
+
+      const filters: PatientFilters = {
+        name: query.name,
+        phone_number: query.phone,
+        uhid: query.uhid,
+        abha_number: query.abha_number,
+        status: query.status,
+        page: query.page ? Number(query.page) : undefined,
+        limit: query.limit ? Number(query.limit) : undefined,
+      };
+
+      const result = await searchPatients(
+        { patientRepo: deps.patientRepo },
+        tenantId,
+        filters,
+      );
+
+      return reply.send(result);
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    "/patients/:id",
+    {
+      schema: {
+        params: paramsPatientIdSchema,
+      },
+    },
+    async (request, reply) => {
+      const tenantId = request.tenantId;
+      const { id } = request.params;
+
+      const detail = await getPatient(
+        {
+          patientRepo: deps.patientRepo,
+          addressRepo: deps.addressRepo,
+          identifierRepo: deps.identifierRepo,
+        },
+        tenantId,
+        id,
+      );
+
+      if (!detail) return reply.code(404).send({ error: "Patient not found" });
+      return reply.send(detail);
+    },
+  );
+
+  app.patch<{ Params: { id: string }; Body: UpdatePatientRequestBody }>(
+    "/patients/:id",
+    {
+      schema: {
+        params: paramsPatientIdSchema,
+        body: updatePatientBodySchema,
+      },
+    },
+    async (request, reply) => {
+      const tenantId = request.tenantId;
+      const { id } = request.params;
+
+      const patient = await updatePatient(
+        { patientRepo: deps.patientRepo, eventBus: deps.eventBus },
+        tenantId,
+        id,
+        request.body,
+      );
+
+      if (!patient) return reply.code(404).send({ error: "Patient not found" });
+      return reply.send(patient);
+    },
+  );
+
+  app.patch<{
+    Params: { id: string };
+    Body: ChangePatientStatusRequestBody;
+  }>(
+    "/patients/:id/status",
+    {
+      schema: {
+        params: paramsPatientIdSchema,
+        body: changePatientStatusBodySchema,
+      },
+    },
+    async (request, reply) => {
+      const tenantId = request.tenantId;
+      const { id } = request.params;
+      const { status } = request.body;
+
+      const result = await changePatientStatus(
+        { patientRepo: deps.patientRepo, eventBus: deps.eventBus },
+        tenantId,
+        id,
+        status,
+        null,
+      );
+
+      if (!result.ok) {
+        if (result.error === "not_found") {
+          return reply.code(404).send({ error: "Patient not found" });
+        }
+        return reply.code(409).send({
+          error: "invalid_status_transition",
+          from: result.from,
+          to: result.to,
+        });
+      }
+      return reply.send(result.patient);
+    },
+  );
+
+  app.post<{
+    Params: { id: string };
+    Body: LinkIdentifierRequestBody;
+  }>(
+    "/patients/:id/identifiers",
+    {
+      schema: {
+        params: paramsPatientIdSchema,
+        body: createIdentifierBodySchema,
+      },
+    },
+    async (request, reply) => {
+      const tenantId = request.tenantId;
+      const { id: patientId } = request.params;
+      const body = request.body;
+
+      const identifier = await linkIdentifier(
+        { identifierRepo: deps.identifierRepo, eventBus: deps.eventBus },
+        {
+          iq_tenant_id: tenantId,
+          patient_id: patientId,
+          identifier_type: body.identifier_type,
+          identifier_value: body.identifier_value,
+          issuing_system: body.issuing_system,
+          source_record_id: body.source_record_id,
+          created_by: body.created_by,
+        },
+      );
+
+      return reply.code(201).send(identifier);
+    },
+  );
+
+  app.delete<{ Params: { id: string; identifierId: string } }>(
+    "/patients/:id/identifiers/:identifierId",
+    {
+      schema: {
+        params: paramsPatientAndIdentifierSchema,
+      },
+    },
+    async (request, reply) => {
+      const tenantId = request.tenantId;
+      const { identifierId } = request.params;
 
       const result = await deps.identifierRepo.deactivate(
         tenantId,
@@ -159,36 +257,58 @@ export function registerPatientsHandler(
     },
   );
 
-  // POST /patients/:id/addresses — add address
-  app.post("/patients/:id/addresses", async (request, reply) => {
-    const tenantId = (request as any).tenantId as string;
-    const { id: patientId } = request.params as { id: string };
-    const body = request.body as Record<string, unknown>;
+  app.post<{ Params: { id: string }; Body: CreateAddressRequestBody }>(
+    "/patients/:id/addresses",
+    {
+      schema: {
+        params: paramsPatientIdSchema,
+        body: createAddressBodySchema,
+      },
+    },
+    async (request, reply) => {
+      const tenantId = request.tenantId;
+      const { id: patientId } = request.params;
+      const body = request.body;
 
-    const address = await deps.addressRepo.create({
-      iq_tenant_id: tenantId,
-      patient_id: patientId,
-      address_type: body["address_type"] as any,
-      street: body["street"] as string | undefined,
-      city: body["city"] as string | undefined,
-      district: body["district"] as string | undefined,
-      state: body["state"] as string | undefined,
-      pincode: body["pincode"] as string | undefined,
-      created_by: body["created_by"] as string | undefined,
-    });
+      const address = await deps.addressRepo.create({
+        iq_tenant_id: tenantId,
+        patient_id: patientId,
+        address_type: body.address_type,
+        street: body.street,
+        city: body.city,
+        district: body.district,
+        state: body.state,
+        pincode: body.pincode,
+        created_by: body.created_by,
+      });
 
-    return reply.code(201).send(address);
-  });
+      return reply.code(201).send(address);
+    },
+  );
 
-  // PATCH /patients/:id/addresses/:addressId — update address
-  app.patch("/patients/:id/addresses/:addressId", async (request, reply) => {
-    const tenantId = (request as any).tenantId as string;
-    const { addressId } = request.params as { addressId: string };
-    const body = request.body as Record<string, unknown>;
+  app.patch<{
+    Params: { id: string; addressId: string };
+    Body: UpdateAddressRequestBody;
+  }>(
+    "/patients/:id/addresses/:addressId",
+    {
+      schema: {
+        params: paramsPatientAndAddressSchema,
+        body: updateAddressBodySchema,
+      },
+    },
+    async (request, reply) => {
+      const tenantId = request.tenantId;
+      const { addressId } = request.params;
 
-    const address = await deps.addressRepo.update(tenantId, addressId, body as any);
+      const address = await deps.addressRepo.update(
+        tenantId,
+        addressId,
+        request.body,
+      );
 
-    if (!address) return reply.code(404).send({ error: "Address not found" });
-    return reply.send(address);
-  });
+      if (!address) return reply.code(404).send({ error: "Address not found" });
+      return reply.send(address);
+    },
+  );
 }

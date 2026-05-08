@@ -1,4 +1,5 @@
 import type { EventBus } from "@hims/ts-sdk-events";
+import { composeUhid } from "../domain/uhid.js";
 import { createEmpiEnvelope } from "../lib/empi-envelope.js";
 import type { PatientRepo, SequenceRepo } from "../ports.js";
 import type { Patient, CreatePatientData } from "../domain/patient.types.js";
@@ -7,7 +8,7 @@ interface Deps {
   patientRepo: PatientRepo;
   sequenceRepo: SequenceRepo;
   eventBus: EventBus;
-  getTenantNumericCode: (tenantId: string) => string;
+  getTenantNumericCode: (tenantId: string) => Promise<string>;
 }
 
 export async function registerPatient(
@@ -25,10 +26,15 @@ export async function registerPatient(
   const uhid = await generateUhid(
     deps.sequenceRepo,
     data.iq_tenant_id,
-    deps.getTenantNumericCode(data.iq_tenant_id),
+    await deps.getTenantNumericCode(data.iq_tenant_id),
   );
 
-  const patient = await deps.patientRepo.create({ ...data, uhid, full_name: fullName });
+  // Phase 0: sequence upsert + patient insert are separate operations; wrap in one transaction when repos expose tx handles.
+  const patient = await deps.patientRepo.create({
+    ...data,
+    uhid,
+    full_name: fullName,
+  });
 
   await deps.eventBus.publish(
     createEmpiEnvelope(
@@ -68,5 +74,5 @@ async function generateUhid(
   const sequenceName = `uhid_${dateStr}`;
   const seq = await sequenceRepo.nextValue(tenantId, sequenceName);
 
-  return `${dateStr}${tenantNumericCode}${seq.toString().padStart(7, "0")}`;
+  return composeUhid(dateStr, tenantNumericCode, seq);
 }

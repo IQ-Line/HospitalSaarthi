@@ -1,19 +1,21 @@
 import {
-  pgSchema,
-  uuid,
-  text,
-  date,
-  smallint,
   bigint,
   boolean,
-  timestamp,
+  date,
+  index,
   jsonb,
   numeric,
+  pgSchema,
   primaryKey,
+  smallint,
+  sql,
+  text,
+  timestamp,
   unique,
-  index,
-} from "drizzle-orm/pg-core";
-import { tenantColumn, auditColumns } from "@hims/ts-sdk-db";
+  uuid,
+  tenantColumn,
+  auditColumns,
+} from "@hims/ts-sdk-db";
 
 export const empiSchema = pgSchema("empi");
 
@@ -58,7 +60,10 @@ export const patients = empiSchema.table(
     unique("uq_patients_tenant_uhid").on(t.iq_tenant_id, t.uhid),
     unique("uq_patients_tenant_abha").on(t.iq_tenant_id, t.abha_number),
     index("idx_patients_phone").on(t.iq_tenant_id, t.phone_number),
-    index("idx_patients_fullname").on(t.full_name),
+    index("idx_patients_fullname_trgm").using(
+      "gin",
+      sql`${t.full_name} gin_trgm_ops`,
+    ),
     index("idx_patients_status").on(t.iq_tenant_id, t.status),
   ],
 );

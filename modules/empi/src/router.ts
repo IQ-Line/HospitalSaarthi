@@ -17,7 +17,7 @@ export interface EmpiRouterOptions {
   sequenceRepo: SequenceRepo;
   sourceRecordRepo: SourceRecordRepo;
   eventBus: EventBus;
-  getTenantNumericCode: (tenantId: string) => string;
+  getTenantNumericCode: (tenantId: string) => Promise<string>;
 }
 
 async function empiRouter(
