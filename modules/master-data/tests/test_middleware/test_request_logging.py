@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
 from app.core.config import get_settings
+from app.core.logging import configure_logging
 from app.middleware.request_context import RequestContextMiddleware
 from app.middleware.request_logging import RequestLoggingMiddleware
 
@@ -20,6 +21,12 @@ from app.middleware.request_logging import RequestLoggingMiddleware
 class Echo(BaseModel):
     name: str
     value: int
+
+
+@pytest.fixture(autouse=True)
+def configure_test_logging() -> None:
+    """Install request-id record factory so tests are order-independent."""
+    configure_logging()
 
 
 @pytest.fixture()
