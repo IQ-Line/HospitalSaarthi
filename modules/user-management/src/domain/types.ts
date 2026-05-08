@@ -17,6 +17,13 @@ export interface User {
   status: UserStatus;
 }
 
+/** Tenant-scoped RBAC role entity. */
+export interface Role {
+  id: string;
+  code: string;
+  display_name: string;
+}
+
 /** POST /users request body. */
 export interface CreateUserInput {
   full_name: string;

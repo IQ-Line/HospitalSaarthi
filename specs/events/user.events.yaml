@@ -3,11 +3,11 @@
 # Envelope: each published message MUST be a complete DomainEvent satisfying:
 #   specs/events/_envelope.schema.json
 # Required top-level fields: event_id, event_type, source_module, iq_tenant_id,
-# timestamp, correlation_id, actor_id, schema_version, payload.
+# occurred_at, correlation_id, actor_id, event_contract_version, payload.
 #
 # This file defines the five 1A.2 event_type values and payload shape only.
 # source_module for these events MUST be "user-management".
-# schema_version in the envelope MUST be semver (e.g. 1.0.0).
+# event_contract_version in the envelope MUST be semver (e.g. 1.0.0).
 
 specVersion: "1.0"
 module: user-management

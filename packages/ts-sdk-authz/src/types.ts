@@ -40,7 +40,13 @@ export interface PepMiddlewareOptions {
   getResourceAttr?: (request: FastifyRequest) => Record<string, Value>;
 }
 
+export type RouteAuthMode = "protected" | "public";
+
 declare module "fastify" {
+  interface FastifyContextConfig {
+    authMode: RouteAuthMode;
+  }
+
   interface FastifyRequest {
     /**
      * Authz SDK augments only authorization helpers.

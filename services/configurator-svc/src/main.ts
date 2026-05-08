@@ -11,11 +11,17 @@ import {
 const PORT = Number(process.env["PORT"] ?? 3001);
 const DATABASE_URL = process.env["DATABASE_URL"] ?? "";
 const JWKS_URL = process.env["JWKS_URL"] ?? "http://localhost:3000/.well-known/jwks.json";
+const JWT_ISSUER = process.env["JWT_ISSUER"] ?? "http://localhost:3001";
+const JWT_AUDIENCE = process.env["JWT_AUDIENCE"] ?? "hims-platform";
 
 async function main() {
   const app = Fastify({ logger: true });
 
-  await app.register(identityPlugin, { jwksUrl: JWKS_URL });
+  await app.register(identityPlugin, {
+    jwksUrl: JWKS_URL,
+    issuer: JWT_ISSUER,
+    audience: JWT_AUDIENCE,
+  });
   await app.register(tenantPlugin);
 
   const db = createDb(DATABASE_URL);

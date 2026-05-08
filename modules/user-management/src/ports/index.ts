@@ -7,6 +7,7 @@ import type {
   AuthContext,
   CreateUserInput,
   Principal,
+  Role,
   RoleAssignment,
   UpdateUserInput,
   User,
@@ -19,6 +20,7 @@ export type {
   CreateUserInput,
   Principal,
   PrincipalAttributes,
+  Role,
   RoleAssignment,
   UpdateUserInput,
   User,
@@ -31,8 +33,35 @@ export interface UserRepository {
   updateUser(tenantId: string, userId: string, input: UpdateUserInput): Promise<User | null>;
 }
 
+export interface RoleRepository {
+  getRoleById(tenantId: string, roleId: string): Promise<Role | null>;
+}
+
+/**
+ * Tenant-scoped projection of assigned role codes for principal enrichment.
+ * Implementations should use a single round-trip (e.g. JOIN) so the auth path stays O(1) in queries.
+ * Additional RBAC dimensions (capabilities, scoped grants) can extend the same query with further JOINs.
+ */
+export interface PrincipalRoleProjectionRepository {
+  listRoleCodesByUser(tenantId: string, userId: string): Promise<string[]>;
+  /** Clears instance-scoped projection cache (e.g. after role mutations in the same process). */
+  clearCache(): void;
+}
+
+export interface RoleAssignmentRef {
+  tenant_id: string;
+  user_id: string;
+  role_id: string;
+}
+
 export interface RoleAssignmentRepository {
   assignRole(tenantId: string, input: AssignRoleInput): Promise<RoleAssignment>;
+  revokeRole(
+    tenantId: string,
+    input: AssignRoleInput,
+  ): Promise<RoleAssignment | null>;
+  listAssignments(): Promise<RoleAssignmentRef[]>;
+  listAssignmentsByUser(tenantId: string, userId: string): Promise<RoleAssignmentRef[]>;
 }
 
 /**

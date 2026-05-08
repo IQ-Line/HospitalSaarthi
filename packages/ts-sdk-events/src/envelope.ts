@@ -20,9 +20,10 @@ export interface CreateEnvelopeInput<T extends Record<string, unknown>> {
   event_type: string;
   source_module: string;
   iq_tenant_id: string;
+  occurred_at: string;
   correlation_id: string;
   actor_id: string;
-  schema_version: string;
+  event_contract_version: string;
   payload: T;
 }
 
@@ -35,10 +36,11 @@ const ENVELOPE_REQUIRED_FIELDS = new Set([
   "event_type",
   "source_module",
   "iq_tenant_id",
-  "timestamp",
+  "occurred_at",
+  "published_at",
   "correlation_id",
   "actor_id",
-  "schema_version",
+  "event_contract_version",
   "payload",
 ]);
 
@@ -89,7 +91,6 @@ export function createEnvelope<T extends Record<string, unknown>>(
 ): DomainEvent<T> {
   return {
     event_id: generateUuidV7(),
-    timestamp: new Date().toISOString(),
     ...input,
   };
 }
@@ -118,8 +119,13 @@ export function validateEnvelope(event: DomainEvent, options?: ValidateEnvelopeO
   if (typeof event.iq_tenant_id !== 'string' || !UUID_RE.test(event.iq_tenant_id)) {
     violations.push('iq_tenant_id must be a valid UUID');
   }
-  if (typeof event.timestamp !== 'string' || !ISO_DATE_RE.test(event.timestamp)) {
-    violations.push('timestamp must be ISO-8601');
+  if (typeof event.occurred_at !== 'string' || !ISO_DATE_RE.test(event.occurred_at)) {
+    violations.push('occurred_at must be ISO-8601');
+  }
+  if (event.published_at !== undefined) {
+    if (typeof event.published_at !== "string" || !ISO_DATE_RE.test(event.published_at)) {
+      violations.push("published_at must be ISO-8601 when provided");
+    }
   }
   if (typeof event.correlation_id !== 'string' || !UUID_RE.test(event.correlation_id)) {
     violations.push('correlation_id must be a valid UUID');
@@ -127,8 +133,11 @@ export function validateEnvelope(event: DomainEvent, options?: ValidateEnvelopeO
   if (typeof event.actor_id !== 'string' || !UUID_RE.test(event.actor_id)) {
     violations.push('actor_id must be a valid UUID');
   }
-  if (typeof event.schema_version !== 'string' || !SEMVER_RE.test(event.schema_version)) {
-    violations.push('schema_version must be semver (e.g. 1.0.0)');
+  if (
+    typeof event.event_contract_version !== 'string' ||
+    !SEMVER_RE.test(event.event_contract_version)
+  ) {
+    violations.push('event_contract_version must be semver (e.g. 1.0.0)');
   }
   if (event.payload === null || typeof event.payload !== 'object' || Array.isArray(event.payload)) {
     violations.push('payload must be a non-null object');

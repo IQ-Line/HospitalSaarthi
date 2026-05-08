@@ -7,10 +7,15 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { resolveCerbosGrpcTarget } from "./cerbos.js";
 import { resolveUserManagementAuthzTarget } from "./authz-target-resolver.js";
 import {
+  DrizzlePrincipalRoleProjectionRepository,
+  DrizzleRoleRepository,
   DrizzleRoleAssignmentRepository,
   DrizzleUserRepository,
+  InMemoryPrincipalRoleProjectionRepository,
+  InMemoryRoleRepository,
   InMemoryRoleAssignmentRepository,
   InMemoryUserRepository,
+  principalRoleEnricherPlugin,
   userManagementPlugin,
 } from "@hims/user-management";
 
@@ -32,30 +37,46 @@ async function createApp(): Promise<FastifyInstance> {
 
   await app.register(identityPlugin, {
     jwksUrl: process.env.JWKS_URL ?? "http://localhost:3001/.well-known/jwks.json",
+    issuer: process.env.JWT_ISSUER ?? "http://localhost:3001",
+    audience: process.env.JWT_AUDIENCE ?? "hims-platform",
+  });
+  const databaseUrl = process.env.DATABASE_URL?.trim();
+  const usePostgres = databaseUrl !== undefined && databaseUrl.length > 0;
+
+  let userRepository;
+  let roleRepository;
+  let roleAssignmentRepository;
+  let principalRoleProjectionRepository;
+  if (usePostgres) {
+    const db = createDb(databaseUrl);
+    userRepository = new DrizzleUserRepository(db);
+    roleRepository = new DrizzleRoleRepository(db);
+    roleAssignmentRepository = new DrizzleRoleAssignmentRepository(db);
+    principalRoleProjectionRepository = new DrizzlePrincipalRoleProjectionRepository(db);
+  } else {
+    userRepository = new InMemoryUserRepository();
+    roleRepository = new InMemoryRoleRepository();
+    roleAssignmentRepository = new InMemoryRoleAssignmentRepository();
+    principalRoleProjectionRepository = new InMemoryPrincipalRoleProjectionRepository(
+      roleAssignmentRepository,
+      roleRepository,
+    );
+  }
+
+  await app.register(principalRoleEnricherPlugin, {
+    principalRoleProjectionRepository,
   });
   await app.register(authzPlugin, {
     cerbosUrl: resolveCerbosGrpcTarget(),
     resolveTarget: resolveUserManagementAuthzTarget,
   });
 
-  const databaseUrl = process.env.DATABASE_URL?.trim();
-  const usePostgres = databaseUrl !== undefined && databaseUrl.length > 0;
-
-  let userRepository;
-  let roleAssignmentRepository;
-  if (usePostgres) {
-    const db = createDb(databaseUrl);
-    userRepository = new DrizzleUserRepository(db);
-    roleAssignmentRepository = new DrizzleRoleAssignmentRepository(db);
-  } else {
-    userRepository = new InMemoryUserRepository();
-    roleAssignmentRepository = new InMemoryRoleAssignmentRepository();
-  }
-
   await app.register(userManagementPlugin, {
     eventBus,
     userRepository,
+    roleRepository,
     roleAssignmentRepository,
+    principalRoleProjectionRepository,
   });
 
   return app;

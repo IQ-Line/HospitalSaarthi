@@ -34,7 +34,11 @@ describe("updateUser", () => {
 
     const updated = await updateUser(
       { userRepository, eventBus },
-      { tenantId: "tenant-a", actorId: "actor-a", correlationId: "corr-1" },
+      {
+        tenantId: "tenant-a",
+        actorId: "actor-a",
+        correlationId: "f47ac10b-58cc-4372-a567-0e02b2c3d481",
+      },
       created.id,
       { full_name: "Jane Smith" },
     );
@@ -51,7 +55,11 @@ describe("updateUser", () => {
 
     const updated = await updateUser(
       { userRepository, eventBus },
-      { tenantId: "tenant-a", actorId: "actor-a", correlationId: "corr-2" },
+      {
+        tenantId: "tenant-a",
+        actorId: "actor-a",
+        correlationId: "f47ac10b-58cc-4372-a567-0e02b2c3d482",
+      },
       "7b0f4369-2a01-4ad0-a13f-9d17fdca9e96",
       { full_name: "Missing User" },
     );
@@ -73,7 +81,11 @@ describe("updateUser", () => {
 
     await updateUser(
       { userRepository, eventBus },
-      { tenantId: "tenant-a", actorId: "actor-a", correlationId: "corr-3" },
+      {
+        tenantId: "tenant-a",
+        actorId: "actor-a",
+        correlationId: "f47ac10b-58cc-4372-a567-0e02b2c3d483",
+      },
       created.id,
       {
         email: "john@example.com",
@@ -107,7 +119,11 @@ describe("updateUser", () => {
 
     const updated = await updateUser(
       { userRepository, eventBus },
-      { tenantId: "tenant-a", actorId: "actor-a", correlationId: "corr-4" },
+      {
+        tenantId: "tenant-a",
+        actorId: "actor-a",
+        correlationId: "f47ac10b-58cc-4372-a567-0e02b2c3d484",
+      },
       created.id,
       { status: "inactive" },
     );

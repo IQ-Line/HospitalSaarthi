@@ -1,7 +1,13 @@
 import type { DbInstance } from "@hims/ts-sdk-db";
-import type { AssignRoleInput, RoleAssignment, RoleAssignmentRepository } from "../ports/index.js";
-import { DuplicateRoleAssignmentError } from "../domain/errors.js";
+import type {
+  AssignRoleInput,
+  RoleAssignment,
+  RoleAssignmentRef,
+  RoleAssignmentRepository,
+} from "../ports/index.js";
+import { DuplicateRoleAssignmentError, UnexpectedPersistenceError } from "../domain/errors.js";
 import { role_assignments } from "../schema/tables.js";
+import { and, eq } from "drizzle-orm";
 
 function isPostgresUniqueViolation(error: unknown): boolean {
   return (
@@ -39,7 +45,7 @@ export class DrizzleRoleAssignmentRepository implements RoleAssignmentRepository
         });
 
       if (!row) {
-        throw new Error("assignRole: insert returned no row");
+        throw new UnexpectedPersistenceError();
       }
       return rowToRoleAssignment(row);
     } catch (e) {
@@ -48,5 +54,56 @@ export class DrizzleRoleAssignmentRepository implements RoleAssignmentRepository
       }
       throw e;
     }
+  }
+
+  async revokeRole(
+    tenantId: string,
+    input: AssignRoleInput,
+  ): Promise<RoleAssignment | null> {
+    const [row] = await this.db
+      .delete(role_assignments)
+      .where(
+        and(
+          eq(role_assignments.iq_tenant_id, tenantId),
+          eq(role_assignments.user_id, input.user_id),
+          eq(role_assignments.role_id, input.role_id),
+        ),
+      )
+      .returning({
+        id: role_assignments.id,
+        user_id: role_assignments.user_id,
+        role_id: role_assignments.role_id,
+      });
+
+    return row ? rowToRoleAssignment(row) : null;
+  }
+
+  async listAssignments(): Promise<RoleAssignmentRef[]> {
+    return this.db
+      .select({
+        tenant_id: role_assignments.iq_tenant_id,
+        user_id: role_assignments.user_id,
+        role_id: role_assignments.role_id,
+      })
+      .from(role_assignments);
+  }
+
+  async listAssignmentsByUser(
+    tenantId: string,
+    userId: string,
+  ): Promise<RoleAssignmentRef[]> {
+    return this.db
+      .select({
+        tenant_id: role_assignments.iq_tenant_id,
+        user_id: role_assignments.user_id,
+        role_id: role_assignments.role_id,
+      })
+      .from(role_assignments)
+      .where(
+        and(
+          eq(role_assignments.iq_tenant_id, tenantId),
+          eq(role_assignments.user_id, userId),
+        ),
+      );
   }
 }

@@ -1,4 +1,5 @@
 import type { DbInstance } from "@hims/ts-sdk-db";
+import { UnexpectedPersistenceError } from "../domain/errors.js";
 import { and, eq } from "drizzle-orm";
 import type {
   CreateUserInput,
@@ -59,7 +60,7 @@ export class DrizzleUserRepository implements UserRepository {
       .returning(userColumns);
 
     if (!row) {
-      throw new Error("createUser: insert returned no row");
+      throw new UnexpectedPersistenceError();
     }
     return rowToUser(row);
   }

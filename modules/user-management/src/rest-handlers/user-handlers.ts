@@ -1,5 +1,6 @@
-import { randomUUID } from "node:crypto";
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
+import { UserNotFoundError } from "../domain/errors.js";
+import { replyWithUserManagementError } from "../http/map-user-management-error.js";
 import type { CreateUserInput, UpdateUserInput } from "../ports/index.js";
 import { createUser } from "../use-cases/create-user.js";
 import type { CreateUserDeps } from "../use-cases/create-user.js";
@@ -17,56 +18,62 @@ export type UserHandlersDeps = {
   updateUserDeps: UpdateUserDeps;
 };
 
-function mapError(reply: FastifyReply, err: unknown) {
-  if (err instanceof Error) {
-    return reply.status(400).send({ message: err.message });
-  }
-  return reply.status(400).send({ message: "Bad Request" });
-}
-
 export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandlersDeps): void {
-  fastify.post<{ Body: CreateUserInput }>("/users", async (request, reply) => {
+  fastify.post<{ Body: CreateUserInput }>(
+    "/users",
+    { config: { authMode: "protected" } },
+    async (request, reply) => {
       const tenantId = deps.getTenantId(request);
       const actorId = deps.getActorId(request);
-      const correlationId = randomUUID();
+      const cid = request.correlationId ?? request.id;
       try {
         const user = await createUser(
           deps.createUserDeps,
-          { tenantId, actorId, correlationId },
+          { tenantId, actorId, correlationId: cid },
           request.body,
         );
         return reply.status(201).send(user);
       } catch (err) {
-        return mapError(reply, err);
+        return replyWithUserManagementError(reply, err, cid);
       }
-  });
+    },
+  );
 
-  fastify.get<{ Params: { id: string } }>("/users/:id", async (request, reply) => {
+  fastify.get<{ Params: { id: string } }>(
+    "/users/:id",
+    { config: { authMode: "protected" } },
+    async (request, reply) => {
       const tenantId = deps.getTenantId(request);
+      const cid = request.correlationId ?? request.id;
       const user = await getUserById(deps.getUserDeps, tenantId, request.params.id);
-      if (!user) {
-        return reply.status(404).send({ message: "User not found for this tenant." });
+      if (user === null) {
+        return replyWithUserManagementError(reply, new UserNotFoundError(request.params.id), cid);
       }
       return reply.send(user);
-  });
+    },
+  );
 
-  fastify.patch<{ Params: { id: string }; Body: UpdateUserInput }>("/users/:id", async (request, reply) => {
+  fastify.patch<{ Params: { id: string }; Body: UpdateUserInput }>(
+    "/users/:id",
+    { config: { authMode: "protected" } },
+    async (request, reply) => {
       const tenantId = deps.getTenantId(request);
       const actorId = deps.getActorId(request);
-      const correlationId = randomUUID();
+      const cid = request.correlationId ?? request.id;
       try {
         const user = await updateUser(
           deps.updateUserDeps,
-          { tenantId, actorId, correlationId },
+          { tenantId, actorId, correlationId: cid },
           request.params.id,
           request.body ?? {},
         );
-        if (!user) {
-          return reply.status(404).send({ message: "User not found for this tenant." });
+        if (user === null) {
+          return replyWithUserManagementError(reply, new UserNotFoundError(request.params.id), cid);
         }
         return reply.send(user);
       } catch (err) {
-        return mapError(reply, err);
+        return replyWithUserManagementError(reply, err, cid);
       }
-  });
+    },
+  );
 }

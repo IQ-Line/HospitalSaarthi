@@ -1,10 +1,22 @@
-import type { CreateEnvelopeInput, EventBus } from "@hims/ts-sdk-events";
-import { createEnvelope } from "@hims/ts-sdk-events";
+import type { EventBus } from "@hims/ts-sdk-events";
+import {
+  RoleNotFoundError,
+  UserNotFoundError,
+  ValidationError,
+} from "../domain/errors.js";
 import { USER_MANAGEMENT_EVENT_ROLE_ASSIGNED } from "../events/constants.js";
-import { mapAuthContextToEventEnvelope } from "../events/map-auth-context-to-envelope.js";
-import type { AssignRoleInput, RoleAssignment, RoleAssignmentRepository } from "../ports/index.js";
+import { publishUserManagementEvent } from "../events/publish-user-management-event.js";
+import type {
+  AssignRoleInput,
+  RoleAssignment,
+  RoleAssignmentRepository,
+  RoleRepository,
+  UserRepository,
+} from "../ports/index.js";
 
 export type AssignRoleDeps = {
+  userRepository: UserRepository;
+  roleRepository: RoleRepository;
   roleAssignmentRepository: RoleAssignmentRepository;
   eventBus: EventBus;
 };
@@ -29,30 +41,29 @@ export async function assignRole(
     typeof input.role_id !== "string" ||
     input.role_id.trim() === ""
   ) {
-    throw new Error("user_id and role_id are required");
+    throw new ValidationError("assign_role_ids_invalid");
   }
+
+  const user = await deps.userRepository.getUserById(ctx.tenantId, input.user_id);
+  if (user === null) {
+    throw new UserNotFoundError(input.user_id);
+  }
+
+  const role = await deps.roleRepository.getRoleById(ctx.tenantId, input.role_id);
+  if (role === null) {
+    throw new RoleNotFoundError(input.role_id);
+  }
+
   const assignment = await deps.roleAssignmentRepository.assignRole(ctx.tenantId, input);
-  const envelopeIds = mapAuthContextToEventEnvelope({
-    tenantId: ctx.tenantId,
-    actorId: ctx.actorId,
-  });
-  const envelopeInput: CreateEnvelopeInput<{
-    id: string;
-    user_id: string;
-    role_id: string;
-  }> = {
-    event_type: USER_MANAGEMENT_EVENT_ROLE_ASSIGNED,
-    source_module: "user-management",
-    iq_tenant_id: envelopeIds.iq_tenant_id,
-    correlation_id: ctx.correlationId,
-    actor_id: envelopeIds.actor_id,
-    schema_version: "1.0.0",
-    payload: {
+  await publishUserManagementEvent(
+    { eventBus: deps.eventBus },
+    USER_MANAGEMENT_EVENT_ROLE_ASSIGNED,
+    ctx,
+    {
       id: assignment.id,
       user_id: assignment.user_id,
       role_id: assignment.role_id,
     },
-  };
-  await deps.eventBus.publish(createEnvelope(envelopeInput));
+  );
   return assignment;
 }

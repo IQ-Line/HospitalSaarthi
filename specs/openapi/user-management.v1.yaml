@@ -6,6 +6,8 @@ info:
     Tenant-scoped platform user profile, role assignment, and principal-enrichment APIs.
     Credential issuance and session lifecycle are owned by better-auth (see implementation task 1A.7);
     they are not exposed as paths in this contract.
+    Tenant scope authority is JWT-derived (`iq_tenant_id` claim). If `iq_tenant_id` header is
+    provided for diagnostics, it must exactly match the JWT tenant claim.
 servers:
   - url: /api/user-management
 security:
@@ -29,6 +31,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/User"
+        "400":
+          description: Request validation error (including tenant header/JWT mismatch when header is provided).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
         "401":
           description: Missing or invalid bearer token.
           content:
@@ -153,6 +161,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/User"
+        "400":
+          description: Request validation error (including tenant header/JWT mismatch when header is provided).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
         "401":
           description: Missing or invalid bearer token.
           content:
@@ -307,22 +321,34 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: Platform JWT; must include tenant scope consistent with `iq_tenant_id` header where applicable.
+      description: Platform JWT; runtime rejects missing/malformed bearer tokens and invalid/expired tokens.
   parameters:
     IqTenantIdHeader:
       name: iq_tenant_id
       in: header
-      required: true
-      description: Citus distribution key — tenant scope for the request (see monorepo spec authoring rules).
+      required: false
+      deprecated: true
+      description: >
+        Optional diagnostic header. Canonical tenant scope is JWT `iq_tenant_id`.
+        If this header is supplied, runtime requires exact match with JWT tenant scope.
       schema:
         type: string
         format: uuid
   schemas:
     ErrorMessage:
       type: object
+      required:
+        - code
+        - message
       properties:
+        code:
+          type: string
+          description: Machine-readable error code.
         message:
           type: string
+        correlation_id:
+          type: string
+          description: Request correlation identifier.
     User:
       type: object
       required:

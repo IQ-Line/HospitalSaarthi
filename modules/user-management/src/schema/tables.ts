@@ -2,6 +2,7 @@ import { tenantColumn, auditColumns } from "@hims/ts-sdk-db";
 import { sql } from "drizzle-orm";
 import {
   check,
+  foreignKey,
   index,
   pgSchema,
   primaryKey,
@@ -40,6 +41,23 @@ export const users = userManagementSchema.table(
   ],
 );
 
+export const roles = userManagementSchema.table(
+  "roles",
+  {
+    ...tenantColumn(),
+    id: uuid("id").notNull().defaultRandom(),
+    code: text("code").notNull(),
+    display_name: text("display_name").notNull(),
+    ...auditColumns(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
+    check("roles_code_not_blank_chk", sql`length(btrim(${t.code})) > 0`),
+    check("roles_code_canonical_chk", sql`${t.code} = lower(btrim(${t.code}))`),
+    unique("uq_roles_tenant_code").on(t.iq_tenant_id, t.code),
+  ],
+);
+
 export const role_assignments = userManagementSchema.table(
   "role_assignments",
   {
@@ -55,6 +73,24 @@ export const role_assignments = userManagementSchema.table(
     ...auditColumns(),
   },
   (t) => [
+    /**
+     * FK policy: RESTRICT delete/update so assignments cannot outlive referenced
+     * users/roles, and users/roles cannot be removed while assignments exist.
+     */
+    foreignKey({
+      name: "fk_role_assignments_tenant_user",
+      columns: [t.iq_tenant_id, t.user_id],
+      foreignColumns: [users.iq_tenant_id, users.id],
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      name: "fk_role_assignments_tenant_role",
+      columns: [t.iq_tenant_id, t.role_id],
+      foreignColumns: [roles.iq_tenant_id, roles.id],
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
     primaryKey({ columns: [t.iq_tenant_id, t.id] }),
     unique("uq_role_assignments_tenant_user_role").on(t.iq_tenant_id, t.user_id, t.role_id),
     index("idx_role_assignments_tenant_user").on(t.iq_tenant_id, t.user_id),

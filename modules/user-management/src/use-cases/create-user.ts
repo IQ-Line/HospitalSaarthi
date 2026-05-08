@@ -1,7 +1,7 @@
-import type { CreateEnvelopeInput, EventBus } from "@hims/ts-sdk-events";
-import { createEnvelope } from "@hims/ts-sdk-events";
+import type { EventBus } from "@hims/ts-sdk-events";
+import { ValidationError } from "../domain/errors.js";
 import { USER_MANAGEMENT_EVENT_USER_CREATED } from "../events/constants.js";
-import { mapAuthContextToEventEnvelope } from "../events/map-auth-context-to-envelope.js";
+import { publishUserManagementEvent } from "../events/publish-user-management-event.js";
 import type { CreateUserInput, User, UserRepository, UserStatus } from "../ports/index.js";
 
 export type CreateUserDeps = {
@@ -23,41 +23,27 @@ export async function createUser(
   ctx: CreateUserContext,
   input: CreateUserInput,
 ): Promise<User> {
-  if (typeof input.full_name !== "string" || input.full_name.trim() === "") {
-    throw new Error("full_name is required");
+  if (typeof input.full_name !== "string") {
+    throw new ValidationError("full_name_invalid_type");
+  }
+  if (input.full_name.trim() === "") {
+    throw new ValidationError("full_name_empty");
   }
   const user = await deps.userRepository.createUser(ctx.tenantId, input);
-  const envelopeIds = mapAuthContextToEventEnvelope({
-    tenantId: ctx.tenantId,
-    actorId: ctx.actorId,
-  });
-  const envelopeInput: CreateEnvelopeInput<{
-    id: string;
-    full_name: string;
-    email: string | null;
-    phone: string | null;
-    status: UserStatus;
-    username: string | null;
-    org_id: string | null;
-    auth_user_id: string | null;
-  }> = {
-    event_type: USER_MANAGEMENT_EVENT_USER_CREATED,
-    source_module: "user-management",
-    iq_tenant_id: envelopeIds.iq_tenant_id,
-    correlation_id: ctx.correlationId,
-    actor_id: envelopeIds.actor_id,
-    schema_version: "1.0.0",
-    payload: {
+  await publishUserManagementEvent(
+    { eventBus: deps.eventBus },
+    USER_MANAGEMENT_EVENT_USER_CREATED,
+    ctx,
+    {
       id: user.id,
       full_name: user.full_name,
       email: user.email ?? null,
       phone: user.phone ?? null,
-      status: user.status,
+      status: user.status as UserStatus,
       username: user.username ?? null,
       org_id: user.org_id ?? null,
       auth_user_id: user.auth_user_id ?? null,
     },
-  };
-  await deps.eventBus.publish(createEnvelope(envelopeInput));
+  );
   return user;
 }
