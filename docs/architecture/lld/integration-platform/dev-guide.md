@@ -1,0 +1,109 @@
+# Integration Platform -- Phased Implementation Guide
+
+> Mirror of the GitHub issue body. Posted as a separate issue to track the implementation.
+
+The Integration Hub is platform infrastructure -- always deployed alongside the five core modules. Its v1 covers the **control plane + FSM engine** (Phase 0) and the **ABDM Adapter** (Phase 1).
+
+### What's already designed
+
+- **HLD:** [05-integration-and-interop.md](../../hld/05-integration-and-interop.md) (sections 1-4, 7).
+- **LLD schema:** [01-schema-design.md](./01-schema-design.md) and [`schema-reference.json`](./schema-reference.json) (14 tables).
+- **FSM specs:** [02-fsm-specifications.md](./02-fsm-specifications.md) (M1, scan-and-share, M2, M3-HIP, M3-HIU, consent supervisor).
+- **Scenarios:** [03-scenarios.md](./03-scenarios.md) (7 sequence-driven walkthroughs).
+- **OpenAPI spec:** [`specs/openapi/integration-hub.v1.yaml`](../../../../specs/openapi/integration-hub.v1.yaml) (28 paths).
+- **ERD:** [`integration-platform.erd.json`](./integration-platform.erd.json).
+- **ADRs:** [0011](../../adr/0011-integration-hub-split.md), [0020](../../adr/0020-fsm-orchestration-for-integration-hub.md), [0021](../../adr/0021-record-foundation-fifth-core-module.md), [0022](../../adr/0022-immutable-fhir-document-storage.md), [0023](../../adr/0023-distributed-fhir-assembly.md).
+
+---
+
+## Phase 0a -- Control Plane scaffold (1-2 dev-weeks)
+
+**Goal:** Integration Hub service runs and exposes the integration registry. No adapters yet.
+
+- [ ] Scaffold `services/integration-hub-svc/` (port 3005, Fastify v5 per [ADR-0019](../../adr/0019-fastify-node24-lts.md)).
+- [ ] Scaffold `modules/integration-hub/` mirroring the Module Shape Template ([HLD 03](../../hld/03-module-shape-template.md)).
+- [ ] Generate Drizzle migrations for tables 1-8 in [schema-reference.json](./schema-reference.json) (control plane: integrations, integration_credentials, integration_workflows, integration_workflow_transitions, integration_workflow_timers, integration_inbound_messages, integration_outbound_messages, integration_audit_log).
+- [ ] Implement REST handlers for the **Integrations** tag in [integration-hub.v1.yaml](../../../../specs/openapi/integration-hub.v1.yaml): list/get/create/update integrations, add credentials.
+- [ ] Wire identity adapter (`@hims/ts-sdk-identity`), tenant context (`@hims/ts-sdk-tenant`), event publisher (`@hims/ts-sdk-events`), DB helpers (`@hims/ts-sdk-db`).
+- [ ] Cerbos policies for Integration Hub admin actions.
+- [ ] Smoke test: register an integration, list it, update its status.
+
+## Phase 0b -- FSM engine + timer worker (2-3 dev-weeks)
+
+**Goal:** A trivial test FSM definition can be started, transitioned, timed-out, and completed end-to-end.
+
+- [ ] Create `packages/ts-sdk-workflow/` with the engine API: `start(definition, context)`, `dispatch(workflow_id, event, payload)`, `cancel(workflow_id, reason)`.
+- [ ] Implement the engine's atomic transition flow per [01-schema-design.md §5.3](./01-schema-design.md#53-transition-execution): `SELECT ... FOR UPDATE` lock; validate transition against definition; execute side effects; UPDATE workflow row; INSERT transition record; INSERT/SUPERSEDE timers.
+- [ ] Implement side-effect kinds: `outbound_call`, `event_publish`, `record_audit`, `set_context`, `clear_timer`, `set_timer`. JSON-Logic guard evaluation.
+- [ ] Implement the timer worker with `SELECT ... FOR UPDATE SKIP LOCKED` polling and pg_advisory_lock-based leader election (per [dev-doubts/01.md §1](./dev-doubts/01.md)).
+- [ ] FSM definition JSON Schema validator in CI.
+- [ ] Mermaid renderer for FSM definitions (build-time, emits state diagrams to docs site).
+- [ ] Vitest test pattern: `runFsmReplay(definition, eventList)` per [02-fsm-specifications.md §10](./02-fsm-specifications.md#10-testing-the-fsms).
+- [ ] Acceptance: a trivial FSM `test.flow.v1` (states: A, B, C; transitions A->B on event "go"; B->C on timeout 30s) runs end-to-end with all four engine guarantees observed.
+
+## Phase 0c -- Vault adapter, audit, message logs (1 dev-week)
+
+- [ ] Scaffold `packages/ts-sdk-secrets/` with an in-process map-backed implementation for dev (env-var-seeded). Production Azure Key Vault wiring is Phase 1.
+- [ ] Implement the inbound and outbound message logging middlewares.
+- [ ] Implement the audit-log writer (rules per [01-schema-design.md §4.4](./01-schema-design.md#44-integration_audit_log--the-regulatory-stream): no PHI cleartext in summary/metadata).
+- [ ] Acceptance: an inbound test request creates a row in `integration_inbound_messages`, an outbound side-effect creates a row in `integration_outbound_messages`, both correlated to a workflow row in the audit log.
+
+## Phase 1a -- ABDM Adapter foundation (2 dev-weeks)
+
+**Goal:** ABDM gateway connectivity, session caching, scan-and-share end-to-end.
+
+- [ ] Generate Drizzle migrations for tables 9-14 (ABDM tables: abdm_gateway_sessions, abdm_share_tokens, abdm_share_token_issuances, abdm_consent_artifacts, abdm_link_tokens, abdm_data_exchange_sessions).
+- [ ] Implement gateway client: session create + cache (`abdm_gateway_sessions`), Fidelius helper for envelope encryption (factor into `packages/ts-sdk-abdm-protocol/` if duplication emerges).
+- [ ] Register the `kind=abdm` adapter in the dispatcher.
+- [ ] Implement the FSM definition `abdm.scan-and-share.v1` per [02-fsm-specifications.md §4](./02-fsm-specifications.md#4-abdmscan-and-sharev1--the-kiosk-qr-flow). Inbound `/v3/profile/on-share` callback handler. Atomic token allocation per [§4 SQL pattern](./02-fsm-specifications.md#4-abdmscan-and-sharev1--the-kiosk-qr-flow).
+- [ ] Implement the reg-desk lookup endpoint `GET /api/v1/abdm/scan-and-share/issuances?token_number=N&date=...`.
+- [ ] Acceptance: a scan-and-share end-to-end test against ABDM sandbox issues a token, registers a patient via EMPI, surfaces the token at the lookup endpoint.
+
+## Phase 1b -- M1 ABHA enrollment (2 dev-weeks)
+
+**Goal:** A patient walks in, doesn't have ABHA, kiosk creates one via Aadhaar OTP, EMPI is updated.
+
+- [ ] Implement the FSM definition `abdm.m1.aadhaar-otp.v1` per [02-fsm-specifications.md §3](./02-fsm-specifications.md#3-abdmm1aadhaar-otpv1--abha-creation-via-aadhaar-otp).
+- [ ] Implement the ABDM ABHA endpoints in OpenAPI: `POST /api/v1/abdm/abha/enroll`, `POST /api/v1/abdm/abha/{workflow_id}/verify-otp`, `POST /api/v1/abdm/abha/{workflow_id}/create-address`.
+- [ ] Wire the EMPI `POST /patients/:id/identifiers` calls for `abha_number` and `abha_address` at the `LINKED` transition.
+- [ ] (Phase 1b extension) Implement `abdm.m1.find-by-mobile.v1` for ABHA recovery flows.
+- [ ] Acceptance: end-to-end against ABDM sandbox -- create a test ABHA, see two `patient_identifiers` rows in EMPI, see `abdm.m1.completed` event fire.
+
+## Phase 1c -- M2 care-context linking (2 dev-weeks)
+
+- [ ] Implement `abdm.m2.user-initiated-link.v1` per [02-fsm-specifications.md §5](./02-fsm-specifications.md#5-abdmm2user-initiated-linkv1--patient-links-from-phr-app).
+- [ ] Implement `abdm.m2.hip-initiated-link.v1`.
+- [ ] Inbound callbacks for `/v3/care-context/discover`, `/v3/care-context/init`, `/v3/care-context/confirm`.
+- [ ] Wire the Record Foundation calls (`GET /api/v1/care-contexts/discoverable?patient_id=X`, `POST /api/v1/care-contexts/bulk-update-linkage`).
+- [ ] Acceptance: a patient links their existing OPD records to ABHA; care_contexts.abha_linkage_status flips to `linked` and `abdm_reference_number` populates.
+
+## Phase 1d -- M3 HIP and consent (2-3 dev-weeks)
+
+- [ ] Implement `abdm.m3.hip.v1` per [02-fsm-specifications.md §6](./02-fsm-specifications.md#6-abdmm3hipv1--hip-serves-records-under-consent). Inbound `/v3/consents/hip/notify` and `/v3/health-information/hip/request`.
+- [ ] Implement `abdm.consent.lifecycle.v1` supervisor per [02-fsm-specifications.md §8](./02-fsm-specifications.md#8-abdmconsentlifecyclev1--the-long-lived-supervisor).
+- [ ] Wire Record Foundation `POST /api/v1/disclosures` and `GET /api/v1/bundles/:id`.
+- [ ] Fidelius envelope encryption against the HIU's `transferPublicKey`.
+- [ ] Outbound push to HIU's `dataPushUrl`.
+- [ ] Outbound notify to gateway `/v3/health-information/notify` with `transferred` status.
+- [ ] Acceptance: end-to-end Facilitation Testing scenario -- external HIU requests a record under consent; bundle disclosure observed at HIU, audit row visible in `integration_audit_log`.
+
+## Phase 1e -- M3 HIU (2 dev-weeks)
+
+- [ ] Implement `abdm.m3.hiu.v1` per [02-fsm-specifications.md §7](./02-fsm-specifications.md#7-abdmm3hiuv1--platform-fetches-external-records).
+- [ ] Outbound consent init (`/v3/consents/hiu/request`); inbound consent notify (`/v3/consents/hiu/notify`); outbound data request; inbound data push.
+- [ ] Fidelius decryption of received bundles.
+- [ ] Emit `abdm.health-record.received` for Record Foundation ingestion.
+- [ ] Acceptance: doctor requests external records, patient approves, bundles arrive, Record Foundation timeline shows the external record with the `External: <HIP>` label.
+
+## Cross-cutting
+
+- [ ] **Production Vault wiring** (Phase 1, parallel) -- swap dev in-process secrets for Azure Key Vault adapter.
+- [ ] **Stuck-workflow alerting** -- Grafana panel + Prometheus rule on workflows where `last_transition_at < now() - interval '30 min' AND status='running'`.
+- [ ] **NHA Facilitation Testing rehearsal** -- run the test catalogue from [docs/external/abdm/test-cases.md](../../../external/abdm/test-cases.md). Target a green pass before Phase 1 closes.
+
+## Definition of done (Phase 1)
+
+- All five FSM definitions deployed and exercised against ABDM sandbox.
+- A patient at a real facility can: scan QR -> register -> create ABHA -> have OPD records linked -> have records served to an external HIU under consent -> fetch records from another HIP via the HIU role.
+- Integration Hub control plane handles the operational signals (stuck workflows, retry exhaustion, circuit-breaker openings, audit volume).
+- DPDP / ABDM erasure obligations honoured via Record Foundation's scheduler (which Integration Hub triggers via consent.expired/revoked events).

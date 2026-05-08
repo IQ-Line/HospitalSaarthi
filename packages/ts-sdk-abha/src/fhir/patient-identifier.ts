@@ -31,10 +31,10 @@ export interface AttachAbhaIdentifiersInput {
 export function attachAbhaIdentifiers(_patient: Patient, _input: AttachAbhaIdentifiersInput): Patient {
   // TODO: implement.
   // @see docs/architecture/adr/0023-distributed-fhir-assembly.md
-  // Reference for system URIs (silences unused-import warnings until impl lands):
+  // Reference imports until implementation lands (avoids unused-import warnings).
   void ABHA_NUMBER_SYSTEM_URI;
   void ABHA_ADDRESS_SYSTEM_URI;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _placeholder: FhirIdentifier[] = [];
+  void _placeholder;
   throw new Error('attachAbhaIdentifiers: not implemented');
 }
