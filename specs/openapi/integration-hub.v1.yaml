@@ -1,0 +1,876 @@
+openapi: 3.1.0
+info:
+  title: Integration Hub API
+  version: 1.0.0
+  description: >
+    Integration Hub API — control plane for external integrations and the ABDM adapter.
+    Owns the integration registry, durable workflow FSM engine, inbound/outbound transport logs,
+    audit stream, and ABDM-specific protocol state (gateway sessions, scan-and-share tokens,
+    consent artifacts, link tokens, M3 data-exchange sessions). Does NOT own clinical records
+    (Record Foundation) or facility HFR ID / credentials root (Configurator). Per ADR-0020 and ADR-0021.
+servers:
+  - url: http://localhost:3005
+security:
+  - bearerAuth: []
+tags:
+  - name: Integrations
+    description: Tenant integration registry and credential references.
+  - name: Workflows
+    description: Durable FSM workflow engine — list, inspect, retry, cancel.
+  - name: ABDM ABHA
+    description: ABDM Milestone 1 — ABHA enrollment / verify / address creation.
+  - name: ABDM M2 Linking
+    description: ABDM Milestone 2 — care-context HIP linking.
+  - name: ABDM M3 HIU
+    description: ABDM Milestone 3 — HIU consent-driven data fetch.
+  - name: ABDM Consent
+    description: ABDM consent artifacts (read surface, used by Record Foundation).
+  - name: Scan-and-Share
+    description: ABDM scan-and-share token issuances (used by registration desk).
+  - name: Gateway Callbacks
+    description: ABDM gateway-only callback endpoints. Not for platform clients.
+paths:
+  /api/v1/integrations:
+    get:
+      operationId: listIntegrations
+      summary: List integrations for the calling tenant
+      tags: [Integrations]
+      parameters:
+        - { name: kind, in: query, required: false, schema: { $ref: "#/components/schemas/IntegrationKind" } }
+        - { name: status, in: query, required: false, schema: { $ref: "#/components/schemas/IntegrationStatus" } }
+      responses:
+        "200":
+          description: Integration list.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IntegrationListResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      operationId: createIntegration
+      summary: Register a new integration
+      tags: [Integrations]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/IntegrationCreate" }
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IntegrationSingleResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /api/v1/integrations/{id}:
+    get:
+      operationId: getIntegration
+      summary: Fetch one integration
+      tags: [Integrations]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Integration found.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IntegrationSingleResponse" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      operationId: updateIntegrationStatus
+      summary: Update integration status (active / paused / retired)
+      tags: [Integrations]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/IntegrationStatusUpdate" }
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IntegrationSingleResponse" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/integrations/{id}/credentials:
+    post:
+      operationId: addIntegrationCredential
+      summary: Attach a credential reference to an integration
+      tags: [Integrations]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/IntegrationCredentialCreate" }
+      responses:
+        "201":
+          description: Credential reference stored.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IntegrationCredentialSingleResponse" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /api/v1/workflows:
+    get:
+      operationId: listWorkflows
+      summary: List workflow instances
+      tags: [Workflows]
+      parameters:
+        - { name: definition_id, in: query, required: false, schema: { type: string } }
+        - { name: status, in: query, required: false, schema: { $ref: "#/components/schemas/WorkflowStatus" } }
+        - { name: patient_id, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: integration_id, in: query, required: false, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Workflow list.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkflowListResponse" }
+  /api/v1/workflows/{id}:
+    get:
+      operationId: getWorkflow
+      summary: Fetch one workflow instance
+      tags: [Workflows]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Workflow found.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkflowSingleResponse" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/workflows/{id}/transitions:
+    get:
+      operationId: listWorkflowTransitions
+      summary: Replay all FSM transitions for one workflow (audit)
+      tags: [Workflows]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Transitions in occurred_at order.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkflowTransitionListResponse" }
+  /api/v1/admin/workflows/{id}/retry-current:
+    post:
+      operationId: retryWorkflowCurrent
+      summary: Retry the current state's outbound action (admin)
+      tags: [Workflows]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "202":
+          description: Retry scheduled.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkflowSingleResponse" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /api/v1/admin/workflows/{id}/cancel:
+    post:
+      operationId: cancelWorkflow
+      summary: Cancel a running workflow (admin)
+      tags: [Workflows]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                reason: { type: string }
+      responses:
+        "200":
+          description: Cancelled.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkflowSingleResponse" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/abdm/abha/enroll:
+    post:
+      operationId: abdmAbhaEnroll
+      summary: Start ABDM M1 enrollment by mobile / Aadhaar
+      tags: [ABDM ABHA]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AbhaEnrollRequest" }
+      responses:
+        "202":
+          description: Workflow created in OTP_REQUESTED state.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AbhaWorkflowResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+  /api/v1/abdm/abha/{workflow_id}/verify-otp:
+    post:
+      operationId: abdmAbhaVerifyOtp
+      summary: Verify the M1 OTP and advance the workflow
+      tags: [ABDM ABHA]
+      parameters:
+        - { name: workflow_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AbhaOtpVerifyRequest" }
+      responses:
+        "200":
+          description: OTP verified — workflow advanced.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AbhaWorkflowResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/abdm/abha/{workflow_id}/create-address:
+    post:
+      operationId: abdmAbhaCreateAddress
+      summary: Create the ABHA address (suffix) for a verified workflow
+      tags: [ABDM ABHA]
+      parameters:
+        - { name: workflow_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AbhaAddressCreateRequest" }
+      responses:
+        "200":
+          description: ABHA address created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AbhaWorkflowResponse" }
+  /api/v1/abdm/abha/find-by-mobile:
+    post:
+      operationId: abdmAbhaFindByMobile
+      summary: Look up an existing ABHA by mobile number
+      tags: [ABDM ABHA]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mobile]
+              additionalProperties: false
+              properties:
+                mobile: { type: string, examples: ["+919000000000"] }
+      responses:
+        "200":
+          description: Found ABHA(s).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/AbhaProfileSummary" }
+  /api/v1/abdm/m2/hip-link:
+    post:
+      operationId: abdmM2HipLink
+      summary: Start M2 HIP-side care-context linking for a patient
+      tags: [ABDM M2 Linking]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/M2HipLinkRequest" }
+      responses:
+        "202":
+          description: Linking workflow started.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AbhaWorkflowResponse" }
+  /api/v1/abdm/m2/links/{workflow_id}:
+    get:
+      operationId: abdmM2GetLinks
+      summary: Inspect the link state for a workflow
+      tags: [ABDM M2 Linking]
+      parameters:
+        - { name: workflow_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Current link tokens and care-context references.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/M2LinkStateResponse" }
+  /api/v1/abdm/m3/hiu-request:
+    post:
+      operationId: abdmM3HiuRequest
+      summary: Issue an HIU consent request (M3) on behalf of a clinician
+      tags: [ABDM M3 HIU]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/M3HiuRequest" }
+      responses:
+        "202":
+          description: HIU consent request created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AbhaWorkflowResponse" }
+  /api/v1/abdm/m3/sessions/{workflow_id}:
+    get:
+      operationId: abdmM3GetSession
+      summary: Inspect an M3 data-exchange session
+      tags: [ABDM M3 HIU]
+      parameters:
+        - { name: workflow_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Data-exchange session details.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/M3SessionResponse" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/abdm/consents:
+    get:
+      operationId: listConsents
+      summary: List consent artifacts
+      tags: [ABDM Consent]
+      parameters:
+        - { name: patient_id, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: status, in: query, required: false, schema: { $ref: "#/components/schemas/ConsentStatus" } }
+        - { name: role, in: query, required: false, schema: { type: string, enum: [hip, hiu] } }
+      responses:
+        "200":
+          description: Consent list.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConsentArtifactListResponse" }
+  /api/v1/abdm/consents/{id}:
+    get:
+      operationId: getConsent
+      summary: Fetch one consent artifact
+      tags: [ABDM Consent]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Consent artifact.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConsentArtifactSingleResponse" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/abdm/consents/active:
+    get:
+      operationId: listActiveConsents
+      summary: List active (granted, non-expired) consents for a patient
+      description: Used by Record Foundation projections to decide whether a care context is currently disclosable.
+      tags: [ABDM Consent]
+      parameters:
+        - { name: patient_id, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Active consents.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConsentArtifactListResponse" }
+  /api/v1/abdm/scan-and-share/issuances:
+    get:
+      operationId: lookupScanAndShareIssuance
+      summary: Look up a scan-and-share token issuance by token number and date
+      description: Used by the registration desk to resolve a presented token to a patient.
+      tags: [Scan-and-Share]
+      parameters:
+        - { name: token_number, in: query, required: true, schema: { type: integer, minimum: 1 } }
+        - { name: date, in: query, required: true, schema: { type: string, format: date } }
+        - { name: facility_id_ref, in: query, required: false, schema: { type: string } }
+      responses:
+        "200":
+          description: Issuance found.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShareTokenIssuanceSingleResponse" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /v3/profile/on-share:
+    post:
+      operationId: gwProfileOnShare
+      summary: ABDM gateway scan-and-share profile callback
+      tags: [Gateway Callbacks]
+      x-internal-callback: true
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        "202": { description: Acknowledged. }
+  /v3/care-context/discover:
+    post:
+      operationId: gwCareContextDiscover
+      tags: [Gateway Callbacks]
+      x-internal-callback: true
+      security: []
+      summary: ABDM gateway HIP discovery callback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        "202": { description: Acknowledged. }
+  /v3/care-context/init:
+    post:
+      operationId: gwCareContextInit
+      tags: [Gateway Callbacks]
+      x-internal-callback: true
+      security: []
+      summary: ABDM gateway HIP link init callback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        "202": { description: Acknowledged. }
+  /v3/care-context/confirm:
+    post:
+      operationId: gwCareContextConfirm
+      tags: [Gateway Callbacks]
+      x-internal-callback: true
+      security: []
+      summary: ABDM gateway HIP link confirm callback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        "202": { description: Acknowledged. }
+  /v3/consents/hip/notify:
+    post:
+      operationId: gwConsentHipNotify
+      tags: [Gateway Callbacks]
+      x-internal-callback: true
+      security: []
+      summary: ABDM gateway HIP consent notification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        "202": { description: Acknowledged. }
+  /v3/consents/hiu/notify:
+    post:
+      operationId: gwConsentHiuNotify
+      tags: [Gateway Callbacks]
+      x-internal-callback: true
+      security: []
+      summary: ABDM gateway HIU consent notification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        "202": { description: Acknowledged. }
+  /v3/health-information/hip/request:
+    post:
+      operationId: gwHealthInfoHipRequest
+      tags: [Gateway Callbacks]
+      x-internal-callback: true
+      security: []
+      summary: ABDM gateway HIP health-information request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        "202": { description: Acknowledged. }
+  /v3/health-information/hiu/data-push:
+    post:
+      operationId: gwHealthInfoHiuDataPush
+      tags: [Gateway Callbacks]
+      x-internal-callback: true
+      security: []
+      summary: ABDM gateway HIU data-push (encrypted bundle delivery)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        "202": { description: Acknowledged. }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    BadRequest:
+      description: Invalid request.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/ProblemDetails" }
+    Unauthorized:
+      description: Missing or invalid bearer token.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/ProblemDetails" }
+    Forbidden:
+      description: Principal is not authorized.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/ProblemDetails" }
+    NotFound:
+      description: Resource not found.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/ProblemDetails" }
+    Conflict:
+      description: State conflict.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/ProblemDetails" }
+  schemas:
+    ProblemDetails:
+      type: object
+      description: RFC 7807 problem+json error envelope.
+      required: [type, title, status]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+        code: { type: string, description: Stable application error code. }
+    IntegrationKind:
+      type: string
+      enum: [abdm, lab_analyzer, legacy_his, tpa, government_reporting, ris_pacs, custom]
+    IntegrationDirection:
+      type: string
+      enum: [inbound, outbound, bidirectional]
+    IntegrationProtocol:
+      type: string
+      enum: [fhir_r4, hl7v2, soap_xml, rest_json, flat_file, proprietary]
+    IntegrationAuthMethod:
+      type: string
+      enum: [api_key, mtls, oauth2_client_credentials, none]
+    IntegrationStatus:
+      type: string
+      enum: [active, paused, erroring, retired]
+    Integration:
+      type: object
+      required: [id, iq_tenant_id, name, kind, direction, protocol, auth_method, status, registered_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        iq_tenant_id: { type: string, format: uuid }
+        name: { type: string }
+        kind: { $ref: "#/components/schemas/IntegrationKind" }
+        direction: { $ref: "#/components/schemas/IntegrationDirection" }
+        protocol: { $ref: "#/components/schemas/IntegrationProtocol" }
+        auth_method: { $ref: "#/components/schemas/IntegrationAuthMethod" }
+        status: { $ref: "#/components/schemas/IntegrationStatus" }
+        rate_limit_rpm: { type: integer, nullable: true }
+        config: { type: object, additionalProperties: true }
+        registered_by: { type: string, format: uuid, nullable: true }
+        registered_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        updated_by: { type: string, format: uuid, nullable: true }
+    IntegrationCreate:
+      type: object
+      required: [name, kind, direction, protocol, auth_method]
+      additionalProperties: false
+      properties:
+        name: { type: string }
+        kind: { $ref: "#/components/schemas/IntegrationKind" }
+        direction: { $ref: "#/components/schemas/IntegrationDirection" }
+        protocol: { $ref: "#/components/schemas/IntegrationProtocol" }
+        auth_method: { $ref: "#/components/schemas/IntegrationAuthMethod" }
+        rate_limit_rpm: { type: integer, nullable: true }
+        config: { type: object, additionalProperties: true }
+    IntegrationStatusUpdate:
+      type: object
+      required: [status]
+      additionalProperties: false
+      properties:
+        status: { $ref: "#/components/schemas/IntegrationStatus" }
+    IntegrationListResponse:
+      type: object
+      required: [data, total]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Integration" }
+        total: { type: integer, minimum: 0 }
+    IntegrationSingleResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/Integration" }
+    IntegrationCredentialKind:
+      type: string
+      enum: [client_id, client_secret, api_key, tls_cert, tls_private_key, oauth_token_endpoint, signing_key, encryption_pubkey]
+    IntegrationCredential:
+      type: object
+      required: [id, integration_id, credential_kind, vault_ref, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        integration_id: { type: string, format: uuid }
+        credential_kind: { $ref: "#/components/schemas/IntegrationCredentialKind" }
+        vault_ref: { type: string }
+        rotation_policy: { type: string, nullable: true }
+        expires_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        created_by: { type: string, format: uuid, nullable: true }
+    IntegrationCredentialCreate:
+      type: object
+      required: [credential_kind, vault_ref]
+      additionalProperties: false
+      properties:
+        credential_kind: { $ref: "#/components/schemas/IntegrationCredentialKind" }
+        vault_ref: { type: string }
+        rotation_policy: { type: string, nullable: true }
+        expires_at: { type: string, format: date-time, nullable: true }
+    IntegrationCredentialSingleResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/IntegrationCredential" }
+    WorkflowStatus:
+      type: string
+      enum: [running, completed, failed, cancelled, timed_out]
+    Workflow:
+      type: object
+      required: [id, iq_tenant_id, integration_id, definition_id, current_state, status, started_at, last_transition_at]
+      properties:
+        id: { type: string, format: uuid }
+        iq_tenant_id: { type: string, format: uuid }
+        integration_id: { type: string, format: uuid }
+        definition_id: { type: string, examples: ["abdm.m1.enrollment.v1"] }
+        current_state: { type: string }
+        status: { $ref: "#/components/schemas/WorkflowStatus" }
+        context: { type: object, additionalProperties: true }
+        external_correlation_id: { type: string, nullable: true }
+        patient_id: { type: string, format: uuid, nullable: true }
+        started_at: { type: string, format: date-time }
+        last_transition_at: { type: string, format: date-time }
+        completed_at: { type: string, format: date-time, nullable: true }
+        error: { type: string, nullable: true }
+    WorkflowListResponse:
+      type: object
+      required: [data, total]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Workflow" }
+        total: { type: integer, minimum: 0 }
+    WorkflowSingleResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/Workflow" }
+    WorkflowTransition:
+      type: object
+      required: [id, workflow_id, to_state, trigger_kind, occurred_at]
+      properties:
+        id: { type: integer, format: int64 }
+        workflow_id: { type: string, format: uuid }
+        from_state: { type: string, nullable: true }
+        to_state: { type: string }
+        trigger_kind: { type: string, enum: [start, event, timer, manual, retry] }
+        trigger_payload: { type: object, additionalProperties: true, nullable: true }
+        occurred_at: { type: string, format: date-time }
+        actor: { type: string, nullable: true }
+    WorkflowTransitionListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/WorkflowTransition" }
+    AbhaEnrollRequest:
+      type: object
+      required: [integration_id, mode, identifier]
+      additionalProperties: false
+      properties:
+        integration_id: { type: string, format: uuid }
+        mode: { type: string, enum: [mobile, aadhaar] }
+        identifier: { type: string, description: Mobile or Aadhaar number. }
+    AbhaOtpVerifyRequest:
+      type: object
+      required: [otp]
+      additionalProperties: false
+      properties:
+        otp: { type: string }
+    AbhaAddressCreateRequest:
+      type: object
+      required: [address_suffix]
+      additionalProperties: false
+      properties:
+        address_suffix: { type: string, examples: [john.doe], description: Local part before the @abdm domain. }
+    AbhaProfileSummary:
+      type: object
+      properties:
+        abha_address: { type: string }
+        abha_number: { type: string }
+        full_name: { type: string }
+        gender: { type: string }
+        year_of_birth: { type: integer }
+    AbhaWorkflowResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/Workflow" }
+    M2HipLinkRequest:
+      type: object
+      required: [integration_id, patient_id]
+      additionalProperties: false
+      properties:
+        integration_id: { type: string, format: uuid }
+        patient_id: { type: string, format: uuid }
+        care_context_ids:
+          type: array
+          items: { type: string, format: uuid }
+          description: Optional explicit subset; if omitted server selects all linkable contexts.
+    M2LinkStateResponse:
+      type: object
+      required: [workflow]
+      properties:
+        workflow: { $ref: "#/components/schemas/Workflow" }
+        link_tokens:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              abha_address: { type: string }
+              status: { type: string, enum: [active, revoked, expired] }
+              expires_at: { type: string, format: date-time, nullable: true }
+        care_context_refs:
+          type: array
+          items:
+            type: object
+            properties:
+              care_context_id: { type: string, format: uuid }
+              abdm_reference_number: { type: string, nullable: true }
+    M3HiuRequest:
+      type: object
+      required: [integration_id, patient_id, hi_types, date_range, purpose_code]
+      additionalProperties: false
+      properties:
+        integration_id: { type: string, format: uuid }
+        patient_id: { type: string, format: uuid }
+        hi_types:
+          type: array
+          items: { type: string, examples: ["OPConsultation"] }
+        date_range:
+          type: object
+          required: [from, to]
+          properties:
+            from: { type: string, format: date-time }
+            to: { type: string, format: date-time }
+        purpose_code: { type: string, examples: ["CAREMGT"] }
+    M3SessionResponse:
+      type: object
+      required: [workflow]
+      properties:
+        workflow: { $ref: "#/components/schemas/Workflow" }
+        session:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            consent_artifact_id: { type: string, format: uuid }
+            direction: { type: string, enum: [hip_push, hiu_fetch] }
+            transaction_id: { type: string, nullable: true }
+            bundle_count: { type: integer }
+            status: { type: string, enum: [initiated, keys_exchanged, data_pushed, acknowledged, failed, expired] }
+            started_at: { type: string, format: date-time }
+            completed_at: { type: string, format: date-time, nullable: true }
+    ConsentStatus:
+      type: string
+      enum: [requested, granted, denied, revoked, expired, exhausted]
+    ConsentArtifact:
+      type: object
+      required: [id, consent_id, abha_address, role, status, hi_types, permissions, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        iq_tenant_id: { type: string, format: uuid }
+        integration_id: { type: string, format: uuid }
+        consent_id: { type: string }
+        patient_id: { type: string, format: uuid, nullable: true }
+        abha_address: { type: string }
+        role: { type: string, enum: [hip, hiu] }
+        status: { $ref: "#/components/schemas/ConsentStatus" }
+        purpose_code: { type: string, nullable: true }
+        hi_types:
+          type: array
+          items: { type: string }
+        permissions:
+          type: object
+          properties:
+            accessMode: { type: string }
+            dateRange:
+              type: object
+              properties:
+                from: { type: string, format: date-time }
+                to: { type: string, format: date-time }
+            dataEraseAt: { type: string, format: date-time }
+            frequency:
+              type: object
+              properties:
+                unit: { type: string }
+                value: { type: integer }
+                repeats: { type: integer }
+        care_context_refs:
+          type: array
+          nullable: true
+          items: { type: object, additionalProperties: true }
+        data_erase_at: { type: string, format: date-time, nullable: true }
+        consent_artifact_storage_ref: { type: string, nullable: true }
+        granted_at: { type: string, format: date-time, nullable: true }
+        revoked_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    ConsentArtifactListResponse:
+      type: object
+      required: [data, total]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/ConsentArtifact" }
+        total: { type: integer, minimum: 0 }
+    ConsentArtifactSingleResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/ConsentArtifact" }
+    ShareTokenIssuance:
+      type: object
+      required: [id, facility_id_ref, issue_date, token_number, abha_address, issued_at, expires_at]
+      properties:
+        id: { type: string, format: uuid }
+        facility_id_ref: { type: string }
+        issue_date: { type: string, format: date }
+        token_number: { type: integer }
+        patient_id: { type: string, format: uuid, nullable: true }
+        abha_address: { type: string }
+        profile_storage_ref: { type: string, nullable: true }
+        issued_at: { type: string, format: date-time }
+        redeemed_at: { type: string, format: date-time, nullable: true }
+        expires_at: { type: string, format: date-time }
+    ShareTokenIssuanceSingleResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/ShareTokenIssuance" }

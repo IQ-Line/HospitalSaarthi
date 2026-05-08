@@ -141,35 +141,81 @@ External calls are idempotent where the target system supports it. The Outbound 
 
 ## 4. ABDM/ABHA integration
 
+> **Updated 2026-05-08** -- module ownership clarified per [ADR-0021](../adr/0021-record-foundation-fifth-core-module.md), [ADR-0022](../adr/0022-immutable-fhir-document-storage.md), [ADR-0023](../adr/0023-distributed-fhir-assembly.md). Detailed flow specifications in [Integration Platform LLD](../lld/integration-platform/01-schema-design.md) and [Record Foundation LLD](../lld/record-foundation/01-schema-design.md).
+
 ### 4.1 ABHA health ID
 
-ABHA (Ayushman Bharat Health Account) is India's national health identifier. The platform integrates ABHA into the EMPI (Enterprise Master Patient Index) as one of several patient identifiers. When a patient presents an ABHA number, the EMPI links it to the patient's canonical record alongside the hospital's MRN, insurance IDs, and any other identifiers ([ABDM — ABHA specification](https://abdm.gov.in/abha-number)).
+ABHA (Ayushman Bharat Health Account) is India's national health identifier. The platform integrates ABHA into the **EMPI** as one of several patient identifiers. EMPI's `patients.abha_number` column holds the 14-digit ABHA number (denormalised for fast lookup); EMPI's polymorphic `patient_identifiers` table holds ABHA addresses (e.g., `ayush@sbx`) alongside MRNs, insurance IDs, and any other identifiers ([ABDM -- ABHA specification](https://abdm.gov.in/abha-number)).
 
-ABHA linking happens at patient registration and can also be triggered during any clinical encounter. The EMPI handles the identity resolution — a patient may present with an ABHA number at one visit and an MRN at another, and the EMPI must recognize them as the same person. See [Core Modules](02-core-modules.md) for EMPI details.
+ABHA linking happens at patient registration and can be triggered during any clinical encounter. The EMPI handles identity resolution -- a patient may present with an ABHA at one visit and an MRN at another, and EMPI must recognize them as the same person. See [Core Modules § 2 EMPI](02-core-modules.md#2-empi--patient-identity).
 
-### 4.2 Consent management
+The protocol mechanics of ABHA enrollment (ABDM Milestone 1 -- create ABHA via Aadhaar OTP, mobile OTP, biometric, etc.) live in the **Integration Hub's ABDM adapter** as FSM-driven workflows. Per [ADR-0020](../adr/0020-fsm-orchestration-for-integration-hub.md), each enrollment flow is an FSM definition (`abdm.m1.aadhaar-otp.v1`, `abdm.m1.find-by-mobile.v1`, etc.). On successful completion the adapter writes ABHA identifiers to EMPI via EMPI's `POST /patients/:id/identifiers` API. See [Integration Platform LLD -- FSM specifications](../lld/integration-platform/02-fsm-specifications.md#3-abdmm1aadhaar-otpv1--abha-creation-via-aadhaar-otp).
 
-ABDM mandates consent-based health information exchange. Before any health data can be shared with an external HIU, the patient must grant explicit consent through the ABDM consent framework.
+### 4.2 Care contexts and Record Foundation
 
-The platform will integrate with ABDM's consent manager:
+ABDM's HIP/HIU exchanges happen at the granularity of **care contexts** -- discoverable health-record units like an OPD visit, lab report, prescription, or discharge summary. Care contexts are owned by the **Record Foundation** module per [ADR-0021](../adr/0021-record-foundation-fifth-core-module.md), the fifth core platform module added by this revision.
 
-- **Consent request handling.** When an external HIU requests a patient's records, the consent request arrives (via the Inbound Gateway) and is presented to the patient for approval.
-- **Consent artifact storage.** Granted consents are stored with their scope (what data, for how long, for what purpose) and linked to the patient's EMPI record.
-- **Consent enforcement.** The Outbound Connector checks consent artifacts before sharing any health data. No data leaves the platform without a valid, unexpired consent.
-- **Consent revocation.** Patients can revoke consent at any time. Revocation is propagated to ABDM and recorded in the audit trail.
+Record Foundation owns:
+- The care-context registry (cross-module index of records linkable to ABDM).
+- The immutable FHIR Document Bundle vault (per [ADR-0022](../adr/0022-immutable-fhir-document-storage.md), bundles are stored byte-exactly at finalisation; never regenerated; never updated).
+- The external HIU bundle inbox (records received from external HIPs).
+- The timeline read-model that powers both doctor UIs and ABDM HIP discovery responses.
+- The consent-driven erasure scheduler that honours `dataEraseAt` per DPDP Act section 11.
 
-### 4.3 Health Information Exchange
+Record Foundation does NOT own ABDM transport, gateway sessions, or consent artifacts -- those belong to the Integration Hub. See [Record Foundation LLD § 1](../lld/record-foundation/01-schema-design.md#1-purpose-and-scope) for the boundary table.
 
-The platform participates in ABDM's Health Information Exchange (HIE) as both a Health Information Provider (HIP) and a Health Information User (HIU).
+### 4.3 Consent management
 
-- **As HIP:** the platform provides patient health records to authorized HIUs when consent is granted. Data is packaged as FHIR R4 bundles per ABDM specifications and shared via the Outbound Connector.
-- **As HIU:** the platform can request health records from other HIPs (e.g., a patient's records from a previous hospital). Requests go through the Outbound Connector; responses arrive via the Inbound Gateway.
+ABDM mandates consent-based health information exchange. Before any health data can be shared with an external HIU, the patient must grant explicit consent through the ABDM consent framework. Module ownership of the consent flow:
 
-### 4.4 Facilitation Testing (FT) certification
+| Concern | Owner |
+|---|---|
+| Inbound consent notification (gateway -> platform) | **Integration Hub** Inbound Gateway |
+| Consent artifact persistence (signed JSON, lifecycle status, `dataEraseAt`) | **Integration Hub** (`integration_hub.abdm_consent_artifacts`) |
+| Consent FSM (`requested -> granted -> revoked / expired / exhausted`) | **Integration Hub** (`abdm.consent.lifecycle.v1` long-lived FSM) |
+| Disclosure decision ("can this care context be sent under this consent?") | **Record Foundation** consults Integration Hub's consent state |
+| Erasure of consent-expired received bundles | **Record Foundation** scheduler |
+| Audit of every disclosure under a consent | **Integration Hub** `integration_audit_log` |
 
-ABDM requires systems to pass Facilitation Testing (FT) certification before connecting to the production ABDM sandbox. The production HIMS deployment already has FT certification through the existing `hims-production` project. The company has permission to rewrite the application as needed, provided it continues to meet NHA's specifications for ABDM compliance. The new architecture will be built to comply with ABDM specifications directly rather than preserving the existing certified implementation's specific API surface.
+The architectural rule: consent **state** lives in Integration Hub; consent **enforcement on stored data** is performed by Record Foundation reading that state. A patient's consent revocation flows: gateway -> Integration Hub (state update + event) -> Record Foundation (timeline projection update + erasure scheduling).
 
-ABDM integration is a substantial topic that requires a dedicated deep-dive post-meeting. This section provides the architectural framing; detailed ABDM flow specifications, FHIR profiles, and consent choreography will be elaborated in a follow-up document.
+### 4.4 Health Information Exchange (HIP and HIU)
+
+The platform acts as both Health Information Provider (HIP) and Health Information User (HIU). The two roles are handled by FSM definitions inside the Integration Hub's ABDM adapter, with Record Foundation called for bundle fetch (HIP) or bundle ingest (HIU).
+
+**As HIP** ([Integration Platform Scenario 4](../lld/integration-platform/03-scenarios.md#scenario-4----m3-hip-external-hiu-requests-records-under-granted-consent)):
+
+1. Inbound Gateway receives a consent notification from ABDM. Integration Hub persists the consent artifact and emits `abdm.consent.granted`. Record Foundation flips `consent_disclosable=true` on the affected care contexts.
+2. Hours-to-days later, the Inbound Gateway receives the data request. Integration Hub's M3-HIP FSM advances. It calls **Record Foundation** for the disclosable care contexts and bundles, encrypts each via Fidelius, and pushes them to the HIU's `dataPushUrl`.
+
+**As HIU** ([Integration Platform Scenario 5](../lld/integration-platform/03-scenarios.md#scenario-5----m3-hiu-doctor-pulls-external-records-for-a-patient)):
+
+1. A doctor initiates a record request. Integration Hub's M3-HIU FSM sends the consent-init to ABDM and waits for patient approval.
+2. On approval, the FSM submits the data request and waits for the HIP push.
+3. The Inbound Gateway receives the encrypted bundles, Integration Hub decrypts, and emits `abdm.health-record.received`. **Record Foundation** ingests into `external_health_records` + `bundle_storage` + `care_contexts`(source_origin='external_abdm') + `timeline_index`.
+
+### 4.5 Distributed FHIR Document Bundle assembly
+
+Per [ADR-0023](../adr/0023-distributed-fhir-assembly.md), FHIR Document Bundles are assembled in two layers:
+
+- **Source clinical modules (OPD, Lab, Pharmacy, IPD, Radiology, ...) own resource serialisation for their own domain.** OPD knows what an `Encounter` looks like for an OPD visit; Lab knows `DiagnosticReport`; Pharmacy knows `MedicationDispense`. Each module ships its own serialiser, depending on the shared `@hims/ts-sdk-fhir` package for resource builders, the NRCeS profile registry, and validators.
+- **Record Foundation orchestrates Composition assembly + validation + storage.** It consumes a `*.finalized` event with the FHIR resources attached, wraps them in a `Composition` per the relevant NRCeS R4 profile (OpConsultRecord, Prescription, DischargeSummary, DiagnosticReport, etc.), validates against the profile, and stores byte-exactly.
+
+This design preserves module autonomy ([CLAUDE.md project rule](../../../CLAUDE.md): no cross-module imports), supports the polyglot future ([ADR-0016](../adr/0016-polyglot-nx-monorepo-spec-first-contracts.md): a Python module's serialiser uses `@hims/py-sdk-fhir`), and makes new clinical modules easy to add (each contributes its own serialiser without touching a central mapper).
+
+The shared FHIR SDK is the seam -- it pins the NRCeS profile versions, enforces canonical JSON ordering ([RFC 8785 / JCS](https://www.rfc-editor.org/rfc/rfc8785)) so re-producing a logically identical bundle yields identical bytes (a prerequisite for the immutable-bundle discipline of [ADR-0022](../adr/0022-immutable-fhir-document-storage.md)), and provides validators that run NRCeS profile conformance tests.
+
+### 4.6 Facilitation Testing (FT) certification
+
+ABDM requires systems to pass Facilitation Testing certification before connecting to the production ABDM sandbox. The production HIMS deployment already holds FT certification through the existing `hims-production` project. The company has permission to rewrite the application provided it continues to meet NHA's specifications.
+
+The new platform's ABDM compliance posture is structurally stronger than the existing implementation:
+
+- **Immutable bundles** ([ADR-0022](../adr/0022-immutable-fhir-document-storage.md)) survive temporal master-data drift and support digital signatures, both Facilitation Testing concerns the existing implementation handles by accident more than design.
+- **Distributed FHIR assembly** ([ADR-0023](../adr/0023-distributed-fhir-assembly.md)) localises NRCeS profile knowledge to the modules that author the underlying data, reducing the risk of FHIR-mapping bugs in central code that touches every clinical surface.
+- **Explicit FSM choreography** ([ADR-0020](../adr/0020-fsm-orchestration-for-integration-hub.md)) makes the gateway-callback ordering provable rather than emergent, addressing the "stuck session" debugging burden of the existing implementation.
+
+Detailed flow specifications, FHIR profile pinning, and the FSM definitions are in the [Integration Platform LLD](../lld/integration-platform/01-schema-design.md) and the [Record Foundation LLD](../lld/record-foundation/01-schema-design.md).
 
 ---
 

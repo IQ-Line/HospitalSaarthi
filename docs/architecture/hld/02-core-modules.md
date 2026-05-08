@@ -1,16 +1,16 @@
 # HLD 02 — Core Platform Modules
 
-**Status:** First draft for alignment meeting  
-**Last updated:** 2026-04-27  
+**Status:** First draft for alignment meeting (revision 2 -- adds Record Foundation per ADR-0021)
+**Last updated:** 2026-05-08
 **Related:** [01-system-overview.md](./01-system-overview.md) | [03-module-shape-template.md](./03-module-shape-template.md) | [04-authn-authz-flow.md](./04-authn-authz-flow.md) | [05-integration-and-interop.md](./05-integration-and-interop.md)
 
 ---
 
 ## Overview
 
-The platform has four core modules that are always deployed. Feature modules (the ~38 from the AIIMS EOI scope) depend on these four for identity, patient identity, configuration, and reference data. This document covers each core module in depth: what it does, what it owns, what it exposes, what it depends on, and what happens when it fails.
+The platform has **five core modules** that are always deployed (extended from four per [ADR-0021](../adr/0021-record-foundation-fifth-core-module.md), which adds Record Foundation as the substrate for ABDM care contexts and immutable FHIR Document Bundles). Feature modules (the ~38 from the AIIMS EOI scope) depend on these five for identity, patient identity, configuration, reference data, and clinical-record substrate. This document covers each core module in depth: what it does, what it owns, what it exposes, what it depends on, and what happens when it fails.
 
-The four core modules map to the first three planes in the [layer model](./01-system-overview.md#4-layer-model):
+The five core modules map to the [layer model](./01-system-overview.md#4-layer-model):
 
 | Plane | Core module |
 |-------|-------------|
@@ -18,8 +18,11 @@ The four core modules map to the first three planes in the [layer model](./01-sy
 | Identity Plane | EMPI / Patient Identity |
 | Control Plane | Configurator |
 | Reference Plane | Master & Tenant Data |
+| Operational Substrate | **Record Foundation** (per [ADR-0021](../adr/0021-record-foundation-fifth-core-module.md)) |
 
 Each core module follows the same [module shape template](./03-module-shape-template.md) as feature modules: independently deployable pod, Cerbos PDP (Policy Decision Point) sidecar, identity adapter, own database/schema, event publication. The difference is that core modules are always-on dependencies — they cannot be "not adopted."
+
+Beyond these five, the platform also always deploys the **Integration Hub** (control plane + ABDM adapter) per [ADR-0011](../adr/0011-integration-hub-split.md). The Integration Hub is treated as platform infrastructure rather than a core *module* because its responsibility is transport (in/out), not domain ownership. See [HLD 05](./05-integration-and-interop.md) and the [Integration Platform LLD](../lld/integration-platform/01-schema-design.md).
 
 ---
 
@@ -362,11 +365,81 @@ If Master & Tenant Data is completely unavailable:
 
 ---
 
-## 5. Cross-module interaction patterns
+## 5. Record Foundation
 
-The four core modules interact in specific, predictable ways. This section documents the most important interaction patterns.
+> Added by [ADR-0021](../adr/0021-record-foundation-fifth-core-module.md). This is the fifth core platform module. Its role is to be the substrate for cross-module clinical-record concerns: care contexts, immutable FHIR Document Bundles, external HIU bundles, the timeline read-model, and consent-driven erasure. Detailed schema and APIs in the [Record Foundation LLD](../lld/record-foundation/01-schema-design.md).
 
-### 5.1 Tenant onboarding
+### 5.1 Purpose
+
+Record Foundation is the durable backing store for ABDM care contexts and the FHIR Document Bundles produced or received by the platform. It exists because three concerns -- (1) the discoverable index of records linkable to ABDM, (2) the immutable storage of FHIR Document Bundles per [ADR-0022](../adr/0022-immutable-fhir-document-storage.md), (3) the inbox for external HIU-received bundles -- have no natural owner among the existing four core modules and must not be absorbed by Integration Hub (transport-only) or by individual operational modules (no cross-module aggregator otherwise).
+
+It is *not* the Phase 4 EMR product. The Phase 4 EMR is a richer clinical UI that consumes Record Foundation's APIs.
+
+### 5.2 Owns
+
+- **Care-context registry.** One row per (patient, source clinical event) -- OPD visits, lab reports, prescriptions, discharge summaries, scanned documents, externally received records. Tracks ABDM linkage state and amendment history.
+- **Immutable FHIR Document Bundle vault.** Bundles produced by clinical modules at finalisation are stored byte-exactly. INSERT-only discipline; no UPDATE path on bundle bytes. Per [ADR-0022](../adr/0022-immutable-fhir-document-storage.md).
+- **External HIU bundle inbox.** Bundles received from external HIPs via ABDM Milestone 3, with parsed display summary and `data_erase_at` lifecycle tracking.
+- **Timeline read-model (`timeline_index`).** Denormalised projection across internal + external records. Source for the doctor's timeline UI and for ABDM HIP discovery responses.
+- **Erasure scheduler.** Honours `dataEraseAt` deadlines from ABDM consents per [DPDP Act section 11](https://www.meity.gov.in/writereaddata/files/Digital%20Personal%20Data%20Protection%20Act%202023.pdf). Append-only `erasure_log` provides regulatory evidence.
+
+### 5.3 Exposes
+
+**APIs:**
+
+- **Care contexts** -- list, get, discover (for ABDM HIP discovery), bulk-update-linkage (after gateway acknowledges).
+- **Bundles** -- get bundle JSON by id (Integration Hub fetches at M3 push time).
+- **Disclosures** -- "what bundles are disclosable under this consent" (called by Integration Hub before HIP push).
+- **Timeline** -- patient timeline pagination.
+- **External records** -- list, get, mark-viewed.
+- **Admin** -- timeline rebuild, erasure run trigger / dry-run.
+
+Full surface in [Record Foundation OpenAPI spec](../../../specs/openapi/record-foundation.v1.yaml).
+
+**Events published:**
+
+- `record-foundation.care-context.registered` -- a new care context exists for a patient.
+- `record-foundation.care-context.linked` -- ABDM has acknowledged the linkage.
+- `record-foundation.bundle.stored` -- a new FHIR Document Bundle is in the vault.
+- `record-foundation.external-record.received` -- an external bundle has been ingested.
+- `record-foundation.bundle.erased` -- a bundle has been erased per consent expiry / revocation / retention policy.
+
+**Events consumed:**
+
+- `consultation.finalized` (OPD) -- triggers care-context + bundle store.
+- `lab-report.finalized` (Lab, Phase 1.5).
+- `discharge-summary.signed` (IPD, Phase 2).
+- `abdm.consent.granted` / `abdm.consent.revoked` (Integration Hub) -- updates `timeline_index.consent_disclosable` and schedules erasure.
+- `abdm.health-record.received` (Integration Hub) -- ingests external bundle.
+
+### 5.4 Depends on
+
+- **EMPI** -- patient_id authority.
+- **Integration Hub** -- consent state for disclosure decisions; ingestion source for external records.
+- **Configurator** -- tenant config (timezone, retention policy overrides).
+- **`@hims/ts-sdk-fhir`** package -- FHIR resource builders, profile registry, validators (per [ADR-0023](../adr/0023-distributed-fhir-assembly.md)).
+
+Record Foundation does NOT depend on operational modules at runtime; the dependency is one-directional via events (operational modules emit `*.finalized`; Record Foundation consumes).
+
+### 5.5 Failure-mode behavior
+
+| Failure | Behavior | Recovery |
+|---|---|---|
+| Record Foundation down | New `consultation.finalized` events queue at the bus; OPD and other modules are unaffected. ABDM HIP discovery fails (cannot find care contexts); HIU records cannot be ingested into the inbox. | Bus replay drains queue. |
+| Bundle storage corruption | Hash mismatch on read: integrity check rejects the bundle and alerts ops. | Bundle is unrecoverable from local state; signed external bundles can be re-fetched if consent still active. |
+| `timeline_index` drift | Doctor sees stale or duplicated entries. | Manual rebuild via admin API (per-patient) or nightly full rebuild. |
+| Erasure scheduler stalls | Records past `data_erase_at` remain physically stored. | Compliance alert + manual run. The `erasure_log` records were not yet written, so re-running is safe. |
+| `abdm.consent.granted` event lost | A care context that should be disclosable is not. | Re-emit from Integration Hub's audit log. |
+
+The design intent: Record Foundation outage is invisible to operational modules. The bus buffers; nothing is lost. Read-paths (timeline, ABDM discovery) fail closed -- no clinical leakage if disclosure decisions can't be made.
+
+---
+
+## 6. Cross-module interaction patterns
+
+The five core modules + Integration Hub interact in specific, predictable ways. This section documents the most important interaction patterns.
+
+### 6.1 Tenant onboarding
 
 When a new hospital is onboarded:
 
@@ -380,7 +453,7 @@ When a new hospital is onboarded:
 
 See the [tenant onboarding sequence diagram in the System Overview](01-system-overview.md#8-deployment-and-multi-tenancy) for the full visual. Source file: [`diagrams/mermaid/tenant-onboarding.mmd`](../diagrams/mermaid/tenant-onboarding.mmd)
 
-### 5.2 Patient-facing request flow
+### 6.2 Patient-facing request flow
 
 When a clinical user performs a patient-facing action (e.g., registering a patient at OPD):
 
@@ -392,7 +465,7 @@ When a clinical user performs a patient-facing action (e.g., registering a patie
 6. If the action involves reference data (selecting a diagnosis code, prescribing a drug), the module queries its cached copy of **Master & Tenant Data**.
 7. The module's configuration (workflow rules, enabled features) comes from its cached copy of **Configurator** config.
 
-### 5.3 Dependency failure summary
+### 6.3 Dependency failure summary
 
 | Failed module | Impact on clinical operations | Mitigation |
 |---|---|---|
@@ -400,12 +473,14 @@ When a clinical user performs a patient-facing action (e.g., registering a patie
 | EMPI | New patient registration fails. Known patients continue. | Local patient projection cache. Paper fallback for new patients. |
 | Configurator | Zero immediate impact. Config stale but present. | Cache with TTL. Admin operations deferred. |
 | Master & Tenant Data | Zero immediate impact. Reference data stale but present. | Aggressive caching (24h TTL). |
+| Record Foundation | New consultations queue at bus (eventual ingest). ABDM HIP discovery fails. External record viewing fails. | Bus replay on recovery. |
+| Integration Hub | All external integrations halt (inbound + outbound). ABDM flows stop. | Stateless restart; FSM state persists in PostgreSQL; in-flight workflows resume on next pod start. |
 
-The design intent is that a brief outage (< 5 minutes) of Configurator or Master & Tenant Data is invisible to clinical users. A brief outage of EMPI or User Management is visible but survivable for existing sessions and known patients. Only a sustained outage of User Management causes a full system halt (no authentication).
+The design intent is that a brief outage (< 5 minutes) of Configurator or Master & Tenant Data is invisible to clinical users. A brief outage of EMPI or User Management is visible but survivable for existing sessions and known patients. Only a sustained outage of User Management causes a full system halt (no authentication). Record Foundation and Integration Hub outages degrade interop but do not block routine clinical operations.
 
 ---
 
-## 6. What this document does not cover
+## 7. What this document does not cover
 
 - **Module shape template** (how each module is structured internally) — see [03-module-shape-template.md](./03-module-shape-template.md).
 - **Authentication and authorization flows** (the end-to-end request path through PEP/PDP) — see [04-authn-authz-flow.md](./04-authn-authz-flow.md).
