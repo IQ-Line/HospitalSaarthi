@@ -9,6 +9,7 @@ from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.middleware.auth_middleware import BearerAuthContextMiddleware
 from app.middleware.request_context import RequestContextMiddleware
+from app.middleware.request_logging import RequestLoggingMiddleware
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,10 @@ def create_app() -> FastAPI:
         ),
         lifespan=lifespan,
     )
+    # Order: last added is outermost. RequestContextMiddleware must run first so the
+    # request_id ContextVar is bound before RequestLoggingMiddleware emits any logs.
     app.add_middleware(BearerAuthContextMiddleware)
+    app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(RequestContextMiddleware)
     register_exception_handlers(app)
     app.include_router(api_router, prefix=settings.api_prefix)

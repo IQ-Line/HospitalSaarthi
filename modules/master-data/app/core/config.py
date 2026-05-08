@@ -23,6 +23,22 @@ class Settings(BaseSettings):
     api_prefix: str = "/api/v1/master-data"
     log_level: str = "INFO"
     cors_origins: str = "http://localhost:4200,http://localhost:5173"
+    log_request_body: bool = Field(
+        default=True,
+        description="If true, log decoded request body (truncated). Disable for PHI/PII heavy endpoints.",
+    )
+    log_response_body: bool = Field(
+        default=True,
+        description="If true, log decoded response body (truncated).",
+    )
+    log_max_body_bytes: int = Field(
+        default=4096,
+        description="Maximum bytes of request/response body to capture in logs.",
+    )
+    log_skip_paths: str = Field(
+        default="/docs,/redoc,/openapi.json,/favicon.ico",
+        description="Comma-separated path prefixes excluded from request logging.",
+    )
     # Tests: ``require_superadmin`` skips bearer; audit actor stays null.
     auth_disabled: bool = Field(
         default=False,
