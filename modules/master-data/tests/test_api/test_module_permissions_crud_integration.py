@@ -232,3 +232,24 @@ def test_module_permission_not_found(mp_client: TestClient) -> None:
     assert (
         mp_client.delete(f"/api/v1/master-data/module-permissions/{unknown}").status_code == 404
     )
+
+
+def test_module_permission_update_rejects_fk_repoint(mp_client: TestClient) -> None:
+    mid = _post_module(mp_client, "Immutable", "immutable-mod")
+    pid = _post_permission(mp_client, "ImmutableP", "immutable-perm")
+    created = mp_client.post(
+        "/api/v1/master-data/module-permissions",
+        json={
+            "slug": "immutable-link",
+            "module_id": str(mid),
+            "permission_id": str(pid),
+        },
+    )
+    assert created.status_code == 201
+    lid = UUID(created.json()["data"]["id"])
+
+    rejected = mp_client.patch(
+        f"/api/v1/master-data/module-permissions/{lid}",
+        json={"module_id": str(uuid4())},
+    )
+    assert rejected.status_code == 422

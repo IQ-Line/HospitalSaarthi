@@ -91,8 +91,6 @@ def create_module_permission(
 
 def update_module_permission(
     mp_repository: ModulePermissionRepository,
-    module_repository: ModuleRepository,
-    permission_repository: PermissionRepository,
     row_id: UUID,
     payload: ModulePermissionUpdate,
     *,
@@ -103,12 +101,6 @@ def update_module_permission(
         raise ModulePermissionNotFoundError
 
     data = payload.model_dump(exclude_unset=True)
-    if "module_id" in data:
-        _require_active_module(module_repository, data["module_id"])
-        row.module_id = data["module_id"]
-    if "permission_id" in data:
-        _require_active_permission(permission_repository, data["permission_id"])
-        row.permission_id = data["permission_id"]
     if "slug" in data:
         row.slug = data["slug"]
     if "is_default" in data:

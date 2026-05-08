@@ -28,7 +28,7 @@ setup: ## Full bootstrap: check prereqs, copy .env, install deps, start infra, m
 
 .PHONY: dev
 dev: ## Start all services via Nx
-	$(NX) run-many -t serve
+	$(NX) run-many -t serve --parallel=10
 
 .PHONY: dev-module
 dev-module: ## Start a single module service (usage: make dev-module m=empi-svc)

@@ -1,6 +1,6 @@
 """Add module_permissions junction table (`public.module_permissions`).
 
-Revision ID: 008_module_permissions_catalog
+Revision ID: 008_module_permissions
 Revises: 007_system_roles_catalog
 
 Partial unique indexes: ``slug`` and ``(module_id, permission_id)`` among active rows only.
@@ -13,7 +13,7 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "008_module_permissions_catalog"
+revision: str = "008_module_permissions"
 down_revision: str | Sequence[str] | None = "007_system_roles_catalog"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -96,14 +96,14 @@ def upgrade() -> None:
     op.execute(
         """
         CREATE UNIQUE INDEX module_permissions_slug_active_key
-        ON public.module_permissions (slug)
+        ON module_permissions (slug)
         WHERE NOT is_deleted
         """
     )
     op.execute(
         """
         CREATE UNIQUE INDEX module_permissions_module_permission_active_key
-        ON public.module_permissions (module_id, permission_id)
+        ON module_permissions (module_id, permission_id)
         WHERE NOT is_deleted
         """
     )
@@ -113,7 +113,7 @@ def upgrade() -> None:
         DO $$
         BEGIN
             IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'create_reference_table') THEN
-                PERFORM create_reference_table('public.module_permissions');
+                PERFORM create_reference_table('module_permissions');
             END IF;
         EXCEPTION
             WHEN duplicate_object THEN
