@@ -1,0 +1,25 @@
+[project]
+name = "hims-events"
+version = "0.0.0"
+description = "Domain event envelope, publisher protocol, and in-process bus for HIMS Python services."
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.27",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "ruff",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
