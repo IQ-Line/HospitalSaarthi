@@ -42,6 +42,11 @@ export interface PepMiddlewareOptions {
 
 declare module "fastify" {
   interface FastifyRequest {
+    /**
+     * Authz SDK augments only authorization helpers.
+     * Identity ownership of `request.user` lives in `@hims/ts-sdk-identity`
+     * to keep this package reusable and free of service-specific claims.
+     */
     checkResource: (
       kind: string,
       id: string,

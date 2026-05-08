@@ -34,6 +34,11 @@ async function authzPluginFn(
   );
 
   fastify.addHook("onRequest", async (request: FastifyRequest) => {
+    /**
+     * Intentionally consumes the shared identity SDK principal contract.
+     * This keeps authz generic across services and avoids service-specific
+     * `request.user` typing in `ts-sdk-authz`.
+     */
     const principal: Principal = request.user;
 
     request.checkResource = async (

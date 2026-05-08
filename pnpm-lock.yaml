@@ -30,30 +30,6 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
-  modules/user-management:
-    dependencies:
-      '@hims/ts-sdk-authz':
-        specifier: workspace:*
-        version: link:../../packages/ts-sdk-authz
-      '@hims/ts-sdk-db':
-        specifier: workspace:*
-        version: link:../../packages/ts-sdk-db
-      '@hims/ts-sdk-events':
-        specifier: workspace:*
-        version: link:../../packages/ts-sdk-events
-      drizzle-orm:
-        specifier: ^0.45.2
-        version: 0.45.2(@types/pg@8.20.0)(pg@8.20.0)
-      fastify:
-        specifier: ^5.0.0
-        version: 5.8.5
-      fastify-plugin:
-        specifier: ^5.1.0
-        version: 5.1.0
-    devDependencies:
-      '@fastify/sensible':
-        specifier: ^6.0.4
-        version: 6.0.4
   modules/configurator:
     dependencies:
       '@hims/ts-sdk-db':
@@ -68,6 +44,34 @@ importers:
       fastify-plugin:
         specifier: ^5.0.1
         version: 5.1.0
+
+  modules/user-management:
+    dependencies:
+      '@hims/ts-sdk-authz':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-authz
+      '@hims/ts-sdk-db':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-db
+      '@hims/ts-sdk-events':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-events
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@types/pg@8.20.0)(pg@8.20.0)(postgres@3.4.9)
+      fastify:
+        specifier: ^5.0.0
+        version: 5.8.5
+      fastify-plugin:
+        specifier: ^5.1.0
+        version: 5.1.0
+    devDependencies:
+      '@fastify/sensible':
+        specifier: ^6.0.4
+        version: 6.0.4
+      vitest:
+        specifier: ^4.1.5
+        version: 4.1.5(@types/node@25.6.0)(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.8.0))
 
   packages/eslint-config:
     dependencies:
@@ -297,7 +301,7 @@ importers:
     dependencies:
       drizzle-orm:
         specifier: ^0.45.2
-        version: 0.45.2(@types/pg@8.20.0)(pg@8.20.0)
+        version: 0.45.2(@types/pg@8.20.0)(pg@8.20.0)(postgres@3.4.9)
       pg:
         specifier: ^8.20.0
         version: 8.20.0
@@ -346,36 +350,6 @@ importers:
 
   packages/tsconfig: {}
 
-  services/user-management-svc:
-    dependencies:
-      '@fastify/sensible':
-        specifier: ^6.0.4
-        version: 6.0.4
-      '@hims/ts-sdk-authz':
-        specifier: workspace:*
-        version: link:../../packages/ts-sdk-authz
-      '@hims/ts-sdk-db':
-        specifier: workspace:*
-        version: link:../../packages/ts-sdk-db
-      '@hims/ts-sdk-events':
-        specifier: workspace:*
-        version: link:../../packages/ts-sdk-events
-      '@hims/ts-sdk-identity':
-        specifier: workspace:*
-        version: link:../../packages/ts-sdk-identity
-      '@hims/user-management':
-        specifier: workspace:*
-        version: link:../../modules/user-management
-      fastify:
-        specifier: ^5.0.0
-        version: 5.8.5
-    devDependencies:
-      tsx:
-        specifier: ^4.21.0
-        version: 4.21.0
-      typescript:
-        specifier: ^6.0.3
-        version: 6.0.3
   services/bff:
     dependencies:
       '@fastify/cors':
@@ -419,6 +393,37 @@ importers:
       tsx:
         specifier: ^4.19.4
         version: 4.21.0
+
+  services/user-management-svc:
+    dependencies:
+      '@fastify/sensible':
+        specifier: ^6.0.4
+        version: 6.0.4
+      '@hims/ts-sdk-authz':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-authz
+      '@hims/ts-sdk-db':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-db
+      '@hims/ts-sdk-events':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-events
+      '@hims/ts-sdk-identity':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-identity
+      '@hims/user-management':
+        specifier: workspace:*
+        version: link:../../modules/user-management
+      fastify:
+        specifier: ^5.0.0
+        version: 5.8.5
+    devDependencies:
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
 
   services/web:
     dependencies:
@@ -1358,10 +1363,11 @@ packages:
   '@fastify/proxy-addr@5.1.0':
     resolution: {integrity: sha512-INS+6gh91cLUjB+PVHfu1UqcB76Sqtpyp7bnL+FYojhjygvOPA9ctiD/JDKsyD9Xgu4hUhCSJBPig/w7duNajw==}
 
-  '@fastify/sensible@6.0.4':
-    resolution: {integrity: sha512-1vxcCUlPMew6WroK8fq+LVOwbsLtX+lmuRuqpcp6eYqu6vmkLwbKTdBWAZwbeaSgCfW4tzUpTIHLLvTiQQ1BwQ==}
   '@fastify/reply-from@12.6.2':
     resolution: {integrity: sha512-FhMvsRJa4HMG0q0/Yi06sgwVFd/Wc8E/+RbHsqB0Q+883C66RPrS6qwZKBPje2mVzsyEb9sjq7wlyvi35zRW0A==}
+
+  '@fastify/sensible@6.0.4':
+    resolution: {integrity: sha512-1vxcCUlPMew6WroK8fq+LVOwbsLtX+lmuRuqpcp6eYqu6vmkLwbKTdBWAZwbeaSgCfW4tzUpTIHLLvTiQQ1BwQ==}
 
   '@floating-ui/core@1.7.5':
     resolution: {integrity: sha512-1Ih4WTWyw0+lKyFMcBHGbb5U5FtuHJuujoyyr5zTaWS5EYMeT6Jb2AuDeftsCsEuchO+mM2ij5+q9crhydzLhQ==}
@@ -5861,15 +5867,6 @@ snapshots:
       '@fastify/forwarded': 3.0.1
       ipaddr.js: 2.4.0
 
-  '@fastify/sensible@6.0.4':
-    dependencies:
-      '@lukeed/ms': 2.0.2
-      dequal: 2.0.3
-      fastify-plugin: 5.1.0
-      forwarded: 0.2.0
-      http-errors: 2.0.1
-      type-is: 2.0.1
-      vary: 1.1.2
   '@fastify/reply-from@12.6.2':
     dependencies:
       '@fastify/error': 4.2.0
@@ -5879,6 +5876,16 @@ snapshots:
       fastify-plugin: 5.1.0
       toad-cache: 3.7.0
       undici: 7.25.0
+
+  '@fastify/sensible@6.0.4':
+    dependencies:
+      '@lukeed/ms': 2.0.2
+      dequal: 2.0.3
+      fastify-plugin: 5.1.0
+      forwarded: 0.2.0
+      http-errors: 2.0.1
+      type-is: 2.0.1
+      vary: 1.1.2
 
   '@floating-ui/core@1.7.5':
     dependencies:

@@ -46,6 +46,11 @@ export const role_assignments = userManagementSchema.table(
     ...tenantColumn(),
     id: uuid("id").notNull().defaultRandom(),
     user_id: uuid("user_id").notNull(),
+    /**
+     * TODO(Phase 1B): `roles` table + FK enforcement are intentionally deferred.
+     * `role_id` currently acts as a placeholder identifier; Phase 1B will add
+     * `roles`, role capabilities/permissions tables, and FK validation.
+     */
     role_id: uuid("role_id").notNull(),
     ...auditColumns(),
   },

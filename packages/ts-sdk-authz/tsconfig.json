@@ -2,6 +2,9 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "noEmit": true,
+    // TS5101 (TS 6.x): inherited `baseUrl` in ../../tsconfig.base.json is deprecated
+    // and will stop working in TS 7.0. Keep this until workspace path alias config
+    // is migrated; this is compatibility-only and does not change authz behavior.
     "ignoreDeprecations": "6.0"
   },
   "include": ["src/**/*.ts"]

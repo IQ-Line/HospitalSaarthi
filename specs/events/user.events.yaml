@@ -38,6 +38,17 @@ event_types:
           type: ["string", "null"]
         phone:
           type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, inactive, suspended]
+        username:
+          type: ["string", "null"]
+        org_id:
+          type: ["string", "null"]
+          format: uuid
+        auth_user_id:
+          type: ["string", "null"]
+          format: uuid
 
   user-management.user.updated:
     semantic: user.updated
@@ -56,6 +67,17 @@ event_types:
           type: ["string", "null"]
         phone:
           type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, inactive, suspended]
+        username:
+          type: ["string", "null"]
+        org_id:
+          type: ["string", "null"]
+          format: uuid
+        auth_user_id:
+          type: ["string", "null"]
+          format: uuid
 
   user-management.user.deactivated:
     semantic: user.deactivated

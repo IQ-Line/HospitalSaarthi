@@ -37,6 +37,11 @@ export interface IdentityPluginOptions {
 
 declare module "fastify" {
   interface FastifyRequest {
+    /**
+     * Shared request identity contract (Phase 1A).
+     * Consolidated here so downstream SDKs/modules can consume one `request.user`
+     * shape without redefining Fastify augmentation per package.
+     */
     user: Principal;
   }
 }
