@@ -15,7 +15,7 @@ const BASE = '/api/v1/master-data/modules';
 export function useModules(category?: ModuleCategory) {
   const params = category ? `?category=${category}` : '';
   return useQuery({
-    queryKey: masterDataKeys.modules(),
+    queryKey: masterDataKeys.modules(category),
     queryFn: () => apiClient<ModuleListResponse>(`${BASE}${params}`),
   });
 }
@@ -45,7 +45,7 @@ export function useCreateModule() {
         body: JSON.stringify(input),
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: masterDataKeys.modules() });
+      qc.invalidateQueries({ queryKey: masterDataKeys.modulesRoot() });
     },
   });
 }
@@ -60,7 +60,7 @@ export function useUpdateModule(id: string) {
       }),
     onSuccess: (result) => {
       qc.setQueryData(masterDataKeys.moduleDetail(id), result);
-      qc.invalidateQueries({ queryKey: masterDataKeys.modules() });
+      qc.invalidateQueries({ queryKey: masterDataKeys.modulesRoot() });
     },
   });
 }
@@ -73,7 +73,7 @@ export function useDeleteModule() {
         method: 'DELETE',
       }),
     onSuccess: (_data, id) => {
-      qc.invalidateQueries({ queryKey: masterDataKeys.modules() });
+      qc.invalidateQueries({ queryKey: masterDataKeys.modulesRoot() });
       qc.removeQueries({ queryKey: masterDataKeys.moduleDetail(id) });
     },
   });
