@@ -2,16 +2,19 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { masterDataKeys } from './query-keys';
 import type {
+  SystemRoleCreateInput,
   SystemRoleListResponse,
   SystemRoleSingleResponse,
+  SystemRoleUpdateInput,
 } from '../types';
 
 const BASE = '/api/v1/master-data/system-roles';
 
-export function useSystemRoles() {
+export function useSystemRoles(isTemplate?: boolean) {
+  const params = isTemplate === undefined ? '' : `?is_template=${isTemplate}`;
   return useQuery({
-    queryKey: masterDataKeys.systemRoles(),
-    queryFn: () => apiClient<SystemRoleListResponse>(BASE),
+    queryKey: masterDataKeys.systemRoles(isTemplate),
+    queryFn: () => apiClient<SystemRoleListResponse>(`${BASE}${params}`),
   });
 }
 
@@ -26,13 +29,29 @@ export function useSystemRole(id: string) {
 export function useCreateSystemRole() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { name: string; slug: string; description?: string | null }) =>
+    mutationFn: (input: SystemRoleCreateInput) =>
       apiClient<SystemRoleSingleResponse>(BASE, {
         method: 'POST',
         body: JSON.stringify(input),
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: masterDataKeys.systemRoles() });
+      qc.invalidateQueries({ queryKey: masterDataKeys.systemRolesRoot() });
+    },
+  });
+}
+
+/** PATCH — `{ id, input }` from dialogs and row toggles. */
+export function useUpdateSystemRole() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: SystemRoleUpdateInput }) =>
+      apiClient<SystemRoleSingleResponse>(`${BASE}/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(input),
+      }),
+    onSuccess: (result, { id }) => {
+      qc.setQueryData(masterDataKeys.systemRoleDetail(id), result);
+      qc.invalidateQueries({ queryKey: masterDataKeys.systemRolesRoot() });
     },
   });
 }
@@ -45,7 +64,7 @@ export function useDeleteSystemRole() {
         method: 'DELETE',
       }),
     onSuccess: (_data, id) => {
-      qc.invalidateQueries({ queryKey: masterDataKeys.systemRoles() });
+      qc.invalidateQueries({ queryKey: masterDataKeys.systemRolesRoot() });
       qc.removeQueries({ queryKey: masterDataKeys.systemRoleDetail(id) });
     },
   });

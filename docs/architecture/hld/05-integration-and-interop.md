@@ -45,7 +45,8 @@ External systems speak different protocols. The Inbound Gateway translates them 
 |-------------------|-------------|
 | **HL7v2** (pipe-delimited messages) | Parsed and mapped to internal event format. Common for lab analyzers, radiology systems, and legacy HIS |
 | **FHIR R4** (RESTful JSON/XML) | Validated against FHIR profiles and routed to the appropriate module |
-| **Proprietary APIs** (vendor-specific) | Mapped through configurable adapters in the mapping/translation engine |
+| **SOAP/XML** (WSDL-defined web services) | Envelope deserialized, payload extracted and mapped through the mapping/translation engine. Encountered in legacy government systems and older middleware bridges |
+| **Proprietary APIs** (vendor-specific REST, flat files, etc.) | Mapped through configurable adapters in the mapping/translation engine |
 
 The mapping/translation engine (section 7) handles the field-level transformations. The Inbound Gateway handles the transport-level concerns: receiving the message, authenticating the caller, and dispatching it.
 
@@ -120,8 +121,8 @@ The Outbound Connector translates internal events into the format required by th
 | Target System | Protocol/Format |
 |---------------|----------------|
 | **ABDM/NHA registries** | FHIR R4 bundles per ABDM specifications |
-| **Insurance providers** | Varies — typically proprietary APIs or HL7v2 |
-| **State reporting** | Varies — often flat files, CSV, or proprietary endpoints |
+| **Insurance providers / TPAs** | SOAP/XML for legacy TPA gateways (cashless claims, pre-authorization); REST/JSON for newer platforms |
+| **State reporting** | Varies — often flat files, CSV, XML uploads, or proprietary endpoints |
 | **Legacy HIS** (bidirectional sync) | HL7v2 or FHIR R4, matching the HIS's capability |
 
 ### 3.3 Reliability patterns
@@ -222,6 +223,21 @@ The Integration Hub's mapping/translation engine handles bidirectional translati
 
 These mappings are maintained in the mapping/translation engine's configuration, not hard-coded. New mappings can be added for vendor-specific HL7v2 variants without code changes.
 
+### 5.6 SOAP/XML for legacy TPA and government interfaces
+
+Some external systems — particularly legacy insurance/TPA gateways and older government health IT platforms — expose only SOAP/XML (WSDL-defined) web services. In the Indian healthcare ecosystem, this surfaces primarily in two areas:
+
+- **Insurance/TPA claim gateways.** Legacy Third Party Administrators (Medi Assist, FHPL, Raksha TPA, etc.) historically expose SOAP/XML endpoints for cashless claim submission, pre-authorization requests, and eligibility verification. Newer TPA platforms are migrating to REST/JSON, but legacy SOAP endpoints remain in production at many TPAs.
+- **State and government reporting.** Some state-level health IT systems and inter-departmental data exchange interfaces use SOAP or XML-based submission formats. These are opaque, poorly documented, and vary by state.
+
+SOAP is a transport/envelope concern, not a healthcare-domain interoperability standard — unlike HL7v2 or FHIR, it does not define clinical message semantics. The actual data inside the SOAP envelope is typically a vendor-specific or regulator-defined XML schema.
+
+**Architectural approach:** The Integration Hub handles SOAP through the same configurable adapter mechanism used for other proprietary protocols. A SOAP adapter in the Outbound Connector deserializes/serializes the XML envelope, extracts or wraps the domain payload, and feeds it into the mapping/translation pipeline. No SOAP dependency leaks past the Integration Hub boundary — internal modules never interact with SOAP directly.
+
+**The platform does not expose a SOAP server.** No external system will call the platform over SOAP. ABDM, the primary national health infrastructure, is fully REST/FHIR. New government platforms (CoWIN, PM-JAY transaction management) are REST-based. The SOAP adapter is outbound-only, for reaching legacy systems that have not yet migrated.
+
+**Trajectory.** SOAP is declining in Indian healthcare IT but not yet dead. New systems universally adopt REST/JSON or FHIR. The platform's SOAP adapter is a pragmatic bridge for existing TPA integrations, not a strategic investment. It will be deprecated when the last connected TPA migrates off SOAP.
+
 ---
 
 ## 6. Integration patterns
@@ -273,7 +289,7 @@ A catalog of all configured integrations. Each entry records:
 
 - Integration name and description
 - External system identifier
-- Protocol (HL7v2, FHIR R4, proprietary)
+- Protocol (HL7v2, FHIR R4, SOAP/XML, proprietary REST, flat file)
 - Direction (inbound, outbound, bidirectional)
 - Authentication method (API key, mTLS, OAuth)
 - Status (active, paused, erroring)
@@ -381,4 +397,5 @@ This scenario exercises the following architectural elements:
 - [ABDM — ABHA specification](https://abdm.gov.in/abha-number) — Health Account / Health ID
 - [Azure Key Vault documentation](https://learn.microsoft.com/en-us/azure/key-vault/general/overview) — credentials management
 - Michael Nygard, *Release It!*, 2nd edition (Pragmatic Bookshelf) — stability patterns (circuit breaker, bulkheads)
+- [W3C SOAP 1.2 Specification](https://www.w3.org/TR/soap12/) — SOAP messaging framework (reference for legacy adapter implementation)
 - Sam Newman, *Building Microservices*, 2nd edition (O'Reilly), Chapter 4 — integration patterns

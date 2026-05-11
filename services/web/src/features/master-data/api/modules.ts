@@ -2,7 +2,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { masterDataKeys } from './query-keys';
 import type {
-  Module,
   ModuleCategory,
   ModuleCreateInput,
   ModuleListResponse,
@@ -15,7 +14,7 @@ const BASE = '/api/v1/master-data/modules';
 export function useModules(category?: ModuleCategory) {
   const params = category ? `?category=${category}` : '';
   return useQuery({
-    queryKey: masterDataKeys.modules(),
+    queryKey: masterDataKeys.modules(category),
     queryFn: () => apiClient<ModuleListResponse>(`${BASE}${params}`),
   });
 }
@@ -45,22 +44,23 @@ export function useCreateModule() {
         body: JSON.stringify(input),
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: masterDataKeys.modules() });
+      qc.invalidateQueries({ queryKey: masterDataKeys.modulesRoot() });
     },
   });
 }
 
-export function useUpdateModule(id: string) {
+/** PATCH — pass `{ id, input }` from dialogs and inline toggles (single stable mutation per screen). */
+export function useUpdateModule() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: ModuleUpdateInput) =>
+    mutationFn: ({ id, input }: { id: string; input: ModuleUpdateInput }) =>
       apiClient<ModuleSingleResponse>(`${BASE}/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(input),
       }),
-    onSuccess: (result) => {
+    onSuccess: (result, { id }) => {
       qc.setQueryData(masterDataKeys.moduleDetail(id), result);
-      qc.invalidateQueries({ queryKey: masterDataKeys.modules() });
+      qc.invalidateQueries({ queryKey: masterDataKeys.modulesRoot() });
     },
   });
 }
@@ -73,7 +73,7 @@ export function useDeleteModule() {
         method: 'DELETE',
       }),
     onSuccess: (_data, id) => {
-      qc.invalidateQueries({ queryKey: masterDataKeys.modules() });
+      qc.invalidateQueries({ queryKey: masterDataKeys.modulesRoot() });
       qc.removeQueries({ queryKey: masterDataKeys.moduleDetail(id) });
     },
   });
