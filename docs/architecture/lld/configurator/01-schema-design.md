@@ -23,7 +23,7 @@
 
 | Phase | What ships |
 |-------|-----------|
-| **MVP** | All 10 tables, all columns, all constraints. Tenant registry, module enablement, tenant-level feature flag overrides, module configuration with ETag polling + optimistic locking, integration profiles (ABDM + lab analyzers), provisioning workflow, config change audit. 2 local projections of Master Data's registry — `config_schema_projection`, `feature_flag_projection` — synced via events. Module metadata is fetched from Master Data via HTTP + TTL cache, not projected (see §1 design decision). |
+| **MVP** | All 9 tables, all columns, all constraints. Tenant registry, module enablement, tenant-level feature flag overrides, module configuration with ETag polling + optimistic locking, integration profiles (ABDM + lab analyzers), provisioning workflow. 2 local projections of Master Data's registry — `config_schema_projection`, `feature_flag_projection` — synced via events. Module metadata is fetched from Master Data via HTTP + TTL cache, not projected (see §1 design decision). **Audit logging is deferred** to pre-prod per [ADR-0024](../../adr/0024-audit-deferred-to-pre-prod.md); rich event payloads (§12) preserve the data a future audit hook or CDC consumer will need. |
 | **Post-launch** | Runtime hydration across schema versions, nested/scoped config structures, inter-tenant integration profiles, decommissioning workflow, tenant hierarchy tree view UI, `tenant.org_changed` event. |
 
 ---
@@ -328,7 +328,7 @@ When a tenant is decommissioned (`provisioning_status = 'decommissioned'`):
 2. A `tenant.decommissioned` event is published — all modules stop accepting new operations for the tenant
 3. Data retention is handled by a separate archival process governed by regulatory requirements (DPDP Act, NABH)
 
-The decommissioning workflow does NOT delete `tenant_modules`, `tenant_feature_flags`, or `tenant_module_configs` — these are preserved for audit and potential data recovery.
+The decommissioning workflow does NOT delete `tenant_modules`, `tenant_feature_flags`, or `tenant_module_configs` — these are preserved for potential data recovery and for the future audit consumer to project from (see [ADR-0024](../../adr/0024-audit-deferred-to-pre-prod.md)).
 
 ---
 
@@ -346,52 +346,18 @@ A platform operator or hospital admin then enables the module for specific tenan
 
 ---
 
-## 9. Config change audit
+## 9. Audit logging — deferred
 
-All changes to configuration data are recorded in `config_change_audit`. This is the Configurator's equivalent of User Management's `permission_change_audit`.
+The Configurator has no audit table in Phase 0. Per [ADR-0024 (audit deferred to pre-prod)](../../adr/0024-audit-deferred-to-pre-prod.md), the target pattern is a cross-cutting hook (HTTP middleware or CDC) that captures `{actor, action, resource, before, after, timestamp}` from every mutating endpoint and emits to a centralized audit service. Per-module audit tables are intentionally not built.
 
-### What is audited
+What this section commits to during Phase 0 — so the future audit consumer has a clean source to project from:
 
-- Tenant lifecycle changes (provisioning, suspension, reactivation, decommissioning)
-- Module enablement/disablement per tenant
-- Feature flag tenant override changes (platform-wide flag definition changes are audited in Master Data)
-- Module configuration value changes
-- Integration profile changes
-- Organization changes
+- **Rich event payloads.** Every event in §12 carries enough fields for an audit consumer to reconstruct what happened without callback queries. Do not slim payloads to "just IDs".
+- **Actor capture in request context.** Every mutating handler authenticates the caller from the JWT (`user_id`, `iq_tenant_id`, `org_id`). This is structured-logged on every request — required by the platform's standard request-logging policy.
+- **Soft delete by default.** `is_deleted` / `disabled_at` / `decommissioned_at` columns preserve history in the operational data itself, so the future audit consumer can see lifecycle changes even without a separate audit table.
+- **The pre-prod gate.** Audit hook/CDC ships before any tenant goes live. Tracked in ADR-0024.
 
-### Entity types
-
-```
-'tenant'                — Tenant status/metadata changes
-'organization'          — Organization changes (tracked with the acting admin's tenant context)
-'module_enablement'     — Module enabled/disabled for a tenant
-'feature_flag'          — Tenant flag override changed
-'module_config'         — Module configuration values changed
-'integration_profile'   — Integration profile created/modified/deactivated
-```
-
-### Actions
-
-```
-'created'          — New entity created
-'updated'          — Entity modified
-'enabled'          — Module or flag enabled
-'disabled'         — Module or flag disabled
-'suspended'        — Tenant suspended
-'reactivated'      — Tenant reactivated
-'decommissioned'   — Tenant permanently shut down
-```
-
-### Audit distribution rule
-
-For all entity types except `organization`, the `iq_tenant_id` on the audit record is the **target** tenant — the tenant whose configuration was changed. When a regional admin from Chennai disables Madurai's pharmacy, the audit record has `iq_tenant_id = tnt-madurai` and `changed_by = (the Chennai admin's user ID)`. This ensures that querying a tenant's audit history returns all changes to that tenant's configuration, regardless of which admin made them.
-
-### Organization-level audit exception
-
-Organization changes are not naturally tenant-scoped (organizations sit above tenants). When a platform operator modifies an organization, the audit record uses the operator's current `iq_tenant_id` (from their JWT) as the distribution key. This is acceptable because:
-- The audit record is about who made the change, and the operator is always authenticated in a tenant context
-- Querying "all changes made by operator X" naturally filters to the operator's tenant
-- Cross-tenant audit queries (platform-level audit dashboard) are explicit scatter queries, which is fine for admin operations
+The previously-designed `config_change_audit` table (its entity types, actions, distribution rule, and organization-level exception) is removed from this LLD. The design notes are preserved in PR #38's history if the future audit shape needs to reference them.
 
 ---
 
@@ -408,7 +374,6 @@ Organization changes are not naturally tenant-scoped (organizations sit above te
 | `tenant_module_configs` | Distributed by `iq_tenant_id` | Green | Co-located with tenant data |
 | `integration_profiles` | Distributed by `iq_tenant_id` | Green | Co-located with tenant data |
 | `tenant_provisioning_log` | Distributed by `iq_tenant_id` | Green | Append-only, co-located |
-| `config_change_audit` | Distributed by `iq_tenant_id` | Green | Append-only, co-located |
 
 All JOINs are within the `configurator` schema. The two projection tables replicate feature flag and config schema data that Master Data owns. Module metadata is *not* projected — it's fetched via HTTP + cache (§3.1) — so the Configurator never queries `master_data.*` directly.
 
@@ -435,7 +400,6 @@ Unlike User Management (which has better-auth tables distributed by `id`/`user_i
 | `tenant_modules` | standard names | Uses semantic equivalents: `enabled_at`/`enabled_by` for creation, `disabled_at` for soft-disable lifecycle |
 | `tenant_feature_flags` | `created_by` | Uses `enabled_by` as semantic `created_by` — overrides are activated (enabled) at creation time, same pattern as `tenant_modules` |
 | `tenant_provisioning_log` | `updated_at`, `updated_by` | Append-only steps — each step is written once with `started_at`/`completed_at`. Steps are not edited after completion. |
-| `config_change_audit` | all four | IS the audit trail — uses `changed_at`/`changed_by`. Meta-auditing is unnecessary. |
 
 ---
 
