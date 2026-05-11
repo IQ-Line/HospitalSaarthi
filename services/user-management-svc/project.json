@@ -20,6 +20,25 @@
       "options": {
         "cwd": "services/user-management-svc"
       }
+    },
+    "test": {
+      "command": "vitest run",
+      "options": {
+        "cwd": "services/user-management-svc"
+      }
+    },
+    "validate-spec": {
+      "dependsOn": ["^build"],
+      "command": "pnpm run validate-spec",
+      "options": {
+        "cwd": "services/user-management-svc"
+      }
+    },
+    "openapi-codegen": {
+      "command": "pnpm run openapi:codegen",
+      "options": {
+        "cwd": "services/user-management-svc"
+      }
     }
   }
 }

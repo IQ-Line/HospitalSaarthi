@@ -23,8 +23,10 @@ const HTTP_STATUS_BY_DOMAIN_CODE: Readonly<Record<string, number>> = {
   USER_NOT_FOUND: 404,
   ROLE_NOT_FOUND: 404,
   ROLE_ASSIGNMENT_DUPLICATE: 409,
+  ROLE_ASSIGNMENT_NOT_FOUND: 404,
   TENANT_CONTEXT_MISMATCH: 400,
   RBAC_INTEGRITY_VIOLATION: 500,
+  CERBOS_PRINCIPAL_UNAVAILABLE: 500,
 };
 
 function internalMaskedResponse(correlationId: string): ResolvedUserManagementHttpError {

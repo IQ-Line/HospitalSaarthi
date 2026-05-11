@@ -1,9 +1,11 @@
 import { tenantColumn, auditColumns } from "@hims/ts-sdk-db";
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   foreignKey,
   index,
+  integer,
   pgSchema,
   primaryKey,
   text,
@@ -29,6 +31,13 @@ export const users = userManagementSchema.table(
     username: text("username"),
     /** Configurator `organizations.id` — logical reference only (no FK). */
     org_id: uuid("org_id"),
+    /** Clinical / administrative department for ABAC (nullable until profile is enriched). */
+    department: text("department"),
+    /**
+     * Minimum principal clearance tier (from `request.principal.attr.um_clearance_effective_tier`)
+     * required for sensitive user.read / user.update / user.delete. 0 = no extra clearance gate.
+     */
+    clearance_tier_required: integer("clearance_tier_required").notNull().default(0),
     ...auditColumns(),
   },
   (t) => [
@@ -36,6 +45,10 @@ export const users = userManagementSchema.table(
     check(
       "users_status_chk",
       sql`${t.status} in ('active', 'inactive', 'suspended')`,
+    ),
+    check(
+      "users_clearance_tier_chk",
+      sql`${t.clearance_tier_required} >= 0 and ${t.clearance_tier_required} <= 3`,
     ),
     unique("uq_users_tenant_username").on(t.iq_tenant_id, t.username),
   ],
@@ -94,5 +107,65 @@ export const role_assignments = userManagementSchema.table(
     primaryKey({ columns: [t.iq_tenant_id, t.id] }),
     unique("uq_role_assignments_tenant_user_role").on(t.iq_tenant_id, t.user_id, t.role_id),
     index("idx_role_assignments_tenant_user").on(t.iq_tenant_id, t.user_id),
+  ],
+);
+
+export const role_capabilities = userManagementSchema.table(
+  "role_capabilities",
+  {
+    ...tenantColumn(),
+    role_id: uuid("role_id").notNull(),
+    capability: text("capability").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.role_id, t.capability] }),
+    foreignKey({
+      name: "fk_role_capabilities_tenant_role",
+      columns: [t.iq_tenant_id, t.role_id],
+      foreignColumns: [roles.iq_tenant_id, roles.id],
+    })
+      .onDelete("cascade")
+      .onUpdate("restrict"),
+    index("idx_role_capabilities_tenant_role").on(t.iq_tenant_id, t.role_id),
+  ],
+);
+
+export const user_clearances = userManagementSchema.table(
+  "user_clearances",
+  {
+    ...tenantColumn(),
+    user_id: uuid("user_id").notNull(),
+    clearance_key: text("clearance_key").notNull(),
+    access_level: text("access_level").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.user_id, t.clearance_key] }),
+    foreignKey({
+      name: "fk_user_clearances_tenant_user",
+      columns: [t.iq_tenant_id, t.user_id],
+      foreignColumns: [users.iq_tenant_id, users.id],
+    })
+      .onDelete("cascade")
+      .onUpdate("restrict"),
+  ],
+);
+
+export const delegated_capability_grants = userManagementSchema.table(
+  "delegated_capability_grants",
+  {
+    ...tenantColumn(),
+    delegatee_user_id: uuid("delegatee_user_id").notNull(),
+    capability: text("capability").notNull(),
+    active: boolean("active").notNull().default(true),
+  },
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.delegatee_user_id, t.capability] }),
+    foreignKey({
+      name: "fk_delegated_caps_tenant_user",
+      columns: [t.iq_tenant_id, t.delegatee_user_id],
+      foreignColumns: [users.iq_tenant_id, users.id],
+    })
+      .onDelete("cascade")
+      .onUpdate("restrict"),
   ],
 );

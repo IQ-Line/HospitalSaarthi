@@ -2,7 +2,6 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { Button } from '@pulse/ui/button';
 import { Card } from '@pulse/ui/card';
 import { useAuthStore } from '@/stores/auth.store';
-import { usePermissionsStore } from '@/stores/permissions.store';
 import { useTenantStore } from '@/stores/tenant.store';
 
 export const Route = createFileRoute('/login')({
@@ -13,38 +12,19 @@ function LoginPage() {
   const navigate = useNavigate();
   const setSession = useAuthStore((s) => s.setSession);
   const setTenant = useTenantStore((s) => s.setTenant);
-  const setPermissions = usePermissionsStore((s) => s.setPermissions);
 
   const handleDevLogin = () => {
-    // Dev-only mock login — replaced by better-auth integration
+    // Dev-only mock login — tokens/ids should match what identity + Cerbos expect when user-management-svc is running.
     setSession({
       accessToken: 'dev-token',
-      userId: 'dev-user-001',
+      userId: 'f47ac10b-58cc-4372-a567-0e02b2c3d481',
       displayName: 'Dev User',
     });
     setTenant({
-      tenantId: 'tenant-001',
+      tenantId: 'f47ac10b-58cc-4372-a567-0e02b2c3d480',
       tenantName: 'Dev Hospital',
       branches: [{ id: 'branch-001', name: 'Main Campus' }],
       activeBranch: 'branch-001',
-    });
-    setPermissions({
-      'user-management': {
-        users: { read: true, write: true },
-        roles: { read: true, write: true },
-      },
-      configurator: {
-        tenants: { read: true, write: true },
-        modules: { read: true, write: true },
-      },
-      empi: {
-        registration: { read: true, write: true },
-        search: { read: true, write: false },
-      },
-      'master-data': {
-        reference: { read: true, write: true },
-        overrides: { read: true, write: true },
-      },
     });
     navigate({ to: '/dashboard' });
   };

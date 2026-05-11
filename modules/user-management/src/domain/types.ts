@@ -14,6 +14,13 @@ export interface User {
   auth_user_id?: string | null;
   username?: string | null;
   org_id?: string | null;
+  /** Department for ABAC; persisted profile field (JWT may also carry `department`). */
+  department?: string | null;
+  /**
+   * Minimum principal clearance tier (derived from `clearances` map) required for sensitive
+   * user.read / user.update / user.delete. 0 = standard record. Sent to Cerbos as `resource.attr.required_clearance`.
+   */
+  clearance_tier_required?: number;
   status: UserStatus;
 }
 
@@ -31,6 +38,9 @@ export interface CreateUserInput {
   phone?: string | null;
   username?: string | null;
   org_id?: string | null;
+  department?: string | null;
+  /** 0–3; higher tiers require stronger principal clearances for read/update/delete. */
+  clearance_tier_required?: number;
 }
 
 /** PATCH /users/{id} request body (partial). */
@@ -40,6 +50,8 @@ export interface UpdateUserInput {
   phone?: string | null;
   username?: string | null;
   org_id?: string | null;
+  department?: string | null;
+  clearance_tier_required?: number;
   status?: UserStatus;
   auth_user_id?: string | null;
 }
@@ -76,6 +88,8 @@ export interface PrincipalAttributes {
   capabilities: string[];
   delegated_capabilities: string[];
   clearances: Record<string, string>;
+  /** Max clearance tier (0–3) derived from the `clearances` map; compared to resource `required_clearance`. */
+  um_clearance_effective_tier: number;
 }
 
 /** GET /auth/principal response body. */

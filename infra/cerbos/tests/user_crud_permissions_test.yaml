@@ -1,0 +1,197 @@
+# yaml-language-server: $schema=https://api.cerbos.dev/latest/cerbos/policy/v1/TestSuite.schema.json
+---
+name: user_crud_permissions
+description: >-
+  User Management — resolver actions user.list, user.create, user.read, user.update and policy
+  user.delete each have explicit ALLOW (capability + tenant) and DENY (missing capability) pairs.
+
+principals:
+  full_crud:
+    id: um-admin
+    roles: []
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: null
+      capabilities:
+        - "um:user:list"
+        - "um:user:create"
+        - "um:user:read"
+        - "um:user:update"
+        - "um:user:delete"
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  read_only:
+    id: um-viewer
+    roles: []
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: null
+      capabilities:
+        - "um:user:read"
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  update_only:
+    id: um-editor
+    roles: []
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: null
+      capabilities:
+        - "um:user:update"
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+resources:
+  user_list:
+    id: list
+    kind: user
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      department: null
+      required_clearance: 0
+
+  user_new:
+    id: new
+    kind: user
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      department: null
+      required_clearance: 0
+
+  user_record:
+    id: user-42
+    kind: user
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      department: null
+      required_clearance: 0
+
+tests:
+  - name: user.list — full capability ALLOW
+    input:
+      principals: [full_crud]
+      resources: [user_list]
+      actions: [user.list]
+    expected:
+      - principal: full_crud
+        resource: user_list
+        actions:
+          user.list: EFFECT_ALLOW
+
+  - name: user.list — missing um:user:list DENY
+    input:
+      principals: [read_only]
+      resources: [user_list]
+      actions: [user.list]
+    expected:
+      - principal: read_only
+        resource: user_list
+        actions:
+          user.list: EFFECT_DENY
+
+  - name: user.create — full capability ALLOW
+    input:
+      principals: [full_crud]
+      resources: [user_new]
+      actions: [user.create]
+    expected:
+      - principal: full_crud
+        resource: user_new
+        actions:
+          user.create: EFFECT_ALLOW
+
+  - name: user.create — missing um:user:create DENY
+    input:
+      principals: [read_only]
+      resources: [user_new]
+      actions: [user.create]
+    expected:
+      - principal: read_only
+        resource: user_new
+        actions:
+          user.create: EFFECT_DENY
+
+  - name: user.read — reader ALLOW
+    input:
+      principals: [read_only]
+      resources: [user_record]
+      actions: [user.read]
+    expected:
+      - principal: read_only
+        resource: user_record
+        actions:
+          user.read: EFFECT_ALLOW
+
+  - name: user.read — missing um:user:read DENY
+    input:
+      principals: [update_only]
+      resources: [user_record]
+      actions: [user.read]
+    expected:
+      - principal: update_only
+        resource: user_record
+        actions:
+          user.read: EFFECT_DENY
+
+  - name: user.update — editor ALLOW
+    input:
+      principals: [update_only]
+      resources: [user_record]
+      actions: [user.update]
+    expected:
+      - principal: update_only
+        resource: user_record
+        actions:
+          user.update: EFFECT_ALLOW
+
+  - name: user.update — missing um:user:update DENY
+    input:
+      principals: [read_only]
+      resources: [user_record]
+      actions: [user.update]
+    expected:
+      - principal: read_only
+        resource: user_record
+        actions:
+          user.update: EFFECT_DENY
+
+  - name: user.delete — admin ALLOW
+    input:
+      principals: [full_crud]
+      resources: [user_record]
+      actions: [user.delete]
+    expected:
+      - principal: full_crud
+        resource: user_record
+        actions:
+          user.delete: EFFECT_ALLOW
+
+  - name: user.delete — missing um:user:delete DENY
+    input:
+      principals: [read_only]
+      resources: [user_record]
+      actions: [user.delete]
+    expected:
+      - principal: read_only
+        resource: user_record
+        actions:
+          user.delete: EFFECT_DENY
+
+  - name: user.delete — editor without um:user:delete DENY
+    input:
+      principals: [update_only]
+      resources: [user_record]
+      actions: [user.delete]
+    expected:
+      - principal: update_only
+        resource: user_record
+        actions:
+          user.delete: EFFECT_DENY

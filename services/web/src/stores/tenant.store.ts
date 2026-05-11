@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
+import { usePermissionsStore } from '@/stores/permissions.store';
 
 interface TenantState {
   tenantId: string | null;
@@ -25,7 +26,8 @@ export const useTenantStore = create<TenantState>()(
       activeBranch: null,
       branches: [],
 
-      setTenant: (tenant) =>
+      setTenant: (tenant) => {
+        usePermissionsStore.getState().clearPermissions();
         set(
           {
             tenantId: tenant.tenantId,
@@ -35,16 +37,22 @@ export const useTenantStore = create<TenantState>()(
           },
           false,
           'setTenant',
-        ),
+        );
+      },
 
-      switchBranch: (branchId) => set({ activeBranch: branchId }, false, 'switchBranch'),
+      switchBranch: (branchId) => {
+        usePermissionsStore.getState().clearPermissions();
+        set({ activeBranch: branchId }, false, 'switchBranch');
+      },
 
-      clearTenant: () =>
+      clearTenant: () => {
+        usePermissionsStore.getState().clearPermissions();
         set(
           { tenantId: null, tenantName: null, activeBranch: null, branches: [] },
           false,
           'clearTenant',
-        ),
+        );
+      },
     }),
     { name: 'tenant' },
   ),

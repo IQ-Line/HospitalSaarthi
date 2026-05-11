@@ -9,7 +9,11 @@ import type {
   UserManagementEventPayloadMap,
 } from "./contracts.js";
 import { USER_MANAGEMENT_EVENT_CONTRACTS } from "./contracts.js";
-import type { UserManagementEventType } from "./constants.js";
+import {
+  USER_MANAGEMENT_EVENT_USER_CREATED,
+  USER_MANAGEMENT_EVENT_USER_UPDATED,
+  type UserManagementEventType,
+} from "./constants.js";
 
 export type PublishUserManagementEventContext = {
   tenantId: string;
@@ -54,6 +58,20 @@ export async function publishUserManagementEvent<K extends UserManagementEventTy
 ): Promise<DomainEvent<UserManagementEventPayloadMap[K]>> {
   validateEventPayload(eventType, payload);
 
+  const contractVersion = USER_MANAGEMENT_EVENT_CONTRACTS[eventType].eventContractVersion;
+  if (
+    eventType === USER_MANAGEMENT_EVENT_USER_CREATED ||
+    eventType === USER_MANAGEMENT_EVENT_USER_UPDATED
+  ) {
+    const p = payload as Record<string, unknown>;
+    if (p.event_contract_version !== contractVersion) {
+      throw new UserManagementEventValidationError(
+        `payload.event_contract_version must match contract for ${eventType}`,
+        [`expected ${contractVersion}, got ${String(p.event_contract_version)}`],
+      );
+    }
+  }
+
   const envelopeIds = mapAuthContextToEventEnvelope({
     tenantId: ctx.tenantId,
     actorId: ctx.actorId,
@@ -65,8 +83,7 @@ export async function publishUserManagementEvent<K extends UserManagementEventTy
     occurred_at: new Date().toISOString(),
     correlation_id: ctx.correlationId,
     actor_id: envelopeIds.actor_id,
-    event_contract_version:
-      USER_MANAGEMENT_EVENT_CONTRACTS[eventType].eventContractVersion,
+    event_contract_version: contractVersion,
     payload,
   });
 

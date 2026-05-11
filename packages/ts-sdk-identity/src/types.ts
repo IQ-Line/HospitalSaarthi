@@ -1,7 +1,9 @@
 import type { JWTPayload as JoseJWTPayload } from "jose";
 
+/** HLD-04 identity claims on the access JWT (authorization lives in PrincipalService / Cerbos, not here). */
 export interface HimsJwtPayload extends JoseJWTPayload {
   sub: string;
+  jti: string;
   /**
    * Canonical tenant scope claim for platform data partitioning.
    * This is the only claim mapped to `Principal.tenantId`.
@@ -10,13 +12,11 @@ export interface HimsJwtPayload extends JoseJWTPayload {
   /**
    * Organization/business context claim.
    * This is distinct from `iq_tenant_id` and mapped to `Principal.orgId`.
+   * When absent or null, `Principal.orgId` is empty string.
    */
-  org_id: string;
+  org_id?: string | null;
   roles: string[];
-  session_id?: string;
-  kind?: string;
   department?: string;
-  idp?: string;
   iat: number;
   exp: number;
   iss: string;
@@ -36,6 +36,15 @@ export interface Principal {
   iat: number;
   exp: number;
   iss: string;
+  /**
+   * PEP-enriched ABAC attributes (User Management LLD §7). Populated after identity + enrichment hooks.
+   * These are the same values sent to Cerbos on `request.principal.attr`.
+   */
+  capabilities?: string[];
+  delegatedCapabilities?: string[];
+  clearances?: Record<string, string>;
+  /** Max user-management clearance tier (0–3) derived from `clearances`; sent to Cerbos as `um_clearance_effective_tier`. */
+  umClearanceEffectiveTier?: number;
 }
 
 export interface IdentityPluginOptions {
@@ -44,6 +53,11 @@ export interface IdentityPluginOptions {
   issuer: string | string[];
   /** Strict allowlist: token `aud` must contain one configured value exactly. */
   audience: string | string[];
+  /**
+   * URL path prefixes (e.g. `/api/auth`) for which JWT verification is skipped.
+   * Use for better-auth (or other IdP) routes mounted on the same Fastify instance.
+   */
+  skipPathPrefixes?: string[];
   cacheTtlMs?: number;
   /**
    * Access token max age in seconds. Defaults to 300 (5 minutes).

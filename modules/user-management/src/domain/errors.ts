@@ -1,5 +1,9 @@
 /** Issues classified in {@link ValidationError}; HTTP mapping uses {@link ValidationError#issue} + {@link UserManagementError#code}. */
-export type ValidationIssue = "full_name_invalid_type" | "full_name_empty" | "assign_role_ids_invalid";
+export type ValidationIssue =
+  | "full_name_invalid_type"
+  | "full_name_empty"
+  | "assign_role_ids_invalid"
+  | "revoke_role_query_invalid";
 
 const VALIDATION_ISSUE_META: Record<ValidationIssue, { code: string; message: string }> = {
   full_name_invalid_type: {
@@ -13,6 +17,10 @@ const VALIDATION_ISSUE_META: Record<ValidationIssue, { code: string; message: st
   assign_role_ids_invalid: {
     code: "INVALID_INPUT",
     message: "user_id and role_id are required.",
+  },
+  revoke_role_query_invalid: {
+    code: "INVALID_INPUT",
+    message: "user_id and role_id query parameters are required UUIDs.",
   },
 };
 
@@ -48,6 +56,16 @@ export class UserNotFoundError extends UserManagementError {
   }
 }
 
+/** PEP did not attach `request.cerbosPrincipal` before /auth/principal (mis-ordered plugins or missing enrichment). */
+export class CerbosPrincipalUnavailableError extends UserManagementError {
+  constructor() {
+    super(
+      "CERBOS_PRINCIPAL_UNAVAILABLE",
+      "Enriched principal is not available on the request; principal enrichment must run before this route.",
+    );
+  }
+}
+
 export class RoleNotFoundError extends UserManagementError {
   constructor(public readonly roleId?: string) {
     super("ROLE_NOT_FOUND", "Role not found for this tenant.");
@@ -57,6 +75,13 @@ export class RoleNotFoundError extends UserManagementError {
 export class DuplicateRoleAssignmentError extends UserManagementError {
   constructor() {
     super("ROLE_ASSIGNMENT_DUPLICATE", "This role is already assigned to the user.");
+  }
+}
+
+/** No matching role assignment row for revoke (idempotent delete had nothing to remove). */
+export class RoleAssignmentNotFoundError extends UserManagementError {
+  constructor() {
+    super("ROLE_ASSIGNMENT_NOT_FOUND", "Role assignment not found for this tenant.");
   }
 }
 

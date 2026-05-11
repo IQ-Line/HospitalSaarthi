@@ -1,8 +1,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { RouterProvider, createRouter } from '@tanstack/react-router';
-import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/query-client';
+import { AppProviders } from '@/app/providers';
 import { routeTree } from './routeTree.gen';
 import '@/styles/index.css';
 
@@ -25,9 +25,9 @@ const rootElement = document.getElementById('app')!;
 if (!rootElement.innerHTML) {
   ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
-      <QueryClientProvider client={queryClient}>
+      <AppProviders>
         <RouterProvider router={router} />
-      </QueryClientProvider>
+      </AppProviders>
     </React.StrictMode>,
   );
 }

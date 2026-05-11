@@ -2,8 +2,11 @@ import Fastify from "fastify";
 import fp from "fastify-plugin";
 import { describe, expect, it } from "vitest";
 import { authzPlugin } from "@hims/ts-sdk-authz";
+import { InMemoryAbacAttributeRepository } from "./data-access/in-memory-abac-attribute-repository.js";
+import { InMemoryUserRepository } from "./data-access/in-memory-user-repository.js";
 import type { PrincipalRoleProjectionRepository } from "./ports/index.js";
 import { principalRoleEnricherPlugin } from "./principal-role-enricher-plugin.js";
+import { createDefaultPrincipalService } from "./services/default-principal-service.js";
 
 class StubPrincipalRoleProjectionRepository implements PrincipalRoleProjectionRepository {
   async listRoleCodesByUser(_tenantId: string, _userId: string): Promise<string[]> {
@@ -35,9 +38,17 @@ describe("principalRoleEnricherPlugin", () => {
     const app = Fastify();
     let seenRoles: string[] = [];
 
+    const userRepository = new InMemoryUserRepository();
+    userRepository.insertUserWithId("tenant-a", "user-1", { full_name: "One" });
+    const principalService = createDefaultPrincipalService({
+      userRepository,
+      principalRoleProjectionRepository: new StubPrincipalRoleProjectionRepository(),
+      abacAttributeRepository: new InMemoryAbacAttributeRepository(),
+    });
+
     await app.register(identityPluginStub);
     await app.register(principalRoleEnricherPlugin, {
-      principalRoleProjectionRepository: new StubPrincipalRoleProjectionRepository(),
+      principalService,
     });
     await app.register(authzPlugin, {
       cerbosUrl: "127.0.0.1:3593",

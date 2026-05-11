@@ -1,27 +1,64 @@
 import sensible from "@fastify/sensible";
-import { authzPlugin } from "@hims/ts-sdk-authz";
+import { assertCerbosReachable, authzPlugin } from "@hims/ts-sdk-authz";
 import { createDb } from "@hims/ts-sdk-db";
 import { createEventBus } from "@hims/ts-sdk-events";
-import { identityPlugin } from "@hims/ts-sdk-identity";
+import { identityPlugin, validateAuthConfig } from "@hims/ts-sdk-identity";
 import Fastify, { type FastifyInstance } from "fastify";
-import { resolveCerbosGrpcTarget } from "./cerbos.js";
-import { resolveUserManagementAuthzTarget } from "./authz-target-resolver.js";
+import { createUserManagementAuthzTargetResolver } from "./authz-target-resolver.js";
+import { createHimsBetterAuth } from "./auth/create-hims-better-auth.js";
+import { registerBetterAuth } from "./auth/register-better-auth.js";
 import {
+  DrizzleAbacAttributeRepository,
   DrizzlePrincipalRoleProjectionRepository,
-  DrizzleRoleRepository,
   DrizzleRoleAssignmentRepository,
+  DrizzleRoleRepository,
   DrizzleUserRepository,
-  InMemoryPrincipalRoleProjectionRepository,
-  InMemoryRoleRepository,
-  InMemoryRoleAssignmentRepository,
-  InMemoryUserRepository,
+  createDefaultPrincipalService,
   principalRoleEnricherPlugin,
-  userManagementPlugin,
 } from "@hims/user-management";
+import { registerUserManagementApi } from "./openapi/register-user-management-api.js";
+
+function readAuthBaseUrl(): string {
+  const raw = process.env.AUTH_BASE_URL?.trim();
+  if (!raw || raw.length === 0) {
+    throw new Error(
+      "AUTH_BASE_URL is required (better-auth baseURL; must align with JWT_ISSUER / identity issuer)",
+    );
+  }
+  return raw.replace(/\/+$/, "");
+}
+
+function readBetterAuthSecret(): string {
+  const s = process.env.BETTER_AUTH_SECRET?.trim();
+  if (!s || s.length < 32) {
+    throw new Error("BETTER_AUTH_SECRET is required (min 32 chars)");
+  }
+  return s;
+}
+
+function readTrustedOrigins(): string[] {
+  const raw = process.env.AUTH_TRUSTED_ORIGINS?.trim();
+  if (!raw || raw.length === 0) {
+    return [];
+  }
+  return raw
+    .split(",")
+    .map((o) => o.trim())
+    .filter((o) => o.length > 0);
+}
+
+function requireDatabaseUrl(): string {
+  const databaseUrl = process.env.DATABASE_URL?.trim();
+  if (!databaseUrl || databaseUrl.length === 0) {
+    throw new Error(
+      "DATABASE_URL is required (PostgreSQL for user-management and better-auth persistence)",
+    );
+  }
+  return databaseUrl;
+}
 
 /**
- * Internal orchestration: Fastify instance, event bus lifecycle, persistence adapters, module plugin registration.
- * Not part of the service’s public contract — {@link main} is the sole runtime entrypoint.
+ * Fastify wiring: event bus, better-auth, identity verification, Cerbos, user-management module.
  */
 async function createApp(): Promise<FastifyInstance> {
   const app = Fastify();
@@ -35,43 +72,70 @@ async function createApp(): Promise<FastifyInstance> {
 
   await app.register(sensible);
 
-  await app.register(identityPlugin, {
-    jwksUrl: process.env.JWKS_URL ?? "http://localhost:3001/.well-known/jwks.json",
-    issuer: process.env.JWT_ISSUER ?? "http://localhost:3001",
-    audience: process.env.JWT_AUDIENCE ?? "hims-platform",
-  });
-  const databaseUrl = process.env.DATABASE_URL?.trim();
-  const usePostgres = databaseUrl !== undefined && databaseUrl.length > 0;
-
-  let userRepository;
-  let roleRepository;
-  let roleAssignmentRepository;
-  let principalRoleProjectionRepository;
-  if (usePostgres) {
-    const db = createDb(databaseUrl);
-    userRepository = new DrizzleUserRepository(db);
-    roleRepository = new DrizzleRoleRepository(db);
-    roleAssignmentRepository = new DrizzleRoleAssignmentRepository(db);
-    principalRoleProjectionRepository = new DrizzlePrincipalRoleProjectionRepository(db);
-  } else {
-    userRepository = new InMemoryUserRepository();
-    roleRepository = new InMemoryRoleRepository();
-    roleAssignmentRepository = new InMemoryRoleAssignmentRepository();
-    principalRoleProjectionRepository = new InMemoryPrincipalRoleProjectionRepository(
-      roleAssignmentRepository,
-      roleRepository,
-    );
+  if (!process.env.CERBOS_URL || process.env.CERBOS_URL.trim() === "") {
+    throw new Error("CERBOS_URL is required for authorization service");
   }
+  const cerbosUrl = process.env.CERBOS_URL.trim();
+
+  const identityAuth = validateAuthConfig();
+  const pgDb = createDb(requireDatabaseUrl());
+
+  const userRepository = new DrizzleUserRepository(pgDb);
+  const roleRepository = new DrizzleRoleRepository(pgDb);
+  const roleAssignmentRepository = new DrizzleRoleAssignmentRepository(pgDb);
+  const principalRoleProjectionRepository = new DrizzlePrincipalRoleProjectionRepository(pgDb);
+  const abacAttributeRepository = new DrizzleAbacAttributeRepository(pgDb);
+
+  const principalService = createDefaultPrincipalService({
+    userRepository,
+    principalRoleProjectionRepository,
+    abacAttributeRepository,
+  });
+
+  const trustedOrigins = readTrustedOrigins();
+  const auth = createHimsBetterAuth(
+    pgDb,
+    {
+      authBaseUrl: readAuthBaseUrl(),
+      secret: readBetterAuthSecret(),
+      jwtIssuer: identityAuth.issuer,
+      jwtAudience: identityAuth.audience,
+      trustedOrigins,
+      disableJwtPrivateKeyEncryption:
+        process.env.NODE_ENV === "test" ||
+        process.env.BETTER_AUTH_DISABLE_JWT_KEY_ENCRYPTION === "true",
+    },
+    { userRepository, principalRoleProjectionRepository },
+  );
+
+  await registerBetterAuth(app, auth, { trustedOrigins });
+
+  await app.register(identityPlugin, {
+    ...identityAuth,
+    skipPathPrefixes: ["/api/auth"],
+  });
+
+  await assertCerbosReachable(cerbosUrl);
 
   await app.register(principalRoleEnricherPlugin, {
-    principalRoleProjectionRepository,
+    principalService,
   });
   await app.register(authzPlugin, {
-    cerbosUrl: resolveCerbosGrpcTarget(),
-    resolveTarget: resolveUserManagementAuthzTarget,
+    cerbosUrl,
+    resolveTarget: createUserManagementAuthzTargetResolver({
+      getUserProfile: async (tenantId, userId) => {
+        const u = await userRepository.getUserById(tenantId, userId);
+        if (u === null) return null;
+        return {
+          org_id: u.org_id ?? null,
+          department: u.department ?? null,
+          clearance_tier_required: u.clearance_tier_required ?? 0,
+        };
+      },
+    }),
   });
 
-  await app.register(userManagementPlugin, {
+  await registerUserManagementApi(app, {
     eventBus,
     userRepository,
     roleRepository,

@@ -3,7 +3,8 @@ import { devtools } from 'zustand/middleware';
 
 type ActionPermissions = Record<string, boolean>;
 type FeaturePermissions = Record<string, ActionPermissions>;
-type PermissionMap = Record<string, FeaturePermissions>;
+/** Cerbos-backed UX map from `GET /api/user-management/auth/permissions-map` (shell / gating only). */
+export type PermissionMap = Record<string, FeaturePermissions>;
 
 interface PermissionsState {
   map: PermissionMap;

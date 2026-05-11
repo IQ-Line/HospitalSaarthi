@@ -32,6 +32,20 @@ export const base = [
               sourceTag: 'type:client',
               onlyDependOnLibsWithTags: [],
             },
+            {
+              sourceTag: 'type:app',
+              onlyDependOnLibsWithTags: [
+                'type:sdk',
+                'type:client',
+                'type:module',
+                'type:ui',
+                'npm:private',
+              ],
+            },
+            {
+              sourceTag: 'type:ui',
+              onlyDependOnLibsWithTags: ['type:ui', 'type:sdk', 'type:client'],
+            },
           ],
         },
       ],

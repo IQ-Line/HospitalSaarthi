@@ -2,6 +2,7 @@ import type { DomainEvent, EventBus, EventHandler, Subscription } from "@hims/ts
 import { describe, expect, it } from "vitest";
 import { InMemoryUserRepository } from "../data-access/in-memory-user-repository.js";
 import { USER_MANAGEMENT_EVENT_USER_UPDATED } from "../events/constants.js";
+import { USER_MANAGEMENT_USER_EVENT_CONTRACT_VERSION } from "../events/contracts.js";
 import { updateUser } from "./update-user.js";
 
 class TestEventBus implements EventBus {
@@ -47,6 +48,9 @@ describe("updateUser", () => {
     expect(updated?.full_name).toBe("Jane Smith");
     expect(eventBus.publishedEvents).toHaveLength(1);
     expect(eventBus.publishedEvents[0]?.event_type).toBe(USER_MANAGEMENT_EVENT_USER_UPDATED);
+    expect(eventBus.publishedEvents[0]?.event_contract_version).toBe(
+      USER_MANAGEMENT_USER_EVENT_CONTRACT_VERSION,
+    );
   });
 
   it("returns null and publishes nothing when repository returns null", async () => {
@@ -98,6 +102,7 @@ describe("updateUser", () => {
     );
 
     const event = eventBus.publishedEvents[0];
+    expect(event?.event_contract_version).toBe(USER_MANAGEMENT_USER_EVENT_CONTRACT_VERSION);
     expect(event?.payload).toEqual({
       id: created.id,
       full_name: "John Doe",
@@ -107,6 +112,7 @@ describe("updateUser", () => {
       username: "john",
       org_id: "f47ac10b-58cc-4372-a567-0e02b2c3d479",
       auth_user_id: "f47ac10b-58cc-4372-a567-0e02b2c3d478",
+      event_contract_version: USER_MANAGEMENT_USER_EVENT_CONTRACT_VERSION,
     });
   });
 
@@ -131,6 +137,9 @@ describe("updateUser", () => {
     const reloaded = await userRepository.getUserById("tenant-a", created.id);
     expect(updated?.status).toBe("inactive");
     expect(reloaded?.status).toBe("inactive");
+    expect(eventBus.publishedEvents[0]?.event_contract_version).toBe(
+      USER_MANAGEMENT_USER_EVENT_CONTRACT_VERSION,
+    );
     expect(eventBus.publishedEvents[0]?.payload.status).toBe("inactive");
   });
 });

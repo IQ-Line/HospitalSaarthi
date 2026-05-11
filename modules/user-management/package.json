@@ -16,6 +16,7 @@
     "build": "tsc -p tsconfig.lib.json"
   },
   "dependencies": {
+    "@cerbos/core": "0.21.1",
     "@hims/ts-sdk-authz": "workspace:*",
     "@hims/ts-sdk-db": "workspace:*",
     "@hims/ts-sdk-events": "workspace:*",
@@ -25,6 +26,7 @@
   },
   "devDependencies": {
     "@fastify/sensible": "^6.0.4",
+    "@hims/ts-sdk-http": "workspace:*",
     "@hims/ts-sdk-identity": "workspace:*",
     "vitest": "^4.1.5"
   }

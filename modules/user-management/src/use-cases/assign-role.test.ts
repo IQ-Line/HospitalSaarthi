@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { RoleNotFoundError, UserNotFoundError } from "../domain/errors.js";
 import type {
   AssignRoleInput,
+  ListUsersOptions,
   Role,
   RoleAssignment,
   RoleAssignmentRef,
@@ -10,6 +11,7 @@ import type {
   RoleRepository,
   User,
   UserRepository,
+  UserWithTenant,
 } from "../ports/index.js";
 import { assignRole } from "./assign-role.js";
 
@@ -29,6 +31,12 @@ class StubUserRepository implements UserRepository {
   }
   async getUserById(): Promise<User | null> {
     return this.user;
+  }
+  async findUserByGlobalId(): Promise<UserWithTenant | null> {
+    return null;
+  }
+  async listUsers(_tenantId: string, _options?: ListUsersOptions): Promise<User[]> {
+    return this.user ? [this.user] : [];
   }
   async updateUser(): Promise<User | null> {
     throw new Error("not implemented");
@@ -92,6 +100,7 @@ describe("assignRole", () => {
           userRepository: new StubUserRepository({
             id: "user-1",
             full_name: "User One",
+            clearance_tier_required: 0,
             status: "active",
           }),
           roleRepository: new StubRoleRepository(null),

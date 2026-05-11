@@ -6,6 +6,10 @@ import { createUser } from "../use-cases/create-user.js";
 import type { CreateUserDeps } from "../use-cases/create-user.js";
 import { getUserById } from "../use-cases/get-user.js";
 import type { GetUserDeps } from "../use-cases/get-user.js";
+import { listUsersWithAuthz } from "../use-cases/list-users-with-authz.js";
+import type { ListUsersWithAuthzDeps } from "../use-cases/list-users-with-authz.js";
+import { deactivateUser } from "../use-cases/deactivate-user.js";
+import type { DeactivateUserDeps } from "../use-cases/deactivate-user.js";
 import { updateUser } from "../use-cases/update-user.js";
 import type { UpdateUserDeps } from "../use-cases/update-user.js";
 
@@ -15,7 +19,9 @@ export type UserHandlersDeps = {
   getActorId: (request: FastifyRequest) => string;
   createUserDeps: CreateUserDeps;
   getUserDeps: GetUserDeps;
+  listUsersAuthzDeps: ListUsersWithAuthzDeps;
   updateUserDeps: UpdateUserDeps;
+  deactivateUserDeps: DeactivateUserDeps;
 };
 
 export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandlersDeps): void {
@@ -33,6 +39,44 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
           request.body,
         );
         return reply.status(201).send(user);
+      } catch (err) {
+        return replyWithUserManagementError(reply, err, cid);
+      }
+    },
+  );
+
+  fastify.get(
+    "/users",
+    { config: { authMode: "protected" } },
+    async (request, reply) => {
+      const tenantId = deps.getTenantId(request);
+      const cid = request.correlationId ?? request.id;
+      try {
+        const users = await listUsersWithAuthz(request, deps.listUsersAuthzDeps, tenantId);
+        return reply.send(users);
+      } catch (err) {
+        return replyWithUserManagementError(reply, err, cid);
+      }
+    },
+  );
+
+  fastify.post<{ Params: { id: string } }>(
+    "/users/:id/deactivate",
+    { config: { authMode: "protected" } },
+    async (request, reply) => {
+      const tenantId = deps.getTenantId(request);
+      const actorId = deps.getActorId(request);
+      const cid = request.correlationId ?? request.id;
+      try {
+        const user = await deactivateUser(
+          deps.deactivateUserDeps,
+          { tenantId, actorId, correlationId: cid },
+          request.params.id,
+        );
+        if (user === null) {
+          return replyWithUserManagementError(reply, new UserNotFoundError(request.params.id), cid);
+        }
+        return reply.send(user);
       } catch (err) {
         return replyWithUserManagementError(reply, err, cid);
       }

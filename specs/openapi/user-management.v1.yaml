@@ -43,20 +43,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           description: User not found for this tenant.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /auth/principal:
     get:
       tags:
         - Auth
       summary: Get enriched principal for authorization
       description: >
-        Returns the fully enriched principal used for authorization,
-        combining JWT claims with resolved authorization data.
+        Returns the exact `PrincipalService.getPrincipal` payload attached by PEP as
+        `request.cerbosPrincipal` (no recomputation). Semantically this matches the Cerbos principal
+        used on checks: `id` is `principal.id`, `roles` is `principal.roles`, and `attributes` is
+        `principal.attr` (same snake_case keys as `principalAttrsForCerbos` in `@hims/ts-sdk-authz`).
+        The HTTP body nests attrs under `attributes` (Cerbos uses `attr`). Session-only JWT fields
+        (`sessionId`, `iat`, `exp`, `iss`, …) are not included here — use the identity layer / token
+        for those. If enrichment did not run, the service responds with 500 `CERBOS_PRINCIPAL_UNAVAILABLE`.
       parameters:
         - $ref: "#/components/parameters/IqTenantIdHeader"
       responses:
@@ -78,7 +87,92 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Platform user not found for this tenant (enrichment failed).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          description: >
+            Enriched principal missing on the request (PEP mis-configuration) or other server fault.
+            Code `CERBOS_PRINCIPAL_UNAVAILABLE` when principal enrichment did not run before this route.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+  /auth/permissions-map:
+    get:
+      tags:
+        - Auth
+      summary: Cerbos-backed SPA permission map (UX only)
+      description: >
+        Returns a nested map (module → feature → action → boolean) derived from the same Cerbos PDP
+        checks as User Management APIs. Intended for frontend navigation and control visibility only;
+        every protected API must still enforce authorization server-side.
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+      responses:
+        "200":
+          description: Permission map for the authenticated principal in the active tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PermissionsUxMapResponse"
+        "400":
+          description: Request validation error (including tenant header/JWT mismatch when header is provided).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /users:
+    get:
+      tags:
+        - Users
+      summary: List tenant-scoped platform users (ABAC-filtered)
+      description: >
+        Returns users for the active tenant. Route access is gated on `user.list` (PEP); the list
+        body is filtered using a single Cerbos PlanResources call for `user.read` and the returned
+        query-plan AST (evaluated locally against each row), not per-row CheckResources.
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+      responses:
+        "200":
+          description: Users visible to the caller under Cerbos ABAC rules for this tenant.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+        "400":
+          description: Request validation error (including tenant header/JWT mismatch when header is provided).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
     post:
       tags:
         - Users
@@ -121,6 +215,15 @@ paths:
                   format: uuid
                   nullable: true
                   description: Organization scope (configurator organizations.id); logical reference only.
+                department:
+                  type: string
+                  nullable: true
+                  description: Department for ABAC enrichment when stored on the profile.
+                clearance_tier_required:
+                  type: integer
+                  minimum: 0
+                  maximum: 3
+                  description: Initial minimum clearance tier required to access this user record (ABAC).
       responses:
         "201":
           description: Platform user created for the tenant.
@@ -140,6 +243,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /users/{id}:
     get:
       tags:
@@ -173,12 +280,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           description: User not found for this tenant.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          $ref: "#/components/responses/InternalError"
     patch:
       tags:
         - Users
@@ -220,6 +331,15 @@ paths:
                   format: uuid
                   nullable: true
                   description: Organization scope (configurator organizations.id); logical reference only.
+                department:
+                  type: string
+                  nullable: true
+                  description: Department for ABAC when updated on the profile.
+                clearance_tier_required:
+                  type: integer
+                  minimum: 0
+                  maximum: 3
+                  description: Minimum clearance tier for sensitive access (ABAC).
                 status:
                   type: string
                   enum: [active, inactive, suspended]
@@ -248,12 +368,62 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           description: User not found for this tenant.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /users/{id}/deactivate:
+    post:
+      tags:
+        - Users
+      summary: Deactivate a tenant-scoped platform user
+      description: >
+        Soft-deactivates the user by setting `status` to `inactive`. Idempotent when already inactive.
+        Uses Cerbos action `user.delete` (not `user.update`) so policies can separate profile edits from deactivation.
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Platform user id within the current tenant.
+      responses:
+        "200":
+          description: User is now inactive (or was already inactive).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Request validation error (including tenant header/JWT mismatch when header is provided).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: User not found for this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /role-assignments:
     post:
       tags:
@@ -302,6 +472,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           description: User or role not found for this tenant.
           content:
@@ -314,8 +486,75 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - RoleAssignments
+      summary: Revoke a role assignment
+      description: >
+        Removes the role assignment for `user_id` + `role_id` in the current tenant. Query parameters
+        identify the assignment (same pair as POST assign). Publishes `user-management.role.revoked` on success.
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+        - name: user_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Platform user id within the current tenant.
+        - name: role_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Role id within the current tenant.
+      responses:
+        "200":
+          description: Role assignment removed; body echoes the revoked row identifiers.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleAssignment"
+        "400":
+          description: Invalid or missing query parameters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: User, role, or role assignment not found for this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
 components:
+  responses:
+    Forbidden:
+      description: Cerbos PDP denied the action for this principal (PEP).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorMessage"
+    InternalError:
+      description: Unexpected server failure while processing the request.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorMessage"
   securitySchemes:
     bearerAuth:
       type: http
@@ -335,6 +574,24 @@ components:
         type: string
         format: uuid
   schemas:
+    PermissionsUxMap:
+      type: object
+      description: >
+        Nested map keyed by module id (e.g. user-management), then feature id (e.g. users), then action id (e.g. read).
+        Values are Cerbos-backed UX hints from GET /auth/permissions-map.
+      additionalProperties:
+        type: object
+        additionalProperties:
+          type: object
+          additionalProperties:
+            type: boolean
+    PermissionsUxMapResponse:
+      type: object
+      required:
+        - map
+      properties:
+        map:
+          $ref: "#/components/schemas/PermissionsUxMap"
     ErrorMessage:
       type: object
       required:
@@ -383,12 +640,27 @@ components:
           format: uuid
           nullable: true
           description: Organization scope when set.
+        department:
+          type: string
+          nullable: true
+          description: Department attribute for ABAC (persisted profile field).
+        clearance_tier_required:
+          type: integer
+          minimum: 0
+          maximum: 3
+          description: >
+            Minimum principal clearance tier (from Cerbos `um_clearance_effective_tier`) required for
+            user.read / user.update / user.delete on this record. 0 = standard.
         status:
           type: string
           enum: [active, inactive, suspended]
           description: Platform user lifecycle state.
     Principal:
       type: object
+      description: >
+        Authorization snapshot for PDP alignment. Maps to Cerbos principal as
+        `{ id, roles, attr: attributes }` after `request.user` is synced from this payload in the
+        enrichment hook (see `@hims/user-management` principal enrichment plugin).
       required:
         - id
         - roles
@@ -396,6 +668,7 @@ components:
       properties:
         id:
           type: string
+          description: Same value as Cerbos `principal.id` and JWT `sub` (platform user id).
         roles:
           type: array
           items:
@@ -409,6 +682,7 @@ components:
             - capabilities
             - delegated_capabilities
             - clearances
+            - um_clearance_effective_tier
           properties:
             iq_tenant_id:
               type: string
@@ -431,6 +705,13 @@ components:
               additionalProperties:
                 type: string
               description: Map of clearance types to levels (e.g. psychiatric, vip).
+            um_clearance_effective_tier:
+              type: integer
+              minimum: 0
+              maximum: 3
+              description: >
+                Highest clearance tier derived from `clearances` for comparison with
+                `resource.attr.required_clearance` on user resources in Cerbos.
     RoleAssignment:
       type: object
       required:

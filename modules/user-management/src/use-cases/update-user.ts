@@ -3,8 +3,9 @@ import {
   USER_MANAGEMENT_EVENT_USER_DEACTIVATED,
   USER_MANAGEMENT_EVENT_USER_UPDATED,
 } from "../events/constants.js";
+import { ensureUserEventPayload } from "../events/ensure-user-event-payload.js";
 import { publishUserManagementEvent } from "../events/publish-user-management-event.js";
-import type { UpdateUserInput, User, UserRepository, UserStatus } from "../ports/index.js";
+import type { UpdateUserInput, User, UserRepository } from "../ports/index.js";
 
 export type UpdateUserDeps = {
   userRepository: UserRepository;
@@ -33,16 +34,7 @@ export async function updateUser(
     { eventBus: deps.eventBus },
     USER_MANAGEMENT_EVENT_USER_UPDATED,
     ctx,
-    {
-      id: user.id,
-      full_name: user.full_name,
-      email: user.email ?? null,
-      phone: user.phone ?? null,
-      status: user.status as UserStatus,
-      username: user.username ?? null,
-      org_id: user.org_id ?? null,
-      auth_user_id: user.auth_user_id ?? null,
-    },
+    ensureUserEventPayload(user),
   );
 
   if (previous !== null && previous.status !== "inactive" && user.status === "inactive") {

@@ -3,11 +3,8 @@ import type { EventBus } from "@hims/ts-sdk-events";
 import type { FastifyInstance, FastifyPluginAsync, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
 import type {
-  AuthContext,
-  Principal,
   PrincipalRoleProjectionRepository,
   RoleRepository,
-  PrincipalService,
   RoleAssignmentRepository,
   UserRepository,
 } from "./ports/index.js";
@@ -17,7 +14,6 @@ import { registerAuthHandlers } from "./rest-handlers/auth-handlers.js";
 import { registerRoleHandlers } from "./rest-handlers/role-handlers.js";
 import { registerUserHandlers } from "./rest-handlers/user-handlers.js";
 import { validateRbacIntegrity } from "./use-cases/validate-rbac-integrity.js";
-import { projectPrincipalRoles } from "./use-cases/project-principal-roles.js";
 
 type RequestWithOptionalUser = FastifyRequest & { user?: unknown };
 
@@ -37,13 +33,6 @@ function resolveUserIdFromRequestUser(user: unknown): string | undefined {
   return pickNonEmptyString(u["sub"]) ?? pickNonEmptyString(u["userId"]);
 }
 
-/** JWT `org_id` or SDK-normalized `orgId` on `request.user`. */
-function extractOrgIdFromRequestUser(user: unknown): string | null {
-  if (user == null || typeof user !== "object") return null;
-  const u = user as Record<string, unknown>;
-  return pickNonEmptyString(u["org_id"]) ?? pickNonEmptyString(u["orgId"]) ?? null;
-}
-
 function defaultGetTenantId(request: FastifyRequest): string {
   return resolveTenantIdFromRequestUser((request as RequestWithOptionalUser).user);
 }
@@ -54,38 +43,6 @@ function defaultGetUserId(request: FastifyRequest): string {
   const userId = resolveUserIdFromRequestUser(user);
   if (userId === undefined) throw request.server.httpErrors.unauthorized();
   return userId;
-}
-
-/** Minimal PEP stub until PrincipalService is implemented with real enrichment. */
-function createStubPrincipalService(
-  principalRoleProjectionRepository: PrincipalRoleProjectionRepository,
-): PrincipalService {
-  return {
-    async getPrincipal(context: AuthContext): Promise<Principal> {
-      const requestUser = context.requestUser;
-      const roles = await projectPrincipalRoles(
-        {
-          principalRoleProjectionRepository,
-        },
-        context.tenantId,
-        context.userId,
-      );
-      const orgId = extractOrgIdFromRequestUser(requestUser);
-
-      return {
-        id: context.userId,
-        roles,
-        attributes: {
-          iq_tenant_id: context.tenantId,
-          department: null,
-          org_id: orgId,
-          capabilities: [],
-          delegated_capabilities: [],
-          clearances: {},
-        },
-      };
-    },
-  };
 }
 
 export interface UserManagementPluginOptions {
@@ -109,7 +66,6 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
     principalRoleProjectionRepository,
     eventBus,
   } = options;
-  const principalService = createStubPrincipalService(principalRoleProjectionRepository);
 
   const getTenantId = options.getTenantId ?? defaultGetTenantId;
   const getUserId = options.getUserId ?? defaultGetUserId;
@@ -142,20 +98,27 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
     getActorId,
     createUserDeps: { userRepository, eventBus },
     getUserDeps: { userRepository },
+    listUsersAuthzDeps: { userRepository },
     updateUserDeps: { userRepository, eventBus },
+    deactivateUserDeps: { userRepository, eventBus },
   });
 
   registerRoleHandlers(fastify, {
     getTenantId,
     getActorId,
     assignRoleDeps: { userRepository, roleRepository, roleAssignmentRepository, eventBus },
+    revokeRoleDeps: { userRepository, roleRepository, roleAssignmentRepository, eventBus },
   });
 
   registerAuthHandlers(fastify, {
     getTenantId,
     getUserId,
     getUserDeps: { userRepository },
-    getPrincipalDeps: { principalService },
+    uxPermissionMapDeps: {
+      userRepository,
+      getTenantId,
+      getUserId,
+    },
   });
 };
 

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import type {
   AssignRoleInput,
   CreateUserInput,
+  ListUsersOptions,
   Role,
   RoleAssignment,
   RoleAssignmentRef,
@@ -13,6 +14,7 @@ import type {
   UpdateUserInput,
   User,
   UserRepository,
+  UserWithTenant,
 } from "./ports/index.js";
 import { RbacIntegrityViolationError } from "./domain/errors.js";
 import { userManagementPlugin } from "./router.js";
@@ -32,6 +34,12 @@ class EmptyUserRepository implements UserRepository {
   }
   async getUserById(_tenantId: string, _userId: string): Promise<User | null> {
     return null;
+  }
+  async findUserByGlobalId(): Promise<UserWithTenant | null> {
+    return null;
+  }
+  async listUsers(_tenantId: string, _options?: ListUsersOptions): Promise<User[]> {
+    return [];
   }
   async updateUser(
     _tenantId: string,

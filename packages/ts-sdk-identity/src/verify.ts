@@ -110,10 +110,29 @@ function validateProtectedHeader(
   }
 }
 
+function resolveOrgIdForPrincipal(tenantId: string, raw: unknown): string {
+  if (raw === null || raw === undefined) {
+    return "";
+  }
+  if (typeof raw !== "string") {
+    return "";
+  }
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) {
+    return "";
+  }
+  if (trimmed === tenantId) {
+    throw new IdentityVerificationError(
+      "iq_tenant_id and org_id must represent distinct semantic scopes when org_id is set",
+    );
+  }
+  return trimmed;
+}
+
 function toPrincipal(payload: HimsJwtPayload): Principal {
   const userId = asNonEmptyString(payload.sub, "sub");
   const tenantId = asNonEmptyString(payload.iq_tenant_id, "iq_tenant_id");
-  const orgId = asNonEmptyString(payload.org_id, "org_id");
+  const orgId = resolveOrgIdForPrincipal(tenantId, payload.org_id);
   const iss = asNonEmptyString(payload.iss, "iss");
   if (typeof payload.iat !== "number") {
     throw new IdentityVerificationError("iat claim is required");
@@ -121,21 +140,14 @@ function toPrincipal(payload: HimsJwtPayload): Principal {
   if (typeof payload.exp !== "number") {
     throw new IdentityVerificationError("exp claim is required");
   }
-  if (tenantId === orgId) {
-    throw new IdentityVerificationError(
-      "iq_tenant_id and org_id must represent distinct semantic scopes",
-    );
-  }
 
   return {
     userId,
     tenantId,
     orgId,
     roles: sanitizeRoles(payload.roles),
-    sessionId: payload.session_id ?? "",
-    kind: payload.kind,
+    sessionId: "",
     department: payload.department,
-    idp: payload.idp,
     iat: payload.iat,
     exp: payload.exp,
     iss,
@@ -160,7 +172,7 @@ export async function verifyToken(
   verifyOpts.issuer = issuerAllowlist;
   verifyOpts.audience = audienceAllowlist;
   verifyOpts.algorithms = [...allowedAlgorithms];
-  verifyOpts.requiredClaims = ["sub", "iq_tenant_id", "org_id", "roles", "exp", "iat"];
+  verifyOpts.requiredClaims = ["sub", "iq_tenant_id", "roles", "jti", "exp", "iat"];
   verifyOpts.maxTokenAge = `${maxTokenAgeSeconds}s`;
   verifyOpts.clockTolerance = `${clockSkewSeconds}s`;
 

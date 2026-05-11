@@ -1,5 +1,6 @@
 import type { EventBus } from "@hims/ts-sdk-events";
 import {
+  RoleAssignmentNotFoundError,
   RoleNotFoundError,
   UserNotFoundError,
   ValidationError,
@@ -31,7 +32,7 @@ export async function revokeRole(
   deps: RevokeRoleDeps,
   ctx: RevokeRoleContext,
   input: AssignRoleInput,
-): Promise<RoleAssignment | null> {
+): Promise<RoleAssignment> {
   if (
     typeof input.user_id !== "string" ||
     input.user_id.trim() === "" ||
@@ -53,7 +54,7 @@ export async function revokeRole(
 
   const revoked = await deps.roleAssignmentRepository.revokeRole(ctx.tenantId, input);
   if (revoked === null) {
-    return null;
+    throw new RoleAssignmentNotFoundError();
   }
 
   await publishUserManagementEvent(

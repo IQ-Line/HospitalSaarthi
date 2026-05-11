@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
+import { usePermissionsStore } from '@/stores/permissions.store';
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -31,7 +32,8 @@ export const useAuthStore = create<AuthState>()(
           'setSession',
         ),
 
-      clearSession: () =>
+      clearSession: () => {
+        usePermissionsStore.getState().clearPermissions();
         set(
           {
             isAuthenticated: false,
@@ -41,7 +43,8 @@ export const useAuthStore = create<AuthState>()(
           },
           false,
           'clearSession',
-        ),
+        );
+      },
     }),
     { name: 'auth' },
   ),

@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
 import type { Value } from "@cerbos/core";
+import { forbidden } from "@hims/ts-sdk-http";
 import type { Principal } from "@hims/ts-sdk-identity";
 import type {
   AuthzPluginOptions,
@@ -10,6 +11,7 @@ import type {
 } from "./types.js";
 import { closeCerbosClient, getCerbosClient } from "./client.js";
 import { DecisionCache } from "./decision-cache.js";
+import { principalAttrsForCerbos } from "./principal-attr.js";
 
 const CACHE_KEY = Symbol("authzDecisionCache");
 
@@ -138,11 +140,9 @@ async function authzPluginFn(
       const result = await cerbos.checkResource({
         principal: {
           id: principal.userId,
+          /** Identity/context only — module policies should use `attr` (capabilities, tenant, etc.). */
           roles: principal.roles,
-          attr: {
-            iq_tenant_id: principal.tenantId,
-            org_id: principal.orgId,
-          },
+          attr: principalAttrsForCerbos(principal),
         },
         resource: { kind, id, ...(attr && { attr }) },
         actions: [action],
@@ -164,11 +164,9 @@ async function authzPluginFn(
       const result = await cerbos.planResources({
         principal: {
           id: principal.userId,
+          /** Identity/context only — module policies should use `attr` (capabilities, tenant, etc.). */
           roles: principal.roles,
-          attr: {
-            iq_tenant_id: principal.tenantId,
-            org_id: principal.orgId,
-          },
+          attr: principalAttrsForCerbos(principal),
         },
         resource: { kind, ...(attr && { attr }) },
         action,
@@ -209,11 +207,7 @@ async function authzPluginFn(
     );
 
     if (!result.isAllowed(target.action)) {
-      reply.code(403).send({
-        code: "AUTHZ_FORBIDDEN",
-        message: "Forbidden",
-        correlation_id: request.correlationId,
-      });
+      forbidden(reply, request, "AUTHZ_FORBIDDEN", "Forbidden");
     }
   });
 

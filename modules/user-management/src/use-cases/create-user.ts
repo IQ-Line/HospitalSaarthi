@@ -1,8 +1,9 @@
 import type { EventBus } from "@hims/ts-sdk-events";
 import { ValidationError } from "../domain/errors.js";
 import { USER_MANAGEMENT_EVENT_USER_CREATED } from "../events/constants.js";
+import { ensureUserEventPayload } from "../events/ensure-user-event-payload.js";
 import { publishUserManagementEvent } from "../events/publish-user-management-event.js";
-import type { CreateUserInput, User, UserRepository, UserStatus } from "../ports/index.js";
+import type { CreateUserInput, User, UserRepository } from "../ports/index.js";
 
 export type CreateUserDeps = {
   userRepository: UserRepository;
@@ -34,16 +35,7 @@ export async function createUser(
     { eventBus: deps.eventBus },
     USER_MANAGEMENT_EVENT_USER_CREATED,
     ctx,
-    {
-      id: user.id,
-      full_name: user.full_name,
-      email: user.email ?? null,
-      phone: user.phone ?? null,
-      status: user.status as UserStatus,
-      username: user.username ?? null,
-      org_id: user.org_id ?? null,
-      auth_user_id: user.auth_user_id ?? null,
-    },
+    ensureUserEventPayload(user),
   );
   return user;
 }

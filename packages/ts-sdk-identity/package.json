@@ -19,6 +19,7 @@
     "fastify": ">=5.0.0"
   },
   "dependencies": {
+    "@hims/ts-sdk-http": "workspace:*",
     "fastify-plugin": "^5.1.0",
     "jose": "^6.2.3"
   },

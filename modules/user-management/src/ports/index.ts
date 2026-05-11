@@ -14,6 +14,8 @@ import type {
   UserStatus,
 } from "../domain/types.js";
 
+import type { UserReadListResourceAbac } from "../domain/user-read-list-resource-filter.js";
+
 export type {
   AssignRoleInput,
   AuthContext,
@@ -27,10 +29,35 @@ export type {
   UserStatus,
 } from "../domain/types.js";
 
+export type { UserReadListResourceAbac };
+
+export type ListUsersOptions = {
+  /** When set, repository applies SQL/in-memory resource ABAC aligned with `user.read` (department + clearance). */
+  userReadResourceAbac?: UserReadListResourceAbac;
+};
+
+/** Platform user plus owning tenant (for JWT `iq_tenant_id` resolution by global user id). */
+export type UserWithTenant = User & { iq_tenant_id: string };
+
 export interface UserRepository {
   createUser(tenantId: string, input: CreateUserInput): Promise<User>;
   getUserById(tenantId: string, userId: string): Promise<User | null>;
+  /**
+   * Resolves a platform user by primary key alone. Prefer tenant-scoped {@link getUserById} when
+   * tenant is known; this exists for auth issuance where `sub` is the only stable key on the token.
+   */
+  findUserByGlobalId(userId: string): Promise<UserWithTenant | null>;
+  listUsers(tenantId: string, options?: ListUsersOptions): Promise<User[]>;
   updateUser(tenantId: string, userId: string, input: UpdateUserInput): Promise<User | null>;
+}
+
+/**
+ * Tenant-scoped ABAC attributes sourced from User Management persistence (LLD §6–7).
+ */
+export interface AbacAttributeRepository {
+  listRoleCapabilitiesForUser(tenantId: string, userId: string): Promise<string[]>;
+  getClearances(tenantId: string, userId: string): Promise<Record<string, string>>;
+  listDelegatedCapabilities(tenantId: string, userId: string): Promise<string[]>;
 }
 
 export interface RoleRepository {

@@ -1,0 +1,19 @@
+{
+  "name": "cerbos-policies",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": ".",
+  "targets": {
+    "compile": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "{workspaceRoot}",
+        "commands": [
+          "docker run --rm -v \"./infra/cerbos:/work\" ghcr.io/cerbos/cerbos:latest compile --tests=/work/tests /work/policies --verbose"
+        ],
+        "parallel": false
+      }
+    }
+  },
+  "tags": ["type:infra", "scope:cerbos"]
+}

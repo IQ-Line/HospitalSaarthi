@@ -7,7 +7,8 @@
 #
 # This file defines the five 1A.2 event_type values and payload shape only.
 # source_module for these events MUST be "user-management".
-# event_contract_version in the envelope MUST be semver (e.g. 1.0.0).
+# event_contract_version on the envelope MUST be semver.
+# user-management.user.created / user.updated use envelope + payload event_contract_version 2.0.0.
 
 specVersion: "1.0"
 module: user-management
@@ -24,9 +25,10 @@ event_types:
   user-management.user.created:
     semantic: user.created
     description: A tenant-scoped platform user was created.
+    event_contract_version: "2.0.0"
     payload:
       type: object
-      required: [id, full_name]
+      required: [id, full_name, status, event_contract_version]
       additionalProperties: false
       properties:
         id:
@@ -34,13 +36,16 @@ event_types:
           format: uuid
         full_name:
           type: string
+        status:
+          type: string
+          enum: [active, inactive, suspended]
+        event_contract_version:
+          type: string
+          const: "2.0.0"
         email:
           type: ["string", "null"]
         phone:
           type: ["string", "null"]
-        status:
-          type: string
-          enum: [active, inactive, suspended]
         username:
           type: ["string", "null"]
         org_id:
@@ -53,9 +58,10 @@ event_types:
   user-management.user.updated:
     semantic: user.updated
     description: User profile fields were updated for a tenant.
+    event_contract_version: "2.0.0"
     payload:
       type: object
-      required: [id]
+      required: [id, full_name, status, event_contract_version]
       additionalProperties: false
       properties:
         id:
@@ -63,13 +69,16 @@ event_types:
           format: uuid
         full_name:
           type: string
+        status:
+          type: string
+          enum: [active, inactive, suspended]
+        event_contract_version:
+          type: string
+          const: "2.0.0"
         email:
           type: ["string", "null"]
         phone:
           type: ["string", "null"]
-        status:
-          type: string
-          enum: [active, inactive, suspended]
         username:
           type: ["string", "null"]
         org_id:

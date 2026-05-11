@@ -1,13 +1,10 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import { UserNotFoundError } from "../domain/errors.js";
+import { CerbosPrincipalUnavailableError, UserNotFoundError } from "../domain/errors.js";
 import { replyWithUserManagementError } from "../http/map-user-management-error.js";
-import type { AuthContext } from "../ports/index.js";
-import { getPrincipal } from "../use-cases/get-principal.js";
-import type { GetPrincipalDeps } from "../use-cases/get-principal.js";
+import { buildUxPermissionMap } from "../permissions/build-ux-permission-map.js";
+import type { BuildUxPermissionMapDeps } from "../permissions/build-ux-permission-map.js";
 import { getUserById } from "../use-cases/get-user.js";
 import type { GetUserDeps } from "../use-cases/get-user.js";
-
-type RequestWithOptionalUser = FastifyRequest & { user?: unknown };
 
 export type AuthHandlersDeps = {
   /** Tenant from verified JWT (`iq_tenant_id` / `tenantId` on `request.user`). */
@@ -15,7 +12,7 @@ export type AuthHandlersDeps = {
   /** Platform user id from verified JWT (`sub` / `userId` on `request.user`). */
   getUserId: (request: FastifyRequest) => string;
   getUserDeps: GetUserDeps;
-  getPrincipalDeps: GetPrincipalDeps;
+  uxPermissionMapDeps: BuildUxPermissionMapDeps;
 };
 
 export function registerAuthHandlers(fastify: FastifyInstance, deps: AuthHandlersDeps): void {
@@ -39,14 +36,22 @@ export function registerAuthHandlers(fastify: FastifyInstance, deps: AuthHandler
     { config: { authMode: "protected" } },
     async (request, reply) => {
       const cid = request.correlationId ?? request.id;
-      const context: AuthContext = {
-        tenantId: deps.getTenantId(request),
-        userId: deps.getUserId(request),
-        requestUser: (request as RequestWithOptionalUser).user,
-      };
+      const snapshot = request.cerbosPrincipal;
+      if (snapshot === undefined) {
+        return replyWithUserManagementError(reply, new CerbosPrincipalUnavailableError(), cid);
+      }
+      return reply.send(snapshot);
+    },
+  );
+
+  fastify.get(
+    "/auth/permissions-map",
+    { config: { authMode: "protected" } },
+    async (request, reply) => {
+      const cid = request.correlationId ?? request.id;
       try {
-        const principal = await getPrincipal(deps.getPrincipalDeps, context);
-        return reply.send(principal);
+        const map = await buildUxPermissionMap(request, deps.uxPermissionMapDeps);
+        return reply.send({ map });
       } catch (err) {
         return replyWithUserManagementError(reply, err, cid);
       }

@@ -3,10 +3,12 @@ import { randomUUID } from "node:crypto";
 import Fastify from "fastify";
 import fp from "fastify-plugin";
 import { describe, expect, it } from "vitest";
+import { unauthorized } from "@hims/ts-sdk-http";
 import { identityPlugin } from "@hims/ts-sdk-identity";
 import type {
   AssignRoleInput,
   CreateUserInput,
+  ListUsersOptions,
   Role,
   RoleAssignment,
   RoleAssignmentRef,
@@ -16,6 +18,7 @@ import type {
   UpdateUserInput,
   User,
   UserRepository,
+  UserWithTenant,
 } from "./ports/index.js";
 import { userManagementPlugin } from "./router.js";
 import { publishUserManagementEvent } from "./events/publish-user-management-event.js";
@@ -61,10 +64,18 @@ class StubUserRepository implements UserRepository {
       email: null,
       phone: null,
       username: null,
-      org_id: "org-1",
+      org_id: "f47ac10b-58cc-4372-a567-0e02b2c3d481",
+      department: null,
+      clearance_tier_required: 0,
       auth_user_id: null,
       status: "active",
     };
+  }
+  async findUserByGlobalId(): Promise<UserWithTenant | null> {
+    return null;
+  }
+  async listUsers(_tenantId: string, _options?: ListUsersOptions): Promise<User[]> {
+    return [];
   }
   async updateUser(
     _tenantId: string,
@@ -98,7 +109,7 @@ const identityStubPlugin = fp(
       request.user = {
         userId: "user-1",
         tenantId: "tenant-a",
-        orgId: "org-1",
+        orgId: "f47ac10b-58cc-4372-a567-0e02b2c3d481",
         roles: ["doctor"],
         sessionId: "session-1",
         iat: 1,
@@ -132,13 +143,33 @@ describe("OpenAPI/runtime coherence", () => {
     const response = await app.inject({ method: "GET", url: "/protected" });
 
     expect(response.statusCode).toBe(401);
-    expect(response.json()).toEqual(
-      expect.objectContaining({
-        code: "AUTH_MISSING_BEARER",
-        message: "Missing or malformed Authorization header",
-      }),
-    );
-    expect(typeof response.json().correlation_id).toBe("string");
+    const body = response.json() as {
+      code: string;
+      message?: string;
+      correlation_id?: string;
+    };
+    expect(body).toMatchObject({
+      code: "AUTH_MISSING_BEARER",
+      message: "Missing or malformed Authorization header",
+      correlation_id: expect.any(String),
+    });
+    expect(body.correlation_id).toBeTruthy();
+    expect(typeof response.headers["x-correlation-id"]).toBe("string");
+    expect(response.headers["x-correlation-id"]).toBe(body.correlation_id);
+    await app.close();
+  });
+
+  it("auth error body omits correlation_id when request context has no correlationId", async () => {
+    const app = Fastify();
+    app.get("/raw-unauthorized", async (_request, reply) => {
+      unauthorized(reply, {}, "TEST_AUTH_CODE", "synthetic");
+    });
+    const response = await app.inject({ method: "GET", url: "/raw-unauthorized" });
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toEqual({
+      code: "TEST_AUTH_CODE",
+      message: "synthetic",
+    });
     await app.close();
   });
 
@@ -159,7 +190,10 @@ describe("OpenAPI/runtime coherence", () => {
     });
 
     expect(response.statusCode).toBe(401);
-    expect(response.json().correlation_id).toBe(inboundCorrelation);
+    expect(response.headers["x-correlation-id"]).toBe(inboundCorrelation);
+    expect((response.json() as { correlation_id?: string }).correlation_id).toBe(
+      inboundCorrelation,
+    );
     await app.close();
   });
 
@@ -179,10 +213,13 @@ describe("OpenAPI/runtime coherence", () => {
     });
 
     expect(response.statusCode).toBe(401);
-    expect(response.json().correlation_id).not.toBe("!!not-safe!!");
-    expect(response.json().correlation_id).toMatch(
+    expect(response.headers["x-correlation-id"]).not.toBe("!!not-safe!!");
+    expect(response.headers["x-correlation-id"]).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     );
+    expect(
+      (response.json() as { correlation_id?: string }).correlation_id,
+    ).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
     await app.close();
   });
 
@@ -286,17 +323,22 @@ describe("OpenAPI/runtime coherence", () => {
   it("tenant mismatch semantics are deterministic", async () => {
     const app = Fastify();
     await app.register(identityStubPlugin);
-    await app.register(userManagementPlugin, {
-      eventBus: noopEventBus,
-      userRepository: new StubUserRepository(),
-      roleRepository: new StubRoleRepository(),
-      roleAssignmentRepository: new NoopRoleAssignmentRepository(),
-      principalRoleProjectionRepository: new NoopPrincipalRoleProjectionRepository(),
-    });
+    await app.register(
+      async (instance) => {
+        await instance.register(userManagementPlugin, {
+          eventBus: noopEventBus,
+          userRepository: new StubUserRepository(),
+          roleRepository: new StubRoleRepository(),
+          roleAssignmentRepository: new NoopRoleAssignmentRepository(),
+          principalRoleProjectionRepository: new NoopPrincipalRoleProjectionRepository(),
+        });
+      },
+      { prefix: "/api/user-management" },
+    );
 
     const response = await app.inject({
       method: "GET",
-      url: "/auth/me",
+      url: "/api/user-management/auth/me",
       headers: { iq_tenant_id: "tenant-b" },
     });
 
@@ -318,17 +360,22 @@ describe("OpenAPI/runtime coherence", () => {
   it("runtime response matches representative OpenAPI user schema shape", async () => {
     const app = Fastify();
     await app.register(identityStubPlugin);
-    await app.register(userManagementPlugin, {
-      eventBus: noopEventBus,
-      userRepository: new StubUserRepository(),
-      roleRepository: new StubRoleRepository(),
-      roleAssignmentRepository: new NoopRoleAssignmentRepository(),
-      principalRoleProjectionRepository: new NoopPrincipalRoleProjectionRepository(),
-    });
+    await app.register(
+      async (instance) => {
+        await instance.register(userManagementPlugin, {
+          eventBus: noopEventBus,
+          userRepository: new StubUserRepository(),
+          roleRepository: new StubRoleRepository(),
+          roleAssignmentRepository: new NoopRoleAssignmentRepository(),
+          principalRoleProjectionRepository: new NoopPrincipalRoleProjectionRepository(),
+        });
+      },
+      { prefix: "/api/user-management" },
+    );
 
     const response = await app.inject({
       method: "GET",
-      url: "/auth/me",
+      url: "/api/user-management/auth/me",
     });
 
     expect(response.statusCode).toBe(200);
@@ -366,19 +413,34 @@ describe("OpenAPI/runtime coherence", () => {
     });
 
     await app.register(identityStubPlugin);
-    await app.register(userManagementPlugin, {
-      eventBus: noopEventBus,
-      userRepository: new StubUserRepository(),
-      roleRepository: new StubRoleRepository(),
-      roleAssignmentRepository: new NoopRoleAssignmentRepository(),
-      principalRoleProjectionRepository: new NoopPrincipalRoleProjectionRepository(),
-    });
-
-    const managedRoutes = routes.filter((route) =>
-      ["/auth/me", "/auth/principal", "/users", "/users/:id", "/role-assignments"].includes(
-        route.path,
-      ),
+    await app.register(
+      async (instance) => {
+        await instance.register(userManagementPlugin, {
+          eventBus: noopEventBus,
+          userRepository: new StubUserRepository(),
+          roleRepository: new StubRoleRepository(),
+          roleAssignmentRepository: new NoopRoleAssignmentRepository(),
+          principalRoleProjectionRepository: new NoopPrincipalRoleProjectionRepository(),
+        });
+      },
+      { prefix: "/api/user-management" },
     );
+
+    const openApiServerPrefix = "/api/user-management";
+    const managedRoutes = routes.filter((route) => {
+      const p = route.path.startsWith(openApiServerPrefix)
+        ? route.path.slice(openApiServerPrefix.length) || "/"
+        : route.path;
+      return [
+        "/auth/me",
+        "/auth/principal",
+        "/auth/permissions-map",
+        "/users",
+        "/users/:id",
+        "/users/:id/deactivate",
+        "/role-assignments",
+      ].includes(p);
+    });
     expect(managedRoutes.length).toBeGreaterThan(0);
     for (const route of managedRoutes) {
       expect(route.authMode).toBe("protected");
