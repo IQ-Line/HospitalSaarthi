@@ -3,7 +3,9 @@
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
-    "ignoreDeprecations": "6.0"
+    "ignoreDeprecations": "6.0",
+    // See packages/ts-sdk-db/tsconfig.json — empty `paths` avoids `baseUrl` + `ignoreDeprecations`.
+    "paths": {}
   },
   "include": ["src"]
 }

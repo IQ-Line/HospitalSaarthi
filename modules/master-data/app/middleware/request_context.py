@@ -11,6 +11,8 @@ from collections.abc import Iterable
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from app.core.request_context import reset_request_id, set_request_id
+
 _REQUEST_ID_HEADER_LOWER = b"x-request-id"
 # Reasonable upper bound (many gateways use 128 or 256)
 _MAX_REQUEST_ID_LEN = 256
@@ -63,6 +65,8 @@ class RequestContextMiddleware:
         scope.setdefault("state", {})
         scope["state"]["request_id"] = request_id
 
+        token = set_request_id(request_id)
+
         async def send_with_request_id(message: Message) -> None:
             if message["type"] == "http.response.start":
                 headers = list(message.get("headers", []))
@@ -70,4 +74,7 @@ class RequestContextMiddleware:
                 message["headers"] = headers
             await send(message)
 
-        await self.app(scope, receive, send_with_request_id)
+        try:
+            await self.app(scope, receive, send_with_request_id)
+        finally:
+            reset_request_id(token)

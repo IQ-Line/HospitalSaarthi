@@ -1,9 +1,13 @@
 import { useEffect } from 'react';
 import { createFileRoute, Link, Outlet, redirect } from '@tanstack/react-router';
 import { hydratePermissionsFromBackend } from '@/lib/permissions';
+import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Button } from '@pulse/ui/button';
+import { AppSidebar } from '@/components/layout/app-sidebar';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePermissionsStore } from '@/stores/permissions.store';
 import { useTenantStore } from '@/stores/tenant.store';
+import { useUIPrefsStore } from '@/stores/ui-prefs.store';
 
 export const Route = createFileRoute('/_authenticated')({
   beforeLoad: async () => {
@@ -47,6 +51,8 @@ function AuthenticatedLayout() {
       cancelled = true;
     };
   }, [isLoaded, tenantId, activeBranch]);
+  const sidebarCollapsed = useUIPrefsStore((s) => s.sidebarCollapsed);
+  const toggleSidebar = useUIPrefsStore((s) => s.toggleSidebar);
 
   if (!isLoaded) {
     return (
@@ -68,37 +74,65 @@ function AuthenticatedLayout() {
           {hasModuleAccess('master-data') && (
             <NavLink to="/master-data" label="Master Data" />
           )}
-          {hasModuleAccess('user-management') && (
-            <NavLink to="/user-management" label="Users" search={{ q: '' }} />
-          )}
+          {hasModuleAccess('user-management') && <UserManagementNavLink label="Users" />}
         </nav>
         <div className="pt-4 border-t">
           <p className="text-sm truncate text-muted-foreground">{displayName}</p>
         </div>
       </aside>
+      <AppSidebar
+        displayName={displayName}
+        tenantName={tenantName}
+        hasMasterDataAccess={hasModuleAccess('master-data')}
+      />
 
-      <main className="flex-1 overflow-auto">
-        <Outlet />
+      <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
+        <div className="h-10 border-b bg-background px-3 flex items-center">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => toggleSidebar()}
+            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {sidebarCollapsed ? (
+              <PanelLeftOpen className="size-4" />
+            ) : (
+              <PanelLeftClose className="size-4" />
+            )}
+          </Button>
+        </div>
+        <div className="flex-1 overflow-auto">
+          <Outlet />
+        </div>
       </main>
     </div>
   );
 }
 
-function NavLink({
-  to,
-  label,
-  search,
-}: {
-  to: string;
-  label: string;
-  search?: { q: string };
-}) {
+const navLinkClass =
+  'block rounded-md px-3 py-2 text-sm text-foreground/70 hover:bg-sidebar-accent transition-colors';
+const navLinkActiveClass =
+  'block rounded-md px-3 py-2 text-sm bg-sidebar-accent font-medium text-sidebar-accent-foreground';
+
+function NavLink({ to, label }: { to: '/dashboard' | '/master-data'; label: string }) {
   return (
     <Link
       to={to}
-      {...(search !== undefined ? { search } : {})}
-      className="block rounded-md px-3 py-2 text-sm text-foreground/70 hover:bg-sidebar-accent transition-colors"
-      activeProps={{ className: 'block rounded-md px-3 py-2 text-sm bg-sidebar-accent font-medium text-sidebar-accent-foreground' }}
+      className={navLinkClass}
+      activeProps={{ className: navLinkActiveClass }}
+    >
+      {label}
+    </Link>
+  );
+}
+
+function UserManagementNavLink({ label }: { label: string }) {
+  return (
+    <Link
+      to="/user-management"
+      search={{ q: '' }}
+      className={navLinkClass}
+      activeProps={{ className: navLinkActiveClass }}
     >
       {label}
     </Link>

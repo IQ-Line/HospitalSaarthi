@@ -1,5 +1,4 @@
-import { eq, and, type SQL } from "drizzle-orm";
-import type { DbInstance } from "@hims/ts-sdk-db";
+import { eq, and, type DbInstance, type SQL } from "@hims/ts-sdk-db";
 import type { OrganizationRepo } from "../ports.js";
 import type {
   Organization,
@@ -8,6 +7,7 @@ import type {
   OrganizationFilters,
 } from "../domain/organization.types.js";
 import { organizations } from "../schema/tables.js";
+import { omitUndefined } from "./utils.js";
 
 export class DrizzleOrganizationRepo implements OrganizationRepo {
   constructor(private readonly db: DbInstance) {}
@@ -41,6 +41,16 @@ export class DrizzleOrganizationRepo implements OrganizationRepo {
     return rows[0] as Organization | undefined;
   }
 
+  async findBySlug(slug: string): Promise<Organization | undefined> {
+    const rows = await this.db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.slug, slug))
+      .limit(1);
+
+    return rows[0] as Organization | undefined;
+  }
+
   async create(data: CreateOrganizationData): Promise<Organization> {
     const rows = await this.db
       .insert(organizations)
@@ -65,10 +75,11 @@ export class DrizzleOrganizationRepo implements OrganizationRepo {
     id: string,
     data: UpdateOrganizationData,
   ): Promise<Organization | undefined> {
+    const patch = omitUndefined(data as Record<string, unknown>);
     const rows = await this.db
       .update(organizations)
       .set({
-        ...data,
+        ...patch,
         updated_at: new Date(),
       })
       .where(eq(organizations.id, id))

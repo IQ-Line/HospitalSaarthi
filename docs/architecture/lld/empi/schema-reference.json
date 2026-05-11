@@ -1,0 +1,628 @@
+{
+  "$schema": "Schema reference for EMPI module — detailed column metadata, indexes, constraints, and Citus distribution notes",
+  "module": "empi",
+  "schema_name": "empi",
+  "tables": {
+    "patients": {
+      "description": "Golden record — canonical patient identity. Central table that all other modules reference via patient_id.",
+      "citus": "DISTRIBUTED by iq_tenant_id",
+      "primary_key": ["iq_tenant_id", "id"],
+      "columns": {
+        "id": {
+          "type": "UUID",
+          "nullable": false,
+          "default": "gen_random_uuid()",
+          "description": "Internal patient identifier. Referenced by all clinical modules."
+        },
+        "iq_tenant_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "Tenant isolation and Citus distribution key. Every query must include this."
+        },
+        "uhid": {
+          "type": "TEXT",
+          "nullable": false,
+          "description": "Human-facing patient ID. Format: YYMMDDTTTTTXXXXXXX (date + 5-digit tenant numeric code + 7-digit daily sequence). Generated at registration, immutable."
+        },
+        "abha_number": {
+          "type": "TEXT",
+          "nullable": true,
+          "description": "14-digit ABHA (Ayushman Bharat Health Account) number. Presence implies KYC verification. Null for patients without ABHA. One per patient."
+        },
+        "salutation": {
+          "type": "TEXT",
+          "nullable": true,
+          "check": "salutation IN ('Mr', 'Mrs', 'Ms', 'Dr', 'Master', 'Baby')",
+          "description": "Honorific prefix."
+        },
+        "first_name": {
+          "type": "TEXT",
+          "nullable": false,
+          "description": "Given name. Required for all registrations."
+        },
+        "middle_name": {
+          "type": "TEXT",
+          "nullable": true,
+          "description": "Optional middle name."
+        },
+        "last_name": {
+          "type": "TEXT",
+          "nullable": true,
+          "description": "Family/surname. Nullable because some Indian names have no surname."
+        },
+        "full_name": {
+          "type": "TEXT",
+          "nullable": false,
+          "description": "Computed concatenation of first + middle + last. Stored for search performance and ABDM lookups. Updated on any name part change."
+        },
+        "father_name": {
+          "type": "TEXT",
+          "nullable": true,
+          "description": "Father's name — required by Indian government registration forms (NABH, ABDM)."
+        },
+        "mother_name": {
+          "type": "TEXT",
+          "nullable": true,
+          "description": "Mother's name."
+        },
+        "date_of_birth": {
+          "type": "DATE",
+          "nullable": true,
+          "description": "Full date of birth when known. Nullable because rural patients often don't know exact DOB."
+        },
+        "year_of_birth": {
+          "type": "SMALLINT",
+          "nullable": true,
+          "description": "Year-only fallback when exact DOB is unknown. Used with age fields for dedup."
+        },
+        "age_years": {
+          "type": "SMALLINT",
+          "nullable": true,
+          "description": "Age in years at time of registration. Stored for dedup blocking (age ±2 years rule) when DOB is unknown."
+        },
+        "age_months": {
+          "type": "SMALLINT",
+          "nullable": true,
+          "description": "Months component of age. Relevant for pediatric patients."
+        },
+        "age_days": {
+          "type": "SMALLINT",
+          "nullable": true,
+          "description": "Days component of age. Relevant for neonates."
+        },
+        "gender": {
+          "type": "TEXT",
+          "nullable": false,
+          "check": "gender IN ('male', 'female', 'other')",
+          "description": "Biological sex / administrative gender. Dedup blocking key."
+        },
+        "phone_number": {
+          "type": "TEXT",
+          "nullable": false,
+          "description": "Primary contact phone number. Dedup blocking key. Format: 10-digit Indian mobile or with country code."
+        },
+        "alternate_phone": {
+          "type": "TEXT",
+          "nullable": true,
+          "description": "Secondary contact number."
+        },
+        "blood_group": {
+          "type": "TEXT",
+          "nullable": true,
+          "check": "blood_group IN ('A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-')",
+          "description": "Patient blood group."
+        },
+        "occupation": {
+          "type": "TEXT",
+          "nullable": true,
+          "description": "Patient occupation. Free-text."
+        },
+        "nationality": {
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'Indian'",
+          "description": "Nationality. Defaults to Indian."
+        },
+        "education": {
+          "type": "TEXT",
+          "nullable": true,
+          "description": "Education level. Free-text."
+        },
+        "emergency_contact_name": {
+          "type": "TEXT",
+          "nullable": true,
+          "description": "Emergency contact person's full name."
+        },
+        "emergency_contact_relationship": {
+          "type": "TEXT",
+          "nullable": true,
+          "description": "Relationship of emergency contact to patient (spouse, parent, sibling, etc.)."
+        },
+        "emergency_contact_phone": {
+          "type": "TEXT",
+          "nullable": true,
+          "description": "Emergency contact phone number."
+        },
+        "status": {
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'active'",
+          "check": "status IN ('active', 'inactive', 'deceased')",
+          "description": "Patient lifecycle status. Transitions: active → inactive (discharged/moved), active → deceased, inactive → active (returned)."
+        },
+        "merged_into_id": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "If this record was merged into another patient, points to the surviving record's id. Non-null = this is a 'dead' record. Queries should filter WHERE merged_into_id IS NULL for active patients."
+        },
+        "registered_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "User ID of the person who originally registered this patient. May differ from created_by in import scenarios."
+        },
+        "created_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()",
+          "description": "Row creation timestamp."
+        },
+        "updated_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()",
+          "description": "Last modification timestamp."
+        },
+        "created_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "User who created this row."
+        },
+        "updated_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "User who last modified this row."
+        }
+      },
+      "indexes": [
+        {
+          "name": "uq_patients_tenant_uhid",
+          "columns": ["iq_tenant_id", "uhid"],
+          "unique": true,
+          "description": "UHID is unique within a tenant."
+        },
+        {
+          "name": "uq_patients_tenant_abha",
+          "columns": ["iq_tenant_id", "abha_number"],
+          "unique": true,
+          "partial": "WHERE abha_number IS NOT NULL",
+          "description": "ABHA number is unique within a tenant (partial — only non-null values)."
+        },
+        {
+          "name": "idx_patients_phone",
+          "columns": ["iq_tenant_id", "phone_number"],
+          "unique": false,
+          "description": "Dedup blocking key — fast lookup by phone within tenant."
+        },
+        {
+          "name": "idx_patients_fullname_trgm",
+          "columns": ["full_name"],
+          "type": "GIN",
+          "operator_class": "gin_trgm_ops",
+          "description": "Trigram index for fuzzy name search. Requires pg_trgm extension."
+        },
+        {
+          "name": "idx_patients_active",
+          "columns": ["iq_tenant_id", "status"],
+          "partial": "WHERE merged_into_id IS NULL",
+          "description": "Fast filter for active (non-merged) patients."
+        }
+      ]
+    },
+    "patient_source_records": {
+      "description": "Provenance tracking — each row represents one system/encounter's contribution to a patient's data. Enables non-destructive merge via demographics arbitration.",
+      "citus": "DISTRIBUTED by iq_tenant_id",
+      "primary_key": ["iq_tenant_id", "id"],
+      "columns": {
+        "id": {
+          "type": "UUID",
+          "nullable": false,
+          "default": "gen_random_uuid()",
+          "description": "Source record identifier."
+        },
+        "iq_tenant_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "Tenant isolation and Citus distribution key."
+        },
+        "patient_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "FK to patients.id — which golden record this source contributes to."
+        },
+        "source_system": {
+          "type": "TEXT",
+          "nullable": false,
+          "description": "Origin system or workflow that contributed this data. Values: 'opd_registration', 'abdm_kyc', 'legacy_import', 'admin_edit', 'self_service'."
+        },
+        "source_reference": {
+          "type": "TEXT",
+          "nullable": true,
+          "description": "External reference for traceability — encounter ID, import batch ID, ABDM transaction ID, etc."
+        },
+        "demographics_snapshot": {
+          "type": "JSONB",
+          "nullable": false,
+          "description": "Full demographics as received from this source. Only includes fields the source actually provided. Used for merge arbitration and audit."
+        },
+        "contributed_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()",
+          "description": "When this source data was recorded."
+        },
+        "contributed_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "User who contributed this data (null for system imports)."
+        }
+      },
+      "indexes": [
+        {
+          "name": "idx_source_records_patient",
+          "columns": ["iq_tenant_id", "patient_id"],
+          "description": "Look up all source records for a patient."
+        }
+      ]
+    },
+    "patient_identifiers": {
+      "description": "Cross-reference table for N-per-patient identifiers. Stores ABHA addresses, PHR addresses, legacy MRNs, and any future external system identifiers.",
+      "citus": "DISTRIBUTED by iq_tenant_id",
+      "primary_key": ["iq_tenant_id", "id"],
+      "columns": {
+        "id": {
+          "type": "UUID",
+          "nullable": false,
+          "default": "gen_random_uuid()",
+          "description": "Identifier record ID."
+        },
+        "iq_tenant_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "Tenant isolation and Citus distribution key."
+        },
+        "patient_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "FK to patients.id — which patient this identifier belongs to."
+        },
+        "identifier_type": {
+          "type": "TEXT",
+          "nullable": false,
+          "check": "identifier_type IN ('abha_address', 'phr_address', 'legacy_mrn', 'insurance_id', 'other')",
+          "description": "Type discriminator. Extensible via CHECK constraint update."
+        },
+        "identifier_value": {
+          "type": "TEXT",
+          "nullable": false,
+          "description": "The actual identifier value (e.g., 'patient@abdm', 'MRN-12345')."
+        },
+        "issuing_system": {
+          "type": "TEXT",
+          "nullable": true,
+          "description": "Which system issued this identifier (e.g., 'abdm', 'hospital_x_legacy', 'irdai')."
+        },
+        "source_record_id": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Optional FK to patient_source_records.id — provenance of who told us this identifier."
+        },
+        "is_active": {
+          "type": "BOOLEAN",
+          "nullable": false,
+          "default": "true",
+          "description": "Soft-disable without deletion. Inactive identifiers are not used for matching but retained for audit."
+        },
+        "created_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()",
+          "description": "When this identifier was linked to the patient."
+        },
+        "created_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "User who linked this identifier."
+        }
+      },
+      "indexes": [
+        {
+          "name": "uq_identifiers_type_value",
+          "columns": ["iq_tenant_id", "identifier_type", "identifier_value"],
+          "unique": true,
+          "description": "No duplicate identifiers within a tenant. E.g., one ABHA address cannot belong to two patients."
+        },
+        {
+          "name": "idx_identifiers_patient",
+          "columns": ["iq_tenant_id", "patient_id"],
+          "description": "Look up all identifiers for a patient."
+        }
+      ]
+    },
+    "patient_addresses": {
+      "description": "Normalized patient addresses with type discriminator. Separate table because addresses are multi-field structs.",
+      "citus": "DISTRIBUTED by iq_tenant_id",
+      "primary_key": ["iq_tenant_id", "id"],
+      "columns": {
+        "id": {
+          "type": "UUID",
+          "nullable": false,
+          "default": "gen_random_uuid()",
+          "description": "Address record ID."
+        },
+        "iq_tenant_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "Tenant isolation and Citus distribution key."
+        },
+        "patient_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "FK to patients.id."
+        },
+        "address_type": {
+          "type": "TEXT",
+          "nullable": false,
+          "check": "address_type IN ('permanent', 'current', 'temporary')",
+          "description": "Type discriminator for the address."
+        },
+        "street": {
+          "type": "TEXT",
+          "nullable": true,
+          "description": "Street name, house number, locality, area."
+        },
+        "city": {
+          "type": "TEXT",
+          "nullable": true,
+          "description": "City, town, or village name."
+        },
+        "district": {
+          "type": "TEXT",
+          "nullable": true,
+          "description": "District (Indian administrative division)."
+        },
+        "state": {
+          "type": "TEXT",
+          "nullable": true,
+          "description": "State or Union Territory."
+        },
+        "pincode": {
+          "type": "TEXT",
+          "nullable": true,
+          "description": "6-digit Indian PIN code."
+        },
+        "created_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()",
+          "description": "Row creation timestamp."
+        },
+        "updated_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()",
+          "description": "Last modification timestamp."
+        },
+        "created_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "User who created this address."
+        },
+        "updated_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "User who last modified this address."
+        }
+      },
+      "indexes": [
+        {
+          "name": "idx_addresses_patient",
+          "columns": ["iq_tenant_id", "patient_id"],
+          "description": "Look up all addresses for a patient."
+        }
+      ]
+    },
+    "sequence_counters": {
+      "description": "Tenant-scoped UHID sequence generation. Atomic increment within transaction. Key resets daily (format: uhid_YYMMDD).",
+      "citus": "DISTRIBUTED by iq_tenant_id",
+      "primary_key": ["iq_tenant_id", "sequence_name"],
+      "columns": {
+        "iq_tenant_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "Tenant isolation and Citus distribution key."
+        },
+        "sequence_name": {
+          "type": "TEXT",
+          "nullable": false,
+          "description": "Counter key. Format: 'uhid_YYMMDD'. New key per day per tenant."
+        },
+        "current_value": {
+          "type": "BIGINT",
+          "nullable": false,
+          "default": "0",
+          "description": "Monotonically increasing counter. Incremented via UPDATE ... SET current_value = current_value + 1 RETURNING current_value."
+        }
+      },
+      "indexes": []
+    },
+    "match_candidates": {
+      "description": "Future: batch/async dedup results queued for human review. Table created at MVP, logic implemented later when batch dedup is needed.",
+      "citus": "DISTRIBUTED by iq_tenant_id",
+      "primary_key": ["iq_tenant_id", "id"],
+      "phase": "schema-only at MVP, logic post-launch",
+      "columns": {
+        "id": {
+          "type": "UUID",
+          "nullable": false,
+          "default": "gen_random_uuid()",
+          "description": "Match candidate record ID."
+        },
+        "iq_tenant_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "Tenant isolation and Citus distribution key."
+        },
+        "patient_a_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "First patient in the potential match pair. FK to patients.id."
+        },
+        "patient_b_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "Second patient in the potential match pair. FK to patients.id."
+        },
+        "match_score": {
+          "type": "NUMERIC(5,4)",
+          "nullable": false,
+          "description": "Confidence score from 0.0000 (unlikely match) to 1.0000 (certain match)."
+        },
+        "match_algorithm": {
+          "type": "TEXT",
+          "nullable": false,
+          "description": "Algorithm version that produced this match (e.g., 'abdm_rules_v1', 'fellegi_sunter_v1'). For reproducibility."
+        },
+        "blocking_keys_matched": {
+          "type": "TEXT[]",
+          "nullable": true,
+          "description": "Which blocking keys matched between the pair: ['phone', 'name_phonetic', 'gender', 'age_range']."
+        },
+        "status": {
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'pending'",
+          "check": "status IN ('pending', 'confirmed_match', 'confirmed_distinct', 'merged')",
+          "description": "Resolution status. Transitions: pending → confirmed_match → merged, or pending → confirmed_distinct."
+        },
+        "reviewed_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "Staff member who resolved this match candidate."
+        },
+        "reviewed_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": true,
+          "description": "When the resolution was made."
+        },
+        "created_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()",
+          "description": "When this potential match was detected by the algorithm."
+        }
+      },
+      "indexes": [
+        {
+          "name": "idx_match_candidates_pending",
+          "columns": ["iq_tenant_id", "status"],
+          "partial": "WHERE status = 'pending'",
+          "description": "Fast lookup of unresolved match candidates for the review queue."
+        }
+      ]
+    },
+    "merge_history": {
+      "description": "Audit trail for patient merge and unmerge operations. Non-destructive — captures full pre-merge state for reversal.",
+      "citus": "DISTRIBUTED by iq_tenant_id",
+      "primary_key": ["iq_tenant_id", "id"],
+      "phase": "schema-only at MVP, logic post-launch",
+      "columns": {
+        "id": {
+          "type": "UUID",
+          "nullable": false,
+          "default": "gen_random_uuid()",
+          "description": "Merge event ID."
+        },
+        "iq_tenant_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "Tenant isolation and Citus distribution key."
+        },
+        "surviving_patient_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "The patient record that remains active after merge. FK to patients.id."
+        },
+        "merged_patient_id": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "The patient record that was absorbed. Its merged_into_id now points to surviving_patient_id. FK to patients.id."
+        },
+        "merge_reason": {
+          "type": "TEXT",
+          "nullable": true,
+          "description": "Free-text reason for the merge (e.g., 'Same patient registered twice with different phone')."
+        },
+        "pre_merge_snapshot": {
+          "type": "JSONB",
+          "nullable": false,
+          "description": "Complete state of both patient records before merge. Enables full reversal."
+        },
+        "merged_by": {
+          "type": "UUID",
+          "nullable": false,
+          "description": "User who performed the merge operation."
+        },
+        "merged_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()",
+          "description": "When the merge was executed."
+        },
+        "unmerged_at": {
+          "type": "TIMESTAMPTZ",
+          "nullable": true,
+          "description": "If non-null, this merge has been reversed. The merged_patient_id record was restored."
+        },
+        "unmerged_by": {
+          "type": "UUID",
+          "nullable": true,
+          "description": "User who reversed the merge."
+        }
+      },
+      "indexes": [
+        {
+          "name": "idx_merge_history_surviving",
+          "columns": ["iq_tenant_id", "surviving_patient_id"],
+          "description": "Look up all merges into a given patient."
+        },
+        {
+          "name": "idx_merge_history_merged",
+          "columns": ["iq_tenant_id", "merged_patient_id"],
+          "description": "Look up merge history for a retired patient record."
+        }
+      ]
+    }
+  },
+  "events": {
+    "patient.created": {
+      "description": "Published when a new patient is registered. Rich payload for downstream projections.",
+      "payload": ["id", "iq_tenant_id", "uhid", "full_name", "first_name", "last_name", "date_of_birth", "gender", "phone_number", "abha_number", "status"]
+    },
+    "patient.updated": {
+      "description": "Published when patient demographics are modified.",
+      "payload": ["id", "iq_tenant_id", "uhid", "changed_fields", "full_name", "date_of_birth", "gender", "phone_number", "abha_number", "status"]
+    },
+    "patient.merged": {
+      "description": "Published when two patient records are merged. Consumers must update their projections to reference surviving_patient_id.",
+      "payload": ["iq_tenant_id", "surviving_patient_id", "merged_patient_id", "surviving_uhid", "merge_history_id"]
+    },
+    "patient.status-changed": {
+      "description": "Published when patient status transitions (active, inactive, deceased).",
+      "payload": ["id", "iq_tenant_id", "uhid", "old_status", "new_status"]
+    },
+    "patient.identifier-linked": {
+      "description": "Published when a new identifier is linked to a patient (ABHA address, legacy MRN, etc.).",
+      "payload": ["id", "iq_tenant_id", "patient_id", "identifier_type", "identifier_value", "issuing_system"]
+    }
+  }
+}
