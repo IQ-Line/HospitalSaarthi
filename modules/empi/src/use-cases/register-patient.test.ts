@@ -51,6 +51,7 @@ describe("registerPatient", () => {
     };
 
     const patientRepo = {
+      findDedupCandidates: vi.fn().mockResolvedValue([]),
       create: vi.fn().mockImplementation(async (data: { uhid: string }) => ({
         ...created,
         uhid: data.uhid,

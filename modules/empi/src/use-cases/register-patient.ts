@@ -1,8 +1,10 @@
 import type { EventBus } from "@hims/ts-sdk-events";
 import { composeUhid } from "../domain/uhid.js";
+import { evaluateDedupAgainstCandidate } from "../domain/registration-dedup.js";
 import { createEmpiEnvelope } from "../lib/empi-envelope.js";
 import type { PatientRepo, SequenceRepo } from "../ports.js";
 import type { Patient, CreatePatientData } from "../domain/patient.types.js";
+import type { RegisterPatientResult } from "./register-patient.types.js";
 
 interface Deps {
   patientRepo: PatientRepo;
@@ -14,7 +16,7 @@ interface Deps {
 export async function registerPatient(
   deps: Deps,
   data: CreatePatientData,
-): Promise<Patient> {
+): Promise<RegisterPatientResult> {
   const fullName = [
     data.first_name?.trim(),
     data.middle_name?.trim(),
@@ -22,6 +24,18 @@ export async function registerPatient(
   ]
     .filter(Boolean)
     .join(" ");
+
+  if (!data.force_create) {
+    const candidates = await deps.patientRepo.findDedupCandidates(
+      data.iq_tenant_id,
+      data.phone_number,
+      data.gender,
+    );
+    for (const candidate of candidates) {
+      const dup = evaluateDedupAgainstCandidate(candidate, data, fullName);
+      if (dup) return dup;
+    }
+  }
 
   const uhid = await generateUhid(
     deps.sequenceRepo,

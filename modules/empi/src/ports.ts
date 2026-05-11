@@ -20,6 +20,12 @@ export interface PatientRepo {
   findById(tenantId: string, id: string): Promise<Patient | undefined>;
   findByUhid(tenantId: string, uhid: string): Promise<Patient | undefined>;
   findByPhone(tenantId: string, phone: string): Promise<Patient[]>;
+  /** Same tenant, phone, gender, not merged — Phase 2 registration dedup blocking query. */
+  findDedupCandidates(
+    tenantId: string,
+    phone: string,
+    gender: string,
+  ): Promise<Patient[]>;
   create(data: CreatePatientData & { uhid: string; full_name: string }): Promise<Patient>;
   update(
     tenantId: string,
