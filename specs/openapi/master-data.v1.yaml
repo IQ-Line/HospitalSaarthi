@@ -2,13 +2,13 @@ openapi: 3.1.0
 info:
   title: HIMS Master Data API
   version: 1.0.0
-  description: >
-    HIMS Master Data catalog API — platform reference data (modules first; more surfaces phased in).
-    Base path `/api/v1/master-data`. DELETE on modules is a recursive soft-delete (`is_deleted = true`).
-    Gateway-level authentication (API keys / JWT) is expected before production; this spec does not
-    model per-route security yet.
+  description: 'HIMS Master Data catalog API — platform reference data (modules first; more surfaces phased in). Base path
+    `/api/v1/master-data`. DELETE on modules is a recursive soft-delete (`is_deleted = true`). Gateway-level authentication
+    (API keys / JWT) is expected before production; this spec does not model per-route security yet.
+
+    '
 servers:
-  - url: /api/v1/master-data
+- url: /api/v1/master-data
 paths:
   /permissions:
     get:
@@ -17,683 +17,685 @@ paths:
       description: Returns active permission catalog rows (`is_deleted = false`).
       security: []
       tags:
-        - Permissions
+      - Permissions
       parameters:
-        - name: action
-          in: query
-          required: false
-          schema:
-            $ref: "#/components/schemas/PermissionAction"
-          description: Optional action filter.
+      - name: action
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/PermissionAction'
+        description: Optional action filter.
       responses:
-        "200":
+        '200':
           description: Permission catalog rows.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PermissionListResponse"
-        "500":
+                $ref: '#/components/schemas/PermissionListResponse'
+        '500':
           description: Unexpected server error.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: '#/components/schemas/ErrorResponse'
     post:
       operationId: createPermission
       summary: Create a permission
       security: []
       tags:
-        - Permissions
+      - Permissions
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/PermissionCreate"
+              $ref: '#/components/schemas/PermissionCreate'
       responses:
-        "201":
+        '201':
           description: Permission created.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PermissionSingleResponse"
-        "400":
+                $ref: '#/components/schemas/PermissionSingleResponse'
+        '400':
           description: Invalid payload or constraint.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "409":
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
           description: Slug conflict with another active permission.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
           description: Unexpected server error.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: '#/components/schemas/ErrorResponse'
   /permissions/by-slug/{slug}:
     get:
       operationId: getPermissionBySlug
       summary: Get one permission by slug
       security: []
       tags:
-        - Permissions
+      - Permissions
       parameters:
-        - name: slug
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
-        "200":
+        '200':
           description: Permission found.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PermissionSingleResponse"
-        "404":
+                $ref: '#/components/schemas/PermissionSingleResponse'
+        '404':
           description: No permission with this slug.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
           description: Unexpected server error.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: '#/components/schemas/ErrorResponse'
   /permissions/{permissionId}:
     get:
       operationId: getPermissionById
       summary: Get one permission by id
       security: []
       tags:
-        - Permissions
+      - Permissions
       parameters:
-        - name: permissionId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+      - name: permissionId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       responses:
-        "200":
+        '200':
           description: Permission found.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PermissionSingleResponse"
-        "404":
+                $ref: '#/components/schemas/PermissionSingleResponse'
+        '404':
           description: Permission id not found.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
           description: Unexpected server error.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: '#/components/schemas/ErrorResponse'
     patch:
       operationId: updatePermission
       summary: Update a permission
       security: []
       tags:
-        - Permissions
+      - Permissions
       parameters:
-        - name: permissionId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+      - name: permissionId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/PermissionUpdate"
+              $ref: '#/components/schemas/PermissionUpdate'
       responses:
-        "200":
+        '200':
           description: Permission updated.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PermissionSingleResponse"
-        "400":
+                $ref: '#/components/schemas/PermissionSingleResponse'
+        '400':
           description: Invalid payload or constraint.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
           description: Permission id not found.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "409":
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
           description: Slug conflict with another active permission.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
           description: Unexpected server error.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: '#/components/schemas/ErrorResponse'
     delete:
       operationId: deletePermission
       summary: Soft-delete a permission
       description: Sets `is_deleted = true`; no hard delete.
       security: []
       tags:
-        - Permissions
+      - Permissions
       parameters:
-        - name: permissionId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+      - name: permissionId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       responses:
-        "200":
+        '200':
           description: Permission marked deleted (`is_deleted` true).
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PermissionSingleResponse"
-        "404":
+                $ref: '#/components/schemas/PermissionSingleResponse'
+        '404':
           description: Permission id not found.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
           description: Unexpected server error.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: '#/components/schemas/ErrorResponse'
   /system-roles:
     get:
       operationId: listSystemRoles
       summary: List system role templates
-      description: >
-        Active catalog rows (`is_deleted = false`). **`slug`** is unique per active row —
-        use one row per template (e.g. `ward-clerk`); do not reuse the same slug for different
-        meanings. Optional filter **`is_template`** selects template catalog rows vs future
-        non-template rows if introduced.
+      description: 'Active catalog rows (`is_deleted = false`). **`slug`** is unique per active row — use one row per template
+        (e.g. `ward-clerk`); do not reuse the same slug for different meanings. Optional filter **`is_template`** selects
+        template catalog rows vs future non-template rows if introduced.
+
+        '
       security: []
       tags:
-        - System roles
+      - System roles
       parameters:
-        - name: is_template
-          in: query
-          required: false
-          schema:
-            type: boolean
-          description: When set, return only rows where `is_template` matches.
+      - name: is_template
+        in: query
+        required: false
+        schema:
+          type: boolean
+        description: When set, return only rows where `is_template` matches.
       responses:
-        "200":
+        '200':
           description: System role templates.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SystemRoleListResponse"
-        "500":
+                $ref: '#/components/schemas/SystemRoleListResponse'
+        '500':
           description: Unexpected server error.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: '#/components/schemas/ErrorResponse'
     post:
       operationId: createSystemRole
       summary: Create a system role template
-      description: >
-        Registers a named role **template** for onboarding and policy docs. User Management
-        owns runtime role assignment; this table is catalog only. **`slug`** must be unique
-        among non-deleted rows (409 if an active row already uses it).
+      description: 'Registers a named role **template** for onboarding and policy docs. User Management owns runtime role
+        assignment; this table is catalog only. **`slug`** must be unique among non-deleted rows (409 if an active row already
+        uses it).
+
+        '
       security: []
       tags:
-        - System roles
+      - System roles
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/SystemRoleCreate"
+              $ref: '#/components/schemas/SystemRoleCreate'
       responses:
-        "201":
+        '201':
           description: System role created.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SystemRoleSingleResponse"
-        "400":
+                $ref: '#/components/schemas/SystemRoleSingleResponse'
+        '400':
           description: Invalid payload or constraint.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "409":
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
           description: Slug conflict with another active system role.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
           description: Unexpected server error.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: '#/components/schemas/ErrorResponse'
   /system-roles/by-slug/{slug}:
     get:
       operationId: getSystemRoleBySlug
       summary: Get one system role by slug
       security: []
       tags:
-        - System roles
+      - System roles
       parameters:
-        - name: slug
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
-        "200":
+        '200':
           description: System role found.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SystemRoleSingleResponse"
-        "404":
+                $ref: '#/components/schemas/SystemRoleSingleResponse'
+        '404':
           description: No system role with this slug.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
           description: Unexpected server error.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: '#/components/schemas/ErrorResponse'
   /system-roles/{systemRoleId}:
     get:
       operationId: getSystemRoleById
       summary: Get one system role by id
       security: []
       tags:
-        - System roles
+      - System roles
       parameters:
-        - name: systemRoleId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+      - name: systemRoleId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       responses:
-        "200":
+        '200':
           description: System role found.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SystemRoleSingleResponse"
-        "404":
+                $ref: '#/components/schemas/SystemRoleSingleResponse'
+        '404':
           description: System role id not found.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
           description: Unexpected server error.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: '#/components/schemas/ErrorResponse'
     patch:
       operationId: updateSystemRole
       summary: Update a system role template
       security: []
       tags:
-        - System roles
+      - System roles
       parameters:
-        - name: systemRoleId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+      - name: systemRoleId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/SystemRoleUpdate"
+              $ref: '#/components/schemas/SystemRoleUpdate'
       responses:
-        "200":
+        '200':
           description: System role updated.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SystemRoleSingleResponse"
-        "400":
+                $ref: '#/components/schemas/SystemRoleSingleResponse'
+        '400':
           description: Invalid payload or constraint.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
           description: System role id not found.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "409":
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
           description: Slug conflict with another active system role.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
           description: Unexpected server error.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: '#/components/schemas/ErrorResponse'
     delete:
       operationId: deleteSystemRole
       summary: Soft-delete a system role template
       description: Sets `is_deleted = true`; no hard delete.
       security: []
       tags:
-        - System roles
+      - System roles
       parameters:
-        - name: systemRoleId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+      - name: systemRoleId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       responses:
-        "200":
+        '200':
           description: System role marked deleted (`is_deleted` true).
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SystemRoleSingleResponse"
-        "404":
+                $ref: '#/components/schemas/SystemRoleSingleResponse'
+        '404':
           description: System role id not found.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
           description: Unexpected server error.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: '#/components/schemas/ErrorResponse'
   /module-permissions:
     get:
       operationId: listModulePermissions
       summary: List module↔permission links
-      description: >
-        Active junction rows (`is_deleted = false`). Optional filters **`module_id`** and/or
-        **`permission_id`**. **`slug`** is unique per active row; **`(module_id, permission_id)`**
-        pair is unique among active rows (soft-delete frees both for reuse). Results are
-        paginated with **`limit`** and **`offset`**.
+      description: 'Active junction rows (`is_deleted = false`). Optional filters **`module_id`** and/or **`permission_id`**.
+        **`slug`** is unique per active row; **`(module_id, permission_id)`** pair is unique among active rows (soft-delete
+        frees both for reuse). Results are paginated with **`limit`** and **`offset`**.
+
+        '
       security: []
       tags:
-        - Module permissions
+      - Module permissions
       parameters:
-        - name: module_id
-          in: query
-          required: false
-          schema:
-            type: string
-            format: uuid
-          description: Return links for this module only.
-        - name: permission_id
-          in: query
-          required: false
-          schema:
-            type: string
-            format: uuid
-          description: Return links for this permission only.
-        - name: limit
-          in: query
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 200
-            default: 50
-          description: Page size.
-        - name: offset
-          in: query
-          required: false
-          schema:
-            type: integer
-            minimum: 0
-            default: 0
-          description: Number of matching rows to skip before page extraction.
+      - name: module_id
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+        description: Return links for this module only.
+      - name: permission_id
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+        description: Return links for this permission only.
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 200
+          default: 50
+        description: Page size.
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+        description: Number of matching rows to skip before page extraction.
       responses:
-        "200":
+        '200':
           description: Junction rows (paged); `total` is full count after filters, before paging.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ModulePermissionListResponse"
-        "500":
+                $ref: '#/components/schemas/ModulePermissionListResponse'
+        '500':
           description: Unexpected server error.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: '#/components/schemas/ErrorResponse'
     post:
       operationId: createModulePermission
       summary: Create a module↔permission link
-      description: >
-        **`module_id`** and **`permission_id`** must reference **active** (non-deleted) catalog
-        rows. **400** if either side is missing or soft-deleted. **409** if **`slug`** or the
-        module/permission pair duplicates another active link.
+      description: '**`module_id`** and **`permission_id`** must reference **active** (non-deleted) catalog rows. **400**
+        if either side is missing or soft-deleted. **409** if **`slug`** or the module/permission pair duplicates another
+        active link.
+
+        '
       security: []
       tags:
-        - Module permissions
+      - Module permissions
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ModulePermissionCreate"
+              $ref: '#/components/schemas/ModulePermissionCreate'
       responses:
-        "201":
+        '201':
           description: Link created.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ModulePermissionSingleResponse"
-        "400":
+                $ref: '#/components/schemas/ModulePermissionSingleResponse'
+        '400':
           description: Invalid foreign keys or payload.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "409":
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
           description: Slug or module/permission pair conflicts with another active link.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
           description: Unexpected server error.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: '#/components/schemas/ErrorResponse'
   /module-permissions/by-slug/{slug}:
     get:
       operationId: getModulePermissionBySlug
       summary: Get one link by slug
       security: []
       tags:
-        - Module permissions
+      - Module permissions
       parameters:
-        - name: slug
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
-        "200":
+        '200':
           description: Link found.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ModulePermissionSingleResponse"
-        "404":
+                $ref: '#/components/schemas/ModulePermissionSingleResponse'
+        '404':
           description: No link with this slug.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
           description: Unexpected server error.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: '#/components/schemas/ErrorResponse'
   /module-permissions/{modulePermissionId}:
     get:
       operationId: getModulePermissionById
       summary: Get one link by id
       security: []
       tags:
-        - Module permissions
+      - Module permissions
       parameters:
-        - name: modulePermissionId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+      - name: modulePermissionId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       responses:
-        "200":
+        '200':
           description: Link found.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ModulePermissionSingleResponse"
-        "404":
+                $ref: '#/components/schemas/ModulePermissionSingleResponse'
+        '404':
           description: Link id not found.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
           description: Unexpected server error.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: '#/components/schemas/ErrorResponse'
     patch:
       operationId: updateModulePermission
       summary: Update a module↔permission link
-      description: >
-        Update metadata (`slug`, `is_default`, `is_active`, `is_deleted`) on an existing link.
-        `module_id` and `permission_id` are immutable after creation; to change the pair, delete
-        the old link and create a new one.
+      description: 'Update metadata (`slug`, `is_default`, `is_active`, `is_deleted`) on an existing link. `module_id` and
+        `permission_id` are immutable after creation; to change the pair, delete the old link and create a new one.
+
+        '
       security: []
       tags:
-        - Module permissions
+      - Module permissions
       parameters:
-        - name: modulePermissionId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+      - name: modulePermissionId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ModulePermissionUpdate"
+              $ref: '#/components/schemas/ModulePermissionUpdate'
       responses:
-        "200":
+        '200':
           description: Link updated.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ModulePermissionSingleResponse"
-        "400":
+                $ref: '#/components/schemas/ModulePermissionSingleResponse'
+        '400':
           description: Invalid payload.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
           description: Link id not found.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "409":
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
           description: Slug or module/permission pair conflicts with another active link.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
           description: Unexpected server error.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: '#/components/schemas/ErrorResponse'
     delete:
       operationId: deleteModulePermission
       summary: Soft-delete a module↔permission link
       description: Sets `is_deleted = true`; no hard delete.
       security: []
       tags:
-        - Module permissions
+      - Module permissions
       parameters:
-        - name: modulePermissionId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+      - name: modulePermissionId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       responses:
-        "200":
+        '200':
           description: Link marked deleted (`is_deleted` true).
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ModulePermissionSingleResponse"
-        "404":
+                $ref: '#/components/schemas/ModulePermissionSingleResponse'
+        '404':
           description: Link id not found.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
           description: Unexpected server error.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: '#/components/schemas/ErrorResponse'
   /modules:
     get:
       operationId: listModules
@@ -701,252 +703,2042 @@ paths:
       description: Returns active catalog modules (`is_deleted = false`).
       security: []
       tags:
-        - Modules
+      - Modules
       parameters:
-        - name: category
-          in: query
-          required: false
-          schema:
-            $ref: "#/components/schemas/ModuleCategory"
-          description: Filter modules by catalog category (not authorization).
+      - name: category
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/ModuleCategory'
+        description: Filter modules by catalog category (not authorization).
       responses:
-        "200":
+        '200':
           description: Registered modules.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ModuleListResponse"
-        "500":
+                $ref: '#/components/schemas/ModuleListResponse'
+        '500':
           description: Unexpected server error.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: '#/components/schemas/ErrorResponse'
     post:
       operationId: createModule
       summary: Create a module
       description: Creates an active registry row.
       tags:
-        - Modules
+      - Modules
       security: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ModuleCreate"
+              $ref: '#/components/schemas/ModuleCreate'
       responses:
-        "201":
+        '201':
           description: Module created.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ModuleSingleResponse"
-        "400":
+                $ref: '#/components/schemas/ModuleSingleResponse'
+        '400':
           description: Invalid parent or tree depth.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "409":
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
           description: Name or slug already used by another active module.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
           description: Unexpected server error.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: '#/components/schemas/ErrorResponse'
   /modules/by-slug/{slug}:
     get:
       operationId: getModuleBySlug
       summary: Get one module by slug
       security: []
       tags:
-        - Modules
+      - Modules
       parameters:
-        - name: slug
-          in: path
-          required: true
-          schema:
-            type: string
-          description: URL-safe catalog slug (e.g. master-data).
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+        description: URL-safe catalog slug (e.g. master-data).
       responses:
-        "200":
+        '200':
           description: Module found.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ModuleSingleResponse"
-        "404":
+                $ref: '#/components/schemas/ModuleSingleResponse'
+        '404':
           description: No module with this slug.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
           description: Unexpected server error.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: '#/components/schemas/ErrorResponse'
   /modules/{moduleId}/submodules:
     get:
       operationId: listSubmodules
       summary: List direct submodules
-      description: >
-        Active modules whose parent_id equals moduleId (one level below this parent).
-        Full result set in one response — no pagination. 404 if parent missing or soft-deleted;
-        200 with empty data if there are no submodules.
+      description: 'Active modules whose parent_id equals moduleId (one level below this parent). Full result set in one response
+        — no pagination. 404 if parent missing or soft-deleted; 200 with empty data if there are no submodules.
+
+        '
       security: []
       tags:
-        - Modules
+      - Modules
       parameters:
-        - name: moduleId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-          description: Parent module id (rows are direct submodules only).
+      - name: moduleId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Parent module id (rows are direct submodules only).
       responses:
-        "200":
+        '200':
           description: All direct submodules (full list; possibly empty).
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ModuleListResponse"
-        "404":
+                $ref: '#/components/schemas/ModuleListResponse'
+        '404':
           description: Parent module id not found or soft-deleted.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
           description: Unexpected server error.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: '#/components/schemas/ErrorResponse'
   /modules/{moduleId}:
     get:
       operationId: getModuleById
       summary: Get one module by id
       security: []
       tags:
-        - Modules
+      - Modules
       parameters:
-        - name: moduleId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+      - name: moduleId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       responses:
-        "200":
+        '200':
           description: Module found.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ModuleSingleResponse"
-        "404":
+                $ref: '#/components/schemas/ModuleSingleResponse'
+        '404':
           description: No module with this id (or soft-deleted).
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
           description: Unexpected server error.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: '#/components/schemas/ErrorResponse'
     patch:
       operationId: updateModule
       summary: Update a module
       tags:
-        - Modules
+      - Modules
       security: []
       parameters:
-        - name: moduleId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+      - name: moduleId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ModuleUpdate"
+              $ref: '#/components/schemas/ModuleUpdate'
       responses:
-        "200":
+        '200':
           description: Updated module.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ModuleSingleResponse"
-        "400":
+                $ref: '#/components/schemas/ModuleSingleResponse'
+        '400':
           description: Invalid parent, cycle, or depth.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
           description: Module id not found.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "409":
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
           description: Name or slug conflict with another active module.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
           description: Unexpected server error.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: '#/components/schemas/ErrorResponse'
     delete:
       operationId: deleteModule
       summary: Soft-delete a module
       description: Sets `is_deleted = true` on this module and active descendants; no hard delete.
       tags:
-        - Modules
+      - Modules
       security: []
       parameters:
-        - name: moduleId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+      - name: moduleId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       responses:
-        "200":
+        '200':
           description: Module marked deleted (`is_deleted` true).
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ModuleSingleResponse"
-        "404":
+                $ref: '#/components/schemas/ModuleSingleResponse'
+        '404':
           description: Module id not found.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
           description: Unexpected server error.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: '#/components/schemas/ErrorResponse'
+  /visitpad/units:
+    get:
+      tags:
+      - Visitpad — Units
+      summary: List units
+      operationId: get_visitpad_units_api_v1_master_data_visitpad_units_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: search
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Search
+      - name: dimension
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/VisitpadUnitDimension'
+          - type: 'null'
+          title: Dimension
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadUnitListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - Visitpad — Units
+      summary: Create unit
+      operationId: post_visitpad_unit_api_v1_master_data_visitpad_units_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadUnitCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadUnitSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/units/{unit_id}:
+    get:
+      tags:
+      - Visitpad — Units
+      summary: Get unit by id
+      operationId: get_visitpad_unit_api_v1_master_data_visitpad_units__unit_id__get
+      parameters:
+      - name: unit_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Unit Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadUnitSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - Visitpad — Units
+      summary: Update unit
+      operationId: patch_visitpad_unit_api_v1_master_data_visitpad_units__unit_id__patch
+      parameters:
+      - name: unit_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Unit Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadUnitUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadUnitSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - Visitpad — Units
+      summary: Soft-delete unit
+      operationId: delete_visitpad_unit_api_v1_master_data_visitpad_units__unit_id__delete
+      parameters:
+      - name: unit_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Unit Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadUnitSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/unit-conversions:
+    get:
+      tags:
+      - Visitpad — Unit conversions
+      summary: List unit conversions
+      operationId: get_visitpad_unit_conversions_api_v1_master_data_visitpad_unit_conversions_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: search
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Search
+      - name: from_unit_code
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: From Unit Code
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadUnitConversionListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - Visitpad — Unit conversions
+      summary: Create unit conversion
+      operationId: post_visitpad_unit_conversion_api_v1_master_data_visitpad_unit_conversions_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadUnitConversionCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadUnitConversionSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/unit-conversions/{conversion_id}:
+    get:
+      tags:
+      - Visitpad — Unit conversions
+      summary: Get conversion by id
+      operationId: get_visitpad_unit_conversion_api_v1_master_data_visitpad_unit_conversions__conversion_id__get
+      parameters:
+      - name: conversion_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Conversion Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadUnitConversionSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - Visitpad — Unit conversions
+      summary: Update unit conversion
+      operationId: patch_visitpad_unit_conversion_api_v1_master_data_visitpad_unit_conversions__conversion_id__patch
+      parameters:
+      - name: conversion_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Conversion Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadUnitConversionUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadUnitConversionSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - Visitpad — Unit conversions
+      summary: Soft-delete unit conversion
+      operationId: delete_visitpad_unit_conversion_api_v1_master_data_visitpad_unit_conversions__conversion_id__delete
+      parameters:
+      - name: conversion_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Conversion Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadUnitConversionSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/vitals:
+    get:
+      tags:
+      - Visitpad — Vitals
+      summary: List vitals
+      operationId: get_vitals_api_v1_master_data_visitpad_vitals_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: search
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Search
+      - name: category
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/VisitpadVitalCategory'
+          - type: 'null'
+          title: Category
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadVitalListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - Visitpad — Vitals
+      summary: Create vital
+      operationId: post_vital_api_v1_master_data_visitpad_vitals_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadVitalCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadVitalSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/vitals/{vital_id}:
+    get:
+      tags:
+      - Visitpad — Vitals
+      summary: Get vital
+      operationId: get_vital_api_v1_master_data_visitpad_vitals__vital_id__get
+      parameters:
+      - name: vital_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Vital Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadVitalSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - Visitpad — Vitals
+      summary: Update vital
+      operationId: patch_vital_api_v1_master_data_visitpad_vitals__vital_id__patch
+      parameters:
+      - name: vital_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Vital Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadVitalUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadVitalSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - Visitpad — Vitals
+      summary: Soft-delete vital
+      operationId: delete_vital_api_v1_master_data_visitpad_vitals__vital_id__delete
+      parameters:
+      - name: vital_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Vital Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadVitalSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/chief-complaints:
+    get:
+      tags:
+      - Visitpad — Chief complaints
+      summary: List chief complaints
+      operationId: get_chief_complaints_api_v1_master_data_visitpad_chief_complaints_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: search
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Search
+      - name: body_system
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/VisitpadBodySystem'
+          - type: 'null'
+          title: Body System
+      - name: triage_priority
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/VisitpadTriagePriority'
+          - type: 'null'
+          title: Triage Priority
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadChiefComplaintListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - Visitpad — Chief complaints
+      summary: Create chief complaint
+      operationId: post_chief_complaint_api_v1_master_data_visitpad_chief_complaints_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadChiefComplaintCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadChiefComplaintSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/chief-complaints/{chief_complaint_id}:
+    get:
+      tags:
+      - Visitpad — Chief complaints
+      summary: Get chief complaint
+      operationId: get_chief_complaint_api_v1_master_data_visitpad_chief_complaints__chief_complaint_id__get
+      parameters:
+      - name: chief_complaint_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Chief Complaint Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadChiefComplaintSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - Visitpad — Chief complaints
+      summary: Update chief complaint
+      operationId: patch_chief_complaint_api_v1_master_data_visitpad_chief_complaints__chief_complaint_id__patch
+      parameters:
+      - name: chief_complaint_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Chief Complaint Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadChiefComplaintUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadChiefComplaintSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - Visitpad — Chief complaints
+      summary: Soft-delete chief complaint
+      operationId: delete_chief_complaint_api_v1_master_data_visitpad_chief_complaints__chief_complaint_id__delete
+      parameters:
+      - name: chief_complaint_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Chief Complaint Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadChiefComplaintSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/diagnoses:
+    get:
+      tags:
+      - Visitpad — Diagnoses
+      summary: List diagnoses
+      operationId: get_diagnoses_api_v1_master_data_visitpad_diagnoses_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: search
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Search
+      - name: category
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/VisitpadDiagnosisCategory'
+          - type: 'null'
+          title: Category
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadDiagnosisListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - Visitpad — Diagnoses
+      summary: Create diagnosis
+      operationId: post_diagnosis_api_v1_master_data_visitpad_diagnoses_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadDiagnosisCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadDiagnosisSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/diagnoses/{diagnosis_id}:
+    get:
+      tags:
+      - Visitpad — Diagnoses
+      summary: Get diagnosis
+      operationId: get_diagnosis_api_v1_master_data_visitpad_diagnoses__diagnosis_id__get
+      parameters:
+      - name: diagnosis_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Diagnosis Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadDiagnosisSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - Visitpad — Diagnoses
+      summary: Update diagnosis
+      operationId: patch_diagnosis_api_v1_master_data_visitpad_diagnoses__diagnosis_id__patch
+      parameters:
+      - name: diagnosis_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Diagnosis Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadDiagnosisUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadDiagnosisSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - Visitpad — Diagnoses
+      summary: Soft-delete diagnosis
+      operationId: delete_diagnosis_api_v1_master_data_visitpad_diagnoses__diagnosis_id__delete
+      parameters:
+      - name: diagnosis_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Diagnosis Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadDiagnosisSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/allergens:
+    get:
+      tags:
+      - Visitpad — Allergens
+      summary: List allergens
+      operationId: get_allergens_api_v1_master_data_visitpad_allergens_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: search
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Search
+      - name: allergen_type
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/VisitpadAllergenType'
+          - type: 'null'
+          title: Allergen Type
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadAllergenListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - Visitpad — Allergens
+      summary: Create allergen
+      operationId: post_allergen_api_v1_master_data_visitpad_allergens_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadAllergenCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadAllergenSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/allergens/{allergen_id}:
+    get:
+      tags:
+      - Visitpad — Allergens
+      summary: Get allergen
+      operationId: get_allergen_api_v1_master_data_visitpad_allergens__allergen_id__get
+      parameters:
+      - name: allergen_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Allergen Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadAllergenSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - Visitpad — Allergens
+      summary: Update allergen
+      operationId: patch_allergen_api_v1_master_data_visitpad_allergens__allergen_id__patch
+      parameters:
+      - name: allergen_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Allergen Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadAllergenUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadAllergenSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - Visitpad — Allergens
+      summary: Soft-delete allergen
+      operationId: delete_allergen_api_v1_master_data_visitpad_allergens__allergen_id__delete
+      parameters:
+      - name: allergen_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Allergen Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadAllergenSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/allergy-reactions:
+    get:
+      tags:
+      - Visitpad — Allergy reactions
+      summary: List reactions
+      operationId: get_reactions_api_v1_master_data_visitpad_allergy_reactions_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: search
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Search
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadAllergyReactionListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - Visitpad — Allergy reactions
+      summary: Create reaction
+      operationId: post_reaction_api_v1_master_data_visitpad_allergy_reactions_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadAllergyReactionCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadAllergyReactionSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/allergy-reactions/{reaction_id}:
+    get:
+      tags:
+      - Visitpad — Allergy reactions
+      summary: Get reaction
+      operationId: get_reaction_api_v1_master_data_visitpad_allergy_reactions__reaction_id__get
+      parameters:
+      - name: reaction_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Reaction Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadAllergyReactionSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - Visitpad — Allergy reactions
+      summary: Update reaction
+      operationId: patch_reaction_api_v1_master_data_visitpad_allergy_reactions__reaction_id__patch
+      parameters:
+      - name: reaction_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Reaction Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadAllergyReactionUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadAllergyReactionSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - Visitpad — Allergy reactions
+      summary: Soft-delete reaction
+      operationId: delete_reaction_api_v1_master_data_visitpad_allergy_reactions__reaction_id__delete
+      parameters:
+      - name: reaction_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Reaction Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadAllergyReactionSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/rx-columns:
+    get:
+      tags:
+      - Visitpad — Rx columns
+      summary: List Rx columns
+      operationId: get_visitpad_rx_columns_api_v1_master_data_visitpad_rx_columns_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: search
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Search
+      - name: section
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/VisitpadRxColumnSection'
+          - type: 'null'
+          title: Section
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadRxColumnListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - Visitpad — Rx columns
+      summary: Create Rx column
+      operationId: post_visitpad_rx_column_api_v1_master_data_visitpad_rx_columns_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadRxColumnCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadRxColumnSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/rx-columns/{rx_column_id}:
+    get:
+      tags:
+      - Visitpad — Rx columns
+      summary: Get Rx column
+      operationId: get_visitpad_rx_column_api_v1_master_data_visitpad_rx_columns__rx_column_id__get
+      parameters:
+      - name: rx_column_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Rx Column Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadRxColumnSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - Visitpad — Rx columns
+      summary: Update Rx column
+      operationId: patch_visitpad_rx_column_api_v1_master_data_visitpad_rx_columns__rx_column_id__patch
+      parameters:
+      - name: rx_column_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Rx Column Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadRxColumnUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadRxColumnSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - Visitpad — Rx columns
+      summary: Soft-delete Rx column
+      operationId: delete_visitpad_rx_column_api_v1_master_data_visitpad_rx_columns__rx_column_id__delete
+      parameters:
+      - name: rx_column_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Rx Column Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadRxColumnSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/medicines:
+    get:
+      tags:
+      - Visitpad — Medicines
+      summary: List medicines
+      operationId: get_medicines_api_v1_master_data_visitpad_medicines_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: search
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Search
+      - name: schedule
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/VisitpadMedicineSchedule'
+          - type: 'null'
+          title: Schedule
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadMedicineListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - Visitpad — Medicines
+      summary: Create medicine
+      operationId: post_medicine_api_v1_master_data_visitpad_medicines_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadMedicineCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadMedicineSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/medicines/{medicine_id}:
+    get:
+      tags:
+      - Visitpad — Medicines
+      summary: Get medicine
+      operationId: get_medicine_api_v1_master_data_visitpad_medicines__medicine_id__get
+      parameters:
+      - name: medicine_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Medicine Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadMedicineSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - Visitpad — Medicines
+      summary: Update medicine
+      operationId: patch_medicine_api_v1_master_data_visitpad_medicines__medicine_id__patch
+      parameters:
+      - name: medicine_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Medicine Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadMedicineUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadMedicineSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - Visitpad — Medicines
+      summary: Soft-delete medicine
+      operationId: delete_medicine_api_v1_master_data_visitpad_medicines__medicine_id__delete
+      parameters:
+      - name: medicine_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Medicine Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadMedicineSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/chronic-illnesses:
+    get:
+      tags:
+      - Visitpad — Chronic illnesses
+      summary: List chronic illnesses
+      operationId: get_chronic_illnesses_api_v1_master_data_visitpad_chronic_illnesses_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: search
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Search
+      - name: category
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/VisitpadChronicIllnessCategory'
+          - type: 'null'
+          title: Category
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadChronicIllnessListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - Visitpad — Chronic illnesses
+      summary: Create chronic illness
+      operationId: post_chronic_illness_api_v1_master_data_visitpad_chronic_illnesses_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadChronicIllnessCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadChronicIllnessSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/chronic-illnesses/{chronic_illness_id}:
+    get:
+      tags:
+      - Visitpad — Chronic illnesses
+      summary: Get chronic illness
+      operationId: get_chronic_illness_api_v1_master_data_visitpad_chronic_illnesses__chronic_illness_id__get
+      parameters:
+      - name: chronic_illness_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Chronic Illness Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadChronicIllnessSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - Visitpad — Chronic illnesses
+      summary: Update chronic illness
+      operationId: patch_chronic_illness_api_v1_master_data_visitpad_chronic_illnesses__chronic_illness_id__patch
+      parameters:
+      - name: chronic_illness_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Chronic Illness Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadChronicIllnessUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadChronicIllnessSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - Visitpad — Chronic illnesses
+      summary: Soft-delete chronic illness
+      operationId: delete_chronic_illness_api_v1_master_data_visitpad_chronic_illnesses__chronic_illness_id__delete
+      parameters:
+      - name: chronic_illness_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Chronic Illness Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadChronicIllnessSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/procedures:
+    get:
+      tags:
+      - Visitpad — Procedures
+      summary: List procedures
+      operationId: get_procedures_api_v1_master_data_visitpad_procedures_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: search
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Search
+      - name: category
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/VisitpadProcedureCategory'
+          - type: 'null'
+          title: Category
+      - name: billing_category
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/VisitpadProcedureBillingCategory'
+          - type: 'null'
+          title: Billing Category
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadProcedureListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - Visitpad — Procedures
+      summary: Create procedure
+      operationId: post_procedure_api_v1_master_data_visitpad_procedures_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadProcedureCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadProcedureSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/procedures/{procedure_id}:
+    get:
+      tags:
+      - Visitpad — Procedures
+      summary: Get procedure
+      operationId: get_procedure_api_v1_master_data_visitpad_procedures__procedure_id__get
+      parameters:
+      - name: procedure_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Procedure Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadProcedureSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - Visitpad — Procedures
+      summary: Update procedure
+      operationId: patch_procedure_api_v1_master_data_visitpad_procedures__procedure_id__patch
+      parameters:
+      - name: procedure_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Procedure Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadProcedureUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadProcedureSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - Visitpad — Procedures
+      summary: Soft-delete procedure
+      operationId: delete_procedure_api_v1_master_data_visitpad_procedures__procedure_id__delete
+      parameters:
+      - name: procedure_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Procedure Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadProcedureSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
 components:
   securitySchemes:
     bearerAuth:
@@ -957,21 +2749,21 @@ components:
     ErrorResponse:
       type: object
       required:
-        - error
+      - error
       properties:
         error:
           type: object
           required:
-            - code
-            - message
+          - code
+          - message
           properties:
             code:
               type: string
               description: Stable error code for clients.
               examples:
-                - UNAUTHORIZED
-                - CONFLICT
-                - BAD_REQUEST
+              - UNAUTHORIZED
+              - CONFLICT
+              - BAD_REQUEST
             message:
               type: string
               description: Human-readable summary.
@@ -987,24 +2779,24 @@ components:
     ModuleCategory:
       type: string
       enum:
-        - core
-        - clinical
-        - administrative
-        - support
+      - core
+      - clinical
+      - administrative
+      - support
     PermissionAction:
       type: string
       enum:
-        - create
-        - read
-        - update
-        - delete
-        - manage
+      - create
+      - read
+      - update
+      - delete
+      - manage
     PermissionCreate:
       type: object
       required:
-        - name
-        - slug
-        - action
+      - name
+      - slug
+      - action
       additionalProperties: false
       properties:
         name:
@@ -1012,7 +2804,7 @@ components:
         slug:
           type: string
         action:
-          $ref: "#/components/schemas/PermissionAction"
+          $ref: '#/components/schemas/PermissionAction'
         description:
           type: string
           nullable: true
@@ -1028,7 +2820,7 @@ components:
         slug:
           type: string
         action:
-          $ref: "#/components/schemas/PermissionAction"
+          $ref: '#/components/schemas/PermissionAction'
         description:
           type: string
           nullable: true
@@ -1040,14 +2832,14 @@ components:
     Permission:
       type: object
       required:
-        - id
-        - name
-        - slug
-        - action
-        - is_active
-        - is_deleted
-        - created_at
-        - updated_at
+      - id
+      - name
+      - slug
+      - action
+      - is_active
+      - is_deleted
+      - created_at
+      - updated_at
       properties:
         id:
           type: string
@@ -1057,7 +2849,7 @@ components:
         slug:
           type: string
         action:
-          $ref: "#/components/schemas/PermissionAction"
+          $ref: '#/components/schemas/PermissionAction'
         description:
           type: string
           nullable: true
@@ -1082,46 +2874,47 @@ components:
     PermissionSingleResponse:
       type: object
       required:
-        - data
+      - data
       properties:
         data:
-          $ref: "#/components/schemas/Permission"
+          $ref: '#/components/schemas/Permission'
     PermissionListResponse:
       type: object
       required:
-        - data
-        - total
+      - data
+      - total
       properties:
         data:
           type: array
           items:
-            $ref: "#/components/schemas/Permission"
+            $ref: '#/components/schemas/Permission'
         total:
           type: integer
           minimum: 0
     SystemRoleCreate:
       type: object
       required:
-        - name
-        - slug
+      - name
+      - slug
       additionalProperties: false
       properties:
         name:
           type: string
         slug:
           type: string
-          description: >
-            Stable template key (unique among active rows). One slug = one catalog template;
-            use distinct slugs per template (e.g. `ward-clerk`, `lab-supervisor`).
+          description: 'Stable template key (unique among active rows). One slug = one catalog template; use distinct slugs
+            per template (e.g. `ward-clerk`, `lab-supervisor`).
+
+            '
         description:
           type: string
           nullable: true
         is_template:
           type: boolean
           default: true
-          description: >
-            True for platform catalog templates. Instantiated tenant roles live outside
-            `master_data`.
+          description: 'True for platform catalog templates. Instantiated tenant roles live outside `master_data`.
+
+            '
         is_active:
           type: boolean
           default: true
@@ -1146,14 +2939,14 @@ components:
     SystemRole:
       type: object
       required:
-        - id
-        - name
-        - slug
-        - is_template
-        - is_active
-        - is_deleted
-        - created_at
-        - updated_at
+      - id
+      - name
+      - slug
+      - is_template
+      - is_active
+      - is_deleted
+      - created_at
+      - updated_at
       properties:
         id:
           type: string
@@ -1188,36 +2981,37 @@ components:
     SystemRoleSingleResponse:
       type: object
       required:
-        - data
+      - data
       properties:
         data:
-          $ref: "#/components/schemas/SystemRole"
+          $ref: '#/components/schemas/SystemRole'
     SystemRoleListResponse:
       type: object
       required:
-        - data
-        - total
+      - data
+      - total
       properties:
         data:
           type: array
           items:
-            $ref: "#/components/schemas/SystemRole"
+            $ref: '#/components/schemas/SystemRole'
         total:
           type: integer
           minimum: 0
     ModulePermissionCreate:
       type: object
       required:
-        - slug
-        - module_id
-        - permission_id
+      - slug
+      - module_id
+      - permission_id
       additionalProperties: false
       properties:
         slug:
           type: string
-          description: >
-            Stable key for this link (unique among active rows). Convention: combine module and
-            permission slugs, e.g. `opd--opd-create` or `opd:opd:create`.
+          description: 'Stable key for this link (unique among active rows). Convention: combine module and permission slugs,
+            e.g. `opd--opd-create` or `opd:opd:create`.
+
+            '
         module_id:
           type: string
           format: uuid
@@ -1247,15 +3041,15 @@ components:
     ModulePermission:
       type: object
       required:
-        - id
-        - slug
-        - module_id
-        - permission_id
-        - is_default
-        - is_active
-        - is_deleted
-        - created_at
-        - updated_at
+      - id
+      - slug
+      - module_id
+      - permission_id
+      - is_default
+      - is_active
+      - is_deleted
+      - created_at
+      - updated_at
       properties:
         id:
           type: string
@@ -1291,29 +3085,29 @@ components:
     ModulePermissionSingleResponse:
       type: object
       required:
-        - data
+      - data
       properties:
         data:
-          $ref: "#/components/schemas/ModulePermission"
+          $ref: '#/components/schemas/ModulePermission'
     ModulePermissionListResponse:
       type: object
       required:
-        - data
-        - total
+      - data
+      - total
       properties:
         data:
           type: array
           items:
-            $ref: "#/components/schemas/ModulePermission"
+            $ref: '#/components/schemas/ModulePermission'
         total:
           type: integer
           minimum: 0
     ModuleCreate:
       type: object
       required:
-        - name
-        - slug
-        - category
+      - name
+      - slug
+      - category
       properties:
         name:
           type: string
@@ -1322,10 +3116,10 @@ components:
           type: string
           description: Unique among active modules (soft-deleted rows do not consume slug).
         category:
-          $ref: "#/components/schemas/ModuleCategory"
+          $ref: '#/components/schemas/ModuleCategory'
         version:
           type: string
-          default: "0.0.0"
+          default: 0.0.0
         description:
           type: string
           nullable: true
@@ -1349,7 +3143,7 @@ components:
         slug:
           type: string
         category:
-          $ref: "#/components/schemas/ModuleCategory"
+          $ref: '#/components/schemas/ModuleCategory'
         version:
           type: string
         description:
@@ -1370,16 +3164,16 @@ components:
     Module:
       type: object
       required:
-        - id
-        - name
-        - slug
-        - category
-        - version
-        - level
-        - is_active
-        - is_deleted
-        - created_at
-        - updated_at
+      - id
+      - name
+      - slug
+      - category
+      - version
+      - level
+      - is_active
+      - is_deleted
+      - created_at
+      - updated_at
       properties:
         id:
           type: string
@@ -1391,20 +3185,20 @@ components:
         name:
           type: string
           examples:
-            - user_management
+          - user_management
         slug:
           type: string
           examples:
-            - user-management
+          - user-management
         description:
           type: string
           nullable: true
         category:
-          $ref: "#/components/schemas/ModuleCategory"
+          $ref: '#/components/schemas/ModuleCategory'
         version:
           type: string
           examples:
-            - 1.0.0
+          - 1.0.0
         level:
           type: integer
           minimum: 1
@@ -1436,20 +3230,2996 @@ components:
     ModuleSingleResponse:
       type: object
       required:
-        - data
+      - data
       properties:
         data:
-          $ref: "#/components/schemas/Module"
+          $ref: '#/components/schemas/Module'
     ModuleListResponse:
       type: object
       required:
-        - data
-        - total
+      - data
+      - total
       properties:
         data:
           type: array
           items:
-            $ref: "#/components/schemas/Module"
+            $ref: '#/components/schemas/Module'
         total:
           type: integer
           minimum: 0
+    VisitpadAllergenCreate:
+      properties:
+        code:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Code
+        display_name:
+          type: string
+          maxLength: 256
+          minLength: 1
+          title: Display Name
+        allergen_type:
+          $ref: '#/components/schemas/VisitpadAllergenType'
+        drug_class:
+          anyOf:
+          - type: string
+            maxLength: 256
+          - type: 'null'
+          title: Drug Class
+        reaction_severity_default:
+          $ref: '#/components/schemas/VisitpadReactionSeverityDefault'
+        snomed_code:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Snomed Code
+        display_order:
+          type: integer
+          title: Display Order
+          default: 0
+        is_active:
+          type: boolean
+          title: Is Active
+          default: true
+      additionalProperties: false
+      type: object
+      required:
+      - code
+      - display_name
+      - allergen_type
+      - reaction_severity_default
+      title: VisitpadAllergenCreate
+    VisitpadAllergenListResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/VisitpadAllergenResponse'
+          type: array
+          title: Data
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - data
+      - total
+      title: VisitpadAllergenListResponse
+    VisitpadAllergenResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        tenant_id:
+          type: string
+          format: uuid
+          title: Tenant Id
+        code:
+          type: string
+          title: Code
+        display_name:
+          type: string
+          title: Display Name
+        allergen_type:
+          $ref: '#/components/schemas/VisitpadAllergenType'
+        drug_class:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Drug Class
+        reaction_severity_default:
+          $ref: '#/components/schemas/VisitpadReactionSeverityDefault'
+        snomed_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Snomed Code
+        display_order:
+          type: integer
+          title: Display Order
+        is_active:
+          type: boolean
+          title: Is Active
+        is_deleted:
+          type: boolean
+          title: Is Deleted
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - id
+      - tenant_id
+      - code
+      - display_name
+      - allergen_type
+      - reaction_severity_default
+      - display_order
+      - is_active
+      - is_deleted
+      - created_at
+      - updated_at
+      title: VisitpadAllergenResponse
+    VisitpadAllergenSingleResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/VisitpadAllergenResponse'
+      type: object
+      required:
+      - data
+      title: VisitpadAllergenSingleResponse
+    VisitpadAllergenType:
+      type: string
+      enum:
+      - drug
+      - food
+      - environmental
+      - other
+      title: VisitpadAllergenType
+    VisitpadAllergenUpdate:
+      properties:
+        code:
+          anyOf:
+          - type: string
+            maxLength: 64
+            minLength: 1
+          - type: 'null'
+          title: Code
+        display_name:
+          anyOf:
+          - type: string
+            maxLength: 256
+            minLength: 1
+          - type: 'null'
+          title: Display Name
+        allergen_type:
+          anyOf:
+          - $ref: '#/components/schemas/VisitpadAllergenType'
+          - type: 'null'
+        drug_class:
+          anyOf:
+          - type: string
+            maxLength: 256
+          - type: 'null'
+          title: Drug Class
+        reaction_severity_default:
+          anyOf:
+          - $ref: '#/components/schemas/VisitpadReactionSeverityDefault'
+          - type: 'null'
+        snomed_code:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Snomed Code
+        display_order:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Display Order
+        is_active:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Active
+        is_deleted:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Deleted
+      additionalProperties: false
+      type: object
+      title: VisitpadAllergenUpdate
+    VisitpadAllergyReactionCreate:
+      properties:
+        display_name:
+          type: string
+          maxLength: 256
+          minLength: 1
+          title: Display Name
+        code:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Code
+        display_order:
+          type: integer
+          title: Display Order
+          default: 0
+        is_active:
+          type: boolean
+          title: Is Active
+          default: true
+      additionalProperties: false
+      type: object
+      required:
+      - display_name
+      - code
+      title: VisitpadAllergyReactionCreate
+    VisitpadAllergyReactionListResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/VisitpadAllergyReactionResponse'
+          type: array
+          title: Data
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - data
+      - total
+      title: VisitpadAllergyReactionListResponse
+    VisitpadAllergyReactionResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        tenant_id:
+          type: string
+          format: uuid
+          title: Tenant Id
+        display_name:
+          type: string
+          title: Display Name
+        code:
+          type: string
+          title: Code
+        display_order:
+          type: integer
+          title: Display Order
+        is_active:
+          type: boolean
+          title: Is Active
+        is_deleted:
+          type: boolean
+          title: Is Deleted
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - id
+      - tenant_id
+      - display_name
+      - code
+      - display_order
+      - is_active
+      - is_deleted
+      - created_at
+      - updated_at
+      title: VisitpadAllergyReactionResponse
+    VisitpadAllergyReactionSingleResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/VisitpadAllergyReactionResponse'
+      type: object
+      required:
+      - data
+      title: VisitpadAllergyReactionSingleResponse
+    VisitpadAllergyReactionUpdate:
+      properties:
+        display_name:
+          anyOf:
+          - type: string
+            maxLength: 256
+            minLength: 1
+          - type: 'null'
+          title: Display Name
+        code:
+          anyOf:
+          - type: string
+            maxLength: 64
+            minLength: 1
+          - type: 'null'
+          title: Code
+        display_order:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Display Order
+        is_active:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Active
+        is_deleted:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Deleted
+      additionalProperties: false
+      type: object
+      title: VisitpadAllergyReactionUpdate
+    VisitpadBodySystem:
+      type: string
+      enum:
+      - cardiovascular
+      - respiratory
+      - neurological
+      - gastrointestinal
+      - musculoskeletal
+      - ent
+      - skin
+      - psychiatric
+      - other
+      title: VisitpadBodySystem
+    VisitpadChiefComplaintCreate:
+      properties:
+        code:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Code
+        display_name:
+          type: string
+          maxLength: 256
+          minLength: 1
+          title: Display Name
+        body_system:
+          $ref: '#/components/schemas/VisitpadBodySystem'
+        triage_priority:
+          $ref: '#/components/schemas/VisitpadTriagePriority'
+        synonyms:
+          items:
+            type: string
+          type: array
+          maxItems: 50
+          title: Synonyms
+        is_paediatric_relevant:
+          type: boolean
+          title: Is Paediatric Relevant
+          default: false
+        display_order:
+          type: integer
+          title: Display Order
+          default: 0
+        is_active:
+          type: boolean
+          title: Is Active
+          default: true
+        snomed_code:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Snomed Code
+      additionalProperties: false
+      type: object
+      required:
+      - code
+      - display_name
+      - body_system
+      - triage_priority
+      title: VisitpadChiefComplaintCreate
+    VisitpadChiefComplaintListResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/VisitpadChiefComplaintResponse'
+          type: array
+          title: Data
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - data
+      - total
+      title: VisitpadChiefComplaintListResponse
+    VisitpadChiefComplaintResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        tenant_id:
+          type: string
+          format: uuid
+          title: Tenant Id
+        code:
+          type: string
+          title: Code
+        display_name:
+          type: string
+          title: Display Name
+        body_system:
+          $ref: '#/components/schemas/VisitpadBodySystem'
+        triage_priority:
+          $ref: '#/components/schemas/VisitpadTriagePriority'
+        synonyms:
+          items:
+            type: string
+          type: array
+          title: Synonyms
+        is_paediatric_relevant:
+          type: boolean
+          title: Is Paediatric Relevant
+        display_order:
+          type: integer
+          title: Display Order
+        is_active:
+          type: boolean
+          title: Is Active
+        is_deleted:
+          type: boolean
+          title: Is Deleted
+        snomed_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Snomed Code
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - id
+      - tenant_id
+      - code
+      - display_name
+      - body_system
+      - triage_priority
+      - synonyms
+      - is_paediatric_relevant
+      - display_order
+      - is_active
+      - is_deleted
+      - created_at
+      - updated_at
+      title: VisitpadChiefComplaintResponse
+    VisitpadChiefComplaintSingleResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/VisitpadChiefComplaintResponse'
+      type: object
+      required:
+      - data
+      title: VisitpadChiefComplaintSingleResponse
+    VisitpadChiefComplaintUpdate:
+      properties:
+        code:
+          anyOf:
+          - type: string
+            maxLength: 64
+            minLength: 1
+          - type: 'null'
+          title: Code
+        display_name:
+          anyOf:
+          - type: string
+            maxLength: 256
+            minLength: 1
+          - type: 'null'
+          title: Display Name
+        body_system:
+          anyOf:
+          - $ref: '#/components/schemas/VisitpadBodySystem'
+          - type: 'null'
+        triage_priority:
+          anyOf:
+          - $ref: '#/components/schemas/VisitpadTriagePriority'
+          - type: 'null'
+        synonyms:
+          anyOf:
+          - items:
+              type: string
+            type: array
+            maxItems: 50
+          - type: 'null'
+          title: Synonyms
+        is_paediatric_relevant:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Paediatric Relevant
+        display_order:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Display Order
+        is_active:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Active
+        snomed_code:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Snomed Code
+        is_deleted:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Deleted
+      additionalProperties: false
+      type: object
+      title: VisitpadChiefComplaintUpdate
+    VisitpadChronicIllnessCategory:
+      type: string
+      enum:
+      - cardiovascular
+      - respiratory
+      - metabolic
+      - renal
+      - neurological
+      - other
+      title: VisitpadChronicIllnessCategory
+    VisitpadChronicIllnessCreate:
+      properties:
+        display_name:
+          type: string
+          maxLength: 512
+          minLength: 1
+          title: Display Name
+        icd10_code:
+          type: string
+          maxLength: 16
+          minLength: 1
+          title: Icd10 Code
+        category:
+          $ref: '#/components/schemas/VisitpadChronicIllnessCategory'
+        snomed_code:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Snomed Code
+        display_order:
+          type: integer
+          title: Display Order
+          default: 0
+        is_active:
+          type: boolean
+          title: Is Active
+          default: true
+      additionalProperties: false
+      type: object
+      required:
+      - display_name
+      - icd10_code
+      - category
+      title: VisitpadChronicIllnessCreate
+    VisitpadChronicIllnessListResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/VisitpadChronicIllnessResponse'
+          type: array
+          title: Data
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - data
+      - total
+      title: VisitpadChronicIllnessListResponse
+    VisitpadChronicIllnessResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        tenant_id:
+          type: string
+          format: uuid
+          title: Tenant Id
+        display_name:
+          type: string
+          title: Display Name
+        icd10_code:
+          type: string
+          title: Icd10 Code
+        category:
+          $ref: '#/components/schemas/VisitpadChronicIllnessCategory'
+        snomed_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Snomed Code
+        display_order:
+          type: integer
+          title: Display Order
+        is_active:
+          type: boolean
+          title: Is Active
+        is_deleted:
+          type: boolean
+          title: Is Deleted
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - id
+      - tenant_id
+      - display_name
+      - icd10_code
+      - category
+      - display_order
+      - is_active
+      - is_deleted
+      - created_at
+      - updated_at
+      title: VisitpadChronicIllnessResponse
+    VisitpadChronicIllnessSingleResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/VisitpadChronicIllnessResponse'
+      type: object
+      required:
+      - data
+      title: VisitpadChronicIllnessSingleResponse
+    VisitpadChronicIllnessUpdate:
+      properties:
+        display_name:
+          anyOf:
+          - type: string
+            maxLength: 512
+            minLength: 1
+          - type: 'null'
+          title: Display Name
+        icd10_code:
+          anyOf:
+          - type: string
+            maxLength: 16
+            minLength: 1
+          - type: 'null'
+          title: Icd10 Code
+        category:
+          anyOf:
+          - $ref: '#/components/schemas/VisitpadChronicIllnessCategory'
+          - type: 'null'
+        snomed_code:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Snomed Code
+        display_order:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Display Order
+        is_active:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Active
+        is_deleted:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Deleted
+      additionalProperties: false
+      type: object
+      title: VisitpadChronicIllnessUpdate
+    VisitpadDiagnosisCategory:
+      type: string
+      enum:
+      - general
+      - infectious
+      - neoplastic
+      - metabolic
+      - psychiatric
+      - injury
+      - other
+      title: VisitpadDiagnosisCategory
+    VisitpadDiagnosisCreate:
+      properties:
+        icd10_code:
+          type: string
+          maxLength: 16
+          minLength: 1
+          title: Icd10 Code
+        icd_version:
+          $ref: '#/components/schemas/VisitpadIcdVersion'
+        official_descriptor:
+          type: string
+          maxLength: 512
+          minLength: 1
+          title: Official Descriptor
+        display_name:
+          type: string
+          maxLength: 512
+          minLength: 1
+          title: Display Name
+        category:
+          $ref: '#/components/schemas/VisitpadDiagnosisCategory'
+        is_chronic_flag:
+          type: boolean
+          title: Is Chronic Flag
+          default: false
+        is_notifiable:
+          type: boolean
+          title: Is Notifiable
+          default: false
+        display_order:
+          type: integer
+          title: Display Order
+          default: 0
+        is_active:
+          type: boolean
+          title: Is Active
+          default: true
+        snomed_code:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Snomed Code
+      additionalProperties: false
+      type: object
+      required:
+      - icd10_code
+      - icd_version
+      - official_descriptor
+      - display_name
+      - category
+      title: VisitpadDiagnosisCreate
+    VisitpadDiagnosisListResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/VisitpadDiagnosisResponse'
+          type: array
+          title: Data
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - data
+      - total
+      title: VisitpadDiagnosisListResponse
+    VisitpadDiagnosisResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        tenant_id:
+          type: string
+          format: uuid
+          title: Tenant Id
+        icd10_code:
+          type: string
+          title: Icd10 Code
+        icd_version:
+          $ref: '#/components/schemas/VisitpadIcdVersion'
+        official_descriptor:
+          type: string
+          title: Official Descriptor
+        display_name:
+          type: string
+          title: Display Name
+        category:
+          $ref: '#/components/schemas/VisitpadDiagnosisCategory'
+        is_chronic_flag:
+          type: boolean
+          title: Is Chronic Flag
+        is_notifiable:
+          type: boolean
+          title: Is Notifiable
+        display_order:
+          type: integer
+          title: Display Order
+        is_active:
+          type: boolean
+          title: Is Active
+        is_deleted:
+          type: boolean
+          title: Is Deleted
+        snomed_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Snomed Code
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - id
+      - tenant_id
+      - icd10_code
+      - icd_version
+      - official_descriptor
+      - display_name
+      - category
+      - is_chronic_flag
+      - is_notifiable
+      - display_order
+      - is_active
+      - is_deleted
+      - created_at
+      - updated_at
+      title: VisitpadDiagnosisResponse
+    VisitpadDiagnosisSingleResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/VisitpadDiagnosisResponse'
+      type: object
+      required:
+      - data
+      title: VisitpadDiagnosisSingleResponse
+    VisitpadDiagnosisUpdate:
+      properties:
+        icd10_code:
+          anyOf:
+          - type: string
+            maxLength: 16
+            minLength: 1
+          - type: 'null'
+          title: Icd10 Code
+        icd_version:
+          anyOf:
+          - $ref: '#/components/schemas/VisitpadIcdVersion'
+          - type: 'null'
+        official_descriptor:
+          anyOf:
+          - type: string
+            maxLength: 512
+            minLength: 1
+          - type: 'null'
+          title: Official Descriptor
+        display_name:
+          anyOf:
+          - type: string
+            maxLength: 512
+            minLength: 1
+          - type: 'null'
+          title: Display Name
+        category:
+          anyOf:
+          - $ref: '#/components/schemas/VisitpadDiagnosisCategory'
+          - type: 'null'
+        is_chronic_flag:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Chronic Flag
+        is_notifiable:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Notifiable
+        display_order:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Display Order
+        is_active:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Active
+        snomed_code:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Snomed Code
+        is_deleted:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Deleted
+      additionalProperties: false
+      type: object
+      title: VisitpadDiagnosisUpdate
+    VisitpadIcdVersion:
+      type: string
+      enum:
+      - ICD-10
+      - ICD-11
+      title: VisitpadIcdVersion
+    VisitpadMedicineCreate:
+      properties:
+        code:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Code
+        display_name:
+          type: string
+          maxLength: 512
+          minLength: 1
+          title: Display Name
+        generic_name:
+          type: string
+          maxLength: 512
+          minLength: 1
+          title: Generic Name
+        short_name:
+          anyOf:
+          - type: string
+            maxLength: 256
+          - type: 'null'
+          title: Short Name
+        brand_names:
+          items:
+            type: string
+          type: array
+          maxItems: 50
+          title: Brand Names
+        drug_class:
+          type: string
+          maxLength: 256
+          minLength: 1
+          title: Drug Class
+        drug_subclass:
+          anyOf:
+          - type: string
+            maxLength: 256
+          - type: 'null'
+          title: Drug Subclass
+        dosage_form:
+          type: string
+          maxLength: 128
+          minLength: 1
+          title: Dosage Form
+        route_of_admin:
+          items:
+            type: string
+          type: array
+          maxItems: 20
+          title: Route Of Admin
+        strength_value:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Strength Value
+        strength_unit:
+          anyOf:
+          - type: string
+            maxLength: 32
+          - type: 'null'
+          title: Strength Unit
+        strength_display:
+          type: string
+          maxLength: 256
+          title: Strength Display
+          default: ''
+        concentration_value:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Concentration Value
+        concentration_unit:
+          anyOf:
+          - type: string
+            maxLength: 32
+          - type: 'null'
+          title: Concentration Unit
+        volume_per_unit:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Volume Per Unit
+        sku_code:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Sku Code
+        barcode:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Barcode
+        pack_size:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Pack Size
+        pack_unit:
+          anyOf:
+          - type: string
+            maxLength: 32
+          - type: 'null'
+          title: Pack Unit
+        manufacturer:
+          anyOf:
+          - type: string
+            maxLength: 256
+          - type: 'null'
+          title: Manufacturer
+        storage_condition:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Storage Condition
+        expiry_tracking:
+          type: boolean
+          title: Expiry Tracking
+          default: false
+        is_dispensable:
+          type: boolean
+          title: Is Dispensable
+          default: true
+        schedule:
+          $ref: '#/components/schemas/VisitpadMedicineSchedule'
+        is_controlled_substance:
+          type: boolean
+          title: Is Controlled Substance
+          default: false
+        is_narcotic:
+          type: boolean
+          title: Is Narcotic
+          default: false
+        requires_prescription:
+          type: boolean
+          title: Requires Prescription
+          default: false
+        is_restricted_antibiotic:
+          type: boolean
+          title: Is Restricted Antibiotic
+          default: false
+        allergen_classes:
+          items:
+            type: string
+          type: array
+          maxItems: 50
+          title: Allergen Classes
+        contraindications:
+          items:
+            type: string
+          type: array
+          maxItems: 50
+          title: Contraindications
+        search_tags:
+          items:
+            type: string
+          type: array
+          maxItems: 50
+          title: Search Tags
+        atc_code:
+          anyOf:
+          - type: string
+            maxLength: 32
+          - type: 'null'
+          title: Atc Code
+        rxnorm_code:
+          anyOf:
+          - type: string
+            maxLength: 32
+          - type: 'null'
+          title: Rxnorm Code
+        snomed_substance_code:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Snomed Substance Code
+        snomed_product_code:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Snomed Product Code
+        pregnancy_category:
+          anyOf:
+          - type: string
+            maxLength: 8
+          - type: 'null'
+          title: Pregnancy Category
+        lactation_safety:
+          anyOf:
+          - type: string
+            maxLength: 32
+          - type: 'null'
+          title: Lactation Safety
+        pediatric_use:
+          anyOf:
+          - type: string
+            maxLength: 32
+          - type: 'null'
+          title: Pediatric Use
+        max_dose_per_day_value:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Max Dose Per Day Value
+        max_dose_per_day_unit:
+          anyOf:
+          - type: string
+            maxLength: 32
+          - type: 'null'
+          title: Max Dose Per Day Unit
+        black_box_warning:
+          type: boolean
+          title: Black Box Warning
+          default: false
+        black_box_warning_text:
+          anyOf:
+          - type: string
+            maxLength: 2048
+          - type: 'null'
+          title: Black Box Warning Text
+        default_dose_value:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Default Dose Value
+        default_dose_unit:
+          anyOf:
+          - type: string
+            maxLength: 32
+          - type: 'null'
+          title: Default Dose Unit
+        default_frequency:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Default Frequency
+        default_duration_days:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Default Duration Days
+        default_route:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Default Route
+        default_instructions:
+          anyOf:
+          - type: string
+            maxLength: 1024
+          - type: 'null'
+          title: Default Instructions
+        typical_quantity:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Typical Quantity
+        notes:
+          anyOf:
+          - type: string
+            maxLength: 2048
+          - type: 'null'
+          title: Notes
+        display_order:
+          type: integer
+          title: Display Order
+          default: 0
+        is_active:
+          type: boolean
+          title: Is Active
+          default: true
+      additionalProperties: false
+      type: object
+      required:
+      - code
+      - display_name
+      - generic_name
+      - drug_class
+      - dosage_form
+      - schedule
+      title: VisitpadMedicineCreate
+    VisitpadMedicineListResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/VisitpadMedicineResponse'
+          type: array
+          title: Data
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - data
+      - total
+      title: VisitpadMedicineListResponse
+    VisitpadMedicineResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        tenant_id:
+          type: string
+          format: uuid
+          title: Tenant Id
+        code:
+          type: string
+          title: Code
+        display_name:
+          type: string
+          title: Display Name
+        generic_name:
+          type: string
+          title: Generic Name
+        short_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Short Name
+        brand_names:
+          items: {}
+          type: array
+          title: Brand Names
+        drug_class:
+          type: string
+          title: Drug Class
+        drug_subclass:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Drug Subclass
+        dosage_form:
+          type: string
+          title: Dosage Form
+        route_of_admin:
+          items: {}
+          type: array
+          title: Route Of Admin
+        strength_value:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Strength Value
+        strength_unit:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Strength Unit
+        strength_display:
+          type: string
+          title: Strength Display
+        concentration_value:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Concentration Value
+        concentration_unit:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Concentration Unit
+        volume_per_unit:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Volume Per Unit
+        sku_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sku Code
+        barcode:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Barcode
+        pack_size:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Pack Size
+        pack_unit:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Pack Unit
+        manufacturer:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Manufacturer
+        storage_condition:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Storage Condition
+        expiry_tracking:
+          type: boolean
+          title: Expiry Tracking
+        is_dispensable:
+          type: boolean
+          title: Is Dispensable
+        schedule:
+          $ref: '#/components/schemas/VisitpadMedicineSchedule'
+        is_controlled_substance:
+          type: boolean
+          title: Is Controlled Substance
+        is_narcotic:
+          type: boolean
+          title: Is Narcotic
+        requires_prescription:
+          type: boolean
+          title: Requires Prescription
+        is_restricted_antibiotic:
+          type: boolean
+          title: Is Restricted Antibiotic
+        allergen_classes:
+          items: {}
+          type: array
+          title: Allergen Classes
+        contraindications:
+          items: {}
+          type: array
+          title: Contraindications
+        search_tags:
+          items: {}
+          type: array
+          title: Search Tags
+        atc_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Atc Code
+        rxnorm_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Rxnorm Code
+        snomed_substance_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Snomed Substance Code
+        snomed_product_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Snomed Product Code
+        pregnancy_category:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Pregnancy Category
+        lactation_safety:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Lactation Safety
+        pediatric_use:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Pediatric Use
+        max_dose_per_day_value:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Max Dose Per Day Value
+        max_dose_per_day_unit:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Max Dose Per Day Unit
+        black_box_warning:
+          type: boolean
+          title: Black Box Warning
+        black_box_warning_text:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Black Box Warning Text
+        default_dose_value:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Default Dose Value
+        default_dose_unit:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Default Dose Unit
+        default_frequency:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Default Frequency
+        default_duration_days:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Default Duration Days
+        default_route:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Default Route
+        default_instructions:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Default Instructions
+        typical_quantity:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Typical Quantity
+        notes:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Notes
+        display_order:
+          type: integer
+          title: Display Order
+        is_active:
+          type: boolean
+          title: Is Active
+        is_deleted:
+          type: boolean
+          title: Is Deleted
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - id
+      - tenant_id
+      - code
+      - display_name
+      - generic_name
+      - brand_names
+      - drug_class
+      - dosage_form
+      - route_of_admin
+      - strength_display
+      - expiry_tracking
+      - is_dispensable
+      - schedule
+      - is_controlled_substance
+      - is_narcotic
+      - requires_prescription
+      - is_restricted_antibiotic
+      - allergen_classes
+      - contraindications
+      - search_tags
+      - black_box_warning
+      - display_order
+      - is_active
+      - is_deleted
+      - created_at
+      - updated_at
+      title: VisitpadMedicineResponse
+    VisitpadMedicineSchedule:
+      type: string
+      enum:
+      - otc
+      - h
+      - h1
+      - s
+      - x
+      - unscheduled
+      title: VisitpadMedicineSchedule
+    VisitpadMedicineSingleResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/VisitpadMedicineResponse'
+      type: object
+      required:
+      - data
+      title: VisitpadMedicineSingleResponse
+    VisitpadMedicineUpdate:
+      properties:
+        code:
+          anyOf:
+          - type: string
+            maxLength: 64
+            minLength: 1
+          - type: 'null'
+          title: Code
+        display_name:
+          anyOf:
+          - type: string
+            maxLength: 512
+            minLength: 1
+          - type: 'null'
+          title: Display Name
+        generic_name:
+          anyOf:
+          - type: string
+            maxLength: 512
+            minLength: 1
+          - type: 'null'
+          title: Generic Name
+        short_name:
+          anyOf:
+          - type: string
+            maxLength: 256
+          - type: 'null'
+          title: Short Name
+        brand_names:
+          anyOf:
+          - items:
+              type: string
+            type: array
+            maxItems: 50
+          - type: 'null'
+          title: Brand Names
+        drug_class:
+          anyOf:
+          - type: string
+            maxLength: 256
+            minLength: 1
+          - type: 'null'
+          title: Drug Class
+        drug_subclass:
+          anyOf:
+          - type: string
+            maxLength: 256
+          - type: 'null'
+          title: Drug Subclass
+        dosage_form:
+          anyOf:
+          - type: string
+            maxLength: 128
+            minLength: 1
+          - type: 'null'
+          title: Dosage Form
+        route_of_admin:
+          anyOf:
+          - items:
+              type: string
+            type: array
+            maxItems: 20
+          - type: 'null'
+          title: Route Of Admin
+        strength_value:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Strength Value
+        strength_unit:
+          anyOf:
+          - type: string
+            maxLength: 32
+          - type: 'null'
+          title: Strength Unit
+        strength_display:
+          anyOf:
+          - type: string
+            maxLength: 256
+          - type: 'null'
+          title: Strength Display
+        concentration_value:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Concentration Value
+        concentration_unit:
+          anyOf:
+          - type: string
+            maxLength: 32
+          - type: 'null'
+          title: Concentration Unit
+        volume_per_unit:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Volume Per Unit
+        sku_code:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Sku Code
+        barcode:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Barcode
+        pack_size:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Pack Size
+        pack_unit:
+          anyOf:
+          - type: string
+            maxLength: 32
+          - type: 'null'
+          title: Pack Unit
+        manufacturer:
+          anyOf:
+          - type: string
+            maxLength: 256
+          - type: 'null'
+          title: Manufacturer
+        storage_condition:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Storage Condition
+        expiry_tracking:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Expiry Tracking
+        is_dispensable:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Dispensable
+        schedule:
+          anyOf:
+          - $ref: '#/components/schemas/VisitpadMedicineSchedule'
+          - type: 'null'
+        is_controlled_substance:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Controlled Substance
+        is_narcotic:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Narcotic
+        requires_prescription:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Requires Prescription
+        is_restricted_antibiotic:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Restricted Antibiotic
+        allergen_classes:
+          anyOf:
+          - items:
+              type: string
+            type: array
+            maxItems: 50
+          - type: 'null'
+          title: Allergen Classes
+        contraindications:
+          anyOf:
+          - items:
+              type: string
+            type: array
+            maxItems: 50
+          - type: 'null'
+          title: Contraindications
+        search_tags:
+          anyOf:
+          - items:
+              type: string
+            type: array
+            maxItems: 50
+          - type: 'null'
+          title: Search Tags
+        atc_code:
+          anyOf:
+          - type: string
+            maxLength: 32
+          - type: 'null'
+          title: Atc Code
+        rxnorm_code:
+          anyOf:
+          - type: string
+            maxLength: 32
+          - type: 'null'
+          title: Rxnorm Code
+        snomed_substance_code:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Snomed Substance Code
+        snomed_product_code:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Snomed Product Code
+        pregnancy_category:
+          anyOf:
+          - type: string
+            maxLength: 8
+          - type: 'null'
+          title: Pregnancy Category
+        lactation_safety:
+          anyOf:
+          - type: string
+            maxLength: 32
+          - type: 'null'
+          title: Lactation Safety
+        pediatric_use:
+          anyOf:
+          - type: string
+            maxLength: 32
+          - type: 'null'
+          title: Pediatric Use
+        max_dose_per_day_value:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Max Dose Per Day Value
+        max_dose_per_day_unit:
+          anyOf:
+          - type: string
+            maxLength: 32
+          - type: 'null'
+          title: Max Dose Per Day Unit
+        black_box_warning:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Black Box Warning
+        black_box_warning_text:
+          anyOf:
+          - type: string
+            maxLength: 2048
+          - type: 'null'
+          title: Black Box Warning Text
+        default_dose_value:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Default Dose Value
+        default_dose_unit:
+          anyOf:
+          - type: string
+            maxLength: 32
+          - type: 'null'
+          title: Default Dose Unit
+        default_frequency:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Default Frequency
+        default_duration_days:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Default Duration Days
+        default_route:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Default Route
+        default_instructions:
+          anyOf:
+          - type: string
+            maxLength: 1024
+          - type: 'null'
+          title: Default Instructions
+        typical_quantity:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Typical Quantity
+        notes:
+          anyOf:
+          - type: string
+            maxLength: 2048
+          - type: 'null'
+          title: Notes
+        display_order:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Display Order
+        is_active:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Active
+        is_deleted:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Deleted
+      additionalProperties: false
+      type: object
+      title: VisitpadMedicineUpdate
+    VisitpadProcedureBillingCategory:
+      type: string
+      enum:
+      - professional
+      - facility
+      - ancillary
+      - bundled
+      - other
+      title: VisitpadProcedureBillingCategory
+    VisitpadProcedureCategory:
+      type: string
+      enum:
+      - diagnostic
+      - therapeutic
+      - surgical
+      - ancillary
+      - other
+      title: VisitpadProcedureCategory
+    VisitpadProcedureCreate:
+      properties:
+        cpt_code:
+          type: string
+          maxLength: 16
+          minLength: 1
+          title: Cpt Code
+        official_descriptor:
+          type: string
+          maxLength: 512
+          minLength: 1
+          title: Official Descriptor
+        display_name:
+          type: string
+          maxLength: 512
+          minLength: 1
+          title: Display Name
+        category:
+          $ref: '#/components/schemas/VisitpadProcedureCategory'
+        billing_category:
+          $ref: '#/components/schemas/VisitpadProcedureBillingCategory'
+        duration_minutes:
+          type: integer
+          maximum: 1440.0
+          minimum: 0.0
+          title: Duration Minutes
+        requires_consent:
+          type: boolean
+          title: Requires Consent
+          default: false
+        type_modality:
+          anyOf:
+          - type: string
+            maxLength: 128
+          - type: 'null'
+          title: Type Modality
+        display_order:
+          type: integer
+          title: Display Order
+          default: 0
+        is_active:
+          type: boolean
+          title: Is Active
+          default: true
+        snomed_code:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Snomed Code
+      additionalProperties: false
+      type: object
+      required:
+      - cpt_code
+      - official_descriptor
+      - display_name
+      - category
+      - billing_category
+      - duration_minutes
+      title: VisitpadProcedureCreate
+    VisitpadProcedureListResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/VisitpadProcedureResponse'
+          type: array
+          title: Data
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - data
+      - total
+      title: VisitpadProcedureListResponse
+    VisitpadProcedureResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        tenant_id:
+          type: string
+          format: uuid
+          title: Tenant Id
+        cpt_code:
+          type: string
+          title: Cpt Code
+        official_descriptor:
+          type: string
+          title: Official Descriptor
+        display_name:
+          type: string
+          title: Display Name
+        category:
+          $ref: '#/components/schemas/VisitpadProcedureCategory'
+        billing_category:
+          $ref: '#/components/schemas/VisitpadProcedureBillingCategory'
+        duration_minutes:
+          type: integer
+          title: Duration Minutes
+        requires_consent:
+          type: boolean
+          title: Requires Consent
+        type_modality:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Type Modality
+        display_order:
+          type: integer
+          title: Display Order
+        is_active:
+          type: boolean
+          title: Is Active
+        is_deleted:
+          type: boolean
+          title: Is Deleted
+        snomed_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Snomed Code
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - id
+      - tenant_id
+      - cpt_code
+      - official_descriptor
+      - display_name
+      - category
+      - billing_category
+      - duration_minutes
+      - requires_consent
+      - display_order
+      - is_active
+      - is_deleted
+      - created_at
+      - updated_at
+      title: VisitpadProcedureResponse
+    VisitpadProcedureSingleResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/VisitpadProcedureResponse'
+      type: object
+      required:
+      - data
+      title: VisitpadProcedureSingleResponse
+    VisitpadProcedureUpdate:
+      properties:
+        cpt_code:
+          anyOf:
+          - type: string
+            maxLength: 16
+            minLength: 1
+          - type: 'null'
+          title: Cpt Code
+        official_descriptor:
+          anyOf:
+          - type: string
+            maxLength: 512
+            minLength: 1
+          - type: 'null'
+          title: Official Descriptor
+        display_name:
+          anyOf:
+          - type: string
+            maxLength: 512
+            minLength: 1
+          - type: 'null'
+          title: Display Name
+        category:
+          anyOf:
+          - $ref: '#/components/schemas/VisitpadProcedureCategory'
+          - type: 'null'
+        billing_category:
+          anyOf:
+          - $ref: '#/components/schemas/VisitpadProcedureBillingCategory'
+          - type: 'null'
+        duration_minutes:
+          anyOf:
+          - type: integer
+            maximum: 1440.0
+            minimum: 0.0
+          - type: 'null'
+          title: Duration Minutes
+        requires_consent:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Requires Consent
+        type_modality:
+          anyOf:
+          - type: string
+            maxLength: 128
+          - type: 'null'
+          title: Type Modality
+        display_order:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Display Order
+        is_active:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Active
+        snomed_code:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Snomed Code
+        is_deleted:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Deleted
+      additionalProperties: false
+      type: object
+      title: VisitpadProcedureUpdate
+    VisitpadReactionSeverityDefault:
+      type: string
+      enum:
+      - mild
+      - moderate
+      - severe
+      - unknown
+      title: VisitpadReactionSeverityDefault
+    VisitpadRxColumnCreate:
+      properties:
+        section:
+          $ref: '#/components/schemas/VisitpadRxColumnSection'
+        display_name:
+          type: string
+          maxLength: 256
+          minLength: 1
+          title: Display Name
+        code:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Code
+        extra_unit:
+          anyOf:
+          - type: string
+            maxLength: 128
+          - type: 'null'
+          title: Extra Unit
+        display_order:
+          type: integer
+          title: Display Order
+          default: 0
+        is_active:
+          type: boolean
+          title: Is Active
+          default: true
+      additionalProperties: false
+      type: object
+      required:
+      - section
+      - display_name
+      - code
+      title: VisitpadRxColumnCreate
+    VisitpadRxColumnListResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/VisitpadRxColumnResponse'
+          type: array
+          title: Data
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - data
+      - total
+      title: VisitpadRxColumnListResponse
+    VisitpadRxColumnResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        tenant_id:
+          type: string
+          format: uuid
+          title: Tenant Id
+        section:
+          $ref: '#/components/schemas/VisitpadRxColumnSection'
+        display_name:
+          type: string
+          title: Display Name
+        code:
+          type: string
+          title: Code
+        extra_unit:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Extra Unit
+        display_order:
+          type: integer
+          title: Display Order
+        is_active:
+          type: boolean
+          title: Is Active
+        is_deleted:
+          type: boolean
+          title: Is Deleted
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - id
+      - tenant_id
+      - section
+      - display_name
+      - code
+      - display_order
+      - is_active
+      - is_deleted
+      - created_at
+      - updated_at
+      title: VisitpadRxColumnResponse
+    VisitpadRxColumnSection:
+      type: string
+      enum:
+      - medication_type
+      - frequency
+      - unit
+      - diet_type
+      - method_strength
+      - route
+      - time_of_administration
+      title: VisitpadRxColumnSection
+    VisitpadRxColumnSingleResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/VisitpadRxColumnResponse'
+      type: object
+      required:
+      - data
+      title: VisitpadRxColumnSingleResponse
+    VisitpadRxColumnUpdate:
+      properties:
+        display_name:
+          anyOf:
+          - type: string
+            maxLength: 256
+            minLength: 1
+          - type: 'null'
+          title: Display Name
+        code:
+          anyOf:
+          - type: string
+            maxLength: 64
+            minLength: 1
+          - type: 'null'
+          title: Code
+        extra_unit:
+          anyOf:
+          - type: string
+            maxLength: 128
+          - type: 'null'
+          title: Extra Unit
+        display_order:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Display Order
+        is_active:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Active
+        is_deleted:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Deleted
+          description: Set false to restore a soft-deleted row.
+      additionalProperties: false
+      type: object
+      title: VisitpadRxColumnUpdate
+    VisitpadTriagePriority:
+      type: string
+      enum:
+      - urgent
+      - semi_urgent
+      - non_urgent
+      - routine
+      title: VisitpadTriagePriority
+    VisitpadUnitConversionCreate:
+      properties:
+        from_unit_code:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: From Unit Code
+        to_unit_code:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: To Unit Code
+        factor:
+          type: number
+          title: Factor
+        offset_value:
+          type: number
+          title: Offset Value
+          default: 0.0
+        display_order:
+          type: integer
+          title: Display Order
+          default: 0
+      additionalProperties: false
+      type: object
+      required:
+      - from_unit_code
+      - to_unit_code
+      - factor
+      title: VisitpadUnitConversionCreate
+    VisitpadUnitConversionListResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/VisitpadUnitConversionResponse'
+          type: array
+          title: Data
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - data
+      - total
+      title: VisitpadUnitConversionListResponse
+    VisitpadUnitConversionResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        tenant_id:
+          type: string
+          format: uuid
+          title: Tenant Id
+        from_unit_code:
+          type: string
+          title: From Unit Code
+        to_unit_code:
+          type: string
+          title: To Unit Code
+        factor:
+          type: number
+          title: Factor
+        offset_value:
+          type: number
+          title: Offset Value
+        display_order:
+          type: integer
+          title: Display Order
+        is_deleted:
+          type: boolean
+          title: Is Deleted
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - id
+      - tenant_id
+      - from_unit_code
+      - to_unit_code
+      - factor
+      - offset_value
+      - display_order
+      - is_deleted
+      - created_at
+      - updated_at
+      title: VisitpadUnitConversionResponse
+    VisitpadUnitConversionSingleResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/VisitpadUnitConversionResponse'
+      type: object
+      required:
+      - data
+      title: VisitpadUnitConversionSingleResponse
+    VisitpadUnitConversionUpdate:
+      properties:
+        from_unit_code:
+          anyOf:
+          - type: string
+            maxLength: 64
+            minLength: 1
+          - type: 'null'
+          title: From Unit Code
+        to_unit_code:
+          anyOf:
+          - type: string
+            maxLength: 64
+            minLength: 1
+          - type: 'null'
+          title: To Unit Code
+        factor:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Factor
+        offset_value:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Offset Value
+        display_order:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Display Order
+        is_deleted:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Deleted
+          description: Set false to restore a soft-deleted conversion.
+      additionalProperties: false
+      type: object
+      title: VisitpadUnitConversionUpdate
+    VisitpadUnitCreate:
+      properties:
+        code:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Code
+        display_label:
+          type: string
+          maxLength: 256
+          minLength: 1
+          title: Display Label
+        dimension:
+          $ref: '#/components/schemas/VisitpadUnitDimension'
+        ucum_code:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Ucum Code
+        is_canonical:
+          type: boolean
+          title: Is Canonical
+          default: false
+        display_order:
+          type: integer
+          title: Display Order
+          default: 0
+        is_active:
+          type: boolean
+          title: Is Active
+          default: true
+      additionalProperties: false
+      type: object
+      required:
+      - code
+      - display_label
+      - dimension
+      title: VisitpadUnitCreate
+    VisitpadUnitDimension:
+      type: string
+      enum:
+      - length
+      - mass
+      - volume
+      - time
+      - temperature
+      - pressure
+      - concentration
+      - ratio
+      - count
+      - other
+      title: VisitpadUnitDimension
+    VisitpadUnitListResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/VisitpadUnitResponse'
+          type: array
+          title: Data
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - data
+      - total
+      title: VisitpadUnitListResponse
+    VisitpadUnitResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        tenant_id:
+          type: string
+          format: uuid
+          title: Tenant Id
+        code:
+          type: string
+          title: Code
+        display_label:
+          type: string
+          title: Display Label
+        dimension:
+          $ref: '#/components/schemas/VisitpadUnitDimension'
+        ucum_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Ucum Code
+        is_canonical:
+          type: boolean
+          title: Is Canonical
+        display_order:
+          type: integer
+          title: Display Order
+        is_active:
+          type: boolean
+          title: Is Active
+        is_deleted:
+          type: boolean
+          title: Is Deleted
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - id
+      - tenant_id
+      - code
+      - display_label
+      - dimension
+      - is_canonical
+      - display_order
+      - is_active
+      - is_deleted
+      - created_at
+      - updated_at
+      title: VisitpadUnitResponse
+    VisitpadUnitSingleResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/VisitpadUnitResponse'
+      type: object
+      required:
+      - data
+      title: VisitpadUnitSingleResponse
+    VisitpadUnitUpdate:
+      properties:
+        display_label:
+          anyOf:
+          - type: string
+            maxLength: 256
+            minLength: 1
+          - type: 'null'
+          title: Display Label
+        dimension:
+          anyOf:
+          - $ref: '#/components/schemas/VisitpadUnitDimension'
+          - type: 'null'
+        ucum_code:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Ucum Code
+        is_canonical:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Canonical
+        display_order:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Display Order
+        is_active:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Active
+        is_deleted:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Deleted
+          description: Set false to restore a soft-deleted row (superadmin).
+      additionalProperties: false
+      type: object
+      title: VisitpadUnitUpdate
+    VisitpadVitalCategory:
+      type: string
+      enum:
+      - vital_signs
+      - anthropometric
+      - functional
+      - score
+      - other
+      title: VisitpadVitalCategory
+    VisitpadVitalCreate:
+      properties:
+        code:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Code
+        name:
+          type: string
+          maxLength: 256
+          minLength: 1
+          title: Name
+        short_name:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Short Name
+        category:
+          $ref: '#/components/schemas/VisitpadVitalCategory'
+        data_type:
+          $ref: '#/components/schemas/VisitpadVitalDataType'
+        unit:
+          type: string
+          maxLength: 128
+          minLength: 1
+          title: Unit
+        default_unit_code:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Default Unit Code
+        allowed_units:
+          items:
+            type: string
+          type: array
+          maxItems: 32
+          title: Allowed Units
+        critical_low:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Critical Low
+        critical_high:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Critical High
+        reference_kind:
+          $ref: '#/components/schemas/VisitpadVitalReferenceKind'
+        reference_json:
+          additionalProperties: true
+          type: object
+          title: Reference Json
+        normal_range_adult:
+          additionalProperties: true
+          type: object
+          title: Normal Range Adult
+        normal_range_paediatric:
+          additionalProperties: true
+          type: object
+          title: Normal Range Paediatric
+        input_method:
+          $ref: '#/components/schemas/VisitpadVitalInputMethod'
+        is_paired:
+          type: boolean
+          title: Is Paired
+          default: false
+        pair_code:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Pair Code
+        display_order:
+          type: integer
+          title: Display Order
+          default: 0
+        is_active:
+          type: boolean
+          title: Is Active
+          default: true
+        loinc_code:
+          anyOf:
+          - type: string
+            maxLength: 32
+          - type: 'null'
+          title: Loinc Code
+        snomed_observable_code:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Snomed Observable Code
+      additionalProperties: false
+      type: object
+      required:
+      - code
+      - name
+      - short_name
+      - category
+      - data_type
+      - unit
+      - default_unit_code
+      - reference_kind
+      - input_method
+      title: VisitpadVitalCreate
+    VisitpadVitalDataType:
+      type: string
+      enum:
+      - numeric
+      - text
+      - boolean
+      - score
+      title: VisitpadVitalDataType
+    VisitpadVitalInputMethod:
+      type: string
+      enum:
+      - manual
+      - device
+      - calculated
+      title: VisitpadVitalInputMethod
+    VisitpadVitalListResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/VisitpadVitalResponse'
+          type: array
+          title: Data
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - data
+      - total
+      title: VisitpadVitalListResponse
+    VisitpadVitalReferenceKind:
+      type: string
+      enum:
+      - none
+      - range
+      - categorical
+      - boolean
+      title: VisitpadVitalReferenceKind
+    VisitpadVitalResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        tenant_id:
+          type: string
+          format: uuid
+          title: Tenant Id
+        code:
+          type: string
+          title: Code
+        name:
+          type: string
+          title: Name
+        short_name:
+          type: string
+          title: Short Name
+        category:
+          $ref: '#/components/schemas/VisitpadVitalCategory'
+        data_type:
+          $ref: '#/components/schemas/VisitpadVitalDataType'
+        unit:
+          type: string
+          title: Unit
+        default_unit_code:
+          type: string
+          title: Default Unit Code
+        allowed_units:
+          items: {}
+          type: array
+          title: Allowed Units
+        critical_low:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Critical Low
+        critical_high:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Critical High
+        reference_kind:
+          $ref: '#/components/schemas/VisitpadVitalReferenceKind'
+        reference_json:
+          additionalProperties: true
+          type: object
+          title: Reference Json
+        normal_range_adult:
+          additionalProperties: true
+          type: object
+          title: Normal Range Adult
+        normal_range_paediatric:
+          additionalProperties: true
+          type: object
+          title: Normal Range Paediatric
+        input_method:
+          $ref: '#/components/schemas/VisitpadVitalInputMethod'
+        is_paired:
+          type: boolean
+          title: Is Paired
+        pair_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Pair Code
+        display_order:
+          type: integer
+          title: Display Order
+        is_active:
+          type: boolean
+          title: Is Active
+        is_deleted:
+          type: boolean
+          title: Is Deleted
+        loinc_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Loinc Code
+        snomed_observable_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Snomed Observable Code
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - id
+      - tenant_id
+      - code
+      - name
+      - short_name
+      - category
+      - data_type
+      - unit
+      - default_unit_code
+      - allowed_units
+      - reference_kind
+      - reference_json
+      - normal_range_adult
+      - normal_range_paediatric
+      - input_method
+      - is_paired
+      - display_order
+      - is_active
+      - is_deleted
+      - created_at
+      - updated_at
+      title: VisitpadVitalResponse
+    VisitpadVitalSingleResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/VisitpadVitalResponse'
+      type: object
+      required:
+      - data
+      title: VisitpadVitalSingleResponse
+    VisitpadVitalUpdate:
+      properties:
+        name:
+          anyOf:
+          - type: string
+            maxLength: 256
+            minLength: 1
+          - type: 'null'
+          title: Name
+        short_name:
+          anyOf:
+          - type: string
+            maxLength: 64
+            minLength: 1
+          - type: 'null'
+          title: Short Name
+        category:
+          anyOf:
+          - $ref: '#/components/schemas/VisitpadVitalCategory'
+          - type: 'null'
+        data_type:
+          anyOf:
+          - $ref: '#/components/schemas/VisitpadVitalDataType'
+          - type: 'null'
+        unit:
+          anyOf:
+          - type: string
+            maxLength: 128
+            minLength: 1
+          - type: 'null'
+          title: Unit
+        default_unit_code:
+          anyOf:
+          - type: string
+            maxLength: 64
+            minLength: 1
+          - type: 'null'
+          title: Default Unit Code
+        allowed_units:
+          anyOf:
+          - items:
+              type: string
+            type: array
+            maxItems: 32
+          - type: 'null'
+          title: Allowed Units
+        critical_low:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Critical Low
+        critical_high:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Critical High
+        reference_kind:
+          anyOf:
+          - $ref: '#/components/schemas/VisitpadVitalReferenceKind'
+          - type: 'null'
+        reference_json:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Reference Json
+        normal_range_adult:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Normal Range Adult
+        normal_range_paediatric:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Normal Range Paediatric
+        input_method:
+          anyOf:
+          - $ref: '#/components/schemas/VisitpadVitalInputMethod'
+          - type: 'null'
+        is_paired:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Paired
+        pair_code:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Pair Code
+        display_order:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Display Order
+        is_active:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Active
+        loinc_code:
+          anyOf:
+          - type: string
+            maxLength: 32
+          - type: 'null'
+          title: Loinc Code
+        snomed_observable_code:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Snomed Observable Code
+        is_deleted:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Deleted
+      additionalProperties: false
+      type: object
+      title: VisitpadVitalUpdate

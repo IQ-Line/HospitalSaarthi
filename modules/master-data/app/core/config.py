@@ -1,8 +1,11 @@
 from functools import lru_cache
 from pathlib import Path
+from uuid import UUID
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_DEFAULT_PLATFORM_TENANT_ID = UUID("00000000-0000-0000-0000-000000000001")
 
 # Load `.env` from this package root (works when CWD is not `modules/master-data`).
 _PACKAGE_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -19,6 +22,10 @@ class Settings(BaseSettings):
     database_url: str = Field(
         default="postgresql+psycopg://hims:hims@localhost:5433/hims_dev",
         description="SQLAlchemy database URL for the Master Data module.",
+    )
+    platform_tenant_id: UUID = Field(
+        default=_DEFAULT_PLATFORM_TENANT_ID,
+        description="Tenant UUID for platform-global Visitpad (and similar) catalog rows.",
     )
     api_prefix: str = "/api/v1/master-data"
     log_level: str = "INFO"

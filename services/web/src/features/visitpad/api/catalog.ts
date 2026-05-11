@@ -1,0 +1,149 @@
+import { useQuery } from '@tanstack/react-query';
+import { apiClient } from '@/lib/api-client';
+import { visitpadKeys } from './query-keys';
+import type {
+  VisitpadAllergen,
+  VisitpadAllergyReaction,
+  VisitpadChiefComplaint,
+  VisitpadChronicIllness,
+  VisitpadDiagnosis,
+  VisitpadListResponse,
+  VisitpadMedicine,
+  VisitpadProcedure,
+  VisitpadRxColumn,
+  VisitpadUnit,
+  VisitpadUnitConversion,
+  VisitpadVital,
+} from '../types';
+
+const MD = '/api/v1/master-data/visitpad';
+
+function listUrl(path: string, params?: Record<string, string | undefined>) {
+  const q = new URLSearchParams();
+  q.set('limit', '200');
+  q.set('offset', '0');
+  if (params) {
+    for (const [k, v] of Object.entries(params)) {
+      if (v) q.set(k, v);
+    }
+  }
+  return `${MD}${path}?${q.toString()}`;
+}
+
+export function useVisitpadUnits(search?: string, dimension?: string) {
+  return useQuery({
+    queryKey: [...visitpadKeys.units(), search ?? '', dimension ?? ''],
+    queryFn: () =>
+      apiClient<VisitpadListResponse<VisitpadUnit>>(
+        listUrl('/units', { search, dimension }),
+      ),
+  });
+}
+
+export function useVisitpadConversions(search?: string, from_unit_code?: string) {
+  return useQuery({
+    queryKey: [...visitpadKeys.conversions(), search ?? '', from_unit_code ?? ''],
+    queryFn: () =>
+      apiClient<VisitpadListResponse<VisitpadUnitConversion>>(
+        listUrl('/unit-conversions', { search, from_unit_code }),
+      ),
+  });
+}
+
+export function useVisitpadVitals(search?: string, category?: string) {
+  return useQuery({
+    queryKey: [...visitpadKeys.vitals(), search ?? '', category ?? ''],
+    queryFn: () =>
+      apiClient<VisitpadListResponse<VisitpadVital>>(
+        listUrl('/vitals', { search, category }),
+      ),
+  });
+}
+
+export function useVisitpadChiefComplaints(
+  search?: string,
+  body_system?: string,
+  triage_priority?: string,
+) {
+  return useQuery({
+    queryKey: [...visitpadKeys.chiefComplaints(), search ?? '', body_system ?? '', triage_priority ?? ''],
+    queryFn: () =>
+      apiClient<VisitpadListResponse<VisitpadChiefComplaint>>(
+        listUrl('/chief-complaints', { search, body_system, triage_priority }),
+      ),
+  });
+}
+
+export function useVisitpadDiagnoses(search?: string, category?: string) {
+  return useQuery({
+    queryKey: [...visitpadKeys.diagnoses(), search ?? '', category ?? ''],
+    queryFn: () =>
+      apiClient<VisitpadListResponse<VisitpadDiagnosis>>(
+        listUrl('/diagnoses', { search, category }),
+      ),
+  });
+}
+
+export function useVisitpadAllergens(search?: string, allergen_type?: string) {
+  return useQuery({
+    queryKey: [...visitpadKeys.allergens(), search ?? '', allergen_type ?? ''],
+    queryFn: () =>
+      apiClient<VisitpadListResponse<VisitpadAllergen>>(
+        listUrl('/allergens', { search, allergen_type }),
+      ),
+  });
+}
+
+export function useVisitpadAllergyReactions(search?: string) {
+  return useQuery({
+    queryKey: [...visitpadKeys.reactions(), search ?? ''],
+    queryFn: () =>
+      apiClient<VisitpadListResponse<VisitpadAllergyReaction>>(
+        listUrl('/allergy-reactions', { search }),
+      ),
+  });
+}
+
+export function useVisitpadRxColumns(search?: string, section?: string) {
+  return useQuery({
+    queryKey: visitpadKeys.rxColumns(section),
+    queryFn: () =>
+      apiClient<VisitpadListResponse<VisitpadRxColumn>>(
+        listUrl('/rx-columns', { search, section }),
+      ),
+  });
+}
+
+export function useVisitpadMedicines(search?: string, schedule?: string) {
+  return useQuery({
+    queryKey: [...visitpadKeys.medicines(), search ?? '', schedule ?? ''],
+    queryFn: () =>
+      apiClient<VisitpadListResponse<VisitpadMedicine>>(
+        listUrl('/medicines', { search, schedule }),
+      ),
+  });
+}
+
+export function useVisitpadChronicIllnesses(search?: string, category?: string) {
+  return useQuery({
+    queryKey: [...visitpadKeys.chronicIllnesses(), search ?? '', category ?? ''],
+    queryFn: () =>
+      apiClient<VisitpadListResponse<VisitpadChronicIllness>>(
+        listUrl('/chronic-illnesses', { search, category }),
+      ),
+  });
+}
+
+export function useVisitpadProcedures(
+  search?: string,
+  category?: string,
+  billing_category?: string,
+) {
+  return useQuery({
+    queryKey: [...visitpadKeys.procedures(), search ?? '', category ?? '', billing_category ?? ''],
+    queryFn: () =>
+      apiClient<VisitpadListResponse<VisitpadProcedure>>(
+        listUrl('/procedures', { search, category, billing_category }),
+      ),
+  });
+}

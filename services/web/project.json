@@ -19,6 +19,18 @@
       "options": {
         "cwd": "services/web"
       }
+    },
+    "test": {
+      "command": "vitest run",
+      "options": {
+        "cwd": "services/web"
+      }
+    },
+    "e2e": {
+      "command": "playwright test",
+      "options": {
+        "cwd": "services/web"
+      }
     }
   }
 }
