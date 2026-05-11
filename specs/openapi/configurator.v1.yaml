@@ -35,10 +35,106 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OrganizationListResponse"
-        "401":
-          description: Missing or invalid bearer token.
-        "403":
-          description: Principal is not authorized.
+    post:
+      operationId: createOrganization
+      summary: Create organization
+      description: Creates the organization and a root default tenant (same name/slug, full_platform, provisioning, shared isolation; cerbos_scope_key is tenant:{organization.id}).
+      tags:
+        - Organizations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrganizationCreateRequest"
+      responses:
+        "201":
+          description: Organization and default tenant created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationWithDefaultTenantResponse"
+        "400":
+          description: Validation or business rule failure.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Duplicate slug.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /organizations/{id}:
+    get:
+      operationId: getOrganizationById
+      summary: Get organization by id
+      tags:
+        - Organizations
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Organization found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+        "404":
+          description: Organization not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateOrganization
+      summary: Update organization
+      tags:
+        - Organizations
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrganizationPatchRequest"
+      responses:
+        "200":
+          description: Updated organization.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+        "400":
+          description: Validation or business rule failure.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Organization not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Duplicate slug.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /tenants:
     get:
       operationId: listTenants
@@ -73,10 +169,107 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TenantListResponse"
-        "401":
-          description: Missing or invalid bearer token.
-        "403":
-          description: Principal is not authorized.
+    post:
+      operationId: createTenant
+      summary: Create tenant
+      tags:
+        - Tenants
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TenantCreateRequest"
+      responses:
+        "201":
+          description: Tenant created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tenant"
+        "400":
+          description: Validation, unknown organization, or invalid provisioning transition.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Duplicate tenant slug.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /tenants/{id}:
+    get:
+      operationId: getTenantById
+      summary: Get tenant by id
+      tags:
+        - Tenants
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Tenant primary key (`iq_tenant_id`).
+      responses:
+        "200":
+          description: Tenant found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tenant"
+        "404":
+          description: Tenant not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateTenant
+      summary: Update tenant
+      tags:
+        - Tenants
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Tenant primary key (`iq_tenant_id`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TenantPatchRequest"
+      responses:
+        "200":
+          description: Updated tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tenant"
+        "400":
+          description: Validation, unknown organization, or invalid provisioning transition.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tenant not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Duplicate tenant slug.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   securitySchemes:
     bearerAuth:
@@ -84,6 +277,16 @@ components:
       scheme: bearer
       bearerFormat: JWT
   schemas:
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+          description: Machine-readable code when applicable (e.g. CONFLICT).
     OrganizationType:
       type: string
       enum:
@@ -110,6 +313,149 @@ components:
         - active
         - suspended
         - decommissioned
+    DataIsolationLevel:
+      type: string
+      enum:
+        - shared
+        - isolated
+    OrganizationWithDefaultTenantResponse:
+      type: object
+      required:
+        - organization
+        - default_tenant
+      properties:
+        organization:
+          $ref: "#/components/schemas/Organization"
+        default_tenant:
+          $ref: "#/components/schemas/Tenant"
+    OrganizationCreateRequest:
+      type: object
+      required:
+        - name
+        - slug
+        - type
+      properties:
+        name:
+          type: string
+          minLength: 1
+        slug:
+          type: string
+          minLength: 1
+        type:
+          $ref: "#/components/schemas/OrganizationType"
+        status:
+          $ref: "#/components/schemas/OrganizationStatus"
+        contact_email:
+          type: string
+        contact_phone:
+          type: string
+        address:
+          type: string
+        metadata:
+          type: object
+    OrganizationPatchRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        slug:
+          type: string
+          minLength: 1
+        type:
+          $ref: "#/components/schemas/OrganizationType"
+        status:
+          $ref: "#/components/schemas/OrganizationStatus"
+        contact_email:
+          type:
+            - string
+            - "null"
+        contact_phone:
+          type:
+            - string
+            - "null"
+        address:
+          type:
+            - string
+            - "null"
+        metadata:
+          type:
+            - object
+            - "null"
+    TenantCreateRequest:
+      type: object
+      required:
+        - org_id
+        - name
+        - slug
+        - type
+        - cerbos_scope_key
+      properties:
+        org_id:
+          type: string
+          format: uuid
+        parent_tenant_id:
+          type:
+            - string
+            - "null"
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+        slug:
+          type: string
+          minLength: 1
+        type:
+          $ref: "#/components/schemas/TenantType"
+        provisioning_status:
+          $ref: "#/components/schemas/ProvisioningStatus"
+        data_isolation_level:
+          $ref: "#/components/schemas/DataIsolationLevel"
+        cerbos_scope_key:
+          type: string
+          minLength: 1
+        timezone:
+          type: string
+        locale:
+          type: string
+        metadata:
+          type:
+            - object
+            - "null"
+    TenantPatchRequest:
+      type: object
+      properties:
+        org_id:
+          type: string
+          format: uuid
+        parent_tenant_id:
+          type:
+            - string
+            - "null"
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+        slug:
+          type: string
+          minLength: 1
+        type:
+          $ref: "#/components/schemas/TenantType"
+        provisioning_status:
+          $ref: "#/components/schemas/ProvisioningStatus"
+        data_isolation_level:
+          $ref: "#/components/schemas/DataIsolationLevel"
+        cerbos_scope_key:
+          type: string
+          minLength: 1
+        timezone:
+          type: string
+        locale:
+          type: string
+        metadata:
+          type:
+            - object
+            - "null"
     Organization:
       type: object
       required:
@@ -151,6 +497,14 @@ components:
         updated_at:
           type: string
           format: date-time
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
     OrganizationListResponse:
       type: object
       required:
@@ -189,6 +543,7 @@ components:
         parent_tenant_id:
           type: string
           format: uuid
+          nullable: true
         name:
           type: string
           examples:
@@ -218,12 +573,21 @@ components:
             - en-IN
         metadata:
           type: object
+          nullable: true
         created_at:
           type: string
           format: date-time
         updated_at:
           type: string
           format: date-time
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
     TenantListResponse:
       type: object
       required:

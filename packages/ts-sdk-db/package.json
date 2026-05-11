@@ -8,7 +8,8 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     }
   },
   "scripts": {
@@ -16,7 +17,7 @@
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
-    "pg": "^8.16.3"
+    "pg": "8.20.0"
   },
   "peerDependencies": {
     "drizzle-orm": ">=0.44.0"

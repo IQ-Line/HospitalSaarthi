@@ -32,9 +32,6 @@ importers:
       '@hims/ts-sdk-db':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-db
-      drizzle-orm:
-        specifier: ^0.44.0
-        version: 0.44.7(@types/pg@8.20.0)(pg@8.20.0)(postgres@3.4.9)
       fastify:
         specifier: ^5.3.3
         version: 5.8.5
@@ -291,7 +288,7 @@ importers:
         specifier: ^0.45.2
         version: 0.45.2(@types/pg@8.20.0)(pg@8.20.0)(postgres@3.4.9)
       pg:
-        specifier: ^8.16.3
+        specifier: 8.20.0
         version: 8.20.0
     devDependencies:
       '@types/pg':
@@ -368,15 +365,9 @@ importers:
       '@hims/ts-sdk-tenant':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-tenant
-      drizzle-orm:
-        specifier: ^0.44.0
-        version: 0.44.7(@types/pg@8.20.0)(pg@8.20.0)(postgres@3.4.9)
       fastify:
         specifier: ^5.3.3
         version: 5.8.5
-      postgres:
-        specifier: ^3.4.7
-        version: 3.4.9
     devDependencies:
       tsx:
         specifier: ^4.19.4
@@ -9278,7 +9269,8 @@ snapshots:
     dependencies:
       xtend: 4.0.2
 
-  postgres@3.4.9: {}
+  postgres@3.4.9:
+    optional: true
 
   prelude-ls@1.2.1: {}
 
