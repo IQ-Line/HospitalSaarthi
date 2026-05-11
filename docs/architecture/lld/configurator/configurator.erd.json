@@ -39,7 +39,6 @@
       "98a28c79-b512-48e1-8e0f-036d71f3a91d",
       "15f2c4c3-f582-499d-9adc-a05ec35ddbfc",
       "89cada4f-38ed-4385-b121-870c6b9cd747",
-      "6487d9b2-7891-427c-9f50-4645f46aafee",
       "74de7709-713e-4e7c-90f7-a9e2ed76a718",
       "99f61d3d-7f18-4a88-9587-761f66d3bdf3"
     ],
@@ -51,11 +50,7 @@
       "2b6b6582-0009-41f9-aced-10318ca9886f",
       "65c39885-fcd2-4378-ad39-dc13e6c088a4",
       "4452f0ed-3ec4-43aa-b1d5-8ab4c8e8394f",
-      "0ff7b294-1eb2-4d10-945c-9aaf20ec0995",
-      "44c1fddc-93cf-4433-a2af-7326acf8092a",
-      "70a08174-f430-4858-baa8-a2e1bfbc55b7",
-      "e9f140d7-e2c3-458e-9f14-bb5219466f33",
-      "e6f285cc-5a05-4fed-997a-fe7ac0fa57a8"
+      "44c1fddc-93cf-4433-a2af-7326acf8092a"
     ],
     "indexIds": [],
     "memoIds": [
@@ -114,7 +109,7 @@
       "fb2d3452-38c7-490e-b89b-9b7f07db0e83": {
         "id": "fb2d3452-38c7-490e-b89b-9b7f07db0e83",
         "name": "tenants",
-        "comment": "Citus: REFERENCE TABLE (replicated to all nodes). Tenant registry \u2014 few rows, queried by all modules.",
+        "comment": "Citus: REFERENCE TABLE (replicated to all nodes). Tenant registry — few rows, queried by all modules.",
         "columnIds": [
           "c3e4194b-b199-41ec-9cf5-14071d701db8",
           "fe09b585-184f-4fb3-a782-c2838dd74e0e",
@@ -167,7 +162,7 @@
       "873c23d1-5276-4c32-8b68-776009bfa06e": {
         "id": "873c23d1-5276-4c32-8b68-776009bfa06e",
         "name": "tenant_modules",
-        "comment": "Citus: DISTRIBUTED by iq_tenant_id. Module enablement per tenant \u2014 fragmented adoption mechanism. CHECK: NOT (is_core_override AND NOT is_enabled).",
+        "comment": "Citus: DISTRIBUTED by iq_tenant_id. Module enablement per tenant — fragmented adoption mechanism. CHECK: NOT (is_core_override AND NOT is_enabled).",
         "columnIds": [
           "67a72658-9a5a-4881-908d-cbc4fcad8b1f",
           "fee5b0f1-6e70-473f-98fa-e57d5fdefc3f",
@@ -376,7 +371,7 @@
       "89cada4f-38ed-4385-b121-870c6b9cd747": {
         "id": "89cada4f-38ed-4385-b121-870c6b9cd747",
         "name": "config_change_audit",
-        "comment": "Citus: DISTRIBUTED by iq_tenant_id. All configuration changes \u2014 who, when, what, why.",
+        "comment": "Citus: DISTRIBUTED by iq_tenant_id. All configuration changes — who, when, what, why.",
         "columnIds": [
           "69aebdb4-21c8-464d-b979-34c1d0dfcf01",
           "460dcacb-f62a-43cc-bc3f-219a833ebd0f",
@@ -408,41 +403,6 @@
           "widthName": 111,
           "widthComment": 466,
           "color": "#c8e6c9"
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
-      },
-      "6487d9b2-7891-427c-9f50-4645f46aafee": {
-        "id": "6487d9b2-7891-427c-9f50-4645f46aafee",
-        "name": "module_projection",
-        "comment": "Citus: REFERENCE TABLE. Local projection of master_data.modules, synced via events.",
-        "columnIds": [
-          "577c0e6f-ab83-429f-9f14-4fd692790bf8",
-          "c7b5eaf0-b7fc-41d4-bea9-543798a52efa",
-          "e4e6cffe-e68e-4ad4-8846-4c4472bbe850",
-          "1938a974-f066-473d-b595-15364186e9fb",
-          "45dabbf4-cb90-420a-a8e8-632c1d38c323",
-          "dbcc9d62-f7dd-45f5-b1a3-0a44c1f21399",
-          "7d7011fb-04fb-405a-9d1b-2ed0f65da0c6"
-        ],
-        "seqColumnIds": [
-          "577c0e6f-ab83-429f-9f14-4fd692790bf8",
-          "c7b5eaf0-b7fc-41d4-bea9-543798a52efa",
-          "e4e6cffe-e68e-4ad4-8846-4c4472bbe850",
-          "1938a974-f066-473d-b595-15364186e9fb",
-          "45dabbf4-cb90-420a-a8e8-632c1d38c323",
-          "dbcc9d62-f7dd-45f5-b1a3-0a44c1f21399",
-          "7d7011fb-04fb-405a-9d1b-2ed0f65da0c6"
-        ],
-        "ui": {
-          "x": 50,
-          "y": 550,
-          "zIndex": 2,
-          "widthName": 108,
-          "widthComment": 500,
-          "color": "#fff9c4"
         },
         "meta": {
           "updateAt": 1777700000000,
@@ -783,7 +743,7 @@
         "id": "c3e4194b-b199-41ec-9cf5-14071d701db8",
         "tableId": "fb2d3452-38c7-490e-b89b-9b7f07db0e83",
         "name": "iq_tenant_id",
-        "comment": "Tenant identifier \u2014 used as distribution key in all other modules",
+        "comment": "Tenant identifier — used as distribution key in all other modules",
         "dataType": "UUID",
         "default": "gen_random_uuid()",
         "options": 6,
@@ -903,7 +863,7 @@
         "id": "e9be574e-8c33-4433-bacc-4442729f5367",
         "tableId": "fb2d3452-38c7-490e-b89b-9b7f07db0e83",
         "name": "data_isolation_level",
-        "comment": "shared | isolated \u2014 controls Citus shard placement",
+        "comment": "shared | isolated — controls Citus shard placement",
         "dataType": "TEXT",
         "default": "shared",
         "options": 4,
@@ -1143,7 +1103,7 @@
         "id": "69938637-098b-4159-8eba-1065434c2023",
         "tableId": "873c23d1-5276-4c32-8b68-776009bfa06e",
         "name": "is_core_override",
-        "comment": "True for core modules \u2014 cannot be disabled via admin UI",
+        "comment": "True for core modules — cannot be disabled via admin UI",
         "dataType": "BOOLEAN",
         "default": "false",
         "options": 4,
@@ -1503,7 +1463,7 @@
         "id": "32b6c718-302c-4dc1-b1b6-ce9ff124191f",
         "tableId": "a23b6ca4-2e05-4b2d-9987-39b615b6ec01",
         "name": "config_values",
-        "comment": "Configuration values \u2014 validated against module_config_schemas",
+        "comment": "Configuration values — validated against module_config_schemas",
         "dataType": "JSONB",
         "default": "",
         "options": 4,
@@ -1903,7 +1863,7 @@
         "id": "631abf7f-b594-4940-8d8e-0c114237b3d2",
         "tableId": "15f2c4c3-f582-499d-9adc-a05ec35ddbfc",
         "name": "iq_tenant_id",
-        "comment": "Citus distribution key \u2014 tenant being provisioned",
+        "comment": "Citus distribution key — tenant being provisioned",
         "dataType": "UUID",
         "default": "",
         "options": 6,
@@ -2083,7 +2043,7 @@
         "id": "69aebdb4-21c8-464d-b979-34c1d0dfcf01",
         "tableId": "89cada4f-38ed-4385-b121-870c6b9cd747",
         "name": "iq_tenant_id",
-        "comment": "Citus distribution key \u2014 admin's tenant context",
+        "comment": "Citus distribution key — admin's tenant context",
         "dataType": "UUID",
         "default": "",
         "options": 6,
@@ -2339,146 +2299,6 @@
           "createAt": 1777700000000
         }
       },
-      "577c0e6f-ab83-429f-9f14-4fd692790bf8": {
-        "id": "577c0e6f-ab83-429f-9f14-4fd692790bf8",
-        "tableId": "6487d9b2-7891-427c-9f50-4645f46aafee",
-        "name": "id",
-        "comment": "Module ID (matches master_data.modules.id)",
-        "dataType": "UUID",
-        "default": "",
-        "options": 6,
-        "ui": {
-          "keys": 1,
-          "widthName": 60,
-          "widthComment": 252,
-          "widthDataType": 80,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
-      },
-      "c7b5eaf0-b7fc-41d4-bea9-543798a52efa": {
-        "id": "c7b5eaf0-b7fc-41d4-bea9-543798a52efa",
-        "tableId": "6487d9b2-7891-427c-9f50-4645f46aafee",
-        "name": "name",
-        "comment": "Machine-readable module name",
-        "dataType": "TEXT",
-        "default": "",
-        "options": 12,
-        "ui": {
-          "keys": 0,
-          "widthName": 60,
-          "widthComment": 168,
-          "widthDataType": 80,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
-      },
-      "e4e6cffe-e68e-4ad4-8846-4c4472bbe850": {
-        "id": "e4e6cffe-e68e-4ad4-8846-4c4472bbe850",
-        "tableId": "6487d9b2-7891-427c-9f50-4645f46aafee",
-        "name": "display_name",
-        "comment": "Human-readable module name for admin UI",
-        "dataType": "TEXT",
-        "default": "",
-        "options": 4,
-        "ui": {
-          "keys": 0,
-          "widthName": 84,
-          "widthComment": 234,
-          "widthDataType": 80,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
-      },
-      "1938a974-f066-473d-b595-15364186e9fb": {
-        "id": "1938a974-f066-473d-b595-15364186e9fb",
-        "tableId": "6487d9b2-7891-427c-9f50-4645f46aafee",
-        "name": "category",
-        "comment": "core | clinical | administrative | support",
-        "dataType": "TEXT",
-        "default": "",
-        "options": 4,
-        "ui": {
-          "keys": 0,
-          "widthName": 60,
-          "widthComment": 252,
-          "widthDataType": 80,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
-      },
-      "45dabbf4-cb90-420a-a8e8-632c1d38c323": {
-        "id": "45dabbf4-cb90-420a-a8e8-632c1d38c323",
-        "tableId": "6487d9b2-7891-427c-9f50-4645f46aafee",
-        "name": "is_core",
-        "comment": "True for the 4 core modules",
-        "dataType": "BOOLEAN",
-        "default": "",
-        "options": 4,
-        "ui": {
-          "keys": 0,
-          "widthName": 60,
-          "widthComment": 162,
-          "widthDataType": 80,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
-      },
-      "dbcc9d62-f7dd-45f5-b1a3-0a44c1f21399": {
-        "id": "dbcc9d62-f7dd-45f5-b1a3-0a44c1f21399",
-        "tableId": "6487d9b2-7891-427c-9f50-4645f46aafee",
-        "name": "version",
-        "comment": "Currently deployed semver version",
-        "dataType": "TEXT",
-        "default": "",
-        "options": 4,
-        "ui": {
-          "keys": 0,
-          "widthName": 60,
-          "widthComment": 198,
-          "widthDataType": 80,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
-      },
-      "7d7011fb-04fb-405a-9d1b-2ed0f65da0c6": {
-        "id": "7d7011fb-04fb-405a-9d1b-2ed0f65da0c6",
-        "tableId": "6487d9b2-7891-427c-9f50-4645f46aafee",
-        "name": "synced_at",
-        "comment": "Last synced from Master Data event",
-        "dataType": "TIMESTAMPTZ",
-        "default": "now()",
-        "options": 4,
-        "ui": {
-          "keys": 0,
-          "widthName": 63,
-          "widthComment": 204,
-          "widthDataType": 80,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
-      },
       "feb664fb-e180-4692-aabc-d8cb2ac6e586": {
         "id": "feb664fb-e180-4692-aabc-d8cb2ac6e586",
         "tableId": "74de7709-713e-4e7c-90f7-a9e2ed76a718",
@@ -2503,7 +2323,7 @@
         "id": "f6f6899d-47a2-4a7d-a7bd-622ccad358c6",
         "tableId": "74de7709-713e-4e7c-90f7-a9e2ed76a718",
         "name": "module_id",
-        "comment": "Module this schema belongs to (\u2192 module_projection.id)",
+        "comment": "Module this schema belongs to (→ master_data.modules.id (soft reference, validated via §3.1))",
         "dataType": "UUID",
         "default": "",
         "options": 4,
@@ -2683,7 +2503,7 @@
         "id": "889d2fa5-3726-4b25-bad9-42fcb971d15c",
         "tableId": "99f61d3d-7f18-4a88-9587-761f66d3bdf3",
         "name": "module_id",
-        "comment": "Module this flag belongs to (\u2192 module_projection.id, NULL = platform-wide)",
+        "comment": "Module this flag belongs to (→ master_data.modules.id (soft reference, validated via §3.1), NULL = platform-wide)",
         "dataType": "UUID",
         "default": "",
         "options": 0,
@@ -2937,34 +2757,6 @@
           "createAt": 1777700000000
         }
       },
-      "0ff7b294-1eb2-4d10-945c-9aaf20ec0995": {
-        "id": "0ff7b294-1eb2-4d10-945c-9aaf20ec0995",
-        "identification": true,
-        "relationshipType": 16,
-        "startRelationshipType": 1,
-        "start": {
-          "tableId": "873c23d1-5276-4c32-8b68-776009bfa06e",
-          "columnIds": [
-            "fee5b0f1-6e70-473f-98fa-e57d5fdefc3f"
-          ],
-          "x": 1250,
-          "y": 160,
-          "direction": 1
-        },
-        "end": {
-          "tableId": "6487d9b2-7891-427c-9f50-4645f46aafee",
-          "columnIds": [
-            "577c0e6f-ab83-429f-9f14-4fd692790bf8"
-          ],
-          "x": 520,
-          "y": 600,
-          "direction": 2
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
-      },
       "44c1fddc-93cf-4433-a2af-7326acf8092a": {
         "id": "44c1fddc-93cf-4433-a2af-7326acf8092a",
         "identification": true,
@@ -2992,90 +2784,6 @@
           "updateAt": 1777700000000,
           "createAt": 1777700000000
         }
-      },
-      "70a08174-f430-4858-baa8-a2e1bfbc55b7": {
-        "id": "70a08174-f430-4858-baa8-a2e1bfbc55b7",
-        "identification": true,
-        "relationshipType": 16,
-        "startRelationshipType": 1,
-        "start": {
-          "tableId": "a23b6ca4-2e05-4b2d-9987-39b615b6ec01",
-          "columnIds": [
-            "2628b52a-5886-4ac9-af9b-491d3676cdec"
-          ],
-          "x": 1250,
-          "y": 900,
-          "direction": 1
-        },
-        "end": {
-          "tableId": "6487d9b2-7891-427c-9f50-4645f46aafee",
-          "columnIds": [
-            "577c0e6f-ab83-429f-9f14-4fd692790bf8"
-          ],
-          "x": 520,
-          "y": 650,
-          "direction": 2
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
-      },
-      "e9f140d7-e2c3-458e-9f14-bb5219466f33": {
-        "id": "e9f140d7-e2c3-458e-9f14-bb5219466f33",
-        "identification": true,
-        "relationshipType": 16,
-        "startRelationshipType": 1,
-        "start": {
-          "tableId": "74de7709-713e-4e7c-90f7-a9e2ed76a718",
-          "columnIds": [
-            "f6f6899d-47a2-4a7d-a7bd-622ccad358c6"
-          ],
-          "x": 400,
-          "y": 900,
-          "direction": 4
-        },
-        "end": {
-          "tableId": "6487d9b2-7891-427c-9f50-4645f46aafee",
-          "columnIds": [
-            "577c0e6f-ab83-429f-9f14-4fd692790bf8"
-          ],
-          "x": 300,
-          "y": 750,
-          "direction": 8
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
-      },
-      "e6f285cc-5a05-4fed-997a-fe7ac0fa57a8": {
-        "id": "e6f285cc-5a05-4fed-997a-fe7ac0fa57a8",
-        "identification": true,
-        "relationshipType": 16,
-        "startRelationshipType": 1,
-        "start": {
-          "tableId": "99f61d3d-7f18-4a88-9587-761f66d3bdf3",
-          "columnIds": [
-            "889d2fa5-3726-4b25-bad9-42fcb971d15c"
-          ],
-          "x": 300,
-          "y": 1150,
-          "direction": 4
-        },
-        "end": {
-          "tableId": "6487d9b2-7891-427c-9f50-4645f46aafee",
-          "columnIds": [
-            "577c0e6f-ab83-429f-9f14-4fd692790bf8"
-          ],
-          "x": 200,
-          "y": 750,
-          "direction": 8
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
       }
     },
     "indexEntities": {},
@@ -3083,7 +2791,7 @@
     "memoEntities": {
       "f2173ebf-7bcf-46fb-817e-b726870c0c66": {
         "id": "f2173ebf-7bcf-46fb-817e-b726870c0c66",
-        "value": "=== CITUS DISTRIBUTION LEGEND ===\n\nGreen (#c8e6c9): Distributed by iq_tenant_id\n  All tenant-scoped queries are shard-local.\n  JOINs within a tenant hit one node.\n\nYellow (#fff9c4): Reference table\n  Replicated to ALL worker nodes.\n  JOINs from any distributed table are local.\n  Used for small, read-heavy, globally-shared data.\n\nNo blue tables in Configurator \u2014 all tables are\neither reference (platform data / projections) or\ndistributed (tenant config).\n\n3 projection tables (yellow) mirror Master Data's\nregistry tables, synced via domain events.\nAll JOINs stay within the configurator schema.",
+        "value": "=== CITUS DISTRIBUTION LEGEND ===\n\nGreen (#c8e6c9): Distributed by iq_tenant_id\n  All tenant-scoped queries are shard-local.\n  JOINs within a tenant hit one node.\n\nYellow (#fff9c4): Reference table\n  Replicated to ALL worker nodes.\n  JOINs from any distributed table are local.\n  Used for small, read-heavy, globally-shared data.\n\nNo blue tables in Configurator — all tables are\neither reference (platform data / projections) or\ndistributed (tenant config).\n\n2 projection tables (yellow) mirror Master Data's\nconfig_schema and feature_flag tables, synced via\ndomain events. Module metadata is fetched via HTTP+cache\n(see LLD §3.1) — no projection.\nAll JOINs stay within the configurator schema.",
         "ui": {
           "x": 600,
           "y": 1080,
