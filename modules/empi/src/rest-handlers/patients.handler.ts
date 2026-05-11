@@ -35,7 +35,6 @@ import {
   updateAddressBodySchema,
   updatePatientBodySchema,
 } from "./patient-schemas.js";
-import { readPostgresBackendError } from "../lib/pg-backend-error.js";
 
 interface SearchPatientsQuerystring {
   name?: string;
@@ -88,55 +87,6 @@ export function registerPatientsHandler(
         return reply.code(201).send(result);
       } catch (err) {
         request.log.error({ err }, "registerPatient failed");
-        const pg = readPostgresBackendError(err);
-        const msg = pg?.message ?? "";
-        const topMsg = err instanceof Error ? err.message : String(err);
-        const detail = msg || topMsg;
-        const looksLikeDbConnPolicyFailure =
-          detail.includes("pg_hba.conf") ||
-          detail.includes("no encryption") ||
-          /ssl.*required|encryption.*required/i.test(detail);
-        const looksLikeSequenceUpsertFailure =
-          topMsg.includes("sequence_counters") &&
-          (topMsg.includes("Failed query") || topMsg.includes("ON CONFLICT"));
-
-        if (looksLikeDbConnPolicyFailure) {
-          return reply.code(503).send({
-            statusCode: 503,
-            error: "Service Unavailable",
-            message:
-              "PostgreSQL rejected the connection (not an EMPI migration issue). Typical fixes: (1) Append ?sslmode=require to DATABASE_URL or set PGSSLMODE=require so the client uses TLS. (2) On Azure Database for PostgreSQL: Server → Networking → add your client public IP (or your app’s egress IP) to the firewall allowlist. Restart empi-svc after changing env.",
-            detail,
-          });
-        }
-
-        if (pg?.code === "42P01" || msg.includes("does not exist")) {
-          return reply.code(503).send({
-            statusCode: 503,
-            error: "Service Unavailable",
-            message:
-              "EMPI schema is incomplete (missing relation). Apply modules/empi/migrations/0000_empi_schema.sql and 0001_pg_trgm.sql on this database; if UHID upsert still fails, run 0002_ensure_sequence_counters.sql.",
-            detail: pg?.message ?? topMsg,
-          });
-        }
-        if (msg.includes("no unique or exclusion constraint matching")) {
-          return reply.code(503).send({
-            statusCode: 503,
-            error: "Service Unavailable",
-            message:
-              "empi.sequence_counters must have PRIMARY KEY (iq_tenant_id, sequence_name). Run modules/empi/migrations/0002_ensure_sequence_counters.sql or re-apply 0000_empi_schema.sql.",
-            detail: pg?.message ?? topMsg,
-          });
-        }
-        if (looksLikeSequenceUpsertFailure) {
-          return reply.code(503).send({
-            statusCode: 503,
-            error: "Service Unavailable",
-            message:
-              "UHID allocation failed against empi.sequence_counters. If the database is reachable, apply migrations 0000, 0001, and 0002 under modules/empi/migrations/ with psql against DATABASE_URL, then retry.",
-            detail,
-          });
-        }
         throw err;
       }
     },

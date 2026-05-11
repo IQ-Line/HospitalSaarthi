@@ -384,8 +384,8 @@ export function evaluateDedupAgainstCandidate(
   const matched_fields: DedupMatchedField[] = [
     "phone_number",
     "gender",
-    "full_name",
-    "age",
+    ...(nameMatch ? (["full_name"] as const satisfies readonly DedupMatchedField[]) : []),
+    ...(ageMatch ? (["age"] as const satisfies readonly DedupMatchedField[]) : []),
   ];
   return {
     potential_duplicate: true,

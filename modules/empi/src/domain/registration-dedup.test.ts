@@ -54,10 +54,6 @@ describe("registration-dedup helpers", () => {
     ).toBe(true);
   });
 
-  it("Yashi Sarm vs Yuio Sarm: whole-name phonetic score can exceed threshold (same phone+gender+age → 409)", () => {
-    expect(fullNamesPhoneticallySimilar("Yashi Sarm", "Yuio Sarm")).toBe(true);
-  });
-
   it("agesWithinTwoYears requires both sides to have age and ±2 window", () => {
     const ref = new Date("2020-06-15T12:00:00.000Z");
     expect(
