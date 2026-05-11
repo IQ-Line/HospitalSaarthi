@@ -1,0 +1,61 @@
+---
+description: Unit testing conventions for HIMS TypeScript modules
+globs:
+  - "modules/**/*.test.ts"
+  - "packages/**/*.test.ts"
+  - "!**/*.integration.test.ts"
+alwaysApply: false
+---
+
+# HIMS Unit Testing Conventions
+
+Unit tests for HIMS TS modules **must not** touch a database. Mock the port interface and test the use-case or domain function in isolation.
+
+## Pattern: mock the port, test the function
+
+Use-cases live in `modules/<name>/src/use-cases/` and accept port interfaces from `../ports.ts` as parameters. Build a mock using `vi.fn()`:
+
+```typescript
+import { describe, it, expect, vi } from 'vitest';
+import type { OrganizationRepo } from '../ports.js';
+
+function createMockRepo(): OrganizationRepo {
+  return {
+    findAll: vi.fn().mockResolvedValue([]),
+    findById: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+  };
+}
+```
+
+## File naming
+
+- `<source>.test.ts` next to `<source>.ts`
+- Never `*.integration.test.ts` (reserved for tests that hit real PostgreSQL)
+- Never inside a `__tests__/` directory
+
+## Fixtures from `@hims/ts-sdk-testing`
+
+- `createTestPrincipal()` — JWT-like principal
+- `MockEventBus` — in-memory event bus
+- `MockCerbos.allowAll()` / `.denyAll()` / `.withPolicy([...])`
+- `TEST_TENANT_ID`, `TEST_ORG_ID`, `createTestTenant()`
+- `createTestOrganizationData()`, `createTestTenantSeedData()`
+
+## Hard rules
+
+- Import explicitly from `vitest` — `globals: false` is intentional
+- No SQLite, no in-memory Postgres, no testcontainers
+- No real Fastify app — call the use-case function directly
+- No `tsc`, ever (freezes WSL2)
+- Import paths end in `.js` (NodeNext)
+- No cross-module imports
+
+## Run
+
+```bash
+npx nx run <module>:test
+```
+
+Full reference: `.claude/skills/writing-unit-tests/SKILL.md`

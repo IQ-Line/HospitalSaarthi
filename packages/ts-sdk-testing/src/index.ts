@@ -12,3 +12,14 @@ export type { TestTenant } from './tenant-fixtures.js';
 
 export { createTestDb, cleanupTestDb } from './db-setup.js';
 export type { TestDbHandle } from './db-setup.js';
+
+export {
+  createIntegrationDb,
+  cleanupIntegrationDb,
+  getTestDatabaseUrl,
+  uniqueSchemaName,
+} from './integration-db.js';
+export type { IntegrationTestDb } from './integration-db.js';
+
+export { createTestOrganizationData, createTestTenantSeedData } from './entity-factories.js';
+export type { TestOrganizationData, TestTenantSeedData } from './entity-factories.js';

@@ -15,10 +15,12 @@
     "dist"
   ],
   "peerDependencies": {
+    "drizzle-orm": ">=0.44.0",
     "vitest": ">=3.0.0"
   },
   "devDependencies": {
     "@types/pg": "*",
+    "drizzle-orm": "^0.44.0",
     "pg": "^8.20.0"
   }
 }
