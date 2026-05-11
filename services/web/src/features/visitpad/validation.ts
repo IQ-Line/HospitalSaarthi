@@ -1,5 +1,9 @@
 import { z } from 'zod';
 
+function visitpadTrimLower(code: string): string {
+  return code.trim().toLowerCase();
+}
+
 /** OpenAPI `VisitpadUnitDimension` */
 export const visitpadUnitDimensionSchema = z.enum([
   'length',
@@ -15,7 +19,11 @@ export const visitpadUnitDimensionSchema = z.enum([
 ]);
 
 export const visitpadUnitCreateSchema = z.object({
-  code: z.string().min(1).max(64),
+  code: z
+    .string()
+    .min(1)
+    .max(64)
+    .transform(visitpadTrimLower),
   display_label: z.string().min(1).max(256),
   dimension: visitpadUnitDimensionSchema,
   ucum_code: z.string().max(64).nullable().optional(),
@@ -47,8 +55,16 @@ export const visitpadUnitEditFormSchema = z.object({
 
 export const visitpadUnitConversionCreateSchema = z
   .object({
-    from_unit_code: z.string().min(1).max(64),
-    to_unit_code: z.string().min(1).max(64),
+    from_unit_code: z
+      .string()
+      .min(1)
+      .max(64)
+      .transform(visitpadTrimLower),
+    to_unit_code: z
+      .string()
+      .min(1)
+      .max(64)
+      .transform(visitpadTrimLower),
     factor: z.coerce.number().finite(),
     offset_value: z.coerce.number().finite().optional(),
     display_order: z.coerce.number().int().optional(),
@@ -60,8 +76,16 @@ export const visitpadUnitConversionCreateSchema = z
 
 export const visitpadUnitConversionEditFormSchema = z
   .object({
-    from_unit_code: z.string().min(1).max(64),
-    to_unit_code: z.string().min(1).max(64),
+    from_unit_code: z
+      .string()
+      .min(1)
+      .max(64)
+      .transform(visitpadTrimLower),
+    to_unit_code: z
+      .string()
+      .min(1)
+      .max(64)
+      .transform(visitpadTrimLower),
     factor: z.coerce.number().finite(),
     offset_value: z.coerce.number().finite(),
     display_order: z.coerce.number().int(),

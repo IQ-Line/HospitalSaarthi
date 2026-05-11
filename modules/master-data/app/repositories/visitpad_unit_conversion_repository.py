@@ -46,7 +46,10 @@ class VisitpadUnitConversionRepository:
             VisitpadUnitConversionModel.is_deleted.is_(False),
         ]
         if from_unit_code is not None:
-            filters.append(VisitpadUnitConversionModel.from_unit_code == from_unit_code)
+            filters.append(
+                func.lower(VisitpadUnitConversionModel.from_unit_code)
+                == from_unit_code.strip().lower()
+            )
         if search:
             term = f"%{search.strip()}%"
             filters.append(
@@ -113,3 +116,24 @@ class VisitpadUnitConversionRepository:
             raise
         self._session.refresh(row)
         return row
+
+    def count_active_conversions_referencing_unit_code(
+        self,
+        *,
+        tenant_id: UUID,
+        unit_code: str,
+    ) -> int:
+        c = unit_code.strip().lower()
+        stmt = (
+            select(func.count())
+            .select_from(VisitpadUnitConversionModel)
+            .where(
+                VisitpadUnitConversionModel.tenant_id == tenant_id,
+                VisitpadUnitConversionModel.is_deleted.is_(False),
+                or_(
+                    func.lower(VisitpadUnitConversionModel.from_unit_code) == c,
+                    func.lower(VisitpadUnitConversionModel.to_unit_code) == c,
+                ),
+            )
+        )
+        return int(self._session.scalar(stmt) or 0)

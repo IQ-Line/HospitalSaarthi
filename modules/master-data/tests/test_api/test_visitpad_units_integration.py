@@ -115,9 +115,37 @@ def test_visitpad_units_and_conversions_crud(visitpad_client: TestClient) -> Non
     )
     assert dup.status_code == 409
 
+    dup_case = visitpad_client.post(
+        "/api/v1/master-data/visitpad/units",
+        json={"code": "KG", "display_label": "Kilogram dup", "dimension": "mass"},
+    )
+    assert dup_case.status_code == 409
+
     patch_u = visitpad_client.patch(
         f"/api/v1/master-data/visitpad/units/{r_kg.json()['data']['id']}",
         json={"is_active": False},
     )
-    assert patch_u.status_code == 200
-    assert patch_u.json()["data"]["is_active"] is False
+    assert patch_u.status_code == 409
+
+    patch_factor_only = visitpad_client.patch(
+        f"/api/v1/master-data/visitpad/unit-conversions/{cid}",
+        json={"factor": 1000.5},
+    )
+    assert patch_factor_only.status_code == 200
+    assert patch_factor_only.json()["data"]["factor"] == 1000.5
+
+    del_conv = visitpad_client.delete(f"/api/v1/master-data/visitpad/unit-conversions/{cid}")
+    assert del_conv.status_code == 200
+
+    patch_u2 = visitpad_client.patch(
+        f"/api/v1/master-data/visitpad/units/{r_kg.json()['data']['id']}",
+        json={"is_active": False},
+    )
+    assert patch_u2.status_code == 200
+    assert patch_u2.json()["data"]["is_active"] is False
+
+    bad_revalidate = visitpad_client.patch(
+        f"/api/v1/master-data/visitpad/unit-conversions/{cid}",
+        json={"factor": 1.0},
+    )
+    assert bad_revalidate.status_code == 400

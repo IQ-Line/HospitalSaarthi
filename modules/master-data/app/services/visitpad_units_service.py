@@ -25,6 +25,14 @@ class InvalidVisitpadUnitConversionError(Exception):
         super().__init__(message)
 
 
+class VisitpadUnitBlockedByActiveConversionsError(Exception):
+    """Cannot deactivate or soft-delete a unit while non-deleted conversions reference it."""
+
+    def __init__(self, message: str) -> None:
+        self.message = message
+        super().__init__(message)
+
+
 def list_visitpad_units(
     repository: VisitpadUnitRepository,
     *,
@@ -52,7 +60,7 @@ def create_visitpad_unit(
     row = VisitpadUnitModel(
         id=uuid.uuid4(),
         tenant_id=tenant_id,
-        code=payload.code.strip(),
+        code=payload.code.strip().lower(),
         display_label=payload.display_label.strip(),
         dimension=payload.dimension.value,
         ucum_code=payload.ucum_code.strip() if payload.ucum_code else None,
@@ -75,6 +83,7 @@ def get_visitpad_unit_by_id(
 
 def update_visitpad_unit(
     repository: VisitpadUnitRepository,
+    conv_repo: VisitpadUnitConversionRepository,
     *,
     tenant_id: UUID,
     unit_id: UUID,
@@ -83,6 +92,19 @@ def update_visitpad_unit(
     row = repository.get_unit_by_id(unit_id, tenant_id=tenant_id, include_deleted=True)
     if row is None or row.tenant_id != tenant_id:
         return None
+    will_deactivate = payload.is_active is False and row.is_active
+    will_soft_delete = payload.is_deleted is True and not row.is_deleted
+    if (
+        (will_deactivate or will_soft_delete)
+        and conv_repo.count_active_conversions_referencing_unit_code(
+            tenant_id=tenant_id,
+            unit_code=row.code,
+        )
+        > 0
+    ):
+        raise VisitpadUnitBlockedByActiveConversionsError(
+            "Cannot deactivate or delete this unit while active conversions reference its code.",
+        )
     if payload.display_label is not None:
         row.display_label = payload.display_label.strip()
     if payload.dimension is not None:
@@ -102,6 +124,7 @@ def update_visitpad_unit(
 
 def soft_delete_visitpad_unit(
     repository: VisitpadUnitRepository,
+    conv_repo: VisitpadUnitConversionRepository,
     *,
     tenant_id: UUID,
     unit_id: UUID,
@@ -109,6 +132,13 @@ def soft_delete_visitpad_unit(
     row = repository.get_unit_by_id(unit_id, tenant_id=tenant_id)
     if row is None:
         return None
+    if conv_repo.count_active_conversions_referencing_unit_code(
+        tenant_id=tenant_id,
+        unit_code=row.code,
+    ) > 0:
+        raise VisitpadUnitBlockedByActiveConversionsError(
+            "Cannot deactivate or delete this unit while active conversions reference its code.",
+        )
     row.is_deleted = True
     return repository.update_unit(row)
 
@@ -120,9 +150,11 @@ def _ensure_conversion_pair_valid(
     from_code: str,
     to_code: str,
 ) -> None:
-    if from_code.strip().lower() == to_code.strip().lower():
+    fc = from_code.strip().lower()
+    tc = to_code.strip().lower()
+    if fc == tc:
         raise InvalidVisitpadUnitConversionError("from_unit_code and to_unit_code must differ.")
-    for code in (from_code.strip(), to_code.strip()):
+    for code in (fc, tc):
         if unit_repo.get_active_unit_by_code(tenant_id=tenant_id, code=code) is None:
             raise InvalidVisitpadUnitConversionError(
                 f"No active unit with code '{code}' for this tenant.",
@@ -154,8 +186,8 @@ def create_visitpad_unit_conversion(
     tenant_id: UUID,
     payload: VisitpadUnitConversionCreate,
 ) -> VisitpadUnitConversionModel:
-    fc = payload.from_unit_code.strip()
-    tc = payload.to_unit_code.strip()
+    fc = payload.from_unit_code.strip().lower()
+    tc = payload.to_unit_code.strip().lower()
     _ensure_conversion_pair_valid(unit_repo, tenant_id=tenant_id, from_code=fc, to_code=tc)
     row = VisitpadUnitConversionModel(
         id=uuid.uuid4(),
@@ -191,15 +223,14 @@ def update_visitpad_unit_conversion(
     if row is None or row.tenant_id != tenant_id:
         return None
     if payload.from_unit_code is not None:
-        fc = payload.from_unit_code.strip()
+        fc = payload.from_unit_code.strip().lower()
     else:
-        fc = row.from_unit_code
+        fc = row.from_unit_code.strip().lower()
     if payload.to_unit_code is not None:
-        tc = payload.to_unit_code.strip()
+        tc = payload.to_unit_code.strip().lower()
     else:
-        tc = row.to_unit_code
-    if payload.from_unit_code is not None or payload.to_unit_code is not None:
-        _ensure_conversion_pair_valid(unit_repo, tenant_id=tenant_id, from_code=fc, to_code=tc)
+        tc = row.to_unit_code.strip().lower()
+    _ensure_conversion_pair_valid(unit_repo, tenant_id=tenant_id, from_code=fc, to_code=tc)
     if payload.from_unit_code is not None:
         row.from_unit_code = fc
     if payload.to_unit_code is not None:

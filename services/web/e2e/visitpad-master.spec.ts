@@ -10,4 +10,10 @@ test.describe('Visitpad Master', () => {
     expect(res?.ok() ?? false).toBeTruthy();
     await expect(page.locator('body')).toBeVisible();
   });
+
+  test('visitpad /conversions responds', async ({ page }) => {
+    const res = await page.goto('/visitpad/conversions');
+    expect(res?.ok() ?? false).toBeTruthy();
+    await expect(page.locator('body')).toBeVisible();
+  });
 });

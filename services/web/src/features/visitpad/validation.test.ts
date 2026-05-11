@@ -17,6 +17,21 @@ describe('visitpadUnitCreateSchema', () => {
       is_active: true,
     });
     expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.code).toBe('deg_c');
+    }
+  });
+
+  it('normalizes unit code to lowercase', () => {
+    const r = visitpadUnitCreateSchema.safeParse({
+      code: '  LB  ',
+      display_label: 'Pound',
+      dimension: 'mass',
+    });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.code).toBe('lb');
+    }
   });
 
   it('rejects empty code', () => {
@@ -34,6 +49,15 @@ describe('visitpadUnitConversionCreateSchema', () => {
     const r = visitpadUnitConversionCreateSchema.safeParse({
       from_unit_code: 'kg',
       to_unit_code: 'kg',
+      factor: 1,
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it('rejects from/to that only differ by case', () => {
+    const r = visitpadUnitConversionCreateSchema.safeParse({
+      from_unit_code: 'kg',
+      to_unit_code: 'KG',
       factor: 1,
     });
     expect(r.success).toBe(false);

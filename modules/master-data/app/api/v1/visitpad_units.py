@@ -111,10 +111,20 @@ def patch_visitpad_unit(
     unit_id: UUID,
     payload: VisitpadUnitUpdate,
     repository: Annotated[VisitpadUnitRepository, Depends(get_visitpad_unit_repository)],
+    conv_repo: Annotated[
+        VisitpadUnitConversionRepository,
+        Depends(get_visitpad_unit_conversion_repository),
+    ],
     tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadUnitSingleResponse:
-    row = update_visitpad_unit(repository, tenant_id=tenant_id, unit_id=unit_id, payload=payload)
+    row = update_visitpad_unit(
+        repository,
+        conv_repo,
+        tenant_id=tenant_id,
+        unit_id=unit_id,
+        payload=payload,
+    )
     if row is None:
         raise ResourceNotFoundError("No unit with this id.")
     session.commit()
@@ -129,10 +139,19 @@ def patch_visitpad_unit(
 def delete_visitpad_unit(
     unit_id: UUID,
     repository: Annotated[VisitpadUnitRepository, Depends(get_visitpad_unit_repository)],
+    conv_repo: Annotated[
+        VisitpadUnitConversionRepository,
+        Depends(get_visitpad_unit_conversion_repository),
+    ],
     tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadUnitSingleResponse:
-    row = soft_delete_visitpad_unit(repository, tenant_id=tenant_id, unit_id=unit_id)
+    row = soft_delete_visitpad_unit(
+        repository,
+        conv_repo,
+        tenant_id=tenant_id,
+        unit_id=unit_id,
+    )
     if row is None:
         raise ResourceNotFoundError("No unit with this id.")
     session.commit()

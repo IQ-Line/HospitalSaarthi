@@ -29,7 +29,10 @@ from app.services.module_service import (
 )
 from app.services.permission_service import PermissionNotFoundError
 from app.services.system_role_service import SystemRoleNotFoundError
-from app.services.visitpad_units_service import InvalidVisitpadUnitConversionError
+from app.services.visitpad_units_service import (
+    InvalidVisitpadUnitConversionError,
+    VisitpadUnitBlockedByActiveConversionsError,
+)
 from app.services.visitpad_vitals_service import InvalidVitalRangeError
 
 
@@ -219,6 +222,16 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=400,
             content=error_payload("BAD_REQUEST", exc.message),
+        )
+
+    @app.exception_handler(VisitpadUnitBlockedByActiveConversionsError)
+    async def _visitpad_unit_blocked_by_conversions(
+        _request: Request,
+        exc: VisitpadUnitBlockedByActiveConversionsError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content=error_payload("CONFLICT", exc.message),
         )
 
     @app.exception_handler(DuplicateVisitpadCatalogKeyError)

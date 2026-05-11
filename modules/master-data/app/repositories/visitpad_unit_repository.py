@@ -86,12 +86,15 @@ class VisitpadUnitRepository:
         return row
 
     def get_active_unit_by_code(self, *, tenant_id: UUID, code: str) -> VisitpadUnitModel | None:
+        """Match by case-insensitive code; only non-deleted **active** units."""
+        normalized = code.strip().lower()
         statement = (
             select(VisitpadUnitModel)
             .where(
                 VisitpadUnitModel.tenant_id == tenant_id,
-                VisitpadUnitModel.code == code,
+                func.lower(VisitpadUnitModel.code) == normalized,
                 VisitpadUnitModel.is_deleted.is_(False),
+                VisitpadUnitModel.is_active.is_(True),
             )
             .limit(1)
         )

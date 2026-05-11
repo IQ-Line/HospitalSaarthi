@@ -49,7 +49,11 @@ class VisitpadUnitSingleResponse(BaseModel):
 class VisitpadUnitCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    code: str = Field(min_length=1, max_length=64)
+    code: str = Field(
+        min_length=1,
+        max_length=64,
+        description="Trimmed and stored lowercase; uniqueness is case-insensitive among active rows.",
+    )
     display_label: str = Field(min_length=1, max_length=256)
     dimension: VisitpadUnitDimension
     ucum_code: str | None = Field(default=None, max_length=64)

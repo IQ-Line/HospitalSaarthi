@@ -5652,6 +5652,8 @@ components:
           maxLength: 64
           minLength: 1
           title: Code
+          description: >-
+            Trimmed and stored in lowercase; uniqueness is case-insensitive for active rows.
         display_label:
           type: string
           maxLength: 256
