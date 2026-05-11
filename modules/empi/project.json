@@ -1,0 +1,34 @@
+{
+  "name": "empi",
+  "tags": ["type:module", "scope:empi", "language:typescript"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "options": {
+        "outputPath": "dist/modules/empi",
+        "main": "modules/empi/src/index.ts",
+        "tsConfig": "modules/empi/tsconfig.json"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest run",
+        "cwd": "modules/empi"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "options": {
+        "lintFilePatterns": ["modules/empi/src/**/*.ts"]
+      }
+    },
+    "db-generate": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm exec drizzle-kit generate",
+        "cwd": "modules/empi"
+      }
+    }
+  }
+}

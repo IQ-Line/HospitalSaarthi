@@ -8,6 +8,7 @@ export { createDb, type DbInstance } from "./connection.js";
 export {
   eq,
   and,
+  ilike,
   sql,
   type SQL,
   pgSchema,
@@ -17,4 +18,12 @@ export {
   uniqueIndex,
   index,
   check,
+  bigint,
+  boolean,
+  date,
+  numeric,
+  primaryKey,
+  smallint,
+  timestamp,
+  unique,
 } from "./drizzle.js";

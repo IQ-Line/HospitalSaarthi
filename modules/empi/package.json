@@ -1,0 +1,20 @@
+{
+  "name": "@hims/empi",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "dependencies": {
+    "@hims/ts-sdk-db": "workspace:*",
+    "@hims/ts-sdk-events": "workspace:*"
+  },
+  "peerDependencies": {
+    "fastify": "^5.3.3",
+    "fastify-plugin": "^5.0.1"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.4",
+    "fastify": "^5.3.3",
+    "fastify-plugin": "^5.0.1",
+    "vitest": "^3.1.3"
+  }
+}
