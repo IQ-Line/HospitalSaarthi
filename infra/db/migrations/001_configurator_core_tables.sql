@@ -1,5 +1,7 @@
 -- Configurator module — organizations & tenants (see modules/configurator/src/schema/tables.ts)
 
+CREATE SCHEMA IF NOT EXISTS configurator;
+
 CREATE TABLE IF NOT EXISTS configurator.organizations (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL,

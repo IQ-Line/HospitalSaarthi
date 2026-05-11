@@ -248,7 +248,7 @@
   "variable": [
     {
       "key": "baseUrl",
-      "value": "http://localhost:3000/api/configurator/v1"
+      "value": "http://localhost:3001/api/configurator/v1"
     },
     {
       "key": "orgId",

@@ -5,6 +5,8 @@ info:
   description: Configurator module — tenant registry, module enablement, feature flag overrides, configuration management.
 servers:
   - url: /api/configurator/v1
+security:
+  - bearerAuth: []
 paths:
   /organizations:
     get:
@@ -269,6 +271,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
     ErrorResponse:
       type: object

@@ -32,11 +32,18 @@ export async function createTenant(
     throw new ConfiguratorError(409, "tenant slug already exists", "CONFLICT");
   }
 
+  if (data.provisioning_status && data.provisioning_status !== "provisioning") {
+    throw new ConfiguratorError(
+      400,
+      "new tenants must start in provisioning status",
+    );
+  }
+
   return tenantRepo.create({
     ...data,
     name,
     slug,
     cerbos_scope_key,
-    provisioning_status: data.provisioning_status ?? "provisioning",
+    provisioning_status: "provisioning",
   });
 }

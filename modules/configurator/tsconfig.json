@@ -6,5 +6,5 @@
     "composite": true
   },
   "references": [{ "path": "../../packages/ts-sdk-db" }],
-  "include": ["src/**/*.ts"]
+  "include": ["src"]
 }

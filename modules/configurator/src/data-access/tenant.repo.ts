@@ -7,12 +7,7 @@ import type {
   TenantFilters,
 } from "../domain/tenant.types.js";
 import { tenants } from "../schema/tables.js";
-
-function omitUndefined<T extends Record<string, unknown>>(obj: T): Partial<T> {
-  return Object.fromEntries(
-    Object.entries(obj).filter(([, v]) => v !== undefined),
-  ) as Partial<T>;
-}
+import { omitUndefined } from "./utils.js";
 
 export class DrizzleTenantRepo implements TenantRepo {
   constructor(private readonly db: DbInstance) {}

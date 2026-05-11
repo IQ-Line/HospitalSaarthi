@@ -7,12 +7,7 @@ import type {
   OrganizationFilters,
 } from "../domain/organization.types.js";
 import { organizations } from "../schema/tables.js";
-
-function omitUndefined<T extends Record<string, unknown>>(obj: T): Partial<T> {
-  return Object.fromEntries(
-    Object.entries(obj).filter(([, v]) => v !== undefined),
-  ) as Partial<T>;
-}
+import { omitUndefined } from "./utils.js";
 
 export class DrizzleOrganizationRepo implements OrganizationRepo {
   constructor(private readonly db: DbInstance) {}

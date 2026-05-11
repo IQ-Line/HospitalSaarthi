@@ -11,9 +11,7 @@
     "@hims/ts-sdk-identity": "workspace:*",
     "@hims/ts-sdk-tenant": "workspace:*",
     "@hims/ts-sdk-db": "workspace:*",
-    "fastify": "^5.3.3",
-    "drizzle-orm": "^0.44.0",
-    "postgres": "^3.4.7"
+    "fastify": "^5.3.3"
   },
   "devDependencies": {
     "tsx": "^4.19.4"
