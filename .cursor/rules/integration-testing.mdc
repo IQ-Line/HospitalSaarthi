@@ -1,0 +1,70 @@
+---
+description: Integration testing conventions for HIMS TypeScript modules (real PostgreSQL/Citus)
+globs:
+  - "**/*.integration.test.ts"
+alwaysApply: false
+---
+
+# HIMS Integration Testing Conventions
+
+Integration tests use **real PostgreSQL** via the `@hims/ts-sdk-testing` helper. No SQLite, no mocks at the DB layer.
+
+## Pattern: createIntegrationDb in beforeAll, cleanup in afterAll
+
+```typescript
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import {
+  createIntegrationDb,
+  cleanupIntegrationDb,
+  type IntegrationTestDb,
+} from '@hims/ts-sdk-testing';
+import { CONFIGURATOR_TEST_SETUP_SQL } from '../schema/test-setup.sql.js';
+
+let testDb: IntegrationTestDb;
+
+beforeAll(async () => {
+  testDb = await createIntegrationDb('configurator', CONFIGURATOR_TEST_SETUP_SQL);
+});
+
+afterAll(async () => {
+  if (testDb) await cleanupIntegrationDb(testDb);
+});
+```
+
+The schema name (`'configurator'`) must match the `pgSchema(...)` name in `tables.ts`.
+
+## HTTP handler tests — use Fastify inject()
+
+```typescript
+import Fastify from 'fastify';
+const app = Fastify();
+registerHandler(app, repo);
+await app.ready();
+const response = await app.inject({ method: 'GET', url: '/path' });
+```
+
+## File naming
+
+- `<source>.integration.test.ts` next to `<source>.ts`
+
+## Schema setup SQL
+
+Each module owns a `src/schema/test-setup.sql.ts` that exports raw `CREATE TABLE` statements mirroring `tables.ts`. When you change `tables.ts`, update `test-setup.sql.ts`.
+
+## Hard rules
+
+- Real PostgreSQL only — no SQLite, no mocks of Drizzle/`pg`
+- Always `await cleanupIntegrationDb(testDb)` and `await app.close()` in `afterAll`
+- `DATABASE_URL` must be set (descriptive error if missing)
+- Generate unique slugs/keys per test to avoid unique-constraint collisions
+- Import paths end in `.js` (NodeNext)
+- No `tsc`, ever
+
+## Run
+
+```bash
+make infra   # start local Citus
+DATABASE_URL=postgresql://hims:hims@localhost:5433/hims_dev npx nx run <module>:test:integration
+```
+
+Full reference: `.claude/skills/writing-integration-tests/SKILL.md`

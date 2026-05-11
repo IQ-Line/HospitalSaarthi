@@ -6,8 +6,12 @@
     "production": [
       "default",
       "!{projectRoot}/**/*.test.ts",
+      "!{projectRoot}/**/*.integration.test.ts",
       "!{projectRoot}/**/*.spec.ts",
-      "!{projectRoot}/test/**/*"
+      "!{projectRoot}/test/**/*",
+      "!{projectRoot}/**/test-setup.sql.ts",
+      "!{projectRoot}/vitest.config.ts",
+      "!{projectRoot}/vitest.integration.config.ts"
     ]
   },
   "targetDefaults": {
@@ -21,6 +25,10 @@
       "cache": true
     },
     "test": {
+      "inputs": ["default", "^production"],
+      "cache": true
+    },
+    "test:integration": {
       "inputs": ["default", "^production"],
       "cache": true
     },

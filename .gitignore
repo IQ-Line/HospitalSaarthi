@@ -34,9 +34,11 @@ coverage/
 # Docker volumes
 infra/docker/volumes/
 
-# Claude Code
-.agents/
-.claude/
+# Claude Code / agent tooling (skills are committed for the team; everything else is local)
+.agents/*
+!.agents/skills/
+.claude/*
+!.claude/skills/
 
 # Python
 __pycache__/
