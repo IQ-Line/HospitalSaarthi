@@ -1,0 +1,27 @@
+{
+  "name": "configurator",
+  "tags": ["type:module", "scope:configurator", "language:typescript"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "options": {
+        "outputPath": "dist/modules/configurator",
+        "main": "modules/configurator/src/index.ts",
+        "tsConfig": "modules/configurator/tsconfig.json"
+      }
+    },
+    "test": {
+      "executor": "@nx/js:node",
+      "options": {
+        "command": "vitest run",
+        "cwd": "modules/configurator"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "options": {
+        "lintFilePatterns": ["modules/configurator/src/**/*.ts"]
+      }
+    }
+  }
+}

@@ -1,0 +1,239 @@
+openapi: 3.1.0
+info:
+  title: HIMS Configurator API
+  version: 1.0.0
+  description: Configurator module — tenant registry, module enablement, feature flag overrides, configuration management.
+servers:
+  - url: /api/configurator/v1
+security:
+  - bearerAuth: []
+paths:
+  /organizations:
+    get:
+      operationId: listOrganizations
+      summary: List organizations
+      description: Returns all registered organizations, optionally filtered by status or type.
+      tags:
+        - Organizations
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/OrganizationStatus"
+          description: Filter by organization status.
+        - name: type
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/OrganizationType"
+          description: Filter by organization type.
+      responses:
+        "200":
+          description: List of organizations.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationListResponse"
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Principal is not authorized.
+  /tenants:
+    get:
+      operationId: listTenants
+      summary: List tenants
+      description: Returns all registered tenants, optionally filtered by org, status, or type.
+      tags:
+        - Tenants
+      parameters:
+        - name: org_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Filter tenants by parent organization.
+        - name: provisioning_status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/ProvisioningStatus"
+          description: Filter by provisioning status.
+        - name: type
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/TenantType"
+          description: Filter by tenant type.
+      responses:
+        "200":
+          description: List of tenants.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantListResponse"
+        "401":
+          description: Missing or invalid bearer token.
+        "403":
+          description: Principal is not authorized.
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    OrganizationType:
+      type: string
+      enum:
+        - hospital_chain
+        - medical_college
+        - standalone_hospital
+        - government_network
+    OrganizationStatus:
+      type: string
+      enum:
+        - active
+        - suspended
+        - decommissioned
+    TenantType:
+      type: string
+      enum:
+        - full_platform
+        - fragmented
+        - lite
+    ProvisioningStatus:
+      type: string
+      enum:
+        - provisioning
+        - active
+        - suspended
+        - decommissioned
+    Organization:
+      type: object
+      required:
+        - id
+        - name
+        - slug
+        - type
+        - status
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          examples:
+            - AIIMS
+        slug:
+          type: string
+          examples:
+            - aiims
+        type:
+          $ref: "#/components/schemas/OrganizationType"
+        status:
+          $ref: "#/components/schemas/OrganizationStatus"
+        contact_email:
+          type: string
+          format: email
+        contact_phone:
+          type: string
+        address:
+          type: string
+        metadata:
+          type: object
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    OrganizationListResponse:
+      type: object
+      required:
+        - data
+        - total
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Organization"
+        total:
+          type: integer
+          minimum: 0
+    Tenant:
+      type: object
+      required:
+        - iq_tenant_id
+        - org_id
+        - name
+        - slug
+        - type
+        - provisioning_status
+        - data_isolation_level
+        - cerbos_scope_key
+        - timezone
+        - locale
+        - created_at
+        - updated_at
+      properties:
+        iq_tenant_id:
+          type: string
+          format: uuid
+        org_id:
+          type: string
+          format: uuid
+        parent_tenant_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          examples:
+            - AIIMS Delhi
+        slug:
+          type: string
+          examples:
+            - aiims-delhi
+        type:
+          $ref: "#/components/schemas/TenantType"
+        provisioning_status:
+          $ref: "#/components/schemas/ProvisioningStatus"
+        data_isolation_level:
+          type: string
+          enum:
+            - shared
+            - isolated
+        cerbos_scope_key:
+          type: string
+        timezone:
+          type: string
+          examples:
+            - Asia/Kolkata
+        locale:
+          type: string
+          examples:
+            - en-IN
+        metadata:
+          type: object
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    TenantListResponse:
+      type: object
+      required:
+        - data
+        - total
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Tenant"
+        total:
+          type: integer
+          minimum: 0

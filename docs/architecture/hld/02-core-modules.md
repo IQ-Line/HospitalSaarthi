@@ -297,6 +297,8 @@ Regardless of the internal approach, this is a read-mostly service. Clinical mod
 
 Master & Tenant Data is the source of truth for:
 
+- **Platform module registry** — which deployable product modules exist (`modules` in schema `master_data`): stable `name` / `slug`, tree (`parent_id`, `level`), catalog metadata (`category`, `version`, `is_active`), and soft-delete (`is_deleted`). **Platform superadmins** create, update, and retire modules through **Master Data HTTP APIs** (`POST` / `PATCH` / soft **`DELETE`**); **tenants** do not author registry rows. Migrations may still **seed** baselines in new environments. Consumers use **GET** APIs and subscribe to **`module.registered` / `module.updated`** (and tombstone-friendly payloads) for projections. Details: [Master Data LLD — module lifecycle](../lld/master-data/01-schema-design.md#9-module-registration-lifecycle).
+
 - **ICD-10 / ICD-11 diagnosis codes** — the WHO-published classification used for diagnosis recording, billing, and reporting.
 
 - **Drug catalogs** — drug names, formulations, dosages, interactions, contraindications. The global catalog is sourced from standard pharmacopoeias; tenant overrides represent a hospital's formulary (which drugs are stocked, local naming, pricing).
@@ -316,6 +318,8 @@ Master & Tenant Data is the source of truth for:
 ### 4.3 Exposes
 
 **APIs:**
+
+- **Module catalog (read/write)** — list, resolve, create, update, and soft-delete deployable modules (`/api/v1/master-data/modules`, …). **GET** is unauthenticated at the app layer in OpenAPI; **mutations** require a **superadmin** JWT. Deletes are **soft** (`is_deleted`). Backed by `master_data.modules`.
 
 - **Code lookup** — given a code system (ICD, LOINC, SNOMED, etc.), a code value, and an `iq_tenant_id`, returns the effective record (global default with tenant overrides applied). Supports search by code, by display name, and by partial match (for autocomplete in clinical UIs).
 
