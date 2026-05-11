@@ -263,6 +263,10 @@ The Configurator is not on the hot path of clinical workflows. No patient-facing
 
 **Recovery:** When the Configurator comes back, modules that detect stale cache entries (via ETag comparison on next poll) refresh their configuration. No manual intervention required. Any configuration changes that were made during the outage (queued in the admin UI, or applied directly to the Configurator's database) take effect as modules refresh.
 
+### 3.6 Audit
+
+The Configurator does not maintain a per-module audit table. Audit logging across the platform is deferred to pre-prod and addressed at a cross-cutting layer (HTTP middleware capturing actor + action + before/after, with CDC as a safety net) rather than per module. See [ADR-0024](../adr/0024-audit-deferred-to-pre-prod.md) for the decision, the substrate Phase 0 must preserve (rich event payloads, actor capture in request context, soft delete), and the pre-prod gate. The same posture applies to Master Data, User Management, and EMPI — none ship per-module audit tables in Phase 0.
+
 ---
 
 ## 4. Master & Tenant Data
