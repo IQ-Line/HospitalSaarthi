@@ -4,7 +4,6 @@ import { describe, expect, it } from "vitest";
 import { authzPlugin } from "@hims/ts-sdk-authz";
 import { InMemoryAbacAttributeRepository } from "./data-access/in-memory-abac-attribute-repository.js";
 import { InMemoryUserRepository } from "./data-access/in-memory-user-repository.js";
-import { InMemoryMasterDataPermissions } from "./integrations/in-memory-master-data-permissions.js";
 import type { PrincipalRoleProjectionRepository } from "./ports/index.js";
 import { principalRoleEnricherPlugin } from "./principal-role-enricher-plugin.js";
 import { createDefaultPrincipalService } from "./services/default-principal-service.js";
@@ -45,7 +44,6 @@ describe("principalRoleEnricherPlugin", () => {
       userRepository,
       principalRoleProjectionRepository: new StubPrincipalRoleProjectionRepository(),
       abacAttributeRepository: new InMemoryAbacAttributeRepository(),
-      masterDataPermissions: new InMemoryMasterDataPermissions(),
     });
 
     await app.register(identityPluginStub);
@@ -81,7 +79,7 @@ describe("principalRoleEnricherPlugin", () => {
     await app.close();
   });
 
-  it("resolved permission slugs reach request.user.capabilities and cerbosPrincipal", async () => {
+  it("permission slugs reach request.user.capabilities and cerbosPrincipal", async () => {
     const app = Fastify();
     let seenCapabilities: string[] = [];
     let seenCerbosCaps: string[] = [];
@@ -90,18 +88,13 @@ describe("principalRoleEnricherPlugin", () => {
     userRepository.insertUserWithId("tenant-a", "user-1", { full_name: "One" });
 
     const abac = new InMemoryAbacAttributeRepository();
-    abac.seedRolePermission("tenant-a", "user-1", "perm-uuid-1");
-    abac.seedRolePermission("tenant-a", "user-1", "perm-uuid-2");
-
-    const mdPerms = new InMemoryMasterDataPermissions();
-    mdPerms.seed("perm-uuid-1", "um:user:create");
-    mdPerms.seed("perm-uuid-2", "um:user:read");
+    abac.seedRolePermissionSlug("tenant-a", "user-1", "um:user:create");
+    abac.seedRolePermissionSlug("tenant-a", "user-1", "um:user:read");
 
     const principalService = createDefaultPrincipalService({
       userRepository,
       principalRoleProjectionRepository: new StubPrincipalRoleProjectionRepository(),
       abacAttributeRepository: abac,
-      masterDataPermissions: mdPerms,
     });
 
     await app.register(identityPluginStub);

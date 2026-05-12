@@ -12,9 +12,9 @@ import {
 export class DrizzleAbacAttributeRepository implements AbacAttributeRepository {
   constructor(private readonly db: DbInstance) {}
 
-  async listRolePermissionIdsForUser(tenantId: string, userId: string): Promise<string[]> {
+  async listRolePermissionSlugsForUser(tenantId: string, userId: string): Promise<string[]> {
     const rows = await this.db
-      .select({ permission_id: role_permissions.permission_id })
+      .select({ permission_slug: role_permissions.permission_slug })
       .from(role_assignments)
       .innerJoin(
         roles,
@@ -38,7 +38,7 @@ export class DrizzleAbacAttributeRepository implements AbacAttributeRepository {
       );
 
     const set = new Set<string>();
-    for (const r of rows) set.add(r.permission_id);
+    for (const r of rows) set.add(r.permission_slug);
     return [...set].sort();
   }
 

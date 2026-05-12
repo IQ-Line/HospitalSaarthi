@@ -1,12 +1,16 @@
-"""Database access for system role templates (`public.system_roles`)."""
+"""Database access for ``system_roles`` — ``public`` vs ``tenant_master``."""
 
+from __future__ import annotations
+
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import Select, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models.system_role import SystemRoleModel
+from app.catalog.platform_table_models import system_role_model
+from app.core.catalog_scope import CatalogScope
 
 
 class DuplicateSystemRoleKeyError(Exception):
@@ -29,21 +33,29 @@ def _is_unique_violation(exc: IntegrityError) -> bool:
 
 
 class SystemRoleRepository:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, scope: CatalogScope) -> None:
         self._session = session
+        self._scope = scope
+
+    @property
+    def scope(self) -> CatalogScope:
+        return self._scope
+
+    def _M(self) -> Any:
+        return system_role_model(self._scope)
 
     def list_system_roles(
         self,
         *,
         is_template: bool | None = None,
-    ) -> list[SystemRoleModel]:
-        statement: Select[tuple[SystemRoleModel]] = (
-            select(SystemRoleModel)
-            .where(SystemRoleModel.is_deleted.is_(False))
-            .order_by(SystemRoleModel.name)
-        )
+    ) -> list[Any]:
+        M = self._M()
+        filters = [M.is_deleted.is_(False)]
+        if self._scope.is_tenant:
+            filters.append(M.iq_tenant_id == self._scope.iq_tenant_id)
         if is_template is not None:
-            statement = statement.where(SystemRoleModel.is_template.is_(is_template))
+            filters.append(M.is_template.is_(is_template))
+        statement: Select[tuple[Any]] = select(M).where(*filters).order_by(M.name)
         return list(self._session.scalars(statement).all())
 
     def get_system_role_by_id(
@@ -51,23 +63,26 @@ class SystemRoleRepository:
         role_id: UUID,
         *,
         include_deleted: bool = False,
-    ) -> SystemRoleModel | None:
-        row = self._session.get(SystemRoleModel, role_id)
+    ) -> Any | None:
+        M = self._M()
+        row = self._session.get(M, role_id)
         if row is None:
+            return None
+        if self._scope.is_tenant and row.iq_tenant_id != self._scope.iq_tenant_id:
             return None
         if not include_deleted and row.is_deleted:
             return None
         return row
 
-    def get_system_role_by_slug(self, slug: str) -> SystemRoleModel | None:
-        statement = (
-            select(SystemRoleModel)
-            .where(SystemRoleModel.slug == slug, SystemRoleModel.is_deleted.is_(False))
-            .limit(1)
-        )
+    def get_system_role_by_slug(self, slug: str) -> Any | None:
+        M = self._M()
+        filters = [M.slug == slug, M.is_deleted.is_(False)]
+        if self._scope.is_tenant:
+            filters.append(M.iq_tenant_id == self._scope.iq_tenant_id)
+        statement = select(M).where(*filters).limit(1)
         return self._session.scalars(statement).first()
 
-    def create_system_role(self, row: SystemRoleModel) -> SystemRoleModel:
+    def create_system_role(self, row: Any) -> Any:
         self._session.add(row)
         try:
             self._session.flush()
@@ -79,7 +94,7 @@ class SystemRoleRepository:
         self._session.refresh(row)
         return row
 
-    def update_system_role(self, row: SystemRoleModel) -> SystemRoleModel:
+    def update_system_role(self, row: Any) -> Any:
         try:
             self._session.flush()
         except IntegrityError as exc:

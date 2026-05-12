@@ -1,5 +1,6 @@
 from uuid import uuid4
 
+from app.core.catalog_scope import CatalogScope
 from app.models.module import ModuleModel
 from app.repositories.module_repository import ModuleRepository
 from app.schemas.module import ModuleCategory
@@ -24,7 +25,7 @@ def test_module_repository_lists_modules_with_category_filter(sqlite_session) ->
     )
     sqlite_session.commit()
 
-    repository = ModuleRepository(sqlite_session)
+    repository = ModuleRepository(sqlite_session, CatalogScope(iq_tenant_id=None))
 
     modules = repository.list_modules(category=ModuleCategory.core)
 
@@ -51,7 +52,7 @@ def test_module_repository_excludes_soft_deleted_from_list(sqlite_session) -> No
     )
     sqlite_session.commit()
 
-    repository = ModuleRepository(sqlite_session)
+    repository = ModuleRepository(sqlite_session, CatalogScope(iq_tenant_id=None))
     modules = repository.list_modules()
 
     assert [m.name for m in modules] == ["active_mod"]
@@ -71,7 +72,7 @@ def test_module_repository_get_by_id_returns_none_when_soft_deleted(sqlite_sessi
     )
     sqlite_session.commit()
 
-    repository = ModuleRepository(sqlite_session)
+    repository = ModuleRepository(sqlite_session, CatalogScope(iq_tenant_id=None))
     assert repository.get_module_by_id(module_id) is None
 
 
@@ -87,7 +88,7 @@ def test_module_repository_get_by_slug_returns_none_when_soft_deleted(sqlite_ses
     )
     sqlite_session.commit()
 
-    repository = ModuleRepository(sqlite_session)
+    repository = ModuleRepository(sqlite_session, CatalogScope(iq_tenant_id=None))
     assert repository.get_module_by_slug("gone-slug") is None
 
 
@@ -113,5 +114,5 @@ def test_slug_can_repeat_after_soft_delete(sqlite_session) -> None:
     )
     sqlite_session.commit()
 
-    repository = ModuleRepository(sqlite_session)
+    repository = ModuleRepository(sqlite_session, CatalogScope(iq_tenant_id=None))
     assert repository.get_module_by_slug("shared-slug").name == "replacement"

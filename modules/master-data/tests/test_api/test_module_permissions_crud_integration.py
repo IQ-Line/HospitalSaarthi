@@ -17,6 +17,7 @@ from app.api.deps import (
     get_permission_repository,
     get_session,
 )
+from app.core.catalog_scope import CatalogScope
 from app.main import create_app
 from app.models import Base
 from app.repositories.module_permission_repository import ModulePermissionRepository
@@ -33,8 +34,9 @@ def mp_sqlite_session() -> Iterator[Session]:
     )
 
     @event.listens_for(engine, "connect")
-    def _sqlite_fk(_dbapi_connection, _connection_record) -> None:
-        _dbapi_connection.execute("PRAGMA foreign_keys=ON")
+    def _sqlite_fk(dbapi_connection, _connection_record) -> None:
+        dbapi_connection.execute("PRAGMA foreign_keys=ON")
+        dbapi_connection.execute("ATTACH DATABASE ':memory:' AS tenant_master")
 
     Base.metadata.create_all(engine)
     factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
@@ -54,14 +56,17 @@ def mp_client(mp_sqlite_session: Session) -> Iterator[TestClient]:
         yield mp_sqlite_session
 
     app.dependency_overrides[get_session] = _session
+    scope = CatalogScope(iq_tenant_id=None)
     app.dependency_overrides[get_module_repository] = lambda: ModuleRepository(
         mp_sqlite_session,
+        scope,
     )
     app.dependency_overrides[get_permission_repository] = lambda: PermissionRepository(
         mp_sqlite_session,
+        scope,
     )
     app.dependency_overrides[get_module_permission_repository] = (
-        lambda: ModulePermissionRepository(mp_sqlite_session)
+        lambda: ModulePermissionRepository(mp_sqlite_session, scope)
     )
 
     with TestClient(app) as client:

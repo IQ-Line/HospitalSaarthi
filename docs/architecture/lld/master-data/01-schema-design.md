@@ -8,11 +8,14 @@
 **Schema reference:** [`schema-reference.json`](./schema-reference.json) — full column descriptions, indexes, check constraints, Citus distribution notes  
 **HTTP API (v1):** [`02-api-contracts.md`](./02-api-contracts.md) — standard headers/envelopes, endpoint index, response shapes ([OpenAPI](../../../../specs/openapi/master-data.v1.yaml))
 
-**Phasing:** The MVP ships the **platform catalog** (module tree, permission definitions, module–permission links, role templates, `picklist` + `picklist_values`) and the **Configurator contract** (config schemas and feature flag definitions). Catalog change history can be traced via **`created_*` / `updated_*`** columns on each row (and optionally platform observability outside this schema). Healthcare reference data (ICD codes, drug catalogs, LOINC, SNOMED, departments, etc.) is Post-launch — sketched in §16.
+**Visitpad Master (visit templates):** Owned by the same Master Data service and database; catalog tables in **`public`** (e.g. `units`, `vitals`, `medicines`). See **[03-visitpad-master.md](./03-visitpad-master.md)** and the [step-by-step implementation plan](../../../../docs/plans/visitpad-master-implementation-plan.md).
+
+**Phasing:** The MVP ships the **platform catalog** (module tree, permission definitions, module–permission links, role templates, `picklist` + `picklist_values`) and the **Configurator contract** (config schemas and feature flag definitions). Catalog change history can be traced via **`created_*` / `updated_*`** columns on each row (and optionally platform observability outside this schema). Healthcare reference data (ICD codes, drug catalogs, LOINC, SNOMED, departments, etc.) is Post-launch — sketched in §16. **Visitpad** catalogs are delivered incrementally on top of the MVP service (same OpenAPI file and Alembic app).
 
 | Phase | What ships |
 |-------|-----------|
 | **MVP** | **Catalog (reference):** `modules`, `permissions`, `module_permissions`, `system_roles`, `picklist`, `picklist_values`. **Configurator integration (reference):** `module_config_schemas`, `feature_flags`. All MVP tables are Citus reference tables. Lifecycle events carry rich payloads for projections. |
+| **MVP+ (incremental)** | **Visitpad Master:** tables in `public` (e.g. `units`, `unit_conversions`, …) and HTTP routes under `/api/v1/master-data/visitpad/...` per [03-visitpad-master.md](./03-visitpad-master.md). |
 | **Post-launch** | Healthcare reference data tables (code systems, codes, code mappings, drug catalogs, department/ward master), tenant override mechanism (two-layer inheritance model per HLD §4.1), FHIR terminology endpoints. |
 
 ---
