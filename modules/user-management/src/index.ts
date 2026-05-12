@@ -62,11 +62,6 @@ export { InMemoryAbacAttributeRepository } from "./data-access/in-memory-abac-at
 export { createDefaultPrincipalService } from "./services/default-principal-service.js";
 export type { DefaultPrincipalServiceDeps } from "./services/default-principal-service.js";
 export { DefaultPrincipalService } from "./services/default-principal-service.js";
-export type { MasterDataPermissionsPort } from "./ports/master-data-permissions.port.js";
-export { MasterDataPermissionsClient } from "./integrations/master-data-permissions-client.js";
-export type { MasterDataPermissionsClientOptions } from "./integrations/master-data-permissions-client.js";
-export { InMemoryMasterDataPermissions } from "./integrations/in-memory-master-data-permissions.js";
-
 export {
   USER_MANAGEMENT_EVENT_TYPES,
   USER_MANAGEMENT_EVENT_USER_CREATED,

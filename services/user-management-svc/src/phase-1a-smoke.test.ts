@@ -9,7 +9,6 @@ import type { EventBus } from "@hims/ts-sdk-events";
 import { identityPlugin } from "@hims/ts-sdk-identity";
 import {
   InMemoryAbacAttributeRepository,
-  InMemoryMasterDataPermissions,
   InMemoryPrincipalRoleProjectionRepository,
   InMemoryRoleAssignmentRepository,
   InMemoryRoleRepository,
@@ -141,12 +140,10 @@ describe("Phase 1A.12 smoke", () => {
     );
 
     const abacAttributeRepository = new InMemoryAbacAttributeRepository();
-    const masterDataPermissions = new InMemoryMasterDataPermissions();
     const principalService = createDefaultPrincipalService({
       userRepository,
       principalRoleProjectionRepository,
       abacAttributeRepository,
-      masterDataPermissions,
     });
 
     await app.register(principalRoleEnricherPlugin, {
