@@ -31,15 +31,15 @@ export async function createTenantModule(
     );
   }
 
-  const isEnabled = data.is_enabled ?? true;
+  const isActive = data.is_active ?? true;
   const isCoreOverride = data.is_core_override ?? false;
-  if (isCoreOverride && !isEnabled) {
-    throw new ConfiguratorError(400, "core modules cannot be disabled");
+  if (isCoreOverride && !isActive) {
+    throw new ConfiguratorError(400, "core modules cannot be deactivated");
   }
 
   return tenantModuleRepo.create({
     ...data,
-    is_enabled: isEnabled,
+    is_active: isActive,
     is_core_override: isCoreOverride,
   });
 }

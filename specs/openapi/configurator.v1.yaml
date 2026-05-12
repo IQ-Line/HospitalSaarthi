@@ -285,12 +285,12 @@ paths:
             type: string
             format: uuid
           description: Tenant primary key (`iq_tenant_id`).
-        - name: is_enabled
+        - name: is_active
           in: query
           required: false
           schema:
             type: boolean
-          description: Filter by current enablement state.
+          description: Filter by current active state.
       responses:
         "200":
           description: List of tenant module rows.
@@ -777,27 +777,23 @@ components:
         module_id:
           type: string
           format: uuid
-        is_enabled:
+        is_active:
           type: boolean
           default: true
         is_core_override:
           type: boolean
           default: false
-        enabled_by:
+        created_by:
           type: string
           format: uuid
           nullable: true
     TenantModulePatchRequest:
       type: object
       properties:
-        is_enabled:
+        is_active:
           type: boolean
         is_core_override:
           type: boolean
-        enabled_by:
-          type: string
-          format: uuid
-          nullable: true
         updated_by:
           type: string
           format: uuid
@@ -807,7 +803,7 @@ components:
       required:
         - iq_tenant_id
         - module_id
-        - is_enabled
+        - is_active
         - is_core_override
         - created_at
         - updated_at
@@ -818,28 +814,20 @@ components:
         module_id:
           type: string
           format: uuid
-        is_enabled:
+        is_active:
           type: boolean
         is_core_override:
           type: boolean
-        enabled_at:
-          type: string
-          format: date-time
-          nullable: true
-        disabled_at:
-          type: string
-          format: date-time
-          nullable: true
-        enabled_by:
-          type: string
-          format: uuid
-          nullable: true
         created_at:
           type: string
           format: date-time
         updated_at:
           type: string
           format: date-time
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
         updated_by:
           type: string
           format: uuid

@@ -125,9 +125,9 @@ export const postTenantModuleBodySchema = {
   additionalProperties: false,
   properties: {
     module_id: uuidString,
-    is_enabled: { type: "boolean" },
+    is_active: { type: "boolean" },
     is_core_override: { type: "boolean" },
-    enabled_by: { anyOf: [uuidString, { type: "null" }] },
+    created_by: { anyOf: [uuidString, { type: "null" }] },
   },
 } as const;
 
@@ -135,9 +135,8 @@ export const patchTenantModuleBodySchema = {
   type: "object",
   additionalProperties: false,
   properties: {
-    is_enabled: { type: "boolean" },
+    is_active: { type: "boolean" },
     is_core_override: { type: "boolean" },
-    enabled_by: { anyOf: [uuidString, { type: "null" }] },
     updated_by: { anyOf: [uuidString, { type: "null" }] },
   },
 } as const;

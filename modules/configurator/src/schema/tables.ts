@@ -5,7 +5,6 @@ import {
   text,
   jsonb,
   boolean,
-  timestamp,
   uniqueIndex,
   index,
   check,
@@ -91,25 +90,16 @@ export const tenantModules = configuratorSchema.table(
   {
     ...tenantColumn(),
     module_id: uuid("module_id").notNull(),
-    is_enabled: boolean("is_enabled").notNull().default(true),
+    is_active: boolean("is_active").notNull().default(true),
     is_core_override: boolean("is_core_override").notNull().default(false),
-    enabled_at: timestamp("enabled_at", { withTimezone: true }),
-    disabled_at: timestamp("disabled_at", { withTimezone: true }),
-    enabled_by: uuid("enabled_by"),
-    created_at: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updated_at: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updated_by: uuid("updated_by"),
+    ...auditColumns(),
   },
   (t) => [
     primaryKey({ columns: [t.iq_tenant_id, t.module_id] }),
-    index("idx_tenant_modules_enabled").on(t.iq_tenant_id, t.is_enabled),
+    index("idx_tenant_modules_active").on(t.iq_tenant_id, t.is_active),
     check(
-      "chk_tenant_modules_core_always_enabled",
-      sql`NOT (${t.is_core_override} AND NOT ${t.is_enabled})`,
+      "chk_tenant_modules_core_always_active",
+      sql`NOT (${t.is_core_override} AND NOT ${t.is_active})`,
     ),
   ],
 );

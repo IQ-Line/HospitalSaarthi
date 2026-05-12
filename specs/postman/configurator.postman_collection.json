@@ -271,7 +271,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/tenants/{{tenantId}}/modules?is_enabled=true",
+              "raw": "{{baseUrl}}/tenants/{{tenantId}}/modules?is_active=true",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -282,7 +282,7 @@
               ],
               "query": [
                 {
-                  "key": "is_enabled",
+                  "key": "is_active",
                   "value": "true"
                 }
               ]
@@ -316,7 +316,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"module_id\": \"{{moduleId}}\",\n  \"is_enabled\": true,\n  \"is_core_override\": false\n}"
+              "raw": "{\n  \"module_id\": \"{{moduleId}}\",\n  \"is_active\": true,\n  \"is_core_override\": false\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/tenants/{{tenantId}}/modules",
@@ -351,7 +351,7 @@
           }
         },
         {
-          "name": "Patch Tenant Module (disable)",
+          "name": "Patch Tenant Module (deactivate)",
           "request": {
             "method": "PATCH",
             "header": [
@@ -363,7 +363,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"is_enabled\": false\n}"
+              "raw": "{\n  \"is_active\": false\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/tenants/{{tenantId}}/modules/{{moduleId}}",
@@ -380,7 +380,7 @@
           }
         },
         {
-          "name": "Patch Tenant Module (re-enable)",
+          "name": "Patch Tenant Module (reactivate)",
           "request": {
             "method": "PATCH",
             "header": [
@@ -392,7 +392,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"is_enabled\": true\n}"
+              "raw": "{\n  \"is_active\": true\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/tenants/{{tenantId}}/modules/{{moduleId}}",
@@ -421,7 +421,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"is_enabled\": false\n}"
+              "raw": "{\n  \"is_active\": false\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/tenants/{{tenantId}}/modules/{{moduleId}}",

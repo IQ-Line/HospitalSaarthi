@@ -16,7 +16,7 @@ import {
 } from "./route-schemas.js";
 
 interface TenantModulesListQuery {
-  is_enabled?: boolean;
+  is_active?: boolean;
 }
 
 export interface TenantModulesHandlerDeps {
@@ -46,7 +46,7 @@ export function registerTenantModulesHandler(
     async (request) => {
       const modules = await listTenantModules(tenantModuleRepo, {
         iq_tenant_id: request.params.tenantId,
-        is_enabled: request.query.is_enabled,
+        is_active: request.query.is_active,
       });
       return { data: modules, total: modules.length };
     },

@@ -16,24 +16,12 @@ export async function updateTenantModule(
     return null;
   }
 
-  const nextIsEnabled = data.is_enabled ?? existing.is_enabled;
+  const nextIsActive = data.is_active ?? existing.is_active;
   const nextIsCoreOverride = data.is_core_override ?? existing.is_core_override;
-  if (nextIsCoreOverride && !nextIsEnabled) {
-    throw new ConfiguratorError(400, "core modules cannot be disabled");
+  if (nextIsCoreOverride && !nextIsActive) {
+    throw new ConfiguratorError(400, "core modules cannot be deactivated");
   }
 
-  const patch: UpdateTenantModuleData = { ...data };
-  const now = new Date();
-
-  if (data.is_enabled !== undefined && data.is_enabled !== existing.is_enabled) {
-    if (data.is_enabled) {
-      patch.enabled_at = now;
-      patch.disabled_at = null;
-    } else {
-      patch.disabled_at = now;
-    }
-  }
-
-  const updated = await tenantModuleRepo.update(key, patch);
+  const updated = await tenantModuleRepo.update(key, data);
   return updated ?? null;
 }

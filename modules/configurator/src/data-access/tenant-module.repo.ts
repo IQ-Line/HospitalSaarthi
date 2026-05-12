@@ -16,8 +16,8 @@ export class DrizzleTenantModuleRepo implements TenantModuleRepo {
   async findAll(filters: TenantModuleFilters): Promise<TenantModule[]> {
     const conditions: SQL[] = [eq(tenantModules.iq_tenant_id, filters.iq_tenant_id)];
 
-    if (filters.is_enabled !== undefined) {
-      conditions.push(eq(tenantModules.is_enabled, filters.is_enabled));
+    if (filters.is_active !== undefined) {
+      conditions.push(eq(tenantModules.is_active, filters.is_active));
     }
 
     return this.db
@@ -42,20 +42,15 @@ export class DrizzleTenantModuleRepo implements TenantModuleRepo {
   }
 
   async create(data: CreateTenantModuleData): Promise<TenantModule> {
-    const isEnabled = data.is_enabled ?? true;
-    const now = new Date();
-
     const rows = await this.db
       .insert(tenantModules)
       .values({
         iq_tenant_id: data.iq_tenant_id,
         module_id: data.module_id,
-        is_enabled: isEnabled,
+        is_active: data.is_active ?? true,
         is_core_override: data.is_core_override ?? false,
-        enabled_at: isEnabled ? now : null,
-        disabled_at: isEnabled ? null : now,
-        enabled_by: data.enabled_by ?? null,
-        updated_by: data.updated_by ?? data.enabled_by ?? null,
+        created_by: data.created_by ?? null,
+        updated_by: data.updated_by ?? data.created_by ?? null,
       })
       .returning();
 
