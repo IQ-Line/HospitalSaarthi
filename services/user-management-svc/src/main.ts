@@ -13,6 +13,7 @@ import {
   DrizzleRoleAssignmentRepository,
   DrizzleRoleRepository,
   DrizzleUserRepository,
+  MasterDataPermissionsClient,
   createDefaultPrincipalService,
   principalRoleEnricherPlugin,
 } from "@hims/user-management";
@@ -45,6 +46,14 @@ function readTrustedOrigins(): string[] {
     .split(",")
     .map((o) => o.trim())
     .filter((o) => o.length > 0);
+}
+
+function readMasterDataBaseUrl(): string {
+  const raw = process.env.MASTER_DATA_BASE_URL?.trim();
+  if (!raw || raw.length === 0) {
+    throw new Error("MASTER_DATA_BASE_URL is required (Master Data service for permission catalog)");
+  }
+  return raw.replace(/\/+$/, "");
 }
 
 function requireDatabaseUrl(): string {
@@ -85,11 +94,15 @@ async function createApp(): Promise<FastifyInstance> {
   const roleAssignmentRepository = new DrizzleRoleAssignmentRepository(pgDb);
   const principalRoleProjectionRepository = new DrizzlePrincipalRoleProjectionRepository(pgDb);
   const abacAttributeRepository = new DrizzleAbacAttributeRepository(pgDb);
+  const masterDataPermissions = new MasterDataPermissionsClient({
+    baseUrl: readMasterDataBaseUrl(),
+  });
 
   const principalService = createDefaultPrincipalService({
     userRepository,
     principalRoleProjectionRepository,
     abacAttributeRepository,
+    masterDataPermissions,
   });
 
   const trustedOrigins = readTrustedOrigins();

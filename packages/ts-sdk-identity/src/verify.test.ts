@@ -224,6 +224,46 @@ describe("verifyToken", () => {
     );
   });
 
+  it("verifies token without session_id and sets sessionId to empty string", async () => {
+    const { options, signToken } = await buildFixture();
+    const token = await signToken();
+
+    const principal = await verifyToken(token, options);
+    expect(principal.sessionId).toBe("");
+    expect(principal.userId).toBe("user-1");
+    expect(principal.tenantId).toBe("tenant-1");
+  });
+
+  it("verifies token with session_id and maps it to sessionId", async () => {
+    const { options, signToken } = await buildFixture();
+    const token = await signToken({ claims: { session_id: "ses-abc-123" } });
+
+    const principal = await verifyToken(token, options);
+    expect(principal.sessionId).toBe("ses-abc-123");
+  });
+
+  it("treats blank session_id as empty sessionId", async () => {
+    const { options, signToken } = await buildFixture();
+    const token = await signToken({ claims: { session_id: "   " } });
+
+    const principal = await verifyToken(token, options);
+    expect(principal.sessionId).toBe("");
+  });
+
+  it("rejects token missing any required claim (sub)", async () => {
+    const { options, signToken } = await buildFixture();
+    const token = await signToken({ claims: { sub: undefined } });
+
+    await expect(verifyToken(token, options)).rejects.toThrow();
+  });
+
+  it("rejects token missing required claim (iq_tenant_id)", async () => {
+    const { options, signToken } = await buildFixture();
+    const token = await signToken({ claims: { iq_tenant_id: undefined } });
+
+    await expect(verifyToken(token, options)).rejects.toThrow();
+  });
+
   it("applies deterministic clock skew tolerance", async () => {
     const { options, signToken } = await buildFixture();
     const now = Math.floor(Date.now() / 1000);

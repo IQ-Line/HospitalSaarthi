@@ -141,12 +141,17 @@ function toPrincipal(payload: HimsJwtPayload): Principal {
     throw new IdentityVerificationError("exp claim is required");
   }
 
+  const sessionId =
+    typeof payload.session_id === "string" && payload.session_id.trim().length > 0
+      ? payload.session_id.trim()
+      : "";
+
   return {
     userId,
     tenantId,
     orgId,
     roles: sanitizeRoles(payload.roles),
-    sessionId: "",
+    sessionId,
     department: payload.department,
     iat: payload.iat,
     exp: payload.exp,
@@ -172,6 +177,12 @@ export async function verifyToken(
   verifyOpts.issuer = issuerAllowlist;
   verifyOpts.audience = audienceAllowlist;
   verifyOpts.algorithms = [...allowedAlgorithms];
+  // session_id is intentionally NOT a required claim:
+  // - better-auth issues short-lived JWTs identified by `jti`; session state lives server-side
+  //   in the `auth.session` table, not inside the access token.
+  // - Resource services validate *identity* (sub, tenant, roles) — not auth-provider session
+  //   lifecycle. Coupling to session_id would make every service a session-state consumer.
+  // - If session-binding is needed later, it should be enforced at the auth gateway, not here.
   verifyOpts.requiredClaims = ["sub", "iq_tenant_id", "roles", "jti", "exp", "iat"];
   verifyOpts.maxTokenAge = `${maxTokenAgeSeconds}s`;
   verifyOpts.clockTolerance = `${clockSkewSeconds}s`;

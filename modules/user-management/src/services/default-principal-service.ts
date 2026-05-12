@@ -7,6 +7,7 @@ import type {
   PrincipalService,
   UserRepository,
 } from "../ports/index.js";
+import type { MasterDataPermissionsPort } from "../ports/master-data-permissions.port.js";
 import { UserNotFoundError } from "../domain/errors.js";
 import { effectiveUmClearanceTierFromClearances } from "../domain/um-clearance-tier.js";
 import { projectPrincipalRoles } from "../use-cases/project-principal-roles.js";
@@ -15,6 +16,7 @@ export type DefaultPrincipalServiceDeps = {
   userRepository: UserRepository;
   principalRoleProjectionRepository: PrincipalRoleProjectionRepository;
   abacAttributeRepository: AbacAttributeRepository;
+  masterDataPermissions: MasterDataPermissionsPort;
 };
 
 function pickJwtDepartment(requestUser: unknown): string | null {
@@ -70,14 +72,25 @@ function normalizeCapabilityList(caps: string[]): string[] {
   return [...set].sort((a, b) => a.localeCompare(b));
 }
 
-function warnMissingRoleCapabilities(
+function warnMissingRolePermissions(
   tenantId: string,
   userId: string,
   roles: readonly string[],
 ): void {
   console.warn(
-    "[user-management] Principal has DB-projected roles but role_capabilities returned no capabilities; authorization will see an empty capability set until rows exist.",
+    "[user-management] Principal has DB-projected roles but role_permissions returned no permission IDs; authorization will see an empty capability set until rows exist.",
     { tenantId, userId, roles: [...roles] },
+  );
+}
+
+function warnUnresolvedPermissionIds(
+  tenantId: string,
+  userId: string,
+  unresolvedIds: readonly string[],
+): void {
+  console.warn(
+    "[user-management] Some permission UUIDs could not be resolved to slugs via Master Data; they will be omitted from capabilities.",
+    { tenantId, userId, unresolvedIds: [...unresolvedIds] },
   );
 }
 
@@ -92,8 +105,23 @@ function asIdentityPrincipal(requestUser: unknown): IdentityPrincipal | null {
 
 /**
  * Single source of truth for Cerbos-facing principal material.
- * Capabilities come only from persisted `role_capabilities` (via {@link AbacAttributeRepository.listRoleCapabilitiesForUser}),
- * joined through the principal role projection — never from JWT `roles`.
+ *
+ * ## Permission resolution flow
+ *
+ * UM stores permission **UUIDs** in `role_permissions` (not slugs) because the permission
+ * catalog is owned by the Master Data module — UM is a consumer, not the authority. At
+ * principal enrichment time, UUIDs are resolved to **slug strings** via
+ * {@link MasterDataPermissionsPort} so that `principal.attributes.capabilities` still
+ * contains the slug values Cerbos policies evaluate (e.g. `"um:user:create"`).
+ *
+ * ```
+ * user → role_assignments → roles → role_permissions(uuid)
+ *   → MasterDataPermissionsPort.getPermissionSlugsForIds()
+ *   → capabilities[] (slugs)
+ *   → Cerbos principal.attr.capabilities
+ * ```
+ *
+ * Unresolved UUIDs are logged and silently dropped — they never reach Cerbos.
  *
  * `department` and `org_id` come only from the authoritative user row — never from JWT claims.
  */
@@ -114,8 +142,8 @@ export class DefaultPrincipalService implements PrincipalService {
       context.userId,
     );
 
-    const [dbCaps, clearances, delegatedRaw] = await Promise.all([
-      this.deps.abacAttributeRepository.listRoleCapabilitiesForUser(
+    const [dbPermIds, clearances, delegatedRaw] = await Promise.all([
+      this.deps.abacAttributeRepository.listRolePermissionIdsForUser(
         context.tenantId,
         context.userId,
       ),
@@ -126,8 +154,18 @@ export class DefaultPrincipalService implements PrincipalService {
       ),
     ]);
 
-    if (roles.length > 0 && dbCaps.length === 0) {
-      warnMissingRoleCapabilities(context.tenantId, context.userId, roles);
+    if (roles.length > 0 && dbPermIds.length === 0) {
+      warnMissingRolePermissions(context.tenantId, context.userId, roles);
+    }
+
+    let resolvedSlugs: string[] = [];
+    if (dbPermIds.length > 0) {
+      const slugMap = await this.deps.masterDataPermissions.getPermissionSlugsForIds(dbPermIds);
+      const unresolved = dbPermIds.filter((id) => !slugMap.has(id));
+      if (unresolved.length > 0) {
+        warnUnresolvedPermissionIds(context.tenantId, context.userId, unresolved);
+      }
+      resolvedSlugs = [...slugMap.values()];
     }
 
     const department = abacStringFromPersistence(user.department);
@@ -170,7 +208,7 @@ export class DefaultPrincipalService implements PrincipalService {
     }
 
     const delegatedCapabilities = [...delegatedRaw].sort((a, b) => a.localeCompare(b));
-    const capabilities = normalizeCapabilityList(dbCaps);
+    const capabilities = normalizeCapabilityList(resolvedSlugs);
     const um_clearance_effective_tier = effectiveUmClearanceTierFromClearances(clearances);
 
     return {

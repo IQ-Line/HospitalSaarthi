@@ -28,7 +28,7 @@ describe("DrizzleRoleAssignmentRepository RBAC FK integrity", () => {
 
   it("declares RESTRICT delete behavior for user and role foreign keys", async () => {
     const migration = await readFile(
-      new URL("../../migrations/0001_rbac_fk_constraints.sql", import.meta.url),
+      new URL("../../migrations/0000_user_management_schema.sql", import.meta.url),
       "utf8",
     );
 

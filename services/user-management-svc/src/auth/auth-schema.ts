@@ -1,6 +1,6 @@
 /**
  * Drizzle schema for better-auth tables in the `auth` schema.
- * Must stay aligned with `modules/user-management/migrations/0004_better_auth_auth_schema.sql`.
+ * Must stay aligned with `modules/user-management/migrations/0001_better_auth_auth_schema.sql`.
  */
 import { boolean, pgSchema, text, timestamp } from "drizzle-orm/pg-core";
 

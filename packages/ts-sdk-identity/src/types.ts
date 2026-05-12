@@ -16,6 +16,12 @@ export interface HimsJwtPayload extends JoseJWTPayload {
    */
   org_id?: string | null;
   roles: string[];
+  /**
+   * Auth-provider session identifier. Intentionally optional — better-auth relies on `jti` +
+   * short-lived JWTs for token identity; resource services should validate identity claims
+   * (sub, tenant, roles), not auth-provider session state.
+   */
+  session_id?: string;
   department?: string;
   iat: number;
   exp: number;

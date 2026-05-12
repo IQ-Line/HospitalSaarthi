@@ -1,6 +1,6 @@
 /**
- * Canonical User Management capability strings (Cerbos policies, `role_capabilities.capability` seeds).
- * Runtime principals resolve capabilities **only** from persisted `role_capabilities` (+ projection join), not from JWT.
+ * Canonical User Management capability strings (Cerbos policies, permission seeds).
+ * Runtime principals resolve permissions **only** from persisted `role_permissions` (+ projection join), not from JWT.
  */
 export const UM_USER_CREATE = "um:user:create" as const;
 export const UM_USER_READ = "um:user:read" as const;

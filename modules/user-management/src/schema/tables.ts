@@ -110,23 +110,23 @@ export const role_assignments = userManagementSchema.table(
   ],
 );
 
-export const role_capabilities = userManagementSchema.table(
-  "role_capabilities",
+export const role_permissions = userManagementSchema.table(
+  "role_permissions",
   {
     ...tenantColumn(),
     role_id: uuid("role_id").notNull(),
-    capability: text("capability").notNull(),
+    permission_id: uuid("permission_id").notNull(),
   },
   (t) => [
-    primaryKey({ columns: [t.iq_tenant_id, t.role_id, t.capability] }),
+    primaryKey({ columns: [t.iq_tenant_id, t.role_id, t.permission_id] }),
     foreignKey({
-      name: "fk_role_capabilities_tenant_role",
+      name: "fk_role_permissions_tenant_role",
       columns: [t.iq_tenant_id, t.role_id],
       foreignColumns: [roles.iq_tenant_id, roles.id],
     })
       .onDelete("cascade")
       .onUpdate("restrict"),
-    index("idx_role_capabilities_tenant_role").on(t.iq_tenant_id, t.role_id),
+    index("idx_role_permissions_tenant_role").on(t.iq_tenant_id, t.role_id),
   ],
 );
 

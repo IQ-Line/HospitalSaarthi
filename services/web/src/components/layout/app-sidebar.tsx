@@ -1,21 +1,23 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from '@tanstack/react-router';
-import { LayoutGrid } from 'lucide-react';
+import { LayoutGrid, Users } from 'lucide-react';
 import { BrandMark } from '@/components/layout/brand-mark';
 import { SidebarNavLink } from '@/components/layout/sidebar-nav-link';
 import { MasterDataNavSection } from '@/features/master-data/components/master-data-nav-section';
 import { useUIPrefsStore } from '@/stores/ui-prefs.store';
 
 interface AppSidebarProps {
-  displayName: string;
+  displayName: string | null;
   tenantName: string | null;
   hasMasterDataAccess: boolean;
+  hasUserManagementAccess: boolean;
 }
 
 export function AppSidebar({
   displayName,
   tenantName,
   hasMasterDataAccess,
+  hasUserManagementAccess,
 }: AppSidebarProps) {
   const sidebarCollapsed = useUIPrefsStore((s) => s.sidebarCollapsed);
 
@@ -67,11 +69,20 @@ export function AppSidebar({
             onToggleSection={() => setIsMasterDataOpen((prev) => !prev)}
           />
         )}
+        {hasUserManagementAccess && (
+          <SidebarNavLink
+            to="/user-management"
+            label="Users"
+            icon={Users}
+            collapsed={sidebarCollapsed}
+            search={{ q: '' }}
+          />
+        )}
       </nav>
 
       <div className="pt-3 mt-3 border-t">
         <p className="text-xs truncate text-muted-foreground">
-          {sidebarCollapsed ? 'User' : displayName}
+          {sidebarCollapsed ? 'User' : displayName ?? 'User'}
         </p>
       </div>
     </aside>

@@ -4,7 +4,7 @@ import type { AbacAttributeRepository } from "../ports/index.js";
 import {
   delegated_capability_grants,
   role_assignments,
-  role_capabilities,
+  role_permissions,
   roles,
   user_clearances,
 } from "../schema/tables.js";
@@ -12,9 +12,9 @@ import {
 export class DrizzleAbacAttributeRepository implements AbacAttributeRepository {
   constructor(private readonly db: DbInstance) {}
 
-  async listRoleCapabilitiesForUser(tenantId: string, userId: string): Promise<string[]> {
+  async listRolePermissionIdsForUser(tenantId: string, userId: string): Promise<string[]> {
     const rows = await this.db
-      .select({ capability: role_capabilities.capability })
+      .select({ permission_id: role_permissions.permission_id })
       .from(role_assignments)
       .innerJoin(
         roles,
@@ -24,10 +24,10 @@ export class DrizzleAbacAttributeRepository implements AbacAttributeRepository {
         ),
       )
       .innerJoin(
-        role_capabilities,
+        role_permissions,
         and(
-          eq(role_capabilities.iq_tenant_id, roles.iq_tenant_id),
-          eq(role_capabilities.role_id, roles.id),
+          eq(role_permissions.iq_tenant_id, roles.iq_tenant_id),
+          eq(role_permissions.role_id, roles.id),
         ),
       )
       .where(
@@ -38,11 +38,8 @@ export class DrizzleAbacAttributeRepository implements AbacAttributeRepository {
       );
 
     const set = new Set<string>();
-    for (const r of rows) {
-      const c = r.capability.trim();
-      if (c.length > 0) set.add(c);
-    }
-    return [...set].sort((a, b) => a.localeCompare(b));
+    for (const r of rows) set.add(r.permission_id);
+    return [...set].sort();
   }
 
   async getClearances(tenantId: string, userId: string): Promise<Record<string, string>> {

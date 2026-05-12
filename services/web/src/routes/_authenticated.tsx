@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { createFileRoute, Link, Outlet, redirect } from '@tanstack/react-router';
+import { createFileRoute, Outlet, redirect } from '@tanstack/react-router';
 import { hydratePermissionsFromBackend } from '@/lib/permissions';
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { Button } from '@pulse/ui/button';
@@ -64,26 +64,11 @@ function AuthenticatedLayout() {
 
   return (
     <div className="flex h-screen bg-background">
-      <aside className="w-60 border-r bg-sidebar p-4 flex flex-col">
-        <div className="mb-6">
-          <h1 className="text-lg font-semibold">HIMS</h1>
-          {tenantName && <p className="text-sm text-muted-foreground">{tenantName}</p>}
-        </div>
-        <nav className="space-y-1 flex-1">
-          <NavLink to="/dashboard" label="Dashboard" />
-          {hasModuleAccess('master-data') && (
-            <NavLink to="/master-data" label="Master Data" />
-          )}
-          {hasModuleAccess('user-management') && <UserManagementNavLink label="Users" />}
-        </nav>
-        <div className="pt-4 border-t">
-          <p className="text-sm truncate text-muted-foreground">{displayName}</p>
-        </div>
-      </aside>
       <AppSidebar
         displayName={displayName}
         tenantName={tenantName}
         hasMasterDataAccess={hasModuleAccess('master-data')}
+        hasUserManagementAccess={hasModuleAccess('user-management')}
       />
 
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
@@ -106,35 +91,5 @@ function AuthenticatedLayout() {
         </div>
       </main>
     </div>
-  );
-}
-
-const navLinkClass =
-  'block rounded-md px-3 py-2 text-sm text-foreground/70 hover:bg-sidebar-accent transition-colors';
-const navLinkActiveClass =
-  'block rounded-md px-3 py-2 text-sm bg-sidebar-accent font-medium text-sidebar-accent-foreground';
-
-function NavLink({ to, label }: { to: '/dashboard' | '/master-data'; label: string }) {
-  return (
-    <Link
-      to={to}
-      className={navLinkClass}
-      activeProps={{ className: navLinkActiveClass }}
-    >
-      {label}
-    </Link>
-  );
-}
-
-function UserManagementNavLink({ label }: { label: string }) {
-  return (
-    <Link
-      to="/user-management"
-      search={{ q: '' }}
-      className={navLinkClass}
-      activeProps={{ className: navLinkActiveClass }}
-    >
-      {label}
-    </Link>
   );
 }
