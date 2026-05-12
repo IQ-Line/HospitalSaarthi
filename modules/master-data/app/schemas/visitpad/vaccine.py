@@ -45,9 +45,9 @@ class VisitpadVaccineCreate(BaseModel):
 
     @field_validator("code", mode="before")
     @classmethod
-    def _strip_code(cls, v: object) -> object:
+    def _strip_lower_code(cls, v: object) -> object:
         if isinstance(v, str):
-            return v.strip()
+            return v.strip().lower()
         return v
 
 

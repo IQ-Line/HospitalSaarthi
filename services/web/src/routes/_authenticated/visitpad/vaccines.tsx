@@ -13,8 +13,12 @@ import { EntityFormDialog } from '@/features/master-data/components/entity-form-
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
 import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
-import { rowMatchesSearch } from '@/features/master-data/table-search';
-import { useVisitpadDelete, useVisitpadPatch, useVisitpadPost, useVisitpadVaccines } from '@/features/visitpad/api';
+import {
+  useVisitpadDelete,
+  useVisitpadPatch,
+  useVisitpadPost,
+  useVisitpadVaccines,
+} from '@/features/visitpad/api';
 import { visitpadActionsColumn } from '@/features/visitpad/components/visitpad-actions-column';
 import { VisitpadHeaderActions } from '@/features/visitpad/components/visitpad-header-actions';
 import { VisitpadPageShell } from '@/features/visitpad/components/visitpad-page-shell';
@@ -47,11 +51,6 @@ function VisitpadVaccinesPage() {
   const tabCount = visitpadActiveTotal(rows, data?.total);
   const busy = patch.isPending || del.isPending;
 
-  const filtered = useMemo(
-    () => rows.filter((r) => rowMatchesSearch(search, r.code, r.display_name, r.short_name ?? '')),
-    [rows, search],
-  );
-
   const columns = useMemo<ColumnDef<VisitpadVaccine, unknown>[]>(
     () => [
       { accessorKey: 'code', header: 'Vaccine code', meta: { label: 'Vaccine code' } },
@@ -60,7 +59,8 @@ function VisitpadVaccinesPage() {
         accessorKey: 'short_name',
         header: 'Short name',
         meta: { label: 'Short name' },
-        cell: ({ row }) => row.original.short_name || <span className="text-muted-foreground">—</span>,
+        cell: ({ row }) =>
+          row.original.short_name || <span className="text-muted-foreground">—</span>,
       },
       {
         accessorKey: 'is_active',
@@ -96,12 +96,11 @@ function VisitpadVaccinesPage() {
       tabCount={tabCount}
       title="Vaccines"
       description="Vaccine catalog for Visitpad (stable code, display name, optional short name). Global rows omit iq_tenant_id; tenant rows use the standard catalog header."
-      actions={<VisitpadHeaderActions addLabel="Add vaccine" onAddClick={() => setCreateOpen(true)} />}
+      actions={
+        <VisitpadHeaderActions addLabel="Add vaccine" onAddClick={() => setCreateOpen(true)} />
+      }
     >
       <div className="space-y-4">
-        <p className="text-sm text-muted-foreground">
-          Search and filters will use the API in a later release.
-        </p>
         <MasterDataTableToolbar
           value={search}
           onChange={setSearch}
@@ -113,7 +112,7 @@ function VisitpadVaccinesPage() {
           <DataTable
             showColumnMenu
             columns={columns}
-            data={filtered}
+            data={rows}
             isLoading={isLoading}
             emptyTitle="No vaccines found"
             emptyDescription="Adjust your search or add catalog entries."
@@ -203,7 +202,7 @@ function VaccineCreateDialog({
 
   const submit: SubmitHandler<VisitpadVaccineCreateFormSchema> = async (v) => {
     await onSubmit({
-      code: v.code.trim(),
+      code: v.code,
       display_name: v.display_name.trim(),
       short_name: v.short_name?.trim() ? v.short_name.trim() : null,
       display_order: 0,
@@ -216,7 +215,7 @@ function VaccineCreateDialog({
       open={open}
       onOpenChange={onOpenChange}
       title="Add vaccine"
-      description="Code is immutable after save. Use letters, digits, or underscore (1–64 characters)."
+      description="Code is immutable after save. Use letters, digits, or underscore (1–64 characters). Stored lowercase."
       submitLabel="Add"
       isSubmitting={isSubmitting}
       onSubmit={form.handleSubmit(submit)}
@@ -229,13 +228,18 @@ function VaccineCreateDialog({
             <p className="text-sm text-destructive">{form.formState.errors.code.message}</p>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Code must be 1–64 characters: letters, digits, and underscore. Unique per catalog scope.
+              Code must be 1–64 characters: letters, digits, and underscore. Saved lowercase. Unique
+              per catalog scope.
             </p>
           )}
         </div>
         <div className="space-y-2">
           <Label htmlFor="vaccine-display">Vaccine display name *</Label>
-          <Input id="vaccine-display" placeholder="e.g. COVID-19 mRNA vaccine" {...form.register('display_name')} />
+          <Input
+            id="vaccine-display"
+            placeholder="e.g. COVID-19 mRNA vaccine"
+            {...form.register('display_name')}
+          />
           {form.formState.errors.display_name ? (
             <p className="text-sm text-destructive">{form.formState.errors.display_name.message}</p>
           ) : null}
@@ -248,12 +252,16 @@ function VaccineCreateDialog({
         <div className="flex items-center justify-between gap-4 rounded-md border p-3">
           <div>
             <p className="text-sm font-medium">Active</p>
-            <p className="text-xs text-muted-foreground">Inactive items are hidden from visit-pad pick lists.</p>
+            <p className="text-xs text-muted-foreground">
+              Inactive items are hidden from visit-pad pick lists.
+            </p>
           </div>
           <Controller
             name="is_active"
             control={form.control}
-            render={({ field }) => <Switch checked={field.value} onCheckedChange={field.onChange} />}
+            render={({ field }) => (
+              <Switch checked={field.value} onCheckedChange={field.onChange} />
+            )}
           />
         </div>
       </div>
@@ -330,14 +338,20 @@ function VaccineEditDialog({
         </div>
         <div className="space-y-2">
           <Label htmlFor="edit-vaccine-order">Display order</Label>
-          <Input id="edit-vaccine-order" type="number" {...form.register('display_order', { valueAsNumber: true })} />
+          <Input
+            id="edit-vaccine-order"
+            type="number"
+            {...form.register('display_order', { valueAsNumber: true })}
+          />
         </div>
         <div className="flex items-center justify-between gap-4 rounded-md border p-3">
           <p className="text-sm font-medium">Active</p>
           <Controller
             name="is_active"
             control={form.control}
-            render={({ field }) => <Switch checked={field.value} onCheckedChange={field.onChange} />}
+            render={({ field }) => (
+              <Switch checked={field.value} onCheckedChange={field.onChange} />
+            )}
           />
         </div>
       </div>

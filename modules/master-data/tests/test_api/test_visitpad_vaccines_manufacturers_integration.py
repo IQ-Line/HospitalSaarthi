@@ -66,7 +66,7 @@ def test_visitpad_vaccine_global_crud(visitpad_api_client: TestClient) -> None:
     )
     assert r.status_code == 201, r.text
     body = r.json()["data"]
-    assert body["code"] == "VC_TEST"
+    assert body["code"] == "vc_test"
     assert body["iq_tenant_id"] is None
     vid = body["id"]
 

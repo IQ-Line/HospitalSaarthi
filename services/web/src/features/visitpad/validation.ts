@@ -19,11 +19,7 @@ export const visitpadUnitDimensionSchema = z.enum([
 ]);
 
 export const visitpadUnitCreateSchema = z.object({
-  code: z
-    .string()
-    .min(1)
-    .max(64)
-    .transform(visitpadTrimLower),
+  code: z.string().min(1).max(64).transform(visitpadTrimLower),
   display_name: z.string().min(1).max(256),
   dimension: visitpadUnitDimensionSchema,
   ucum_code: z.string().max(64).nullable().optional(),
@@ -55,16 +51,8 @@ export const visitpadUnitEditFormSchema = z.object({
 
 export const visitpadUnitConversionCreateSchema = z
   .object({
-    from_unit_code: z
-      .string()
-      .min(1)
-      .max(64)
-      .transform(visitpadTrimLower),
-    to_unit_code: z
-      .string()
-      .min(1)
-      .max(64)
-      .transform(visitpadTrimLower),
+    from_unit_code: z.string().min(1).max(64).transform(visitpadTrimLower),
+    to_unit_code: z.string().min(1).max(64).transform(visitpadTrimLower),
     factor: z.coerce.number().finite(),
     offset_value: z.coerce.number().finite().optional(),
     display_order: z.coerce.number().int().optional(),
@@ -76,16 +64,8 @@ export const visitpadUnitConversionCreateSchema = z
 
 export const visitpadUnitConversionEditFormSchema = z
   .object({
-    from_unit_code: z
-      .string()
-      .min(1)
-      .max(64)
-      .transform(visitpadTrimLower),
-    to_unit_code: z
-      .string()
-      .min(1)
-      .max(64)
-      .transform(visitpadTrimLower),
+    from_unit_code: z.string().min(1).max(64).transform(visitpadTrimLower),
+    to_unit_code: z.string().min(1).max(64).transform(visitpadTrimLower),
     factor: z.coerce.number().finite(),
     offset_value: z.coerce.number().finite(),
     display_order: z.coerce.number().int(),
@@ -162,7 +142,9 @@ function optionalFiniteNumberString(fieldLabel: string) {
       const n = Number(t);
       return Number.isFinite(n) ? n : Number.NaN;
     })
-    .refine((n) => n === null || !Number.isNaN(n), { message: `${fieldLabel} must be empty or a valid number` });
+    .refine((n) => n === null || !Number.isNaN(n), {
+      message: `${fieldLabel} must be empty or a valid number`,
+    });
 }
 
 function optionalIntString(fieldLabel: string) {
@@ -176,7 +158,9 @@ function optionalIntString(fieldLabel: string) {
       const n = parseInt(t, 10);
       return Number.isFinite(n) ? n : Number.NaN;
     })
-    .refine((n) => n === null || !Number.isNaN(n), { message: `${fieldLabel} must be empty or a whole number` });
+    .refine((n) => n === null || !Number.isNaN(n), {
+      message: `${fieldLabel} must be empty or a whole number`,
+    });
 }
 
 export const visitpadMedicineCreateFormSchema = z.object({
@@ -297,7 +281,9 @@ export const visitpadChiefComplaintCreateFormSchema = z.object({
   snomed_code: z.string().max(64).optional().nullable(),
 });
 
-export type VisitpadChiefComplaintCreateFormSchema = z.infer<typeof visitpadChiefComplaintCreateFormSchema>;
+export type VisitpadChiefComplaintCreateFormSchema = z.infer<
+  typeof visitpadChiefComplaintCreateFormSchema
+>;
 
 export const visitpadChiefComplaintEditFormSchema = z.object({
   code: z.string().min(1).max(64),
@@ -358,7 +344,8 @@ export const visitpadDiagnosisCreateFormSchema = z
     if (hasIcd && !completeIcd) {
       ctx.addIssue({
         code: 'custom',
-        message: 'ICD enrichment needs ICD-10 code, version, official descriptor, and category together.',
+        message:
+          'ICD enrichment needs ICD-10 code, version, official descriptor, and category together.',
         path: ['icd10_code'],
       });
     }
@@ -448,7 +435,9 @@ export const visitpadAllergyReactionCreateFormSchema = z.object({
   is_active: z.boolean(),
 });
 
-export type VisitpadAllergyReactionCreateFormSchema = z.infer<typeof visitpadAllergyReactionCreateFormSchema>;
+export type VisitpadAllergyReactionCreateFormSchema = z.infer<
+  typeof visitpadAllergyReactionCreateFormSchema
+>;
 
 export const visitpadAllergyReactionEditFormSchema = z.object({
   display_name: z.string().min(1).max(256),
@@ -571,7 +560,8 @@ export const visitpadVaccineCreateFormSchema = z.object({
     .trim()
     .min(1)
     .max(64)
-    .regex(VISITPAD_CATALOG_CODE_1_64, 'Use 1–64 letters, digits, or underscores.'),
+    .regex(VISITPAD_CATALOG_CODE_1_64, 'Use 1–64 letters, digits, or underscores.')
+    .transform((s) => s.toLowerCase()),
   display_name: z.string().trim().min(1).max(512),
   short_name: z.string().max(120).optional(),
   is_active: z.boolean(),
@@ -608,25 +598,41 @@ export const visitpadManufacturerEditFormSchema = z.object({
 export type VisitpadUnitCreateSchema = z.infer<typeof visitpadUnitCreateSchema>;
 export type VisitpadUnitEditFormSchema = z.infer<typeof visitpadUnitEditFormSchema>;
 export type VisitpadUnitConversionCreateSchema = z.infer<typeof visitpadUnitConversionCreateSchema>;
-export type VisitpadUnitConversionEditFormSchema = z.infer<typeof visitpadUnitConversionEditFormSchema>;
-export type VisitpadAllergyReactionEditFormSchema = z.infer<typeof visitpadAllergyReactionEditFormSchema>;
+export type VisitpadUnitConversionEditFormSchema = z.infer<
+  typeof visitpadUnitConversionEditFormSchema
+>;
+export type VisitpadAllergyReactionEditFormSchema = z.infer<
+  typeof visitpadAllergyReactionEditFormSchema
+>;
 export type VisitpadRxColumnCreateFormSchema = z.infer<typeof visitpadRxColumnCreateFormSchema>;
-export type VisitpadChiefComplaintEditFormSchema = z.infer<typeof visitpadChiefComplaintEditFormSchema>;
+export type VisitpadChiefComplaintEditFormSchema = z.infer<
+  typeof visitpadChiefComplaintEditFormSchema
+>;
 export type VisitpadDiagnosisEditFormSchema = z.infer<typeof visitpadDiagnosisEditFormSchema>;
 export type VisitpadAllergenEditFormSchema = z.infer<typeof visitpadAllergenEditFormSchema>;
 export type VisitpadRxColumnEditFormSchema = z.infer<typeof visitpadRxColumnEditFormSchema>;
 export type VisitpadMedicineCreateFormSchema = z.infer<typeof visitpadMedicineCreateFormSchema>;
 export type VisitpadMedicineEditFormSchema = z.infer<typeof visitpadMedicineEditFormSchema>;
-export type VisitpadChronicIllnessCreateFormSchema = z.infer<typeof visitpadChronicIllnessCreateFormSchema>;
-export type VisitpadChronicIllnessCreateFormInput = z.input<typeof visitpadChronicIllnessCreateFormSchema>;
-export type VisitpadChronicIllnessEditFormSchema = z.infer<typeof visitpadChronicIllnessEditFormSchema>;
-export type VisitpadChronicIllnessEditFormInput = z.input<typeof visitpadChronicIllnessEditFormSchema>;
+export type VisitpadChronicIllnessCreateFormSchema = z.infer<
+  typeof visitpadChronicIllnessCreateFormSchema
+>;
+export type VisitpadChronicIllnessCreateFormInput = z.input<
+  typeof visitpadChronicIllnessCreateFormSchema
+>;
+export type VisitpadChronicIllnessEditFormSchema = z.infer<
+  typeof visitpadChronicIllnessEditFormSchema
+>;
+export type VisitpadChronicIllnessEditFormInput = z.input<
+  typeof visitpadChronicIllnessEditFormSchema
+>;
 export type VisitpadProcedureCreateFormSchema = z.infer<typeof visitpadProcedureCreateFormSchema>;
 export type VisitpadProcedureCreateFormInput = z.input<typeof visitpadProcedureCreateFormSchema>;
 export type VisitpadProcedureEditFormSchema = z.infer<typeof visitpadProcedureEditFormSchema>;
 export type VisitpadProcedureEditFormInput = z.input<typeof visitpadProcedureEditFormSchema>;
 export type VisitpadVaccineCreateFormSchema = z.infer<typeof visitpadVaccineCreateFormSchema>;
 export type VisitpadVaccineEditFormSchema = z.infer<typeof visitpadVaccineEditFormSchema>;
-export type VisitpadManufacturerCreateFormSchema = z.infer<typeof visitpadManufacturerCreateFormSchema>;
+export type VisitpadManufacturerCreateFormSchema = z.infer<
+  typeof visitpadManufacturerCreateFormSchema
+>;
 export type VisitpadManufacturerEditFormSchema = z.infer<typeof visitpadManufacturerEditFormSchema>;
 export type VisitpadVitalEditFormSchema = z.infer<typeof visitpadVitalEditFormSchema>;

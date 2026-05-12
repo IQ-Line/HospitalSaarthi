@@ -13,7 +13,6 @@ import { EntityFormDialog } from '@/features/master-data/components/entity-form-
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
 import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
-import { rowMatchesSearch } from '@/features/master-data/table-search';
 import {
   useVisitpadDelete,
   useVisitpadManufacturers,
@@ -52,11 +51,6 @@ function VisitpadManufacturersPage() {
   const tabCount = visitpadActiveTotal(rows, data?.total);
   const busy = patch.isPending || del.isPending;
 
-  const filtered = useMemo(
-    () => rows.filter((r) => rowMatchesSearch(search, r.code, r.display_name, r.short_name ?? '')),
-    [rows, search],
-  );
-
   const columns = useMemo<ColumnDef<VisitpadManufacturer, unknown>[]>(
     () => [
       { accessorKey: 'code', header: 'Manufacturer code', meta: { label: 'Manufacturer code' } },
@@ -65,7 +59,8 @@ function VisitpadManufacturersPage() {
         accessorKey: 'short_name',
         header: 'Short name',
         meta: { label: 'Short name' },
-        cell: ({ row }) => row.original.short_name || <span className="text-muted-foreground">—</span>,
+        cell: ({ row }) =>
+          row.original.short_name || <span className="text-muted-foreground">—</span>,
       },
       {
         accessorKey: 'is_active',
@@ -101,7 +96,9 @@ function VisitpadManufacturersPage() {
       tabCount={tabCount}
       title="Manufacturers"
       description="Manufacturer catalog for Visitpad (vaccine and product makers). Same dual-schema rules as other Visitpad masters."
-      actions={<VisitpadHeaderActions addLabel="Add manufacturer" onAddClick={() => setCreateOpen(true)} />}
+      actions={
+        <VisitpadHeaderActions addLabel="Add manufacturer" onAddClick={() => setCreateOpen(true)} />
+      }
     >
       <div className="space-y-4">
         <MasterDataTableToolbar
@@ -115,7 +112,7 @@ function VisitpadManufacturersPage() {
           <DataTable
             showColumnMenu
             columns={columns}
-            data={filtered}
+            data={rows}
             isLoading={isLoading}
             emptyTitle="No manufacturers found"
             emptyDescription="Adjust your search or add catalog entries."
@@ -236,8 +233,8 @@ function ManufacturerCreateDialog({
             <p className="text-sm text-destructive">{form.formState.errors.code.message}</p>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Code must be 3–9 characters (letters, digits, underscore). Unique in this catalog scope; stored
-              lowercase.
+              Code must be 3–9 characters (letters, digits, underscore). Unique in this catalog
+              scope; stored lowercase.
             </p>
           )}
         </div>
@@ -265,12 +262,16 @@ function ManufacturerCreateDialog({
         <div className="flex items-center justify-between gap-4 rounded-md border p-3">
           <div>
             <p className="text-sm font-medium">Active</p>
-            <p className="text-xs text-muted-foreground">Inactive items are hidden from visit-pad pick lists.</p>
+            <p className="text-xs text-muted-foreground">
+              Inactive items are hidden from visit-pad pick lists.
+            </p>
           </div>
           <Controller
             name="is_active"
             control={form.control}
-            render={({ field }) => <Switch checked={field.value} onCheckedChange={field.onChange} />}
+            render={({ field }) => (
+              <Switch checked={field.value} onCheckedChange={field.onChange} />
+            )}
           />
         </div>
       </div>
@@ -343,18 +344,28 @@ function ManufacturerEditDialog({
         </div>
         <div className="space-y-2">
           <Label htmlFor="edit-mfr-short">Short name</Label>
-          <Input id="edit-mfr-short" autoComplete="off" {...form.register('short_name', { required: false })} />
+          <Input
+            id="edit-mfr-short"
+            autoComplete="off"
+            {...form.register('short_name', { required: false })}
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="edit-mfr-order">Display order</Label>
-          <Input id="edit-mfr-order" type="number" {...form.register('display_order', { valueAsNumber: true })} />
+          <Input
+            id="edit-mfr-order"
+            type="number"
+            {...form.register('display_order', { valueAsNumber: true })}
+          />
         </div>
         <div className="flex items-center justify-between gap-4 rounded-md border p-3">
           <p className="text-sm font-medium">Active</p>
           <Controller
             name="is_active"
             control={form.control}
-            render={({ field }) => <Switch checked={field.value} onCheckedChange={field.onChange} />}
+            render={({ field }) => (
+              <Switch checked={field.value} onCheckedChange={field.onChange} />
+            )}
           />
         </div>
       </div>

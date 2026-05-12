@@ -5013,6 +5013,7 @@ components:
           maxLength: 9
           pattern: ^[A-Za-z0-9_]{3,9}$
           title: Code
+          description: Trimmed and stored lowercase; uniqueness applies to the normalized value.
         display_name:
           type: string
           minLength: 1
@@ -5165,6 +5166,7 @@ components:
           maxLength: 64
           pattern: ^[A-Za-z0-9_]{1,64}$
           title: Code
+          description: Trimmed and stored lowercase; uniqueness applies to the normalized value.
         display_name:
           type: string
           minLength: 1
