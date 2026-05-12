@@ -38,13 +38,15 @@ class VisitpadDiagnosisRepository:
         M = self._M()
         filters = [M.is_deleted.is_(False)]
         if self._scope.is_tenant:
-            filters.append(M.tenant_id == self._scope.tenant_id)
+            filters.append(M.iq_tenant_id == self._scope.iq_tenant_id)
         if category is not None:
             filters.append(M.category == category)
         if search:
             term = f"%{search.strip()}%"
             filters.append(
                 or_(
+                    M.code.ilike(term),
+                    M.short_name.ilike(term),
                     M.icd10_code.ilike(term),
                     M.display_name.ilike(term),
                     M.official_descriptor.ilike(term),
@@ -54,7 +56,7 @@ class VisitpadDiagnosisRepository:
         page_stmt = (
             select(M, cnt)
             .where(*filters)
-            .order_by(M.display_order, M.icd10_code)
+            .order_by(M.display_order, M.code)
             .offset(offset)
             .limit(limit)
         )
@@ -77,7 +79,7 @@ class VisitpadDiagnosisRepository:
         row = self._session.get(M, row_id)
         if row is None:
             return None
-        if self._scope.is_tenant and row.tenant_id != self._scope.tenant_id:
+        if self._scope.is_tenant and row.iq_tenant_id != self._scope.iq_tenant_id:
             return None
         if not include_deleted and row.is_deleted:
             return None
@@ -91,7 +93,7 @@ class VisitpadDiagnosisRepository:
             self._session.rollback()
             if is_unique_violation(exc):
                 raise DuplicateVisitpadCatalogKeyError(
-                    "Another active diagnosis already uses this ICD-10 code and version.",
+                    "Another active diagnosis already uses this code.",
                 ) from exc
             raise
         self._session.refresh(row)
@@ -104,7 +106,7 @@ class VisitpadDiagnosisRepository:
             self._session.rollback()
             if is_unique_violation(exc):
                 raise DuplicateVisitpadCatalogKeyError(
-                    "Another active diagnosis already uses this ICD-10 code and version.",
+                    "Another active diagnosis already uses this code.",
                 ) from exc
             raise
         self._session.refresh(row)

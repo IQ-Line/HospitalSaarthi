@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { type ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
@@ -24,6 +24,7 @@ import { TableActiveToggle } from '@/features/master-data/components/table-activ
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { rowMatchesSearch } from '@/features/master-data/table-search';
 import {
+  useVisitpadChiefComplaintDescriptor,
   useVisitpadChiefComplaints,
   useVisitpadDelete,
   useVisitpadPatch,
@@ -37,7 +38,9 @@ import { VISITPAD_BODY_SYSTEMS, VISITPAD_TRIAGE_PRIORITIES } from '@/features/vi
 import { visitpadActiveTotal } from '@/features/visitpad/tab-count';
 import type { VisitpadChiefComplaint } from '@/features/visitpad/types';
 import {
+  visitpadChiefComplaintCreateFormSchema,
   visitpadChiefComplaintEditFormSchema,
+  type VisitpadChiefComplaintCreateFormSchema,
   type VisitpadChiefComplaintEditFormSchema,
 } from '@/features/visitpad/validation';
 
@@ -64,10 +67,33 @@ function VisitpadChiefComplaintsPage() {
   const tabCount = visitpadActiveTotal(rows, data?.total);
   const busy = patch.isPending || del.isPending;
 
+  const { data: ccDescriptor } = useVisitpadChiefComplaintDescriptor();
+  const bodySystemOpts = useMemo(
+    () =>
+      ccDescriptor?.body_systems?.length
+        ? ccDescriptor.body_systems
+        : [...VISITPAD_BODY_SYSTEMS],
+    [ccDescriptor?.body_systems],
+  );
+  const triageOpts = useMemo(
+    () =>
+      ccDescriptor?.triage_priorities?.length
+        ? ccDescriptor.triage_priorities
+        : [...VISITPAD_TRIAGE_PRIORITIES],
+    [ccDescriptor?.triage_priorities],
+  );
+
   const filtered = useMemo(
     () =>
       rows.filter((r) =>
-        rowMatchesSearch(search, r.code, r.display_name, r.body_system, r.triage_priority),
+        rowMatchesSearch(
+          search,
+          r.code,
+          r.display_name,
+          r.short_name,
+          r.body_system,
+          r.triage_priority,
+        ),
       ),
     [rows, search],
   );
@@ -76,6 +102,15 @@ function VisitpadChiefComplaintsPage() {
     () => [
       { accessorKey: 'code', header: 'Code', meta: { label: 'Code' } },
       { accessorKey: 'display_name', header: 'Display', meta: { label: 'Display' } },
+      {
+        accessorKey: 'short_name',
+        header: 'Short',
+        meta: { label: 'Short' },
+        cell: ({ getValue }) => {
+          const v = getValue<string | null | undefined>();
+          return v ? <span className="text-xs">{v}</span> : <span className="text-muted-foreground">—</span>;
+        },
+      },
       {
         accessorKey: 'body_system',
         header: 'System',
@@ -140,7 +175,7 @@ function VisitpadChiefComplaintsPage() {
       primary="chief-complaints"
       tabCount={tabCount}
       title="Chief complaints"
-      description="Complaint catalog for triage and documentation."
+      description="Complaint catalog for triage. Body system and triage options load from GET …/chief-complaints/descriptor (same enum values as create/patch)."
       actions={
         <VisitpadHeaderActions addLabel="Add complaint" onAddClick={() => setCreateOpen(true)} />
       }
@@ -159,7 +194,7 @@ function VisitpadChiefComplaintsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All systems</SelectItem>
-                {VISITPAD_BODY_SYSTEMS.map((o) => (
+                {bodySystemOpts.map((o) => (
                   <SelectItem key={o.value} value={o.value}>
                     {o.label}
                   </SelectItem>
@@ -172,7 +207,7 @@ function VisitpadChiefComplaintsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All triage priorities</SelectItem>
-                {VISITPAD_TRIAGE_PRIORITIES.map((o) => (
+                {triageOpts.map((o) => (
                   <SelectItem key={o.value} value={o.value}>
                     {o.label}
                   </SelectItem>
@@ -198,6 +233,8 @@ function VisitpadChiefComplaintsPage() {
       <ChiefComplaintCreateDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
+        bodySystemOpts={bodySystemOpts}
+        triageOpts={triageOpts}
         isSubmitting={create.isPending}
         onSubmit={async (payload) => {
           try {
@@ -214,6 +251,8 @@ function VisitpadChiefComplaintsPage() {
         row={editing}
         open={!!editing}
         onOpenChange={(o) => !o && setEditing(null)}
+        bodySystemOpts={bodySystemOpts}
+        triageOpts={triageOpts}
         isSubmitting={patch.isPending}
         onSave={async (body) => {
           if (!editing) return;
@@ -256,113 +295,190 @@ function VisitpadChiefComplaintsPage() {
 function ChiefComplaintCreateDialog({
   open,
   onOpenChange,
+  bodySystemOpts,
+  triageOpts,
   isSubmitting,
   onSubmit,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  bodySystemOpts: { value: string; label: string }[];
+  triageOpts: { value: string; label: string }[];
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const [bodySystem, setBodySystem] = useState('cardiovascular');
-  const [triage, setTriage] = useState('routine');
-  const [paed, setPaed] = useState(false);
-  const [isActive, setIsActive] = useState(true);
+  const form = useForm<VisitpadChiefComplaintCreateFormSchema>({
+    resolver: zodResolver(visitpadChiefComplaintCreateFormSchema),
+    defaultValues: {
+      code: '',
+      display_name: '',
+      short_name: '',
+      body_system: 'cardiovascular',
+      triage_priority: 'routine',
+      synonyms_text: '',
+      is_paediatric_relevant: false,
+      display_order: 0,
+      is_active: true,
+      snomed_code: null,
+    },
+  });
 
   useEffect(() => {
     if (!open) {
-      setBodySystem('cardiovascular');
-      setTriage('routine');
-      setPaed(false);
-      setIsActive(true);
+      form.reset({
+        code: '',
+        display_name: '',
+        short_name: '',
+        body_system: 'cardiovascular',
+        triage_priority: 'routine',
+        synonyms_text: '',
+        is_paediatric_relevant: false,
+        display_order: 0,
+        is_active: true,
+        snomed_code: null,
+      });
     }
-  }, [open]);
+  }, [open, form]);
+
+  const submit: SubmitHandler<VisitpadChiefComplaintCreateFormSchema> = async (v) => {
+    const synonyms = (v.synonyms_text ?? '')
+      .split(/[\n,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, 50);
+    const snomed = v.snomed_code?.trim();
+    const short = v.short_name?.trim();
+    await onSubmit({
+      code: v.code.trim(),
+      display_name: v.display_name.trim(),
+      short_name: short && short.length > 0 ? short : null,
+      body_system: v.body_system,
+      triage_priority: v.triage_priority,
+      synonyms,
+      is_paediatric_relevant: v.is_paediatric_relevant,
+      display_order: v.display_order,
+      is_active: v.is_active,
+      snomed_code: snomed && snomed.length > 0 ? snomed : null,
+    });
+  };
 
   return (
     <EntityFormDialog
       open={open}
       onOpenChange={onOpenChange}
       title="Add chief complaint"
-      description="Create a complaint row. Synonyms can be added later via edit when supported."
-      submitLabel="Create complaint"
+      description="Codes and enums must match the API. Body system and triage labels load from the descriptor endpoint (fallback: local OpenAPI mirror if offline)."
+      submitLabel="Add complaint"
       isSubmitting={isSubmitting}
-      onSubmit={async (e: FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        const fd = new FormData(e.currentTarget);
-        const code = String(fd.get('code') ?? '').trim();
-        const display_name = String(fd.get('display_name') ?? '').trim();
-        const snomedRaw = String(fd.get('snomed_code') ?? '').trim();
-        if (!code || !display_name) {
-          toast.error('Code and display name are required.');
-          return;
-        }
-        await onSubmit({
-          code,
-          display_name,
-          body_system: bodySystem,
-          triage_priority: triage,
-          synonyms: [] as string[],
-          is_paediatric_relevant: paed,
-          display_order: Number(fd.get('display_order') ?? 0) || 0,
-          is_active: isActive,
-          snomed_code: snomedRaw.length ? snomedRaw : null,
-        });
-      }}
+      onSubmit={form.handleSubmit(submit)}
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="vp-cc-code">Code</Label>
-          <Input id="vp-cc-code" name="code" required maxLength={64} />
+          <Label htmlFor="vp-cc-code">Complaint code *</Label>
+          <Input id="vp-cc-code" maxLength={64} {...form.register('code')} />
+          <p className="text-muted-foreground text-xs">Unique, immutable after save (max 64 characters).</p>
+          {form.formState.errors.code ? (
+            <p className="text-xs text-destructive">{form.formState.errors.code.message}</p>
+          ) : null}
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-cc-name">Display name</Label>
-          <Input id="vp-cc-name" name="display_name" required maxLength={256} />
+          <Label htmlFor="vp-cc-name">Display name *</Label>
+          <Input id="vp-cc-name" maxLength={256} {...form.register('display_name')} />
+          {form.formState.errors.display_name ? (
+            <p className="text-xs text-destructive">{form.formState.errors.display_name.message}</p>
+          ) : null}
+        </div>
+        <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor="vp-cc-short">Short name</Label>
+          <Input id="vp-cc-short" maxLength={120} placeholder="e.g. CP" {...form.register('short_name')} />
+          <p className="text-muted-foreground text-xs">
+            Optional short label for lists (max 120 characters). Search uses code, display name, and short name.
+          </p>
         </div>
         <div className="space-y-2">
-          <Label>Body system</Label>
-          <Select value={bodySystem} onValueChange={setBodySystem}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {VISITPAD_BODY_SYSTEMS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>
-                  {o.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label>Triage priority</Label>
-          <Select value={triage} onValueChange={setTriage}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {VISITPAD_TRIAGE_PRIORITIES.map((o) => (
-                <SelectItem key={o.value} value={o.value}>
-                  {o.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-cc-snomed">SNOMED code (optional)</Label>
-          <Input id="vp-cc-snomed" name="snomed_code" maxLength={64} />
-        </div>
-        <div className="space-y-2 sm:col-span-2">
           <Label htmlFor="vp-cc-order">Display order</Label>
-          <Input id="vp-cc-order" name="display_order" type="number" defaultValue={0} />
+          <Input id="vp-cc-order" type="number" {...form.register('display_order', { valueAsNumber: true })} />
+        </div>
+        <div className="space-y-2">
+          <Label>Body system *</Label>
+          <Select
+            value={form.watch('body_system')}
+            onValueChange={(x) =>
+              form.setValue('body_system', x as VisitpadChiefComplaintCreateFormSchema['body_system'], {
+                shouldValidate: true,
+              })
+            }
+          >
+            <SelectTrigger id="vp-cc-bs">
+              <SelectValue placeholder="Select system…" />
+            </SelectTrigger>
+            <SelectContent>
+              {bodySystemOpts.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label>Triage priority *</Label>
+          <Select
+            value={form.watch('triage_priority')}
+            onValueChange={(x) =>
+              form.setValue('triage_priority', x as VisitpadChiefComplaintCreateFormSchema['triage_priority'], {
+                shouldValidate: true,
+              })
+            }
+          >
+            <SelectTrigger id="vp-cc-tr">
+              <SelectValue placeholder="Select triage…" />
+            </SelectTrigger>
+            <SelectContent>
+              {triageOpts.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor="vp-cc-snomed">SNOMED CT (clinical finding)</Label>
+          <Input id="vp-cc-snomed" maxLength={64} placeholder="Concept ID or text" {...form.register('snomed_code')} />
+        </div>
+        <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor="vp-cc-syn">Synonyms</Label>
+          <Textarea
+            id="vp-cc-syn"
+            rows={3}
+            className="text-sm"
+            placeholder="Comma or newline separated (e.g. chest tightness, angina)"
+            {...form.register('synonyms_text')}
+          />
+          <p className="text-muted-foreground text-xs">Stored as an array on the API (max 50 terms).</p>
         </div>
         <div className="flex items-center justify-between rounded-md border p-3 sm:col-span-2">
-          <Label htmlFor="vp-cc-paed">Paediatric relevant</Label>
-          <Switch id="vp-cc-paed" checked={paed} onCheckedChange={setPaed} />
+          <div>
+            <Label htmlFor="vp-cc-paed">Paediatric relevant</Label>
+            <p className="text-muted-foreground text-xs">Show in paediatric triage flows.</p>
+          </div>
+          <Switch
+            id="vp-cc-paed"
+            checked={!!form.watch('is_paediatric_relevant')}
+            onCheckedChange={(c) => form.setValue('is_paediatric_relevant', c)}
+          />
         </div>
         <div className="flex items-center justify-between rounded-md border p-3 sm:col-span-2">
-          <Label htmlFor="vp-cc-act">Enabled</Label>
-          <Switch id="vp-cc-act" checked={isActive} onCheckedChange={setIsActive} />
+          <div>
+            <Label htmlFor="vp-cc-act">Active</Label>
+            <p className="text-muted-foreground text-xs">Inactive items are hidden from triage pickers.</p>
+          </div>
+          <Switch
+            id="vp-cc-act"
+            checked={!!form.watch('is_active')}
+            onCheckedChange={(c) => form.setValue('is_active', c)}
+          />
         </div>
       </div>
     </EntityFormDialog>
@@ -373,12 +489,16 @@ function ChiefComplaintEditDialog({
   row,
   open,
   onOpenChange,
+  bodySystemOpts,
+  triageOpts,
   isSubmitting,
   onSave,
 }: {
   row: VisitpadChiefComplaint | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  bodySystemOpts: { value: string; label: string }[];
+  triageOpts: { value: string; label: string }[];
   isSubmitting: boolean;
   onSave: (body: Record<string, unknown>) => Promise<void>;
 }) {
@@ -387,6 +507,7 @@ function ChiefComplaintEditDialog({
     defaultValues: {
       code: '',
       display_name: '',
+      short_name: '',
       body_system: 'cardiovascular',
       triage_priority: 'routine',
       snomed_code: null,
@@ -402,6 +523,7 @@ function ChiefComplaintEditDialog({
       form.reset({
         code: row.code,
         display_name: row.display_name,
+        short_name: row.short_name ?? '',
         body_system: row.body_system as VisitpadChiefComplaintEditFormSchema['body_system'],
         triage_priority: row.triage_priority as VisitpadChiefComplaintEditFormSchema['triage_priority'],
         snomed_code: row.snomed_code ?? null,
@@ -415,6 +537,7 @@ function ChiefComplaintEditDialog({
 
   const submit: SubmitHandler<VisitpadChiefComplaintEditFormSchema> = async (v) => {
     const snomed = v.snomed_code?.trim();
+    const short = v.short_name?.trim();
     const synonyms = (v.synonyms_text ?? '')
       .split(/[\n,]+/)
       .map((s) => s.trim())
@@ -423,6 +546,7 @@ function ChiefComplaintEditDialog({
     await onSave({
       code: v.code,
       display_name: v.display_name,
+      short_name: short && short.length > 0 ? short : null,
       body_system: v.body_system,
       triage_priority: v.triage_priority,
       snomed_code: snomed && snomed.length > 0 ? snomed : null,
@@ -438,7 +562,7 @@ function ChiefComplaintEditDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={row ? `Edit chief complaint — ${row.code}` : 'Edit chief complaint'}
-      description="Update catalog fields and synonym list (one per line or comma-separated)."
+      description="Update catalog fields. Synonyms: one per line or comma-separated."
       submitLabel="Save changes"
       isSubmitting={isSubmitting}
       onSubmit={form.handleSubmit(submit)}
@@ -453,6 +577,10 @@ function ChiefComplaintEditDialog({
             <Label htmlFor="vp-ce-name">Display name</Label>
             <Input id="vp-ce-name" maxLength={256} {...form.register('display_name')} />
           </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="vp-ce-short">Short name</Label>
+            <Input id="vp-ce-short" maxLength={120} {...form.register('short_name')} />
+          </div>
           <div className="space-y-2">
             <Label>Body system</Label>
             <Select
@@ -463,7 +591,7 @@ function ChiefComplaintEditDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {VISITPAD_BODY_SYSTEMS.map((o) => (
+                {bodySystemOpts.map((o) => (
                   <SelectItem key={o.value} value={o.value}>
                     {o.label}
                   </SelectItem>
@@ -483,7 +611,7 @@ function ChiefComplaintEditDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {VISITPAD_TRIAGE_PRIORITIES.map((o) => (
+                {triageOpts.map((o) => (
                   <SelectItem key={o.value} value={o.value}>
                     {o.label}
                   </SelectItem>
@@ -492,11 +620,11 @@ function ChiefComplaintEditDialog({
             </Select>
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="vp-ce-snomed">SNOMED code</Label>
+            <Label htmlFor="vp-ce-snomed">SNOMED CT (clinical finding)</Label>
             <Input id="vp-ce-snomed" maxLength={64} {...form.register('snomed_code')} />
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="vp-ce-syn">Synonyms (one per line)</Label>
+            <Label htmlFor="vp-ce-syn">Synonyms (one per line or comma-separated)</Label>
             <Textarea id="vp-ce-syn" rows={4} className="font-mono text-sm" {...form.register('synonyms_text')} />
           </div>
           <div className="space-y-2 sm:col-span-2">
@@ -512,7 +640,7 @@ function ChiefComplaintEditDialog({
             />
           </div>
           <div className="flex items-center justify-between rounded-md border p-3 sm:col-span-2">
-            <Label htmlFor="vp-ce-act">Enabled</Label>
+            <Label htmlFor="vp-ce-act">Active</Label>
             <Switch
               id="vp-ce-act"
               checked={!!form.watch('is_active')}

@@ -46,12 +46,13 @@ def create_visitpad_chronic_illness(
         icd10_code=payload.icd10_code.strip(),
         category=payload.category.value,
         snomed_code=_norm_opt_str(payload.snomed_code),
+        chronic_illness_prompt=payload.chronic_illness_prompt,
         display_order=payload.display_order,
         is_active=payload.is_active,
         is_deleted=False,
     )
     if repository.scope.is_tenant:
-        row = M(tenant_id=repository.scope.tenant_id, **common)
+        row = M(iq_tenant_id=repository.scope.iq_tenant_id, **common)
     else:
         row = M(**common)
     return repository.create(row)
@@ -74,21 +75,22 @@ def update_visitpad_chronic_illness(
     row = repository.get_by_id(row_id, include_deleted=True)
     if row is None:
         return None
-    if repository.scope.is_tenant and row.tenant_id != repository.scope.tenant_id:
+    if repository.scope.is_tenant and row.iq_tenant_id != repository.scope.iq_tenant_id:
         return None
-    if payload.display_name is not None:
+    dump = payload.model_dump(exclude_unset=True)
+    if "display_name" in dump and payload.display_name is not None:
         row.display_name = payload.display_name.strip()
-    if payload.icd10_code is not None:
-        row.icd10_code = payload.icd10_code.strip()
-    if payload.category is not None:
+    if "category" in dump and payload.category is not None:
         row.category = payload.category.value
-    if payload.snomed_code is not None:
+    if "snomed_code" in dump:
         row.snomed_code = _norm_opt_str(payload.snomed_code)
-    if payload.display_order is not None:
+    if "chronic_illness_prompt" in dump and payload.chronic_illness_prompt is not None:
+        row.chronic_illness_prompt = payload.chronic_illness_prompt
+    if "display_order" in dump and payload.display_order is not None:
         row.display_order = payload.display_order
-    if payload.is_active is not None:
+    if "is_active" in dump and payload.is_active is not None:
         row.is_active = payload.is_active
-    if payload.is_deleted is not None:
+    if "is_deleted" in dump and payload.is_deleted is not None:
         row.is_deleted = payload.is_deleted
     return repository.update(row)
 

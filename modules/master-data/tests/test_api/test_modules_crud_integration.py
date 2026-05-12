@@ -51,7 +51,7 @@ def module_client(module_sqlite_session: Session) -> Iterator[TestClient]:
         yield module_sqlite_session
 
     def _repo() -> ModuleRepository:
-        return ModuleRepository(module_sqlite_session, CatalogScope(tenant_id=None))
+        return ModuleRepository(module_sqlite_session, CatalogScope(iq_tenant_id=None))
 
     app.dependency_overrides[get_session] = _session
     app.dependency_overrides[get_module_repository] = _repo

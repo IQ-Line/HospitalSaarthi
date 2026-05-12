@@ -1,4 +1,4 @@
-"""Catalog: global in ``public`` (no ``tenant_id``); per-tenant in ``tenant_master``."""
+"""Catalog: global in ``public`` (no ``iq_tenant_id``); per-tenant in ``tenant_master``."""
 
 from __future__ import annotations
 
@@ -15,8 +15,8 @@ CATALOG_TENANT_HEADER = "iq_tenant_id"
 class CatalogScope:
     """Resolved per request from optional ``iq_tenant_id`` (positive int as string)."""
 
-    tenant_id: int | None
+    iq_tenant_id: int | None
 
     @property
     def is_tenant(self) -> bool:
-        return self.tenant_id is not None
+        return self.iq_tenant_id is not None

@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { useForm, type SubmitHandler } from 'react-hook-form';
+import { useEffect, useMemo, useState } from 'react';
+import { Controller, useForm, type Control, type FieldPath, type FieldValues, type SubmitHandler } from 'react-hook-form';
 import { type ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
 import { Badge } from '@pulse/ui/badge';
@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from '@pulse/ui/select';
 import { Switch } from '@pulse/ui/switch';
+import { Textarea } from '@pulse/ui/textarea';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
@@ -27,13 +28,29 @@ import { visitpadActionsColumn } from '@/features/visitpad/components/visitpad-a
 import { VisitpadHeaderActions } from '@/features/visitpad/components/visitpad-header-actions';
 import { VisitpadPageShell } from '@/features/visitpad/components/visitpad-page-shell';
 import { VisitpadSnomedFooter } from '@/features/visitpad/components/visitpad-snomed-footer';
-import { withMedicineCreateDefaults } from '@/features/visitpad/medicine-create-defaults';
-import { VISITPAD_MEDICINE_SCHEDULES } from '@/features/visitpad/openapi-constants';
+import {
+  emptyMedicineCreateForm,
+  emptyMedicineEditForm,
+  visitpadMedicineCreatePayloadFromForm,
+  visitpadMedicineEditFormFromRow,
+  visitpadMedicinePatchPayloadFromForm,
+} from '@/features/visitpad/medicine-create-defaults';
+import {
+  VISITPAD_MEDICINE_ADMIN_ROUTES,
+  VISITPAD_MEDICINE_LACTATION,
+  VISITPAD_MEDICINE_PEDIATRIC,
+  VISITPAD_MEDICINE_PREGNANCY,
+  VISITPAD_MEDICINE_SCHEDULES,
+} from '@/features/visitpad/openapi-constants';
 import { visitpadActiveTotal } from '@/features/visitpad/tab-count';
 import type { VisitpadMedicine } from '@/features/visitpad/types';
 import {
-  visitpadMedicineEditCoreSchema,
-  type VisitpadMedicineEditCoreSchema,
+  visitpadMedicineCreateFormSchema,
+  visitpadMedicineEditFormSchema,
+  type VisitpadMedicineCreateFormInput,
+  type VisitpadMedicineCreateFormSchema,
+  type VisitpadMedicineEditFormInput,
+  type VisitpadMedicineEditFormSchema,
 } from '@/features/visitpad/validation';
 
 const MED_BASE = '/api/v1/master-data/visitpad/medicines';
@@ -41,6 +58,15 @@ const MED_BASE = '/api/v1/master-data/visitpad/medicines';
 export const Route = createFileRoute('/_authenticated/visitpad/medicines')({
   component: VisitpadMedicinesPage,
 });
+
+function FieldSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-3 border-b border-border pb-4 last:border-0">
+      <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+      {children}
+    </div>
+  );
+}
 
 function VisitpadMedicinesPage() {
   const [search, setSearch] = useState('');
@@ -68,7 +94,7 @@ function VisitpadMedicinesPage() {
   const columns = useMemo<ColumnDef<VisitpadMedicine, unknown>[]>(
     () => [
       { accessorKey: 'code', header: 'Code', meta: { label: 'Code' } },
-      { accessorKey: 'display_name', header: 'Name', meta: { label: 'Name' } },
+      { accessorKey: 'display_name', header: 'Medicine name', meta: { label: 'Medicine name' } },
       { accessorKey: 'generic_name', header: 'Generic', meta: { label: 'Generic' } },
       {
         accessorKey: 'drug_class',
@@ -88,7 +114,6 @@ function VisitpadMedicinesPage() {
         meta: { label: 'Schedule' },
         cell: ({ getValue }) => <Badge variant="secondary">{getValue<string>()}</Badge>,
       },
-      { accessorKey: 'display_order', header: 'Order', meta: { label: 'Order' } },
       {
         accessorKey: 'is_active',
         header: 'Active',
@@ -229,82 +254,364 @@ function MedicineCreateDialog({
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const [schedule, setSchedule] = useState('otc');
+  const form = useForm<VisitpadMedicineCreateFormInput>({
+    resolver: zodResolver(visitpadMedicineCreateFormSchema),
+    defaultValues: emptyMedicineCreateForm(),
+  });
 
   useEffect(() => {
-    if (!open) setSchedule('otc');
-  }, [open]);
+    if (open) {
+      form.reset(emptyMedicineCreateForm());
+    }
+  }, [open, form]);
+
+  const submit: SubmitHandler<VisitpadMedicineCreateFormSchema> = async (v) => {
+    await onSubmit(visitpadMedicineCreatePayloadFromForm(v));
+  };
 
   return (
     <EntityFormDialog
       open={open}
       onOpenChange={onOpenChange}
       title="Add medicine"
-      description="Minimal create — extend with strength, routes, and codes after save via edit when the form ships."
-      submitLabel="Create medicine"
+      description="Fields map to the Visitpad medicines API (snake_case). Medicine code cannot be changed after save."
+      submitLabel="Save changes"
       isSubmitting={isSubmitting}
-      onSubmit={async (e: FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        const fd = new FormData(e.currentTarget);
-        const code = String(fd.get('code') ?? '').trim();
-        const display_name = String(fd.get('display_name') ?? '').trim();
-        const generic_name = String(fd.get('generic_name') ?? '').trim();
-        const drug_class = String(fd.get('drug_class') ?? '').trim();
-        const dosage_form = String(fd.get('dosage_form') ?? '').trim();
-        if (!code || !display_name || !generic_name || !drug_class || !dosage_form) {
-          toast.error('Code, display name, generic name, drug class, and dosage form are required.');
-          return;
-        }
-        await onSubmit(
-          withMedicineCreateDefaults({
-            code,
-            display_name,
-            generic_name,
-            drug_class,
-            dosage_form,
-            schedule,
-          }),
-        );
-      }}
+      onSubmit={form.handleSubmit(submit)}
     >
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="vp-med-code">Code</Label>
-          <Input id="vp-med-code" name="code" required maxLength={64} />
+      <div className="max-h-[70vh] space-y-6 overflow-y-auto pr-1">
+        <FieldSection title="Identity">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="vp-mc-code">Medicine code *</Label>
+              <Input
+                id="vp-mc-code"
+                placeholder="e.g. met_500_tab"
+                maxLength={8}
+                className="font-mono"
+                {...form.register('code')}
+              />
+              <p className="text-sm text-muted-foreground">
+                Code must be 3–8 characters, letters, digits, or underscores; unique; cannot be edited after save.
+              </p>
+              {form.formState.errors.code ? (
+                <p className="text-sm text-destructive">{form.formState.errors.code.message}</p>
+              ) : null}
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="vp-mc-inn">Generic name (INN) *</Label>
+              <Input id="vp-mc-inn" maxLength={512} {...form.register('generic_name')} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="vp-mc-dclass">Drug class *</Label>
+              <Input id="vp-mc-dclass" maxLength={256} {...form.register('drug_class')} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="vp-mc-dsub">Drug subclass</Label>
+              <Input id="vp-mc-dsub" maxLength={256} {...form.register('drug_subclass')} />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="vp-mc-brands">Brand names (comma-separated)</Label>
+              <Input id="vp-mc-brands" {...form.register('brand_names_csv')} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="vp-mc-sn1">SNOMED substance (ingredient)</Label>
+              <Input
+                id="vp-mc-sn1"
+                maxLength={64}
+                placeholder="Concept ID or code"
+                {...form.register('snomed_substance_code')}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="vp-mc-sn2">SNOMED medicinal product (optional)</Label>
+              <Input
+                id="vp-mc-sn2"
+                maxLength={64}
+                placeholder="Concept ID or code"
+                {...form.register('snomed_product_code')}
+              />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="vp-mc-dn">Display name *</Label>
+              <Input id="vp-mc-dn" maxLength={512} {...form.register('display_name')} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="vp-mc-sn">Short name</Label>
+              <Input id="vp-mc-sn" maxLength={256} {...form.register('short_name')} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="vp-mc-ord">Display order</Label>
+              <Input id="vp-mc-ord" type="number" {...form.register('display_order', { valueAsNumber: true })} />
+            </div>
+          </div>
+        </FieldSection>
+
+        <FieldSection title="Formulation">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="vp-mc-form">Dosage form *</Label>
+              <Input id="vp-mc-form" maxLength={128} {...form.register('dosage_form')} />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="vp-mc-routes">Routes of admin (comma-separated codes)</Label>
+              <Input
+                id="vp-mc-routes"
+                placeholder="oral, iv, topical"
+                {...form.register('routes_csv')}
+              />
+              <p className="text-sm text-muted-foreground">
+                Use lowercase codes such as oral, iv, iv_infusion, im, sc, topical, inhaled, and others from the
+                default-route list.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="vp-mc-sv">Strength value</Label>
+              <Input id="vp-mc-sv" {...form.register('strength_value')} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="vp-mc-su">Strength unit</Label>
+              <Input id="vp-mc-su" maxLength={32} {...form.register('strength_unit')} />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="vp-mc-sd">Strength display</Label>
+              <Input id="vp-mc-sd" maxLength={256} {...form.register('strength_display')} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="vp-mc-cv">Concentration value</Label>
+              <Input id="vp-mc-cv" {...form.register('concentration_value')} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="vp-mc-cu">Concentration unit</Label>
+              <Input id="vp-mc-cu" maxLength={32} {...form.register('concentration_unit')} />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="vp-mc-vol">Volume per unit (ml)</Label>
+              <Input id="vp-mc-vol" {...form.register('volume_per_unit')} />
+            </div>
+          </div>
+        </FieldSection>
+
+        <FieldSection title="Regulatory (India-centric)">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2 sm:col-span-2">
+              <Label>Schedule *</Label>
+              <Controller
+                control={form.control}
+                name="schedule"
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select schedule…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {VISITPAD_MEDICINE_SCHEDULES.map((s) => (
+                        <SelectItem key={s.value} value={s.value}>
+                          {s.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+            <ToggleRow
+              control={form.control}
+              name="requires_prescription"
+              id="vp-mc-rx"
+              label="Requires prescription"
+            />
+            <ToggleRow
+              control={form.control}
+              name="is_controlled_substance"
+              id="vp-mc-cs"
+              label="Controlled substance"
+            />
+            <ToggleRow control={form.control} name="is_narcotic" id="vp-mc-ndps" label="Narcotic (NDPS)" />
+            <ToggleRow
+              control={form.control}
+              name="is_restricted_antibiotic"
+              id="vp-mc-h1"
+              label="Restricted antibiotic (H1)"
+            />
+          </div>
+        </FieldSection>
+
+        <FieldSection title="Clinical safety">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="vp-mc-ac">Allergen classes (comma-separated)</Label>
+              <Input id="vp-mc-ac" {...form.register('allergen_classes_csv')} />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="vp-mc-ci">Contraindications (comma-separated)</Label>
+              <Input id="vp-mc-ci" {...form.register('contraindications_csv')} />
+            </div>
+            <EnumSelectRow
+              control={form.control}
+              name="pregnancy_category"
+              label="Pregnancy category"
+              options={VISITPAD_MEDICINE_PREGNANCY}
+            />
+            <EnumSelectRow
+              control={form.control}
+              name="lactation_safety"
+              label="Lactation safety"
+              options={VISITPAD_MEDICINE_LACTATION}
+            />
+            <EnumSelectRow
+              control={form.control}
+              name="pediatric_use"
+              label="Pediatric use"
+              options={VISITPAD_MEDICINE_PEDIATRIC}
+            />
+            <div className="space-y-2">
+              <Label htmlFor="vp-mc-mxdv">Max dose / day value</Label>
+              <Input id="vp-mc-mxdv" {...form.register('max_dose_per_day_value')} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="vp-mc-mxdu">Max dose / day unit</Label>
+              <Input id="vp-mc-mxdu" maxLength={32} {...form.register('max_dose_per_day_unit')} />
+            </div>
+            <ToggleRow control={form.control} name="black_box_warning" id="vp-mc-bbw" label="Black box warning" />
+          </div>
+        </FieldSection>
+
+        <FieldSection title="Rx pad defaults">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="vp-mc-ddv">Default dose value</Label>
+              <Input id="vp-mc-ddv" {...form.register('default_dose_value')} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="vp-mc-ddu">Default dose unit</Label>
+              <Input id="vp-mc-ddu" maxLength={32} {...form.register('default_dose_unit')} />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="vp-mc-dfq">Default frequency code</Label>
+              <Input id="vp-mc-dfq" maxLength={64} {...form.register('default_frequency')} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="vp-mc-dur">Default duration (days)</Label>
+              <Input id="vp-mc-dur" {...form.register('default_duration_days')} />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label>Default route</Label>
+              <Controller
+                control={form.control}
+                name="default_route"
+                render={({ field }) => (
+                  <Select
+                    value={field.value && field.value.length > 0 ? field.value : '__none__'}
+                    onValueChange={(v) => field.onChange(v === '__none__' ? undefined : v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select route…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">None</SelectItem>
+                      {VISITPAD_MEDICINE_ADMIN_ROUTES.map((r) => (
+                        <SelectItem key={r.value} value={r.value}>
+                          {r.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="vp-mc-tq">Typical quantity</Label>
+              <Input id="vp-mc-tq" {...form.register('typical_quantity')} />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="vp-mc-di">Default instructions</Label>
+              <Textarea id="vp-mc-di" rows={3} maxLength={1024} {...form.register('default_instructions')} />
+            </div>
+          </div>
+        </FieldSection>
+
+        <FieldSection title="Internal">
+          <div className="space-y-2">
+            <Label htmlFor="vp-mc-notes">Notes (not shown to clinicians)</Label>
+            <Textarea id="vp-mc-notes" rows={3} maxLength={2048} {...form.register('notes')} />
+          </div>
+        </FieldSection>
+
+        <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+          <div className="space-y-1">
+            <Label htmlFor="vp-mc-act">Active (visible in library)</Label>
+            <p className="text-sm text-muted-foreground">Inactive medicines stay hidden from prescribing pickers.</p>
+          </div>
+          <Controller
+            control={form.control}
+            name="is_active"
+            render={({ field }) => (
+              <Switch id="vp-mc-act" checked={field.value} onCheckedChange={field.onChange} />
+            )}
+          />
         </div>
-        <div className="space-y-2">
-          <Label>Schedule</Label>
-          <Select value={schedule} onValueChange={setSchedule}>
+      </div>
+    </EntityFormDialog>
+  );
+}
+
+function ToggleRow<T extends FieldValues>({
+  control,
+  name,
+  id,
+  label,
+}: {
+  control: Control<T>;
+  name: FieldPath<T>;
+  id: string;
+  label: string;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-md border p-3 sm:col-span-2">
+      <Label htmlFor={id}>{label}</Label>
+      <Controller
+        control={control}
+        name={name}
+        render={({ field }) => <Switch id={id} checked={field.value} onCheckedChange={field.onChange} />}
+      />
+    </div>
+  );
+}
+
+function EnumSelectRow<T extends FieldValues, V extends string>({
+  control,
+  name,
+  label,
+  options,
+}: {
+  control: Control<T>;
+  name: FieldPath<T>;
+  label: string;
+  options: readonly { value: V; label: string }[];
+}) {
+  return (
+    <div className="space-y-2 sm:col-span-2">
+      <Label>{label}</Label>
+      <Controller
+        control={control}
+        name={name}
+        render={({ field }) => (
+          <Select value={field.value} onValueChange={field.onChange}>
             <SelectTrigger>
-              <SelectValue />
+              <SelectValue placeholder="Select…" />
             </SelectTrigger>
             <SelectContent>
-              {VISITPAD_MEDICINE_SCHEDULES.map((s) => (
-                <SelectItem key={s.value} value={s.value}>
-                  {s.label}
+              {options.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-        </div>
-        <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-med-dn">Display name</Label>
-          <Input id="vp-med-dn" name="display_name" required maxLength={512} />
-        </div>
-        <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-med-gen">Generic name</Label>
-          <Input id="vp-med-gen" name="generic_name" required maxLength={512} />
-        </div>
-        <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-med-class">Drug class</Label>
-          <Input id="vp-med-class" name="drug_class" required maxLength={256} />
-        </div>
-        <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-med-form">Dosage form</Label>
-          <Input id="vp-med-form" name="dosage_form" required maxLength={128} />
-        </div>
-      </div>
-    </EntityFormDialog>
+        )}
+      />
+    </div>
   );
 }
 
@@ -321,46 +628,19 @@ function MedicineEditDialog({
   isSubmitting: boolean;
   onSave: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadMedicineEditCoreSchema>({
-    resolver: zodResolver(visitpadMedicineEditCoreSchema),
-    defaultValues: {
-      code: '',
-      display_name: '',
-      generic_name: '',
-      drug_class: '',
-      dosage_form: '',
-      schedule: 'otc',
-      is_active: true,
-      display_order: 0,
-    },
+  const form = useForm<VisitpadMedicineEditFormInput>({
+    resolver: zodResolver(visitpadMedicineEditFormSchema),
+    defaultValues: emptyMedicineEditForm(),
   });
 
   useEffect(() => {
     if (open && row) {
-      form.reset({
-        code: row.code,
-        display_name: row.display_name,
-        generic_name: row.generic_name,
-        drug_class: row.drug_class?.trim() || 'Unspecified',
-        dosage_form: row.dosage_form?.trim() || 'Unspecified',
-        schedule: row.schedule as VisitpadMedicineEditCoreSchema['schedule'],
-        is_active: row.is_active,
-        display_order: row.display_order,
-      });
+      form.reset(visitpadMedicineEditFormFromRow(row));
     }
   }, [open, row, form]);
 
-  const submit: SubmitHandler<VisitpadMedicineEditCoreSchema> = async (v) => {
-    await onSave({
-      code: v.code,
-      display_name: v.display_name,
-      generic_name: v.generic_name,
-      drug_class: v.drug_class,
-      dosage_form: v.dosage_form,
-      schedule: v.schedule,
-      is_active: v.is_active,
-      display_order: v.display_order,
-    });
+  const submit: SubmitHandler<VisitpadMedicineEditFormSchema> = async (v) => {
+    await onSave(visitpadMedicinePatchPayloadFromForm(v));
   };
 
   return (
@@ -368,61 +648,251 @@ function MedicineEditDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={row ? `Edit medicine — ${row.code}` : 'Edit medicine'}
-      description="Update core catalog fields. Full strength / route arrays can be extended later."
+      description="Medicine code cannot be changed. Adjust other fields as needed."
       submitLabel="Save changes"
       isSubmitting={isSubmitting}
       onSubmit={form.handleSubmit(submit)}
     >
       {row ? (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="max-h-[70vh] space-y-6 overflow-y-auto pr-1">
           <div className="space-y-2">
-            <Label htmlFor="vp-me-code">Code</Label>
-            <Input id="vp-me-code" maxLength={64} {...form.register('code')} />
+            <Label htmlFor="vp-me-code-ro">Medicine code</Label>
+            <Input id="vp-me-code-ro" value={row.code} readOnly className="bg-muted font-mono text-sm" />
           </div>
-          <div className="space-y-2">
-            <Label>Schedule</Label>
-            <Select
-              value={form.watch('schedule')}
-              onValueChange={(x) => form.setValue('schedule', x as VisitpadMedicineEditCoreSchema['schedule'])}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {VISITPAD_MEDICINE_SCHEDULES.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>
-                    {s.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="vp-me-dn">Display name</Label>
-            <Input id="vp-me-dn" maxLength={512} {...form.register('display_name')} />
-          </div>
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="vp-me-gen">Generic name</Label>
-            <Input id="vp-me-gen" maxLength={512} {...form.register('generic_name')} />
-          </div>
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="vp-me-class">Drug class</Label>
-            <Input id="vp-me-class" maxLength={256} {...form.register('drug_class')} />
-          </div>
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="vp-me-form">Dosage form</Label>
-            <Input id="vp-me-form" maxLength={128} {...form.register('dosage_form')} />
-          </div>
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="vp-me-order">Display order</Label>
-            <Input id="vp-me-order" type="number" {...form.register('display_order', { valueAsNumber: true })} />
-          </div>
-          <div className="flex items-center justify-between rounded-md border p-3 sm:col-span-2">
-            <Label htmlFor="vp-me-act">Active</Label>
-            <Switch
-              id="vp-me-act"
-              checked={!!form.watch('is_active')}
-              onCheckedChange={(c) => form.setValue('is_active', c)}
+          <FieldSection title="Identity">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="vp-me-inn">Generic name (INN) *</Label>
+                <Input id="vp-me-inn" maxLength={512} {...form.register('generic_name')} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="vp-me-dclass">Drug class *</Label>
+                <Input id="vp-me-dclass" maxLength={256} {...form.register('drug_class')} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="vp-me-dsub">Drug subclass</Label>
+                <Input id="vp-me-dsub" maxLength={256} {...form.register('drug_subclass')} />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="vp-me-brands">Brand names (comma-separated)</Label>
+                <Input id="vp-me-brands" {...form.register('brand_names_csv')} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="vp-me-sn1">SNOMED substance</Label>
+                <Input id="vp-me-sn1" maxLength={64} {...form.register('snomed_substance_code')} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="vp-me-sn2">SNOMED medicinal product</Label>
+                <Input id="vp-me-sn2" maxLength={64} {...form.register('snomed_product_code')} />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="vp-me-dn">Display name *</Label>
+                <Input id="vp-me-dn" maxLength={512} {...form.register('display_name')} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="vp-me-sn">Short name</Label>
+                <Input id="vp-me-sn" maxLength={256} {...form.register('short_name')} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="vp-me-ord">Display order</Label>
+                <Input id="vp-me-ord" type="number" {...form.register('display_order', { valueAsNumber: true })} />
+              </div>
+            </div>
+          </FieldSection>
+
+          <FieldSection title="Formulation">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="vp-me-form">Dosage form *</Label>
+                <Input id="vp-me-form" maxLength={128} {...form.register('dosage_form')} />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="vp-me-routes">Routes of admin (comma-separated)</Label>
+                <Input id="vp-me-routes" {...form.register('routes_csv')} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="vp-me-sv">Strength value</Label>
+                <Input id="vp-me-sv" {...form.register('strength_value')} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="vp-me-su">Strength unit</Label>
+                <Input id="vp-me-su" maxLength={32} {...form.register('strength_unit')} />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="vp-me-sd">Strength display</Label>
+                <Input id="vp-me-sd" maxLength={256} {...form.register('strength_display')} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="vp-me-cv">Concentration value</Label>
+                <Input id="vp-me-cv" {...form.register('concentration_value')} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="vp-me-cu">Concentration unit</Label>
+                <Input id="vp-me-cu" maxLength={32} {...form.register('concentration_unit')} />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="vp-me-vol">Volume per unit (ml)</Label>
+                <Input id="vp-me-vol" {...form.register('volume_per_unit')} />
+              </div>
+            </div>
+          </FieldSection>
+
+          <FieldSection title="Regulatory (India-centric)">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2 sm:col-span-2">
+                <Label>Schedule *</Label>
+                <Controller
+                  control={form.control}
+                  name="schedule"
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {VISITPAD_MEDICINE_SCHEDULES.map((s) => (
+                          <SelectItem key={s.value} value={s.value}>
+                            {s.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
+              <ToggleRow
+                control={form.control}
+                name="requires_prescription"
+                id="vp-me-rx"
+                label="Requires prescription"
+              />
+              <ToggleRow
+                control={form.control}
+                name="is_controlled_substance"
+                id="vp-me-cs"
+                label="Controlled substance"
+              />
+              <ToggleRow control={form.control} name="is_narcotic" id="vp-me-ndps" label="Narcotic (NDPS)" />
+              <ToggleRow
+                control={form.control}
+                name="is_restricted_antibiotic"
+                id="vp-me-h1"
+                label="Restricted antibiotic (H1)"
+              />
+            </div>
+          </FieldSection>
+
+          <FieldSection title="Clinical safety">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="vp-me-ac">Allergen classes (comma-separated)</Label>
+                <Input id="vp-me-ac" {...form.register('allergen_classes_csv')} />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="vp-me-ci">Contraindications (comma-separated)</Label>
+                <Input id="vp-me-ci" {...form.register('contraindications_csv')} />
+              </div>
+              <EnumSelectRow
+                control={form.control}
+                name="pregnancy_category"
+                label="Pregnancy category"
+                options={VISITPAD_MEDICINE_PREGNANCY}
+              />
+              <EnumSelectRow
+                control={form.control}
+                name="lactation_safety"
+                label="Lactation safety"
+                options={VISITPAD_MEDICINE_LACTATION}
+              />
+              <EnumSelectRow
+                control={form.control}
+                name="pediatric_use"
+                label="Pediatric use"
+                options={VISITPAD_MEDICINE_PEDIATRIC}
+              />
+              <div className="space-y-2">
+                <Label htmlFor="vp-me-mxdv">Max dose / day value</Label>
+                <Input id="vp-me-mxdv" {...form.register('max_dose_per_day_value')} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="vp-me-mxdu">Max dose / day unit</Label>
+                <Input id="vp-me-mxdu" maxLength={32} {...form.register('max_dose_per_day_unit')} />
+              </div>
+              <ToggleRow control={form.control} name="black_box_warning" id="vp-me-bbw" label="Black box warning" />
+            </div>
+          </FieldSection>
+
+          <FieldSection title="Rx pad defaults">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="vp-me-ddv">Default dose value</Label>
+                <Input id="vp-me-ddv" {...form.register('default_dose_value')} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="vp-me-ddu">Default dose unit</Label>
+                <Input id="vp-me-ddu" maxLength={32} {...form.register('default_dose_unit')} />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="vp-me-dfq">Default frequency code</Label>
+                <Input id="vp-me-dfq" maxLength={64} {...form.register('default_frequency')} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="vp-me-dur">Default duration (days)</Label>
+                <Input id="vp-me-dur" {...form.register('default_duration_days')} />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label>Default route</Label>
+                <Controller
+                  control={form.control}
+                  name="default_route"
+                  render={({ field }) => (
+                    <Select
+                      value={field.value && field.value.length > 0 ? field.value : '__none__'}
+                      onValueChange={(v) => field.onChange(v === '__none__' ? undefined : v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select route…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">None</SelectItem>
+                        {VISITPAD_MEDICINE_ADMIN_ROUTES.map((r) => (
+                          <SelectItem key={r.value} value={r.value}>
+                            {r.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="vp-me-tq">Typical quantity</Label>
+                <Input id="vp-me-tq" {...form.register('typical_quantity')} />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="vp-me-di">Default instructions</Label>
+                <Textarea id="vp-me-di" rows={3} maxLength={1024} {...form.register('default_instructions')} />
+              </div>
+            </div>
+          </FieldSection>
+
+          <FieldSection title="Internal">
+            <div className="space-y-2">
+              <Label htmlFor="vp-me-notes">Notes (not shown to clinicians)</Label>
+              <Textarea id="vp-me-notes" rows={3} maxLength={2048} {...form.register('notes')} />
+            </div>
+          </FieldSection>
+
+          <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+            <div className="space-y-1">
+              <Label htmlFor="vp-me-act">Active (visible in library)</Label>
+            </div>
+            <Controller
+              control={form.control}
+              name="is_active"
+              render={({ field }) => (
+                <Switch id="vp-me-act" checked={field.value} onCheckedChange={field.onChange} />
+              )}
             />
           </div>
         </div>

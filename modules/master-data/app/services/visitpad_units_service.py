@@ -58,7 +58,7 @@ def create_visitpad_unit(
     common = dict(
         id=uuid.uuid4(),
         code=payload.code.strip().lower(),
-        display_label=payload.display_label.strip(),
+        display_name=payload.display_name.strip(),
         dimension=payload.dimension.value,
         ucum_code=payload.ucum_code.strip() if payload.ucum_code else None,
         is_canonical=payload.is_canonical,
@@ -67,7 +67,7 @@ def create_visitpad_unit(
         is_deleted=False,
     )
     if repository.scope.is_tenant:
-        row = M(tenant_id=repository.scope.tenant_id, **common)
+        row = M(iq_tenant_id=repository.scope.iq_tenant_id, **common)
     else:
         row = M(**common)
     return repository.create_unit(row)
@@ -91,7 +91,7 @@ def update_visitpad_unit(
     row = repository.get_unit_by_id(unit_id, include_deleted=True)
     if row is None:
         return None
-    if repository.scope.is_tenant and row.tenant_id != repository.scope.tenant_id:
+    if repository.scope.is_tenant and row.iq_tenant_id != repository.scope.iq_tenant_id:
         return None
     will_deactivate = payload.is_active is False and row.is_active
     will_soft_delete = payload.is_deleted is True and not row.is_deleted
@@ -103,8 +103,8 @@ def update_visitpad_unit(
         raise VisitpadUnitBlockedByActiveConversionsError(
             "Cannot deactivate or delete this unit while active conversions reference its code.",
         )
-    if payload.display_label is not None:
-        row.display_label = payload.display_label.strip()
+    if payload.display_name is not None:
+        row.display_name = payload.display_name.strip()
     if payload.dimension is not None:
         row.dimension = payload.dimension.value
     if payload.ucum_code is not None:
@@ -190,7 +190,7 @@ def create_visitpad_unit_conversion(
         is_deleted=False,
     )
     if conv_repo.scope.is_tenant:
-        row = M(tenant_id=conv_repo.scope.tenant_id, **common)
+        row = M(iq_tenant_id=conv_repo.scope.iq_tenant_id, **common)
     else:
         row = M(**common)
     return conv_repo.create_conversion(row)
@@ -214,7 +214,7 @@ def update_visitpad_unit_conversion(
     row = conv_repo.get_conversion_by_id(conversion_id, include_deleted=True)
     if row is None:
         return None
-    if conv_repo.scope.is_tenant and row.tenant_id != conv_repo.scope.tenant_id:
+    if conv_repo.scope.is_tenant and row.iq_tenant_id != conv_repo.scope.iq_tenant_id:
         return None
     if payload.from_unit_code is not None:
         fc = payload.from_unit_code.strip().lower()

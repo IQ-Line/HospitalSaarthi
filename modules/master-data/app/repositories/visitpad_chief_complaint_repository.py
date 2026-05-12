@@ -39,7 +39,7 @@ class VisitpadChiefComplaintRepository:
         M = self._M()
         filters = [M.is_deleted.is_(False)]
         if self._scope.is_tenant:
-            filters.append(M.tenant_id == self._scope.tenant_id)
+            filters.append(M.iq_tenant_id == self._scope.iq_tenant_id)
         if body_system is not None:
             filters.append(M.body_system == body_system)
         if triage_priority is not None:
@@ -50,6 +50,7 @@ class VisitpadChiefComplaintRepository:
                 or_(
                     M.code.ilike(term),
                     M.display_name.ilike(term),
+                    M.short_name.isnot(None) & M.short_name.ilike(term),
                     M.snomed_code.isnot(None) & M.snomed_code.ilike(term),
                 )
             )
@@ -80,7 +81,7 @@ class VisitpadChiefComplaintRepository:
         row = self._session.get(M, row_id)
         if row is None:
             return None
-        if self._scope.is_tenant and row.tenant_id != self._scope.tenant_id:
+        if self._scope.is_tenant and row.iq_tenant_id != self._scope.iq_tenant_id:
             return None
         if not include_deleted and row.is_deleted:
             return None

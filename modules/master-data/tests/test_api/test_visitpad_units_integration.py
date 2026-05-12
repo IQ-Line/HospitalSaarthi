@@ -54,7 +54,7 @@ def visitpad_client(visitpad_sqlite_session: Session) -> Generator[TestClient, N
         yield visitpad_sqlite_session
 
     app.dependency_overrides[get_session] = _session
-    scope = CatalogScope(tenant_id=None)
+    scope = CatalogScope(iq_tenant_id=None)
     app.dependency_overrides[get_visitpad_unit_repository] = (
         lambda: VisitpadUnitRepository(visitpad_sqlite_session, scope)
     )
@@ -86,13 +86,13 @@ def test_iq_tenant_id_header_sets_tenant_scope(visitpad_api_client: TestClient) 
         headers={"iq_tenant_id": "7"},
         json={
             "code": "kg",
-            "display_label": "Kilogram",
+            "display_name": "Kilogram",
             "dimension": "mass",
             "is_canonical": True,
         },
     )
     assert r.status_code == 201, r.text
-    assert r.json()["data"]["tenant_id"] == 7
+    assert r.json()["data"]["iq_tenant_id"] == 7
 
 
 def test_visitpad_units_and_conversions_crud(visitpad_client: TestClient) -> None:
@@ -100,17 +100,17 @@ def test_visitpad_units_and_conversions_crud(visitpad_client: TestClient) -> Non
         "/api/v1/master-data/visitpad/units",
         json={
             "code": "kg",
-            "display_label": "Kilogram",
+            "display_name": "Kilogram",
             "dimension": "mass",
             "is_canonical": True,
         },
     )
     assert r_kg.status_code == 201, r_kg.text
-    assert r_kg.json()["data"]["tenant_id"] is None
+    assert r_kg.json()["data"]["iq_tenant_id"] is None
 
     r_g = visitpad_client.post(
         "/api/v1/master-data/visitpad/units",
-        json={"code": "g", "display_label": "Gram", "dimension": "mass"},
+        json={"code": "g", "display_name": "Gram", "dimension": "mass"},
     )
     assert r_g.status_code == 201
 
@@ -148,7 +148,7 @@ def test_visitpad_units_and_conversions_crud(visitpad_client: TestClient) -> Non
 
     dup_case = visitpad_client.post(
         "/api/v1/master-data/visitpad/units",
-        json={"code": "KG", "display_label": "Kilogram dup", "dimension": "mass"},
+        json={"code": "KG", "display_name": "Kilogram dup", "dimension": "mass"},
     )
     assert dup_case.status_code == 409
 

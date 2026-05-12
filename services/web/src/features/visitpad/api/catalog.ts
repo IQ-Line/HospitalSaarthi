@@ -5,6 +5,7 @@ import type {
   VisitpadAllergen,
   VisitpadAllergyReaction,
   VisitpadChiefComplaint,
+  VisitpadChiefComplaintDescriptor,
   VisitpadChronicIllness,
   VisitpadDiagnosis,
   VisitpadListResponse,
@@ -20,6 +21,7 @@ const MD = '/api/v1/master-data/visitpad';
 
 function listUrl(path: string, params?: Record<string, string | undefined>) {
   const q = new URLSearchParams();
+  // TODO(visitpad-pagination): server supports limit/offset; wire table pagination + "Showing n of total" (large catalogs).
   q.set('limit', '200');
   q.set('offset', '0');
   if (params) {
@@ -71,6 +73,15 @@ export function useVisitpadChiefComplaints(
       apiClient<VisitpadListResponse<VisitpadChiefComplaint>>(
         listUrl('/chief-complaints', { search, body_system, triage_priority }),
       ),
+  });
+}
+
+/** Server-driven labels for body system / triage selects (same enum values as create/patch). */
+export function useVisitpadChiefComplaintDescriptor() {
+  return useQuery({
+    queryKey: [...visitpadKeys.chiefComplaints(), 'descriptor'] as const,
+    queryFn: () => apiClient<VisitpadChiefComplaintDescriptor>(`${MD}/chief-complaints/descriptor`),
+    staleTime: 86_400_000,
   });
 }
 

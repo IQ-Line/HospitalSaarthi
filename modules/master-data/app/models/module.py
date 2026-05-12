@@ -81,7 +81,7 @@ class ModuleTenantModel(TimestampMixin, Base):
         CheckConstraint("level >= 1 AND level <= 10", name="tm_modules_level_check"),
         Index(
             "tm_modules_name_active_key",
-            "tenant_id",
+            "iq_tenant_id",
             "name",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
@@ -89,7 +89,7 @@ class ModuleTenantModel(TimestampMixin, Base):
         ),
         Index(
             "tm_modules_slug_active_key",
-            "tenant_id",
+            "iq_tenant_id",
             "slug",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
@@ -99,7 +99,7 @@ class ModuleTenantModel(TimestampMixin, Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id: Mapped[int] = mapped_column(Integer(), nullable=False)
+    iq_tenant_id: Mapped[int] = mapped_column(Integer(), nullable=False)
 
     parent_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),

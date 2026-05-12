@@ -97,7 +97,7 @@ def create_visitpad_medicine(
         is_deleted=False,
     )
     if repository.scope.is_tenant:
-        row = M(tenant_id=repository.scope.tenant_id, **common)
+        row = M(iq_tenant_id=repository.scope.iq_tenant_id, **common)
     else:
         row = M(**common)
     return repository.create(row)
@@ -120,113 +120,114 @@ def update_visitpad_medicine(
     row = repository.get_by_id(row_id, include_deleted=True)
     if row is None:
         return None
-    if repository.scope.is_tenant and row.tenant_id != repository.scope.tenant_id:
+    if repository.scope.is_tenant and row.iq_tenant_id != repository.scope.iq_tenant_id:
         return None
-    if payload.code is not None:
-        row.code = payload.code.strip()
-    if payload.display_name is not None:
+
+    dump = payload.model_dump(exclude_unset=True)
+
+    if "display_name" in dump and payload.display_name is not None:
         row.display_name = payload.display_name.strip()
-    if payload.generic_name is not None:
+    if "generic_name" in dump and payload.generic_name is not None:
         row.generic_name = payload.generic_name.strip()
-    if payload.short_name is not None:
+    if "short_name" in dump:
         row.short_name = _norm_opt_str(payload.short_name)
-    if payload.brand_names is not None:
-        row.brand_names = list(payload.brand_names)
-    if payload.drug_class is not None:
+    if "brand_names" in dump:
+        row.brand_names = [] if payload.brand_names is None else list(payload.brand_names)
+    if "drug_class" in dump and payload.drug_class is not None:
         row.drug_class = payload.drug_class.strip()
-    if payload.drug_subclass is not None:
+    if "drug_subclass" in dump:
         row.drug_subclass = _norm_opt_str(payload.drug_subclass)
-    if payload.dosage_form is not None:
+    if "dosage_form" in dump and payload.dosage_form is not None:
         row.dosage_form = payload.dosage_form.strip()
-    if payload.route_of_admin is not None:
-        row.route_of_admin = list(payload.route_of_admin)
-    if payload.strength_value is not None:
+    if "route_of_admin" in dump:
+        row.route_of_admin = [] if payload.route_of_admin is None else list(payload.route_of_admin)
+    if "strength_value" in dump:
         row.strength_value = payload.strength_value
-    if payload.strength_unit is not None:
+    if "strength_unit" in dump:
         row.strength_unit = _norm_opt_str(payload.strength_unit)
-    if payload.strength_display is not None:
-        row.strength_display = payload.strength_display.strip()
-    if payload.concentration_value is not None:
+    if "strength_display" in dump:
+        row.strength_display = (payload.strength_display or "").strip()
+    if "concentration_value" in dump:
         row.concentration_value = payload.concentration_value
-    if payload.concentration_unit is not None:
+    if "concentration_unit" in dump:
         row.concentration_unit = _norm_opt_str(payload.concentration_unit)
-    if payload.volume_per_unit is not None:
+    if "volume_per_unit" in dump:
         row.volume_per_unit = payload.volume_per_unit
-    if payload.sku_code is not None:
+    if "sku_code" in dump:
         row.sku_code = _norm_opt_str(payload.sku_code)
-    if payload.barcode is not None:
+    if "barcode" in dump:
         row.barcode = _norm_opt_str(payload.barcode)
-    if payload.pack_size is not None:
+    if "pack_size" in dump:
         row.pack_size = payload.pack_size
-    if payload.pack_unit is not None:
+    if "pack_unit" in dump:
         row.pack_unit = _norm_opt_str(payload.pack_unit)
-    if payload.manufacturer is not None:
+    if "manufacturer" in dump:
         row.manufacturer = _norm_opt_str(payload.manufacturer)
-    if payload.storage_condition is not None:
+    if "storage_condition" in dump:
         row.storage_condition = _norm_opt_str(payload.storage_condition)
-    if payload.expiry_tracking is not None:
+    if "expiry_tracking" in dump and payload.expiry_tracking is not None:
         row.expiry_tracking = payload.expiry_tracking
-    if payload.is_dispensable is not None:
+    if "is_dispensable" in dump and payload.is_dispensable is not None:
         row.is_dispensable = payload.is_dispensable
-    if payload.schedule is not None:
+    if "schedule" in dump and payload.schedule is not None:
         row.schedule = payload.schedule.value
-    if payload.is_controlled_substance is not None:
+    if "is_controlled_substance" in dump and payload.is_controlled_substance is not None:
         row.is_controlled_substance = payload.is_controlled_substance
-    if payload.is_narcotic is not None:
+    if "is_narcotic" in dump and payload.is_narcotic is not None:
         row.is_narcotic = payload.is_narcotic
-    if payload.requires_prescription is not None:
+    if "requires_prescription" in dump and payload.requires_prescription is not None:
         row.requires_prescription = payload.requires_prescription
-    if payload.is_restricted_antibiotic is not None:
+    if "is_restricted_antibiotic" in dump and payload.is_restricted_antibiotic is not None:
         row.is_restricted_antibiotic = payload.is_restricted_antibiotic
-    if payload.allergen_classes is not None:
-        row.allergen_classes = list(payload.allergen_classes)
-    if payload.contraindications is not None:
-        row.contraindications = list(payload.contraindications)
-    if payload.search_tags is not None:
-        row.search_tags = list(payload.search_tags)
-    if payload.atc_code is not None:
+    if "allergen_classes" in dump:
+        row.allergen_classes = [] if payload.allergen_classes is None else list(payload.allergen_classes)
+    if "contraindications" in dump:
+        row.contraindications = [] if payload.contraindications is None else list(payload.contraindications)
+    if "search_tags" in dump:
+        row.search_tags = [] if payload.search_tags is None else list(payload.search_tags)
+    if "atc_code" in dump:
         row.atc_code = _norm_opt_str(payload.atc_code)
-    if payload.rxnorm_code is not None:
+    if "rxnorm_code" in dump:
         row.rxnorm_code = _norm_opt_str(payload.rxnorm_code)
-    if payload.snomed_substance_code is not None:
+    if "snomed_substance_code" in dump:
         row.snomed_substance_code = _norm_opt_str(payload.snomed_substance_code)
-    if payload.snomed_product_code is not None:
+    if "snomed_product_code" in dump:
         row.snomed_product_code = _norm_opt_str(payload.snomed_product_code)
-    if payload.pregnancy_category is not None:
+    if "pregnancy_category" in dump:
         row.pregnancy_category = _norm_opt_str(payload.pregnancy_category)
-    if payload.lactation_safety is not None:
+    if "lactation_safety" in dump:
         row.lactation_safety = _norm_opt_str(payload.lactation_safety)
-    if payload.pediatric_use is not None:
+    if "pediatric_use" in dump:
         row.pediatric_use = _norm_opt_str(payload.pediatric_use)
-    if payload.max_dose_per_day_value is not None:
+    if "max_dose_per_day_value" in dump:
         row.max_dose_per_day_value = payload.max_dose_per_day_value
-    if payload.max_dose_per_day_unit is not None:
+    if "max_dose_per_day_unit" in dump:
         row.max_dose_per_day_unit = _norm_opt_str(payload.max_dose_per_day_unit)
-    if payload.black_box_warning is not None:
+    if "black_box_warning" in dump and payload.black_box_warning is not None:
         row.black_box_warning = payload.black_box_warning
-    if payload.black_box_warning_text is not None:
+    if "black_box_warning_text" in dump:
         row.black_box_warning_text = _norm_opt_str(payload.black_box_warning_text)
-    if payload.default_dose_value is not None:
+    if "default_dose_value" in dump:
         row.default_dose_value = payload.default_dose_value
-    if payload.default_dose_unit is not None:
+    if "default_dose_unit" in dump:
         row.default_dose_unit = _norm_opt_str(payload.default_dose_unit)
-    if payload.default_frequency is not None:
+    if "default_frequency" in dump:
         row.default_frequency = _norm_opt_str(payload.default_frequency)
-    if payload.default_duration_days is not None:
+    if "default_duration_days" in dump:
         row.default_duration_days = payload.default_duration_days
-    if payload.default_route is not None:
+    if "default_route" in dump:
         row.default_route = _norm_opt_str(payload.default_route)
-    if payload.default_instructions is not None:
+    if "default_instructions" in dump:
         row.default_instructions = _norm_opt_str(payload.default_instructions)
-    if payload.typical_quantity is not None:
+    if "typical_quantity" in dump:
         row.typical_quantity = payload.typical_quantity
-    if payload.notes is not None:
+    if "notes" in dump:
         row.notes = _norm_opt_str(payload.notes)
-    if payload.display_order is not None:
+    if "display_order" in dump and payload.display_order is not None:
         row.display_order = payload.display_order
-    if payload.is_active is not None:
+    if "is_active" in dump and payload.is_active is not None:
         row.is_active = payload.is_active
-    if payload.is_deleted is not None:
+    if "is_deleted" in dump and payload.is_deleted is not None:
         row.is_deleted = payload.is_deleted
     return repository.update(row)
 

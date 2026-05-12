@@ -46,6 +46,7 @@ def create_visitpad_chief_complaint(
         id=uuid.uuid4(),
         code=payload.code.strip(),
         display_name=payload.display_name.strip(),
+        short_name=_norm_opt_str(payload.short_name),
         body_system=payload.body_system.value,
         triage_priority=payload.triage_priority.value,
         synonyms=list(payload.synonyms),
@@ -56,7 +57,7 @@ def create_visitpad_chief_complaint(
         snomed_code=_norm_opt_str(payload.snomed_code),
     )
     if repository.scope.is_tenant:
-        row = M(tenant_id=repository.scope.tenant_id, **common)
+        row = M(iq_tenant_id=repository.scope.iq_tenant_id, **common)
     else:
         row = M(**common)
     return repository.create(row)
@@ -79,27 +80,30 @@ def update_visitpad_chief_complaint(
     row = repository.get_by_id(row_id, include_deleted=True)
     if row is None:
         return None
-    if repository.scope.is_tenant and row.tenant_id != repository.scope.tenant_id:
+    if repository.scope.is_tenant and row.iq_tenant_id != repository.scope.iq_tenant_id:
         return None
-    if payload.code is not None:
+    dump = payload.model_dump(exclude_unset=True)
+    if "code" in dump and payload.code is not None:
         row.code = payload.code.strip()
-    if payload.display_name is not None:
+    if "display_name" in dump and payload.display_name is not None:
         row.display_name = payload.display_name.strip()
-    if payload.body_system is not None:
+    if "short_name" in dump:
+        row.short_name = _norm_opt_str(payload.short_name)
+    if "body_system" in dump and payload.body_system is not None:
         row.body_system = payload.body_system.value
-    if payload.triage_priority is not None:
+    if "triage_priority" in dump and payload.triage_priority is not None:
         row.triage_priority = payload.triage_priority.value
-    if payload.synonyms is not None:
+    if "synonyms" in dump and payload.synonyms is not None:
         row.synonyms = list(payload.synonyms)
-    if payload.is_paediatric_relevant is not None:
+    if "is_paediatric_relevant" in dump and payload.is_paediatric_relevant is not None:
         row.is_paediatric_relevant = payload.is_paediatric_relevant
-    if payload.display_order is not None:
+    if "display_order" in dump and payload.display_order is not None:
         row.display_order = payload.display_order
-    if payload.is_active is not None:
+    if "is_active" in dump and payload.is_active is not None:
         row.is_active = payload.is_active
-    if payload.snomed_code is not None:
+    if "snomed_code" in dump:
         row.snomed_code = _norm_opt_str(payload.snomed_code)
-    if payload.is_deleted is not None:
+    if "is_deleted" in dump and payload.is_deleted is not None:
         row.is_deleted = payload.is_deleted
     return repository.update(row)
 

@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { useForm, type SubmitHandler } from 'react-hook-form';
+import { useEffect, useMemo, useState } from 'react';
+import { Controller, useForm, type SubmitHandler } from 'react-hook-form';
 import { type ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
 import { Badge } from '@pulse/ui/badge';
@@ -36,11 +36,43 @@ import { VISITPAD_CHRONIC_ILLNESS_CATEGORIES } from '@/features/visitpad/openapi
 import { visitpadActiveTotal } from '@/features/visitpad/tab-count';
 import type { VisitpadChronicIllness } from '@/features/visitpad/types';
 import {
+  visitpadChronicIllnessCreateFormSchema,
   visitpadChronicIllnessEditFormSchema,
+  type VisitpadChronicIllnessCreateFormInput,
+  type VisitpadChronicIllnessCreateFormSchema,
+  type VisitpadChronicIllnessEditFormInput,
   type VisitpadChronicIllnessEditFormSchema,
 } from '@/features/visitpad/validation';
 
 const CI_BASE = '/api/v1/master-data/visitpad/chronic-illnesses';
+
+const CHRONIC_CATEGORY_VALUES = new Set(
+  VISITPAD_CHRONIC_ILLNESS_CATEGORIES.map((c) => c.value),
+);
+
+function emptyChronicIllnessCreateForm(): VisitpadChronicIllnessCreateFormInput {
+  return {
+    icd10_code: '',
+    display_name: '',
+    category: 'cardiovascular',
+    snomed_code: null,
+    chronic_illness_prompt: false,
+    is_active: true,
+  };
+}
+
+function chronicIllnessEditDefaults(row: VisitpadChronicIllness): VisitpadChronicIllnessEditFormInput {
+  const cat = CHRONIC_CATEGORY_VALUES.has(row.category)
+    ? (row.category as VisitpadChronicIllnessEditFormInput['category'])
+    : 'other';
+  return {
+    display_name: row.display_name,
+    category: cat,
+    snomed_code: row.snomed_code ?? null,
+    chronic_illness_prompt: row.chronic_illness_prompt ?? false,
+    is_active: row.is_active,
+  };
+}
 
 export const Route = createFileRoute('/_authenticated/visitpad/chronic-illness')({
   component: VisitpadChronicIllnessPage,
@@ -62,14 +94,17 @@ function VisitpadChronicIllnessPage() {
   const busy = patch.isPending || del.isPending;
 
   const filtered = useMemo(
-    () => rows.filter((r) => rowMatchesSearch(search, r.icd10_code, r.display_name, r.category)),
+    () =>
+      rows.filter((r) =>
+        rowMatchesSearch(search, r.icd10_code, r.display_name, r.category, r.snomed_code ?? ''),
+      ),
     [rows, search],
   );
 
   const columns = useMemo<ColumnDef<VisitpadChronicIllness, unknown>[]>(
     () => [
-      { accessorKey: 'icd10_code', header: 'ICD-10', meta: { label: 'ICD-10' } },
-      { accessorKey: 'display_name', header: 'Display', meta: { label: 'Display' } },
+      { accessorKey: 'icd10_code', header: 'Code', meta: { label: 'Code' } },
+      { accessorKey: 'display_name', header: 'Display name', meta: { label: 'Display name' } },
       {
         accessorKey: 'category',
         header: 'Category',
@@ -132,7 +167,7 @@ function VisitpadChronicIllnessPage() {
             <MasterDataTableToolbar
               value={search}
               onChange={setSearch}
-              placeholder="Search ICD code, name, category…"
+              placeholder="Search code, name, category…"
             />
             <Select value={category} onValueChange={setCategory}>
               <SelectTrigger className="w-full sm:w-[200px]">
@@ -232,79 +267,123 @@ function ChronicIllnessCreateDialog({
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const [category, setCategory] = useState('metabolic');
-  const [isActive, setIsActive] = useState(true);
+  const form = useForm<VisitpadChronicIllnessCreateFormInput>({
+    resolver: zodResolver(visitpadChronicIllnessCreateFormSchema),
+    defaultValues: emptyChronicIllnessCreateForm(),
+  });
 
   useEffect(() => {
-    if (!open) {
-      setCategory('metabolic');
-      setIsActive(true);
+    if (open) {
+      form.reset(emptyChronicIllnessCreateForm());
     }
-  }, [open]);
+  }, [open, form]);
+
+  const submit: SubmitHandler<VisitpadChronicIllnessCreateFormSchema> = async (v) => {
+    const sn = v.snomed_code?.trim();
+    await onSubmit({
+      icd10_code: v.icd10_code,
+      display_name: v.display_name,
+      category: v.category,
+      snomed_code: sn && sn.length > 0 ? sn : null,
+      chronic_illness_prompt: v.chronic_illness_prompt,
+      display_order: 0,
+      is_active: v.is_active,
+    });
+  };
 
   return (
     <EntityFormDialog
       open={open}
       onOpenChange={onOpenChange}
       title="Add chronic illness"
-      description="Create a chronic illness catalog row."
-      submitLabel="Create"
+      description="Fields match the Visitpad chronic-illness API (snake_case). Use a short catalog code (stored as icd10_code)."
+      submitLabel="Add"
       isSubmitting={isSubmitting}
-      onSubmit={async (e: FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        const fd = new FormData(e.currentTarget);
-        const display_name = String(fd.get('display_name') ?? '').trim();
-        const icd10_code = String(fd.get('icd10_code') ?? '').trim();
-        const snomedRaw = String(fd.get('snomed_code') ?? '').trim();
-        if (!display_name || !icd10_code) {
-          toast.error('Display name and ICD-10 code are required.');
-          return;
-        }
-        await onSubmit({
-          display_name,
-          icd10_code,
-          category,
-          snomed_code: snomedRaw.length ? snomedRaw : null,
-          display_order: Number(fd.get('display_order') ?? 0) || 0,
-          is_active: isActive,
-        });
-      }}
+      onSubmit={form.handleSubmit(submit)}
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-ci-name">Display name</Label>
-          <Input id="vp-ci-name" name="display_name" required maxLength={512} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="vp-ci-icd">ICD-10 code</Label>
-          <Input id="vp-ci-icd" name="icd10_code" required maxLength={16} />
-        </div>
-        <div className="space-y-2">
-          <Label>Category</Label>
-          <Select value={category} onValueChange={setCategory}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {VISITPAD_CHRONIC_ILLNESS_CATEGORIES.map((c) => (
-                <SelectItem key={c.value} value={c.value}>
-                  {c.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Label htmlFor="vp-ci-code">Chronic illness code *</Label>
+          <Input
+            id="vp-ci-code"
+            placeholder="e.g. dm2"
+            maxLength={8}
+            className="font-mono"
+            {...form.register('icd10_code')}
+          />
+          <p className="text-sm text-muted-foreground">
+            Code must be 3–8 characters, letters, digits, or underscores; unique; cannot be edited after save.
+          </p>
+          {form.formState.errors.icd10_code ? (
+            <p className="text-sm text-destructive">{form.formState.errors.icd10_code.message}</p>
+          ) : null}
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-ci-snomed">SNOMED code (optional)</Label>
-          <Input id="vp-ci-snomed" name="snomed_code" maxLength={64} />
+          <Label htmlFor="vp-ci-name">Display name *</Label>
+          <Input
+            id="vp-ci-name"
+            placeholder="Clinical label"
+            maxLength={512}
+            {...form.register('display_name')}
+          />
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-ci-order">Display order</Label>
-          <Input id="vp-ci-order" name="display_order" type="number" defaultValue={0} />
+          <Label>Category *</Label>
+          <Controller
+            control={form.control}
+            name="category"
+            render={({ field }) => (
+              <Select value={field.value} onValueChange={field.onChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select category…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {VISITPAD_CHRONIC_ILLNESS_CATEGORIES.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>
+                      {c.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
         </div>
-        <div className="flex items-center justify-between rounded-md border p-3 sm:col-span-2">
-          <Label htmlFor="vp-ci-act">Enabled</Label>
-          <Switch id="vp-ci-act" checked={isActive} onCheckedChange={setIsActive} />
+        <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor="vp-ci-snomed">SNOMED CT (clinical finding)</Label>
+          <Input
+            id="vp-ci-snomed"
+            maxLength={64}
+            placeholder="Concept ID or code"
+            {...form.register('snomed_code')}
+          />
+        </div>
+        <div className="flex flex-col gap-2 rounded-md border p-3 sm:col-span-2">
+          <div className="flex items-center justify-between gap-4">
+            <Label htmlFor="vp-ci-prompt">Chronic illness prompt</Label>
+            <Controller
+              control={form.control}
+              name="chronic_illness_prompt"
+              render={({ field }) => (
+                <Switch id="vp-ci-prompt" checked={field.value} onCheckedChange={field.onChange} />
+              )}
+            />
+          </div>
+          <p className="text-sm text-muted-foreground">
+            When enabled, visit workflows may surface a chronic follow-up prompt for this entry.
+          </p>
+        </div>
+        <div className="flex flex-col gap-2 rounded-md border p-3 sm:col-span-2">
+          <div className="flex items-center justify-between gap-4">
+            <Label htmlFor="vp-ci-act">Active</Label>
+            <Controller
+              control={form.control}
+              name="is_active"
+              render={({ field }) => (
+                <Switch id="vp-ci-act" checked={field.value} onCheckedChange={field.onChange} />
+              )}
+            />
+          </div>
+          <p className="text-sm text-muted-foreground">Inactive entries are hidden from tenant record lists.</p>
         </div>
       </div>
     </EntityFormDialog>
@@ -324,39 +403,30 @@ function ChronicIllnessEditDialog({
   isSubmitting: boolean;
   onSave: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadChronicIllnessEditFormSchema>({
+  const form = useForm<VisitpadChronicIllnessEditFormInput>({
     resolver: zodResolver(visitpadChronicIllnessEditFormSchema),
     defaultValues: {
-      icd10_code: '',
       display_name: '',
-      category: 'metabolic',
+      category: 'other',
       snomed_code: null,
-      display_order: 0,
+      chronic_illness_prompt: false,
       is_active: true,
     },
   });
 
   useEffect(() => {
     if (open && row) {
-      form.reset({
-        icd10_code: row.icd10_code,
-        display_name: row.display_name,
-        category: row.category as VisitpadChronicIllnessEditFormSchema['category'],
-        snomed_code: row.snomed_code ?? null,
-        display_order: row.display_order,
-        is_active: row.is_active,
-      });
+      form.reset(chronicIllnessEditDefaults(row));
     }
   }, [open, row, form]);
 
   const submit: SubmitHandler<VisitpadChronicIllnessEditFormSchema> = async (v) => {
     const snomed = v.snomed_code?.trim();
     await onSave({
-      icd10_code: v.icd10_code,
       display_name: v.display_name,
       category: v.category,
       snomed_code: snomed && snomed.length > 0 ? snomed : null,
-      display_order: v.display_order,
+      chronic_illness_prompt: v.chronic_illness_prompt,
       is_active: v.is_active,
     });
   };
@@ -366,7 +436,7 @@ function ChronicIllnessEditDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={row ? `Edit chronic illness — ${row.icd10_code}` : 'Edit chronic illness'}
-      description="Update ICD linkage, category, SNOMED, and display order."
+      description="Catalog code cannot be changed. Update display name, category, SNOMED, or prompts."
       submitLabel="Save changes"
       isSubmitting={isSubmitting}
       onSubmit={form.handleSubmit(submit)}
@@ -374,48 +444,65 @@ function ChronicIllnessEditDialog({
       {row ? (
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="vp-cie-name">Display name</Label>
+            <Label htmlFor="vp-cie-code-ro">Chronic illness code</Label>
+            <Input id="vp-cie-code-ro" value={row.icd10_code} readOnly className="bg-muted font-mono text-sm" />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="vp-cie-name">Display name *</Label>
             <Input id="vp-cie-name" maxLength={512} {...form.register('display_name')} />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="vp-cie-icd">ICD-10 code</Label>
-            <Input id="vp-cie-icd" maxLength={16} {...form.register('icd10_code')} />
-          </div>
-          <div className="space-y-2">
-            <Label>Category</Label>
-            <Select
-              value={form.watch('category')}
-              onValueChange={(x) =>
-                form.setValue('category', x as VisitpadChronicIllnessEditFormSchema['category'])
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {VISITPAD_CHRONIC_ILLNESS_CATEGORIES.map((c) => (
-                  <SelectItem key={c.value} value={c.value}>
-                    {c.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="space-y-2 sm:col-span-2">
+            <Label>Category *</Label>
+            <Controller
+              control={form.control}
+              name="category"
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {VISITPAD_CHRONIC_ILLNESS_CATEGORIES.map((c) => (
+                      <SelectItem key={c.value} value={c.value}>
+                        {c.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="vp-cie-snomed">SNOMED code</Label>
+            <Label htmlFor="vp-cie-snomed">SNOMED CT (clinical finding)</Label>
             <Input id="vp-cie-snomed" maxLength={64} {...form.register('snomed_code')} />
           </div>
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="vp-cie-order">Display order</Label>
-            <Input id="vp-cie-order" type="number" {...form.register('display_order', { valueAsNumber: true })} />
+          <div className="flex flex-col gap-2 rounded-md border p-3 sm:col-span-2">
+            <div className="flex items-center justify-between gap-4">
+              <Label htmlFor="vp-cie-prompt">Chronic illness prompt</Label>
+              <Controller
+                control={form.control}
+                name="chronic_illness_prompt"
+                render={({ field }) => (
+                  <Switch id="vp-cie-prompt" checked={field.value} onCheckedChange={field.onChange} />
+                )}
+              />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              When enabled, visit workflows may surface a chronic follow-up prompt for this entry.
+            </p>
           </div>
-          <div className="flex items-center justify-between rounded-md border p-3 sm:col-span-2">
-            <Label htmlFor="vp-cie-act">Enabled</Label>
-            <Switch
-              id="vp-cie-act"
-              checked={!!form.watch('is_active')}
-              onCheckedChange={(c) => form.setValue('is_active', c)}
-            />
+          <div className="flex flex-col gap-2 rounded-md border p-3 sm:col-span-2">
+            <div className="flex items-center justify-between gap-4">
+              <Label htmlFor="vp-cie-act">Active</Label>
+              <Controller
+                control={form.control}
+                name="is_active"
+                render={({ field }) => (
+                  <Switch id="vp-cie-act" checked={field.value} onCheckedChange={field.onChange} />
+                )}
+              />
+            </div>
+            <p className="text-sm text-muted-foreground">Inactive entries are hidden from tenant record lists.</p>
           </div>
         </div>
       ) : null}

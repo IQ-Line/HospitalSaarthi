@@ -53,7 +53,7 @@ def create_system_role(
         updated_by=actor_id,
     )
     if repository.scope.is_tenant:
-        kwargs["tenant_id"] = repository.scope.tenant_id
+        kwargs["iq_tenant_id"] = repository.scope.iq_tenant_id
     row = M(**kwargs)
     return repository.create_system_role(row)
 

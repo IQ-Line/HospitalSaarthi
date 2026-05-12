@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { type ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
@@ -32,7 +32,9 @@ import { VISITPAD_ALLERGEN_TYPES, VISITPAD_REACTION_SEVERITY_DEFAULTS } from '@/
 import { visitpadActiveTotal } from '@/features/visitpad/tab-count';
 import type { VisitpadAllergen } from '@/features/visitpad/types';
 import {
+  visitpadAllergenCreateFormSchema,
   visitpadAllergenEditFormSchema,
+  type VisitpadAllergenCreateFormSchema,
   type VisitpadAllergenEditFormSchema,
 } from '@/features/visitpad/validation';
 
@@ -65,18 +67,14 @@ function VisitpadAllergensPage() {
   const columns = useMemo<ColumnDef<VisitpadAllergen, unknown>[]>(
     () => [
       { accessorKey: 'code', header: 'Code', meta: { label: 'Code' } },
-      { accessorKey: 'display_name', header: 'Name', meta: { label: 'Name' } },
+      { accessorKey: 'display_name', header: 'Display name', meta: { label: 'Display name' } },
       {
         accessorKey: 'allergen_type',
         header: 'Type',
         meta: { label: 'Type' },
-        cell: ({ getValue }) => <Badge variant="secondary">{getValue<string>()}</Badge>,
-      },
-      {
-        accessorKey: 'drug_class',
-        header: 'Drug class',
-        meta: { label: 'Drug class' },
-        cell: ({ row }) => row.original.drug_class ?? <span className="text-muted-foreground">—</span>,
+        cell: ({ getValue }) => (
+          <Badge variant="secondary">{(getValue<string>() ?? '').toUpperCase()}</Badge>
+        ),
       },
       {
         accessorKey: 'snomed_code',
@@ -88,9 +86,25 @@ function VisitpadAllergensPage() {
         },
       },
       {
+        accessorKey: 'reaction_severity_default',
+        header: 'Default severity',
+        meta: { label: 'Default severity' },
+        cell: ({ row }) => {
+          const v = row.original.reaction_severity_default;
+          const label = VISITPAD_REACTION_SEVERITY_DEFAULTS.find((s) => s.value === v)?.label;
+          return label ?? <span className="text-muted-foreground">—</span>;
+        },
+      },
+      {
+        accessorKey: 'drug_class',
+        header: 'Drug class',
+        meta: { label: 'Drug class' },
+        cell: ({ row }) => row.original.drug_class ?? <span className="text-muted-foreground">—</span>,
+      },
+      {
         accessorKey: 'is_active',
-        header: 'Enabled',
-        meta: { label: 'Enabled' },
+        header: 'Status',
+        meta: { label: 'Status' },
         cell: ({ row }) => (
           <TableActiveToggle
             active={row.original.is_active}
@@ -121,7 +135,7 @@ function VisitpadAllergensPage() {
       tabCount={tabCount}
       breadcrumbLabel="Allergens"
       title="Allergens"
-      description="Allergen catalog (drug, food, environmental, …)."
+      description="Allergen catalog: stable code, type, default reaction severity, optional SNOMED (substance/organism), optional drug class when type is drug."
       secondaryNav={<VisitpadAllergiesSecondaryNav />}
       actions={
         <VisitpadHeaderActions addLabel="Add allergen" onAddClick={() => setCreateOpen(true)} />
@@ -233,65 +247,104 @@ function AllergenCreateDialog({
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const [atype, setAtype] = useState('drug');
-  const [severity, setSeverity] = useState('unknown');
-  const [isActive, setIsActive] = useState(true);
+  const form = useForm<VisitpadAllergenCreateFormSchema>({
+    resolver: zodResolver(visitpadAllergenCreateFormSchema),
+    defaultValues: {
+      code: '',
+      display_name: '',
+      allergen_type: '__none__',
+      reaction_severity_default: 'unknown',
+      snomed_code: null,
+      is_active: true,
+    },
+  });
 
   useEffect(() => {
     if (!open) {
-      setAtype('drug');
-      setSeverity('unknown');
-      setIsActive(true);
+      form.reset({
+        code: '',
+        display_name: '',
+        allergen_type: '__none__',
+        reaction_severity_default: 'unknown',
+        snomed_code: null,
+        is_active: true,
+      });
     }
-  }, [open]);
+  }, [open, form]);
+
+  const submit: SubmitHandler<VisitpadAllergenCreateFormSchema> = async (v) => {
+    const at = v.allergen_type === '__none__' ? undefined : v.allergen_type;
+    if (!at) return;
+    await onSubmit({
+      code: v.code.trim(),
+      display_name: v.display_name.trim(),
+      allergen_type: at,
+      drug_class: null,
+      reaction_severity_default: v.reaction_severity_default,
+      display_order: 0,
+      is_active: v.is_active,
+      snomed_code: v.snomed_code?.trim() ? v.snomed_code.trim() : null,
+    });
+  };
+
+  const typeVal = form.watch('allergen_type');
 
   return (
     <EntityFormDialog
       open={open}
       onOpenChange={onOpenChange}
       title="Add allergen"
-      description="Create an allergen catalog entry."
-      submitLabel="Create allergen"
+      description="Stable allergy code, display name, type, default severity, and optional SNOMED. Drug class can be set when editing drug-type allergens."
+      submitLabel="Add"
       isSubmitting={isSubmitting}
-      onSubmit={async (e: FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        const fd = new FormData(e.currentTarget);
-        const code = String(fd.get('code') ?? '').trim();
-        const display_name = String(fd.get('display_name') ?? '').trim();
-        const drug_class_raw = String(fd.get('drug_class') ?? '').trim();
-        const snomedRaw = String(fd.get('snomed_code') ?? '').trim();
-        if (!code || !display_name) {
-          toast.error('Code and display name are required.');
-          return;
-        }
-        await onSubmit({
-          code,
-          display_name,
-          allergen_type: atype,
-          drug_class: drug_class_raw.length ? drug_class_raw : null,
-          reaction_severity_default: severity,
-          display_order: Number(fd.get('display_order') ?? 0) || 0,
-          is_active: isActive,
-          snomed_code: snomedRaw.length ? snomedRaw : null,
-        });
-      }}
+      onSubmit={form.handleSubmit(submit)}
     >
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="vp-ag-code">Code</Label>
-          <Input id="vp-ag-code" name="code" required maxLength={64} />
+        <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor="vp-ag-code">Allergy code *</Label>
+          <Input
+            id="vp-ag-code"
+            maxLength={8}
+            autoComplete="off"
+            placeholder="e.g. pen_allergy"
+            {...form.register('code')}
+          />
+          <p className="text-xs text-muted-foreground">
+            3–8 characters: letters, digits, underscore. Unique and cannot be edited after save.
+          </p>
+          {form.formState.errors.code ? (
+            <p className="text-xs text-destructive">{form.formState.errors.code.message}</p>
+          ) : null}
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-ag-name">Display name</Label>
-          <Input id="vp-ag-name" name="display_name" required maxLength={256} />
+          <Label htmlFor="vp-ag-name">Display name *</Label>
+          <Input
+            id="vp-ag-name"
+            maxLength={256}
+            placeholder="e.g. Penicillin allergy"
+            {...form.register('display_name')}
+          />
+          {form.formState.errors.display_name ? (
+            <p className="text-xs text-destructive">{form.formState.errors.display_name.message}</p>
+          ) : null}
         </div>
-        <div className="space-y-2">
-          <Label>Type</Label>
-          <Select value={atype} onValueChange={setAtype}>
+        <div className="space-y-2 sm:col-span-2">
+          <Label>Allergen type *</Label>
+          <Select
+            value={typeVal}
+            onValueChange={(x) =>
+              form.setValue(
+                'allergen_type',
+                x as VisitpadAllergenCreateFormSchema['allergen_type'],
+                { shouldValidate: true },
+              )
+            }
+          >
             <SelectTrigger>
-              <SelectValue />
+              <SelectValue placeholder="Select type…" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="__none__">Select type…</SelectItem>
               {VISITPAD_ALLERGEN_TYPES.map((t) => (
                 <SelectItem key={t.value} value={t.value}>
                   {t.label}
@@ -299,12 +352,20 @@ function AllergenCreateDialog({
               ))}
             </SelectContent>
           </Select>
+          {form.formState.errors.allergen_type ? (
+            <p className="text-xs text-destructive">{form.formState.errors.allergen_type.message}</p>
+          ) : null}
         </div>
-        <div className="space-y-2">
+        <div className="space-y-2 sm:col-span-2">
           <Label>Default severity</Label>
-          <Select value={severity} onValueChange={setSeverity}>
+          <Select
+            value={form.watch('reaction_severity_default')}
+            onValueChange={(x) =>
+              form.setValue('reaction_severity_default', x as VisitpadAllergenCreateFormSchema['reaction_severity_default'])
+            }
+          >
             <SelectTrigger>
-              <SelectValue />
+              <SelectValue placeholder="Select severity…" />
             </SelectTrigger>
             <SelectContent>
               {VISITPAD_REACTION_SEVERITY_DEFAULTS.map((t) => (
@@ -316,20 +377,26 @@ function AllergenCreateDialog({
           </Select>
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-ag-drug">Drug class (optional)</Label>
-          <Input id="vp-ag-drug" name="drug_class" maxLength={256} />
+          <Label htmlFor="vp-ag-snomed">SNOMED CT (substance or organism)</Label>
+          <Input
+            id="vp-ag-snomed"
+            maxLength={64}
+            placeholder="Search SNOMED concept…"
+            {...form.register('snomed_code')}
+          />
         </div>
-        <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-ag-snomed">SNOMED code (optional)</Label>
-          <Input id="vp-ag-snomed" name="snomed_code" maxLength={64} />
-        </div>
-        <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-ag-order">Display order</Label>
-          <Input id="vp-ag-order" name="display_order" type="number" defaultValue={0} />
-        </div>
-        <div className="flex items-center justify-between rounded-md border p-3 sm:col-span-2">
-          <Label htmlFor="vp-ag-act">Enabled</Label>
-          <Switch id="vp-ag-act" checked={isActive} onCheckedChange={setIsActive} />
+        <div className="flex flex-col gap-1 rounded-md border p-3 sm:col-span-2">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <Label htmlFor="vp-ag-act">Active</Label>
+              <p className="text-xs text-muted-foreground">Inactive items hidden from clinical forms.</p>
+            </div>
+            <Switch
+              id="vp-ag-act"
+              checked={!!form.watch('is_active')}
+              onCheckedChange={(c) => form.setValue('is_active', c)}
+            />
+          </div>
         </div>
       </div>
     </EntityFormDialog>
@@ -352,7 +419,6 @@ function AllergenEditDialog({
   const form = useForm<VisitpadAllergenEditFormSchema>({
     resolver: zodResolver(visitpadAllergenEditFormSchema),
     defaultValues: {
-      code: '',
       display_name: '',
       allergen_type: 'drug',
       drug_class: null,
@@ -366,7 +432,6 @@ function AllergenEditDialog({
   useEffect(() => {
     if (open && row) {
       form.reset({
-        code: row.code,
         display_name: row.display_name,
         allergen_type: row.allergen_type as VisitpadAllergenEditFormSchema['allergen_type'],
         drug_class: row.drug_class ?? null,
@@ -383,7 +448,6 @@ function AllergenEditDialog({
     const dc = v.drug_class?.trim();
     const snomed = v.snomed_code?.trim();
     await onSave({
-      code: v.code,
       display_name: v.display_name,
       allergen_type: v.allergen_type,
       drug_class: dc && dc.length > 0 ? dc : null,
@@ -399,23 +463,23 @@ function AllergenEditDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={row ? `Edit allergen — ${row.code}` : 'Edit allergen'}
-      description="Update allergen metadata, default severity, and coding fields."
+      description="Allergy code cannot be changed. Optional drug class is most relevant when type is drug."
       submitLabel="Save changes"
       isSubmitting={isSubmitting}
       onSubmit={form.handleSubmit(submit)}
     >
       {row ? (
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="vp-ae-code">Code</Label>
-            <Input id="vp-ae-code" maxLength={64} {...form.register('code')} />
+          <div className="space-y-2 sm:col-span-2">
+            <Label>Allergy code</Label>
+            <Input value={row.code} readOnly className="bg-muted/40" />
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="vp-ae-name">Display name</Label>
+            <Label htmlFor="vp-ae-name">Display name *</Label>
             <Input id="vp-ae-name" maxLength={256} {...form.register('display_name')} />
           </div>
-          <div className="space-y-2">
-            <Label>Type</Label>
+          <div className="space-y-2 sm:col-span-2">
+            <Label>Allergen type *</Label>
             <Select
               value={form.watch('allergen_type')}
               onValueChange={(x) => form.setValue('allergen_type', x as VisitpadAllergenEditFormSchema['allergen_type'])}
@@ -432,7 +496,7 @@ function AllergenEditDialog({
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-2 sm:col-span-2">
             <Label>Default severity</Label>
             <Select
               value={form.watch('reaction_severity_default')}
@@ -456,24 +520,29 @@ function AllergenEditDialog({
             </Select>
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="vp-ae-drug">Drug class</Label>
+            <Label htmlFor="vp-ae-drug">Drug class (optional)</Label>
             <Input id="vp-ae-drug" maxLength={256} {...form.register('drug_class')} />
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="vp-ae-snomed">SNOMED code</Label>
+            <Label htmlFor="vp-ae-snomed">SNOMED CT (substance or organism)</Label>
             <Input id="vp-ae-snomed" maxLength={64} {...form.register('snomed_code')} />
           </div>
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="vp-ae-order">Display order</Label>
             <Input id="vp-ae-order" type="number" {...form.register('display_order', { valueAsNumber: true })} />
           </div>
-          <div className="flex items-center justify-between rounded-md border p-3 sm:col-span-2">
-            <Label htmlFor="vp-ae-act">Enabled</Label>
-            <Switch
-              id="vp-ae-act"
-              checked={!!form.watch('is_active')}
-              onCheckedChange={(c) => form.setValue('is_active', c)}
-            />
+          <div className="flex flex-col gap-1 rounded-md border p-3 sm:col-span-2">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <Label htmlFor="vp-ae-act">Active</Label>
+                <p className="text-xs text-muted-foreground">Inactive items hidden from clinical forms.</p>
+              </div>
+              <Switch
+                id="vp-ae-act"
+                checked={!!form.watch('is_active')}
+                onCheckedChange={(c) => form.setValue('is_active', c)}
+              />
+            </div>
           </div>
         </div>
       ) : null}

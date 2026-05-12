@@ -62,7 +62,7 @@ function VisitpadUnitsPage() {
   const filtered = useMemo(
     () =>
       rows.filter((u) =>
-        rowMatchesSearch(search, u.code, u.display_label, u.dimension, u.ucum_code ?? ''),
+        rowMatchesSearch(search, u.code, u.display_name, u.dimension, u.ucum_code ?? ''),
       ),
     [rows, search],
   );
@@ -70,7 +70,7 @@ function VisitpadUnitsPage() {
   const columns = useMemo<ColumnDef<VisitpadUnit, unknown>[]>(
     () => [
       { accessorKey: 'code', header: 'Code', meta: { label: 'Code' } },
-      { accessorKey: 'display_label', header: 'Label', meta: { label: 'Label' } },
+      { accessorKey: 'display_name', header: 'Label', meta: { label: 'Label' } },
       {
         accessorKey: 'dimension',
         header: 'Dimension',
@@ -235,7 +235,7 @@ function UnitCreateDialog({
     resolver: zodResolver(visitpadUnitCreateSchema),
     defaultValues: {
       code: '',
-      display_label: '',
+      display_name: '',
       dimension: 'length',
       ucum_code: null,
       is_canonical: false,
@@ -248,7 +248,7 @@ function UnitCreateDialog({
     if (!open) {
       form.reset({
         code: '',
-        display_label: '',
+        display_name: '',
         dimension: 'length',
         ucum_code: null,
         is_canonical: false,
@@ -279,21 +279,24 @@ function UnitCreateDialog({
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-unit-code">Code</Label>
+          <Label htmlFor="vp-unit-code">Code (required)</Label>
           <Input id="vp-unit-code" maxLength={64} autoComplete="off" {...form.register('code')} />
+          <p className="text-xs text-muted-foreground">
+            Lowercased on save; 1–64 characters; unique among active units (immutable after create).
+          </p>
           {form.formState.errors.code ? (
             <p className="text-xs text-destructive">{form.formState.errors.code.message}</p>
           ) : null}
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-unit-label">Display label</Label>
-          <Input id="vp-unit-label" maxLength={256} {...form.register('display_label')} />
-          {form.formState.errors.display_label ? (
-            <p className="text-xs text-destructive">{form.formState.errors.display_label.message}</p>
+          <Label htmlFor="vp-unit-label">Display label (required)</Label>
+          <Input id="vp-unit-label" maxLength={256} {...form.register('display_name')} />
+          {form.formState.errors.display_name ? (
+            <p className="text-xs text-destructive">{form.formState.errors.display_name.message}</p>
           ) : null}
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-unit-dimension">Dimension</Label>
+          <Label htmlFor="vp-unit-dimension">Dimension (required)</Label>
           <Select
             value={form.watch('dimension')}
             onValueChange={(v) => form.setValue('dimension', v as VisitpadUnitCreateSchema['dimension'])}
@@ -315,7 +318,7 @@ function UnitCreateDialog({
           <Input id="vp-unit-ucum" maxLength={64} {...form.register('ucum_code')} />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="vp-unit-order">Display order</Label>
+          <Label htmlFor="vp-unit-order">Display order (required)</Label>
           <Input id="vp-unit-order" type="number" {...form.register('display_order', { valueAsNumber: true })} />
         </div>
         <div className="flex items-center justify-between gap-4 rounded-md border p-3 sm:col-span-2">
@@ -361,7 +364,7 @@ function UnitEditDialog({
   const form = useForm<VisitpadUnitEditFormSchema>({
     resolver: zodResolver(visitpadUnitEditFormSchema),
     defaultValues: {
-      display_label: '',
+      display_name: '',
       dimension: 'length',
       ucum_code: '',
       is_canonical: false,
@@ -373,7 +376,7 @@ function UnitEditDialog({
   useEffect(() => {
     if (open && unit) {
       form.reset({
-        display_label: unit.display_label,
+        display_name: unit.display_name,
         dimension: unit.dimension as VisitpadUnitEditFormSchema['dimension'],
         ucum_code: unit.ucum_code ?? '',
         is_canonical: unit.is_canonical,
@@ -386,7 +389,7 @@ function UnitEditDialog({
   const submit: SubmitHandler<VisitpadUnitEditFormSchema> = async (values) => {
     const ucum = values.ucum_code?.trim();
     await onSave({
-      display_label: values.display_label,
+      display_name: values.display_name,
       dimension: values.dimension,
       ucum_code: ucum && ucum.length > 0 ? ucum : null,
       is_canonical: values.is_canonical,
@@ -413,7 +416,7 @@ function UnitEditDialog({
           </div>
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="vp-unit-edit-label">Display label</Label>
-            <Input id="vp-unit-edit-label" maxLength={256} {...form.register('display_label')} />
+            <Input id="vp-unit-edit-label" maxLength={256} {...form.register('display_name')} />
           </div>
           <div className="space-y-2 sm:col-span-2">
             <Label>Dimension</Label>

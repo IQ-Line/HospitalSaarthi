@@ -7,7 +7,7 @@ info:
     (API keys / JWT) is expected before production; this spec does not model per-route security yet.
 
     **Catalog scope:** optional `iq_tenant_id` request header — a positive integer string (e.g. `1`, `2`, `98`, leading zeros allowed)
-    routes catalog CRUD to schema `tenant_master` (responses may include `tenant_id` as an integer). Omit the header for global rows in `public`.
+    routes catalog CRUD to schema `tenant_master` (responses may include `iq_tenant_id` as an integer). Omit the header for global rows in `public`.
 
     '
 servers:
@@ -1523,6 +1523,27 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/chief-complaints/descriptor:
+    get:
+      tags:
+      - Visitpad — Chief complaints
+      summary: Chief complaint form descriptor
+      description: Allowed body_system and triage_priority values with display labels for UI selects.
+        Enum strings match create/update payloads (single source of truth on the server).
+      operationId: get_chief_complaint_descriptor_api_v1_master_data_visitpad_chief_complaints_descriptor_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadChiefComplaintDescriptor'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /visitpad/chief-complaints/{chief_complaint_id}:
     get:
       tags:
@@ -2847,7 +2868,7 @@ components:
         id:
           type: string
           format: uuid
-        tenant_id:
+        iq_tenant_id:
           type: integer
           format: int32
           nullable: true
@@ -2959,7 +2980,7 @@ components:
         id:
           type: string
           format: uuid
-        tenant_id:
+        iq_tenant_id:
           type: integer
           format: int32
           nullable: true
@@ -3067,7 +3088,7 @@ components:
         id:
           type: string
           format: uuid
-        tenant_id:
+        iq_tenant_id:
           type: integer
           format: int32
           nullable: true
@@ -3196,7 +3217,7 @@ components:
         id:
           type: string
           format: uuid
-        tenant_id:
+        iq_tenant_id:
           type: integer
           format: int32
           nullable: true
@@ -3274,9 +3295,13 @@ components:
       properties:
         code:
           type: string
-          maxLength: 64
-          minLength: 1
+          maxLength: 8
+          minLength: 3
+          pattern: ^[A-Za-z0-9_]{3,8}$
           title: Code
+          description: >-
+            Stable allergy/allergen code (letters, digits, underscore). Unique per catalog scope;
+            immutable after create. Legacy UI “3–8 characters”.
         display_name:
           type: string
           maxLength: 256
@@ -3292,6 +3317,8 @@ components:
           title: Drug Class
         reaction_severity_default:
           $ref: '#/components/schemas/VisitpadReactionSeverityDefault'
+          default: unknown
+          description: Defaults to ``unknown`` when omitted (legacy payloads often omitted this field).
         snomed_code:
           anyOf:
           - type: string
@@ -3312,7 +3339,6 @@ components:
       - code
       - display_name
       - allergen_type
-      - reaction_severity_default
       title: VisitpadAllergenCreate
     VisitpadAllergenListResponse:
       properties:
@@ -3335,11 +3361,11 @@ components:
           type: string
           format: uuid
           title: Id
-        tenant_id:
+        iq_tenant_id:
           type: integer
           format: int32
           nullable: true
-          title: Tenant Id
+          title: Iq Tenant Id
         code:
           type: string
           title: Code
@@ -3369,6 +3395,16 @@ components:
         is_deleted:
           type: boolean
           title: Is Deleted
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+          title: Created By
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+          title: Updated By
         created_at:
           type: string
           format: date-time
@@ -3380,7 +3416,7 @@ components:
       type: object
       required:
       - id
-      - tenant_id
+      - iq_tenant_id
       - code
       - display_name
       - allergen_type
@@ -3409,13 +3445,6 @@ components:
       title: VisitpadAllergenType
     VisitpadAllergenUpdate:
       properties:
-        code:
-          anyOf:
-          - type: string
-            maxLength: 64
-            minLength: 1
-          - type: 'null'
-          title: Code
         display_name:
           anyOf:
           - type: string
@@ -3470,9 +3499,25 @@ components:
           title: Display Name
         code:
           type: string
-          maxLength: 64
-          minLength: 1
+          maxLength: 8
+          minLength: 3
+          pattern: ^[A-Za-z0-9_]{3,8}$
           title: Code
+          description: >-
+            Reaction code (letters, digits, underscore). Unique per catalog scope; immutable after create.
+            Legacy ``reactionCode``.
+        short_name:
+          anyOf:
+          - type: string
+            maxLength: 120
+          - type: 'null'
+          title: Short Name
+        snomed_code:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Snomed Code
         display_order:
           type: integer
           title: Display Order
@@ -3508,17 +3553,27 @@ components:
           type: string
           format: uuid
           title: Id
-        tenant_id:
+        iq_tenant_id:
           type: integer
           format: int32
           nullable: true
-          title: Tenant Id
+          title: Iq Tenant Id
         display_name:
           type: string
           title: Display Name
         code:
           type: string
           title: Code
+        short_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Short Name
+        snomed_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Snomed Code
         display_order:
           type: integer
           title: Display Order
@@ -3528,6 +3583,16 @@ components:
         is_deleted:
           type: boolean
           title: Is Deleted
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+          title: Created By
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+          title: Updated By
         created_at:
           type: string
           format: date-time
@@ -3539,7 +3604,7 @@ components:
       type: object
       required:
       - id
-      - tenant_id
+      - iq_tenant_id
       - display_name
       - code
       - display_order
@@ -3565,13 +3630,18 @@ components:
             minLength: 1
           - type: 'null'
           title: Display Name
-        code:
+        short_name:
+          anyOf:
+          - type: string
+            maxLength: 120
+          - type: 'null'
+          title: Short Name
+        snomed_code:
           anyOf:
           - type: string
             maxLength: 64
-            minLength: 1
           - type: 'null'
-          title: Code
+          title: Snomed Code
         display_order:
           anyOf:
           - type: integer
@@ -3598,11 +3668,46 @@ components:
       - neurological
       - gastrointestinal
       - musculoskeletal
+      - genitourinary
+      - dermatological
+      - ophthalmological
+      - endocrine
       - ent
       - skin
       - psychiatric
+      - general
       - other
       title: VisitpadBodySystem
+    VisitpadChiefComplaintDescriptor:
+      properties:
+        body_systems:
+          items:
+            $ref: '#/components/schemas/VisitpadChiefComplaintEnumOption'
+          type: array
+          title: Body Systems
+        triage_priorities:
+          items:
+            $ref: '#/components/schemas/VisitpadChiefComplaintEnumOption'
+          type: array
+          title: Triage Priorities
+      type: object
+      required:
+      - body_systems
+      - triage_priorities
+      title: VisitpadChiefComplaintDescriptor
+    VisitpadChiefComplaintEnumOption:
+      properties:
+        value:
+          type: string
+          title: Value
+        label:
+          type: string
+          title: Label
+      type: object
+      required:
+      - value
+      - label
+      title: VisitpadChiefComplaintEnumOption
     VisitpadChiefComplaintCreate:
       properties:
         code:
@@ -3615,6 +3720,12 @@ components:
           maxLength: 256
           minLength: 1
           title: Display Name
+        short_name:
+          anyOf:
+          - type: string
+            maxLength: 120
+          - type: 'null'
+          title: Short Name
         body_system:
           $ref: '#/components/schemas/VisitpadBodySystem'
         triage_priority:
@@ -3672,17 +3783,23 @@ components:
           type: string
           format: uuid
           title: Id
-        tenant_id:
+        iq_tenant_id:
           type: integer
           format: int32
           nullable: true
-          title: Tenant Id
+          title: Iq Tenant Id
         code:
           type: string
           title: Code
         display_name:
           type: string
           title: Display Name
+        short_name:
+          anyOf:
+          - type: string
+            maxLength: 120
+          - type: 'null'
+          title: Short Name
         body_system:
           $ref: '#/components/schemas/VisitpadBodySystem'
         triage_priority:
@@ -3709,6 +3826,16 @@ components:
           - type: string
           - type: 'null'
           title: Snomed Code
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+          title: Created By
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+          title: Updated By
         created_at:
           type: string
           format: date-time
@@ -3720,7 +3847,7 @@ components:
       type: object
       required:
       - id
-      - tenant_id
+      - iq_tenant_id
       - code
       - display_name
       - body_system
@@ -3757,6 +3884,12 @@ components:
             minLength: 1
           - type: 'null'
           title: Display Name
+        short_name:
+          anyOf:
+          - type: string
+            maxLength: 120
+          - type: 'null'
+          title: Short Name
         body_system:
           anyOf:
           - $ref: '#/components/schemas/VisitpadBodySystem'
@@ -3805,11 +3938,13 @@ components:
     VisitpadChronicIllnessCategory:
       type: string
       enum:
+      - autoimmune
+      - endocrine
       - cardiovascular
-      - respiratory
       - metabolic
-      - renal
       - neurological
+      - renal
+      - respiratory
       - other
       title: VisitpadChronicIllnessCategory
     VisitpadChronicIllnessCreate:
@@ -3821,9 +3956,13 @@ components:
           title: Display Name
         icd10_code:
           type: string
-          maxLength: 16
-          minLength: 1
-          title: Icd10 Code
+          maxLength: 8
+          minLength: 3
+          pattern: '^[A-Za-z0-9_]{3,8}$'
+          title: Chronic illness code
+          description: >-
+            Tenant-stable catalog code (letters, digits, underscore). Stored in column ``icd10_code`` for
+            historical reasons; maps to legacy ``code`` (e.g. dm2). Immutable after create.
         category:
           $ref: '#/components/schemas/VisitpadChronicIllnessCategory'
         snomed_code:
@@ -3832,6 +3971,13 @@ components:
             maxLength: 64
           - type: 'null'
           title: Snomed Code
+        chronic_illness_prompt:
+          type: boolean
+          title: Chronic Illness Prompt
+          description: >-
+            When true, visit workflows may surface a chronic follow-up prompt for this entry (legacy
+            chronicIllnessPrompt).
+          default: false
         display_order:
           type: integer
           title: Display Order
@@ -3868,17 +4014,17 @@ components:
           type: string
           format: uuid
           title: Id
-        tenant_id:
+        iq_tenant_id:
           type: integer
           format: int32
           nullable: true
-          title: Tenant Id
+          title: Iq Tenant Id
         display_name:
           type: string
           title: Display Name
         icd10_code:
           type: string
-          title: Icd10 Code
+          title: Chronic illness code
         category:
           $ref: '#/components/schemas/VisitpadChronicIllnessCategory'
         snomed_code:
@@ -3886,6 +4032,9 @@ components:
           - type: string
           - type: 'null'
           title: Snomed Code
+        chronic_illness_prompt:
+          type: boolean
+          title: Chronic Illness Prompt
         display_order:
           type: integer
           title: Display Order
@@ -3895,6 +4044,16 @@ components:
         is_deleted:
           type: boolean
           title: Is Deleted
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+          title: Created By
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+          title: Updated By
         created_at:
           type: string
           format: date-time
@@ -3906,10 +4065,11 @@ components:
       type: object
       required:
       - id
-      - tenant_id
+      - iq_tenant_id
       - display_name
       - icd10_code
       - category
+      - chronic_illness_prompt
       - display_order
       - is_active
       - is_deleted
@@ -3933,13 +4093,6 @@ components:
             minLength: 1
           - type: 'null'
           title: Display Name
-        icd10_code:
-          anyOf:
-          - type: string
-            maxLength: 16
-            minLength: 1
-          - type: 'null'
-          title: Icd10 Code
         category:
           anyOf:
           - $ref: '#/components/schemas/VisitpadChronicIllnessCategory'
@@ -3950,6 +4103,11 @@ components:
             maxLength: 64
           - type: 'null'
           title: Snomed Code
+        chronic_illness_prompt:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Chronic Illness Prompt
         display_order:
           anyOf:
           - type: integer
@@ -3981,32 +4139,41 @@ components:
       title: VisitpadDiagnosisCategory
     VisitpadDiagnosisCreate:
       properties:
-        icd10_code:
+        code:
           type: string
-          maxLength: 16
-          minLength: 1
-          title: Icd10 Code
-        icd_version:
-          $ref: '#/components/schemas/VisitpadIcdVersion'
-        official_descriptor:
-          type: string
-          maxLength: 512
-          minLength: 1
-          title: Official Descriptor
+          maxLength: 12
+          minLength: 3
+          pattern: ^[A-Za-z0-9_]{3,12}$
+          title: Code
+          description: >-
+            Tenant-stable diagnosis code (letters, digits, underscore). Unique per catalog scope;
+            immutable after create. Maps to legacy ``code`` / ``D_01`` style keys.
         display_name:
           type: string
           maxLength: 512
           minLength: 1
           title: Display Name
-        category:
-          $ref: '#/components/schemas/VisitpadDiagnosisCategory'
+        short_name:
+          anyOf:
+          - type: string
+            maxLength: 120
+          - type: 'null'
+          title: Short Name
+        snomed_code:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Snomed Code
         is_chronic_flag:
           type: boolean
           title: Is Chronic Flag
+          description: When true, prompts linking to chronic illness history (legacy chronicIllnessPrompt).
           default: false
         is_notifiable:
           type: boolean
           title: Is Notifiable
+          description: Marks diagnoses that may require public-health notification workflows (legacy notifiableCondition).
           default: false
         display_order:
           type: integer
@@ -4016,20 +4183,33 @@ components:
           type: boolean
           title: Is Active
           default: true
-        snomed_code:
+        icd10_code:
           anyOf:
           - type: string
-            maxLength: 64
+            maxLength: 16
+            minLength: 1
           - type: 'null'
-          title: Snomed Code
+          title: Icd10 Code
+        icd_version:
+          anyOf:
+          - $ref: '#/components/schemas/VisitpadIcdVersion'
+          - type: 'null'
+        official_descriptor:
+          anyOf:
+          - type: string
+            maxLength: 512
+            minLength: 1
+          - type: 'null'
+          title: Official Descriptor
+        category:
+          anyOf:
+          - $ref: '#/components/schemas/VisitpadDiagnosisCategory'
+          - type: 'null'
       additionalProperties: false
       type: object
       required:
-      - icd10_code
-      - icd_version
-      - official_descriptor
+      - code
       - display_name
-      - category
       title: VisitpadDiagnosisCreate
     VisitpadDiagnosisListResponse:
       properties:
@@ -4052,24 +4232,40 @@ components:
           type: string
           format: uuid
           title: Id
-        tenant_id:
+        iq_tenant_id:
           type: integer
           format: int32
           nullable: true
-          title: Tenant Id
-        icd10_code:
+          title: Iq Tenant Id
+        code:
           type: string
+          title: Code
+        short_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Short Name
+        icd10_code:
+          anyOf:
+          - type: string
+          - type: 'null'
           title: Icd10 Code
         icd_version:
-          $ref: '#/components/schemas/VisitpadIcdVersion'
+          anyOf:
+          - $ref: '#/components/schemas/VisitpadIcdVersion'
+          - type: 'null'
         official_descriptor:
-          type: string
+          anyOf:
+          - type: string
+          - type: 'null'
           title: Official Descriptor
         display_name:
           type: string
           title: Display Name
         category:
-          $ref: '#/components/schemas/VisitpadDiagnosisCategory'
+          anyOf:
+          - $ref: '#/components/schemas/VisitpadDiagnosisCategory'
+          - type: 'null'
         is_chronic_flag:
           type: boolean
           title: Is Chronic Flag
@@ -4090,6 +4286,16 @@ components:
           - type: string
           - type: 'null'
           title: Snomed Code
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+          title: Created By
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+          title: Updated By
         created_at:
           type: string
           format: date-time
@@ -4101,12 +4307,9 @@ components:
       type: object
       required:
       - id
-      - tenant_id
-      - icd10_code
-      - icd_version
-      - official_descriptor
+      - iq_tenant_id
+      - code
       - display_name
-      - category
       - is_chronic_flag
       - is_notifiable
       - display_order
@@ -4125,6 +4328,12 @@ components:
       title: VisitpadDiagnosisSingleResponse
     VisitpadDiagnosisUpdate:
       properties:
+        short_name:
+          anyOf:
+          - type: string
+            maxLength: 120
+          - type: 'null'
+          title: Short Name
         icd10_code:
           anyOf:
           - type: string
@@ -4198,8 +4407,9 @@ components:
       properties:
         code:
           type: string
-          maxLength: 64
-          minLength: 1
+          maxLength: 8
+          minLength: 3
+          pattern: '^[A-Za-z0-9_]{3,8}$'
           title: Code
         display_name:
           type: string
@@ -4503,11 +4713,11 @@ components:
           type: string
           format: uuid
           title: Id
-        tenant_id:
+        iq_tenant_id:
           type: integer
           format: int32
           nullable: true
-          title: Tenant Id
+          title: Iq Tenant Id
         code:
           type: string
           title: Code
@@ -4733,6 +4943,16 @@ components:
         is_deleted:
           type: boolean
           title: Is Deleted
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+          title: Created By
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+          title: Updated By
         created_at:
           type: string
           format: date-time
@@ -4744,7 +4964,7 @@ components:
       type: object
       required:
       - id
-      - tenant_id
+      - iq_tenant_id
       - code
       - display_name
       - generic_name
@@ -4790,13 +5010,6 @@ components:
       title: VisitpadMedicineSingleResponse
     VisitpadMedicineUpdate:
       properties:
-        code:
-          anyOf:
-          - type: string
-            maxLength: 64
-            minLength: 1
-          - type: 'null'
-          title: Code
         display_name:
           anyOf:
           - type: string
@@ -5128,9 +5341,17 @@ components:
       properties:
         cpt_code:
           type: string
-          maxLength: 16
-          minLength: 1
-          title: Cpt Code
+          maxLength: 8
+          minLength: 3
+          pattern: ^[A-Za-z0-9_]{3,8}$
+          title: Procedure catalog code
+          description: Tenant-unique catalog code (legacy Integrator “procedure code”; stored as cpt_code). Immutable after create.
+        short_name:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Short Name
         official_descriptor:
           type: string
           maxLength: 512
@@ -5205,14 +5426,20 @@ components:
           type: string
           format: uuid
           title: Id
-        tenant_id:
+        iq_tenant_id:
           type: integer
           format: int32
           nullable: true
-          title: Tenant Id
+          title: Iq Tenant Id
         cpt_code:
           type: string
-          title: Cpt Code
+          title: Procedure catalog code
+        short_name:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Short Name
         official_descriptor:
           type: string
           title: Official Descriptor
@@ -5248,6 +5475,16 @@ components:
           - type: string
           - type: 'null'
           title: Snomed Code
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+          title: Created By
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+          title: Updated By
         created_at:
           type: string
           format: date-time
@@ -5259,7 +5496,7 @@ components:
       type: object
       required:
       - id
-      - tenant_id
+      - iq_tenant_id
       - cpt_code
       - official_descriptor
       - display_name
@@ -5283,13 +5520,12 @@ components:
       title: VisitpadProcedureSingleResponse
     VisitpadProcedureUpdate:
       properties:
-        cpt_code:
+        short_name:
           anyOf:
           - type: string
-            maxLength: 16
-            minLength: 1
+            maxLength: 64
           - type: 'null'
-          title: Cpt Code
+          title: Short Name
         official_descriptor:
           anyOf:
           - type: string
@@ -5373,8 +5609,9 @@ components:
           title: Display Name
         code:
           type: string
-          maxLength: 64
-          minLength: 1
+          maxLength: 8
+          minLength: 2
+          pattern: '^[A-Za-z0-9_]{2,8}$'
           title: Code
         extra_unit:
           anyOf:
@@ -5418,11 +5655,11 @@ components:
           type: string
           format: uuid
           title: Id
-        tenant_id:
+        iq_tenant_id:
           type: integer
           format: int32
           nullable: true
-          title: Tenant Id
+          title: Iq Tenant Id
         section:
           $ref: '#/components/schemas/VisitpadRxColumnSection'
         display_name:
@@ -5445,6 +5682,16 @@ components:
         is_deleted:
           type: boolean
           title: Is Deleted
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+          title: Created By
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+          title: Updated By
         created_at:
           type: string
           format: date-time
@@ -5456,7 +5703,7 @@ components:
       type: object
       required:
       - id
-      - tenant_id
+      - iq_tenant_id
       - section
       - display_name
       - code
@@ -5494,13 +5741,6 @@ components:
             minLength: 1
           - type: 'null'
           title: Display Name
-        code:
-          anyOf:
-          - type: string
-            maxLength: 64
-            minLength: 1
-          - type: 'null'
-          title: Code
         extra_unit:
           anyOf:
           - type: string
@@ -5529,6 +5769,7 @@ components:
     VisitpadTriagePriority:
       type: string
       enum:
+      - emergency
       - urgent
       - semi_urgent
       - non_urgent
@@ -5585,11 +5826,11 @@ components:
           type: string
           format: uuid
           title: Id
-        tenant_id:
+        iq_tenant_id:
           type: integer
           format: int32
           nullable: true
-          title: Tenant Id
+          title: Iq Tenant Id
         from_unit_code:
           type: string
           title: From Unit Code
@@ -5608,6 +5849,16 @@ components:
         is_deleted:
           type: boolean
           title: Is Deleted
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+          title: Created By
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+          title: Updated By
         created_at:
           type: string
           format: date-time
@@ -5619,7 +5870,7 @@ components:
       type: object
       required:
       - id
-      - tenant_id
+      - iq_tenant_id
       - from_unit_code
       - to_unit_code
       - factor
@@ -5686,11 +5937,11 @@ components:
           title: Code
           description: >-
             Trimmed and stored in lowercase; uniqueness is case-insensitive for active rows.
-        display_label:
+        display_name:
           type: string
           maxLength: 256
           minLength: 1
-          title: Display Label
+          title: Display Name
         dimension:
           $ref: '#/components/schemas/VisitpadUnitDimension'
         ucum_code:
@@ -5715,7 +5966,7 @@ components:
       type: object
       required:
       - code
-      - display_label
+      - display_name
       - dimension
       title: VisitpadUnitCreate
     VisitpadUnitDimension:
@@ -5753,17 +6004,17 @@ components:
           type: string
           format: uuid
           title: Id
-        tenant_id:
+        iq_tenant_id:
           type: integer
           format: int32
           nullable: true
-          title: Tenant Id
+          title: Iq Tenant Id
         code:
           type: string
           title: Code
-        display_label:
+        display_name:
           type: string
-          title: Display Label
+          title: Display Name
         dimension:
           $ref: '#/components/schemas/VisitpadUnitDimension'
         ucum_code:
@@ -5783,6 +6034,16 @@ components:
         is_deleted:
           type: boolean
           title: Is Deleted
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+          title: Created By
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+          title: Updated By
         created_at:
           type: string
           format: date-time
@@ -5794,9 +6055,9 @@ components:
       type: object
       required:
       - id
-      - tenant_id
+      - iq_tenant_id
       - code
-      - display_label
+      - display_name
       - dimension
       - is_canonical
       - display_order
@@ -5815,13 +6076,13 @@ components:
       title: VisitpadUnitSingleResponse
     VisitpadUnitUpdate:
       properties:
-        display_label:
+        display_name:
           anyOf:
           - type: string
             maxLength: 256
             minLength: 1
           - type: 'null'
-          title: Display Label
+          title: Display Name
         dimension:
           anyOf:
           - $ref: '#/components/schemas/VisitpadUnitDimension'
@@ -6015,11 +6276,11 @@ components:
           type: string
           format: uuid
           title: Id
-        tenant_id:
+        iq_tenant_id:
           type: integer
           format: int32
           nullable: true
-          title: Tenant Id
+          title: Iq Tenant Id
         code:
           type: string
           title: Code
@@ -6096,6 +6357,16 @@ components:
           - type: string
           - type: 'null'
           title: Snomed Observable Code
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+          title: Created By
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+          title: Updated By
         created_at:
           type: string
           format: date-time
@@ -6107,7 +6378,7 @@ components:
       type: object
       required:
       - id
-      - tenant_id
+      - iq_tenant_id
       - code
       - name
       - short_name

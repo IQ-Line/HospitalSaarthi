@@ -3,7 +3,7 @@
 **Product name:** Visitpad templates / Visitpad Master (admin UI).  
 **Implementation owner:** [Master Data service](../../../../modules/master-data) — **same** FastAPI app, **same** OpenAPI file [`specs/openapi/master-data.v1.yaml`](../../../../specs/openapi/master-data.v1.yaml), **same** BFF prefix `/api/v1/master-data` (no extra microservice).
 
-**Companion docs:** [Schema design](./01-schema-design.md) | [HTTP API contracts](./02-api-contracts.md) | [Implementation plan (step-by-step)](../../../../docs/plans/visitpad-master-implementation-plan.md)
+**Companion docs:** [Schema design](./01-schema-design.md) | [HTTP API contracts](./02-api-contracts.md) | [Implementation plan (step-by-step)](../../../../docs/plans/visitpad-master-implementation-plan.md) | [E2E verification (sections 1→end)](../../../../docs/plans/visitpad-master-e2e-verification.md)
 
 ---
 

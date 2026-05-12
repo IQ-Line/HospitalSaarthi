@@ -1,10 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { useForm, type SubmitHandler } from 'react-hook-form';
+import { useEffect, useMemo, useState } from 'react';
+import { Controller, useForm, type SubmitHandler } from 'react-hook-form';
 import { type ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
-import { Badge } from '@pulse/ui/badge';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
 import {
@@ -34,11 +33,55 @@ import {
 import { visitpadActiveTotal } from '@/features/visitpad/tab-count';
 import type { VisitpadProcedure } from '@/features/visitpad/types';
 import {
+  visitpadProcedureCreateFormSchema,
   visitpadProcedureEditFormSchema,
+  type VisitpadProcedureCreateFormInput,
+  type VisitpadProcedureCreateFormSchema,
+  type VisitpadProcedureEditFormInput,
   type VisitpadProcedureEditFormSchema,
 } from '@/features/visitpad/validation';
 
 const PROC_BASE = '/api/v1/master-data/visitpad/procedures';
+
+const PROC_CATEGORY_VALUES = new Set(VISITPAD_PROCEDURE_CATEGORIES.map((c) => c.value));
+const PROC_BILLING_VALUES = new Set(VISITPAD_PROCEDURE_BILLING_CATEGORIES.map((c) => c.value));
+
+function emptyProcedureCreateForm(): VisitpadProcedureCreateFormInput {
+  return {
+    cpt_code: '',
+    short_name: '',
+    official_descriptor: '',
+    display_name: '',
+    category: 'diagnostic',
+    billing_category: 'professional',
+    duration_minutes: 15,
+    requires_consent: false,
+    type_modality: null,
+    snomed_code: null,
+    is_active: true,
+  };
+}
+
+function procedureEditDefaults(row: VisitpadProcedure): VisitpadProcedureEditFormInput {
+  const cat = PROC_CATEGORY_VALUES.has(row.category)
+    ? (row.category as VisitpadProcedureEditFormInput['category'])
+    : 'other';
+  const bill = PROC_BILLING_VALUES.has(row.billing_category)
+    ? (row.billing_category as VisitpadProcedureEditFormInput['billing_category'])
+    : 'other';
+  return {
+    short_name: row.short_name ?? '',
+    display_name: row.display_name,
+    official_descriptor: row.official_descriptor ?? '',
+    category: cat,
+    billing_category: bill,
+    duration_minutes: row.duration_minutes ?? 0,
+    requires_consent: !!row.requires_consent,
+    snomed_code: row.snomed_code ?? null,
+    type_modality: row.type_modality ?? null,
+    is_active: row.is_active,
+  };
+}
 
 export const Route = createFileRoute('/_authenticated/visitpad/procedures')({
   component: VisitpadProceduresPage,
@@ -64,47 +107,32 @@ function VisitpadProceduresPage() {
   const filtered = useMemo(
     () =>
       rows.filter((r) =>
-        rowMatchesSearch(search, r.cpt_code, r.display_name, r.category, r.billing_category),
+        rowMatchesSearch(
+          search,
+          r.cpt_code,
+          r.short_name ?? '',
+          r.display_name,
+          r.official_descriptor ?? '',
+        ),
       ),
     [rows, search],
   );
 
   const columns = useMemo<ColumnDef<VisitpadProcedure, unknown>[]>(
     () => [
-      { accessorKey: 'cpt_code', header: 'CPT', meta: { label: 'CPT' } },
-      { accessorKey: 'display_name', header: 'Display', meta: { label: 'Display' } },
+      { accessorKey: 'cpt_code', header: 'Code', meta: { label: 'Code' } },
       {
-        accessorKey: 'category',
-        header: 'Category',
-        meta: { label: 'Category' },
-        cell: ({ getValue }) => <Badge variant="outline">{getValue<string>()}</Badge>,
+        accessorKey: 'short_name',
+        header: 'Short name',
+        meta: { label: 'Short name' },
+        cell: ({ row }) => row.original.short_name || <span className="text-muted-foreground">—</span>,
       },
-      {
-        accessorKey: 'billing_category',
-        header: 'Billing',
-        meta: { label: 'Billing' },
-        cell: ({ getValue }) => <Badge variant="secondary">{getValue<string>()}</Badge>,
-      },
+      { accessorKey: 'display_name', header: 'Display name', meta: { label: 'Display name' } },
       {
         accessorKey: 'duration_minutes',
-        header: 'Min',
+        header: 'Duration',
         meta: { label: 'Duration (min)' },
         cell: ({ row }) => row.original.duration_minutes ?? '—',
-      },
-      {
-        accessorKey: 'type_modality',
-        header: 'Modality',
-        meta: { label: 'Modality' },
-        cell: ({ row }) => row.original.type_modality || <span className="text-muted-foreground">—</span>,
-      },
-      {
-        accessorKey: 'snomed_code',
-        header: 'SNOMED',
-        meta: { label: 'SNOMED' },
-        cell: ({ getValue }) => {
-          const v = getValue<string | null | undefined>();
-          return v ? <span className="font-mono text-xs">{v}</span> : <span className="text-muted-foreground">—</span>;
-        },
       },
       {
         id: 'consent',
@@ -145,7 +173,7 @@ function VisitpadProceduresPage() {
       primary="procedures"
       tabCount={tabCount}
       title="Procedures"
-      description="Procedure / CPT catalog for ordering and documentation."
+      description="Procedure library for Visitpad (catalog code is stored as cpt_code in the API)."
       actions={
         <VisitpadHeaderActions addLabel="Add procedure" onAddClick={() => setCreateOpen(true)} />
       }
@@ -156,7 +184,7 @@ function VisitpadProceduresPage() {
             <MasterDataTableToolbar
               value={search}
               onChange={setSearch}
-              placeholder="Search CPT, display name…"
+              placeholder="Search code, short name, display name…"
             />
             <Select value={category} onValueChange={setCategory}>
               <SelectTrigger className="w-full lg:w-[180px]">
@@ -236,7 +264,7 @@ function VisitpadProceduresPage() {
         open={!!deleting}
         onOpenChange={(o) => !o && setDeleting(null)}
         title="Delete procedure"
-        description={`Soft-delete CPT ${deleting?.cpt_code ?? ''} — ${deleting?.display_name ?? ''}?`}
+        description={`Soft-delete ${deleting?.cpt_code ?? ''} — ${deleting?.display_name ?? ''}?`}
         confirmLabel="Delete"
         destructive
         onConfirm={() => {
@@ -269,117 +297,177 @@ function ProcedureCreateDialog({
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const [category, setCategory] = useState('diagnostic');
-  const [billing, setBilling] = useState('professional');
-  const [consent, setConsent] = useState(false);
-  const [isActive, setIsActive] = useState(true);
+  const form = useForm<VisitpadProcedureCreateFormInput>({
+    resolver: zodResolver(visitpadProcedureCreateFormSchema),
+    defaultValues: emptyProcedureCreateForm(),
+  });
 
   useEffect(() => {
-    if (!open) {
-      setCategory('diagnostic');
-      setBilling('professional');
-      setConsent(false);
-      setIsActive(true);
+    if (open) {
+      form.reset(emptyProcedureCreateForm());
     }
-  }, [open]);
+  }, [open, form]);
+
+  const submit: SubmitHandler<VisitpadProcedureCreateFormSchema> = async (v) => {
+    const snomed = v.snomed_code?.trim();
+    const mod = v.type_modality?.trim();
+    const shortRaw = v.short_name?.trim();
+    await onSubmit({
+      cpt_code: v.cpt_code,
+      short_name: shortRaw && shortRaw.length > 0 ? shortRaw : null,
+      official_descriptor: v.official_descriptor,
+      display_name: v.display_name,
+      category: v.category,
+      billing_category: v.billing_category,
+      duration_minutes: v.duration_minutes,
+      requires_consent: v.requires_consent,
+      type_modality: mod && mod.length > 0 ? mod : null,
+      display_order: 0,
+      is_active: v.is_active,
+      snomed_code: snomed && snomed.length > 0 ? snomed : null,
+    });
+  };
 
   return (
     <EntityFormDialog
       open={open}
       onOpenChange={onOpenChange}
       title="Add procedure"
-      description="Create a CPT procedure row."
-      submitLabel="Create procedure"
+      description="Fields match the Visitpad procedures API (snake_case). Catalog code is stored as cpt_code."
+      submitLabel="Add"
       isSubmitting={isSubmitting}
-      onSubmit={async (e: FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        const fd = new FormData(e.currentTarget);
-        const cpt_code = String(fd.get('cpt_code') ?? '').trim();
-        const official_descriptor = String(fd.get('official_descriptor') ?? '').trim();
-        const display_name = String(fd.get('display_name') ?? '').trim();
-        const snomedRaw = String(fd.get('snomed_code') ?? '').trim();
-        const duration_minutes = Number(fd.get('duration_minutes') ?? 0);
-        if (!cpt_code || !official_descriptor || !display_name || Number.isNaN(duration_minutes)) {
-          toast.error('CPT code, official descriptor, display name, and duration are required.');
-          return;
-        }
-        await onSubmit({
-          cpt_code,
-          official_descriptor,
-          display_name,
-          category,
-          billing_category: billing,
-          duration_minutes,
-          requires_consent: consent,
-          type_modality: null,
-          display_order: Number(fd.get('display_order') ?? 0) || 0,
-          is_active: isActive,
-          snomed_code: snomedRaw.length ? snomedRaw : null,
-        });
-      }}
+      onSubmit={form.handleSubmit(submit)}
     >
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="vp-pr-cpt">CPT code</Label>
-          <Input id="vp-pr-cpt" name="cpt_code" required maxLength={16} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="vp-pr-dur">Duration (minutes)</Label>
-          <Input id="vp-pr-dur" name="duration_minutes" type="number" min={0} max={1440} defaultValue={15} />
+        <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor="vp-pr-code">Procedure code *</Label>
+          <Input
+            id="vp-pr-code"
+            placeholder="e.g. ecg_12"
+            maxLength={8}
+            className="font-mono"
+            {...form.register('cpt_code')}
+          />
+          <p className="text-sm text-muted-foreground">
+            Code must be 3–8 characters, letters, digits, or underscores; unique; cannot be edited after save.
+          </p>
+          {form.formState.errors.cpt_code ? (
+            <p className="text-sm text-destructive">{form.formState.errors.cpt_code.message}</p>
+          ) : null}
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-pr-off">Official descriptor</Label>
-          <Input id="vp-pr-off" name="official_descriptor" required maxLength={512} />
+          <Label htmlFor="vp-pr-short">Short name</Label>
+          <Input id="vp-pr-short" placeholder="e.g. 93000" maxLength={64} {...form.register('short_name')} />
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-pr-disp">Display name</Label>
-          <Input id="vp-pr-disp" name="display_name" required maxLength={512} />
-        </div>
-        <div className="space-y-2">
-          <Label>Category</Label>
-          <Select value={category} onValueChange={setCategory}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {VISITPAD_PROCEDURE_CATEGORIES.map((c) => (
-                <SelectItem key={c.value} value={c.value}>
-                  {c.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label>Billing category</Label>
-          <Select value={billing} onValueChange={setBilling}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {VISITPAD_PROCEDURE_BILLING_CATEGORIES.map((c) => (
-                <SelectItem key={c.value} value={c.value}>
-                  {c.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Label htmlFor="vp-pr-dur">Duration (minutes) *</Label>
+          <Input
+            id="vp-pr-dur"
+            type="number"
+            min={0}
+            max={1440}
+            {...form.register('duration_minutes', { valueAsNumber: true })}
+          />
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-pr-snomed">SNOMED code (optional)</Label>
-          <Input id="vp-pr-snomed" name="snomed_code" maxLength={64} />
+          <Label htmlFor="vp-pr-off">Official descriptor *</Label>
+          <Input
+            id="vp-pr-off"
+            placeholder="Full clinical description of the procedure"
+            maxLength={512}
+            {...form.register('official_descriptor')}
+          />
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-pr-order">Display order</Label>
-          <Input id="vp-pr-order" name="display_order" type="number" defaultValue={0} />
+          <Label htmlFor="vp-pr-disp">Display name *</Label>
+          <Input
+            id="vp-pr-disp"
+            placeholder="Friendly name shown to staff"
+            maxLength={512}
+            {...form.register('display_name')}
+          />
         </div>
-        <div className="flex items-center justify-between rounded-md border p-3">
-          <Label htmlFor="vp-pr-consent">Requires consent</Label>
-          <Switch id="vp-pr-consent" checked={consent} onCheckedChange={setConsent} />
+        <div className="space-y-2 sm:col-span-2">
+          <Label>Category *</Label>
+          <Controller
+            control={form.control}
+            name="category"
+            render={({ field }) => (
+              <Select value={field.value} onValueChange={field.onChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select category…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {VISITPAD_PROCEDURE_CATEGORIES.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>
+                      {c.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
         </div>
-        <div className="flex items-center justify-between rounded-md border p-3">
-          <Label htmlFor="vp-pr-act">Enabled</Label>
-          <Switch id="vp-pr-act" checked={isActive} onCheckedChange={setIsActive} />
+        <div className="space-y-2 sm:col-span-2">
+          <Label>Billing category *</Label>
+          <Controller
+            control={form.control}
+            name="billing_category"
+            render={({ field }) => (
+              <Select value={field.value} onValueChange={field.onChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select billing category…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {VISITPAD_PROCEDURE_BILLING_CATEGORIES.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>
+                      {c.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+        </div>
+        <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor="vp-pr-mod">Type / modality</Label>
+          <Input id="vp-pr-mod" placeholder="Modality or type" maxLength={128} {...form.register('type_modality')} />
+        </div>
+        <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor="vp-pr-snomed">SNOMED CT (procedure)</Label>
+          <Input
+            id="vp-pr-snomed"
+            maxLength={64}
+            placeholder="Concept ID or code"
+            {...form.register('snomed_code')}
+          />
+        </div>
+        <div className="flex flex-col gap-2 rounded-md border p-3 sm:col-span-2">
+          <div className="flex items-center justify-between gap-4">
+            <Label htmlFor="vp-pr-consent">Requires patient consent</Label>
+            <Controller
+              control={form.control}
+              name="requires_consent"
+              render={({ field }) => (
+                <Switch id="vp-pr-consent" checked={field.value} onCheckedChange={field.onChange} />
+              )}
+            />
+          </div>
+          <p className="text-sm text-muted-foreground">
+            A consent stage is triggered before the procedure can be started.
+          </p>
+        </div>
+        <div className="flex flex-col gap-2 rounded-md border p-3 sm:col-span-2">
+          <div className="flex items-center justify-between gap-4">
+            <Label htmlFor="vp-pr-act">Enabled (visible in library)</Label>
+            <Controller
+              control={form.control}
+              name="is_active"
+              render={({ field }) => (
+                <Switch id="vp-pr-act" checked={field.value} onCheckedChange={field.onChange} />
+              )}
+            />
+          </div>
         </div>
       </div>
     </EntityFormDialog>
@@ -399,46 +487,41 @@ function ProcedureEditDialog({
   isSubmitting: boolean;
   onSave: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadProcedureEditFormSchema>({
+  const form = useForm<VisitpadProcedureEditFormInput>({
     resolver: zodResolver(visitpadProcedureEditFormSchema),
-    defaultValues: {
+    defaultValues: procedureEditDefaults({
+      id: '',
+      iq_tenant_id: null,
       cpt_code: '',
+      short_name: '',
       display_name: '',
       official_descriptor: '',
       category: 'diagnostic',
       billing_category: 'professional',
-      duration_minutes: 15,
+      duration_minutes: 0,
       requires_consent: false,
-      snomed_code: null,
       type_modality: null,
+      snomed_code: null,
       display_order: 0,
       is_active: true,
-    },
+      is_deleted: false,
+      created_at: '',
+      updated_at: '',
+    }),
   });
 
   useEffect(() => {
     if (open && row) {
-      form.reset({
-        cpt_code: row.cpt_code,
-        display_name: row.display_name,
-        official_descriptor: row.official_descriptor ?? '',
-        category: row.category as VisitpadProcedureEditFormSchema['category'],
-        billing_category: row.billing_category as VisitpadProcedureEditFormSchema['billing_category'],
-        duration_minutes: row.duration_minutes ?? 0,
-        requires_consent: !!row.requires_consent,
-        snomed_code: row.snomed_code ?? null,
-        type_modality: row.type_modality ?? null,
-        display_order: row.display_order,
-        is_active: row.is_active,
-      });
+      form.reset(procedureEditDefaults(row));
     }
   }, [open, row, form]);
 
   const submit: SubmitHandler<VisitpadProcedureEditFormSchema> = async (v) => {
     const snomed = v.snomed_code?.trim();
     const mod = v.type_modality?.trim();
+    const shortRaw = v.short_name?.trim();
     await onSave({
-      cpt_code: v.cpt_code,
+      short_name: shortRaw && shortRaw.length > 0 ? shortRaw : null,
       display_name: v.display_name,
       official_descriptor: v.official_descriptor,
       category: v.category,
@@ -447,7 +530,6 @@ function ProcedureEditDialog({
       requires_consent: v.requires_consent,
       snomed_code: snomed && snomed.length > 0 ? snomed : null,
       type_modality: mod && mod.length > 0 ? mod : null,
-      display_order: v.display_order,
       is_active: v.is_active,
     });
   };
@@ -457,16 +539,20 @@ function ProcedureEditDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={row ? `Edit procedure — ${row.cpt_code}` : 'Edit procedure'}
-      description="Update CPT metadata, timing, consent, modality, and SNOMED coding."
+      description="Catalog code is read-only. Other fields map to the procedures API."
       submitLabel="Save changes"
       isSubmitting={isSubmitting}
       onSubmit={form.handleSubmit(submit)}
     >
       {row ? (
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="vp-pe-cpt">CPT code</Label>
-            <Input id="vp-pe-cpt" maxLength={16} {...form.register('cpt_code')} />
+          <div className="space-y-2 sm:col-span-2">
+            <Label>Procedure code</Label>
+            <Input readOnly disabled className="font-mono" value={row.cpt_code} />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="vp-pe-short">Short name</Label>
+            <Input id="vp-pe-short" maxLength={64} {...form.register('short_name')} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="vp-pe-dur">Duration (minutes)</Label>
@@ -525,32 +611,35 @@ function ProcedureEditDialog({
             </Select>
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="vp-pe-mod">Modality</Label>
+            <Label htmlFor="vp-pe-mod">Type / modality</Label>
             <Input id="vp-pe-mod" maxLength={128} {...form.register('type_modality')} />
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="vp-pe-snomed">SNOMED code</Label>
+            <Label htmlFor="vp-pe-snomed">SNOMED CT (procedure)</Label>
             <Input id="vp-pe-snomed" maxLength={64} {...form.register('snomed_code')} />
           </div>
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="vp-pe-order">Display order</Label>
-            <Input id="vp-pe-order" type="number" {...form.register('display_order', { valueAsNumber: true })} />
+          <div className="flex flex-col gap-2 rounded-md border p-3 sm:col-span-2">
+            <div className="flex items-center justify-between gap-4">
+              <Label htmlFor="vp-pe-consent">Requires patient consent</Label>
+              <Switch
+                id="vp-pe-consent"
+                checked={!!form.watch('requires_consent')}
+                onCheckedChange={(c) => form.setValue('requires_consent', c)}
+              />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              A consent stage is triggered before the procedure can be started.
+            </p>
           </div>
-          <div className="flex items-center justify-between rounded-md border p-3 sm:col-span-2">
-            <Label htmlFor="vp-pe-consent">Requires consent</Label>
-            <Switch
-              id="vp-pe-consent"
-              checked={!!form.watch('requires_consent')}
-              onCheckedChange={(c) => form.setValue('requires_consent', c)}
-            />
-          </div>
-          <div className="flex items-center justify-between rounded-md border p-3 sm:col-span-2">
-            <Label htmlFor="vp-pe-act">Enabled</Label>
-            <Switch
-              id="vp-pe-act"
-              checked={!!form.watch('is_active')}
-              onCheckedChange={(c) => form.setValue('is_active', c)}
-            />
+          <div className="flex flex-col gap-2 rounded-md border p-3 sm:col-span-2">
+            <div className="flex items-center justify-between gap-4">
+              <Label htmlFor="vp-pe-act">Enabled (visible in library)</Label>
+              <Switch
+                id="vp-pe-act"
+                checked={!!form.watch('is_active')}
+                onCheckedChange={(c) => form.setValue('is_active', c)}
+              />
+            </div>
           </div>
         </div>
       ) : null}

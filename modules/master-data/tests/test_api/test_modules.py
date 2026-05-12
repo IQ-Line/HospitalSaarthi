@@ -34,7 +34,7 @@ def _sample_module_row(**overrides):
 
 
 class FakeModuleRepository:
-    scope = CatalogScope(tenant_id=None)
+    scope = CatalogScope(iq_tenant_id=None)
 
     def list_modules(self, *, category=None):
         return [_sample_module_row()]

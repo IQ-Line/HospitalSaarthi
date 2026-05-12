@@ -40,7 +40,7 @@ class VisitpadVitalResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    tenant_id: int | None = None
+    iq_tenant_id: int | None = None
     code: str
     name: str
     short_name: str
@@ -63,6 +63,8 @@ class VisitpadVitalResponse(BaseModel):
     is_deleted: bool
     loinc_code: str | None = None
     snomed_observable_code: str | None = None
+    created_by: UUID | None = None
+    updated_by: UUID | None = None
     created_at: datetime
     updated_at: datetime
 

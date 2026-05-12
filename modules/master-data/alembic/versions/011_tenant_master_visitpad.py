@@ -3,6 +3,10 @@
 Revision ID: 011_tenant_master_visitpad
 Revises: 010_visitpad_catalog
 
+**Pre-production / empty DB only:** includes dedupe ``DELETE`` paths that pick arbitrary survivor rows by UUID
+order. Do **not** run against a production database that already holds tenant-specific catalog data you need
+to preserve — replace with a data-preserving strategy before any live tenant.
+
 Order: copy ``public`` → ``tenant_master`` (keeps ``tenant_id``), then reshape ``public`` for global rows
 (without ``tenant_id``) and new partial unique indexes.
 

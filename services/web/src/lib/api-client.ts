@@ -5,6 +5,13 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
 const MAX_CATALOG_TENANT_INT = 2_147_483_647;
 
+const VISITPAD_CATALOG_API_PREFIX = '/api/v1/master-data/visitpad/';
+
+function isWriteHttpMethod(method: string | undefined): boolean {
+  const m = (method ?? 'GET').toUpperCase();
+  return m === 'POST' || m === 'PUT' || m === 'PATCH' || m === 'DELETE';
+}
+
 /**
  * Master-data catalog routes `iq_tenant_id` only when it is a positive integer (digits only).
  * UI tenant slugs (e.g. tenant-001) stay in the tenant store but are not sent here — the API
@@ -36,6 +43,18 @@ export async function apiClient<T>(
   const catalogTenant = catalogIqTenantHeaderValue(tenantId);
   if (catalogTenant) {
     headers.set('iq_tenant_id', catalogTenant);
+  }
+
+  if (
+    isWriteHttpMethod(options.method) &&
+    path.startsWith(VISITPAD_CATALOG_API_PREFIX) &&
+    tenantId != null &&
+    tenantId.trim() !== '' &&
+    catalogTenant == null
+  ) {
+    throw new Error(
+      'Visitpad catalog write blocked: a tenant is selected but its id is not a positive integer, so iq_tenant_id would be omitted and the change would apply to the global (public) catalog. Use a numeric catalog tenant id or clear tenant selection before editing the platform catalog.',
+    );
   }
 
   const response = await fetch(`${BASE_URL}${path}`, {

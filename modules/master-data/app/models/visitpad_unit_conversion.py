@@ -7,10 +7,10 @@ import uuid
 from sqlalchemy import Boolean, Double, Index, Integer, String, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, TimestampMixin
+from app.models.base import AuditActorMixin, Base, TimestampMixin
 
 
-class VisitpadUnitConversionPublicModel(TimestampMixin, Base):
+class VisitpadUnitConversionPublicModel(TimestampMixin, AuditActorMixin, Base):
     __tablename__ = "unit_conversions"
     __table_args__ = (
         Index(
@@ -32,12 +32,12 @@ class VisitpadUnitConversionPublicModel(TimestampMixin, Base):
     is_deleted: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
 
 
-class VisitpadUnitConversionTenantModel(TimestampMixin, Base):
+class VisitpadUnitConversionTenantModel(TimestampMixin, AuditActorMixin, Base):
     __tablename__ = "unit_conversions"
     __table_args__ = (
         Index(
             "unit_conversions_tenant_from_to_active_key",
-            "tenant_id",
+            "iq_tenant_id",
             "from_unit_code",
             "to_unit_code",
             unique=True,
@@ -48,7 +48,7 @@ class VisitpadUnitConversionTenantModel(TimestampMixin, Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id: Mapped[int] = mapped_column(Integer(), nullable=False)
+    iq_tenant_id: Mapped[int] = mapped_column(Integer(), nullable=False)
     from_unit_code: Mapped[str] = mapped_column(String(64), nullable=False)
     to_unit_code: Mapped[str] = mapped_column(String(64), nullable=False)
     factor: Mapped[float] = mapped_column(Double(), nullable=False)

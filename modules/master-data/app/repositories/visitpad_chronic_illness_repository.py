@@ -38,7 +38,7 @@ class VisitpadChronicIllnessRepository:
         M = self._M()
         filters = [M.is_deleted.is_(False)]
         if self._scope.is_tenant:
-            filters.append(M.tenant_id == self._scope.tenant_id)
+            filters.append(M.iq_tenant_id == self._scope.iq_tenant_id)
         if category is not None:
             filters.append(M.category == category)
         if search:
@@ -47,6 +47,7 @@ class VisitpadChronicIllnessRepository:
                 or_(
                     M.icd10_code.ilike(term),
                     M.display_name.ilike(term),
+                    M.category.ilike(term),
                 )
             )
         cnt = func.count().over().label("_page_total")
@@ -76,7 +77,7 @@ class VisitpadChronicIllnessRepository:
         row = self._session.get(M, row_id)
         if row is None:
             return None
-        if self._scope.is_tenant and row.tenant_id != self._scope.tenant_id:
+        if self._scope.is_tenant and row.iq_tenant_id != self._scope.iq_tenant_id:
             return None
         if not include_deleted and row.is_deleted:
             return None
@@ -90,7 +91,7 @@ class VisitpadChronicIllnessRepository:
             self._session.rollback()
             if is_unique_violation(exc):
                 raise DuplicateVisitpadCatalogKeyError(
-                    "Another active chronic illness already uses this ICD-10 code.",
+                    "Another active chronic illness already uses this code.",
                 ) from exc
             raise
         self._session.refresh(row)
@@ -103,7 +104,7 @@ class VisitpadChronicIllnessRepository:
             self._session.rollback()
             if is_unique_violation(exc):
                 raise DuplicateVisitpadCatalogKeyError(
-                    "Another active chronic illness already uses this ICD-10 code.",
+                    "Another active chronic illness already uses this code.",
                 ) from exc
             raise
         self._session.refresh(row)

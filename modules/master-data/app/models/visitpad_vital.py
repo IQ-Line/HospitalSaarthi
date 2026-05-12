@@ -7,10 +7,10 @@ import uuid
 from sqlalchemy import Boolean, Float, Index, Integer, JSON, String, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, TimestampMixin
+from app.models.base import AuditActorMixin, Base, TimestampMixin
 
 
-class VisitpadVitalPublicModel(TimestampMixin, Base):
+class VisitpadVitalPublicModel(TimestampMixin, AuditActorMixin, Base):
     __tablename__ = "vitals"
     __table_args__ = (
         Index(
@@ -47,12 +47,12 @@ class VisitpadVitalPublicModel(TimestampMixin, Base):
     snomed_observable_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
-class VisitpadVitalTenantModel(TimestampMixin, Base):
+class VisitpadVitalTenantModel(TimestampMixin, AuditActorMixin, Base):
     __tablename__ = "vitals"
     __table_args__ = (
         Index(
             "vitals_tenant_code_active_key",
-            "tenant_id",
+            "iq_tenant_id",
             "code",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
@@ -62,7 +62,7 @@ class VisitpadVitalTenantModel(TimestampMixin, Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id: Mapped[int] = mapped_column(Integer(), nullable=False)
+    iq_tenant_id: Mapped[int] = mapped_column(Integer(), nullable=False)
     code: Mapped[str] = mapped_column(String(64), nullable=False)
     name: Mapped[str] = mapped_column(String(256), nullable=False)
     short_name: Mapped[str] = mapped_column(String(64), nullable=False)

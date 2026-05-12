@@ -2,14 +2,14 @@ import { describe, expect, it } from 'vitest';
 import {
   visitpadUnitConversionCreateSchema,
   visitpadUnitCreateSchema,
-  visitpadMedicineCreateCoreSchema,
+  visitpadMedicineCreateFormSchema,
 } from './validation';
 
 describe('visitpadUnitCreateSchema', () => {
   it('accepts minimal valid unit', () => {
     const r = visitpadUnitCreateSchema.safeParse({
       code: 'deg_c',
-      display_label: '°C',
+      display_name: '°C',
       dimension: 'temperature',
       ucum_code: null,
       is_canonical: false,
@@ -25,7 +25,7 @@ describe('visitpadUnitCreateSchema', () => {
   it('normalizes unit code to lowercase', () => {
     const r = visitpadUnitCreateSchema.safeParse({
       code: '  LB  ',
-      display_label: 'Pound',
+      display_name: 'Pound',
       dimension: 'mass',
     });
     expect(r.success).toBe(true);
@@ -37,7 +37,7 @@ describe('visitpadUnitCreateSchema', () => {
   it('rejects empty code', () => {
     const r = visitpadUnitCreateSchema.safeParse({
       code: '',
-      display_label: 'x',
+      display_name: 'x',
       dimension: 'other',
     });
     expect(r.success).toBe(false);
@@ -74,15 +74,25 @@ describe('visitpadUnitConversionCreateSchema', () => {
   });
 });
 
-describe('visitpadMedicineCreateCoreSchema', () => {
-  it('accepts required medicine fields', () => {
-    const r = visitpadMedicineCreateCoreSchema.safeParse({
+describe('visitpadMedicineCreateFormSchema', () => {
+  it('accepts a valid medicine form', () => {
+    const r = visitpadMedicineCreateFormSchema.safeParse({
       code: 'para500',
-      display_name: 'Paracetamol 500mg',
       generic_name: 'Paracetamol',
+      display_name: 'Paracetamol 500mg',
       drug_class: 'Analgesic',
       dosage_form: 'tablet',
       schedule: 'otc',
+      display_order: 0,
+      requires_prescription: false,
+      is_controlled_substance: false,
+      is_narcotic: false,
+      is_restricted_antibiotic: false,
+      pregnancy_category: 'not_set',
+      lactation_safety: 'not_set',
+      pediatric_use: 'not_set',
+      black_box_warning: false,
+      is_active: true,
     });
     expect(r.success).toBe(true);
   });

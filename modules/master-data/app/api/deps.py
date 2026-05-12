@@ -29,15 +29,15 @@ def get_session() -> Generator[Session, None, None]:
 
 
 def get_catalog_scope(
-    iq_tenant_id: Annotated[str | None, Header(alias=CATALOG_TENANT_HEADER)] = None,
+    catalog_tenant_header: Annotated[str | None, Header(alias=CATALOG_TENANT_HEADER)] = None,
 ) -> CatalogScope:
     """Resolve where catalog CRUD goes for this request.
 
-    - No / blank header → ``CatalogScope(tenant_id=None)`` → ORM uses ``public`` models (**no** ``tenant_id`` column).
-    - Valid integer string → ``CatalogScope(tenant_id=n)`` → ORM uses ``tenant_master`` models (**every** row carries ``tenant_id``).
+    - No / blank header → ``CatalogScope(iq_tenant_id=None)`` → ORM uses ``public`` models (**no** ``iq_tenant_id`` column).
+    - Valid integer string → ``CatalogScope(iq_tenant_id=n)`` → ORM uses ``tenant_master`` models (**every** row carries ``iq_tenant_id``).
     """
     try:
-        tid = try_parse_iq_tenant_id(iq_tenant_id)
+        tid = try_parse_iq_tenant_id(catalog_tenant_header)
     except CatalogTenantIdError as exc:
         if exc.code == "uuid_shape":
             detail = (
@@ -57,7 +57,7 @@ def get_catalog_scope(
                 "(digits only, e.g. 1, 12, 98). Omit the header for the shared global catalog."
             )
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail) from exc
-    return CatalogScope(tenant_id=tid)
+    return CatalogScope(iq_tenant_id=tid)
 
 
 def get_module_repository(

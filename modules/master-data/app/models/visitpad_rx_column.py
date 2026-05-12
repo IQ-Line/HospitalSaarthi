@@ -7,10 +7,10 @@ import uuid
 from sqlalchemy import Boolean, Index, Integer, String, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, TimestampMixin
+from app.models.base import AuditActorMixin, Base, TimestampMixin
 
 
-class VisitpadRxColumnPublicModel(TimestampMixin, Base):
+class VisitpadRxColumnPublicModel(TimestampMixin, AuditActorMixin, Base):
     __tablename__ = "rx_columns"
     __table_args__ = (
         Index(
@@ -33,12 +33,12 @@ class VisitpadRxColumnPublicModel(TimestampMixin, Base):
     is_deleted: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
 
 
-class VisitpadRxColumnTenantModel(TimestampMixin, Base):
+class VisitpadRxColumnTenantModel(TimestampMixin, AuditActorMixin, Base):
     __tablename__ = "rx_columns"
     __table_args__ = (
         Index(
             "rx_columns_tenant_section_code_active_key",
-            "tenant_id",
+            "iq_tenant_id",
             "section",
             "code",
             unique=True,
@@ -49,7 +49,7 @@ class VisitpadRxColumnTenantModel(TimestampMixin, Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id: Mapped[int] = mapped_column(Integer(), nullable=False)
+    iq_tenant_id: Mapped[int] = mapped_column(Integer(), nullable=False)
     section: Mapped[str] = mapped_column(String(64), nullable=False)
     display_name: Mapped[str] = mapped_column(String(256), nullable=False)
     code: Mapped[str] = mapped_column(String(64), nullable=False)

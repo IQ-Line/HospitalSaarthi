@@ -1,10 +1,13 @@
 """Pydantic payloads for Visitpad procedures."""
 
+import re
 from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+_PROCEDURE_CATALOG_CODE = re.compile(r"^[A-Za-z0-9_]{3,8}$")
 
 
 class VisitpadProcedureCategory(StrEnum):
@@ -27,8 +30,9 @@ class VisitpadProcedureResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    tenant_id: int | None = None
+    iq_tenant_id: int | None = None
     cpt_code: str
+    short_name: str | None = None
     official_descriptor: str
     display_name: str
     category: VisitpadProcedureCategory
@@ -40,6 +44,8 @@ class VisitpadProcedureResponse(BaseModel):
     is_active: bool
     is_deleted: bool
     snomed_code: str | None = None
+    created_by: UUID | None = None
+    updated_by: UUID | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -56,7 +62,10 @@ class VisitpadProcedureSingleResponse(BaseModel):
 class VisitpadProcedureCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    cpt_code: str = Field(min_length=1, max_length=16)
+    cpt_code: str = Field(
+        description="Tenant-unique procedure catalog code (legacy Integrator “procedure code”; not AMA CPT).",
+    )
+    short_name: str | None = Field(default=None, max_length=64)
     official_descriptor: str = Field(min_length=1, max_length=512)
     display_name: str = Field(min_length=1, max_length=512)
     category: VisitpadProcedureCategory
@@ -68,11 +77,33 @@ class VisitpadProcedureCreate(BaseModel):
     is_active: bool = True
     snomed_code: str | None = Field(default=None, max_length=64)
 
+    @field_validator("cpt_code", mode="before")
+    @classmethod
+    def validate_procedure_catalog_code(cls, v: object) -> str:
+        if not isinstance(v, str):
+            msg = "Procedure code must be a string."
+            raise TypeError(msg)
+        s = v.strip()
+        if not _PROCEDURE_CATALOG_CODE.fullmatch(s):
+            msg = "Procedure code must be 3–8 characters: letters, digits, or underscores."
+            raise ValueError(msg)
+        return s
+
+    @field_validator("short_name", "type_modality", "snomed_code", mode="before")
+    @classmethod
+    def strip_optional_str(cls, v: object) -> object:
+        if v is None:
+            return None
+        if not isinstance(v, str):
+            return v
+        t = v.strip()
+        return t if t else None
+
 
 class VisitpadProcedureUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    cpt_code: str | None = Field(default=None, min_length=1, max_length=16)
+    short_name: str | None = Field(default=None, max_length=64)
     official_descriptor: str | None = Field(default=None, min_length=1, max_length=512)
     display_name: str | None = Field(default=None, min_length=1, max_length=512)
     category: VisitpadProcedureCategory | None = None
@@ -84,3 +115,13 @@ class VisitpadProcedureUpdate(BaseModel):
     is_active: bool | None = None
     snomed_code: str | None = Field(default=None, max_length=64)
     is_deleted: bool | None = None
+
+    @field_validator("short_name", "type_modality", "snomed_code", mode="before")
+    @classmethod
+    def strip_optional_str(cls, v: object) -> object:
+        if v is None:
+            return None
+        if not isinstance(v, str):
+            return v
+        t = v.strip()
+        return t if t else None

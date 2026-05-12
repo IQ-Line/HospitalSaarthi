@@ -12,11 +12,13 @@ from app.repositories.visitpad_chief_complaint_repository import VisitpadChiefCo
 from app.schemas.visitpad_chief_complaint import (
     VisitpadBodySystem,
     VisitpadChiefComplaintCreate,
+    VisitpadChiefComplaintDescriptor,
     VisitpadChiefComplaintListResponse,
     VisitpadChiefComplaintResponse,
     VisitpadChiefComplaintSingleResponse,
     VisitpadChiefComplaintUpdate,
     VisitpadTriagePriority,
+    build_visitpad_chief_complaint_descriptor,
 )
 from app.services.visitpad_chief_complaints_service import (
     create_visitpad_chief_complaint,
@@ -53,6 +55,16 @@ def get_chief_complaints(
         data=[VisitpadChiefComplaintResponse.model_validate(r) for r in rows],
         total=total,
     )
+
+
+@router.get(
+    "/descriptor",
+    response_model=VisitpadChiefComplaintDescriptor,
+    summary="Chief complaint form descriptor",
+)
+def get_chief_complaint_descriptor() -> VisitpadChiefComplaintDescriptor:
+    """Dropdown values and labels — derived from the same enums as create/update (no duplicate client constants)."""
+    return build_visitpad_chief_complaint_descriptor()
 
 
 @router.post(

@@ -7,10 +7,10 @@ import uuid
 from sqlalchemy import Boolean, Index, Integer, String, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, TimestampMixin
+from app.models.base import AuditActorMixin, Base, TimestampMixin
 
 
-class VisitpadProcedurePublicModel(TimestampMixin, Base):
+class VisitpadProcedurePublicModel(TimestampMixin, AuditActorMixin, Base):
     __tablename__ = "procedures"
     __table_args__ = (
         Index(
@@ -24,6 +24,7 @@ class VisitpadProcedurePublicModel(TimestampMixin, Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     cpt_code: Mapped[str] = mapped_column(String(16), nullable=False)
+    short_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
     official_descriptor: Mapped[str] = mapped_column(String(512), nullable=False)
     display_name: Mapped[str] = mapped_column(String(512), nullable=False)
     category: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -37,12 +38,12 @@ class VisitpadProcedurePublicModel(TimestampMixin, Base):
     snomed_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
-class VisitpadProcedureTenantModel(TimestampMixin, Base):
+class VisitpadProcedureTenantModel(TimestampMixin, AuditActorMixin, Base):
     __tablename__ = "procedures"
     __table_args__ = (
         Index(
             "procedures_tenant_cpt_active_key",
-            "tenant_id",
+            "iq_tenant_id",
             "cpt_code",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
@@ -52,8 +53,9 @@ class VisitpadProcedureTenantModel(TimestampMixin, Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id: Mapped[int] = mapped_column(Integer(), nullable=False)
+    iq_tenant_id: Mapped[int] = mapped_column(Integer(), nullable=False)
     cpt_code: Mapped[str] = mapped_column(String(16), nullable=False)
+    short_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
     official_descriptor: Mapped[str] = mapped_column(String(512), nullable=False)
     display_name: Mapped[str] = mapped_column(String(512), nullable=False)
     category: Mapped[str] = mapped_column(String(64), nullable=False)

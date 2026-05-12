@@ -1,4 +1,4 @@
-"""SQLAlchemy models for Visitpad ``units``: global rows (no ``tenant_id``) vs ``tenant_master`` rows."""
+"""SQLAlchemy models for Visitpad ``units``: global rows (no ``iq_tenant_id``) vs ``tenant_master`` rows."""
 
 from __future__ import annotations
 
@@ -7,10 +7,10 @@ import uuid
 from sqlalchemy import Boolean, Index, Integer, String, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, TimestampMixin
+from app.models.base import AuditActorMixin, Base, TimestampMixin
 
 
-class VisitpadUnitPublicModel(TimestampMixin, Base):
+class VisitpadUnitPublicModel(TimestampMixin, AuditActorMixin, Base):
     """Platform-wide unit definition in the default schema (``public`` on PostgreSQL)."""
 
     __tablename__ = "units"
@@ -26,7 +26,7 @@ class VisitpadUnitPublicModel(TimestampMixin, Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     code: Mapped[str] = mapped_column(String(64), nullable=False)
-    display_label: Mapped[str] = mapped_column(String(256), nullable=False)
+    display_name: Mapped[str] = mapped_column(String(256), nullable=False)
     dimension: Mapped[str] = mapped_column(String(32), nullable=False)
     ucum_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     is_canonical: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
@@ -35,14 +35,14 @@ class VisitpadUnitPublicModel(TimestampMixin, Base):
     is_deleted: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
 
 
-class VisitpadUnitTenantModel(TimestampMixin, Base):
+class VisitpadUnitTenantModel(TimestampMixin, AuditActorMixin, Base):
     """Tenant-scoped unit definitions in ``tenant_master``."""
 
     __tablename__ = "units"
     __table_args__ = (
         Index(
             "units_tenant_code_active_key",
-            "tenant_id",
+            "iq_tenant_id",
             "code",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
@@ -52,9 +52,9 @@ class VisitpadUnitTenantModel(TimestampMixin, Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id: Mapped[int] = mapped_column(Integer(), nullable=False)
+    iq_tenant_id: Mapped[int] = mapped_column(Integer(), nullable=False)
     code: Mapped[str] = mapped_column(String(64), nullable=False)
-    display_label: Mapped[str] = mapped_column(String(256), nullable=False)
+    display_name: Mapped[str] = mapped_column(String(256), nullable=False)
     dimension: Mapped[str] = mapped_column(String(32), nullable=False)
     ucum_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     is_canonical: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)

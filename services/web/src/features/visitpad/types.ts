@@ -7,35 +7,39 @@ export interface VisitpadListResponse<T> {
 
 export interface VisitpadUnit {
   id: string;
-  tenant_id: string;
+  iq_tenant_id: number | null;
   code: string;
-  display_label: string;
+  display_name: string;
   dimension: string;
   ucum_code: string | null;
   is_canonical: boolean;
   display_order: number;
   is_active: boolean;
   is_deleted: boolean;
+  created_by?: string | null;
+  updated_by?: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export interface VisitpadUnitConversion {
   id: string;
-  tenant_id: string;
+  iq_tenant_id: number | null;
   from_unit_code: string;
   to_unit_code: string;
   factor: number;
   offset_value: number;
   display_order: number;
   is_deleted: boolean;
+  created_by?: string | null;
+  updated_by?: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export interface VisitpadVital {
   id: string;
-  tenant_id: string;
+  iq_tenant_id: number | null;
   code: string;
   name: string;
   short_name: string;
@@ -58,13 +62,15 @@ export interface VisitpadVital {
   display_order: number;
   is_active: boolean;
   is_deleted: boolean;
+  created_by?: string | null;
+  updated_by?: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export interface VisitpadChiefComplaint {
   id: string;
-  tenant_id: string;
+  iq_tenant_id: number | null;
   code: string;
   display_name: string;
   body_system: string;
@@ -75,13 +81,15 @@ export interface VisitpadChiefComplaint {
   display_order: number;
   is_active: boolean;
   is_deleted: boolean;
+  created_by?: string | null;
+  updated_by?: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export interface VisitpadDiagnosis {
   id: string;
-  tenant_id: string;
+  iq_tenant_id: number | null;
   icd10_code: string;
   icd_version?: string;
   official_descriptor?: string;
@@ -93,13 +101,15 @@ export interface VisitpadDiagnosis {
   display_order: number;
   is_active: boolean;
   is_deleted: boolean;
+  created_by?: string | null;
+  updated_by?: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export interface VisitpadAllergen {
   id: string;
-  tenant_id: string;
+  iq_tenant_id: number | null;
   code: string;
   display_name: string;
   allergen_type: string;
@@ -109,25 +119,29 @@ export interface VisitpadAllergen {
   display_order: number;
   is_active: boolean;
   is_deleted: boolean;
+  created_by?: string | null;
+  updated_by?: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export interface VisitpadAllergyReaction {
   id: string;
-  tenant_id: string;
+  iq_tenant_id: number | null;
   code: string;
   display_name: string;
   display_order: number;
   is_active: boolean;
   is_deleted: boolean;
+  created_by?: string | null;
+  updated_by?: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export interface VisitpadRxColumn {
   id: string;
-  tenant_id: string;
+  iq_tenant_id: number | null;
   section: string;
   code: string;
   display_name: string;
@@ -135,44 +149,96 @@ export interface VisitpadRxColumn {
   display_order: number;
   is_active: boolean;
   is_deleted: boolean;
+  created_by?: string | null;
+  updated_by?: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export interface VisitpadMedicine {
   id: string;
-  tenant_id: string;
+  iq_tenant_id: number | null;
   code: string;
   display_name: string;
   generic_name: string;
-  drug_class?: string;
-  dosage_form?: string;
+  short_name?: string | null;
+  brand_names: string[];
+  drug_class: string;
+  drug_subclass?: string | null;
+  dosage_form: string;
+  route_of_admin: string[];
+  strength_value?: number | null;
+  strength_unit?: string | null;
+  strength_display: string;
+  concentration_value?: number | null;
+  concentration_unit?: string | null;
+  volume_per_unit?: number | null;
+  sku_code?: string | null;
+  barcode?: string | null;
+  pack_size?: number | null;
+  pack_unit?: string | null;
+  manufacturer?: string | null;
+  storage_condition?: string | null;
+  expiry_tracking: boolean;
+  is_dispensable: boolean;
   schedule: string;
+  is_controlled_substance: boolean;
+  is_narcotic: boolean;
+  requires_prescription: boolean;
+  is_restricted_antibiotic: boolean;
+  allergen_classes: string[];
+  contraindications: string[];
+  search_tags: string[];
+  atc_code?: string | null;
+  rxnorm_code?: string | null;
+  snomed_substance_code?: string | null;
+  snomed_product_code?: string | null;
+  pregnancy_category?: string | null;
+  lactation_safety?: string | null;
+  pediatric_use?: string | null;
+  max_dose_per_day_value?: number | null;
+  max_dose_per_day_unit?: string | null;
+  black_box_warning: boolean;
+  black_box_warning_text?: string | null;
+  default_dose_value?: number | null;
+  default_dose_unit?: string | null;
+  default_frequency?: string | null;
+  default_duration_days?: number | null;
+  default_route?: string | null;
+  default_instructions?: string | null;
+  typical_quantity?: number | null;
+  notes?: string | null;
   display_order: number;
   is_active: boolean;
   is_deleted: boolean;
+  created_by?: string | null;
+  updated_by?: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export interface VisitpadChronicIllness {
   id: string;
-  tenant_id: string;
+  iq_tenant_id: number | null;
   icd10_code: string;
   display_name: string;
   category: string;
   snomed_code?: string | null;
+  chronic_illness_prompt: boolean;
   display_order: number;
   is_active: boolean;
   is_deleted: boolean;
+  created_by?: string | null;
+  updated_by?: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export interface VisitpadProcedure {
   id: string;
-  tenant_id: string;
+  iq_tenant_id: number | null;
   cpt_code: string;
+  short_name?: string | null;
   display_name: string;
   official_descriptor?: string;
   category: string;
@@ -184,6 +250,8 @@ export interface VisitpadProcedure {
   display_order: number;
   is_active: boolean;
   is_deleted: boolean;
+  created_by?: string | null;
+  updated_by?: string | null;
   created_at: string;
   updated_at: string;
 }

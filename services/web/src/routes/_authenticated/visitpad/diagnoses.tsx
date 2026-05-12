@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { type ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
@@ -31,7 +31,9 @@ import { VISITPAD_DIAGNOSIS_CATEGORIES, VISITPAD_ICD_VERSIONS } from '@/features
 import { visitpadActiveTotal } from '@/features/visitpad/tab-count';
 import type { VisitpadDiagnosis } from '@/features/visitpad/types';
 import {
+  visitpadDiagnosisCreateFormSchema,
   visitpadDiagnosisEditFormSchema,
+  type VisitpadDiagnosisCreateFormSchema,
   type VisitpadDiagnosisEditFormSchema,
 } from '@/features/visitpad/validation';
 
@@ -57,29 +59,22 @@ function VisitpadDiagnosesPage() {
   const busy = patch.isPending || del.isPending;
 
   const filtered = useMemo(
-    () => rows.filter((r) => rowMatchesSearch(search, r.icd10_code, r.display_name, r.category)),
+    () =>
+      rows.filter((r) =>
+        rowMatchesSearch(search, r.code, r.display_name, r.short_name ?? '', r.snomed_code ?? ''),
+      ),
     [rows, search],
   );
 
   const columns = useMemo<ColumnDef<VisitpadDiagnosis, unknown>[]>(
     () => [
-      { accessorKey: 'icd10_code', header: 'ICD-10', meta: { label: 'ICD-10' } },
+      { accessorKey: 'code', header: 'Code', meta: { label: 'Code' } },
+      { accessorKey: 'display_name', header: 'Display name', meta: { label: 'Display name' } },
       {
-        accessorKey: 'official_descriptor',
-        header: 'Descriptor',
-        meta: { label: 'Descriptor' },
-        cell: ({ row }) => (
-          <span className="max-w-[220px] truncate text-sm" title={row.original.official_descriptor}>
-            {row.original.official_descriptor ?? '—'}
-          </span>
-        ),
-      },
-      { accessorKey: 'display_name', header: 'Display', meta: { label: 'Display' } },
-      {
-        accessorKey: 'category',
-        header: 'Category',
-        meta: { label: 'Category' },
-        cell: ({ getValue }) => <Badge variant="secondary">{getValue<string>()}</Badge>,
+        accessorKey: 'short_name',
+        header: 'Short name',
+        meta: { label: 'Short name' },
+        cell: ({ getValue }) => getValue<string | null>() ?? '—',
       },
       {
         accessorKey: 'snomed_code',
@@ -89,6 +84,27 @@ function VisitpadDiagnosesPage() {
           const v = getValue<string | null | undefined>();
           return v ? <span className="font-mono text-xs">{v}</span> : <span className="text-muted-foreground">—</span>;
         },
+      },
+      {
+        id: 'icd',
+        header: 'ICD',
+        meta: { label: 'ICD' },
+        cell: ({ row }) => {
+          const c = row.original.icd10_code;
+          return c ? <span className="font-mono text-xs">{c}</span> : <span className="text-muted-foreground">—</span>;
+        },
+      },
+      {
+        accessorKey: 'is_chronic_flag',
+        header: 'Chronic prompt',
+        meta: { label: 'Chronic prompt' },
+        cell: ({ getValue }) => (getValue<boolean>() ? <Badge variant="secondary">Yes</Badge> : '—'),
+      },
+      {
+        accessorKey: 'is_notifiable',
+        header: 'Notifiable',
+        meta: { label: 'Notifiable' },
+        cell: ({ getValue }) => (getValue<boolean>() ? <Badge variant="destructive">Yes</Badge> : '—'),
       },
       {
         accessorKey: 'is_active',
@@ -123,7 +139,7 @@ function VisitpadDiagnosesPage() {
       primary="diagnoses"
       tabCount={tabCount}
       title="Diagnosis"
-      description="ICD-backed diagnosis reference rows."
+      description="Diagnosis codes, display names, SNOMED, and chronic / notifiable flags. Optional ICD-10 enrichment when you need registry-backed rows."
       actions={
         <VisitpadHeaderActions addLabel="Add diagnosis" onAddClick={() => setCreateOpen(true)} />
       }
@@ -134,7 +150,7 @@ function VisitpadDiagnosesPage() {
             <MasterDataTableToolbar
               value={search}
               onChange={setSearch}
-              placeholder="Search ICD, descriptor, alias…"
+              placeholder="Search code, display name, short name, SNOMED…"
             />
             <Select value={category} onValueChange={setCategory}>
               <SelectTrigger className="w-full sm:w-[200px]">
@@ -201,7 +217,7 @@ function VisitpadDiagnosesPage() {
         open={!!deleting}
         onOpenChange={(o) => !o && setDeleting(null)}
         title="Delete diagnosis"
-        description={`Soft-delete ${deleting?.icd10_code ?? ''} — ${deleting?.display_name ?? ''}?`}
+        description={`Soft-delete ${deleting?.code ?? ''} — ${deleting?.display_name ?? ''}?`}
         confirmLabel="Delete"
         destructive
         onConfirm={() => {
@@ -234,117 +250,229 @@ function DiagnosisCreateDialog({
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const [icdVersion, setIcdVersion] = useState('ICD-10');
-  const [category, setCategory] = useState('general');
-  const [chronic, setChronic] = useState(false);
-  const [notifiable, setNotifiable] = useState(false);
-  const [isActive, setIsActive] = useState(true);
+  const form = useForm<VisitpadDiagnosisCreateFormSchema>({
+    resolver: zodResolver(visitpadDiagnosisCreateFormSchema),
+    defaultValues: {
+      code: '',
+      display_name: '',
+      short_name: '',
+      snomed_code: null,
+      is_chronic_flag: false,
+      is_notifiable: false,
+      display_order: 0,
+      is_active: true,
+      icd10_code: '',
+      icd_version: undefined,
+      official_descriptor: '',
+      category: undefined,
+    },
+  });
 
   useEffect(() => {
     if (!open) {
-      setIcdVersion('ICD-10');
-      setCategory('general');
-      setChronic(false);
-      setNotifiable(false);
-      setIsActive(true);
+      form.reset({
+        code: '',
+        display_name: '',
+        short_name: '',
+        snomed_code: null,
+        is_chronic_flag: false,
+        is_notifiable: false,
+        display_order: 0,
+        is_active: true,
+        icd10_code: '',
+        icd_version: undefined,
+        official_descriptor: '',
+        category: undefined,
+      });
     }
-  }, [open]);
+  }, [open, form]);
+
+  const submit: SubmitHandler<VisitpadDiagnosisCreateFormSchema> = async (v) => {
+    const body: Record<string, unknown> = {
+      code: v.code.trim(),
+      display_name: v.display_name.trim(),
+      short_name: v.short_name?.trim() ? v.short_name.trim() : null,
+      is_chronic_flag: v.is_chronic_flag,
+      is_notifiable: v.is_notifiable,
+      display_order: v.display_order,
+      is_active: v.is_active,
+      snomed_code: v.snomed_code?.trim() ? v.snomed_code.trim() : null,
+    };
+    const completeIcd =
+      (v.icd10_code?.trim() ?? '') !== '' &&
+      v.icd_version != null &&
+      (v.official_descriptor?.trim() ?? '') !== '' &&
+      v.category != null;
+    if (completeIcd) {
+      body.icd10_code = v.icd10_code!.trim();
+      body.icd_version = v.icd_version;
+      body.official_descriptor = v.official_descriptor!.trim();
+      body.category = v.category;
+    }
+    await onSubmit(body);
+  };
 
   return (
     <EntityFormDialog
       open={open}
       onOpenChange={onOpenChange}
       title="Add diagnosis"
-      description="Create an ICD diagnosis row. Official descriptor should match the registry wording."
-      submitLabel="Create diagnosis"
+      description="Stable diagnosis code (immutable after save), display name, optional short label and SNOMED. ICD-10 fields are optional."
+      submitLabel="Add diagnosis"
       isSubmitting={isSubmitting}
-      onSubmit={async (e: FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        const fd = new FormData(e.currentTarget);
-        const icd10_code = String(fd.get('icd10_code') ?? '').trim();
-        const official_descriptor = String(fd.get('official_descriptor') ?? '').trim();
-        const display_name = String(fd.get('display_name') ?? '').trim();
-        const snomedRaw = String(fd.get('snomed_code') ?? '').trim();
-        if (!icd10_code || !official_descriptor || !display_name) {
-          toast.error('ICD code, official descriptor, and display name are required.');
-          return;
-        }
-        await onSubmit({
-          icd10_code,
-          icd_version: icdVersion,
-          official_descriptor,
-          display_name,
-          category,
-          is_chronic_flag: chronic,
-          is_notifiable: notifiable,
-          display_order: Number(fd.get('display_order') ?? 0) || 0,
-          is_active: isActive,
-          snomed_code: snomedRaw.length ? snomedRaw : null,
-        });
-      }}
+      onSubmit={form.handleSubmit(submit)}
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="vp-dx-icd">ICD-10 code</Label>
-          <Input id="vp-dx-icd" name="icd10_code" required maxLength={16} />
+          <Label htmlFor="vp-dx-code">Diagnosis code *</Label>
+          <Input
+            id="vp-dx-code"
+            maxLength={12}
+            autoComplete="off"
+            placeholder="e.g. htn_dx"
+            {...form.register('code')}
+          />
+          <p className="text-xs text-muted-foreground">
+            3–12 characters: letters, digits, underscore. Unique and cannot be edited after save.
+          </p>
+          {form.formState.errors.code ? (
+            <p className="text-xs text-destructive">{form.formState.errors.code.message}</p>
+          ) : null}
         </div>
         <div className="space-y-2">
-          <Label>ICD version</Label>
-          <Select value={icdVersion} onValueChange={setIcdVersion}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {VISITPAD_ICD_VERSIONS.map((v) => (
-                <SelectItem key={v.value} value={v.value}>
-                  {v.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-dx-off">Official descriptor</Label>
-          <Input id="vp-dx-off" name="official_descriptor" required maxLength={512} />
-        </div>
-        <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-dx-disp">Display name / alias</Label>
-          <Input id="vp-dx-disp" name="display_name" required maxLength={512} />
-        </div>
-        <div className="space-y-2 sm:col-span-2">
-          <Label>Category</Label>
-          <Select value={category} onValueChange={setCategory}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {VISITPAD_DIAGNOSIS_CATEGORIES.map((c) => (
-                <SelectItem key={c.value} value={c.value}>
-                  {c.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-dx-snomed">SNOMED code (optional)</Label>
-          <Input id="vp-dx-snomed" name="snomed_code" maxLength={64} />
-        </div>
-        <div className="space-y-2 sm:col-span-2">
           <Label htmlFor="vp-dx-order">Display order</Label>
-          <Input id="vp-dx-order" name="display_order" type="number" defaultValue={0} />
+          <Input id="vp-dx-order" type="number" {...form.register('display_order', { valueAsNumber: true })} />
+          <p className="text-xs text-muted-foreground">Lower numbers appear first in pick lists.</p>
         </div>
-        <div className="flex items-center justify-between rounded-md border p-3">
-          <Label htmlFor="vp-dx-chr">Chronic flag</Label>
-          <Switch id="vp-dx-chr" checked={chronic} onCheckedChange={setChronic} />
+        <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor="vp-dx-disp">Display name *</Label>
+          <Input id="vp-dx-disp" maxLength={512} placeholder="Friendly name for staff" {...form.register('display_name')} />
+          {form.formState.errors.display_name ? (
+            <p className="text-xs text-destructive">{form.formState.errors.display_name.message}</p>
+          ) : null}
         </div>
-        <div className="flex items-center justify-between rounded-md border p-3">
-          <Label htmlFor="vp-dx-not">Notifiable</Label>
-          <Switch id="vp-dx-not" checked={notifiable} onCheckedChange={setNotifiable} />
+        <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor="vp-dx-short">Short name</Label>
+          <Input id="vp-dx-short" maxLength={120} placeholder="e.g. fvr" {...form.register('short_name')} />
         </div>
-        <div className="flex items-center justify-between rounded-md border p-3 sm:col-span-2">
-          <Label htmlFor="vp-dx-act">Enabled</Label>
-          <Switch id="vp-dx-act" checked={isActive} onCheckedChange={setIsActive} />
+        <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor="vp-dx-snomed">SNOMED CT (clinical finding)</Label>
+          <Input
+            id="vp-dx-snomed"
+            maxLength={64}
+            placeholder="Concept ID or text"
+            {...form.register('snomed_code')}
+          />
+        </div>
+        <div className="space-y-2 sm:col-span-2 rounded-md border border-dashed p-3">
+          <p className="text-sm font-medium">Optional ICD-10 enrichment</p>
+          <p className="text-xs text-muted-foreground mb-3">
+            Use when this row maps to a registry entry. Leave blank for simple pick-list diagnoses.
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="vp-dx-icd">ICD-10 code</Label>
+              <Input id="vp-dx-icd" maxLength={16} {...form.register('icd10_code')} />
+            </div>
+            <div className="space-y-2">
+              <Label>ICD version</Label>
+              <Select
+                value={form.watch('icd_version') ?? '__none__'}
+                onValueChange={(x) =>
+                  form.setValue(
+                    'icd_version',
+                    x === '__none__' ? undefined : (x as VisitpadDiagnosisCreateFormSchema['icd_version']),
+                  )
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Optional" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">(none)</SelectItem>
+                  {VISITPAD_ICD_VERSIONS.map((ver) => (
+                    <SelectItem key={ver.value} value={ver.value}>
+                      {ver.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="vp-dx-off">Official descriptor</Label>
+              <Input id="vp-dx-off" maxLength={512} {...form.register('official_descriptor')} />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label>Category</Label>
+              <Select
+                value={form.watch('category') ?? '__none__'}
+                onValueChange={(x) =>
+                  form.setValue(
+                    'category',
+                    x === '__none__' ? undefined : (x as VisitpadDiagnosisCreateFormSchema['category']),
+                  )
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Optional" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">(none)</SelectItem>
+                  {VISITPAD_DIAGNOSIS_CATEGORIES.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>
+                      {c.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          {form.formState.errors.icd10_code?.message?.includes('ICD') ? (
+            <p className="text-xs text-destructive mt-2">{form.formState.errors.icd10_code.message}</p>
+          ) : null}
+        </div>
+        <div className="flex flex-col gap-1 rounded-md border p-3 sm:col-span-2">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <Label htmlFor="vp-dx-chr">Chronic illness prompt</Label>
+              <p className="text-xs text-muted-foreground">
+                When selected in a visit, doctors can be prompted to add this to chronic illness history.
+              </p>
+            </div>
+            <Switch
+              id="vp-dx-chr"
+              checked={!!form.watch('is_chronic_flag')}
+              onCheckedChange={(c) => form.setValue('is_chronic_flag', c)}
+            />
+          </div>
+        </div>
+        <div className="flex flex-col gap-1 rounded-md border p-3 sm:col-span-2">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <Label htmlFor="vp-dx-not">Notifiable condition</Label>
+              <p className="text-xs text-muted-foreground">
+                Marks diagnoses that may require public health notification workflows.
+              </p>
+            </div>
+            <Switch
+              id="vp-dx-not"
+              checked={!!form.watch('is_notifiable')}
+              onCheckedChange={(c) => form.setValue('is_notifiable', c)}
+            />
+          </div>
+        </div>
+        <div className="flex flex-col gap-1 rounded-md border p-3 sm:col-span-2">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <Label htmlFor="vp-dx-act">Active</Label>
+              <p className="text-xs text-muted-foreground">Inactive entries are hidden from tenant search lists.</p>
+            </div>
+            <Switch
+              id="vp-dx-act"
+              checked={!!form.watch('is_active')}
+              onCheckedChange={(c) => form.setValue('is_active', c)}
+            />
+          </div>
         </div>
       </div>
     </EntityFormDialog>
@@ -367,11 +495,12 @@ function DiagnosisEditDialog({
   const form = useForm<VisitpadDiagnosisEditFormSchema>({
     resolver: zodResolver(visitpadDiagnosisEditFormSchema),
     defaultValues: {
-      icd10_code: '',
-      icd_version: 'ICD-10',
-      official_descriptor: '',
       display_name: '',
-      category: 'general',
+      short_name: null,
+      icd10_code: '',
+      icd_version: null,
+      official_descriptor: '',
+      category: null,
       is_chronic_flag: false,
       is_notifiable: false,
       snomed_code: null,
@@ -383,11 +512,12 @@ function DiagnosisEditDialog({
   useEffect(() => {
     if (open && row) {
       form.reset({
-        icd10_code: row.icd10_code,
-        icd_version: (row.icd_version ?? 'ICD-10') as VisitpadDiagnosisEditFormSchema['icd_version'],
-        official_descriptor: row.official_descriptor ?? '',
         display_name: row.display_name,
-        category: row.category as VisitpadDiagnosisEditFormSchema['category'],
+        short_name: row.short_name ?? null,
+        icd10_code: row.icd10_code ?? '',
+        icd_version: (row.icd_version ?? null) as VisitpadDiagnosisEditFormSchema['icd_version'],
+        official_descriptor: row.official_descriptor ?? '',
+        category: (row.category ?? null) as VisitpadDiagnosisEditFormSchema['category'],
         is_chronic_flag: !!row.is_chronic_flag,
         is_notifiable: !!row.is_notifiable,
         snomed_code: row.snomed_code ?? null,
@@ -398,18 +528,23 @@ function DiagnosisEditDialog({
   }, [open, row, form]);
 
   const submit: SubmitHandler<VisitpadDiagnosisEditFormSchema> = async (v) => {
-    const snomed = v.snomed_code?.trim();
+    const completeIcd =
+      (v.icd10_code?.trim() ?? '') !== '' &&
+      v.icd_version != null &&
+      (v.official_descriptor?.trim() ?? '') !== '' &&
+      v.category != null;
     await onSave({
-      icd10_code: v.icd10_code,
-      icd_version: v.icd_version,
-      official_descriptor: v.official_descriptor,
-      display_name: v.display_name,
-      category: v.category,
+      display_name: v.display_name.trim(),
+      short_name: v.short_name?.trim() ? v.short_name.trim() : null,
       is_chronic_flag: v.is_chronic_flag,
       is_notifiable: v.is_notifiable,
-      snomed_code: snomed && snomed.length > 0 ? snomed : null,
+      snomed_code: v.snomed_code?.trim() ? v.snomed_code.trim() : null,
       display_order: v.display_order,
       is_active: v.is_active,
+      icd10_code: completeIcd ? v.icd10_code!.trim() : null,
+      icd_version: completeIcd ? v.icd_version : null,
+      official_descriptor: completeIcd ? v.official_descriptor!.trim() : null,
+      category: completeIcd ? v.category : null,
     });
   };
 
@@ -417,93 +552,140 @@ function DiagnosisEditDialog({
     <EntityFormDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={row ? `Edit diagnosis — ${row.icd10_code}` : 'Edit diagnosis'}
-      description="Update ICD fields, category, flags, and SNOMED where applicable."
+      title={row ? `Edit diagnosis — ${row.code}` : 'Edit diagnosis'}
+      description="Diagnosis code cannot be changed. Optional ICD-10 enrichment can be added or cleared."
       submitLabel="Save changes"
       isSubmitting={isSubmitting}
       onSubmit={form.handleSubmit(submit)}
     >
       {row ? (
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="vp-de-icd">ICD-10 code</Label>
-            <Input id="vp-de-icd" maxLength={16} {...form.register('icd10_code')} />
-          </div>
-          <div className="space-y-2">
-            <Label>ICD version</Label>
-            <Select
-              value={form.watch('icd_version')}
-              onValueChange={(x) => form.setValue('icd_version', x as VisitpadDiagnosisEditFormSchema['icd_version'])}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {VISITPAD_ICD_VERSIONS.map((v) => (
-                  <SelectItem key={v.value} value={v.value}>
-                    {v.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="space-y-2 sm:col-span-2">
+            <Label>Diagnosis code</Label>
+            <Input value={row.code} readOnly className="bg-muted/40" />
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="vp-de-off">Official descriptor</Label>
-            <Input id="vp-de-off" maxLength={512} {...form.register('official_descriptor')} />
-          </div>
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="vp-de-disp">Display name / alias</Label>
+            <Label htmlFor="vp-de-disp">Display name *</Label>
             <Input id="vp-de-disp" maxLength={512} {...form.register('display_name')} />
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <Label>Category</Label>
-            <Select
-              value={form.watch('category')}
-              onValueChange={(x) => form.setValue('category', x as VisitpadDiagnosisEditFormSchema['category'])}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {VISITPAD_DIAGNOSIS_CATEGORIES.map((c) => (
-                  <SelectItem key={c.value} value={c.value}>
-                    {c.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label htmlFor="vp-de-short">Short name</Label>
+            <Input id="vp-de-short" maxLength={120} placeholder="e.g. fvr" {...form.register('short_name')} />
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="vp-de-snomed">SNOMED code</Label>
+            <Label htmlFor="vp-de-snomed">SNOMED CT (clinical finding)</Label>
             <Input id="vp-de-snomed" maxLength={64} {...form.register('snomed_code')} />
           </div>
-          <div className="space-y-2 sm:col-span-2">
+          <div className="space-y-2">
             <Label htmlFor="vp-de-order">Display order</Label>
             <Input id="vp-de-order" type="number" {...form.register('display_order', { valueAsNumber: true })} />
           </div>
-          <div className="flex items-center justify-between rounded-md border p-3">
-            <Label htmlFor="vp-de-chr">Chronic flag</Label>
-            <Switch
-              id="vp-de-chr"
-              checked={!!form.watch('is_chronic_flag')}
-              onCheckedChange={(c) => form.setValue('is_chronic_flag', c)}
-            />
+          <div className="space-y-2 sm:col-span-2 rounded-md border border-dashed p-3">
+            <p className="text-sm font-medium">ICD-10 enrichment (optional)</p>
+            <div className="mt-3 grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="vp-de-icd">ICD-10 code</Label>
+                <Input id="vp-de-icd" maxLength={16} {...form.register('icd10_code')} />
+              </div>
+              <div className="space-y-2">
+                <Label>ICD version</Label>
+                <Select
+                  value={form.watch('icd_version') ?? '__none__'}
+                  onValueChange={(x) =>
+                    form.setValue(
+                      'icd_version',
+                      x === '__none__' ? null : (x as VisitpadDiagnosisEditFormSchema['icd_version']),
+                    )
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Optional" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">(none)</SelectItem>
+                    {VISITPAD_ICD_VERSIONS.map((ver) => (
+                      <SelectItem key={ver.value} value={ver.value}>
+                        {ver.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="vp-de-off">Official descriptor</Label>
+                <Input id="vp-de-off" maxLength={512} {...form.register('official_descriptor')} />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label>Category</Label>
+                <Select
+                  value={form.watch('category') ?? '__none__'}
+                  onValueChange={(x) =>
+                    form.setValue(
+                      'category',
+                      x === '__none__' ? null : (x as VisitpadDiagnosisEditFormSchema['category']),
+                    )
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Optional" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">(none)</SelectItem>
+                    {VISITPAD_DIAGNOSIS_CATEGORIES.map((c) => (
+                      <SelectItem key={c.value} value={c.value}>
+                        {c.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {form.formState.errors.icd10_code ? (
+              <p className="text-xs text-destructive mt-2">{form.formState.errors.icd10_code.message}</p>
+            ) : null}
           </div>
-          <div className="flex items-center justify-between rounded-md border p-3">
-            <Label htmlFor="vp-de-not">Notifiable</Label>
-            <Switch
-              id="vp-de-not"
-              checked={!!form.watch('is_notifiable')}
-              onCheckedChange={(c) => form.setValue('is_notifiable', c)}
-            />
+          <div className="flex flex-col gap-1 rounded-md border p-3 sm:col-span-2">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <Label htmlFor="vp-de-chr">Chronic illness prompt</Label>
+                <p className="text-xs text-muted-foreground">
+                  When selected in a visit, doctors can be prompted to add this to chronic illness history.
+                </p>
+              </div>
+              <Switch
+                id="vp-de-chr"
+                checked={!!form.watch('is_chronic_flag')}
+                onCheckedChange={(c) => form.setValue('is_chronic_flag', c)}
+              />
+            </div>
           </div>
-          <div className="flex items-center justify-between rounded-md border p-3 sm:col-span-2">
-            <Label htmlFor="vp-de-act">Enabled</Label>
-            <Switch
-              id="vp-de-act"
-              checked={!!form.watch('is_active')}
-              onCheckedChange={(c) => form.setValue('is_active', c)}
-            />
+          <div className="flex flex-col gap-1 rounded-md border p-3 sm:col-span-2">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <Label htmlFor="vp-de-not">Notifiable condition</Label>
+                <p className="text-xs text-muted-foreground">
+                  Marks diagnoses that may require public health notification workflows.
+                </p>
+              </div>
+              <Switch
+                id="vp-de-not"
+                checked={!!form.watch('is_notifiable')}
+                onCheckedChange={(c) => form.setValue('is_notifiable', c)}
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-1 rounded-md border p-3 sm:col-span-2">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <Label htmlFor="vp-de-act">Active</Label>
+                <p className="text-xs text-muted-foreground">Inactive entries are hidden from tenant search lists.</p>
+              </div>
+              <Switch
+                id="vp-de-act"
+                checked={!!form.watch('is_active')}
+                onCheckedChange={(c) => form.setValue('is_active', c)}
+              />
+            </div>
           </div>
         </div>
       ) : null}

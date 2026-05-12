@@ -134,7 +134,7 @@ def create_module(
         updated_by=actor_id,
     )
     if repository.scope.is_tenant:
-        kwargs["tenant_id"] = repository.scope.tenant_id
+        kwargs["iq_tenant_id"] = repository.scope.iq_tenant_id
     module = M(**kwargs)
     return repository.create_module(module)
 

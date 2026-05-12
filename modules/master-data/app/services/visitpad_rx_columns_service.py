@@ -51,7 +51,7 @@ def create_visitpad_rx_column(
         is_deleted=False,
     )
     if repository.scope.is_tenant:
-        row = M(tenant_id=repository.scope.tenant_id, **common)
+        row = M(iq_tenant_id=repository.scope.iq_tenant_id, **common)
     else:
         row = M(**common)
     return repository.create(row)
@@ -74,19 +74,18 @@ def update_visitpad_rx_column(
     row = repository.get_by_id(row_id, include_deleted=True)
     if row is None:
         return None
-    if repository.scope.is_tenant and row.tenant_id != repository.scope.tenant_id:
+    if repository.scope.is_tenant and row.iq_tenant_id != repository.scope.iq_tenant_id:
         return None
-    if payload.display_name is not None:
+    dump = payload.model_dump(exclude_unset=True)
+    if "display_name" in dump and payload.display_name is not None:
         row.display_name = payload.display_name.strip()
-    if payload.code is not None:
-        row.code = payload.code.strip()
-    if payload.extra_unit is not None:
+    if "extra_unit" in dump:
         row.extra_unit = _norm_opt_str(payload.extra_unit)
-    if payload.display_order is not None:
+    if "display_order" in dump and payload.display_order is not None:
         row.display_order = payload.display_order
-    if payload.is_active is not None:
+    if "is_active" in dump and payload.is_active is not None:
         row.is_active = payload.is_active
-    if payload.is_deleted is not None:
+    if "is_deleted" in dump and payload.is_deleted is not None:
         row.is_deleted = payload.is_deleted
     return repository.update(row)
 

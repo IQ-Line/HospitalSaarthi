@@ -69,7 +69,7 @@ def test_visitpad_rx_column_duplicate_returns_409(visitpad_catalog_client: TestC
 
 def test_visitpad_medicine_create_and_get(visitpad_catalog_client: TestClient) -> None:
     body = {
-        "code": "asp-100",
+        "code": "asp500tb",
         "display_name": "Aspirin 100mg",
         "generic_name": "Acetylsalicylic acid",
         "drug_class": "NSAID",
@@ -81,4 +81,51 @@ def test_visitpad_medicine_create_and_get(visitpad_catalog_client: TestClient) -
     mid = r.json()["data"]["id"]
     g = visitpad_catalog_client.get(f"/api/v1/master-data/visitpad/medicines/{mid}")
     assert g.status_code == 200
-    assert g.json()["data"]["code"] == "asp-100"
+    assert g.json()["data"]["code"] == "asp500tb"
+
+
+def test_visitpad_chronic_illness_create_and_get(visitpad_catalog_client: TestClient) -> None:
+    body = {
+        "icd10_code": "dm2_t2",
+        "display_name": "Type 2 Diabetes Mellitus",
+        "category": "metabolic",
+        "snomed_code": "44054006",
+        "chronic_illness_prompt": True,
+        "display_order": 0,
+        "is_active": True,
+    }
+    r = visitpad_catalog_client.post("/api/v1/master-data/visitpad/chronic-illnesses", json=body)
+    assert r.status_code == 201, r.text
+    cid = r.json()["data"]["id"]
+    g = visitpad_catalog_client.get(f"/api/v1/master-data/visitpad/chronic-illnesses/{cid}")
+    assert g.status_code == 200
+    data = g.json()["data"]
+    assert data["icd10_code"] == "dm2_t2"
+    assert data["chronic_illness_prompt"] is True
+
+
+def test_visitpad_procedure_create_and_get(visitpad_catalog_client: TestClient) -> None:
+    body = {
+        "cpt_code": "ecg_12",
+        "short_name": "93000",
+        "official_descriptor": "12-lead electrocardiogram",
+        "display_name": "ECG 12-lead",
+        "category": "diagnostic",
+        "billing_category": "professional",
+        "duration_minutes": 15,
+        "requires_consent": True,
+        "type_modality": "cardiology",
+        "display_order": 0,
+        "is_active": True,
+        "snomed_code": "3457005",
+    }
+    r = visitpad_catalog_client.post("/api/v1/master-data/visitpad/procedures", json=body)
+    assert r.status_code == 201, r.text
+    pid = r.json()["data"]["id"]
+    g = visitpad_catalog_client.get(f"/api/v1/master-data/visitpad/procedures/{pid}")
+    assert g.status_code == 200
+    data = g.json()["data"]
+    assert data["cpt_code"] == "ecg_12"
+    assert data["short_name"] == "93000"
+    assert data["requires_consent"] is True
+    assert data["snomed_code"] == "3457005"

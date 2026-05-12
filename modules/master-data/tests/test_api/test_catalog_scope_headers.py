@@ -10,24 +10,24 @@ from app.api.deps import get_catalog_scope
 
 def test_no_header_returns_global_scope() -> None:
     scope = get_catalog_scope(None)
-    assert scope.tenant_id is None
+    assert scope.iq_tenant_id is None
     assert not scope.is_tenant
 
 
 def test_iq_tenant_id_integer() -> None:
     scope = get_catalog_scope("98")
-    assert scope.tenant_id == 98
+    assert scope.iq_tenant_id == 98
     assert scope.is_tenant
 
 
 def test_leading_zeros_normalize_to_int() -> None:
     scope = get_catalog_scope("01")
-    assert scope.tenant_id == 1
+    assert scope.iq_tenant_id == 1
 
 
 def test_whitespace_stripped() -> None:
     scope = get_catalog_scope("  7  ")
-    assert scope.tenant_id == 7
+    assert scope.iq_tenant_id == 7
 
 
 def test_uuid_string_rejected() -> None:

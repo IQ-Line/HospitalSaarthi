@@ -7,10 +7,10 @@ import uuid
 from sqlalchemy import Boolean, Index, Integer, String, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, TimestampMixin
+from app.models.base import AuditActorMixin, Base, TimestampMixin
 
 
-class VisitpadAllergyReactionPublicModel(TimestampMixin, Base):
+class VisitpadAllergyReactionPublicModel(TimestampMixin, AuditActorMixin, Base):
     __tablename__ = "allergy_reactions"
     __table_args__ = (
         Index(
@@ -25,17 +25,19 @@ class VisitpadAllergyReactionPublicModel(TimestampMixin, Base):
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     display_name: Mapped[str] = mapped_column(String(256), nullable=False)
     code: Mapped[str] = mapped_column(String(64), nullable=False)
+    short_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    snomed_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     display_order: Mapped[int] = mapped_column(Integer(), nullable=False, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=True)
     is_deleted: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
 
 
-class VisitpadAllergyReactionTenantModel(TimestampMixin, Base):
+class VisitpadAllergyReactionTenantModel(TimestampMixin, AuditActorMixin, Base):
     __tablename__ = "allergy_reactions"
     __table_args__ = (
         Index(
             "allergy_reactions_tenant_code_active_key",
-            "tenant_id",
+            "iq_tenant_id",
             "code",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
@@ -45,9 +47,11 @@ class VisitpadAllergyReactionTenantModel(TimestampMixin, Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id: Mapped[int] = mapped_column(Integer(), nullable=False)
+    iq_tenant_id: Mapped[int] = mapped_column(Integer(), nullable=False)
     display_name: Mapped[str] = mapped_column(String(256), nullable=False)
     code: Mapped[str] = mapped_column(String(64), nullable=False)
+    short_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    snomed_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     display_order: Mapped[int] = mapped_column(Integer(), nullable=False, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=True)
     is_deleted: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)

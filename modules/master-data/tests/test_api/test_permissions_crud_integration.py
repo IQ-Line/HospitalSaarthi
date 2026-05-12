@@ -46,7 +46,7 @@ def permission_client(permission_sqlite_session: Session) -> Iterator[TestClient
     app = create_app()
 
     def _repo() -> PermissionRepository:
-        return PermissionRepository(permission_sqlite_session, CatalogScope(tenant_id=None))
+        return PermissionRepository(permission_sqlite_session, CatalogScope(iq_tenant_id=None))
 
     def _session() -> Iterator[Session]:
         yield permission_sqlite_session

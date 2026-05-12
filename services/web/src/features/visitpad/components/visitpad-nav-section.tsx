@@ -1,10 +1,16 @@
 import {
-  Activity,
+  ArrowRightLeft,
   BookOpen,
-  ClipboardList,
+  CalendarClock,
+  ChevronDown,
+  ChevronRight,
+  Columns2,
+  HeartPulse,
   Layers,
-  Link2,
-  Pill,
+  PillBottle,
+  Ruler,
+  Scissors,
+  ShieldAlert,
   Stethoscope,
   Syringe,
 } from 'lucide-react';
@@ -45,9 +51,9 @@ export function VisitpadNavSection({
           <>
             <span className="font-medium">Visitpad</span>
             {isOpen ? (
-              <span className="ml-auto text-muted-foreground">▾</span>
+              <ChevronDown className="size-4 ml-auto" />
             ) : (
-              <span className="ml-auto text-muted-foreground">▸</span>
+              <ChevronRight className="size-4 ml-auto" />
             )}
           </>
         )}
@@ -58,21 +64,21 @@ export function VisitpadNavSection({
           <SidebarNavLink
             to="/visitpad/units"
             label="Units"
-            icon={ClipboardList}
+            icon={Ruler}
             collapsed={collapsed}
             nested
           />
           <SidebarNavLink
             to="/visitpad/conversions"
             label="Conversions"
-            icon={Link2}
+            icon={ArrowRightLeft}
             collapsed={collapsed}
             nested
           />
           <SidebarNavLink
             to="/visitpad/vitals"
             label="Vitals"
-            icon={Activity}
+            icon={HeartPulse}
             collapsed={collapsed}
             nested
           />
@@ -100,35 +106,35 @@ export function VisitpadNavSection({
           <SidebarNavLink
             to="/visitpad/reactions"
             label="Reactions"
-            icon={Activity}
+            icon={ShieldAlert}
             collapsed={collapsed}
             nested
           />
           <SidebarNavLink
             to="/visitpad/rx-columns"
             label="Rx columns"
-            icon={Pill}
+            icon={Columns2}
             collapsed={collapsed}
             nested
           />
           <SidebarNavLink
             to="/visitpad/medicines"
             label="Medicines"
-            icon={Pill}
+            icon={PillBottle}
             collapsed={collapsed}
             nested
           />
           <SidebarNavLink
             to="/visitpad/chronic-illness"
             label="Chronic illness"
-            icon={Stethoscope}
+            icon={CalendarClock}
             collapsed={collapsed}
             nested
           />
           <SidebarNavLink
             to="/visitpad/procedures"
             label="Procedures"
-            icon={ClipboardList}
+            icon={Scissors}
             collapsed={collapsed}
             nested
           />

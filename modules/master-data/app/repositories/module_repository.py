@@ -52,7 +52,7 @@ class ModuleRepository:
         M = self._M()
         filters = [M.is_deleted.is_(False)]
         if self._scope.is_tenant:
-            filters.append(M.tenant_id == self._scope.tenant_id)
+            filters.append(M.iq_tenant_id == self._scope.iq_tenant_id)
         if category is not None:
             filters.append(M.category == category.value)
 
@@ -66,7 +66,7 @@ class ModuleRepository:
             M.is_deleted.is_(False),
         ]
         if self._scope.is_tenant:
-            filters.append(M.tenant_id == self._scope.tenant_id)
+            filters.append(M.iq_tenant_id == self._scope.iq_tenant_id)
         statement = select(M).where(*filters).order_by(M.name)
         return list(self._session.scalars(statement).all())
 
@@ -80,7 +80,7 @@ class ModuleRepository:
         module = self._session.get(M, module_id)
         if module is None:
             return None
-        if self._scope.is_tenant and module.tenant_id != self._scope.tenant_id:
+        if self._scope.is_tenant and module.iq_tenant_id != self._scope.iq_tenant_id:
             return None
         if not include_deleted and module.is_deleted:
             return None
@@ -90,7 +90,7 @@ class ModuleRepository:
         M = self._M()
         filters = [M.slug == slug, M.is_deleted.is_(False)]
         if self._scope.is_tenant:
-            filters.append(M.tenant_id == self._scope.tenant_id)
+            filters.append(M.iq_tenant_id == self._scope.iq_tenant_id)
         statement = select(M).where(*filters).limit(1)
         return self._session.scalars(statement).first()
 

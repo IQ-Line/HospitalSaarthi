@@ -56,7 +56,7 @@ def mp_client(mp_sqlite_session: Session) -> Iterator[TestClient]:
         yield mp_sqlite_session
 
     app.dependency_overrides[get_session] = _session
-    scope = CatalogScope(tenant_id=None)
+    scope = CatalogScope(iq_tenant_id=None)
     app.dependency_overrides[get_module_repository] = lambda: ModuleRepository(
         mp_sqlite_session,
         scope,

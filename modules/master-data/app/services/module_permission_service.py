@@ -91,7 +91,7 @@ def create_module_permission(
         updated_by=actor_id,
     )
     if mp_repository.scope.is_tenant:
-        kwargs["tenant_id"] = mp_repository.scope.tenant_id
+        kwargs["iq_tenant_id"] = mp_repository.scope.iq_tenant_id
     row = M(**kwargs)
     return mp_repository.create_module_permission(row)
 

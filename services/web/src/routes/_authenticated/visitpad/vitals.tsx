@@ -22,7 +22,13 @@ import { MasterDataTableToolbar } from '@/features/master-data/components/master
 import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { rowMatchesSearch } from '@/features/master-data/table-search';
-import { useVisitpadDelete, useVisitpadPatch, useVisitpadPost, useVisitpadVitals } from '@/features/visitpad/api';
+import {
+  useVisitpadDelete,
+  useVisitpadPatch,
+  useVisitpadPost,
+  useVisitpadUnits,
+  useVisitpadVitals,
+} from '@/features/visitpad/api';
 import { visitpadActionsColumn } from '@/features/visitpad/components/visitpad-actions-column';
 import { VisitpadHeaderActions } from '@/features/visitpad/components/visitpad-header-actions';
 import { VisitpadPageShell } from '@/features/visitpad/components/visitpad-page-shell';
@@ -34,7 +40,8 @@ import {
   VISITPAD_VITAL_REFERENCE_KINDS,
 } from '@/features/visitpad/openapi-constants';
 import { visitpadActiveTotal } from '@/features/visitpad/tab-count';
-import type { VisitpadVital } from '@/features/visitpad/types';
+import type { VisitpadUnit, VisitpadVital } from '@/features/visitpad/types';
+import { visitpadActiveUnitRows } from '@/features/visitpad/unit-catalog';
 import {
   visitpadVitalCreateSchema,
   visitpadVitalEditFormSchema,
@@ -47,6 +54,52 @@ function summarizeJson(o: Record<string, unknown> | undefined | null): string {
   if (!o || Object.keys(o).length === 0) return '—';
   const s = JSON.stringify(o);
   return s.length > 56 ? `${s.slice(0, 56)}…` : s;
+}
+
+function fdOptNum(fd: FormData, key: string): number | null {
+  const s = String(fd.get(key) ?? '').trim();
+  if (s === '') return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function fdRangeJson(fd: FormData, minKey: string, maxKey: string): Record<string, unknown> {
+  const min = fdOptNum(fd, minKey);
+  const max = fdOptNum(fd, maxKey);
+  if (min === null && max === null) return {};
+  const o: Record<string, unknown> = {};
+  if (min !== null) o.min = min;
+  if (max !== null) o.max = max;
+  return o;
+}
+
+function fdAllowedUnits(fd: FormData): string[] {
+  const s = String(fd.get('allowed_units') ?? '').trim();
+  if (!s) return [];
+  return s.split(/[\s,]+/).map((x: string) => x.trim()).filter(Boolean);
+}
+
+function fdOptStr(fd: FormData, key: string): string | null {
+  const t = String(fd.get(key) ?? '').trim();
+  return t === '' ? null : t;
+}
+
+/** Dropdown rows: `Display (code)`; optional orphan when editing a code missing from the active catalog. */
+function defaultUnitSelectOptions(
+  rows: VisitpadUnit[],
+  orphan: { code: string; unitLabel: string } | null,
+): { code: string; label: string }[] {
+  const list = rows.map((u) => ({
+    code: u.code,
+    label: `${u.display_name} (${u.code})`,
+  }));
+  if (orphan?.code && !list.some((x) => x.code === orphan.code)) {
+    list.unshift({
+      code: orphan.code,
+      label: `${orphan.unitLabel.trim() || orphan.code} (${orphan.code}) — not in catalog`,
+    });
+  }
+  return list;
 }
 
 function criticalCell(low: number | null | undefined, high: number | null | undefined) {
@@ -229,6 +282,7 @@ function VisitpadVitalsPage() {
       <VitalCreateDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
+        pairOptions={rows.map((r) => ({ code: r.code, name: r.name }))}
         isSubmitting={create.isPending}
         onSubmit={async (payload) => {
           try {
@@ -287,11 +341,13 @@ function VisitpadVitalsPage() {
 function VitalCreateDialog({
   open,
   onOpenChange,
+  pairOptions,
   isSubmitting,
   onSubmit,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  pairOptions: { code: string; name: string }[];
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
@@ -301,6 +357,12 @@ function VitalCreateDialog({
   const [inputMethod, setInputMethod] = useState('manual');
   const [isPaired, setIsPaired] = useState(false);
   const [isActive, setIsActive] = useState(true);
+  const [unitLabel, setUnitLabel] = useState('');
+  const [defaultUnitCode, setDefaultUnitCode] = useState('');
+
+  const { data: unitsRes, isLoading: unitsLoading } = useVisitpadUnits();
+  const unitRows = useMemo(() => visitpadActiveUnitRows(unitsRes?.data), [unitsRes?.data]);
+  const hasCatalogUnits = unitRows.length > 0;
 
   useEffect(() => {
     if (!open) {
@@ -310,6 +372,8 @@ function VitalCreateDialog({
       setInputMethod('manual');
       setIsPaired(false);
       setIsActive(true);
+      setUnitLabel('');
+      setDefaultUnitCode('');
     }
   }, [open]);
 
@@ -318,34 +382,36 @@ function VitalCreateDialog({
       open={open}
       onOpenChange={onOpenChange}
       title="Add vital"
-      description="Create a vital catalog entry. Range and LOINC fields can be edited after create."
-      submitLabel="Create vital"
+      description="Create a vital catalog entry. Optional codes, ranges, critical thresholds, alternate unit codes (comma-separated), and partner vital when paired capture is on."
+      submitLabel="Add vital"
       isSubmitting={isSubmitting}
       onSubmit={async (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         const fd = new FormData(e.currentTarget);
+        const normalAdult = fdRangeJson(fd, 'normal_adult_min', 'normal_adult_max');
+        const normalPaed = fdRangeJson(fd, 'normal_paed_min', 'normal_paed_max');
         const parsed = visitpadVitalCreateSchema.safeParse({
           code: String(fd.get('code') ?? '').trim(),
           name: String(fd.get('name') ?? '').trim(),
           short_name: String(fd.get('short_name') ?? '').trim(),
           category,
           data_type: dataType,
-          unit: String(fd.get('unit') ?? '').trim(),
-          default_unit_code: String(fd.get('default_unit_code') ?? '').trim(),
-          allowed_units: [] as string[],
-          critical_low: null,
-          critical_high: null,
+          unit: unitLabel.trim(),
+          default_unit_code: defaultUnitCode.trim(),
+          allowed_units: fdAllowedUnits(fd),
+          critical_low: fdOptNum(fd, 'critical_low'),
+          critical_high: fdOptNum(fd, 'critical_high'),
           reference_kind: refKind,
           reference_json: {},
-          normal_range_adult: {},
-          normal_range_paediatric: {},
+          normal_range_adult: normalAdult,
+          normal_range_paediatric: normalPaed,
           input_method: inputMethod,
           is_paired: isPaired,
-          pair_code: null,
+          pair_code: isPaired ? fdOptStr(fd, 'pair_code') : null,
           display_order: Number(fd.get('display_order') ?? 0) || 0,
           is_active: isActive,
-          loinc_code: null,
-          snomed_observable_code: null,
+          loinc_code: fdOptStr(fd, 'loinc_code'),
+          snomed_observable_code: fdOptStr(fd, 'snomed_observable_code'),
         });
         if (!parsed.success) {
           toast.error(parsed.error.issues.map((er) => er.message).join(' '));
@@ -398,12 +464,55 @@ function VitalCreateDialog({
           </Select>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="vp-v-unit">Unit label</Label>
-          <Input id="vp-v-unit" name="unit" required maxLength={128} />
+          <Label>Default unit code</Label>
+          {hasCatalogUnits ? (
+            <Select
+              value={defaultUnitCode || undefined}
+              onValueChange={(code) => {
+                setDefaultUnitCode(code);
+                const row = unitRows.find((u) => u.code === code);
+                if (row) setUnitLabel(row.display_name);
+              }}
+              disabled={unitsLoading}
+            >
+              <SelectTrigger id="vp-v-def">
+                <SelectValue placeholder={unitsLoading ? 'Loading units…' : 'Select unit code…'} />
+              </SelectTrigger>
+              <SelectContent>
+                {unitRows.map((u) => (
+                  <SelectItem key={u.id} value={u.code}>
+                    {u.display_name} ({u.code})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input
+              id="vp-v-def"
+              value={defaultUnitCode}
+              onChange={(e) => setDefaultUnitCode(e.target.value)}
+              required
+              maxLength={64}
+              placeholder="No units in catalog — type a code"
+              disabled={unitsLoading}
+            />
+          )}
+          {!hasCatalogUnits && !unitsLoading ? (
+            <p className="text-muted-foreground text-xs">
+              Add units under Visitpad → Units to use the catalog dropdown.
+            </p>
+          ) : null}
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="vp-v-def">Default unit code</Label>
-          <Input id="vp-v-def" name="default_unit_code" required maxLength={64} />
+        <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor="vp-v-unit">Unit label</Label>
+          <Input
+            id="vp-v-unit"
+            value={unitLabel}
+            onChange={(e) => setUnitLabel(e.target.value)}
+            required
+            maxLength={128}
+            placeholder="Filled when you pick a default unit; editable"
+          />
         </div>
         <div className="space-y-2">
           <Label>Reference kind</Label>
@@ -436,13 +545,88 @@ function VitalCreateDialog({
           </Select>
         </div>
         <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor="vp-v-loinc">LOINC code</Label>
+          <Input id="vp-v-loinc" name="loinc_code" maxLength={32} placeholder="e.g. 8867-4" />
+        </div>
+        <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor="vp-v-snomed">SNOMED observable code</Label>
+          <Input
+            id="vp-v-snomed"
+            name="snomed_observable_code"
+            maxLength={64}
+            placeholder="Concept id or short text"
+          />
+        </div>
+        <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor="vp-v-alt-units">Allowed alternate unit codes</Label>
+          <Input
+            id="vp-v-alt-units"
+            name="allowed_units"
+            list="vp-v-alt-units-dl"
+            placeholder="Comma or space separated (e.g. bpm, /min)"
+          />
+          <datalist id="vp-v-alt-units-dl">
+            {unitRows
+              .filter((u) => u.code !== defaultUnitCode)
+              .map((u) => (
+                <option key={u.id} value={u.code} />
+              ))}
+          </datalist>
+          <p className="text-muted-foreground text-xs">Must match existing unit codes in this catalog scope.</p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="vp-v-namin">Normal range (adult) — min</Label>
+          <Input id="vp-v-namin" name="normal_adult_min" type="number" step="any" />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="vp-v-namax">Normal range (adult) — max</Label>
+          <Input id="vp-v-namax" name="normal_adult_max" type="number" step="any" />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="vp-v-npmin">Normal range (paediatric) — min</Label>
+          <Input id="vp-v-npmin" name="normal_paed_min" type="number" step="any" />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="vp-v-npmax">Normal range (paediatric) — max</Label>
+          <Input id="vp-v-npmax" name="normal_paed_max" type="number" step="any" />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="vp-v-clow">Critical low</Label>
+          <Input id="vp-v-clow" name="critical_low" type="number" step="any" />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="vp-v-chigh">Critical high</Label>
+          <Input id="vp-v-chigh" name="critical_high" type="number" step="any" />
+        </div>
+        <div className="space-y-2 sm:col-span-2">
           <Label htmlFor="vp-v-order">Display order</Label>
           <Input id="vp-v-order" name="display_order" type="number" defaultValue={0} />
         </div>
         <div className="flex items-center justify-between gap-4 rounded-md border p-3 sm:col-span-2">
-          <Label htmlFor="vp-v-paired">Paired vital</Label>
+          <div>
+            <Label htmlFor="vp-v-paired">Paired capture</Label>
+            <p className="text-muted-foreground text-xs">Partner vital code is required when on.</p>
+          </div>
           <Switch id="vp-v-paired" checked={isPaired} onCheckedChange={setIsPaired} />
         </div>
+        {isPaired ? (
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="vp-v-pair">Partner vital code</Label>
+            <Input
+              id="vp-v-pair"
+              name="pair_code"
+              list="vp-vital-pair-datalist"
+              maxLength={64}
+              placeholder="Existing vital code (e.g. bp_dia)"
+              autoComplete="off"
+            />
+            <datalist id="vp-vital-pair-datalist">
+              {pairOptions.map((o) => (
+                <option key={o.code} value={o.code} label={o.name} />
+              ))}
+            </datalist>
+          </div>
+        ) : null}
         <div className="flex items-center justify-between gap-4 rounded-md border p-3 sm:col-span-2">
           <Label htmlFor="vp-v-act">Active</Label>
           <Switch id="vp-v-act" checked={isActive} onCheckedChange={setIsActive} />
@@ -465,6 +649,16 @@ function VitalEditDialog({
   isSubmitting: boolean;
   onSave: (body: Record<string, unknown>) => Promise<void>;
 }) {
+  const { data: unitsRes, isLoading: unitsLoading } = useVisitpadUnits();
+  const unitRows = useMemo(() => visitpadActiveUnitRows(unitsRes?.data), [unitsRes?.data]);
+  const defaultUnitOptions = useMemo(
+    () =>
+      vital
+        ? defaultUnitSelectOptions(unitRows, { code: vital.default_unit_code, unitLabel: vital.unit })
+        : defaultUnitSelectOptions(unitRows, null),
+    [unitRows, vital],
+  );
+
   const form = useForm<VisitpadVitalEditFormSchema>({
     resolver: zodResolver(visitpadVitalEditFormSchema),
     defaultValues: {
@@ -595,12 +789,40 @@ function VitalEditDialog({
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="vp-ve-unit">Unit label</Label>
-            <Input id="vp-ve-unit" maxLength={128} {...form.register('unit')} />
+            <Label>Default unit code</Label>
+            {defaultUnitOptions.length > 0 ? (
+              <Select
+                value={form.watch('default_unit_code')}
+                onValueChange={(c) => {
+                  form.setValue('default_unit_code', c, { shouldDirty: true });
+                  const row = unitRows.find((u) => u.code === c);
+                  if (row) form.setValue('unit', row.display_name, { shouldDirty: true });
+                }}
+                disabled={unitsLoading}
+              >
+                <SelectTrigger id="vp-ve-def">
+                  <SelectValue placeholder={unitsLoading ? 'Loading units…' : 'Select unit code…'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {defaultUnitOptions.map((o) => (
+                    <SelectItem key={o.code} value={o.code}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input id="vp-ve-def" maxLength={64} {...form.register('default_unit_code')} disabled={unitsLoading} />
+            )}
+            {defaultUnitOptions.length === 0 && !unitsLoading ? (
+              <p className="text-muted-foreground text-xs">
+                Add units under Visitpad → Units to enable the catalog dropdown.
+              </p>
+            ) : null}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="vp-ve-def">Default unit code</Label>
-            <Input id="vp-ve-def" maxLength={64} {...form.register('default_unit_code')} />
+            <Label htmlFor="vp-ve-unit">Unit label</Label>
+            <Input id="vp-ve-unit" maxLength={128} {...form.register('unit')} />
           </div>
           <div className="space-y-2">
             <Label>Reference kind</Label>

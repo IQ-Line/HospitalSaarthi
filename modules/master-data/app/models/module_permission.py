@@ -58,7 +58,7 @@ class ModulePermissionTenantModel(TimestampMixin, Base):
     __table_args__ = (
         Index(
             "tm_module_permissions_slug_active_key",
-            "tenant_id",
+            "iq_tenant_id",
             "slug",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
@@ -66,7 +66,7 @@ class ModulePermissionTenantModel(TimestampMixin, Base):
         ),
         Index(
             "tm_module_permissions_module_permission_active_key",
-            "tenant_id",
+            "iq_tenant_id",
             "module_id",
             "permission_id",
             unique=True,
@@ -77,7 +77,7 @@ class ModulePermissionTenantModel(TimestampMixin, Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id: Mapped[int] = mapped_column(Integer(), nullable=False)
+    iq_tenant_id: Mapped[int] = mapped_column(Integer(), nullable=False)
     slug: Mapped[str] = mapped_column(Text(), nullable=False)
     module_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),

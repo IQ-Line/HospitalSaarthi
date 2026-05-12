@@ -3,7 +3,7 @@
 **Version:** 2.1 (Master Data–hosted; step-by-step execution)  
 **Status:** Draft for execution  
 **Scope:** Global clinical / visit template reference data (admin UI + APIs), aligned with HIMS monorepo rules (spec-first, `tenant_id`, no cross-module imports).  
-**Inputs:** Chat payloads (sample JSON), UI reference screenshots (Visitpad templates — all primary tabs, sub-tabs, toolbars, tables), [docs/architecture/lld/master-data/03-visitpad-master.md](../../architecture/lld/master-data/03-visitpad-master.md), [docs/architecture/lld/repo-structure/01-monorepo-setup.md](../../architecture/lld/repo-structure/01-monorepo-setup.md), and [docs/architecture/lld/frontend/01-frontend-structure.md](../../architecture/lld/frontend/01-frontend-structure.md).
+**Inputs:** Chat payloads (sample JSON), UI reference screenshots (Visitpad templates — all primary tabs, sub-tabs, toolbars, tables), [docs/architecture/lld/master-data/03-visitpad-master.md](../../architecture/lld/master-data/03-visitpad-master.md), [docs/architecture/lld/repo-structure/01-monorepo-setup.md](../../architecture/lld/repo-structure/01-monorepo-setup.md), and [docs/architecture/lld/frontend/01-frontend-structure.md](../../architecture/lld/frontend/01-frontend-structure.md). **End-to-end verification (sections 1→end):** [visitpad-master-e2e-verification.md](./visitpad-master-e2e-verification.md).
 
 ---
 

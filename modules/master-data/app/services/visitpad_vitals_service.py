@@ -78,7 +78,7 @@ def create_visitpad_vital(
         snomed_observable_code=_norm_opt_str(payload.snomed_observable_code),
     )
     if repository.scope.is_tenant:
-        row = M(tenant_id=repository.scope.tenant_id, **common)
+        row = M(iq_tenant_id=repository.scope.iq_tenant_id, **common)
     else:
         row = M(**common)
     return repository.create(row)
@@ -101,7 +101,7 @@ def update_visitpad_vital(
     row = repository.get_by_id(row_id, include_deleted=True)
     if row is None:
         return None
-    if repository.scope.is_tenant and row.tenant_id != repository.scope.tenant_id:
+    if repository.scope.is_tenant and row.iq_tenant_id != repository.scope.iq_tenant_id:
         return None
     lo = payload.critical_low if payload.critical_low is not None else row.critical_low
     hi = payload.critical_high if payload.critical_high is not None else row.critical_high

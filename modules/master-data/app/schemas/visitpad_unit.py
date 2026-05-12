@@ -24,15 +24,17 @@ class VisitpadUnitResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    tenant_id: int | None = None
+    iq_tenant_id: int | None = None
     code: str
-    display_label: str
+    display_name: str
     dimension: VisitpadUnitDimension
     ucum_code: str | None = None
     is_canonical: bool
     display_order: int
     is_active: bool
     is_deleted: bool
+    created_by: UUID | None = None
+    updated_by: UUID | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -54,7 +56,7 @@ class VisitpadUnitCreate(BaseModel):
         max_length=64,
         description="Trimmed and stored lowercase; uniqueness is case-insensitive among active rows.",
     )
-    display_label: str = Field(min_length=1, max_length=256)
+    display_name: str = Field(min_length=1, max_length=256)
     dimension: VisitpadUnitDimension
     ucum_code: str | None = Field(default=None, max_length=64)
     is_canonical: bool = False
@@ -65,7 +67,7 @@ class VisitpadUnitCreate(BaseModel):
 class VisitpadUnitUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    display_label: str | None = Field(default=None, min_length=1, max_length=256)
+    display_name: str | None = Field(default=None, min_length=1, max_length=256)
     dimension: VisitpadUnitDimension | None = None
     ucum_code: str | None = Field(default=None, max_length=64)
     is_canonical: bool | None = None
@@ -81,13 +83,15 @@ class VisitpadUnitConversionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    tenant_id: int | None = None
+    iq_tenant_id: int | None = None
     from_unit_code: str
     to_unit_code: str
     factor: float
     offset_value: float
     display_order: int
     is_deleted: bool
+    created_by: UUID | None = None
+    updated_by: UUID | None = None
     created_at: datetime
     updated_at: datetime
 

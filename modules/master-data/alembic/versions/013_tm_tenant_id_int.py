@@ -3,8 +3,9 @@
 Revision ID: 013_tm_tenant_id_int (≤32 chars for ``alembic_version.version_num``).
 Revises: 012_tm_platform_catalog
 
-**Breaking:** truncates all rows in ``tenant_master`` catalog tables (Visitpad + platform) because
-UUID tenant keys cannot be converted to integers. Re-seed tenant data after upgrade if needed.
+**Breaking / pre-production only:** truncates all rows in ``tenant_master`` catalog tables (Visitpad + platform)
+because UUID tenant keys cannot be converted to integers, then coerces keys with ``USING 1``. Never run this
+revision against a production DB with real multi-tenant data. Re-seed tenant data after upgrade if needed.
 
 SQLite / non-PostgreSQL: no-op.
 

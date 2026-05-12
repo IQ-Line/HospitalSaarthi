@@ -37,13 +37,14 @@ class VisitpadAllergyReactionRepository:
         M = self._M()
         filters = [M.is_deleted.is_(False)]
         if self._scope.is_tenant:
-            filters.append(M.tenant_id == self._scope.tenant_id)
+            filters.append(M.iq_tenant_id == self._scope.iq_tenant_id)
         if search:
             term = f"%{search.strip()}%"
             filters.append(
                 or_(
                     M.code.ilike(term),
                     M.display_name.ilike(term),
+                    M.short_name.ilike(term),
                 )
             )
         cnt = func.count().over().label("_page_total")
@@ -73,7 +74,7 @@ class VisitpadAllergyReactionRepository:
         row = self._session.get(M, row_id)
         if row is None:
             return None
-        if self._scope.is_tenant and row.tenant_id != self._scope.tenant_id:
+        if self._scope.is_tenant and row.iq_tenant_id != self._scope.iq_tenant_id:
             return None
         if not include_deleted and row.is_deleted:
             return None

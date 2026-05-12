@@ -44,7 +44,8 @@ def create_visitpad_procedure(
     M = visitpad_procedure_model(repository.scope)
     common = dict(
         id=uuid.uuid4(),
-        cpt_code=payload.cpt_code.strip(),
+        cpt_code=payload.cpt_code,
+        short_name=payload.short_name,
         official_descriptor=payload.official_descriptor.strip(),
         display_name=payload.display_name.strip(),
         category=payload.category.value,
@@ -58,7 +59,7 @@ def create_visitpad_procedure(
         snomed_code=_norm_opt_str(payload.snomed_code),
     )
     if repository.scope.is_tenant:
-        row = M(tenant_id=repository.scope.tenant_id, **common)
+        row = M(iq_tenant_id=repository.scope.iq_tenant_id, **common)
     else:
         row = M(**common)
     return repository.create(row)
@@ -81,31 +82,32 @@ def update_visitpad_procedure(
     row = repository.get_by_id(row_id, include_deleted=True)
     if row is None:
         return None
-    if repository.scope.is_tenant and row.tenant_id != repository.scope.tenant_id:
+    if repository.scope.is_tenant and row.iq_tenant_id != repository.scope.iq_tenant_id:
         return None
-    if payload.cpt_code is not None:
-        row.cpt_code = payload.cpt_code.strip()
-    if payload.official_descriptor is not None:
+    dump = payload.model_dump(exclude_unset=True)
+    if "short_name" in dump:
+        row.short_name = _norm_opt_str(payload.short_name)
+    if "official_descriptor" in dump and payload.official_descriptor is not None:
         row.official_descriptor = payload.official_descriptor.strip()
-    if payload.display_name is not None:
+    if "display_name" in dump and payload.display_name is not None:
         row.display_name = payload.display_name.strip()
-    if payload.category is not None:
+    if "category" in dump and payload.category is not None:
         row.category = payload.category.value
-    if payload.billing_category is not None:
+    if "billing_category" in dump and payload.billing_category is not None:
         row.billing_category = payload.billing_category.value
-    if payload.duration_minutes is not None:
+    if "duration_minutes" in dump and payload.duration_minutes is not None:
         row.duration_minutes = payload.duration_minutes
-    if payload.requires_consent is not None:
+    if "requires_consent" in dump and payload.requires_consent is not None:
         row.requires_consent = payload.requires_consent
-    if payload.type_modality is not None:
+    if "type_modality" in dump:
         row.type_modality = _norm_opt_str(payload.type_modality)
-    if payload.display_order is not None:
+    if "display_order" in dump and payload.display_order is not None:
         row.display_order = payload.display_order
-    if payload.is_active is not None:
+    if "is_active" in dump and payload.is_active is not None:
         row.is_active = payload.is_active
-    if payload.snomed_code is not None:
+    if "snomed_code" in dump:
         row.snomed_code = _norm_opt_str(payload.snomed_code)
-    if payload.is_deleted is not None:
+    if "is_deleted" in dump and payload.is_deleted is not None:
         row.is_deleted = payload.is_deleted
     return repository.update(row)
 

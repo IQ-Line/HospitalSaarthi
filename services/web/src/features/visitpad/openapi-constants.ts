@@ -50,13 +50,19 @@ export const VISITPAD_BODY_SYSTEMS = [
   { value: 'neurological', label: 'Neurological' },
   { value: 'gastrointestinal', label: 'Gastrointestinal' },
   { value: 'musculoskeletal', label: 'Musculoskeletal' },
+  { value: 'genitourinary', label: 'Genitourinary' },
+  { value: 'dermatological', label: 'Dermatological' },
+  { value: 'ophthalmological', label: 'Ophthalmological' },
+  { value: 'endocrine', label: 'Endocrine' },
   { value: 'ent', label: 'ENT' },
   { value: 'skin', label: 'Skin' },
   { value: 'psychiatric', label: 'Psychiatric' },
+  { value: 'general', label: 'General' },
   { value: 'other', label: 'Other' },
 ] as const;
 
 export const VISITPAD_TRIAGE_PRIORITIES = [
+  { value: 'emergency', label: 'Emergency' },
   { value: 'urgent', label: 'Urgent' },
   { value: 'semi_urgent', label: 'Semi-urgent' },
   { value: 'non_urgent', label: 'Non-urgent' },
@@ -93,11 +99,13 @@ export const VISITPAD_REACTION_SEVERITY_DEFAULTS = [
 ] as const;
 
 export const VISITPAD_CHRONIC_ILLNESS_CATEGORIES = [
+  { value: 'autoimmune', label: 'Autoimmune' },
+  { value: 'endocrine', label: 'Endocrine' },
   { value: 'cardiovascular', label: 'Cardiovascular' },
-  { value: 'respiratory', label: 'Respiratory' },
   { value: 'metabolic', label: 'Metabolic' },
-  { value: 'renal', label: 'Renal' },
   { value: 'neurological', label: 'Neurological' },
+  { value: 'renal', label: 'Renal' },
+  { value: 'respiratory', label: 'Respiratory' },
   { value: 'other', label: 'Other' },
 ] as const;
 
@@ -124,4 +132,49 @@ export const VISITPAD_MEDICINE_SCHEDULES = [
   { value: 's', label: 'S' },
   { value: 'x', label: 'X' },
   { value: 'unscheduled', label: 'Unscheduled' },
+] as const;
+
+/** Default route of administration (snake_case codes; align with formulation UI). */
+export const VISITPAD_MEDICINE_ADMIN_ROUTES = [
+  { value: 'oral', label: 'Oral' },
+  { value: 'sublingual', label: 'Sublingual' },
+  { value: 'buccal', label: 'Buccal' },
+  { value: 'iv', label: 'IV' },
+  { value: 'iv_infusion', label: 'IV infusion' },
+  { value: 'im', label: 'IM' },
+  { value: 'sc', label: 'SC' },
+  { value: 'id', label: 'ID' },
+  { value: 'topical', label: 'Topical' },
+  { value: 'inhaled', label: 'Inhaled' },
+  { value: 'nasal', label: 'Nasal' },
+  { value: 'ophthalmic', label: 'Ophthalmic' },
+  { value: 'otic', label: 'Otic' },
+  { value: 'rectal', label: 'Rectal' },
+  { value: 'vaginal', label: 'Vaginal' },
+  { value: 'transdermal', label: 'Transdermal' },
+  { value: 'nasogastric', label: 'Nasogastric' },
+  { value: 'intrathecal', label: 'Intrathecal' },
+] as const;
+
+export const VISITPAD_MEDICINE_PREGNANCY = [
+  { value: 'not_set', label: 'Not set' },
+  { value: 'a', label: 'A' },
+  { value: 'b', label: 'B' },
+  { value: 'c', label: 'C' },
+  { value: 'd', label: 'D' },
+  { value: 'x', label: 'X' },
+] as const;
+
+export const VISITPAD_MEDICINE_LACTATION = [
+  { value: 'not_set', label: 'Not set' },
+  { value: 'compatible', label: 'Compatible' },
+  { value: 'caution', label: 'Caution' },
+  { value: 'avoid', label: 'Avoid' },
+] as const;
+
+export const VISITPAD_MEDICINE_PEDIATRIC = [
+  { value: 'not_set', label: 'Not set' },
+  { value: 'approved', label: 'Approved' },
+  { value: 'caution', label: 'Caution' },
+  { value: 'avoid', label: 'Avoid' },
 ] as const;

@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { type ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
@@ -28,7 +28,9 @@ import { VisitpadAllergiesSecondaryNav } from '@/features/visitpad/components/vi
 import { visitpadActiveTotal } from '@/features/visitpad/tab-count';
 import type { VisitpadAllergyReaction } from '@/features/visitpad/types';
 import {
+  visitpadAllergyReactionCreateFormSchema,
   visitpadAllergyReactionEditFormSchema,
+  type VisitpadAllergyReactionCreateFormSchema,
   type VisitpadAllergyReactionEditFormSchema,
 } from '@/features/visitpad/validation';
 
@@ -52,19 +54,37 @@ function VisitpadReactionsPage() {
   const busy = patch.isPending || del.isPending;
 
   const filtered = useMemo(
-    () => rows.filter((r) => rowMatchesSearch(search, r.code, r.display_name)),
+    () =>
+      rows.filter((r) =>
+        rowMatchesSearch(search, r.code, r.display_name, r.short_name ?? '', r.snomed_code ?? ''),
+      ),
     [rows, search],
   );
 
   const columns = useMemo<ColumnDef<VisitpadAllergyReaction, unknown>[]>(
     () => [
       { accessorKey: 'code', header: 'Code', meta: { label: 'Code' } },
-      { accessorKey: 'display_name', header: 'Name', meta: { label: 'Name' } },
+      { accessorKey: 'display_name', header: 'Display name', meta: { label: 'Display name' } },
+      {
+        accessorKey: 'short_name',
+        header: 'Short name',
+        meta: { label: 'Short name' },
+        cell: ({ getValue }) => getValue<string | null>() ?? '—',
+      },
+      {
+        accessorKey: 'snomed_code',
+        header: 'SNOMED',
+        meta: { label: 'SNOMED' },
+        cell: ({ getValue }) => {
+          const v = getValue<string | null | undefined>();
+          return v ? <span className="font-mono text-xs">{v}</span> : <span className="text-muted-foreground">—</span>;
+        },
+      },
       { accessorKey: 'display_order', header: 'Order', meta: { label: 'Order' } },
       {
         accessorKey: 'is_active',
-        header: 'Enabled',
-        meta: { label: 'Enabled' },
+        header: 'Status',
+        meta: { label: 'Status' },
         cell: ({ row }) => (
           <TableActiveToggle
             active={row.original.is_active}
@@ -95,7 +115,7 @@ function VisitpadReactionsPage() {
       tabCount={tabCount}
       breadcrumbLabel="Reactions"
       title="Allergy reactions"
-      description="Reaction terms linked to allergen documentation."
+      description="Reaction codes and labels for visit-pad pick lists. Optional short name and SNOMED for richer documentation."
       secondaryNav={<VisitpadAllergiesSecondaryNav />}
       actions={
         <VisitpadHeaderActions addLabel="Add reaction" onAddClick={() => setCreateOpen(true)} />
@@ -105,7 +125,7 @@ function VisitpadReactionsPage() {
         <MasterDataTableToolbar
           value={search}
           onChange={setSearch}
-          placeholder="Search reaction name or code…"
+          placeholder="Search code, display name, short name, SNOMED…"
         />
         {error ? (
           <p className="text-sm text-destructive">{(error as Error).message}</p>
@@ -190,53 +210,104 @@ function ReactionCreateDialog({
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const [isActive, setIsActive] = useState(true);
+  const form = useForm<VisitpadAllergyReactionCreateFormSchema>({
+    resolver: zodResolver(visitpadAllergyReactionCreateFormSchema),
+    defaultValues: {
+      code: '',
+      display_name: '',
+      short_name: '',
+      snomed_code: null,
+      is_active: true,
+    },
+  });
 
   useEffect(() => {
-    if (!open) setIsActive(true);
-  }, [open]);
+    if (!open) {
+      form.reset({
+        code: '',
+        display_name: '',
+        short_name: '',
+        snomed_code: null,
+        is_active: true,
+      });
+    }
+  }, [open, form]);
+
+  const submit: SubmitHandler<VisitpadAllergyReactionCreateFormSchema> = async (v) => {
+    await onSubmit({
+      code: v.code.trim(),
+      display_name: v.display_name.trim(),
+      short_name: v.short_name?.trim() ? v.short_name.trim() : null,
+      snomed_code: v.snomed_code?.trim() ? v.snomed_code.trim() : null,
+      display_order: 0,
+      is_active: v.is_active,
+    });
+  };
 
   return (
     <EntityFormDialog
       open={open}
       onOpenChange={onOpenChange}
       title="Add reaction"
-      description="Create a documented allergy reaction term."
-      submitLabel="Create reaction"
+      description="Stable reaction code (immutable after save), display name, optional short label and SNOMED."
+      submitLabel="Add"
       isSubmitting={isSubmitting}
-      onSubmit={async (e: FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        const fd = new FormData(e.currentTarget);
-        const code = String(fd.get('code') ?? '').trim();
-        const display_name = String(fd.get('display_name') ?? '').trim();
-        if (!code || !display_name) {
-          toast.error('Code and display name are required.');
-          return;
-        }
-        await onSubmit({
-          code,
-          display_name,
-          display_order: Number(fd.get('display_order') ?? 0) || 0,
-          is_active: isActive,
-        });
-      }}
+      onSubmit={form.handleSubmit(submit)}
     >
       <div className="grid gap-4">
         <div className="space-y-2">
-          <Label htmlFor="vp-rxn-code">Code</Label>
-          <Input id="vp-rxn-code" name="code" required maxLength={64} />
+          <Label htmlFor="vp-rxn-code">Reaction code *</Label>
+          <Input
+            id="vp-rxn-code"
+            maxLength={8}
+            autoComplete="off"
+            placeholder="e.g. rash_loc"
+            {...form.register('code')}
+          />
+          <p className="text-xs text-muted-foreground">
+            3–8 characters: letters, digits, underscore. Unique and cannot be edited after save.
+          </p>
+          {form.formState.errors.code ? (
+            <p className="text-xs text-destructive">{form.formState.errors.code.message}</p>
+          ) : null}
         </div>
         <div className="space-y-2">
-          <Label htmlFor="vp-rxn-name">Display name</Label>
-          <Input id="vp-rxn-name" name="display_name" required maxLength={256} />
+          <Label htmlFor="vp-rxn-name">Display name *</Label>
+          <Input
+            id="vp-rxn-name"
+            maxLength={256}
+            placeholder="e.g. Localized rash"
+            {...form.register('display_name')}
+          />
+          {form.formState.errors.display_name ? (
+            <p className="text-xs text-destructive">{form.formState.errors.display_name.message}</p>
+          ) : null}
         </div>
         <div className="space-y-2">
-          <Label htmlFor="vp-rxn-order">Display order</Label>
-          <Input id="vp-rxn-order" name="display_order" type="number" defaultValue={0} />
+          <Label htmlFor="vp-rxn-short">Short name</Label>
+          <Input id="vp-rxn-short" maxLength={120} {...form.register('short_name')} />
         </div>
-        <div className="flex items-center justify-between rounded-md border p-3">
-          <Label htmlFor="vp-rxn-act">Enabled</Label>
-          <Switch id="vp-rxn-act" checked={isActive} onCheckedChange={setIsActive} />
+        <div className="space-y-2">
+          <Label htmlFor="vp-rxn-snomed">SNOMED CT</Label>
+          <Input
+            id="vp-rxn-snomed"
+            maxLength={64}
+            placeholder="Select concept…"
+            {...form.register('snomed_code')}
+          />
+        </div>
+        <div className="flex flex-col gap-1 rounded-md border p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <Label htmlFor="vp-rxn-act">Active</Label>
+              <p className="text-xs text-muted-foreground">Inactive items are hidden from visit-pad pick lists.</p>
+            </div>
+            <Switch
+              id="vp-rxn-act"
+              checked={!!form.watch('is_active')}
+              onCheckedChange={(c) => form.setValue('is_active', c)}
+            />
+          </div>
         </div>
       </div>
     </EntityFormDialog>
@@ -259,8 +330,9 @@ function ReactionEditDialog({
   const form = useForm<VisitpadAllergyReactionEditFormSchema>({
     resolver: zodResolver(visitpadAllergyReactionEditFormSchema),
     defaultValues: {
-      code: '',
       display_name: '',
+      short_name: '',
+      snomed_code: '',
       display_order: 0,
       is_active: true,
     },
@@ -269,8 +341,9 @@ function ReactionEditDialog({
   useEffect(() => {
     if (open && row) {
       form.reset({
-        code: row.code,
         display_name: row.display_name,
+        short_name: row.short_name ?? '',
+        snomed_code: row.snomed_code ?? '',
         display_order: row.display_order,
         is_active: row.is_active,
       });
@@ -278,9 +351,12 @@ function ReactionEditDialog({
   }, [open, row, form]);
 
   const submit: SubmitHandler<VisitpadAllergyReactionEditFormSchema> = async (v) => {
+    const sn = v.snomed_code?.trim();
+    const sh = v.short_name?.trim();
     await onSave({
-      code: v.code,
-      display_name: v.display_name,
+      display_name: v.display_name.trim(),
+      short_name: sh && sh.length > 0 ? sh : null,
+      snomed_code: sn && sn.length > 0 ? sn : null,
       display_order: v.display_order,
       is_active: v.is_active,
     });
@@ -291,7 +367,7 @@ function ReactionEditDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={row ? `Edit reaction — ${row.code}` : 'Edit reaction'}
-      description="Update code, display label, order, and enabled state."
+      description="Reaction code cannot be changed. Adjust display name, short name, SNOMED, list order, and active state."
       submitLabel="Save changes"
       isSubmitting={isSubmitting}
       onSubmit={form.handleSubmit(submit)}
@@ -299,24 +375,37 @@ function ReactionEditDialog({
       {row ? (
         <div className="grid gap-4">
           <div className="space-y-2">
-            <Label htmlFor="vp-re-code">Code</Label>
-            <Input id="vp-re-code" maxLength={64} {...form.register('code')} />
+            <Label>Reaction code</Label>
+            <Input value={row.code} readOnly className="bg-muted/40" />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="vp-re-name">Display name</Label>
+            <Label htmlFor="vp-re-name">Display name *</Label>
             <Input id="vp-re-name" maxLength={256} {...form.register('display_name')} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="vp-re-short">Short name</Label>
+            <Input id="vp-re-short" maxLength={120} {...form.register('short_name')} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="vp-re-snomed">SNOMED CT</Label>
+            <Input id="vp-re-snomed" maxLength={64} {...form.register('snomed_code')} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="vp-re-order">Display order</Label>
             <Input id="vp-re-order" type="number" {...form.register('display_order', { valueAsNumber: true })} />
           </div>
-          <div className="flex items-center justify-between rounded-md border p-3">
-            <Label htmlFor="vp-re-act">Enabled</Label>
-            <Switch
-              id="vp-re-act"
-              checked={!!form.watch('is_active')}
-              onCheckedChange={(c) => form.setValue('is_active', c)}
-            />
+          <div className="flex flex-col gap-1 rounded-md border p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <Label htmlFor="vp-re-act">Active</Label>
+                <p className="text-xs text-muted-foreground">Inactive items are hidden from visit-pad pick lists.</p>
+              </div>
+              <Switch
+                id="vp-re-act"
+                checked={!!form.watch('is_active')}
+                onCheckedChange={(c) => form.setValue('is_active', c)}
+              />
+            </div>
           </div>
         </div>
       ) : null}

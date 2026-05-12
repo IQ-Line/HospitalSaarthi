@@ -6,6 +6,7 @@ export {
   useVisitpadAllergens,
   useVisitpadAllergyReactions,
   useVisitpadChiefComplaints,
+  useVisitpadChiefComplaintDescriptor,
   useVisitpadChronicIllnesses,
   useVisitpadConversions,
   useVisitpadDiagnoses,

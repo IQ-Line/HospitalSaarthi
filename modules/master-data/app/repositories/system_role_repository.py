@@ -52,7 +52,7 @@ class SystemRoleRepository:
         M = self._M()
         filters = [M.is_deleted.is_(False)]
         if self._scope.is_tenant:
-            filters.append(M.tenant_id == self._scope.tenant_id)
+            filters.append(M.iq_tenant_id == self._scope.iq_tenant_id)
         if is_template is not None:
             filters.append(M.is_template.is_(is_template))
         statement: Select[tuple[Any]] = select(M).where(*filters).order_by(M.name)
@@ -68,7 +68,7 @@ class SystemRoleRepository:
         row = self._session.get(M, role_id)
         if row is None:
             return None
-        if self._scope.is_tenant and row.tenant_id != self._scope.tenant_id:
+        if self._scope.is_tenant and row.iq_tenant_id != self._scope.iq_tenant_id:
             return None
         if not include_deleted and row.is_deleted:
             return None
@@ -78,7 +78,7 @@ class SystemRoleRepository:
         M = self._M()
         filters = [M.slug == slug, M.is_deleted.is_(False)]
         if self._scope.is_tenant:
-            filters.append(M.tenant_id == self._scope.tenant_id)
+            filters.append(M.iq_tenant_id == self._scope.iq_tenant_id)
         statement = select(M).where(*filters).limit(1)
         return self._session.scalars(statement).first()
 

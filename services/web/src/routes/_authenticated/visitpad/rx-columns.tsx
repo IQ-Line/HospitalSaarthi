@@ -1,10 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { useForm, type SubmitHandler } from 'react-hook-form';
+import { useEffect, useMemo, useState } from 'react';
+import { Controller, useForm, type SubmitHandler } from 'react-hook-form';
 import { type ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
-import { Badge } from '@pulse/ui/badge';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
 import { Switch } from '@pulse/ui/switch';
@@ -23,7 +22,9 @@ import { VisitpadSnomedFooter } from '@/features/visitpad/components/visitpad-sn
 import { visitpadActiveTotal } from '@/features/visitpad/tab-count';
 import type { VisitpadRxColumn } from '@/features/visitpad/types';
 import {
+  visitpadRxColumnCreateFormSchema,
   visitpadRxColumnEditFormSchema,
+  type VisitpadRxColumnCreateFormSchema,
   type VisitpadRxColumnEditFormSchema,
 } from '@/features/visitpad/validation';
 
@@ -36,6 +37,10 @@ const RX_SECTIONS = [
   { value: 'route', label: 'Route' },
   { value: 'time_of_administration', label: 'Time of administration' },
 ] as const;
+
+function sectionLabelFor(value: string) {
+  return RX_SECTIONS.find((s) => s.value === value)?.label ?? 'Rx column';
+}
 
 const RX_BASE = '/api/v1/master-data/visitpad/rx-columns';
 
@@ -55,24 +60,18 @@ function VisitpadRxColumnsPage() {
   const create = useVisitpadPost(RX_BASE);
   const rows = data?.data ?? [];
   const tabCount = visitpadActiveTotal(rows, data?.total);
-  const sectionLabel = RX_SECTIONS.find((s) => s.value === section)?.label ?? 'Rx column';
+  const sectionLabel = sectionLabelFor(section);
   const busy = patch.isPending || del.isPending;
 
   const filtered = useMemo(
-    () => rows.filter((r) => rowMatchesSearch(search, r.code, r.display_name, r.section)),
+    () => rows.filter((r) => rowMatchesSearch(search, r.code, r.display_name)),
     [rows, search],
   );
 
   const columns = useMemo<ColumnDef<VisitpadRxColumn, unknown>[]>(
     () => [
-      { accessorKey: 'code', header: 'Code', meta: { label: 'Code' } },
       { accessorKey: 'display_name', header: 'Name', meta: { label: 'Name' } },
-      {
-        accessorKey: 'section',
-        header: 'Section',
-        meta: { label: 'Section' },
-        cell: ({ getValue }) => <Badge variant="outline">{getValue<string>()}</Badge>,
-      },
+      { accessorKey: 'code', header: 'Code', meta: { label: 'Code' } },
       {
         accessorKey: 'is_active',
         header: 'Enabled',
@@ -229,60 +228,76 @@ function RxColumnCreateDialog({
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const [isActive, setIsActive] = useState(true);
+  const form = useForm<VisitpadRxColumnCreateFormSchema>({
+    resolver: zodResolver(visitpadRxColumnCreateFormSchema),
+    defaultValues: { display_name: '', code: '', is_active: true },
+  });
 
   useEffect(() => {
-    if (!open) setIsActive(true);
-  }, [open]);
+    if (open) {
+      form.reset({ display_name: '', code: '', is_active: true });
+    }
+  }, [open, section, form]);
+
+  const submit: SubmitHandler<VisitpadRxColumnCreateFormSchema> = async (v) => {
+    await onSubmit({
+      section,
+      display_name: v.display_name,
+      code: v.code,
+      extra_unit: null,
+      display_order: 0,
+      is_active: v.is_active,
+    });
+  };
 
   return (
     <EntityFormDialog
       open={open}
       onOpenChange={onOpenChange}
       title={`Add ${sectionLabel}`}
-      description={`New picklist entry under section "${section}".`}
-      submitLabel="Create"
+      description="Picklist value for visit forms."
+      submitLabel="Save"
       isSubmitting={isSubmitting}
-      onSubmit={async (e: FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        const fd = new FormData(e.currentTarget);
-        const display_name = String(fd.get('display_name') ?? '').trim();
-        const code = String(fd.get('code') ?? '').trim();
-        const extraRaw = String(fd.get('extra_unit') ?? '').trim();
-        if (!display_name || !code) {
-          toast.error('Name and code are required.');
-          return;
-        }
-        await onSubmit({
-          section,
-          display_name,
-          code,
-          extra_unit: extraRaw.length ? extraRaw : null,
-          display_order: Number(fd.get('display_order') ?? 0) || 0,
-          is_active: isActive,
-        });
-      }}
+      onSubmit={form.handleSubmit(submit)}
     >
       <div className="grid gap-4">
         <div className="space-y-2">
           <Label htmlFor="vp-rx-name">Display name</Label>
-          <Input id="vp-rx-name" name="display_name" required maxLength={256} />
+          <Input id="vp-rx-name" maxLength={256} {...form.register('display_name')} />
+          <p className="text-sm text-muted-foreground">Name shown in visit forms.</p>
+          {form.formState.errors.display_name ? (
+            <p className="text-sm text-destructive">{form.formState.errors.display_name.message}</p>
+          ) : null}
         </div>
         <div className="space-y-2">
           <Label htmlFor="vp-rx-code">Code</Label>
-          <Input id="vp-rx-code" name="code" required maxLength={64} />
+          <Input
+            id="vp-rx-code"
+            maxLength={8}
+            placeholder="e.g. bid_qd"
+            className="font-mono"
+            {...form.register('code')}
+          />
+          <p className="text-sm text-muted-foreground">
+            Code must be 2–8 characters, letters, digits, or underscores; unique within this section; cannot be
+            changed after save.
+          </p>
+          {form.formState.errors.code ? (
+            <p className="text-sm text-destructive">{form.formState.errors.code.message}</p>
+          ) : null}
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="vp-rx-extra">Extra unit (optional)</Label>
-          <Input id="vp-rx-extra" name="extra_unit" maxLength={128} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="vp-rx-order">Display order</Label>
-          <Input id="vp-rx-order" name="display_order" type="number" defaultValue={0} />
-        </div>
-        <div className="flex items-center justify-between rounded-md border p-3">
-          <Label htmlFor="vp-rx-act">Enabled</Label>
-          <Switch id="vp-rx-act" checked={isActive} onCheckedChange={setIsActive} />
+        <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+          <div className="space-y-1">
+            <Label htmlFor="vp-rx-act">Active</Label>
+            <p className="text-sm text-muted-foreground">Inactive items stay hidden from new visits.</p>
+          </div>
+          <Controller
+            control={form.control}
+            name="is_active"
+            render={({ field }) => (
+              <Switch id="vp-rx-act" checked={field.value} onCheckedChange={field.onChange} />
+            )}
+          />
         </div>
       </div>
     </EntityFormDialog>
@@ -305,7 +320,6 @@ function RxColumnEditDialog({
   const form = useForm<VisitpadRxColumnEditFormSchema>({
     resolver: zodResolver(visitpadRxColumnEditFormSchema),
     defaultValues: {
-      code: '',
       display_name: '',
       extra_unit: null,
       display_order: 0,
@@ -316,7 +330,6 @@ function RxColumnEditDialog({
   useEffect(() => {
     if (open && row) {
       form.reset({
-        code: row.code,
         display_name: row.display_name,
         extra_unit: row.extra_unit ?? null,
         display_order: row.display_order,
@@ -326,22 +339,23 @@ function RxColumnEditDialog({
   }, [open, row, form]);
 
   const submit: SubmitHandler<VisitpadRxColumnEditFormSchema> = async (v) => {
-    const ex = v.extra_unit?.trim();
+    const ex = typeof v.extra_unit === 'string' ? v.extra_unit.trim() : '';
     await onSave({
-      code: v.code,
       display_name: v.display_name,
-      extra_unit: ex && ex.length > 0 ? ex : null,
+      extra_unit: ex.length > 0 ? ex : null,
       display_order: v.display_order,
       is_active: v.is_active,
     });
   };
 
+  const editSectionLabel = row ? sectionLabelFor(row.section) : 'Rx column';
+
   return (
     <EntityFormDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={row ? `Edit Rx column — ${row.code}` : 'Edit Rx column'}
-      description={row ? `Section: ${row.section}. Update labels, extra unit, and order.` : 'Update picklist entry.'}
+      title={row ? `Edit ${editSectionLabel}` : 'Edit Rx column'}
+      description={row ? 'Code cannot be changed. Clear extra unit to remove it.' : 'Update picklist entry.'}
       submitLabel="Save changes"
       isSubmitting={isSubmitting}
       onSubmit={form.handleSubmit(submit)}
@@ -349,31 +363,33 @@ function RxColumnEditDialog({
       {row ? (
         <div className="grid gap-4">
           <div className="space-y-2">
-            <Label>Section</Label>
-            <Input value={row.section} readOnly className="bg-muted font-mono text-sm" />
-          </div>
-          <div className="space-y-2">
             <Label htmlFor="vp-rxe-code">Code</Label>
-            <Input id="vp-rxe-code" maxLength={64} {...form.register('code')} />
+            <Input id="vp-rxe-code" value={row.code} readOnly className="bg-muted font-mono text-sm" />
           </div>
           <div className="space-y-2">
             <Label htmlFor="vp-rxe-name">Display name</Label>
             <Input id="vp-rxe-name" maxLength={256} {...form.register('display_name')} />
+            <p className="text-sm text-muted-foreground">Name shown in visit forms.</p>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="vp-rxe-extra">Extra unit</Label>
+            <Label htmlFor="vp-rxe-extra">Extra unit (optional)</Label>
             <Input id="vp-rxe-extra" maxLength={128} {...form.register('extra_unit')} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="vp-rxe-order">Display order</Label>
             <Input id="vp-rxe-order" type="number" {...form.register('display_order', { valueAsNumber: true })} />
           </div>
-          <div className="flex items-center justify-between rounded-md border p-3">
-            <Label htmlFor="vp-rxe-act">Enabled</Label>
-            <Switch
-              id="vp-rxe-act"
-              checked={!!form.watch('is_active')}
-              onCheckedChange={(c) => form.setValue('is_active', c)}
+          <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+            <div className="space-y-1">
+              <Label htmlFor="vp-rxe-act">Active</Label>
+              <p className="text-sm text-muted-foreground">Inactive items stay hidden from new visits.</p>
+            </div>
+            <Controller
+              control={form.control}
+              name="is_active"
+              render={({ field }) => (
+                <Switch id="vp-rxe-act" checked={field.value} onCheckedChange={field.onChange} />
+              )}
             />
           </div>
         </div>

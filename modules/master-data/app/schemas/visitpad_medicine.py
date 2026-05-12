@@ -5,7 +5,10 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+_MEDICINE_CODE_PATTERN = r"^[A-Za-z0-9_]{3,8}$"
 
 
 class VisitpadMedicineSchedule(StrEnum):
@@ -21,7 +24,7 @@ class VisitpadMedicineResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    tenant_id: int | None = None
+    iq_tenant_id: int | None = None
     code: str
     display_name: str
     generic_name: str
@@ -75,6 +78,8 @@ class VisitpadMedicineResponse(BaseModel):
     display_order: int
     is_active: bool
     is_deleted: bool
+    created_by: UUID | None = None
+    updated_by: UUID | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -91,7 +96,7 @@ class VisitpadMedicineSingleResponse(BaseModel):
 class VisitpadMedicineCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    code: str = Field(min_length=1, max_length=64)
+    code: str = Field(min_length=3, max_length=8, pattern=_MEDICINE_CODE_PATTERN)
     display_name: str = Field(min_length=1, max_length=512)
     generic_name: str = Field(min_length=1, max_length=512)
     short_name: str | None = Field(default=None, max_length=256)
@@ -144,11 +149,17 @@ class VisitpadMedicineCreate(BaseModel):
     display_order: int = 0
     is_active: bool = True
 
+    @field_validator("code", mode="before")
+    @classmethod
+    def _strip_code(cls, v: object) -> object:
+        if isinstance(v, str):
+            return v.strip()
+        return v
+
 
 class VisitpadMedicineUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    code: str | None = Field(default=None, min_length=1, max_length=64)
     display_name: str | None = Field(default=None, min_length=1, max_length=512)
     generic_name: str | None = Field(default=None, min_length=1, max_length=512)
     short_name: str | None = Field(default=None, max_length=256)

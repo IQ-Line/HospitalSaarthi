@@ -46,7 +46,7 @@ def system_role_client(system_role_sqlite_session: Session) -> Iterator[TestClie
     app = create_app()
 
     def _repo() -> SystemRoleRepository:
-        return SystemRoleRepository(system_role_sqlite_session, CatalogScope(tenant_id=None))
+        return SystemRoleRepository(system_role_sqlite_session, CatalogScope(iq_tenant_id=None))
 
     def _session() -> Iterator[Session]:
         yield system_role_sqlite_session

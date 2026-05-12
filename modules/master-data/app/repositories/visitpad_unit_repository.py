@@ -15,7 +15,7 @@ from app.repositories.paged_window import fetch_page_with_window_total
 
 
 class DuplicateVisitpadUnitKeyError(Exception):
-    """Violates partial unique on ``code`` (global) or ``(tenant_id, code)`` (tenant)."""
+    """Violates partial unique on ``code`` (global) or ``(iq_tenant_id, code)`` (tenant)."""
 
 
 def _is_unique_violation(exc: IntegrityError) -> bool:
@@ -56,7 +56,7 @@ class VisitpadUnitRepository:
         M = self._M()
         filters = [M.is_deleted.is_(False)]
         if self._scope.is_tenant:
-            filters.append(M.tenant_id == self._scope.tenant_id)
+            filters.append(M.iq_tenant_id == self._scope.iq_tenant_id)
         if dimension is not None:
             filters.append(M.dimension == dimension)
         if search:
@@ -64,7 +64,7 @@ class VisitpadUnitRepository:
             filters.append(
                 or_(
                     M.code.ilike(term),
-                    M.display_label.ilike(term),
+                    M.display_name.ilike(term),
                 )
             )
 
@@ -95,7 +95,7 @@ class VisitpadUnitRepository:
         row = self._session.get(M, unit_id)
         if row is None:
             return None
-        if self._scope.is_tenant and row.tenant_id != self._scope.tenant_id:
+        if self._scope.is_tenant and row.iq_tenant_id != self._scope.iq_tenant_id:
             return None
         if not include_deleted and row.is_deleted:
             return None
@@ -111,7 +111,7 @@ class VisitpadUnitRepository:
             M.is_active.is_(True),
         ]
         if self._scope.is_tenant:
-            filters.append(M.tenant_id == self._scope.tenant_id)
+            filters.append(M.iq_tenant_id == self._scope.iq_tenant_id)
         statement = select(M).where(*filters).limit(1)
         return self._session.scalars(statement).first()
 

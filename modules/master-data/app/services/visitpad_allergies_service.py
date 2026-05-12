@@ -59,7 +59,7 @@ def create_visitpad_allergen(
         is_deleted=False,
     )
     if repository.scope.is_tenant:
-        row = M(tenant_id=repository.scope.tenant_id, **common)
+        row = M(iq_tenant_id=repository.scope.iq_tenant_id, **common)
     else:
         row = M(**common)
     return repository.create(row)
@@ -82,25 +82,24 @@ def update_visitpad_allergen(
     row = repository.get_by_id(row_id, include_deleted=True)
     if row is None:
         return None
-    if repository.scope.is_tenant and row.tenant_id != repository.scope.tenant_id:
+    if repository.scope.is_tenant and row.iq_tenant_id != repository.scope.iq_tenant_id:
         return None
-    if payload.code is not None:
-        row.code = payload.code.strip()
-    if payload.display_name is not None:
+    dump = payload.model_dump(exclude_unset=True)
+    if "display_name" in dump and payload.display_name is not None:
         row.display_name = payload.display_name.strip()
-    if payload.allergen_type is not None:
+    if "allergen_type" in dump and payload.allergen_type is not None:
         row.allergen_type = payload.allergen_type.value
-    if payload.drug_class is not None:
+    if "drug_class" in dump:
         row.drug_class = _norm_opt_str(payload.drug_class)
-    if payload.reaction_severity_default is not None:
+    if "reaction_severity_default" in dump and payload.reaction_severity_default is not None:
         row.reaction_severity_default = payload.reaction_severity_default.value
-    if payload.snomed_code is not None:
+    if "snomed_code" in dump:
         row.snomed_code = _norm_opt_str(payload.snomed_code)
-    if payload.display_order is not None:
+    if "display_order" in dump and payload.display_order is not None:
         row.display_order = payload.display_order
-    if payload.is_active is not None:
+    if "is_active" in dump and payload.is_active is not None:
         row.is_active = payload.is_active
-    if payload.is_deleted is not None:
+    if "is_deleted" in dump and payload.is_deleted is not None:
         row.is_deleted = payload.is_deleted
     return repository.update(row)
 
@@ -141,12 +140,14 @@ def create_visitpad_allergy_reaction(
         id=uuid.uuid4(),
         display_name=payload.display_name.strip(),
         code=payload.code.strip(),
+        short_name=_norm_opt_str(payload.short_name),
+        snomed_code=_norm_opt_str(payload.snomed_code),
         display_order=payload.display_order,
         is_active=payload.is_active,
         is_deleted=False,
     )
     if repository.scope.is_tenant:
-        row = M(tenant_id=repository.scope.tenant_id, **common)
+        row = M(iq_tenant_id=repository.scope.iq_tenant_id, **common)
     else:
         row = M(**common)
     return repository.create(row)
@@ -169,17 +170,20 @@ def update_visitpad_allergy_reaction(
     row = repository.get_by_id(row_id, include_deleted=True)
     if row is None:
         return None
-    if repository.scope.is_tenant and row.tenant_id != repository.scope.tenant_id:
+    if repository.scope.is_tenant and row.iq_tenant_id != repository.scope.iq_tenant_id:
         return None
-    if payload.display_name is not None:
+    dump = payload.model_dump(exclude_unset=True)
+    if "display_name" in dump and payload.display_name is not None:
         row.display_name = payload.display_name.strip()
-    if payload.code is not None:
-        row.code = payload.code.strip()
-    if payload.display_order is not None:
+    if "short_name" in dump:
+        row.short_name = _norm_opt_str(payload.short_name)
+    if "snomed_code" in dump:
+        row.snomed_code = _norm_opt_str(payload.snomed_code)
+    if "display_order" in dump and payload.display_order is not None:
         row.display_order = payload.display_order
-    if payload.is_active is not None:
+    if "is_active" in dump and payload.is_active is not None:
         row.is_active = payload.is_active
-    if payload.is_deleted is not None:
+    if "is_deleted" in dump and payload.is_deleted is not None:
         row.is_deleted = payload.is_deleted
     return repository.update(row)
 
