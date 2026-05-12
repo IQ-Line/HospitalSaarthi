@@ -44,6 +44,9 @@ function AuthenticatedLayout() {
         displayName={displayName}
         tenantName={tenantName}
         hasMasterDataAccess={hasModuleAccess('master-data')}
+        hasVisitpadAccess={
+          hasModuleAccess('master-data') || hasModuleAccess('visitpad-templates')
+        }
       />
 
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">

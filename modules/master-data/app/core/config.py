@@ -25,11 +25,17 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:4200,http://localhost:5173"
     log_request_body: bool = Field(
         default=False,
-        description="If true, log decoded request body (truncated). Keep disabled by default for PHI/PII safety.",
+        description=(
+            "If true, log decoded request body (truncated). "
+            "Keep disabled by default for PHI/PII safety."
+        ),
     )
     log_response_body: bool = Field(
         default=False,
-        description="If true, log decoded response body (truncated). Keep disabled by default for PHI/PII safety.",
+        description=(
+            "If true, log decoded response body (truncated). "
+            "Keep disabled by default for PHI/PII safety."
+        ),
     )
     log_max_body_bytes: int = Field(
         default=4096,
