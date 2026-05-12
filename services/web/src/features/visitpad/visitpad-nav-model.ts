@@ -8,7 +8,9 @@ export type VisitpadPrimaryTab =
   | 'rx-columns'
   | 'medicines'
   | 'chronic-illness'
-  | 'procedures';
+  | 'procedures'
+  | 'vaccines'
+  | 'manufacturers';
 
 export const visitpadPrimaryTabs: Array<{
   id: VisitpadPrimaryTab;
@@ -24,4 +26,6 @@ export const visitpadPrimaryTabs: Array<{
   { id: 'medicines', label: 'Medicines', to: '/visitpad/medicines' },
   { id: 'chronic-illness', label: 'Chronic illness', to: '/visitpad/chronic-illness' },
   { id: 'procedures', label: 'Procedures', to: '/visitpad/procedures' },
+  { id: 'vaccines', label: 'Vaccines', to: '/visitpad/vaccines' },
+  { id: 'manufacturers', label: 'Manufacturers', to: '/visitpad/manufacturers' },
 ];

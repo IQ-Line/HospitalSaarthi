@@ -21,6 +21,8 @@ from app.repositories.visitpad.procedure import VisitpadProcedureRepository
 from app.repositories.visitpad.rx_column import VisitpadRxColumnRepository
 from app.repositories.visitpad.conversion import VisitpadUnitConversionRepository
 from app.repositories.visitpad.unit import VisitpadUnitRepository
+from app.repositories.visitpad.manufacturer import VisitpadManufacturerRepository
+from app.repositories.visitpad.vaccine import VisitpadVaccineRepository
 from app.repositories.visitpad.vital import VisitpadVitalRepository
 
 
@@ -156,3 +158,17 @@ def get_visitpad_procedure_repository(
     scope: Annotated[CatalogScope, Depends(get_catalog_scope)],
 ) -> VisitpadProcedureRepository:
     return VisitpadProcedureRepository(session, scope)
+
+
+def get_visitpad_vaccine_repository(
+    session: Annotated[Session, Depends(get_session)],
+    scope: Annotated[CatalogScope, Depends(get_catalog_scope)],
+) -> VisitpadVaccineRepository:
+    return VisitpadVaccineRepository(session, scope)
+
+
+def get_visitpad_manufacturer_repository(
+    session: Annotated[Session, Depends(get_session)],
+    scope: Annotated[CatalogScope, Depends(get_catalog_scope)],
+) -> VisitpadManufacturerRepository:
+    return VisitpadManufacturerRepository(session, scope)

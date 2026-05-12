@@ -12,4 +12,6 @@ export const visitpadKeys = {
   medicines: () => [...visitpadKeys.all, 'medicines'] as const,
   chronicIllnesses: () => [...visitpadKeys.all, 'chronic-illnesses'] as const,
   procedures: () => [...visitpadKeys.all, 'procedures'] as const,
+  vaccines: () => [...visitpadKeys.all, 'vaccines'] as const,
+  manufacturers: () => [...visitpadKeys.all, 'manufacturers'] as const,
 };

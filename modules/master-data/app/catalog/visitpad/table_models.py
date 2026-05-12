@@ -26,6 +26,11 @@ from app.models.visitpad.conversion import (
     VisitpadUnitConversionTenantModel,
 )
 from app.models.visitpad.vital import VisitpadVitalPublicModel, VisitpadVitalTenantModel
+from app.models.visitpad.manufacturer import (
+    VisitpadManufacturerPublicModel,
+    VisitpadManufacturerTenantModel,
+)
+from app.models.visitpad.vaccine import VisitpadVaccinePublicModel, VisitpadVaccineTenantModel
 
 
 def visitpad_unit_model(scope: CatalogScope):
@@ -70,3 +75,11 @@ def visitpad_procedure_model(scope: CatalogScope):
 
 def visitpad_rx_column_model(scope: CatalogScope):
     return VisitpadRxColumnTenantModel if scope.is_tenant else VisitpadRxColumnPublicModel
+
+
+def visitpad_vaccine_model(scope: CatalogScope):
+    return VisitpadVaccineTenantModel if scope.is_tenant else VisitpadVaccinePublicModel
+
+
+def visitpad_manufacturer_model(scope: CatalogScope):
+    return VisitpadManufacturerTenantModel if scope.is_tenant else VisitpadManufacturerPublicModel

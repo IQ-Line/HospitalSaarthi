@@ -255,3 +255,33 @@ export interface VisitpadProcedure {
   created_at: string;
   updated_at: string;
 }
+
+export interface VisitpadVaccine {
+  id: string;
+  iq_tenant_id: string | null;
+  code: string;
+  short_name?: string | null;
+  display_name: string;
+  display_order: number;
+  is_active: boolean;
+  is_deleted: boolean;
+  created_by?: string | null;
+  updated_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VisitpadManufacturer {
+  id: string;
+  iq_tenant_id: string | null;
+  code: string;
+  short_name?: string | null;
+  display_name: string;
+  display_order: number;
+  is_active: boolean;
+  is_deleted: boolean;
+  created_by?: string | null;
+  updated_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
