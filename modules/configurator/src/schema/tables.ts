@@ -4,9 +4,13 @@ import {
   uuid,
   text,
   jsonb,
+  boolean,
+  timestamp,
   uniqueIndex,
   index,
   check,
+  primaryKey,
+  tenantColumn,
   sql,
 } from "@hims/ts-sdk-db";
 
@@ -82,11 +86,39 @@ export const tenants = configuratorSchema.table(
   ],
 );
 
+export const tenantModules = configuratorSchema.table(
+  "tenant_modules",
+  {
+    ...tenantColumn(),
+    module_id: uuid("module_id").notNull(),
+    is_enabled: boolean("is_enabled").notNull().default(true),
+    is_core_override: boolean("is_core_override").notNull().default(false),
+    enabled_at: timestamp("enabled_at", { withTimezone: true }),
+    disabled_at: timestamp("disabled_at", { withTimezone: true }),
+    enabled_by: uuid("enabled_by"),
+    created_at: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updated_by: uuid("updated_by"),
+  },
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.module_id] }),
+    index("idx_tenant_modules_enabled").on(t.iq_tenant_id, t.is_enabled),
+    check(
+      "chk_tenant_modules_core_always_enabled",
+      sql`NOT (${t.is_core_override} AND NOT ${t.is_enabled})`,
+    ),
+  ],
+);
+
 // ---------------------------------------------------------------------------
 // Next: Projection tables (synced from Master Data events) — see LLD §1, §10
 //   module_projection, config_schema_projection, feature_flag_projection
 //
 // Next: Distributed tables (by iq_tenant_id) — see LLD §3–§9
-//   tenant_modules, tenant_feature_flags, tenant_module_configs,
+//   tenant_feature_flags, tenant_module_configs,
 //   integration_profiles, tenant_provisioning_log, config_change_audit
 // ---------------------------------------------------------------------------

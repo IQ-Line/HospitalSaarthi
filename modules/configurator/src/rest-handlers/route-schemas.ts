@@ -109,3 +109,35 @@ export const patchTenantBodySchema = {
     metadata: { anyOf: [{ type: "object" }, { type: "null" }] },
   },
 } as const;
+
+export const tenantModuleParamsSchema = {
+  type: "object",
+  required: ["tenantId", "moduleId"],
+  properties: {
+    tenantId: uuidString,
+    moduleId: uuidString,
+  },
+} as const;
+
+export const postTenantModuleBodySchema = {
+  type: "object",
+  required: ["module_id"],
+  additionalProperties: false,
+  properties: {
+    module_id: uuidString,
+    is_enabled: { type: "boolean" },
+    is_core_override: { type: "boolean" },
+    enabled_by: { anyOf: [uuidString, { type: "null" }] },
+  },
+} as const;
+
+export const patchTenantModuleBodySchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    is_enabled: { type: "boolean" },
+    is_core_override: { type: "boolean" },
+    enabled_by: { anyOf: [uuidString, { type: "null" }] },
+    updated_by: { anyOf: [uuidString, { type: "null" }] },
+  },
+} as const;
