@@ -3,9 +3,11 @@ import { useTenantStore } from '@/stores/tenant.store';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
-const MAX_CATALOG_TENANT_INT = 2_147_483_647;
-
 const VISITPAD_CATALOG_API_PREFIX = '/api/v1/master-data/visitpad/';
+
+/** Canonical UUID (matches master-data ``iq_tenant_id`` header / ``ts-sdk-db`` tenant column). */
+const CATALOG_IQ_TENANT_UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function isWriteHttpMethod(method: string | undefined): boolean {
   const m = (method ?? 'GET').toUpperCase();
@@ -13,18 +15,15 @@ function isWriteHttpMethod(method: string | undefined): boolean {
 }
 
 /**
- * Master-data catalog routes `iq_tenant_id` only when it is a positive integer (digits only).
- * UI tenant slugs (e.g. tenant-001) stay in the tenant store but are not sent here — the API
- * then uses the shared global catalog (public schema). Send a numeric id when you need
- * tenant_master overrides.
+ * Master-data catalog sends ``iq_tenant_id`` only when the tenant store holds a canonical UUID string.
+ * Non-UUID tenant slugs are omitted — the API then uses the shared global catalog (``public``).
  */
 function catalogIqTenantHeaderValue(tenantId: string | null | undefined): string | null {
   if (tenantId == null) return null;
   const s = tenantId.trim();
-  if (!/^\d+$/.test(s)) return null;
-  const n = Number(s);
-  if (!Number.isSafeInteger(n) || n < 1 || n > MAX_CATALOG_TENANT_INT) return null;
-  return s;
+  if (!s) return null;
+  if (!CATALOG_IQ_TENANT_UUID_RE.test(s)) return null;
+  return s.toLowerCase();
 }
 
 export async function apiClient<T>(
@@ -53,7 +52,7 @@ export async function apiClient<T>(
     catalogTenant == null
   ) {
     throw new Error(
-      'Visitpad catalog write blocked: a tenant is selected but its id is not a positive integer, so iq_tenant_id would be omitted and the change would apply to the global (public) catalog. Use a numeric catalog tenant id or clear tenant selection before editing the platform catalog.',
+      'Visitpad catalog write blocked: a tenant is selected but its id is not a canonical UUID, so iq_tenant_id would be omitted and the change would apply to the global (public) catalog. Use a UUID tenant id from the platform tenant registry or clear tenant selection before editing the platform catalog.',
     );
   }
 

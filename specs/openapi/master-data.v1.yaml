@@ -6,8 +6,8 @@ info:
     `/api/v1/master-data`. DELETE on modules is a recursive soft-delete (`is_deleted = true`). Gateway-level authentication
     (API keys / JWT) is expected before production; this spec does not model per-route security yet.
 
-    **Catalog scope:** optional `iq_tenant_id` request header — a positive integer string (e.g. `1`, `2`, `98`, leading zeros allowed)
-    routes catalog CRUD to schema `tenant_master` (responses may include `iq_tenant_id` as an integer). Omit the header for global rows in `public`.
+    **Catalog scope:** optional `iq_tenant_id` request header — a canonical UUID string (same type as platform ``ts-sdk-db`` ``tenantColumn()``)
+    routes catalog CRUD to schema `tenant_master` (responses include `iq_tenant_id` as a UUID string when the row is tenant-scoped). Omit the header for global rows in `public`.
 
     '
 servers:
@@ -2869,8 +2869,8 @@ components:
           type: string
           format: uuid
         iq_tenant_id:
-          type: integer
-          format: int32
+          type: string
+          format: uuid
           nullable: true
           description: Present when the row was read from tenant_master (request had iq_tenant_id).
         name:
@@ -2981,8 +2981,8 @@ components:
           type: string
           format: uuid
         iq_tenant_id:
-          type: integer
-          format: int32
+          type: string
+          format: uuid
           nullable: true
           description: Present when the row was read from tenant_master (request had iq_tenant_id).
         name:
@@ -3089,8 +3089,8 @@ components:
           type: string
           format: uuid
         iq_tenant_id:
-          type: integer
-          format: int32
+          type: string
+          format: uuid
           nullable: true
           description: Present when the row was read from tenant_master (request had iq_tenant_id).
         slug:
@@ -3218,8 +3218,8 @@ components:
           type: string
           format: uuid
         iq_tenant_id:
-          type: integer
-          format: int32
+          type: string
+          format: uuid
           nullable: true
           description: Present when the row was read from tenant_master (request had iq_tenant_id).
         parent_id:
@@ -3362,8 +3362,8 @@ components:
           format: uuid
           title: Id
         iq_tenant_id:
-          type: integer
-          format: int32
+          type: string
+          format: uuid
           nullable: true
           title: Iq Tenant Id
         code:
@@ -3554,8 +3554,8 @@ components:
           format: uuid
           title: Id
         iq_tenant_id:
-          type: integer
-          format: int32
+          type: string
+          format: uuid
           nullable: true
           title: Iq Tenant Id
         display_name:
@@ -3784,8 +3784,8 @@ components:
           format: uuid
           title: Id
         iq_tenant_id:
-          type: integer
-          format: int32
+          type: string
+          format: uuid
           nullable: true
           title: Iq Tenant Id
         code:
@@ -4015,8 +4015,8 @@ components:
           format: uuid
           title: Id
         iq_tenant_id:
-          type: integer
-          format: int32
+          type: string
+          format: uuid
           nullable: true
           title: Iq Tenant Id
         display_name:
@@ -4233,8 +4233,8 @@ components:
           format: uuid
           title: Id
         iq_tenant_id:
-          type: integer
-          format: int32
+          type: string
+          format: uuid
           nullable: true
           title: Iq Tenant Id
         code:
@@ -4714,8 +4714,8 @@ components:
           format: uuid
           title: Id
         iq_tenant_id:
-          type: integer
-          format: int32
+          type: string
+          format: uuid
           nullable: true
           title: Iq Tenant Id
         code:
@@ -5427,8 +5427,8 @@ components:
           format: uuid
           title: Id
         iq_tenant_id:
-          type: integer
-          format: int32
+          type: string
+          format: uuid
           nullable: true
           title: Iq Tenant Id
         cpt_code:
@@ -5656,8 +5656,8 @@ components:
           format: uuid
           title: Id
         iq_tenant_id:
-          type: integer
-          format: int32
+          type: string
+          format: uuid
           nullable: true
           title: Iq Tenant Id
         section:
@@ -5827,8 +5827,8 @@ components:
           format: uuid
           title: Id
         iq_tenant_id:
-          type: integer
-          format: int32
+          type: string
+          format: uuid
           nullable: true
           title: Iq Tenant Id
         from_unit_code:
@@ -6005,8 +6005,8 @@ components:
           format: uuid
           title: Id
         iq_tenant_id:
-          type: integer
-          format: int32
+          type: string
+          format: uuid
           nullable: true
           title: Iq Tenant Id
         code:
@@ -6277,8 +6277,8 @@ components:
           format: uuid
           title: Id
         iq_tenant_id:
-          type: integer
-          format: int32
+          type: string
+          format: uuid
           nullable: true
           title: Iq Tenant Id
         code:

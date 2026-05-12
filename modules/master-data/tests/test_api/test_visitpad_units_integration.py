@@ -19,8 +19,10 @@ from app.api.deps import (
 from app.core.catalog_scope import CatalogScope
 from app.main import create_app
 from app.models import Base
-from app.repositories.visitpad_unit_conversion_repository import VisitpadUnitConversionRepository
-from app.repositories.visitpad_unit_repository import VisitpadUnitRepository
+from app.repositories.visitpad.conversion import VisitpadUnitConversionRepository
+from app.repositories.visitpad.unit import VisitpadUnitRepository
+
+TENANT_HDR = "00000000-0000-0000-0000-000000000007"
 
 
 @pytest.fixture()
@@ -83,7 +85,7 @@ def visitpad_api_client(visitpad_sqlite_session: Session) -> Generator[TestClien
 def test_iq_tenant_id_header_sets_tenant_scope(visitpad_api_client: TestClient) -> None:
     r = visitpad_api_client.post(
         "/api/v1/master-data/visitpad/units",
-        headers={"iq_tenant_id": "7"},
+        headers={"iq_tenant_id": TENANT_HDR},
         json={
             "code": "kg",
             "display_name": "Kilogram",
@@ -92,7 +94,7 @@ def test_iq_tenant_id_header_sets_tenant_scope(visitpad_api_client: TestClient) 
         },
     )
     assert r.status_code == 201, r.text
-    assert r.json()["data"]["iq_tenant_id"] == 7
+    assert r.json()["data"]["iq_tenant_id"] == TENANT_HDR
 
 
 def test_visitpad_units_and_conversions_crud(visitpad_client: TestClient) -> None:

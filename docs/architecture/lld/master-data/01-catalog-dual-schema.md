@@ -1,15 +1,15 @@
 # Master Data — dual schema catalog (`public` vs `tenant_master`)
 
-**ADR:** rationale for choosing dual physical schemas over a nullable `tenant_id` column is recorded in [ADR-0020: dual schema](../../adr/0020-master-data-catalog-dual-schema.md). Catalog tenant key typing vs platform UUID is [ADR-0021](../../adr/0021-master-data-catalog-tenant-key-type.md).
+**ADR:** rationale for choosing dual physical schemas over a nullable `tenant_id` column is recorded in [ADR-0020: dual schema](../../adr/0020-master-data-catalog-dual-schema.md). Catalog tenant key typing is [ADR-0021](../../adr/0021-master-data-catalog-tenant-key-type.md). Visitpad **code package** layout is [04-visitpad-package-layout](./04-visitpad-package-layout.md).
 
 ## Purpose
 
 Reference catalog CRUD (platform modules, permissions, system roles, module-permissions junction, Visitpad clinical reference tables) can be stored either:
 
 - **Globally** in PostgreSQL schema **`public`**: one shared catalog, no `iq_tenant_id` column on these tables.
-- **Per tenant** in schema **`tenant_master`**: same logical table names, each row includes **`iq_tenant_id`** (32-bit integer tenant key, same name as the HTTP header). Foreign keys and partial unique indexes are scoped per tenant.
+- **Per tenant** in schema **`tenant_master`**: same logical table names, each row includes **`iq_tenant_id`** (UUID tenant key, same name as the HTTP header and `packages/ts-sdk-db` `tenantColumn()`). Foreign keys and partial unique indexes are scoped per tenant.
 
-The API chooses the target schema **per HTTP request** from an optional tenant header (see below). Repositories receive an immutable `CatalogScope` (`iq_tenant_id: int | None`) so routing is explicit and safe under concurrent traffic (no mutable request globals).
+The API chooses the target schema **per HTTP request** from an optional tenant header (see below). Repositories receive an immutable `CatalogScope` (`iq_tenant_id: UUID | None`) so routing is explicit and safe under concurrent traffic (no mutable request globals).
 
 **Why both schemas exist in migrations:** PostgreSQL needs real tables under `tenant_master` for tenant-scoped rows. That is not the same as “everything writes to tenant_master”. At runtime, **without** `iq_tenant_id`, the service uses **`public` ORM models only** (no `iq_tenant_id` column). **With** `iq_tenant_id`, it uses **`tenant_master` ORM models** and persists `iq_tenant_id` on every insert/update in that schema.
 
@@ -33,9 +33,9 @@ Visitpad tables in **`public`** historically carried `tenant_id` in revisions **
 | Condition | Catalog scope | Persistence |
 |-----------|---------------|-------------|
 | `iq_tenant_id` absent or blank | Global | `public` tables, no `iq_tenant_id` column |
-| Valid positive integer string in `iq_tenant_id` (e.g. `1`, `02`, `98`) | Tenant | `tenant_master.<table>`, `iq_tenant_id` set on insert |
+| Valid canonical UUID string in `iq_tenant_id` (e.g. `550e8400-e29b-41d4-a716-446655440000`) | Tenant | `tenant_master.<table>`, `iq_tenant_id` set on insert |
 
-**Single header:** `iq_tenant_id` — digits only after trim (leading zeros allowed); values containing `-` are rejected as UUID-shaped mistakes. Out of range or non-numeric → **400** with a clear message. Omit the header entirely for global catalog.
+**Single header:** `iq_tenant_id` — canonical UUID after trim (matches platform `ts-sdk-db` / BFF tenant id). Invalid or non-UUID strings → **400** with a clear message. Omit the header entirely for global catalog.
 
 ## Migrations and ordering
 
@@ -43,9 +43,10 @@ Run a **single** Alembic chain (`alembic upgrade head`). Ordering is defined by 
 
 1. **`001`–`010`** — evolve **`public`** only (modules, permissions, Visitpad tables, etc.).
 2. **`011_tenant_master_visitpad`** — introduces Visitpad copies under **`tenant_master`**, copies existing rows from `public` where needed, then **reshapes `public`** (e.g. drops `tenant_id` from global Visitpad tables). **Data must be copied before columns are dropped**; therefore this revision intentionally performs `tenant_master` DDL and `INSERT … SELECT` before final `public` alterations.
-3. **`012_tm_platform_catalog`** — creates **empty** `tenant_master` tables for platform catalog (`modules`, `permissions`, `system_roles`, `module_permissions`) with integer tenant key column. **`public`** is unchanged in this step.
-4. **`013_tm_tenant_id_int`** — PostgreSQL only: if `tenant_master` was ever created with UUID tenant key, this revision truncates those catalog tables and alters the column to integer (breaking; re-seed if you had data).
+3. **`012_tm_platform_catalog`** — creates **empty** `tenant_master` tables for platform catalog (`modules`, `permissions`, `system_roles`, `module_permissions`) with integer tenant key column (later renamed **`iq_tenant_id`**). **`public`** is unchanged in this step.
+4. **`013_tm_tenant_id_int`** — PostgreSQL only: if `tenant_master` was ever created with UUID tenant key, this revision truncates those catalog tables and alters the column to integer (breaking; re-seed if you had data). Superseded for **new** environments by **`022_tm_iq_tenant_uuid`** which restores UUID typing (see **`022`**).
 5. **`019_tm_iq_tenant_id_col`** — renames `tenant_master.*.tenant_id` → **`iq_tenant_id`** on all catalog tables (Visitpad + platform) so the DB column matches the header and API JSON field.
+6. **`022_tm_iq_tenant_uuid`** — PostgreSQL only: truncates all `tenant_master` catalog rows and alters **`iq_tenant_id`** from integer to **UUID** (aligns with the rest of the platform). Re-seed tenant catalog after upgrade.
 
 So: all **foundational** `public` migrations run first; **dual-schema** migrations run later in a **data-safe** order (never drop `public` tenant columns until tenant copies exist).
 
@@ -57,7 +58,7 @@ So: all **foundational** `public` migrations run first; **dual-schema** migratio
 
 ## SQLite / tests
 
-Integration tests attach an in-memory database as **`tenant_master`** so SQLAlchemy can create both schemas. Production uses PostgreSQL only for dual-schema migrations `011`–`013` plus follow-ons such as **`019`**.
+Integration tests attach an in-memory database as **`tenant_master`** so SQLAlchemy can create both schemas. Production uses PostgreSQL only for dual-schema migrations `011`–`013` plus follow-ons such as **`019`** and **`022`**.
 
 ## Fresh database (drop and re-run)
 

@@ -1,43 +1,30 @@
 # ADR-0021: Master Data catalog tenant key (`iq_tenant_id`) vs platform UUID tenant
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-05-08
 - **Deciders:** Platform architecture
 - **Informed:** All services sending `iq_tenant_id` to Master Data
 
 ## Context and problem statement
 
-Master Data Visitpad and `tenant_master` platform tables currently persist a **positive 32-bit integer** catalog tenant key and accept the same in the **`iq_tenant_id`** HTTP header. Elsewhere in the repo, `packages/ts-sdk-db` defines **`iq_tenant_id` as UUID** for generic tenant-scoped application tables. That mismatch breaks header reuse, co-location assumptions, and mental models (see PR #40 review).
-
-## Decision drivers
-
-- **Citus:** distribution keys should align across modules that join or co-locate by tenant.
-- **Ergonomics:** one header name should mean one type to callers.
-- **Pre-production:** schema is still wipe-friendly; correcting typing is cheaper now than after multi-module wiring.
-
-## Considered options
-
-1. **(a) Align Master Data to UUID** for `tenant_master` / header / JSON — single platform tenant type (recommended long-term).
-2. **(b) Mapping layer** — header stays UUID; Master Data resolves UUID → integer via Configurator (or similar) with cache.
-3. **(c) Document divergence only** — keep integer storage; every caller learns a second tenant identifier.
+Master Data previously accepted a **positive integer** in the `iq_tenant_id` HTTP header and persisted it on `tenant_master` rows, while `packages/ts-sdk-db` and other modules use **UUID** for the same conceptual field name. That mismatch broke header reuse, co-location reasoning, and UI expectations (slug tenants silently targeted `public`).
 
 ## Decision outcome
 
-Chosen direction: **(a) align on UUID** when the next coordinated migration window opens; until then the API **rejects non-integer** `iq_tenant_id` shapes, and the **web client blocks Visitpad writes** when the UI tenant id is not numeric to avoid silent writes to `public` (see `services/web/src/lib/api-client.ts`).
-
-**Status remains Proposed** until a migration + OpenAPI + `ts-sdk-db` change lands in one bounded PR.
+**Align Master Data catalog scope with UUID:** `CatalogScope.iq_tenant_id` is `UUID | None`; the header must be a canonical UUID string when present. PostgreSQL `tenant_master.*.iq_tenant_id` columns are `UUID` (see Alembic **`022_tm_iq_tenant_uuid`** — truncates `tenant_master` then alters column type; re-seed tenant rows after upgrade).
 
 ### Consequences
 
 **Positive:**
 
-- Path (a) removes permanent infrastructure asymmetry.
+- Same string shape as `ts-sdk-db` `tenantColumn().iq_tenant_id` and Configurator tenant ids the SPA already holds as UUID strings.
 
 **Negative / accepted trade-offs:**
 
-- Short term: operators need a **numeric catalog tenant id** (or no tenant) for `tenant_master` edits until UUID alignment ships.
+- **022** is destructive for `tenant_master` data on PostgreSQL (documented in the migration header).
 
 ## More information
 
-- LLD: [02-api-contracts.md](../lld/master-data/02-api-contracts.md)
+- LLD: [01-catalog-dual-schema.md](../lld/master-data/01-catalog-dual-schema.md), [02-api-contracts.md](../lld/master-data/02-api-contracts.md)
 - Dual-schema ADR: [ADR-0020](./0020-master-data-catalog-dual-schema.md)
+- Visitpad code packages: [04-visitpad-package-layout.md](../lld/master-data/04-visitpad-package-layout.md)

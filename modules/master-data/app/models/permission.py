@@ -60,7 +60,7 @@ class PermissionTenantModel(TimestampMixin, Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    iq_tenant_id: Mapped[int] = mapped_column(Integer(), nullable=False)
+    iq_tenant_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
     name: Mapped[str] = mapped_column(Text(), nullable=False)
     slug: Mapped[str] = mapped_column(Text(), nullable=False)
     action: Mapped[str] = mapped_column(String(16), nullable=False)

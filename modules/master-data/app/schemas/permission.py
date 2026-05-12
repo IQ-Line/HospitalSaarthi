@@ -19,7 +19,7 @@ class PermissionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    iq_tenant_id: int | None = None
+    iq_tenant_id: UUID | None = None
     name: str
     slug: str
     action: PermissionAction

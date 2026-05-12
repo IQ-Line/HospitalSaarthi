@@ -1,11 +1,15 @@
-"""Catalog scope from ``iq_tenant_id`` header (single positive integer)."""
+"""Catalog scope from ``iq_tenant_id`` header (UUID tenant key)."""
 
 from __future__ import annotations
+
+from uuid import UUID
 
 import pytest
 from fastapi import HTTPException
 
 from app.api.deps import get_catalog_scope
+
+T7 = UUID("00000000-0000-0000-0000-000000000007")
 
 
 def test_no_header_returns_global_scope() -> None:
@@ -14,44 +18,42 @@ def test_no_header_returns_global_scope() -> None:
     assert not scope.is_tenant
 
 
-def test_iq_tenant_id_integer() -> None:
-    scope = get_catalog_scope("98")
-    assert scope.iq_tenant_id == 98
+def test_iq_tenant_id_uuid() -> None:
+    scope = get_catalog_scope("00000000-0000-0000-0000-000000000098")
+    assert scope.iq_tenant_id == UUID("00000000-0000-0000-0000-000000000098")
     assert scope.is_tenant
 
 
-def test_leading_zeros_normalize_to_int() -> None:
-    scope = get_catalog_scope("01")
-    assert scope.iq_tenant_id == 1
+def test_uppercase_uuid_accepted() -> None:
+    scope = get_catalog_scope("AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")
+    assert scope.iq_tenant_id == UUID("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
 
 
 def test_whitespace_stripped() -> None:
-    scope = get_catalog_scope("  7  ")
-    assert scope.iq_tenant_id == 7
+    scope = get_catalog_scope("  00000000-0000-0000-0000-000000000007  ")
+    assert scope.iq_tenant_id == T7
 
 
-def test_uuid_string_rejected() -> None:
+def test_legacy_integer_string_rejected() -> None:
     with pytest.raises(HTTPException) as exc_info:
-        get_catalog_scope("550e8400-e29b-41d4-a716-446655440000")
+        get_catalog_scope("98")
     assert exc_info.value.status_code == 400
     assert "uuid" in exc_info.value.detail.lower()
 
 
-def test_non_numeric_rejected() -> None:
+def test_non_uuid_rejected() -> None:
     with pytest.raises(HTTPException) as exc_info:
         get_catalog_scope("abc")
     assert exc_info.value.status_code == 400
-    assert "digits" in exc_info.value.detail.lower()
 
 
 def test_slug_like_tenant_rejected() -> None:
     with pytest.raises(HTTPException) as exc_info:
         get_catalog_scope("tenant-001")
     assert exc_info.value.status_code == 400
-    assert "tenant-001" in exc_info.value.detail or "slug" in exc_info.value.detail.lower()
 
 
-def test_zero_rejected() -> None:
+def test_empty_after_strip_rejected() -> None:
     with pytest.raises(HTTPException) as exc_info:
-        get_catalog_scope("0")
+        get_catalog_scope("   x")
     assert exc_info.value.status_code == 400

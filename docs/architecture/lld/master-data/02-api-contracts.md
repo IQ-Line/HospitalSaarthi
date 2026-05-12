@@ -1,7 +1,7 @@
 # Master Data — HTTP API contracts (v1)
 
 **Module:** Master Data  
-**Companion docs:** [Schema design](./01-schema-design.md) | [ERD](./master-data.erd.json) | [Schema reference](./schema-reference.json) | [Visitpad Master](./03-visitpad-master.md)
+**Companion docs:** [Schema design](./01-schema-design.md) | [ERD](./master-data.erd.json) | [Schema reference](./schema-reference.json) | [Visitpad Master](./03-visitpad-master.md) | [Visitpad packages](./04-visitpad-package-layout.md)
 
 **Normative machine-readable OpenAPI:** [`specs/openapi/master-data.v1.yaml`](../../../../specs/openapi/master-data.v1.yaml) (repository root). Handlers MUST match this file before merge; extend the YAML when promoting rows from the **Planned** table below.
 
@@ -26,7 +26,7 @@ Initial environments may still **seed** baseline rows via Alembic migrations (se
 | **Timestamps** | RFC 3339 / ISO-8601 in UTC (e.g. `2026-05-04T12:00:00Z`). |
 | **IDs** | UUIDs as lowercase string with hyphens in JSON. |
 | **Authentication** | Module routes use **`security: []`** in OpenAPI (Phase 0). A gateway may add auth; optional service-layer JWT is documented in **`modules/master-data`** (`require_superadmin`, `auth_policy.py`). |
-| **Catalog tenant scope** | Optional **`iq_tenant_id`** request header (positive integer string) routes catalog CRUD to **`tenant_master`**; omit for global **`public`** rows. JSON responses use the same name: **`iq_tenant_id`** (integer when tenant-scoped, otherwise `null`). See [dual-schema catalog](./01-catalog-dual-schema.md). |
+| **Catalog tenant scope** | Optional **`iq_tenant_id`** request header (canonical UUID string, same type as platform `ts-sdk-db` / tenant registry) routes catalog CRUD to **`tenant_master`**; omit for global **`public`** rows. JSON responses use the same name: **`iq_tenant_id`** (UUID string when tenant-scoped, otherwise `null`). See [dual-schema catalog](./01-catalog-dual-schema.md). |
 | **Authorization** | Cerbos PDP is authoritative; API returns **403** when the principal is authenticated but not allowed (see [module shape template](../../hld/03-module-shape-template.md)). |
 | **List success envelope** | `{ "data": [ ... ], "total": <int> }`. For paginated endpoints, `total` is the full count after filters (before `limit`/`offset`); for unpaginated endpoints, it equals `len(data)`. |
 | **Item success** | When a single-resource GET is added, prefer `{ "data": { ... } }` for consistency with list wrapping. |

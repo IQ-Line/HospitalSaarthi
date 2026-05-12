@@ -7,7 +7,7 @@ export interface VisitpadListResponse<T> {
 
 export interface VisitpadUnit {
   id: string;
-  iq_tenant_id: number | null;
+  iq_tenant_id: string | null;
   code: string;
   display_name: string;
   dimension: string;
@@ -24,7 +24,7 @@ export interface VisitpadUnit {
 
 export interface VisitpadUnitConversion {
   id: string;
-  iq_tenant_id: number | null;
+  iq_tenant_id: string | null;
   from_unit_code: string;
   to_unit_code: string;
   factor: number;
@@ -39,7 +39,7 @@ export interface VisitpadUnitConversion {
 
 export interface VisitpadVital {
   id: string;
-  iq_tenant_id: number | null;
+  iq_tenant_id: string | null;
   code: string;
   name: string;
   short_name: string;
@@ -70,7 +70,7 @@ export interface VisitpadVital {
 
 export interface VisitpadChiefComplaint {
   id: string;
-  iq_tenant_id: number | null;
+  iq_tenant_id: string | null;
   code: string;
   display_name: string;
   body_system: string;
@@ -89,7 +89,7 @@ export interface VisitpadChiefComplaint {
 
 export interface VisitpadDiagnosis {
   id: string;
-  iq_tenant_id: number | null;
+  iq_tenant_id: string | null;
   icd10_code: string;
   icd_version?: string;
   official_descriptor?: string;
@@ -109,7 +109,7 @@ export interface VisitpadDiagnosis {
 
 export interface VisitpadAllergen {
   id: string;
-  iq_tenant_id: number | null;
+  iq_tenant_id: string | null;
   code: string;
   display_name: string;
   allergen_type: string;
@@ -127,7 +127,7 @@ export interface VisitpadAllergen {
 
 export interface VisitpadAllergyReaction {
   id: string;
-  iq_tenant_id: number | null;
+  iq_tenant_id: string | null;
   code: string;
   display_name: string;
   display_order: number;
@@ -141,7 +141,7 @@ export interface VisitpadAllergyReaction {
 
 export interface VisitpadRxColumn {
   id: string;
-  iq_tenant_id: number | null;
+  iq_tenant_id: string | null;
   section: string;
   code: string;
   display_name: string;
@@ -157,7 +157,7 @@ export interface VisitpadRxColumn {
 
 export interface VisitpadMedicine {
   id: string;
-  iq_tenant_id: number | null;
+  iq_tenant_id: string | null;
   code: string;
   display_name: string;
   generic_name: string;
@@ -219,7 +219,7 @@ export interface VisitpadMedicine {
 
 export interface VisitpadChronicIllness {
   id: string;
-  iq_tenant_id: number | null;
+  iq_tenant_id: string | null;
   icd10_code: string;
   display_name: string;
   category: string;
@@ -236,7 +236,7 @@ export interface VisitpadChronicIllness {
 
 export interface VisitpadProcedure {
   id: string;
-  iq_tenant_id: number | null;
+  iq_tenant_id: string | null;
   cpt_code: string;
   short_name?: string | null;
   display_name: string;

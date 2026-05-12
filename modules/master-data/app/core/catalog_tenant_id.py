@@ -1,15 +1,8 @@
-"""Parse ``iq_tenant_id`` header for catalog routing (positive integer tenant key)."""
+"""Parse ``iq_tenant_id`` header for catalog routing (UUID tenant key, matches ``ts-sdk-db``)."""
 
 from __future__ import annotations
 
-import re
-
-# Matches PostgreSQL / SQLAlchemy ``Integer`` / ``integer`` column range.
-_MAX_TENANT_ID = 2_147_483_647
-
-_UUID_RE = re.compile(
-    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-)
+from uuid import UUID
 
 
 class CatalogTenantIdError(ValueError):
@@ -20,22 +13,18 @@ class CatalogTenantIdError(ValueError):
         self.code = code
 
 
-def parse_iq_tenant_id(raw: str) -> int:
-    """Return tenant id from non-empty header value."""
+def parse_iq_tenant_id(raw: str) -> UUID:
+    """Return tenant id from non-empty header value (canonical UUID string)."""
     s = raw.strip()
     if not s:
         raise CatalogTenantIdError("empty")
-    if s.isdigit():
-        n = int(s)
-        if n < 1 or n > _MAX_TENANT_ID:
-            raise CatalogTenantIdError("range")
-        return n
-    if _UUID_RE.fullmatch(s):
-        raise CatalogTenantIdError("uuid_shape")
-    raise CatalogTenantIdError("not_integer_string")
+    try:
+        return UUID(s)
+    except ValueError as exc:
+        raise CatalogTenantIdError("invalid_uuid") from exc
 
 
-def try_parse_iq_tenant_id(raw: str | None) -> int | None:
+def try_parse_iq_tenant_id(raw: str | None) -> UUID | None:
     """``None`` if absent/blank; raises :class:`CatalogTenantIdError` on invalid non-blank input."""
     if raw is None or not raw.strip():
         return None

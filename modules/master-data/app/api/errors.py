@@ -12,11 +12,11 @@ from app.repositories.module_permission_repository import DuplicateModulePermiss
 from app.repositories.module_repository import DuplicateModuleKeyError
 from app.repositories.permission_repository import DuplicatePermissionKeyError
 from app.repositories.system_role_repository import DuplicateSystemRoleKeyError
-from app.repositories.visitpad_integrity import DuplicateVisitpadCatalogKeyError
-from app.repositories.visitpad_unit_conversion_repository import (
+from app.repositories.visitpad.integrity import DuplicateVisitpadCatalogKeyError
+from app.repositories.visitpad.conversion import (
     DuplicateVisitpadUnitConversionKeyError,
 )
-from app.repositories.visitpad_unit_repository import DuplicateVisitpadUnitKeyError
+from app.repositories.visitpad.unit import DuplicateVisitpadUnitKeyError
 from app.services.module_permission_service import (
     InvalidModulePermissionReferenceError,
     ModulePermissionNotFoundError,
@@ -29,11 +29,11 @@ from app.services.module_service import (
 )
 from app.services.permission_service import PermissionNotFoundError
 from app.services.system_role_service import SystemRoleNotFoundError
-from app.services.visitpad_units_service import (
+from app.services.visitpad.units import (
     InvalidVisitpadUnitConversionError,
     VisitpadUnitBlockedByActiveConversionsError,
 )
-from app.services.visitpad_vitals_service import InvalidVitalRangeError
+from app.services.visitpad.vitals import InvalidVitalRangeError
 
 
 class ResourceNotFoundError(Exception):

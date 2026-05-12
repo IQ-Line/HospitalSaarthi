@@ -11,17 +11,17 @@ from app.repositories.module_permission_repository import ModulePermissionReposi
 from app.repositories.module_repository import ModuleRepository
 from app.repositories.permission_repository import PermissionRepository
 from app.repositories.system_role_repository import SystemRoleRepository
-from app.repositories.visitpad_allergen_repository import VisitpadAllergenRepository
-from app.repositories.visitpad_allergy_reaction_repository import VisitpadAllergyReactionRepository
-from app.repositories.visitpad_chief_complaint_repository import VisitpadChiefComplaintRepository
-from app.repositories.visitpad_chronic_illness_repository import VisitpadChronicIllnessRepository
-from app.repositories.visitpad_diagnosis_repository import VisitpadDiagnosisRepository
-from app.repositories.visitpad_medicine_repository import VisitpadMedicineRepository
-from app.repositories.visitpad_procedure_repository import VisitpadProcedureRepository
-from app.repositories.visitpad_rx_column_repository import VisitpadRxColumnRepository
-from app.repositories.visitpad_unit_conversion_repository import VisitpadUnitConversionRepository
-from app.repositories.visitpad_unit_repository import VisitpadUnitRepository
-from app.repositories.visitpad_vital_repository import VisitpadVitalRepository
+from app.repositories.visitpad.allergen import VisitpadAllergenRepository
+from app.repositories.visitpad.allergy_reaction import VisitpadAllergyReactionRepository
+from app.repositories.visitpad.chief_complaint import VisitpadChiefComplaintRepository
+from app.repositories.visitpad.chronic_illness import VisitpadChronicIllnessRepository
+from app.repositories.visitpad.diagnosis import VisitpadDiagnosisRepository
+from app.repositories.visitpad.medicine import VisitpadMedicineRepository
+from app.repositories.visitpad.procedure import VisitpadProcedureRepository
+from app.repositories.visitpad.rx_column import VisitpadRxColumnRepository
+from app.repositories.visitpad.conversion import VisitpadUnitConversionRepository
+from app.repositories.visitpad.unit import VisitpadUnitRepository
+from app.repositories.visitpad.vital import VisitpadVitalRepository
 
 
 def get_session() -> Generator[Session, None, None]:
@@ -34,28 +34,21 @@ def get_catalog_scope(
     """Resolve where catalog CRUD goes for this request.
 
     - No / blank header → ``CatalogScope(iq_tenant_id=None)`` → ORM uses ``public`` models (**no** ``iq_tenant_id`` column).
-    - Valid integer string → ``CatalogScope(iq_tenant_id=n)`` → ORM uses ``tenant_master`` models (**every** row carries ``iq_tenant_id``).
+    - Valid UUID string → ``CatalogScope(iq_tenant_id=…)`` → ORM uses ``tenant_master`` models (**every** row carries ``iq_tenant_id``).
     """
     try:
         tid = try_parse_iq_tenant_id(catalog_tenant_header)
     except CatalogTenantIdError as exc:
-        if exc.code == "uuid_shape":
+        if exc.code == "empty":
+            detail = "Invalid iq_tenant_id: empty value. Omit the header for the shared global catalog."
+        elif exc.code == "invalid_uuid":
             detail = (
-                "Invalid iq_tenant_id: master-data catalog routing uses a numeric tenant key "
-                "(digits only, e.g. 1, 12, 98), not a UUID. Omit the header to read the shared "
-                "global catalog in schema public."
-            )
-        elif exc.code == "not_integer_string":
-            detail = (
-                "Invalid iq_tenant_id: use digits only for a positive whole number "
-                "(examples: 1, 12, 98). Slugs or labels such as tenant-001 are not accepted here. "
-                "Omit the header to use the shared global catalog."
+                "Invalid iq_tenant_id: expected a canonical UUID string "
+                "(e.g. 550e8400-e29b-41d4-a716-446655440000). "
+                "Numeric-only legacy keys are not accepted. Omit the header for schema public."
             )
         else:
-            detail = (
-                "Invalid iq_tenant_id: expected a positive whole number within the 32-bit range "
-                "(digits only, e.g. 1, 12, 98). Omit the header for the shared global catalog."
-            )
+            detail = "Invalid iq_tenant_id. Omit the header for the shared global catalog."
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail) from exc
     return CatalogScope(iq_tenant_id=tid)
 
