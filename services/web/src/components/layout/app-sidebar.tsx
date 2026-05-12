@@ -4,6 +4,7 @@ import { LayoutGrid, Users } from 'lucide-react';
 import { BrandMark } from '@/components/layout/brand-mark';
 import { SidebarNavLink } from '@/components/layout/sidebar-nav-link';
 import { MasterDataNavSection } from '@/features/master-data/components/master-data-nav-section';
+import { VisitpadNavSection } from '@/features/visitpad/components/visitpad-nav-section';
 import { useUIPrefsStore } from '@/stores/ui-prefs.store';
 
 interface AppSidebarProps {
@@ -11,6 +12,8 @@ interface AppSidebarProps {
   tenantName: string | null;
   hasMasterDataAccess: boolean;
   hasUserManagementAccess: boolean;
+  /** Catalog admins: same gate as Master Data until a dedicated Cerbos module exists. */
+  hasVisitpadAccess: boolean;
 }
 
 export function AppSidebar({
@@ -18,18 +21,27 @@ export function AppSidebar({
   tenantName,
   hasMasterDataAccess,
   hasUserManagementAccess,
+  hasVisitpadAccess,
 }: AppSidebarProps) {
   const sidebarCollapsed = useUIPrefsStore((s) => s.sidebarCollapsed);
 
   const { pathname } = useLocation();
   const isInMasterData = pathname.startsWith('/master-data');
   const [isMasterDataOpen, setIsMasterDataOpen] = useState(true);
+  const isInVisitpad = pathname.startsWith('/visitpad');
+  const [isVisitpadOpen, setIsVisitpadOpen] = useState(true);
 
   useEffect(() => {
     if (isInMasterData) {
       setIsMasterDataOpen(true);
     }
   }, [isInMasterData]);
+
+  useEffect(() => {
+    if (isInVisitpad) {
+      setIsVisitpadOpen(true);
+    }
+  }, [isInVisitpad]);
 
   return (
     <aside
@@ -76,6 +88,13 @@ export function AppSidebar({
             icon={Users}
             collapsed={sidebarCollapsed}
             search={{ q: '' }}
+          />
+        )}
+        {hasVisitpadAccess && (
+          <VisitpadNavSection
+            collapsed={sidebarCollapsed}
+            isOpen={isVisitpadOpen}
+            onToggleSection={() => setIsVisitpadOpen((prev) => !prev)}
           />
         )}
       </nav>

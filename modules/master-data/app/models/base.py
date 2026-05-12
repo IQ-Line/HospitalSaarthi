@@ -1,6 +1,7 @@
+import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, MetaData
+from sqlalchemy import DateTime, MetaData, Uuid
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 metadata = MetaData()
@@ -8,6 +9,13 @@ metadata = MetaData()
 
 class Base(DeclarativeBase):
     metadata = metadata
+
+
+class AuditActorMixin:
+    """Optional actor UUIDs when JWT / gateway populates audit context (nullable in Phase 0)."""
+
+    created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
 
 
 class TimestampMixin:

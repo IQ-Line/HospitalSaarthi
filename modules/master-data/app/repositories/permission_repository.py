@@ -1,12 +1,16 @@
-"""Database access for permission catalog (`public.permissions`)."""
+"""Database access for ``permissions`` — ``public`` vs ``tenant_master``."""
 
+from __future__ import annotations
+
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import Select, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models.permission import PermissionModel
+from app.catalog.platform_table_models import permission_model
+from app.core.catalog_scope import CatalogScope
 from app.schemas.permission import PermissionAction
 
 
@@ -30,21 +34,29 @@ def _is_unique_violation(exc: IntegrityError) -> bool:
 
 
 class PermissionRepository:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, scope: CatalogScope) -> None:
         self._session = session
+        self._scope = scope
+
+    @property
+    def scope(self) -> CatalogScope:
+        return self._scope
+
+    def _M(self) -> Any:
+        return permission_model(self._scope)
 
     def list_permissions(
         self,
         *,
         action: PermissionAction | None = None,
-    ) -> list[PermissionModel]:
-        statement: Select[tuple[PermissionModel]] = (
-            select(PermissionModel)
-            .where(PermissionModel.is_deleted.is_(False))
-            .order_by(PermissionModel.name)
-        )
+    ) -> list[Any]:
+        M = self._M()
+        filters = [M.is_deleted.is_(False)]
+        if self._scope.is_tenant:
+            filters.append(M.iq_tenant_id == self._scope.iq_tenant_id)
         if action is not None:
-            statement = statement.where(PermissionModel.action == action.value)
+            filters.append(M.action == action.value)
+        statement: Select[tuple[Any]] = select(M).where(*filters).order_by(M.name)
         return list(self._session.scalars(statement).all())
 
     def get_permission_by_id(
@@ -52,23 +64,26 @@ class PermissionRepository:
         permission_id: UUID,
         *,
         include_deleted: bool = False,
-    ) -> PermissionModel | None:
-        row = self._session.get(PermissionModel, permission_id)
+    ) -> Any | None:
+        M = self._M()
+        row = self._session.get(M, permission_id)
         if row is None:
+            return None
+        if self._scope.is_tenant and row.iq_tenant_id != self._scope.iq_tenant_id:
             return None
         if not include_deleted and row.is_deleted:
             return None
         return row
 
-    def get_permission_by_slug(self, slug: str) -> PermissionModel | None:
-        statement = (
-            select(PermissionModel)
-            .where(PermissionModel.slug == slug, PermissionModel.is_deleted.is_(False))
-            .limit(1)
-        )
+    def get_permission_by_slug(self, slug: str) -> Any | None:
+        M = self._M()
+        filters = [M.slug == slug, M.is_deleted.is_(False)]
+        if self._scope.is_tenant:
+            filters.append(M.iq_tenant_id == self._scope.iq_tenant_id)
+        statement = select(M).where(*filters).limit(1)
         return self._session.scalars(statement).first()
 
-    def create_permission(self, permission: PermissionModel) -> PermissionModel:
+    def create_permission(self, permission: Any) -> Any:
         self._session.add(permission)
         try:
             self._session.flush()
@@ -80,7 +95,7 @@ class PermissionRepository:
         self._session.refresh(permission)
         return permission
 
-    def update_permission(self, permission: PermissionModel) -> PermissionModel:
+    def update_permission(self, permission: Any) -> Any:
         try:
             self._session.flush()
         except IntegrityError as exc:
