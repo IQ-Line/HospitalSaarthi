@@ -8,6 +8,7 @@ import type {
   IdentifierRepo,
   PatientRepo,
   SequenceRepo,
+  SourceRecordRepo,
 } from "../ports.js";
 import { registerPatientsHandler } from "./patients.handler.js";
 
@@ -57,6 +58,7 @@ function mockDeps(): {
   addressRepo: AddressRepo;
   identifierRepo: IdentifierRepo;
   sequenceRepo: SequenceRepo;
+  sourceRecordRepo: SourceRecordRepo;
   eventBus: EventBus;
   getTenantNumericCode: (tenantId: string) => Promise<string>;
 } {
@@ -89,6 +91,10 @@ function mockDeps(): {
     sequenceRepo: {
       nextValue: vi.fn().mockResolvedValue(1),
     },
+    sourceRecordRepo: {
+      findByPatient: vi.fn().mockResolvedValue([]),
+      create: vi.fn().mockResolvedValue({ id: "sr-1" }),
+    } as unknown as SourceRecordRepo,
     eventBus: {
       connect: vi.fn().mockResolvedValue(undefined),
       disconnect: vi.fn().mockResolvedValue(undefined),
@@ -145,9 +151,70 @@ describe("patients.handler HTTP validation (Fastify JSON schema)", () => {
         first_name: "A",
         gender: "invalid",
         phone_number: "1",
+        source_system: "opd_registration",
       },
     });
     expect(res.statusCode).toBe(400);
+    await app.close();
+  });
+
+  it("POST /patients rejects valid demographics without source_system", async () => {
+    const app = await buildTestApp();
+    const res = await app.inject({
+      method: "POST",
+      url: "/patients",
+      payload: {
+        first_name: "Ada",
+        gender: "female",
+        phone_number: "9800000000",
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    await app.close();
+  });
+
+  it("PATCH /patients/:id rejects demographic change without source_system", async () => {
+    const deps = mockDeps();
+    const app = await buildTestApp(deps);
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/patients/${PATIENT_ID}`,
+      payload: { first_name: "Renamed" },
+    });
+    expect(res.statusCode).toBe(400);
+    const body = res.json() as { error: string };
+    expect(body.error).toBe("source_system_required");
+    expect(deps.sourceRecordRepo.create).not.toHaveBeenCalled();
+    await app.close();
+  });
+
+  it("PATCH /patients/:id accepts demographic change with source_system", async () => {
+    const deps = mockDeps();
+    const app = await buildTestApp(deps);
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/patients/${PATIENT_ID}`,
+      payload: { first_name: "Renamed", source_system: "abdm_kyc" },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(deps.sourceRecordRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({ source_system: "abdm_kyc" }),
+    );
+    await app.close();
+  });
+
+  it("PATCH /patients/:id accepts updated_by only without source_system", async () => {
+    const deps = mockDeps();
+    const app = await buildTestApp(deps);
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/patients/${PATIENT_ID}`,
+      payload: {
+        updated_by: "c0000000-0000-4000-8000-000000000003",
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(deps.sourceRecordRepo.create).not.toHaveBeenCalled();
     await app.close();
   });
 
@@ -161,6 +228,7 @@ describe("patients.handler HTTP validation (Fastify JSON schema)", () => {
         first_name: "Ada",
         gender: "female",
         phone_number: "9800000000",
+        source_system: "opd_registration",
       },
     });
     expect(res.statusCode).toBe(201);

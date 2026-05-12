@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { EventBus } from "@hims/ts-sdk-events";
-import type { PatientRepo, SequenceRepo } from "../ports.js";
+import type { PatientRepo, SequenceRepo, SourceRecordRepo } from "../ports.js";
 import type { Patient } from "../domain/patient.types.js";
 import { isValidUhidFormat } from "../domain/uhid.js";
 import { registerPatient } from "./register-patient.js";
@@ -58,10 +58,17 @@ describe("registerPatient", () => {
       })),
     } as unknown as PatientRepo;
 
+    const sourceRecordCreate = vi.fn().mockResolvedValue({ id: "sr-1" });
+    const sourceRecordRepo = {
+      findByPatient: vi.fn(),
+      create: sourceRecordCreate,
+    } as unknown as SourceRecordRepo;
+
     await registerPatient(
       {
         patientRepo,
         sequenceRepo,
+        sourceRecordRepo,
         eventBus,
         getTenantNumericCode: vi.fn().mockResolvedValue("00001"),
       },
@@ -71,11 +78,22 @@ describe("registerPatient", () => {
         gender: "male",
         phone_number: "9999999999",
         nationality: "Indian",
+        source_system: "self_service",
       },
     );
 
     expect(sequenceRepo.nextValue).toHaveBeenCalled();
     expect(patientRepo.create).toHaveBeenCalled();
+    expect(sourceRecordCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source_system: "self_service",
+        demographics_snapshot: expect.objectContaining({
+          first_name: "A",
+          gender: "male",
+          phone_number: "9999999999",
+        }),
+      }),
+    );
     const createdArg = (patientRepo.create as ReturnType<typeof vi.fn>).mock
       .calls[0][0] as { uhid: string };
     expect(isValidUhidFormat(createdArg.uhid)).toBe(true);

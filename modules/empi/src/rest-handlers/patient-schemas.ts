@@ -27,6 +27,13 @@ const identifierTypeEnum = [
   "insurance_id",
   "other",
 ] as const;
+const patientSourceSystemEnum = [
+  "opd_registration",
+  "abdm_kyc",
+  "legacy_import",
+  "admin_edit",
+  "self_service",
+] as const;
 
 export const searchPatientsQuerySchema = {
   type: "object" as const,
@@ -73,7 +80,7 @@ export const paramsPatientAndAddressSchema = {
 
 export const createPatientBodySchema = {
   type: "object" as const,
-  required: ["first_name", "gender", "phone_number"],
+  required: ["first_name", "gender", "phone_number", "source_system"],
   additionalProperties: false,
   properties: {
     first_name: { type: "string", minLength: 1 },
@@ -100,6 +107,8 @@ export const createPatientBodySchema = {
     abha_number: { type: "string" },
     registered_by: uuidParam,
     created_by: uuidParam,
+    source_reference: { type: "string" },
+    source_system: { type: "string", enum: [...patientSourceSystemEnum] },
     force_create: { type: "boolean" },
   },
 };
@@ -132,6 +141,7 @@ export const updatePatientBodySchema = {
     emergency_contact_phone: { type: "string" },
     abha_number: { type: "string" },
     updated_by: uuidParam,
+    source_system: { type: "string", enum: [...patientSourceSystemEnum] },
   },
 };
 

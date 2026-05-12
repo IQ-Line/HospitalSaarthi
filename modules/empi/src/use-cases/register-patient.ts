@@ -1,14 +1,16 @@
 import type { EventBus } from "@hims/ts-sdk-events";
 import { composeUhid } from "../domain/uhid.js";
 import { evaluateDedupAgainstCandidate } from "../domain/registration-dedup.js";
+import { demographicsSnapshotFromCreatePayload } from "../domain/patient-payloads.js";
 import { createEmpiEnvelope } from "../lib/empi-envelope.js";
-import type { PatientRepo, SequenceRepo } from "../ports.js";
-import type { Patient, CreatePatientData } from "../domain/patient.types.js";
+import type { PatientRepo, SequenceRepo, SourceRecordRepo } from "../ports.js";
+import type { CreatePatientData } from "../domain/patient.types.js";
 import type { RegisterPatientResult } from "./register-patient.types.js";
 
 interface Deps {
   patientRepo: PatientRepo;
   sequenceRepo: SequenceRepo;
+  sourceRecordRepo: SourceRecordRepo;
   eventBus: EventBus;
   getTenantNumericCode: (tenantId: string) => Promise<string>;
 }
@@ -48,6 +50,15 @@ export async function registerPatient(
     ...data,
     uhid,
     full_name: fullName,
+  });
+
+  await deps.sourceRecordRepo.create({
+    iq_tenant_id: patient.iq_tenant_id,
+    patient_id: patient.id,
+    source_system: data.source_system,
+    source_reference: data.source_reference ?? null,
+    demographics_snapshot: demographicsSnapshotFromCreatePayload(data),
+    contributed_by: data.created_by ?? null,
   });
 
   await deps.eventBus.publish(

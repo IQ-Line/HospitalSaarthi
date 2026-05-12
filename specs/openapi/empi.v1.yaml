@@ -132,6 +132,21 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Patient"
+        "400":
+          description: >
+            Missing `source_system` while changing demographics on an existing patient
+            (provenance required for patient_source_records).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error, message]
+                properties:
+                  error:
+                    type: string
+                    enum: [source_system_required]
+                  message:
+                    type: string
         "404":
           description: Patient not found
 
@@ -295,9 +310,19 @@ components:
           type: string
           enum: [active, inactive, deceased]
 
+    PatientSourceSystem:
+      type: string
+      description: Workflow origin for patient_source_records when registering or updating demographics.
+      enum:
+        - opd_registration
+        - abdm_kyc
+        - legacy_import
+        - admin_edit
+        - self_service
+
     CreatePatientRequest:
       type: object
-      required: [first_name, gender, phone_number]
+      required: [first_name, gender, phone_number, source_system]
       properties:
         first_name:
           type: string
@@ -348,6 +373,11 @@ components:
           type: string
         abha_number:
           type: string
+        source_system:
+          $ref: "#/components/schemas/PatientSourceSystem"
+        source_reference:
+          type: string
+          description: Optional external reference (e.g. visit id) stored on the registration source row.
         force_create:
           type: boolean
           description: Skip dedup check and create anyway
@@ -398,6 +428,12 @@ components:
           type: string
         abha_number:
           type: string
+        source_system:
+          description: >
+            Required when the request changes any demographic field; stored on patient_source_records
+            for that update. Omit when the body only carries non-demographic metadata (e.g. updated_by only).
+          allOf:
+            - $ref: "#/components/schemas/PatientSourceSystem"
 
     Patient:
       type: object

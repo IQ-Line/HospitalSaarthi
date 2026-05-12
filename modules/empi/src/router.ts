@@ -29,6 +29,7 @@ async function empiRouter(
     addressRepo: options.addressRepo,
     identifierRepo: options.identifierRepo,
     sequenceRepo: options.sequenceRepo,
+    sourceRecordRepo: options.sourceRecordRepo,
     eventBus: options.eventBus,
     getTenantNumericCode: options.getTenantNumericCode,
   });

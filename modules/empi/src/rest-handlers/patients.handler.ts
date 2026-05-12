@@ -6,6 +6,7 @@ import type {
   AddressRepo,
   IdentifierRepo,
   SequenceRepo,
+  SourceRecordRepo,
 } from "../ports.js";
 import type { PatientFilters, PatientStatus } from "../domain/patient.types.js";
 import type {
@@ -18,7 +19,10 @@ import type {
 } from "../domain/api.types.js";
 import { registerPatient } from "../use-cases/register-patient.js";
 import { isDuplicateRegistrationResult } from "../use-cases/register-patient.types.js";
-import { updatePatient } from "../use-cases/update-patient.js";
+import {
+  SourceSystemRequiredForDemographicsUpdateError,
+  updatePatient,
+} from "../use-cases/update-patient.js";
 import { searchPatients } from "../use-cases/search-patients.js";
 import { getPatient } from "../use-cases/get-patient.js";
 import { changePatientStatus } from "../use-cases/change-patient-status.js";
@@ -51,6 +55,7 @@ interface HandlerDeps {
   addressRepo: AddressRepo;
   identifierRepo: IdentifierRepo;
   sequenceRepo: SequenceRepo;
+  sourceRecordRepo: SourceRecordRepo;
   eventBus: EventBus;
   getTenantNumericCode: (tenantId: string) => Promise<string>;
 }
@@ -75,6 +80,7 @@ export function registerPatientsHandler(
           {
             patientRepo: deps.patientRepo,
             sequenceRepo: deps.sequenceRepo,
+            sourceRecordRepo: deps.sourceRecordRepo,
             eventBus: deps.eventBus,
             getTenantNumericCode: deps.getTenantNumericCode,
           },
@@ -161,15 +167,30 @@ export function registerPatientsHandler(
       const tenantId = request.tenantId;
       const { id } = request.params;
 
-      const patient = await updatePatient(
-        { patientRepo: deps.patientRepo, eventBus: deps.eventBus },
-        tenantId,
-        id,
-        request.body,
-      );
+      try {
+        const patient = await updatePatient(
+          {
+            patientRepo: deps.patientRepo,
+            sourceRecordRepo: deps.sourceRecordRepo,
+            eventBus: deps.eventBus,
+          },
+          tenantId,
+          id,
+          request.body,
+        );
 
-      if (!patient) return reply.code(404).send({ error: "Patient not found" });
-      return reply.send(patient);
+        if (!patient)
+          return reply.code(404).send({ error: "Patient not found" });
+        return reply.send(patient);
+      } catch (err) {
+        if (err instanceof SourceSystemRequiredForDemographicsUpdateError) {
+          return reply.code(400).send({
+            error: err.code,
+            message: err.message,
+          });
+        }
+        throw err;
+      }
     },
   );
 

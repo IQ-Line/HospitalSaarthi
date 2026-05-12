@@ -10,6 +10,7 @@ export type {
   Gender,
   Salutation,
   BloodGroup,
+  PatientSourceSystem,
   PatientAddress,
   CreateAddressData,
   UpdateAddressData,

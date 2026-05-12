@@ -1,11 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 import type { EventBus } from "@hims/ts-sdk-events";
-import type { PatientRepo, SequenceRepo } from "../ports.js";
+import type { PatientRepo, SequenceRepo, SourceRecordRepo } from "../ports.js";
 import type { Patient } from "../domain/patient.types.js";
 import { registerPatient } from "./register-patient.js";
 import { isDuplicateRegistrationResult } from "./register-patient.types.js";
 
 const TENANT = "11111111-2222-4333-8444-555555555555";
+
+const noopSourceRecordRepo = {
+  findByPatient: vi.fn(),
+  create: vi.fn().mockResolvedValue({ id: "sr-1" }),
+} as unknown as SourceRecordRepo;
 
 function basePatient(overrides: Partial<Patient> = {}): Patient {
   return {
@@ -64,6 +69,7 @@ describe("registerPatient deduplication (Phase 2)", () => {
       {
         patientRepo,
         sequenceRepo,
+        sourceRecordRepo: noopSourceRecordRepo,
         eventBus,
         getTenantNumericCode: vi.fn().mockResolvedValue("00001"),
       },
@@ -75,6 +81,7 @@ describe("registerPatient deduplication (Phase 2)", () => {
         phone_number: "9999999999",
         nationality: "Indian",
         date_of_birth: "1990-06-01",
+        source_system: "opd_registration",
       },
     );
 
@@ -119,6 +126,7 @@ describe("registerPatient deduplication (Phase 2)", () => {
       {
         patientRepo,
         sequenceRepo,
+        sourceRecordRepo: noopSourceRecordRepo,
         eventBus,
         getTenantNumericCode: vi.fn().mockResolvedValue("00001"),
       },
@@ -130,6 +138,7 @@ describe("registerPatient deduplication (Phase 2)", () => {
         phone_number: "9999999999",
         nationality: "Indian",
         date_of_birth: "1990-06-01",
+        source_system: "opd_registration",
       },
     );
 
@@ -158,6 +167,7 @@ describe("registerPatient deduplication (Phase 2)", () => {
       {
         patientRepo,
         sequenceRepo,
+        sourceRecordRepo: noopSourceRecordRepo,
         eventBus,
         getTenantNumericCode: vi.fn().mockResolvedValue("00001"),
       },
@@ -170,6 +180,7 @@ describe("registerPatient deduplication (Phase 2)", () => {
         nationality: "Indian",
         date_of_birth: "1990-06-01",
         force_create: true,
+        source_system: "opd_registration",
       },
     );
 

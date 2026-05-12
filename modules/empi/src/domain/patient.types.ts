@@ -23,6 +23,14 @@ export type IdentifierType =
   | "insurance_id"
   | "other";
 
+/** Workflow origin for `patient_source_records.source_system` (request-driven on create/update). */
+export type PatientSourceSystem =
+  | "opd_registration"
+  | "abdm_kyc"
+  | "legacy_import"
+  | "admin_edit"
+  | "self_service";
+
 export interface Patient {
   id: string;
   iq_tenant_id: string;
@@ -61,6 +69,10 @@ export interface Patient {
 
 export interface CreatePatientData {
   iq_tenant_id: string;
+  /** Provenance: which system/workflow produced this registration snapshot. */
+  source_system: PatientSourceSystem;
+  /** Optional encounter / visit id from the registering system (stored on source record `source_reference`). */
+  source_reference?: string | null;
   abha_number?: string | null;
   salutation?: string | null;
   first_name: string;
@@ -112,6 +124,8 @@ export interface UpdatePatientData {
   emergency_contact_phone?: string | null;
   abha_number?: string | null;
   updated_by?: string | null;
+  /** Required when any demographic field is present; drives `patient_source_records.source_system`. */
+  source_system?: PatientSourceSystem;
 }
 
 export interface PatientFilters {
@@ -189,7 +203,7 @@ export interface PatientSourceRecord {
   id: string;
   iq_tenant_id: string;
   patient_id: string;
-  source_system: string;
+  source_system: PatientSourceSystem;
   source_reference: string | null;
   demographics_snapshot: Record<string, unknown>;
   contributed_at: Date;
@@ -199,7 +213,7 @@ export interface PatientSourceRecord {
 export interface CreateSourceRecordData {
   iq_tenant_id: string;
   patient_id: string;
-  source_system: string;
+  source_system: PatientSourceSystem;
   source_reference?: string | null;
   demographics_snapshot: Record<string, unknown>;
   contributed_by?: string | null;
