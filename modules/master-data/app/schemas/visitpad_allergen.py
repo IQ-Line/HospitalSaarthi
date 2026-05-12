@@ -25,7 +25,7 @@ class VisitpadAllergenResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    tenant_id: UUID
+    tenant_id: int | None = None
     code: str
     display_name: str
     allergen_type: VisitpadAllergenType
@@ -79,7 +79,7 @@ class VisitpadAllergyReactionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    tenant_id: UUID
+    tenant_id: int | None = None
     display_name: str
     code: str
     display_order: int

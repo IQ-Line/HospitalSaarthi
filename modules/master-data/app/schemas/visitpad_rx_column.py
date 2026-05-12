@@ -21,7 +21,7 @@ class VisitpadRxColumnResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    tenant_id: UUID
+    tenant_id: int | None = None
     section: VisitpadRxColumnSection
     display_name: str
     code: str

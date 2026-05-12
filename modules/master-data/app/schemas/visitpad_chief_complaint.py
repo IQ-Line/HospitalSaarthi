@@ -31,7 +31,7 @@ class VisitpadChiefComplaintResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    tenant_id: UUID
+    tenant_id: int | None = None
     code: str
     display_name: str
     body_system: VisitpadBodySystem

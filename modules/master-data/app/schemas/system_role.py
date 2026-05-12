@@ -10,6 +10,7 @@ class SystemRoleResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    tenant_id: int | None = None
     name: str
     slug: str
     is_template: bool

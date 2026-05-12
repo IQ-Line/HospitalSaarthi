@@ -24,7 +24,7 @@ class VisitpadUnitResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    tenant_id: UUID
+    tenant_id: int | None = None
     code: str
     display_label: str
     dimension: VisitpadUnitDimension
@@ -81,7 +81,7 @@ class VisitpadUnitConversionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    tenant_id: UUID
+    tenant_id: int | None = None
     from_unit_code: str
     to_unit_code: str
     factor: float

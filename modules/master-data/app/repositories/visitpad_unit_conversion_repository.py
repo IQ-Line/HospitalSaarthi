@@ -1,16 +1,21 @@
-"""Database access for the Visitpad ``unit_conversions`` catalog table."""
+"""Database access for Visitpad ``unit_conversions`` (``public`` vs ``tenant_master``)."""
 
+from __future__ import annotations
+
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models.visitpad_unit_conversion import VisitpadUnitConversionModel
+from app.catalog.visitpad_table_models import visitpad_unit_conversion_model
+from app.core.catalog_scope import CatalogScope
+from app.repositories.paged_window import fetch_page_with_window_total
 
 
 class DuplicateVisitpadUnitConversionKeyError(Exception):
-    """Violates partial unique (tenant_id, from, to) among active rows."""
+    """Violates partial unique on from/to (global) or tenant-scoped pair."""
 
 
 def _is_unique_violation(exc: IntegrityError) -> bool:
@@ -29,72 +34,80 @@ def _is_unique_violation(exc: IntegrityError) -> bool:
 
 
 class VisitpadUnitConversionRepository:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, scope: CatalogScope) -> None:
         self._session = session
+        self._scope = scope
+
+    @property
+    def scope(self) -> CatalogScope:
+        return self._scope
+
+    def _M(self) -> Any:
+        return visitpad_unit_conversion_model(self._scope)
 
     def list_conversions(
         self,
         *,
-        tenant_id: UUID,
         search: str | None,
         from_unit_code: str | None,
         limit: int,
         offset: int,
-    ) -> tuple[list[VisitpadUnitConversionModel], int]:
-        filters = [
-            VisitpadUnitConversionModel.tenant_id == tenant_id,
-            VisitpadUnitConversionModel.is_deleted.is_(False),
-        ]
+    ) -> tuple[list[Any], int]:
+        M = self._M()
+        filters = [M.is_deleted.is_(False)]
+        if self._scope.is_tenant:
+            filters.append(M.tenant_id == self._scope.tenant_id)
         if from_unit_code is not None:
             filters.append(
-                func.lower(VisitpadUnitConversionModel.from_unit_code)
-                == from_unit_code.strip().lower()
+                func.lower(M.from_unit_code) == from_unit_code.strip().lower(),
             )
         if search:
             term = f"%{search.strip()}%"
             filters.append(
                 or_(
-                    VisitpadUnitConversionModel.from_unit_code.ilike(term),
-                    VisitpadUnitConversionModel.to_unit_code.ilike(term),
+                    M.from_unit_code.ilike(term),
+                    M.to_unit_code.ilike(term),
                 )
             )
 
-        total_statement: Select[tuple[int]] = select(func.count()).select_from(
-            VisitpadUnitConversionModel
-        )
-        for condition in filters:
-            total_statement = total_statement.where(condition)
-        total = int(self._session.scalar(total_statement) or 0)
-
-        statement: Select[tuple[VisitpadUnitConversionModel]] = (
-            select(VisitpadUnitConversionModel)
+        cnt = func.count().over().label("_page_total")
+        page_stmt = (
+            select(M, cnt)
             .where(*filters)
             .order_by(
-                VisitpadUnitConversionModel.display_order,
-                VisitpadUnitConversionModel.from_unit_code,
-                VisitpadUnitConversionModel.to_unit_code,
+                M.display_order,
+                M.from_unit_code,
+                M.to_unit_code,
             )
             .offset(offset)
             .limit(limit)
         )
-        rows = list(self._session.scalars(statement).all())
-        return rows, total
+        empty_total_stmt: Select[tuple[int]] = select(func.count()).select_from(M)
+        for condition in filters:
+            empty_total_stmt = empty_total_stmt.where(condition)
+        return fetch_page_with_window_total(
+            self._session,
+            page_stmt=page_stmt,
+            empty_total_stmt=empty_total_stmt,
+        )
 
     def get_conversion_by_id(
         self,
         conversion_id: UUID,
         *,
-        tenant_id: UUID,
         include_deleted: bool = False,
-    ) -> VisitpadUnitConversionModel | None:
-        row = self._session.get(VisitpadUnitConversionModel, conversion_id)
-        if row is None or row.tenant_id != tenant_id:
+    ) -> Any | None:
+        M = self._M()
+        row = self._session.get(M, conversion_id)
+        if row is None:
+            return None
+        if self._scope.is_tenant and row.tenant_id != self._scope.tenant_id:
             return None
         if not include_deleted and row.is_deleted:
             return None
         return row
 
-    def create_conversion(self, row: VisitpadUnitConversionModel) -> VisitpadUnitConversionModel:
+    def create_conversion(self, row: Any) -> Any:
         self._session.add(row)
         try:
             self._session.flush()
@@ -106,7 +119,7 @@ class VisitpadUnitConversionRepository:
         self._session.refresh(row)
         return row
 
-    def update_conversion(self, row: VisitpadUnitConversionModel) -> VisitpadUnitConversionModel:
+    def update_conversion(self, row: Any) -> Any:
         try:
             self._session.flush()
         except IntegrityError as exc:
@@ -120,20 +133,18 @@ class VisitpadUnitConversionRepository:
     def count_active_conversions_referencing_unit_code(
         self,
         *,
-        tenant_id: UUID,
         unit_code: str,
     ) -> int:
+        M = self._M()
         c = unit_code.strip().lower()
-        stmt = (
-            select(func.count())
-            .select_from(VisitpadUnitConversionModel)
-            .where(
-                VisitpadUnitConversionModel.tenant_id == tenant_id,
-                VisitpadUnitConversionModel.is_deleted.is_(False),
-                or_(
-                    func.lower(VisitpadUnitConversionModel.from_unit_code) == c,
-                    func.lower(VisitpadUnitConversionModel.to_unit_code) == c,
-                ),
-            )
-        )
+        filters = [
+            M.is_deleted.is_(False),
+            or_(
+                func.lower(M.from_unit_code) == c,
+                func.lower(M.to_unit_code) == c,
+            ),
+        ]
+        if self._scope.is_tenant:
+            filters.append(M.tenant_id == self._scope.tenant_id)
+        stmt = select(func.count()).select_from(M).where(*filters)
         return int(self._session.scalar(stmt) or 0)

@@ -1,13 +1,8 @@
-import os
 from functools import lru_cache
 from pathlib import Path
-from typing import Self
-from uuid import UUID
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
-_DEFAULT_PLATFORM_TENANT_ID = UUID("00000000-0000-0000-0000-000000000001")
 
 # Load `.env` from this package root (works when CWD is not `modules/master-data`).
 _PACKAGE_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -24,10 +19,6 @@ class Settings(BaseSettings):
     database_url: str = Field(
         default="postgresql+psycopg://hims:hims@localhost:5433/hims_dev",
         description="SQLAlchemy database URL for the Master Data module.",
-    )
-    platform_tenant_id: UUID = Field(
-        default=_DEFAULT_PLATFORM_TENANT_ID,
-        description="Tenant UUID for platform-global Visitpad (and similar) catalog rows.",
     )
     api_prefix: str = "/api/v1/master-data"
     log_level: str = "INFO"
@@ -88,22 +79,6 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return value.strip()
         return value  # pragma: no cover
-
-    @model_validator(mode="after")
-    def reject_default_platform_tenant_in_deployed_env(self) -> Self:
-        raw = (
-            os.environ.get("MASTER_DATA_APP_ENV") or os.environ.get("APP_ENV") or "development"
-        ).strip().lower()
-        if (
-            raw in ("production", "staging")
-            and self.platform_tenant_id == _DEFAULT_PLATFORM_TENANT_ID
-        ):
-            msg = (
-                "MASTER_DATA_PLATFORM_TENANT_ID must be set to a real tenant UUID when "
-                f"APP_ENV or MASTER_DATA_APP_ENV is {raw!r} (cannot use the development default)."
-            )
-            raise ValueError(msg)
-        return self
 
 
 @lru_cache

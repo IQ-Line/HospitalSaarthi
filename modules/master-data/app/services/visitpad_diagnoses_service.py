@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 from uuid import UUID
 
-from app.models.visitpad_diagnosis import VisitpadDiagnosisModel
+from app.catalog.visitpad_table_models import visitpad_diagnosis_model
 from app.repositories.visitpad_diagnosis_repository import VisitpadDiagnosisRepository
 from app.schemas.visitpad_diagnosis import VisitpadDiagnosisCreate, VisitpadDiagnosisUpdate
 
@@ -20,14 +21,12 @@ def _norm_opt_str(v: str | None) -> str | None:
 def list_visitpad_diagnoses(
     repository: VisitpadDiagnosisRepository,
     *,
-    tenant_id: UUID,
     search: str | None,
     category: str | None,
     limit: int,
     offset: int,
-) -> tuple[list[VisitpadDiagnosisModel], int]:
+) -> tuple[list[Any], int]:
     return repository.list_diagnoses(
-        tenant_id=tenant_id,
         search=search,
         category=category,
         limit=limit,
@@ -38,12 +37,11 @@ def list_visitpad_diagnoses(
 def create_visitpad_diagnosis(
     repository: VisitpadDiagnosisRepository,
     *,
-    tenant_id: UUID,
     payload: VisitpadDiagnosisCreate,
-) -> VisitpadDiagnosisModel:
-    row = VisitpadDiagnosisModel(
+) -> Any:
+    M = visitpad_diagnosis_model(repository.scope)
+    common = dict(
         id=uuid.uuid4(),
-        tenant_id=tenant_id,
         icd10_code=payload.icd10_code.strip(),
         icd_version=payload.icd_version.value,
         official_descriptor=payload.official_descriptor.strip(),
@@ -56,27 +54,31 @@ def create_visitpad_diagnosis(
         is_deleted=False,
         snomed_code=_norm_opt_str(payload.snomed_code),
     )
+    if repository.scope.is_tenant:
+        row = M(tenant_id=repository.scope.tenant_id, **common)
+    else:
+        row = M(**common)
     return repository.create(row)
 
 
 def get_visitpad_diagnosis_by_id(
     repository: VisitpadDiagnosisRepository,
     *,
-    tenant_id: UUID,
     row_id: UUID,
-) -> VisitpadDiagnosisModel | None:
-    return repository.get_by_id(row_id, tenant_id=tenant_id)
+) -> Any | None:
+    return repository.get_by_id(row_id)
 
 
 def update_visitpad_diagnosis(
     repository: VisitpadDiagnosisRepository,
     *,
-    tenant_id: UUID,
     row_id: UUID,
     payload: VisitpadDiagnosisUpdate,
-) -> VisitpadDiagnosisModel | None:
-    row = repository.get_by_id(row_id, tenant_id=tenant_id, include_deleted=True)
-    if row is None or row.tenant_id != tenant_id:
+) -> Any | None:
+    row = repository.get_by_id(row_id, include_deleted=True)
+    if row is None:
+        return None
+    if repository.scope.is_tenant and row.tenant_id != repository.scope.tenant_id:
         return None
     if payload.icd10_code is not None:
         row.icd10_code = payload.icd10_code.strip()
@@ -106,10 +108,9 @@ def update_visitpad_diagnosis(
 def soft_delete_visitpad_diagnosis(
     repository: VisitpadDiagnosisRepository,
     *,
-    tenant_id: UUID,
     row_id: UUID,
-) -> VisitpadDiagnosisModel | None:
-    row = repository.get_by_id(row_id, tenant_id=tenant_id)
+) -> Any | None:
+    row = repository.get_by_id(row_id)
     if row is None:
         return None
     row.is_deleted = True

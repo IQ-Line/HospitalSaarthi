@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 from uuid import UUID
 
-from app.models.visitpad_allergen import VisitpadAllergenModel
-from app.models.visitpad_allergy_reaction import VisitpadAllergyReactionModel
+from app.catalog.visitpad_table_models import visitpad_allergen_model, visitpad_allergy_reaction_model
 from app.repositories.visitpad_allergen_repository import VisitpadAllergenRepository
 from app.repositories.visitpad_allergy_reaction_repository import VisitpadAllergyReactionRepository
 from app.schemas.visitpad_allergen import (
@@ -27,14 +27,12 @@ def _norm_opt_str(v: str | None) -> str | None:
 def list_visitpad_allergens(
     repository: VisitpadAllergenRepository,
     *,
-    tenant_id: UUID,
     search: str | None,
     allergen_type: str | None,
     limit: int,
     offset: int,
-) -> tuple[list[VisitpadAllergenModel], int]:
+) -> tuple[list[Any], int]:
     return repository.list_allergens(
-        tenant_id=tenant_id,
         search=search,
         allergen_type=allergen_type,
         limit=limit,
@@ -45,12 +43,11 @@ def list_visitpad_allergens(
 def create_visitpad_allergen(
     repository: VisitpadAllergenRepository,
     *,
-    tenant_id: UUID,
     payload: VisitpadAllergenCreate,
-) -> VisitpadAllergenModel:
-    row = VisitpadAllergenModel(
+) -> Any:
+    M = visitpad_allergen_model(repository.scope)
+    common = dict(
         id=uuid.uuid4(),
-        tenant_id=tenant_id,
         code=payload.code.strip(),
         display_name=payload.display_name.strip(),
         allergen_type=payload.allergen_type.value,
@@ -61,27 +58,31 @@ def create_visitpad_allergen(
         is_active=payload.is_active,
         is_deleted=False,
     )
+    if repository.scope.is_tenant:
+        row = M(tenant_id=repository.scope.tenant_id, **common)
+    else:
+        row = M(**common)
     return repository.create(row)
 
 
 def get_visitpad_allergen_by_id(
     repository: VisitpadAllergenRepository,
     *,
-    tenant_id: UUID,
     row_id: UUID,
-) -> VisitpadAllergenModel | None:
-    return repository.get_by_id(row_id, tenant_id=tenant_id)
+) -> Any | None:
+    return repository.get_by_id(row_id)
 
 
 def update_visitpad_allergen(
     repository: VisitpadAllergenRepository,
     *,
-    tenant_id: UUID,
     row_id: UUID,
     payload: VisitpadAllergenUpdate,
-) -> VisitpadAllergenModel | None:
-    row = repository.get_by_id(row_id, tenant_id=tenant_id, include_deleted=True)
-    if row is None or row.tenant_id != tenant_id:
+) -> Any | None:
+    row = repository.get_by_id(row_id, include_deleted=True)
+    if row is None:
+        return None
+    if repository.scope.is_tenant and row.tenant_id != repository.scope.tenant_id:
         return None
     if payload.code is not None:
         row.code = payload.code.strip()
@@ -107,10 +108,9 @@ def update_visitpad_allergen(
 def soft_delete_visitpad_allergen(
     repository: VisitpadAllergenRepository,
     *,
-    tenant_id: UUID,
     row_id: UUID,
-) -> VisitpadAllergenModel | None:
-    row = repository.get_by_id(row_id, tenant_id=tenant_id)
+) -> Any | None:
+    row = repository.get_by_id(row_id)
     if row is None:
         return None
     row.is_deleted = True
@@ -120,13 +120,11 @@ def soft_delete_visitpad_allergen(
 def list_visitpad_allergy_reactions(
     repository: VisitpadAllergyReactionRepository,
     *,
-    tenant_id: UUID,
     search: str | None,
     limit: int,
     offset: int,
-) -> tuple[list[VisitpadAllergyReactionModel], int]:
+) -> tuple[list[Any], int]:
     return repository.list_reactions(
-        tenant_id=tenant_id,
         search=search,
         limit=limit,
         offset=offset,
@@ -136,39 +134,42 @@ def list_visitpad_allergy_reactions(
 def create_visitpad_allergy_reaction(
     repository: VisitpadAllergyReactionRepository,
     *,
-    tenant_id: UUID,
     payload: VisitpadAllergyReactionCreate,
-) -> VisitpadAllergyReactionModel:
-    row = VisitpadAllergyReactionModel(
+) -> Any:
+    M = visitpad_allergy_reaction_model(repository.scope)
+    common = dict(
         id=uuid.uuid4(),
-        tenant_id=tenant_id,
         display_name=payload.display_name.strip(),
         code=payload.code.strip(),
         display_order=payload.display_order,
         is_active=payload.is_active,
         is_deleted=False,
     )
+    if repository.scope.is_tenant:
+        row = M(tenant_id=repository.scope.tenant_id, **common)
+    else:
+        row = M(**common)
     return repository.create(row)
 
 
 def get_visitpad_allergy_reaction_by_id(
     repository: VisitpadAllergyReactionRepository,
     *,
-    tenant_id: UUID,
     row_id: UUID,
-) -> VisitpadAllergyReactionModel | None:
-    return repository.get_by_id(row_id, tenant_id=tenant_id)
+) -> Any | None:
+    return repository.get_by_id(row_id)
 
 
 def update_visitpad_allergy_reaction(
     repository: VisitpadAllergyReactionRepository,
     *,
-    tenant_id: UUID,
     row_id: UUID,
     payload: VisitpadAllergyReactionUpdate,
-) -> VisitpadAllergyReactionModel | None:
-    row = repository.get_by_id(row_id, tenant_id=tenant_id, include_deleted=True)
-    if row is None or row.tenant_id != tenant_id:
+) -> Any | None:
+    row = repository.get_by_id(row_id, include_deleted=True)
+    if row is None:
+        return None
+    if repository.scope.is_tenant and row.tenant_id != repository.scope.tenant_id:
         return None
     if payload.display_name is not None:
         row.display_name = payload.display_name.strip()
@@ -186,10 +187,9 @@ def update_visitpad_allergy_reaction(
 def soft_delete_visitpad_allergy_reaction(
     repository: VisitpadAllergyReactionRepository,
     *,
-    tenant_id: UUID,
     row_id: UUID,
-) -> VisitpadAllergyReactionModel | None:
-    row = repository.get_by_id(row_id, tenant_id=tenant_id)
+) -> Any | None:
+    row = repository.get_by_id(row_id)
     if row is None:
         return None
     row.is_deleted = True

@@ -1,4 +1,4 @@
-"""SQLAlchemy model for the Visitpad ``unit_conversions`` catalog table."""
+"""SQLAlchemy models for Visitpad ``unit_conversions`` — global vs ``tenant_master``."""
 
 from __future__ import annotations
 
@@ -10,9 +10,29 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base, TimestampMixin
 
 
-class VisitpadUnitConversionModel(TimestampMixin, Base):
-    """Linear conversion: value_to = value_from * factor + offset_value."""
+class VisitpadUnitConversionPublicModel(TimestampMixin, Base):
+    __tablename__ = "unit_conversions"
+    __table_args__ = (
+        Index(
+            "unit_conversions_global_from_to_active_key",
+            "from_unit_code",
+            "to_unit_code",
+            unique=True,
+            postgresql_where=text("NOT is_deleted"),
+            sqlite_where=text("is_deleted = 0"),
+        ),
+    )
 
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    from_unit_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    to_unit_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    factor: Mapped[float] = mapped_column(Double(), nullable=False)
+    offset_value: Mapped[float] = mapped_column(Double(), nullable=False, default=0.0)
+    display_order: Mapped[int] = mapped_column(Integer(), nullable=False, default=0)
+    is_deleted: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
+
+
+class VisitpadUnitConversionTenantModel(TimestampMixin, Base):
     __tablename__ = "unit_conversions"
     __table_args__ = (
         Index(
@@ -24,13 +44,17 @@ class VisitpadUnitConversionModel(TimestampMixin, Base):
             postgresql_where=text("NOT is_deleted"),
             sqlite_where=text("is_deleted = 0"),
         ),
+        {"schema": "tenant_master"},
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    tenant_id: Mapped[int] = mapped_column(Integer(), nullable=False)
     from_unit_code: Mapped[str] = mapped_column(String(64), nullable=False)
     to_unit_code: Mapped[str] = mapped_column(String(64), nullable=False)
     factor: Mapped[float] = mapped_column(Double(), nullable=False)
     offset_value: Mapped[float] = mapped_column(Double(), nullable=False, default=0.0)
     display_order: Mapped[int] = mapped_column(Integer(), nullable=False, default=0)
     is_deleted: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
+
+
+VisitpadUnitConversionModel = VisitpadUnitConversionPublicModel

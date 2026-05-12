@@ -6,6 +6,9 @@ info:
     `/api/v1/master-data`. DELETE on modules is a recursive soft-delete (`is_deleted = true`). Gateway-level authentication
     (API keys / JWT) is expected before production; this spec does not model per-route security yet.
 
+    **Catalog scope:** optional `iq_tenant_id` request header — a positive integer string (e.g. `1`, `2`, `98`, leading zeros allowed)
+    routes catalog CRUD to schema `tenant_master` (responses may include `tenant_id` as an integer). Omit the header for global rows in `public`.
+
     '
 servers:
 - url: /api/v1/master-data
@@ -2844,6 +2847,11 @@ components:
         id:
           type: string
           format: uuid
+        tenant_id:
+          type: integer
+          format: int32
+          nullable: true
+          description: Present when the row was read from tenant_master (request had iq_tenant_id).
         name:
           type: string
         slug:
@@ -2951,6 +2959,11 @@ components:
         id:
           type: string
           format: uuid
+        tenant_id:
+          type: integer
+          format: int32
+          nullable: true
+          description: Present when the row was read from tenant_master (request had iq_tenant_id).
         name:
           type: string
         slug:
@@ -3054,6 +3067,11 @@ components:
         id:
           type: string
           format: uuid
+        tenant_id:
+          type: integer
+          format: int32
+          nullable: true
+          description: Present when the row was read from tenant_master (request had iq_tenant_id).
         slug:
           type: string
         module_id:
@@ -3178,6 +3196,11 @@ components:
         id:
           type: string
           format: uuid
+        tenant_id:
+          type: integer
+          format: int32
+          nullable: true
+          description: Present when the row was read from tenant_master (request had iq_tenant_id).
         parent_id:
           type: string
           format: uuid
@@ -3313,8 +3336,9 @@ components:
           format: uuid
           title: Id
         tenant_id:
-          type: string
-          format: uuid
+          type: integer
+          format: int32
+          nullable: true
           title: Tenant Id
         code:
           type: string
@@ -3485,8 +3509,9 @@ components:
           format: uuid
           title: Id
         tenant_id:
-          type: string
-          format: uuid
+          type: integer
+          format: int32
+          nullable: true
           title: Tenant Id
         display_name:
           type: string
@@ -3648,8 +3673,9 @@ components:
           format: uuid
           title: Id
         tenant_id:
-          type: string
-          format: uuid
+          type: integer
+          format: int32
+          nullable: true
           title: Tenant Id
         code:
           type: string
@@ -3843,8 +3869,9 @@ components:
           format: uuid
           title: Id
         tenant_id:
-          type: string
-          format: uuid
+          type: integer
+          format: int32
+          nullable: true
           title: Tenant Id
         display_name:
           type: string
@@ -4026,8 +4053,9 @@ components:
           format: uuid
           title: Id
         tenant_id:
-          type: string
-          format: uuid
+          type: integer
+          format: int32
+          nullable: true
           title: Tenant Id
         icd10_code:
           type: string
@@ -4476,8 +4504,9 @@ components:
           format: uuid
           title: Id
         tenant_id:
-          type: string
-          format: uuid
+          type: integer
+          format: int32
+          nullable: true
           title: Tenant Id
         code:
           type: string
@@ -5177,8 +5206,9 @@ components:
           format: uuid
           title: Id
         tenant_id:
-          type: string
-          format: uuid
+          type: integer
+          format: int32
+          nullable: true
           title: Tenant Id
         cpt_code:
           type: string
@@ -5389,8 +5419,9 @@ components:
           format: uuid
           title: Id
         tenant_id:
-          type: string
-          format: uuid
+          type: integer
+          format: int32
+          nullable: true
           title: Tenant Id
         section:
           $ref: '#/components/schemas/VisitpadRxColumnSection'
@@ -5555,8 +5586,9 @@ components:
           format: uuid
           title: Id
         tenant_id:
-          type: string
-          format: uuid
+          type: integer
+          format: int32
+          nullable: true
           title: Tenant Id
         from_unit_code:
           type: string
@@ -5722,8 +5754,9 @@ components:
           format: uuid
           title: Id
         tenant_id:
-          type: string
-          format: uuid
+          type: integer
+          format: int32
+          nullable: true
           title: Tenant Id
         code:
           type: string
@@ -5983,8 +6016,9 @@ components:
           format: uuid
           title: Id
         tenant_id:
-          type: string
-          format: uuid
+          type: integer
+          format: int32
+          nullable: true
           title: Tenant Id
         code:
           type: string

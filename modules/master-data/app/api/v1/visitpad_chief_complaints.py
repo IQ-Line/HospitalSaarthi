@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_platform_tenant_id, get_session, get_visitpad_chief_complaint_repository
+from app.api.deps import get_session, get_visitpad_chief_complaint_repository
 from app.api.errors import ResourceNotFoundError
 from app.repositories.visitpad_chief_complaint_repository import VisitpadChiefComplaintRepository
 from app.schemas.visitpad_chief_complaint import (
@@ -35,7 +35,6 @@ def get_chief_complaints(
         VisitpadChiefComplaintRepository,
         Depends(get_visitpad_chief_complaint_repository),
     ],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     search: Annotated[str | None, Query()] = None,
@@ -44,7 +43,6 @@ def get_chief_complaints(
 ) -> VisitpadChiefComplaintListResponse:
     rows, total = list_visitpad_chief_complaints(
         repository,
-        tenant_id=tenant_id,
         search=search,
         body_system=body_system.value if body_system is not None else None,
         triage_priority=triage_priority.value if triage_priority is not None else None,
@@ -69,27 +67,33 @@ def post_chief_complaint(
         VisitpadChiefComplaintRepository,
         Depends(get_visitpad_chief_complaint_repository),
     ],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadChiefComplaintSingleResponse:
-    row = create_visitpad_chief_complaint(repository, tenant_id=tenant_id, payload=payload)
+    row = create_visitpad_chief_complaint(repository, payload=payload)
     session.commit()
-    return VisitpadChiefComplaintSingleResponse(data=VisitpadChiefComplaintResponse.model_validate(row))
+    return VisitpadChiefComplaintSingleResponse(
+        data=VisitpadChiefComplaintResponse.model_validate(row),
+    )
 
 
-@router.get("/{chief_complaint_id}", response_model=VisitpadChiefComplaintSingleResponse, summary="Get chief complaint")
+@router.get(
+    "/{chief_complaint_id}",
+    response_model=VisitpadChiefComplaintSingleResponse,
+    summary="Get chief complaint",
+)
 def get_chief_complaint(
     chief_complaint_id: UUID,
     repository: Annotated[
         VisitpadChiefComplaintRepository,
         Depends(get_visitpad_chief_complaint_repository),
     ],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
 ) -> VisitpadChiefComplaintSingleResponse:
-    row = get_visitpad_chief_complaint_by_id(repository, tenant_id=tenant_id, row_id=chief_complaint_id)
+    row = get_visitpad_chief_complaint_by_id(repository, row_id=chief_complaint_id)
     if row is None:
         raise ResourceNotFoundError("No chief complaint with this id.")
-    return VisitpadChiefComplaintSingleResponse(data=VisitpadChiefComplaintResponse.model_validate(row))
+    return VisitpadChiefComplaintSingleResponse(
+        data=VisitpadChiefComplaintResponse.model_validate(row),
+    )
 
 
 @router.patch(
@@ -104,19 +108,19 @@ def patch_chief_complaint(
         VisitpadChiefComplaintRepository,
         Depends(get_visitpad_chief_complaint_repository),
     ],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadChiefComplaintSingleResponse:
     row = update_visitpad_chief_complaint(
         repository,
-        tenant_id=tenant_id,
         row_id=chief_complaint_id,
         payload=payload,
     )
     if row is None:
         raise ResourceNotFoundError("No chief complaint with this id.")
     session.commit()
-    return VisitpadChiefComplaintSingleResponse(data=VisitpadChiefComplaintResponse.model_validate(row))
+    return VisitpadChiefComplaintSingleResponse(
+        data=VisitpadChiefComplaintResponse.model_validate(row),
+    )
 
 
 @router.delete(
@@ -130,11 +134,12 @@ def delete_chief_complaint(
         VisitpadChiefComplaintRepository,
         Depends(get_visitpad_chief_complaint_repository),
     ],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadChiefComplaintSingleResponse:
-    row = soft_delete_visitpad_chief_complaint(repository, tenant_id=tenant_id, row_id=chief_complaint_id)
+    row = soft_delete_visitpad_chief_complaint(repository, row_id=chief_complaint_id)
     if row is None:
         raise ResourceNotFoundError("No chief complaint with this id.")
     session.commit()
-    return VisitpadChiefComplaintSingleResponse(data=VisitpadChiefComplaintResponse.model_validate(row))
+    return VisitpadChiefComplaintSingleResponse(
+        data=VisitpadChiefComplaintResponse.model_validate(row),
+    )

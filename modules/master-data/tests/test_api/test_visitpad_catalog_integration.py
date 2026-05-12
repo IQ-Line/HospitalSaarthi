@@ -24,8 +24,9 @@ def visitpad_catalog_sqlite_session() -> Iterator[Session]:
     )
 
     @event.listens_for(engine, "connect")
-    def _sqlite_fk(_dbapi_connection, _connection_record) -> None:
-        _dbapi_connection.execute("PRAGMA foreign_keys=ON")
+    def _sqlite_fk(dbapi_connection, _connection_record) -> None:
+        dbapi_connection.execute("PRAGMA foreign_keys=ON")
+        dbapi_connection.execute("ATTACH DATABASE ':memory:' AS tenant_master")
 
     Base.metadata.create_all(engine)
     factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
@@ -38,7 +39,9 @@ def visitpad_catalog_sqlite_session() -> Iterator[Session]:
 
 
 @pytest.fixture()
-def visitpad_catalog_client(visitpad_catalog_sqlite_session: Session) -> Generator[TestClient, None, None]:
+def visitpad_catalog_client(
+    visitpad_catalog_sqlite_session: Session,
+) -> Generator[TestClient, None, None]:
     app = create_app()
 
     def _session() -> Generator[Session, None, None]:

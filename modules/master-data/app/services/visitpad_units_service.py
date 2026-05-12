@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 from uuid import UUID
 
-from app.models.visitpad_unit import VisitpadUnitModel
-from app.models.visitpad_unit_conversion import VisitpadUnitConversionModel
+from app.catalog.visitpad_table_models import visitpad_unit_conversion_model, visitpad_unit_model
 from app.repositories.visitpad_unit_conversion_repository import VisitpadUnitConversionRepository
 from app.repositories.visitpad_unit_repository import VisitpadUnitRepository
 from app.schemas.visitpad_unit import (
@@ -36,14 +36,12 @@ class VisitpadUnitBlockedByActiveConversionsError(Exception):
 def list_visitpad_units(
     repository: VisitpadUnitRepository,
     *,
-    tenant_id: UUID,
     search: str | None,
     dimension: str | None,
     limit: int,
     offset: int,
-) -> tuple[list[VisitpadUnitModel], int]:
+) -> tuple[list[Any], int]:
     return repository.list_units(
-        tenant_id=tenant_id,
         search=search,
         dimension=dimension,
         limit=limit,
@@ -54,12 +52,11 @@ def list_visitpad_units(
 def create_visitpad_unit(
     repository: VisitpadUnitRepository,
     *,
-    tenant_id: UUID,
     payload: VisitpadUnitCreate,
-) -> VisitpadUnitModel:
-    row = VisitpadUnitModel(
+) -> Any:
+    M = visitpad_unit_model(repository.scope)
+    common = dict(
         id=uuid.uuid4(),
-        tenant_id=tenant_id,
         code=payload.code.strip().lower(),
         display_label=payload.display_label.strip(),
         dimension=payload.dimension.value,
@@ -69,37 +66,38 @@ def create_visitpad_unit(
         is_active=payload.is_active,
         is_deleted=False,
     )
+    if repository.scope.is_tenant:
+        row = M(tenant_id=repository.scope.tenant_id, **common)
+    else:
+        row = M(**common)
     return repository.create_unit(row)
 
 
 def get_visitpad_unit_by_id(
     repository: VisitpadUnitRepository,
     *,
-    tenant_id: UUID,
     unit_id: UUID,
-) -> VisitpadUnitModel | None:
-    return repository.get_unit_by_id(unit_id, tenant_id=tenant_id)
+) -> Any | None:
+    return repository.get_unit_by_id(unit_id)
 
 
 def update_visitpad_unit(
     repository: VisitpadUnitRepository,
     conv_repo: VisitpadUnitConversionRepository,
     *,
-    tenant_id: UUID,
     unit_id: UUID,
     payload: VisitpadUnitUpdate,
-) -> VisitpadUnitModel | None:
-    row = repository.get_unit_by_id(unit_id, tenant_id=tenant_id, include_deleted=True)
-    if row is None or row.tenant_id != tenant_id:
+) -> Any | None:
+    row = repository.get_unit_by_id(unit_id, include_deleted=True)
+    if row is None:
+        return None
+    if repository.scope.is_tenant and row.tenant_id != repository.scope.tenant_id:
         return None
     will_deactivate = payload.is_active is False and row.is_active
     will_soft_delete = payload.is_deleted is True and not row.is_deleted
     if (
         (will_deactivate or will_soft_delete)
-        and conv_repo.count_active_conversions_referencing_unit_code(
-            tenant_id=tenant_id,
-            unit_code=row.code,
-        )
+        and conv_repo.count_active_conversions_referencing_unit_code(unit_code=row.code)
         > 0
     ):
         raise VisitpadUnitBlockedByActiveConversionsError(
@@ -126,16 +124,12 @@ def soft_delete_visitpad_unit(
     repository: VisitpadUnitRepository,
     conv_repo: VisitpadUnitConversionRepository,
     *,
-    tenant_id: UUID,
     unit_id: UUID,
-) -> VisitpadUnitModel | None:
-    row = repository.get_unit_by_id(unit_id, tenant_id=tenant_id)
+) -> Any | None:
+    row = repository.get_unit_by_id(unit_id)
     if row is None:
         return None
-    if conv_repo.count_active_conversions_referencing_unit_code(
-        tenant_id=tenant_id,
-        unit_code=row.code,
-    ) > 0:
+    if conv_repo.count_active_conversions_referencing_unit_code(unit_code=row.code) > 0:
         raise VisitpadUnitBlockedByActiveConversionsError(
             "Cannot deactivate or delete this unit while active conversions reference its code.",
         )
@@ -146,7 +140,6 @@ def soft_delete_visitpad_unit(
 def _ensure_conversion_pair_valid(
     unit_repo: VisitpadUnitRepository,
     *,
-    tenant_id: UUID,
     from_code: str,
     to_code: str,
 ) -> None:
@@ -155,23 +148,21 @@ def _ensure_conversion_pair_valid(
     if fc == tc:
         raise InvalidVisitpadUnitConversionError("from_unit_code and to_unit_code must differ.")
     for code in (fc, tc):
-        if unit_repo.get_active_unit_by_code(tenant_id=tenant_id, code=code) is None:
+        if unit_repo.get_active_unit_by_code(code=code) is None:
             raise InvalidVisitpadUnitConversionError(
-                f"No active unit with code '{code}' for this tenant.",
+                f"No active unit with code '{code}' for this catalog scope.",
             )
 
 
 def list_visitpad_unit_conversions(
     repository: VisitpadUnitConversionRepository,
     *,
-    tenant_id: UUID,
     search: str | None,
     from_unit_code: str | None,
     limit: int,
     offset: int,
-) -> tuple[list[VisitpadUnitConversionModel], int]:
+) -> tuple[list[Any], int]:
     return repository.list_conversions(
-        tenant_id=tenant_id,
         search=search,
         from_unit_code=from_unit_code,
         limit=limit,
@@ -183,15 +174,14 @@ def create_visitpad_unit_conversion(
     unit_repo: VisitpadUnitRepository,
     conv_repo: VisitpadUnitConversionRepository,
     *,
-    tenant_id: UUID,
     payload: VisitpadUnitConversionCreate,
-) -> VisitpadUnitConversionModel:
+) -> Any:
     fc = payload.from_unit_code.strip().lower()
     tc = payload.to_unit_code.strip().lower()
-    _ensure_conversion_pair_valid(unit_repo, tenant_id=tenant_id, from_code=fc, to_code=tc)
-    row = VisitpadUnitConversionModel(
+    _ensure_conversion_pair_valid(unit_repo, from_code=fc, to_code=tc)
+    M = visitpad_unit_conversion_model(conv_repo.scope)
+    common = dict(
         id=uuid.uuid4(),
-        tenant_id=tenant_id,
         from_unit_code=fc,
         to_unit_code=tc,
         factor=payload.factor,
@@ -199,28 +189,32 @@ def create_visitpad_unit_conversion(
         display_order=payload.display_order,
         is_deleted=False,
     )
+    if conv_repo.scope.is_tenant:
+        row = M(tenant_id=conv_repo.scope.tenant_id, **common)
+    else:
+        row = M(**common)
     return conv_repo.create_conversion(row)
 
 
 def get_visitpad_unit_conversion_by_id(
     repository: VisitpadUnitConversionRepository,
     *,
-    tenant_id: UUID,
     conversion_id: UUID,
-) -> VisitpadUnitConversionModel | None:
-    return repository.get_conversion_by_id(conversion_id, tenant_id=tenant_id)
+) -> Any | None:
+    return repository.get_conversion_by_id(conversion_id)
 
 
 def update_visitpad_unit_conversion(
     unit_repo: VisitpadUnitRepository,
     conv_repo: VisitpadUnitConversionRepository,
     *,
-    tenant_id: UUID,
     conversion_id: UUID,
     payload: VisitpadUnitConversionUpdate,
-) -> VisitpadUnitConversionModel | None:
-    row = conv_repo.get_conversion_by_id(conversion_id, tenant_id=tenant_id, include_deleted=True)
-    if row is None or row.tenant_id != tenant_id:
+) -> Any | None:
+    row = conv_repo.get_conversion_by_id(conversion_id, include_deleted=True)
+    if row is None:
+        return None
+    if conv_repo.scope.is_tenant and row.tenant_id != conv_repo.scope.tenant_id:
         return None
     if payload.from_unit_code is not None:
         fc = payload.from_unit_code.strip().lower()
@@ -230,7 +224,7 @@ def update_visitpad_unit_conversion(
         tc = payload.to_unit_code.strip().lower()
     else:
         tc = row.to_unit_code.strip().lower()
-    _ensure_conversion_pair_valid(unit_repo, tenant_id=tenant_id, from_code=fc, to_code=tc)
+    _ensure_conversion_pair_valid(unit_repo, from_code=fc, to_code=tc)
     if payload.from_unit_code is not None:
         row.from_unit_code = fc
     if payload.to_unit_code is not None:
@@ -249,10 +243,9 @@ def update_visitpad_unit_conversion(
 def soft_delete_visitpad_unit_conversion(
     repository: VisitpadUnitConversionRepository,
     *,
-    tenant_id: UUID,
     conversion_id: UUID,
-) -> VisitpadUnitConversionModel | None:
-    row = repository.get_conversion_by_id(conversion_id, tenant_id=tenant_id)
+) -> Any | None:
+    row = repository.get_conversion_by_id(conversion_id)
     if row is None:
         return None
     row.is_deleted = True

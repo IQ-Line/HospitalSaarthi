@@ -1,74 +1,92 @@
-"""Database access for the Visitpad ``procedures`` catalog table."""
+"""Database access for the Visitpad ``procedures`` catalog (``public`` vs ``tenant_master``)."""
 
+from __future__ import annotations
+
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models.visitpad_procedure import VisitpadProcedureModel
+from app.catalog.visitpad_table_models import visitpad_procedure_model
+from app.core.catalog_scope import CatalogScope
+from app.repositories.paged_window import fetch_page_with_window_total
 from app.repositories.visitpad_integrity import DuplicateVisitpadCatalogKeyError, is_unique_violation
 
 
 class VisitpadProcedureRepository:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, scope: CatalogScope) -> None:
         self._session = session
+        self._scope = scope
+
+    @property
+    def scope(self) -> CatalogScope:
+        return self._scope
+
+    def _M(self) -> Any:
+        return visitpad_procedure_model(self._scope)
 
     def list_procedures(
         self,
         *,
-        tenant_id: UUID,
         search: str | None,
         category: str | None,
         billing_category: str | None,
         limit: int,
         offset: int,
-    ) -> tuple[list[VisitpadProcedureModel], int]:
-        filters = [
-            VisitpadProcedureModel.tenant_id == tenant_id,
-            VisitpadProcedureModel.is_deleted.is_(False),
-        ]
+    ) -> tuple[list[Any], int]:
+        M = self._M()
+        filters = [M.is_deleted.is_(False)]
+        if self._scope.is_tenant:
+            filters.append(M.tenant_id == self._scope.tenant_id)
         if category is not None:
-            filters.append(VisitpadProcedureModel.category == category)
+            filters.append(M.category == category)
         if billing_category is not None:
-            filters.append(VisitpadProcedureModel.billing_category == billing_category)
+            filters.append(M.billing_category == billing_category)
         if search:
             term = f"%{search.strip()}%"
             filters.append(
                 or_(
-                    VisitpadProcedureModel.cpt_code.ilike(term),
-                    VisitpadProcedureModel.display_name.ilike(term),
-                    VisitpadProcedureModel.official_descriptor.ilike(term),
+                    M.cpt_code.ilike(term),
+                    M.display_name.ilike(term),
+                    M.official_descriptor.ilike(term),
                 )
             )
-        total_statement: Select[tuple[int]] = select(func.count()).select_from(VisitpadProcedureModel)
-        for c in filters:
-            total_statement = total_statement.where(c)
-        total = int(self._session.scalar(total_statement) or 0)
-        statement = (
-            select(VisitpadProcedureModel)
+        cnt = func.count().over().label("_page_total")
+        page_stmt = (
+            select(M, cnt)
             .where(*filters)
-            .order_by(VisitpadProcedureModel.display_order, VisitpadProcedureModel.cpt_code)
+            .order_by(M.display_order, M.cpt_code)
             .offset(offset)
             .limit(limit)
         )
-        return list(self._session.scalars(statement).all()), total
+        empty_total_stmt: Select[tuple[int]] = select(func.count()).select_from(M)
+        for c in filters:
+            empty_total_stmt = empty_total_stmt.where(c)
+        return fetch_page_with_window_total(
+            self._session,
+            page_stmt=page_stmt,
+            empty_total_stmt=empty_total_stmt,
+        )
 
     def get_by_id(
         self,
         row_id: UUID,
         *,
-        tenant_id: UUID,
         include_deleted: bool = False,
-    ) -> VisitpadProcedureModel | None:
-        row = self._session.get(VisitpadProcedureModel, row_id)
-        if row is None or row.tenant_id != tenant_id:
+    ) -> Any | None:
+        M = self._M()
+        row = self._session.get(M, row_id)
+        if row is None:
+            return None
+        if self._scope.is_tenant and row.tenant_id != self._scope.tenant_id:
             return None
         if not include_deleted and row.is_deleted:
             return None
         return row
 
-    def create(self, row: VisitpadProcedureModel) -> VisitpadProcedureModel:
+    def create(self, row: Any) -> Any:
         self._session.add(row)
         try:
             self._session.flush()
@@ -82,7 +100,7 @@ class VisitpadProcedureRepository:
         self._session.refresh(row)
         return row
 
-    def update(self, row: VisitpadProcedureModel) -> VisitpadProcedureModel:
+    def update(self, row: Any) -> Any:
         try:
             self._session.flush()
         except IntegrityError as exc:

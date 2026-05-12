@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.api.deps import get_session, get_system_role_repository
+from app.core.catalog_scope import CatalogScope
 from app.main import create_app
 from app.models import Base
 from app.repositories.system_role_repository import SystemRoleRepository
@@ -26,8 +27,9 @@ def system_role_sqlite_session() -> Iterator[Session]:
     )
 
     @event.listens_for(engine, "connect")
-    def _sqlite_fk(_dbapi_connection, _connection_record) -> None:
-        _dbapi_connection.execute("PRAGMA foreign_keys=ON")
+    def _sqlite_fk(dbapi_connection, _connection_record) -> None:
+        dbapi_connection.execute("PRAGMA foreign_keys=ON")
+        dbapi_connection.execute("ATTACH DATABASE ':memory:' AS tenant_master")
 
     Base.metadata.create_all(engine)
     factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
@@ -44,7 +46,7 @@ def system_role_client(system_role_sqlite_session: Session) -> Iterator[TestClie
     app = create_app()
 
     def _repo() -> SystemRoleRepository:
-        return SystemRoleRepository(system_role_sqlite_session)
+        return SystemRoleRepository(system_role_sqlite_session, CatalogScope(tenant_id=None))
 
     def _session() -> Iterator[Session]:
         yield system_role_sqlite_session

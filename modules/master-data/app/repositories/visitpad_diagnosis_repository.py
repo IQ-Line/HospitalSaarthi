@@ -1,71 +1,89 @@
-"""Database access for the Visitpad ``diagnoses`` catalog table."""
+"""Database access for the Visitpad ``diagnoses`` catalog (``public`` vs ``tenant_master``)."""
 
+from __future__ import annotations
+
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models.visitpad_diagnosis import VisitpadDiagnosisModel
+from app.catalog.visitpad_table_models import visitpad_diagnosis_model
+from app.core.catalog_scope import CatalogScope
+from app.repositories.paged_window import fetch_page_with_window_total
 from app.repositories.visitpad_integrity import DuplicateVisitpadCatalogKeyError, is_unique_violation
 
 
 class VisitpadDiagnosisRepository:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, scope: CatalogScope) -> None:
         self._session = session
+        self._scope = scope
+
+    @property
+    def scope(self) -> CatalogScope:
+        return self._scope
+
+    def _M(self) -> Any:
+        return visitpad_diagnosis_model(self._scope)
 
     def list_diagnoses(
         self,
         *,
-        tenant_id: UUID,
         search: str | None,
         category: str | None,
         limit: int,
         offset: int,
-    ) -> tuple[list[VisitpadDiagnosisModel], int]:
-        filters = [
-            VisitpadDiagnosisModel.tenant_id == tenant_id,
-            VisitpadDiagnosisModel.is_deleted.is_(False),
-        ]
+    ) -> tuple[list[Any], int]:
+        M = self._M()
+        filters = [M.is_deleted.is_(False)]
+        if self._scope.is_tenant:
+            filters.append(M.tenant_id == self._scope.tenant_id)
         if category is not None:
-            filters.append(VisitpadDiagnosisModel.category == category)
+            filters.append(M.category == category)
         if search:
             term = f"%{search.strip()}%"
             filters.append(
                 or_(
-                    VisitpadDiagnosisModel.icd10_code.ilike(term),
-                    VisitpadDiagnosisModel.display_name.ilike(term),
-                    VisitpadDiagnosisModel.official_descriptor.ilike(term),
+                    M.icd10_code.ilike(term),
+                    M.display_name.ilike(term),
+                    M.official_descriptor.ilike(term),
                 )
             )
-        total_statement: Select[tuple[int]] = select(func.count()).select_from(VisitpadDiagnosisModel)
-        for c in filters:
-            total_statement = total_statement.where(c)
-        total = int(self._session.scalar(total_statement) or 0)
-        statement = (
-            select(VisitpadDiagnosisModel)
+        cnt = func.count().over().label("_page_total")
+        page_stmt = (
+            select(M, cnt)
             .where(*filters)
-            .order_by(VisitpadDiagnosisModel.display_order, VisitpadDiagnosisModel.icd10_code)
+            .order_by(M.display_order, M.icd10_code)
             .offset(offset)
             .limit(limit)
         )
-        return list(self._session.scalars(statement).all()), total
+        empty_total_stmt: Select[tuple[int]] = select(func.count()).select_from(M)
+        for c in filters:
+            empty_total_stmt = empty_total_stmt.where(c)
+        return fetch_page_with_window_total(
+            self._session,
+            page_stmt=page_stmt,
+            empty_total_stmt=empty_total_stmt,
+        )
 
     def get_by_id(
         self,
         row_id: UUID,
         *,
-        tenant_id: UUID,
         include_deleted: bool = False,
-    ) -> VisitpadDiagnosisModel | None:
-        row = self._session.get(VisitpadDiagnosisModel, row_id)
-        if row is None or row.tenant_id != tenant_id:
+    ) -> Any | None:
+        M = self._M()
+        row = self._session.get(M, row_id)
+        if row is None:
+            return None
+        if self._scope.is_tenant and row.tenant_id != self._scope.tenant_id:
             return None
         if not include_deleted and row.is_deleted:
             return None
         return row
 
-    def create(self, row: VisitpadDiagnosisModel) -> VisitpadDiagnosisModel:
+    def create(self, row: Any) -> Any:
         self._session.add(row)
         try:
             self._session.flush()
@@ -79,7 +97,7 @@ class VisitpadDiagnosisRepository:
         self._session.refresh(row)
         return row
 
-    def update(self, row: VisitpadDiagnosisModel) -> VisitpadDiagnosisModel:
+    def update(self, row: Any) -> Any:
         try:
             self._session.flush()
         except IntegrityError as exc:

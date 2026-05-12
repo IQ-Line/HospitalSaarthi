@@ -1,12 +1,17 @@
-"""Database access for module↔permission junction (`public.module_permissions`)."""
+"""Database access for ``module_permissions`` — ``public`` vs ``tenant_master``."""
 
+from __future__ import annotations
+
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import Select, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models.module_permission import ModulePermissionModel
+from app.catalog.platform_table_models import module_permission_model
+from app.core.catalog_scope import CatalogScope
+from app.repositories.paged_window import fetch_page_with_window_total
 
 
 class DuplicateModulePermissionKeyError(Exception):
@@ -29,8 +34,16 @@ def _is_unique_violation(exc: IntegrityError) -> bool:
 
 
 class ModulePermissionRepository:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, scope: CatalogScope) -> None:
         self._session = session
+        self._scope = scope
+
+    @property
+    def scope(self) -> CatalogScope:
+        return self._scope
+
+    def _M(self) -> Any:
+        return module_permission_model(self._scope)
 
     def list_module_permissions(
         self,
@@ -39,55 +52,52 @@ class ModulePermissionRepository:
         permission_id: UUID | None = None,
         limit: int,
         offset: int,
-    ) -> tuple[list[ModulePermissionModel], int]:
-        filters = [ModulePermissionModel.is_deleted.is_(False)]
+    ) -> tuple[list[Any], int]:
+        M = self._M()
+        filters = [M.is_deleted.is_(False)]
+        if self._scope.is_tenant:
+            filters.append(M.tenant_id == self._scope.tenant_id)
         if module_id is not None:
-            filters.append(ModulePermissionModel.module_id == module_id)
+            filters.append(M.module_id == module_id)
         if permission_id is not None:
-            filters.append(ModulePermissionModel.permission_id == permission_id)
+            filters.append(M.permission_id == permission_id)
 
-        total_statement: Select[tuple[int]] = select(func.count()).select_from(
-            ModulePermissionModel
-        )
+        cnt = func.count().over().label("_page_total")
+        page_stmt = select(M, cnt).where(*filters).order_by(M.slug).offset(offset).limit(limit)
+        empty_total_stmt: Select[tuple[int]] = select(func.count()).select_from(M)
         for condition in filters:
-            total_statement = total_statement.where(condition)
-        total = int(self._session.scalar(total_statement) or 0)
-
-        statement: Select[tuple[ModulePermissionModel]] = (
-            select(ModulePermissionModel)
-            .where(*filters)
-            .order_by(ModulePermissionModel.slug)
-            .offset(offset)
-            .limit(limit)
+            empty_total_stmt = empty_total_stmt.where(condition)
+        return fetch_page_with_window_total(
+            self._session,
+            page_stmt=page_stmt,
+            empty_total_stmt=empty_total_stmt,
         )
-        rows = list(self._session.scalars(statement).all())
-        return rows, total
 
     def get_module_permission_by_id(
         self,
         row_id: UUID,
         *,
         include_deleted: bool = False,
-    ) -> ModulePermissionModel | None:
-        row = self._session.get(ModulePermissionModel, row_id)
+    ) -> Any | None:
+        M = self._M()
+        row = self._session.get(M, row_id)
         if row is None:
+            return None
+        if self._scope.is_tenant and row.tenant_id != self._scope.tenant_id:
             return None
         if not include_deleted and row.is_deleted:
             return None
         return row
 
-    def get_module_permission_by_slug(self, slug: str) -> ModulePermissionModel | None:
-        statement = (
-            select(ModulePermissionModel)
-            .where(
-                ModulePermissionModel.slug == slug,
-                ModulePermissionModel.is_deleted.is_(False),
-            )
-            .limit(1)
-        )
+    def get_module_permission_by_slug(self, slug: str) -> Any | None:
+        M = self._M()
+        filters = [M.slug == slug, M.is_deleted.is_(False)]
+        if self._scope.is_tenant:
+            filters.append(M.tenant_id == self._scope.tenant_id)
+        statement = select(M).where(*filters).limit(1)
         return self._session.scalars(statement).first()
 
-    def create_module_permission(self, row: ModulePermissionModel) -> ModulePermissionModel:
+    def create_module_permission(self, row: Any) -> Any:
         self._session.add(row)
         try:
             self._session.flush()
@@ -99,7 +109,7 @@ class ModulePermissionRepository:
         self._session.refresh(row)
         return row
 
-    def update_module_permission(self, row: ModulePermissionModel) -> ModulePermissionModel:
+    def update_module_permission(self, row: Any) -> Any:
         try:
             self._session.flush()
         except IntegrityError as exc:

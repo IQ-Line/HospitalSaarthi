@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_platform_tenant_id, get_session, get_visitpad_chronic_illness_repository
+from app.api.deps import get_session, get_visitpad_chronic_illness_repository
 from app.api.errors import ResourceNotFoundError
 from app.repositories.visitpad_chronic_illness_repository import VisitpadChronicIllnessRepository
 from app.schemas.visitpad_chronic_illness import (
@@ -34,7 +34,6 @@ def get_chronic_illnesses(
         VisitpadChronicIllnessRepository,
         Depends(get_visitpad_chronic_illness_repository),
     ],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     search: Annotated[str | None, Query()] = None,
@@ -42,7 +41,6 @@ def get_chronic_illnesses(
 ) -> VisitpadChronicIllnessListResponse:
     rows, total = list_visitpad_chronic_illnesses(
         repository,
-        tenant_id=tenant_id,
         search=search,
         category=category.value if category is not None else None,
         limit=limit,
@@ -66,10 +64,9 @@ def post_chronic_illness(
         VisitpadChronicIllnessRepository,
         Depends(get_visitpad_chronic_illness_repository),
     ],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadChronicIllnessSingleResponse:
-    row = create_visitpad_chronic_illness(repository, tenant_id=tenant_id, payload=payload)
+    row = create_visitpad_chronic_illness(repository, payload=payload)
     session.commit()
     return VisitpadChronicIllnessSingleResponse(data=VisitpadChronicIllnessResponse.model_validate(row))
 
@@ -85,9 +82,8 @@ def get_chronic_illness(
         VisitpadChronicIllnessRepository,
         Depends(get_visitpad_chronic_illness_repository),
     ],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
 ) -> VisitpadChronicIllnessSingleResponse:
-    row = get_visitpad_chronic_illness_by_id(repository, tenant_id=tenant_id, row_id=chronic_illness_id)
+    row = get_visitpad_chronic_illness_by_id(repository, row_id=chronic_illness_id)
     if row is None:
         raise ResourceNotFoundError("No chronic illness with this id.")
     return VisitpadChronicIllnessSingleResponse(data=VisitpadChronicIllnessResponse.model_validate(row))
@@ -105,12 +101,10 @@ def patch_chronic_illness(
         VisitpadChronicIllnessRepository,
         Depends(get_visitpad_chronic_illness_repository),
     ],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadChronicIllnessSingleResponse:
     row = update_visitpad_chronic_illness(
         repository,
-        tenant_id=tenant_id,
         row_id=chronic_illness_id,
         payload=payload,
     )
@@ -131,10 +125,9 @@ def delete_chronic_illness(
         VisitpadChronicIllnessRepository,
         Depends(get_visitpad_chronic_illness_repository),
     ],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadChronicIllnessSingleResponse:
-    row = soft_delete_visitpad_chronic_illness(repository, tenant_id=tenant_id, row_id=chronic_illness_id)
+    row = soft_delete_visitpad_chronic_illness(repository, row_id=chronic_illness_id)
     if row is None:
         raise ResourceNotFoundError("No chronic illness with this id.")
     session.commit()

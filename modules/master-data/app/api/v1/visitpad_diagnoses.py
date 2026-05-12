@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_platform_tenant_id, get_session, get_visitpad_diagnosis_repository
+from app.api.deps import get_session, get_visitpad_diagnosis_repository
 from app.api.errors import ResourceNotFoundError
 from app.repositories.visitpad_diagnosis_repository import VisitpadDiagnosisRepository
 from app.schemas.visitpad_diagnosis import (
@@ -31,7 +31,6 @@ router = APIRouter(prefix="/visitpad/diagnoses", tags=["Visitpad — Diagnoses"]
 @router.get("", response_model=VisitpadDiagnosisListResponse, summary="List diagnoses")
 def get_diagnoses(
     repository: Annotated[VisitpadDiagnosisRepository, Depends(get_visitpad_diagnosis_repository)],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     search: Annotated[str | None, Query()] = None,
@@ -39,7 +38,6 @@ def get_diagnoses(
 ) -> VisitpadDiagnosisListResponse:
     rows, total = list_visitpad_diagnoses(
         repository,
-        tenant_id=tenant_id,
         search=search,
         category=category.value if category is not None else None,
         limit=limit,
@@ -60,10 +58,9 @@ def get_diagnoses(
 def post_diagnosis(
     payload: VisitpadDiagnosisCreate,
     repository: Annotated[VisitpadDiagnosisRepository, Depends(get_visitpad_diagnosis_repository)],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadDiagnosisSingleResponse:
-    row = create_visitpad_diagnosis(repository, tenant_id=tenant_id, payload=payload)
+    row = create_visitpad_diagnosis(repository, payload=payload)
     session.commit()
     return VisitpadDiagnosisSingleResponse(data=VisitpadDiagnosisResponse.model_validate(row))
 
@@ -72,9 +69,8 @@ def post_diagnosis(
 def get_diagnosis(
     diagnosis_id: UUID,
     repository: Annotated[VisitpadDiagnosisRepository, Depends(get_visitpad_diagnosis_repository)],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
 ) -> VisitpadDiagnosisSingleResponse:
-    row = get_visitpad_diagnosis_by_id(repository, tenant_id=tenant_id, row_id=diagnosis_id)
+    row = get_visitpad_diagnosis_by_id(repository, row_id=diagnosis_id)
     if row is None:
         raise ResourceNotFoundError("No diagnosis with this id.")
     return VisitpadDiagnosisSingleResponse(data=VisitpadDiagnosisResponse.model_validate(row))
@@ -85,12 +81,10 @@ def patch_diagnosis(
     diagnosis_id: UUID,
     payload: VisitpadDiagnosisUpdate,
     repository: Annotated[VisitpadDiagnosisRepository, Depends(get_visitpad_diagnosis_repository)],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadDiagnosisSingleResponse:
     row = update_visitpad_diagnosis(
         repository,
-        tenant_id=tenant_id,
         row_id=diagnosis_id,
         payload=payload,
     )
@@ -104,10 +98,9 @@ def patch_diagnosis(
 def delete_diagnosis(
     diagnosis_id: UUID,
     repository: Annotated[VisitpadDiagnosisRepository, Depends(get_visitpad_diagnosis_repository)],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadDiagnosisSingleResponse:
-    row = soft_delete_visitpad_diagnosis(repository, tenant_id=tenant_id, row_id=diagnosis_id)
+    row = soft_delete_visitpad_diagnosis(repository, row_id=diagnosis_id)
     if row is None:
         raise ResourceNotFoundError("No diagnosis with this id.")
     session.commit()

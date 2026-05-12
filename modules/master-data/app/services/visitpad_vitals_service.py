@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 from uuid import UUID
 
-from app.models.visitpad_vital import VisitpadVitalModel
+from app.catalog.visitpad_table_models import visitpad_vital_model
 from app.repositories.visitpad_vital_repository import VisitpadVitalRepository
 from app.schemas.visitpad_vital import VisitpadVitalCreate, VisitpadVitalUpdate
 
@@ -31,14 +32,12 @@ def _ensure_critical(*, low: float | None, high: float | None) -> None:
 def list_visitpad_vitals(
     repository: VisitpadVitalRepository,
     *,
-    tenant_id: UUID,
     search: str | None,
     category: str | None,
     limit: int,
     offset: int,
-) -> tuple[list[VisitpadVitalModel], int]:
+) -> tuple[list[Any], int]:
     return repository.list_vitals(
-        tenant_id=tenant_id,
         search=search,
         category=category,
         limit=limit,
@@ -49,13 +48,12 @@ def list_visitpad_vitals(
 def create_visitpad_vital(
     repository: VisitpadVitalRepository,
     *,
-    tenant_id: UUID,
     payload: VisitpadVitalCreate,
-) -> VisitpadVitalModel:
+) -> Any:
     _ensure_critical(low=payload.critical_low, high=payload.critical_high)
-    row = VisitpadVitalModel(
+    M = visitpad_vital_model(repository.scope)
+    common = dict(
         id=uuid.uuid4(),
-        tenant_id=tenant_id,
         code=payload.code.strip(),
         name=payload.name.strip(),
         short_name=payload.short_name.strip(),
@@ -79,27 +77,31 @@ def create_visitpad_vital(
         loinc_code=_norm_opt_str(payload.loinc_code),
         snomed_observable_code=_norm_opt_str(payload.snomed_observable_code),
     )
+    if repository.scope.is_tenant:
+        row = M(tenant_id=repository.scope.tenant_id, **common)
+    else:
+        row = M(**common)
     return repository.create(row)
 
 
 def get_visitpad_vital_by_id(
     repository: VisitpadVitalRepository,
     *,
-    tenant_id: UUID,
     row_id: UUID,
-) -> VisitpadVitalModel | None:
-    return repository.get_by_id(row_id, tenant_id=tenant_id)
+) -> Any | None:
+    return repository.get_by_id(row_id)
 
 
 def update_visitpad_vital(
     repository: VisitpadVitalRepository,
     *,
-    tenant_id: UUID,
     row_id: UUID,
     payload: VisitpadVitalUpdate,
-) -> VisitpadVitalModel | None:
-    row = repository.get_by_id(row_id, tenant_id=tenant_id, include_deleted=True)
-    if row is None or row.tenant_id != tenant_id:
+) -> Any | None:
+    row = repository.get_by_id(row_id, include_deleted=True)
+    if row is None:
+        return None
+    if repository.scope.is_tenant and row.tenant_id != repository.scope.tenant_id:
         return None
     lo = payload.critical_low if payload.critical_low is not None else row.critical_low
     hi = payload.critical_high if payload.critical_high is not None else row.critical_high
@@ -153,10 +155,9 @@ def update_visitpad_vital(
 def soft_delete_visitpad_vital(
     repository: VisitpadVitalRepository,
     *,
-    tenant_id: UUID,
     row_id: UUID,
-) -> VisitpadVitalModel | None:
-    row = repository.get_by_id(row_id, tenant_id=tenant_id)
+) -> Any | None:
+    row = repository.get_by_id(row_id)
     if row is None:
         return None
     row.is_deleted = True

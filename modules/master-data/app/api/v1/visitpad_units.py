@@ -7,7 +7,6 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import (
-    get_platform_tenant_id,
     get_session,
     get_visitpad_unit_conversion_repository,
     get_visitpad_unit_repository,
@@ -51,7 +50,6 @@ conversions_router = APIRouter(
 @units_router.get("", response_model=VisitpadUnitListResponse, summary="List units")
 def get_visitpad_units(
     repository: Annotated[VisitpadUnitRepository, Depends(get_visitpad_unit_repository)],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     search: Annotated[str | None, Query()] = None,
@@ -59,7 +57,6 @@ def get_visitpad_units(
 ) -> VisitpadUnitListResponse:
     rows, total = list_visitpad_units(
         repository,
-        tenant_id=tenant_id,
         search=search,
         dimension=dimension.value if dimension is not None else None,
         limit=limit,
@@ -78,10 +75,9 @@ def get_visitpad_units(
 def post_visitpad_unit(
     payload: VisitpadUnitCreate,
     repository: Annotated[VisitpadUnitRepository, Depends(get_visitpad_unit_repository)],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadUnitSingleResponse:
-    row = create_visitpad_unit(repository, tenant_id=tenant_id, payload=payload)
+    row = create_visitpad_unit(repository, payload=payload)
     session.commit()
     return VisitpadUnitSingleResponse(data=VisitpadUnitResponse.model_validate(row))
 
@@ -94,9 +90,8 @@ def post_visitpad_unit(
 def get_visitpad_unit(
     unit_id: UUID,
     repository: Annotated[VisitpadUnitRepository, Depends(get_visitpad_unit_repository)],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
 ) -> VisitpadUnitSingleResponse:
-    row = get_visitpad_unit_by_id(repository, tenant_id=tenant_id, unit_id=unit_id)
+    row = get_visitpad_unit_by_id(repository, unit_id=unit_id)
     if row is None:
         raise ResourceNotFoundError("No unit with this id.")
     return VisitpadUnitSingleResponse(data=VisitpadUnitResponse.model_validate(row))
@@ -115,13 +110,11 @@ def patch_visitpad_unit(
         VisitpadUnitConversionRepository,
         Depends(get_visitpad_unit_conversion_repository),
     ],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadUnitSingleResponse:
     row = update_visitpad_unit(
         repository,
         conv_repo,
-        tenant_id=tenant_id,
         unit_id=unit_id,
         payload=payload,
     )
@@ -143,13 +136,11 @@ def delete_visitpad_unit(
         VisitpadUnitConversionRepository,
         Depends(get_visitpad_unit_conversion_repository),
     ],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadUnitSingleResponse:
     row = soft_delete_visitpad_unit(
         repository,
         conv_repo,
-        tenant_id=tenant_id,
         unit_id=unit_id,
     )
     if row is None:
@@ -168,7 +159,6 @@ def get_visitpad_unit_conversions(
         VisitpadUnitConversionRepository,
         Depends(get_visitpad_unit_conversion_repository),
     ],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     search: Annotated[str | None, Query()] = None,
@@ -176,7 +166,6 @@ def get_visitpad_unit_conversions(
 ) -> VisitpadUnitConversionListResponse:
     rows, total = list_visitpad_unit_conversions(
         repository,
-        tenant_id=tenant_id,
         search=search,
         from_unit_code=from_unit_code,
         limit=limit,
@@ -199,13 +188,11 @@ def post_visitpad_unit_conversion(
         VisitpadUnitConversionRepository,
         Depends(get_visitpad_unit_conversion_repository),
     ],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadUnitConversionSingleResponse:
     row = create_visitpad_unit_conversion(
         unit_repo,
         conv_repo,
-        tenant_id=tenant_id,
         payload=payload,
     )
     session.commit()
@@ -224,11 +211,9 @@ def get_visitpad_unit_conversion(
         VisitpadUnitConversionRepository,
         Depends(get_visitpad_unit_conversion_repository),
     ],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
 ) -> VisitpadUnitConversionSingleResponse:
     row = get_visitpad_unit_conversion_by_id(
         repository,
-        tenant_id=tenant_id,
         conversion_id=conversion_id,
     )
     if row is None:
@@ -250,13 +235,11 @@ def patch_visitpad_unit_conversion(
         VisitpadUnitConversionRepository,
         Depends(get_visitpad_unit_conversion_repository),
     ],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadUnitConversionSingleResponse:
     row = update_visitpad_unit_conversion(
         unit_repo,
         conv_repo,
-        tenant_id=tenant_id,
         conversion_id=conversion_id,
         payload=payload,
     )
@@ -278,12 +261,10 @@ def delete_visitpad_unit_conversion(
         VisitpadUnitConversionRepository,
         Depends(get_visitpad_unit_conversion_repository),
     ],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadUnitConversionSingleResponse:
     row = soft_delete_visitpad_unit_conversion(
         repository,
-        tenant_id=tenant_id,
         conversion_id=conversion_id,
     )
     if row is None:

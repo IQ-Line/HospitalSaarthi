@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 from uuid import UUID
 
-from app.models.visitpad_chief_complaint import VisitpadChiefComplaintModel
+from app.catalog.visitpad_table_models import visitpad_chief_complaint_model
 from app.repositories.visitpad_chief_complaint_repository import VisitpadChiefComplaintRepository
 from app.schemas.visitpad_chief_complaint import VisitpadChiefComplaintCreate, VisitpadChiefComplaintUpdate
 
@@ -20,15 +21,13 @@ def _norm_opt_str(v: str | None) -> str | None:
 def list_visitpad_chief_complaints(
     repository: VisitpadChiefComplaintRepository,
     *,
-    tenant_id: UUID,
     search: str | None,
     body_system: str | None,
     triage_priority: str | None,
     limit: int,
     offset: int,
-) -> tuple[list[VisitpadChiefComplaintModel], int]:
+) -> tuple[list[Any], int]:
     return repository.list_chief_complaints(
-        tenant_id=tenant_id,
         search=search,
         body_system=body_system,
         triage_priority=triage_priority,
@@ -40,12 +39,11 @@ def list_visitpad_chief_complaints(
 def create_visitpad_chief_complaint(
     repository: VisitpadChiefComplaintRepository,
     *,
-    tenant_id: UUID,
     payload: VisitpadChiefComplaintCreate,
-) -> VisitpadChiefComplaintModel:
-    row = VisitpadChiefComplaintModel(
+) -> Any:
+    M = visitpad_chief_complaint_model(repository.scope)
+    common = dict(
         id=uuid.uuid4(),
-        tenant_id=tenant_id,
         code=payload.code.strip(),
         display_name=payload.display_name.strip(),
         body_system=payload.body_system.value,
@@ -57,27 +55,31 @@ def create_visitpad_chief_complaint(
         is_deleted=False,
         snomed_code=_norm_opt_str(payload.snomed_code),
     )
+    if repository.scope.is_tenant:
+        row = M(tenant_id=repository.scope.tenant_id, **common)
+    else:
+        row = M(**common)
     return repository.create(row)
 
 
 def get_visitpad_chief_complaint_by_id(
     repository: VisitpadChiefComplaintRepository,
     *,
-    tenant_id: UUID,
     row_id: UUID,
-) -> VisitpadChiefComplaintModel | None:
-    return repository.get_by_id(row_id, tenant_id=tenant_id)
+) -> Any | None:
+    return repository.get_by_id(row_id)
 
 
 def update_visitpad_chief_complaint(
     repository: VisitpadChiefComplaintRepository,
     *,
-    tenant_id: UUID,
     row_id: UUID,
     payload: VisitpadChiefComplaintUpdate,
-) -> VisitpadChiefComplaintModel | None:
-    row = repository.get_by_id(row_id, tenant_id=tenant_id, include_deleted=True)
-    if row is None or row.tenant_id != tenant_id:
+) -> Any | None:
+    row = repository.get_by_id(row_id, include_deleted=True)
+    if row is None:
+        return None
+    if repository.scope.is_tenant and row.tenant_id != repository.scope.tenant_id:
         return None
     if payload.code is not None:
         row.code = payload.code.strip()
@@ -105,10 +107,9 @@ def update_visitpad_chief_complaint(
 def soft_delete_visitpad_chief_complaint(
     repository: VisitpadChiefComplaintRepository,
     *,
-    tenant_id: UUID,
     row_id: UUID,
-) -> VisitpadChiefComplaintModel | None:
-    row = repository.get_by_id(row_id, tenant_id=tenant_id)
+) -> Any | None:
+    row = repository.get_by_id(row_id)
     if row is None:
         return None
     row.is_deleted = True

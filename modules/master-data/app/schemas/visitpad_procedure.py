@@ -27,7 +27,7 @@ class VisitpadProcedureResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    tenant_id: UUID
+    tenant_id: int | None = None
     cpt_code: str
     official_descriptor: str
     display_name: str

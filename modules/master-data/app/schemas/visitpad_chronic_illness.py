@@ -20,7 +20,7 @@ class VisitpadChronicIllnessResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    tenant_id: UUID
+    tenant_id: int | None = None
     display_name: str
     icd10_code: str
     category: VisitpadChronicIllnessCategory

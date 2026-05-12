@@ -16,6 +16,7 @@ from app.api.deps import (
     get_visitpad_unit_conversion_repository,
     get_visitpad_unit_repository,
 )
+from app.core.catalog_scope import CatalogScope
 from app.main import create_app
 from app.models import Base
 from app.repositories.visitpad_unit_conversion_repository import VisitpadUnitConversionRepository
@@ -31,8 +32,9 @@ def visitpad_sqlite_session() -> Iterator[Session]:
     )
 
     @event.listens_for(engine, "connect")
-    def _sqlite_fk(_dbapi_connection, _connection_record) -> None:
-        _dbapi_connection.execute("PRAGMA foreign_keys=ON")
+    def _sqlite_fk(dbapi_connection, _connection_record) -> None:
+        dbapi_connection.execute("PRAGMA foreign_keys=ON")
+        dbapi_connection.execute("ATTACH DATABASE ':memory:' AS tenant_master")
 
     Base.metadata.create_all(engine)
     factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
@@ -52,19 +54,48 @@ def visitpad_client(visitpad_sqlite_session: Session) -> Generator[TestClient, N
         yield visitpad_sqlite_session
 
     app.dependency_overrides[get_session] = _session
+    scope = CatalogScope(tenant_id=None)
     app.dependency_overrides[get_visitpad_unit_repository] = (
-        lambda: VisitpadUnitRepository(visitpad_sqlite_session)
+        lambda: VisitpadUnitRepository(visitpad_sqlite_session, scope)
     )
     app.dependency_overrides[get_visitpad_unit_conversion_repository] = (
-        lambda: VisitpadUnitConversionRepository(visitpad_sqlite_session)
+        lambda: VisitpadUnitConversionRepository(visitpad_sqlite_session, scope)
     )
     with TestClient(app) as client:
         yield client
     app.dependency_overrides.clear()
 
 
+@pytest.fixture()
+def visitpad_api_client(visitpad_sqlite_session: Session) -> Generator[TestClient, None, None]:
+    """Full app wiring: catalog scope comes from ``iq_tenant_id`` header (not overridden)."""
+    app = create_app()
+
+    def _session() -> Generator[Session, None, None]:
+        yield visitpad_sqlite_session
+
+    app.dependency_overrides[get_session] = _session
+    with TestClient(app) as client:
+        yield client
+    app.dependency_overrides.clear()
+
+
+def test_iq_tenant_id_header_sets_tenant_scope(visitpad_api_client: TestClient) -> None:
+    r = visitpad_api_client.post(
+        "/api/v1/master-data/visitpad/units",
+        headers={"iq_tenant_id": "7"},
+        json={
+            "code": "kg",
+            "display_label": "Kilogram",
+            "dimension": "mass",
+            "is_canonical": True,
+        },
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["data"]["tenant_id"] == 7
+
+
 def test_visitpad_units_and_conversions_crud(visitpad_client: TestClient) -> None:
-    tid = "00000000-0000-0000-0000-000000000001"
     r_kg = visitpad_client.post(
         "/api/v1/master-data/visitpad/units",
         json={
@@ -75,7 +106,7 @@ def test_visitpad_units_and_conversions_crud(visitpad_client: TestClient) -> Non
         },
     )
     assert r_kg.status_code == 201, r_kg.text
-    assert r_kg.json()["data"]["tenant_id"] == tid
+    assert r_kg.json()["data"]["tenant_id"] is None
 
     r_g = visitpad_client.post(
         "/api/v1/master-data/visitpad/units",

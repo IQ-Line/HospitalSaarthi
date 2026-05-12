@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 from uuid import UUID
 
-from app.models.visitpad_rx_column import VisitpadRxColumnModel
+from app.catalog.visitpad_table_models import visitpad_rx_column_model
 from app.repositories.visitpad_rx_column_repository import VisitpadRxColumnRepository
 from app.schemas.visitpad_rx_column import VisitpadRxColumnCreate, VisitpadRxColumnUpdate
 
@@ -20,14 +21,12 @@ def _norm_opt_str(v: str | None) -> str | None:
 def list_visitpad_rx_columns(
     repository: VisitpadRxColumnRepository,
     *,
-    tenant_id: UUID,
     search: str | None,
     section: str | None,
     limit: int,
     offset: int,
-) -> tuple[list[VisitpadRxColumnModel], int]:
+) -> tuple[list[Any], int]:
     return repository.list_rx_columns(
-        tenant_id=tenant_id,
         search=search,
         section=section,
         limit=limit,
@@ -38,12 +37,11 @@ def list_visitpad_rx_columns(
 def create_visitpad_rx_column(
     repository: VisitpadRxColumnRepository,
     *,
-    tenant_id: UUID,
     payload: VisitpadRxColumnCreate,
-) -> VisitpadRxColumnModel:
-    row = VisitpadRxColumnModel(
+) -> Any:
+    M = visitpad_rx_column_model(repository.scope)
+    common = dict(
         id=uuid.uuid4(),
-        tenant_id=tenant_id,
         section=payload.section.value,
         display_name=payload.display_name.strip(),
         code=payload.code.strip(),
@@ -52,27 +50,31 @@ def create_visitpad_rx_column(
         is_active=payload.is_active,
         is_deleted=False,
     )
+    if repository.scope.is_tenant:
+        row = M(tenant_id=repository.scope.tenant_id, **common)
+    else:
+        row = M(**common)
     return repository.create(row)
 
 
 def get_visitpad_rx_column_by_id(
     repository: VisitpadRxColumnRepository,
     *,
-    tenant_id: UUID,
     row_id: UUID,
-) -> VisitpadRxColumnModel | None:
-    return repository.get_by_id(row_id, tenant_id=tenant_id)
+) -> Any | None:
+    return repository.get_by_id(row_id)
 
 
 def update_visitpad_rx_column(
     repository: VisitpadRxColumnRepository,
     *,
-    tenant_id: UUID,
     row_id: UUID,
     payload: VisitpadRxColumnUpdate,
-) -> VisitpadRxColumnModel | None:
-    row = repository.get_by_id(row_id, tenant_id=tenant_id, include_deleted=True)
-    if row is None or row.tenant_id != tenant_id:
+) -> Any | None:
+    row = repository.get_by_id(row_id, include_deleted=True)
+    if row is None:
+        return None
+    if repository.scope.is_tenant and row.tenant_id != repository.scope.tenant_id:
         return None
     if payload.display_name is not None:
         row.display_name = payload.display_name.strip()
@@ -92,10 +94,9 @@ def update_visitpad_rx_column(
 def soft_delete_visitpad_rx_column(
     repository: VisitpadRxColumnRepository,
     *,
-    tenant_id: UUID,
     row_id: UUID,
-) -> VisitpadRxColumnModel | None:
-    row = repository.get_by_id(row_id, tenant_id=tenant_id)
+) -> Any | None:
+    row = repository.get_by_id(row_id)
     if row is None:
         return None
     row.is_deleted = True

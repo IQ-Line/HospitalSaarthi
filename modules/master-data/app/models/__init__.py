@@ -3,17 +3,29 @@ from app.models.module import ModuleModel
 from app.models.module_permission import ModulePermissionModel
 from app.models.permission import PermissionModel
 from app.models.system_role import SystemRoleModel
-from app.models.visitpad_allergen import VisitpadAllergenModel
-from app.models.visitpad_allergy_reaction import VisitpadAllergyReactionModel
-from app.models.visitpad_chief_complaint import VisitpadChiefComplaintModel
-from app.models.visitpad_chronic_illness import VisitpadChronicIllnessModel
-from app.models.visitpad_diagnosis import VisitpadDiagnosisModel
-from app.models.visitpad_medicine import VisitpadMedicineModel
-from app.models.visitpad_procedure import VisitpadProcedureModel
-from app.models.visitpad_rx_column import VisitpadRxColumnModel
-from app.models.visitpad_unit import VisitpadUnitModel
-from app.models.visitpad_unit_conversion import VisitpadUnitConversionModel
-from app.models.visitpad_vital import VisitpadVitalModel
+from app.models.visitpad_allergen import VisitpadAllergenModel, VisitpadAllergenPublicModel
+from app.models.visitpad_allergy_reaction import (
+    VisitpadAllergyReactionModel,
+    VisitpadAllergyReactionPublicModel,
+)
+from app.models.visitpad_chief_complaint import (
+    VisitpadChiefComplaintModel,
+    VisitpadChiefComplaintPublicModel,
+)
+from app.models.visitpad_chronic_illness import (
+    VisitpadChronicIllnessModel,
+    VisitpadChronicIllnessPublicModel,
+)
+from app.models.visitpad_diagnosis import VisitpadDiagnosisModel, VisitpadDiagnosisPublicModel
+from app.models.visitpad_medicine import VisitpadMedicineModel, VisitpadMedicinePublicModel
+from app.models.visitpad_procedure import VisitpadProcedureModel, VisitpadProcedurePublicModel
+from app.models.visitpad_rx_column import VisitpadRxColumnModel, VisitpadRxColumnPublicModel
+from app.models.visitpad_unit import VisitpadUnitModel, VisitpadUnitPublicModel
+from app.models.visitpad_unit_conversion import (
+    VisitpadUnitConversionModel,
+    VisitpadUnitConversionPublicModel,
+)
+from app.models.visitpad_vital import VisitpadVitalModel, VisitpadVitalPublicModel
 
 __all__ = [
     "Base",
@@ -22,14 +34,25 @@ __all__ = [
     "PermissionModel",
     "SystemRoleModel",
     "VisitpadAllergenModel",
+    "VisitpadAllergenPublicModel",
     "VisitpadAllergyReactionModel",
+    "VisitpadAllergyReactionPublicModel",
     "VisitpadChiefComplaintModel",
+    "VisitpadChiefComplaintPublicModel",
     "VisitpadChronicIllnessModel",
+    "VisitpadChronicIllnessPublicModel",
     "VisitpadDiagnosisModel",
+    "VisitpadDiagnosisPublicModel",
     "VisitpadMedicineModel",
+    "VisitpadMedicinePublicModel",
     "VisitpadProcedureModel",
+    "VisitpadProcedurePublicModel",
     "VisitpadRxColumnModel",
+    "VisitpadRxColumnPublicModel",
     "VisitpadUnitModel",
+    "VisitpadUnitPublicModel",
     "VisitpadUnitConversionModel",
+    "VisitpadUnitConversionPublicModel",
     "VisitpadVitalModel",
+    "VisitpadVitalPublicModel",
 ]

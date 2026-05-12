@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.exc import IntegrityError
 
 from app.api.deps import get_module_repository, get_session
+from app.core.catalog_scope import CatalogScope
 from app.main import create_app
 
 
@@ -33,6 +34,8 @@ def _sample_module_row(**overrides):
 
 
 class FakeModuleRepository:
+    scope = CatalogScope(tenant_id=None)
+
     def list_modules(self, *, category=None):
         return [_sample_module_row()]
 

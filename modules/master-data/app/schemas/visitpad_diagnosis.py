@@ -26,7 +26,7 @@ class VisitpadDiagnosisResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    tenant_id: UUID
+    tenant_id: int | None = None
     icd10_code: str
     icd_version: VisitpadIcdVersion
     official_descriptor: str

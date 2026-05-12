@@ -1,8 +1,11 @@
 """Use-cases for system role template catalog."""
 
+from __future__ import annotations
+
+from typing import Any
 from uuid import UUID
 
-from app.models.system_role import SystemRoleModel
+from app.catalog.platform_table_models import system_role_model
 from app.repositories.system_role_repository import SystemRoleRepository
 from app.schemas.system_role import SystemRoleCreate, SystemRoleUpdate
 
@@ -15,21 +18,21 @@ def list_system_roles(
     repository: SystemRoleRepository,
     *,
     is_template: bool | None = None,
-) -> list[SystemRoleModel]:
+) -> list[Any]:
     return repository.list_system_roles(is_template=is_template)
 
 
 def get_system_role_by_id(
     repository: SystemRoleRepository,
     role_id: UUID,
-) -> SystemRoleModel | None:
+) -> Any | None:
     return repository.get_system_role_by_id(role_id)
 
 
 def get_system_role_by_slug(
     repository: SystemRoleRepository,
     slug: str,
-) -> SystemRoleModel | None:
+) -> Any | None:
     return repository.get_system_role_by_slug(slug)
 
 
@@ -38,8 +41,9 @@ def create_system_role(
     payload: SystemRoleCreate,
     *,
     actor_id: UUID | None,
-) -> SystemRoleModel:
-    row = SystemRoleModel(
+) -> Any:
+    M = system_role_model(repository.scope)
+    kwargs: dict[str, Any] = dict(
         name=payload.name,
         slug=payload.slug,
         is_template=payload.is_template,
@@ -48,6 +52,9 @@ def create_system_role(
         created_by=actor_id,
         updated_by=actor_id,
     )
+    if repository.scope.is_tenant:
+        kwargs["tenant_id"] = repository.scope.tenant_id
+    row = M(**kwargs)
     return repository.create_system_role(row)
 
 
@@ -57,7 +64,7 @@ def update_system_role(
     payload: SystemRoleUpdate,
     *,
     actor_id: UUID | None,
-) -> SystemRoleModel:
+) -> Any:
     row = repository.get_system_role_by_id(role_id, include_deleted=True)
     if row is None:
         raise SystemRoleNotFoundError
@@ -85,7 +92,7 @@ def soft_delete_system_role(
     role_id: UUID,
     *,
     actor_id: UUID | None,
-) -> SystemRoleModel:
+) -> Any:
     row = repository.get_system_role_by_id(role_id, include_deleted=True)
     if row is None:
         raise SystemRoleNotFoundError

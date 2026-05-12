@@ -1,8 +1,11 @@
 """Use-cases for permission catalog."""
 
+from __future__ import annotations
+
+from typing import Any
 from uuid import UUID
 
-from app.models.permission import PermissionModel
+from app.catalog.platform_table_models import permission_model
 from app.repositories.permission_repository import PermissionRepository
 from app.schemas.permission import PermissionAction, PermissionCreate, PermissionUpdate
 
@@ -15,21 +18,21 @@ def list_permissions(
     repository: PermissionRepository,
     *,
     action: PermissionAction | None = None,
-) -> list[PermissionModel]:
+) -> list[Any]:
     return repository.list_permissions(action=action)
 
 
 def get_permission_by_id(
     repository: PermissionRepository,
     permission_id: UUID,
-) -> PermissionModel | None:
+) -> Any | None:
     return repository.get_permission_by_id(permission_id)
 
 
 def get_permission_by_slug(
     repository: PermissionRepository,
     slug: str,
-) -> PermissionModel | None:
+) -> Any | None:
     return repository.get_permission_by_slug(slug)
 
 
@@ -38,8 +41,9 @@ def create_permission(
     payload: PermissionCreate,
     *,
     actor_id: UUID | None,
-) -> PermissionModel:
-    row = PermissionModel(
+) -> Any:
+    M = permission_model(repository.scope)
+    kwargs: dict[str, Any] = dict(
         name=payload.name,
         slug=payload.slug,
         action=payload.action.value,
@@ -48,6 +52,9 @@ def create_permission(
         created_by=actor_id,
         updated_by=actor_id,
     )
+    if repository.scope.is_tenant:
+        kwargs["tenant_id"] = repository.scope.tenant_id
+    row = M(**kwargs)
     return repository.create_permission(row)
 
 
@@ -57,7 +64,7 @@ def update_permission(
     payload: PermissionUpdate,
     *,
     actor_id: UUID | None,
-) -> PermissionModel:
+) -> Any:
     row = repository.get_permission_by_id(permission_id, include_deleted=True)
     if row is None:
         raise PermissionNotFoundError
@@ -86,7 +93,7 @@ def soft_delete_permission(
     permission_id: UUID,
     *,
     actor_id: UUID | None,
-) -> PermissionModel:
+) -> Any:
     row = repository.get_permission_by_id(permission_id, include_deleted=True)
     if row is None:
         raise PermissionNotFoundError

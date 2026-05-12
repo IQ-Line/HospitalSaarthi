@@ -1,9 +1,11 @@
 """Use-cases for the module catalog (thin orchestration over repositories)."""
 
-from typing import Protocol
+from __future__ import annotations
+
+from typing import Any, Protocol
 from uuid import UUID
 
-from app.models.module import ModuleModel
+from app.catalog.platform_table_models import module_model
 from app.repositories.module_repository import ModuleRepository
 from app.schemas.module import ModuleCategory, ModuleCreate, ModuleUpdate
 
@@ -12,16 +14,16 @@ MAX_MODULE_TREE_LEVEL = 10
 
 
 class ModuleReader(Protocol):
-    def list_modules(self, *, category: ModuleCategory | None = None) -> list[ModuleModel]: ...
+    def list_modules(self, *, category: ModuleCategory | None = None) -> list[Any]: ...
 
     def get_module_by_id(
         self,
         module_id: UUID,
         *,
         include_deleted: bool = False,
-    ) -> ModuleModel | None: ...
+    ) -> Any | None: ...
 
-    def get_module_by_slug(self, slug: str) -> ModuleModel | None: ...
+    def get_module_by_slug(self, slug: str) -> Any | None: ...
 
 
 class ParentModuleNotFoundError(Exception):
@@ -44,11 +46,11 @@ def list_modules(
     repository: ModuleReader,
     *,
     category: ModuleCategory | None = None,
-) -> list[ModuleModel]:
+) -> list[Any]:
     return repository.list_modules(category=category)
 
 
-def list_submodules(repository: ModuleRepository, parent_id: UUID) -> list[ModuleModel]:
+def list_submodules(repository: ModuleRepository, parent_id: UUID) -> list[Any]:
     """Return **all** active rows directly under ``parent_id`` (full list; no pagination).
 
     Raises ``ModuleNotFoundError`` if the parent id is missing or soft-deleted.
@@ -58,11 +60,11 @@ def list_submodules(repository: ModuleRepository, parent_id: UUID) -> list[Modul
     return repository.list_modules_by_parent_id(parent_id)
 
 
-def get_module_by_id(repository: ModuleReader, module_id: UUID) -> ModuleModel | None:
+def get_module_by_id(repository: ModuleReader, module_id: UUID) -> Any | None:
     return repository.get_module_by_id(module_id)
 
 
-def get_module_by_slug(repository: ModuleReader, slug: str) -> ModuleModel | None:
+def get_module_by_slug(repository: ModuleReader, slug: str) -> Any | None:
     return repository.get_module_by_slug(slug)
 
 
@@ -103,7 +105,7 @@ def create_module(
     payload: ModuleCreate,
     *,
     actor_id: UUID | None,
-) -> ModuleModel:
+) -> Any:
     """Persist ``level`` only from the tree: root → 1, child → ``parent.level + 1``."""
     parent_id = payload.parent_id
 
@@ -117,7 +119,8 @@ def create_module(
     else:
         level = 1
 
-    module = ModuleModel(
+    M = module_model(repository.scope)
+    kwargs: dict[str, Any] = dict(
         name=payload.name,
         slug=payload.slug,
         description=payload.description,
@@ -130,6 +133,9 @@ def create_module(
         created_by=actor_id,
         updated_by=actor_id,
     )
+    if repository.scope.is_tenant:
+        kwargs["tenant_id"] = repository.scope.tenant_id
+    module = M(**kwargs)
     return repository.create_module(module)
 
 
@@ -139,7 +145,7 @@ def update_module(
     payload: ModuleUpdate,
     *,
     actor_id: UUID | None,
-) -> ModuleModel:
+) -> Any:
     module = repository.get_module_by_id(module_id, include_deleted=True)
     if module is None:
         raise ModuleNotFoundError
@@ -190,7 +196,7 @@ def soft_delete_module(
     module_id: UUID,
     *,
     actor_id: UUID | None,
-) -> ModuleModel:
+) -> Any:
     """Soft-delete target module and all active descendants (recursive cascade)."""
     module = repository.get_module_by_id(module_id, include_deleted=True)
     if module is None:

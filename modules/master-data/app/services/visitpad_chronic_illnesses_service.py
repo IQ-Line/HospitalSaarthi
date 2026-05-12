@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 from uuid import UUID
 
-from app.models.visitpad_chronic_illness import VisitpadChronicIllnessModel
+from app.catalog.visitpad_table_models import visitpad_chronic_illness_model
 from app.repositories.visitpad_chronic_illness_repository import VisitpadChronicIllnessRepository
 from app.schemas.visitpad_chronic_illness import VisitpadChronicIllnessCreate, VisitpadChronicIllnessUpdate
 
@@ -20,14 +21,12 @@ def _norm_opt_str(v: str | None) -> str | None:
 def list_visitpad_chronic_illnesses(
     repository: VisitpadChronicIllnessRepository,
     *,
-    tenant_id: UUID,
     search: str | None,
     category: str | None,
     limit: int,
     offset: int,
-) -> tuple[list[VisitpadChronicIllnessModel], int]:
+) -> tuple[list[Any], int]:
     return repository.list_chronic_illnesses(
-        tenant_id=tenant_id,
         search=search,
         category=category,
         limit=limit,
@@ -38,12 +37,11 @@ def list_visitpad_chronic_illnesses(
 def create_visitpad_chronic_illness(
     repository: VisitpadChronicIllnessRepository,
     *,
-    tenant_id: UUID,
     payload: VisitpadChronicIllnessCreate,
-) -> VisitpadChronicIllnessModel:
-    row = VisitpadChronicIllnessModel(
+) -> Any:
+    M = visitpad_chronic_illness_model(repository.scope)
+    common = dict(
         id=uuid.uuid4(),
-        tenant_id=tenant_id,
         display_name=payload.display_name.strip(),
         icd10_code=payload.icd10_code.strip(),
         category=payload.category.value,
@@ -52,27 +50,31 @@ def create_visitpad_chronic_illness(
         is_active=payload.is_active,
         is_deleted=False,
     )
+    if repository.scope.is_tenant:
+        row = M(tenant_id=repository.scope.tenant_id, **common)
+    else:
+        row = M(**common)
     return repository.create(row)
 
 
 def get_visitpad_chronic_illness_by_id(
     repository: VisitpadChronicIllnessRepository,
     *,
-    tenant_id: UUID,
     row_id: UUID,
-) -> VisitpadChronicIllnessModel | None:
-    return repository.get_by_id(row_id, tenant_id=tenant_id)
+) -> Any | None:
+    return repository.get_by_id(row_id)
 
 
 def update_visitpad_chronic_illness(
     repository: VisitpadChronicIllnessRepository,
     *,
-    tenant_id: UUID,
     row_id: UUID,
     payload: VisitpadChronicIllnessUpdate,
-) -> VisitpadChronicIllnessModel | None:
-    row = repository.get_by_id(row_id, tenant_id=tenant_id, include_deleted=True)
-    if row is None or row.tenant_id != tenant_id:
+) -> Any | None:
+    row = repository.get_by_id(row_id, include_deleted=True)
+    if row is None:
+        return None
+    if repository.scope.is_tenant and row.tenant_id != repository.scope.tenant_id:
         return None
     if payload.display_name is not None:
         row.display_name = payload.display_name.strip()
@@ -94,10 +96,9 @@ def update_visitpad_chronic_illness(
 def soft_delete_visitpad_chronic_illness(
     repository: VisitpadChronicIllnessRepository,
     *,
-    tenant_id: UUID,
     row_id: UUID,
-) -> VisitpadChronicIllnessModel | None:
-    row = repository.get_by_id(row_id, tenant_id=tenant_id)
+) -> Any | None:
+    row = repository.get_by_id(row_id)
     if row is None:
         return None
     row.is_deleted = True

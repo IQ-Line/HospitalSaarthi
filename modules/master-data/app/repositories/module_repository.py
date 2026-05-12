@@ -1,12 +1,16 @@
-"""Database access for `public.modules` — reads and writes."""
+"""Database access for ``modules`` — ``public`` (global) vs ``tenant_master``."""
 
+from __future__ import annotations
+
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import Select, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models.module import ModuleModel
+from app.catalog.platform_table_models import module_model
+from app.core.catalog_scope import CatalogScope
 from app.schemas.module import ModuleCategory
 
 
@@ -33,28 +37,37 @@ def _is_unique_violation(exc: IntegrityError) -> bool:
 class ModuleRepository:
     """Catalog rows. List/detail omit soft-deleted rows unless explicitly loaded for mutation."""
 
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, scope: CatalogScope) -> None:
         self._session = session
+        self._scope = scope
 
-    def list_modules(self, *, category: ModuleCategory | None = None) -> list[ModuleModel]:
-        statement: Select[tuple[ModuleModel]] = (
-            select(ModuleModel).where(ModuleModel.is_deleted.is_(False)).order_by(ModuleModel.name)
-        )
+    @property
+    def scope(self) -> CatalogScope:
+        return self._scope
 
+    def _M(self) -> Any:
+        return module_model(self._scope)
+
+    def list_modules(self, *, category: ModuleCategory | None = None) -> list[Any]:
+        M = self._M()
+        filters = [M.is_deleted.is_(False)]
+        if self._scope.is_tenant:
+            filters.append(M.tenant_id == self._scope.tenant_id)
         if category is not None:
-            statement = statement.where(ModuleModel.category == category.value)
+            filters.append(M.category == category.value)
 
+        statement: Select[tuple[Any]] = select(M).where(*filters).order_by(M.name)
         return list(self._session.scalars(statement).all())
 
-    def list_modules_by_parent_id(self, parent_id: UUID) -> list[ModuleModel]:
-        statement = (
-            select(ModuleModel)
-            .where(
-                ModuleModel.parent_id == parent_id,
-                ModuleModel.is_deleted.is_(False),
-            )
-            .order_by(ModuleModel.name)
-        )
+    def list_modules_by_parent_id(self, parent_id: UUID) -> list[Any]:
+        M = self._M()
+        filters = [
+            M.parent_id == parent_id,
+            M.is_deleted.is_(False),
+        ]
+        if self._scope.is_tenant:
+            filters.append(M.tenant_id == self._scope.tenant_id)
+        statement = select(M).where(*filters).order_by(M.name)
         return list(self._session.scalars(statement).all())
 
     def get_module_by_id(
@@ -62,23 +75,26 @@ class ModuleRepository:
         module_id: UUID,
         *,
         include_deleted: bool = False,
-    ) -> ModuleModel | None:
-        module = self._session.get(ModuleModel, module_id)
+    ) -> Any | None:
+        M = self._M()
+        module = self._session.get(M, module_id)
         if module is None:
+            return None
+        if self._scope.is_tenant and module.tenant_id != self._scope.tenant_id:
             return None
         if not include_deleted and module.is_deleted:
             return None
         return module
 
-    def get_module_by_slug(self, slug: str) -> ModuleModel | None:
-        statement = (
-            select(ModuleModel)
-            .where(ModuleModel.slug == slug, ModuleModel.is_deleted.is_(False))
-            .limit(1)
-        )
+    def get_module_by_slug(self, slug: str) -> Any | None:
+        M = self._M()
+        filters = [M.slug == slug, M.is_deleted.is_(False)]
+        if self._scope.is_tenant:
+            filters.append(M.tenant_id == self._scope.tenant_id)
+        statement = select(M).where(*filters).limit(1)
         return self._session.scalars(statement).first()
 
-    def create_module(self, module: ModuleModel) -> ModuleModel:
+    def create_module(self, module: Any) -> Any:
         self._session.add(module)
         try:
             self._session.flush()
@@ -90,7 +106,7 @@ class ModuleRepository:
         self._session.refresh(module)
         return module
 
-    def update_module(self, module: ModuleModel) -> ModuleModel:
+    def update_module(self, module: Any) -> Any:
         try:
             self._session.flush()
         except IntegrityError as exc:

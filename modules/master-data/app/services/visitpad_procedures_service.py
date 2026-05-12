@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 from uuid import UUID
 
-from app.models.visitpad_procedure import VisitpadProcedureModel
+from app.catalog.visitpad_table_models import visitpad_procedure_model
 from app.repositories.visitpad_procedure_repository import VisitpadProcedureRepository
 from app.schemas.visitpad_procedure import VisitpadProcedureCreate, VisitpadProcedureUpdate
 
@@ -20,15 +21,13 @@ def _norm_opt_str(v: str | None) -> str | None:
 def list_visitpad_procedures(
     repository: VisitpadProcedureRepository,
     *,
-    tenant_id: UUID,
     search: str | None,
     category: str | None,
     billing_category: str | None,
     limit: int,
     offset: int,
-) -> tuple[list[VisitpadProcedureModel], int]:
+) -> tuple[list[Any], int]:
     return repository.list_procedures(
-        tenant_id=tenant_id,
         search=search,
         category=category,
         billing_category=billing_category,
@@ -40,12 +39,11 @@ def list_visitpad_procedures(
 def create_visitpad_procedure(
     repository: VisitpadProcedureRepository,
     *,
-    tenant_id: UUID,
     payload: VisitpadProcedureCreate,
-) -> VisitpadProcedureModel:
-    row = VisitpadProcedureModel(
+) -> Any:
+    M = visitpad_procedure_model(repository.scope)
+    common = dict(
         id=uuid.uuid4(),
-        tenant_id=tenant_id,
         cpt_code=payload.cpt_code.strip(),
         official_descriptor=payload.official_descriptor.strip(),
         display_name=payload.display_name.strip(),
@@ -59,27 +57,31 @@ def create_visitpad_procedure(
         is_deleted=False,
         snomed_code=_norm_opt_str(payload.snomed_code),
     )
+    if repository.scope.is_tenant:
+        row = M(tenant_id=repository.scope.tenant_id, **common)
+    else:
+        row = M(**common)
     return repository.create(row)
 
 
 def get_visitpad_procedure_by_id(
     repository: VisitpadProcedureRepository,
     *,
-    tenant_id: UUID,
     row_id: UUID,
-) -> VisitpadProcedureModel | None:
-    return repository.get_by_id(row_id, tenant_id=tenant_id)
+) -> Any | None:
+    return repository.get_by_id(row_id)
 
 
 def update_visitpad_procedure(
     repository: VisitpadProcedureRepository,
     *,
-    tenant_id: UUID,
     row_id: UUID,
     payload: VisitpadProcedureUpdate,
-) -> VisitpadProcedureModel | None:
-    row = repository.get_by_id(row_id, tenant_id=tenant_id, include_deleted=True)
-    if row is None or row.tenant_id != tenant_id:
+) -> Any | None:
+    row = repository.get_by_id(row_id, include_deleted=True)
+    if row is None:
+        return None
+    if repository.scope.is_tenant and row.tenant_id != repository.scope.tenant_id:
         return None
     if payload.cpt_code is not None:
         row.cpt_code = payload.cpt_code.strip()
@@ -111,10 +113,9 @@ def update_visitpad_procedure(
 def soft_delete_visitpad_procedure(
     repository: VisitpadProcedureRepository,
     *,
-    tenant_id: UUID,
     row_id: UUID,
-) -> VisitpadProcedureModel | None:
-    row = repository.get_by_id(row_id, tenant_id=tenant_id)
+) -> Any | None:
+    row = repository.get_by_id(row_id)
     if row is None:
         return None
     row.is_deleted = True

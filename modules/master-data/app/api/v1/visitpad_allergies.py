@@ -7,7 +7,6 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import (
-    get_platform_tenant_id,
     get_session,
     get_visitpad_allergen_repository,
     get_visitpad_allergy_reaction_repository,
@@ -51,7 +50,6 @@ reactions_router = APIRouter(
 @allergens_router.get("", response_model=VisitpadAllergenListResponse, summary="List allergens")
 def get_allergens(
     repository: Annotated[VisitpadAllergenRepository, Depends(get_visitpad_allergen_repository)],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     search: Annotated[str | None, Query()] = None,
@@ -59,7 +57,6 @@ def get_allergens(
 ) -> VisitpadAllergenListResponse:
     rows, total = list_visitpad_allergens(
         repository,
-        tenant_id=tenant_id,
         search=search,
         allergen_type=allergen_type.value if allergen_type is not None else None,
         limit=limit,
@@ -80,10 +77,9 @@ def get_allergens(
 def post_allergen(
     payload: VisitpadAllergenCreate,
     repository: Annotated[VisitpadAllergenRepository, Depends(get_visitpad_allergen_repository)],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadAllergenSingleResponse:
-    row = create_visitpad_allergen(repository, tenant_id=tenant_id, payload=payload)
+    row = create_visitpad_allergen(repository, payload=payload)
     session.commit()
     return VisitpadAllergenSingleResponse(data=VisitpadAllergenResponse.model_validate(row))
 
@@ -92,9 +88,8 @@ def post_allergen(
 def get_allergen(
     allergen_id: UUID,
     repository: Annotated[VisitpadAllergenRepository, Depends(get_visitpad_allergen_repository)],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
 ) -> VisitpadAllergenSingleResponse:
-    row = get_visitpad_allergen_by_id(repository, tenant_id=tenant_id, row_id=allergen_id)
+    row = get_visitpad_allergen_by_id(repository, row_id=allergen_id)
     if row is None:
         raise ResourceNotFoundError("No allergen with this id.")
     return VisitpadAllergenSingleResponse(data=VisitpadAllergenResponse.model_validate(row))
@@ -105,12 +100,10 @@ def patch_allergen(
     allergen_id: UUID,
     payload: VisitpadAllergenUpdate,
     repository: Annotated[VisitpadAllergenRepository, Depends(get_visitpad_allergen_repository)],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadAllergenSingleResponse:
     row = update_visitpad_allergen(
         repository,
-        tenant_id=tenant_id,
         row_id=allergen_id,
         payload=payload,
     )
@@ -124,10 +117,9 @@ def patch_allergen(
 def delete_allergen(
     allergen_id: UUID,
     repository: Annotated[VisitpadAllergenRepository, Depends(get_visitpad_allergen_repository)],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadAllergenSingleResponse:
-    row = soft_delete_visitpad_allergen(repository, tenant_id=tenant_id, row_id=allergen_id)
+    row = soft_delete_visitpad_allergen(repository, row_id=allergen_id)
     if row is None:
         raise ResourceNotFoundError("No allergen with this id.")
     session.commit()
@@ -140,14 +132,12 @@ def get_reactions(
         VisitpadAllergyReactionRepository,
         Depends(get_visitpad_allergy_reaction_repository),
     ],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     search: Annotated[str | None, Query()] = None,
 ) -> VisitpadAllergyReactionListResponse:
     rows, total = list_visitpad_allergy_reactions(
         repository,
-        tenant_id=tenant_id,
         search=search,
         limit=limit,
         offset=offset,
@@ -170,10 +160,9 @@ def post_reaction(
         VisitpadAllergyReactionRepository,
         Depends(get_visitpad_allergy_reaction_repository),
     ],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadAllergyReactionSingleResponse:
-    row = create_visitpad_allergy_reaction(repository, tenant_id=tenant_id, payload=payload)
+    row = create_visitpad_allergy_reaction(repository, payload=payload)
     session.commit()
     return VisitpadAllergyReactionSingleResponse(data=VisitpadAllergyReactionResponse.model_validate(row))
 
@@ -189,9 +178,8 @@ def get_reaction(
         VisitpadAllergyReactionRepository,
         Depends(get_visitpad_allergy_reaction_repository),
     ],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
 ) -> VisitpadAllergyReactionSingleResponse:
-    row = get_visitpad_allergy_reaction_by_id(repository, tenant_id=tenant_id, row_id=reaction_id)
+    row = get_visitpad_allergy_reaction_by_id(repository, row_id=reaction_id)
     if row is None:
         raise ResourceNotFoundError("No allergy reaction with this id.")
     return VisitpadAllergyReactionSingleResponse(data=VisitpadAllergyReactionResponse.model_validate(row))
@@ -209,12 +197,10 @@ def patch_reaction(
         VisitpadAllergyReactionRepository,
         Depends(get_visitpad_allergy_reaction_repository),
     ],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadAllergyReactionSingleResponse:
     row = update_visitpad_allergy_reaction(
         repository,
-        tenant_id=tenant_id,
         row_id=reaction_id,
         payload=payload,
     )
@@ -235,10 +221,9 @@ def delete_reaction(
         VisitpadAllergyReactionRepository,
         Depends(get_visitpad_allergy_reaction_repository),
     ],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadAllergyReactionSingleResponse:
-    row = soft_delete_visitpad_allergy_reaction(repository, tenant_id=tenant_id, row_id=reaction_id)
+    row = soft_delete_visitpad_allergy_reaction(repository, row_id=reaction_id)
     if row is None:
         raise ResourceNotFoundError("No allergy reaction with this id.")
     session.commit()

@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_platform_tenant_id, get_session, get_visitpad_medicine_repository
+from app.api.deps import get_session, get_visitpad_medicine_repository
 from app.api.errors import ResourceNotFoundError
 from app.repositories.visitpad_medicine_repository import VisitpadMedicineRepository
 from app.schemas.visitpad_medicine import (
@@ -31,7 +31,6 @@ router = APIRouter(prefix="/visitpad/medicines", tags=["Visitpad — Medicines"]
 @router.get("", response_model=VisitpadMedicineListResponse, summary="List medicines")
 def get_medicines(
     repository: Annotated[VisitpadMedicineRepository, Depends(get_visitpad_medicine_repository)],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     search: Annotated[str | None, Query()] = None,
@@ -39,7 +38,6 @@ def get_medicines(
 ) -> VisitpadMedicineListResponse:
     rows, total = list_visitpad_medicines(
         repository,
-        tenant_id=tenant_id,
         search=search,
         schedule=schedule.value if schedule is not None else None,
         limit=limit,
@@ -60,10 +58,9 @@ def get_medicines(
 def post_medicine(
     payload: VisitpadMedicineCreate,
     repository: Annotated[VisitpadMedicineRepository, Depends(get_visitpad_medicine_repository)],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadMedicineSingleResponse:
-    row = create_visitpad_medicine(repository, tenant_id=tenant_id, payload=payload)
+    row = create_visitpad_medicine(repository, payload=payload)
     session.commit()
     return VisitpadMedicineSingleResponse(data=VisitpadMedicineResponse.model_validate(row))
 
@@ -72,9 +69,8 @@ def post_medicine(
 def get_medicine(
     medicine_id: UUID,
     repository: Annotated[VisitpadMedicineRepository, Depends(get_visitpad_medicine_repository)],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
 ) -> VisitpadMedicineSingleResponse:
-    row = get_visitpad_medicine_by_id(repository, tenant_id=tenant_id, row_id=medicine_id)
+    row = get_visitpad_medicine_by_id(repository, row_id=medicine_id)
     if row is None:
         raise ResourceNotFoundError("No medicine with this id.")
     return VisitpadMedicineSingleResponse(data=VisitpadMedicineResponse.model_validate(row))
@@ -85,12 +81,10 @@ def patch_medicine(
     medicine_id: UUID,
     payload: VisitpadMedicineUpdate,
     repository: Annotated[VisitpadMedicineRepository, Depends(get_visitpad_medicine_repository)],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadMedicineSingleResponse:
     row = update_visitpad_medicine(
         repository,
-        tenant_id=tenant_id,
         row_id=medicine_id,
         payload=payload,
     )
@@ -104,10 +98,9 @@ def patch_medicine(
 def delete_medicine(
     medicine_id: UUID,
     repository: Annotated[VisitpadMedicineRepository, Depends(get_visitpad_medicine_repository)],
-    tenant_id: Annotated[UUID, Depends(get_platform_tenant_id)],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadMedicineSingleResponse:
-    row = soft_delete_visitpad_medicine(repository, tenant_id=tenant_id, row_id=medicine_id)
+    row = soft_delete_visitpad_medicine(repository, row_id=medicine_id)
     if row is None:
         raise ResourceNotFoundError("No medicine with this id.")
     session.commit()
