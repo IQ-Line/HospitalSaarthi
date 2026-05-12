@@ -15,4 +15,6 @@ export {
   useVisitpadRxColumns,
   useVisitpadUnits,
   useVisitpadVitals,
+  useVisitpadVaccines,
+  useVisitpadManufacturers,
 } from './catalog';

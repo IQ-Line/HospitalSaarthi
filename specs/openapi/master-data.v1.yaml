@@ -2593,6 +2593,314 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/manufacturers:
+    get:
+      tags:
+      - Visitpad — Manufacturers
+      summary: List manufacturers
+      operationId: get_manufacturers_api_v1_master_data_visitpad_manufacturers_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: search
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Search
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadManufacturerListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - Visitpad — Manufacturers
+      summary: Create manufacturer
+      operationId: post_manufacturer_api_v1_master_data_visitpad_manufacturers_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadManufacturerCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadManufacturerSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/manufacturers/{manufacturer_id}:
+    get:
+      tags:
+      - Visitpad — Manufacturers
+      summary: Get manufacturer
+      operationId: get_manufacturer_api_v1_master_data_visitpad_manufacturers__manufacturer_id__get
+      parameters:
+      - name: manufacturer_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Manufacturer Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadManufacturerSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - Visitpad — Manufacturers
+      summary: Update manufacturer
+      operationId: patch_manufacturer_api_v1_master_data_visitpad_manufacturers__manufacturer_id__patch
+      parameters:
+      - name: manufacturer_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Manufacturer Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadManufacturerUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadManufacturerSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - Visitpad — Manufacturers
+      summary: Soft-delete manufacturer
+      operationId: delete_manufacturer_api_v1_master_data_visitpad_manufacturers__manufacturer_id__delete
+      parameters:
+      - name: manufacturer_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Manufacturer Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadManufacturerSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/vaccines:
+    get:
+      tags:
+      - Visitpad — Vaccines
+      summary: List vaccines
+      operationId: get_vaccines_api_v1_master_data_visitpad_vaccines_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: search
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Search
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadVaccineListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - Visitpad — Vaccines
+      summary: Create vaccine
+      operationId: post_vaccine_api_v1_master_data_visitpad_vaccines_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadVaccineCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadVaccineSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/vaccines/{vaccine_id}:
+    get:
+      tags:
+      - Visitpad — Vaccines
+      summary: Get vaccine
+      operationId: get_vaccine_api_v1_master_data_visitpad_vaccines__vaccine_id__get
+      parameters:
+      - name: vaccine_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Vaccine Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadVaccineSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - Visitpad — Vaccines
+      summary: Update vaccine
+      operationId: patch_vaccine_api_v1_master_data_visitpad_vaccines__vaccine_id__patch
+      parameters:
+      - name: vaccine_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Vaccine Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadVaccineUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadVaccineSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - Visitpad — Vaccines
+      summary: Soft-delete vaccine
+      operationId: delete_vaccine_api_v1_master_data_visitpad_vaccines__vaccine_id__delete
+      parameters:
+      - name: vaccine_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Vaccine Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadVaccineSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /visitpad/procedures:
     get:
       tags:
@@ -4692,6 +5000,309 @@ components:
       - dosage_form
       - schedule
       title: VisitpadMedicineCreate
+    VisitpadManufacturerCreate:
+      additionalProperties: false
+      type: object
+      required:
+      - code
+      - display_name
+      properties:
+        code:
+          type: string
+          minLength: 3
+          maxLength: 9
+          pattern: ^[A-Za-z0-9_]{3,9}$
+          title: Code
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 512
+          title: Display Name
+        short_name:
+          anyOf:
+          - type: string
+            maxLength: 120
+          - type: 'null'
+          title: Short Name
+        display_order:
+          type: integer
+          title: Display Order
+          default: 0
+        is_active:
+          type: boolean
+          title: Is Active
+          default: true
+      title: VisitpadManufacturerCreate
+    VisitpadManufacturerListResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/VisitpadManufacturerResponse'
+          type: array
+          title: Data
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - data
+      - total
+      title: VisitpadManufacturerListResponse
+    VisitpadManufacturerResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        iq_tenant_id:
+          type: string
+          format: uuid
+          nullable: true
+          title: Iq Tenant Id
+        code:
+          type: string
+          maxLength: 9
+          title: Code
+        short_name:
+          anyOf:
+          - type: string
+            maxLength: 120
+          - type: 'null'
+          title: Short Name
+        display_name:
+          type: string
+          title: Display Name
+        display_order:
+          type: integer
+          title: Display Order
+        is_active:
+          type: boolean
+          title: Is Active
+        is_deleted:
+          type: boolean
+          title: Is Deleted
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+          title: Created By
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+          title: Updated By
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - id
+      - iq_tenant_id
+      - code
+      - display_name
+      - display_order
+      - is_active
+      - is_deleted
+      - created_at
+      - updated_at
+      title: VisitpadManufacturerResponse
+    VisitpadManufacturerSingleResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/VisitpadManufacturerResponse'
+      type: object
+      required:
+      - data
+      title: VisitpadManufacturerSingleResponse
+    VisitpadManufacturerUpdate:
+      additionalProperties: false
+      type: object
+      properties:
+        display_name:
+          anyOf:
+          - type: string
+            maxLength: 512
+            minLength: 1
+          - type: 'null'
+          title: Display Name
+        short_name:
+          anyOf:
+          - type: string
+            maxLength: 120
+          - type: 'null'
+          title: Short Name
+        display_order:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Display Order
+        is_active:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Active
+        is_deleted:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Deleted
+      title: VisitpadManufacturerUpdate
+    VisitpadVaccineCreate:
+      additionalProperties: false
+      type: object
+      required:
+      - code
+      - display_name
+      properties:
+        code:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[A-Za-z0-9_]{1,64}$
+          title: Code
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 512
+          title: Display Name
+        short_name:
+          anyOf:
+          - type: string
+            maxLength: 120
+          - type: 'null'
+          title: Short Name
+        display_order:
+          type: integer
+          title: Display Order
+          default: 0
+        is_active:
+          type: boolean
+          title: Is Active
+          default: true
+      title: VisitpadVaccineCreate
+    VisitpadVaccineListResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/VisitpadVaccineResponse'
+          type: array
+          title: Data
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - data
+      - total
+      title: VisitpadVaccineListResponse
+    VisitpadVaccineResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        iq_tenant_id:
+          type: string
+          format: uuid
+          nullable: true
+          title: Iq Tenant Id
+        code:
+          type: string
+          title: Code
+        short_name:
+          anyOf:
+          - type: string
+            maxLength: 120
+          - type: 'null'
+          title: Short Name
+        display_name:
+          type: string
+          title: Display Name
+        display_order:
+          type: integer
+          title: Display Order
+        is_active:
+          type: boolean
+          title: Is Active
+        is_deleted:
+          type: boolean
+          title: Is Deleted
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+          title: Created By
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+          title: Updated By
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - id
+      - iq_tenant_id
+      - code
+      - display_name
+      - display_order
+      - is_active
+      - is_deleted
+      - created_at
+      - updated_at
+      title: VisitpadVaccineResponse
+    VisitpadVaccineSingleResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/VisitpadVaccineResponse'
+      type: object
+      required:
+      - data
+      title: VisitpadVaccineSingleResponse
+    VisitpadVaccineUpdate:
+      additionalProperties: false
+      type: object
+      properties:
+        display_name:
+          anyOf:
+          - type: string
+            maxLength: 512
+            minLength: 1
+          - type: 'null'
+          title: Display Name
+        short_name:
+          anyOf:
+          - type: string
+            maxLength: 120
+          - type: 'null'
+          title: Short Name
+        display_order:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Display Order
+        is_active:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Active
+        is_deleted:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Deleted
+      title: VisitpadVaccineUpdate
     VisitpadMedicineListResponse:
       properties:
         data:

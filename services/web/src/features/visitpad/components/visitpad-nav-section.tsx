@@ -1,10 +1,12 @@
 import {
   ArrowRightLeft,
   BookOpen,
+  Building2,
   CalendarClock,
   ChevronDown,
   ChevronRight,
   Columns2,
+  FlaskConical,
   HeartPulse,
   Layers,
   PillBottle,
@@ -135,6 +137,20 @@ export function VisitpadNavSection({
             to="/visitpad/procedures"
             label="Procedures"
             icon={Scissors}
+            collapsed={collapsed}
+            nested
+          />
+          <SidebarNavLink
+            to="/visitpad/vaccines"
+            label="Vaccines"
+            icon={FlaskConical}
+            collapsed={collapsed}
+            nested
+          />
+          <SidebarNavLink
+            to="/visitpad/manufacturers"
+            label="Manufacturers"
+            icon={Building2}
             collapsed={collapsed}
             nested
           />

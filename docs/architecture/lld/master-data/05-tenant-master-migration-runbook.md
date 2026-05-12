@@ -32,11 +32,11 @@ Long-lived branches or partial deploys (DB upgraded, app not, or vice versa) mus
 
 - **Backup** the database (or restore window agreed with operations).
 - Confirm **application version** deployed after upgrade sends **`iq_tenant_id`** as a **UUID string** (or omits the header for global `public` catalog). The web client blocks Visitpad **writes** without a UUID tenant id when applicable.
-- Plan **re-seed** scripts or jobs for any **tenant-scoped** catalog you rely on in `tenant_master` (units, conversions, vitals, platform modules copy, etc.) — **`022` empties those rows**.
+- Plan **re-seed** scripts or jobs for any **tenant-scoped** catalog you rely on in `tenant_master` (units, conversions, vitals, vaccines, manufacturers, platform modules copy, etc.) — **`022` empties those rows** (revision **`023`** adds `vaccines` / `manufacturers`; they are empty until seeded).
 
 ## 5. After upgrade — verification
 
-1. **Alembic version:** `SELECT version_num FROM alembic_version;` — expect latest revision (e.g. **`022_tm_iq_tenant_uuid`** or newer head).
+1. **Alembic version:** `SELECT version_num FROM alembic_version;` — expect latest revision (e.g. **`023_vp_vaccines_manufacturers`** or newer head).
 2. **Column type (PostgreSQL):**
 
    ```sql
@@ -69,4 +69,5 @@ Automated tests typically use SQLite with ORM `create_all`; **PostgreSQL-only** 
 ## 8. Related code
 
 - Truncated table list and upgrade logic: `modules/master-data/alembic/versions/022_tm_iq_tenant_uuid.py`
+- Visitpad vaccines / manufacturers DDL: `modules/master-data/alembic/versions/023_vp_vaccines_manufacturers.py`
 - Scope parsing: `modules/master-data/app/core/catalog_tenant_id.py`, `app/api/deps.py` (`get_catalog_scope`)

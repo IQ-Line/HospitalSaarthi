@@ -279,7 +279,7 @@ function MedicineCreateDialog({
       isSubmitting={isSubmitting}
       onSubmit={form.handleSubmit(submit)}
     >
-      <div className="max-h-[70vh] space-y-6 overflow-y-auto pr-1">
+      <div className="space-y-6">
         <FieldSection title="Identity">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
@@ -654,7 +654,7 @@ function MedicineEditDialog({
       onSubmit={form.handleSubmit(submit)}
     >
       {row ? (
-        <div className="max-h-[70vh] space-y-6 overflow-y-auto pr-1">
+        <div className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="vp-me-code-ro">Medicine code</Label>
             <Input id="vp-me-code-ro" value={row.code} readOnly className="bg-muted font-mono text-sm" />

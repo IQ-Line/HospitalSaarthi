@@ -563,6 +563,48 @@ export const visitpadProcedureEditFormSchema = z.object({
   is_active: z.boolean(),
 });
 
+const VISITPAD_CATALOG_CODE_1_64 = /^[A-Za-z0-9_]{1,64}$/;
+
+export const visitpadVaccineCreateFormSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .min(1)
+    .max(64)
+    .regex(VISITPAD_CATALOG_CODE_1_64, 'Use 1–64 letters, digits, or underscores.'),
+  display_name: z.string().trim().min(1).max(512),
+  short_name: z.string().max(120).optional(),
+  is_active: z.boolean(),
+});
+
+export const visitpadVaccineEditFormSchema = z.object({
+  display_name: z.string().trim().min(1).max(512),
+  short_name: z.string().max(120).optional(),
+  display_order: z.coerce.number().int(),
+  is_active: z.boolean(),
+});
+
+const MANUFACTURER_CODE_REGEX = /^[A-Za-z0-9_]{3,9}$/;
+
+export const visitpadManufacturerCreateFormSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .min(3)
+    .max(9)
+    .regex(MANUFACTURER_CODE_REGEX, 'Use 3–9 letters, digits, or underscores only.'),
+  display_name: z.string().trim().min(1).max(512),
+  short_name: z.union([z.string().max(120), z.literal('')]).optional(),
+  is_active: z.boolean(),
+});
+
+export const visitpadManufacturerEditFormSchema = z.object({
+  display_name: z.string().trim().min(1).max(512),
+  short_name: z.union([z.string().max(120), z.literal('')]).optional(),
+  display_order: z.coerce.number().int(),
+  is_active: z.boolean(),
+});
+
 export type VisitpadUnitCreateSchema = z.infer<typeof visitpadUnitCreateSchema>;
 export type VisitpadUnitEditFormSchema = z.infer<typeof visitpadUnitEditFormSchema>;
 export type VisitpadUnitConversionCreateSchema = z.infer<typeof visitpadUnitConversionCreateSchema>;
@@ -583,4 +625,8 @@ export type VisitpadProcedureCreateFormSchema = z.infer<typeof visitpadProcedure
 export type VisitpadProcedureCreateFormInput = z.input<typeof visitpadProcedureCreateFormSchema>;
 export type VisitpadProcedureEditFormSchema = z.infer<typeof visitpadProcedureEditFormSchema>;
 export type VisitpadProcedureEditFormInput = z.input<typeof visitpadProcedureEditFormSchema>;
+export type VisitpadVaccineCreateFormSchema = z.infer<typeof visitpadVaccineCreateFormSchema>;
+export type VisitpadVaccineEditFormSchema = z.infer<typeof visitpadVaccineEditFormSchema>;
+export type VisitpadManufacturerCreateFormSchema = z.infer<typeof visitpadManufacturerCreateFormSchema>;
+export type VisitpadManufacturerEditFormSchema = z.infer<typeof visitpadManufacturerEditFormSchema>;
 export type VisitpadVitalEditFormSchema = z.infer<typeof visitpadVitalEditFormSchema>;
