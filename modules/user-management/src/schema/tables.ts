@@ -115,10 +115,11 @@ export const role_permissions = userManagementSchema.table(
   {
     ...tenantColumn(),
     role_id: uuid("role_id").notNull(),
-    permission_id: uuid("permission_id").notNull(),
+    /** Immutable operational identifier consumed directly by Cerbos (e.g. "um:user:create"). */
+    permission_slug: text("permission_slug").notNull(),
   },
   (t) => [
-    primaryKey({ columns: [t.iq_tenant_id, t.role_id, t.permission_id] }),
+    primaryKey({ columns: [t.iq_tenant_id, t.role_id, t.permission_slug] }),
     foreignKey({
       name: "fk_role_permissions_tenant_role",
       columns: [t.iq_tenant_id, t.role_id],

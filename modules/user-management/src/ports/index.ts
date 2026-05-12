@@ -54,12 +54,11 @@ export interface UserRepository {
 /**
  * Tenant-scoped ABAC attributes sourced from User Management persistence (LLD §6–7).
  *
- * `listRolePermissionIdsForUser` returns raw permission **UUIDs** (not slugs). The caller
- * (DefaultPrincipalService) resolves these to slug strings via {@link MasterDataPermissionsPort}
- * before populating `principal.attributes.capabilities` for Cerbos.
+ * `listRolePermissionSlugsForUser` returns permission **slugs** directly from `role_permissions`.
+ * These are the immutable operational identifiers consumed by Cerbos (e.g. "um:user:create").
  */
 export interface AbacAttributeRepository {
-  listRolePermissionIdsForUser(tenantId: string, userId: string): Promise<string[]>;
+  listRolePermissionSlugsForUser(tenantId: string, userId: string): Promise<string[]>;
   getClearances(tenantId: string, userId: string): Promise<Record<string, string>>;
   listDelegatedCapabilities(tenantId: string, userId: string): Promise<string[]>;
 }

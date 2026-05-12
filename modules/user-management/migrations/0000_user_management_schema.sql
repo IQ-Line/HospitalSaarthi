@@ -79,11 +79,13 @@ CREATE INDEX IF NOT EXISTS idx_role_assignments_tenant_user
   ON user_management.role_assignments (iq_tenant_id, user_id);
 
 -- ─── role_permissions ─────────────────────────────────────────────────────────
+-- permission_slug is an immutable operational identifier consumed directly by Cerbos
+-- (e.g. 'um:user:create'). No FK to a permissions catalog — slugs are the source of truth.
 CREATE TABLE IF NOT EXISTS user_management.role_permissions (
   iq_tenant_id uuid NOT NULL,
   role_id uuid NOT NULL,
-  permission_id uuid NOT NULL,
-  CONSTRAINT role_permissions_pkey PRIMARY KEY (iq_tenant_id, role_id, permission_id),
+  permission_slug text NOT NULL,
+  CONSTRAINT role_permissions_pkey PRIMARY KEY (iq_tenant_id, role_id, permission_slug),
   CONSTRAINT fk_role_permissions_tenant_role
     FOREIGN KEY (iq_tenant_id, role_id)
     REFERENCES user_management.roles (iq_tenant_id, id)
