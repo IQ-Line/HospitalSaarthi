@@ -9,7 +9,8 @@
 | Doc | Role |
 |-----|------|
 | [visitpad-master-implementation-plan.md](./visitpad-master-implementation-plan.md) | Build order, waves, payload ↔ UI matrix |
-| [../architecture/lld/master-data/01-catalog-dual-schema.md](../architecture/lld/master-data/01-catalog-dual-schema.md) | `public` vs `tenant_master`, `iq_tenant_id` (numeric only when sent) |
+| [../architecture/lld/master-data/01-catalog-dual-schema.md](../architecture/lld/master-data/01-catalog-dual-schema.md) | `public` vs `tenant_master`; optional **`iq_tenant_id`** request header = **canonical UUID** for `tenant_master` scope (omit for `public`); invalid UUID → **400** |
+| [../architecture/lld/master-data/05-tenant-master-migration-runbook.md](../architecture/lld/master-data/05-tenant-master-migration-runbook.md) | PostgreSQL **`012`→`022`** truncate / re-seed / verification |
 | [../architecture/lld/master-data/03-visitpad-master.md](../architecture/lld/master-data/03-visitpad-master.md) | Ownership, path conventions, Python layout |
 | `specs/openapi/master-data.v1.yaml` | Normative HTTP contract (paths, schemas, status codes) |
 | `modules/master-data/tests/` | Automated regression |
@@ -36,7 +37,7 @@
 **Normative order (HIMS wins conflicts):**
 
 1. **`specs/openapi/master-data.v1.yaml`** — paths, schemas, enums, status codes.  
-2. **`modules/master-data/app/schemas/visitpad_*.py`** — `*Response`, `*Create`, `*Update`.  
+2. **`modules/master-data/app/schemas/visitpad/*.py`** — `*Response`, `*Create`, `*Update`.  
 3. **ORM + Alembic** under `modules/master-data/`.  
 4. **Web** — `services/web/src/features/visitpad/types.ts`, `validation.ts`, `routes/_authenticated/visitpad/*.tsx`.
 
@@ -60,23 +61,23 @@
 | Identifiers | **UUID** `id` string in JSON — not Mongo `_id` / duplicate `id`. |
 | Mongo / Mongoose | **Do not** add `__v`, `discriminator`, or parallel `_id` to HIMS JSON. |
 | Audit users | `created_by` / `updated_by` **only** where columns + OpenAPI + UI exist (units today: optional gap — see §1.A). |
-| Tenant | `iq_tenant_id`: **`null`** for global `public` rows; **integer** when `tenant_master` scope; never send slug as `iq_tenant_id` (see dual-schema LLD). |
+| Tenant | `iq_tenant_id` in JSON: **`null`** for global `public` rows; **UUID string** when the row is served from **`tenant_master`**. Request header **`iq_tenant_id`** must be a **canonical UUID** (or omitted for global); **non-UUID** header value → **400** (see [ADR-0021](../architecture/adr/0021-master-data-catalog-tenant-key-type.md)). |
 
 ### Master map — normative files per Visitpad section
 
 | § | UI route (web) | HTTP prefix (under `/api/v1/master-data`) | Pydantic module (`app/schemas/`) | Primary web route file | E2E status |
 |---|----------------|-----------------------------------------------|-----------------------------------|-------------------------|------------|
-| 1 | `/visitpad/units` | `/visitpad/units` | `visitpad_unit.py` (`VisitpadUnit*`) | `visitpad/units.tsx` | **Done** (HIMS UI + API) |
-| 2 | `/visitpad/conversions` | `/visitpad/unit-conversions` | `visitpad_unit.py` (`VisitpadUnitConversion*`) | `visitpad/conversions.tsx` | **Done** (HIMS UI + API) |
-| 3 | `/visitpad/vitals` | `/visitpad/vitals` | `visitpad_vital.py` | `visitpad/vitals.tsx` | **Partial** — §3.A parity + Add form aligned to `VisitpadVitalCreate`; legacy-only gaps documented (paediatric criticals, `display_label`, category taxonomy). Full **Verify** checklist still QA-owned. |
-| 4 | `/visitpad/chief-complaints` | `/visitpad/chief-complaints` | `visitpad_chief_complaint.py` | `visitpad/chief-complaints.tsx` | Pending |
-| 5 | `/visitpad/diagnoses` | `/visitpad/diagnoses` | `visitpad_diagnosis.py` | `visitpad/diagnoses.tsx` | Pending |
-| 6 | `/visitpad/allergens` | `/visitpad/allergens` | `visitpad_allergen.py` (`VisitpadAllergen*`) | `visitpad/allergens.tsx` | Pending |
-| 7 | `/visitpad/reactions` | `/visitpad/allergy-reactions` | `visitpad_allergen.py` (`VisitpadAllergyReaction*`) | `visitpad/reactions.tsx` | Pending |
-| 8 | `/visitpad/rx-columns` | `/visitpad/rx-columns` | `visitpad_rx_column.py` | `visitpad/rx-columns.tsx` | **Done** — §8.A legacy `rxcolumns` map + create code 2–8 / immutable on PATCH; add modal matches medication-type style. |
-| 9 | `/visitpad/medicines` | `/visitpad/medicines` | `visitpad_medicine.py` | `visitpad/medicines.tsx` | **Partial** — §9.A add/edit form + legacy field map; code 3–8 immutable on PATCH. Full **Verify** checklist still QA-owned. |
-| 10 | `/visitpad/chronic-illness` | `/visitpad/chronic-illnesses` | `visitpad_chronic_illness.py` | `visitpad/chronic-illness.tsx` | **Partial** — §10.A legacy map; UI code + prompt + categories; API `icd10_code` = legacy code (3–8). |
-| 11 | `/visitpad/procedures` | `/visitpad/procedures` | `visitpad_procedure.py` | `visitpad/procedures.tsx` | **Partial** — §11.A legacy map; `cpt_code` = catalog code (3–8); `short_name`; immutable code on PATCH. |
+| 1 | `/visitpad/units` | `/visitpad/units` | `schemas/visitpad/unit.py` (`VisitpadUnit*`) | `visitpad/units.tsx` | **Done** (HIMS UI + API) |
+| 2 | `/visitpad/conversions` | `/visitpad/unit-conversions` | `schemas/visitpad/unit.py` (`VisitpadUnitConversion*`) | `visitpad/conversions.tsx` | **Done** (HIMS UI + API) |
+| 3 | `/visitpad/vitals` | `/visitpad/vitals` | `schemas/visitpad/vital.py` | `visitpad/vitals.tsx` | **Partial** — §3.A parity + Add form aligned to `VisitpadVitalCreate`; legacy-only gaps documented (paediatric criticals, unit picker labels vs legacy, category taxonomy). Full **Verify** checklist still QA-owned. |
+| 4 | `/visitpad/chief-complaints` | `/visitpad/chief-complaints` | `schemas/visitpad/chief_complaint.py` | `visitpad/chief-complaints.tsx` | Pending |
+| 5 | `/visitpad/diagnoses` | `/visitpad/diagnoses` | `schemas/visitpad/diagnosis.py` | `visitpad/diagnoses.tsx` | Pending |
+| 6 | `/visitpad/allergens` | `/visitpad/allergens` | `schemas/visitpad/allergen.py` (`VisitpadAllergen*`) | `visitpad/allergens.tsx` | Pending |
+| 7 | `/visitpad/reactions` | `/visitpad/allergy-reactions` | `schemas/visitpad/allergen.py` (`VisitpadAllergyReaction*`) | `visitpad/reactions.tsx` | Pending |
+| 8 | `/visitpad/rx-columns` | `/visitpad/rx-columns` | `schemas/visitpad/rx_column.py` | `visitpad/rx-columns.tsx` | **Done** — §8.A legacy `rxcolumns` map + create code 2–8 / immutable on PATCH; add modal matches medication-type style. |
+| 9 | `/visitpad/medicines` | `/visitpad/medicines` | `schemas/visitpad/medicine.py` | `visitpad/medicines.tsx` | **Partial** — §9.A add/edit form + legacy field map; code 3–8 immutable on PATCH. Full **Verify** checklist still QA-owned. |
+| 10 | `/visitpad/chronic-illness` | `/visitpad/chronic-illnesses` | `schemas/visitpad/chronic_illness.py` | `visitpad/chronic-illness.tsx` | **Partial** — §10.A legacy map; UI code + prompt + categories; API `icd10_code` = legacy code (3–8). |
+| 11 | `/visitpad/procedures` | `/visitpad/procedures` | `schemas/visitpad/procedure.py` | `visitpad/procedures.tsx` | **Partial** — §11.A legacy map; `cpt_code` = catalog code (3–8); `short_name`; immutable code on PATCH. |
 
 Shared: `features/visitpad/validation.ts` (Zod), `features/visitpad/types.ts` (TypeScript row shapes), `features/visitpad/api/catalog.ts` (list hooks).
 
@@ -90,8 +91,8 @@ Shared: `features/visitpad/validation.ts` (Zod), `features/visitpad/types.ts` (T
 | 0.2 | Master-data service healthy (`nx run master-data:serve` or deployed URL) | Dev |
 | 0.3 | Web `VITE_API_BASE_URL` points to API that proxies `/api/v1/master-data` | Dev |
 | 0.4 | Test user can open **Visitpad templates** (permissions / route gate) | QA |
-| 0.5 | **Global catalog:** tenant store uses non-numeric slug (e.g. `tenant-001`) → `iq_tenant_id` **not** sent → reads **`public`** seed data | QA |
-| 0.6 | **Tenant catalog (optional):** numeric tenant only (e.g. `1`) if testing `tenant_master` rows | QA |
+| 0.5 | **Global catalog:** `iq_tenant_id` header **omitted** (or blank) → reads/writes **`public`** seed data | QA |
+| 0.6 | **Tenant catalog (optional):** send **`iq_tenant_id`** = **canonical UUID** registered for the test tenant; **`tenant_master`** must be seeded for non-empty lists after migrations that truncate (see [05 migration runbook](../architecture/lld/master-data/05-tenant-master-migration-runbook.md)) | QA |
 | 0.7 | `uv run pytest` in `modules/master-data` passes on current branch | Dev |
 
 ---
@@ -136,7 +137,7 @@ Use this when migrating expectations from screenshots or old APIs. **Normative c
 | Legacy field (camelCase) | HIMS list/detail field (snake_case) | Create form (`POST` body) | Notes |
 |--------------------------|-------------------------------------|----------------------------|--------|
 | `code` | `code` | Yes | HIMS: trim + lowercase on write; length **1–64** (not legacy “3–9 chars” UI copy unless product re-imposes). |
-| `displayLabel` | `display_label` | Yes | |
+| `displayLabel` | `display_name` | Yes | |
 | `displayOrder` | `display_order` | Yes | |
 | `dimension` (e.g. `temperature`) | `dimension` | Yes | Same enum set (`VisitpadUnitDimension` / `VISITPAD_UNIT_DIMENSIONS`). |
 | `isActive` | `is_active` | Yes (default true) | |
@@ -146,7 +147,7 @@ Use this when migrating expectations from screenshots or old APIs. **Normative c
 | `createdAt` / `updatedAt` | `created_at` / `updated_at` | N/A (read-only) | ISO-8601 strings in JSON. |
 | `id` / `_id` (24-char hex) | `id` (UUID string) | N/A | **Do not** expect `_id`, `__v`, or `discriminator`. |
 | `createdBy` / `updatedBy` | *not exposed on units today* | N/A | **Gap vs legacy:** audit user ids are **not** on `units` table in HIMS. Add only if product + migration + OpenAPI agree (otherwise track at gateway logs). |
-| — | `iq_tenant_id` | N/A | **null** in `public` global rows; integer when row served from `tenant_master`. |
+| — | `iq_tenant_id` | N/A | **`null`** in `public` global rows; **UUID string** when the row is served from **`tenant_master`**. |
 
 **Deliberately do not add to HIMS unit JSON:** `_id`, `__v`, `discriminator`, Mongo-style duplicates, or camelCase property names in API responses (clients may camelCase only if a separate codegen layer exists; web uses snake_case to match API).
 
@@ -155,7 +156,7 @@ Use this when migrating expectations from screenshots or old APIs. **Normative c
 | `VisitpadUnitCreate` field | On “Add unit” UI |
 |----------------------------|------------------|
 | `code` | Yes |
-| `display_label` | Yes |
+| `display_name` | Yes |
 | `dimension` | Yes |
 | `ucum_code` | Yes (optional) |
 | `is_canonical` | Yes |
@@ -166,7 +167,7 @@ No extra create keys are sent; nothing required by API is missing from the dialo
 
 **Must match**
 
-- [x] Field names and enums (dimension, `code`, `display_label`, `is_canonical`, `display_order`, `is_active`, `is_deleted`) align with OpenAPI components; JSON uses **snake_case** as in `VisitpadUnitResponse`.
+- [x] Field names and enums (dimension, `code`, `display_name`, `is_canonical`, `display_order`, `is_active`, `is_deleted`) align with OpenAPI components; JSON uses **snake_case** as in `VisitpadUnitResponse`.
 - [x] Unique natural key for active rows matches spec (global: code uniqueness in `public`).
 - [x] PATCH semantics: partial update; errors use consistent `detail` shape.
 
@@ -187,7 +188,7 @@ No extra create keys are sent; nothing required by API is missing from the dialo
 - [x] **List:** GET returns 200; `total` consistent with visible non-deleted rows.
 - [x] **Create:** POST minimal valid body → 201; row appears in list.
 - [x] **Duplicate:** second active row with same `code` (case rules per spec) → 409 or documented code.
-- [x] **Patch:** change `is_active` / `display_label` → 200; invalid body → 422/400 per spec.
+- [x] **Patch:** change `is_active` / `display_name` → 200; invalid body → 422/400 per spec.
 - [x] **Delete:** soft-delete → row hidden from default list; GET by id behaviour per spec (404 or include_deleted).
 - [x] **UI:** table columns, search, dimension filter, Add dialog validation mirror API.
 
@@ -201,17 +202,17 @@ No extra create keys are sent; nothing required by API is missing from the dialo
 |--|--|
 | **UI route** | `/visitpad/conversions` |
 | **API** | `GET/POST …/visitpad/unit-conversions`, `GET/PATCH/DELETE …/visitpad/unit-conversions/{id}` |
-| **Depends on** | §1 — `from_unit_code` / `to_unit_code` must reference **active** units in the same catalog scope (`_ensure_conversion_pair_valid` in `visitpad_units_service.py`). |
+| **Depends on** | §1 — `from_unit_code` / `to_unit_code` must reference **active** units in the same catalog scope (`_ensure_conversion_pair_valid` in `app/services/visitpad/units.py`). |
 | **Web implementation** | `services/web/src/routes/_authenticated/visitpad/conversions.tsx`, `features/visitpad/unit-catalog.ts`, `features/visitpad/validation.ts` (`visitpadUnitConversionCreateSchema`, …), `features/visitpad/types.ts` (`VisitpadUnitConversion`) |
 
-**Verification status (HIMS):** **Complete.** Signed off against **Add conversion** / **Edit conversion** UI and **Network** JSON for `…/visitpad/unit-conversions`. From/To use **catalog dropdowns** (`code - display_label`, same line style as legacy Visitpad Masters); **Factor**, **Offset** (`offset_value`), and **Display order** are explicit on create. **Dual schema:** numeric `iq_tenant_id` → row in **`tenant_master.unit_conversions`** with **`iq_tenant_id`** set; no header / non-numeric tenant → **`public.unit_conversions`** and JSON **`iq_tenant_id`: `null`** (response field still present for a stable contract).
+**Verification status (HIMS):** **Complete.** Signed off against **Add conversion** / **Edit conversion** UI and **Network** JSON for `…/visitpad/unit-conversions`. From/To use **catalog dropdowns** (`code - display_name`, same line style as legacy Visitpad Masters); **Factor**, **Offset** (`offset_value`), and **Display order** are explicit on create. **Dual schema:** request with **`iq_tenant_id`** = **canonical UUID** → row in **`tenant_master.unit_conversions`** with that **`iq_tenant_id`**; **omit** header (global) → **`public.unit_conversions`** and JSON **`iq_tenant_id`: `null`** (response field still present for a stable contract). **Invalid UUID** in the header → **400**.
 
 ### §2.B HIMS sign-off checklist (E1–E5)
 
 | Step | Evidence | Done |
 |------|----------|------|
 | **E1** | Sample `GET` row: `id`, `iq_tenant_id`, `from_unit_code`, `to_unit_code`, `factor`, `offset_value`, `display_order`, `is_deleted`, `created_at`, `updated_at` (snake_case) | [x] |
-| **E2** | Matches `VisitpadUnitConversionResponse` in `visitpad_unit.py` | [x] |
+| **E2** | Matches `VisitpadUnitConversionResponse` in `schemas/visitpad/unit.py` | [x] |
 | **E3** | Create dialog → `POST` body keys: `from_unit_code`, `to_unit_code`, `factor`, `offset_value`, `display_order` only (no `iq_tenant_id` in body — scope from header); From/To chosen via **units catalog** dropdowns (`code - label`) | [x] |
 | **E4** | §2.A table + legacy `fromUnitId`/`toUnitId` → codes, `offset` → `offset_value` | [x] |
 | **E5** | List / create / edit / delete exercised vs API | [x] |
@@ -221,8 +222,8 @@ No extra create keys are sent; nothing required by API is missing from the dialo
 | JSON / DB field (`VisitpadUnitConversionResponse`) | Add conversion UI | `POST` body (`VisitpadUnitConversionCreate`) | Notes |
 |----------------------------------------------------|-------------------|-----------------------------------------------|--------|
 | `id` | — | N/A | Server-generated UUID. |
-| `iq_tenant_id` | — *(not a form field)* | N/A | **`null`** for global `public` rows; **integer** when request used numeric `iq_tenant_id` (`tenant_master`). Client does not send this on create. |
-| `from_unit_code` | **From unit *** — catalog `Select`, each row `code - display_label` (Visitpad Masters style) | Yes | Values are **codes**; trimmed + lowercased on write. If catalog is empty, fallback text fields. |
+| `iq_tenant_id` | — *(not a form field)* | N/A | **`null`** for global `public` rows; **UUID string** when the request used a valid **`iq_tenant_id`** header (`tenant_master`). Client does not send this on create. |
+| `from_unit_code` | **From unit *** — catalog `Select`, each row `code - display_name` (Visitpad Masters style) | Yes | Values are **codes**; trimmed + lowercased on write. If catalog is empty, fallback text fields. |
 | `to_unit_code` | **To unit *** — same pattern | Yes | Same. |
 | `factor` | **Factor *** | Yes | UI default **1**; API accepts **0** if submitted (stored as sent). |
 | `offset_value` | **Offset *** | Yes | Property name in API is **`offset_value`**, not legacy `offset`. |
@@ -234,7 +235,7 @@ No extra create keys are sent; nothing required by API is missing from the dialo
 
 **Intentionally absent vs some legacy APIs:** `is_active` on conversions (v1 uses `is_deleted` only), Mongo `_id` / `__v` / `discriminator`, camelCase keys.
 
-**List / table display:** From and To columns show **`code - display_label`** when the unit exists in the loaded units list (non-deleted); otherwise **code** only.
+**List / table display:** From and To columns show **`code - display_name`** when the unit exists in the loaded units list (non-deleted); otherwise **code** only.
 
 **Must match**
 
@@ -273,11 +274,11 @@ No extra create keys are sent; nothing required by API is missing from the dialo
 | **UI route** | `/visitpad/vitals` |
 | **API** | `…/visitpad/vitals` CRUD + list filters (`category`, `search`, pagination) |
 
-**Verification status (HIMS):** **Partial.** §3.A legacy→HIMS mapping is filled below. **Add vital** / **Edit vital** use the Visitpad **units** catalog for **default unit code** (`Select` with `display_label (code)`), with **unit label** prefilled and editable. Other optional fields (LOINC, SNOMED, ranges, `allowed_units`, pair target, etc.) as before. Remaining gaps are **legacy-only fields** with no first-class column (see table) or QA sign-off on the **Verify** matrix.
+**Verification status (HIMS):** **Partial.** §3.A legacy→HIMS mapping is filled below. **Add vital** / **Edit vital** use the Visitpad **units** catalog for **default unit code** (`Select` with `display_name (code)`), with **unit label** prefilled and editable. Other optional fields (LOINC, SNOMED, ranges, `allowed_units`, pair target, etc.) as before. Remaining gaps are **legacy-only fields** with no first-class column (see table) or QA sign-off on the **Verify** matrix.
 
 ### §3.A Legacy sample → HIMS (reference only)
 
-**Normative:** `VisitpadVitalResponse`, `VisitpadVitalCreate`, `VisitpadVitalUpdate` in `modules/master-data/app/schemas/visitpad_vital.py`. **ORM:** `app/models/visitpad_vital.py`. **Web:** `vitals.tsx`, `validation.ts` (`visitpadVitalCreateSchema`, `visitpadVitalEditFormSchema`).
+**Normative:** `VisitpadVitalResponse`, `VisitpadVitalCreate`, `VisitpadVitalUpdate` in `modules/master-data/app/schemas/visitpad/vital.py`. **ORM:** `modules/master-data/app/models/visitpad/vital.py`. **Web:** `vitals.tsx`, `validation.ts` (`visitpadVitalCreateSchema`, `visitpadVitalEditFormSchema`).
 
 | Legacy (Mongo / Visitpad-style JSON) | HIMS (OpenAPI / DB) | Tag |
 |--------------------------------------|---------------------|-----|
@@ -288,7 +289,7 @@ No extra create keys are sent; nothing required by API is missing from the dialo
 | `displayLabel` (e.g. “Pulse”) | — | **Gap (product)** — no dedicated field; legacy UI used alongside `displayName`. Options: add column, or encode under `reference_json` by convention. |
 | `category` (e.g. `cardiovascular`) | `category` (`vital_signs` \| `anthropometric` \| …) | **Map** — enums differ; map legacy clinical group to closest HIMS category or extend enum via spec ADR. |
 | `dataType` | `data_type` | Match |
-| `defaultUnit` (legacy unit dropdown) | `default_unit_code` + `unit` (label) | Match — **Add/Edit** use active Visitpad units list: `Select` shows `display_label (code)`; choosing a row sets code and prefills `unit` (overridable). |
+| `defaultUnit` (legacy unit dropdown) | `default_unit_code` + `unit` (label) | Match — **Add/Edit** use active Visitpad units list: `Select` shows `display_name (code)`; choosing a row sets code and prefills `unit` (overridable). |
 | `allowedAlternateUnits` | `allowed_units` | Match — create form: comma/space separated codes (must exist as units in scope). |
 | `extraAllowedTokens` | `reference_json` (optional convention) | **Map / defer** — no dedicated column; carry in JSON if product needs tokens. |
 | `inputMethod` | `input_method` | Match |
@@ -311,7 +312,7 @@ No extra create keys are sent; nothing required by API is missing from the dialo
 | Rich JSON fields (`reference_json`, `normal_range_*`) match OpenAPI `dict` shapes | [x] documented |
 | Create form sends all **required** `VisitpadVitalCreate` fields + optional parity fields used in legacy Add flow | [x] |
 | Zod: paired vitals require `pair_code` | [x] |
-| Default unit: catalog `Select` (`display_label (code)`) from `/visitpad/units`; empty catalog falls back to typed code | [x] |
+| Default unit: catalog `Select` (`display_name (code)`) from `/visitpad/units`; empty catalog falls back to typed code | [x] |
 
 **Must match**
 
@@ -322,7 +323,7 @@ No extra create keys are sent; nothing required by API is missing from the dialo
 
 **Add** (backlog)
 
-- [ ] Product decision on `display_label` and legacy `category` strings vs HIMS enum.
+- [ ] Product decision on unit **`display_name`** vs legacy label strings and legacy `category` strings vs HIMS enum.
 - [ ] Paediatric critical columns (or documented `reference_json` contract) + OpenAPI + edit/create UI.
 - [ ] Playwright / integration tests for vitals list + create + patch + delete.
 - [ ] Optional: JSON editor for large `reference_json` if categorical payloads grow.
@@ -352,7 +353,7 @@ No extra create keys are sent; nothing required by API is missing from the dialo
 
 ### §4.A Reference parity — chief complaints (fill per wave)
 
-**Normative:** `VisitpadChiefComplaintResponse`, `VisitpadChiefComplaintCreate`, `VisitpadChiefComplaintUpdate` in `visitpad_chief_complaint.py`. **Web:** `chief-complaints.tsx` + Zod.
+**Normative:** `VisitpadChiefComplaintResponse`, `VisitpadChiefComplaintCreate`, `VisitpadChiefComplaintUpdate` in `modules/master-data/app/schemas/visitpad/chief_complaint.py`. **Web:** `chief-complaints.tsx` + Zod.
 
 | Check | Done |
 |-------|------|
@@ -389,7 +390,7 @@ No extra create keys are sent; nothing required by API is missing from the dialo
 
 ### §5.A Reference parity — diagnoses (fill per wave)
 
-**Normative:** `VisitpadDiagnosisResponse`, `VisitpadDiagnosisCreate`, `VisitpadDiagnosisUpdate` in `visitpad_diagnosis.py`. **Web:** `diagnoses.tsx` + Zod.
+**Normative:** `VisitpadDiagnosisResponse`, `VisitpadDiagnosisCreate`, `VisitpadDiagnosisUpdate` in `modules/master-data/app/schemas/visitpad/diagnosis.py`. **Web:** `diagnoses.tsx` + Zod.
 
 | Check | Done |
 |-------|------|
@@ -426,7 +427,7 @@ No extra create keys are sent; nothing required by API is missing from the dialo
 
 ### §6.A Reference parity — allergens (fill per wave)
 
-**Normative:** `VisitpadAllergenResponse`, `VisitpadAllergenCreate`, `VisitpadAllergenUpdate` in `visitpad_allergen.py`. **Web:** `allergens.tsx` + Zod.
+**Normative:** `VisitpadAllergenResponse`, `VisitpadAllergenCreate`, `VisitpadAllergenUpdate` in `modules/master-data/app/schemas/visitpad/allergen.py`. **Web:** `allergens.tsx` + Zod.
 
 | Legacy / UI (camelCase) | HIMS API (snake_case) | Notes |
 |-------------------------|----------------------|--------|
@@ -473,7 +474,7 @@ No extra create keys are sent; nothing required by API is missing from the dialo
 
 ### §7.A Reference parity — allergy reactions (fill per wave)
 
-**Normative:** `VisitpadAllergyReactionResponse`, `VisitpadAllergyReactionCreate`, `VisitpadAllergyReactionUpdate` in `visitpad_allergen.py`. **Web:** `reactions.tsx` + Zod.
+**Normative:** `VisitpadAllergyReactionResponse`, `VisitpadAllergyReactionCreate`, `VisitpadAllergyReactionUpdate` in `modules/master-data/app/schemas/visitpad/allergen.py`. **Web:** `reactions.tsx` + Zod.
 
 | Legacy (camelCase) | HIMS API (snake_case) | Notes |
 |--------------------|------------------------|--------|
@@ -517,7 +518,7 @@ No extra create keys are sent; nothing required by API is missing from the dialo
 
 ### §8.A Reference parity — Rx columns (fill per wave)
 
-**Normative:** `VisitpadRxColumnResponse`, `VisitpadRxColumnCreate`, `VisitpadRxColumnUpdate` in `visitpad_rx_column.py`; `VisitpadRxColumnSection` enum. **Web:** `rx-columns.tsx` + Zod.
+**Normative:** `VisitpadRxColumnResponse`, `VisitpadRxColumnCreate`, `VisitpadRxColumnUpdate` in `modules/master-data/app/schemas/visitpad/rx_column.py`; `VisitpadRxColumnSection` enum. **Web:** `rx-columns.tsx` + Zod.
 
 **Legacy Integrator `rxcolumns` JSON (camelCase) ↔ HIMS**
 
@@ -563,7 +564,7 @@ No extra create keys are sent; nothing required by API is missing from the dialo
 
 ### §9.A Reference parity — medicines (fill per wave)
 
-**Normative:** `VisitpadMedicineResponse`, `VisitpadMedicineCreate`, `VisitpadMedicineUpdate` in `visitpad_medicine.py` (large schema). **Web:** `medicines.tsx` + Zod + `medicine-create-defaults.ts`.
+**Normative:** `VisitpadMedicineResponse`, `VisitpadMedicineCreate`, `VisitpadMedicineUpdate` in `modules/master-data/app/schemas/visitpad/medicine.py` (large schema). **Web:** `medicines.tsx` + Zod + `medicine-create-defaults.ts`.
 
 **Legacy Integrator `medicine` JSON (camelCase) ↔ HIMS (snake_case)**
 
@@ -616,7 +617,7 @@ No extra create keys are sent; nothing required by API is missing from the dialo
 
 ### §10.A Reference parity — chronic illnesses (fill per wave)
 
-**Normative:** `VisitpadChronicIllnessResponse`, `VisitpadChronicIllnessCreate`, `VisitpadChronicIllnessUpdate` in `visitpad_chronic_illness.py`. **Web:** `chronic-illness.tsx` + Zod.
+**Normative:** `VisitpadChronicIllnessResponse`, `VisitpadChronicIllnessCreate`, `VisitpadChronicIllnessUpdate` in `modules/master-data/app/schemas/visitpad/chronic_illness.py`. **Web:** `chronic-illness.tsx` + Zod.
 
 **Legacy Integrator `chronic_illness` JSON (camelCase) ↔ HIMS**
 
@@ -663,7 +664,7 @@ No extra create keys are sent; nothing required by API is missing from the dialo
 
 ### §11.A Reference parity — procedures (fill per wave)
 
-**Normative:** `VisitpadProcedureResponse`, `VisitpadProcedureCreate`, `VisitpadProcedureUpdate` in `visitpad_procedure.py`. **Web:** `procedures.tsx` + Zod.
+**Normative:** `VisitpadProcedureResponse`, `VisitpadProcedureCreate`, `VisitpadProcedureUpdate` in `modules/master-data/app/schemas/visitpad/procedure.py`. **Web:** `procedures.tsx` + Zod.
 
 **Legacy Integrator `procedure` JSON (camelCase) ↔ HIMS**
 
@@ -712,7 +713,7 @@ No extra create keys are sent; nothing required by API is missing from the dialo
 | # | Item | Verify |
 |---|------|--------|
 | 12.1 | **OpenAPI drift:** run contract review — every Visitpad path in `master-data.v1.yaml` has a handler and vice versa | Architect / dev |
-| 12.2 | **Dual schema:** global requests omit numeric `iq_tenant_id`; tenant requests use digits only; empty `tenant_master` returns 200 + `total: 0`, not 400 | QA |
+| 12.2 | **Dual schema:** global requests **omit** `iq_tenant_id` (or leave blank); tenant requests send **canonical UUID** only; malformed header → **400**; empty `tenant_master` for a valid tenant still returns **200** + `total: 0`, not **400** | QA |
 | 12.3 | **Permissions:** UI gates and (when live) Cerbos PDP allow expected roles | QA |
 | 12.4 | **Regression:** `uv run pytest` + optional Playwright smoke across all tabs | Dev |
 | 12.5 | **Seed data:** documented source (Alembic seed vs manual); reproducible empty DB → migrate → minimal seed | DevOps |
@@ -739,3 +740,4 @@ No extra create keys are sent; nothing required by API is missing from the dialo
 | 2026-05-08 | §2–§11.A stubs; **End-to-end parity methodology** + master file map; §12.7; purpose clarified (HIMS normative). |
 | 2026-05-11 | §2 Unit conversions **Complete**: HIMS UI + API parity table, `iq_tenant_id`/dual-schema note, `conversions.tsx` copy; E2E doc + master map. |
 | 2026-05-08 | §1 Units marked **Complete**: HIMS UI + API sign-off, §1.B E1–E5, master map **E2E status** column; Must match / Verify / Delete checked. |
+| 2026-05-08 | Doc sweep: UUID `iq_tenant_id` (ADR-0021), schema paths under `schemas/visitpad/`, `display_name` for units, dual-schema QA rows §0.5–0.6 / §12.2; link migration runbook. |

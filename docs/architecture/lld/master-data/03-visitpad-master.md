@@ -3,14 +3,14 @@
 **Product name:** Visitpad templates / Visitpad Master (admin UI).  
 **Implementation owner:** [Master Data service](../../../../modules/master-data) — **same** FastAPI app, **same** OpenAPI file [`specs/openapi/master-data.v1.yaml`](../../../../specs/openapi/master-data.v1.yaml), **same** BFF prefix `/api/v1/master-data` (no extra microservice).
 
-**Companion docs:** [Schema design](./01-schema-design.md) | [HTTP API contracts](./02-api-contracts.md) | [Implementation plan (step-by-step)](../../../../docs/plans/visitpad-master-implementation-plan.md) | [E2E verification (sections 1→end)](../../../../docs/plans/visitpad-master-e2e-verification.md)
+**Companion docs:** [Schema design](./01-schema-design.md) | [HTTP API contracts](./02-api-contracts.md) | [Dual schema catalog](./01-catalog-dual-schema.md) | [Tenant master migration runbook](./05-tenant-master-migration-runbook.md) | [Implementation plan (step-by-step)](../../../../docs/plans/visitpad-master-implementation-plan.md) | [E2E verification (sections 1→end)](../../../../docs/plans/visitpad-master-e2e-verification.md)
 
 ---
 
 ## 1. Why Visitpad lives in Master Data
 
 - **Operational simplicity:** One Python service, one port (`8010`), one Alembic chain, one OpenAPI contract — matches how operators already run Master Data.
-- **Domain fit:** Visitpad rows are **platform-global reference catalogs** (same class of data as modules, permissions, picklists): maintained by platform admins, replicated as Citus **reference** data, keyed by `tenant_id` (use the **platform tenant** UUID for global rows per database principles).
+- **Domain fit:** Visitpad rows are **reference catalogs** (same class of data as modules, permissions, picklists), maintained by platform admins. **Global** rows live in schema **`public`** and have **no** `iq_tenant_id` column after migration **`011`**. **Per-tenant** copies live in **`tenant_master`** with **`iq_tenant_id` UUID** on each row (see [dual-schema LLD](./01-catalog-dual-schema.md) and [ADR-0021](../../adr/0021-master-data-catalog-tenant-key-type.md)).
 - **Spec-first:** New routes are added to **`master-data.v1.yaml`** in the **same PR** as migrations and handlers (see [02-api-contracts.md §4](./02-api-contracts.md#4-changelog-discipline)).
 
 **Not** a separate `modules/visitpad` service and **not** a second BFF upstream unless an ADR later splits the deployment artifact.
@@ -39,9 +39,10 @@ Use **OpenAPI tags** such as `Visitpad — Units` so generated clients and docs 
 
 ## 3. Database layout
 
-- **Storage:** Visitpad catalog tables live in the **default `public` schema** of the same database the Master Data service already uses (e.g. `units`, `unit_conversions`, `vitals`, …), alongside other master-data tables. Names are prefixed by **domain in the model/API** (`VisitpadUnitModel`, `/visitpad/...`), not by a separate PostgreSQL schema.  
-  Rationale: avoids name collisions with existing `public` catalog tables while keeping **one** Alembic migration history under `modules/master-data/alembic/`.
-- **Every table:** `tenant_id UUID NOT NULL` (platform tenant for global template rows).
+- **Dual physical schemas (current):** Visitpad uses the same pattern as platform master catalog tables (modules, permissions, …). See [01-catalog-dual-schema.md](./01-catalog-dual-schema.md).
+  - **`public`:** Global Visitpad tables (`units`, `unit_conversions`, `vitals`, …) **without** an `iq_tenant_id` column after revision **`011_tenant_master_visitpad`** (legacy `tenant_id` was dropped from `public` once rows were copied).
+  - **`tenant_master`:** Parallel tables with the same logical names; each row includes **`iq_tenant_id` UUID NOT NULL** for tenant-scoped catalog data.
+- **Alembic:** Single history under `modules/master-data/alembic/`. Do not assume “one nullable tenant column on `public`” — that was superseded by the dual-schema design (**ADR-0020**, **ADR-0021**).
 - **Conventions:** Align with existing Master Data patterns: `is_deleted` for soft delete where applicable, `is_active` for user-visible enablement (see product matrix in the [visitpad implementation plan](../../../../docs/plans/visitpad-master-implementation-plan.md)), `display_order`, timestamps.
 
 Update [`schema-reference.json`](./schema-reference.json) and [`master-data.erd.json`](./master-data.erd.json) when tables are added.
@@ -59,12 +60,12 @@ Update [`schema-reference.json`](./schema-reference.json) and [`master-data.erd.
 
 ## 5. Python module layout (mandatory split)
 
-Mirror **`module_service.py` / `modules.py`**, not a single mega-file:
+Mirror **`module_service.py` / `modules.py`**, not a single mega-file. Visitpad code is grouped under **`app/services/visitpad/`**, **`app/repositories/visitpad/`**, **`app/schemas/visitpad/`**, **`app/api/v1/visitpad/`**, and **`app/catalog/visitpad/`** (see [04-visitpad-package-layout.md](./04-visitpad-package-layout.md)).
 
-- **One service file per product section** (plain functions): `visitpad_units_service.py` (units + conversions), `visitpad_vitals_service.py`, `visitpad_chief_complaints_service.py`, `visitpad_diagnoses_service.py`, `visitpad_allergies_service.py` (allergens + reactions), `visitpad_rx_columns_service.py`, `visitpad_medicines_service.py`, `visitpad_chronic_illnesses_service.py`, `visitpad_procedures_service.py`.
-- **One HTTP module per section** under `app/api/v1/`: e.g. `visitpad_vitals.py` exporting `router` with `prefix="/visitpad/vitals"`.
-- **Units** and **Allergies** pair two URL prefixes in one HTTP module: export **`units_router`** + **`conversions_router`**, or **`allergens_router`** + **`reactions_router`**; register both from `app/api/v1/router.py`.
-- **Repositories:** one class per table (or per aggregate), e.g. `visitpad_unit_repository.py` + `visitpad_unit_conversion_repository.py`; wire through `deps.py`.
+- **One service module per product section** (plain functions), e.g. `app/services/visitpad/units.py` (units + conversions), `vitals.py`, `chief_complaints.py`, `diagnoses.py`, `allergies.py` (allergens + reactions), `rx_columns.py`, `medicines.py`, `chronic_illnesses.py`, `procedures.py`.
+- **One HTTP module per section** under `app/api/v1/visitpad/` exporting a `router` with the appropriate `prefix` (e.g. `/visitpad/vitals`).
+- **Units** and **Allergies** may pair two URL prefixes in one HTTP module (units + conversions; allergens + reactions); register routers from `app/api/v1/router.py`.
+- **Repositories:** one module per table (or aggregate) under `app/repositories/visitpad/`; wire factories through `deps.py`.
 
 Full table: [visitpad implementation plan §11.5](../../../../docs/plans/visitpad-master-implementation-plan.md#115-python-layout--one-domain-per-file-mandatory).
 

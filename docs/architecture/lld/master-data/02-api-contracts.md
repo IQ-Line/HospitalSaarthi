@@ -187,7 +187,7 @@ These align with the MVP tables in [`schema-reference.json`](./schema-reference.
 
 ### 3.3 Visitpad Master (backend catalog — done; web next)
 
-Canonical design: [03-visitpad-master.md](./03-visitpad-master.md). **All Visitpad catalog HTTP resources** listed in **§3.1** are implemented in **`modules/master-data`** (tables in **`public`**, Alembic revisions **`009_visitpad_units`** + **`010_visitpad_catalog`**). Remaining product work: **`services/web/src/features/visitpad`** (shell, tabs, tables, Cerbos policies when ready) per [implementation plan](../../../../docs/plans/visitpad-master-implementation-plan.md) §12.
+Canonical design: [03-visitpad-master.md](./03-visitpad-master.md). **All Visitpad catalog HTTP resources** listed in **§3.1** are implemented in **`modules/master-data`**, with persistence in **`public`** (global) and **`tenant_master`** (per-tenant) per request header `iq_tenant_id` — see [01-catalog-dual-schema.md](./01-catalog-dual-schema.md) and Alembic from **`009_visitpad_units`** / **`010_visitpad_catalog`** through **`011`** and later tenant-master revisions (**`022`** for UUID `iq_tenant_id`). Remaining product work: **`services/web/src/features/visitpad`** (shell, tabs, tables, Cerbos policies when ready) per [implementation plan](../../../../docs/plans/visitpad-master-implementation-plan.md) §12.
 
 **Events:** Visitpad catalog mutations **do not publish** domain events today. That is **intentional for Phase 0** — catalog rows are read through Master Data APIs and projected by consumers on demand; if a module needs invalidation or downstream projection later, add an explicit event contract in the same PR as consumers (see module event rules in the monorepo README).
 

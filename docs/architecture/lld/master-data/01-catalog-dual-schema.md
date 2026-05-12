@@ -17,11 +17,11 @@ The API chooses the target schema **per HTTP request** from an optional tenant h
 
 | Piece | Role |
 |-------|------|
-| `app/api/deps.py` → `get_catalog_scope` | Reads `iq_tenant_id`; builds `CatalogScope(iq_tenant_id=None)` → global, or `CatalogScope(iq_tenant_id=<int>)` → tenant. |
+| `app/api/deps.py` → `get_catalog_scope` | Reads `iq_tenant_id`; builds `CatalogScope(iq_tenant_id=None)` → global, or `CatalogScope(iq_tenant_id=<UUID>)` → tenant. |
 | `app/catalog/platform_table_models.py` | `module_model(scope)`, `permission_model(scope)`, … return `*TenantModel` if `scope.is_tenant` else `*PublicModel`. |
-| `app/catalog/visitpad_table_models.py` | Same pattern for all Visitpad catalog entities. |
+| `app/catalog/visitpad/table_models.py` | Same pattern for all Visitpad catalog entities. |
 | `app/models/*` | Each catalog has **two** mapped classes: `*PublicModel` (`__table_args__` default schema, **no** `iq_tenant_id` field) and `*TenantModel` (`schema="tenant_master"`, **`iq_tenant_id` required**). |
-| `app/services/*` | On create, **`iq_tenant_id` is only passed when `repository.scope.is_tenant`** (e.g. `module_service.create_module`, `visitpad_units_service.create_visitpad_unit`). Global creates use `M(**kwargs)` without `iq_tenant_id`. |
+| `app/services/*` | On create, **`iq_tenant_id` is only passed when `repository.scope.is_tenant`** (e.g. `module_service.create_module`, `app.services.visitpad.units.create_visitpad_unit`). Global creates use `M(**kwargs)` without `iq_tenant_id`. |
 | `app/repositories/*` | Tenant scope adds `WHERE iq_tenant_id = :scope` when listing; `get_by_id` rejects wrong tenant. |
 
 Platform tables (`modules`, `permissions`, `system_roles`, `module_permissions`) in **`public`** never had a tenant key column in Alembic `001`–`008`. Tenant copies live only under **`tenant_master`** from revision **`012`** (column historically named `tenant_id` until **`019_tm_iq_tenant_id_col`** renamed it to `iq_tenant_id`).
@@ -58,18 +58,19 @@ So: all **foundational** `public` migrations run first; **dual-schema** migratio
 
 ## SQLite / tests
 
-Integration tests attach an in-memory database as **`tenant_master`** so SQLAlchemy can create both schemas. Production uses PostgreSQL only for dual-schema migrations `011`–`013` plus follow-ons such as **`019`** and **`022`**.
+Integration tests attach an in-memory database as **`tenant_master`** so SQLAlchemy can create both schemas. Production uses PostgreSQL for dual-schema migrations **`011`** onward, including tenant-key revisions **`013`**, **`019`**, and **`022`**.
 
 ## Fresh database (drop and re-run)
 
 If you wipe the database (or drop `public` objects and recreate an empty DB), run **`alembic upgrade head`** once. You will get:
 
 - **`public`**: global catalog tables **without** `iq_tenant_id` on Visitpad (after `011`) and platform tables as before.
-- **`tenant_master`**: parallel Visitpad tables (from `011`) and platform catalog tables (from `012`), **each with** `iq_tenant_id` (after **`019`**; integer after `013`).
+- **`tenant_master`**: parallel Visitpad tables (from `011`) and platform catalog tables (from `012`), **each with** `iq_tenant_id` as **UUID** after revision **`022`** (Alembic **`013`** may still appear in history as an intermediate integer step on long-lived branches — see [tenant master migration runbook](./05-tenant-master-migration-runbook.md)).
 
-After upgrade, **omit `iq_tenant_id`** on API calls to read/write global data in **`public`**; **send `iq_tenant_id`** (e.g. `7`) to read/write that tenant’s rows in **`tenant_master`**.
+After upgrade, **omit `iq_tenant_id`** on API calls to read/write global data in **`public`**. To target **`tenant_master`**, send a **canonical UUID** string (same value as platform tenant registry / JWT tenant claim). **Invalid UUID** in the header → **400** (no silent fallback to `public` for catalog writes; the SPA also blocks Visitpad writes when the tenant id is not a UUID).
 
 ## Related
 
 - OpenAPI: `specs/openapi/master-data.v1.yaml` (info block + optional `iq_tenant_id` on tenant-backed response schemas where applicable).
 - Code: `modules/master-data/app/core/catalog_scope.py`, `app/core/catalog_tenant_id.py`, `app/api/deps.py` (`get_catalog_scope`).
+- Operations: [05-tenant-master-migration-runbook.md](./05-tenant-master-migration-runbook.md) — order **`012` → `013` → `019` → `022`**, truncate / re-seed, verification.

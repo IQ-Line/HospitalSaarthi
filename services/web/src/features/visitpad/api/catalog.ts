@@ -21,7 +21,7 @@ const MD = '/api/v1/master-data/visitpad';
 
 function listUrl(path: string, params?: Record<string, string | undefined>) {
   const q = new URLSearchParams();
-  // TODO(visitpad-pagination): server supports limit/offset; wire table pagination + "Showing n of total" (large catalogs).
+  // TODO(visitpad-pagination): server supports limit/offset; wire table pagination + "Showing n of total" (large catalogs). Track in your issue tracker when created; contract note: docs/architecture/lld/master-data/02-api-contracts.md §3.3.
   q.set('limit', '200');
   q.set('offset', '0');
   if (params) {
