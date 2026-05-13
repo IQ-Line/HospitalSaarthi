@@ -67,6 +67,7 @@ function mockDeps(): {
       findById: vi.fn().mockResolvedValue(patient),
       findByUhid: vi.fn().mockResolvedValue(undefined),
       findByPhone: vi.fn().mockResolvedValue([patient]),
+      findDedupCandidates: vi.fn().mockResolvedValue([]),
       create: vi.fn().mockImplementation(async (data) => ({
         ...patient,
         ...data,

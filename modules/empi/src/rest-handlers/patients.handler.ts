@@ -17,6 +17,7 @@ import type {
   UpdatePatientRequestBody,
 } from "../domain/api.types.js";
 import { registerPatient } from "../use-cases/register-patient.js";
+import { isDuplicateRegistrationResult } from "../use-cases/register-patient.types.js";
 import { updatePatient } from "../use-cases/update-patient.js";
 import { searchPatients } from "../use-cases/search-patients.js";
 import { getPatient } from "../use-cases/get-patient.js";
@@ -69,17 +70,25 @@ export function registerPatientsHandler(
       const tenantId = request.tenantId;
       const body = request.body;
 
-      const patient = await registerPatient(
-        {
-          patientRepo: deps.patientRepo,
-          sequenceRepo: deps.sequenceRepo,
-          eventBus: deps.eventBus,
-          getTenantNumericCode: deps.getTenantNumericCode,
-        },
-        { ...body, iq_tenant_id: tenantId },
-      );
+      try {
+        const result = await registerPatient(
+          {
+            patientRepo: deps.patientRepo,
+            sequenceRepo: deps.sequenceRepo,
+            eventBus: deps.eventBus,
+            getTenantNumericCode: deps.getTenantNumericCode,
+          },
+          { ...body, iq_tenant_id: tenantId },
+        );
 
-      return reply.code(201).send(patient);
+        if (isDuplicateRegistrationResult(result)) {
+          return reply.code(409).send(result);
+        }
+        return reply.code(201).send(result);
+      } catch (err) {
+        request.log.error({ err }, "registerPatient failed");
+        throw err;
+      }
     },
   );
 

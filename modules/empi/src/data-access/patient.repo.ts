@@ -123,6 +123,25 @@ export class DrizzlePatientRepo implements PatientRepo {
     return rows as Patient[];
   }
 
+  async findDedupCandidates(
+    tenantId: string,
+    phone: string,
+    gender: string,
+  ): Promise<Patient[]> {
+    const rows = await this.db
+      .select()
+      .from(patients)
+      .where(
+        and(
+          eq(patients.iq_tenant_id, tenantId),
+          eq(patients.phone_number, phone),
+          eq(patients.gender, gender),
+          sql`${patients.merged_into_id} IS NULL`,
+        ),
+      );
+    return rows as Patient[];
+  }
+
   async create(
     data: CreatePatientData & { uhid: string; full_name: string },
   ): Promise<Patient> {

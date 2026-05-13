@@ -1,0 +1,14 @@
+---
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "master_data:visitpad"
+  version: "default"
+  rules:
+    - actions: ["view", "create", "update", "delete"]
+      roles: ["admin", "platform_admin", "clinical_admin"]
+      effect: EFFECT_ALLOW
+      name: allow-admins-visitpad
+    - actions: ["view"]
+      roles: ["user", "clinician"]
+      effect: EFFECT_ALLOW
+      name: allow-read-visitpad

@@ -5,6 +5,7 @@ import { BrandMark } from '@/components/layout/brand-mark';
 import { SidebarNavLink } from '@/components/layout/sidebar-nav-link';
 import { ConfiguratorNavSection } from '@/features/configurator/components/configurator-nav-section';
 import { MasterDataNavSection } from '@/features/master-data/components/master-data-nav-section';
+import { VisitpadNavSection } from '@/features/visitpad/components/visitpad-nav-section';
 import { useUIPrefsStore } from '@/stores/ui-prefs.store';
 
 interface AppSidebarProps {
@@ -12,6 +13,8 @@ interface AppSidebarProps {
   tenantName: string | null;
   hasMasterDataAccess: boolean;
   hasConfiguratorAccess: boolean;
+  /** Catalog admins: same gate as Master Data until a dedicated Cerbos module exists. */
+  hasVisitpadAccess: boolean;
 }
 
 export function AppSidebar({
@@ -19,18 +22,27 @@ export function AppSidebar({
   tenantName,
   hasMasterDataAccess,
   hasConfiguratorAccess,
+  hasVisitpadAccess,
 }: AppSidebarProps) {
   const sidebarCollapsed = useUIPrefsStore((s) => s.sidebarCollapsed);
 
   const { pathname } = useLocation();
   const isInMasterData = pathname.startsWith('/master-data');
   const [isMasterDataOpen, setIsMasterDataOpen] = useState(true);
+  const isInVisitpad = pathname.startsWith('/visitpad');
+  const [isVisitpadOpen, setIsVisitpadOpen] = useState(true);
 
   useEffect(() => {
     if (isInMasterData) {
       setIsMasterDataOpen(true);
     }
   }, [isInMasterData]);
+
+  useEffect(() => {
+    if (isInVisitpad) {
+      setIsVisitpadOpen(true);
+    }
+  }, [isInVisitpad]);
 
   return (
     <aside
@@ -71,6 +83,13 @@ export function AppSidebar({
           />
         )}
         {hasConfiguratorAccess && <ConfiguratorNavSection collapsed={sidebarCollapsed} />}
+        {hasVisitpadAccess && (
+          <VisitpadNavSection
+            collapsed={sidebarCollapsed}
+            isOpen={isVisitpadOpen}
+            onToggleSection={() => setIsVisitpadOpen((prev) => !prev)}
+          />
+        )}
       </nav>
 
       <div className="pt-3 mt-3 border-t">

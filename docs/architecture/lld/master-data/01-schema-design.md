@@ -8,11 +8,14 @@
 **Schema reference:** [`schema-reference.json`](./schema-reference.json) — full column descriptions, indexes, check constraints, Citus distribution notes  
 **HTTP API (v1):** [`02-api-contracts.md`](./02-api-contracts.md) — standard headers/envelopes, endpoint index, response shapes ([OpenAPI](../../../../specs/openapi/master-data.v1.yaml))
 
-**Phasing:** The MVP ships the **platform catalog** (module tree, permission definitions, module–permission links, role templates, `picklist` + `picklist_values`) and the **Configurator contract** (config schemas and feature flag definitions). Catalog change history can be traced via **`created_*` / `updated_*`** columns on each row (and optionally platform observability outside this schema). Healthcare reference data (ICD codes, drug catalogs, LOINC, SNOMED, departments, etc.) is Post-launch — sketched in §16.
+**Visitpad Master (visit templates):** Owned by the same Master Data service and database; catalog tables in **`public`** (e.g. `units`, `vitals`, `medicines`). See **[03-visitpad-master.md](./03-visitpad-master.md)** and the [step-by-step implementation plan](../../../../docs/plans/visitpad-master-implementation-plan.md).
+
+**Phasing:** The MVP ships the **platform catalog** (module tree, permission definitions, module–permission links, role templates, `picklist` + `picklist_values`) and the **Configurator contract** (config schemas and feature flag definitions). Catalog change history can be traced via **`created_*` / `updated_*`** columns on each row (and optionally platform observability outside this schema). Healthcare reference data (ICD codes, drug catalogs, LOINC, SNOMED, departments, etc.) is Post-launch — sketched in §16. **Visitpad** catalogs are delivered incrementally on top of the MVP service (same OpenAPI file and Alembic app).
 
 | Phase | What ships |
 |-------|-----------|
 | **MVP** | **Catalog (reference):** `modules`, `permissions`, `module_permissions`, `system_roles`, `picklist`, `picklist_values`. **Configurator integration (reference):** `module_config_schemas`, `feature_flags`. All MVP tables are Citus reference tables. Lifecycle events carry rich payloads for projections. |
+| **MVP+ (incremental)** | **Visitpad Master:** tables in `public` (e.g. `units`, `unit_conversions`, …) and HTTP routes under `/api/v1/master-data/visitpad/...` per [03-visitpad-master.md](./03-visitpad-master.md). |
 | **Post-launch** | Healthcare reference data tables (code systems, codes, code mappings, drug catalogs, department/ward master), tenant override mechanism (two-layer inheritance model per HLD §4.1), FHIR terminology endpoints. |
 
 ---
@@ -149,7 +152,12 @@ All MVP Master Data catalog tables above are **reference tables** — replicated
 
 ### No cross-schema queries
 
-The Configurator does **not** query `public.*` Master Data tables directly at runtime. It maintains local projections (`module_projection`, `config_schema_projection`, `feature_flag_projection`, and any future permission/picklist projections) in its own schema, synced via domain events (§12). Tenant tables reference projections, not the Master Data catalog tables — per [database principle §4](../../analysis/03-database-principles.md#4-no-cross-schema-foreign-keys). Intra-schema FKs (`module_config_schemas.module_id` → `modules.id`, etc.) are normal PostgreSQL foreign keys.
+The Configurator does **not** query `public.*` Master Data tables directly at runtime. Two access patterns are used, depending on the data:
+
+- **`modules`** is fetched via HTTP from Master Data's API with a TTL cache (Configurator-side); `module.*` events bust the cache. **No projection table.** See [Configurator LLD §3.1](../configurator/01-schema-design.md#31-module-metadata-access-pattern-http--cache).
+- **`module_config_schemas`** and **`feature_flags`** are projected into the Configurator schema (`config_schema_projection`, `feature_flag_projection`) and synced via domain events (§12). These projections are tagged for a follow-up review against the same decision criteria — they may also be downgraded to HTTP+cache.
+
+Tenant tables in the Configurator either reference local projections (within `configurator`) or store soft references (UUIDs that match Master Data's IDs by convention, validated at write time) — per [database principle §4](../../analysis/03-database-principles.md#4-no-cross-schema-foreign-keys). Intra-schema FKs (`module_config_schemas.module_id` → `modules.id`, etc.) are normal PostgreSQL foreign keys.
 
 ---
 
@@ -172,8 +180,9 @@ All registry events carry **rich payloads** — every field projection consumers
 
 | Event | When | Payload includes (non-exhaustive) | Consumers |
 |-------|------|-------------------------------------|-----------|
-| `module.registered` | New module row | `module_id`, `name`, `slug`, `parent_id`, `description`, `category`, `version`, `level`, `icon`, `is_active`, `is_deleted` | Configurator (`module_projection`), admin shell |
-| `module.updated` | Module metadata or tree change | Above + `old_version`, `new_version` where applicable | Configurator, admin shell |
+| `module.registered` | New module row | `module_id`, `name`, `slug`, `parent_id`, `description`, `category`, `version`, `level`, `icon`, `is_active`, `is_deleted` | Configurator (module catalog cache invalidation — see [Configurator LLD §3.1](../configurator/01-schema-design.md#31-module-metadata-access-pattern-http--cache)), admin shell |
+| `module.updated` | Module metadata or tree change | Above + `old_version`, `new_version` where applicable | Configurator (cache invalidation), admin shell |
+| `module.deleted` / `module.deactivated` | Module soft-deleted or deactivated | `module_id`, `slug`, `is_deleted`/`is_active` | Configurator (cache invalidation + soft-disable affected `tenant_modules` rows), admin shell |
 | `feature-flag.defined` / `feature-flag.updated` | Flag rows | `flag_id`, `slug`, `name`, `flag_type`, `module_id`, `default_value`, `value_schema` | Configurator (`feature_flag_projection`) |
 | `config-schema.declared` | New schema version | `schema_id`, `slug`, `module_id`, `schema_version`, `config_schema`, `defaults` | Configurator (`config_schema_projection`) |
 
@@ -198,9 +207,9 @@ Master Data depends on **User Management** for authenticated operators (identity
 
 | Column | On table | References | In module | Mechanism |
 |--------|----------|------------|-----------|-----------|
-| `module_projection.id` | `configurator.module_projection` | `public.modules.id` | Configurator | Event-synced projection (same UUID, no FK) |
-| `config_schema_projection.*` | `configurator.config_schema_projection` | `public.module_config_schemas` identity | Configurator | Event-synced |
-| `feature_flag_projection.id` | `configurator.feature_flag_projection` | `public.feature_flags.id` | Configurator | Event-synced |
+| `tenant_modules.module_id` | `configurator.tenant_modules` | `public.modules.id` | Master Data | Soft reference (no FK); HTTP-validated at write, event-driven soft-disable on `module.deleted` — see [Configurator LLD §3.1](../configurator/01-schema-design.md#31-module-metadata-access-pattern-http--cache) |
+| `config_schema_projection.*` | `configurator.config_schema_projection` | `public.module_config_schemas` identity | Configurator | Event-synced projection |
+| `feature_flag_projection.id` | `configurator.feature_flag_projection` | `public.feature_flags.id` | Configurator | Event-synced projection |
 | `feature_flags.module_id` | `public.feature_flags` | `public.modules.id` | Master Data | Intra-schema FK |
 | `module_config_schemas.module_id` | `public.module_config_schemas` | `public.modules.id` | Master Data | Intra-schema FK |
 | `modules.parent_id` | `public.modules` | `public.modules.id` | Master Data | Self-FK (tree) |
