@@ -25,6 +25,11 @@ export const dataIsolationLevelSchema = {
   enum: ["shared", "isolated"],
 } as const;
 
+export const branchTypeSchema = {
+  type: "string",
+  enum: ["hub_lab", "hub", "satellite"],
+} as const;
+
 /** UUID string (avoids requiring ajv-formats for `format: uuid`). */
 const uuidString = {
   type: "string",
@@ -104,6 +109,14 @@ export const postTenantBodySchema = {
     timezone: { type: "string" },
     locale: { type: "string" },
     metadata: { anyOf: [{ type: "object" }, { type: "null" }] },
+    branch_code: { type: "string", minLength: 2, maxLength: 10 },
+    branch_type: branchTypeSchema,
+    address_line1: { type: "string" },
+    city: { type: "string" },
+    state: { type: "string" },
+    pin_code: { type: "string" },
+    contact_phone: { type: "string" },
+    contact_email: { type: "string" },
   },
 } as const;
 
@@ -122,6 +135,13 @@ export const patchTenantBodySchema = {
     timezone: { type: "string" },
     locale: { type: "string" },
     metadata: { anyOf: [{ type: "object" }, { type: "null" }] },
+    branch_type: branchTypeSchema,
+    address_line1: { type: "string" },
+    city: { type: "string" },
+    state: { type: "string" },
+    pin_code: { type: "string" },
+    contact_phone: { type: "string" },
+    contact_email: { type: "string" },
   },
 } as const;
 

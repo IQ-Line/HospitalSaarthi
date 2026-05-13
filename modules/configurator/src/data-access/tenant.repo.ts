@@ -1,4 +1,4 @@
-import { eq, and, type DbInstance, type SQL } from "@hims/ts-sdk-db";
+import { eq, and, isNull, type DbInstance, type SQL } from "@hims/ts-sdk-db";
 import type { TenantRepo } from "../ports.js";
 import type {
   Tenant,
@@ -17,6 +17,12 @@ export class DrizzleTenantRepo implements TenantRepo {
 
     if (filters?.org_id) {
       conditions.push(eq(tenants.org_id, filters.org_id));
+    }
+    if (filters?.is_root) {
+      conditions.push(isNull(tenants.parent_tenant_id));
+    }
+    if (filters?.parent_tenant_id) {
+      conditions.push(eq(tenants.parent_tenant_id, filters.parent_tenant_id));
     }
     if (filters?.provisioning_status) {
       conditions.push(eq(tenants.provisioning_status, filters.provisioning_status));
@@ -61,6 +67,19 @@ export class DrizzleTenantRepo implements TenantRepo {
       .where(eq(tenants.org_id, orgId)) as unknown as Tenant[];
   }
 
+  async findByOrgIdAndBranchCode(
+    orgId: string,
+    branchCode: string,
+  ): Promise<Tenant | undefined> {
+    const rows = await this.db
+      .select()
+      .from(tenants)
+      .where(and(eq(tenants.org_id, orgId), eq(tenants.branch_code, branchCode)))
+      .limit(1);
+
+    return rows[0] as Tenant | undefined;
+  }
+
   async create(data: CreateTenantData): Promise<Tenant> {
     const rows = await this.db
       .insert(tenants)
@@ -76,6 +95,14 @@ export class DrizzleTenantRepo implements TenantRepo {
         timezone: data.timezone ?? "Asia/Kolkata",
         locale: data.locale ?? "en-IN",
         metadata: data.metadata ?? null,
+        branch_code: data.branch_code?.trim() ?? null,
+        branch_type: data.branch_type ?? null,
+        address_line1: data.address_line1?.trim() ?? null,
+        city: data.city?.trim() ?? null,
+        state: data.state?.trim() ?? null,
+        pin_code: data.pin_code?.trim() ?? null,
+        contact_phone: data.contact_phone?.trim() ?? null,
+        contact_email: data.contact_email?.trim() ?? null,
         created_by: data.created_by ?? null,
         updated_by: data.created_by ?? null,
       })

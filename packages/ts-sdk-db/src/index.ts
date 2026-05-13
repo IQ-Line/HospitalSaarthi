@@ -9,6 +9,7 @@ export {
   eq,
   and,
   ilike,
+  isNull,
   sql,
   type SQL,
   pgSchema,

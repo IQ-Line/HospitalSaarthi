@@ -153,6 +153,20 @@ paths:
             type: string
             format: uuid
           description: Filter tenants by parent organization.
+        - name: parent_tenant_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Only tenants with this parent tenant (e.g. branches under the root tenant).
+        - name: is_root
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: ["true", "1", "false", "0"]
+          description: When `true` or `1`, only tenants with no parent (organization root tenants).
         - name: provisioning_status
           in: query
           required: false
@@ -477,6 +491,12 @@ components:
         - full_platform
         - fragmented
         - lite
+    BranchType:
+      type: string
+      enum:
+        - hub_lab
+        - hub
+        - satellite
     ProvisioningStatus:
       type: string
       enum:
@@ -622,6 +642,30 @@ components:
           type:
             - object
             - "null"
+        branch_code:
+          type: string
+          nullable: true
+        branch_type:
+          $ref: "#/components/schemas/BranchType"
+          nullable: true
+        address_line1:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        state:
+          type: string
+          nullable: true
+        pin_code:
+          type: string
+          nullable: true
+        contact_phone:
+          type: string
+          nullable: true
+        contact_email:
+          type: string
+          nullable: true
     TenantPatchRequest:
       type: object
       properties:
@@ -656,6 +700,20 @@ components:
           type:
             - object
             - "null"
+        branch_type:
+          $ref: "#/components/schemas/BranchType"
+        address_line1:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        pin_code:
+          type: string
+        contact_phone:
+          type: string
+        contact_email:
+          type: string
     Organization:
       type: object
       required:
@@ -773,6 +831,30 @@ components:
             - en-IN
         metadata:
           type: object
+          nullable: true
+        branch_code:
+          type: string
+          nullable: true
+        branch_type:
+          $ref: "#/components/schemas/BranchType"
+          nullable: true
+        address_line1:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        state:
+          type: string
+          nullable: true
+        pin_code:
+          type: string
+          nullable: true
+        contact_phone:
+          type: string
+          nullable: true
+        contact_email:
+          type: string
           nullable: true
         created_at:
           type: string

@@ -31,6 +31,10 @@ export interface TenantRepo {
   findById(id: string): Promise<Tenant | undefined>;
   findBySlug(slug: string): Promise<Tenant | undefined>;
   findByOrgId(orgId: string): Promise<Tenant[]>;
+  findByOrgIdAndBranchCode(
+    orgId: string,
+    branchCode: string,
+  ): Promise<Tenant | undefined>;
   create(data: CreateTenantData): Promise<Tenant>;
   update(id: string, data: UpdateTenantData): Promise<Tenant | undefined>;
 }

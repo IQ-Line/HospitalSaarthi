@@ -37,6 +37,7 @@ export type {
   UpdateTenantData,
   TenantFilters,
   TenantType,
+  BranchType,
   ProvisioningStatus,
   DataIsolationLevel,
 } from "./domain/tenant.types.js";
