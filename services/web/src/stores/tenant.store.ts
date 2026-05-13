@@ -1,5 +1,5 @@
-import { create } from 'zustand';
-import { devtools } from 'zustand/middleware';
+import { create, type StateCreator } from 'zustand';
+import { createJSONStorage, devtools, persist } from 'zustand/middleware';
 
 interface TenantState {
   tenantId: string | null;
@@ -8,7 +8,7 @@ interface TenantState {
   branches: Array<{ id: string; name: string }>;
 
   setTenant: (tenant: {
-    tenantId: string;
+    tenantId: string | null;
     tenantName: string;
     branches: Array<{ id: string; name: string }>;
     activeBranch: string;
@@ -17,35 +17,41 @@ interface TenantState {
   clearTenant: () => void;
 }
 
-export const useTenantStore = create<TenantState>()(
-  devtools(
-    (set) => ({
-      tenantId: null,
-      tenantName: null,
-      activeBranch: null,
-      branches: [],
+const tenantSlice: StateCreator<TenantState> = (set) => ({
+  tenantId: null,
+  tenantName: null,
+  activeBranch: null,
+  branches: [],
 
-      setTenant: (tenant) =>
-        set(
-          {
-            tenantId: tenant.tenantId,
-            tenantName: tenant.tenantName,
-            branches: tenant.branches,
-            activeBranch: tenant.activeBranch,
-          },
-          false,
-          'setTenant',
-        ),
+  setTenant: (tenant) =>
+    set(
+      {
+        tenantId: tenant.tenantId,
+        tenantName: tenant.tenantName,
+        branches: tenant.branches,
+        activeBranch: tenant.activeBranch,
+      },
+      false,
+      'setTenant',
+    ),
 
-      switchBranch: (branchId) => set({ activeBranch: branchId }, false, 'switchBranch'),
+  switchBranch: (branchId) => set({ activeBranch: branchId }, false, 'switchBranch'),
 
-      clearTenant: () =>
-        set(
-          { tenantId: null, tenantName: null, activeBranch: null, branches: [] },
-          false,
-          'clearTenant',
-        ),
-    }),
-    { name: 'tenant' },
-  ),
-);
+  clearTenant: () =>
+    set({ tenantId: null, tenantName: null, activeBranch: null, branches: [] }, false, 'clearTenant'),
+});
+
+const tenantStoreCreator = import.meta.env.DEV
+  ? persist(tenantSlice, {
+      name: 'hims-dev-tenant',
+      storage: createJSONStorage(() => sessionStorage),
+      partialize: (s) => ({
+        tenantId: s.tenantId,
+        tenantName: s.tenantName,
+        activeBranch: s.activeBranch,
+        branches: s.branches,
+      }),
+    })
+  : tenantSlice;
+
+export const useTenantStore = create<TenantState>()(devtools(tenantStoreCreator, { name: 'tenant' }));

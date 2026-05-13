@@ -34,6 +34,7 @@ import {
   type VisitpadRxColumnCreateFormSchema,
   type VisitpadRxColumnEditFormSchema,
 } from '@/features/visitpad/validation';
+import { useVisitpadCatalogPermission } from '@/features/visitpad/hooks/use-visitpad-catalog-permission';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 import { visitpadGlobalRxColumnToCreateBody } from '@/features/visitpad/lib/visitpad-global-import-payloads';
 
@@ -58,6 +59,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/rx-columns')({
 });
 
 function VisitpadRxColumnsPage() {
+  const { canWrite, canRead } = useVisitpadCatalogPermission();
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [section, setSection] = useState<string>(RX_SECTIONS[0].value);
@@ -128,7 +130,7 @@ function VisitpadRxColumnsPage() {
         cell: ({ row }) => (
           <TableActiveToggle
             active={row.original.is_active}
-            disabled={patch.isPending}
+            disabled={patch.isPending || !canWrite}
             onCheckedChange={async (next) => {
               try {
                 await patch.mutateAsync({ id: row.original.id, body: { is_active: next } });
@@ -143,10 +145,10 @@ function VisitpadRxColumnsPage() {
       visitpadActionsColumn<VisitpadRxColumn>({
         onEdit: setEditing,
         onDelete: setDeleting,
-        disabled: busy,
+        disabled: busy || !canWrite,
       }),
     ],
-    [patch, busy],
+    [patch, busy, canWrite],
   );
 
   return (
@@ -161,6 +163,8 @@ function VisitpadRxColumnsPage() {
       }
       actions={
         <VisitpadHeaderActions
+          canWrite={canWrite}
+          canRead={canRead}
           addLabel={tenantCatalog ? `Add local ${sectionLabel}` : `Add ${sectionLabel}`}
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}

@@ -44,6 +44,7 @@ import {
   type VisitpadAllergenCreateFormSchema,
   type VisitpadAllergenEditFormSchema,
 } from '@/features/visitpad/validation';
+import { useVisitpadCatalogPermission } from '@/features/visitpad/hooks/use-visitpad-catalog-permission';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 import { visitpadGlobalAllergenToCreateBody } from '@/features/visitpad/lib/visitpad-global-import-payloads';
 
@@ -54,6 +55,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/allergens')({
 });
 
 function VisitpadAllergensPage() {
+  const { canWrite, canRead } = useVisitpadCatalogPermission();
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [allergenType, setAllergenType] = useState<string>('all');
@@ -155,7 +157,7 @@ function VisitpadAllergensPage() {
         cell: ({ row }) => (
           <TableActiveToggle
             active={row.original.is_active}
-            disabled={patch.isPending}
+            disabled={patch.isPending || !canWrite}
             onCheckedChange={async (next) => {
               try {
                 await patch.mutateAsync({ id: row.original.id, body: { is_active: next } });
@@ -170,10 +172,10 @@ function VisitpadAllergensPage() {
       visitpadActionsColumn<VisitpadAllergen>({
         onEdit: setEditing,
         onDelete: setDeleting,
-        disabled: busy,
+        disabled: busy || !canWrite,
       }),
     ],
-    [patch, busy],
+    [patch, busy, canWrite],
   );
 
   return (
@@ -190,6 +192,8 @@ function VisitpadAllergensPage() {
       secondaryNav={<VisitpadAllergiesSecondaryNav />}
       actions={
         <VisitpadHeaderActions
+          canWrite={canWrite}
+          canRead={canRead}
           addLabel={tenantCatalog ? 'Add local allergen' : 'Add allergen'}
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}

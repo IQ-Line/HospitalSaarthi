@@ -47,6 +47,7 @@ import {
   type VisitpadProcedureEditFormInput,
   type VisitpadProcedureEditFormSchema,
 } from '@/features/visitpad/validation';
+import { useVisitpadCatalogPermission } from '@/features/visitpad/hooks/use-visitpad-catalog-permission';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 import { visitpadGlobalProcedureToCreateBody } from '@/features/visitpad/lib/visitpad-global-import-payloads';
 
@@ -97,6 +98,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/procedures')({
 });
 
 function VisitpadProceduresPage() {
+  const { canWrite, canRead } = useVisitpadCatalogPermission();
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string>('all');
@@ -199,7 +201,7 @@ function VisitpadProceduresPage() {
         cell: ({ row }) => (
           <TableActiveToggle
             active={row.original.is_active}
-            disabled={patch.isPending}
+            disabled={patch.isPending || !canWrite}
             onCheckedChange={async (next) => {
               try {
                 await patch.mutateAsync({ id: row.original.id, body: { is_active: next } });
@@ -214,10 +216,10 @@ function VisitpadProceduresPage() {
       visitpadActionsColumn<VisitpadProcedure>({
         onEdit: setEditing,
         onDelete: setDeleting,
-        disabled: busy,
+        disabled: busy || !canWrite,
       }),
     ],
-    [patch, busy],
+    [patch, busy, canWrite],
   );
 
   return (
@@ -232,6 +234,8 @@ function VisitpadProceduresPage() {
       }
       actions={
         <VisitpadHeaderActions
+          canWrite={canWrite}
+          canRead={canRead}
           addLabel={tenantCatalog ? 'Add local procedure' : 'Add procedure'}
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
@@ -455,6 +459,9 @@ function ProcedureCreateDialog({
             maxLength={512}
             {...form.register('official_descriptor')}
           />
+          {form.formState.errors.official_descriptor ? (
+            <p className="text-sm text-destructive">{form.formState.errors.official_descriptor.message}</p>
+          ) : null}
         </div>
         <div className="space-y-2 sm:col-span-2">
           <Label htmlFor="vp-pr-disp">Display name *</Label>

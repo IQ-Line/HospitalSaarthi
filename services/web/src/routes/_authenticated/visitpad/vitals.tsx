@@ -38,6 +38,7 @@ import {
 import { visitpadActiveTotal } from '@/features/visitpad/tab-count';
 import type { VisitpadUnit, VisitpadVital } from '@/features/visitpad/types';
 import { visitpadGlobalVitalToCreateBody } from '@/features/visitpad/lib/vital-import-payload';
+import { useVisitpadCatalogPermission } from '@/features/visitpad/hooks/use-visitpad-catalog-permission';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 import { visitpadActiveUnitRows } from '@/features/visitpad/unit-catalog';
 import {
@@ -124,6 +125,7 @@ function VisitpadVitalsPage() {
   const [importBusy, setImportBusy] = useState(false);
   const [editing, setEditing] = useState<VisitpadVital | null>(null);
   const [deleting, setDeleting] = useState<VisitpadVital | null>(null);
+  const { canWrite, canRead } = useVisitpadCatalogPermission();
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const cat = category === 'all' ? undefined : category;
   const { data, isLoading, error } = useVisitpadVitals(search || undefined, cat);
@@ -262,7 +264,7 @@ function VisitpadVitalsPage() {
         cell: ({ row }) => (
           <TableActiveToggle
             active={row.original.is_active}
-            disabled={patch.isPending}
+            disabled={patch.isPending || !canWrite}
             onCheckedChange={async (next) => {
               try {
                 await patch.mutateAsync({ id: row.original.id, body: { is_active: next } });
@@ -277,10 +279,10 @@ function VisitpadVitalsPage() {
       visitpadActionsColumn<VisitpadVital>({
         onEdit: setEditing,
         onDelete: setDeleting,
-        disabled: busy,
+        disabled: busy || !canWrite,
       }),
     ],
-    [patch, busy],
+    [patch, busy, canWrite],
   );
 
   return (
@@ -295,6 +297,8 @@ function VisitpadVitalsPage() {
       }
       actions={
         <VisitpadHeaderActions
+          canWrite={canWrite}
+          canRead={canRead}
           addLabel={tenantCatalog ? 'Add local vital' : 'Add vital'}
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}

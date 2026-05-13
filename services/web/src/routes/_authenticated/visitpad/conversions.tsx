@@ -44,6 +44,7 @@ import {
   type VisitpadUnitConversionCreateSchema,
   type VisitpadUnitConversionEditFormSchema,
 } from '@/features/visitpad/validation';
+import { useVisitpadCatalogPermission } from '@/features/visitpad/hooks/use-visitpad-catalog-permission';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 import { visitpadGlobalUnitConversionToCreateBody } from '@/features/visitpad/lib/visitpad-global-import-payloads';
 
@@ -59,6 +60,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/conversions')({
 });
 
 function VisitpadConversionsPage() {
+  const { canWrite, canRead } = useVisitpadCatalogPermission();
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
@@ -184,10 +186,10 @@ function VisitpadConversionsPage() {
       visitpadActionsColumn<VisitpadUnitConversion>({
         onEdit: setEditing,
         onDelete: setDeleting,
-        disabled: busy,
+        disabled: busy || !canWrite,
       }),
     ],
-    [busy, unitLabelByCode],
+    [busy, unitLabelByCode, canWrite],
   );
 
   return (
@@ -204,6 +206,8 @@ function VisitpadConversionsPage() {
       secondaryNav={<VisitpadUnitsSecondaryNav />}
       actions={
         <VisitpadHeaderActions
+          canWrite={canWrite}
+          canRead={canRead}
           addLabel={tenantCatalog ? 'Add local conversion' : 'Add conversion'}
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}

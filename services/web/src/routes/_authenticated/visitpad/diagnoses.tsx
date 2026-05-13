@@ -43,6 +43,7 @@ import {
   type VisitpadDiagnosisCreateFormSchema,
   type VisitpadDiagnosisEditFormSchema,
 } from '@/features/visitpad/validation';
+import { useVisitpadCatalogPermission } from '@/features/visitpad/hooks/use-visitpad-catalog-permission';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 import { visitpadGlobalDiagnosisToCreateBody } from '@/features/visitpad/lib/visitpad-global-import-payloads';
 
@@ -53,6 +54,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/diagnoses')({
 });
 
 function VisitpadDiagnosesPage() {
+  const { canWrite, canRead } = useVisitpadCatalogPermission();
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string>('all');
@@ -164,7 +166,7 @@ function VisitpadDiagnosesPage() {
         cell: ({ row }) => (
           <TableActiveToggle
             active={row.original.is_active}
-            disabled={patch.isPending}
+            disabled={patch.isPending || !canWrite}
             onCheckedChange={async (next) => {
               try {
                 await patch.mutateAsync({ id: row.original.id, body: { is_active: next } });
@@ -179,10 +181,10 @@ function VisitpadDiagnosesPage() {
       visitpadActionsColumn<VisitpadDiagnosis>({
         onEdit: setEditing,
         onDelete: setDeleting,
-        disabled: busy,
+        disabled: busy || !canWrite,
       }),
     ],
-    [patch, busy],
+    [patch, busy, canWrite],
   );
 
   return (
@@ -197,6 +199,8 @@ function VisitpadDiagnosesPage() {
       }
       actions={
         <VisitpadHeaderActions
+          canWrite={canWrite}
+          canRead={canRead}
           addLabel={tenantCatalog ? 'Add local diagnosis' : 'Add diagnosis'}
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}

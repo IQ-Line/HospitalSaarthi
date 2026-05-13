@@ -529,6 +529,7 @@ export const visitpadProcedureCreateFormSchema = z.object({
     .max(8)
     .regex(PROCEDURE_CODE_REGEX, 'Use 3–8 letters, digits, or underscores.'),
   short_name: z.string().max(64),
+  official_descriptor: z.string().trim().min(1).max(512),
   display_name: z.string().trim().min(1).max(512),
   category: visitpadProcedureCategorySchema,
   billing_category: visitpadProcedureBillingCategorySchema,

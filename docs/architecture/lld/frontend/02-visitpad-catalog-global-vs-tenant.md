@@ -2,7 +2,7 @@
 
 > **Purpose:** Explain how Visitpad master-data lists and edits choose **platform (`public`)** vs **tenant** catalogs, how **Import from library** works, and how this design behaves under many tenants and traffic. Intended for engineers extending Visitpad or wiring real auth.
 >
-> **Prerequisites:** [01-frontend-structure.md](./01-frontend-structure.md) (stores, React Query), workspace rule “Frontend auth is UX; backend Cerbos is authoritative”, [catalog scope tests](../../../../modules/master-data/tests/test_api/test_catalog_scope_headers.py) (backend `iq_tenant_id` behavior).
+> **Prerequisites:** [01-frontend-structure.md](./01-frontend-structure.md) (stores, React Query), [03-permissions-catalog-vs-runtime.md](./03-permissions-catalog-vs-runtime.md) (catalog vs runtime vs SPA map), workspace rule “Frontend auth is UX; backend Cerbos is authoritative”, [catalog scope tests](../../../../modules/master-data/tests/test_api/test_catalog_scope_headers.py) (backend `iq_tenant_id` behavior).
 
 ---
 
@@ -61,9 +61,7 @@ This is **UX only**. A malicious client could skip headers; **Cerbos + master-da
 
 ## 4. List queries (TanStack Query)
 
-`services/web/src/features/visitpad/api/catalog.ts` uses `apiClient` for normal list hooks (e.g. `useVisitpadUnits`). Because `apiClient` reads the store at request time, **cache entries can differ by tenant** even when query keys are identical—React Query will still dedupe in-flight requests by key.
-
-**Recommendation for production:** extend `visitpadKeys.*` (or each hook’s `queryKey`) with the resolved catalog tenant segment, e.g. `catalogIqTenantHeaderValue(tenantId) ?? 'global'`, so switching tenants in the same browser session never shows another tenant’s cached list. Today keys are entity-only; if you only ever switch tenant via full reload, behavior is still correct.
+`services/web/src/features/visitpad/api/catalog.ts` uses `apiClient` for normal list hooks (e.g. `useVisitpadUnits`). Each `queryKey` includes **`visitpadCatalogQueryScopeKey()`** (`catalogIqTenantHeaderValue(tenantId) ?? 'global'`) so switching between platform and tenant sessions in the same browser does not reuse the wrong cached list.
 
 Default list requests use a bounded `limit` (see `buildVisitpadCatalogListUrl`); **server-side pagination** is the right lever for very large catalogs under traffic (see TODO in `catalog.ts` and master-data API contracts).
 
@@ -119,10 +117,12 @@ Users can **edit or remove** tenant-owned or tenant-imported rows without affect
 
 | Button on `/login` | `tenantId` | `iq_tenant_id` on Visitpad reads/writes | Import from library |
 |--------------------|------------|----------------------------------------|----------------------|
-| **Dev login** | `tenant-001` (slug) | Omitted → **platform** | Hidden |
+| **Dev login** | `null` (platform operator) | Omitted → **platform** | Hidden |
 | **Tenant dev login** | `00000000-0000-0000-0000-000000000007` | Sent → **tenant** for that UUID | Shown |
 
-Production: `tenantId` should come from **better-auth / tenant registry** (real tenant UUID). Slugs or numeric legacy ids must either map to a UUID before calling Visitpad writes or stay on read-only global tooling.
+Production: `tenantId` should come from **better-auth / tenant registry** (real tenant UUID for tenant catalog, or unset/`null` for platform-only operators). A **non-null slug** (e.g. `tenant-001`) without a UUID mapping still triggers the Visitpad **write block** in `apiClient` if someone selects it while attempting catalog writes — avoid that shape for Visitpad editors.
+
+**Dev mock session persistence:** In `import.meta.env.DEV`, auth, tenant, and permissions stores use **Zustand `persist`** with **`sessionStorage`**. `services/web/src/main.tsx` awaits `persist.rehydrate()` before mounting the router so `_authenticated` `beforeLoad` sees a restored session after refresh.
 
 ---
 
@@ -137,6 +137,7 @@ Production: `tenantId` should come from **better-auth / tenant registry** (real 
 | Import modal | `services/web/src/features/visitpad/components/import-from-platform-catalog-dialog.tsx` |
 | Create bodies from platform rows | `services/web/src/features/visitpad/lib/visitpad-global-import-payloads.ts` |
 | Mock login | `services/web/src/routes/login.tsx` |
+| Dev session persist + rehydrate | `services/web/src/stores/*.store.ts`, `services/web/src/main.tsx` |
 
 ---
 

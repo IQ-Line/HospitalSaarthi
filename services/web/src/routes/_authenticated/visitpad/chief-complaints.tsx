@@ -43,6 +43,7 @@ import {
   type VisitpadChiefComplaintEditFormSchema,
 } from '@/features/visitpad/validation';
 import { visitpadGlobalChiefComplaintToCreateBody } from '@/features/visitpad/lib/chief-complaint-import-payload';
+import { useVisitpadCatalogPermission } from '@/features/visitpad/hooks/use-visitpad-catalog-permission';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 
 const CC_BASE = '/api/v1/master-data/visitpad/chief-complaints';
@@ -52,6 +53,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/chief-complaints'
 });
 
 function VisitpadChiefComplaintsPage() {
+  const { canWrite, canRead } = useVisitpadCatalogPermission();
   const [search, setSearch] = useState('');
   const [bodySystem, setBodySystem] = useState<string>('all');
   const [triage, setTriage] = useState<string>('all');
@@ -220,7 +222,7 @@ function VisitpadChiefComplaintsPage() {
         cell: ({ row }) => (
           <TableActiveToggle
             active={row.original.is_active}
-            disabled={patch.isPending}
+            disabled={patch.isPending || !canWrite}
             onCheckedChange={async (next) => {
               try {
                 await patch.mutateAsync({ id: row.original.id, body: { is_active: next } });
@@ -235,10 +237,10 @@ function VisitpadChiefComplaintsPage() {
       visitpadActionsColumn<VisitpadChiefComplaint>({
         onEdit: setEditing,
         onDelete: setDeleting,
-        disabled: busy,
+        disabled: busy || !canWrite,
       }),
     ],
-    [patch, busy],
+    [patch, busy, canWrite],
   );
 
   return (
@@ -253,6 +255,8 @@ function VisitpadChiefComplaintsPage() {
       }
       actions={
         <VisitpadHeaderActions
+          canWrite={canWrite}
+          canRead={canRead}
           addLabel={tenantCatalog ? 'Add local complaint' : 'Add complaint'}
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}

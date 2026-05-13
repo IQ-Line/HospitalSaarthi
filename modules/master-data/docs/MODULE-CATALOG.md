@@ -30,6 +30,8 @@ Cross-cutting HLD: [HLD 02 §4.2 — Owns (platform module registry)](../../../d
 | `006_permissions_catalog` | Creates `permissions` table (action enum, soft-delete/audit columns) with active-slug unique index. |
 | `007_system_roles_catalog` | Creates `system_roles` (templates; soft-delete/audit, partial unique on `slug`). |
 | `008_module_permissions` | Creates `module_permissions` (FKs to `modules` / `permissions`, partial uniques on `slug` and `(module_id, permission_id)`). |
+| `024_visitpad_templates_module_catalog` | Idempotent seed: `visitpad-templates` module + catalog read/write `permissions` + `module_permissions` junction rows (Visitpad templates). |
+| `025_visitpad_templates_catalog_manage` | Optional: `visitpad-templates-catalog-manage` (`action` = `manage`) + junction row for coarse superadmin-style Cerbos bindings (does not remove 024 rows). |
 
 All catalog tables are created in the PostgreSQL **`public`** schema (same default as most services).
 
@@ -57,6 +59,8 @@ All catalog tables are created in the PostgreSQL **`public`** schema (same defau
 `migrate` and `serve` Nx targets run `uv sync` first if needed — see `project.json`.
 
 **Workflow:** When you add columns or endpoints (including Swagger-visible changes), read **[SETUP.md](../SETUP.md)** section **§7 — After DB or API changes** — migrate first, then code; **`uvicorn --reload`** does not apply migrations automatically.
+
+Ad-hoc DBA / pgAdmin examples (inspect `modules` / `permissions` / `module_permissions`, optional granular Visitpad slugs, copy `public` → `tenant_master`): [`../scripts/visitpad_catalog_and_tenant_examples.sql`](../scripts/visitpad_catalog_and_tenant_examples.sql).
 
 ## HTTP endpoints (implemented)
 
