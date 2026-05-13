@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Controller, useForm, type SubmitHandler } from 'react-hook-form';
 import { type ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
@@ -18,7 +18,9 @@ import {
   useVisitpadPatch,
   useVisitpadPost,
   useVisitpadVaccines,
+  useVisitpadVaccinesGlobalLibrary,
 } from '@/features/visitpad/api';
+import { ImportFromPlatformCatalogDialog } from '@/features/visitpad/components/import-from-platform-catalog-dialog';
 import { visitpadActionsColumn } from '@/features/visitpad/components/visitpad-actions-column';
 import { VisitpadHeaderActions } from '@/features/visitpad/components/visitpad-header-actions';
 import { VisitpadPageShell } from '@/features/visitpad/components/visitpad-page-shell';
@@ -31,6 +33,8 @@ import {
   type VisitpadVaccineCreateFormSchema,
   type VisitpadVaccineEditFormSchema,
 } from '@/features/visitpad/validation';
+import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
+import { visitpadGlobalVaccineToCreateBody } from '@/features/visitpad/lib/visitpad-global-import-payloads';
 
 const VA_BASE = '/api/v1/master-data/visitpad/vaccines';
 
@@ -39,17 +43,52 @@ export const Route = createFileRoute('/_authenticated/visitpad/vaccines')({
 });
 
 function VisitpadVaccinesPage() {
+  const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importBusy, setImportBusy] = useState(false);
   const [editing, setEditing] = useState<VisitpadVaccine | null>(null);
   const [deleting, setDeleting] = useState<VisitpadVaccine | null>(null);
   const { data, isLoading, error } = useVisitpadVaccines(search || undefined);
+  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadVaccinesGlobalLibrary(importOpen);
   const patch = useVisitpadPatch(VA_BASE);
   const del = useVisitpadDelete(VA_BASE);
   const create = useVisitpadPost(VA_BASE);
   const rows = data?.data ?? [];
   const tabCount = visitpadActiveTotal(rows, data?.total);
-  const busy = patch.isPending || del.isPending;
+  const busy = patch.isPending || del.isPending || importBusy;
+
+  const importedKeys = useMemo(() => new Set(rows.map((r) => r.code)), [rows]);
+  const globalRows = globalLib?.data ?? [];
+  const getRowKey = useCallback((r: VisitpadVaccine) => r.code, []);
+
+  const importSearchParts = useCallback(
+    (r: VisitpadVaccine) => [r.code, r.display_name, r.short_name ?? ''],
+    [],
+  );
+
+  const importColumns = useMemo(
+    () => [{ id: 'name', header: 'Vaccine', cell: (r: VisitpadVaccine) => r.display_name }],
+    [],
+  );
+
+  const runVaccineImport = async (selection: VisitpadVaccine[]) => {
+    setImportBusy(true);
+    try {
+      for (const row of selection) {
+        await create.mutateAsync(visitpadGlobalVaccineToCreateBody(row));
+      }
+      toast.success(
+        selection.length === 1 ? 'Imported 1 vaccine' : `Imported ${selection.length} vaccines`,
+      );
+      setImportOpen(false);
+    } catch (e) {
+      toast.error(mutationErrorMessage(e));
+    } finally {
+      setImportBusy(false);
+    }
+  };
 
   const columns = useMemo<ColumnDef<VisitpadVaccine, unknown>[]>(
     () => [
@@ -95,9 +134,18 @@ function VisitpadVaccinesPage() {
       primary="vaccines"
       tabCount={tabCount}
       title="Vaccines"
-      description="Vaccine catalog for Visitpad (stable code, display name, optional short name). Global rows omit iq_tenant_id; tenant rows use the standard catalog header."
+      description={
+        tenantCatalog
+          ? 'Tenant vaccine catalog: import from the platform library or add local-only vaccines.'
+          : 'Platform vaccine catalog for Visitpad (stable code, display name, optional short name).'
+      }
       actions={
-        <VisitpadHeaderActions addLabel="Add vaccine" onAddClick={() => setCreateOpen(true)} />
+        <VisitpadHeaderActions
+          addLabel={tenantCatalog ? 'Add local vaccine' : 'Add vaccine'}
+          onAddClick={() => setCreateOpen(true)}
+          onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
+          importFromLibraryPending={importBusy}
+        />
       }
     >
       <div className="space-y-4">
@@ -119,6 +167,22 @@ function VisitpadVaccinesPage() {
           />
         )}
       </div>
+
+      <ImportFromPlatformCatalogDialog<VisitpadVaccine>
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Import vaccines from platform library"
+        description="Select vaccines to add to your tenant catalog. Already-imported codes are disabled."
+        searchPlaceholder="Search code, display name, short name…"
+        rows={globalRows}
+        isLoading={globalLibLoading}
+        getRowKey={getRowKey}
+        importedKeys={importedKeys}
+        columns={importColumns}
+        searchParts={importSearchParts}
+        isSubmitting={importBusy || create.isPending}
+        onImportRows={runVaccineImport}
+      />
 
       <VaccineCreateDialog
         open={createOpen}

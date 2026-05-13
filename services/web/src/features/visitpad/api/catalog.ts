@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { apiClient } from '@/lib/api-client';
+import { apiClient, apiClientGlobalCatalogRead } from '@/lib/api-client';
 import { visitpadKeys } from './query-keys';
 import type {
   VisitpadAllergen,
@@ -21,7 +21,11 @@ import type {
 
 const MD = '/api/v1/master-data/visitpad';
 
-function listUrl(path: string, params?: Record<string, string | undefined>) {
+/** List URL for Visitpad catalog GETs (shared by tenant-scoped and global-library reads). */
+export function buildVisitpadCatalogListUrl(
+  path: string,
+  params?: Record<string, string | undefined>,
+) {
   const q = new URLSearchParams();
   // TODO(visitpad-pagination): server supports limit/offset; wire table pagination + "Showing n of total" (large catalogs). Track in your issue tracker when created; contract note: docs/architecture/lld/master-data/02-api-contracts.md §3.3.
   q.set('limit', '200');
@@ -34,13 +38,15 @@ function listUrl(path: string, params?: Record<string, string | undefined>) {
   return `${MD}${path}?${q.toString()}`;
 }
 
+function listUrl(path: string, params?: Record<string, string | undefined>) {
+  return buildVisitpadCatalogListUrl(path, params);
+}
+
 export function useVisitpadUnits(search?: string, dimension?: string) {
   return useQuery({
     queryKey: [...visitpadKeys.units(), search ?? '', dimension ?? ''],
     queryFn: () =>
-      apiClient<VisitpadListResponse<VisitpadUnit>>(
-        listUrl('/units', { search, dimension }),
-      ),
+      apiClient<VisitpadListResponse<VisitpadUnit>>(listUrl('/units', { search, dimension })),
   });
 }
 
@@ -58,9 +64,17 @@ export function useVisitpadVitals(search?: string, category?: string) {
   return useQuery({
     queryKey: [...visitpadKeys.vitals(), search ?? '', category ?? ''],
     queryFn: () =>
-      apiClient<VisitpadListResponse<VisitpadVital>>(
-        listUrl('/vitals', { search, category }),
-      ),
+      apiClient<VisitpadListResponse<VisitpadVital>>(listUrl('/vitals', { search, category })),
+  });
+}
+
+/** Global (`public`) vitals — omit `iq_tenant_id` even when a tenant UUID is active (import modal). */
+export function useVisitpadVitalsGlobalLibrary(enabled: boolean) {
+  return useQuery({
+    queryKey: [...visitpadKeys.vitals(), 'global-platform-library'],
+    queryFn: () =>
+      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadVital>>(listUrl('/vitals', {})),
+    enabled,
   });
 }
 
@@ -70,11 +84,28 @@ export function useVisitpadChiefComplaints(
   triage_priority?: string,
 ) {
   return useQuery({
-    queryKey: [...visitpadKeys.chiefComplaints(), search ?? '', body_system ?? '', triage_priority ?? ''],
+    queryKey: [
+      ...visitpadKeys.chiefComplaints(),
+      search ?? '',
+      body_system ?? '',
+      triage_priority ?? '',
+    ],
     queryFn: () =>
       apiClient<VisitpadListResponse<VisitpadChiefComplaint>>(
         listUrl('/chief-complaints', { search, body_system, triage_priority }),
       ),
+  });
+}
+
+/** Global chief complaints for “import from platform library”. */
+export function useVisitpadChiefComplaintsGlobalLibrary(enabled: boolean) {
+  return useQuery({
+    queryKey: [...visitpadKeys.chiefComplaints(), 'global-platform-library'],
+    queryFn: () =>
+      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadChiefComplaint>>(
+        listUrl('/chief-complaints', {}),
+      ),
+    enabled,
   });
 }
 
@@ -174,5 +205,114 @@ export function useVisitpadManufacturers(search?: string) {
     queryKey: [...visitpadKeys.manufacturers(), search ?? ''],
     queryFn: () =>
       apiClient<VisitpadListResponse<VisitpadManufacturer>>(listUrl('/manufacturers', { search })),
+  });
+}
+
+export function useVisitpadUnitsGlobalLibrary(enabled: boolean) {
+  return useQuery({
+    queryKey: [...visitpadKeys.units(), 'global-platform-library'],
+    queryFn: () =>
+      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadUnit>>(listUrl('/units', {})),
+    enabled,
+  });
+}
+
+export function useVisitpadConversionsGlobalLibrary(enabled: boolean) {
+  return useQuery({
+    queryKey: [...visitpadKeys.conversions(), 'global-platform-library'],
+    queryFn: () =>
+      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadUnitConversion>>(
+        listUrl('/unit-conversions', {}),
+      ),
+    enabled,
+  });
+}
+
+export function useVisitpadDiagnosesGlobalLibrary(enabled: boolean) {
+  return useQuery({
+    queryKey: [...visitpadKeys.diagnoses(), 'global-platform-library'],
+    queryFn: () =>
+      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadDiagnosis>>(listUrl('/diagnoses', {})),
+    enabled,
+  });
+}
+
+export function useVisitpadAllergensGlobalLibrary(enabled: boolean) {
+  return useQuery({
+    queryKey: [...visitpadKeys.allergens(), 'global-platform-library'],
+    queryFn: () =>
+      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadAllergen>>(listUrl('/allergens', {})),
+    enabled,
+  });
+}
+
+export function useVisitpadAllergyReactionsGlobalLibrary(enabled: boolean) {
+  return useQuery({
+    queryKey: [...visitpadKeys.reactions(), 'global-platform-library'],
+    queryFn: () =>
+      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadAllergyReaction>>(
+        listUrl('/allergy-reactions', {}),
+      ),
+    enabled,
+  });
+}
+
+export function useVisitpadRxColumnsGlobalLibrary(section: string, enabled: boolean) {
+  return useQuery({
+    queryKey: [...visitpadKeys.rxColumns(section), 'global-platform-library'],
+    queryFn: () =>
+      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadRxColumn>>(
+        listUrl('/rx-columns', { section }),
+      ),
+    enabled,
+  });
+}
+
+export function useVisitpadMedicinesGlobalLibrary(enabled: boolean) {
+  return useQuery({
+    queryKey: [...visitpadKeys.medicines(), 'global-platform-library'],
+    queryFn: () =>
+      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadMedicine>>(listUrl('/medicines', {})),
+    enabled,
+  });
+}
+
+export function useVisitpadChronicIllnessesGlobalLibrary(enabled: boolean) {
+  return useQuery({
+    queryKey: [...visitpadKeys.chronicIllnesses(), 'global-platform-library'],
+    queryFn: () =>
+      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadChronicIllness>>(
+        listUrl('/chronic-illnesses', {}),
+      ),
+    enabled,
+  });
+}
+
+export function useVisitpadProceduresGlobalLibrary(enabled: boolean) {
+  return useQuery({
+    queryKey: [...visitpadKeys.procedures(), 'global-platform-library'],
+    queryFn: () =>
+      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadProcedure>>(listUrl('/procedures', {})),
+    enabled,
+  });
+}
+
+export function useVisitpadVaccinesGlobalLibrary(enabled: boolean) {
+  return useQuery({
+    queryKey: [...visitpadKeys.vaccines(), 'global-platform-library'],
+    queryFn: () =>
+      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadVaccine>>(listUrl('/vaccines', {})),
+    enabled,
+  });
+}
+
+export function useVisitpadManufacturersGlobalLibrary(enabled: boolean) {
+  return useQuery({
+    queryKey: [...visitpadKeys.manufacturers(), 'global-platform-library'],
+    queryFn: () =>
+      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadManufacturer>>(
+        listUrl('/manufacturers', {}),
+      ),
+    enabled,
   });
 }

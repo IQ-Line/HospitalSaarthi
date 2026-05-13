@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Controller, useForm, type SubmitHandler } from 'react-hook-form';
 import { type ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
@@ -24,10 +24,12 @@ import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { rowMatchesSearch } from '@/features/master-data/table-search';
 import {
   useVisitpadChronicIllnesses,
+  useVisitpadChronicIllnessesGlobalLibrary,
   useVisitpadDelete,
   useVisitpadPatch,
   useVisitpadPost,
 } from '@/features/visitpad/api';
+import { ImportFromPlatformCatalogDialog } from '@/features/visitpad/components/import-from-platform-catalog-dialog';
 import { visitpadActionsColumn } from '@/features/visitpad/components/visitpad-actions-column';
 import { VisitpadHeaderActions } from '@/features/visitpad/components/visitpad-header-actions';
 import { VisitpadPageShell } from '@/features/visitpad/components/visitpad-page-shell';
@@ -43,6 +45,8 @@ import {
   type VisitpadChronicIllnessEditFormInput,
   type VisitpadChronicIllnessEditFormSchema,
 } from '@/features/visitpad/validation';
+import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
+import { visitpadGlobalChronicIllnessToCreateBody } from '@/features/visitpad/lib/visitpad-global-import-payloads';
 
 const CI_BASE = '/api/v1/master-data/visitpad/chronic-illnesses';
 
@@ -79,19 +83,59 @@ export const Route = createFileRoute('/_authenticated/visitpad/chronic-illness')
 });
 
 function VisitpadChronicIllnessPage() {
+  const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string>('all');
   const [createOpen, setCreateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importBusy, setImportBusy] = useState(false);
   const [editing, setEditing] = useState<VisitpadChronicIllness | null>(null);
   const [deleting, setDeleting] = useState<VisitpadChronicIllness | null>(null);
   const cat = category === 'all' ? undefined : category;
   const { data, isLoading, error } = useVisitpadChronicIllnesses(search || undefined, cat);
+  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadChronicIllnessesGlobalLibrary(importOpen);
   const patch = useVisitpadPatch(CI_BASE);
   const del = useVisitpadDelete(CI_BASE);
   const create = useVisitpadPost(CI_BASE);
   const rows = data?.data ?? [];
   const tabCount = visitpadActiveTotal(rows, data?.total);
-  const busy = patch.isPending || del.isPending;
+  const busy = patch.isPending || del.isPending || importBusy;
+
+  const importedKeys = useMemo(() => new Set(rows.map((r) => r.icd10_code)), [rows]);
+  const globalRows = globalLib?.data ?? [];
+  const getRowKey = useCallback((r: VisitpadChronicIllness) => r.icd10_code, []);
+
+  const importSearchParts = useCallback(
+    (r: VisitpadChronicIllness) => [r.icd10_code, r.display_name, r.category, r.snomed_code ?? ''],
+    [],
+  );
+
+  const importColumns = useMemo(
+    () => [
+      { id: 'name', header: 'Display name', cell: (r: VisitpadChronicIllness) => r.display_name },
+      { id: 'cat', header: 'Category', cell: (r: VisitpadChronicIllness) => r.category },
+    ],
+    [],
+  );
+
+  const runChronicIllnessImport = async (selection: VisitpadChronicIllness[]) => {
+    setImportBusy(true);
+    try {
+      for (const row of selection) {
+        await create.mutateAsync(visitpadGlobalChronicIllnessToCreateBody(row));
+      }
+      toast.success(
+        selection.length === 1
+          ? 'Imported 1 chronic illness'
+          : `Imported ${selection.length} chronic illnesses`,
+      );
+      setImportOpen(false);
+    } catch (e) {
+      toast.error(mutationErrorMessage(e));
+    } finally {
+      setImportBusy(false);
+    }
+  };
 
   const filtered = useMemo(
     () =>
@@ -153,11 +197,17 @@ function VisitpadChronicIllnessPage() {
       primary="chronic-illness"
       tabCount={tabCount}
       title="Chronic illness"
-      description="Chronic condition reference list."
+      description={
+        tenantCatalog
+          ? 'Tenant chronic-condition list: import from the platform library or add local-only rows.'
+          : 'Platform chronic condition reference list.'
+      }
       actions={
         <VisitpadHeaderActions
-          addLabel="Add chronic illness"
+          addLabel={tenantCatalog ? 'Add local chronic illness' : 'Add chronic illness'}
           onAddClick={() => setCreateOpen(true)}
+          onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
+          importFromLibraryPending={importBusy}
         />
       }
     >
@@ -197,6 +247,23 @@ function VisitpadChronicIllnessPage() {
           />
         )}
       </div>
+
+      <ImportFromPlatformCatalogDialog<VisitpadChronicIllness>
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Import chronic illnesses from platform library"
+        description="Select rows to add to your tenant catalog. Already-imported ICD-10 codes are disabled."
+        searchPlaceholder="Search ICD-10, name, category…"
+        rows={globalRows}
+        isLoading={globalLibLoading}
+        getRowKey={getRowKey}
+        rowKeyHeader="ICD-10"
+        importedKeys={importedKeys}
+        columns={importColumns}
+        searchParts={importSearchParts}
+        isSubmitting={importBusy || create.isPending}
+        onImportRows={runChronicIllnessImport}
+      />
 
       <ChronicIllnessCreateDialog
         open={createOpen}

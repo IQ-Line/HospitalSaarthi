@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { type ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
@@ -22,7 +22,14 @@ import { MasterDataTableToolbar } from '@/features/master-data/components/master
 import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { rowMatchesSearch } from '@/features/master-data/table-search';
-import { useVisitpadAllergens, useVisitpadDelete, useVisitpadPatch, useVisitpadPost } from '@/features/visitpad/api';
+import {
+  useVisitpadAllergens,
+  useVisitpadAllergensGlobalLibrary,
+  useVisitpadDelete,
+  useVisitpadPatch,
+  useVisitpadPost,
+} from '@/features/visitpad/api';
+import { ImportFromPlatformCatalogDialog } from '@/features/visitpad/components/import-from-platform-catalog-dialog';
 import { visitpadActionsColumn } from '@/features/visitpad/components/visitpad-actions-column';
 import { VisitpadHeaderActions } from '@/features/visitpad/components/visitpad-header-actions';
 import { VisitpadPageShell } from '@/features/visitpad/components/visitpad-page-shell';
@@ -37,6 +44,8 @@ import {
   type VisitpadAllergenCreateFormSchema,
   type VisitpadAllergenEditFormSchema,
 } from '@/features/visitpad/validation';
+import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
+import { visitpadGlobalAllergenToCreateBody } from '@/features/visitpad/lib/visitpad-global-import-payloads';
 
 const AG_BASE = '/api/v1/master-data/visitpad/allergens';
 
@@ -45,19 +54,57 @@ export const Route = createFileRoute('/_authenticated/visitpad/allergens')({
 });
 
 function VisitpadAllergensPage() {
+  const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [allergenType, setAllergenType] = useState<string>('all');
   const [createOpen, setCreateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importBusy, setImportBusy] = useState(false);
   const [editing, setEditing] = useState<VisitpadAllergen | null>(null);
   const [deleting, setDeleting] = useState<VisitpadAllergen | null>(null);
   const at = allergenType === 'all' ? undefined : allergenType;
   const { data, isLoading, error } = useVisitpadAllergens(search || undefined, at);
+  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadAllergensGlobalLibrary(importOpen);
   const patch = useVisitpadPatch(AG_BASE);
   const del = useVisitpadDelete(AG_BASE);
   const create = useVisitpadPost(AG_BASE);
   const rows = data?.data ?? [];
   const tabCount = visitpadActiveTotal(rows, data?.total);
-  const busy = patch.isPending || del.isPending;
+  const busy = patch.isPending || del.isPending || importBusy;
+
+  const importedKeys = useMemo(() => new Set(rows.map((r) => r.code)), [rows]);
+  const globalRows = globalLib?.data ?? [];
+  const getRowKey = useCallback((r: VisitpadAllergen) => r.code, []);
+
+  const importSearchParts = useCallback(
+    (r: VisitpadAllergen) => [r.code, r.display_name, r.allergen_type, r.drug_class ?? ''],
+    [],
+  );
+
+  const importColumns = useMemo(
+    () => [
+      { id: 'name', header: 'Display name', cell: (r: VisitpadAllergen) => r.display_name },
+      { id: 'type', header: 'Type', cell: (r: VisitpadAllergen) => r.allergen_type },
+    ],
+    [],
+  );
+
+  const runAllergenImport = async (selection: VisitpadAllergen[]) => {
+    setImportBusy(true);
+    try {
+      for (const row of selection) {
+        await create.mutateAsync(visitpadGlobalAllergenToCreateBody(row));
+      }
+      toast.success(
+        selection.length === 1 ? 'Imported 1 allergen' : `Imported ${selection.length} allergens`,
+      );
+      setImportOpen(false);
+    } catch (e) {
+      toast.error(mutationErrorMessage(e));
+    } finally {
+      setImportBusy(false);
+    }
+  };
 
   const filtered = useMemo(
     () => rows.filter((r) => rowMatchesSearch(search, r.code, r.display_name, r.allergen_type)),
@@ -135,10 +182,19 @@ function VisitpadAllergensPage() {
       tabCount={tabCount}
       breadcrumbLabel="Allergens"
       title="Allergens"
-      description="Allergen catalog: stable code, type, default reaction severity, optional SNOMED (substance/organism), optional drug class when type is drug."
+      description={
+        tenantCatalog
+          ? 'Tenant allergen catalog: import from the platform library or add local-only entries.'
+          : 'Platform allergen catalog: stable code, type, default reaction severity, optional SNOMED (substance/organism), optional drug class when type is drug.'
+      }
       secondaryNav={<VisitpadAllergiesSecondaryNav />}
       actions={
-        <VisitpadHeaderActions addLabel="Add allergen" onAddClick={() => setCreateOpen(true)} />
+        <VisitpadHeaderActions
+          addLabel={tenantCatalog ? 'Add local allergen' : 'Add allergen'}
+          onAddClick={() => setCreateOpen(true)}
+          onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
+          importFromLibraryPending={importBusy}
+        />
       }
     >
       <div className="space-y-4">
@@ -177,6 +233,22 @@ function VisitpadAllergensPage() {
           />
         )}
       </div>
+
+      <ImportFromPlatformCatalogDialog<VisitpadAllergen>
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Import allergens from platform library"
+        description="Select allergens to add to your tenant catalog. Already-imported codes are disabled."
+        searchPlaceholder="Search code, display name, type…"
+        rows={globalRows}
+        isLoading={globalLibLoading}
+        getRowKey={getRowKey}
+        importedKeys={importedKeys}
+        columns={importColumns}
+        searchParts={importSearchParts}
+        isSubmitting={importBusy || create.isPending}
+        onImportRows={runAllergenImport}
+      />
 
       <AllergenCreateDialog
         open={createOpen}

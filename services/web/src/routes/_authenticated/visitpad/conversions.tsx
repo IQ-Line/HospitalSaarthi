@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { type ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
@@ -21,11 +21,13 @@ import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { rowMatchesSearch } from '@/features/master-data/table-search';
 import {
   useVisitpadConversions,
+  useVisitpadConversionsGlobalLibrary,
   useVisitpadDelete,
   useVisitpadPatch,
   useVisitpadPost,
   useVisitpadUnits,
 } from '@/features/visitpad/api';
+import { ImportFromPlatformCatalogDialog } from '@/features/visitpad/components/import-from-platform-catalog-dialog';
 import { visitpadActionsColumn } from '@/features/visitpad/components/visitpad-actions-column';
 import { VisitpadHeaderActions } from '@/features/visitpad/components/visitpad-header-actions';
 import { VisitpadPageShell } from '@/features/visitpad/components/visitpad-page-shell';
@@ -42,6 +44,8 @@ import {
   type VisitpadUnitConversionCreateSchema,
   type VisitpadUnitConversionEditFormSchema,
 } from '@/features/visitpad/validation';
+import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
+import { visitpadGlobalUnitConversionToCreateBody } from '@/features/visitpad/lib/visitpad-global-import-payloads';
 
 const CONV_BASE = '/api/v1/master-data/visitpad/unit-conversions';
 
@@ -55,18 +59,31 @@ export const Route = createFileRoute('/_authenticated/visitpad/conversions')({
 });
 
 function VisitpadConversionsPage() {
+  const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importBusy, setImportBusy] = useState(false);
   const [editing, setEditing] = useState<VisitpadUnitConversion | null>(null);
   const [deleting, setDeleting] = useState<VisitpadUnitConversion | null>(null);
   const { data, isLoading, error } = useVisitpadConversions(search || undefined);
   const { data: unitsRes, isLoading: unitsLoading } = useVisitpadUnits();
+  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadConversionsGlobalLibrary(importOpen);
   const create = useVisitpadPost(CONV_BASE);
   const patch = useVisitpadPatch(CONV_BASE);
   const del = useVisitpadDelete(CONV_BASE);
   const rows = data?.data ?? [];
   const tabCount = { active: rows.length, total: data?.total ?? rows.length };
-  const busy = patch.isPending || del.isPending;
+  const busy = patch.isPending || del.isPending || importBusy;
+
+  const conversionKey = useCallback(
+    (r: Pick<VisitpadUnitConversion, 'from_unit_code' | 'to_unit_code'>) =>
+      `${r.from_unit_code}→${r.to_unit_code}`,
+    [],
+  );
+
+  const importedKeys = useMemo(() => new Set(rows.map((r) => conversionKey(r))), [rows, conversionKey]);
+  const globalRows = globalLib?.data ?? [];
 
   const unitRows = useMemo(() => visitpadActiveUnitRows(unitsRes?.data), [unitsRes?.data]);
   const unitLabelByCode = useMemo(() => {
@@ -76,6 +93,53 @@ function VisitpadConversionsPage() {
     }
     return m;
   }, [unitsRes?.data]);
+
+  const importSearchParts = useCallback(
+    (r: VisitpadUnitConversion) => [
+      r.from_unit_code,
+      r.to_unit_code,
+      formatUnitCodeWithLabel(r.from_unit_code, unitLabelByCode),
+      formatUnitCodeWithLabel(r.to_unit_code, unitLabelByCode),
+      String(r.factor),
+    ],
+    [unitLabelByCode],
+  );
+
+  const importColumns = useMemo(
+    () => [
+      {
+        id: 'from',
+        header: 'From',
+        cell: (r: VisitpadUnitConversion) => formatUnitCodeWithLabel(r.from_unit_code, unitLabelByCode),
+      },
+      {
+        id: 'to',
+        header: 'To',
+        cell: (r: VisitpadUnitConversion) => formatUnitCodeWithLabel(r.to_unit_code, unitLabelByCode),
+      },
+      { id: 'factor', header: 'Factor', cell: (r: VisitpadUnitConversion) => String(r.factor) },
+    ],
+    [unitLabelByCode],
+  );
+
+  const getRowKey = useCallback((r: VisitpadUnitConversion) => conversionKey(r), [conversionKey]);
+
+  const runConversionImport = async (selection: VisitpadUnitConversion[]) => {
+    setImportBusy(true);
+    try {
+      for (const row of selection) {
+        await create.mutateAsync(visitpadGlobalUnitConversionToCreateBody(row));
+      }
+      toast.success(
+        selection.length === 1 ? 'Imported 1 conversion' : `Imported ${selection.length} conversions`,
+      );
+      setImportOpen(false);
+    } catch (e) {
+      toast.error(mutationErrorMessage(e));
+    } finally {
+      setImportBusy(false);
+    }
+  };
 
   const filtered = useMemo(
     () =>
@@ -132,10 +196,19 @@ function VisitpadConversionsPage() {
       breadcrumbLabel="Conversions"
       tabCount={tabCount}
       title="Unit conversions"
-      description="Linear conversion: value_to = value_from × factor + offset (additive). Global catalog unless a numeric iq_tenant_id is sent — then rows use tenant_master and iq_tenant_id in responses."
+      description={
+        tenantCatalog
+          ? 'Tenant conversion rules: import from the platform library or add local-only mappings.'
+          : 'Platform conversion rules: value_to = value_from × factor + offset (additive).'
+      }
       secondaryNav={<VisitpadUnitsSecondaryNav />}
       actions={
-        <VisitpadHeaderActions addLabel="Add conversion" onAddClick={() => setCreateOpen(true)} />
+        <VisitpadHeaderActions
+          addLabel={tenantCatalog ? 'Add local conversion' : 'Add conversion'}
+          onAddClick={() => setCreateOpen(true)}
+          onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
+          importFromLibraryPending={importBusy}
+        />
       }
     >
       <div className="space-y-4">
@@ -160,6 +233,23 @@ function VisitpadConversionsPage() {
           />
         )}
       </div>
+
+      <ImportFromPlatformCatalogDialog<VisitpadUnitConversion>
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Import conversions from platform library"
+        description="Select conversion rules to add to your tenant catalog. Already-imported pairs are disabled."
+        searchPlaceholder="Search from / to unit or factor…"
+        rows={globalRows}
+        isLoading={globalLibLoading}
+        getRowKey={getRowKey}
+        rowKeyHeader="Pair"
+        importedKeys={importedKeys}
+        columns={importColumns}
+        searchParts={importSearchParts}
+        isSubmitting={importBusy || create.isPending}
+        onImportRows={runConversionImport}
+      />
 
       <ConversionCreateDialog
         open={createOpen}

@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { Button } from '@pulse/ui/button';
 import { Card } from '@pulse/ui/card';
+import { DEV_TENANT_IQ_CATALOG_UUID } from '@/lib/catalog-tenant';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePermissionsStore } from '@/stores/permissions.store';
 import { useTenantStore } from '@/stores/tenant.store';
@@ -15,8 +16,28 @@ function LoginPage() {
   const setTenant = useTenantStore((s) => s.setTenant);
   const setPermissions = usePermissionsStore((s) => s.setPermissions);
 
+  const fullCatalogPermissions = {
+    'user-management': {
+      users: { read: true, write: true },
+      roles: { read: true, write: true },
+    },
+    configurator: {
+      tenants: { read: true, write: true },
+      modules: { read: true, write: true },
+    },
+    empi: {
+      registration: { read: true, write: true },
+      search: { read: true, write: false },
+    },
+    'master-data': {
+      reference: { read: true, write: true },
+      overrides: { read: true, write: true },
+    },
+  } as const;
+
   const handleDevLogin = () => {
-    // Dev-only mock login — replaced by better-auth integration
+    // Dev-only mock login — replaced by better-auth integration.
+    // Non-UUID tenant id ⇒ `iq_tenant_id` is omitted ⇒ Visitpad reads/writes the **global** catalog.
     setSession({
       accessToken: 'dev-token',
       userId: 'dev-user-001',
@@ -28,37 +49,41 @@ function LoginPage() {
       branches: [{ id: 'branch-001', name: 'Main Campus' }],
       activeBranch: 'branch-001',
     });
-    setPermissions({
-      'user-management': {
-        users: { read: true, write: true },
-        roles: { read: true, write: true },
-      },
-      configurator: {
-        tenants: { read: true, write: true },
-        modules: { read: true, write: true },
-      },
-      empi: {
-        registration: { read: true, write: true },
-        search: { read: true, write: false },
-      },
-      'master-data': {
-        reference: { read: true, write: true },
-        overrides: { read: true, write: true },
-      },
+    setPermissions(fullCatalogPermissions);
+    navigate({ to: '/dashboard' });
+  };
+
+  const handleTenantDevLogin = () => {
+    setSession({
+      accessToken: 'dev-token-tenant',
+      userId: 'dev-tenant-admin-001',
+      displayName: 'Tenant Admin',
     });
+    setTenant({
+      tenantId: DEV_TENANT_IQ_CATALOG_UUID,
+      tenantName: 'Demo Tenant (catalog)',
+      branches: [{ id: 'branch-001', name: 'Main Campus' }],
+      activeBranch: 'branch-001',
+    });
+    setPermissions(fullCatalogPermissions);
     navigate({ to: '/dashboard' });
   };
 
   return (
     <div className="flex h-screen items-center justify-center bg-muted">
       <Card className="w-full max-w-sm">
-        <div className="px-6 pt-4 pb-2">
-          <h1 className="mb-6 text-2xl font-semibold text-center">HIMS Platform</h1>
+        <div className="space-y-3 px-6 pt-4 pb-2">
+          <h1 className="mb-2 text-2xl font-semibold text-center">HIMS Platform</h1>
           <Button className="w-full" onClick={handleDevLogin}>
             Dev Login
           </Button>
-          <p className="mt-4 text-center text-xs text-muted-foreground">
-            better-auth integration replaces this in production
+          <Button className="w-full" variant="secondary" onClick={handleTenantDevLogin}>
+            Tenant dev login
+          </Button>
+          <p className="pt-1 text-center text-xs text-muted-foreground">
+            Tenant login uses a static UUID so `iq_tenant_id` is sent — Visitpad edits apply to the
+            tenant catalog. Global library reads use a separate API path for imports. Replaced by
+            better-auth in production.
           </p>
         </div>
       </Card>

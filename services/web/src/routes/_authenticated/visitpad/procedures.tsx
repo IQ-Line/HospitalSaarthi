@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Controller, useForm, type SubmitHandler } from 'react-hook-form';
 import { type ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
@@ -21,7 +21,14 @@ import { MasterDataTableToolbar } from '@/features/master-data/components/master
 import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { rowMatchesSearch } from '@/features/master-data/table-search';
-import { useVisitpadDelete, useVisitpadPatch, useVisitpadPost, useVisitpadProcedures } from '@/features/visitpad/api';
+import {
+  useVisitpadDelete,
+  useVisitpadPatch,
+  useVisitpadPost,
+  useVisitpadProcedures,
+  useVisitpadProceduresGlobalLibrary,
+} from '@/features/visitpad/api';
+import { ImportFromPlatformCatalogDialog } from '@/features/visitpad/components/import-from-platform-catalog-dialog';
 import { visitpadActionsColumn } from '@/features/visitpad/components/visitpad-actions-column';
 import { VisitpadHeaderActions } from '@/features/visitpad/components/visitpad-header-actions';
 import { VisitpadPageShell } from '@/features/visitpad/components/visitpad-page-shell';
@@ -40,6 +47,8 @@ import {
   type VisitpadProcedureEditFormInput,
   type VisitpadProcedureEditFormSchema,
 } from '@/features/visitpad/validation';
+import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
+import { visitpadGlobalProcedureToCreateBody } from '@/features/visitpad/lib/visitpad-global-import-payloads';
 
 const PROC_BASE = '/api/v1/master-data/visitpad/procedures';
 
@@ -88,21 +97,64 @@ export const Route = createFileRoute('/_authenticated/visitpad/procedures')({
 });
 
 function VisitpadProceduresPage() {
+  const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string>('all');
   const [billing, setBilling] = useState<string>('all');
   const [createOpen, setCreateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importBusy, setImportBusy] = useState(false);
   const [editing, setEditing] = useState<VisitpadProcedure | null>(null);
   const [deleting, setDeleting] = useState<VisitpadProcedure | null>(null);
   const cat = category === 'all' ? undefined : category;
   const bill = billing === 'all' ? undefined : billing;
   const { data, isLoading, error } = useVisitpadProcedures(search || undefined, cat, bill);
+  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadProceduresGlobalLibrary(importOpen);
   const patch = useVisitpadPatch(PROC_BASE);
   const del = useVisitpadDelete(PROC_BASE);
   const create = useVisitpadPost(PROC_BASE);
   const rows = data?.data ?? [];
   const tabCount = visitpadActiveTotal(rows, data?.total);
-  const busy = patch.isPending || del.isPending;
+  const busy = patch.isPending || del.isPending || importBusy;
+
+  const importedKeys = useMemo(() => new Set(rows.map((r) => r.cpt_code)), [rows]);
+  const globalRows = globalLib?.data ?? [];
+  const getRowKey = useCallback((r: VisitpadProcedure) => r.cpt_code, []);
+
+  const importSearchParts = useCallback(
+    (r: VisitpadProcedure) => [
+      r.cpt_code,
+      r.short_name ?? '',
+      r.display_name,
+      r.official_descriptor ?? '',
+    ],
+    [],
+  );
+
+  const importColumns = useMemo(
+    () => [
+      { id: 'name', header: 'Display name', cell: (r: VisitpadProcedure) => r.display_name },
+      { id: 'cat', header: 'Category', cell: (r: VisitpadProcedure) => r.category },
+    ],
+    [],
+  );
+
+  const runProcedureImport = async (selection: VisitpadProcedure[]) => {
+    setImportBusy(true);
+    try {
+      for (const row of selection) {
+        await create.mutateAsync(visitpadGlobalProcedureToCreateBody(row));
+      }
+      toast.success(
+        selection.length === 1 ? 'Imported 1 procedure' : `Imported ${selection.length} procedures`,
+      );
+      setImportOpen(false);
+    } catch (e) {
+      toast.error(mutationErrorMessage(e));
+    } finally {
+      setImportBusy(false);
+    }
+  };
 
   const filtered = useMemo(
     () =>
@@ -173,9 +225,18 @@ function VisitpadProceduresPage() {
       primary="procedures"
       tabCount={tabCount}
       title="Procedures"
-      description="Procedure library for Visitpad (catalog code is stored as cpt_code in the API)."
+      description={
+        tenantCatalog
+          ? 'Tenant procedure library: import from the platform library or add local-only CPT rows.'
+          : 'Platform procedure library for Visitpad (catalog code is stored as cpt_code in the API).'
+      }
       actions={
-        <VisitpadHeaderActions addLabel="Add procedure" onAddClick={() => setCreateOpen(true)} />
+        <VisitpadHeaderActions
+          addLabel={tenantCatalog ? 'Add local procedure' : 'Add procedure'}
+          onAddClick={() => setCreateOpen(true)}
+          onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
+          importFromLibraryPending={importBusy}
+        />
       }
     >
       <div className="space-y-4">
@@ -227,6 +288,23 @@ function VisitpadProceduresPage() {
           />
         )}
       </div>
+
+      <ImportFromPlatformCatalogDialog<VisitpadProcedure>
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Import procedures from platform library"
+        description="Select procedures to add to your tenant catalog. Already-imported CPT codes are disabled."
+        searchPlaceholder="Search CPT, display name, descriptor…"
+        rows={globalRows}
+        isLoading={globalLibLoading}
+        getRowKey={getRowKey}
+        rowKeyHeader="CPT"
+        importedKeys={importedKeys}
+        columns={importColumns}
+        searchParts={importSearchParts}
+        isSubmitting={importBusy || create.isPending}
+        onImportRows={runProcedureImport}
+      />
 
       <ProcedureCreateDialog
         open={createOpen}

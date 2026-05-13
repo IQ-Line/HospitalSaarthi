@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { type ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
@@ -22,7 +22,14 @@ import { MasterDataTableToolbar } from '@/features/master-data/components/master
 import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { rowMatchesSearch } from '@/features/master-data/table-search';
-import { useVisitpadDelete, useVisitpadDiagnoses, useVisitpadPatch, useVisitpadPost } from '@/features/visitpad/api';
+import {
+  useVisitpadDelete,
+  useVisitpadDiagnoses,
+  useVisitpadDiagnosesGlobalLibrary,
+  useVisitpadPatch,
+  useVisitpadPost,
+} from '@/features/visitpad/api';
+import { ImportFromPlatformCatalogDialog } from '@/features/visitpad/components/import-from-platform-catalog-dialog';
 import { visitpadActionsColumn } from '@/features/visitpad/components/visitpad-actions-column';
 import { VisitpadHeaderActions } from '@/features/visitpad/components/visitpad-header-actions';
 import { VisitpadPageShell } from '@/features/visitpad/components/visitpad-page-shell';
@@ -36,6 +43,8 @@ import {
   type VisitpadDiagnosisCreateFormSchema,
   type VisitpadDiagnosisEditFormSchema,
 } from '@/features/visitpad/validation';
+import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
+import { visitpadGlobalDiagnosisToCreateBody } from '@/features/visitpad/lib/visitpad-global-import-payloads';
 
 const DX_BASE = '/api/v1/master-data/visitpad/diagnoses';
 
@@ -44,19 +53,61 @@ export const Route = createFileRoute('/_authenticated/visitpad/diagnoses')({
 });
 
 function VisitpadDiagnosesPage() {
+  const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string>('all');
   const [createOpen, setCreateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importBusy, setImportBusy] = useState(false);
   const [editing, setEditing] = useState<VisitpadDiagnosis | null>(null);
   const [deleting, setDeleting] = useState<VisitpadDiagnosis | null>(null);
   const cat = category === 'all' ? undefined : category;
   const { data, isLoading, error } = useVisitpadDiagnoses(search || undefined, cat);
+  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadDiagnosesGlobalLibrary(importOpen);
   const patch = useVisitpadPatch(DX_BASE);
   const del = useVisitpadDelete(DX_BASE);
   const create = useVisitpadPost(DX_BASE);
   const rows = data?.data ?? [];
   const tabCount = visitpadActiveTotal(rows, data?.total);
-  const busy = patch.isPending || del.isPending;
+  const busy = patch.isPending || del.isPending || importBusy;
+
+  const importedKeys = useMemo(() => new Set(rows.map((r) => r.code)), [rows]);
+  const globalRows = globalLib?.data ?? [];
+  const getRowKey = useCallback((r: VisitpadDiagnosis) => r.code, []);
+
+  const importSearchParts = useCallback(
+    (r: VisitpadDiagnosis) => [r.code, r.display_name, r.short_name ?? '', r.snomed_code ?? ''],
+    [],
+  );
+
+  const importColumns = useMemo(
+    () => [
+      { id: 'name', header: 'Display name', cell: (r: VisitpadDiagnosis) => r.display_name },
+      {
+        id: 'snomed',
+        header: 'SNOMED',
+        cell: (r: VisitpadDiagnosis) => r.snomed_code ?? '—',
+      },
+    ],
+    [],
+  );
+
+  const runDiagnosisImport = async (selection: VisitpadDiagnosis[]) => {
+    setImportBusy(true);
+    try {
+      for (const row of selection) {
+        await create.mutateAsync(visitpadGlobalDiagnosisToCreateBody(row));
+      }
+      toast.success(
+        selection.length === 1 ? 'Imported 1 diagnosis' : `Imported ${selection.length} diagnoses`,
+      );
+      setImportOpen(false);
+    } catch (e) {
+      toast.error(mutationErrorMessage(e));
+    } finally {
+      setImportBusy(false);
+    }
+  };
 
   const filtered = useMemo(
     () =>
@@ -139,9 +190,18 @@ function VisitpadDiagnosesPage() {
       primary="diagnoses"
       tabCount={tabCount}
       title="Diagnosis"
-      description="Diagnosis codes, display names, SNOMED, and chronic / notifiable flags. Optional ICD-10 enrichment when you need registry-backed rows."
+      description={
+        tenantCatalog
+          ? 'Tenant diagnosis catalog: import from the platform library or add local-only codes.'
+          : 'Platform diagnosis codes, display names, SNOMED, and chronic / notifiable flags. Optional ICD-10 enrichment when you need registry-backed rows.'
+      }
       actions={
-        <VisitpadHeaderActions addLabel="Add diagnosis" onAddClick={() => setCreateOpen(true)} />
+        <VisitpadHeaderActions
+          addLabel={tenantCatalog ? 'Add local diagnosis' : 'Add diagnosis'}
+          onAddClick={() => setCreateOpen(true)}
+          onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
+          importFromLibraryPending={importBusy}
+        />
       }
     >
       <div className="space-y-4">
@@ -180,6 +240,22 @@ function VisitpadDiagnosesPage() {
           />
         )}
       </div>
+
+      <ImportFromPlatformCatalogDialog<VisitpadDiagnosis>
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Import diagnoses from platform library"
+        description="Select diagnoses to add to your tenant catalog. Already-imported codes are disabled."
+        searchPlaceholder="Search code, display name, SNOMED…"
+        rows={globalRows}
+        isLoading={globalLibLoading}
+        getRowKey={getRowKey}
+        importedKeys={importedKeys}
+        columns={importColumns}
+        searchParts={importSearchParts}
+        isSubmitting={importBusy || create.isPending}
+        onImportRows={runDiagnosisImport}
+      />
 
       <DiagnosisCreateDialog
         open={createOpen}

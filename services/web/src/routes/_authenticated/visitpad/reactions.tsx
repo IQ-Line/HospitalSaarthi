@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { type ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
@@ -16,10 +16,12 @@ import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { rowMatchesSearch } from '@/features/master-data/table-search';
 import {
   useVisitpadAllergyReactions,
+  useVisitpadAllergyReactionsGlobalLibrary,
   useVisitpadDelete,
   useVisitpadPatch,
   useVisitpadPost,
 } from '@/features/visitpad/api';
+import { ImportFromPlatformCatalogDialog } from '@/features/visitpad/components/import-from-platform-catalog-dialog';
 import { visitpadActionsColumn } from '@/features/visitpad/components/visitpad-actions-column';
 import { VisitpadHeaderActions } from '@/features/visitpad/components/visitpad-header-actions';
 import { VisitpadPageShell } from '@/features/visitpad/components/visitpad-page-shell';
@@ -33,6 +35,8 @@ import {
   type VisitpadAllergyReactionCreateFormSchema,
   type VisitpadAllergyReactionEditFormSchema,
 } from '@/features/visitpad/validation';
+import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
+import { visitpadGlobalAllergyReactionToCreateBody } from '@/features/visitpad/lib/visitpad-global-import-payloads';
 
 const RXN_BASE = '/api/v1/master-data/visitpad/allergy-reactions';
 
@@ -41,17 +45,52 @@ export const Route = createFileRoute('/_authenticated/visitpad/reactions')({
 });
 
 function VisitpadReactionsPage() {
+  const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importBusy, setImportBusy] = useState(false);
   const [editing, setEditing] = useState<VisitpadAllergyReaction | null>(null);
   const [deleting, setDeleting] = useState<VisitpadAllergyReaction | null>(null);
   const { data, isLoading, error } = useVisitpadAllergyReactions(search || undefined);
+  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadAllergyReactionsGlobalLibrary(importOpen);
   const patch = useVisitpadPatch(RXN_BASE);
   const del = useVisitpadDelete(RXN_BASE);
   const create = useVisitpadPost(RXN_BASE);
   const rows = data?.data ?? [];
   const tabCount = visitpadActiveTotal(rows, data?.total);
-  const busy = patch.isPending || del.isPending;
+  const busy = patch.isPending || del.isPending || importBusy;
+
+  const importedKeys = useMemo(() => new Set(rows.map((r) => r.code)), [rows]);
+  const globalRows = globalLib?.data ?? [];
+  const getRowKey = useCallback((r: VisitpadAllergyReaction) => r.code, []);
+
+  const importSearchParts = useCallback(
+    (r: VisitpadAllergyReaction) => [r.code, r.display_name],
+    [],
+  );
+
+  const importColumns = useMemo(
+    () => [{ id: 'name', header: 'Display name', cell: (r: VisitpadAllergyReaction) => r.display_name }],
+    [],
+  );
+
+  const runReactionImport = async (selection: VisitpadAllergyReaction[]) => {
+    setImportBusy(true);
+    try {
+      for (const row of selection) {
+        await create.mutateAsync(visitpadGlobalAllergyReactionToCreateBody(row));
+      }
+      toast.success(
+        selection.length === 1 ? 'Imported 1 reaction' : `Imported ${selection.length} reactions`,
+      );
+      setImportOpen(false);
+    } catch (e) {
+      toast.error(mutationErrorMessage(e));
+    } finally {
+      setImportBusy(false);
+    }
+  };
 
   const filtered = useMemo(
     () =>
@@ -115,10 +154,19 @@ function VisitpadReactionsPage() {
       tabCount={tabCount}
       breadcrumbLabel="Reactions"
       title="Allergy reactions"
-      description="Reaction codes and labels for visit-pad pick lists. Optional short name and SNOMED for richer documentation."
+      description={
+        tenantCatalog
+          ? 'Tenant reaction pick list: import from the platform library or add local-only codes.'
+          : 'Platform reaction codes and labels for visit-pad pick lists.'
+      }
       secondaryNav={<VisitpadAllergiesSecondaryNav />}
       actions={
-        <VisitpadHeaderActions addLabel="Add reaction" onAddClick={() => setCreateOpen(true)} />
+        <VisitpadHeaderActions
+          addLabel={tenantCatalog ? 'Add local reaction' : 'Add reaction'}
+          onAddClick={() => setCreateOpen(true)}
+          onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
+          importFromLibraryPending={importBusy}
+        />
       }
     >
       <div className="space-y-4">
@@ -140,6 +188,22 @@ function VisitpadReactionsPage() {
           />
         )}
       </div>
+
+      <ImportFromPlatformCatalogDialog<VisitpadAllergyReaction>
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Import reactions from platform library"
+        description="Select reactions to add to your tenant catalog. Already-imported codes are disabled."
+        searchPlaceholder="Search code or display name…"
+        rows={globalRows}
+        isLoading={globalLibLoading}
+        getRowKey={getRowKey}
+        importedKeys={importedKeys}
+        columns={importColumns}
+        searchParts={importSearchParts}
+        isSubmitting={importBusy || create.isPending}
+        onImportRows={runReactionImport}
+      />
 
       <ReactionCreateDialog
         open={createOpen}

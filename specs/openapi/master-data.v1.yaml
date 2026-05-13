@@ -706,14 +706,14 @@ paths:
       description: Returns active catalog modules (`is_deleted = false`).
       security: []
       tags:
-      - Modules
+        - Modules
       parameters:
-      - name: category
-        in: query
-        required: false
-        schema:
+        - name: category
+          in: query
+          required: false
+          schema:
           $ref: '#/components/schemas/ModuleCategory'
-        description: Filter modules by catalog category (not authorization).
+          description: Filter modules by catalog category (not authorization).
       responses:
         '200':
           description: Registered modules.
@@ -736,9 +736,9 @@ paths:
       security: []
       requestBody:
         required: true
-        content:
-          application/json:
-            schema:
+          content:
+            application/json:
+              schema:
               $ref: '#/components/schemas/ModuleCreate'
       responses:
         '201':
@@ -3081,19 +3081,19 @@ components:
     ErrorResponse:
       type: object
       required:
-      - error
+        - error
       properties:
         error:
           type: object
           required:
-          - code
-          - message
+            - code
+            - message
           properties:
             code:
               type: string
               description: Stable error code for clients.
               examples:
-              - UNAUTHORIZED
+                - UNAUTHORIZED
               - CONFLICT
               - BAD_REQUEST
             message:
@@ -3111,10 +3111,10 @@ components:
     ModuleCategory:
       type: string
       enum:
-      - core
-      - clinical
-      - administrative
-      - support
+        - core
+        - clinical
+        - administrative
+        - support
     PermissionAction:
       type: string
       enum:
@@ -3511,16 +3511,16 @@ components:
     Module:
       type: object
       required:
-      - id
-      - name
+        - id
+        - name
       - slug
-      - category
-      - version
+        - category
+        - version
       - level
       - is_active
       - is_deleted
-      - created_at
-      - updated_at
+        - created_at
+        - updated_at
       properties:
         id:
           type: string
@@ -3537,7 +3537,7 @@ components:
         name:
           type: string
           examples:
-          - user_management
+            - user_management
         slug:
           type: string
           examples:
@@ -3550,7 +3550,7 @@ components:
         version:
           type: string
           examples:
-          - 1.0.0
+            - 1.0.0
         level:
           type: integer
           minimum: 1
@@ -3589,8 +3589,8 @@ components:
     ModuleListResponse:
       type: object
       required:
-      - data
-      - total
+        - data
+        - total
       properties:
         data:
           type: array
