@@ -3,6 +3,7 @@ import { useLocation } from '@tanstack/react-router';
 import { LayoutGrid } from 'lucide-react';
 import { BrandMark } from '@/components/layout/brand-mark';
 import { SidebarNavLink } from '@/components/layout/sidebar-nav-link';
+import { ConfiguratorNavSection } from '@/features/configurator/components/configurator-nav-section';
 import { MasterDataNavSection } from '@/features/master-data/components/master-data-nav-section';
 import { useUIPrefsStore } from '@/stores/ui-prefs.store';
 
@@ -10,12 +11,14 @@ interface AppSidebarProps {
   displayName: string;
   tenantName: string | null;
   hasMasterDataAccess: boolean;
+  hasConfiguratorAccess: boolean;
 }
 
 export function AppSidebar({
   displayName,
   tenantName,
   hasMasterDataAccess,
+  hasConfiguratorAccess,
 }: AppSidebarProps) {
   const sidebarCollapsed = useUIPrefsStore((s) => s.sidebarCollapsed);
 
@@ -67,6 +70,7 @@ export function AppSidebar({
             onToggleSection={() => setIsMasterDataOpen((prev) => !prev)}
           />
         )}
+        {hasConfiguratorAccess && <ConfiguratorNavSection collapsed={sidebarCollapsed} />}
       </nav>
 
       <div className="pt-3 mt-3 border-t">

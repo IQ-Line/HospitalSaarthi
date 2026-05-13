@@ -32,6 +32,9 @@ export async function updateOrganization(
     if (!slug) {
       throw new ConfiguratorError(400, "slug cannot be empty");
     }
+    if (slug.length < 3) {
+      throw new ConfiguratorError(400, "slug must be at least 3 characters");
+    }
     const slugOwner = await organizationRepo.findBySlug(slug);
     if (slugOwner && slugOwner.id !== id) {
       throw new ConfiguratorError(409, "organization slug already exists", "CONFLICT");

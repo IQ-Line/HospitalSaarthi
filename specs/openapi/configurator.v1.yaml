@@ -38,7 +38,10 @@ paths:
     post:
       operationId: createOrganization
       summary: Create organization
-      description: Creates the organization and a root default tenant (same name/slug, full_platform, provisioning, shared isolation; cerbos_scope_key is tenant:{organization.id}).
+      description: >
+        Atomically creates the organization, a root default tenant (same name/slug,
+        full_platform, provisioning, shared isolation; cerbos_scope_key is tenant:{organization.id}),
+        and optional tenant_modules rows for that default tenant when `tenant_modules` is supplied.
       tags:
         - Organizations
       requestBody:
@@ -491,11 +494,17 @@ components:
       required:
         - organization
         - default_tenant
+        - tenant_modules
       properties:
         organization:
           $ref: "#/components/schemas/Organization"
         default_tenant:
           $ref: "#/components/schemas/Tenant"
+        tenant_modules:
+          type: array
+          description: Tenant module rows created for the default tenant (empty if none requested).
+          items:
+            $ref: "#/components/schemas/TenantModule"
     OrganizationCreateRequest:
       type: object
       required:
@@ -508,7 +517,8 @@ components:
           minLength: 1
         slug:
           type: string
-          minLength: 1
+          minLength: 3
+          description: URL-safe identifier; minimum 3 characters.
         type:
           $ref: "#/components/schemas/OrganizationType"
         status:
@@ -521,6 +531,28 @@ components:
           type: string
         metadata:
           type: object
+          description: >
+            Optional structured fields (e.g. gstin, pan, website, address_detail,
+            provisioning with plan_slug, module_override_ids, trial_end_date, limits).
+            Persisted as JSON; schema may evolve before dedicated columns exist.
+        tenant_modules:
+          type: array
+          description: >
+            Modules to attach to the new default tenant: one tenant_modules row per item (typically
+            only user-selected modules). Each row uses the given is_active flag. Omitted or empty skips
+            module inserts. Applied in the same database transaction as the organization and tenant.
+          maxItems: 2000
+          items:
+            type: object
+            required:
+              - module_id
+              - is_active
+            properties:
+              module_id:
+                type: string
+                format: uuid
+              is_active:
+                type: boolean
     OrganizationPatchRequest:
       type: object
       properties:
@@ -529,7 +561,7 @@ components:
           minLength: 1
         slug:
           type: string
-          minLength: 1
+          minLength: 3
         type:
           $ref: "#/components/schemas/OrganizationType"
         status:

@@ -9,7 +9,7 @@ import {
   type RunConfiguratorTransaction,
 } from "@hims/configurator";
 
-const PORT = Number(process.env["PORT"] ?? 3001);
+const PORT = Number(process.env["CONFIGURATOR_PORT"] ?? 3001);
 const DATABASE_URL = process.env["DATABASE_URL"] ?? "";
 
 async function main() {
@@ -28,6 +28,7 @@ async function main() {
       fn({
         organizationRepo: new DrizzleOrganizationRepo(tx as DbInstance),
         tenantRepo: new DrizzleTenantRepo(tx as DbInstance),
+        tenantModuleRepo: new DrizzleTenantModuleRepo(tx as DbInstance),
       }),
     );
 

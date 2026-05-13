@@ -22,6 +22,9 @@ export async function createOrganization(
   if (!name || !slug || !data.type) {
     throw new ConfiguratorError(400, "name, slug, and type are required");
   }
+  if (slug.length < 3) {
+    throw new ConfiguratorError(400, "slug must be at least 3 characters");
+  }
   if (!ORG_TYPES.has(data.type)) {
     throw new ConfiguratorError(400, "invalid organization type");
   }

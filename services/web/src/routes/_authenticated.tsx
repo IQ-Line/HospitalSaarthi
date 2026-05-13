@@ -44,6 +44,7 @@ function AuthenticatedLayout() {
         displayName={displayName}
         tenantName={tenantName}
         hasMasterDataAccess={hasModuleAccess('master-data')}
+        hasConfiguratorAccess={hasModuleAccess('configurator')}
       />
 
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">

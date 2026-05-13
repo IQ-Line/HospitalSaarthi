@@ -46,10 +46,11 @@ export interface TenantModuleRepo {
   delete(key: TenantModuleKey): Promise<boolean>;
 }
 
-/** Repos scoped to one DB transaction (atomic org + default tenant, etc.). */
+/** Repos scoped to one DB transaction (atomic org + default tenant + tenant modules, etc.). */
 export type ConfiguratorTransactionRepos = {
   organizationRepo: OrganizationRepo;
   tenantRepo: TenantRepo;
+  tenantModuleRepo: TenantModuleRepo;
 };
 
 export type RunConfiguratorTransaction = <T>(
