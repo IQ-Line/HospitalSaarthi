@@ -3,15 +3,18 @@ import fp from "fastify-plugin";
 import type {
   OrganizationRepo,
   TenantRepo,
+  TenantModuleRepo,
   RunConfiguratorTransaction,
 } from "./ports.js";
 import { ConfiguratorError } from "./errors.js";
 import { registerOrganizationsHandler } from "./rest-handlers/organizations.handler.js";
 import { registerTenantsHandler } from "./rest-handlers/tenants.handler.js";
+import { registerTenantModulesHandler } from "./rest-handlers/tenant-modules.handler.js";
 
 export interface ConfiguratorRouterOptions {
   organizationRepo: OrganizationRepo;
   tenantRepo: TenantRepo;
+  tenantModuleRepo: TenantModuleRepo;
   runConfiguratorTransaction: RunConfiguratorTransaction;
 }
 
@@ -36,6 +39,10 @@ async function configuratorRouter(
   registerTenantsHandler(app, {
     tenantRepo: options.tenantRepo,
     organizationRepo: options.organizationRepo,
+  });
+  registerTenantModulesHandler(app, {
+    tenantModuleRepo: options.tenantModuleRepo,
+    tenantRepo: options.tenantRepo,
   });
 }
 

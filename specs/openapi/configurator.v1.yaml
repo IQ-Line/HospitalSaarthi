@@ -270,6 +270,174 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /tenants/{tenantId}/modules:
+    get:
+      operationId: listTenantModules
+      summary: List tenant module enablement
+      description: Returns module enablement rows for a tenant, optionally filtered by enablement state.
+      tags:
+        - Tenant Modules
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Tenant primary key (`iq_tenant_id`).
+        - name: is_active
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: Filter by current active state.
+      responses:
+        "200":
+          description: List of tenant module rows.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantModuleListResponse"
+    post:
+      operationId: createTenantModule
+      summary: Enable a module for a tenant
+      tags:
+        - Tenant Modules
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Tenant primary key (`iq_tenant_id`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TenantModuleCreateRequest"
+      responses:
+        "201":
+          description: Tenant module enablement created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantModule"
+        "400":
+          description: Validation or unknown tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Module already enabled for tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /tenants/{tenantId}/modules/{moduleId}:
+    get:
+      operationId: getTenantModuleByKey
+      summary: Get tenant module enablement
+      tags:
+        - Tenant Modules
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: moduleId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Tenant module row found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantModule"
+        "404":
+          description: Tenant module not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateTenantModule
+      summary: Update tenant module enablement
+      tags:
+        - Tenant Modules
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: moduleId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TenantModulePatchRequest"
+      responses:
+        "200":
+          description: Updated tenant module row.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantModule"
+        "400":
+          description: Validation failure or core module disable attempt.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tenant module not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteTenantModule
+      summary: Delete tenant module enablement
+      tags:
+        - Tenant Modules
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: moduleId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Tenant module row deleted.
+        "404":
+          description: Tenant module not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   securitySchemes:
     bearerAuth:
@@ -598,6 +766,82 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Tenant"
+        total:
+          type: integer
+          minimum: 0
+    TenantModuleCreateRequest:
+      type: object
+      required:
+        - module_id
+      properties:
+        module_id:
+          type: string
+          format: uuid
+        is_active:
+          type: boolean
+          default: true
+        is_core_override:
+          type: boolean
+          default: false
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+    TenantModulePatchRequest:
+      type: object
+      properties:
+        is_active:
+          type: boolean
+        is_core_override:
+          type: boolean
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+    TenantModule:
+      type: object
+      required:
+        - iq_tenant_id
+        - module_id
+        - is_active
+        - is_core_override
+        - created_at
+        - updated_at
+      properties:
+        iq_tenant_id:
+          type: string
+          format: uuid
+        module_id:
+          type: string
+          format: uuid
+        is_active:
+          type: boolean
+        is_core_override:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+    TenantModuleListResponse:
+      type: object
+      required:
+        - data
+        - total
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/TenantModule"
         total:
           type: integer
           minimum: 0
