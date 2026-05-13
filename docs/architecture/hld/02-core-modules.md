@@ -24,6 +24,8 @@ Each core module follows the same [module shape template](./03-module-shape-temp
 
 Beyond these five, the platform also always deploys the **Integration Hub** (control plane + ABDM adapter) per [ADR-0011](../adr/0011-integration-hub-split.md). The Integration Hub is treated as platform infrastructure rather than a core *module* because its responsibility is transport (in/out), not domain ownership. See [HLD 05](./05-integration-and-interop.md) and the [Integration Platform LLD](../lld/integration-platform/01-schema-design.md).
 
+Beyond the always-deployed substrate, **horizontal supporting modules** ship as peers of feature modules but are present in most adoptions. The first of these is **Billing** — patient-facing revenue cycle (charge capture, bills, payments, advances, discounts in Phase 1; insurance, refunds, plans, doctor commissions in later phases). Billing is *not* core (a tenant integrating an external billing system can opt out), but its design follows the standard [module shape template](./03-module-shape-template.md). See [HLD 06 — Billing](./06-billing.md) and the [Billing LLD](../lld/billing/01-schema-design.md). Module shape & phasing decision: [ADR-0025](../adr/0025-billing-module-shape-and-phasing.md).
+
 ---
 
 ## 1. User Management
