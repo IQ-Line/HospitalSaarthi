@@ -3,7 +3,10 @@ import type { EventBus } from "@hims/ts-sdk-events";
 import type { FastifyInstance, FastifyPluginAsync, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
 import type {
+  AuthAccountProvisioner,
+  CapabilityRepository,
   PrincipalRoleProjectionRepository,
+  RoleCapabilityRepository,
   RoleRepository,
   RoleAssignmentRepository,
   UserRepository,
@@ -13,7 +16,6 @@ import { replyWithUserManagementError } from "./http/map-user-management-error.j
 import { registerAuthHandlers } from "./rest-handlers/auth-handlers.js";
 import { registerRoleHandlers } from "./rest-handlers/role-handlers.js";
 import { registerUserHandlers } from "./rest-handlers/user-handlers.js";
-import { validateRbacIntegrity } from "./use-cases/validate-rbac-integrity.js";
 
 type RequestWithOptionalUser = FastifyRequest & { user?: unknown };
 
@@ -47,9 +49,12 @@ function defaultGetUserId(request: FastifyRequest): string {
 
 export interface UserManagementPluginOptions {
   userRepository: UserRepository;
+  capabilityRepository: CapabilityRepository;
   roleRepository: RoleRepository;
+  roleCapabilityRepository: RoleCapabilityRepository;
   roleAssignmentRepository: RoleAssignmentRepository;
   principalRoleProjectionRepository: PrincipalRoleProjectionRepository;
+  authAccountProvisioner: AuthAccountProvisioner;
   eventBus: EventBus;
   getTenantId?: (request: FastifyRequest) => string;
   getUserId?: (request: FastifyRequest) => string;
@@ -61,9 +66,12 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
 ) => {
   const {
     userRepository,
+    capabilityRepository,
     roleRepository,
+    roleCapabilityRepository,
     roleAssignmentRepository,
     principalRoleProjectionRepository,
+    authAccountProvisioner,
     eventBus,
   } = options;
 
@@ -87,16 +95,17 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
     }
   });
 
-  await validateRbacIntegrity({
-    userRepository,
-    roleRepository,
-    roleAssignmentRepository,
-  });
-
   registerUserHandlers(fastify, {
     getTenantId,
     getActorId,
-    createUserDeps: { userRepository, eventBus },
+    createUserDeps: {
+      userRepository,
+      roleRepository,
+      roleAssignmentRepository,
+      principalRoleProjectionRepository,
+      authAccountProvisioner,
+      eventBus,
+    },
     getUserDeps: { userRepository },
     listUsersAuthzDeps: { userRepository },
     updateUserDeps: { userRepository, eventBus },
@@ -106,6 +115,17 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
   registerRoleHandlers(fastify, {
     getTenantId,
     getActorId,
+    listCapabilitiesDeps: { capabilityRepository },
+    getCapabilityDeps: { capabilityRepository },
+    listRolesDeps: { roleRepository },
+    createRoleDeps: { roleRepository, eventBus },
+    getRoleDeps: { roleRepository },
+    updateRoleDeps: { roleRepository },
+    deleteRoleDeps: { roleRepository },
+    getRoleCapabilitiesDeps: { roleRepository, roleCapabilityRepository },
+    replaceRoleCapabilitiesDeps: { roleRepository, capabilityRepository, roleCapabilityRepository },
+    listRoleAssignmentsDeps: { roleAssignmentRepository },
+    listUserRolesDeps: { userRepository, roleAssignmentRepository, roleRepository },
     assignRoleDeps: { userRepository, roleRepository, roleAssignmentRepository, eventBus },
     revokeRoleDeps: { userRepository, roleRepository, roleAssignmentRepository, eventBus },
   });

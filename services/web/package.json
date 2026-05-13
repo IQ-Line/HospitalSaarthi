@@ -28,6 +28,7 @@
     "@tanstack/react-router-devtools": "^1.120.6",
     "@tanstack/react-table": "^8.21.3",
     "@tanstack/react-virtual": "^3.13.6",
+    "better-auth": "^1.6.10",
     "lucide-react": "^0.561.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

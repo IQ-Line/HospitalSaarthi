@@ -8,7 +8,7 @@ export type DeactivateUserDeps = UpdateUserDeps;
  * Sets the platform user to `inactive` (soft deactivate). Uses {@link updateUser} so
  * `user-management.user.updated` / `user-management.user.deactivated` events match PATCH semantics.
  *
- * Cerbos: prefer dedicated `POST /users/{id}/deactivate` → `user.delete`; general profile edits use `user.update`.
+ * Cerbos: prefer dedicated `POST /users/{id}/deactivate` → `user.deactivate`; general profile edits use `user.update`.
  */
 export async function deactivateUser(
   deps: DeactivateUserDeps,

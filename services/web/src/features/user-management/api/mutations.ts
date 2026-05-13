@@ -1,6 +1,17 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
-import type { AssignRoleBody, CreateUserBody, RoleAssignment, UmUser, UpdateUserBody } from '../types';
+import type {
+  AssignRoleBody,
+  Capability,
+  CreateRoleBody,
+  CreateUserBody,
+  ReplaceRoleCapabilitiesBody,
+  RoleAssignment,
+  UmRole,
+  UmUser,
+  UpdateRoleBody,
+  UpdateUserBody,
+} from '../types';
 import { userManagementKeys } from './keys';
 
 const BASE = '/api/user-management';
@@ -63,6 +74,9 @@ export function useAssignRole() {
         body: JSON.stringify(body),
       }),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: userManagementKeys.roleAssignments() }).catch(() => {
+        /* best-effort */
+      });
       qc.invalidateQueries({ queryKey: userManagementKeys.authPrincipal() }).catch(() => {
         /* best-effort */
       });
@@ -80,9 +94,78 @@ export function useRevokeRole() {
       });
     },
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: userManagementKeys.roleAssignments() }).catch(() => {
+        /* best-effort */
+      });
       qc.invalidateQueries({ queryKey: userManagementKeys.authPrincipal() }).catch(() => {
         /* best-effort */
       });
+    },
+  });
+}
+
+export function useCreateRole() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateRoleBody) =>
+      apiClient<UmRole>(`${BASE}/roles`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: userManagementKeys.roleList() }).catch(() => {
+        /* best-effort */
+      });
+    },
+  });
+}
+
+export function useUpdateRole(roleId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: UpdateRoleBody) =>
+      apiClient<UmRole>(`${BASE}/roles/${encodeURIComponent(roleId)}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: (role) => {
+      qc.setQueryData(userManagementKeys.roleDetail(roleId), role);
+      qc.invalidateQueries({ queryKey: userManagementKeys.roleList() }).catch(() => {
+        /* best-effort */
+      });
+    },
+  });
+}
+
+export function useDeleteRole() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (roleId: string) =>
+      apiClient<UmRole>(`${BASE}/roles/${encodeURIComponent(roleId)}`, {
+        method: 'DELETE',
+      }),
+    onSuccess: (_, roleId) => {
+      qc.removeQueries({ queryKey: userManagementKeys.roleDetail(roleId) });
+      qc.invalidateQueries({ queryKey: userManagementKeys.roleList() }).catch(() => {
+        /* best-effort */
+      });
+      qc.invalidateQueries({ queryKey: userManagementKeys.roleCapabilities(roleId) }).catch(() => {
+        /* best-effort */
+      });
+    },
+  });
+}
+
+export function useReplaceRoleCapabilities(roleId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ReplaceRoleCapabilitiesBody) =>
+      apiClient<Capability[]>(`${BASE}/roles/${encodeURIComponent(roleId)}/capabilities`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: (capabilities) => {
+      qc.setQueryData(userManagementKeys.roleCapabilities(roleId), capabilities);
     },
   });
 }

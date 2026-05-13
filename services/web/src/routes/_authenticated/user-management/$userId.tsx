@@ -4,7 +4,11 @@ import { Badge } from '@pulse/ui/badge';
 import { Button } from '@pulse/ui/button';
 import { PageHeader } from '@/components/page-header';
 import { useDeactivateUser } from '@/features/user-management/api/mutations';
-import { userDetailOptions, useUserDetailSuspense } from '@/features/user-management/api/queries';
+import {
+  roleListOptions,
+  userDetailOptions,
+  useUserDetailSuspense,
+} from '@/features/user-management/api/queries';
 import { RoleAssignmentPanel } from '@/features/user-management/components/role-assignment-panel';
 import { UserEditForm } from '@/features/user-management/components/user-edit-form';
 import { useAuthStore } from '@/stores/auth.store';
@@ -18,8 +22,16 @@ export const Route = createFileRoute('/_authenticated/user-management/$userId')(
       throw redirect({ to: '/dashboard' });
     }
   },
-  loader: ({ context, params }) =>
-    context.queryClient.ensureQueryData(userDetailOptions(params.userId)),
+  loader: async ({ context, params }) => {
+    const permissions = usePermissionsStore.getState();
+    const loads: Array<Promise<unknown>> = [
+      context.queryClient.ensureQueryData(userDetailOptions(params.userId)),
+    ];
+    if (permissions.hasFeaturePermission(UM, 'roles', 'read')) {
+      loads.push(context.queryClient.ensureQueryData(roleListOptions()));
+    }
+    await Promise.all(loads);
+  },
   component: UserDetailPage,
 });
 
@@ -31,7 +43,9 @@ function UserDetailPage() {
     useShallow((s) => ({
       canWriteProfile: s.hasFeaturePermission(UM, 'users', 'write'),
       canViewRoles: s.hasFeaturePermission(UM, 'roles', 'read'),
-      canAssignRole: s.hasFeaturePermission(UM, 'roles', 'write'),
+      canAssignRole:
+        s.hasFeaturePermission(UM, 'roles', 'read') &&
+        s.hasFeaturePermission(UM, 'roleAssignments', 'write'),
     })),
   );
   const deactivate = useDeactivateUser(userId);

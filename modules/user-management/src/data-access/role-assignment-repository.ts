@@ -81,6 +81,7 @@ export class DrizzleRoleAssignmentRepository implements RoleAssignmentRepository
   async listAssignments(): Promise<RoleAssignmentRef[]> {
     return this.db
       .select({
+        id: role_assignments.id,
         tenant_id: role_assignments.iq_tenant_id,
         user_id: role_assignments.user_id,
         role_id: role_assignments.role_id,
@@ -94,6 +95,7 @@ export class DrizzleRoleAssignmentRepository implements RoleAssignmentRepository
   ): Promise<RoleAssignmentRef[]> {
     return this.db
       .select({
+        id: role_assignments.id,
         tenant_id: role_assignments.iq_tenant_id,
         user_id: role_assignments.user_id,
         role_id: role_assignments.role_id,
@@ -105,5 +107,47 @@ export class DrizzleRoleAssignmentRepository implements RoleAssignmentRepository
           eq(role_assignments.user_id, userId),
         ),
       );
+  }
+
+  async listAssignmentsByRole(
+    tenantId: string,
+    roleId: string,
+  ): Promise<RoleAssignmentRef[]> {
+    return this.db
+      .select({
+        id: role_assignments.id,
+        tenant_id: role_assignments.iq_tenant_id,
+        user_id: role_assignments.user_id,
+        role_id: role_assignments.role_id,
+      })
+      .from(role_assignments)
+      .where(
+        and(
+          eq(role_assignments.iq_tenant_id, tenantId),
+          eq(role_assignments.role_id, roleId),
+        ),
+      );
+  }
+
+  async listAssignmentsByTenant(
+    tenantId: string,
+    filter?: Readonly<{ userId?: string; roleId?: string }>,
+  ): Promise<RoleAssignmentRef[]> {
+    const predicates = [eq(role_assignments.iq_tenant_id, tenantId)];
+    if (filter?.userId) {
+      predicates.push(eq(role_assignments.user_id, filter.userId));
+    }
+    if (filter?.roleId) {
+      predicates.push(eq(role_assignments.role_id, filter.roleId));
+    }
+    return this.db
+      .select({
+        id: role_assignments.id,
+        tenant_id: role_assignments.iq_tenant_id,
+        user_id: role_assignments.user_id,
+        role_id: role_assignments.role_id,
+      })
+      .from(role_assignments)
+      .where(and(...predicates));
   }
 }

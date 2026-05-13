@@ -1,4 +1,5 @@
 import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router';
+import type { ChangeEvent } from 'react';
 import { useMemo } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Badge } from '@pulse/ui/badge';
@@ -6,7 +7,13 @@ import { Button } from '@pulse/ui/button';
 import { Input } from '@pulse/ui/input';
 import { DataTable } from '@/components/data-table';
 import { PageHeader } from '@/components/page-header';
-import { userListOptions, useUserListSuspense } from '@/features/user-management/api/queries';
+import {
+  capabilityListOptions,
+  roleListOptions,
+  userListOptions,
+  useUserListSuspense,
+} from '@/features/user-management/api/queries';
+import { RoleManagementPanel } from '@/features/user-management/components/role-management-panel';
 import type { UmUser } from '@/features/user-management/types';
 import { usePermissionsStore } from '@/stores/permissions.store';
 
@@ -21,7 +28,17 @@ export const Route = createFileRoute('/_authenticated/user-management/')({
       throw redirect({ to: '/dashboard' });
     }
   },
-  loader: ({ context }) => context.queryClient.ensureQueryData(userListOptions()),
+  loader: async ({ context }) => {
+    const permissions = usePermissionsStore.getState();
+    const loads: Array<Promise<unknown>> = [context.queryClient.ensureQueryData(userListOptions())];
+    if (permissions.hasFeaturePermission(UM, 'roles', 'read')) {
+      loads.push(context.queryClient.ensureQueryData(roleListOptions()));
+    }
+    if (permissions.hasFeaturePermission(UM, 'capabilities', 'read')) {
+      loads.push(context.queryClient.ensureQueryData(capabilityListOptions()));
+    }
+    await Promise.all(loads);
+  },
   component: UserManagementListPage,
 });
 
@@ -30,6 +47,11 @@ function UserManagementListPage() {
   const navigate = useNavigate();
   const { data: users } = useUserListSuspense();
   const canCreate = usePermissionsStore((s) => s.hasFeaturePermission(UM, 'users', 'write'));
+  const canReadRoles = usePermissionsStore((s) => s.hasFeaturePermission(UM, 'roles', 'read'));
+  const canReadCapabilities = usePermissionsStore((s) =>
+    s.hasFeaturePermission(UM, 'capabilities', 'read'),
+  );
+  const canWriteRoles = usePermissionsStore((s) => s.hasFeaturePermission(UM, 'roles', 'write'));
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -89,7 +111,7 @@ function UserManagementListPage() {
         <Input
           placeholder="Search name, email, username…"
           value={q}
-          onChange={(e) =>
+          onChange={(e: ChangeEvent<HTMLInputElement>) =>
             void navigate({
               to: '/user-management',
               search: { q: e.target.value },
@@ -110,6 +132,13 @@ function UserManagementListPage() {
           }
         />
       </div>
+
+      {canReadRoles ? (
+        <RoleManagementPanel
+          canWriteRoles={canWriteRoles}
+          canReadCapabilities={canReadCapabilities}
+        />
+      ) : null}
     </div>
   );
 }

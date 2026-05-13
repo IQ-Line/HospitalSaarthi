@@ -1,6 +1,8 @@
 import type { FastifyReply } from "fastify";
 import {
+  DuplicateRoleCodeError,
   InvalidRoleSeedError,
+  RoleInUseError,
   UnexpectedPersistenceError,
   UserManagementError,
 } from "../domain/errors.js";
@@ -20,10 +22,19 @@ export type ResolvedUserManagementHttpError = {
 const HTTP_STATUS_BY_DOMAIN_CODE: Readonly<Record<string, number>> = {
   INVALID_INPUT: 400,
   FULL_NAME_REQUIRED: 422,
+  EMAIL_REQUIRED: 422,
+  PASSWORD_REQUIRED: 422,
+  PASSWORD_TOO_SHORT: 422,
   USER_NOT_FOUND: 404,
   ROLE_NOT_FOUND: 404,
+  CAPABILITY_NOT_FOUND: 404,
+  ROLE_CODE_REQUIRED: 422,
+  ROLE_DISPLAY_NAME_REQUIRED: 422,
+  ROLE_CODE_DUPLICATE: 409,
+  ROLE_IN_USE: 409,
   ROLE_ASSIGNMENT_DUPLICATE: 409,
   ROLE_ASSIGNMENT_NOT_FOUND: 404,
+  AUTH_EMAIL_CONFLICT: 409,
   TENANT_CONTEXT_MISMATCH: 400,
   RBAC_INTEGRITY_VIOLATION: 500,
   CERBOS_PRINCIPAL_UNAVAILABLE: 500,
@@ -47,7 +58,23 @@ export function resolveUserManagementHttpError(
   err: unknown,
   correlationId: string,
 ): ResolvedUserManagementHttpError {
-  if (err instanceof UnexpectedPersistenceError || err instanceof InvalidRoleSeedError) {
+  if (
+    err instanceof UnexpectedPersistenceError ||
+    err instanceof InvalidRoleSeedError ||
+    err instanceof DuplicateRoleCodeError ||
+    err instanceof RoleInUseError
+  ) {
+    if (err instanceof UserManagementError) {
+      const status = HTTP_STATUS_BY_DOMAIN_CODE[err.code] ?? 500;
+      return {
+        status,
+        body: {
+          code: err.code,
+          message: err.message,
+          correlation_id: correlationId,
+        },
+      };
+    }
     return internalMaskedResponse(correlationId);
   }
 

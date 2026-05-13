@@ -5,10 +5,17 @@ import { usePermissionsStore } from '@/stores/permissions.store';
 interface AuthState {
   isAuthenticated: boolean;
   accessToken: string | null;
+  /** better-auth session token — needed for sign-out and JWT refresh. */
+  sessionToken: string | null;
   userId: string | null;
   displayName: string | null;
 
-  setSession: (session: { accessToken: string; userId: string; displayName: string }) => void;
+  setSession: (session: {
+    accessToken: string;
+    sessionToken: string;
+    userId: string;
+    displayName: string;
+  }) => void;
   clearSession: () => void;
 }
 
@@ -17,6 +24,7 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       isAuthenticated: false,
       accessToken: null,
+      sessionToken: null,
       userId: null,
       displayName: null,
 
@@ -25,6 +33,7 @@ export const useAuthStore = create<AuthState>()(
           {
             isAuthenticated: true,
             accessToken: session.accessToken,
+            sessionToken: session.sessionToken,
             userId: session.userId,
             displayName: session.displayName,
           },
@@ -38,6 +47,7 @@ export const useAuthStore = create<AuthState>()(
           {
             isAuthenticated: false,
             accessToken: null,
+            sessionToken: null,
             userId: null,
             displayName: null,
           },

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { InMemoryAbacAttributeRepository } from "../data-access/in-memory-abac-attribute-repository.js";
+import { InMemoryPrincipalAuthorizationRepository } from "../data-access/in-memory-principal-authorization-repository.js";
 import { InMemoryUserRepository } from "../data-access/in-memory-user-repository.js";
 import type { PrincipalRoleProjectionRepository } from "../ports/index.js";
 import { DefaultPrincipalService } from "./default-principal-service.js";
@@ -19,31 +19,31 @@ function setup() {
   const userRepo = new InMemoryUserRepository();
   userRepo.insertUserWithId(T, U, { full_name: "Test User" });
 
-  const abac = new InMemoryAbacAttributeRepository();
+  const authorization = new InMemoryPrincipalAuthorizationRepository();
   const roleProjection = new StubRoleProjection(["doctor"]);
 
   const service = new DefaultPrincipalService({
     userRepository: userRepo,
     principalRoleProjectionRepository: roleProjection,
-    abacAttributeRepository: abac,
+    principalAuthorizationRepository: authorization,
   });
 
-  return { userRepo, abac, service };
+  return { userRepo, authorization, service };
 }
 
-describe("DefaultPrincipalService — permission slug resolution", () => {
-  it("returns permission slugs directly as capabilities", async () => {
-    const { abac, service } = setup();
+describe("DefaultPrincipalService — capability resolution", () => {
+  it("returns capabilities directly as principal entitlements", async () => {
+    const { authorization, service } = setup();
 
-    abac.seedRolePermissionSlug(T, U, "um:user:create");
-    abac.seedRolePermissionSlug(T, U, "um:user:read");
+    authorization.seedCapability(T, U, "um:user:create");
+    authorization.seedCapability(T, U, "um:user:read");
 
     const principal = await service.getPrincipal({ tenantId: T, userId: U });
 
     expect(principal.attributes.capabilities).toEqual(["um:user:create", "um:user:read"]);
   });
 
-  it("returns empty capabilities when no permission slugs exist", async () => {
+  it("returns empty capabilities when no capability grants exist", async () => {
     const { service } = setup();
 
     const principal = await service.getPrincipal({ tenantId: T, userId: U });
@@ -51,11 +51,11 @@ describe("DefaultPrincipalService — permission slug resolution", () => {
     expect(principal.attributes.capabilities).toEqual([]);
   });
 
-  it("deduplicates identical permission slugs", async () => {
-    const { abac, service } = setup();
+  it("deduplicates identical capability grants", async () => {
+    const { authorization, service } = setup();
 
-    abac.seedRolePermissionSlug(T, U, "um:user:read");
-    abac.seedRolePermissionSlug(T, U, "um:user:read");
+    authorization.seedCapability(T, U, "um:user:read");
+    authorization.seedCapability(T, U, "um:user:read");
 
     const principal = await service.getPrincipal({ tenantId: T, userId: U });
 
@@ -63,9 +63,9 @@ describe("DefaultPrincipalService — permission slug resolution", () => {
   });
 
   it("still includes delegated_capabilities from direct grants", async () => {
-    const { abac, service } = setup();
+    const { authorization, service } = setup();
 
-    abac.seedRolePermissionSlug(T, U, "um:user:create");
+    authorization.seedCapability(T, U, "um:user:create");
 
     const principal = await service.getPrincipal({ tenantId: T, userId: U });
 

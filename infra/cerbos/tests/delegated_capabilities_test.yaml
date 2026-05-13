@@ -14,7 +14,7 @@ principals:
       department: null
       capabilities: []
       delegated_capabilities:
-        - "um:user:list"
+        - "um:user:read"
       clearances: {}
       um_clearance_effective_tier: 0
 
@@ -61,27 +61,27 @@ resources:
       required_clearance: 0
 
 tests:
-  - name: user.list — delegated um:user:list ALLOW
+  - name: user.read(list) — delegated um:user:read ALLOW
     input:
       principals: [delegated_only_list]
       resources: [user_list_aa]
-      actions: [user.list]
+      actions: [user.read]
     expected:
       - principal: delegated_only_list
         resource: user_list_aa
         actions:
-          user.list: EFFECT_ALLOW
+          user.read: EFFECT_ALLOW
 
-  - name: user.list — no capability nor delegation DENY
+  - name: user.read(list) — no capability nor delegation DENY
     input:
       principals: [no_caps]
       resources: [user_list_aa]
-      actions: [user.list]
+      actions: [user.read]
     expected:
       - principal: no_caps
         resource: user_list_aa
         actions:
-          user.list: EFFECT_DENY
+          user.read: EFFECT_DENY
 
   - name: user.create — delegated um:user:create ALLOW
     input:

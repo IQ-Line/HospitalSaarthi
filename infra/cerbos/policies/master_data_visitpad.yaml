@@ -4,11 +4,29 @@ resourcePolicy:
   resource: "master_data:visitpad"
   version: "default"
   rules:
-    - actions: ["view", "create", "update", "delete"]
-      roles: ["admin", "platform_admin", "clinical_admin"]
+    - actions: ["create", "update", "delete"]
+      roles: ["*"]
       effect: EFFECT_ALLOW
-      name: allow-admins-visitpad
+      name: allow-admin-write-by-capability
+      condition:
+        match:
+          expr: >-
+            (
+              "md:visitpad:create" in request.principal.attr.capabilities ||
+              "md:visitpad:update" in request.principal.attr.capabilities ||
+              "md:visitpad:delete" in request.principal.attr.capabilities ||
+              "md:visitpad:create" in request.principal.attr.delegated_capabilities ||
+              "md:visitpad:update" in request.principal.attr.delegated_capabilities ||
+              "md:visitpad:delete" in request.principal.attr.delegated_capabilities
+            )
     - actions: ["view"]
-      roles: ["user", "clinician"]
+      roles: ["*"]
       effect: EFFECT_ALLOW
-      name: allow-read-visitpad
+      name: allow-read-by-capability
+      condition:
+        match:
+          expr: >-
+            (
+              "md:visitpad:view" in request.principal.attr.capabilities ||
+              "md:visitpad:view" in request.principal.attr.delegated_capabilities
+            )

@@ -1,130 +1,52 @@
 # User Management — Scenarios Walkthrough
 
-**Purpose:** Walk through real-world scenarios that a hospital information system must handle, and show exactly how the User Management schema supports each one. This document complements the [schema design rationale](./01-schema-design.md) by demonstrating the design under realistic conditions.
+This document shows the canonical capability-based model in realistic flows.
 
-**Audience:** Reviewers, EM, tech-lead, and developers who want to verify that the schema handles operational reality — not just clean-room examples.
+## 1. Tenant onboarding
+When a new tenant is initialized:
 
-**Notation:** SQL-style pseudocode shows data states, not literal queries. Column lists are abbreviated to the relevant ones. System-initiated actions (platform seeding, SCIM sync) use well-known service-account UUIDs from the `users` table (e.g., `svc-platform-seed`, `svc-scim-sync`) — shown as readable names here for clarity.
+1. the tenant receives a `users` partition identified by `iq_tenant_id`
+2. platform role templates are created in `roles`
+3. the canonical capability catalog is seeded into `capabilities`
+4. default role composition is written to `role_capabilities`
 
-**Phasing:** Scenarios §16–§32 are tagged with their implementation phase (MVP, Post-launch, or Federation). Scenarios for future phases validate that the MVP foundation supports those features without schema changes — they are the proof that the base design holds. See [HLD-04 — Implementation phasing](../../hld/04-authn-authz-flow.md) for the full phase breakdown.
+This gives the tenant an immediately usable authorization baseline without forking Cerbos policy files.
 
----
+## 2. Creating a custom tenant role
+An administrator creates a role such as `chief-resident`:
 
-## 1. Tenant onboarding — setting up a new hospital
+1. `POST /roles` creates the flat role container
+2. `PUT /roles/{id}/capabilities` replaces the role composition with capability keys such as:
+   - `um:user:read`
+   - `lab:order:create`
+   - `opd:consultation:notes:edit`
 
-**Scenario:** AIIMS Delhi signs on. An org-admin creates the tenant, seeds initial roles, and onboards the first batch of staff.
+The role does not inherit from any other role. Everything it grants is explicit in `role_capabilities`.
 
-### What happens
+## 3. Assigning a role to a user
+When a tenant admin assigns a role:
 
-**Step 1 — Tenant record created (Configurator)**
+1. `POST /role-assignments` writes a row in `role_assignments`
+2. the user's next request is enriched from:
+   - assigned role codes
+   - `role_capabilities`
+   - delegated capability grants
+   - clearances
 
-Configurator creates the tenant with `iq_tenant_id = 'aiims-delhi'` and enables modules: User Management, OPD, Lab, Pharmacy, Billing. This is outside the User Management schema, but the `iq_tenant_id` becomes the distribution key for all User Management data.
+The JWT remains unchanged except for its lightweight role context. Effective capabilities are always resolved at runtime.
 
-**Step 2 — Platform-seeded roles appear**
+## 4. Request authorization
+For a protected request:
 
-When User Management is initialized for the tenant, platform-seeded roles (marked `is_system = true`) are created:
+1. JWT verification resolves `sub`, `iq_tenant_id`, `roles`, `department`, and `org_id`
+2. principal enrichment resolves:
+   - role-derived capabilities
+   - delegated capabilities
+   - clearances
+3. Cerbos evaluates the request using `principal.attr.capabilities` and ABAC resource attributes
+4. the handler proceeds only on `ALLOW`
 
-```
-roles:
-  iq_tenant_id: 'aiims-delhi'  name: 'super-admin'       is_system: true   scope_level: 'tenant'
-  iq_tenant_id: 'aiims-delhi'  name: 'physician'          is_system: true   scope_level: 'tenant'
-  iq_tenant_id: 'aiims-delhi'  name: 'nurse'              is_system: true   scope_level: 'tenant'
-  iq_tenant_id: 'aiims-delhi'  name: 'front-desk-clerk'   is_system: true   scope_level: 'tenant'
-  iq_tenant_id: 'aiims-delhi'  name: 'lab-technician'     is_system: true   scope_level: 'tenant'
-  iq_tenant_id: 'aiims-delhi'  name: 'pharmacist'         is_system: true   scope_level: 'tenant'
-```
-
-Each platform-seeded role comes with a default set of capabilities via `role_capabilities`. The tenant admin can add capabilities to these roles but cannot delete the role itself.
-
-**Step 3 — First super-admin created**
-
-```
-ba_users:
-  id: 'auth-001'  name: 'Admin Patel'  username: 'patel.admin'  email: 'patel.admin@auth.internal'
-
-users:
-  iq_tenant_id: 'aiims-delhi'  id: 'usr-001'  auth_user_id: 'auth-001'  kind: 'user'
-  full_name: 'Admin Patel'  email: 'patel@aiims.edu'  status: 'active'  recovery_tier: 'standard'
-
-role_assignments:
-  iq_tenant_id: 'aiims-delhi'  user_id: 'usr-001'  role_id: (super-admin)  assigned_by: 'svc-platform-seed'  assigned_at: now()
-```
-
-**Step 4 — Tenant-specific roles created**
-
-AIIMS Delhi has a unique role "Chief Resident" that the platform doesn't seed. Admin Patel creates it:
-
-```
-roles:
-  iq_tenant_id: 'aiims-delhi'  name: 'chief-resident'  is_system: false  scope_level: 'tenant'
-
-role_capabilities:
-  role_id: (chief-resident)  capability_id: (opd:consultation:notes:edit)
-  role_id: (chief-resident)  capability_id: (opd:consultation:notes:approve)
-  role_id: (chief-resident)  capability_id: (lab:order:create)
-  role_id: (chief-resident)  capability_id: (admin:user:view)
-```
-
-**Step 5 — Department projection populated**
-
-Master Data publishes department events. User Management stores the projection:
-
-```
-department_projection:
-  iq_tenant_id: 'aiims-delhi'  department_id: 'dept-medicine'     name: 'Medicine'       parent_department_id: NULL
-  iq_tenant_id: 'aiims-delhi'  department_id: 'dept-cardiology'   name: 'Cardiology'     parent_department_id: 'dept-medicine'
-  iq_tenant_id: 'aiims-delhi'  department_id: 'dept-emergency'    name: 'Emergency'      parent_department_id: NULL
-  iq_tenant_id: 'aiims-delhi'  department_id: 'dept-pathology'    name: 'Pathology'      parent_department_id: NULL
-```
-
-### Why the schema supports this
-
-- All data for AIIMS Delhi lands on the same Citus shard (distributed by `iq_tenant_id`). Onboarding a new tenant is "add data to a new shard" — zero impact on existing tenants.
-- Platform-seeded roles (`is_system = true`) provide defaults without restricting the tenant from creating custom roles.
-- Capabilities are already available (reference table, replicated to all nodes) — no need to "import" them from another service.
-
----
-
-## 2. Staff onboarding — registering Dr. Sharma
-
-**Scenario:** Dr. Sharma joins AIIMS Delhi's Cardiology department as an Attending Physician.
-
-### What happens
-
-```
-ba_users:
-  id: 'auth-111'  name: 'Dr. Sharma'  username: 'sharma.cardiology'  email: 'sharma.cardiology@auth.internal'
-
-users:
-  iq_tenant_id: 'aiims-delhi'  id: 'usr-111'  auth_user_id: 'auth-111'  kind: 'user'
-  full_name: 'Dr. Sharma'  email: 'sharma@example.com'  status: 'active'  recovery_tier: 'standard'
-
-role_assignments:
-  iq_tenant_id: 'aiims-delhi'  user_id: 'usr-111'  role_id: (physician)
-  scope_type: NULL  scope_id: NULL  assigned_by: 'usr-001'
-
-user_department_assignments:
-  iq_tenant_id: 'aiims-delhi'  user_id: 'usr-111'  department_id: 'dept-cardiology'
-  is_primary: true  effective_from: '2026-01-15'  effective_to: NULL
-```
-
-### What Dr. Sharma's JWT looks like after login
-
-```json
-{
-  "sub": "usr-111",
-  "iq_tenant_id": "aiims-delhi",
-  "roles": ["physician"],
-  "department": "dept-cardiology",
-  "org_id": null,
-  "jti": "tok-abc123",
-  "exp": "... (1-2 min from iat)",
-  "iat": "...",
-  "iss": "..."
-}
-```
-
-### What the PEP constructs from cache
+Example Cerbos principal shape:
 
 ```json
 {
@@ -132,132 +54,51 @@ user_department_assignments:
   "roles": ["physician"],
   "attr": {
     "iq_tenant_id": "aiims-delhi",
-    "department": "dept-cardiology",
-    "capabilities": [
-      "opd:consultation:notes:view",
-      "opd:consultation:notes:edit",
-      "opd:prescription:create",
-      "lab:order:create",
-      "lab:results:view"
-    ],
+    "department": "cardiology",
+    "org_id": null,
+    "capabilities": ["um:user:read", "lab:order:create"],
     "delegated_capabilities": [],
-    "clearances": {}
+    "clearances": {},
+    "um_clearance_effective_tier": 0
   }
 }
 ```
 
-### Why the schema supports this
+## 5. Tenant-specific customization without policy drift
+Two tenants can keep the same Cerbos policy but compose roles differently:
 
-- One-row-per-tenant for the user record means all JOINs (`role_assignments`, `user_department_assignments`) stay on the same Citus shard.
-- The JWT is compact (role names only); capabilities are resolved by the PEP from cache.
-- Department assignment has `is_primary: true`, which drives the JWT `department` claim.
+- Tenant A gives `nurse` the capability `lab:order:create`
+- Tenant B does not
 
----
+Cerbos policy stays the same in both cases: allow only if the principal has `lab:order:create`. The difference lives entirely in `role_capabilities`.
 
-## 3. Multi-tenant login — Dr. Sharma works at two hospitals
+## 6. Role administration in the UI
+The admin surface is capability-driven:
 
-**Scenario:** Dr. Sharma is a visiting consultant at District Hospital in addition to AIIMS Delhi. She authenticates once and picks which hospital to work in.
+1. `/capabilities` provides the catalog
+2. `/roles` manages role definitions
+3. `/roles/{id}/capabilities` manages role composition
+4. `/role-assignments` manages which users hold which roles
 
-### What happens
+This keeps UI workflows aligned with the runtime model:
 
-**Step 1 — Dr. Sharma logs in with username**
+- capabilities are the primitive
+- roles are containers
+- assignments bind users to those containers
 
-Dr. Sharma enters username `sharma.cardiology` and password on the login page. better-auth authenticates via the username plugin (email is never shown or entered).
+## 7. Delegation and clearance overlays
+Role-derived capabilities are not the whole entitlement set.
 
-**Step 2 — Tenant picker**
+- `delegated_capability_grants` adds temporary direct authority
+- `user_clearances` adds ABAC sensitivity attributes
 
-User Management queries `users WHERE auth_user_id = 'auth-111' AND status = 'active'` and finds two rows:
+The effective authorization set is therefore:
 
-| iq_tenant_id | id | full_name | roles (via role_assignments) |
-|---|---|---|---|
-| aiims-delhi | usr-111 | Dr. Sharma | physician |
-| district-hosp | usr-222 | Dr. Sharma | physician, chief-resident |
+`assigned roles -> role_capabilities -> capabilities`
+`+ delegated_capability_grants`
+`+ clearances`
 
-The frontend presents a tenant picker showing both hospitals.
-
-**Step 3 — Token Handler issues JWT**
-
-Dr. Sharma selects "AIIMS Delhi". The BFF stores the refresh token in an HttpOnly cookie and issues a 1-2 minute JWT:
-
-```json
-{
-  "sub": "usr-111",
-  "iq_tenant_id": "aiims-delhi",
-  "roles": ["physician"],
-  "department": "dept-cardiology",
-  "jti": "tok-def456"
-}
-```
-
-When the JWT expires, the SPA silently refreshes via the BFF — no re-authentication.
-
-### Why the schema supports this
-
-- One `ba_users` row with one `auth_user_id`, two `users` rows (one per tenant). Each `users` row has its own roles, departments, and clearances appropriate to that hospital.
-- The `auth_user_id → users` lookup crosses node boundaries (ba_users distributed by `id`, users distributed by `iq_tenant_id`). This cross-node query happens once at login — not on every request.
-- After tenant selection, every downstream service sees a single-tenant JWT. The multi-tenant concept does not leak past login.
-
----
-
-## 4. Role customization — same role, different capabilities per tenant
-
-**Scenario:** At AIIMS Delhi, nurses can create lab orders. At District Hospital, nurses cannot — the lab requires physician authorization for all orders.
-
-### What the data looks like
-
-```
--- AIIMS Delhi: nurse role includes lab:order:create
-role_capabilities:
-  iq_tenant_id: 'aiims-delhi'  role_id: (nurse at AIIMS)  capability_id: (lab:order:create)
-  iq_tenant_id: 'aiims-delhi'  role_id: (nurse at AIIMS)  capability_id: (opd:vitals:record)
-  iq_tenant_id: 'aiims-delhi'  role_id: (nurse at AIIMS)  capability_id: (opd:triage:create)
-
--- District Hospital: nurse role does NOT include lab:order:create
-role_capabilities:
-  iq_tenant_id: 'district-hosp'  role_id: (nurse at DH)  capability_id: (opd:vitals:record)
-  iq_tenant_id: 'district-hosp'  role_id: (nurse at DH)  capability_id: (opd:triage:create)
-```
-
-### What happens when Nurse Patel (AIIMS) tries to create a lab order
-
-1. Request arrives at Lab module PEP with JWT `roles: ["nurse"]`, `iq_tenant_id: "aiims-delhi"`.
-2. PEP resolves nurse capabilities from cache → includes `lab:order:create`.
-3. Cerbos check: `principal.capabilities.includes("lab:order:create")` → **ALLOW**.
-
-### What happens when Nurse Das (District Hospital) tries the same
-
-1. Request arrives with JWT `roles: ["nurse"]`, `iq_tenant_id: "district-hosp"`.
-2. PEP resolves nurse capabilities from cache → does NOT include `lab:order:create`.
-3. Cerbos check → `lab:order:create` not in capabilities → **DENY**.
-
-### Why the schema supports this
-
-- The Cerbos policy is identical for both tenants: "allow if principal has `lab:order:create`". No per-tenant policy forking.
-- The difference is entirely in the `role_capabilities` data, configurable by each tenant's admin through the admin UI.
-- Adding or removing capabilities from a role is a data operation that takes effect on the next PEP cache refresh — no deployment, no Cerbos policy change, no restart.
-
----
-
-## 5. Delegation — superintendent on medical leave
-
-**Scenario:** Dr. Mehta (Medical Superintendent at AIIMS Delhi) goes on medical leave for 2 weeks. She delegates her approval authority to Dr. Gupta (Additional Superintendent).
-
-### What happens
-
-**Step 1 — Delegation created via admin UI**
-
-```
-delegations:
-  iq_tenant_id: 'aiims-delhi'
-  delegator_id: 'usr-333' (Dr. Mehta)
-  delegatee_id: 'usr-444' (Dr. Gupta)
-  delegation_type: 'role'
-  delegated_role_id: (medical-superintendent)
-  reason: 'Medical leave 2026-05-01 to 2026-05-14'
-  effective_from: '2026-05-01T00:00:00Z'
-  effective_to: '2026-05-14T23:59:59Z'
-  status: 'active'
-```
+That effective set is what Cerbos evaluates at request time.
 
 **Step 2 — Audit record created**
 

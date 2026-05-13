@@ -87,10 +87,22 @@ export function createHimsBetterAuth(
           audience: env.jwtAudience,
           expirationTime: "5m",
           definePayload: async ({ user }) => {
+            const authUser = user as Record<string, unknown>;
             const claims = await loadIdentityJwtClaims(claimsDeps, user.id);
+
             if (claims === null) {
-              throw new Error("IDENTITY_USER_NOT_FOUND_FOR_JWT");
+              // Platform user row doesn't exist yet (fresh sign-up before admin provisioning).
+              // Issue a minimal JWT so the session is usable; roles will appear once the
+              // platform user is created and roles are assigned.
+              return {
+                sub: user.id,
+                iq_tenant_id: authUser.iq_tenant_id ?? null,
+                org_id: null,
+                roles: [],
+                jti: randomUUID(),
+              } as never;
             }
+
             const org =
               claims.org_id === null || claims.org_id === undefined
                 ? null

@@ -3,7 +3,7 @@ info:
   title: HIMS User Management API
   version: 1.0.0
   description: >
-    Tenant-scoped platform user profile, role assignment, and principal-enrichment APIs.
+    Tenant-scoped platform user profile, role, capability, assignment, and principal-enrichment APIs.
     Credential issuance and session lifecycle are owned by better-auth (see implementation task 1A.7);
     they are not exposed as paths in this contract.
     Tenant scope authority is JWT-derived (`iq_tenant_id` claim). If `iq_tenant_id` header is
@@ -137,6 +137,411 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/InternalError"
+  /capabilities:
+    get:
+      tags:
+        - Capabilities
+      summary: List canonical capability catalog
+      description: >
+        Returns the canonical capability catalog. Capabilities are the atomic machine-readable
+        authorization primitives used by Cerbos and composed into tenant-scoped roles.
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+      responses:
+        "200":
+          description: Global capability catalog used for role composition.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Capability"
+        "400":
+          description: Request validation error (including tenant header/JWT mismatch when header is provided).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /capabilities/{id}:
+    get:
+      tags:
+        - Capabilities
+      summary: Get a canonical capability by id
+      description: >
+        Returns a single capability from the global capability catalog. Capabilities remain the
+        canonical authorization primitives and are not tenant-scoped.
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+        - $ref: "#/components/parameters/CapabilityIdPath"
+      responses:
+        "200":
+          description: Capability found in the canonical catalog.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Capability"
+        "400":
+          description: Request validation error (including malformed capability id).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Capability not found in the catalog.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /roles:
+    get:
+      tags:
+        - Roles
+      summary: List tenant-scoped roles
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+      responses:
+        "200":
+          description: Roles defined for the active tenant.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Role"
+        "400":
+          description: Request validation error (including tenant header/JWT mismatch when header is provided).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Roles
+      summary: Create a tenant-scoped role
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - code
+                - display_name
+              properties:
+                code:
+                  type: string
+                  minLength: 1
+                  description: Canonical tenant-scoped role code.
+                display_name:
+                  type: string
+                  minLength: 1
+                  description: Human-readable role label.
+                description:
+                  type: string
+                  nullable: true
+                is_system:
+                  type: boolean
+                  description: System-managed role flag.
+                status:
+                  type: string
+                  enum: [active, inactive]
+      responses:
+        "201":
+          description: Role created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Role"
+        "400":
+          description: Invalid input.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Duplicate role code in this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /roles/{id}:
+    get:
+      tags:
+        - Roles
+      summary: Get a tenant-scoped role by id
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+        - $ref: "#/components/parameters/RoleIdPath"
+      responses:
+        "200":
+          description: Role found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Role"
+        "400":
+          description: Request validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Role not found for this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags:
+        - Roles
+      summary: Update a tenant-scoped role
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+        - $ref: "#/components/parameters/RoleIdPath"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                code:
+                  type: string
+                  minLength: 1
+                display_name:
+                  type: string
+                  minLength: 1
+                description:
+                  type: string
+                  nullable: true
+                is_system:
+                  type: boolean
+                status:
+                  type: string
+                  enum: [active, inactive]
+      responses:
+        "200":
+          description: Role updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Role"
+        "400":
+          description: Invalid input.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Role not found for this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "409":
+          description: Duplicate role code in this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - Roles
+      summary: Delete a tenant-scoped role
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+        - $ref: "#/components/parameters/RoleIdPath"
+      responses:
+        "200":
+          description: Deleted role.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Role"
+        "400":
+          description: Request validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Role not found for this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "409":
+          description: Role still has active assignments and cannot be deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /roles/{id}/capabilities:
+    get:
+      tags:
+        - Roles
+      summary: List capabilities composed into a role
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+        - $ref: "#/components/parameters/RoleIdPath"
+      responses:
+        "200":
+          description: Capabilities currently composed into the role.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Capability"
+        "400":
+          description: Request validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Role not found for this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      tags:
+        - Roles
+      summary: Replace the capabilities composed into a role
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+        - $ref: "#/components/parameters/RoleIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - capability_ids
+              properties:
+                capability_ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                  description: Canonical capability ids to compose into the role.
+      responses:
+        "200":
+          description: Updated role composition.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Capability"
+        "400":
+          description: Invalid input.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Role or capability not found for this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /users:
     get:
       tags:
@@ -176,12 +581,12 @@ paths:
     post:
       tags:
         - Users
-      summary: Create a tenant-scoped platform user record
+      summary: Create a tenant-scoped user with login access
       description: >
-        Creates a row in the platform `users` table for the current tenant (`iq_tenant_id`
-        is the Citus distribution key and is taken from request context, not the request body).
-        Credential storage and synthetic identity anchors remain in better-auth (`ba_*`) and
-        are out of scope for this request body.
+        Creates the tenant-scoped platform `users` row for the current tenant (`iq_tenant_id`
+        is the Citus distribution key and is taken from request context, not the request body),
+        provisions the linked better-auth login account for the same principal, and optionally
+        assigns tenant role ids supplied in `role_ids`.
       parameters:
         - $ref: "#/components/parameters/IqTenantIdHeader"
       requestBody:
@@ -193,6 +598,8 @@ paths:
               additionalProperties: false
               required:
                 - full_name
+                - email
+                - password
               properties:
                 full_name:
                   type: string
@@ -200,8 +607,12 @@ paths:
                   description: Display name for the principal (required platform profile field).
                 email:
                   type: string
-                  nullable: true
-                  description: Business contact email (nullable, non-unique per tenant); not the better-auth synthetic anchor.
+                  format: email
+                  description: Login email used to provision the current minimal better-auth account and retained as business contact email.
+                password:
+                  type: string
+                  minLength: 8
+                  description: Initial login password for the linked better-auth account.
                 phone:
                   type: string
                   nullable: true
@@ -224,9 +635,15 @@ paths:
                   minimum: 0
                   maximum: 3
                   description: Initial minimum clearance tier required to access this user record (ABAC).
+                role_ids:
+                  type: array
+                  description: Tenant role ids to assign immediately after the user is created.
+                  items:
+                    type: string
+                    format: uuid
       responses:
         "201":
-          description: Platform user created for the tenant.
+          description: Platform user and linked login account created for the tenant.
           content:
             application/json:
               schema:
@@ -378,6 +795,49 @@ paths:
                 $ref: "#/components/schemas/ErrorMessage"
         "500":
           $ref: "#/components/responses/InternalError"
+  /users/{id}/roles:
+    get:
+      tags:
+        - RoleAssignments
+      summary: List roles assigned to a tenant-scoped user
+      description: >
+        Returns the tenant-scoped role containers currently assigned to the specified user. The
+        response expands role assignment rows into role definitions so admin clients can render role
+        metadata without a second lookup.
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+        - $ref: "#/components/parameters/UserIdPath"
+      responses:
+        "200":
+          description: Roles currently assigned to the user within the active tenant.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Role"
+        "400":
+          description: Request validation error (including malformed user id).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: User not found for this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /users/{id}/deactivate:
     post:
       tags:
@@ -385,7 +845,7 @@ paths:
       summary: Deactivate a tenant-scoped platform user
       description: >
         Soft-deactivates the user by setting `status` to `inactive`. Idempotent when already inactive.
-        Uses Cerbos action `user.delete` (not `user.update`) so policies can separate profile edits from deactivation.
+        Uses Cerbos action `user.deactivate` (not `user.update`) so policies can separate profile edits from deactivation.
       parameters:
         - $ref: "#/components/parameters/IqTenantIdHeader"
         - name: id
@@ -425,6 +885,52 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
   /role-assignments:
+    get:
+      tags:
+        - RoleAssignments
+      summary: List role assignments in the active tenant
+      description: >
+        Returns tenant-scoped role assignments. Optional query parameters narrow the result set by
+        user or role.
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+        - name: user_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: role_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Role assignments visible in the active tenant.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RoleAssignment"
+        "400":
+          description: Invalid query parameters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
     post:
       tags:
         - RoleAssignments
@@ -573,7 +1079,85 @@ components:
       schema:
         type: string
         format: uuid
+    CapabilityIdPath:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Canonical capability id from the global capability catalog.
+    RoleIdPath:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Tenant-scoped role id.
+    UserIdPath:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Platform user id within the current tenant.
   schemas:
+    Capability:
+      type: object
+      required:
+        - id
+        - capability_key
+        - module
+        - feature
+        - action
+        - display_name
+        - is_active
+      properties:
+        id:
+          type: string
+          format: uuid
+        capability_key:
+          type: string
+          description: Canonical machine-readable capability key.
+        module:
+          type: string
+        feature:
+          type: string
+        action:
+          type: string
+        display_name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        is_active:
+          type: boolean
+    Role:
+      type: object
+      required:
+        - id
+        - code
+        - display_name
+        - is_system
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        display_name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        is_system:
+          type: boolean
+        status:
+          type: string
+          enum: [active, inactive]
     PermissionsUxMap:
       type: object
       description: >
@@ -650,7 +1234,7 @@ components:
           maximum: 3
           description: >
             Minimum principal clearance tier (from Cerbos `um_clearance_effective_tier`) required for
-            user.read / user.update / user.delete on this record. 0 = standard.
+            user.read / user.update / user.deactivate on this record. 0 = standard.
         status:
           type: string
           enum: [active, inactive, suspended]

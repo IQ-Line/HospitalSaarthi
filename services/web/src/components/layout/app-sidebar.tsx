@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react';
-import { useLocation } from '@tanstack/react-router';
-import { LayoutGrid, Users } from 'lucide-react';
+import { useLocation, useNavigate } from '@tanstack/react-router';
+import { LayoutGrid, LogOut, Users } from 'lucide-react';
+import { Button } from '@pulse/ui/button';
 import { BrandMark } from '@/components/layout/brand-mark';
 import { SidebarNavLink } from '@/components/layout/sidebar-nav-link';
 import { MasterDataNavSection } from '@/features/master-data/components/master-data-nav-section';
 import { VisitpadNavSection } from '@/features/visitpad/components/visitpad-nav-section';
+import { authClient } from '@/lib/auth-client';
+import { useAuthStore } from '@/stores/auth.store';
+import { useTenantStore } from '@/stores/tenant.store';
 import { useUIPrefsStore } from '@/stores/ui-prefs.store';
 
 interface AppSidebarProps {
@@ -99,11 +103,54 @@ export function AppSidebar({
         )}
       </nav>
 
-      <div className="pt-3 mt-3 border-t">
-        <p className="text-xs truncate text-muted-foreground">
-          {sidebarCollapsed ? 'User' : displayName ?? 'User'}
-        </p>
-      </div>
+      <SidebarFooter
+        displayName={displayName}
+        collapsed={sidebarCollapsed}
+      />
     </aside>
+  );
+}
+
+function SidebarFooter({
+  displayName,
+  collapsed,
+}: {
+  displayName: string | null;
+  collapsed: boolean;
+}) {
+  const navigate = useNavigate();
+  const clearSession = useAuthStore((s) => s.clearSession);
+  const clearTenant = useTenantStore((s) => s.clearTenant);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    try {
+      await authClient.signOut();
+    } catch {
+      // Best-effort — clear local state even if the API call fails.
+    }
+    clearSession();
+    clearTenant();
+    navigate({ to: '/login' });
+  }
+
+  return (
+    <div className="pt-3 mt-3 border-t flex items-center gap-2">
+      <p className="text-xs truncate text-muted-foreground flex-1 min-w-0">
+        {collapsed ? 'User' : displayName ?? 'User'}
+      </p>
+      <Button
+        variant="ghost"
+        size={collapsed ? 'icon-sm' : 'sm'}
+        onClick={handleLogout}
+        disabled={loggingOut}
+        aria-label="Logout"
+        title="Logout"
+      >
+        <LogOut className="size-3.5" />
+        {!collapsed && <span>Logout</span>}
+      </Button>
+    </div>
   );
 }

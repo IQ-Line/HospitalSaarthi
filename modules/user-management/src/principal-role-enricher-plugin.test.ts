@@ -2,7 +2,7 @@ import Fastify from "fastify";
 import fp from "fastify-plugin";
 import { describe, expect, it } from "vitest";
 import { authzPlugin } from "@hims/ts-sdk-authz";
-import { InMemoryAbacAttributeRepository } from "./data-access/in-memory-abac-attribute-repository.js";
+import { InMemoryPrincipalAuthorizationRepository } from "./data-access/in-memory-principal-authorization-repository.js";
 import { InMemoryUserRepository } from "./data-access/in-memory-user-repository.js";
 import type { PrincipalRoleProjectionRepository } from "./ports/index.js";
 import { principalRoleEnricherPlugin } from "./principal-role-enricher-plugin.js";
@@ -43,7 +43,7 @@ describe("principalRoleEnricherPlugin", () => {
     const principalService = createDefaultPrincipalService({
       userRepository,
       principalRoleProjectionRepository: new StubPrincipalRoleProjectionRepository(),
-      abacAttributeRepository: new InMemoryAbacAttributeRepository(),
+      principalAuthorizationRepository: new InMemoryPrincipalAuthorizationRepository(),
     });
 
     await app.register(identityPluginStub);
@@ -79,7 +79,7 @@ describe("principalRoleEnricherPlugin", () => {
     await app.close();
   });
 
-  it("permission slugs reach request.user.capabilities and cerbosPrincipal", async () => {
+  it("capabilities reach request.user.capabilities and cerbosPrincipal", async () => {
     const app = Fastify();
     let seenCapabilities: string[] = [];
     let seenCerbosCaps: string[] = [];
@@ -87,14 +87,14 @@ describe("principalRoleEnricherPlugin", () => {
     const userRepository = new InMemoryUserRepository();
     userRepository.insertUserWithId("tenant-a", "user-1", { full_name: "One" });
 
-    const abac = new InMemoryAbacAttributeRepository();
-    abac.seedRolePermissionSlug("tenant-a", "user-1", "um:user:create");
-    abac.seedRolePermissionSlug("tenant-a", "user-1", "um:user:read");
+    const authorization = new InMemoryPrincipalAuthorizationRepository();
+    authorization.seedCapability("tenant-a", "user-1", "um:user:create");
+    authorization.seedCapability("tenant-a", "user-1", "um:user:read");
 
     const principalService = createDefaultPrincipalService({
       userRepository,
       principalRoleProjectionRepository: new StubPrincipalRoleProjectionRepository(),
-      abacAttributeRepository: abac,
+      principalAuthorizationRepository: authorization,
     });
 
     await app.register(identityPluginStub);

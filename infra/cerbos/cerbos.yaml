@@ -1,6 +1,13 @@
 server:
   httpListenAddr: ':3592'
   grpcListenAddr: ':3593'
+  cors:
+    allowedOrigins:
+      - http://localhost:5173
+      - http://localhost:5174
+    allowedHeaders:
+      - content-type
+      - authorization
 
 storage:
   driver: disk
@@ -9,7 +16,7 @@ storage:
     watchForChanges: true
 
 schema:
-  enforcement: reject
+  enforcement: warn
 
 audit:
   enabled: true

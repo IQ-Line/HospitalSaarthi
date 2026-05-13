@@ -21,6 +21,7 @@ export async function registerBetterAuth(
     allowedHeaders: [
       "Content-Type",
       "Authorization",
+      "iq_tenant_id",
       "X-Requested-With",
       "X-Correlation-Id",
       "Cookie",
@@ -32,6 +33,7 @@ export async function registerBetterAuth(
   app.route({
     method: ["GET", "POST", "OPTIONS"],
     url: "/api/auth/*",
+    config: { authMode: "public" as const },
     async handler(request, reply) {
       if (request.method === "OPTIONS") {
         return reply.status(204).send();

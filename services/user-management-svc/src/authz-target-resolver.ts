@@ -20,12 +20,12 @@ function normalizeUrl(url: string): string {
   return path;
 }
 
+const ROUTE_PREFIX = "/api/user-management";
+
 function resolveRoutePattern(request: Parameters<AuthzTargetResolver>[0]): string {
   const route = (request.routeOptions?.url ?? "") as string;
-  if (route.length > 0) {
-    return normalizeUrl(route);
-  }
-  return normalizeUrl(request.url);
+  const raw = route.length > 0 ? normalizeUrl(route) : normalizeUrl(request.url);
+  return raw.startsWith(ROUTE_PREFIX) ? raw.slice(ROUTE_PREFIX.length) || "/" : raw;
 }
 
 function resolveUserIdFromParams(request: Parameters<AuthzTargetResolver>[0]): string | null {
@@ -62,14 +62,72 @@ export function createUserManagementAuthzTargetResolver(
 ): AuthzTargetResolver {
   return async (request) => {
     const path = resolveRoutePattern(request);
-    const method = request.method;
+    const method = request.method === "HEAD" ? "GET" : request.method;
 
     if (method === "GET" && path === "/users") {
-      return { kind: "user", id: "list", action: "user.list", attr: tenantAttr(request) };
+      return { kind: "user", id: "list", action: "user.read", attr: tenantAttr(request) };
     }
 
     if (method === "POST" && path === "/users") {
       return { kind: "user", id: "new", action: "user.create", attr: tenantAttr(request) };
+    }
+
+    if (method === "GET" && path === "/capabilities") {
+      return { kind: "capability", id: "list", action: "capability.read", attr: tenantAttr(request) };
+    }
+
+    if (method === "GET" && path === "/capabilities/:id") {
+      const id = resolveUserIdFromParams(request);
+      if (id === null) return null;
+      return { kind: "capability", id, action: "capability.read", attr: tenantAttr(request) };
+    }
+
+    if (method === "GET" && path === "/roles") {
+      return { kind: "role", id: "list", action: "role.read", attr: tenantAttr(request) };
+    }
+
+    if (method === "POST" && path === "/roles") {
+      return { kind: "role", id: "new", action: "role.create", attr: tenantAttr(request) };
+    }
+
+    if (method === "GET" && path === "/roles/:id") {
+      const id = resolveUserIdFromParams(request);
+      if (id === null) return null;
+      return { kind: "role", id, action: "role.read", attr: tenantAttr(request) };
+    }
+
+    if (method === "PATCH" && path === "/roles/:id") {
+      const id = resolveUserIdFromParams(request);
+      if (id === null) return null;
+      return { kind: "role", id, action: "role.update", attr: tenantAttr(request) };
+    }
+
+    if (method === "DELETE" && path === "/roles/:id") {
+      const id = resolveUserIdFromParams(request);
+      if (id === null) return null;
+      return { kind: "role", id, action: "role.delete", attr: tenantAttr(request) };
+    }
+
+    if (method === "GET" && path === "/roles/:id/capabilities") {
+      const id = resolveUserIdFromParams(request);
+      if (id === null) return null;
+      return { kind: "role", id, action: "role.read", attr: tenantAttr(request) };
+    }
+
+    if (method === "PUT" && path === "/roles/:id/capabilities") {
+      const id = resolveUserIdFromParams(request);
+      if (id === null) return null;
+      return { kind: "role", id, action: "role.update", attr: tenantAttr(request) };
+    }
+
+    if (method === "GET" && path === "/role-assignments") {
+      return { kind: "role", id: "assignments", action: "role.read", attr: tenantAttr(request) };
+    }
+
+    if (method === "GET" && path === "/users/:id/roles") {
+      const id = resolveUserIdFromParams(request);
+      if (id === null) return null;
+      return { kind: "role", id: `user-roles:${id}`, action: "role.read", attr: tenantAttr(request) };
     }
 
     if (method === "GET" && path === "/users/:id") {
@@ -108,7 +166,7 @@ export function createUserManagementAuthzTargetResolver(
       return {
         kind: "user",
         id,
-        action: "user.delete",
+        action: "user.deactivate",
         attr: await userResourceAttr(deps, request, id),
       };
     }

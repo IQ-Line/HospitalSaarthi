@@ -6,17 +6,45 @@ import { identityPlugin, validateAuthConfig } from "@hims/ts-sdk-identity";
 import Fastify, { type FastifyInstance } from "fastify";
 import { createUserManagementAuthzTargetResolver } from "./authz-target-resolver.js";
 import { createHimsBetterAuth } from "./auth/create-hims-better-auth.js";
+import { createPasswordAuthAccountProvisioner } from "./auth/create-password-auth-account-provisioner.js";
 import { registerBetterAuth } from "./auth/register-better-auth.js";
 import {
-  DrizzleAbacAttributeRepository,
+  runDevelopmentBootstrap,
+  shouldRunDevelopmentBootstrap,
+} from "./bootstrap/development-bootstrap.js";
+import {
+  DrizzleCapabilityRepository,
   DrizzlePrincipalRoleProjectionRepository,
+  DrizzlePrincipalAuthorizationRepository,
+  DrizzleRoleCapabilityRepository,
   DrizzleRoleAssignmentRepository,
   DrizzleRoleRepository,
   DrizzleUserRepository,
   createDefaultPrincipalService,
   principalRoleEnricherPlugin,
-} from "@hims/user-management";
+} from "../../../modules/user-management/src/index.js";
 import { registerUserManagementApi } from "./openapi/register-user-management-api.js";
+
+function normalizeIdentityJwksUrl(authBaseUrl: string): string {
+  const expected = `${authBaseUrl}/api/auth/.well-known/jwks.json`;
+  const configured = process.env.JWKS_URL?.trim();
+  if (!configured || configured.length === 0) {
+    process.env.JWKS_URL = expected;
+    return expected;
+  }
+
+  try {
+    const parsed = new URL(configured);
+    if (parsed.origin === authBaseUrl && parsed.pathname === "/.well-known/jwks.json") {
+      process.env.JWKS_URL = expected;
+      return expected;
+    }
+  } catch {
+    // Keep validation failure behavior below if the configured URL is not parseable.
+  }
+
+  return configured;
+}
 
 function readAuthBaseUrl(): string {
   const raw = process.env.AUTH_BASE_URL?.trim();
@@ -48,7 +76,7 @@ function readTrustedOrigins(): string[] {
 }
 
 function requireDatabaseUrl(): string {
-  const databaseUrl = process.env.DATABASE_URL?.trim();
+  const databaseUrl = (process.env.USER_MGMT_DATABASE_URL ?? process.env.DATABASE_URL)?.trim();
   if (!databaseUrl || databaseUrl.length === 0) {
     throw new Error(
       "DATABASE_URL is required (PostgreSQL for user-management and better-auth persistence)",
@@ -77,26 +105,30 @@ async function createApp(): Promise<FastifyInstance> {
   }
   const cerbosUrl = process.env.CERBOS_URL.trim();
 
+  const authBaseUrl = readAuthBaseUrl();
+  normalizeIdentityJwksUrl(authBaseUrl);
   const identityAuth = validateAuthConfig();
   const pgDb = createDb(requireDatabaseUrl());
 
   const userRepository = new DrizzleUserRepository(pgDb);
+  const capabilityRepository = new DrizzleCapabilityRepository(pgDb);
   const roleRepository = new DrizzleRoleRepository(pgDb);
+  const roleCapabilityRepository = new DrizzleRoleCapabilityRepository(pgDb);
   const roleAssignmentRepository = new DrizzleRoleAssignmentRepository(pgDb);
   const principalRoleProjectionRepository = new DrizzlePrincipalRoleProjectionRepository(pgDb);
-  const abacAttributeRepository = new DrizzleAbacAttributeRepository(pgDb);
+  const principalAuthorizationRepository = new DrizzlePrincipalAuthorizationRepository(pgDb);
 
   const principalService = createDefaultPrincipalService({
     userRepository,
     principalRoleProjectionRepository,
-    abacAttributeRepository,
+    principalAuthorizationRepository,
   });
 
   const trustedOrigins = readTrustedOrigins();
   const auth = createHimsBetterAuth(
     pgDb,
     {
-      authBaseUrl: readAuthBaseUrl(),
+      authBaseUrl,
       secret: readBetterAuthSecret(),
       jwtIssuer: identityAuth.issuer,
       jwtAudience: identityAuth.audience,
@@ -107,6 +139,30 @@ async function createApp(): Promise<FastifyInstance> {
     },
     { userRepository, principalRoleProjectionRepository },
   );
+  const authAccountProvisioner = createPasswordAuthAccountProvisioner(pgDb, auth);
+
+  if (shouldRunDevelopmentBootstrap()) {
+    const bootstrap = await runDevelopmentBootstrap({
+      auth,
+      cerbosUrl,
+      db: pgDb,
+      principalService,
+    });
+    app.log.info(
+      {
+        email: bootstrap.credentials.email,
+        password: bootstrap.credentials.password,
+        role: bootstrap.roleCode,
+        tenantId: bootstrap.tenantId,
+        userId: bootstrap.userId,
+      },
+      "Development bootstrap credentials ready",
+    );
+    app.log.info(
+      { verifiedActions: bootstrap.verifiedActions },
+      "Development bootstrap principal verified through Cerbos",
+    );
+  }
 
   await registerBetterAuth(app, auth, { trustedOrigins });
 
@@ -138,9 +194,12 @@ async function createApp(): Promise<FastifyInstance> {
   await registerUserManagementApi(app, {
     eventBus,
     userRepository,
+    capabilityRepository,
     roleRepository,
+    roleCapabilityRepository,
     roleAssignmentRepository,
     principalRoleProjectionRepository,
+    authAccountProvisioner,
   });
 
   return app;

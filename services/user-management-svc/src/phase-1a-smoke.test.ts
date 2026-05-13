@@ -8,8 +8,10 @@ import { forbidden } from "@hims/ts-sdk-http";
 import type { EventBus } from "@hims/ts-sdk-events";
 import { identityPlugin } from "@hims/ts-sdk-identity";
 import {
-  InMemoryAbacAttributeRepository,
+  InMemoryCapabilityRepository,
+  InMemoryPrincipalAuthorizationRepository,
   InMemoryPrincipalRoleProjectionRepository,
+  InMemoryRoleCapabilityRepository,
   InMemoryRoleAssignmentRepository,
   InMemoryRoleRepository,
   InMemoryUserRepository,
@@ -17,7 +19,7 @@ import {
   createDefaultPrincipalService,
   principalRoleEnricherPlugin,
   userManagementPlugin,
-} from "@hims/user-management";
+} from "../../../modules/user-management/src/index.js";
 import type { CheckResult } from "@hims/ts-sdk-authz";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
@@ -139,11 +141,13 @@ describe("Phase 1A.12 smoke", () => {
       roleRepository,
     );
 
-    const abacAttributeRepository = new InMemoryAbacAttributeRepository();
+    const capabilityRepository = new InMemoryCapabilityRepository();
+    const roleCapabilityRepository = new InMemoryRoleCapabilityRepository();
+    const principalAuthorizationRepository = new InMemoryPrincipalAuthorizationRepository();
     const principalService = createDefaultPrincipalService({
       userRepository,
       principalRoleProjectionRepository,
-      abacAttributeRepository,
+      principalAuthorizationRepository,
     });
 
     await app.register(principalRoleEnricherPlugin, {
@@ -155,9 +159,16 @@ describe("Phase 1A.12 smoke", () => {
         await instance.register(userManagementPlugin, {
           eventBus,
           userRepository,
+          capabilityRepository,
           roleRepository,
+          roleCapabilityRepository,
           roleAssignmentRepository,
           principalRoleProjectionRepository,
+          authAccountProvisioner: {
+            async createPasswordAccount(input) {
+              return { authUserId: input.platformUserId };
+            },
+          },
         });
       },
       { prefix: "/api/user-management" },
@@ -193,7 +204,11 @@ describe("Phase 1A.12 smoke", () => {
           authorization: `Bearer ${accessToken}`,
           "x-correlation-id": cid,
         },
-        payload: { full_name: "Smoke User" },
+        payload: {
+          full_name: "Smoke User",
+          email: "smoke.user@example.com",
+          password: "password123",
+        },
       });
       expect(createRes.statusCode).toBe(201);
 

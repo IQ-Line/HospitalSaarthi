@@ -22,6 +22,22 @@ class StubAssignmentsByUser implements RoleAssignmentRepository {
   async listAssignmentsByUser(tenantId: string, userId: string): Promise<RoleAssignmentRef[]> {
     return this.refs.filter((r) => r.tenant_id === tenantId && r.user_id === userId);
   }
+
+  async listAssignmentsByRole(tenantId: string, roleId: string): Promise<RoleAssignmentRef[]> {
+    return this.refs.filter((r) => r.tenant_id === tenantId && r.role_id === roleId);
+  }
+
+  async listAssignmentsByTenant(
+    tenantId: string,
+    filter?: Readonly<{ userId?: string; roleId?: string }>,
+  ): Promise<RoleAssignmentRef[]> {
+    return this.refs.filter((r) => {
+      if (r.tenant_id !== tenantId) return false;
+      if (filter?.userId && r.user_id !== filter.userId) return false;
+      if (filter?.roleId && r.role_id !== filter.roleId) return false;
+      return true;
+    });
+  }
 }
 
 describe("InMemoryPrincipalRoleProjectionRepository", () => {
@@ -35,8 +51,8 @@ describe("InMemoryPrincipalRoleProjectionRepository", () => {
     const getRoleById = vi.spyOn(roleRepository, "getRoleById");
 
     const assignmentRepository = new StubAssignmentsByUser([
-      { tenant_id: "tenant-a", user_id: "user-1", role_id: "role-a" },
-      { tenant_id: "tenant-a", user_id: "user-1", role_id: "role-a" },
+      { id: "a1", tenant_id: "tenant-a", user_id: "user-1", role_id: "role-a" },
+      { id: "a2", tenant_id: "tenant-a", user_id: "user-1", role_id: "role-a" },
     ]);
 
     const projection = new InMemoryPrincipalRoleProjectionRepository(

@@ -14,6 +14,7 @@ import { DecisionCache } from "./decision-cache.js";
 import { principalAttrsForCerbos } from "./principal-attr.js";
 
 const CACHE_KEY = Symbol("authzDecisionCache");
+const CERBOS_ROLELESS_FALLBACK_ROLE = "__hims_authenticated__";
 
 function normalizePath(path: string): string {
   if (path.length > 1 && path.endsWith("/")) {
@@ -31,6 +32,8 @@ function toRouteKeys(method: string | string[] | undefined, path: string): strin
   return [`${method.toUpperCase()} ${normalizedPath}`];
 }
 
+const PROBE_UUID = "00000000-0000-0000-0000-000000000000";
+
 function extractRouteParams(path: string): Record<string, string> {
   const normalizedPath = normalizePath(path);
   const segments = normalizedPath.split("/");
@@ -39,7 +42,7 @@ function extractRouteParams(path: string): Record<string, string> {
     if (!segment.startsWith(":")) continue;
     const key = segment.slice(1);
     if (key.length > 0) {
-      params[key] = `probe-${key}`;
+      params[key] = PROBE_UUID;
     }
   }
   return params;
@@ -62,6 +65,10 @@ function getCache(request: FastifyRequest): DecisionCache {
     cacheHolder[CACHE_KEY] = cache;
   }
   return cache;
+}
+
+function rolesForCerbos(principal: Principal): string[] {
+  return principal.roles.length > 0 ? principal.roles : [CERBOS_ROLELESS_FALLBACK_ROLE];
 }
 
 async function authzPluginFn(
@@ -97,8 +104,8 @@ async function authzPluginFn(
         },
         params: extractRouteParams(path),
         user: {
-          userId: "probe-user",
-          tenantId: "probe-tenant",
+          userId: PROBE_UUID,
+          tenantId: PROBE_UUID,
           roles: [],
           orgId: null,
         },
@@ -141,7 +148,7 @@ async function authzPluginFn(
         principal: {
           id: principal.userId,
           /** Identity/context only — module policies should use `attr` (capabilities, tenant, etc.). */
-          roles: principal.roles,
+          roles: rolesForCerbos(principal),
           attr: principalAttrsForCerbos(principal),
         },
         resource: { kind, id, ...(attr && { attr }) },
@@ -165,7 +172,7 @@ async function authzPluginFn(
         principal: {
           id: principal.userId,
           /** Identity/context only — module policies should use `attr` (capabilities, tenant, etc.). */
-          roles: principal.roles,
+          roles: rolesForCerbos(principal),
           attr: principalAttrsForCerbos(principal),
         },
         resource: { kind, ...(attr && { attr }) },

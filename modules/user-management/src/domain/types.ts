@@ -4,6 +4,7 @@
 
 /** Lifecycle state for platform user rows (LLD MVP). */
 export type UserStatus = "active" | "inactive" | "suspended";
+export type RoleStatus = "active" | "inactive";
 
 /** Matches OpenAPI `User` / `components.schemas.User`; `email` / `phone` are persisted fields for projections/events. */
 export interface User {
@@ -18,29 +19,47 @@ export interface User {
   department?: string | null;
   /**
    * Minimum principal clearance tier (derived from `clearances` map) required for sensitive
-   * user.read / user.update / user.delete. 0 = standard record. Sent to Cerbos as `resource.attr.required_clearance`.
+   * user.read / user.update / user.deactivate. 0 = standard record. Sent to Cerbos as `resource.attr.required_clearance`.
    */
   clearance_tier_required?: number;
   status: UserStatus;
 }
 
-/** Tenant-scoped RBAC role entity. */
+/** Canonical machine-readable authorization primitive managed as data and consumed by Cerbos. */
+export interface Capability {
+  id: string;
+  capability_key: string;
+  module: string;
+  feature: string;
+  action: string;
+  display_name: string;
+  description?: string | null;
+  is_active: boolean;
+}
+
+/** Tenant-scoped flat container of capabilities. */
 export interface Role {
   id: string;
   code: string;
   display_name: string;
+  description?: string | null;
+  is_system: boolean;
+  status: RoleStatus;
 }
 
 /** POST /users request body. */
 export interface CreateUserInput {
   full_name: string;
   email?: string | null;
+  password?: string;
   phone?: string | null;
   username?: string | null;
   org_id?: string | null;
   department?: string | null;
   /** 0–3; higher tiers require stronger principal clearances for read/update/delete. */
   clearance_tier_required?: number;
+  /** Tenant role ids to assign immediately after user creation. */
+  role_ids?: string[];
 }
 
 /** PATCH /users/{id} request body (partial). */
@@ -54,6 +73,26 @@ export interface UpdateUserInput {
   clearance_tier_required?: number;
   status?: UserStatus;
   auth_user_id?: string | null;
+}
+
+export interface CreateRoleInput {
+  code: string;
+  display_name: string;
+  description?: string | null;
+  is_system?: boolean;
+  status?: RoleStatus;
+}
+
+export interface UpdateRoleInput {
+  code?: string;
+  display_name?: string;
+  description?: string | null;
+  is_system?: boolean;
+  status?: RoleStatus;
+}
+
+export interface ReplaceRoleCapabilitiesInput {
+  capability_ids: string[];
 }
 
 /** POST /role-assignments 201 response shape. */

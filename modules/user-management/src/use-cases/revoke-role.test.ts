@@ -56,6 +56,21 @@ class StubRoleRepository implements RoleRepository {
   async getRoleById(): Promise<Role | null> {
     return this.role;
   }
+  async listRoles(): Promise<Role[]> {
+    return this.role ? [this.role] : [];
+  }
+  async listRolesByIds(): Promise<Role[]> {
+    return this.role ? [this.role] : [];
+  }
+  async createRole(): Promise<Role> {
+    throw new Error("not implemented");
+  }
+  async updateRole(): Promise<Role | null> {
+    return this.role;
+  }
+  async deleteRole(): Promise<Role | null> {
+    return this.role;
+  }
 }
 
 class StubRoleAssignmentRepository implements RoleAssignmentRepository {
@@ -70,6 +85,12 @@ class StubRoleAssignmentRepository implements RoleAssignmentRepository {
     return [];
   }
   async listAssignmentsByUser(): Promise<RoleAssignmentRef[]> {
+    return [];
+  }
+  async listAssignmentsByRole(): Promise<RoleAssignmentRef[]> {
+    return [];
+  }
+  async listAssignmentsByTenant(): Promise<RoleAssignmentRef[]> {
     return [];
   }
 }

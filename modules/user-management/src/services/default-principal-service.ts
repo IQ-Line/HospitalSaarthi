@@ -1,8 +1,8 @@
 import type { Principal as IdentityPrincipal } from "@hims/ts-sdk-identity";
 import type {
-  AbacAttributeRepository,
   AuthContext,
   Principal,
+  PrincipalAuthorizationRepository,
   PrincipalRoleProjectionRepository,
   PrincipalService,
   UserRepository,
@@ -14,7 +14,7 @@ import { projectPrincipalRoles } from "../use-cases/project-principal-roles.js";
 export type DefaultPrincipalServiceDeps = {
   userRepository: UserRepository;
   principalRoleProjectionRepository: PrincipalRoleProjectionRepository;
-  abacAttributeRepository: AbacAttributeRepository;
+  principalAuthorizationRepository: PrincipalAuthorizationRepository;
 };
 
 function pickJwtDepartment(requestUser: unknown): string | null {
@@ -70,13 +70,13 @@ function normalizeCapabilityList(caps: string[]): string[] {
   return [...set].sort((a, b) => a.localeCompare(b));
 }
 
-function warnMissingRolePermissions(
+function warnMissingRoleCapabilities(
   tenantId: string,
   userId: string,
   roles: readonly string[],
 ): void {
   console.warn(
-    "[user-management] Principal has DB-projected roles but role_permissions returned no permission slugs; authorization will see an empty capability set until rows exist.",
+    "[user-management] Principal has DB-projected roles but role_capabilities returned no capabilities; authorization will see an empty capability set until rows exist.",
     { tenantId, userId, roles: [...roles] },
   );
 }
@@ -95,14 +95,14 @@ function asIdentityPrincipal(requestUser: unknown): IdentityPrincipal | null {
  *
  * ## Capability enrichment
  *
- * Permission slugs (e.g. `"um:user:create"`) are immutable operational identifiers stored
- * directly in `role_permissions.permission_slug`. User Management owns runtime authorization
- * assignments — no external catalog resolution is needed. Cerbos consumes these slugs as
+ * Capabilities (e.g. `"um:user:create"`) are immutable operational identifiers stored in
+ * canonical capability composition tables. User Management owns runtime authorization
+ * assignments; Cerbos consumes the resolved capability keys as
  * `principal.attr.capabilities`.
  *
  * ```
- * user → role_assignments → roles → role_permissions(slug)
- *   → capabilities[] (slugs, deduplicated + sorted)
+ * user → role_assignments → role_capabilities(capability)
+ *   → capabilities[] (keys, deduplicated + sorted)
  *   → Cerbos principal.attr.capabilities
  * ```
  *
@@ -125,20 +125,23 @@ export class DefaultPrincipalService implements PrincipalService {
       context.userId,
     );
 
-    const [permissionSlugs, clearances, delegatedRaw] = await Promise.all([
-      this.deps.abacAttributeRepository.listRolePermissionSlugsForUser(
+    const [capabilityKeys, clearances, delegatedRaw] = await Promise.all([
+      this.deps.principalAuthorizationRepository.listEffectiveCapabilityKeys(
         context.tenantId,
         context.userId,
       ),
-      this.deps.abacAttributeRepository.getClearances(context.tenantId, context.userId),
-      this.deps.abacAttributeRepository.listDelegatedCapabilities(
+      this.deps.principalAuthorizationRepository.getClearanceLevels(
+        context.tenantId,
+        context.userId,
+      ),
+      this.deps.principalAuthorizationRepository.listDelegatedCapabilityKeys(
         context.tenantId,
         context.userId,
       ),
     ]);
 
-    if (roles.length > 0 && permissionSlugs.length === 0) {
-      warnMissingRolePermissions(context.tenantId, context.userId, roles);
+    if (roles.length > 0 && capabilityKeys.length === 0) {
+      warnMissingRoleCapabilities(context.tenantId, context.userId, roles);
     }
 
     const department = abacStringFromPersistence(user.department);
@@ -181,7 +184,7 @@ export class DefaultPrincipalService implements PrincipalService {
     }
 
     const delegatedCapabilities = [...delegatedRaw].sort((a, b) => a.localeCompare(b));
-    const capabilities = normalizeCapabilityList(permissionSlugs);
+    const capabilities = normalizeCapabilityList(capabilityKeys);
     const um_clearance_effective_tier = effectiveUmClearanceTierFromClearances(clearances);
 
     return {

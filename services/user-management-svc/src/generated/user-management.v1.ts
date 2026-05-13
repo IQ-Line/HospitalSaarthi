@@ -225,6 +225,637 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List canonical capability catalog
+         * @description Returns the canonical capability catalog. Capabilities are the atomic machine-readable authorization primitives used by Cerbos and composed into tenant-scoped roles.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /**
+                     * @deprecated
+                     * @description Optional diagnostic header. Canonical tenant scope is JWT `iq_tenant_id`. If this header is supplied, runtime requires exact match with JWT tenant scope.
+                     */
+                    iq_tenant_id?: components["parameters"]["IqTenantIdHeader"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Global capability catalog used for role composition. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Capability"][];
+                    };
+                };
+                /** @description Request validation error (including tenant header/JWT mismatch when header is provided). */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                /** @description Missing or invalid bearer token. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                403: components["responses"]["Forbidden"];
+                500: components["responses"]["InternalError"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/capabilities/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a canonical capability by id
+         * @description Returns a single capability from the global capability catalog. Capabilities remain the canonical authorization primitives and are not tenant-scoped.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /**
+                     * @deprecated
+                     * @description Optional diagnostic header. Canonical tenant scope is JWT `iq_tenant_id`. If this header is supplied, runtime requires exact match with JWT tenant scope.
+                     */
+                    iq_tenant_id?: components["parameters"]["IqTenantIdHeader"];
+                };
+                path: {
+                    /** @description Canonical capability id from the global capability catalog. */
+                    id: components["parameters"]["CapabilityIdPath"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Capability found in the canonical catalog. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Capability"];
+                    };
+                };
+                /** @description Request validation error (including malformed capability id). */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                /** @description Missing or invalid bearer token. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                403: components["responses"]["Forbidden"];
+                /** @description Capability not found in the catalog. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                500: components["responses"]["InternalError"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List tenant-scoped roles */
+        get: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /**
+                     * @deprecated
+                     * @description Optional diagnostic header. Canonical tenant scope is JWT `iq_tenant_id`. If this header is supplied, runtime requires exact match with JWT tenant scope.
+                     */
+                    iq_tenant_id?: components["parameters"]["IqTenantIdHeader"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Roles defined for the active tenant. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Role"][];
+                    };
+                };
+                /** @description Request validation error (including tenant header/JWT mismatch when header is provided). */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                /** @description Missing or invalid bearer token. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                403: components["responses"]["Forbidden"];
+                500: components["responses"]["InternalError"];
+            };
+        };
+        put?: never;
+        /** Create a tenant-scoped role */
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /**
+                     * @deprecated
+                     * @description Optional diagnostic header. Canonical tenant scope is JWT `iq_tenant_id`. If this header is supplied, runtime requires exact match with JWT tenant scope.
+                     */
+                    iq_tenant_id?: components["parameters"]["IqTenantIdHeader"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @description Canonical tenant-scoped role code. */
+                        code: string;
+                        /** @description Human-readable role label. */
+                        display_name: string;
+                        description?: string | null;
+                        /** @description System-managed role flag. */
+                        is_system?: boolean;
+                        /** @enum {string} */
+                        status?: "active" | "inactive";
+                    };
+                };
+            };
+            responses: {
+                /** @description Role created. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Role"];
+                    };
+                };
+                /** @description Invalid input. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                /** @description Missing or invalid bearer token. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                403: components["responses"]["Forbidden"];
+                /** @description Duplicate role code in this tenant. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                500: components["responses"]["InternalError"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/roles/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a tenant-scoped role by id */
+        get: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /**
+                     * @deprecated
+                     * @description Optional diagnostic header. Canonical tenant scope is JWT `iq_tenant_id`. If this header is supplied, runtime requires exact match with JWT tenant scope.
+                     */
+                    iq_tenant_id?: components["parameters"]["IqTenantIdHeader"];
+                };
+                path: {
+                    /** @description Tenant-scoped role id. */
+                    id: components["parameters"]["RoleIdPath"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Role found. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Role"];
+                    };
+                };
+                /** @description Request validation error. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                /** @description Missing or invalid bearer token. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                403: components["responses"]["Forbidden"];
+                /** @description Role not found for this tenant. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                500: components["responses"]["InternalError"];
+            };
+        };
+        put?: never;
+        post?: never;
+        /** Delete a tenant-scoped role */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /**
+                     * @deprecated
+                     * @description Optional diagnostic header. Canonical tenant scope is JWT `iq_tenant_id`. If this header is supplied, runtime requires exact match with JWT tenant scope.
+                     */
+                    iq_tenant_id?: components["parameters"]["IqTenantIdHeader"];
+                };
+                path: {
+                    /** @description Tenant-scoped role id. */
+                    id: components["parameters"]["RoleIdPath"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Deleted role. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Role"];
+                    };
+                };
+                /** @description Request validation error. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                /** @description Missing or invalid bearer token. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                403: components["responses"]["Forbidden"];
+                /** @description Role not found for this tenant. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                /** @description Role still has active assignments and cannot be deleted. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                500: components["responses"]["InternalError"];
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Update a tenant-scoped role */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /**
+                     * @deprecated
+                     * @description Optional diagnostic header. Canonical tenant scope is JWT `iq_tenant_id`. If this header is supplied, runtime requires exact match with JWT tenant scope.
+                     */
+                    iq_tenant_id?: components["parameters"]["IqTenantIdHeader"];
+                };
+                path: {
+                    /** @description Tenant-scoped role id. */
+                    id: components["parameters"]["RoleIdPath"];
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        code?: string;
+                        display_name?: string;
+                        description?: string | null;
+                        is_system?: boolean;
+                        /** @enum {string} */
+                        status?: "active" | "inactive";
+                    };
+                };
+            };
+            responses: {
+                /** @description Role updated. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Role"];
+                    };
+                };
+                /** @description Invalid input. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                /** @description Missing or invalid bearer token. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                403: components["responses"]["Forbidden"];
+                /** @description Role not found for this tenant. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                /** @description Duplicate role code in this tenant. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                500: components["responses"]["InternalError"];
+            };
+        };
+        trace?: never;
+    };
+    "/roles/{id}/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List capabilities composed into a role */
+        get: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /**
+                     * @deprecated
+                     * @description Optional diagnostic header. Canonical tenant scope is JWT `iq_tenant_id`. If this header is supplied, runtime requires exact match with JWT tenant scope.
+                     */
+                    iq_tenant_id?: components["parameters"]["IqTenantIdHeader"];
+                };
+                path: {
+                    /** @description Tenant-scoped role id. */
+                    id: components["parameters"]["RoleIdPath"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Capabilities currently composed into the role. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Capability"][];
+                    };
+                };
+                /** @description Request validation error. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                /** @description Missing or invalid bearer token. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                403: components["responses"]["Forbidden"];
+                /** @description Role not found for this tenant. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                500: components["responses"]["InternalError"];
+            };
+        };
+        /** Replace the capabilities composed into a role */
+        put: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /**
+                     * @deprecated
+                     * @description Optional diagnostic header. Canonical tenant scope is JWT `iq_tenant_id`. If this header is supplied, runtime requires exact match with JWT tenant scope.
+                     */
+                    iq_tenant_id?: components["parameters"]["IqTenantIdHeader"];
+                };
+                path: {
+                    /** @description Tenant-scoped role id. */
+                    id: components["parameters"]["RoleIdPath"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @description Canonical capability ids to compose into the role. */
+                        capability_ids: string[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated role composition. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Capability"][];
+                    };
+                };
+                /** @description Invalid input. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                /** @description Missing or invalid bearer token. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                403: components["responses"]["Forbidden"];
+                /** @description Role or capability not found for this tenant. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                500: components["responses"]["InternalError"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users": {
         parameters: {
             query?: never;
@@ -525,6 +1156,83 @@ export interface paths {
         };
         trace?: never;
     };
+    "/users/{id}/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List roles assigned to a tenant-scoped user
+         * @description Returns the tenant-scoped role containers currently assigned to the specified user. The response expands role assignment rows into role definitions so admin clients can render role metadata without a second lookup.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /**
+                     * @deprecated
+                     * @description Optional diagnostic header. Canonical tenant scope is JWT `iq_tenant_id`. If this header is supplied, runtime requires exact match with JWT tenant scope.
+                     */
+                    iq_tenant_id?: components["parameters"]["IqTenantIdHeader"];
+                };
+                path: {
+                    /** @description Platform user id within the current tenant. */
+                    id: components["parameters"]["UserIdPath"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Roles currently assigned to the user within the active tenant. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Role"][];
+                    };
+                };
+                /** @description Request validation error (including malformed user id). */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                /** @description Missing or invalid bearer token. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                403: components["responses"]["Forbidden"];
+                /** @description User not found for this tenant. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                500: components["responses"]["InternalError"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/{id}/deactivate": {
         parameters: {
             query?: never;
@@ -536,7 +1244,7 @@ export interface paths {
         put?: never;
         /**
          * Deactivate a tenant-scoped platform user
-         * @description Soft-deactivates the user by setting `status` to `inactive`. Idempotent when already inactive. Uses Cerbos action `user.delete` (not `user.update`) so policies can separate profile edits from deactivation.
+         * @description Soft-deactivates the user by setting `status` to `inactive`. Idempotent when already inactive. Uses Cerbos action `user.deactivate` (not `user.update`) so policies can separate profile edits from deactivation.
          */
         post: {
             parameters: {
@@ -609,7 +1317,59 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * List role assignments in the active tenant
+         * @description Returns tenant-scoped role assignments. Optional query parameters narrow the result set by user or role.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    user_id?: string;
+                    role_id?: string;
+                };
+                header?: {
+                    /**
+                     * @deprecated
+                     * @description Optional diagnostic header. Canonical tenant scope is JWT `iq_tenant_id`. If this header is supplied, runtime requires exact match with JWT tenant scope.
+                     */
+                    iq_tenant_id?: components["parameters"]["IqTenantIdHeader"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Role assignments visible in the active tenant. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RoleAssignment"][];
+                    };
+                };
+                /** @description Invalid query parameters. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                /** @description Missing or invalid bearer token. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                403: components["responses"]["Forbidden"];
+                500: components["responses"]["InternalError"];
+            };
+        };
         put?: never;
         /**
          * Assign a role to a user
@@ -767,6 +1527,28 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        Capability: {
+            /** Format: uuid */
+            id: string;
+            /** @description Canonical machine-readable capability key. */
+            capability_key: string;
+            module: string;
+            feature: string;
+            action: string;
+            display_name: string;
+            description?: string | null;
+            is_active: boolean;
+        };
+        Role: {
+            /** Format: uuid */
+            id: string;
+            code: string;
+            display_name: string;
+            description?: string | null;
+            is_system: boolean;
+            /** @enum {string} */
+            status: "active" | "inactive";
+        };
         /** @description Nested map keyed by module id (e.g. user-management), then feature id (e.g. users), then action id (e.g. read). Values are Cerbos-backed UX hints from GET /auth/permissions-map. */
         PermissionsUxMap: {
             [key: string]: {
@@ -807,7 +1589,7 @@ export interface components {
             org_id?: string | null;
             /** @description Department attribute for ABAC (persisted profile field). */
             department?: string | null;
-            /** @description Minimum principal clearance tier (from Cerbos `um_clearance_effective_tier`) required for user.read / user.update / user.delete on this record. 0 = standard. */
+            /** @description Minimum principal clearance tier (from Cerbos `um_clearance_effective_tier`) required for user.read / user.update / user.deactivate on this record. 0 = standard. */
             clearance_tier_required?: number;
             /**
              * @description Platform user lifecycle state.
@@ -869,6 +1651,12 @@ export interface components {
          * @description Optional diagnostic header. Canonical tenant scope is JWT `iq_tenant_id`. If this header is supplied, runtime requires exact match with JWT tenant scope.
          */
         IqTenantIdHeader: string;
+        /** @description Canonical capability id from the global capability catalog. */
+        CapabilityIdPath: string;
+        /** @description Tenant-scoped role id. */
+        RoleIdPath: string;
+        /** @description Platform user id within the current tenant. */
+        UserIdPath: string;
     };
     requestBodies: never;
     headers: never;

@@ -7,13 +7,16 @@ import { unauthorized } from "@hims/ts-sdk-http";
 import { identityPlugin } from "@hims/ts-sdk-identity";
 import type {
   AssignRoleInput,
+  Capability,
   CreateUserInput,
   ListUsersOptions,
+  ReplaceRoleCapabilitiesInput,
   Role,
   RoleAssignment,
   RoleAssignmentRef,
   RoleAssignmentRepository,
   PrincipalRoleProjectionRepository,
+  RoleCapabilityRepository,
   RoleRepository,
   UpdateUserInput,
   User,
@@ -37,11 +40,63 @@ class NoopRoleAssignmentRepository implements RoleAssignmentRepository {
   async listAssignmentsByUser(_tenantId: string, _userId: string): Promise<RoleAssignmentRef[]> {
     return [];
   }
+  async listAssignmentsByRole(_tenantId: string, _roleId: string): Promise<RoleAssignmentRef[]> {
+    return [];
+  }
+  async listAssignmentsByTenant(
+    _tenantId: string,
+    _filter?: Readonly<{ userId?: string; roleId?: string }>,
+  ): Promise<RoleAssignmentRef[]> {
+    return [];
+  }
 }
 
 class StubRoleRepository implements RoleRepository {
   async getRoleById(_tenantId: string, _roleId: string): Promise<Role | null> {
     return null;
+  }
+  async listRoles(_tenantId: string): Promise<Role[]> {
+    return [];
+  }
+  async listRolesByIds(_tenantId: string, _roleIds: string[]): Promise<Role[]> {
+    return [];
+  }
+  async createRole(): Promise<Role> {
+    throw new Error("not implemented");
+  }
+  async updateRole(): Promise<Role | null> {
+    return null;
+  }
+  async deleteRole(): Promise<Role | null> {
+    return null;
+  }
+}
+
+class StubCapabilityRepository {
+  async getCapabilityById(): Promise<Capability | null> {
+    return null;
+  }
+  async listCapabilities(): Promise<Capability[]> {
+    return [];
+  }
+  async listCapabilitiesByIds(): Promise<Capability[]> {
+    return [];
+  }
+  async listCapabilitiesByKeys(): Promise<Capability[]> {
+    return [];
+  }
+}
+
+class NoopRoleCapabilityRepository implements RoleCapabilityRepository {
+  async listCapabilitiesByRole(): Promise<Capability[]> {
+    return [];
+  }
+  async replaceCapabilitiesForRole(
+    _tenantId: string,
+    _roleId: string,
+    _input: ReplaceRoleCapabilitiesInput,
+  ): Promise<Capability[]> {
+    return [];
   }
 }
 
@@ -51,6 +106,12 @@ class NoopPrincipalRoleProjectionRepository implements PrincipalRoleProjectionRe
   }
   clearCache(): void {}
 }
+
+const noopAuthAccountProvisioner = {
+  async createPasswordAccount(input: { platformUserId: string }) {
+    return { authUserId: input.platformUserId };
+  },
+};
 
 class StubUserRepository implements UserRepository {
   async createUser(_tenantId: string, _input: CreateUserInput): Promise<User> {
@@ -328,9 +389,12 @@ describe("OpenAPI/runtime coherence", () => {
         await instance.register(userManagementPlugin, {
           eventBus: noopEventBus,
           userRepository: new StubUserRepository(),
+          capabilityRepository: new StubCapabilityRepository(),
           roleRepository: new StubRoleRepository(),
+          roleCapabilityRepository: new NoopRoleCapabilityRepository(),
           roleAssignmentRepository: new NoopRoleAssignmentRepository(),
           principalRoleProjectionRepository: new NoopPrincipalRoleProjectionRepository(),
+          authAccountProvisioner: noopAuthAccountProvisioner,
         });
       },
       { prefix: "/api/user-management" },
@@ -365,9 +429,12 @@ describe("OpenAPI/runtime coherence", () => {
         await instance.register(userManagementPlugin, {
           eventBus: noopEventBus,
           userRepository: new StubUserRepository(),
+          capabilityRepository: new StubCapabilityRepository(),
           roleRepository: new StubRoleRepository(),
+          roleCapabilityRepository: new NoopRoleCapabilityRepository(),
           roleAssignmentRepository: new NoopRoleAssignmentRepository(),
           principalRoleProjectionRepository: new NoopPrincipalRoleProjectionRepository(),
+          authAccountProvisioner: noopAuthAccountProvisioner,
         });
       },
       { prefix: "/api/user-management" },
@@ -418,9 +485,12 @@ describe("OpenAPI/runtime coherence", () => {
         await instance.register(userManagementPlugin, {
           eventBus: noopEventBus,
           userRepository: new StubUserRepository(),
+          capabilityRepository: new StubCapabilityRepository(),
           roleRepository: new StubRoleRepository(),
+          roleCapabilityRepository: new NoopRoleCapabilityRepository(),
           roleAssignmentRepository: new NoopRoleAssignmentRepository(),
           principalRoleProjectionRepository: new NoopPrincipalRoleProjectionRepository(),
+          authAccountProvisioner: noopAuthAccountProvisioner,
         });
       },
       { prefix: "/api/user-management" },
@@ -435,9 +505,15 @@ describe("OpenAPI/runtime coherence", () => {
         "/auth/me",
         "/auth/principal",
         "/auth/permissions-map",
+        "/capabilities",
+        "/capabilities/:id",
         "/users",
         "/users/:id",
+        "/users/:id/roles",
         "/users/:id/deactivate",
+        "/roles",
+        "/roles/:id",
+        "/roles/:id/capabilities",
         "/role-assignments",
       ].includes(p);
     });

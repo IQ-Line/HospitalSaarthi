@@ -28,6 +28,7 @@ export class InMemoryRoleAssignmentRepository implements RoleAssignmentRepositor
     };
     this.assignments.set(key, assignment);
     this.assignmentRefs.push({
+      id: assignment.id,
       tenant_id: tenantId,
       user_id: input.user_id,
       role_id: input.role_id,
@@ -64,5 +65,23 @@ export class InMemoryRoleAssignmentRepository implements RoleAssignmentRepositor
     return this.assignmentRefs.filter(
       (assignment) => assignment.tenant_id === tenantId && assignment.user_id === userId,
     );
+  }
+
+  async listAssignmentsByRole(tenantId: string, roleId: string): Promise<RoleAssignmentRef[]> {
+    return this.assignmentRefs.filter(
+      (assignment) => assignment.tenant_id === tenantId && assignment.role_id === roleId,
+    );
+  }
+
+  async listAssignmentsByTenant(
+    tenantId: string,
+    filter?: Readonly<{ userId?: string; roleId?: string }>,
+  ): Promise<RoleAssignmentRef[]> {
+    return this.assignmentRefs.filter((assignment) => {
+      if (assignment.tenant_id !== tenantId) return false;
+      if (filter?.userId && assignment.user_id !== filter.userId) return false;
+      if (filter?.roleId && assignment.role_id !== filter.roleId) return false;
+      return true;
+    });
   }
 }

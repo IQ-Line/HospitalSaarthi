@@ -15,10 +15,9 @@ principals:
       department: null
       capabilities:
         - "um:user:read"
-        - "um:user:list"
         - "um:user:create"
         - "um:user:update"
-        - "um:user:delete"
+        - "um:user:deactivate"
         - "um:role:assign"
       delegated_capabilities: []
       clearances: {}
@@ -112,27 +111,27 @@ tests:
         actions:
           user.read: EFFECT_DENY
 
-  - name: user.list — same tenant ALLOW
+  - name: user.read(list) — same tenant ALLOW
     input:
       principals: [actor_tenant_aa]
       resources: [user_list_aa]
-      actions: [user.list]
+      actions: [user.read]
     expected:
       - principal: actor_tenant_aa
         resource: user_list_aa
         actions:
-          user.list: EFFECT_ALLOW
+          user.read: EFFECT_ALLOW
 
-  - name: user.list — cross-tenant DENY
+  - name: user.read(list) — cross-tenant DENY
     input:
       principals: [actor_tenant_aa]
       resources: [user_list_bb]
-      actions: [user.list]
+      actions: [user.read]
     expected:
       - principal: actor_tenant_aa
         resource: user_list_bb
         actions:
-          user.list: EFFECT_DENY
+          user.read: EFFECT_DENY
 
   - name: user.create — same tenant ALLOW
     input:

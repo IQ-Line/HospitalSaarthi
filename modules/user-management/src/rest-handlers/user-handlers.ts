@@ -1,4 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import { forbidden } from "@hims/ts-sdk-http";
+import { buildCerbosUserMgmtResourceAttr } from "../authz/cerbos-resource-attr.js";
 import { UserNotFoundError } from "../domain/errors.js";
 import { replyWithUserManagementError } from "../http/map-user-management-error.js";
 import type { CreateUserInput, UpdateUserInput } from "../ports/index.js";
@@ -24,6 +26,14 @@ export type UserHandlersDeps = {
   deactivateUserDeps: DeactivateUserDeps;
 };
 
+function tenantOnlyResourceAttr(tenantId: string) {
+  return buildCerbosUserMgmtResourceAttr({
+    iq_tenant_id: tenantId,
+    department: null,
+    required_clearance: 0,
+  });
+}
+
 export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandlersDeps): void {
   fastify.post<{ Body: CreateUserInput }>(
     "/users",
@@ -33,6 +43,17 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
       const actorId = deps.getActorId(request);
       const cid = request.correlationId ?? request.id;
       try {
+        if (Array.isArray(request.body?.role_ids) && request.body.role_ids.length > 0) {
+          const result = await request.checkResource(
+            "role_assignment",
+            "new",
+            "role.assign",
+            tenantOnlyResourceAttr(tenantId),
+          );
+          if (!result.isAllowed("role.assign")) {
+            return forbidden(reply, request, "AUTHZ_FORBIDDEN", "Forbidden");
+          }
+        }
         const user = await createUser(
           deps.createUserDeps,
           { tenantId, actorId, correlationId: cid },

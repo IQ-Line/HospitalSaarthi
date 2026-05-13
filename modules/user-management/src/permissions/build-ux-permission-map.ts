@@ -4,7 +4,7 @@ import { buildCerbosUserMgmtResourceAttr } from "../authz/cerbos-resource-attr.j
 import type { UserRepository } from "../ports/index.js";
 
 /**
- * Shell / nav permission map (module → feature → action → allowed).
+ * Shell / nav permissions map (module → feature → action → allowed).
  * Values come from Cerbos {@link FastifyRequest.checkResource} — UX only; PDP remains authoritative on APIs.
  */
 export type PermissionUxMap = Record<string, Record<string, Record<string, boolean>>>;
@@ -50,11 +50,16 @@ export async function buildUxPermissionMap(
   const allow = async (kind: string, id: string, action: string, attr?: Record<string, Value>) =>
     Boolean((await check(kind, id, action, attr)).isAllowed(action));
 
-  const listOk = await allow("user", "list", "user.list", tenantOnly);
+  const listOk = await allow("user", "list", "user.read", tenantOnly);
   const readSelfOk = await allow("user", userId, "user.read", selfAttr);
   const createOk = await allow("user", "new", "user.create", tenantOnly);
   const updateSelfOk = await allow("user", userId, "user.update", selfAttr);
-  const deleteSelfOk = await allow("user", userId, "user.delete", selfAttr);
+  const deactivateSelfOk = await allow("user", userId, "user.deactivate", selfAttr);
+  const roleReadOk = await allow("role", "list", "role.read", tenantOnly);
+  const capabilityReadOk = await allow("capability", "list", "capability.read", tenantOnly);
+  const roleCreateOk = await allow("role", "new", "role.create", tenantOnly);
+  const roleUpdateOk = await allow("role", "sample", "role.update", tenantOnly);
+  const roleDeleteOk = await allow("role", "sample", "role.delete", tenantOnly);
   const assignOk = await allow("role_assignment", "new", "role.assign", tenantOnly);
   const revokeOk = await allow("role_assignment", "revoke", "role.revoke", tenantOnly);
 
@@ -62,11 +67,19 @@ export async function buildUxPermissionMap(
     "user-management": {
       users: {
         read: listOk || readSelfOk,
-        write: createOk || updateSelfOk || deleteSelfOk,
+        write: createOk || updateSelfOk || deactivateSelfOk,
       },
       roles: {
-        read: assignOk || revokeOk,
-        write: assignOk,
+        read: roleReadOk,
+        write: roleCreateOk || roleUpdateOk || roleDeleteOk,
+      },
+      capabilities: {
+        read: capabilityReadOk,
+        write: false,
+      },
+      roleAssignments: {
+        read: roleReadOk,
+        write: assignOk || revokeOk,
       },
     },
   };

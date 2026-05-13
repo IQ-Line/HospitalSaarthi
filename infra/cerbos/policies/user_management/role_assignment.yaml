@@ -14,6 +14,7 @@ resourcePolicy:
   rules:
     - actions:
         - "role.assign"
+      roles: ["*"]
       effect: EFFECT_ALLOW
       condition:
         match:
@@ -26,6 +27,7 @@ resourcePolicy:
 
     - actions:
         - "role.revoke"
+      roles: ["*"]
       effect: EFFECT_ALLOW
       condition:
         match:

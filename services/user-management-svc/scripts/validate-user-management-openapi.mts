@@ -14,11 +14,14 @@ import Fastify from "fastify";
 import fp from "fastify-plugin";
 import SwaggerParser from "@apidevtools/swagger-parser";
 import type {
+  Capability,
   Role,
   RoleAssignment,
   RoleAssignmentRef,
   RoleAssignmentRepository,
   PrincipalRoleProjectionRepository,
+  ReplaceRoleCapabilitiesInput,
+  RoleCapabilityRepository,
   RoleRepository,
   User,
   UserRepository,
@@ -104,11 +107,60 @@ class NoopRoleAssignmentRepository implements RoleAssignmentRepository {
   async listAssignmentsByUser(): Promise<RoleAssignmentRef[]> {
     return [];
   }
+  async listAssignmentsByRole(): Promise<RoleAssignmentRef[]> {
+    return [];
+  }
+  async listAssignmentsByTenant(): Promise<RoleAssignmentRef[]> {
+    return [];
+  }
 }
 
 class StubRoleRepository implements RoleRepository {
   async getRoleById(): Promise<Role | null> {
     return null;
+  }
+  async listRoles(): Promise<Role[]> {
+    return [];
+  }
+  async listRolesByIds(): Promise<Role[]> {
+    return [];
+  }
+  async createRole(): Promise<Role> {
+    throw new Error("not implemented");
+  }
+  async updateRole(): Promise<Role | null> {
+    return null;
+  }
+  async deleteRole(): Promise<Role | null> {
+    return null;
+  }
+}
+
+class StubCapabilityRepository {
+  async getCapabilityById(): Promise<Capability | null> {
+    return null;
+  }
+  async listCapabilities(): Promise<Capability[]> {
+    return [];
+  }
+  async listCapabilitiesByIds(): Promise<Capability[]> {
+    return [];
+  }
+  async listCapabilitiesByKeys(): Promise<Capability[]> {
+    return [];
+  }
+}
+
+class NoopRoleCapabilityRepository implements RoleCapabilityRepository {
+  async listCapabilitiesByRole(): Promise<Capability[]> {
+    return [];
+  }
+  async replaceCapabilitiesForRole(
+    _tenantId: string,
+    _roleId: string,
+    _input: ReplaceRoleCapabilitiesInput,
+  ): Promise<Capability[]> {
+    return [];
   }
 }
 
@@ -169,7 +221,9 @@ async function main(): Promise<void> {
       await instance.register(userManagementPlugin, {
         eventBus: noopEventBus as never,
         userRepository: new StubUserRepository(),
+        capabilityRepository: new StubCapabilityRepository(),
         roleRepository: new StubRoleRepository(),
+        roleCapabilityRepository: new NoopRoleCapabilityRepository(),
         roleAssignmentRepository: new NoopRoleAssignmentRepository(),
         principalRoleProjectionRepository: new NoopPrincipalRoleProjectionRepository(),
       });

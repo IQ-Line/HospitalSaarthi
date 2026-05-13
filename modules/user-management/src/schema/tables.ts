@@ -9,12 +9,21 @@ import {
   pgSchema,
   primaryKey,
   text,
+  timestamp,
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
 
-/** Citus: distributed by `iq_tenant_id` (see User Management LLD §13). */
+/** Capability-first authorization schema for the User Management module. */
 export const userManagementSchema = pgSchema("user_management");
+
+function createdAt(name = "created_at") {
+  return timestamp(name, { withTimezone: true }).notNull().defaultNow();
+}
+
+function updatedAt(name = "updated_at") {
+  return timestamp(name, { withTimezone: true }).notNull().defaultNow();
+}
 
 export const users = userManagementSchema.table(
   "users",
@@ -31,26 +40,51 @@ export const users = userManagementSchema.table(
     username: text("username"),
     /** Configurator `organizations.id` — logical reference only (no FK). */
     org_id: uuid("org_id"),
-    /** Clinical / administrative department for ABAC (nullable until profile is enriched). */
+    /** Department-scoped ABAC field. */
     department: text("department"),
-    /**
-     * Minimum principal clearance tier (from `request.principal.attr.um_clearance_effective_tier`)
-     * required for sensitive user.read / user.update / user.delete. 0 = no extra clearance gate.
-     */
+    /** Minimum effective clearance tier required for sensitive user resources. */
     clearance_tier_required: integer("clearance_tier_required").notNull().default(0),
     ...auditColumns(),
   },
   (t) => [
     primaryKey({ columns: [t.iq_tenant_id, t.id] }),
-    check(
-      "users_status_chk",
-      sql`${t.status} in ('active', 'inactive', 'suspended')`,
-    ),
+    check("users_status_chk", sql`${t.status} in ('active', 'inactive', 'suspended')`),
     check(
       "users_clearance_tier_chk",
       sql`${t.clearance_tier_required} >= 0 and ${t.clearance_tier_required} <= 3`,
     ),
     unique("uq_users_tenant_username").on(t.iq_tenant_id, t.username),
+  ],
+);
+
+export const capabilities = userManagementSchema.table(
+  "capabilities",
+  {
+    id: uuid("id").notNull().defaultRandom(),
+    capability_key: text("capability_key").notNull(),
+    module: text("module").notNull(),
+    feature: text("feature").notNull(),
+    action: text("action").notNull(),
+    display_name: text("display_name").notNull(),
+    description: text("description"),
+    is_active: boolean("is_active").notNull().default(true),
+    created_at: createdAt(),
+    updated_at: updatedAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.id] }),
+    check("capabilities_key_not_blank_chk", sql`length(btrim(${t.capability_key})) > 0`),
+    check(
+      "capabilities_key_canonical_chk",
+      sql`${t.capability_key} = lower(btrim(${t.capability_key}))`,
+    ),
+    check("capabilities_module_not_blank_chk", sql`length(btrim(${t.module})) > 0`),
+    check("capabilities_feature_not_blank_chk", sql`length(btrim(${t.feature})) > 0`),
+    check("capabilities_action_not_blank_chk", sql`length(btrim(${t.action})) > 0`),
+    check("capabilities_display_name_not_blank_chk", sql`length(btrim(${t.display_name})) > 0`),
+    unique("uq_capabilities_key").on(t.capability_key),
+    unique("uq_capabilities_module_feature_action").on(t.module, t.feature, t.action),
+    index("idx_capabilities_module_feature").on(t.module, t.feature),
   ],
 );
 
@@ -61,13 +95,55 @@ export const roles = userManagementSchema.table(
     id: uuid("id").notNull().defaultRandom(),
     code: text("code").notNull(),
     display_name: text("display_name").notNull(),
-    ...auditColumns(),
+    description: text("description"),
+    is_system: boolean("is_system").notNull().default(false),
+    status: text("status").notNull().default("active"),
+    created_at: createdAt(),
+    updated_at: updatedAt(),
   },
   (t) => [
     primaryKey({ columns: [t.iq_tenant_id, t.id] }),
     check("roles_code_not_blank_chk", sql`length(btrim(${t.code})) > 0`),
     check("roles_code_canonical_chk", sql`${t.code} = lower(btrim(${t.code}))`),
+    check("roles_display_name_not_blank_chk", sql`length(btrim(${t.display_name})) > 0`),
+    check("roles_status_chk", sql`${t.status} in ('active', 'inactive')`),
     unique("uq_roles_tenant_code").on(t.iq_tenant_id, t.code),
+    index("idx_roles_tenant_status").on(t.iq_tenant_id, t.status),
+  ],
+);
+
+export const role_capabilities = userManagementSchema.table(
+  "role_capabilities",
+  {
+    ...tenantColumn(),
+    id: uuid("id").notNull().defaultRandom(),
+    role_id: uuid("role_id").notNull(),
+    capability_id: uuid("capability_id").notNull(),
+    created_at: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
+    foreignKey({
+      name: "fk_role_capabilities_tenant_role",
+      columns: [t.iq_tenant_id, t.role_id],
+      foreignColumns: [roles.iq_tenant_id, roles.id],
+    })
+      .onDelete("cascade")
+      .onUpdate("restrict"),
+    foreignKey({
+      name: "fk_role_capabilities_capability",
+      columns: [t.capability_id],
+      foreignColumns: [capabilities.id],
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    unique("uq_role_capabilities_tenant_role_capability").on(
+      t.iq_tenant_id,
+      t.role_id,
+      t.capability_id,
+    ),
+    index("idx_role_capabilities_tenant_role").on(t.iq_tenant_id, t.role_id),
+    index("idx_role_capabilities_capability").on(t.capability_id),
   ],
 );
 
@@ -77,19 +153,11 @@ export const role_assignments = userManagementSchema.table(
     ...tenantColumn(),
     id: uuid("id").notNull().defaultRandom(),
     user_id: uuid("user_id").notNull(),
-    /**
-     * TODO(Phase 1B): `roles` table + FK enforcement are intentionally deferred.
-     * `role_id` currently acts as a placeholder identifier; Phase 1B will add
-     * `roles`, role capabilities/permissions tables, and FK validation.
-     */
     role_id: uuid("role_id").notNull(),
-    ...auditColumns(),
+    created_at: createdAt(),
   },
   (t) => [
-    /**
-     * FK policy: RESTRICT delete/update so assignments cannot outlive referenced
-     * users/roles, and users/roles cannot be removed while assignments exist.
-     */
+    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
     foreignKey({
       name: "fk_role_assignments_tenant_user",
       columns: [t.iq_tenant_id, t.user_id],
@@ -104,50 +172,9 @@ export const role_assignments = userManagementSchema.table(
     })
       .onDelete("restrict")
       .onUpdate("restrict"),
-    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
     unique("uq_role_assignments_tenant_user_role").on(t.iq_tenant_id, t.user_id, t.role_id),
     index("idx_role_assignments_tenant_user").on(t.iq_tenant_id, t.user_id),
-  ],
-);
-
-export const role_permissions = userManagementSchema.table(
-  "role_permissions",
-  {
-    ...tenantColumn(),
-    role_id: uuid("role_id").notNull(),
-    /** Immutable operational identifier consumed directly by Cerbos (e.g. "um:user:create"). */
-    permission_slug: text("permission_slug").notNull(),
-  },
-  (t) => [
-    primaryKey({ columns: [t.iq_tenant_id, t.role_id, t.permission_slug] }),
-    foreignKey({
-      name: "fk_role_permissions_tenant_role",
-      columns: [t.iq_tenant_id, t.role_id],
-      foreignColumns: [roles.iq_tenant_id, roles.id],
-    })
-      .onDelete("cascade")
-      .onUpdate("restrict"),
-    index("idx_role_permissions_tenant_role").on(t.iq_tenant_id, t.role_id),
-  ],
-);
-
-export const user_clearances = userManagementSchema.table(
-  "user_clearances",
-  {
-    ...tenantColumn(),
-    user_id: uuid("user_id").notNull(),
-    clearance_key: text("clearance_key").notNull(),
-    access_level: text("access_level").notNull(),
-  },
-  (t) => [
-    primaryKey({ columns: [t.iq_tenant_id, t.user_id, t.clearance_key] }),
-    foreignKey({
-      name: "fk_user_clearances_tenant_user",
-      columns: [t.iq_tenant_id, t.user_id],
-      foreignColumns: [users.iq_tenant_id, users.id],
-    })
-      .onDelete("cascade")
-      .onUpdate("restrict"),
+    index("idx_role_assignments_tenant_role").on(t.iq_tenant_id, t.role_id),
   ],
 );
 
@@ -155,18 +182,86 @@ export const delegated_capability_grants = userManagementSchema.table(
   "delegated_capability_grants",
   {
     ...tenantColumn(),
-    delegatee_user_id: uuid("delegatee_user_id").notNull(),
-    capability: text("capability").notNull(),
-    active: boolean("active").notNull().default(true),
+    id: uuid("id").notNull().defaultRandom(),
+    source_user_id: uuid("source_user_id").notNull(),
+    target_user_id: uuid("target_user_id").notNull(),
+    capability_id: uuid("capability_id").notNull(),
+    starts_at: timestamp("starts_at", { withTimezone: true }).notNull().defaultNow(),
+    ends_at: timestamp("ends_at", { withTimezone: true }),
+    status: text("status").notNull().default("active"),
+    created_at: createdAt(),
   },
   (t) => [
-    primaryKey({ columns: [t.iq_tenant_id, t.delegatee_user_id, t.capability] }),
+    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
     foreignKey({
-      name: "fk_delegated_caps_tenant_user",
-      columns: [t.iq_tenant_id, t.delegatee_user_id],
+      name: "fk_delegated_grants_tenant_source_user",
+      columns: [t.iq_tenant_id, t.source_user_id],
+      foreignColumns: [users.iq_tenant_id, users.id],
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      name: "fk_delegated_grants_tenant_target_user",
+      columns: [t.iq_tenant_id, t.target_user_id],
+      foreignColumns: [users.iq_tenant_id, users.id],
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      name: "fk_delegated_grants_capability",
+      columns: [t.capability_id],
+      foreignColumns: [capabilities.id],
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    check(
+      "delegated_capability_grants_status_chk",
+      sql`${t.status} in ('pending', 'active', 'revoked', 'expired')`,
+    ),
+    check(
+      "delegated_capability_grants_window_chk",
+      sql`${t.ends_at} is null or ${t.ends_at} > ${t.starts_at}`,
+    ),
+    unique("uq_delegated_grants_tenant_source_target_capability_start").on(
+      t.iq_tenant_id,
+      t.source_user_id,
+      t.target_user_id,
+      t.capability_id,
+      t.starts_at,
+    ),
+    index("idx_delegated_grants_tenant_target_status").on(
+      t.iq_tenant_id,
+      t.target_user_id,
+      t.status,
+    ),
+  ],
+);
+
+export const user_clearances = userManagementSchema.table(
+  "user_clearances",
+  {
+    ...tenantColumn(),
+    id: uuid("id").notNull().defaultRandom(),
+    user_id: uuid("user_id").notNull(),
+    clearance_key: text("clearance_key").notNull(),
+    clearance_level: text("clearance_level").notNull(),
+    created_at: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
+    foreignKey({
+      name: "fk_user_clearances_tenant_user",
+      columns: [t.iq_tenant_id, t.user_id],
       foreignColumns: [users.iq_tenant_id, users.id],
     })
       .onDelete("cascade")
       .onUpdate("restrict"),
+    check("user_clearances_key_not_blank_chk", sql`length(btrim(${t.clearance_key})) > 0`),
+    check(
+      "user_clearances_level_not_blank_chk",
+      sql`length(btrim(${t.clearance_level})) > 0`,
+    ),
+    unique("uq_user_clearances_tenant_user_key").on(t.iq_tenant_id, t.user_id, t.clearance_key),
+    index("idx_user_clearances_tenant_user").on(t.iq_tenant_id, t.user_id),
   ],
 );

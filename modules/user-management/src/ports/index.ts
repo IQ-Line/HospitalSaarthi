@@ -4,13 +4,18 @@
 
 import type {
   AssignRoleInput,
+  Capability,
   AuthContext,
   CreateUserInput,
+  CreateRoleInput,
   Principal,
+  ReplaceRoleCapabilitiesInput,
   Role,
   RoleAssignment,
+  UpdateRoleInput,
   UpdateUserInput,
   User,
+  RoleStatus,
   UserStatus,
 } from "../domain/types.js";
 
@@ -18,12 +23,17 @@ import type { UserReadListResourceAbac } from "../domain/user-read-list-resource
 
 export type {
   AssignRoleInput,
+  Capability,
   AuthContext,
   CreateUserInput,
+  CreateRoleInput,
   Principal,
   PrincipalAttributes,
+  ReplaceRoleCapabilitiesInput,
   Role,
   RoleAssignment,
+  RoleStatus,
+  UpdateRoleInput,
   UpdateUserInput,
   User,
   UserStatus,
@@ -39,6 +49,18 @@ export type ListUsersOptions = {
 /** Platform user plus owning tenant (for JWT `iq_tenant_id` resolution by global user id). */
 export type UserWithTenant = User & { iq_tenant_id: string };
 
+export type CreatePasswordAuthAccountInput = {
+  platformUserId: string;
+  tenantId: string;
+  fullName: string;
+  email: string;
+  password: string;
+};
+
+export type CreatePasswordAuthAccountResult = {
+  authUserId: string;
+};
+
 export interface UserRepository {
   createUser(tenantId: string, input: CreateUserInput): Promise<User>;
   getUserById(tenantId: string, userId: string): Promise<User | null>;
@@ -51,20 +73,42 @@ export interface UserRepository {
   updateUser(tenantId: string, userId: string, input: UpdateUserInput): Promise<User | null>;
 }
 
-/**
- * Tenant-scoped ABAC attributes sourced from User Management persistence (LLD §6–7).
- *
- * `listRolePermissionSlugsForUser` returns permission **slugs** directly from `role_permissions`.
- * These are the immutable operational identifiers consumed by Cerbos (e.g. "um:user:create").
- */
-export interface AbacAttributeRepository {
-  listRolePermissionSlugsForUser(tenantId: string, userId: string): Promise<string[]>;
-  getClearances(tenantId: string, userId: string): Promise<Record<string, string>>;
-  listDelegatedCapabilities(tenantId: string, userId: string): Promise<string[]>;
+export interface AuthAccountProvisioner {
+  createPasswordAccount(
+    input: CreatePasswordAuthAccountInput,
+  ): Promise<CreatePasswordAuthAccountResult>;
+}
+
+/** Principal enrichment source: effective capability keys, delegated capability keys, and clearances. */
+export interface PrincipalAuthorizationRepository {
+  listEffectiveCapabilityKeys(tenantId: string, userId: string): Promise<string[]>;
+  getClearanceLevels(tenantId: string, userId: string): Promise<Record<string, string>>;
+  listDelegatedCapabilityKeys(tenantId: string, userId: string): Promise<string[]>;
+}
+
+export interface CapabilityRepository {
+  getCapabilityById(capabilityId: string): Promise<Capability | null>;
+  listCapabilities(): Promise<Capability[]>;
+  listCapabilitiesByIds(capabilityIds: string[]): Promise<Capability[]>;
+  listCapabilitiesByKeys(capabilityKeys: string[]): Promise<Capability[]>;
 }
 
 export interface RoleRepository {
   getRoleById(tenantId: string, roleId: string): Promise<Role | null>;
+  listRoles(tenantId: string): Promise<Role[]>;
+  listRolesByIds(tenantId: string, roleIds: string[]): Promise<Role[]>;
+  createRole(tenantId: string, input: CreateRoleInput): Promise<Role>;
+  updateRole(tenantId: string, roleId: string, input: UpdateRoleInput): Promise<Role | null>;
+  deleteRole(tenantId: string, roleId: string): Promise<Role | null>;
+}
+
+export interface RoleCapabilityRepository {
+  listCapabilitiesByRole(tenantId: string, roleId: string): Promise<Capability[]>;
+  replaceCapabilitiesForRole(
+    tenantId: string,
+    roleId: string,
+    input: ReplaceRoleCapabilitiesInput,
+  ): Promise<Capability[]>;
 }
 
 /**
@@ -79,6 +123,7 @@ export interface PrincipalRoleProjectionRepository {
 }
 
 export interface RoleAssignmentRef {
+  id: string;
   tenant_id: string;
   user_id: string;
   role_id: string;
@@ -92,6 +137,11 @@ export interface RoleAssignmentRepository {
   ): Promise<RoleAssignment | null>;
   listAssignments(): Promise<RoleAssignmentRef[]>;
   listAssignmentsByUser(tenantId: string, userId: string): Promise<RoleAssignmentRef[]>;
+  listAssignmentsByRole(tenantId: string, roleId: string): Promise<RoleAssignmentRef[]>;
+  listAssignmentsByTenant(
+    tenantId: string,
+    filter?: Readonly<{ userId?: string; roleId?: string }>,
+  ): Promise<RoleAssignmentRef[]>;
 }
 
 /**

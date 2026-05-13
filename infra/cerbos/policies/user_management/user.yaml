@@ -19,6 +19,7 @@ resourcePolicy:
   rules:
     - actions:
         - "user.create"
+      roles: ["*"]
       effect: EFFECT_ALLOW
       condition:
         match:
@@ -30,19 +31,8 @@ resourcePolicy:
             )
 
     - actions:
-        - "user.list"
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
-            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
-            (
-              "um:user:list" in request.principal.attr.capabilities ||
-              "um:user:list" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
         - "user.read"
+      roles: ["*"]
       effect: EFFECT_ALLOW
       condition:
         match:
@@ -73,6 +63,7 @@ resourcePolicy:
 
     - actions:
         - "user.update"
+      roles: ["*"]
       effect: EFFECT_ALLOW
       condition:
         match:
@@ -102,15 +93,16 @@ resourcePolicy:
             )
 
     - actions:
-        - "user.delete"
+        - "user.deactivate"
+      roles: ["*"]
       effect: EFFECT_ALLOW
       condition:
         match:
           expr: >-
             request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
             (
-              "um:user:delete" in request.principal.attr.capabilities ||
-              "um:user:delete" in request.principal.attr.delegated_capabilities
+              "um:user:deactivate" in request.principal.attr.capabilities ||
+              "um:user:deactivate" in request.principal.attr.delegated_capabilities
             ) &&
             (
               !has(request.resource.attr.department) ||

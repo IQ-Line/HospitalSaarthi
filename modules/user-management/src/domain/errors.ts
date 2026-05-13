@@ -2,8 +2,20 @@
 export type ValidationIssue =
   | "full_name_invalid_type"
   | "full_name_empty"
+  | "email_invalid_type"
+  | "email_required"
+  | "password_invalid_type"
+  | "password_required"
+  | "password_too_short"
+  | "route_id_invalid"
+  | "create_user_role_ids_invalid"
   | "assign_role_ids_invalid"
-  | "revoke_role_query_invalid";
+  | "revoke_role_query_invalid"
+  | "role_code_invalid_type"
+  | "role_code_empty"
+  | "role_display_name_invalid_type"
+  | "role_display_name_empty"
+  | "replace_role_capabilities_invalid";
 
 const VALIDATION_ISSUE_META: Record<ValidationIssue, { code: string; message: string }> = {
   full_name_invalid_type: {
@@ -14,6 +26,34 @@ const VALIDATION_ISSUE_META: Record<ValidationIssue, { code: string; message: st
     code: "FULL_NAME_REQUIRED",
     message: "full_name is required.",
   },
+  email_invalid_type: {
+    code: "INVALID_INPUT",
+    message: "email must be a valid email string.",
+  },
+  email_required: {
+    code: "EMAIL_REQUIRED",
+    message: "email is required to create a login account.",
+  },
+  password_invalid_type: {
+    code: "INVALID_INPUT",
+    message: "password must be a string.",
+  },
+  password_required: {
+    code: "PASSWORD_REQUIRED",
+    message: "password is required.",
+  },
+  password_too_short: {
+    code: "PASSWORD_TOO_SHORT",
+    message: "password must be at least 8 characters long.",
+  },
+  route_id_invalid: {
+    code: "INVALID_INPUT",
+    message: "route parameter id must be a UUID.",
+  },
+  create_user_role_ids_invalid: {
+    code: "INVALID_INPUT",
+    message: "role_ids must be an array of UUID strings.",
+  },
   assign_role_ids_invalid: {
     code: "INVALID_INPUT",
     message: "user_id and role_id are required.",
@@ -21,6 +61,26 @@ const VALIDATION_ISSUE_META: Record<ValidationIssue, { code: string; message: st
   revoke_role_query_invalid: {
     code: "INVALID_INPUT",
     message: "user_id and role_id query parameters are required UUIDs.",
+  },
+  role_code_invalid_type: {
+    code: "INVALID_INPUT",
+    message: "code must be a non-empty string.",
+  },
+  role_code_empty: {
+    code: "ROLE_CODE_REQUIRED",
+    message: "code is required.",
+  },
+  role_display_name_invalid_type: {
+    code: "INVALID_INPUT",
+    message: "display_name must be a non-empty string.",
+  },
+  role_display_name_empty: {
+    code: "ROLE_DISPLAY_NAME_REQUIRED",
+    message: "display_name is required.",
+  },
+  replace_role_capabilities_invalid: {
+    code: "INVALID_INPUT",
+    message: "capability_ids must be an array of non-empty UUID strings.",
   },
 };
 
@@ -72,9 +132,33 @@ export class RoleNotFoundError extends UserManagementError {
   }
 }
 
+export class CapabilityNotFoundError extends UserManagementError {
+  constructor(public readonly capabilityId?: string) {
+    super("CAPABILITY_NOT_FOUND", "Capability not found in the catalog.");
+  }
+}
+
+export class DuplicateRoleCodeError extends UserManagementError {
+  constructor(public readonly roleCode?: string) {
+    super("ROLE_CODE_DUPLICATE", "A role with this code already exists for this tenant.");
+  }
+}
+
+export class RoleInUseError extends UserManagementError {
+  constructor(public readonly roleId?: string) {
+    super("ROLE_IN_USE", "This role cannot be deleted while assignments still exist.");
+  }
+}
+
 export class DuplicateRoleAssignmentError extends UserManagementError {
   constructor() {
     super("ROLE_ASSIGNMENT_DUPLICATE", "This role is already assigned to the user.");
+  }
+}
+
+export class AuthEmailConflictError extends UserManagementError {
+  constructor(public readonly email?: string) {
+    super("AUTH_EMAIL_CONFLICT", "A login account with this email already exists.");
   }
 }
 

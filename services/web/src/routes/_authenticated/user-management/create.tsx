@@ -16,11 +16,18 @@ export const Route = createFileRoute('/_authenticated/user-management/create')({
 });
 
 function CreateUserPage() {
+  const canReadRoles = usePermissionsStore((s) => s.hasFeaturePermission(UM, 'roles', 'read'));
+  const canAssignRoles = usePermissionsStore(
+    (s) =>
+      s.hasFeaturePermission(UM, 'roles', 'read') &&
+      s.hasFeaturePermission(UM, 'roleAssignments', 'write'),
+  );
+
   return (
     <div className="p-6 space-y-6">
       <PageHeader
         title="Create user"
-        description="Creates a tenant-scoped platform user (credentials remain in better-auth)."
+        description="Creates the tenant-scoped user, provisions the current login account, and assigns initial access roles."
         actions={
           <Button variant="outline" asChild>
             <Link to="/user-management" search={{ q: '' }}>
@@ -29,7 +36,7 @@ function CreateUserPage() {
           </Button>
         }
       />
-      <CreateUserForm />
+      <CreateUserForm canReadRoles={canReadRoles} canAssignRoles={canAssignRoles} />
     </div>
   );
 }

@@ -57,9 +57,9 @@ function CerbosPrincipalBridge({ children }: { children: ReactNode }): ReactElem
     if (principalQuery.data) {
       return principalQuery.data;
     }
-    // Authenticated but principal not yet loaded (or tenant missing): stable id for the client;
-    // PDP checks may deny until enrichment succeeds.
-    return { id: userId, roles: [], attr: {} };
+    // Authenticated but principal not yet loaded (or tenant missing): stable id for the client.
+    // Cerbos rejects empty roles; use a no-grant placeholder so the request is valid (DENY is fine).
+    return { id: userId, roles: ['_unresolved'], attr: {} };
   }, [isAuthenticated, userId, principalQuery.data]);
 
   const auxData = useMemo(() => {

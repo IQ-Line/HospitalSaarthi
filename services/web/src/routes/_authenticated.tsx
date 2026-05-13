@@ -15,7 +15,10 @@ export const Route = createFileRoute('/_authenticated')({
     if (!isAuthenticated) {
       throw redirect({ to: '/login' });
     }
-    if (!usePermissionsStore.getState().isLoaded) {
+    const permissionsState = usePermissionsStore.getState();
+    const needsHydration =
+      !permissionsState.isLoaded || Object.keys(permissionsState.map).length === 0;
+    if (needsHydration) {
       try {
         await hydratePermissionsFromBackend();
       } catch {
@@ -33,12 +36,16 @@ function AuthenticatedLayout() {
   const tenantId = useTenantStore((s) => s.tenantId);
   const activeBranch = useTenantStore((s) => s.activeBranch);
   const isLoaded = usePermissionsStore((s) => s.isLoaded);
+  const permissionMap = usePermissionsStore((s) => s.map);
   const hasModuleAccess = usePermissionsStore((s) => s.hasModuleAccess);
+  const hasEmptyFallback = isLoaded && Object.keys(permissionMap).length === 0;
 
   useEffect(() => {
-    if (isLoaded) return;
+    if (isLoaded && !hasEmptyFallback) return;
     let cancelled = false;
-    void (async () => {
+    let retryTimer: ReturnType<typeof setInterval> | undefined;
+
+    const hydrate = async () => {
       try {
         await hydratePermissionsFromBackend();
       } catch {
@@ -46,11 +53,23 @@ function AuthenticatedLayout() {
           usePermissionsStore.getState().setPermissions({});
         }
       }
-    })();
+    };
+
+    void hydrate();
+
+    if (hasEmptyFallback) {
+      retryTimer = setInterval(() => {
+        void hydrate();
+      }, 3000);
+    }
+
     return () => {
       cancelled = true;
+      if (retryTimer !== undefined) {
+        clearInterval(retryTimer);
+      }
     };
-  }, [isLoaded, tenantId, activeBranch]);
+  }, [isLoaded, hasEmptyFallback, tenantId, activeBranch]);
   const sidebarCollapsed = useUIPrefsStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUIPrefsStore((s) => s.toggleSidebar);
 
