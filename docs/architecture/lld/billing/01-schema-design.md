@@ -5,7 +5,11 @@
 **Service host (Phase 1):** embedded in `services/opd-svc`; extracts to `services/billing-svc` in Phase 2+ (no data migration — same `billing.*` schema, same database cluster) per [ADR-0025](../../adr/0025-billing-module-shape-and-phasing.md#packaging--phase-1-vs-extraction)
 **Related HLD:** [HLD 06 — Billing](../../hld/06-billing.md) | [HLD 03 — Module shape template](../../hld/03-module-shape-template.md)
 **Related ADRs:** [ADR-0008](../../adr/0008-module-shape-and-boundaries.md) (module shape) | [ADR-0009](../../adr/0009-event-driven-inter-module-communication.md) (events) | [ADR-0012](../../adr/0012-multi-tenancy-isolation-strategy.md) (multi-tenancy) | [ADR-0024](../../adr/0024-audit-deferred-to-pre-prod.md) (audit deferral) | [ADR-0025](../../adr/0025-billing-module-shape-and-phasing.md) (billing shape & phasing)
-**ERD (visual):** [`billing.erd.json`](./billing.erd.json) — open in VS Code with ERD Editor extension
+**ERDs (visual, one per phase, cumulative — open in VS Code with the dineug ERD Editor extension):**
+- [`billing.phase-1.erd.json`](./billing.phase-1.erd.json) — 8 tables: counter-billing parity (the demo target).
+- [`billing.phase-2.erd.json`](./billing.phase-2.erd.json) — 14 tables: adds insurance, corporate clients, packages.
+- [`billing.phase-3.erd.json`](./billing.phase-3.erd.json) — 18 tables: adds refunds, payment plans, IPD final bills.
+- [`billing.phase-4.erd.json`](./billing.phase-4.erd.json) — 21 tables: adds doctor commissions.
 **Schema reference:** [`schema-reference.json`](./schema-reference.json) — full column descriptions, indexes, check constraints, Citus distribution notes
 **Lead's reference ERD:** `hospital_billing_.erd.json` (23 tables, shared 2026-05-13). Table and column intent preserved unless explicitly departed from below.
 

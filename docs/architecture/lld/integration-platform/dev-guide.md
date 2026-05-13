@@ -13,7 +13,7 @@ The Integration Hub is platform infrastructure -- always deployed alongside the 
 - **FSM specs:** [02-fsm-specifications.md](./02-fsm-specifications.md) (M1, scan-and-share, M2, M3-HIP, M3-HIU, consent supervisor).
 - **Scenarios:** [03-scenarios.md](./03-scenarios.md) (7 sequence-driven walkthroughs).
 - **OpenAPI spec:** [`specs/openapi/integration-hub.v1.yaml`](../../../../specs/openapi/integration-hub.v1.yaml) (28 paths).
-- **ERD:** [`integration-platform.erd.json`](./integration-platform.erd.json).
+- **ERDs (per phase, cumulative):** [`integration-platform.phase-0.erd.json`](./integration-platform.phase-0.erd.json) (7 tables — control plane + FSM engine), [`integration-platform.phase-1.erd.json`](./integration-platform.phase-1.erd.json) (13 — adds the six ABDM adapter tables).
 - **ADRs:** [0011](../../adr/0011-integration-hub-split.md) (Integration Hub split), [0020](../../adr/0020-fsm-orchestration-for-integration-hub.md) (FSM engine target architecture), [0021](../../adr/0021-record-foundation-fifth-core-module.md), [0022](../../adr/0022-immutable-fhir-document-storage.md), [0023](../../adr/0023-distributed-fhir-assembly.md), [0024](../../adr/0024-audit-deferred-to-pre-prod.md) (audit deferred), **[0026](../../adr/0026-fsm-lite-phase-1.md) (FSM-lite Phase 1 implementation — read this before starting Phase 0b)**.
 
 ---

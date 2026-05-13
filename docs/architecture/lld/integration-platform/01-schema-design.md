@@ -13,7 +13,9 @@
 - [ADR-0023](../../adr/0023-distributed-fhir-assembly.md) -- Distributed FHIR assembly
 - [ADR-0010](../../adr/0010-fhir-hl7-interop-standards.md) -- FHIR R4 baseline
 - [ADR-0013](../../adr/0013-single-database-engine-postgresql.md) -- PostgreSQL only
-**ERD (visual):** [`integration-platform.erd.json`](./integration-platform.erd.json) -- open in VS Code with the dineug ERD Editor extension
+**ERDs (visual, one per phase, cumulative — open in VS Code with the dineug ERD Editor extension):**
+- [`integration-platform.phase-0.erd.json`](./integration-platform.phase-0.erd.json) — 7 tables: generic control plane + FSM engine. No ABDM yet.
+- [`integration-platform.phase-1.erd.json`](./integration-platform.phase-1.erd.json) — 13 tables: adds the six ABDM adapter tables.
 **Schema reference (programmatic):** [`schema-reference.json`](./schema-reference.json)
 **FSM specifications:** [`02-fsm-specifications.md`](./02-fsm-specifications.md)
 **Scenarios (sequence diagrams):** [`03-scenarios.md`](./03-scenarios.md)

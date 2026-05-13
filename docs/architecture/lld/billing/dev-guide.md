@@ -13,7 +13,7 @@ Billing is a **horizontal supporting module** per [ADR-0025](../../adr/0025-bill
 - **Scenarios:** [02-scenarios.md](./02-scenarios.md) (10 sequence-driven walkthroughs covering Phase 1 happy path, advances, discounts, amendment, partial pay, cancellation, idempotent replay, Phase 2 insurance sketch, failure handling).
 - **Dev-doubts:** [dev-doubts/01.md](./dev-doubts/01.md) (12 implementation choices with recommendations).
 - **OpenAPI spec:** [`specs/openapi/billing.v1.yaml`](../../../../specs/openapi/billing.v1.yaml) (Phase 1 endpoints).
-- **ERD:** [`billing.erd.json`](./billing.erd.json).
+- **ERDs (per phase, cumulative):** [`billing.phase-1.erd.json`](./billing.phase-1.erd.json) (8 tables — Phase 1 / counter parity), [`billing.phase-2.erd.json`](./billing.phase-2.erd.json) (14 — adds insurance/corporate/packages), [`billing.phase-3.erd.json`](./billing.phase-3.erd.json) (18 — adds refunds/plans/IPD final), [`billing.phase-4.erd.json`](./billing.phase-4.erd.json) (21 — adds doctor commissions).
 - **ADRs:** [0025](../../adr/0025-billing-module-shape-and-phasing.md) (this module's shape + phasing). Related: [0008](../../adr/0008-module-shape-and-boundaries.md), [0009](../../adr/0009-event-driven-inter-module-communication.md), [0012](../../adr/0012-multi-tenancy-isolation-strategy.md), [0024](../../adr/0024-audit-deferred-to-pre-prod.md).
 - **Lead's reference ERD:** `hospital_billing_.erd.json`. Table names and column intent preserved; departures recorded in [ADR-0025 §deliberate-departures](../../adr/0025-billing-module-shape-and-phasing.md#deliberate-departures-from-the-leads-erd).
 
