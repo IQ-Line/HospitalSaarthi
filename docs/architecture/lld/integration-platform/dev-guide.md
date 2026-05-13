@@ -4,7 +4,7 @@
 
 **Phase 0/1 dev simplifications apply.** See [dev-env-simplifications.md](../../dev-env-simplifications.md) for the `HIMS_CITUS_ENABLED`, `PERMISSIVE_MODE`, `STRICT_SPEC_VALIDATION` knobs, the `env:` secrets default, and the [REQUIRED FOR DEMO] / [DEFER IF TIME-CONSTRAINED] / [POST-DEMO] tag legend. Steps below tagged accordingly; untagged = [REQUIRED FOR DEMO] by default.
 
-The Integration Hub is platform infrastructure -- always deployed alongside the five core modules. Its v1 covers the **control plane + FSM engine** (Phase 0) and the **ABDM Adapter** (Phase 1).
+The Integration Hub is platform infrastructure -- always deployed alongside the five core modules. Its v1 covers the **control plane + FSM-lite helpers** (Phase 0) and the **ABDM Adapter** (Phase 1). The generic FSM engine described in [ADR-0020](../../adr/0020-fsm-orchestration-for-integration-hub.md) is **deferred to Phase 1.5** per [ADR-0026](../../adr/0026-fsm-lite-phase-1.md); Phase 1 implements the six ABDM flows as plain TypeScript using the same FSM schema tables.
 
 ### What's already designed
 
@@ -14,7 +14,7 @@ The Integration Hub is platform infrastructure -- always deployed alongside the 
 - **Scenarios:** [03-scenarios.md](./03-scenarios.md) (7 sequence-driven walkthroughs).
 - **OpenAPI spec:** [`specs/openapi/integration-hub.v1.yaml`](../../../../specs/openapi/integration-hub.v1.yaml) (28 paths).
 - **ERD:** [`integration-platform.erd.json`](./integration-platform.erd.json).
-- **ADRs:** [0011](../../adr/0011-integration-hub-split.md), [0020](../../adr/0020-fsm-orchestration-for-integration-hub.md), [0021](../../adr/0021-record-foundation-fifth-core-module.md), [0022](../../adr/0022-immutable-fhir-document-storage.md), [0023](../../adr/0023-distributed-fhir-assembly.md).
+- **ADRs:** [0011](../../adr/0011-integration-hub-split.md) (Integration Hub split), [0020](../../adr/0020-fsm-orchestration-for-integration-hub.md) (FSM engine target architecture), [0021](../../adr/0021-record-foundation-fifth-core-module.md), [0022](../../adr/0022-immutable-fhir-document-storage.md), [0023](../../adr/0023-distributed-fhir-assembly.md), [0024](../../adr/0024-audit-deferred-to-pre-prod.md) (audit deferred), **[0026](../../adr/0026-fsm-lite-phase-1.md) (FSM-lite Phase 1 implementation — read this before starting Phase 0b)**.
 
 ---
 
@@ -30,18 +30,19 @@ The Integration Hub is platform infrastructure -- always deployed alongside the 
 - [ ] Cerbos policies for Integration Hub admin actions. **[DEFER IF TIME-CONSTRAINED]** — `PERMISSIVE_MODE=true` is acceptable locally; staging requires real policies before cutover.
 - [ ] Smoke test: register an integration, list it, update its status.
 
-## Phase 0b -- FSM engine + timer worker (2-3 dev-weeks)
+## Phase 0b -- FSM-lite helpers + singleton timer worker (3-4 dev-days)
 
-**Goal:** A trivial test FSM definition can be started, transitioned, timed-out, and completed end-to-end.
+**Goal (per [ADR-0026](../../adr/0026-fsm-lite-phase-1.md)):** the four helper functions and the timer-worker dispatcher are in place so Phase 1 ABDM flows can be written as plain TypeScript on top of the FSM schema tables. The generic engine is **not** built in Phase 1 — it is deferred to Phase 1.5 per ADR-0026.
 
-- [ ] Create `packages/ts-sdk-workflow/` with the engine API: `start(definition, context)`, `dispatch(workflow_id, event, payload)`, `cancel(workflow_id, reason)`.
-- [ ] Implement the engine's atomic transition flow per [01-schema-design.md §5.3](./01-schema-design.md#53-transition-execution): `SELECT ... FOR UPDATE` lock; validate transition against definition; execute side effects; UPDATE workflow row; INSERT transition record; INSERT/SUPERSEDE timers.
-- [ ] Implement side-effect kinds: `outbound_call`, `event_publish`, `set_context`, `clear_timer`, `set_timer`. JSON-Logic guard evaluation. (No `record_audit` kind — every transition is already an audit-by-construction row in `integration_workflow_transitions`. See [ADR-0024](../../adr/0024-audit-deferred-to-pre-prod.md).)
-- [ ] Implement the timer worker with `SELECT ... FOR UPDATE SKIP LOCKED` polling and pg_advisory_lock-based leader election (per [dev-doubts/01.md §1](./dev-doubts/01.md)).
-- [ ] FSM definition JSON Schema validator in CI. **[DEFER IF TIME-CONSTRAINED]**
-- [ ] Mermaid renderer for FSM definitions (build-time, emits state diagrams to docs site). **[POST-DEMO]**
-- [ ] Vitest test pattern: `runFsmReplay(definition, eventList)` per [02-fsm-specifications.md §10](./02-fsm-specifications.md#10-testing-the-fsms).
-- [ ] Acceptance: a trivial FSM `test.flow.v1` (states: A, B, C; transitions A->B on event "go"; B->C on timeout 30s) runs end-to-end with all four engine guarantees observed.
+- [ ] Create `packages/ts-sdk-workflow/` with **just these four exports** (the entire package is ~150 lines):
+  - `loadWorkflow(ctx, workflow_id)` → returns the row with `state` and `context` typed.
+  - `transitionTo(workflow_id, fromState, toState, contextPatch)` → INSERTs a transition row and UPDATEs the workflow row in one DB transaction; rejects the call if `workflow.state !== fromState` (idempotency + concurrency safety).
+  - `scheduleTimer(workflow_id, kind, dueAt)` → INSERTs into `integration_workflow_timers`.
+  - `clearTimer(workflow_id, kind)` → marks pending timers of this kind as cancelled.
+- [ ] Implement the singleton timer-worker dispatcher: every 5 seconds, `SELECT ... FOR UPDATE SKIP LOCKED LIMIT 50` of due timers; dispatch each to the hardcoded `HANDLERS[timer.kind]` map; mark fired/failed.
+- [ ] **No generic engine, no JSON-Logic, no definition validator, no Mermaid build-time renderer in Phase 1.** Those land with the engine in Phase 1.5.
+- [ ] PR review checklist asserting the four engine guarantees per ADR-0026 (atomic transition, durable timer, append-only transition log, idempotent transitions). Each Phase 1 flow's PR is reviewed against this checklist.
+- [ ] Acceptance: a trivial test flow (e.g., a fake `test.flow.v1` with states INIT → ACTIVE → DONE, one timer firing at +30s) runs end-to-end. Verify the workflow row UPDATEs, three transition rows INSERT (audit by construction), the timer row fires once and only once even with multiple worker instances running.
 
 ## Phase 0c -- Secrets SDK + message logs (3-4 dev-days)
 

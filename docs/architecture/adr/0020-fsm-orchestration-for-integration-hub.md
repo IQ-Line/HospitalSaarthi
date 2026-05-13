@@ -1,8 +1,10 @@
 # ADR-0020: Custom FSM engine for Integration Hub multi-step workflows
 
-- **Status:** Proposed
-- **Date:** 2026-05-08
+- **Status:** Proposed — target architecture. **Phase 1 implementation deferred per [ADR-0026](./0026-fsm-lite-phase-1.md).**
+- **Date:** 2026-05-08 (revised 2026-05-13 to point at ADR-0026)
 - **Deciders:** [Architect], [Engineering Manager], [Co-Tech-Lead]
+
+> **Phase 1 implementation note.** This ADR remains the target architecture: a generic FSM engine that interprets JSON workflow definitions. [ADR-0026](./0026-fsm-lite-phase-1.md) defers building the engine itself to Phase 1.5 and prescribes hand-coded TypeScript per ABDM flow for Phase 1, using the same FSM schema tables (`integration_workflows`, `integration_workflow_transitions`, `integration_workflow_timers`). The audit-by-construction property and the schema are preserved; only the engine's *interpretation* of declarative definitions is deferred. The state-machine specifications in [02-fsm-specifications.md](../lld/integration-platform/02-fsm-specifications.md) remain authoritative as documentation for both phases.
 
 ## Context and problem statement
 

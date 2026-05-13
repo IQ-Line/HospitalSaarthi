@@ -221,6 +221,8 @@ When the Integration Hub needs facility data, it calls Configurator's API. When 
 
 The FSM engine is the most consequential piece of the control plane and the one that distinguishes the new platform from `abdi-lims-backed`'s ad-hoc status-field approach. The full justification is [ADR-0020](../../adr/0020-fsm-orchestration-for-integration-hub.md); the schema and runtime patterns are described here.
 
+> **Phase 1 implementation (FSM-lite).** Per [ADR-0026](../../adr/0026-fsm-lite-phase-1.md), Phase 1 implements the six ABDM flows (M1, scan-and-share, M2, M3 HIP, M3 HIU, consent supervisor) as **plain TypeScript code** that reads and writes the three FSM tables below using a small helper package (`@hims/ts-sdk-workflow` exporting `loadWorkflow`, `transitionTo`, `scheduleTimer`, `clearTimer`). The generic engine (JSON definitions, JSON-Logic guards, declarative side-effect catalog, leader-elected timer worker) is the *target* architecture, deferred to Phase 1.5 when a second adapter needs durable workflows. The schema described in §5.1 below is identical in both phases; only the *interpretation* differs. State-machine specifications in [02-fsm-specifications.md](./02-fsm-specifications.md) remain authoritative documentation.
+
 ### 5.1 The three tables
 
 - `integration_workflows` -- one row per workflow instance. Holds current state, `external_correlation_id` (the gateway txnId/requestId that incoming callbacks use to find this row), `context` JSONB (instance-specific variables), and links back to the patient and integration.
