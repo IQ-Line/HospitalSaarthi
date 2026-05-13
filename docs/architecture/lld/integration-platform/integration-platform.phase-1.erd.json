@@ -66,7 +66,7 @@
     ],
     "indexIds": [],
     "memoIds": [
-      "52c70b4f-3272-4c0c-ad70-ca5e40260ceb"
+      "8ea31cde2f244402bb55ff5a12b10461"
     ]
   },
   "collections": {
@@ -4216,20 +4216,20 @@
     "indexEntities": {},
     "indexColumnEntities": {},
     "memoEntities": {
-      "52c70b4f-3272-4c0c-ad70-ca5e40260ceb": {
-        "id": "52c70b4f-3272-4c0c-ad70-ca5e40260ceb",
-        "value": "=== INTEGRATION HUB CITUS DISTRIBUTION ===\n\nGreen (#c8e6c9): All 13 tables distributed by iq_tenant_id.\n\nBoundary (per ADR-0021):\n- Integration Hub OWNS: workflows, transports, ABDM consent artifacts, ABDM gateway sessions.\n- Integration Hub does NOT own: clinical bundles (Record Foundation), patient identity (EMPI), facility HFR ID (Configurator).\n\nLogical FKs only -- no cross-table FKs across distribution column.\n\nABDM adapter tables (abdm_*) populated in Phase 1. Generic control-plane tables ship in Phase 0.",
+      "8ea31cde2f244402bb55ff5a12b10461": {
+        "id": "8ea31cde2f244402bb55ff5a12b10461",
+        "value": "PHASE 1 \u2014 ABDM Adapter.\n\n13 tables (+6 over Phase 0). Adds the ABDM-specific tables for the M1 /\nscan-and-share / M2 / M3-HIP / M3-HIU / consent-supervisor flows:\n\n  \u2022 abdm_gateway_sessions (cached xToken per (tenant, environment))\n  \u2022 abdm_share_tokens, abdm_share_token_issuances (scan-and-share)\n  \u2022 abdm_consent_artifacts (signed consent JSON refs, lifecycle, dataEraseAt)\n  \u2022 abdm_link_tokens (M2 careContext linking)\n  \u2022 abdm_data_exchange_sessions (M3 data transfer state)\n\nPhase 0 tables (integrations, integration_workflows, etc.) are unchanged.\nAll six flows implemented as plain TypeScript per ADR-0026 \u2014 the\nintegration_workflows row's `kind` column carries values like\n'abdm.m1.aadhaar-otp.v1', the TypeScript code dispatches by that string.",
         "ui": {
-          "x": 2000,
-          "y": 2200,
+          "x": 40,
+          "y": 40,
+          "width": 580,
+          "height": 360,
           "zIndex": 1,
-          "width": 500,
-          "height": 350,
-          "color": ""
+          "color": "#1e293b"
         },
         "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
+          "updateAt": 0,
+          "createAt": 0
         }
       }
     }

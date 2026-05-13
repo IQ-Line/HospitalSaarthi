@@ -50,7 +50,9 @@
       "84f5e9fd-08ae-4ac9-9da9-8cac9c94a28a"
     ],
     "indexIds": [],
-    "memoIds": []
+    "memoIds": [
+      "41008d4a635f4627b01bf9f9cdba9c57"
+    ]
   },
   "collections": {
     "tableEntities": {
@@ -2324,6 +2326,23 @@
     },
     "indexEntities": {},
     "indexColumnEntities": {},
-    "memoEntities": {}
+    "memoEntities": {
+      "41008d4a635f4627b01bf9f9cdba9c57": {
+        "id": "41008d4a635f4627b01bf9f9cdba9c57",
+        "value": "PHASE 0 \u2014 Generic control plane + FSM engine substrate.\n\n7 tables. The substrate every adapter shares \u2014 integration registry,\ncredential references, durable workflow state, transitions log, timers,\ninbound + outbound message logs. No ABDM yet.\n\nPer ADR-0026 (FSM-lite): Phase 0 ships the four helper functions\n(loadWorkflow, transitionTo, scheduleTimer, clearTimer) on top of these\ntables. The generic FSM engine described in ADR-0020 is deferred to\nPhase 1.5; the schema is identical in both phases.\n\nPer ADR-0024: there is no integration_audit_log table. Audit substrate is\nworkflow_transitions + inbound/outbound messages + domain events + structured\nrequest logs, projected by the centralized audit consumer.\n\nSecrets: integration_credentials.vault_ref uses 'env:VAR_NAME' as the\nPhase 0/1 default; real vault schemes (azure-keyvault://, aws-sm://, vault://)\nare pre-prod gate.",
+        "ui": {
+          "x": 40,
+          "y": 40,
+          "width": 580,
+          "height": 360,
+          "zIndex": 1,
+          "color": "#1e293b"
+        },
+        "meta": {
+          "updateAt": 0,
+          "createAt": 0
+        }
+      }
+    }
   }
 }

@@ -71,11 +71,7 @@
     ],
     "indexIds": [],
     "memoIds": [
-      "1754919e-185e-5bb5-9c32-7ef013266f05",
-      "b1174614-934b-5a79-bbcf-f5563a70f913",
-      "0d4fbef6-ba59-5041-a923-66e99d62f667",
-      "6d384222-8328-565c-beb4-d121c5e3bb99",
-      "1a1d2141-4b44-53c5-b22c-06ab38a057e9"
+      "50a99559789f4dd0bb77cb82cffd2335"
     ]
   },
   "collections": {
@@ -83,7 +79,7 @@
       "beeb2832-9bfa-5f26-a2ba-fff33af7369d": {
         "id": "beeb2832-9bfa-5f26-a2ba-fff33af7369d",
         "name": "service_master",
-        "comment": "Tenant catalog of chargeable services. Snapshot source for bill_items.",
+        "comment": "Tenant-scoped catalog of chargeable services.",
         "columnIds": [
           "7a7d3c53-f340-5870-b672-651d3a2b3e90",
           "900eeb67-82fe-5ca5-8a86-099fb4b52d4c",
@@ -158,32 +154,26 @@
       "25613a58-8e8a-59d1-956f-53b47373d2b3": {
         "id": "25613a58-8e8a-59d1-956f-53b47373d2b3",
         "name": "price_agreements",
-        "comment": "Negotiated pricing rules. Resolved at charge time; ID + snapshot stored on bill_item.",
+        "comment": "Tenant-scoped pricing overrides.",
         "columnIds": [
           "a525c552-dbe2-5d54-97ae-450df0fd5e83",
           "f64c059d-7798-5bf3-b70d-38c2217aa2a0",
           "7f25115c-03aa-5ee1-aa1f-6202f836dedb",
           "9fbbefb6-effb-539f-8ac4-0a7544dfa897",
+          "fc47a99c-21a4-4d45-8e00-54b2072a615d",
+          "5cc7df05-a5cb-4cbb-98c4-b0a517b330a3",
           "bb9adf48-5dca-55ca-ae34-858778ade5df",
           "72f437e4-962a-5683-9cd3-b25d2d93a8ba",
-          "6a4441ba-6317-5933-8d22-983de3515e57",
-          "5c24f3e8-8df7-51fc-882d-5d471b79bd41",
-          "8bfdf8a4-2f32-54bb-8c09-55ddc5dbf55c",
-          "b3ca3dec-fda5-54b0-8032-a0235299ef44",
+          "ac371109-56bb-417b-86ab-14598ab24a49",
+          "531ccc35-13b6-4f6f-8861-66f19c72d4ec",
           "e5889a38-8fa0-5434-9c78-425cf9d4ca83",
-          "3781013a-af72-5d9d-b6de-f790b051aad4",
-          "091575cb-598c-5b1c-84c4-869e6490feac",
-          "9ec5c432-80e9-549e-9098-4adca41a6def",
-          "5830aa59-dc74-50a5-9306-07544995044b",
-          "cd706911-05c5-5e54-b3c5-a644600205e5",
+          "c8472881-fea1-4757-aa79-bdd56c3a8e10",
+          "d6cb9827-1ba7-4e5c-8906-74700de102aa",
+          "c10f6141-7ae9-4646-9e4f-d702e2591f6b",
+          "67e97b40-4065-4806-acef-20b47858d3da",
           "07c3b61d-3e74-565b-9f8c-38a699aeaeaa",
-          "d80af581-25f5-50b5-b0c9-f299e4f07ad4",
-          "bdd10723-cbb0-52a1-915e-65f7eff27d2b",
           "8e3f2ae9-b283-5dd9-b2f7-1e41de470110",
-          "28e89396-271c-555a-95aa-5a663fedeb4a",
-          "bd2797db-6e51-5a2e-9c9f-a1617777c40e",
-          "16aab586-d0f2-56fd-9eba-3f0e54065401",
-          "8b0514bd-c548-56fd-b7bf-14e72d688d72",
+          "1023c4df-86e9-449c-bf9e-ca074969ccc6",
           "9183579e-65e0-5170-951c-5cff77743c6f",
           "30410569-58f1-5733-9300-0cf49d1c5e8c"
         ],
@@ -192,26 +182,20 @@
           "f64c059d-7798-5bf3-b70d-38c2217aa2a0",
           "7f25115c-03aa-5ee1-aa1f-6202f836dedb",
           "9fbbefb6-effb-539f-8ac4-0a7544dfa897",
+          "fc47a99c-21a4-4d45-8e00-54b2072a615d",
+          "5cc7df05-a5cb-4cbb-98c4-b0a517b330a3",
           "bb9adf48-5dca-55ca-ae34-858778ade5df",
           "72f437e4-962a-5683-9cd3-b25d2d93a8ba",
-          "6a4441ba-6317-5933-8d22-983de3515e57",
-          "5c24f3e8-8df7-51fc-882d-5d471b79bd41",
-          "8bfdf8a4-2f32-54bb-8c09-55ddc5dbf55c",
-          "b3ca3dec-fda5-54b0-8032-a0235299ef44",
+          "ac371109-56bb-417b-86ab-14598ab24a49",
+          "531ccc35-13b6-4f6f-8861-66f19c72d4ec",
           "e5889a38-8fa0-5434-9c78-425cf9d4ca83",
-          "3781013a-af72-5d9d-b6de-f790b051aad4",
-          "091575cb-598c-5b1c-84c4-869e6490feac",
-          "9ec5c432-80e9-549e-9098-4adca41a6def",
-          "5830aa59-dc74-50a5-9306-07544995044b",
-          "cd706911-05c5-5e54-b3c5-a644600205e5",
+          "c8472881-fea1-4757-aa79-bdd56c3a8e10",
+          "d6cb9827-1ba7-4e5c-8906-74700de102aa",
+          "c10f6141-7ae9-4646-9e4f-d702e2591f6b",
+          "67e97b40-4065-4806-acef-20b47858d3da",
           "07c3b61d-3e74-565b-9f8c-38a699aeaeaa",
-          "d80af581-25f5-50b5-b0c9-f299e4f07ad4",
-          "bdd10723-cbb0-52a1-915e-65f7eff27d2b",
           "8e3f2ae9-b283-5dd9-b2f7-1e41de470110",
-          "28e89396-271c-555a-95aa-5a663fedeb4a",
-          "bd2797db-6e51-5a2e-9c9f-a1617777c40e",
-          "16aab586-d0f2-56fd-9eba-3f0e54065401",
-          "8b0514bd-c548-56fd-b7bf-14e72d688d72",
+          "1023c4df-86e9-449c-bf9e-ca074969ccc6",
           "9183579e-65e0-5170-951c-5cff77743c6f",
           "30410569-58f1-5733-9300-0cf49d1c5e8c"
         ],
@@ -231,7 +215,7 @@
       "8e7320ca-a9ad-5303-be87-6a9431bc6b96": {
         "id": "8e7320ca-a9ad-5303-be87-6a9431bc6b96",
         "name": "bills",
-        "comment": "Bill header. State machine DRAFT\u2192FINALIZED\u2192PAID. Amendments via replaced_bill_id.",
+        "comment": "The financial document for a patient-visit.",
         "columnIds": [
           "b118708e-8f3c-54f5-bc1f-cc6949df46a0",
           "a25dd3c8-c4db-52ff-9f94-5e43336d3f02",
@@ -243,7 +227,6 @@
           "f30d35ee-fd3f-5c4c-b4a8-d8084b5a0cb5",
           "7ab19cf7-7ca7-5577-a5e1-072c7bcd8695",
           "f294768b-6fdb-5886-b84c-ddbbe300d7e2",
-          "2715c921-0e8e-5510-a19c-5fd4d12501a7",
           "f13836f6-8b3b-5c00-8745-e1da2c9df70f",
           "5d1962b1-a1bb-5406-8e0f-0aa7e67ee1b9",
           "ff72f5c8-7968-56dc-899d-da16a6913e11",
@@ -291,7 +274,6 @@
           "f30d35ee-fd3f-5c4c-b4a8-d8084b5a0cb5",
           "7ab19cf7-7ca7-5577-a5e1-072c7bcd8695",
           "f294768b-6fdb-5886-b84c-ddbbe300d7e2",
-          "2715c921-0e8e-5510-a19c-5fd4d12501a7",
           "f13836f6-8b3b-5c00-8745-e1da2c9df70f",
           "5d1962b1-a1bb-5406-8e0f-0aa7e67ee1b9",
           "ff72f5c8-7968-56dc-899d-da16a6913e11",
@@ -344,33 +326,41 @@
       "3d473218-1023-5007-b6be-7574a12c2a14": {
         "id": "3d473218-1023-5007-b6be-7574a12c2a14",
         "name": "bill_items",
-        "comment": "Line items. Immutable financial fields once parent bill \u2260 DRAFT (snapshot-pricing).",
+        "comment": "Chargeable line on a bill.",
         "columnIds": [
           "6b8793e7-99e5-50b0-b597-0b09a46808a9",
           "48ec1225-d839-58d5-8527-22e1fe137df1",
           "fef6ed65-85a8-591a-8155-4eb16089fc90",
-          "dafbcca1-3ff9-5967-bd1f-6805ce93ad35",
           "714fa96d-3dee-5300-bd9f-99a853d8a0a0",
           "a0ca57e9-399d-5be1-b577-286cda4afcc3",
           "a89970e3-6d2e-58ce-ac44-e8e40836c613",
+          "0f4c3933-b8d9-4360-b460-ed1ba4aa7dcd",
           "c2692ffa-1f59-5811-ae5f-08bafc554513",
           "2aed8744-6987-55c0-9be9-4f7c850d8e73",
           "c681bcf7-9246-5502-ae37-b43aeeb916a6",
+          "b6916996-4c97-4633-b070-54ca48608ac3",
           "bd9ec9ea-73a8-5be9-b2c4-73763b86be6f",
-          "4f0ddfa7-9932-5700-ae3b-5a5ec20563e8",
+          "96742c3e-cceb-4f64-bc7e-76a7f93c376d",
           "37aeccaa-2824-54e9-894f-3c08884dc449",
           "1cb7aae8-da23-5b5a-80a6-b92a1676192f",
+          "22c3295c-9c12-40c4-ae9c-447724357191",
           "b27f36c4-5eb5-522e-a19a-adf1b265eb8b",
           "f5ddd259-182e-5461-aa10-bcde37a67cee",
-          "9c27281c-0df9-5868-af55-4a6c46f7fde7",
+          "226e59bc-b9cd-4b96-995a-00c32ef4c14f",
+          "980d3c0f-0aa9-4ec2-9f80-3e1d38baa576",
+          "fcd837ca-3abf-4cff-a734-adeb068c60be",
+          "48a04365-2f3a-4df5-999d-87adcdb18309",
+          "7e46c814-3c9c-4cde-ac22-3d42be29d6bb",
+          "354e318d-08e5-439c-aa38-4ebb9367717c",
+          "db358191-dff9-4523-a56f-caae5a423e98",
+          "6b710546-84c4-4844-9890-836e522a499b",
+          "c51b5d9e-a4ef-4045-b05e-167532bf40e6",
+          "bcea363a-83b0-47fc-b8d0-dbfed367d664",
           "3f75b6f6-091f-5705-8063-6352dfb0cac5",
-          "4e8b92eb-b49f-5f26-9f46-f4fdd012799f",
           "2a80b6cd-142f-518f-8bc1-77db8b373c72",
+          "cccc6727-5a3d-48b3-a371-d7fa66a7eee4",
+          "b9ff3753-99bc-423c-a2c8-e48190bc36ca",
           "3cc7d1ba-7b4e-5397-ba7e-5b86a77724e7",
-          "01930bc8-da24-59f8-ae5b-4759d4f097dd",
-          "14e921fc-4a51-58e5-ba1f-bc8f35b4613a",
-          "7d3c7dd4-ba4f-5b6a-aba8-143620c88b21",
-          "b5530e8a-51dc-587e-86f0-9e8902349e05",
           "fb8b3b16-0503-5105-9e86-1027516b2800",
           "9a020c37-7bef-5465-aed1-b5a8140ce96d"
         ],
@@ -378,28 +368,36 @@
           "6b8793e7-99e5-50b0-b597-0b09a46808a9",
           "48ec1225-d839-58d5-8527-22e1fe137df1",
           "fef6ed65-85a8-591a-8155-4eb16089fc90",
-          "dafbcca1-3ff9-5967-bd1f-6805ce93ad35",
           "714fa96d-3dee-5300-bd9f-99a853d8a0a0",
           "a0ca57e9-399d-5be1-b577-286cda4afcc3",
           "a89970e3-6d2e-58ce-ac44-e8e40836c613",
+          "0f4c3933-b8d9-4360-b460-ed1ba4aa7dcd",
           "c2692ffa-1f59-5811-ae5f-08bafc554513",
           "2aed8744-6987-55c0-9be9-4f7c850d8e73",
           "c681bcf7-9246-5502-ae37-b43aeeb916a6",
+          "b6916996-4c97-4633-b070-54ca48608ac3",
           "bd9ec9ea-73a8-5be9-b2c4-73763b86be6f",
-          "4f0ddfa7-9932-5700-ae3b-5a5ec20563e8",
+          "96742c3e-cceb-4f64-bc7e-76a7f93c376d",
           "37aeccaa-2824-54e9-894f-3c08884dc449",
           "1cb7aae8-da23-5b5a-80a6-b92a1676192f",
+          "22c3295c-9c12-40c4-ae9c-447724357191",
           "b27f36c4-5eb5-522e-a19a-adf1b265eb8b",
           "f5ddd259-182e-5461-aa10-bcde37a67cee",
-          "9c27281c-0df9-5868-af55-4a6c46f7fde7",
+          "226e59bc-b9cd-4b96-995a-00c32ef4c14f",
+          "980d3c0f-0aa9-4ec2-9f80-3e1d38baa576",
+          "fcd837ca-3abf-4cff-a734-adeb068c60be",
+          "48a04365-2f3a-4df5-999d-87adcdb18309",
+          "7e46c814-3c9c-4cde-ac22-3d42be29d6bb",
+          "354e318d-08e5-439c-aa38-4ebb9367717c",
+          "db358191-dff9-4523-a56f-caae5a423e98",
+          "6b710546-84c4-4844-9890-836e522a499b",
+          "c51b5d9e-a4ef-4045-b05e-167532bf40e6",
+          "bcea363a-83b0-47fc-b8d0-dbfed367d664",
           "3f75b6f6-091f-5705-8063-6352dfb0cac5",
-          "4e8b92eb-b49f-5f26-9f46-f4fdd012799f",
           "2a80b6cd-142f-518f-8bc1-77db8b373c72",
+          "cccc6727-5a3d-48b3-a371-d7fa66a7eee4",
+          "b9ff3753-99bc-423c-a2c8-e48190bc36ca",
           "3cc7d1ba-7b4e-5397-ba7e-5b86a77724e7",
-          "01930bc8-da24-59f8-ae5b-4759d4f097dd",
-          "14e921fc-4a51-58e5-ba1f-bc8f35b4613a",
-          "7d3c7dd4-ba4f-5b6a-aba8-143620c88b21",
-          "b5530e8a-51dc-587e-86f0-9e8902349e05",
           "fb8b3b16-0503-5105-9e86-1027516b2800",
           "9a020c37-7bef-5465-aed1-b5a8140ce96d"
         ],
@@ -419,56 +417,76 @@
       "09080b01-975d-5e28-9c36-544c39dae4e5": {
         "id": "09080b01-975d-5e28-9c36-544c39dae4e5",
         "name": "payments",
-        "comment": "Money received. Reversible via status=REVERSED. Funds advances when payment_type=ADVANCE.",
+        "comment": "Each payment is a transaction against a bill.",
         "columnIds": [
           "732d799d-a2e1-5647-9182-24771c2337e7",
           "2ddd4376-ff0b-5b6d-9b55-074e47040d8f",
           "7af6619a-b80d-50dd-b22a-906954b29832",
+          "9f556f9b-79dd-465b-9906-c755690df16d",
           "eaea7c4a-52f9-598c-ae1a-5ffe6d595e2a",
           "504d88bb-4ebb-5d58-96b4-c0838ba90dd3",
-          "d3667162-d2cb-56b0-96ae-7065c5dd60bf",
-          "094e9d0b-6718-59f8-8729-06924be1f9e7",
-          "d6b4ed5a-3f0c-5466-8364-106cdbd2db9b",
           "95c38724-8fb1-56de-a231-b27304e59118",
+          "d6b4ed5a-3f0c-5466-8364-106cdbd2db9b",
+          "094e9d0b-6718-59f8-8729-06924be1f9e7",
+          "564fbf6f-c8af-465b-8217-4060a9001042",
           "a0da6431-270f-5000-a886-b9fe365df8f4",
+          "3f34ad7e-d589-47d4-afac-aca04db03489",
+          "a4e52d7a-c128-4cea-8cee-ef388c99e9d5",
+          "aabbb579-b00a-4a17-b10d-a398998f155c",
+          "949884d2-334d-433b-98bd-cbf1ac229f89",
           "1f038e78-c6a0-5bd8-b07d-88f7f52bf953",
-          "51d0fa07-2f50-5caf-891b-2b4bff77415d",
-          "9e58e48f-b598-5111-9045-f633e4981c7c",
+          "192bf000-1271-4144-90bd-a154c5bd15f3",
+          "8bf95c07-cf37-4fd9-ade0-0fceeaaf44a9",
+          "e0ac953d-6afd-4048-a681-80ace64b2599",
+          "ae73b014-0728-4abc-960b-d203d8b44cd8",
+          "000628f5-41dc-466a-a431-f221dc77462d",
+          "05884a46-b46b-4f3d-94b5-cd282c9228c8",
           "32dcfb1f-81f0-5e7a-aefd-b5df54f62f43",
+          "c03b5b59-0365-4de0-8b8a-46d4bd3d5eff",
+          "b05beb0d-8bbb-482d-b82b-3f130f228e50",
           "7f38b6d8-9763-5d26-9ba0-d048e0f9a8bf",
           "86236fb9-96b0-5c2f-bc36-108bd864bcc9",
-          "746dd478-821b-5958-8cc4-bbb902064ab7",
-          "7d487097-5b4e-5e9c-9354-5793993ccd08",
+          "e01a4446-750e-44d2-9a0a-e329200bb4a9",
           "940256d8-2911-5421-ad97-1f0668da0428",
-          "ab906c13-53c8-541e-9ece-5a235a7386c1",
-          "4b6ffd5b-78a8-5dbe-b783-66c51ad18990",
+          "78f2f127-04ab-4377-a42f-d533361a9a3f",
           "d454c887-20d4-50ab-ac7c-2d92e805ed2e",
-          "fd42a780-4244-5e29-be80-58ea4d5e7bea"
+          "fd42a780-4244-5e29-be80-58ea4d5e7bea",
+          "dc7624fb-b6af-401a-abba-e7eb175343b4"
         ],
         "seqColumnIds": [
           "732d799d-a2e1-5647-9182-24771c2337e7",
           "2ddd4376-ff0b-5b6d-9b55-074e47040d8f",
           "7af6619a-b80d-50dd-b22a-906954b29832",
+          "9f556f9b-79dd-465b-9906-c755690df16d",
           "eaea7c4a-52f9-598c-ae1a-5ffe6d595e2a",
           "504d88bb-4ebb-5d58-96b4-c0838ba90dd3",
-          "d3667162-d2cb-56b0-96ae-7065c5dd60bf",
-          "094e9d0b-6718-59f8-8729-06924be1f9e7",
-          "d6b4ed5a-3f0c-5466-8364-106cdbd2db9b",
           "95c38724-8fb1-56de-a231-b27304e59118",
+          "d6b4ed5a-3f0c-5466-8364-106cdbd2db9b",
+          "094e9d0b-6718-59f8-8729-06924be1f9e7",
+          "564fbf6f-c8af-465b-8217-4060a9001042",
           "a0da6431-270f-5000-a886-b9fe365df8f4",
+          "3f34ad7e-d589-47d4-afac-aca04db03489",
+          "a4e52d7a-c128-4cea-8cee-ef388c99e9d5",
+          "aabbb579-b00a-4a17-b10d-a398998f155c",
+          "949884d2-334d-433b-98bd-cbf1ac229f89",
           "1f038e78-c6a0-5bd8-b07d-88f7f52bf953",
-          "51d0fa07-2f50-5caf-891b-2b4bff77415d",
-          "9e58e48f-b598-5111-9045-f633e4981c7c",
+          "192bf000-1271-4144-90bd-a154c5bd15f3",
+          "8bf95c07-cf37-4fd9-ade0-0fceeaaf44a9",
+          "e0ac953d-6afd-4048-a681-80ace64b2599",
+          "ae73b014-0728-4abc-960b-d203d8b44cd8",
+          "000628f5-41dc-466a-a431-f221dc77462d",
+          "05884a46-b46b-4f3d-94b5-cd282c9228c8",
           "32dcfb1f-81f0-5e7a-aefd-b5df54f62f43",
+          "c03b5b59-0365-4de0-8b8a-46d4bd3d5eff",
+          "b05beb0d-8bbb-482d-b82b-3f130f228e50",
           "7f38b6d8-9763-5d26-9ba0-d048e0f9a8bf",
           "86236fb9-96b0-5c2f-bc36-108bd864bcc9",
-          "746dd478-821b-5958-8cc4-bbb902064ab7",
-          "7d487097-5b4e-5e9c-9354-5793993ccd08",
+          "e01a4446-750e-44d2-9a0a-e329200bb4a9",
           "940256d8-2911-5421-ad97-1f0668da0428",
-          "ab906c13-53c8-541e-9ece-5a235a7386c1",
-          "4b6ffd5b-78a8-5dbe-b783-66c51ad18990",
+          "78f2f127-04ab-4377-a42f-d533361a9a3f",
           "d454c887-20d4-50ab-ac7c-2d92e805ed2e",
-          "fd42a780-4244-5e29-be80-58ea4d5e7bea"
+          "fd42a780-4244-5e29-be80-58ea4d5e7bea",
+          "dc7624fb-b6af-401a-abba-e7eb175343b4"
         ],
         "ui": {
           "x": 2150,
@@ -486,23 +504,25 @@
       "a698ccf3-bd0e-500a-9700-c44406369487": {
         "id": "a698ccf3-bd0e-500a-9700-c44406369487",
         "name": "patient_advances",
-        "comment": "Pool of pre-paid money. available = advance - utilized - refunded.",
+        "comment": "Pre-payment against future services.",
         "columnIds": [
           "5301699c-7629-5674-918d-47471699417e",
           "773fb22a-6540-5580-8fd9-391a2de9d2eb",
           "7a65c21b-c451-5b6a-b26f-496d10032029",
           "9aaba0a8-5891-535b-8c65-01a8ea84f4a5",
           "b90bcc71-0a21-58f2-ade5-a8f69c153b98",
-          "5506dfeb-d004-57d4-af7e-1a88c89c1fbb",
           "e64fa6ef-7c28-5510-ac6e-bcfd56c2060d",
           "11448b0d-c9f9-5528-b3ba-cb24217fa0ba",
-          "efa75821-8905-5c24-b97a-b8a50d4a0d93",
           "b8386649-6e77-5314-977b-d5687eb0fee4",
-          "6999cf79-dc37-5392-955a-9f00456d457b",
+          "190e1795-221b-42d5-9aaa-26f25e41e6e9",
+          "4130af10-1e54-4729-82ca-007e39a0b30b",
           "851094f1-4f90-518e-948b-0275618e08f4",
+          "5506dfeb-d004-57d4-af7e-1a88c89c1fbb",
+          "fa0a7142-2748-431e-9f00-d4482b910e24",
+          "bdf5e6a7-4ace-4ef3-9436-dee20c53cc82",
           "465d4a75-24aa-51ff-bc8f-c60a47e1a8d2",
-          "2f1320da-4189-52f7-a474-19a384f4d7ab",
-          "7aeeda6f-6315-5445-b0ff-532c6ec90906",
+          "01f87ef3-6c55-4800-816f-4baa5d7b5e53",
+          "8d4dcbb6-04ab-4cad-a90b-26adc63fc0ca",
           "12685896-0417-5532-87ad-01aa4c88f13d",
           "81849313-9ea2-5379-9ac5-65829b9bc947"
         ],
@@ -512,16 +532,18 @@
           "7a65c21b-c451-5b6a-b26f-496d10032029",
           "9aaba0a8-5891-535b-8c65-01a8ea84f4a5",
           "b90bcc71-0a21-58f2-ade5-a8f69c153b98",
-          "5506dfeb-d004-57d4-af7e-1a88c89c1fbb",
           "e64fa6ef-7c28-5510-ac6e-bcfd56c2060d",
           "11448b0d-c9f9-5528-b3ba-cb24217fa0ba",
-          "efa75821-8905-5c24-b97a-b8a50d4a0d93",
           "b8386649-6e77-5314-977b-d5687eb0fee4",
-          "6999cf79-dc37-5392-955a-9f00456d457b",
+          "190e1795-221b-42d5-9aaa-26f25e41e6e9",
+          "4130af10-1e54-4729-82ca-007e39a0b30b",
           "851094f1-4f90-518e-948b-0275618e08f4",
+          "5506dfeb-d004-57d4-af7e-1a88c89c1fbb",
+          "fa0a7142-2748-431e-9f00-d4482b910e24",
+          "bdf5e6a7-4ace-4ef3-9436-dee20c53cc82",
           "465d4a75-24aa-51ff-bc8f-c60a47e1a8d2",
-          "2f1320da-4189-52f7-a474-19a384f4d7ab",
-          "7aeeda6f-6315-5445-b0ff-532c6ec90906",
+          "01f87ef3-6c55-4800-816f-4baa5d7b5e53",
+          "8d4dcbb6-04ab-4cad-a90b-26adc63fc0ca",
           "12685896-0417-5532-87ad-01aa4c88f13d",
           "81849313-9ea2-5379-9ac5-65829b9bc947"
         ],
@@ -541,7 +563,7 @@
       "fb4eb0cc-c1dd-5831-8208-4e888c690063": {
         "id": "fb4eb0cc-c1dd-5831-8208-4e888c690063",
         "name": "advance_utilizations",
-        "comment": "Bridge: applies a slice of patient_advances to a bills row.",
+        "comment": "Application of a patient_advances row against a specific bill.",
         "columnIds": [
           "5fa5233c-3508-58b0-b633-8e11499e3f77",
           "c328d5e1-652c-5ce2-902e-7d20700190e2",
@@ -550,12 +572,7 @@
           "deddf080-8208-532b-a771-b0fda8f2abae",
           "4726e470-250d-5b01-84b1-ada4e3a96ee6",
           "d9df26a2-2342-55f1-b091-e687db0f5d3c",
-          "19fe9ad7-9f90-56c2-a4f4-750d75be0708",
-          "464f39b8-365b-51a5-9542-55c4e69f63c2",
-          "1696a86f-fe24-505c-a050-114731e77d27",
-          "5796f026-4c29-5d2c-a229-8145e3b0f065",
-          "2f124d6e-4dd1-5031-a2ff-0cc851522180",
-          "1e68d7f2-3232-5859-8684-52e4790cd2ac"
+          "19fe9ad7-9f90-56c2-a4f4-750d75be0708"
         ],
         "seqColumnIds": [
           "5fa5233c-3508-58b0-b633-8e11499e3f77",
@@ -565,12 +582,7 @@
           "deddf080-8208-532b-a771-b0fda8f2abae",
           "4726e470-250d-5b01-84b1-ada4e3a96ee6",
           "d9df26a2-2342-55f1-b091-e687db0f5d3c",
-          "19fe9ad7-9f90-56c2-a4f4-750d75be0708",
-          "464f39b8-365b-51a5-9542-55c4e69f63c2",
-          "1696a86f-fe24-505c-a050-114731e77d27",
-          "5796f026-4c29-5d2c-a229-8145e3b0f065",
-          "2f124d6e-4dd1-5031-a2ff-0cc851522180",
-          "1e68d7f2-3232-5859-8684-52e4790cd2ac"
+          "19fe9ad7-9f90-56c2-a4f4-750d75be0708"
         ],
         "ui": {
           "x": 2150,
@@ -588,46 +600,44 @@
       "a8a3c7b4-f896-5fa6-b689-1bd38db35dc5": {
         "id": "a8a3c7b4-f896-5fa6-b689-1bd38db35dc5",
         "name": "discount_approvals",
-        "comment": "Workflow for above-threshold discounts. Approve before bill FINALIZE.",
+        "comment": "Approval workflow for discounts above tenant-configured thresholds.",
         "columnIds": [
           "75ad891f-d8f7-5f29-a1ba-1fac8041ab33",
           "e398e41c-bc8c-5e95-bc47-ef518bb3c474",
           "43ea6240-2730-579c-9f12-380e2a1928ee",
           "74bb0605-c63f-50ec-85aa-3842d376980a",
-          "3a34f0a3-c415-5878-8259-ef9a4d4b7cd5",
-          "abc78647-f3f4-5135-9c32-2732b060a479",
-          "3c820c69-6b13-575d-bb7f-7a4a7bfe935a",
+          "2d7d3fe7-446f-46c8-90d9-708a30c96504",
+          "18226ea2-d5ba-4079-a925-4fd9b7925a35",
+          "bbe191ef-c8ed-4467-bb9a-599945d4de78",
+          "bc952c87-641c-4451-b892-1264e9deeea2",
           "adfbf27a-fbee-598f-bc98-71f58a20f582",
-          "f1db78c2-17be-5ddf-8a4e-a936eada0c03",
+          "5fdbbacb-981c-4b6b-be40-7c3e321a01d0",
+          "3a34f0a3-c415-5878-8259-ef9a4d4b7cd5",
           "7ec1c809-9a4c-5a65-b580-bd8c176f8bbe",
-          "e6472db5-d211-5ca2-91be-cc3bfa1f6841",
+          "b7127f2c-d32b-43a1-8f46-520b99d0a1d0",
           "2c553b2b-ffe5-5fbb-8f2d-ed84373b3754",
-          "2d01ecc5-7383-589c-b36b-f89791a268bf",
-          "da6a3217-4233-5438-a648-ca7c47050968",
-          "b1c7d7d5-f176-5748-8db8-488ad52a192f",
-          "95a9ec95-ec4e-57f6-96b2-d85a396ef85d",
+          "9fcdbe40-efb7-49ee-ab2a-0a87f0184d61",
           "df036135-9340-57ab-ae9f-046b2383ebdd",
-          "6404be2e-fff5-578d-bd39-c73479f0d47e"
+          "a8138c4e-c145-4cbd-a6a2-6be7862afc3c"
         ],
         "seqColumnIds": [
           "75ad891f-d8f7-5f29-a1ba-1fac8041ab33",
           "e398e41c-bc8c-5e95-bc47-ef518bb3c474",
           "43ea6240-2730-579c-9f12-380e2a1928ee",
           "74bb0605-c63f-50ec-85aa-3842d376980a",
-          "3a34f0a3-c415-5878-8259-ef9a4d4b7cd5",
-          "abc78647-f3f4-5135-9c32-2732b060a479",
-          "3c820c69-6b13-575d-bb7f-7a4a7bfe935a",
+          "2d7d3fe7-446f-46c8-90d9-708a30c96504",
+          "18226ea2-d5ba-4079-a925-4fd9b7925a35",
+          "bbe191ef-c8ed-4467-bb9a-599945d4de78",
+          "bc952c87-641c-4451-b892-1264e9deeea2",
           "adfbf27a-fbee-598f-bc98-71f58a20f582",
-          "f1db78c2-17be-5ddf-8a4e-a936eada0c03",
+          "5fdbbacb-981c-4b6b-be40-7c3e321a01d0",
+          "3a34f0a3-c415-5878-8259-ef9a4d4b7cd5",
           "7ec1c809-9a4c-5a65-b580-bd8c176f8bbe",
-          "e6472db5-d211-5ca2-91be-cc3bfa1f6841",
+          "b7127f2c-d32b-43a1-8f46-520b99d0a1d0",
           "2c553b2b-ffe5-5fbb-8f2d-ed84373b3754",
-          "2d01ecc5-7383-589c-b36b-f89791a268bf",
-          "da6a3217-4233-5438-a648-ca7c47050968",
-          "b1c7d7d5-f176-5748-8db8-488ad52a192f",
-          "95a9ec95-ec4e-57f6-96b2-d85a396ef85d",
+          "9fcdbe40-efb7-49ee-ab2a-0a87f0184d61",
           "df036135-9340-57ab-ae9f-046b2383ebdd",
-          "6404be2e-fff5-578d-bd39-c73479f0d47e"
+          "a8138c4e-c145-4cbd-a6a2-6be7862afc3c"
         ],
         "ui": {
           "x": 50,
@@ -645,7 +655,7 @@
       "2c393b7d-30b1-524a-a3e9-24e8bb8063f7": {
         "id": "2c393b7d-30b1-524a-a3e9-24e8bb8063f7",
         "name": "insurance_providers",
-        "comment": "Tenant-scoped catalog of TPAs/insurers.",
+        "comment": "Sketch \u2014 see lead's ERD for column set.",
         "columnIds": [
           "46e4dc9d-affd-528c-a292-adc0bbb39f6a",
           "889ccd15-d250-58fe-8e68-d11ca6febe3c",
@@ -682,7 +692,7 @@
       "9ea05959-fa35-59dc-bd4c-d9e6aef4a815": {
         "id": "9ea05959-fa35-59dc-bd4c-d9e6aef4a815",
         "name": "patient_insurance_policies",
-        "comment": "Patient \u2194 provider policy linkage; resolved at billing time.",
+        "comment": "Sketch.",
         "columnIds": [
           "6fe88c37-7e1f-590e-9024-ba28f2598aa3",
           "1c9a8d85-d267-5685-866d-52607a177e4c",
@@ -723,7 +733,7 @@
       "8f333419-4136-5f7f-87b0-1012cd2fd9f1": {
         "id": "8f333419-4136-5f7f-87b0-1012cd2fd9f1",
         "name": "insurance_claims",
-        "comment": "Submitted claims, status lifecycle SUBMITTED\u2192APPROVED/REJECTED\u2192PAID.",
+        "comment": "Sketch.",
         "columnIds": [
           "1317a50d-24c5-5766-a067-ed678261e206",
           "03635a50-fff3-5218-a6f6-b94360ca6b7e",
@@ -766,7 +776,7 @@
       "efa3b5cd-f24a-50a8-8f5e-7a53bd21cba2": {
         "id": "efa3b5cd-f24a-50a8-8f5e-7a53bd21cba2",
         "name": "corporate_clients",
-        "comment": "Companies/employers with credit billing arrangements.",
+        "comment": "Sketch.",
         "columnIds": [
           "48af57ee-8d3b-540d-9200-04af87299787",
           "d5581839-2c43-567b-845e-e5260d90ad1d",
@@ -805,7 +815,7 @@
       "6aedc68c-f56a-5549-9291-422c8db0ffba": {
         "id": "6aedc68c-f56a-5549-9291-422c8db0ffba",
         "name": "service_packages",
-        "comment": "Bundle of services priced as a unit (e.g. master health check).",
+        "comment": "Sketch.",
         "columnIds": [
           "f5b3f98d-198e-52e2-b68f-92266a4f8529",
           "c0cb3c6e-050d-5f31-9d0d-412aa7fadb1d",
@@ -844,7 +854,7 @@
       "d4a148d5-7d5a-5f3d-bf3d-6f04f472da8b": {
         "id": "d4a148d5-7d5a-5f3d-bf3d-6f04f472da8b",
         "name": "package_items",
-        "comment": "Bridge: services that make up a package.",
+        "comment": "Sketch.",
         "columnIds": [
           "9f7f6616-bd27-58d5-b983-2894c500638e",
           "083c9db7-dd14-524b-ba47-9720adf990bf",
@@ -884,16 +894,16 @@
         "id": "7a7d3c53-f340-5870-b672-651d3a2b3e90",
         "tableId": "beeb2832-9bfa-5f26-a2ba-fff33af7369d",
         "name": "id",
-        "comment": "Service identifier",
+        "comment": "",
         "dataType": "UUID",
         "default": "gen_random_uuid()",
         "options": 6,
         "ui": {
           "keys": 1,
           "widthName": 60,
-          "widthComment": 118,
+          "widthComment": 60,
           "widthDataType": 60,
-          "widthDefault": 129
+          "widthDefault": 110
         },
         "meta": {
           "updateAt": 1779000000000,
@@ -907,11 +917,11 @@
         "comment": "Citus distribution column",
         "dataType": "UUID",
         "default": "",
-        "options": 6,
+        "options": 4,
         "ui": {
-          "keys": 1,
-          "widthName": 94,
-          "widthComment": 160,
+          "keys": 0,
+          "widthName": 92,
+          "widthComment": 108,
           "widthDataType": 60,
           "widthDefault": 60
         },
@@ -930,9 +940,9 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 94,
-          "widthComment": 166,
-          "widthDataType": 87,
+          "widthName": 92,
+          "widthComment": 112,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -944,14 +954,14 @@
         "id": "dd385e48-5c8f-5220-a483-033ebe28fc47",
         "tableId": "beeb2832-9bfa-5f26-a2ba-fff33af7369d",
         "name": "service_name",
-        "comment": "Snapshotted to bill_items.description",
+        "comment": "Display name; snapshotted to bill_items.description at charge time",
         "dataType": "TEXT",
         "default": "",
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 94,
-          "widthComment": 232,
+          "widthName": 92,
+          "widthComment": 272,
           "widthDataType": 60,
           "widthDefault": 60
         },
@@ -970,7 +980,7 @@
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 87,
+          "widthName": 85,
           "widthComment": 60,
           "widthDataType": 60,
           "widthDefault": 60
@@ -984,15 +994,15 @@
         "id": "ed0eba65-a1bc-5366-ad9a-bab2c404f5f4",
         "tableId": "beeb2832-9bfa-5f26-a2ba-fff33af7369d",
         "name": "department",
-        "comment": "Soft ref to User Mgmt",
+        "comment": "Soft reference to User Management department list",
         "dataType": "VARCHAR(64)",
         "default": "",
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 80,
-          "widthComment": 136,
-          "widthDataType": 87,
+          "widthName": 78,
+          "widthComment": 204,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -1004,15 +1014,15 @@
         "id": "313529f5-f82d-552d-9fe3-52b42569723c",
         "tableId": "beeb2832-9bfa-5f26-a2ba-fff33af7369d",
         "name": "category",
-        "comment": "consultation/lab/radiology/etc",
+        "comment": "consultation, procedure, lab, radiology, pharmacy, etc.",
         "dataType": "VARCHAR(64)",
         "default": "",
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 66,
-          "widthComment": 190,
-          "widthDataType": 87,
+          "widthName": 64,
+          "widthComment": 228,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -1030,9 +1040,9 @@
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 94,
+          "widthName": 92,
           "widthComment": 60,
-          "widthDataType": 87,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -1044,15 +1054,15 @@
         "id": "eb00df64-4fde-55db-942e-925fc7d6bc15",
         "tableId": "beeb2832-9bfa-5f26-a2ba-fff33af7369d",
         "name": "base_price",
-        "comment": "Rack rate before agreement",
+        "comment": "Rack rate before any price agreement",
         "dataType": "NUMERIC(18,4)",
         "default": "",
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 80,
-          "widthComment": 166,
-          "widthDataType": 101,
+          "widthName": 78,
+          "widthComment": 152,
+          "widthDataType": 86,
           "widthDefault": 60
         },
         "meta": {
@@ -1064,15 +1074,15 @@
         "id": "26462985-1e64-50a8-9209-378376820452",
         "tableId": "beeb2832-9bfa-5f26-a2ba-fff33af7369d",
         "name": "tax_percentage",
-        "comment": "Snapshotted to bill_items",
+        "comment": "Snapshotted to bill_items.tax_percentage at charge time",
         "dataType": "NUMERIC(7,4)",
         "default": "0",
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 108,
-          "widthComment": 160,
-          "widthDataType": 94,
+          "widthName": 106,
+          "widthComment": 228,
+          "widthDataType": 80,
           "widthDefault": 60
         },
         "meta": {
@@ -1084,15 +1094,15 @@
         "id": "dc866395-c4fd-56f6-ac07-3e2ec77ecb69",
         "tableId": "beeb2832-9bfa-5f26-a2ba-fff33af7369d",
         "name": "tax_category",
-        "comment": "CGST_SGST/IGST/EXEMPT",
+        "comment": "CGST_SGST, IGST, EXEMPT",
         "dataType": "VARCHAR(32)",
         "default": "",
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 94,
-          "widthComment": 136,
-          "widthDataType": 87,
+          "widthName": 92,
+          "widthComment": 100,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -1104,15 +1114,15 @@
         "id": "fa2a7a6f-01a6-5bb0-95e5-f956d46f4142",
         "tableId": "beeb2832-9bfa-5f26-a2ba-fff33af7369d",
         "name": "hsn_sac_code",
-        "comment": "Indian invoicing",
+        "comment": "Indian invoicing requirement",
         "dataType": "VARCHAR(16)",
         "default": "",
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 94,
-          "widthComment": 106,
-          "widthDataType": 87,
+          "widthName": 92,
+          "widthComment": 120,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -1130,7 +1140,7 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 150,
+          "widthName": 148,
           "widthComment": 60,
           "widthDataType": 60,
           "widthDefault": 60
@@ -1150,7 +1160,7 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 192,
+          "widthName": 160,
           "widthComment": 60,
           "widthDataType": 60,
           "widthDefault": 60
@@ -1170,9 +1180,9 @@
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 87,
+          "widthName": 85,
           "widthComment": 60,
-          "widthDataType": 87,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -1190,9 +1200,9 @@
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 66,
+          "widthName": 64,
           "widthComment": 60,
-          "widthDataType": 87,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -1210,9 +1220,9 @@
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 80,
+          "widthName": 78,
           "widthComment": 60,
-          "widthDataType": 87,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -1224,14 +1234,14 @@
         "id": "dc97d0c1-a298-530c-81e1-ebd9f759e68e",
         "tableId": "beeb2832-9bfa-5f26-a2ba-fff33af7369d",
         "name": "duration_minutes",
-        "comment": "",
+        "comment": "Scheduling hint; not enforced",
         "dataType": "INTEGER",
         "default": "",
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 122,
-          "widthComment": 60,
+          "widthName": 120,
+          "widthComment": 124,
           "widthDataType": 60,
           "widthDefault": 60
         },
@@ -1250,7 +1260,7 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 178,
+          "widthName": 160,
           "widthComment": 60,
           "widthDataType": 60,
           "widthDefault": 60
@@ -1270,7 +1280,7 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 150,
+          "widthName": 148,
           "widthComment": 60,
           "widthDataType": 60,
           "widthDefault": 60
@@ -1290,7 +1300,7 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 73,
+          "widthName": 71,
           "widthComment": 60,
           "widthDataType": 60,
           "widthDefault": 60
@@ -1310,9 +1320,9 @@
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 108,
+          "widthName": 106,
           "widthComment": 60,
-          "widthDataType": 87,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -1330,9 +1340,9 @@
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 94,
+          "widthName": 92,
           "widthComment": 60,
-          "widthDataType": 87,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -1350,9 +1360,9 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 80,
+          "widthName": 78,
           "widthComment": 60,
-          "widthDataType": 87,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -1370,9 +1380,9 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 80,
+          "widthName": 78,
           "widthComment": 60,
-          "widthDataType": 87,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -1384,14 +1394,14 @@
         "id": "1d975431-06a3-5323-a0f1-388f8a3b89f1",
         "tableId": "beeb2832-9bfa-5f26-a2ba-fff33af7369d",
         "name": "created_by",
-        "comment": "Soft ref to User Mgmt",
+        "comment": "Soft ref to User Management",
         "dataType": "UUID",
         "default": "",
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 80,
-          "widthComment": 136,
+          "widthName": 78,
+          "widthComment": 116,
           "widthDataType": 60,
           "widthDefault": 60
         },
@@ -1410,7 +1420,7 @@
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 80,
+          "widthName": 78,
           "widthComment": 60,
           "widthDataType": 60,
           "widthDefault": 60
@@ -1433,7 +1443,7 @@
           "widthName": 60,
           "widthComment": 60,
           "widthDataType": 60,
-          "widthDefault": 129
+          "widthDefault": 110
         },
         "meta": {
           "updateAt": 1779000000000,
@@ -1447,10 +1457,10 @@
         "comment": "",
         "dataType": "UUID",
         "default": "",
-        "options": 6,
+        "options": 4,
         "ui": {
-          "keys": 1,
-          "widthName": 94,
+          "keys": 0,
+          "widthName": 92,
           "widthComment": 60,
           "widthDataType": 60,
           "widthDefault": 60
@@ -1464,15 +1474,15 @@
         "id": "7f25115c-03aa-5ee1-aa1f-6202f836dedb",
         "tableId": "25613a58-8e8a-59d1-956f-53b47373d2b3",
         "name": "agreement_code",
-        "comment": "Tenant-unique",
+        "comment": "",
         "dataType": "VARCHAR(64)",
         "default": "",
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 108,
-          "widthComment": 88,
-          "widthDataType": 87,
+          "widthName": 106,
+          "widthComment": 60,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -1484,15 +1494,55 @@
         "id": "9fbbefb6-effb-539f-8ac4-0a7544dfa897",
         "tableId": "25613a58-8e8a-59d1-956f-53b47373d2b3",
         "name": "agreement_type",
-        "comment": "CORPORATE/INSURANCE/PACKAGE/CUSTOM",
+        "comment": "",
         "dataType": "VARCHAR(32)",
         "default": "",
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 108,
-          "widthComment": 214,
-          "widthDataType": 87,
+          "widthName": 106,
+          "widthComment": 60,
+          "widthDataType": 74,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "fc47a99c-21a4-4d45-8e00-54b2072a615d": {
+        "id": "fc47a99c-21a4-4d45-8e00-54b2072a615d",
+        "tableId": "25613a58-8e8a-59d1-956f-53b47373d2b3",
+        "name": "entity_id",
+        "comment": "Polymorphic: doctor_id, department_id, corporate_client_id, insurance_provider_id",
+        "dataType": "UUID",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 71,
+          "widthComment": 280,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "5cc7df05-a5cb-4cbb-98c4-b0a517b330a3": {
+        "id": "5cc7df05-a5cb-4cbb-98c4-b0a517b330a3",
+        "tableId": "25613a58-8e8a-59d1-956f-53b47373d2b3",
+        "name": "entity_name",
+        "comment": "Snapshot of entity display name at agreement creation",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 85,
+          "widthComment": 220,
+          "widthDataType": 60,
           "widthDefault": 60
         },
         "meta": {
@@ -1504,14 +1554,14 @@
         "id": "bb9adf48-5dca-55ca-ae34-858778ade5df",
         "tableId": "25613a58-8e8a-59d1-956f-53b47373d2b3",
         "name": "service_id",
-        "comment": "Soft ref to service_master",
+        "comment": "Soft ref to service_master.id",
         "dataType": "UUID",
         "default": "",
         "options": 0,
         "ui": {
-          "keys": 2,
-          "widthName": 80,
-          "widthComment": 166,
+          "keys": 0,
+          "widthName": 78,
+          "widthComment": 124,
           "widthDataType": 60,
           "widthDefault": 60
         },
@@ -1524,34 +1574,14 @@
         "id": "72f437e4-962a-5683-9cd3-b25d2d93a8ba",
         "tableId": "25613a58-8e8a-59d1-956f-53b47373d2b3",
         "name": "package_id",
-        "comment": "Soft ref to service_packages",
-        "dataType": "UUID",
-        "default": "",
-        "options": 0,
-        "ui": {
-          "keys": 2,
-          "widthName": 80,
-          "widthComment": 178,
-          "widthDataType": 60,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "6a4441ba-6317-5933-8d22-983de3515e57": {
-        "id": "6a4441ba-6317-5933-8d22-983de3515e57",
-        "tableId": "25613a58-8e8a-59d1-956f-53b47373d2b3",
-        "name": "corporate_client_id",
-        "comment": "Soft ref",
+        "comment": "Soft ref to service_packages.id (Phase 2)",
         "dataType": "UUID",
         "default": "",
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 143,
-          "widthComment": 60,
+          "widthName": 78,
+          "widthComment": 172,
           "widthDataType": 60,
           "widthDefault": 60
         },
@@ -1560,39 +1590,19 @@
           "createAt": 1779000000000
         }
       },
-      "5c24f3e8-8df7-51fc-882d-5d471b79bd41": {
-        "id": "5c24f3e8-8df7-51fc-882d-5d471b79bd41",
+      "ac371109-56bb-417b-86ab-14598ab24a49": {
+        "id": "ac371109-56bb-417b-86ab-14598ab24a49",
         "tableId": "25613a58-8e8a-59d1-956f-53b47373d2b3",
-        "name": "provider_id",
-        "comment": "Soft ref to insurance_providers",
-        "dataType": "UUID",
-        "default": "",
-        "options": 0,
-        "ui": {
-          "keys": 0,
-          "widthName": 87,
-          "widthComment": 196,
-          "widthDataType": 60,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "8bfdf8a4-2f32-54bb-8c09-55ddc5dbf55c": {
-        "id": "8bfdf8a4-2f32-54bb-8c09-55ddc5dbf55c",
-        "tableId": "25613a58-8e8a-59d1-956f-53b47373d2b3",
-        "name": "agreement_name",
+        "name": "original_price",
         "comment": "",
-        "dataType": "TEXT",
+        "dataType": "NUMERIC(18,4)",
         "default": "",
-        "options": 4,
+        "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 108,
+          "widthName": 106,
           "widthComment": 60,
-          "widthDataType": 60,
+          "widthDataType": 86,
           "widthDefault": 60
         },
         "meta": {
@@ -1600,19 +1610,19 @@
           "createAt": 1779000000000
         }
       },
-      "b3ca3dec-fda5-54b0-8032-a0235299ef44": {
-        "id": "b3ca3dec-fda5-54b0-8032-a0235299ef44",
+      "531ccc35-13b6-4f6f-8861-66f19c72d4ec": {
+        "id": "531ccc35-13b6-4f6f-8861-66f19c72d4ec",
         "tableId": "25613a58-8e8a-59d1-956f-53b47373d2b3",
-        "name": "negotiated_price",
-        "comment": "Absolute price; null => use discount",
+        "name": "agreed_price",
+        "comment": "",
         "dataType": "NUMERIC(18,4)",
         "default": "",
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 122,
-          "widthComment": 226,
-          "widthDataType": 101,
+          "widthName": 92,
+          "widthComment": 60,
+          "widthDataType": 86,
           "widthDefault": 60
         },
         "meta": {
@@ -1630,9 +1640,9 @@
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 143,
+          "widthName": 141,
           "widthComment": 60,
-          "widthDataType": 94,
+          "widthDataType": 80,
           "widthDefault": 60
         },
         "meta": {
@@ -1640,79 +1650,19 @@
           "createAt": 1779000000000
         }
       },
-      "3781013a-af72-5d9d-b6de-f790b051aad4": {
-        "id": "3781013a-af72-5d9d-b6de-f790b051aad4",
+      "c8472881-fea1-4757-aa79-bdd56c3a8e10": {
+        "id": "c8472881-fea1-4757-aa79-bdd56c3a8e10",
         "tableId": "25613a58-8e8a-59d1-956f-53b47373d2b3",
-        "name": "discount_amount",
-        "comment": "",
-        "dataType": "NUMERIC(18,4)",
-        "default": "",
-        "options": 0,
-        "ui": {
-          "keys": 0,
-          "widthName": 115,
-          "widthComment": 60,
-          "widthDataType": 101,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "091575cb-598c-5b1c-84c4-869e6490feac": {
-        "id": "091575cb-598c-5b1c-84c4-869e6490feac",
-        "tableId": "25613a58-8e8a-59d1-956f-53b47373d2b3",
-        "name": "co_pay_percentage",
-        "comment": "Insurance",
-        "dataType": "NUMERIC(7,4)",
-        "default": "",
-        "options": 0,
-        "ui": {
-          "keys": 0,
-          "widthName": 129,
-          "widthComment": 64,
-          "widthDataType": 94,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "9ec5c432-80e9-549e-9098-4adca41a6def": {
-        "id": "9ec5c432-80e9-549e-9098-4adca41a6def",
-        "tableId": "25613a58-8e8a-59d1-956f-53b47373d2b3",
-        "name": "co_pay_amount",
-        "comment": "",
-        "dataType": "NUMERIC(18,4)",
-        "default": "",
-        "options": 0,
-        "ui": {
-          "keys": 0,
-          "widthName": 101,
-          "widthComment": 60,
-          "widthDataType": 101,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "5830aa59-dc74-50a5-9306-07544995044b": {
-        "id": "5830aa59-dc74-50a5-9306-07544995044b",
-        "tableId": "25613a58-8e8a-59d1-956f-53b47373d2b3",
-        "name": "effective_from",
+        "name": "valid_from",
         "comment": "",
         "dataType": "TIMESTAMPTZ",
         "default": "",
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 108,
+          "widthName": 78,
           "widthComment": 60,
-          "widthDataType": 87,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -1720,19 +1670,59 @@
           "createAt": 1779000000000
         }
       },
-      "cd706911-05c5-5e54-b3c5-a644600205e5": {
-        "id": "cd706911-05c5-5e54-b3c5-a644600205e5",
+      "d6cb9827-1ba7-4e5c-8906-74700de102aa": {
+        "id": "d6cb9827-1ba7-4e5c-8906-74700de102aa",
         "tableId": "25613a58-8e8a-59d1-956f-53b47373d2b3",
-        "name": "effective_to",
+        "name": "valid_to",
         "comment": "",
         "dataType": "TIMESTAMPTZ",
         "default": "",
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 94,
+          "widthName": 64,
           "widthComment": 60,
-          "widthDataType": 87,
+          "widthDataType": 74,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "c10f6141-7ae9-4646-9e4f-d702e2591f6b": {
+        "id": "c10f6141-7ae9-4646-9e4f-d702e2591f6b",
+        "tableId": "25613a58-8e8a-59d1-956f-53b47373d2b3",
+        "name": "minimum_volume",
+        "comment": "Phase 2 enforcement",
+        "dataType": "INTEGER",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 106,
+          "widthComment": 84,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "67e97b40-4065-4806-acef-20b47858d3da": {
+        "id": "67e97b40-4065-4806-acef-20b47858d3da",
+        "tableId": "25613a58-8e8a-59d1-956f-53b47373d2b3",
+        "name": "payment_terms",
+        "comment": "",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 99,
+          "widthComment": 60,
+          "widthDataType": 60,
           "widthDefault": 60
         },
         "meta": {
@@ -1750,47 +1740,7 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 73,
-          "widthComment": 60,
-          "widthDataType": 60,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "d80af581-25f5-50b5-b0c9-f299e4f07ad4": {
-        "id": "d80af581-25f5-50b5-b0c9-f299e4f07ad4",
-        "tableId": "25613a58-8e8a-59d1-956f-53b47373d2b3",
-        "name": "priority",
-        "comment": "Higher wins when overlapping",
-        "dataType": "INTEGER",
-        "default": "0",
-        "options": 4,
-        "ui": {
-          "keys": 0,
-          "widthName": 66,
-          "widthComment": 178,
-          "widthDataType": 60,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "bdd10723-cbb0-52a1-915e-65f7eff27d2b": {
-        "id": "bdd10723-cbb0-52a1-915e-65f7eff27d2b",
-        "tableId": "25613a58-8e8a-59d1-956f-53b47373d2b3",
-        "name": "approval_required",
-        "comment": "",
-        "dataType": "BOOLEAN",
-        "default": "false",
-        "options": 4,
-        "ui": {
-          "keys": 0,
-          "widthName": 129,
+          "widthName": 71,
           "widthComment": 60,
           "widthDataType": 60,
           "widthDefault": 60
@@ -1810,7 +1760,7 @@
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 87,
+          "widthName": 85,
           "widthComment": 60,
           "widthDataType": 60,
           "widthDefault": 60
@@ -1820,79 +1770,19 @@
           "createAt": 1779000000000
         }
       },
-      "28e89396-271c-555a-95aa-5a663fedeb4a": {
-        "id": "28e89396-271c-555a-95aa-5a663fedeb4a",
+      "1023c4df-86e9-449c-bf9e-ca074969ccc6": {
+        "id": "1023c4df-86e9-449c-bf9e-ca074969ccc6",
         "tableId": "25613a58-8e8a-59d1-956f-53b47373d2b3",
-        "name": "approved_at",
+        "name": "approval_date",
         "comment": "",
         "dataType": "TIMESTAMPTZ",
         "default": "",
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 87,
+          "widthName": 99,
           "widthComment": 60,
-          "widthDataType": 87,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "bd2797db-6e51-5a2e-9c9f-a1617777c40e": {
-        "id": "bd2797db-6e51-5a2e-9c9f-a1617777c40e",
-        "tableId": "25613a58-8e8a-59d1-956f-53b47373d2b3",
-        "name": "notes",
-        "comment": "",
-        "dataType": "TEXT",
-        "default": "",
-        "options": 0,
-        "ui": {
-          "keys": 0,
-          "widthName": 60,
-          "widthComment": 60,
-          "widthDataType": 60,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "16aab586-d0f2-56fd-9eba-3f0e54065401": {
-        "id": "16aab586-d0f2-56fd-9eba-3f0e54065401",
-        "tableId": "25613a58-8e8a-59d1-956f-53b47373d2b3",
-        "name": "created_by",
-        "comment": "",
-        "dataType": "UUID",
-        "default": "",
-        "options": 0,
-        "ui": {
-          "keys": 0,
-          "widthName": 80,
-          "widthComment": 60,
-          "widthDataType": 60,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "8b0514bd-c548-56fd-b7bf-14e72d688d72": {
-        "id": "8b0514bd-c548-56fd-b7bf-14e72d688d72",
-        "tableId": "25613a58-8e8a-59d1-956f-53b47373d2b3",
-        "name": "updated_by",
-        "comment": "",
-        "dataType": "UUID",
-        "default": "",
-        "options": 0,
-        "ui": {
-          "keys": 0,
-          "widthName": 80,
-          "widthComment": 60,
-          "widthDataType": 60,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -1910,9 +1800,9 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 80,
+          "widthName": 78,
           "widthComment": 60,
-          "widthDataType": 87,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -1930,9 +1820,9 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 80,
+          "widthName": 78,
           "widthComment": 60,
-          "widthDataType": 87,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -1953,7 +1843,7 @@
           "widthName": 60,
           "widthComment": 60,
           "widthDataType": 60,
-          "widthDefault": 129
+          "widthDefault": 110
         },
         "meta": {
           "updateAt": 1779000000000,
@@ -1967,10 +1857,10 @@
         "comment": "",
         "dataType": "UUID",
         "default": "",
-        "options": 6,
+        "options": 4,
         "ui": {
-          "keys": 1,
-          "widthName": 94,
+          "keys": 0,
+          "widthName": 92,
           "widthComment": 60,
           "widthDataType": 60,
           "widthDefault": 60
@@ -1984,15 +1874,15 @@
         "id": "6fe82f61-3d5c-5030-9a9c-b3f9c4f1cd7e",
         "tableId": "8e7320ca-a9ad-5303-be87-6a9431bc6b96",
         "name": "bill_number",
-        "comment": "Tenant-unique generated number",
+        "comment": "Tenant-unique generated number; format per dev-doubts",
         "dataType": "VARCHAR(64)",
         "default": "",
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 87,
-          "widthComment": 190,
-          "widthDataType": 87,
+          "widthName": 85,
+          "widthComment": 220,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -2010,8 +1900,8 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 80,
-          "widthComment": 106,
+          "widthName": 78,
+          "widthComment": 72,
           "widthDataType": 60,
           "widthDefault": 60
         },
@@ -2024,14 +1914,14 @@
         "id": "38db3134-b3d3-518c-8edf-6848289823ef",
         "tableId": "8e7320ca-a9ad-5303-be87-6a9431bc6b96",
         "name": "visit_id",
-        "comment": "Soft ref to clinical visit",
+        "comment": "Soft ref to clinical visit (OPD visit / IPD admission)",
         "dataType": "UUID",
         "default": "",
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 66,
-          "widthComment": 166,
+          "widthName": 64,
+          "widthComment": 224,
           "widthDataType": 60,
           "widthDefault": 60
         },
@@ -2044,15 +1934,15 @@
         "id": "c62b03d1-39ab-5375-ba0e-de2cccff0034",
         "tableId": "8e7320ca-a9ad-5303-be87-6a9431bc6b96",
         "name": "visit_type",
-        "comment": "OPD/IPD/ER/DAYCARE/WALK_IN",
+        "comment": "",
         "dataType": "VARCHAR(16)",
         "default": "",
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 80,
-          "widthComment": 166,
-          "widthDataType": 87,
+          "widthName": 78,
+          "widthComment": 60,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -2064,15 +1954,15 @@
         "id": "cacc4c53-2207-5d68-add6-75a37b2cde99",
         "tableId": "8e7320ca-a9ad-5303-be87-6a9431bc6b96",
         "name": "bill_type",
-        "comment": "INTERIM/FINAL/STANDALONE",
+        "comment": "",
         "dataType": "VARCHAR(32)",
         "default": "",
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 73,
-          "widthComment": 154,
-          "widthDataType": 87,
+          "widthName": 71,
+          "widthComment": 60,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -2084,15 +1974,15 @@
         "id": "f30d35ee-fd3f-5c4c-b4a8-d8084b5a0cb5",
         "tableId": "8e7320ca-a9ad-5303-be87-6a9431bc6b96",
         "name": "bill_category",
-        "comment": "SELF_PAY/INSURANCE/CORPORATE/MIXED",
+        "comment": "",
         "dataType": "VARCHAR(32)",
         "default": "",
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 101,
-          "widthComment": 214,
-          "widthDataType": 87,
+          "widthName": 99,
+          "widthComment": 60,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -2110,10 +2000,10 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 73,
+          "widthName": 71,
           "widthComment": 60,
           "widthDataType": 60,
-          "widthDefault": 94
+          "widthDefault": 80
         },
         "meta": {
           "updateAt": 1779000000000,
@@ -2124,34 +2014,14 @@
         "id": "f294768b-6fdb-5886-b84c-ddbbe300d7e2",
         "tableId": "8e7320ca-a9ad-5303-be87-6a9431bc6b96",
         "name": "due_date",
-        "comment": "Corporate/credit",
+        "comment": "For corporate/credit billing",
         "dataType": "DATE",
         "default": "",
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 66,
-          "widthComment": 106,
-          "widthDataType": 60,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "2715c921-0e8e-5510-a19c-5fd4d12501a7": {
-        "id": "2715c921-0e8e-5510-a19c-5fd4d12501a7",
-        "tableId": "8e7320ca-a9ad-5303-be87-6a9431bc6b96",
-        "name": "discharge_date",
-        "comment": "Phase 3 IPD",
-        "dataType": "DATE",
-        "default": "",
-        "options": 0,
-        "ui": {
-          "keys": 0,
-          "widthName": 108,
-          "widthComment": 76,
+          "widthName": 64,
+          "widthComment": 120,
           "widthDataType": 60,
           "widthDefault": 60
         },
@@ -2170,9 +2040,9 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 66,
+          "widthName": 64,
           "widthComment": 60,
-          "widthDataType": 101,
+          "widthDataType": 86,
           "widthDefault": 60
         },
         "meta": {
@@ -2190,9 +2060,9 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 115,
+          "widthName": 113,
           "widthComment": 60,
-          "widthDataType": 101,
+          "widthDataType": 86,
           "widthDefault": 60
         },
         "meta": {
@@ -2210,9 +2080,9 @@
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 143,
+          "widthName": 141,
           "widthComment": 60,
-          "widthDataType": 94,
+          "widthDataType": 80,
           "widthDefault": 60
         },
         "meta": {
@@ -2230,7 +2100,7 @@
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 115,
+          "widthName": 113,
           "widthComment": 60,
           "widthDataType": 60,
           "widthDefault": 60
@@ -2250,9 +2120,9 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 80,
+          "widthName": 78,
           "widthComment": 60,
-          "widthDataType": 101,
+          "widthDataType": 86,
           "widthDefault": 60
         },
         "meta": {
@@ -2270,9 +2140,9 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 94,
+          "widthName": 92,
           "widthComment": 60,
-          "widthDataType": 101,
+          "widthDataType": 86,
           "widthDefault": 60
         },
         "meta": {
@@ -2290,9 +2160,9 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 122,
+          "widthName": 120,
           "widthComment": 60,
-          "widthDataType": 101,
+          "widthDataType": 86,
           "widthDefault": 60
         },
         "meta": {
@@ -2310,9 +2180,9 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 80,
+          "widthName": 78,
           "widthComment": 60,
-          "widthDataType": 101,
+          "widthDataType": 86,
           "widthDefault": 60
         },
         "meta": {
@@ -2330,9 +2200,9 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 87,
+          "widthName": 85,
           "widthComment": 60,
-          "widthDataType": 101,
+          "widthDataType": 86,
           "widthDefault": 60
         },
         "meta": {
@@ -2350,9 +2220,9 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 122,
+          "widthName": 120,
           "widthComment": 60,
-          "widthDataType": 101,
+          "widthDataType": 86,
           "widthDefault": 60
         },
         "meta": {
@@ -2370,9 +2240,9 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 136,
+          "widthName": 134,
           "widthComment": 60,
-          "widthDataType": 101,
+          "widthDataType": 86,
           "widthDefault": 60
         },
         "meta": {
@@ -2384,15 +2254,15 @@
         "id": "221d5c14-f08f-53c8-8caf-54dc212789b8",
         "tableId": "8e7320ca-a9ad-5303-be87-6a9431bc6b96",
         "name": "insurance_claim_amount",
-        "comment": "Phase 2",
+        "comment": "Phase 2 \u2014 set when claim filed",
         "dataType": "NUMERIC(18,4)",
         "default": "",
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 164,
-          "widthComment": 60,
-          "widthDataType": 101,
+          "widthName": 160,
+          "widthComment": 128,
+          "widthDataType": 86,
           "widthDefault": 60
         },
         "meta": {
@@ -2410,9 +2280,9 @@
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 185,
+          "widthName": 160,
           "widthComment": 60,
-          "widthDataType": 101,
+          "widthDataType": 86,
           "widthDefault": 60
         },
         "meta": {
@@ -2430,9 +2300,9 @@
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 157,
+          "widthName": 155,
           "widthComment": 60,
-          "widthDataType": 101,
+          "widthDataType": 86,
           "widthDefault": 60
         },
         "meta": {
@@ -2450,9 +2320,9 @@
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 185,
+          "widthName": 160,
           "widthComment": 60,
-          "widthDataType": 101,
+          "widthDataType": 86,
           "widthDefault": 60
         },
         "meta": {
@@ -2464,15 +2334,15 @@
         "id": "ba60ad35-31e0-5de0-a957-0a0452141fe3",
         "tableId": "8e7320ca-a9ad-5303-be87-6a9431bc6b96",
         "name": "patient_payable",
-        "comment": "Phase 2",
+        "comment": "Phase 2 \u2014 net_amount minus insurance_paid_amount",
         "dataType": "NUMERIC(18,4)",
         "default": "",
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 115,
-          "widthComment": 60,
-          "widthDataType": 101,
+          "widthName": 113,
+          "widthComment": 200,
+          "widthDataType": 86,
           "widthDefault": 60
         },
         "meta": {
@@ -2484,15 +2354,15 @@
         "id": "3613b2e4-d89e-54d3-a7fa-d5894df35744",
         "tableId": "8e7320ca-a9ad-5303-be87-6a9431bc6b96",
         "name": "status",
-        "comment": "DRAFT/FINALIZED/.../REPLACED",
+        "comment": "",
         "dataType": "VARCHAR(16)",
         "default": "'DRAFT'",
         "options": 4,
         "ui": {
           "keys": 0,
           "widthName": 60,
-          "widthComment": 178,
-          "widthDataType": 87,
+          "widthComment": 60,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -2504,15 +2374,15 @@
         "id": "effcb81c-4768-518e-9933-293451abb77f",
         "tableId": "8e7320ca-a9ad-5303-be87-6a9431bc6b96",
         "name": "payment_status",
-        "comment": "UNPAID/PARTIAL/PAID",
+        "comment": "UNPAID, PARTIAL, PAID; derived but stored",
         "dataType": "VARCHAR(16)",
         "default": "",
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 108,
-          "widthComment": 124,
-          "widthDataType": 87,
+          "widthName": 106,
+          "widthComment": 172,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -2524,14 +2394,14 @@
         "id": "dc2d0bfc-6a5e-5aa6-80dc-de63e1cc2041",
         "tableId": "8e7320ca-a9ad-5303-be87-6a9431bc6b96",
         "name": "parent_bill_id",
-        "comment": "INTERIM parent",
+        "comment": "INTERIM bills' parent",
         "dataType": "UUID",
         "default": "",
         "options": 0,
         "ui": {
-          "keys": 2,
-          "widthName": 108,
-          "widthComment": 94,
+          "keys": 0,
+          "widthName": 106,
+          "widthComment": 92,
           "widthDataType": 60,
           "widthDefault": 60
         },
@@ -2544,14 +2414,14 @@
         "id": "79008af0-9d69-5719-9322-7b10fa01dc03",
         "tableId": "8e7320ca-a9ad-5303-be87-6a9431bc6b96",
         "name": "replaced_bill_id",
-        "comment": "Amendment chain",
+        "comment": "Original bill this amendment replaces",
         "dataType": "UUID",
         "default": "",
         "options": 0,
         "ui": {
-          "keys": 2,
-          "widthName": 122,
-          "widthComment": 100,
+          "keys": 0,
+          "widthName": 120,
+          "widthComment": 156,
           "widthDataType": 60,
           "widthDefault": 60
         },
@@ -2569,9 +2439,9 @@
         "default": "",
         "options": 0,
         "ui": {
-          "keys": 2,
-          "widthName": 143,
-          "widthComment": 118,
+          "keys": 0,
+          "widthName": 141,
+          "widthComment": 80,
           "widthDataType": 60,
           "widthDefault": 60
         },
@@ -2584,15 +2454,15 @@
         "id": "020f8d77-3c3d-5373-944a-9ccd0159b4dd",
         "tableId": "8e7320ca-a9ad-5303-be87-6a9431bc6b96",
         "name": "employee_id",
-        "comment": "",
+        "comment": "Corporate employee identifier snapshot",
         "dataType": "VARCHAR(64)",
         "default": "",
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 87,
-          "widthComment": 60,
-          "widthDataType": 87,
+          "widthName": 85,
+          "widthComment": 160,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -2604,13 +2474,13 @@
         "id": "9d01ba4e-e5b3-5c08-8224-325b8ba870b1",
         "tableId": "8e7320ca-a9ad-5303-be87-6a9431bc6b96",
         "name": "employee_name",
-        "comment": "",
+        "comment": "Snapshot",
         "dataType": "TEXT",
         "default": "",
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 101,
+          "widthName": 99,
           "widthComment": 60,
           "widthDataType": 60,
           "widthDefault": 60
@@ -2624,14 +2494,14 @@
         "id": "5177fe47-f01a-5601-bad6-7afeb45b1a33",
         "tableId": "8e7320ca-a9ad-5303-be87-6a9431bc6b96",
         "name": "policy_id",
-        "comment": "Phase 2 \u2014 soft ref",
+        "comment": "Phase 2 \u2014 soft ref to patient_insurance_policies",
         "dataType": "UUID",
         "default": "",
         "options": 0,
         "ui": {
-          "keys": 2,
-          "widthName": 73,
-          "widthComment": 118,
+          "keys": 0,
+          "widthName": 71,
+          "widthComment": 200,
           "widthDataType": 60,
           "widthDefault": 60
         },
@@ -2644,14 +2514,14 @@
         "id": "b049cc0d-5e69-5d85-be3d-6eca3f36911f",
         "tableId": "8e7320ca-a9ad-5303-be87-6a9431bc6b96",
         "name": "tax_breakup",
-        "comment": "{cgst,sgst,igst,cess}",
+        "comment": "{cgst, sgst, igst, cess} for invoice rendering",
         "dataType": "JSONB",
         "default": "",
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 87,
-          "widthComment": 136,
+          "widthName": 85,
+          "widthComment": 192,
           "widthDataType": 60,
           "widthDefault": 60
         },
@@ -2690,7 +2560,7 @@
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 108,
+          "widthName": 106,
           "widthComment": 60,
           "widthDataType": 60,
           "widthDefault": 60
@@ -2710,7 +2580,7 @@
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 143,
+          "widthName": 141,
           "widthComment": 60,
           "widthDataType": 60,
           "widthDefault": 60
@@ -2730,7 +2600,7 @@
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 80,
+          "widthName": 78,
           "widthComment": 60,
           "widthDataType": 60,
           "widthDefault": 60
@@ -2750,7 +2620,7 @@
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 87,
+          "widthName": 85,
           "widthComment": 60,
           "widthDataType": 60,
           "widthDefault": 60
@@ -2770,7 +2640,7 @@
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 94,
+          "widthName": 92,
           "widthComment": 60,
           "widthDataType": 60,
           "widthDefault": 60
@@ -2790,9 +2660,9 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 80,
+          "widthName": 78,
           "widthComment": 60,
-          "widthDataType": 87,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -2810,9 +2680,9 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 80,
+          "widthName": 78,
           "widthComment": 60,
-          "widthDataType": 87,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -2830,9 +2700,9 @@
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 87,
+          "widthName": 85,
           "widthComment": 60,
-          "widthDataType": 87,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -2850,9 +2720,9 @@
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 94,
+          "widthName": 92,
           "widthComment": 60,
-          "widthDataType": 87,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -2873,7 +2743,7 @@
           "widthName": 60,
           "widthComment": 60,
           "widthDataType": 60,
-          "widthDefault": 129
+          "widthDefault": 110
         },
         "meta": {
           "updateAt": 1779000000000,
@@ -2887,10 +2757,10 @@
         "comment": "",
         "dataType": "UUID",
         "default": "",
-        "options": 6,
+        "options": 4,
         "ui": {
-          "keys": 1,
-          "widthName": 94,
+          "keys": 0,
+          "widthName": 92,
           "widthComment": 60,
           "widthDataType": 60,
           "widthDefault": 60
@@ -2904,34 +2774,14 @@
         "id": "fef6ed65-85a8-591a-8155-4eb16089fc90",
         "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
         "name": "bill_id",
-        "comment": "Parent bill",
+        "comment": "Soft ref to bills within schema; same-tenant enforced at app layer",
         "dataType": "UUID",
         "default": "",
         "options": 4,
         "ui": {
-          "keys": 2,
-          "widthName": 60,
-          "widthComment": 76,
-          "widthDataType": 60,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "dafbcca1-3ff9-5967-bd1f-6805ce93ad35": {
-        "id": "dafbcca1-3ff9-5967-bd1f-6805ce93ad35",
-        "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
-        "name": "line_number",
-        "comment": "Display order within bill",
-        "dataType": "INTEGER",
-        "default": "",
-        "options": 4,
-        "ui": {
           "keys": 0,
-          "widthName": 87,
-          "widthComment": 160,
+          "widthName": 60,
+          "widthComment": 272,
           "widthDataType": 60,
           "widthDefault": 60
         },
@@ -2944,14 +2794,14 @@
         "id": "714fa96d-3dee-5300-bd9f-99a853d8a0a0",
         "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
         "name": "service_id",
-        "comment": "Soft ref to service_master",
+        "comment": "Soft ref to service_master.id",
         "dataType": "UUID",
         "default": "",
         "options": 0,
         "ui": {
-          "keys": 2,
-          "widthName": 80,
-          "widthComment": 166,
+          "keys": 0,
+          "widthName": 78,
+          "widthComment": 124,
           "widthDataType": 60,
           "widthDefault": 60
         },
@@ -2964,14 +2814,14 @@
         "id": "a0ca57e9-399d-5be1-b577-286cda4afcc3",
         "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
         "name": "package_id",
-        "comment": "Soft ref to service_packages",
+        "comment": "Soft ref to service_packages.id (Phase 2)",
         "dataType": "UUID",
         "default": "",
         "options": 0,
         "ui": {
-          "keys": 2,
-          "widthName": 80,
-          "widthComment": 178,
+          "keys": 0,
+          "widthName": 78,
+          "widthComment": 172,
           "widthDataType": 60,
           "widthDefault": 60
         },
@@ -2984,15 +2834,35 @@
         "id": "a89970e3-6d2e-58ce-ac44-e8e40836c613",
         "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
         "name": "price_agreement_id",
-        "comment": "Snapshot pricing source",
+        "comment": "Which agreement chosen by resolution order",
         "dataType": "UUID",
         "default": "",
         "options": 0,
         "ui": {
-          "keys": 2,
-          "widthName": 136,
-          "widthComment": 148,
+          "keys": 0,
+          "widthName": 134,
+          "widthComment": 176,
           "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "0f4c3933-b8d9-4360-b460-ed1ba4aa7dcd": {
+        "id": "0f4c3933-b8d9-4360-b460-ed1ba4aa7dcd",
+        "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
+        "name": "item_type",
+        "comment": "",
+        "dataType": "VARCHAR(32)",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 71,
+          "widthComment": 60,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -3004,15 +2874,15 @@
         "id": "c2692ffa-1f59-5811-ae5f-08bafc554513",
         "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
         "name": "item_code",
-        "comment": "Snapshot of service_code",
+        "comment": "Snapshot from service_master.service_code or service_packages.package_code",
         "dataType": "VARCHAR(64)",
         "default": "",
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 73,
-          "widthComment": 154,
-          "widthDataType": 87,
+          "widthName": 71,
+          "widthComment": 280,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -3024,14 +2894,14 @@
         "id": "2aed8744-6987-55c0-9be9-4f7c850d8e73",
         "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
         "name": "description",
-        "comment": "Snapshot of service_name",
+        "comment": "Snapshot from service_master.service_name etc.",
         "dataType": "TEXT",
         "default": "",
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 87,
-          "widthComment": 154,
+          "widthName": 85,
+          "widthComment": 192,
           "widthDataType": 60,
           "widthDefault": 60
         },
@@ -3045,14 +2915,34 @@
         "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
         "name": "quantity",
         "comment": "",
-        "dataType": "NUMERIC(10,4)",
+        "dataType": "NUMERIC(10,2)",
         "default": "1",
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 66,
+          "widthName": 64,
           "widthComment": 60,
-          "widthDataType": 101,
+          "widthDataType": 86,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "b6916996-4c97-4633-b070-54ca48608ac3": {
+        "id": "b6916996-4c97-4633-b070-54ca48608ac3",
+        "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
+        "name": "unit",
+        "comment": "each, ml, hour",
+        "dataType": "VARCHAR(16)",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 64,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -3064,15 +2954,15 @@
         "id": "bd9ec9ea-73a8-5be9-b2c4-73763b86be6f",
         "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
         "name": "unit_price",
-        "comment": "Snapshot, post-agreement",
+        "comment": "Snapshot of resolved price; immutable post-write",
         "dataType": "NUMERIC(18,4)",
         "default": "",
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 80,
-          "widthComment": 154,
-          "widthDataType": 101,
+          "widthName": 78,
+          "widthComment": 200,
+          "widthDataType": 86,
           "widthDefault": 60
         },
         "meta": {
@@ -3080,19 +2970,19 @@
           "createAt": 1779000000000
         }
       },
-      "4f0ddfa7-9932-5700-ae3b-5a5ec20563e8": {
-        "id": "4f0ddfa7-9932-5700-ae3b-5a5ec20563e8",
+      "96742c3e-cceb-4f64-bc7e-76a7f93c376d": {
+        "id": "96742c3e-cceb-4f64-bc7e-76a7f93c376d",
         "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
-        "name": "subtotal",
-        "comment": "",
+        "name": "gross_amount",
+        "comment": "quantity * unit_price",
         "dataType": "NUMERIC(18,4)",
         "default": "",
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 66,
-          "widthComment": 60,
-          "widthDataType": 101,
+          "widthName": 92,
+          "widthComment": 92,
+          "widthDataType": 86,
           "widthDefault": 60
         },
         "meta": {
@@ -3110,9 +3000,9 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 143,
+          "widthName": 141,
           "widthComment": 60,
-          "widthDataType": 94,
+          "widthDataType": 80,
           "widthDefault": 60
         },
         "meta": {
@@ -3130,9 +3020,29 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 115,
+          "widthName": 113,
           "widthComment": 60,
-          "widthDataType": 101,
+          "widthDataType": 86,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "22c3295c-9c12-40c4-ae9c-447724357191": {
+        "id": "22c3295c-9c12-40c4-ae9c-447724357191",
+        "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
+        "name": "net_amount",
+        "comment": "gross_amount - discount_amount",
+        "dataType": "NUMERIC(18,4)",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 78,
+          "widthComment": 128,
+          "widthDataType": 86,
           "widthDefault": 60
         },
         "meta": {
@@ -3144,15 +3054,15 @@
         "id": "b27f36c4-5eb5-522e-a19a-adf1b265eb8b",
         "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
         "name": "tax_percentage",
-        "comment": "Snapshot",
+        "comment": "Snapshot from service_master.tax_percentage",
         "dataType": "NUMERIC(7,4)",
-        "default": "0",
+        "default": "",
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 108,
-          "widthComment": 60,
-          "widthDataType": 94,
+          "widthName": 106,
+          "widthComment": 180,
+          "widthDataType": 80,
           "widthDefault": 60
         },
         "meta": {
@@ -3164,15 +3074,15 @@
         "id": "f5ddd259-182e-5461-aa10-bcde37a67cee",
         "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
         "name": "tax_amount",
-        "comment": "",
+        "comment": "net_amount * tax_percentage / 100",
         "dataType": "NUMERIC(18,4)",
-        "default": "0",
+        "default": "",
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 80,
-          "widthComment": 60,
-          "widthDataType": 101,
+          "widthName": 78,
+          "widthComment": 140,
+          "widthDataType": 86,
           "widthDefault": 60
         },
         "meta": {
@@ -3180,19 +3090,199 @@
           "createAt": 1779000000000
         }
       },
-      "9c27281c-0df9-5868-af55-4a6c46f7fde7": {
-        "id": "9c27281c-0df9-5868-af55-4a6c46f7fde7",
+      "226e59bc-b9cd-4b96-995a-00c32ef4c14f": {
+        "id": "226e59bc-b9cd-4b96-995a-00c32ef4c14f",
         "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
-        "name": "line_total",
-        "comment": "",
+        "name": "total_amount",
+        "comment": "net_amount + tax_amount",
         "dataType": "NUMERIC(18,4)",
         "default": "",
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 80,
+          "widthName": 92,
+          "widthComment": 100,
+          "widthDataType": 86,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "980d3c0f-0aa9-4ec2-9f80-3e1d38baa576": {
+        "id": "980d3c0f-0aa9-4ec2-9f80-3e1d38baa576",
+        "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
+        "name": "tax_category",
+        "comment": "Snapshot from service_master.tax_category",
+        "dataType": "VARCHAR(32)",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 92,
+          "widthComment": 172,
+          "widthDataType": 74,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "fcd837ca-3abf-4cff-a734-adeb068c60be": {
+        "id": "fcd837ca-3abf-4cff-a734-adeb068c60be",
+        "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
+        "name": "is_insurance_covered",
+        "comment": "Snapshot from service_master",
+        "dataType": "BOOLEAN",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 148,
+          "widthComment": 120,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "48a04365-2f3a-4df5-999d-87adcdb18309": {
+        "id": "48a04365-2f3a-4df5-999d-87adcdb18309",
+        "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
+        "name": "insurance_claim_amount",
+        "comment": "Phase 2",
+        "dataType": "NUMERIC(18,4)",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 160,
           "widthComment": 60,
-          "widthDataType": 101,
+          "widthDataType": 86,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "7e46c814-3c9c-4cde-ac22-3d42be29d6bb": {
+        "id": "7e46c814-3c9c-4cde-ac22-3d42be29d6bb",
+        "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
+        "name": "insurance_approved_amount",
+        "comment": "Phase 2",
+        "dataType": "NUMERIC(18,4)",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 160,
+          "widthComment": 60,
+          "widthDataType": 86,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "354e318d-08e5-439c-aa38-4ebb9367717c": {
+        "id": "354e318d-08e5-439c-aa38-4ebb9367717c",
+        "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
+        "name": "insurance_rejection_reason",
+        "comment": "Phase 2",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 160,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "db358191-dff9-4523-a56f-caae5a423e98": {
+        "id": "db358191-dff9-4523-a56f-caae5a423e98",
+        "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
+        "name": "patient_share",
+        "comment": "Phase 2 post-claim",
+        "dataType": "NUMERIC(18,4)",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 99,
+          "widthComment": 80,
+          "widthDataType": 86,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "6b710546-84c4-4844-9890-836e522a499b": {
+        "id": "6b710546-84c4-4844-9890-836e522a499b",
+        "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
+        "name": "source_module",
+        "comment": "opd, ipd, lab, pharmacy, radiology, manual",
+        "dataType": "VARCHAR(32)",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 99,
+          "widthComment": 176,
+          "widthDataType": 74,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "c51b5d9e-a4ef-4045-b05e-167532bf40e6": {
+        "id": "c51b5d9e-a4ef-4045-b05e-167532bf40e6",
+        "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
+        "name": "source_ref",
+        "comment": "Clinical row ID in its module; NULL for manual",
+        "dataType": "UUID",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 78,
+          "widthComment": 192,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "bcea363a-83b0-47fc-b8d0-dbfed367d664": {
+        "id": "bcea363a-83b0-47fc-b8d0-dbfed367d664",
+        "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
+        "name": "performed_date",
+        "comment": "",
+        "dataType": "TIMESTAMPTZ",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 106,
+          "widthComment": 60,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -3204,35 +3294,15 @@
         "id": "3f75b6f6-091f-5705-8063-6352dfb0cac5",
         "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
         "name": "performed_by",
-        "comment": "Doctor \u2014 for commissions",
+        "comment": "Soft ref to User Management",
         "dataType": "UUID",
         "default": "",
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 94,
-          "widthComment": 154,
+          "widthName": 92,
+          "widthComment": 116,
           "widthDataType": 60,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "4e8b92eb-b49f-5f26-9f46-f4fdd012799f": {
-        "id": "4e8b92eb-b49f-5f26-9f46-f4fdd012799f",
-        "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
-        "name": "performed_at",
-        "comment": "",
-        "dataType": "TIMESTAMPTZ",
-        "default": "",
-        "options": 0,
-        "ui": {
-          "keys": 0,
-          "widthName": 94,
-          "widthComment": 60,
-          "widthDataType": 87,
           "widthDefault": 60
         },
         "meta": {
@@ -3250,9 +3320,49 @@
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 80,
+          "widthName": 78,
           "widthComment": 60,
-          "widthDataType": 87,
+          "widthDataType": 74,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "cccc6727-5a3d-48b3-a371-d7fa66a7eee4": {
+        "id": "cccc6727-5a3d-48b3-a371-d7fa66a7eee4",
+        "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
+        "name": "status",
+        "comment": "",
+        "dataType": "VARCHAR(16)",
+        "default": "'ACTIVE'",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 74,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "b9ff3753-99bc-423c-a2c8-e48190bc36ca": {
+        "id": "b9ff3753-99bc-423c-a2c8-e48190bc36ca",
+        "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
+        "name": "idempotency_key",
+        "comment": "Idempotency-Key from charge-ingest",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 113,
+          "widthComment": 144,
+          "widthDataType": 60,
           "widthDefault": 60
         },
         "meta": {
@@ -3280,86 +3390,6 @@
           "createAt": 1779000000000
         }
       },
-      "01930bc8-da24-59f8-ae5b-4759d4f097dd": {
-        "id": "01930bc8-da24-59f8-ae5b-4759d4f097dd",
-        "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
-        "name": "is_cancelled",
-        "comment": "",
-        "dataType": "BOOLEAN",
-        "default": "false",
-        "options": 4,
-        "ui": {
-          "keys": 0,
-          "widthName": 94,
-          "widthComment": 60,
-          "widthDataType": 60,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "14e921fc-4a51-58e5-ba1f-bc8f35b4613a": {
-        "id": "14e921fc-4a51-58e5-ba1f-bc8f35b4613a",
-        "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
-        "name": "cancellation_reason",
-        "comment": "",
-        "dataType": "TEXT",
-        "default": "",
-        "options": 0,
-        "ui": {
-          "keys": 0,
-          "widthName": 143,
-          "widthComment": 60,
-          "widthDataType": 60,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "7d3c7dd4-ba4f-5b6a-aba8-143620c88b21": {
-        "id": "7d3c7dd4-ba4f-5b6a-aba8-143620c88b21",
-        "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
-        "name": "external_charge_id",
-        "comment": "Idempotency key from source",
-        "dataType": "VARCHAR(128)",
-        "default": "",
-        "options": 0,
-        "ui": {
-          "keys": 0,
-          "widthName": 136,
-          "widthComment": 172,
-          "widthDataType": 94,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "b5530e8a-51dc-587e-86f0-9e8902349e05": {
-        "id": "b5530e8a-51dc-587e-86f0-9e8902349e05",
-        "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
-        "name": "external_source",
-        "comment": "OPD/LIMS/RIS/PHARMACY",
-        "dataType": "VARCHAR(32)",
-        "default": "",
-        "options": 0,
-        "ui": {
-          "keys": 0,
-          "widthName": 115,
-          "widthComment": 136,
-          "widthDataType": 87,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
       "fb8b3b16-0503-5105-9e86-1027516b2800": {
         "id": "fb8b3b16-0503-5105-9e86-1027516b2800",
         "tableId": "3d473218-1023-5007-b6be-7574a12c2a14",
@@ -3370,9 +3400,9 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 80,
+          "widthName": 78,
           "widthComment": 60,
-          "widthDataType": 87,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -3390,9 +3420,9 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 80,
+          "widthName": 78,
           "widthComment": 60,
-          "widthDataType": 87,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -3413,7 +3443,7 @@
           "widthName": 60,
           "widthComment": 60,
           "widthDataType": 60,
-          "widthDefault": 129
+          "widthDefault": 110
         },
         "meta": {
           "updateAt": 1779000000000,
@@ -3427,10 +3457,10 @@
         "comment": "",
         "dataType": "UUID",
         "default": "",
-        "options": 6,
+        "options": 4,
         "ui": {
-          "keys": 1,
-          "widthName": 94,
+          "keys": 0,
+          "widthName": 92,
           "widthComment": 60,
           "widthDataType": 60,
           "widthDefault": 60
@@ -3444,15 +3474,35 @@
         "id": "7af6619a-b80d-50dd-b22a-906954b29832",
         "tableId": "09080b01-975d-5e28-9c36-544c39dae4e5",
         "name": "payment_number",
-        "comment": "Tenant-unique receipt number",
+        "comment": "Tenant-unique generated",
         "dataType": "VARCHAR(64)",
         "default": "",
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 108,
-          "widthComment": 178,
-          "widthDataType": 87,
+          "widthName": 106,
+          "widthComment": 100,
+          "widthDataType": 74,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "9f556f9b-79dd-465b-9906-c755690df16d": {
+        "id": "9f556f9b-79dd-465b-9906-c755690df16d",
+        "tableId": "09080b01-975d-5e28-9c36-544c39dae4e5",
+        "name": "receipt_number",
+        "comment": "Generated on SUCCESS; shown to patient",
+        "dataType": "VARCHAR(64)",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 106,
+          "widthComment": 160,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -3464,14 +3514,14 @@
         "id": "eaea7c4a-52f9-598c-ae1a-5ffe6d595e2a",
         "tableId": "09080b01-975d-5e28-9c36-544c39dae4e5",
         "name": "bill_id",
-        "comment": "Null for advances",
+        "comment": "NULL for unallocated payments",
         "dataType": "UUID",
         "default": "",
         "options": 0,
         "ui": {
-          "keys": 2,
+          "keys": 0,
           "widthName": 60,
-          "widthComment": 112,
+          "widthComment": 124,
           "widthDataType": 60,
           "widthDefault": 60
         },
@@ -3484,14 +3534,14 @@
         "id": "504d88bb-4ebb-5d58-96b4-c0838ba90dd3",
         "tableId": "09080b01-975d-5e28-9c36-544c39dae4e5",
         "name": "patient_id",
-        "comment": "Soft ref to EMPI",
+        "comment": "Mirrored from bill",
         "dataType": "UUID",
         "default": "",
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 80,
-          "widthComment": 106,
+          "widthName": 78,
+          "widthComment": 80,
           "widthDataType": 60,
           "widthDefault": 60
         },
@@ -3500,39 +3550,19 @@
           "createAt": 1779000000000
         }
       },
-      "d3667162-d2cb-56b0-96ae-7065c5dd60bf": {
-        "id": "d3667162-d2cb-56b0-96ae-7065c5dd60bf",
+      "95c38724-8fb1-56de-a231-b27304e59118": {
+        "id": "95c38724-8fb1-56de-a231-b27304e59118",
         "tableId": "09080b01-975d-5e28-9c36-544c39dae4e5",
-        "name": "payment_type",
-        "comment": "BILL_PAYMENT/ADVANCE/REFUND_REVERSAL",
-        "dataType": "VARCHAR(32)",
-        "default": "",
+        "name": "payment_date",
+        "comment": "",
+        "dataType": "TIMESTAMPTZ",
+        "default": "now()",
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 94,
-          "widthComment": 226,
-          "widthDataType": 87,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "094e9d0b-6718-59f8-8729-06924be1f9e7": {
-        "id": "094e9d0b-6718-59f8-8729-06924be1f9e7",
-        "tableId": "09080b01-975d-5e28-9c36-544c39dae4e5",
-        "name": "payment_method",
-        "comment": "CASH/CARD/UPI/CHEQUE/NEFT/etc",
-        "dataType": "VARCHAR(32)",
-        "default": "",
-        "options": 4,
-        "ui": {
-          "keys": 0,
-          "widthName": 108,
-          "widthComment": 184,
-          "widthDataType": 87,
+          "widthName": 92,
+          "widthComment": 60,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -3552,7 +3582,7 @@
           "keys": 0,
           "widthName": 60,
           "widthComment": 60,
-          "widthDataType": 101,
+          "widthDataType": 86,
           "widthDefault": 60
         },
         "meta": {
@@ -3560,19 +3590,39 @@
           "createAt": 1779000000000
         }
       },
-      "95c38724-8fb1-56de-a231-b27304e59118": {
-        "id": "95c38724-8fb1-56de-a231-b27304e59118",
+      "094e9d0b-6718-59f8-8729-06924be1f9e7": {
+        "id": "094e9d0b-6718-59f8-8729-06924be1f9e7",
         "tableId": "09080b01-975d-5e28-9c36-544c39dae4e5",
-        "name": "payment_date",
+        "name": "payment_method",
         "comment": "",
-        "dataType": "TIMESTAMPTZ",
-        "default": "now()",
+        "dataType": "VARCHAR(32)",
+        "default": "",
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 94,
+          "widthName": 106,
           "widthComment": 60,
-          "widthDataType": 87,
+          "widthDataType": 74,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "564fbf6f-c8af-465b-8217-4060a9001042": {
+        "id": "564fbf6f-c8af-465b-8217-4060a9001042",
+        "tableId": "09080b01-975d-5e28-9c36-544c39dae4e5",
+        "name": "transaction_id",
+        "comment": "",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 106,
+          "widthComment": 60,
+          "widthDataType": 60,
           "widthDefault": 60
         },
         "meta": {
@@ -3584,15 +3634,95 @@
         "id": "a0da6431-270f-5000-a886-b9fe365df8f4",
         "tableId": "09080b01-975d-5e28-9c36-544c39dae4e5",
         "name": "reference_number",
-        "comment": "Cheque/UPI ref",
-        "dataType": "VARCHAR(128)",
+        "comment": "",
+        "dataType": "TEXT",
         "default": "",
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 122,
-          "widthComment": 94,
-          "widthDataType": 94,
+          "widthName": 120,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "3f34ad7e-d589-47d4-afac-aca04db03489": {
+        "id": "3f34ad7e-d589-47d4-afac-aca04db03489",
+        "tableId": "09080b01-975d-5e28-9c36-544c39dae4e5",
+        "name": "authorization_code",
+        "comment": "Card auth code",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 134,
+          "widthComment": 64,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "a4e52d7a-c128-4cea-8cee-ef388c99e9d5": {
+        "id": "a4e52d7a-c128-4cea-8cee-ef388c99e9d5",
+        "tableId": "09080b01-975d-5e28-9c36-544c39dae4e5",
+        "name": "card_type",
+        "comment": "",
+        "dataType": "VARCHAR(16)",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 71,
+          "widthComment": 60,
+          "widthDataType": 74,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "aabbb579-b00a-4a17-b10d-a398998f155c": {
+        "id": "aabbb579-b00a-4a17-b10d-a398998f155c",
+        "tableId": "09080b01-975d-5e28-9c36-544c39dae4e5",
+        "name": "card_last4",
+        "comment": "PCI scope minimisation",
+        "dataType": "VARCHAR(4)",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 78,
+          "widthComment": 96,
+          "widthDataType": 68,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "949884d2-334d-433b-98bd-cbf1ac229f89": {
+        "id": "949884d2-334d-433b-98bd-cbf1ac229f89",
+        "tableId": "09080b01-975d-5e28-9c36-544c39dae4e5",
+        "name": "card_holder_name",
+        "comment": "",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 120,
+          "widthComment": 60,
+          "widthDataType": 60,
           "widthDefault": 60
         },
         "meta": {
@@ -3605,14 +3735,14 @@
         "tableId": "09080b01-975d-5e28-9c36-544c39dae4e5",
         "name": "bank_name",
         "comment": "",
-        "dataType": "VARCHAR(128)",
+        "dataType": "TEXT",
         "default": "",
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 73,
+          "widthName": 71,
           "widthComment": 60,
-          "widthDataType": 94,
+          "widthDataType": 60,
           "widthDefault": 60
         },
         "meta": {
@@ -3620,19 +3750,19 @@
           "createAt": 1779000000000
         }
       },
-      "51d0fa07-2f50-5caf-891b-2b4bff77415d": {
-        "id": "51d0fa07-2f50-5caf-891b-2b4bff77415d",
+      "192bf000-1271-4144-90bd-a154c5bd15f3": {
+        "id": "192bf000-1271-4144-90bd-a154c5bd15f3",
         "tableId": "09080b01-975d-5e28-9c36-544c39dae4e5",
-        "name": "card_last_4",
+        "name": "branch_name",
         "comment": "",
-        "dataType": "VARCHAR(4)",
+        "dataType": "TEXT",
         "default": "",
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 87,
+          "widthName": 85,
           "widthComment": 60,
-          "widthDataType": 80,
+          "widthDataType": 60,
           "widthDefault": 60
         },
         "meta": {
@@ -3640,19 +3770,99 @@
           "createAt": 1779000000000
         }
       },
-      "9e58e48f-b598-5111-9045-f633e4981c7c": {
-        "id": "9e58e48f-b598-5111-9045-f633e4981c7c",
+      "8bf95c07-cf37-4fd9-ade0-0fceeaaf44a9": {
+        "id": "8bf95c07-cf37-4fd9-ade0-0fceeaaf44a9",
         "tableId": "09080b01-975d-5e28-9c36-544c39dae4e5",
-        "name": "gateway_transaction_id",
+        "name": "cheque_number",
         "comment": "",
-        "dataType": "VARCHAR(128)",
+        "dataType": "VARCHAR(32)",
         "default": "",
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 164,
+          "widthName": 99,
           "widthComment": 60,
-          "widthDataType": 94,
+          "widthDataType": 74,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "e0ac953d-6afd-4048-a681-80ace64b2599": {
+        "id": "e0ac953d-6afd-4048-a681-80ace64b2599",
+        "tableId": "09080b01-975d-5e28-9c36-544c39dae4e5",
+        "name": "cheque_date",
+        "comment": "",
+        "dataType": "DATE",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 85,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "ae73b014-0728-4abc-960b-d203d8b44cd8": {
+        "id": "ae73b014-0728-4abc-960b-d203d8b44cd8",
+        "tableId": "09080b01-975d-5e28-9c36-544c39dae4e5",
+        "name": "upi_id",
+        "comment": "",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "000628f5-41dc-466a-a431-f221dc77462d": {
+        "id": "000628f5-41dc-466a-a431-f221dc77462d",
+        "tableId": "09080b01-975d-5e28-9c36-544c39dae4e5",
+        "name": "upi_transaction_id",
+        "comment": "",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 134,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "05884a46-b46b-4f3d-94b5-cd282c9228c8": {
+        "id": "05884a46-b46b-4f3d-94b5-cd282c9228c8",
+        "tableId": "09080b01-975d-5e28-9c36-544c39dae4e5",
+        "name": "payment_gateway",
+        "comment": "",
+        "dataType": "VARCHAR(32)",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 113,
+          "widthComment": 60,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -3664,15 +3874,55 @@
         "id": "32dcfb1f-81f0-5e7a-aefd-b5df54f62f43",
         "tableId": "09080b01-975d-5e28-9c36-544c39dae4e5",
         "name": "gateway_response",
-        "comment": "",
+        "comment": "Full gateway callback for audit",
         "dataType": "JSONB",
         "default": "",
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 122,
-          "widthComment": 60,
+          "widthName": 120,
+          "widthComment": 132,
           "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "c03b5b59-0365-4de0-8b8a-46d4bd3d5eff": {
+        "id": "c03b5b59-0365-4de0-8b8a-46d4bd3d5eff",
+        "tableId": "09080b01-975d-5e28-9c36-544c39dae4e5",
+        "name": "claim_id",
+        "comment": "Phase 2 \u2014 soft ref to insurance_claims",
+        "dataType": "UUID",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 64,
+          "widthComment": 160,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "b05beb0d-8bbb-482d-b82b-3f130f228e50": {
+        "id": "b05beb0d-8bbb-482d-b82b-3f130f228e50",
+        "tableId": "09080b01-975d-5e28-9c36-544c39dae4e5",
+        "name": "tds_deducted",
+        "comment": "Phase 2 \u2014 TDS withheld by insurer",
+        "dataType": "NUMERIC(18,4)",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 92,
+          "widthComment": 140,
+          "widthDataType": 86,
           "widthDefault": 60
         },
         "meta": {
@@ -3684,16 +3934,16 @@
         "id": "7f38b6d8-9763-5d26-9ba0-d048e0f9a8bf",
         "tableId": "09080b01-975d-5e28-9c36-544c39dae4e5",
         "name": "status",
-        "comment": "PENDING/COMPLETED/FAILED/REVERSED",
+        "comment": "",
         "dataType": "VARCHAR(16)",
-        "default": "'COMPLETED'",
+        "default": "'SUCCESS'",
         "options": 4,
         "ui": {
           "keys": 0,
           "widthName": 60,
-          "widthComment": 208,
-          "widthDataType": 87,
-          "widthDefault": 87
+          "widthComment": 60,
+          "widthDataType": 74,
+          "widthDefault": 62
         },
         "meta": {
           "updateAt": 1779000000000,
@@ -3704,55 +3954,35 @@
         "id": "86236fb9-96b0-5c2f-bc36-108bd864bcc9",
         "tableId": "09080b01-975d-5e28-9c36-544c39dae4e5",
         "name": "received_by",
-        "comment": "Cashier",
-        "dataType": "UUID",
-        "default": "",
-        "options": 0,
-        "ui": {
-          "keys": 0,
-          "widthName": 87,
-          "widthComment": 60,
-          "widthDataType": 60,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "746dd478-821b-5958-8cc4-bbb902064ab7": {
-        "id": "746dd478-821b-5958-8cc4-bbb902064ab7",
-        "tableId": "09080b01-975d-5e28-9c36-544c39dae4e5",
-        "name": "shift_id",
-        "comment": "For cashier reconciliation",
-        "dataType": "UUID",
-        "default": "",
-        "options": 0,
-        "ui": {
-          "keys": 0,
-          "widthName": 66,
-          "widthComment": 166,
-          "widthDataType": 60,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "7d487097-5b4e-5e9c-9354-5793993ccd08": {
-        "id": "7d487097-5b4e-5e9c-9354-5793993ccd08",
-        "tableId": "09080b01-975d-5e28-9c36-544c39dae4e5",
-        "name": "counter_id",
         "comment": "",
-        "dataType": "VARCHAR(64)",
+        "dataType": "UUID",
         "default": "",
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 80,
+          "widthName": 85,
           "widthComment": 60,
-          "widthDataType": 87,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "e01a4446-750e-44d2-9a0a-e329200bb4a9": {
+        "id": "e01a4446-750e-44d2-9a0a-e329200bb4a9",
+        "tableId": "09080b01-975d-5e28-9c36-544c39dae4e5",
+        "name": "verified_by",
+        "comment": "Optional second-set-of-eyes",
+        "dataType": "UUID",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 85,
+          "widthComment": 116,
+          "widthDataType": 60,
           "widthDefault": 60
         },
         "meta": {
@@ -3780,37 +4010,17 @@
           "createAt": 1779000000000
         }
       },
-      "ab906c13-53c8-541e-9ece-5a235a7386c1": {
-        "id": "ab906c13-53c8-541e-9ece-5a235a7386c1",
+      "78f2f127-04ab-4377-a42f-d533361a9a3f": {
+        "id": "78f2f127-04ab-4377-a42f-d533361a9a3f",
         "tableId": "09080b01-975d-5e28-9c36-544c39dae4e5",
-        "name": "reversed_at",
-        "comment": "",
-        "dataType": "TIMESTAMPTZ",
-        "default": "",
-        "options": 0,
-        "ui": {
-          "keys": 0,
-          "widthName": 87,
-          "widthComment": 60,
-          "widthDataType": 87,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "4b6ffd5b-78a8-5dbe-b783-66c51ad18990": {
-        "id": "4b6ffd5b-78a8-5dbe-b783-66c51ad18990",
-        "tableId": "09080b01-975d-5e28-9c36-544c39dae4e5",
-        "name": "reversal_reason",
+        "name": "remarks",
         "comment": "",
         "dataType": "TEXT",
         "default": "",
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 115,
+          "widthName": 60,
           "widthComment": 60,
           "widthDataType": 60,
           "widthDefault": 60
@@ -3830,9 +4040,9 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 80,
+          "widthName": 78,
           "widthComment": 60,
-          "widthDataType": 87,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -3850,9 +4060,29 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 80,
+          "widthName": 78,
           "widthComment": 60,
-          "widthDataType": 87,
+          "widthDataType": 74,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "dc7624fb-b6af-401a-abba-e7eb175343b4": {
+        "id": "dc7624fb-b6af-401a-abba-e7eb175343b4",
+        "tableId": "09080b01-975d-5e28-9c36-544c39dae4e5",
+        "name": "verified_at",
+        "comment": "",
+        "dataType": "TIMESTAMPTZ",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 85,
+          "widthComment": 60,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -3873,7 +4103,7 @@
           "widthName": 60,
           "widthComment": 60,
           "widthDataType": 60,
-          "widthDefault": 129
+          "widthDefault": 110
         },
         "meta": {
           "updateAt": 1779000000000,
@@ -3887,10 +4117,10 @@
         "comment": "",
         "dataType": "UUID",
         "default": "",
-        "options": 6,
+        "options": 4,
         "ui": {
-          "keys": 1,
-          "widthName": 94,
+          "keys": 0,
+          "widthName": 92,
           "widthComment": 60,
           "widthDataType": 60,
           "widthDefault": 60
@@ -3904,15 +4134,15 @@
         "id": "7a65c21b-c451-5b6a-b26f-496d10032029",
         "tableId": "a698ccf3-bd0e-500a-9700-c44406369487",
         "name": "advance_number",
-        "comment": "Tenant-unique",
+        "comment": "",
         "dataType": "VARCHAR(64)",
         "default": "",
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 108,
-          "widthComment": 88,
-          "widthDataType": 87,
+          "widthName": 106,
+          "widthComment": 60,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -3924,14 +4154,14 @@
         "id": "9aaba0a8-5891-535b-8c65-01a8ea84f4a5",
         "tableId": "a698ccf3-bd0e-500a-9700-c44406369487",
         "name": "patient_id",
-        "comment": "Soft ref to EMPI",
+        "comment": "",
         "dataType": "UUID",
         "default": "",
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 80,
-          "widthComment": 106,
+          "widthName": 78,
+          "widthComment": 60,
           "widthDataType": 60,
           "widthDefault": 60
         },
@@ -3944,34 +4174,14 @@
         "id": "b90bcc71-0a21-58f2-ade5-a8f69c153b98",
         "tableId": "a698ccf3-bd0e-500a-9700-c44406369487",
         "name": "visit_id",
-        "comment": "",
+        "comment": "Visit-scoped admission deposits",
         "dataType": "UUID",
         "default": "",
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 66,
-          "widthComment": 60,
-          "widthDataType": 60,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "5506dfeb-d004-57d4-af7e-1a88c89c1fbb": {
-        "id": "5506dfeb-d004-57d4-af7e-1a88c89c1fbb",
-        "tableId": "a698ccf3-bd0e-500a-9700-c44406369487",
-        "name": "payment_id",
-        "comment": "Source payment that funded this advance",
-        "dataType": "UUID",
-        "default": "",
-        "options": 4,
-        "ui": {
-          "keys": 2,
-          "widthName": 80,
-          "widthComment": 244,
+          "widthName": 64,
+          "widthComment": 132,
           "widthDataType": 60,
           "widthDefault": 60
         },
@@ -3990,9 +4200,9 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 108,
+          "widthName": 106,
           "widthComment": 60,
-          "widthDataType": 101,
+          "widthDataType": 86,
           "widthDefault": 60
         },
         "meta": {
@@ -4010,29 +4220,9 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 115,
+          "widthName": 113,
           "widthComment": 60,
-          "widthDataType": 101,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "efa75821-8905-5c24-b97a-b8a50d4a0d93": {
-        "id": "efa75821-8905-5c24-b97a-b8a50d4a0d93",
-        "tableId": "a698ccf3-bd0e-500a-9700-c44406369487",
-        "name": "available_amount",
-        "comment": "advance_amount - utilized - refunded",
-        "dataType": "NUMERIC(18,4)",
-        "default": "",
-        "options": 4,
-        "ui": {
-          "keys": 0,
-          "widthName": 122,
-          "widthComment": 226,
-          "widthDataType": 101,
+          "widthDataType": 86,
           "widthDefault": 60
         },
         "meta": {
@@ -4050,9 +4240,9 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 115,
+          "widthName": 113,
           "widthComment": 60,
-          "widthDataType": 101,
+          "widthDataType": 86,
           "widthDefault": 60
         },
         "meta": {
@@ -4060,19 +4250,39 @@
           "createAt": 1779000000000
         }
       },
-      "6999cf79-dc37-5392-955a-9f00456d457b": {
-        "id": "6999cf79-dc37-5392-955a-9f00456d457b",
+      "190e1795-221b-42d5-9aaa-26f25e41e6e9": {
+        "id": "190e1795-221b-42d5-9aaa-26f25e41e6e9",
         "tableId": "a698ccf3-bd0e-500a-9700-c44406369487",
-        "name": "advance_date",
+        "name": "available_balance",
         "comment": "",
-        "dataType": "TIMESTAMPTZ",
-        "default": "now()",
+        "dataType": "NUMERIC(18,4)",
+        "default": "",
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 94,
+          "widthName": 127,
           "widthComment": 60,
-          "widthDataType": 87,
+          "widthDataType": 86,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "4130af10-1e54-4729-82ca-007e39a0b30b": {
+        "id": "4130af10-1e54-4729-82ca-007e39a0b30b",
+        "tableId": "a698ccf3-bd0e-500a-9700-c44406369487",
+        "name": "advance_type",
+        "comment": "",
+        "dataType": "VARCHAR(32)",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 92,
+          "widthComment": 60,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -4084,46 +4294,6 @@
         "id": "851094f1-4f90-518e-948b-0275618e08f4",
         "tableId": "a698ccf3-bd0e-500a-9700-c44406369487",
         "name": "purpose",
-        "comment": "OPD/IPD/PROCEDURE",
-        "dataType": "VARCHAR(64)",
-        "default": "",
-        "options": 0,
-        "ui": {
-          "keys": 0,
-          "widthName": 60,
-          "widthComment": 112,
-          "widthDataType": 87,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "465d4a75-24aa-51ff-bc8f-c60a47e1a8d2": {
-        "id": "465d4a75-24aa-51ff-bc8f-c60a47e1a8d2",
-        "tableId": "a698ccf3-bd0e-500a-9700-c44406369487",
-        "name": "status",
-        "comment": "ACTIVE/FULLY_UTILIZED/REFUNDED/FORFEITED",
-        "dataType": "VARCHAR(16)",
-        "default": "'ACTIVE'",
-        "options": 4,
-        "ui": {
-          "keys": 0,
-          "widthName": 60,
-          "widthComment": 250,
-          "widthDataType": 87,
-          "widthDefault": 66
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "2f1320da-4189-52f7-a474-19a384f4d7ab": {
-        "id": "2f1320da-4189-52f7-a474-19a384f4d7ab",
-        "tableId": "a698ccf3-bd0e-500a-9700-c44406369487",
-        "name": "notes",
         "comment": "",
         "dataType": "TEXT",
         "default": "",
@@ -4140,17 +4310,117 @@
           "createAt": 1779000000000
         }
       },
-      "7aeeda6f-6315-5445-b0ff-532c6ec90906": {
-        "id": "7aeeda6f-6315-5445-b0ff-532c6ec90906",
+      "5506dfeb-d004-57d4-af7e-1a88c89c1fbb": {
+        "id": "5506dfeb-d004-57d4-af7e-1a88c89c1fbb",
         "tableId": "a698ccf3-bd0e-500a-9700-c44406369487",
-        "name": "created_by",
+        "name": "payment_id",
+        "comment": "Soft ref to payments row of method='ADVANCE_RECEIPT'",
+        "dataType": "UUID",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 78,
+          "widthComment": 216,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "fa0a7142-2748-431e-9f00-d4482b910e24": {
+        "id": "fa0a7142-2748-431e-9f00-d4482b910e24",
+        "tableId": "a698ccf3-bd0e-500a-9700-c44406369487",
+        "name": "payment_date",
+        "comment": "Mirrored from payments",
+        "dataType": "TIMESTAMPTZ",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 92,
+          "widthComment": 96,
+          "widthDataType": 74,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "bdf5e6a7-4ace-4ef3-9436-dee20c53cc82": {
+        "id": "bdf5e6a7-4ace-4ef3-9436-dee20c53cc82",
+        "tableId": "a698ccf3-bd0e-500a-9700-c44406369487",
+        "name": "payment_method",
+        "comment": "Mirrored from payments",
+        "dataType": "VARCHAR(32)",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 106,
+          "widthComment": 96,
+          "widthDataType": 74,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "465d4a75-24aa-51ff-bc8f-c60a47e1a8d2": {
+        "id": "465d4a75-24aa-51ff-bc8f-c60a47e1a8d2",
+        "tableId": "a698ccf3-bd0e-500a-9700-c44406369487",
+        "name": "status",
+        "comment": "",
+        "dataType": "VARCHAR(16)",
+        "default": "'AVAILABLE'",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 74,
+          "widthDefault": 74
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "01f87ef3-6c55-4800-816f-4baa5d7b5e53": {
+        "id": "01f87ef3-6c55-4800-816f-4baa5d7b5e53",
+        "tableId": "a698ccf3-bd0e-500a-9700-c44406369487",
+        "name": "valid_until",
+        "comment": "",
+        "dataType": "DATE",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 85,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "8d4dcbb6-04ab-4cad-a90b-26adc63fc0ca": {
+        "id": "8d4dcbb6-04ab-4cad-a90b-26adc63fc0ca",
+        "tableId": "a698ccf3-bd0e-500a-9700-c44406369487",
+        "name": "received_by",
         "comment": "",
         "dataType": "UUID",
         "default": "",
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 80,
+          "widthName": 85,
           "widthComment": 60,
           "widthDataType": 60,
           "widthDefault": 60
@@ -4170,9 +4440,9 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 80,
+          "widthName": 78,
           "widthComment": 60,
-          "widthDataType": 87,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -4190,9 +4460,9 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 80,
+          "widthName": 78,
           "widthComment": 60,
-          "widthDataType": 87,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -4213,7 +4483,7 @@
           "widthName": 60,
           "widthComment": 60,
           "widthDataType": 60,
-          "widthDefault": 129
+          "widthDefault": 110
         },
         "meta": {
           "updateAt": 1779000000000,
@@ -4227,10 +4497,10 @@
         "comment": "",
         "dataType": "UUID",
         "default": "",
-        "options": 6,
+        "options": 4,
         "ui": {
-          "keys": 1,
-          "widthName": 94,
+          "keys": 0,
+          "widthName": 92,
           "widthComment": 60,
           "widthDataType": 60,
           "widthDefault": 60
@@ -4244,14 +4514,14 @@
         "id": "e926fab2-6d65-5fe9-b6f5-02385dcd02d9",
         "tableId": "fb4eb0cc-c1dd-5831-8208-4e888c690063",
         "name": "advance_id",
-        "comment": "",
+        "comment": "Soft ref to patient_advances",
         "dataType": "UUID",
         "default": "",
         "options": 4,
         "ui": {
-          "keys": 2,
-          "widthName": 80,
-          "widthComment": 60,
+          "keys": 0,
+          "widthName": 78,
+          "widthComment": 120,
           "widthDataType": 60,
           "widthDefault": 60
         },
@@ -4264,14 +4534,14 @@
         "id": "9a95356b-50c0-593d-a76c-83c3720c69d8",
         "tableId": "fb4eb0cc-c1dd-5831-8208-4e888c690063",
         "name": "bill_id",
-        "comment": "",
+        "comment": "Soft ref to bills",
         "dataType": "UUID",
         "default": "",
         "options": 4,
         "ui": {
-          "keys": 2,
+          "keys": 0,
           "widthName": 60,
-          "widthComment": 60,
+          "widthComment": 76,
           "widthDataType": 60,
           "widthDefault": 60
         },
@@ -4290,9 +4560,9 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 115,
+          "widthName": 113,
           "widthComment": 60,
-          "widthDataType": 101,
+          "widthDataType": 86,
           "widthDefault": 60
         },
         "meta": {
@@ -4310,9 +4580,9 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 122,
+          "widthName": 120,
           "widthComment": 60,
-          "widthDataType": 87,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -4330,7 +4600,7 @@
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 87,
+          "widthName": 85,
           "widthComment": 60,
           "widthDataType": 60,
           "widthDefault": 60
@@ -4360,106 +4630,6 @@
           "createAt": 1779000000000
         }
       },
-      "464f39b8-365b-51a5-9542-55c4e69f63c2": {
-        "id": "464f39b8-365b-51a5-9542-55c4e69f63c2",
-        "tableId": "fb4eb0cc-c1dd-5831-8208-4e888c690063",
-        "name": "is_reversed",
-        "comment": "",
-        "dataType": "BOOLEAN",
-        "default": "false",
-        "options": 4,
-        "ui": {
-          "keys": 0,
-          "widthName": 87,
-          "widthComment": 60,
-          "widthDataType": 60,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "1696a86f-fe24-505c-a050-114731e77d27": {
-        "id": "1696a86f-fe24-505c-a050-114731e77d27",
-        "tableId": "fb4eb0cc-c1dd-5831-8208-4e888c690063",
-        "name": "reversed_at",
-        "comment": "",
-        "dataType": "TIMESTAMPTZ",
-        "default": "",
-        "options": 0,
-        "ui": {
-          "keys": 0,
-          "widthName": 87,
-          "widthComment": 60,
-          "widthDataType": 87,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "5796f026-4c29-5d2c-a229-8145e3b0f065": {
-        "id": "5796f026-4c29-5d2c-a229-8145e3b0f065",
-        "tableId": "fb4eb0cc-c1dd-5831-8208-4e888c690063",
-        "name": "reversal_reason",
-        "comment": "",
-        "dataType": "TEXT",
-        "default": "",
-        "options": 0,
-        "ui": {
-          "keys": 0,
-          "widthName": 115,
-          "widthComment": 60,
-          "widthDataType": 60,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "2f124d6e-4dd1-5031-a2ff-0cc851522180": {
-        "id": "2f124d6e-4dd1-5031-a2ff-0cc851522180",
-        "tableId": "fb4eb0cc-c1dd-5831-8208-4e888c690063",
-        "name": "created_at",
-        "comment": "",
-        "dataType": "TIMESTAMPTZ",
-        "default": "now()",
-        "options": 4,
-        "ui": {
-          "keys": 0,
-          "widthName": 80,
-          "widthComment": 60,
-          "widthDataType": 87,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "1e68d7f2-3232-5859-8684-52e4790cd2ac": {
-        "id": "1e68d7f2-3232-5859-8684-52e4790cd2ac",
-        "tableId": "fb4eb0cc-c1dd-5831-8208-4e888c690063",
-        "name": "updated_at",
-        "comment": "",
-        "dataType": "TIMESTAMPTZ",
-        "default": "now()",
-        "options": 4,
-        "ui": {
-          "keys": 0,
-          "widthName": 80,
-          "widthComment": 60,
-          "widthDataType": 87,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
       "75ad891f-d8f7-5f29-a1ba-1fac8041ab33": {
         "id": "75ad891f-d8f7-5f29-a1ba-1fac8041ab33",
         "tableId": "a8a3c7b4-f896-5fa6-b689-1bd38db35dc5",
@@ -4473,7 +4643,7 @@
           "widthName": 60,
           "widthComment": 60,
           "widthDataType": 60,
-          "widthDefault": 129
+          "widthDefault": 110
         },
         "meta": {
           "updateAt": 1779000000000,
@@ -4487,10 +4657,10 @@
         "comment": "",
         "dataType": "UUID",
         "default": "",
-        "options": 6,
+        "options": 4,
         "ui": {
-          "keys": 1,
-          "widthName": 94,
+          "keys": 0,
+          "widthName": 92,
           "widthComment": 60,
           "widthDataType": 60,
           "widthDefault": 60
@@ -4504,14 +4674,14 @@
         "id": "43ea6240-2730-579c-9f12-380e2a1928ee",
         "tableId": "a8a3c7b4-f896-5fa6-b689-1bd38db35dc5",
         "name": "bill_id",
-        "comment": "",
+        "comment": "Bill-level discount",
         "dataType": "UUID",
         "default": "",
-        "options": 4,
+        "options": 0,
         "ui": {
-          "keys": 2,
+          "keys": 0,
           "widthName": 60,
-          "widthComment": 60,
+          "widthComment": 84,
           "widthDataType": 60,
           "widthDefault": 60
         },
@@ -4524,14 +4694,14 @@
         "id": "74bb0605-c63f-50ec-85aa-3842d376980a",
         "tableId": "a8a3c7b4-f896-5fa6-b689-1bd38db35dc5",
         "name": "bill_item_id",
-        "comment": "Null => bill-level discount",
+        "comment": "Line-level discount",
         "dataType": "UUID",
         "default": "",
         "options": 0,
         "ui": {
-          "keys": 2,
-          "widthName": 94,
-          "widthComment": 172,
+          "keys": 0,
+          "widthName": 92,
+          "widthComment": 84,
           "widthDataType": 60,
           "widthDefault": 60
         },
@@ -4540,19 +4710,19 @@
           "createAt": 1779000000000
         }
       },
-      "3a34f0a3-c415-5878-8259-ef9a4d4b7cd5": {
-        "id": "3a34f0a3-c415-5878-8259-ef9a4d4b7cd5",
+      "2d7d3fe7-446f-46c8-90d9-708a30c96504": {
+        "id": "2d7d3fe7-446f-46c8-90d9-708a30c96504",
         "tableId": "a8a3c7b4-f896-5fa6-b689-1bd38db35dc5",
-        "name": "requested_by",
-        "comment": "User requesting discount",
-        "dataType": "UUID",
+        "name": "discount_type",
+        "comment": "",
+        "dataType": "VARCHAR(16)",
         "default": "",
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 94,
-          "widthComment": 154,
-          "widthDataType": 60,
+          "widthName": 99,
+          "widthComment": 60,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -4560,19 +4730,19 @@
           "createAt": 1779000000000
         }
       },
-      "abc78647-f3f4-5135-9c32-2732b060a479": {
-        "id": "abc78647-f3f4-5135-9c32-2732b060a479",
+      "18226ea2-d5ba-4079-a925-4fd9b7925a35": {
+        "id": "18226ea2-d5ba-4079-a925-4fd9b7925a35",
         "tableId": "a8a3c7b4-f896-5fa6-b689-1bd38db35dc5",
-        "name": "requested_amount",
-        "comment": "",
+        "name": "discount_value",
+        "comment": "Percent or amount as entered",
         "dataType": "NUMERIC(18,4)",
         "default": "",
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 122,
-          "widthComment": 60,
-          "widthDataType": 101,
+          "widthName": 106,
+          "widthComment": 120,
+          "widthDataType": 86,
           "widthDefault": 60
         },
         "meta": {
@@ -4580,19 +4750,39 @@
           "createAt": 1779000000000
         }
       },
-      "3c820c69-6b13-575d-bb7f-7a4a7bfe935a": {
-        "id": "3c820c69-6b13-575d-bb7f-7a4a7bfe935a",
+      "bbe191ef-c8ed-4467-bb9a-599945d4de78": {
+        "id": "bbe191ef-c8ed-4467-bb9a-599945d4de78",
         "tableId": "a8a3c7b4-f896-5fa6-b689-1bd38db35dc5",
-        "name": "requested_percentage",
-        "comment": "",
-        "dataType": "NUMERIC(7,4)",
+        "name": "discount_amount",
+        "comment": "Resolved amount",
+        "dataType": "NUMERIC(18,4)",
         "default": "",
-        "options": 0,
+        "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 150,
-          "widthComment": 60,
-          "widthDataType": 94,
+          "widthName": 113,
+          "widthComment": 68,
+          "widthDataType": 86,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "bc952c87-641c-4451-b892-1264e9deeea2": {
+        "id": "bc952c87-641c-4451-b892-1264e9deeea2",
+        "tableId": "a8a3c7b4-f896-5fa6-b689-1bd38db35dc5",
+        "name": "original_amount",
+        "comment": "Gross before discount",
+        "dataType": "NUMERIC(18,4)",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 113,
+          "widthComment": 92,
+          "widthDataType": 86,
           "widthDefault": 60
         },
         "meta": {
@@ -4620,19 +4810,39 @@
           "createAt": 1779000000000
         }
       },
-      "f1db78c2-17be-5ddf-8a4e-a936eada0c03": {
-        "id": "f1db78c2-17be-5ddf-8a4e-a936eada0c03",
+      "5fdbbacb-981c-4b6b-be40-7c3e321a01d0": {
+        "id": "5fdbbacb-981c-4b6b-be40-7c3e321a01d0",
         "tableId": "a8a3c7b4-f896-5fa6-b689-1bd38db35dc5",
-        "name": "approver_role",
-        "comment": "Required approver tier",
+        "name": "reason_category",
+        "comment": "STAFF_DISCOUNT, SENIOR_CITIZEN, GOODWILL, BPL, EMPLOYEE, OTHER",
         "dataType": "VARCHAR(32)",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 113,
+          "widthComment": 256,
+          "widthDataType": 74,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1779000000000,
+          "createAt": 1779000000000
+        }
+      },
+      "3a34f0a3-c415-5878-8259-ef9a4d4b7cd5": {
+        "id": "3a34f0a3-c415-5878-8259-ef9a4d4b7cd5",
+        "tableId": "a8a3c7b4-f896-5fa6-b689-1bd38db35dc5",
+        "name": "requested_by",
+        "comment": "",
+        "dataType": "UUID",
         "default": "",
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 101,
-          "widthComment": 142,
-          "widthDataType": 87,
+          "widthName": 92,
+          "widthComment": 60,
+          "widthDataType": 60,
           "widthDefault": 60
         },
         "meta": {
@@ -4650,7 +4860,7 @@
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 87,
+          "widthName": 85,
           "widthComment": 60,
           "widthDataType": 60,
           "widthDefault": 60
@@ -4660,19 +4870,19 @@
           "createAt": 1779000000000
         }
       },
-      "e6472db5-d211-5ca2-91be-cc3bfa1f6841": {
-        "id": "e6472db5-d211-5ca2-91be-cc3bfa1f6841",
+      "b7127f2c-d32b-43a1-8f46-520b99d0a1d0": {
+        "id": "b7127f2c-d32b-43a1-8f46-520b99d0a1d0",
         "tableId": "a8a3c7b4-f896-5fa6-b689-1bd38db35dc5",
-        "name": "approved_amount",
-        "comment": "",
-        "dataType": "NUMERIC(18,4)",
+        "name": "approval_level",
+        "comment": "BILLING_MANAGER, MEDICAL_SUPERINTENDENT",
+        "dataType": "VARCHAR(32)",
         "default": "",
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 115,
-          "widthComment": 60,
-          "widthDataType": 101,
+          "widthName": 106,
+          "widthComment": 164,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -4684,95 +4894,35 @@
         "id": "2c553b2b-ffe5-5fbb-8f2d-ed84373b3754",
         "tableId": "a8a3c7b4-f896-5fa6-b689-1bd38db35dc5",
         "name": "status",
-        "comment": "PENDING/APPROVED/REJECTED",
+        "comment": "",
         "dataType": "VARCHAR(16)",
         "default": "'PENDING'",
         "options": 4,
         "ui": {
           "keys": 0,
           "widthName": 60,
-          "widthComment": 160,
-          "widthDataType": 87,
-          "widthDefault": 73
+          "widthComment": 60,
+          "widthDataType": 74,
+          "widthDefault": 62
         },
         "meta": {
           "updateAt": 1779000000000,
           "createAt": 1779000000000
         }
       },
-      "2d01ecc5-7383-589c-b36b-f89791a268bf": {
-        "id": "2d01ecc5-7383-589c-b36b-f89791a268bf",
+      "9fcdbe40-efb7-49ee-ab2a-0a87f0184d61": {
+        "id": "9fcdbe40-efb7-49ee-ab2a-0a87f0184d61",
         "tableId": "a8a3c7b4-f896-5fa6-b689-1bd38db35dc5",
-        "name": "rejection_reason",
+        "name": "supporting_document_url",
         "comment": "",
         "dataType": "TEXT",
         "default": "",
         "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 122,
+          "widthName": 160,
           "widthComment": 60,
           "widthDataType": 60,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "da6a3217-4233-5438-a648-ca7c47050968": {
-        "id": "da6a3217-4233-5438-a648-ca7c47050968",
-        "tableId": "a8a3c7b4-f896-5fa6-b689-1bd38db35dc5",
-        "name": "requested_at",
-        "comment": "",
-        "dataType": "TIMESTAMPTZ",
-        "default": "now()",
-        "options": 4,
-        "ui": {
-          "keys": 0,
-          "widthName": 94,
-          "widthComment": 60,
-          "widthDataType": 87,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "b1c7d7d5-f176-5748-8db8-488ad52a192f": {
-        "id": "b1c7d7d5-f176-5748-8db8-488ad52a192f",
-        "tableId": "a8a3c7b4-f896-5fa6-b689-1bd38db35dc5",
-        "name": "decided_at",
-        "comment": "",
-        "dataType": "TIMESTAMPTZ",
-        "default": "",
-        "options": 0,
-        "ui": {
-          "keys": 0,
-          "widthName": 80,
-          "widthComment": 60,
-          "widthDataType": 87,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "95a9ec95-ec4e-57f6-96b2-d85a396ef85d": {
-        "id": "95a9ec95-ec4e-57f6-96b2-d85a396ef85d",
-        "tableId": "a8a3c7b4-f896-5fa6-b689-1bd38db35dc5",
-        "name": "expires_at",
-        "comment": "",
-        "dataType": "TIMESTAMPTZ",
-        "default": "",
-        "options": 0,
-        "ui": {
-          "keys": 0,
-          "widthName": 80,
-          "widthComment": 60,
-          "widthDataType": 87,
           "widthDefault": 60
         },
         "meta": {
@@ -4790,9 +4940,9 @@
         "options": 4,
         "ui": {
           "keys": 0,
-          "widthName": 80,
+          "widthName": 78,
           "widthComment": 60,
-          "widthDataType": 87,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -4800,19 +4950,19 @@
           "createAt": 1779000000000
         }
       },
-      "6404be2e-fff5-578d-bd39-c73479f0d47e": {
-        "id": "6404be2e-fff5-578d-bd39-c73479f0d47e",
+      "a8138c4e-c145-4cbd-a6a2-6be7862afc3c": {
+        "id": "a8138c4e-c145-4cbd-a6a2-6be7862afc3c",
         "tableId": "a8a3c7b4-f896-5fa6-b689-1bd38db35dc5",
-        "name": "updated_at",
+        "name": "approved_at",
         "comment": "",
         "dataType": "TIMESTAMPTZ",
-        "default": "now()",
-        "options": 4,
+        "default": "",
+        "options": 0,
         "ui": {
           "keys": 0,
-          "widthName": 80,
+          "widthName": 85,
           "widthComment": 60,
-          "widthDataType": 87,
+          "widthDataType": 74,
           "widthDefault": 60
         },
         "meta": {
@@ -6511,89 +6661,26 @@
         }
       }
     },
-    "indexEntities": {},
-    "indexColumnEntities": {},
     "memoEntities": {
-      "1754919e-185e-5bb5-9c32-7ef013266f05": {
-        "id": "1754919e-185e-5bb5-9c32-7ef013266f05",
-        "value": "Billing Module \u2014 4-phase schema landscape\n21 tables. All distributed by iq_tenant_id (Citus).",
+      "50a99559789f4dd0bb77cb82cffd2335": {
+        "id": "50a99559789f4dd0bb77cb82cffd2335",
+        "value": "PHASE 2 \u2014 Insurance + corporate + packages.\n\n14 tables (+6 over Phase 1).\n\nNew tables: insurance_providers,\npatient_insurance_policies, insurance_claims,\ncorporate_clients, service_packages, package_items.\n\nPhase 1 tables gain columns:\n  \u2022 bills.insurance_*, .corporate_client_id, .policy_id,\n    .employee_*\n  \u2022 bill_items.package_id, .insurance_*, .patient_share\n  \u2022 payments.claim_id, .tds_deducted\n  \u2022 price_agreements gains entity_type = CORPORATE/INSURER\n    and the package_id / minimum_volume / payment_terms cols\n\nbills.discharge_date is still trimmed \u2014 that's Phase 3.",
         "ui": {
-          "x": 1500,
-          "y": 20,
+          "x": 40,
+          "y": 40,
+          "width": 580,
+          "height": 360,
           "zIndex": 1,
-          "width": 520,
-          "height": 90,
-          "color": ""
+          "color": "#1e293b"
         },
         "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "b1174614-934b-5a79-bbcf-f5563a70f913": {
-        "id": "b1174614-934b-5a79-bbcf-f5563a70f913",
-        "value": "Phase 1 \u2014 Counter billing parity (8 tables).\nReaches existing prod HIMS OPD counter parity:\nservice_master, price_agreements, bills, bill_items,\npayments, patient_advances, advance_utilizations,\ndiscount_approvals.",
-        "ui": {
-          "x": 50,
-          "y": 2200,
-          "zIndex": 1,
-          "width": 460,
-          "height": 170,
-          "color": "#86efac"
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "0d4fbef6-ba59-5041-a923-66e99d62f667": {
-        "id": "0d4fbef6-ba59-5041-a923-66e99d62f667",
-        "value": "Phase 2 \u2014 Insurance + corporate + packages (6 tables).\ninsurance_providers, patient_insurance_policies, insurance_claims,\ncorporate_clients, service_packages, package_items.",
-        "ui": {
-          "x": 1400,
-          "y": 3450,
-          "zIndex": 1,
-          "width": 480,
-          "height": 130,
-          "color": "#a7f3d0"
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "6d384222-8328-565c-beb4-d121c5e3bb99": {
-        "id": "6d384222-8328-565c-beb4-d121c5e3bb99",
-        "value": "Snapshot-pricing invariant\nbill_items financial fields (unit_price, quantity, subtotal,\ndiscount_amount, tax_*, line_total) are immutable once the\nparent bill leaves DRAFT status. Amendments create a new\nDRAFT linked via replaced_bill_id. See ADR-0025.",
-        "ui": {
-          "x": 2150,
-          "y": 2200,
-          "zIndex": 1,
-          "width": 500,
-          "height": 160,
-          "color": "#fef3c7"
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
-        }
-      },
-      "1a1d2141-4b44-53c5-b22c-06ab38a057e9": {
-        "id": "1a1d2141-4b44-53c5-b22c-06ab38a057e9",
-        "value": "Multi-tenancy\nAll 21 tables distributed by iq_tenant_id (Citus).\nbill_items, payments, advance_utilizations and\ndiscount_approvals are co-located with bills so all\ntenant-local JOINs stay on a single worker shard.",
-        "ui": {
-          "x": 2700,
-          "y": 2200,
-          "zIndex": 1,
-          "width": 500,
-          "height": 160,
-          "color": "#dcfce7"
-        },
-        "meta": {
-          "updateAt": 1779000000000,
-          "createAt": 1779000000000
+          "updateAt": 0,
+          "createAt": 0
         }
       }
-    }
-  }
+    },
+    "indexEntities": {},
+    "indexColumnEntities": {}
+  },
+  "lww": {}
 }
