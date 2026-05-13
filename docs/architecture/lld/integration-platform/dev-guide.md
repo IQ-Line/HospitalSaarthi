@@ -2,6 +2,8 @@
 
 > Mirror of the GitHub issue body. Posted as a separate issue to track the implementation.
 
+**Phase 0/1 dev simplifications apply.** See [dev-env-simplifications.md](../../dev-env-simplifications.md) for the `HIMS_CITUS_ENABLED`, `PERMISSIVE_MODE`, `STRICT_SPEC_VALIDATION` knobs, the `env:` secrets default, and the [REQUIRED FOR DEMO] / [DEFER IF TIME-CONSTRAINED] / [POST-DEMO] tag legend. Steps below tagged accordingly; untagged = [REQUIRED FOR DEMO] by default.
+
 The Integration Hub is platform infrastructure -- always deployed alongside the five core modules. Its v1 covers the **control plane + FSM engine** (Phase 0) and the **ABDM Adapter** (Phase 1).
 
 ### What's already designed
@@ -25,7 +27,7 @@ The Integration Hub is platform infrastructure -- always deployed alongside the 
 - [ ] Generate Drizzle migrations for the 7 control-plane + FSM-engine tables in [schema-reference.json](./schema-reference.json): `integrations`, `integration_credentials`, `integration_workflows`, `integration_workflow_transitions`, `integration_workflow_timers`, `integration_inbound_messages`, `integration_outbound_messages`. (No per-module audit table — see [ADR-0024](../../adr/0024-audit-deferred-to-pre-prod.md) and [§4.4 of the schema design](./01-schema-design.md#44-audit-posture--no-per-module-audit-table).)
 - [ ] Implement REST handlers for the **Integrations** tag in [integration-hub.v1.yaml](../../../../specs/openapi/integration-hub.v1.yaml): list/get/create/update integrations, add credentials.
 - [ ] Wire identity adapter (`@hims/ts-sdk-identity`), tenant context (`@hims/ts-sdk-tenant`), event publisher (`@hims/ts-sdk-events`), DB helpers (`@hims/ts-sdk-db`).
-- [ ] Cerbos policies for Integration Hub admin actions.
+- [ ] Cerbos policies for Integration Hub admin actions. **[DEFER IF TIME-CONSTRAINED]** — `PERMISSIVE_MODE=true` is acceptable locally; staging requires real policies before cutover.
 - [ ] Smoke test: register an integration, list it, update its status.
 
 ## Phase 0b -- FSM engine + timer worker (2-3 dev-weeks)
@@ -36,8 +38,8 @@ The Integration Hub is platform infrastructure -- always deployed alongside the 
 - [ ] Implement the engine's atomic transition flow per [01-schema-design.md §5.3](./01-schema-design.md#53-transition-execution): `SELECT ... FOR UPDATE` lock; validate transition against definition; execute side effects; UPDATE workflow row; INSERT transition record; INSERT/SUPERSEDE timers.
 - [ ] Implement side-effect kinds: `outbound_call`, `event_publish`, `set_context`, `clear_timer`, `set_timer`. JSON-Logic guard evaluation. (No `record_audit` kind — every transition is already an audit-by-construction row in `integration_workflow_transitions`. See [ADR-0024](../../adr/0024-audit-deferred-to-pre-prod.md).)
 - [ ] Implement the timer worker with `SELECT ... FOR UPDATE SKIP LOCKED` polling and pg_advisory_lock-based leader election (per [dev-doubts/01.md §1](./dev-doubts/01.md)).
-- [ ] FSM definition JSON Schema validator in CI.
-- [ ] Mermaid renderer for FSM definitions (build-time, emits state diagrams to docs site).
+- [ ] FSM definition JSON Schema validator in CI. **[DEFER IF TIME-CONSTRAINED]**
+- [ ] Mermaid renderer for FSM definitions (build-time, emits state diagrams to docs site). **[POST-DEMO]**
 - [ ] Vitest test pattern: `runFsmReplay(definition, eventList)` per [02-fsm-specifications.md §10](./02-fsm-specifications.md#10-testing-the-fsms).
 - [ ] Acceptance: a trivial FSM `test.flow.v1` (states: A, B, C; transitions A->B on event "go"; B->C on timeout 30s) runs end-to-end with all four engine guarantees observed.
 

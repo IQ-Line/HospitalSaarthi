@@ -2,6 +2,8 @@
 
 > Mirror of the GitHub issue body. Posted as a separate issue to track the implementation.
 
+**Phase 0/1 dev simplifications apply.** See [dev-env-simplifications.md](../../dev-env-simplifications.md) for the `HIMS_CITUS_ENABLED`, `PERMISSIVE_MODE`, `STRICT_SPEC_VALIDATION` knobs and the [REQUIRED FOR DEMO] / [DEFER IF TIME-CONSTRAINED] / [POST-DEMO] tag legend. Steps below tagged accordingly; untagged = [REQUIRED FOR DEMO] by default.
+
 Billing is a **horizontal supporting module** per [ADR-0025](../../adr/0025-billing-module-shape-and-phasing.md). Phase 1 reaches existing-production OPD counter-billing parity. Phase 1 ships as a library embedded in `services/opd-svc`; the same code extracts to `services/billing-svc` in Phase 2+ with no schema migration.
 
 ## What's already designed
@@ -28,7 +30,7 @@ Billing is a **horizontal supporting module** per [ADR-0025](../../adr/0025-bill
 - [ ] All CHECK constraints from [`schema-reference.json`](./schema-reference.json) included in the migration.
 - [ ] Indexes per [§4–§8 of the LLD](./01-schema-design.md).
 - [ ] Wire identity adapter (`@hims/ts-sdk-identity`), tenant context (`@hims/ts-sdk-tenant`), event publisher (`@hims/ts-sdk-events`), DB helpers (`@hims/ts-sdk-db`).
-- [ ] Cerbos policies for billing admin actions (service catalog write, discount approval, bill cancellation, payment void).
+- [ ] Cerbos policies for billing admin actions (service catalog write, discount approval, bill cancellation, payment void). **[DEFER IF TIME-CONSTRAINED]** — `PERMISSIVE_MODE=true` locally; staging requires real policies before cutover.
 - [ ] Smoke test: register a tenant, seed one service in `service_master`, run `SELECT count(*)` per Citus shard to confirm distribution.
 
 ## Phase 1b — Domain layer + Money type (3-5 dev-days)
@@ -71,7 +73,7 @@ Billing is a **horizontal supporting module** per [ADR-0025](../../adr/0025-bill
 
 - [ ] Generate request/response types from the OpenAPI spec via `openapi-typescript`.
 - [ ] Implement `http-handlers/` and `rest-handlers/` per the spec. Use Fastify schema validation for request bodies.
-- [ ] Idempotency-Key handling on `POST /v1/billing/charges`, `POST /v1/billing/payments`, `POST /v1/billing/advances` per [dev-doubts §idempotency-key-ttl](./dev-doubts/01.md#idempotency-key-ttl-and-storage).
+- [ ] Idempotency-Key handling on `POST /v1/billing/charges`, `POST /v1/billing/payments`, `POST /v1/billing/advances` per [dev-doubts §idempotency-key-ttl](./dev-doubts/01.md#idempotency-key-ttl-and-storage). **[REQUIRED FOR DEMO]** on `/charges` (clinical retry path); **[DEFER IF TIME-CONSTRAINED]** on `/payments` and `/advances` (lower retry exposure in Phase 1).
 - [ ] Standard error shape (matches integration-hub.v1.yaml's pattern); 400, 401, 403, 404, 409 covered.
 - [ ] Cerbos PEP wired in front of every mutating handler (resource type maps to bill, payment, advance, discount; actions are `read`, `create`, `update`, `cancel`, `approve`, `void`).
 - [ ] Acceptance: an end-to-end happy-path test runs through all 10 scenarios in [02-scenarios.md](./02-scenarios.md) using HTTP calls.
@@ -92,7 +94,8 @@ Billing is a **horizontal supporting module** per [ADR-0025](../../adr/0025-bill
 
 - [ ] Stand up `services/pdf-svc/` if not already present (likely a thin Puppeteer-based renderer with a tenant-CSS-aware HTML template).
 - [ ] Receipt template includes: tenant brand header (configured in Configurator), patient name/ABHA/age/sex (fetched from EMPI), bill number, bill date, itemised lines, tax breakup (CGST/SGST/IGST), payment method(s), receipt number, signature line.
-- [ ] Phase 1 fallback: client-side `window.print()` of a styled HTML page if `services/pdf-svc` is not yet up.
+- [ ] Phase 1 fallback: client-side `window.print()` of a styled HTML page if `services/pdf-svc` is not yet up. **[REQUIRED FOR DEMO]** (this fallback, or the pdf service)
+- [ ] Stand up `services/pdf-svc/` proper. **[DEFER IF TIME-CONSTRAINED]** — client-side print is acceptable for the demo.
 - [ ] Acceptance: `GET /v1/billing/bills/{id}/receipt.pdf` returns a PDF matching the expected layout in the demo tenant.
 
 ## Phase 1g — Demo seed + acceptance (2 dev-days)
