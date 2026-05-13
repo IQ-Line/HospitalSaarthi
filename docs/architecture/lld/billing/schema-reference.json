@@ -1,0 +1,447 @@
+{
+  "$schema": "erd/v1",
+  "schema": "billing",
+  "description": "Billing module — patient-facing revenue cycle. Charge capture, bill assembly, payments, advances, discounts (Phase 1); insurance & corporate (Phase 2); refunds, payment plans, IPD final bills (Phase 3); doctor commissions (Phase 4). All tables tenant-distributed; bill_items/payments/advance_utilizations/discount_approvals co-located with bills. See 01-schema-design.md for rationale and ADR-0025 for module shape & phasing.",
+  "citus": {
+    "distribution_column": "iq_tenant_id",
+    "colocated_with_bills": [
+      "bill_items",
+      "payments",
+      "advance_utilizations",
+      "discount_approvals"
+    ],
+    "reference_tables": []
+  },
+  "entities": {
+    "service_master": {
+      "phase": 1,
+      "description": "Tenant-scoped catalog of chargeable services. Read on every charge-ingest to resolve item_code to a price. Inactive services remain in the table; not deleted.",
+      "distribution": "iq_tenant_id",
+      "columns": {
+        "id": { "type": "UUID", "nullable": false, "default": "gen_random_uuid()", "pk": true },
+        "iq_tenant_id": { "type": "UUID", "nullable": false, "description": "Citus distribution column" },
+        "service_code": { "type": "VARCHAR(64)", "nullable": false, "description": "Tenant-unique service code" },
+        "service_name": { "type": "TEXT", "nullable": false, "description": "Display name; snapshotted to bill_items.description at charge time" },
+        "description": { "type": "TEXT", "nullable": true },
+        "department": { "type": "VARCHAR(64)", "nullable": true, "description": "Soft reference to User Management department list" },
+        "category": { "type": "VARCHAR(64)", "nullable": true, "description": "consultation, procedure, lab, radiology, pharmacy, etc." },
+        "sub_category": { "type": "VARCHAR(64)", "nullable": true },
+        "base_price": { "type": "NUMERIC(18,4)", "nullable": false, "check": "base_price >= 0", "description": "Rack rate before any price agreement" },
+        "tax_percentage": { "type": "NUMERIC(7,4)", "nullable": false, "default": "0", "check": "tax_percentage >= 0 AND tax_percentage <= 100", "description": "Snapshotted to bill_items.tax_percentage at charge time" },
+        "tax_category": { "type": "VARCHAR(32)", "nullable": true, "description": "CGST_SGST, IGST, EXEMPT" },
+        "hsn_sac_code": { "type": "VARCHAR(16)", "nullable": true, "description": "Indian invoicing requirement" },
+        "is_insurance_covered": { "type": "BOOLEAN", "nullable": false, "default": "true" },
+        "requires_pre_authorization": { "type": "BOOLEAN", "nullable": false, "default": "false" },
+        "icd_10_code": { "type": "VARCHAR(16)", "nullable": true },
+        "cpt_code": { "type": "VARCHAR(16)", "nullable": true },
+        "hcpcs_code": { "type": "VARCHAR(16)", "nullable": true },
+        "duration_minutes": { "type": "INTEGER", "nullable": true, "description": "Scheduling hint; not enforced" },
+        "requires_doctor_approval": { "type": "BOOLEAN", "nullable": false, "default": "false" },
+        "is_emergency_service": { "type": "BOOLEAN", "nullable": false, "default": "false" },
+        "is_active": { "type": "BOOLEAN", "nullable": false, "default": "true" },
+        "effective_from": { "type": "TIMESTAMPTZ", "nullable": true },
+        "effective_to": { "type": "TIMESTAMPTZ", "nullable": true, "check": "effective_to IS NULL OR effective_to > effective_from" },
+        "created_at": { "type": "TIMESTAMPTZ", "nullable": false, "default": "now()" },
+        "updated_at": { "type": "TIMESTAMPTZ", "nullable": false, "default": "now()" },
+        "created_by": { "type": "UUID", "nullable": true, "description": "Soft ref to User Management" },
+        "updated_by": { "type": "UUID", "nullable": true }
+      },
+      "indexes": [
+        { "unique": true, "columns": ["iq_tenant_id", "service_code"] },
+        { "columns": ["iq_tenant_id", "is_active", "category"] },
+        { "columns": ["iq_tenant_id", "service_name"], "ops": "text_pattern_ops", "purpose": "autocomplete" }
+      ]
+    },
+    "price_agreements": {
+      "phase": 1,
+      "description": "Tenant-scoped pricing overrides. Phase 1: TENANT_DEFAULT, DOCTOR_OVERRIDE, DEPARTMENT_OVERRIDE. Phase 2 adds CORPORATE, INSURER.",
+      "distribution": "iq_tenant_id",
+      "columns": {
+        "id": { "type": "UUID", "nullable": false, "default": "gen_random_uuid()", "pk": true },
+        "iq_tenant_id": { "type": "UUID", "nullable": false },
+        "agreement_code": { "type": "VARCHAR(64)", "nullable": false },
+        "agreement_type": { "type": "VARCHAR(32)", "nullable": false, "check": "agreement_type IN ('TENANT_DEFAULT','DOCTOR_OVERRIDE','DEPARTMENT_OVERRIDE','CORPORATE','INSURER')" },
+        "entity_id": { "type": "UUID", "nullable": true, "description": "Polymorphic: doctor_id, department_id, corporate_client_id, insurance_provider_id" },
+        "entity_name": { "type": "TEXT", "nullable": true, "description": "Snapshot of entity display name at agreement creation" },
+        "service_id": { "type": "UUID", "nullable": true, "description": "Soft ref to service_master.id" },
+        "package_id": { "type": "UUID", "nullable": true, "description": "Soft ref to service_packages.id (Phase 2)" },
+        "original_price": { "type": "NUMERIC(18,4)", "nullable": true },
+        "agreed_price": { "type": "NUMERIC(18,4)", "nullable": false, "check": "agreed_price >= 0" },
+        "discount_percentage": { "type": "NUMERIC(7,4)", "nullable": true },
+        "valid_from": { "type": "TIMESTAMPTZ", "nullable": false },
+        "valid_to": { "type": "TIMESTAMPTZ", "nullable": true },
+        "minimum_volume": { "type": "INTEGER", "nullable": true, "description": "Phase 2 enforcement" },
+        "payment_terms": { "type": "TEXT", "nullable": true },
+        "is_active": { "type": "BOOLEAN", "nullable": false, "default": "true" },
+        "approved_by": { "type": "UUID", "nullable": true },
+        "approval_date": { "type": "TIMESTAMPTZ", "nullable": true },
+        "created_at": { "type": "TIMESTAMPTZ", "nullable": false, "default": "now()" },
+        "updated_at": { "type": "TIMESTAMPTZ", "nullable": false, "default": "now()" }
+      },
+      "indexes": [
+        { "unique": true, "columns": ["iq_tenant_id", "agreement_code"] },
+        { "columns": ["iq_tenant_id", "agreement_type", "service_id", "is_active"], "purpose": "resolution-order lookup" },
+        { "columns": ["iq_tenant_id", "entity_id", "is_active"] }
+      ]
+    },
+    "bills": {
+      "phase": 1,
+      "description": "The financial document for a patient-visit. Header here; line items in bill_items. State machine: DRAFT -> FINALIZED -> PARTIALLY_PAID -> PAID -> CLOSED; CANCELLED and REPLACED are terminal. Bill amendment creates a new DRAFT linked by replaced_bill_id.",
+      "distribution": "iq_tenant_id",
+      "columns": {
+        "id": { "type": "UUID", "nullable": false, "default": "gen_random_uuid()", "pk": true },
+        "iq_tenant_id": { "type": "UUID", "nullable": false },
+        "bill_number": { "type": "VARCHAR(64)", "nullable": false, "description": "Tenant-unique generated number; format per dev-doubts" },
+        "patient_id": { "type": "UUID", "nullable": false, "description": "Soft ref to EMPI" },
+        "visit_id": { "type": "UUID", "nullable": true, "description": "Soft ref to clinical visit (OPD visit / IPD admission)" },
+        "visit_type": { "type": "VARCHAR(16)", "nullable": true, "check": "visit_type IN ('OPD','IPD','ER','DAYCARE','WALK_IN')" },
+        "bill_type": { "type": "VARCHAR(32)", "nullable": false, "check": "bill_type IN ('INTERIM','FINAL','STANDALONE')" },
+        "bill_category": { "type": "VARCHAR(32)", "nullable": true, "check": "bill_category IN ('SELF_PAY','INSURANCE','CORPORATE','MIXED')" },
+        "bill_date": { "type": "DATE", "nullable": false, "default": "current_date" },
+        "due_date": { "type": "DATE", "nullable": true, "description": "For corporate/credit billing" },
+        "discharge_date": { "type": "DATE", "nullable": true, "description": "Phase 3 IPD" },
+        "subtotal": { "type": "NUMERIC(18,4)", "nullable": false, "default": "0" },
+        "discount_amount": { "type": "NUMERIC(18,4)", "nullable": false, "default": "0" },
+        "discount_percentage": { "type": "NUMERIC(7,4)", "nullable": true },
+        "discount_reason": { "type": "TEXT", "nullable": true },
+        "tax_amount": { "type": "NUMERIC(18,4)", "nullable": false, "default": "0" },
+        "total_amount": { "type": "NUMERIC(18,4)", "nullable": false, "default": "0" },
+        "round_off_amount": { "type": "NUMERIC(18,4)", "nullable": false, "default": "0" },
+        "net_amount": { "type": "NUMERIC(18,4)", "nullable": false, "default": "0", "check": "net_amount >= 0" },
+        "paid_amount": { "type": "NUMERIC(18,4)", "nullable": false, "default": "0", "check": "paid_amount >= 0" },
+        "advance_adjusted": { "type": "NUMERIC(18,4)", "nullable": false, "default": "0" },
+        "outstanding_amount": { "type": "NUMERIC(18,4)", "nullable": false, "default": "0", "check": "outstanding_amount >= 0" },
+        "insurance_claim_amount": { "type": "NUMERIC(18,4)", "nullable": true, "description": "Phase 2 — set when claim filed" },
+        "insurance_approved_amount": { "type": "NUMERIC(18,4)", "nullable": true, "description": "Phase 2" },
+        "insurance_paid_amount": { "type": "NUMERIC(18,4)", "nullable": true, "description": "Phase 2" },
+        "insurance_rejected_amount": { "type": "NUMERIC(18,4)", "nullable": true, "description": "Phase 2" },
+        "patient_payable": { "type": "NUMERIC(18,4)", "nullable": true, "description": "Phase 2 — net_amount minus insurance_paid_amount" },
+        "status": { "type": "VARCHAR(16)", "nullable": false, "default": "'DRAFT'", "check": "status IN ('DRAFT','FINALIZED','PARTIALLY_PAID','PAID','CLOSED','CANCELLED','REPLACED')" },
+        "payment_status": { "type": "VARCHAR(16)", "nullable": true, "description": "UNPAID, PARTIAL, PAID; derived but stored" },
+        "parent_bill_id": { "type": "UUID", "nullable": true, "description": "INTERIM bills' parent" },
+        "replaced_bill_id": { "type": "UUID", "nullable": true, "description": "Original bill this amendment replaces" },
+        "corporate_client_id": { "type": "UUID", "nullable": true, "description": "Phase 2 — soft ref" },
+        "employee_id": { "type": "VARCHAR(64)", "nullable": true, "description": "Corporate employee identifier snapshot" },
+        "employee_name": { "type": "TEXT", "nullable": true, "description": "Snapshot" },
+        "policy_id": { "type": "UUID", "nullable": true, "description": "Phase 2 — soft ref to patient_insurance_policies" },
+        "tax_breakup": { "type": "JSONB", "nullable": true, "description": "{cgst, sgst, igst, cess} for invoice rendering" },
+        "notes": { "type": "TEXT", "nullable": true },
+        "internal_notes": { "type": "TEXT", "nullable": true },
+        "cancellation_reason": { "type": "TEXT", "nullable": true },
+        "created_by": { "type": "UUID", "nullable": true },
+        "approved_by": { "type": "UUID", "nullable": true },
+        "cancelled_by": { "type": "UUID", "nullable": true },
+        "created_at": { "type": "TIMESTAMPTZ", "nullable": false, "default": "now()" },
+        "updated_at": { "type": "TIMESTAMPTZ", "nullable": false, "default": "now()" },
+        "approved_at": { "type": "TIMESTAMPTZ", "nullable": true },
+        "cancelled_at": { "type": "TIMESTAMPTZ", "nullable": true }
+      },
+      "table_checks": [
+        "status != 'DRAFT' OR paid_amount = 0"
+      ],
+      "indexes": [
+        { "unique": true, "columns": ["iq_tenant_id", "bill_number"] },
+        { "columns": ["iq_tenant_id", "patient_id", "bill_date"], "order": "DESC" },
+        { "columns": ["iq_tenant_id", "visit_id", "status"] },
+        { "columns": ["iq_tenant_id", "status", "bill_date"] },
+        { "columns": ["iq_tenant_id", "corporate_client_id", "due_date"], "purpose": "Phase 2 corporate AR aging" }
+      ]
+    },
+    "bill_items": {
+      "phase": 1,
+      "description": "Chargeable line on a bill. Snapshots pricing (item_code, description, unit_price, tax_percentage, tax_category, is_insurance_covered) at charge time. Immutable financial fields once parent bill is not DRAFT.",
+      "distribution": "iq_tenant_id",
+      "colocate_with": "bills",
+      "columns": {
+        "id": { "type": "UUID", "nullable": false, "default": "gen_random_uuid()", "pk": true },
+        "iq_tenant_id": { "type": "UUID", "nullable": false },
+        "bill_id": { "type": "UUID", "nullable": false, "description": "Soft ref to bills within schema; same-tenant enforced at app layer" },
+        "service_id": { "type": "UUID", "nullable": true, "description": "Soft ref to service_master.id" },
+        "package_id": { "type": "UUID", "nullable": true, "description": "Soft ref to service_packages.id (Phase 2)" },
+        "price_agreement_id": { "type": "UUID", "nullable": true, "description": "Which agreement chosen by resolution order" },
+        "item_type": { "type": "VARCHAR(32)", "nullable": false, "check": "item_type IN ('SERVICE','PACKAGE','PACKAGE_LINE','ADJUSTMENT')" },
+        "item_code": { "type": "VARCHAR(64)", "nullable": false, "description": "Snapshot from service_master.service_code or service_packages.package_code" },
+        "description": { "type": "TEXT", "nullable": false, "description": "Snapshot from service_master.service_name etc." },
+        "quantity": { "type": "NUMERIC(10,2)", "nullable": false, "default": "1", "check": "quantity > 0" },
+        "unit": { "type": "VARCHAR(16)", "nullable": true, "description": "each, ml, hour" },
+        "unit_price": { "type": "NUMERIC(18,4)", "nullable": false, "check": "unit_price >= 0", "description": "Snapshot of resolved price; immutable post-write" },
+        "gross_amount": { "type": "NUMERIC(18,4)", "nullable": false, "description": "quantity * unit_price" },
+        "discount_percentage": { "type": "NUMERIC(7,4)", "nullable": false, "default": "0", "check": "discount_percentage >= 0 AND discount_percentage <= 100" },
+        "discount_amount": { "type": "NUMERIC(18,4)", "nullable": false, "default": "0", "check": "discount_amount >= 0" },
+        "net_amount": { "type": "NUMERIC(18,4)", "nullable": false, "description": "gross_amount - discount_amount" },
+        "tax_percentage": { "type": "NUMERIC(7,4)", "nullable": false, "description": "Snapshot from service_master.tax_percentage" },
+        "tax_amount": { "type": "NUMERIC(18,4)", "nullable": false, "description": "net_amount * tax_percentage / 100" },
+        "total_amount": { "type": "NUMERIC(18,4)", "nullable": false, "description": "net_amount + tax_amount" },
+        "tax_category": { "type": "VARCHAR(32)", "nullable": true, "description": "Snapshot from service_master.tax_category" },
+        "is_insurance_covered": { "type": "BOOLEAN", "nullable": false, "description": "Snapshot from service_master" },
+        "insurance_claim_amount": { "type": "NUMERIC(18,4)", "nullable": true, "description": "Phase 2" },
+        "insurance_approved_amount": { "type": "NUMERIC(18,4)", "nullable": true, "description": "Phase 2" },
+        "insurance_rejection_reason": { "type": "TEXT", "nullable": true, "description": "Phase 2" },
+        "patient_share": { "type": "NUMERIC(18,4)", "nullable": true, "description": "Phase 2 post-claim" },
+        "source_module": { "type": "VARCHAR(32)", "nullable": false, "description": "opd, ipd, lab, pharmacy, radiology, manual" },
+        "source_ref": { "type": "UUID", "nullable": true, "description": "Clinical row ID in its module; NULL for manual" },
+        "performed_date": { "type": "TIMESTAMPTZ", "nullable": true },
+        "performed_by": { "type": "UUID", "nullable": true, "description": "Soft ref to User Management" },
+        "department": { "type": "VARCHAR(64)", "nullable": true, "description": "Snapshot" },
+        "status": { "type": "VARCHAR(16)", "nullable": false, "default": "'ACTIVE'", "check": "status IN ('ACTIVE','VOIDED')" },
+        "idempotency_key": { "type": "TEXT", "nullable": true, "description": "Idempotency-Key from charge-ingest" },
+        "notes": { "type": "TEXT", "nullable": true },
+        "created_at": { "type": "TIMESTAMPTZ", "nullable": false, "default": "now()" },
+        "updated_at": { "type": "TIMESTAMPTZ", "nullable": false, "default": "now()" }
+      },
+      "indexes": [
+        { "columns": ["iq_tenant_id", "bill_id", "status"] },
+        { "columns": ["iq_tenant_id", "performed_by", "performed_date"], "purpose": "Phase 4 doctor-commission scan" },
+        { "columns": ["iq_tenant_id", "source_module", "source_ref"], "purpose": "reverse lookup from clinical row" },
+        { "unique": true, "columns": ["iq_tenant_id", "idempotency_key"], "where": "idempotency_key IS NOT NULL" }
+      ]
+    },
+    "payments": {
+      "phase": 1,
+      "description": "Each payment is a transaction against a bill. Many payments per bill allowed (split tender, partial pay). Refunds (Phase 3) are NOT negative payments.",
+      "distribution": "iq_tenant_id",
+      "colocate_with": "bills",
+      "columns": {
+        "id": { "type": "UUID", "nullable": false, "default": "gen_random_uuid()", "pk": true },
+        "iq_tenant_id": { "type": "UUID", "nullable": false },
+        "payment_number": { "type": "VARCHAR(64)", "nullable": false, "description": "Tenant-unique generated" },
+        "receipt_number": { "type": "VARCHAR(64)", "nullable": true, "description": "Generated on SUCCESS; shown to patient" },
+        "bill_id": { "type": "UUID", "nullable": true, "description": "NULL for unallocated payments" },
+        "patient_id": { "type": "UUID", "nullable": false, "description": "Mirrored from bill" },
+        "payment_date": { "type": "TIMESTAMPTZ", "nullable": false, "default": "now()" },
+        "amount": { "type": "NUMERIC(18,4)", "nullable": false, "check": "amount > 0" },
+        "payment_method": { "type": "VARCHAR(32)", "nullable": false, "check": "payment_method IN ('CASH','CARD','UPI','CHEQUE','BANK_TRANSFER','GATEWAY','ADVANCE_RECEIPT','ADVANCE_UTILIZATION','INSURANCE_DISBURSEMENT','CORPORATE_INVOICE')" },
+        "transaction_id": { "type": "TEXT", "nullable": true },
+        "reference_number": { "type": "TEXT", "nullable": true },
+        "authorization_code": { "type": "TEXT", "nullable": true, "description": "Card auth code" },
+        "card_type": { "type": "VARCHAR(16)", "nullable": true },
+        "card_last4": { "type": "VARCHAR(4)", "nullable": true, "description": "PCI scope minimisation" },
+        "card_holder_name": { "type": "TEXT", "nullable": true },
+        "bank_name": { "type": "TEXT", "nullable": true },
+        "branch_name": { "type": "TEXT", "nullable": true },
+        "cheque_number": { "type": "VARCHAR(32)", "nullable": true },
+        "cheque_date": { "type": "DATE", "nullable": true },
+        "upi_id": { "type": "TEXT", "nullable": true },
+        "upi_transaction_id": { "type": "TEXT", "nullable": true },
+        "payment_gateway": { "type": "VARCHAR(32)", "nullable": true },
+        "gateway_response": { "type": "JSONB", "nullable": true, "description": "Full gateway callback for audit" },
+        "claim_id": { "type": "UUID", "nullable": true, "description": "Phase 2 — soft ref to insurance_claims" },
+        "tds_deducted": { "type": "NUMERIC(18,4)", "nullable": true, "description": "Phase 2 — TDS withheld by insurer" },
+        "status": { "type": "VARCHAR(16)", "nullable": false, "default": "'SUCCESS'", "check": "status IN ('PENDING_GATEWAY','SUCCESS','FAILED','VOIDED')" },
+        "received_by": { "type": "UUID", "nullable": true },
+        "verified_by": { "type": "UUID", "nullable": true, "description": "Optional second-set-of-eyes" },
+        "notes": { "type": "TEXT", "nullable": true },
+        "remarks": { "type": "TEXT", "nullable": true },
+        "created_at": { "type": "TIMESTAMPTZ", "nullable": false, "default": "now()" },
+        "updated_at": { "type": "TIMESTAMPTZ", "nullable": false, "default": "now()" },
+        "verified_at": { "type": "TIMESTAMPTZ", "nullable": true }
+      },
+      "indexes": [
+        { "unique": true, "columns": ["iq_tenant_id", "payment_number"] },
+        { "unique": true, "columns": ["iq_tenant_id", "receipt_number"], "where": "receipt_number IS NOT NULL" },
+        { "columns": ["iq_tenant_id", "bill_id", "payment_date"] },
+        { "columns": ["iq_tenant_id", "patient_id", "payment_date"] },
+        { "columns": ["iq_tenant_id", "status"], "where": "status = 'PENDING_GATEWAY'", "purpose": "operator reconciliation queue" }
+      ]
+    },
+    "patient_advances": {
+      "phase": 1,
+      "description": "Pre-payment against future services. Balance accounting: advance_amount - utilized_amount - refunded_amount = available_balance. Linked to a payments row (the advance receipt).",
+      "distribution": "iq_tenant_id",
+      "columns": {
+        "id": { "type": "UUID", "nullable": false, "default": "gen_random_uuid()", "pk": true },
+        "iq_tenant_id": { "type": "UUID", "nullable": false },
+        "advance_number": { "type": "VARCHAR(64)", "nullable": false },
+        "patient_id": { "type": "UUID", "nullable": false },
+        "visit_id": { "type": "UUID", "nullable": true, "description": "Visit-scoped admission deposits" },
+        "advance_amount": { "type": "NUMERIC(18,4)", "nullable": false, "check": "advance_amount > 0" },
+        "utilized_amount": { "type": "NUMERIC(18,4)", "nullable": false, "default": "0", "check": "utilized_amount >= 0" },
+        "refunded_amount": { "type": "NUMERIC(18,4)", "nullable": false, "default": "0", "check": "refunded_amount >= 0" },
+        "available_balance": { "type": "NUMERIC(18,4)", "nullable": false, "check": "available_balance >= 0" },
+        "advance_type": { "type": "VARCHAR(32)", "nullable": false, "check": "advance_type IN ('OPD_ADVANCE','IPD_DEPOSIT','PROCEDURE_DEPOSIT','GENERAL')" },
+        "purpose": { "type": "TEXT", "nullable": true },
+        "payment_id": { "type": "UUID", "nullable": false, "description": "Soft ref to payments row of method='ADVANCE_RECEIPT'" },
+        "payment_date": { "type": "TIMESTAMPTZ", "nullable": false, "description": "Mirrored from payments" },
+        "payment_method": { "type": "VARCHAR(32)", "nullable": false, "description": "Mirrored from payments" },
+        "status": { "type": "VARCHAR(16)", "nullable": false, "default": "'AVAILABLE'", "check": "status IN ('AVAILABLE','EXHAUSTED','EXPIRED','REFUNDED')" },
+        "valid_until": { "type": "DATE", "nullable": true },
+        "received_by": { "type": "UUID", "nullable": true },
+        "created_at": { "type": "TIMESTAMPTZ", "nullable": false, "default": "now()" },
+        "updated_at": { "type": "TIMESTAMPTZ", "nullable": false, "default": "now()" }
+      },
+      "table_checks": [
+        "available_balance = advance_amount - utilized_amount - refunded_amount"
+      ],
+      "indexes": [
+        { "unique": true, "columns": ["iq_tenant_id", "advance_number"] },
+        { "columns": ["iq_tenant_id", "patient_id", "status"], "where": "status = 'AVAILABLE'" }
+      ]
+    },
+    "advance_utilizations": {
+      "phase": 1,
+      "description": "Application of a patient_advances row against a specific bill. Multiple utilizations per advance allowed until balance reaches zero.",
+      "distribution": "iq_tenant_id",
+      "colocate_with": "bills",
+      "columns": {
+        "id": { "type": "UUID", "nullable": false, "default": "gen_random_uuid()", "pk": true },
+        "iq_tenant_id": { "type": "UUID", "nullable": false },
+        "advance_id": { "type": "UUID", "nullable": false, "description": "Soft ref to patient_advances" },
+        "bill_id": { "type": "UUID", "nullable": false, "description": "Soft ref to bills" },
+        "utilized_amount": { "type": "NUMERIC(18,4)", "nullable": false, "check": "utilized_amount > 0" },
+        "utilization_date": { "type": "TIMESTAMPTZ", "nullable": false, "default": "now()" },
+        "utilized_by": { "type": "UUID", "nullable": true },
+        "notes": { "type": "TEXT", "nullable": true }
+      },
+      "indexes": [
+        { "columns": ["iq_tenant_id", "advance_id"] },
+        { "columns": ["iq_tenant_id", "bill_id"] }
+      ]
+    },
+    "discount_approvals": {
+      "phase": 1,
+      "description": "Approval workflow for discounts above tenant-configured thresholds. Bill-level or line-level. Bill carries the discount totals; this is the audit trail.",
+      "distribution": "iq_tenant_id",
+      "colocate_with": "bills",
+      "columns": {
+        "id": { "type": "UUID", "nullable": false, "default": "gen_random_uuid()", "pk": true },
+        "iq_tenant_id": { "type": "UUID", "nullable": false },
+        "bill_id": { "type": "UUID", "nullable": true, "description": "Bill-level discount" },
+        "bill_item_id": { "type": "UUID", "nullable": true, "description": "Line-level discount" },
+        "discount_type": { "type": "VARCHAR(16)", "nullable": false, "check": "discount_type IN ('PERCENTAGE','AMOUNT')" },
+        "discount_value": { "type": "NUMERIC(18,4)", "nullable": false, "description": "Percent or amount as entered" },
+        "discount_amount": { "type": "NUMERIC(18,4)", "nullable": false, "description": "Resolved amount" },
+        "original_amount": { "type": "NUMERIC(18,4)", "nullable": false, "description": "Gross before discount" },
+        "reason": { "type": "TEXT", "nullable": false },
+        "reason_category": { "type": "VARCHAR(32)", "nullable": true, "description": "STAFF_DISCOUNT, SENIOR_CITIZEN, GOODWILL, BPL, EMPLOYEE, OTHER" },
+        "requested_by": { "type": "UUID", "nullable": false },
+        "approved_by": { "type": "UUID", "nullable": true },
+        "approval_level": { "type": "VARCHAR(32)", "nullable": true, "description": "BILLING_MANAGER, MEDICAL_SUPERINTENDENT" },
+        "status": { "type": "VARCHAR(16)", "nullable": false, "default": "'PENDING'", "check": "status IN ('PENDING','APPROVED','REJECTED')" },
+        "supporting_document_url": { "type": "TEXT", "nullable": true },
+        "created_at": { "type": "TIMESTAMPTZ", "nullable": false, "default": "now()" },
+        "approved_at": { "type": "TIMESTAMPTZ", "nullable": true }
+      },
+      "table_checks": [
+        "(bill_id IS NOT NULL) OR (bill_item_id IS NOT NULL)"
+      ],
+      "indexes": [
+        { "columns": ["iq_tenant_id", "status", "created_at"], "where": "status = 'PENDING'", "purpose": "approver dashboard" },
+        { "columns": ["iq_tenant_id", "bill_id"] }
+      ]
+    },
+    "insurance_providers": {
+      "phase": 2,
+      "description": "Sketch — see lead's ERD for column set. 26 columns covering TPA/insurer master, contact, claim submission method, credit limit, settlement cycle. Distributed by iq_tenant_id. Possible Master Data migration later.",
+      "distribution": "iq_tenant_id"
+    },
+    "patient_insurance_policies": {
+      "phase": 2,
+      "description": "Sketch. 27 columns per lead's ERD. policy_number, sum_insured, copay/deductible, room rent limit, primary/priority order, dates. Distributed by iq_tenant_id; soft ref to EMPI patient_id.",
+      "distribution": "iq_tenant_id"
+    },
+    "insurance_claims": {
+      "phase": 2,
+      "description": "Sketch. 47 columns per lead's ERD. Per-bill claim record with submission/approval/rejection workflow, pre-auth, payment reference, TDS. Integration Hub owns the FSM that drives it; this table is the data of record.",
+      "distribution": "iq_tenant_id"
+    },
+    "corporate_clients": {
+      "phase": 2,
+      "description": "Sketch. Company-billed accounts. Credit limit, credit days, agreement dates, employee-verification rules.",
+      "distribution": "iq_tenant_id"
+    },
+    "service_packages": {
+      "phase": 2,
+      "description": "Sketch. Marketed bundles — health checkups, surgical packages, maternity packages. Sold as a unit; expanded to one bill_items row per package_items entry at charge time.",
+      "distribution": "iq_tenant_id"
+    },
+    "package_items": {
+      "phase": 2,
+      "description": "Sketch. Lines within a service_packages row. quantity, individual_price, sequence_number, is_mandatory.",
+      "distribution": "iq_tenant_id"
+    },
+    "refunds": {
+      "phase": 3,
+      "description": "Sketch — 31 columns per lead's ERD. Refund type, amount, method (bank/cheque/gateway reversal), approval/processing workflow. NOT a negative payment; its own row.",
+      "distribution": "iq_tenant_id"
+    },
+    "payment_plans": {
+      "phase": 3,
+      "description": "Sketch — high-value bill financing. Down payment, financed amount, installment amount, frequency, late-fee, guarantor fields.",
+      "distribution": "iq_tenant_id"
+    },
+    "installments": {
+      "phase": 3,
+      "description": "Sketch — per-installment of a payment_plans row. Due date, paid amount, late fee, days overdue, reminder tracking.",
+      "distribution": "iq_tenant_id"
+    },
+    "ipd_discharge_summaries": {
+      "phase": 3,
+      "description": "Sketch — final bill aggregate for IPD stay. Roll-up of room/procedure/medicine/investigation/consultation charges; advance adjusted; insurance amounts; balance due. Financial counterpart to IPD module's clinical discharge summary.",
+      "distribution": "iq_tenant_id"
+    },
+    "doctor_commission_rules": {
+      "phase": 4,
+      "description": "Sketch — rules per (doctor, service) or (doctor, department). Commission type (percentage/fixed/tiered), value, validity window.",
+      "distribution": "iq_tenant_id"
+    },
+    "doctor_commissions": {
+      "phase": 4,
+      "description": "Sketch — accrued commission rows. Created on every bill.item-added event for billable services where the doctor has a rule.",
+      "distribution": "iq_tenant_id"
+    },
+    "doctor_commission_payouts": {
+      "phase": 4,
+      "description": "Sketch — periodic aggregates. Links accrued commissions to payment mode and reference. Status: DRAFT, APPROVED, PAID.",
+      "distribution": "iq_tenant_id"
+    }
+  },
+  "phase_summary": {
+    "phase_1_counter_billing": [
+      "service_master",
+      "price_agreements",
+      "bills",
+      "bill_items",
+      "payments",
+      "patient_advances",
+      "advance_utilizations",
+      "discount_approvals"
+    ],
+    "phase_2_insurance_and_corporate": [
+      "insurance_providers",
+      "patient_insurance_policies",
+      "insurance_claims",
+      "corporate_clients",
+      "service_packages",
+      "package_items"
+    ],
+    "phase_3_refunds_plans_ipd": [
+      "refunds",
+      "payment_plans",
+      "installments",
+      "ipd_discharge_summaries"
+    ],
+    "phase_4_doctor_commissions": [
+      "doctor_commission_rules",
+      "doctor_commissions",
+      "doctor_commission_payouts"
+    ]
+  },
+  "departures_from_lead_erd": {
+    "removed": {
+      "patients": "Patient identity owned by EMPI per ADR-0007 and CLAUDE.md (no cross-module patient ownership). Billing carries patient_id UUID soft reference.",
+      "billing_audit_log": "Audit deferred to centralized HTTP middleware + CDC per ADR-0024. No per-module audit tables."
+    },
+    "added": {
+      "iq_tenant_id": "Multi-tenancy column on every table per ADR-0012. Lead's ERD had no tenant scoping.",
+      "bill_items.source_module": "Required to identify which clinical module emitted the charge; supports reverse lookup from clinical row.",
+      "bill_items.source_ref": "Clinical row ID for reverse lookup.",
+      "bill_items.price_agreement_id": "Which price agreement was selected by the resolution order; for reproducibility.",
+      "bill_items.tax_category": "Snapshotted from service_master for invoice rendering.",
+      "bill_items.idempotency_key": "Charge-ingest idempotency.",
+      "service_master.hsn_sac_code": "Indian invoicing requirement absent from lead's ERD."
+    },
+    "renamed": {
+      "bills.advance_ids": "Replaced with explicit advance_utilizations rows (lead had JSONB array; we model as first-class rows)."
+    }
+  }
+}
