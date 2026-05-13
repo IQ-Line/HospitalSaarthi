@@ -10,8 +10,10 @@ from app.api.v1.visitpad.allergies import allergens_router, reactions_router
 from app.api.v1.visitpad.chief_complaints import router as visitpad_chief_complaints_router
 from app.api.v1.visitpad.chronic_illnesses import router as visitpad_chronic_illnesses_router
 from app.api.v1.visitpad.diagnoses import router as visitpad_diagnoses_router
+from app.api.v1.visitpad.manufacturers import router as visitpad_manufacturers_router
 from app.api.v1.visitpad.medicines import router as visitpad_medicines_router
 from app.api.v1.visitpad.procedures import router as visitpad_procedures_router
+from app.api.v1.visitpad.vaccines import router as visitpad_vaccines_router
 from app.api.v1.visitpad.rx_columns import router as visitpad_rx_columns_router
 from app.api.v1.visitpad.units import conversions_router, units_router
 from app.api.v1.visitpad.vitals import router as visitpad_vitals_router
@@ -34,4 +36,6 @@ api_router.include_router(reactions_router)
 api_router.include_router(visitpad_rx_columns_router)
 api_router.include_router(visitpad_medicines_router)
 api_router.include_router(visitpad_chronic_illnesses_router)
+api_router.include_router(visitpad_vaccines_router)
+api_router.include_router(visitpad_manufacturers_router)
 api_router.include_router(visitpad_procedures_router)

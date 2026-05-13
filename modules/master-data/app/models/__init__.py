@@ -26,6 +26,8 @@ from app.models.visitpad.conversion import (
     VisitpadUnitConversionPublicModel,
 )
 from app.models.visitpad.vital import VisitpadVitalModel, VisitpadVitalPublicModel
+from app.models.visitpad.manufacturer import VisitpadManufacturerModel, VisitpadManufacturerPublicModel
+from app.models.visitpad.vaccine import VisitpadVaccineModel, VisitpadVaccinePublicModel
 
 __all__ = [
     "Base",
@@ -55,4 +57,8 @@ __all__ = [
     "VisitpadUnitConversionPublicModel",
     "VisitpadVitalModel",
     "VisitpadVitalPublicModel",
+    "VisitpadManufacturerModel",
+    "VisitpadManufacturerPublicModel",
+    "VisitpadVaccineModel",
+    "VisitpadVaccinePublicModel",
 ]

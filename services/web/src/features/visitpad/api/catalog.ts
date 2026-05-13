@@ -15,6 +15,8 @@ import type {
   VisitpadUnit,
   VisitpadUnitConversion,
   VisitpadVital,
+  VisitpadVaccine,
+  VisitpadManufacturer,
 } from '../types';
 
 const MD = '/api/v1/master-data/visitpad';
@@ -156,5 +158,21 @@ export function useVisitpadProcedures(
       apiClient<VisitpadListResponse<VisitpadProcedure>>(
         listUrl('/procedures', { search, category, billing_category }),
       ),
+  });
+}
+
+export function useVisitpadVaccines(search?: string) {
+  return useQuery({
+    queryKey: [...visitpadKeys.vaccines(), search ?? ''],
+    queryFn: () =>
+      apiClient<VisitpadListResponse<VisitpadVaccine>>(listUrl('/vaccines', { search })),
+  });
+}
+
+export function useVisitpadManufacturers(search?: string) {
+  return useQuery({
+    queryKey: [...visitpadKeys.manufacturers(), search ?? ''],
+    queryFn: () =>
+      apiClient<VisitpadListResponse<VisitpadManufacturer>>(listUrl('/manufacturers', { search })),
   });
 }
