@@ -48,6 +48,7 @@ import {
   type VisitpadUnitEditFormSchema,
 } from '@/features/visitpad/validation';
 import { useVisitpadCatalogPermission } from '@/features/visitpad/hooks/use-visitpad-catalog-permission';
+import { useVisitpadImportLibrarySearch } from '@/features/visitpad/hooks/use-visitpad-import-library-search';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 
 const UNITS_BASE = '/api/v1/master-data/visitpad/units';
@@ -65,6 +66,10 @@ function VisitpadUnitsPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [libPageIndex, setLibPageIndex] = useState(0);
   const libPageSize = 50;
+  const { librarySearch, librarySearchDraft, setLibrarySearchDraft } = useVisitpadImportLibrarySearch(
+    importOpen,
+    setLibPageIndex,
+  );
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadUnit | null>(null);
@@ -75,10 +80,14 @@ function VisitpadUnitsPage() {
     setPageIndex(0);
   }, [search, dimension]);
   const { data, isLoading, error } = useVisitpadUnits(search || undefined, dimParam, listPage);
-  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadUnitsGlobalLibrary(importOpen, {
-    pageIndex: libPageIndex,
-    pageSize: libPageSize,
-  });
+  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadUnitsGlobalLibrary(
+    importOpen,
+    {
+      pageIndex: libPageIndex,
+      pageSize: libPageSize,
+    },
+    librarySearch || undefined,
+  );
   const { data: tenantCodeKeys } = useVisitpadTenantImportKeys(
     '/units',
     importOpen && tenantCatalog,
@@ -128,10 +137,6 @@ function VisitpadUnitsPage() {
       toast.error(mutationErrorMessage(e));
     }
   };
-
-  useEffect(() => {
-    if (importOpen) setLibPageIndex(0);
-  }, [importOpen]);
 
   const columns = useMemo<ColumnDef<VisitpadUnit, unknown>[]>(
     () => [
@@ -289,6 +294,10 @@ function VisitpadUnitsPage() {
           pageSize: libPageSize,
           total: globalLibTotal,
           onPageChange: setLibPageIndex,
+        }}
+        librarySearchControl={{
+          draft: librarySearchDraft,
+          onDraftChange: setLibrarySearchDraft,
         }}
       />
 

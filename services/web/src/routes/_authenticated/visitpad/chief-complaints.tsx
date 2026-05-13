@@ -46,6 +46,7 @@ import {
   type VisitpadChiefComplaintEditFormSchema,
 } from '@/features/visitpad/validation';
 import { useVisitpadCatalogPermission } from '@/features/visitpad/hooks/use-visitpad-catalog-permission';
+import { useVisitpadImportLibrarySearch } from '@/features/visitpad/hooks/use-visitpad-import-library-search';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 
 const CC_BASE = '/api/v1/master-data/visitpad/chief-complaints';
@@ -63,6 +64,10 @@ function VisitpadChiefComplaintsPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [libPageIndex, setLibPageIndex] = useState(0);
   const libPageSize = 50;
+  const { librarySearch, librarySearchDraft, setLibrarySearchDraft } = useVisitpadImportLibrarySearch(
+    importOpen,
+    setLibPageIndex,
+  );
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadChiefComplaint | null>(null);
@@ -75,10 +80,14 @@ function VisitpadChiefComplaintsPage() {
     setPageIndex(0);
   }, [search]);
   const { data, isLoading, error } = useVisitpadChiefComplaints(search || undefined, bs, tr, listPage);
-  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadChiefComplaintsGlobalLibrary(importOpen, {
-    pageIndex: libPageIndex,
-    pageSize: libPageSize,
-  });
+  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadChiefComplaintsGlobalLibrary(
+    importOpen,
+    {
+      pageIndex: libPageIndex,
+      pageSize: libPageSize,
+    },
+    librarySearch || undefined,
+  );
   const patch = useVisitpadPatch(CC_BASE);
   const del = useVisitpadDelete(CC_BASE);
   const create = useVisitpadPost(CC_BASE);
@@ -147,10 +156,6 @@ function VisitpadChiefComplaintsPage() {
       toast.error(mutationErrorMessage(e));
     }
   };
-
-  useEffect(() => {
-    if (importOpen) setLibPageIndex(0);
-  }, [importOpen]);
 
   const { data: ccDescriptor } = useVisitpadChiefComplaintDescriptor();
   const bodySystemOpts = useMemo(
@@ -366,6 +371,10 @@ function VisitpadChiefComplaintsPage() {
           pageSize: libPageSize,
           total: globalLibTotal,
           onPageChange: setLibPageIndex,
+        }}
+        librarySearchControl={{
+          draft: librarySearchDraft,
+          onDraftChange: setLibrarySearchDraft,
         }}
       />
 

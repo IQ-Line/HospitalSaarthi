@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
-import { visitpadKeys } from './query-keys';
+import { visitpadInvalidationKeysAfterPlatformImport } from './query-keys';
 
 export type VisitpadPlatformImportResult = {
   created: string[];
@@ -19,7 +19,9 @@ export function useVisitpadPlatformImport(importPath: string) {
         body: JSON.stringify({ platform_row_ids }),
       }),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: visitpadKeys.all });
+      for (const queryKey of visitpadInvalidationKeysAfterPlatformImport(importPath)) {
+        void qc.invalidateQueries({ queryKey });
+      }
     },
   });
 }

@@ -48,6 +48,7 @@ import {
   type VisitpadUnitConversionEditFormSchema,
 } from '@/features/visitpad/validation';
 import { useVisitpadCatalogPermission } from '@/features/visitpad/hooks/use-visitpad-catalog-permission';
+import { useVisitpadImportLibrarySearch } from '@/features/visitpad/hooks/use-visitpad-import-library-search';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 
 const CONV_BASE = '/api/v1/master-data/visitpad/unit-conversions';
@@ -69,6 +70,10 @@ function VisitpadConversionsPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [libPageIndex, setLibPageIndex] = useState(0);
   const libPageSize = 50;
+  const { librarySearch, librarySearchDraft, setLibrarySearchDraft } = useVisitpadImportLibrarySearch(
+    importOpen,
+    setLibPageIndex,
+  );
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadUnitConversion | null>(null);
@@ -82,10 +87,14 @@ function VisitpadConversionsPage() {
     pageIndex: 0,
     pageSize: 200,
   });
-  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadConversionsGlobalLibrary(importOpen, {
-    pageIndex: libPageIndex,
-    pageSize: libPageSize,
-  });
+  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadConversionsGlobalLibrary(
+    importOpen,
+    {
+      pageIndex: libPageIndex,
+      pageSize: libPageSize,
+    },
+    librarySearch || undefined,
+  );
   const create = useVisitpadPost(CONV_BASE);
   const platformImport = useVisitpadPlatformImport('/unit-conversions/import-from-platform');
   const patch = useVisitpadPatch(CONV_BASE);
@@ -161,10 +170,6 @@ function VisitpadConversionsPage() {
       toast.error(mutationErrorMessage(e));
     }
   };
-
-  useEffect(() => {
-    if (importOpen) setLibPageIndex(0);
-  }, [importOpen]);
 
   const columns = useMemo<ColumnDef<VisitpadUnitConversion, unknown>[]>(
     () => [
@@ -277,6 +282,10 @@ function VisitpadConversionsPage() {
           pageSize: libPageSize,
           total: globalLibTotal,
           onPageChange: setLibPageIndex,
+        }}
+        librarySearchControl={{
+          draft: librarySearchDraft,
+          onDraftChange: setLibrarySearchDraft,
         }}
       />
 

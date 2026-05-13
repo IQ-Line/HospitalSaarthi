@@ -61,9 +61,9 @@ This is **UX only**. A malicious client could skip headers; **Cerbos + master-da
 
 ## 4. List queries (TanStack Query)
 
-`services/web/src/features/visitpad/api/catalog.ts` uses `apiClient` for normal list hooks (e.g. `useVisitpadUnits`). Each `queryKey` includes **`visitpadCatalogQueryScopeKey()`** (`catalogIqTenantHeaderValue(tenantId) ?? 'global'`) so switching between platform and tenant sessions in the same browser does not reuse the wrong cached list.
+`services/web/src/features/visitpad/api/catalog.ts` uses `apiClient` for normal list hooks (for example `useVisitpadUnits`). Each `queryKey` includes **`useVisitpadCatalogScopeKey()`** — a value derived from `useTenantStore` so the key **reacts when the tenant store hydrates** after refresh (avoids briefly matching the wrong scope). That key mirrors `catalogIqTenantHeaderValue(tenantId) ?? 'global'`.
 
-Default list requests use a bounded `limit` (see `buildVisitpadCatalogListUrl`); **server-side pagination** is the right lever for very large catalogs under traffic (see TODO in `catalog.ts` and master-data API contracts).
+List and global-library requests use **`limit` / `offset`** (see `buildVisitpadCatalogListUrl`); **server-side `search`** plus pagination is how large catalogs stay bounded.
 
 ---
 
@@ -79,16 +79,15 @@ Without this, opening “import” while tenant-scoped would request the tenant 
 
 1. User has UUID `tenantId` → `tenantCatalog` true.
 2. User clicks **Import from library** → modal opens.
-3. `useVisitpad*GlobalLibrary(enabled: modalOpen)` runs **only while the modal is open**, reducing background traffic.
-4. Modal shows platform rows with **search** (client-side filter over returned page). User finds rows (search by code, label, etc.).
-5. Rows already present in the tenant list are disabled via **`importedKeys`** / **`getRowKey`** (stable key per entity: `code`, `from→to` for conversions, `section::code` for Rx columns, ICD-10 for chronic illness, CPT for procedures, etc.).
-6. User selects one or many rows → **Import** runs sequential `POST` via `apiClient` (tenant header attached) with bodies built by `visitpad-global-import-payloads.ts` (same shape as create forms).
+3. `useVisitpad*GlobalLibrary(enabled: modalOpen, page, search?)` runs **only while the modal is open**, with **server-side `search`** (debounced draft via `useVisitpadImportLibrarySearch`) and **library pagination** (`limit` / `offset` on the same list contract as tenant pages).
+4. Modal shows the current page of platform rows. Rows already in the tenant catalog are disabled via **`useVisitpadTenantImportKeys`** (chunks tenant list GETs until `total` is exhausted; **`staleTime` ~5 minutes** to limit repeat scans) and **`getRowKey`** (stable key per entity: `code`, `from→to` for conversions, `section::code` for Rx columns, ICD-10 for chronic illness, CPT for procedures, etc.).
+5. User selects rows → **Import** calls **`POST /api/v1/master-data/visitpad/{resource}/import-from-platform`** with body **`{ platform_row_ids: string[] }`** (server cap **200 IDs per request**). `useVisitpadPlatformImport` in `platform-import.ts` performs the mutation; per-row create payloads are **not** sent on import (the server copies from platform rows by id).
 
-So today: **select specific rows or multi-select**; there is no separate “import entire platform catalog in one click” button (that would be a product/API decision: batch endpoint, job queue, and Cerbos rules).
+**UX note:** “Import all” / “Select all in view” apply to **importable rows on the current library page** under the current search. Importing “everything matching search” across all pages would need explicit product work (server job or repeated batches with clear progress).
 
-### 5.3 Search at global scale
+### 5.3 Search and scale
 
-Modal search filters **the current response page** (and global library query uses the same `limit` as lists). For **millions** of platform rows, you need **server-side search** (query params already passed through on many hooks) and **pagination or virtualized infinite scroll** in the modal. The architecture already sends `search` to the API where the list URL supports it; extend the global-library query the same way when you raise limits.
+Modal search is **server-driven**: the debounced string is passed as the `search` query param on the global-library GET, same as main list hooks. Combine with pagination (not client-side filtering of one giant page).
 
 ---
 
@@ -105,11 +104,13 @@ Users can **edit or remove** tenant-owned or tenant-imported rows without affect
 | Concern | Approach |
 |--------|----------|
 | **Many tenants** | Each tenant is keyed by `iq_tenant_id` (UUID). Data is partitioned on the server (Citus / tenant column per DB principles). No cross-tenant reads if headers are correct. |
-| **Caching** | React Query dedupes identical requests; invalidate or refetch lists after successful import/mutations so UI stays consistent. |
-| **Import storms** | Sequential POST in a loop is simple but slow for hundreds of rows; a **batch API** or **worker job** with progress UI scales better. |
-| **Large global catalogs** | Prefer **server search + pagination** over shipping 100k rows to the browser. |
+| **Caching** | React Query dedupes identical requests. After bulk import, `useVisitpadPlatformImport` invalidates **narrow** query roots via `visitpadInvalidationKeysAfterPlatformImport` in `query-keys.ts` (resource list + `tenant-import-keys` for that path) instead of blasting `visitpadKeys.all`. |
+| **Import write load** | **Bulk** `import-from-platform` (max **200** platform UUIDs per POST) replaces per-row create storms. |
+| **Import read load** | `useVisitpadTenantImportKeys` may issue many chunked GETs when the modal opens to build `importedKeys`; mitigated with **`staleTime`** on that query. A future **`exists-by-codes`** (or similar) API could shrink this further. |
+| **Large global catalogs** | **Server `search` + pagination** in the modal (`useVisitpad*GlobalLibrary` + `useVisitpadImportLibrarySearch`). |
+| **Ordering / dependencies** | Some entities (e.g. unit conversions) require related units in the tenant catalog first; bulk import surfaces per-row errors in `errors[]` — document “import units first” where product needs it. |
 | **Correctness under load** | Idempotent keys in the UI reduce double-import mistakes; server should still enforce unique constraints and return 409/conflict as needed. |
-| **Authz** | Every mutating request must pass **Cerbos** (and session identity) on the backend; frontend gating is not security. |
+| **Authz** | Every mutating request must pass **Cerbos** (and session identity) on the backend; **`POST …/import-from-platform`** must be explicitly allowed in policy / OpenAPI security like other writes. Frontend gating is not security. |
 
 ---
 
@@ -133,9 +134,12 @@ Production: `tenantId` should come from **better-auth / tenant registry** (real 
 | UUID vs slug, dev sentinel | `services/web/src/lib/catalog-tenant.ts`, `catalog-tenant.test.ts` |
 | Headers + global read | `services/web/src/lib/api-client.ts` |
 | Tenant flag for UI | `services/web/src/features/visitpad/hooks/use-visitpad-tenant-catalog.ts` |
+| Debounced value helper | `services/web/src/lib/use-debounced-value.ts` |
+| Import modal search + page reset | `services/web/src/features/visitpad/hooks/use-visitpad-import-library-search.ts` |
 | List + global library hooks | `services/web/src/features/visitpad/api/catalog.ts`, `api/index.ts` |
+| Bulk import mutation + invalidation | `services/web/src/features/visitpad/api/platform-import.ts`, `api/query-keys.ts` (`visitpadInvalidationKeysAfterPlatformImport`) |
 | Import modal | `services/web/src/features/visitpad/components/import-from-platform-catalog-dialog.tsx` |
-| Create bodies from platform rows | `services/web/src/features/visitpad/lib/visitpad-global-import-payloads.ts` |
+| Create bodies from platform rows (manual create flows) | `services/web/src/features/visitpad/lib/visitpad-global-import-payloads.ts` |
 | Mock login | `services/web/src/routes/login.tsx` |
 | Dev session persist + rehydrate | `services/web/src/stores/*.store.ts`, `services/web/src/main.tsx` |
 
@@ -145,8 +149,9 @@ Production: `tenantId` should come from **better-auth / tenant registry** (real 
 
 1. **Scope = `iq_tenant_id` header**, driven by **UUID-shaped `tenantId`** in the tenant store.
 2. **Platform lists** when slug / non-UUID; **tenant lists** when UUID.
-3. **Import from library** uses a **dedicated GET client without header** to read platform rows, then **POST with header** to copy into the tenant.
-4. **Search** in the modal is the primary way to find one row among many; **server pagination** is required for huge catalogs.
-5. **Scale and safety** depend on backend partitioning, Cerbos, batch APIs for bulk import, and React Query cache rules—not on the Visitpad pages alone.
+3. **Import from library** uses **GET without header** for the platform library, then **`POST …/import-from-platform`** with **`platform_row_ids`** (bulk, capped per request) to copy into the tenant.
+4. **Search** in the modal uses the **same server `search` param** as list pages, with **debounced** input and **pagination** for huge catalogs.
+5. **Cache invalidation** after import targets the affected Visitpad lists (and tenant-import-keys), not the entire `visitpad` tree unless the path is unknown.
+6. **Scale and safety** depend on backend partitioning, Cerbos (including new import routes), bounded batch size, and React Query cache rules—not on the Visitpad pages alone.
 
 When you add “1000 different tenant logins,” each session carries **one** `tenantId` UUID; the app does not mix catalogs unless that value changes or cache keys omit tenant (avoid that).

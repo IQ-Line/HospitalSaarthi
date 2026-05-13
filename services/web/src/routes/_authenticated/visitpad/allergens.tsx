@@ -48,6 +48,7 @@ import {
   type VisitpadAllergenEditFormSchema,
 } from '@/features/visitpad/validation';
 import { useVisitpadCatalogPermission } from '@/features/visitpad/hooks/use-visitpad-catalog-permission';
+import { useVisitpadImportLibrarySearch } from '@/features/visitpad/hooks/use-visitpad-import-library-search';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 
 const AG_BASE = '/api/v1/master-data/visitpad/allergens';
@@ -65,6 +66,10 @@ function VisitpadAllergensPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [libPageIndex, setLibPageIndex] = useState(0);
   const libPageSize = 50;
+  const { librarySearch, librarySearchDraft, setLibrarySearchDraft } = useVisitpadImportLibrarySearch(
+    importOpen,
+    setLibPageIndex,
+  );
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadAllergen | null>(null);
@@ -75,10 +80,14 @@ function VisitpadAllergensPage() {
     setPageIndex(0);
   }, [search]);
   const { data, isLoading, error } = useVisitpadAllergens(search || undefined, at, listPage);
-  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadAllergensGlobalLibrary(importOpen, {
-    pageIndex: libPageIndex,
-    pageSize: libPageSize,
-  });
+  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadAllergensGlobalLibrary(
+    importOpen,
+    {
+      pageIndex: libPageIndex,
+      pageSize: libPageSize,
+    },
+    librarySearch || undefined,
+  );
   const patch = useVisitpadPatch(AG_BASE);
   const del = useVisitpadDelete(AG_BASE);
   const create = useVisitpadPost(AG_BASE);
@@ -127,10 +136,6 @@ function VisitpadAllergensPage() {
       toast.error(mutationErrorMessage(e));
     }
   };
-
-  useEffect(() => {
-    if (importOpen) setLibPageIndex(0);
-  }, [importOpen]);
 
   const columns = useMemo<ColumnDef<VisitpadAllergen, unknown>[]>(
     () => [
@@ -284,6 +289,10 @@ function VisitpadAllergensPage() {
           pageSize: libPageSize,
           total: globalLibTotal,
           onPageChange: setLibPageIndex,
+        }}
+        librarySearchControl={{
+          draft: librarySearchDraft,
+          onDraftChange: setLibrarySearchDraft,
         }}
       />
 

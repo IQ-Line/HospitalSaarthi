@@ -116,6 +116,7 @@ export function useVisitpadTenantImportKeys(
       scopeKey,
     ],
     enabled,
+    staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       const keys = new Set<string>();
       let offset = 0;
@@ -172,13 +173,17 @@ export function useVisitpadVitals(search?: string, category?: string, page?: Vis
 }
 
 /** Global (`public`) vitals — omit `iq_tenant_id` even when a tenant UUID is active (import modal). */
-export function useVisitpadVitalsGlobalLibrary(enabled: boolean, page?: VisitpadCatalogPageParams) {
+export function useVisitpadVitalsGlobalLibrary(
+  enabled: boolean,
+  page?: VisitpadCatalogPageParams,
+  search?: string,
+) {
   const scopeKey = useVisitpadCatalogScopeKey();
   const pk = pageKey(page);
   return useQuery({
-    queryKey: [...visitpadKeys.vitals(), 'global-platform-library', scopeKey, ...pk],
+    queryKey: [...visitpadKeys.vitals(), 'global-platform-library', scopeKey, search ?? '', ...pk],
     queryFn: () =>
-      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadVital>>(listUrl('/vitals', {}, page)),
+      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadVital>>(listUrl('/vitals', { search }, page)),
     enabled,
   });
 }
@@ -208,14 +213,18 @@ export function useVisitpadChiefComplaints(
 }
 
 /** Global chief complaints for “import from platform library”. */
-export function useVisitpadChiefComplaintsGlobalLibrary(enabled: boolean, page?: VisitpadCatalogPageParams) {
+export function useVisitpadChiefComplaintsGlobalLibrary(
+  enabled: boolean,
+  page?: VisitpadCatalogPageParams,
+  search?: string,
+) {
   const scopeKey = useVisitpadCatalogScopeKey();
   const pk = pageKey(page);
   return useQuery({
-    queryKey: [...visitpadKeys.chiefComplaints(), 'global-platform-library', scopeKey, ...pk],
+    queryKey: [...visitpadKeys.chiefComplaints(), 'global-platform-library', scopeKey, search ?? '', ...pk],
     queryFn: () =>
       apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadChiefComplaint>>(
-        listUrl('/chief-complaints', {}, page),
+        listUrl('/chief-complaints', { search }, page),
       ),
     enabled,
   });
@@ -337,132 +346,177 @@ export function useVisitpadManufacturers(search?: string, page?: VisitpadCatalog
   });
 }
 
-export function useVisitpadUnitsGlobalLibrary(enabled: boolean, page?: VisitpadCatalogPageParams) {
+export function useVisitpadUnitsGlobalLibrary(
+  enabled: boolean,
+  page?: VisitpadCatalogPageParams,
+  search?: string,
+) {
   const scopeKey = useVisitpadCatalogScopeKey();
   const pk = pageKey(page);
   return useQuery({
-    queryKey: [...visitpadKeys.units(), 'global-platform-library', scopeKey, ...pk],
+    queryKey: [...visitpadKeys.units(), 'global-platform-library', scopeKey, search ?? '', ...pk],
     queryFn: () =>
-      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadUnit>>(listUrl('/units', {}, page)),
+      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadUnit>>(listUrl('/units', { search }, page)),
     enabled,
   });
 }
 
-export function useVisitpadConversionsGlobalLibrary(enabled: boolean, page?: VisitpadCatalogPageParams) {
+export function useVisitpadConversionsGlobalLibrary(
+  enabled: boolean,
+  page?: VisitpadCatalogPageParams,
+  search?: string,
+) {
   const scopeKey = useVisitpadCatalogScopeKey();
   const pk = pageKey(page);
   return useQuery({
-    queryKey: [...visitpadKeys.conversions(), 'global-platform-library', scopeKey, ...pk],
+    queryKey: [...visitpadKeys.conversions(), 'global-platform-library', scopeKey, search ?? '', ...pk],
     queryFn: () =>
       apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadUnitConversion>>(
-        listUrl('/unit-conversions', {}, page),
+        listUrl('/unit-conversions', { search }, page),
       ),
     enabled,
   });
 }
 
-export function useVisitpadDiagnosesGlobalLibrary(enabled: boolean, page?: VisitpadCatalogPageParams) {
+export function useVisitpadDiagnosesGlobalLibrary(
+  enabled: boolean,
+  page?: VisitpadCatalogPageParams,
+  search?: string,
+) {
   const scopeKey = useVisitpadCatalogScopeKey();
   const pk = pageKey(page);
   return useQuery({
-    queryKey: [...visitpadKeys.diagnoses(), 'global-platform-library', scopeKey, ...pk],
+    queryKey: [...visitpadKeys.diagnoses(), 'global-platform-library', scopeKey, search ?? '', ...pk],
     queryFn: () =>
-      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadDiagnosis>>(listUrl('/diagnoses', {}, page)),
+      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadDiagnosis>>(listUrl('/diagnoses', { search }, page)),
     enabled,
   });
 }
 
-export function useVisitpadAllergensGlobalLibrary(enabled: boolean, page?: VisitpadCatalogPageParams) {
+export function useVisitpadAllergensGlobalLibrary(
+  enabled: boolean,
+  page?: VisitpadCatalogPageParams,
+  search?: string,
+) {
   const scopeKey = useVisitpadCatalogScopeKey();
   const pk = pageKey(page);
   return useQuery({
-    queryKey: [...visitpadKeys.allergens(), 'global-platform-library', scopeKey, ...pk],
+    queryKey: [...visitpadKeys.allergens(), 'global-platform-library', scopeKey, search ?? '', ...pk],
     queryFn: () =>
-      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadAllergen>>(listUrl('/allergens', {}, page)),
+      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadAllergen>>(listUrl('/allergens', { search }, page)),
     enabled,
   });
 }
 
-export function useVisitpadAllergyReactionsGlobalLibrary(enabled: boolean, page?: VisitpadCatalogPageParams) {
+export function useVisitpadAllergyReactionsGlobalLibrary(
+  enabled: boolean,
+  page?: VisitpadCatalogPageParams,
+  search?: string,
+) {
   const scopeKey = useVisitpadCatalogScopeKey();
   const pk = pageKey(page);
   return useQuery({
-    queryKey: [...visitpadKeys.reactions(), 'global-platform-library', scopeKey, ...pk],
+    queryKey: [...visitpadKeys.reactions(), 'global-platform-library', scopeKey, search ?? '', ...pk],
     queryFn: () =>
       apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadAllergyReaction>>(
-        listUrl('/allergy-reactions', {}, page),
+        listUrl('/allergy-reactions', { search }, page),
       ),
     enabled,
   });
 }
 
-export function useVisitpadRxColumnsGlobalLibrary(section: string, enabled: boolean, page?: VisitpadCatalogPageParams) {
+export function useVisitpadRxColumnsGlobalLibrary(
+  section: string,
+  enabled: boolean,
+  page?: VisitpadCatalogPageParams,
+  search?: string,
+) {
   const scopeKey = useVisitpadCatalogScopeKey();
   const pk = pageKey(page);
   return useQuery({
-    queryKey: [...visitpadKeys.rxColumns(section), 'global-platform-library', scopeKey, ...pk],
+    queryKey: [...visitpadKeys.rxColumns(section), 'global-platform-library', scopeKey, search ?? '', ...pk],
     queryFn: () =>
       apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadRxColumn>>(
-        listUrl('/rx-columns', { section }, page),
+        listUrl('/rx-columns', { search, section }, page),
       ),
     enabled,
   });
 }
 
-export function useVisitpadMedicinesGlobalLibrary(enabled: boolean, page?: VisitpadCatalogPageParams) {
+export function useVisitpadMedicinesGlobalLibrary(
+  enabled: boolean,
+  page?: VisitpadCatalogPageParams,
+  search?: string,
+) {
   const scopeKey = useVisitpadCatalogScopeKey();
   const pk = pageKey(page);
   return useQuery({
-    queryKey: [...visitpadKeys.medicines(), 'global-platform-library', scopeKey, ...pk],
+    queryKey: [...visitpadKeys.medicines(), 'global-platform-library', scopeKey, search ?? '', ...pk],
     queryFn: () =>
-      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadMedicine>>(listUrl('/medicines', {}, page)),
+      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadMedicine>>(listUrl('/medicines', { search }, page)),
     enabled,
   });
 }
 
-export function useVisitpadChronicIllnessesGlobalLibrary(enabled: boolean, page?: VisitpadCatalogPageParams) {
+export function useVisitpadChronicIllnessesGlobalLibrary(
+  enabled: boolean,
+  page?: VisitpadCatalogPageParams,
+  search?: string,
+) {
   const scopeKey = useVisitpadCatalogScopeKey();
   const pk = pageKey(page);
   return useQuery({
-    queryKey: [...visitpadKeys.chronicIllnesses(), 'global-platform-library', scopeKey, ...pk],
+    queryKey: [...visitpadKeys.chronicIllnesses(), 'global-platform-library', scopeKey, search ?? '', ...pk],
     queryFn: () =>
       apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadChronicIllness>>(
-        listUrl('/chronic-illnesses', {}, page),
+        listUrl('/chronic-illnesses', { search }, page),
       ),
     enabled,
   });
 }
 
-export function useVisitpadProceduresGlobalLibrary(enabled: boolean, page?: VisitpadCatalogPageParams) {
+export function useVisitpadProceduresGlobalLibrary(
+  enabled: boolean,
+  page?: VisitpadCatalogPageParams,
+  search?: string,
+) {
   const scopeKey = useVisitpadCatalogScopeKey();
   const pk = pageKey(page);
   return useQuery({
-    queryKey: [...visitpadKeys.procedures(), 'global-platform-library', scopeKey, ...pk],
+    queryKey: [...visitpadKeys.procedures(), 'global-platform-library', scopeKey, search ?? '', ...pk],
     queryFn: () =>
-      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadProcedure>>(listUrl('/procedures', {}, page)),
+      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadProcedure>>(listUrl('/procedures', { search }, page)),
     enabled,
   });
 }
 
-export function useVisitpadVaccinesGlobalLibrary(enabled: boolean, page?: VisitpadCatalogPageParams) {
+export function useVisitpadVaccinesGlobalLibrary(
+  enabled: boolean,
+  page?: VisitpadCatalogPageParams,
+  search?: string,
+) {
   const scopeKey = useVisitpadCatalogScopeKey();
   const pk = pageKey(page);
   return useQuery({
-    queryKey: [...visitpadKeys.vaccines(), 'global-platform-library', scopeKey, ...pk],
+    queryKey: [...visitpadKeys.vaccines(), 'global-platform-library', scopeKey, search ?? '', ...pk],
     queryFn: () =>
-      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadVaccine>>(listUrl('/vaccines', {}, page)),
+      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadVaccine>>(listUrl('/vaccines', { search }, page)),
     enabled,
   });
 }
 
-export function useVisitpadManufacturersGlobalLibrary(enabled: boolean, page?: VisitpadCatalogPageParams) {
+export function useVisitpadManufacturersGlobalLibrary(
+  enabled: boolean,
+  page?: VisitpadCatalogPageParams,
+  search?: string,
+) {
   const scopeKey = useVisitpadCatalogScopeKey();
   const pk = pageKey(page);
   return useQuery({
-    queryKey: [...visitpadKeys.manufacturers(), 'global-platform-library', scopeKey, ...pk],
+    queryKey: [...visitpadKeys.manufacturers(), 'global-platform-library', scopeKey, search ?? '', ...pk],
     queryFn: () =>
       apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadManufacturer>>(
-        listUrl('/manufacturers', {}, page),
+        listUrl('/manufacturers', { search }, page),
       ),
     enabled,
   });

@@ -41,6 +41,7 @@ import {
 import { visitpadActiveTotal } from '@/features/visitpad/tab-count';
 import type { VisitpadUnit, VisitpadVital } from '@/features/visitpad/types';
 import { useVisitpadCatalogPermission } from '@/features/visitpad/hooks/use-visitpad-catalog-permission';
+import { useVisitpadImportLibrarySearch } from '@/features/visitpad/hooks/use-visitpad-import-library-search';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 import { visitpadActiveUnitRows } from '@/features/visitpad/unit-catalog';
 import {
@@ -126,6 +127,10 @@ function VisitpadVitalsPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [libPageIndex, setLibPageIndex] = useState(0);
   const libPageSize = 50;
+  const { librarySearch, librarySearchDraft, setLibrarySearchDraft } = useVisitpadImportLibrarySearch(
+    importOpen,
+    setLibPageIndex,
+  );
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadVital | null>(null);
@@ -138,10 +143,14 @@ function VisitpadVitalsPage() {
     setPageIndex(0);
   }, [search]);
   const { data, isLoading, error } = useVisitpadVitals(search || undefined, cat, listPage);
-  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadVitalsGlobalLibrary(importOpen, {
-    pageIndex: libPageIndex,
-    pageSize: libPageSize,
-  });
+  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadVitalsGlobalLibrary(
+    importOpen,
+    {
+      pageIndex: libPageIndex,
+      pageSize: libPageSize,
+    },
+    librarySearch || undefined,
+  );
   const patch = useVisitpadPatch(VITALS_BASE);
   const del = useVisitpadDelete(VITALS_BASE);
   const create = useVisitpadPost(VITALS_BASE);
@@ -188,10 +197,6 @@ function VisitpadVitalsPage() {
       toast.error(mutationErrorMessage(e));
     }
   };
-
-  useEffect(() => {
-    if (importOpen) setLibPageIndex(0);
-  }, [importOpen]);
 
   const columns = useMemo<ColumnDef<VisitpadVital, unknown>[]>(
     () => [
@@ -408,6 +413,10 @@ function VisitpadVitalsPage() {
           pageSize: libPageSize,
           total: globalLibTotal,
           onPageChange: setLibPageIndex,
+        }}
+        librarySearchControl={{
+          draft: librarySearchDraft,
+          onDraftChange: setLibrarySearchDraft,
         }}
       />
 

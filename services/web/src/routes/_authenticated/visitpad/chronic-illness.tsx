@@ -49,6 +49,7 @@ import {
   type VisitpadChronicIllnessEditFormSchema,
 } from '@/features/visitpad/validation';
 import { useVisitpadCatalogPermission } from '@/features/visitpad/hooks/use-visitpad-catalog-permission';
+import { useVisitpadImportLibrarySearch } from '@/features/visitpad/hooks/use-visitpad-import-library-search';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 
 const CI_BASE = '/api/v1/master-data/visitpad/chronic-illnesses';
@@ -94,6 +95,10 @@ function VisitpadChronicIllnessPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [libPageIndex, setLibPageIndex] = useState(0);
   const libPageSize = 50;
+  const { librarySearch, librarySearchDraft, setLibrarySearchDraft } = useVisitpadImportLibrarySearch(
+    importOpen,
+    setLibPageIndex,
+  );
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadChronicIllness | null>(null);
@@ -104,10 +109,14 @@ function VisitpadChronicIllnessPage() {
     setPageIndex(0);
   }, [search]);
   const { data, isLoading, error } = useVisitpadChronicIllnesses(search || undefined, cat, listPage);
-  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadChronicIllnessesGlobalLibrary(importOpen, {
-    pageIndex: libPageIndex,
-    pageSize: libPageSize,
-  });
+  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadChronicIllnessesGlobalLibrary(
+    importOpen,
+    {
+      pageIndex: libPageIndex,
+      pageSize: libPageSize,
+    },
+    librarySearch || undefined,
+  );
   const patch = useVisitpadPatch(CI_BASE);
   const del = useVisitpadDelete(CI_BASE);
   const create = useVisitpadPost(CI_BASE);
@@ -156,10 +165,6 @@ function VisitpadChronicIllnessPage() {
       toast.error(mutationErrorMessage(e));
     }
   };
-
-  useEffect(() => {
-    if (importOpen) setLibPageIndex(0);
-  }, [importOpen]);
 
   const columns = useMemo<ColumnDef<VisitpadChronicIllness, unknown>[]>(
     () => [
@@ -294,6 +299,10 @@ function VisitpadChronicIllnessPage() {
           pageSize: libPageSize,
           total: globalLibTotal,
           onPageChange: setLibPageIndex,
+        }}
+        librarySearchControl={{
+          draft: librarySearchDraft,
+          onDraftChange: setLibrarySearchDraft,
         }}
       />
 

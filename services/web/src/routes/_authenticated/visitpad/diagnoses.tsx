@@ -47,6 +47,7 @@ import {
   type VisitpadDiagnosisEditFormSchema,
 } from '@/features/visitpad/validation';
 import { useVisitpadCatalogPermission } from '@/features/visitpad/hooks/use-visitpad-catalog-permission';
+import { useVisitpadImportLibrarySearch } from '@/features/visitpad/hooks/use-visitpad-import-library-search';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 
 const DX_BASE = '/api/v1/master-data/visitpad/diagnoses';
@@ -64,6 +65,10 @@ function VisitpadDiagnosesPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [libPageIndex, setLibPageIndex] = useState(0);
   const libPageSize = 50;
+  const { librarySearch, librarySearchDraft, setLibrarySearchDraft } = useVisitpadImportLibrarySearch(
+    importOpen,
+    setLibPageIndex,
+  );
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadDiagnosis | null>(null);
@@ -74,10 +79,14 @@ function VisitpadDiagnosesPage() {
     setPageIndex(0);
   }, [search]);
   const { data, isLoading, error } = useVisitpadDiagnoses(search || undefined, cat, listPage);
-  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadDiagnosesGlobalLibrary(importOpen, {
-    pageIndex: libPageIndex,
-    pageSize: libPageSize,
-  });
+  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadDiagnosesGlobalLibrary(
+    importOpen,
+    {
+      pageIndex: libPageIndex,
+      pageSize: libPageSize,
+    },
+    librarySearch || undefined,
+  );
   const patch = useVisitpadPatch(DX_BASE);
   const del = useVisitpadDelete(DX_BASE);
   const create = useVisitpadPost(DX_BASE);
@@ -130,10 +139,6 @@ function VisitpadDiagnosesPage() {
       toast.error(mutationErrorMessage(e));
     }
   };
-
-  useEffect(() => {
-    if (importOpen) setLibPageIndex(0);
-  }, [importOpen]);
 
   const columns = useMemo<ColumnDef<VisitpadDiagnosis, unknown>[]>(
     () => [
@@ -288,6 +293,10 @@ function VisitpadDiagnosesPage() {
           pageSize: libPageSize,
           total: globalLibTotal,
           onPageChange: setLibPageIndex,
+        }}
+        librarySearchControl={{
+          draft: librarySearchDraft,
+          onDraftChange: setLibrarySearchDraft,
         }}
       />
 

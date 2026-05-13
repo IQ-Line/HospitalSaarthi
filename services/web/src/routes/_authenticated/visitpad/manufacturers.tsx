@@ -38,6 +38,7 @@ import {
   type VisitpadManufacturerEditFormSchema,
 } from '@/features/visitpad/validation';
 import { useVisitpadCatalogPermission } from '@/features/visitpad/hooks/use-visitpad-catalog-permission';
+import { useVisitpadImportLibrarySearch } from '@/features/visitpad/hooks/use-visitpad-import-library-search';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 
 const MF_BASE = '/api/v1/master-data/visitpad/manufacturers';
@@ -54,6 +55,10 @@ function VisitpadManufacturersPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [libPageIndex, setLibPageIndex] = useState(0);
   const libPageSize = 50;
+  const { librarySearch, librarySearchDraft, setLibrarySearchDraft } = useVisitpadImportLibrarySearch(
+    importOpen,
+    setLibPageIndex,
+  );
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadManufacturer | null>(null);
@@ -63,10 +68,14 @@ function VisitpadManufacturersPage() {
     setPageIndex(0);
   }, [search]);
   const { data, isLoading, error } = useVisitpadManufacturers(search || undefined, listPage);
-  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadManufacturersGlobalLibrary(importOpen, {
-    pageIndex: libPageIndex,
-    pageSize: libPageSize,
-  });
+  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadManufacturersGlobalLibrary(
+    importOpen,
+    {
+      pageIndex: libPageIndex,
+      pageSize: libPageSize,
+    },
+    librarySearch || undefined,
+  );
   const patch = useVisitpadPatch(MF_BASE);
   const del = useVisitpadDelete(MF_BASE);
   const create = useVisitpadPost(MF_BASE);
@@ -112,10 +121,6 @@ function VisitpadManufacturersPage() {
       toast.error(mutationErrorMessage(e));
     }
   };
-
-  useEffect(() => {
-    if (importOpen) setLibPageIndex(0);
-  }, [importOpen]);
 
   const columns = useMemo<ColumnDef<VisitpadManufacturer, unknown>[]>(
     () => [
@@ -224,6 +229,10 @@ function VisitpadManufacturersPage() {
           pageSize: libPageSize,
           total: globalLibTotal,
           onPageChange: setLibPageIndex,
+        }}
+        librarySearchControl={{
+          draft: librarySearchDraft,
+          onDraftChange: setLibrarySearchDraft,
         }}
       />
 

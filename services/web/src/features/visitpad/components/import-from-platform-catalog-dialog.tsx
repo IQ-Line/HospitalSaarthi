@@ -47,6 +47,14 @@ export interface ImportFromPlatformCatalogDialogProps<T> {
     total: number;
     onPageChange: (pageIndex: number) => void;
   };
+  /**
+   * When set, the search box is controlled by the parent and `rows` are assumed
+   * already filtered server-side (no client substring filter over the page).
+   */
+  librarySearchControl?: {
+    draft: string;
+    onDraftChange: (value: string) => void;
+  };
   /** Max rows per bulk import request (server limit). */
   maxImportBatch?: number;
 }
@@ -67,21 +75,28 @@ export function ImportFromPlatformCatalogDialog<T>({
   isSubmitting,
   onImportRows,
   libraryPagination,
+  librarySearchControl,
   maxImportBatch = 200,
 }: ImportFromPlatformCatalogDialogProps<T>) {
-  const [q, setQ] = useState('');
+  const [localSearch, setLocalSearch] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const searchDraft = librarySearchControl?.draft ?? localSearch;
+  const setSearchDraft = librarySearchControl?.onDraftChange ?? setLocalSearch;
 
   useEffect(() => {
     if (!open) {
-      setQ('');
+      if (!librarySearchControl) setLocalSearch('');
       setSelected(new Set());
     }
-  }, [open]);
+  }, [open, librarySearchControl]);
 
   const filtered = useMemo(
-    () => rows.filter((r) => rowMatchesSearch(q, ...searchParts(r))),
-    [rows, q, searchParts],
+    () =>
+      librarySearchControl
+        ? rows
+        : rows.filter((r) => rowMatchesSearch(localSearch, ...searchParts(r))),
+    [rows, localSearch, searchParts, librarySearchControl],
   );
 
   const importableFiltered = useMemo(
@@ -129,8 +144,8 @@ export function ImportFromPlatformCatalogDialog<T>({
             <DialogDescription>{description}</DialogDescription>
           </DialogHeader>
           <Input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
+            value={searchDraft}
+            onChange={(e) => setSearchDraft(e.target.value)}
             placeholder={searchPlaceholder}
             aria-label="Search platform library"
           />

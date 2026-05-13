@@ -51,6 +51,7 @@ import {
   type VisitpadProcedureEditFormSchema,
 } from '@/features/visitpad/validation';
 import { useVisitpadCatalogPermission } from '@/features/visitpad/hooks/use-visitpad-catalog-permission';
+import { useVisitpadImportLibrarySearch } from '@/features/visitpad/hooks/use-visitpad-import-library-search';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 
 const PROC_BASE = '/api/v1/master-data/visitpad/procedures';
@@ -109,6 +110,10 @@ function VisitpadProceduresPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [libPageIndex, setLibPageIndex] = useState(0);
   const libPageSize = 50;
+  const { librarySearch, librarySearchDraft, setLibrarySearchDraft } = useVisitpadImportLibrarySearch(
+    importOpen,
+    setLibPageIndex,
+  );
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadProcedure | null>(null);
@@ -120,10 +125,14 @@ function VisitpadProceduresPage() {
     setPageIndex(0);
   }, [search]);
   const { data, isLoading, error } = useVisitpadProcedures(search || undefined, cat, bill, listPage);
-  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadProceduresGlobalLibrary(importOpen, {
-    pageIndex: libPageIndex,
-    pageSize: libPageSize,
-  });
+  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadProceduresGlobalLibrary(
+    importOpen,
+    {
+      pageIndex: libPageIndex,
+      pageSize: libPageSize,
+    },
+    librarySearch || undefined,
+  );
   const patch = useVisitpadPatch(PROC_BASE);
   const del = useVisitpadDelete(PROC_BASE);
   const create = useVisitpadPost(PROC_BASE);
@@ -177,10 +186,6 @@ function VisitpadProceduresPage() {
       toast.error(mutationErrorMessage(e));
     }
   };
-
-  useEffect(() => {
-    if (importOpen) setLibPageIndex(0);
-  }, [importOpen]);
 
   const columns = useMemo<ColumnDef<VisitpadProcedure, unknown>[]>(
     () => [
@@ -331,6 +336,10 @@ function VisitpadProceduresPage() {
           pageSize: libPageSize,
           total: globalLibTotal,
           onPageChange: setLibPageIndex,
+        }}
+        librarySearchControl={{
+          draft: librarySearchDraft,
+          onDraftChange: setLibrarySearchDraft,
         }}
       />
 
