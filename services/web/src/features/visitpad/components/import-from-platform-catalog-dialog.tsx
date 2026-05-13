@@ -40,6 +40,15 @@ export interface ImportFromPlatformCatalogDialogProps<T> {
   searchParts: (row: T) => string[];
   isSubmitting: boolean;
   onImportRows: (rows: T[]) => Promise<void>;
+  /** Paginate platform library fetch (optional). */
+  libraryPagination?: {
+    pageIndex: number;
+    pageSize: number;
+    total: number;
+    onPageChange: (pageIndex: number) => void;
+  };
+  /** Max rows per bulk import request (server limit). */
+  maxImportBatch?: number;
 }
 
 export function ImportFromPlatformCatalogDialog<T>({
@@ -57,6 +66,8 @@ export function ImportFromPlatformCatalogDialog<T>({
   searchParts,
   isSubmitting,
   onImportRows,
+  libraryPagination,
+  maxImportBatch = 200,
 }: ImportFromPlatformCatalogDialogProps<T>) {
   const [q, setQ] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -100,6 +111,11 @@ export function ImportFromPlatformCatalogDialog<T>({
       }
       return n;
     });
+  };
+
+  const runImport = async (sel: T[]) => {
+    const capped = sel.slice(0, maxImportBatch);
+    await onImportRows(capped);
   };
 
   const clearSelection = () => setSelected(new Set());
@@ -169,6 +185,50 @@ export function ImportFromPlatformCatalogDialog<T>({
           )}
         </div>
 
+        {libraryPagination ? (
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t px-4 py-2 text-xs text-muted-foreground">
+            <span>
+              Library rows{' '}
+              {libraryPagination.total === 0
+                ? '0'
+                : libraryPagination.pageIndex * libraryPagination.pageSize + 1}
+              –
+              {Math.min(
+                libraryPagination.total,
+                (libraryPagination.pageIndex + 1) * libraryPagination.pageSize,
+              )}{' '}
+              of {libraryPagination.total}
+            </span>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isSubmitting || libraryPagination.pageIndex <= 0}
+                onClick={() => libraryPagination.onPageChange(libraryPagination.pageIndex - 1)}
+              >
+                Previous page
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={
+                  isSubmitting ||
+                  (libraryPagination.pageIndex + 1) * libraryPagination.pageSize >= libraryPagination.total
+                }
+                onClick={() => libraryPagination.onPageChange(libraryPagination.pageIndex + 1)}
+              >
+                Next page
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
+        <p className="shrink-0 px-4 pb-1 text-xs text-muted-foreground">
+          Bulk import sends at most {maxImportBatch} platform row UUIDs per request.
+        </p>
+
         <DialogFooter className="mx-0 mb-0 shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap gap-2">
             <Button
@@ -177,7 +237,7 @@ export function ImportFromPlatformCatalogDialog<T>({
               size="sm"
               className="gap-1.5"
               disabled={isSubmitting || importableFiltered.length === 0}
-              onClick={() => void onImportRows(importableFiltered)}
+              onClick={() => void runImport(importableFiltered)}
             >
               <Download className="size-4" aria-hidden />
               Import all ({importableFiltered.length})
@@ -214,7 +274,7 @@ export function ImportFromPlatformCatalogDialog<T>({
               type="button"
               disabled={isSubmitting || selectedImportable.length === 0}
               className="gap-1.5"
-              onClick={() => void onImportRows(selectedImportable)}
+              onClick={() => void runImport(selectedImportable)}
             >
               <Download className="size-4" aria-hidden />
               Import{selectedImportable.length ? ` (${selectedImportable.length})` : ' selected'}

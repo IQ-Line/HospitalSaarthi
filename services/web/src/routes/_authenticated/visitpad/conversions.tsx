@@ -18,14 +18,17 @@ import { DataTable } from '@/components/data-table';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
-import { rowMatchesSearch } from '@/features/master-data/table-search';
 import {
   useVisitpadConversions,
   useVisitpadConversionsGlobalLibrary,
   useVisitpadDelete,
   useVisitpadPatch,
+  useVisitpadPlatformImport,
   useVisitpadPost,
+  useVisitpadTenantImportKeys,
   useVisitpadUnits,
+  VISITPAD_CATALOG_DEFAULT_PAGE_SIZE,
+  VISITPAD_CATALOG_PAGE_SIZES,
 } from '@/features/visitpad/api';
 import { ImportFromPlatformCatalogDialog } from '@/features/visitpad/components/import-from-platform-catalog-dialog';
 import { visitpadActionsColumn } from '@/features/visitpad/components/visitpad-actions-column';
@@ -46,7 +49,6 @@ import {
 } from '@/features/visitpad/validation';
 import { useVisitpadCatalogPermission } from '@/features/visitpad/hooks/use-visitpad-catalog-permission';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
-import { visitpadGlobalUnitConversionToCreateBody } from '@/features/visitpad/lib/visitpad-global-import-payloads';
 
 const CONV_BASE = '/api/v1/master-data/visitpad/unit-conversions';
 
@@ -65,18 +67,33 @@ function VisitpadConversionsPage() {
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [importBusy, setImportBusy] = useState(false);
+  const [libPageIndex, setLibPageIndex] = useState(0);
+  const libPageSize = 50;
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadUnitConversion | null>(null);
   const [deleting, setDeleting] = useState<VisitpadUnitConversion | null>(null);
-  const { data, isLoading, error } = useVisitpadConversions(search || undefined);
-  const { data: unitsRes, isLoading: unitsLoading } = useVisitpadUnits();
-  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadConversionsGlobalLibrary(importOpen);
+  const listPage = useMemo(() => ({ pageIndex, pageSize }), [pageIndex, pageSize]);
+  useEffect(() => {
+    setPageIndex(0);
+  }, [search]);
+  const { data, isLoading, error } = useVisitpadConversions(search || undefined, undefined, listPage);
+  const { data: unitsRes, isLoading: unitsLoading } = useVisitpadUnits(undefined, undefined, {
+    pageIndex: 0,
+    pageSize: 200,
+  });
+  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadConversionsGlobalLibrary(importOpen, {
+    pageIndex: libPageIndex,
+    pageSize: libPageSize,
+  });
   const create = useVisitpadPost(CONV_BASE);
+  const platformImport = useVisitpadPlatformImport('/unit-conversions/import-from-platform');
   const patch = useVisitpadPatch(CONV_BASE);
   const del = useVisitpadDelete(CONV_BASE);
   const rows = data?.data ?? [];
-  const tabCount = { active: rows.length, total: data?.total ?? rows.length };
-  const busy = patch.isPending || del.isPending || importBusy;
+  const total = data?.total ?? 0;
+  const tabCount = { active: rows.length, total };
+  const busy = patch.isPending || del.isPending || platformImport.isPending;
 
   const conversionKey = useCallback(
     (r: Pick<VisitpadUnitConversion, 'from_unit_code' | 'to_unit_code'>) =>
@@ -84,8 +101,15 @@ function VisitpadConversionsPage() {
     [],
   );
 
-  const importedKeys = useMemo(() => new Set(rows.map((r) => conversionKey(r))), [rows, conversionKey]);
+  const { data: tenantConvKeys } = useVisitpadTenantImportKeys(
+    '/unit-conversions',
+    importOpen && tenantCatalog,
+    'pair',
+    (row) => `${String(row.from_unit_code)}→${String(row.to_unit_code)}`,
+  );
+  const importedKeys = useMemo(() => tenantConvKeys ?? new Set<string>(), [tenantConvKeys]);
   const globalRows = globalLib?.data ?? [];
+  const globalLibTotal = globalLib?.total ?? 0;
 
   const unitRows = useMemo(() => visitpadActiveUnitRows(unitsRes?.data), [unitsRes?.data]);
   const unitLabelByCode = useMemo(() => {
@@ -127,36 +151,20 @@ function VisitpadConversionsPage() {
   const getRowKey = useCallback((r: VisitpadUnitConversion) => conversionKey(r), [conversionKey]);
 
   const runConversionImport = async (selection: VisitpadUnitConversion[]) => {
-    setImportBusy(true);
     try {
-      for (const row of selection) {
-        await create.mutateAsync(visitpadGlobalUnitConversionToCreateBody(row));
-      }
-      toast.success(
-        selection.length === 1 ? 'Imported 1 conversion' : `Imported ${selection.length} conversions`,
-      );
+      const res = await platformImport.mutateAsync(selection.map((r) => r.id));
+      const { created, skipped, errors } = res.data;
+      toast.success(`${created.length} created, ${skipped.length} skipped${errors.length ? `, ${errors.length} failed` : ''}`);
+      if (errors.length) toast.error(errors.map((e) => e.message).join('; '));
       setImportOpen(false);
     } catch (e) {
       toast.error(mutationErrorMessage(e));
-    } finally {
-      setImportBusy(false);
     }
   };
 
-  const filtered = useMemo(
-    () =>
-      rows.filter((r) =>
-        rowMatchesSearch(
-          search,
-          r.from_unit_code,
-          r.to_unit_code,
-          formatUnitCodeWithLabel(r.from_unit_code, unitLabelByCode),
-          formatUnitCodeWithLabel(r.to_unit_code, unitLabelByCode),
-          String(r.factor),
-        ),
-      ),
-    [rows, search, unitLabelByCode],
-  );
+  useEffect(() => {
+    if (importOpen) setLibPageIndex(0);
+  }, [importOpen]);
 
   const columns = useMemo<ColumnDef<VisitpadUnitConversion, unknown>[]>(
     () => [
@@ -211,7 +219,7 @@ function VisitpadConversionsPage() {
           addLabel={tenantCatalog ? 'Add local conversion' : 'Add conversion'}
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
-          importFromLibraryPending={importBusy}
+          importFromLibraryPending={platformImport.isPending}
         />
       }
     >
@@ -221,7 +229,10 @@ function VisitpadConversionsPage() {
         </p>
         <MasterDataTableToolbar
           value={search}
-          onChange={setSearch}
+          onChange={(v) => {
+            setSearch(v);
+            setPageIndex(0);
+          }}
           placeholder="Search from / to (code or label)…"
         />
         {error ? (
@@ -230,10 +241,18 @@ function VisitpadConversionsPage() {
           <DataTable
             showColumnMenu
             columns={columns}
-            data={filtered}
+            data={rows}
             isLoading={isLoading}
             emptyTitle="No conversions found"
             emptyDescription="Adjust your search or add conversion rules in the catalog."
+            manualPagination={{
+              pageIndex,
+              pageSize,
+              total,
+              pageSizeOptions: VISITPAD_CATALOG_PAGE_SIZES,
+              onPageChange: setPageIndex,
+              onPageSizeChange: setPageSize,
+            }}
           />
         )}
       </div>
@@ -251,8 +270,14 @@ function VisitpadConversionsPage() {
         importedKeys={importedKeys}
         columns={importColumns}
         searchParts={importSearchParts}
-        isSubmitting={importBusy || create.isPending}
+        isSubmitting={platformImport.isPending || create.isPending}
         onImportRows={runConversionImport}
+        libraryPagination={{
+          pageIndex: libPageIndex,
+          pageSize: libPageSize,
+          total: globalLibTotal,
+          onPageChange: setLibPageIndex,
+        }}
       />
 
       <ConversionCreateDialog

@@ -18,7 +18,11 @@ import {
   useVisitpadManufacturers,
   useVisitpadManufacturersGlobalLibrary,
   useVisitpadPatch,
+  useVisitpadPlatformImport,
   useVisitpadPost,
+  useVisitpadTenantImportKeys,
+  VISITPAD_CATALOG_DEFAULT_PAGE_SIZE,
+  VISITPAD_CATALOG_PAGE_SIZES,
 } from '@/features/visitpad/api';
 import { ImportFromPlatformCatalogDialog } from '@/features/visitpad/components/import-from-platform-catalog-dialog';
 import { visitpadActionsColumn } from '@/features/visitpad/components/visitpad-actions-column';
@@ -35,7 +39,6 @@ import {
 } from '@/features/visitpad/validation';
 import { useVisitpadCatalogPermission } from '@/features/visitpad/hooks/use-visitpad-catalog-permission';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
-import { visitpadGlobalManufacturerToCreateBody } from '@/features/visitpad/lib/visitpad-global-import-payloads';
 
 const MF_BASE = '/api/v1/master-data/visitpad/manufacturers';
 
@@ -49,20 +52,39 @@ function VisitpadManufacturersPage() {
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [importBusy, setImportBusy] = useState(false);
+  const [libPageIndex, setLibPageIndex] = useState(0);
+  const libPageSize = 50;
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadManufacturer | null>(null);
   const [deleting, setDeleting] = useState<VisitpadManufacturer | null>(null);
-  const { data, isLoading, error } = useVisitpadManufacturers(search || undefined);
-  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadManufacturersGlobalLibrary(importOpen);
+  const listPage = useMemo(() => ({ pageIndex, pageSize }), [pageIndex, pageSize]);
+  useEffect(() => {
+    setPageIndex(0);
+  }, [search]);
+  const { data, isLoading, error } = useVisitpadManufacturers(search || undefined, listPage);
+  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadManufacturersGlobalLibrary(importOpen, {
+    pageIndex: libPageIndex,
+    pageSize: libPageSize,
+  });
   const patch = useVisitpadPatch(MF_BASE);
   const del = useVisitpadDelete(MF_BASE);
   const create = useVisitpadPost(MF_BASE);
+  const platformImport = useVisitpadPlatformImport('/manufacturers/import-from-platform');
+  const { data: tenantKeys } = useVisitpadTenantImportKeys(
+    '/manufacturers',
+    importOpen && tenantCatalog,
+    'code-lower',
+    (row) => String(row.code).toLowerCase(),
+  );
   const rows = data?.data ?? [];
-  const tabCount = visitpadActiveTotal(rows, data?.total);
-  const busy = patch.isPending || del.isPending || importBusy;
+  const total = data?.total ?? 0;
+  const tabCount = visitpadActiveTotal(rows, total);
+  const busy = patch.isPending || del.isPending || platformImport.isPending;
 
-  const importedKeys = useMemo(() => new Set(rows.map((r) => r.code.toLowerCase())), [rows]);
+  const importedKeys = useMemo(() => tenantKeys ?? new Set<string>(), [tenantKeys]);
   const globalRows = globalLib?.data ?? [];
+  const globalLibTotal = globalLib?.total ?? 0;
   const getRowKey = useCallback((r: VisitpadManufacturer) => r.code.toLowerCase(), []);
 
   const importSearchParts = useCallback(
@@ -76,21 +98,24 @@ function VisitpadManufacturersPage() {
   );
 
   const runManufacturerImport = async (selection: VisitpadManufacturer[]) => {
-    setImportBusy(true);
     try {
-      for (const row of selection) {
-        await create.mutateAsync(visitpadGlobalManufacturerToCreateBody(row));
+      const res = await platformImport.mutateAsync(selection.map((r) => r.id));
+      const { created, skipped, errors } = res.data;
+      const parts = [`${created.length} created`, `${skipped.length} skipped`];
+      if (errors.length) parts.push(`${errors.length} failed`);
+      toast.success(parts.join(', '));
+      if (errors.length) {
+        toast.error(errors.map((e) => e.message).join('; '));
       }
-      toast.success(
-        selection.length === 1 ? 'Imported 1 manufacturer' : `Imported ${selection.length} manufacturers`,
-      );
       setImportOpen(false);
     } catch (e) {
       toast.error(mutationErrorMessage(e));
-    } finally {
-      setImportBusy(false);
     }
   };
+
+  useEffect(() => {
+    if (importOpen) setLibPageIndex(0);
+  }, [importOpen]);
 
   const columns = useMemo<ColumnDef<VisitpadManufacturer, unknown>[]>(
     () => [
@@ -148,7 +173,7 @@ function VisitpadManufacturersPage() {
           addLabel={tenantCatalog ? 'Add local manufacturer' : 'Add manufacturer'}
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
-          importFromLibraryPending={importBusy}
+          importFromLibraryPending={platformImport.isPending}
         />
       }
     >
@@ -168,6 +193,14 @@ function VisitpadManufacturersPage() {
             isLoading={isLoading}
             emptyTitle="No manufacturers found"
             emptyDescription="Adjust your search or add catalog entries."
+            manualPagination={{
+              pageIndex,
+              pageSize,
+              total,
+              pageSizeOptions: VISITPAD_CATALOG_PAGE_SIZES,
+              onPageChange: setPageIndex,
+              onPageSizeChange: setPageSize,
+            }}
           />
         )}
       </div>
@@ -184,8 +217,14 @@ function VisitpadManufacturersPage() {
         importedKeys={importedKeys}
         columns={importColumns}
         searchParts={importSearchParts}
-        isSubmitting={importBusy || create.isPending}
+        isSubmitting={platformImport.isPending || create.isPending}
         onImportRows={runManufacturerImport}
+        libraryPagination={{
+          pageIndex: libPageIndex,
+          pageSize: libPageSize,
+          total: globalLibTotal,
+          onPageChange: setLibPageIndex,
+        }}
       />
 
       <ManufacturerCreateDialog

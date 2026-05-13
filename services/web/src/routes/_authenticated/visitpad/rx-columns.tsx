@@ -13,13 +13,16 @@ import { EntityFormDialog } from '@/features/master-data/components/entity-form-
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
 import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
-import { rowMatchesSearch } from '@/features/master-data/table-search';
 import {
   useVisitpadDelete,
   useVisitpadPatch,
   useVisitpadPost,
   useVisitpadRxColumns,
   useVisitpadRxColumnsGlobalLibrary,
+  useVisitpadRxColumnsPlatformImport,
+  useVisitpadTenantImportKeys,
+  VISITPAD_CATALOG_DEFAULT_PAGE_SIZE,
+  VISITPAD_CATALOG_PAGE_SIZES,
 } from '@/features/visitpad/api';
 import { ImportFromPlatformCatalogDialog } from '@/features/visitpad/components/import-from-platform-catalog-dialog';
 import { visitpadActionsColumn } from '@/features/visitpad/components/visitpad-actions-column';
@@ -36,7 +39,6 @@ import {
 } from '@/features/visitpad/validation';
 import { useVisitpadCatalogPermission } from '@/features/visitpad/hooks/use-visitpad-catalog-permission';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
-import { visitpadGlobalRxColumnToCreateBody } from '@/features/visitpad/lib/visitpad-global-import-payloads';
 
 const RX_SECTIONS = [
   { value: 'medication_type', label: 'Medication type' },
@@ -65,26 +67,47 @@ function VisitpadRxColumnsPage() {
   const [section, setSection] = useState<string>(RX_SECTIONS[0].value);
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [importBusy, setImportBusy] = useState(false);
+  const [libPageIndex, setLibPageIndex] = useState(0);
+  const libPageSize = 50;
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadRxColumn | null>(null);
   const [deleting, setDeleting] = useState<VisitpadRxColumn | null>(null);
-  const { data, isLoading, error } = useVisitpadRxColumns(search || undefined, section);
+  const listPage = useMemo(() => ({ pageIndex, pageSize }), [pageIndex, pageSize]);
+  useEffect(() => {
+    setPageIndex(0);
+  }, [search]);
+  const { data, isLoading, error } = useVisitpadRxColumns(search || undefined, section, listPage);
   const { data: globalLib, isLoading: globalLibLoading } = useVisitpadRxColumnsGlobalLibrary(
     section,
     importOpen,
+    {
+      pageIndex: libPageIndex,
+      pageSize: libPageSize,
+    },
   );
   const patch = useVisitpadPatch(RX_BASE);
   const del = useVisitpadDelete(RX_BASE);
   const create = useVisitpadPost(RX_BASE);
+  const platformImport = useVisitpadRxColumnsPlatformImport(section);
+  const { data: tenantRxKeys } = useVisitpadTenantImportKeys(
+    '/rx-columns',
+    importOpen && tenantCatalog,
+    'section::code',
+    (row) => `${String(row.section)}::${String(row.code)}`,
+    { section },
+  );
   const rows = data?.data ?? [];
-  const tabCount = visitpadActiveTotal(rows, data?.total);
+  const total = data?.total ?? 0;
+  const tabCount = visitpadActiveTotal(rows, total);
   const sectionLabel = sectionLabelFor(section);
-  const busy = patch.isPending || del.isPending || importBusy;
+  const busy = patch.isPending || del.isPending || platformImport.isPending;
 
   const rxColumnKey = useCallback((r: Pick<VisitpadRxColumn, 'section' | 'code'>) => `${r.section}::${r.code}`, []);
 
-  const importedKeys = useMemo(() => new Set(rows.map((r) => rxColumnKey(r))), [rows, rxColumnKey]);
+  const importedKeys = useMemo(() => tenantRxKeys ?? new Set<string>(), [tenantRxKeys]);
   const globalRows = globalLib?.data ?? [];
+  const globalLibTotal = globalLib?.total ?? 0;
   const getRowKey = useCallback((r: VisitpadRxColumn) => rxColumnKey(r), [rxColumnKey]);
 
   const importSearchParts = useCallback(
@@ -98,26 +121,29 @@ function VisitpadRxColumnsPage() {
   );
 
   const runRxColumnImport = async (selection: VisitpadRxColumn[]) => {
-    setImportBusy(true);
     try {
-      for (const row of selection) {
-        await create.mutateAsync(visitpadGlobalRxColumnToCreateBody(row));
+      const res = await platformImport.mutateAsync(selection.map((r) => r.id));
+      const { created, skipped, errors } = res.data;
+      const parts = [`${created.length} created`, `${skipped.length} skipped`];
+      if (errors.length) parts.push(`${errors.length} failed`);
+      toast.success(parts.join(', '));
+      if (errors.length) {
+        toast.error(errors.map((e) => e.message).join('; '));
       }
-      toast.success(
-        selection.length === 1 ? 'Imported 1 Rx column' : `Imported ${selection.length} Rx columns`,
-      );
       setImportOpen(false);
     } catch (e) {
       toast.error(mutationErrorMessage(e));
-    } finally {
-      setImportBusy(false);
     }
   };
 
-  const filtered = useMemo(
-    () => rows.filter((r) => rowMatchesSearch(search, r.code, r.display_name)),
-    [rows, search],
-  );
+  useEffect(() => {
+    if (importOpen) setLibPageIndex(0);
+  }, [importOpen]);
+
+  useEffect(() => {
+    setPageIndex(0);
+    setLibPageIndex(0);
+  }, [section]);
 
   const columns = useMemo<ColumnDef<VisitpadRxColumn, unknown>[]>(
     () => [
@@ -168,7 +194,7 @@ function VisitpadRxColumnsPage() {
           addLabel={tenantCatalog ? `Add local ${sectionLabel}` : `Add ${sectionLabel}`}
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
-          importFromLibraryPending={importBusy}
+          importFromLibraryPending={platformImport.isPending}
         />
       }
     >
@@ -203,10 +229,18 @@ function VisitpadRxColumnsPage() {
             <DataTable
               showColumnMenu
               columns={columns}
-              data={filtered}
+              data={rows}
               isLoading={isLoading}
               emptyTitle="No Rx columns found"
               emptyDescription="Adjust your search or add catalog entries for this section."
+              manualPagination={{
+                pageIndex,
+                pageSize,
+                total,
+                pageSizeOptions: VISITPAD_CATALOG_PAGE_SIZES,
+                onPageChange: setPageIndex,
+                onPageSizeChange: setPageSize,
+              }}
             />
           )}
         </div>
@@ -224,8 +258,14 @@ function VisitpadRxColumnsPage() {
         importedKeys={importedKeys}
         columns={importColumns}
         searchParts={importSearchParts}
-        isSubmitting={importBusy || create.isPending}
+        isSubmitting={platformImport.isPending || create.isPending}
         onImportRows={runRxColumnImport}
+        libraryPagination={{
+          pageIndex: libPageIndex,
+          pageSize: libPageSize,
+          total: globalLibTotal,
+          onPageChange: setLibPageIndex,
+        }}
       />
 
       <RxColumnCreateDialog

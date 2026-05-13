@@ -21,13 +21,16 @@ import { EntityFormDialog } from '@/features/master-data/components/entity-form-
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
 import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
-import { rowMatchesSearch } from '@/features/master-data/table-search';
 import {
   useVisitpadChronicIllnesses,
   useVisitpadChronicIllnessesGlobalLibrary,
   useVisitpadDelete,
   useVisitpadPatch,
+  useVisitpadPlatformImport,
   useVisitpadPost,
+  useVisitpadTenantImportKeys,
+  VISITPAD_CATALOG_DEFAULT_PAGE_SIZE,
+  VISITPAD_CATALOG_PAGE_SIZES,
 } from '@/features/visitpad/api';
 import { ImportFromPlatformCatalogDialog } from '@/features/visitpad/components/import-from-platform-catalog-dialog';
 import { visitpadActionsColumn } from '@/features/visitpad/components/visitpad-actions-column';
@@ -47,7 +50,6 @@ import {
 } from '@/features/visitpad/validation';
 import { useVisitpadCatalogPermission } from '@/features/visitpad/hooks/use-visitpad-catalog-permission';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
-import { visitpadGlobalChronicIllnessToCreateBody } from '@/features/visitpad/lib/visitpad-global-import-payloads';
 
 const CI_BASE = '/api/v1/master-data/visitpad/chronic-illnesses';
 
@@ -90,21 +92,40 @@ function VisitpadChronicIllnessPage() {
   const [category, setCategory] = useState<string>('all');
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [importBusy, setImportBusy] = useState(false);
+  const [libPageIndex, setLibPageIndex] = useState(0);
+  const libPageSize = 50;
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadChronicIllness | null>(null);
   const [deleting, setDeleting] = useState<VisitpadChronicIllness | null>(null);
   const cat = category === 'all' ? undefined : category;
-  const { data, isLoading, error } = useVisitpadChronicIllnesses(search || undefined, cat);
-  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadChronicIllnessesGlobalLibrary(importOpen);
+  const listPage = useMemo(() => ({ pageIndex, pageSize }), [pageIndex, pageSize]);
+  useEffect(() => {
+    setPageIndex(0);
+  }, [search]);
+  const { data, isLoading, error } = useVisitpadChronicIllnesses(search || undefined, cat, listPage);
+  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadChronicIllnessesGlobalLibrary(importOpen, {
+    pageIndex: libPageIndex,
+    pageSize: libPageSize,
+  });
   const patch = useVisitpadPatch(CI_BASE);
   const del = useVisitpadDelete(CI_BASE);
   const create = useVisitpadPost(CI_BASE);
+  const platformImport = useVisitpadPlatformImport('/chronic-illnesses/import-from-platform');
+  const { data: tenantIcdKeys } = useVisitpadTenantImportKeys(
+    '/chronic-illnesses',
+    importOpen && tenantCatalog,
+    'icd10',
+    (row) => String(row.icd10_code),
+  );
   const rows = data?.data ?? [];
-  const tabCount = visitpadActiveTotal(rows, data?.total);
-  const busy = patch.isPending || del.isPending || importBusy;
+  const total = data?.total ?? 0;
+  const tabCount = visitpadActiveTotal(rows, total);
+  const busy = patch.isPending || del.isPending || platformImport.isPending;
 
-  const importedKeys = useMemo(() => new Set(rows.map((r) => r.icd10_code)), [rows]);
+  const importedKeys = useMemo(() => tenantIcdKeys ?? new Set<string>(), [tenantIcdKeys]);
   const globalRows = globalLib?.data ?? [];
+  const globalLibTotal = globalLib?.total ?? 0;
   const getRowKey = useCallback((r: VisitpadChronicIllness) => r.icd10_code, []);
 
   const importSearchParts = useCallback(
@@ -121,31 +142,24 @@ function VisitpadChronicIllnessPage() {
   );
 
   const runChronicIllnessImport = async (selection: VisitpadChronicIllness[]) => {
-    setImportBusy(true);
     try {
-      for (const row of selection) {
-        await create.mutateAsync(visitpadGlobalChronicIllnessToCreateBody(row));
+      const res = await platformImport.mutateAsync(selection.map((r) => r.id));
+      const { created, skipped, errors } = res.data;
+      const parts = [`${created.length} created`, `${skipped.length} skipped`];
+      if (errors.length) parts.push(`${errors.length} failed`);
+      toast.success(parts.join(', '));
+      if (errors.length) {
+        toast.error(errors.map((e) => e.message).join('; '));
       }
-      toast.success(
-        selection.length === 1
-          ? 'Imported 1 chronic illness'
-          : `Imported ${selection.length} chronic illnesses`,
-      );
       setImportOpen(false);
     } catch (e) {
       toast.error(mutationErrorMessage(e));
-    } finally {
-      setImportBusy(false);
     }
   };
 
-  const filtered = useMemo(
-    () =>
-      rows.filter((r) =>
-        rowMatchesSearch(search, r.icd10_code, r.display_name, r.category, r.snomed_code ?? ''),
-      ),
-    [rows, search],
-  );
+  useEffect(() => {
+    if (importOpen) setLibPageIndex(0);
+  }, [importOpen]);
 
   const columns = useMemo<ColumnDef<VisitpadChronicIllness, unknown>[]>(
     () => [
@@ -211,7 +225,7 @@ function VisitpadChronicIllnessPage() {
           addLabel={tenantCatalog ? 'Add local chronic illness' : 'Add chronic illness'}
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
-          importFromLibraryPending={importBusy}
+          importFromLibraryPending={platformImport.isPending}
         />
       }
     >
@@ -244,10 +258,18 @@ function VisitpadChronicIllnessPage() {
           <DataTable
             showColumnMenu
             columns={columns}
-            data={filtered}
+            data={rows}
             isLoading={isLoading}
             emptyTitle="No chronic illnesses found"
             emptyDescription="Adjust your search or add catalog entries."
+            manualPagination={{
+              pageIndex,
+              pageSize,
+              total,
+              pageSizeOptions: VISITPAD_CATALOG_PAGE_SIZES,
+              onPageChange: setPageIndex,
+              onPageSizeChange: setPageSize,
+            }}
           />
         )}
       </div>
@@ -265,8 +287,14 @@ function VisitpadChronicIllnessPage() {
         importedKeys={importedKeys}
         columns={importColumns}
         searchParts={importSearchParts}
-        isSubmitting={importBusy || create.isPending}
+        isSubmitting={platformImport.isPending || create.isPending}
         onImportRows={runChronicIllnessImport}
+        libraryPagination={{
+          pageIndex: libPageIndex,
+          pageSize: libPageSize,
+          total: globalLibTotal,
+          onPageChange: setLibPageIndex,
+        }}
       />
 
       <ChronicIllnessCreateDialog

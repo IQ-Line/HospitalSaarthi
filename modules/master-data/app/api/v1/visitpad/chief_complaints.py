@@ -3,12 +3,16 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_session, get_visitpad_chief_complaint_repository
 from app.api.errors import ResourceNotFoundError
 from app.repositories.visitpad.chief_complaint import VisitpadChiefComplaintRepository
+from app.schemas.visitpad.platform_import import (
+    VisitpadPlatformImportRequest,
+    VisitpadPlatformImportSingleResponse,
+)
 from app.schemas.visitpad.chief_complaint import (
     VisitpadBodySystem,
     VisitpadChiefComplaintCreate,
@@ -20,6 +24,7 @@ from app.schemas.visitpad.chief_complaint import (
     VisitpadTriagePriority,
     build_visitpad_chief_complaint_descriptor,
 )
+from app.services.visitpad.platform_bulk_import import import_visitpad_chief_complaints_from_platform
 from app.services.visitpad.chief_complaints import (
     create_visitpad_chief_complaint,
     get_visitpad_chief_complaint_by_id,
@@ -86,6 +91,32 @@ def post_chief_complaint(
     return VisitpadChiefComplaintSingleResponse(
         data=VisitpadChiefComplaintResponse.model_validate(row),
     )
+
+
+@router.post(
+    "/import-from-platform",
+    response_model=VisitpadPlatformImportSingleResponse,
+    summary="Bulk-import chief complaints from the platform catalog",
+)
+def post_chief_complaints_import_from_platform(
+    payload: VisitpadPlatformImportRequest,
+    repository: Annotated[
+        VisitpadChiefComplaintRepository,
+        Depends(get_visitpad_chief_complaint_repository),
+    ],
+    session: Annotated[Session, Depends(get_session)],
+) -> VisitpadPlatformImportSingleResponse:
+    try:
+        data = import_visitpad_chief_complaints_from_platform(
+            session,
+            scope=repository.scope,
+            tenant_repo=repository,
+            platform_row_ids=payload.platform_row_ids,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    session.commit()
+    return VisitpadPlatformImportSingleResponse(data=data)
 
 
 @router.get(

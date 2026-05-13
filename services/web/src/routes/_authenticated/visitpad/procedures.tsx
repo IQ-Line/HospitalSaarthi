@@ -20,13 +20,16 @@ import { EntityFormDialog } from '@/features/master-data/components/entity-form-
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
 import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
-import { rowMatchesSearch } from '@/features/master-data/table-search';
 import {
   useVisitpadDelete,
   useVisitpadPatch,
+  useVisitpadPlatformImport,
   useVisitpadPost,
   useVisitpadProcedures,
   useVisitpadProceduresGlobalLibrary,
+  useVisitpadTenantImportKeys,
+  VISITPAD_CATALOG_DEFAULT_PAGE_SIZE,
+  VISITPAD_CATALOG_PAGE_SIZES,
 } from '@/features/visitpad/api';
 import { ImportFromPlatformCatalogDialog } from '@/features/visitpad/components/import-from-platform-catalog-dialog';
 import { visitpadActionsColumn } from '@/features/visitpad/components/visitpad-actions-column';
@@ -49,7 +52,6 @@ import {
 } from '@/features/visitpad/validation';
 import { useVisitpadCatalogPermission } from '@/features/visitpad/hooks/use-visitpad-catalog-permission';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
-import { visitpadGlobalProcedureToCreateBody } from '@/features/visitpad/lib/visitpad-global-import-payloads';
 
 const PROC_BASE = '/api/v1/master-data/visitpad/procedures';
 
@@ -105,22 +107,41 @@ function VisitpadProceduresPage() {
   const [billing, setBilling] = useState<string>('all');
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [importBusy, setImportBusy] = useState(false);
+  const [libPageIndex, setLibPageIndex] = useState(0);
+  const libPageSize = 50;
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadProcedure | null>(null);
   const [deleting, setDeleting] = useState<VisitpadProcedure | null>(null);
   const cat = category === 'all' ? undefined : category;
   const bill = billing === 'all' ? undefined : billing;
-  const { data, isLoading, error } = useVisitpadProcedures(search || undefined, cat, bill);
-  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadProceduresGlobalLibrary(importOpen);
+  const listPage = useMemo(() => ({ pageIndex, pageSize }), [pageIndex, pageSize]);
+  useEffect(() => {
+    setPageIndex(0);
+  }, [search]);
+  const { data, isLoading, error } = useVisitpadProcedures(search || undefined, cat, bill, listPage);
+  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadProceduresGlobalLibrary(importOpen, {
+    pageIndex: libPageIndex,
+    pageSize: libPageSize,
+  });
   const patch = useVisitpadPatch(PROC_BASE);
   const del = useVisitpadDelete(PROC_BASE);
   const create = useVisitpadPost(PROC_BASE);
+  const platformImport = useVisitpadPlatformImport('/procedures/import-from-platform');
+  const { data: tenantCptKeys } = useVisitpadTenantImportKeys(
+    '/procedures',
+    importOpen && tenantCatalog,
+    'cpt',
+    (row) => String(row.cpt_code),
+  );
   const rows = data?.data ?? [];
-  const tabCount = visitpadActiveTotal(rows, data?.total);
-  const busy = patch.isPending || del.isPending || importBusy;
+  const total = data?.total ?? 0;
+  const tabCount = visitpadActiveTotal(rows, total);
+  const busy = patch.isPending || del.isPending || platformImport.isPending;
 
-  const importedKeys = useMemo(() => new Set(rows.map((r) => r.cpt_code)), [rows]);
+  const importedKeys = useMemo(() => tenantCptKeys ?? new Set<string>(), [tenantCptKeys]);
   const globalRows = globalLib?.data ?? [];
+  const globalLibTotal = globalLib?.total ?? 0;
   const getRowKey = useCallback((r: VisitpadProcedure) => r.cpt_code, []);
 
   const importSearchParts = useCallback(
@@ -142,35 +163,24 @@ function VisitpadProceduresPage() {
   );
 
   const runProcedureImport = async (selection: VisitpadProcedure[]) => {
-    setImportBusy(true);
     try {
-      for (const row of selection) {
-        await create.mutateAsync(visitpadGlobalProcedureToCreateBody(row));
+      const res = await platformImport.mutateAsync(selection.map((r) => r.id));
+      const { created, skipped, errors } = res.data;
+      const parts = [`${created.length} created`, `${skipped.length} skipped`];
+      if (errors.length) parts.push(`${errors.length} failed`);
+      toast.success(parts.join(', '));
+      if (errors.length) {
+        toast.error(errors.map((e) => e.message).join('; '));
       }
-      toast.success(
-        selection.length === 1 ? 'Imported 1 procedure' : `Imported ${selection.length} procedures`,
-      );
       setImportOpen(false);
     } catch (e) {
       toast.error(mutationErrorMessage(e));
-    } finally {
-      setImportBusy(false);
     }
   };
 
-  const filtered = useMemo(
-    () =>
-      rows.filter((r) =>
-        rowMatchesSearch(
-          search,
-          r.cpt_code,
-          r.short_name ?? '',
-          r.display_name,
-          r.official_descriptor ?? '',
-        ),
-      ),
-    [rows, search],
-  );
+  useEffect(() => {
+    if (importOpen) setLibPageIndex(0);
+  }, [importOpen]);
 
   const columns = useMemo<ColumnDef<VisitpadProcedure, unknown>[]>(
     () => [
@@ -239,7 +249,7 @@ function VisitpadProceduresPage() {
           addLabel={tenantCatalog ? 'Add local procedure' : 'Add procedure'}
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
-          importFromLibraryPending={importBusy}
+          importFromLibraryPending={platformImport.isPending}
         />
       }
     >
@@ -285,10 +295,18 @@ function VisitpadProceduresPage() {
           <DataTable
             showColumnMenu
             columns={columns}
-            data={filtered}
+            data={rows}
             isLoading={isLoading}
             emptyTitle="No procedures found"
             emptyDescription="Adjust your search or add catalog entries."
+            manualPagination={{
+              pageIndex,
+              pageSize,
+              total,
+              pageSizeOptions: VISITPAD_CATALOG_PAGE_SIZES,
+              onPageChange: setPageIndex,
+              onPageSizeChange: setPageSize,
+            }}
           />
         )}
       </div>
@@ -306,8 +324,14 @@ function VisitpadProceduresPage() {
         importedKeys={importedKeys}
         columns={importColumns}
         searchParts={importSearchParts}
-        isSubmitting={importBusy || create.isPending}
+        isSubmitting={platformImport.isPending || create.isPending}
         onImportRows={runProcedureImport}
+        libraryPagination={{
+          pageIndex: libPageIndex,
+          pageSize: libPageSize,
+          total: globalLibTotal,
+          onPageChange: setLibPageIndex,
+        }}
       />
 
       <ProcedureCreateDialog

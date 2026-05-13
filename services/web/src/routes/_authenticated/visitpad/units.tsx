@@ -21,8 +21,17 @@ import { EntityFormDialog } from '@/features/master-data/components/entity-form-
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
 import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
-import { rowMatchesSearch } from '@/features/master-data/table-search';
-import { useVisitpadDelete, useVisitpadPatch, useVisitpadPost, useVisitpadUnits, useVisitpadUnitsGlobalLibrary } from '@/features/visitpad/api';
+import {
+  useVisitpadDelete,
+  useVisitpadPatch,
+  useVisitpadPlatformImport,
+  useVisitpadPost,
+  useVisitpadTenantImportKeys,
+  useVisitpadUnits,
+  useVisitpadUnitsGlobalLibrary,
+  VISITPAD_CATALOG_DEFAULT_PAGE_SIZE,
+  VISITPAD_CATALOG_PAGE_SIZES,
+} from '@/features/visitpad/api';
 import { visitpadActionsColumn } from '@/features/visitpad/components/visitpad-actions-column';
 import { ImportFromPlatformCatalogDialog } from '@/features/visitpad/components/import-from-platform-catalog-dialog';
 import { VisitpadHeaderActions } from '@/features/visitpad/components/visitpad-header-actions';
@@ -40,7 +49,6 @@ import {
 } from '@/features/visitpad/validation';
 import { useVisitpadCatalogPermission } from '@/features/visitpad/hooks/use-visitpad-catalog-permission';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
-import { visitpadGlobalUnitToCreateBody } from '@/features/visitpad/lib/visitpad-global-import-payloads';
 
 const UNITS_BASE = '/api/v1/master-data/visitpad/units';
 
@@ -55,21 +63,40 @@ function VisitpadUnitsPage() {
   const [dimension, setDimension] = useState<string>('all');
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [importBusy, setImportBusy] = useState(false);
+  const [libPageIndex, setLibPageIndex] = useState(0);
+  const libPageSize = 50;
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadUnit | null>(null);
   const [deleting, setDeleting] = useState<VisitpadUnit | null>(null);
   const dimParam = dimension === 'all' ? undefined : dimension;
-  const { data, isLoading, error } = useVisitpadUnits(search || undefined, dimParam);
-  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadUnitsGlobalLibrary(importOpen);
+  const listPage = useMemo(() => ({ pageIndex, pageSize }), [pageIndex, pageSize]);
+  useEffect(() => {
+    setPageIndex(0);
+  }, [search, dimension]);
+  const { data, isLoading, error } = useVisitpadUnits(search || undefined, dimParam, listPage);
+  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadUnitsGlobalLibrary(importOpen, {
+    pageIndex: libPageIndex,
+    pageSize: libPageSize,
+  });
+  const { data: tenantCodeKeys } = useVisitpadTenantImportKeys(
+    '/units',
+    importOpen && tenantCatalog,
+    'code',
+    (row) => String(row.code),
+  );
   const patch = useVisitpadPatch(UNITS_BASE);
   const del = useVisitpadDelete(UNITS_BASE);
   const create = useVisitpadPost(UNITS_BASE);
+  const platformImport = useVisitpadPlatformImport('/units/import-from-platform');
   const rows = data?.data ?? [];
-  const tabCount = visitpadActiveTotal(rows, data?.total);
-  const busy = patch.isPending || del.isPending || importBusy;
+  const total = data?.total ?? 0;
+  const tabCount = visitpadActiveTotal(rows, total);
+  const busy = patch.isPending || del.isPending || platformImport.isPending;
 
-  const importedKeys = useMemo(() => new Set(rows.map((r) => r.code)), [rows]);
+  const importedKeys = useMemo(() => tenantCodeKeys ?? new Set<string>(), [tenantCodeKeys]);
   const globalRows = globalLib?.data ?? [];
+  const globalLibTotal = globalLib?.total ?? 0;
 
   const importSearchParts = useCallback(
     (r: VisitpadUnit) => [r.code, r.display_name, r.dimension, r.ucum_code ?? ''],
@@ -87,27 +114,24 @@ function VisitpadUnitsPage() {
   const getRowKey = useCallback((r: VisitpadUnit) => r.code, []);
 
   const runUnitImport = async (selection: VisitpadUnit[]) => {
-    setImportBusy(true);
     try {
-      for (const row of selection) {
-        await create.mutateAsync(visitpadGlobalUnitToCreateBody(row));
+      const res = await platformImport.mutateAsync(selection.map((r) => r.id));
+      const { created, skipped, errors } = res.data;
+      const parts = [`${created.length} created`, `${skipped.length} skipped`];
+      if (errors.length) parts.push(`${errors.length} failed`);
+      toast.success(parts.join(', '));
+      if (errors.length) {
+        toast.error(errors.map((e) => e.message).join('; '));
       }
-      toast.success(selection.length === 1 ? 'Imported 1 unit' : `Imported ${selection.length} units`);
       setImportOpen(false);
     } catch (e) {
       toast.error(mutationErrorMessage(e));
-    } finally {
-      setImportBusy(false);
     }
   };
 
-  const filtered = useMemo(
-    () =>
-      rows.filter((u) =>
-        rowMatchesSearch(search, u.code, u.display_name, u.dimension, u.ucum_code ?? ''),
-      ),
-    [rows, search],
-  );
+  useEffect(() => {
+    if (importOpen) setLibPageIndex(0);
+  }, [importOpen]);
 
   const columns = useMemo<ColumnDef<VisitpadUnit, unknown>[]>(
     () => [
@@ -174,7 +198,7 @@ function VisitpadUnitsPage() {
           addLabel={tenantCatalog ? 'Add local unit' : 'Add unit'}
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
-          importFromLibraryPending={importBusy}
+          importFromLibraryPending={platformImport.isPending}
         />
       }
     >
@@ -183,10 +207,18 @@ function VisitpadUnitsPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-1">
             <MasterDataTableToolbar
               value={search}
-              onChange={setSearch}
+              onChange={(v) => {
+                setSearch(v);
+                setPageIndex(0);
+              }}
               placeholder="Search code, label, UCUM…"
             />
-            <Select value={dimension} onValueChange={setDimension}>
+            <Select
+              value={dimension}
+              onValueChange={(v) => {
+                setDimension(v);
+                setPageIndex(0);
+              }}>
               <SelectTrigger className="w-full sm:w-[200px]" aria-label="Dimension filter">
                 <SelectValue placeholder="All dimensions" />
               </SelectTrigger>
@@ -207,10 +239,18 @@ function VisitpadUnitsPage() {
           <DataTable
             showColumnMenu
             columns={columns}
-            data={filtered}
+            data={rows}
             isLoading={isLoading}
             emptyTitle="No units found"
             emptyDescription="Ensure master-data is running and you are authorized, or adjust your search."
+            manualPagination={{
+              pageIndex,
+              pageSize,
+              total,
+              pageSizeOptions: VISITPAD_CATALOG_PAGE_SIZES,
+              onPageChange: setPageIndex,
+              onPageSizeChange: setPageSize,
+            }}
           />
         )}
       </div>
@@ -242,8 +282,14 @@ function VisitpadUnitsPage() {
         importedKeys={importedKeys}
         columns={importColumns}
         searchParts={importSearchParts}
-        isSubmitting={importBusy || create.isPending}
+        isSubmitting={platformImport.isPending || create.isPending}
         onImportRows={runUnitImport}
+        libraryPagination={{
+          pageIndex: libPageIndex,
+          pageSize: libPageSize,
+          total: globalLibTotal,
+          onPageChange: setLibPageIndex,
+        }}
       />
 
       <UnitEditDialog

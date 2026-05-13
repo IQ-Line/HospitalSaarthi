@@ -13,7 +13,8 @@ const router = createRouter({
   routeTree,
   context: { queryClient },
   defaultPreload: 'intent',
-  defaultPreloadStaleTime: 0,
+  /** Avoid immediate refetch after preload (0 = stale instantly → duplicate GETs on intent hover). */
+  defaultPreloadStaleTime: 30_000,
   scrollRestoration: true,
 });
 

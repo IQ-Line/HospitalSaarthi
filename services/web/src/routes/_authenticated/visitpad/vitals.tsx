@@ -15,14 +15,17 @@ import { EntityFormDialog } from '@/features/master-data/components/entity-form-
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
 import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
-import { rowMatchesSearch } from '@/features/master-data/table-search';
 import {
   useVisitpadDelete,
   useVisitpadPatch,
+  useVisitpadPlatformImport,
   useVisitpadPost,
+  useVisitpadTenantImportKeys,
   useVisitpadUnits,
   useVisitpadVitals,
   useVisitpadVitalsGlobalLibrary,
+  VISITPAD_CATALOG_DEFAULT_PAGE_SIZE,
+  VISITPAD_CATALOG_PAGE_SIZES,
 } from '@/features/visitpad/api';
 import { visitpadActionsColumn } from '@/features/visitpad/components/visitpad-actions-column';
 import { ImportFromPlatformCatalogDialog } from '@/features/visitpad/components/import-from-platform-catalog-dialog';
@@ -37,7 +40,6 @@ import {
 } from '@/features/visitpad/openapi-constants';
 import { visitpadActiveTotal } from '@/features/visitpad/tab-count';
 import type { VisitpadUnit, VisitpadVital } from '@/features/visitpad/types';
-import { visitpadGlobalVitalToCreateBody } from '@/features/visitpad/lib/vital-import-payload';
 import { useVisitpadCatalogPermission } from '@/features/visitpad/hooks/use-visitpad-catalog-permission';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 import { visitpadActiveUnitRows } from '@/features/visitpad/unit-catalog';
@@ -122,24 +124,42 @@ function VisitpadVitalsPage() {
   const [category, setCategory] = useState<string>('all');
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [importBusy, setImportBusy] = useState(false);
+  const [libPageIndex, setLibPageIndex] = useState(0);
+  const libPageSize = 50;
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadVital | null>(null);
   const [deleting, setDeleting] = useState<VisitpadVital | null>(null);
   const { canWrite, canRead } = useVisitpadCatalogPermission();
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const cat = category === 'all' ? undefined : category;
-  const { data, isLoading, error } = useVisitpadVitals(search || undefined, cat);
-  const { data: globalLib, isLoading: globalLibLoading } =
-    useVisitpadVitalsGlobalLibrary(importOpen);
+  const listPage = useMemo(() => ({ pageIndex, pageSize }), [pageIndex, pageSize]);
+  useEffect(() => {
+    setPageIndex(0);
+  }, [search]);
+  const { data, isLoading, error } = useVisitpadVitals(search || undefined, cat, listPage);
+  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadVitalsGlobalLibrary(importOpen, {
+    pageIndex: libPageIndex,
+    pageSize: libPageSize,
+  });
   const patch = useVisitpadPatch(VITALS_BASE);
   const del = useVisitpadDelete(VITALS_BASE);
   const create = useVisitpadPost(VITALS_BASE);
+  const platformImport = useVisitpadPlatformImport('/vitals/import-from-platform');
   const rows = data?.data ?? [];
-  const tabCount = visitpadActiveTotal(rows, data?.total);
-  const busy = patch.isPending || del.isPending || importBusy;
+  const total = data?.total ?? 0;
+  const tabCount = visitpadActiveTotal(rows, total);
+  const busy = patch.isPending || del.isPending || platformImport.isPending;
 
-  const importedKeys = useMemo(() => new Set(rows.map((r) => r.code)), [rows]);
+  const { data: tenantCodes } = useVisitpadTenantImportKeys(
+    '/vitals',
+    importOpen && tenantCatalog,
+    'code',
+    (row) => String(row.code),
+  );
+  const importedKeys = useMemo(() => tenantCodes ?? new Set<string>(), [tenantCodes]);
   const globalRows = globalLib?.data ?? [];
+  const globalLibTotal = globalLib?.total ?? 0;
 
   const importSearchParts = useCallback(
     (r: VisitpadVital) => [r.code, r.name, r.category, r.unit, r.short_name],
@@ -158,27 +178,20 @@ function VisitpadVitalsPage() {
   );
 
   const runVitalImport = async (selection: VisitpadVital[]) => {
-    setImportBusy(true);
     try {
-      for (const row of selection) {
-        const body = visitpadGlobalVitalToCreateBody(row);
-        await create.mutateAsync(body);
-      }
-      toast.success(
-        selection.length === 1 ? 'Imported 1 vital' : `Imported ${selection.length} vitals`,
-      );
+      const res = await platformImport.mutateAsync(selection.map((r) => r.id));
+      const { created, skipped, errors } = res.data;
+      toast.success(`${created.length} created, ${skipped.length} skipped${errors.length ? `, ${errors.length} failed` : ''}`);
+      if (errors.length) toast.error(errors.map((e) => e.message).join('; '));
       setImportOpen(false);
     } catch (e) {
       toast.error(mutationErrorMessage(e));
-    } finally {
-      setImportBusy(false);
     }
   };
 
-  const filtered = useMemo(
-    () => rows.filter((r) => rowMatchesSearch(search, r.code, r.name, r.short_name, r.category)),
-    [rows, search],
-  );
+  useEffect(() => {
+    if (importOpen) setLibPageIndex(0);
+  }, [importOpen]);
 
   const columns = useMemo<ColumnDef<VisitpadVital, unknown>[]>(
     () => [
@@ -302,7 +315,7 @@ function VisitpadVitalsPage() {
           addLabel={tenantCatalog ? 'Add local vital' : 'Add vital'}
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
-          importFromLibraryPending={importBusy}
+          importFromLibraryPending={platformImport.isPending}
         />
       }
     >
@@ -311,10 +324,19 @@ function VisitpadVitalsPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-1">
             <MasterDataTableToolbar
               value={search}
-              onChange={setSearch}
+              onChange={(v) => {
+                setSearch(v);
+                setPageIndex(0);
+              }}
               placeholder="Search code, name, unit…"
             />
-            <Select value={category} onValueChange={setCategory}>
+            <Select
+              value={category}
+              onValueChange={(v) => {
+                setCategory(v);
+                setPageIndex(0);
+              }}
+            >
               <SelectTrigger className="w-full sm:w-[200px]" aria-label="Category filter">
                 <SelectValue placeholder="All categories" />
               </SelectTrigger>
@@ -335,10 +357,18 @@ function VisitpadVitalsPage() {
           <DataTable
             showColumnMenu
             columns={columns}
-            data={filtered}
+            data={rows}
             isLoading={isLoading}
             emptyTitle="No vitals found"
             emptyDescription="Adjust your search or add catalog entries."
+            manualPagination={{
+              pageIndex,
+              pageSize,
+              total,
+              pageSizeOptions: VISITPAD_CATALOG_PAGE_SIZES,
+              onPageChange: setPageIndex,
+              onPageSizeChange: setPageSize,
+            }}
           />
         )}
       </div>
@@ -371,8 +401,14 @@ function VisitpadVitalsPage() {
         importedKeys={importedKeys}
         columns={importColumns}
         searchParts={importSearchParts}
-        isSubmitting={importBusy || create.isPending}
+        isSubmitting={platformImport.isPending || create.isPending}
         onImportRows={runVitalImport}
+        libraryPagination={{
+          pageIndex: libPageIndex,
+          pageSize: libPageSize,
+          total: globalLibTotal,
+          onPageChange: setLibPageIndex,
+        }}
       />
 
       <VitalEditDialog
@@ -440,7 +476,7 @@ function VitalCreateDialog({
   const [unitLabel, setUnitLabel] = useState('');
   const [defaultUnitCode, setDefaultUnitCode] = useState('');
 
-  const { data: unitsRes, isLoading: unitsLoading } = useVisitpadUnits();
+  const { data: unitsRes, isLoading: unitsLoading } = useVisitpadUnits(undefined, undefined, { pageIndex: 0, pageSize: 200 });
   const unitRows = useMemo(() => visitpadActiveUnitRows(unitsRes?.data), [unitsRes?.data]);
   const hasCatalogUnits = unitRows.length > 0;
 
@@ -731,7 +767,7 @@ function VitalEditDialog({
   isSubmitting: boolean;
   onSave: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const { data: unitsRes, isLoading: unitsLoading } = useVisitpadUnits();
+  const { data: unitsRes, isLoading: unitsLoading } = useVisitpadUnits(undefined, undefined, { pageIndex: 0, pageSize: 200 });
   const unitRows = useMemo(() => visitpadActiveUnitRows(unitsRes?.data), [unitsRes?.data]);
   const defaultUnitOptions = useMemo(
     () =>

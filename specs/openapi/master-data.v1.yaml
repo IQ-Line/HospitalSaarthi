@@ -1029,6 +1029,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/units/import-from-platform:
+    post:
+      tags:
+      - Visitpad — Units
+      summary: Bulk-import units from the platform catalog
+      operationId: post_visitpad_units_import_from_platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadPlatformImportRequest'
+      responses:
+        '200':
+          description: Created tenant row ids, skipped platform ids, and per-id errors.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadPlatformImportSingleResponse'
+        '400':
+          description: Tenant catalog scope required (iq_tenant_id header).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /visitpad/units/{unit_id}:
     get:
       tags:
@@ -1191,6 +1222,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/unit-conversions/import-from-platform:
+    post:
+      tags:
+      - Visitpad — Unit conversions
+      summary: Bulk-import unit conversions from the platform catalog
+      operationId: post_visitpad_unit_conversions_import_from_platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadPlatformImportRequest'
+      responses:
+        '200':
+          description: Created tenant row ids, skipped platform ids, and per-id errors.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadPlatformImportSingleResponse'
+        '400':
+          description: Tenant catalog scope required (iq_tenant_id header).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /visitpad/unit-conversions/{conversion_id}:
     get:
       tags:
@@ -1347,6 +1409,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/VisitpadVitalSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/vitals/import-from-platform:
+    post:
+      tags:
+      - Visitpad — Vitals
+      summary: Bulk-import vitals from the platform catalog
+      operationId: post_visitpad_vitals_import_from_platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadPlatformImportRequest'
+      responses:
+        '200':
+          description: Created tenant row ids, skipped platform ids, and per-id errors.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadPlatformImportSingleResponse'
+        '400':
+          description: Tenant catalog scope required (iq_tenant_id header).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Validation Error
           content:
@@ -1517,6 +1610,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/VisitpadChiefComplaintSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/chief-complaints/import-from-platform:
+    post:
+      tags:
+      - Visitpad — Chief complaints
+      summary: Bulk-import chief complaints from the platform catalog
+      operationId: post_visitpad_chief_complaints_import_from_platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadPlatformImportRequest'
+      responses:
+        '200':
+          description: Created tenant row ids, skipped platform ids, and per-id errors.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadPlatformImportSingleResponse'
+        '400':
+          description: Tenant catalog scope required (iq_tenant_id header).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Validation Error
           content:
@@ -1706,6 +1830,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/diagnoses/import-from-platform:
+    post:
+      tags:
+      - Visitpad — Diagnoses
+      summary: Bulk-import diagnoses from the platform catalog
+      operationId: post_visitpad_diagnoses_import_from_platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadPlatformImportRequest'
+      responses:
+        '200':
+          description: Created tenant row ids, skipped platform ids, and per-id errors.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadPlatformImportSingleResponse'
+        '400':
+          description: Tenant catalog scope required (iq_tenant_id header).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /visitpad/diagnoses/{diagnosis_id}:
     get:
       tags:
@@ -1868,6 +2023,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/allergens/import-from-platform:
+    post:
+      tags:
+      - Visitpad — Allergens
+      summary: Bulk-import allergens from the platform catalog
+      operationId: post_visitpad_allergens_import_from_platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadPlatformImportRequest'
+      responses:
+        '200':
+          description: Created tenant row ids, skipped platform ids, and per-id errors.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadPlatformImportSingleResponse'
+        '400':
+          description: Tenant catalog scope required (iq_tenant_id header).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /visitpad/allergens/{allergen_id}:
     get:
       tags:
@@ -2016,6 +2202,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/VisitpadAllergyReactionSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/allergy-reactions/import-from-platform:
+    post:
+      tags:
+      - Visitpad — Allergy reactions
+      summary: Bulk-import allergy reactions from the platform catalog
+      operationId: post_visitpad_allergy_reactions_import_from_platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadPlatformImportRequest'
+      responses:
+        '200':
+          description: Created tenant row ids, skipped platform ids, and per-id errors.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadPlatformImportSingleResponse'
+        '400':
+          description: Tenant catalog scope required (iq_tenant_id header).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Validation Error
           content:
@@ -2184,6 +2401,44 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/rx-columns/import-from-platform:
+    post:
+      tags:
+      - Visitpad — Rx columns
+      summary: Bulk-import Rx columns from the platform catalog
+      operationId: post_visitpad_rx_columns_import_from_platform
+      parameters:
+      - name: section
+        in: query
+        required: true
+        schema:
+          $ref: '#/components/schemas/VisitpadRxColumnSection'
+        description: Must match each platform row's section (same as list/create filters).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadPlatformImportRequest'
+      responses:
+        '200':
+          description: Created tenant row ids, skipped platform ids, and per-id errors.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadPlatformImportSingleResponse'
+        '400':
+          description: Tenant catalog scope required (iq_tenant_id header).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /visitpad/rx-columns/{rx_column_id}:
     get:
       tags:
@@ -2340,6 +2595,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/VisitpadMedicineSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/medicines/import-from-platform:
+    post:
+      tags:
+      - Visitpad — Medicines
+      summary: Bulk-import medicines from the platform catalog
+      operationId: post_visitpad_medicines_import_from_platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadPlatformImportRequest'
+      responses:
+        '200':
+          description: Created tenant row ids, skipped platform ids, and per-id errors.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadPlatformImportSingleResponse'
+        '400':
+          description: Tenant catalog scope required (iq_tenant_id header).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Validation Error
           content:
@@ -2508,6 +2794,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/chronic-illnesses/import-from-platform:
+    post:
+      tags:
+      - Visitpad — Chronic illnesses
+      summary: Bulk-import chronic illnesses from the platform catalog
+      operationId: post_visitpad_chronic_illnesses_import_from_platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadPlatformImportRequest'
+      responses:
+        '200':
+          description: Created tenant row ids, skipped platform ids, and per-id errors.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadPlatformImportSingleResponse'
+        '400':
+          description: Tenant catalog scope required (iq_tenant_id header).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /visitpad/chronic-illnesses/{chronic_illness_id}:
     get:
       tags:
@@ -2662,6 +2979,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/manufacturers/import-from-platform:
+    post:
+      tags:
+      - Visitpad — Manufacturers
+      summary: Bulk-import manufacturers from the platform catalog
+      operationId: post_visitpad_manufacturers_import_from_platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadPlatformImportRequest'
+      responses:
+        '200':
+          description: Created tenant row ids, skipped platform ids, and per-id errors.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadPlatformImportSingleResponse'
+        '400':
+          description: Tenant catalog scope required (iq_tenant_id header).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /visitpad/manufacturers/{manufacturer_id}:
     get:
       tags:
@@ -2810,6 +3158,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/VisitpadVaccineSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/vaccines/import-from-platform:
+    post:
+      tags:
+      - Visitpad — Vaccines
+      summary: Bulk-import vaccines from the platform catalog
+      operationId: post_visitpad_vaccines_import_from_platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadPlatformImportRequest'
+      responses:
+        '200':
+          description: Created tenant row ids, skipped platform ids, and per-id errors.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadPlatformImportSingleResponse'
+        '400':
+          description: Tenant catalog scope required (iq_tenant_id header).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Validation Error
           content:
@@ -2980,6 +3359,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/VisitpadProcedureSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/procedures/import-from-platform:
+    post:
+      tags:
+      - Visitpad — Procedures
+      summary: Bulk-import procedures from the platform catalog
+      operationId: post_visitpad_procedures_import_from_platform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadPlatformImportRequest'
+      responses:
+        '200':
+          description: Created tenant row ids, skipped platform ids, and per-id errors.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadPlatformImportSingleResponse'
+        '400':
+          description: Tenant catalog scope required (iq_tenant_id header).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Validation Error
           content:
@@ -6582,6 +6992,71 @@ components:
       - display_name
       - dimension
       title: VisitpadUnitCreate
+    VisitpadPlatformImportRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - platform_row_ids
+      properties:
+        platform_row_ids:
+          type: array
+          minItems: 1
+          maxItems: 200
+          items:
+            type: string
+            format: uuid
+          title: Platform Row Ids
+      title: VisitpadPlatformImportRequest
+    VisitpadPlatformImportErrorItem:
+      type: object
+      additionalProperties: false
+      required:
+      - platform_row_id
+      - message
+      properties:
+        platform_row_id:
+          type: string
+          format: uuid
+          title: Platform Row Id
+        message:
+          type: string
+          title: Message
+      title: VisitpadPlatformImportErrorItem
+    VisitpadPlatformImportData:
+      type: object
+      additionalProperties: false
+      required:
+      - created
+      - skipped
+      - errors
+      properties:
+        created:
+          type: array
+          items:
+            type: string
+            format: uuid
+          title: Created
+        skipped:
+          type: array
+          items:
+            type: string
+            format: uuid
+          title: Skipped
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/VisitpadPlatformImportErrorItem'
+          title: Errors
+      title: VisitpadPlatformImportData
+    VisitpadPlatformImportSingleResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/VisitpadPlatformImportData'
+      title: VisitpadPlatformImportSingleResponse
     VisitpadUnitDimension:
       type: string
       enum:

@@ -1,0 +1,585 @@
+"""Bulk copy Visitpad rows from the platform (public) catalog into the tenant catalog."""
+
+from __future__ import annotations
+
+from typing import Any, TypeVar
+from uuid import UUID
+
+from pydantic import BaseModel, ValidationError
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.catalog.visitpad.table_models import (
+    visitpad_allergen_model,
+    visitpad_allergy_reaction_model,
+    visitpad_chief_complaint_model,
+    visitpad_chronic_illness_model,
+    visitpad_diagnosis_model,
+    visitpad_manufacturer_model,
+    visitpad_medicine_model,
+    visitpad_procedure_model,
+    visitpad_rx_column_model,
+    visitpad_unit_conversion_model,
+    visitpad_unit_model,
+    visitpad_vaccine_model,
+    visitpad_vital_model,
+)
+from app.core.catalog_scope import CatalogScope
+from app.repositories.visitpad.integrity import DuplicateVisitpadCatalogKeyError
+from app.repositories.visitpad.conversion import DuplicateVisitpadUnitConversionKeyError
+from app.repositories.visitpad.unit import DuplicateVisitpadUnitKeyError
+from app.schemas.visitpad.allergen import (
+    VisitpadAllergenCreate,
+    VisitpadAllergenResponse,
+    VisitpadAllergyReactionCreate,
+    VisitpadAllergyReactionResponse,
+)
+from app.schemas.visitpad.chief_complaint import VisitpadChiefComplaintCreate, VisitpadChiefComplaintResponse
+from app.schemas.visitpad.chronic_illness import VisitpadChronicIllnessCreate, VisitpadChronicIllnessResponse
+from app.schemas.visitpad.diagnosis import VisitpadDiagnosisCreate, VisitpadDiagnosisResponse
+from app.schemas.visitpad.manufacturer import VisitpadManufacturerCreate, VisitpadManufacturerResponse
+from app.schemas.visitpad.medicine import VisitpadMedicineCreate, VisitpadMedicineResponse
+from app.schemas.visitpad.platform_import import VisitpadPlatformImportData, VisitpadPlatformImportErrorItem
+from app.schemas.visitpad.procedure import VisitpadProcedureCreate, VisitpadProcedureResponse
+from app.schemas.visitpad.rx_column import VisitpadRxColumnCreate, VisitpadRxColumnResponse, VisitpadRxColumnSection
+from app.schemas.visitpad.unit import (
+    VisitpadUnitConversionCreate,
+    VisitpadUnitConversionResponse,
+    VisitpadUnitCreate,
+    VisitpadUnitResponse,
+)
+from app.schemas.visitpad.vaccine import VisitpadVaccineCreate, VisitpadVaccineResponse
+from app.schemas.visitpad.vital import VisitpadVitalCreate, VisitpadVitalResponse
+from app.services.visitpad.allergies import create_visitpad_allergen, create_visitpad_allergy_reaction
+from app.services.visitpad.chief_complaints import create_visitpad_chief_complaint
+from app.services.visitpad.chronic_illnesses import create_visitpad_chronic_illness
+from app.services.visitpad.diagnoses import create_visitpad_diagnosis
+from app.services.visitpad.manufacturers import create_visitpad_manufacturer
+from app.services.visitpad.medicines import create_visitpad_medicine
+from app.services.visitpad.procedures import create_visitpad_procedure
+from app.services.visitpad.rx_columns import create_visitpad_rx_column
+from app.services.visitpad.units import (
+    InvalidVisitpadUnitConversionError,
+    create_visitpad_unit,
+    create_visitpad_unit_conversion,
+)
+from app.services.visitpad.vaccines import create_visitpad_vaccine
+from app.services.visitpad.vitals import InvalidVitalRangeError, create_visitpad_vital
+
+RespT = TypeVar("RespT", bound=BaseModel)
+CreT = TypeVar("CreT", bound=BaseModel)
+
+
+def _require_tenant_scope(scope: CatalogScope) -> None:
+    if not scope.is_tenant:
+        msg = "Import from platform requires tenant catalog scope (iq_tenant_id header)."
+        raise ValueError(msg)
+
+
+def _fetch_public_by_ids(session: Session, model_cls: type[Any], ids: list[UUID]) -> dict[Any, Any]:
+    if not ids:
+        return {}
+    stmt = select(model_cls).where(model_cls.id.in_(ids), model_cls.is_deleted.is_(False))
+    rows = session.scalars(stmt).unique().all()
+    return {r.id: r for r in rows}
+
+
+def _orm_to_create(row: Any, *, response_cls: type[RespT], create_cls: type[CreT]) -> CreT:
+    resp = response_cls.model_validate(row)
+    keys = create_cls.model_fields.keys()
+    return create_cls.model_validate({k: getattr(resp, k) for k in keys})
+
+
+def import_visitpad_units_from_platform(
+    session: Session,
+    *,
+    scope: CatalogScope,
+    tenant_repo: Any,
+    platform_row_ids: list[UUID],
+) -> VisitpadPlatformImportData:
+    _require_tenant_scope(scope)
+    M = visitpad_unit_model(CatalogScope(None))
+    by_id = _fetch_public_by_ids(session, M, platform_row_ids)
+    created: list[Any] = []
+    skipped: list[Any] = []
+    errors: list[VisitpadPlatformImportErrorItem] = []
+    for pid in platform_row_ids:
+        pub = by_id.get(pid)
+        if pub is None:
+            errors.append(VisitpadPlatformImportErrorItem(platform_row_id=pid, message="Platform row not found."))
+            continue
+        try:
+            payload = _orm_to_create(pub, response_cls=VisitpadUnitResponse, create_cls=VisitpadUnitCreate)
+        except ValidationError as exc:
+            errors.append(
+                VisitpadPlatformImportErrorItem(
+                    platform_row_id=pid,
+                    message="; ".join(f"{e['loc']}: {e['msg']}" for e in exc.errors()),
+                ),
+            )
+            continue
+        try:
+            with session.begin_nested():
+                row = create_visitpad_unit(tenant_repo, payload=payload)
+            created.append(row.id)
+        except DuplicateVisitpadUnitKeyError:
+            skipped.append(pid)
+    return VisitpadPlatformImportData(created=created, skipped=skipped, errors=errors)
+
+
+def import_visitpad_unit_conversions_from_platform(
+    session: Session,
+    *,
+    scope: CatalogScope,
+    unit_repo: Any,
+    conv_repo: Any,
+    platform_row_ids: list[Any],
+) -> VisitpadPlatformImportData:
+    _require_tenant_scope(scope)
+    M = visitpad_unit_conversion_model(CatalogScope(None))
+    by_id = _fetch_public_by_ids(session, M, platform_row_ids)
+    created: list[Any] = []
+    skipped: list[Any] = []
+    errors: list[VisitpadPlatformImportErrorItem] = []
+    for pid in platform_row_ids:
+        pub = by_id.get(pid)
+        if pub is None:
+            errors.append(VisitpadPlatformImportErrorItem(platform_row_id=pid, message="Platform row not found."))
+            continue
+        try:
+            payload = _orm_to_create(pub, response_cls=VisitpadUnitConversionResponse, create_cls=VisitpadUnitConversionCreate)
+        except ValidationError as exc:
+            errors.append(
+                VisitpadPlatformImportErrorItem(
+                    platform_row_id=pid,
+                    message="; ".join(f"{e['loc']}: {e['msg']}" for e in exc.errors()),
+                ),
+            )
+            continue
+        try:
+            with session.begin_nested():
+                row = create_visitpad_unit_conversion(unit_repo, conv_repo, payload=payload)
+            created.append(row.id)
+        except DuplicateVisitpadUnitConversionKeyError:
+            skipped.append(pid)
+        except InvalidVisitpadUnitConversionError as exc:
+            errors.append(VisitpadPlatformImportErrorItem(platform_row_id=pid, message=exc.message))
+    return VisitpadPlatformImportData(created=created, skipped=skipped, errors=errors)
+
+
+def import_visitpad_vitals_from_platform(
+    session: Session,
+    *,
+    scope: CatalogScope,
+    tenant_repo: Any,
+    platform_row_ids: list[UUID],
+) -> VisitpadPlatformImportData:
+    _require_tenant_scope(scope)
+    M = visitpad_vital_model(CatalogScope(None))
+    by_id = _fetch_public_by_ids(session, M, platform_row_ids)
+    created: list[Any] = []
+    skipped: list[Any] = []
+    errors: list[VisitpadPlatformImportErrorItem] = []
+    for pid in platform_row_ids:
+        pub = by_id.get(pid)
+        if pub is None:
+            errors.append(VisitpadPlatformImportErrorItem(platform_row_id=pid, message="Platform row not found."))
+            continue
+        try:
+            payload = _orm_to_create(pub, response_cls=VisitpadVitalResponse, create_cls=VisitpadVitalCreate)
+        except ValidationError as exc:
+            errors.append(
+                VisitpadPlatformImportErrorItem(
+                    platform_row_id=pid,
+                    message="; ".join(f"{e['loc']}: {e['msg']}" for e in exc.errors()),
+                ),
+            )
+            continue
+        try:
+            with session.begin_nested():
+                row = create_visitpad_vital(tenant_repo, payload=payload)
+            created.append(row.id)
+        except DuplicateVisitpadCatalogKeyError:
+            skipped.append(pid)
+        except InvalidVitalRangeError as exc:
+            errors.append(VisitpadPlatformImportErrorItem(platform_row_id=pid, message=exc.message))
+    return VisitpadPlatformImportData(created=created, skipped=skipped, errors=errors)
+
+
+def import_visitpad_chief_complaints_from_platform(
+    session: Session,
+    *,
+    scope: CatalogScope,
+    tenant_repo: Any,
+    platform_row_ids: list[UUID],
+) -> VisitpadPlatformImportData:
+    _require_tenant_scope(scope)
+    M = visitpad_chief_complaint_model(CatalogScope(None))
+    by_id = _fetch_public_by_ids(session, M, platform_row_ids)
+    created: list[Any] = []
+    skipped: list[Any] = []
+    errors: list[VisitpadPlatformImportErrorItem] = []
+    for pid in platform_row_ids:
+        pub = by_id.get(pid)
+        if pub is None:
+            errors.append(VisitpadPlatformImportErrorItem(platform_row_id=pid, message="Platform row not found."))
+            continue
+        try:
+            payload = _orm_to_create(pub, response_cls=VisitpadChiefComplaintResponse, create_cls=VisitpadChiefComplaintCreate)
+        except ValidationError as exc:
+            errors.append(
+                VisitpadPlatformImportErrorItem(
+                    platform_row_id=pid,
+                    message="; ".join(f"{e['loc']}: {e['msg']}" for e in exc.errors()),
+                ),
+            )
+            continue
+        try:
+            with session.begin_nested():
+                row = create_visitpad_chief_complaint(tenant_repo, payload=payload)
+            created.append(row.id)
+        except DuplicateVisitpadCatalogKeyError:
+            skipped.append(pid)
+    return VisitpadPlatformImportData(created=created, skipped=skipped, errors=errors)
+
+
+def import_visitpad_diagnoses_from_platform(
+    session: Session,
+    *,
+    scope: CatalogScope,
+    tenant_repo: Any,
+    platform_row_ids: list[UUID],
+) -> VisitpadPlatformImportData:
+    _require_tenant_scope(scope)
+    M = visitpad_diagnosis_model(CatalogScope(None))
+    by_id = _fetch_public_by_ids(session, M, platform_row_ids)
+    created: list[Any] = []
+    skipped: list[Any] = []
+    errors: list[VisitpadPlatformImportErrorItem] = []
+    for pid in platform_row_ids:
+        pub = by_id.get(pid)
+        if pub is None:
+            errors.append(VisitpadPlatformImportErrorItem(platform_row_id=pid, message="Platform row not found."))
+            continue
+        try:
+            payload = _orm_to_create(pub, response_cls=VisitpadDiagnosisResponse, create_cls=VisitpadDiagnosisCreate)
+        except ValidationError as exc:
+            errors.append(
+                VisitpadPlatformImportErrorItem(
+                    platform_row_id=pid,
+                    message="; ".join(f"{e['loc']}: {e['msg']}" for e in exc.errors()),
+                ),
+            )
+            continue
+        try:
+            with session.begin_nested():
+                row = create_visitpad_diagnosis(tenant_repo, payload=payload)
+            created.append(row.id)
+        except DuplicateVisitpadCatalogKeyError:
+            skipped.append(pid)
+    return VisitpadPlatformImportData(created=created, skipped=skipped, errors=errors)
+
+
+def import_visitpad_allergens_from_platform(
+    session: Session,
+    *,
+    scope: CatalogScope,
+    tenant_repo: Any,
+    platform_row_ids: list[UUID],
+) -> VisitpadPlatformImportData:
+    _require_tenant_scope(scope)
+    M = visitpad_allergen_model(CatalogScope(None))
+    by_id = _fetch_public_by_ids(session, M, platform_row_ids)
+    created: list[Any] = []
+    skipped: list[Any] = []
+    errors: list[VisitpadPlatformImportErrorItem] = []
+    for pid in platform_row_ids:
+        pub = by_id.get(pid)
+        if pub is None:
+            errors.append(VisitpadPlatformImportErrorItem(platform_row_id=pid, message="Platform row not found."))
+            continue
+        try:
+            payload = _orm_to_create(pub, response_cls=VisitpadAllergenResponse, create_cls=VisitpadAllergenCreate)
+        except ValidationError as exc:
+            errors.append(
+                VisitpadPlatformImportErrorItem(
+                    platform_row_id=pid,
+                    message="; ".join(f"{e['loc']}: {e['msg']}" for e in exc.errors()),
+                ),
+            )
+            continue
+        try:
+            with session.begin_nested():
+                row = create_visitpad_allergen(tenant_repo, payload=payload)
+            created.append(row.id)
+        except DuplicateVisitpadCatalogKeyError:
+            skipped.append(pid)
+    return VisitpadPlatformImportData(created=created, skipped=skipped, errors=errors)
+
+
+def import_visitpad_allergy_reactions_from_platform(
+    session: Session,
+    *,
+    scope: CatalogScope,
+    tenant_repo: Any,
+    platform_row_ids: list[UUID],
+) -> VisitpadPlatformImportData:
+    _require_tenant_scope(scope)
+    M = visitpad_allergy_reaction_model(CatalogScope(None))
+    by_id = _fetch_public_by_ids(session, M, platform_row_ids)
+    created: list[Any] = []
+    skipped: list[Any] = []
+    errors: list[VisitpadPlatformImportErrorItem] = []
+    for pid in platform_row_ids:
+        pub = by_id.get(pid)
+        if pub is None:
+            errors.append(VisitpadPlatformImportErrorItem(platform_row_id=pid, message="Platform row not found."))
+            continue
+        try:
+            payload = _orm_to_create(pub, response_cls=VisitpadAllergyReactionResponse, create_cls=VisitpadAllergyReactionCreate)
+        except ValidationError as exc:
+            errors.append(
+                VisitpadPlatformImportErrorItem(
+                    platform_row_id=pid,
+                    message="; ".join(f"{e['loc']}: {e['msg']}" for e in exc.errors()),
+                ),
+            )
+            continue
+        try:
+            with session.begin_nested():
+                row = create_visitpad_allergy_reaction(tenant_repo, payload=payload)
+            created.append(row.id)
+        except DuplicateVisitpadCatalogKeyError:
+            skipped.append(pid)
+    return VisitpadPlatformImportData(created=created, skipped=skipped, errors=errors)
+
+
+def import_visitpad_rx_columns_from_platform(
+    session: Session,
+    *,
+    scope: CatalogScope,
+    tenant_repo: Any,
+    platform_row_ids: list[Any],
+    section: VisitpadRxColumnSection,
+) -> VisitpadPlatformImportData:
+    _require_tenant_scope(scope)
+    M = visitpad_rx_column_model(CatalogScope(None))
+    by_id = _fetch_public_by_ids(session, M, platform_row_ids)
+    created: list[Any] = []
+    skipped: list[Any] = []
+    errors: list[VisitpadPlatformImportErrorItem] = []
+    for pid in platform_row_ids:
+        pub = by_id.get(pid)
+        if pub is None:
+            errors.append(VisitpadPlatformImportErrorItem(platform_row_id=pid, message="Platform row not found."))
+            continue
+        if str(pub.section) != section.value:
+            errors.append(
+                VisitpadPlatformImportErrorItem(
+                    platform_row_id=pid,
+                    message=f"Platform row section mismatch (expected {section.value!r}).",
+                ),
+            )
+            continue
+        try:
+            payload = _orm_to_create(pub, response_cls=VisitpadRxColumnResponse, create_cls=VisitpadRxColumnCreate)
+        except ValidationError as exc:
+            errors.append(
+                VisitpadPlatformImportErrorItem(
+                    platform_row_id=pid,
+                    message="; ".join(f"{e['loc']}: {e['msg']}" for e in exc.errors()),
+                ),
+            )
+            continue
+        try:
+            with session.begin_nested():
+                row = create_visitpad_rx_column(tenant_repo, payload=payload)
+            created.append(row.id)
+        except DuplicateVisitpadCatalogKeyError:
+            skipped.append(pid)
+    return VisitpadPlatformImportData(created=created, skipped=skipped, errors=errors)
+
+
+def import_visitpad_medicines_from_platform(
+    session: Session,
+    *,
+    scope: CatalogScope,
+    tenant_repo: Any,
+    platform_row_ids: list[UUID],
+) -> VisitpadPlatformImportData:
+    _require_tenant_scope(scope)
+    M = visitpad_medicine_model(CatalogScope(None))
+    by_id = _fetch_public_by_ids(session, M, platform_row_ids)
+    created: list[Any] = []
+    skipped: list[Any] = []
+    errors: list[VisitpadPlatformImportErrorItem] = []
+    for pid in platform_row_ids:
+        pub = by_id.get(pid)
+        if pub is None:
+            errors.append(VisitpadPlatformImportErrorItem(platform_row_id=pid, message="Platform row not found."))
+            continue
+        try:
+            payload = _orm_to_create(pub, response_cls=VisitpadMedicineResponse, create_cls=VisitpadMedicineCreate)
+        except ValidationError as exc:
+            errors.append(
+                VisitpadPlatformImportErrorItem(
+                    platform_row_id=pid,
+                    message="; ".join(f"{e['loc']}: {e['msg']}" for e in exc.errors()),
+                ),
+            )
+            continue
+        try:
+            with session.begin_nested():
+                row = create_visitpad_medicine(tenant_repo, payload=payload)
+            created.append(row.id)
+        except DuplicateVisitpadCatalogKeyError:
+            skipped.append(pid)
+    return VisitpadPlatformImportData(created=created, skipped=skipped, errors=errors)
+
+
+def import_visitpad_chronic_illnesses_from_platform(
+    session: Session,
+    *,
+    scope: CatalogScope,
+    tenant_repo: Any,
+    platform_row_ids: list[UUID],
+) -> VisitpadPlatformImportData:
+    _require_tenant_scope(scope)
+    M = visitpad_chronic_illness_model(CatalogScope(None))
+    by_id = _fetch_public_by_ids(session, M, platform_row_ids)
+    created: list[Any] = []
+    skipped: list[Any] = []
+    errors: list[VisitpadPlatformImportErrorItem] = []
+    for pid in platform_row_ids:
+        pub = by_id.get(pid)
+        if pub is None:
+            errors.append(VisitpadPlatformImportErrorItem(platform_row_id=pid, message="Platform row not found."))
+            continue
+        try:
+            payload = _orm_to_create(pub, response_cls=VisitpadChronicIllnessResponse, create_cls=VisitpadChronicIllnessCreate)
+        except ValidationError as exc:
+            errors.append(
+                VisitpadPlatformImportErrorItem(
+                    platform_row_id=pid,
+                    message="; ".join(f"{e['loc']}: {e['msg']}" for e in exc.errors()),
+                ),
+            )
+            continue
+        try:
+            with session.begin_nested():
+                row = create_visitpad_chronic_illness(tenant_repo, payload=payload)
+            created.append(row.id)
+        except DuplicateVisitpadCatalogKeyError:
+            skipped.append(pid)
+    return VisitpadPlatformImportData(created=created, skipped=skipped, errors=errors)
+
+
+def import_visitpad_procedures_from_platform(
+    session: Session,
+    *,
+    scope: CatalogScope,
+    tenant_repo: Any,
+    platform_row_ids: list[UUID],
+) -> VisitpadPlatformImportData:
+    _require_tenant_scope(scope)
+    M = visitpad_procedure_model(CatalogScope(None))
+    by_id = _fetch_public_by_ids(session, M, platform_row_ids)
+    created: list[Any] = []
+    skipped: list[Any] = []
+    errors: list[VisitpadPlatformImportErrorItem] = []
+    for pid in platform_row_ids:
+        pub = by_id.get(pid)
+        if pub is None:
+            errors.append(VisitpadPlatformImportErrorItem(platform_row_id=pid, message="Platform row not found."))
+            continue
+        try:
+            payload = _orm_to_create(pub, response_cls=VisitpadProcedureResponse, create_cls=VisitpadProcedureCreate)
+        except ValidationError as exc:
+            errors.append(
+                VisitpadPlatformImportErrorItem(
+                    platform_row_id=pid,
+                    message="; ".join(f"{e['loc']}: {e['msg']}" for e in exc.errors()),
+                ),
+            )
+            continue
+        try:
+            with session.begin_nested():
+                row = create_visitpad_procedure(tenant_repo, payload=payload)
+            created.append(row.id)
+        except DuplicateVisitpadCatalogKeyError:
+            skipped.append(pid)
+    return VisitpadPlatformImportData(created=created, skipped=skipped, errors=errors)
+
+
+def import_visitpad_vaccines_from_platform(
+    session: Session,
+    *,
+    scope: CatalogScope,
+    tenant_repo: Any,
+    platform_row_ids: list[UUID],
+) -> VisitpadPlatformImportData:
+    _require_tenant_scope(scope)
+    M = visitpad_vaccine_model(CatalogScope(None))
+    by_id = _fetch_public_by_ids(session, M, platform_row_ids)
+    created: list[Any] = []
+    skipped: list[Any] = []
+    errors: list[VisitpadPlatformImportErrorItem] = []
+    for pid in platform_row_ids:
+        pub = by_id.get(pid)
+        if pub is None:
+            errors.append(VisitpadPlatformImportErrorItem(platform_row_id=pid, message="Platform row not found."))
+            continue
+        try:
+            payload = _orm_to_create(pub, response_cls=VisitpadVaccineResponse, create_cls=VisitpadVaccineCreate)
+        except ValidationError as exc:
+            errors.append(
+                VisitpadPlatformImportErrorItem(
+                    platform_row_id=pid,
+                    message="; ".join(f"{e['loc']}: {e['msg']}" for e in exc.errors()),
+                ),
+            )
+            continue
+        try:
+            with session.begin_nested():
+                row = create_visitpad_vaccine(tenant_repo, payload=payload)
+            created.append(row.id)
+        except DuplicateVisitpadCatalogKeyError:
+            skipped.append(pid)
+    return VisitpadPlatformImportData(created=created, skipped=skipped, errors=errors)
+
+
+def import_visitpad_manufacturers_from_platform(
+    session: Session,
+    *,
+    scope: CatalogScope,
+    tenant_repo: Any,
+    platform_row_ids: list[UUID],
+) -> VisitpadPlatformImportData:
+    _require_tenant_scope(scope)
+    M = visitpad_manufacturer_model(CatalogScope(None))
+    by_id = _fetch_public_by_ids(session, M, platform_row_ids)
+    created: list[Any] = []
+    skipped: list[Any] = []
+    errors: list[VisitpadPlatformImportErrorItem] = []
+    for pid in platform_row_ids:
+        pub = by_id.get(pid)
+        if pub is None:
+            errors.append(VisitpadPlatformImportErrorItem(platform_row_id=pid, message="Platform row not found."))
+            continue
+        try:
+            payload = _orm_to_create(pub, response_cls=VisitpadManufacturerResponse, create_cls=VisitpadManufacturerCreate)
+        except ValidationError as exc:
+            errors.append(
+                VisitpadPlatformImportErrorItem(
+                    platform_row_id=pid,
+                    message="; ".join(f"{e['loc']}: {e['msg']}" for e in exc.errors()),
+                ),
+            )
+            continue
+        try:
+            with session.begin_nested():
+                row = create_visitpad_manufacturer(tenant_repo, payload=payload)
+            created.append(row.id)
+        except DuplicateVisitpadCatalogKeyError:
+            skipped.append(pid)
+    return VisitpadPlatformImportData(created=created, skipped=skipped, errors=errors)
