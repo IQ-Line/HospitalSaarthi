@@ -7,7 +7,7 @@ The Integration Hub is platform infrastructure -- always deployed alongside the 
 ### What's already designed
 
 - **HLD:** [05-integration-and-interop.md](../../hld/05-integration-and-interop.md) (sections 1-4, 7).
-- **LLD schema:** [01-schema-design.md](./01-schema-design.md) and [`schema-reference.json`](./schema-reference.json) (14 tables).
+- **LLD schema:** [01-schema-design.md](./01-schema-design.md) and [`schema-reference.json`](./schema-reference.json) (13 tables; the `integration_audit_log` table from earlier drafts was removed per [ADR-0024](../../adr/0024-audit-deferred-to-pre-prod.md)).
 - **FSM specs:** [02-fsm-specifications.md](./02-fsm-specifications.md) (M1, scan-and-share, M2, M3-HIP, M3-HIU, consent supervisor).
 - **Scenarios:** [03-scenarios.md](./03-scenarios.md) (7 sequence-driven walkthroughs).
 - **OpenAPI spec:** [`specs/openapi/integration-hub.v1.yaml`](../../../../specs/openapi/integration-hub.v1.yaml) (28 paths).
@@ -22,7 +22,7 @@ The Integration Hub is platform infrastructure -- always deployed alongside the 
 
 - [ ] Scaffold `services/integration-hub-svc/` (port 3005, Fastify v5 per [ADR-0019](../../adr/0019-fastify-node24-lts.md)).
 - [ ] Scaffold `modules/integration-hub/` mirroring the Module Shape Template ([HLD 03](../../hld/03-module-shape-template.md)).
-- [ ] Generate Drizzle migrations for tables 1-8 in [schema-reference.json](./schema-reference.json) (control plane: integrations, integration_credentials, integration_workflows, integration_workflow_transitions, integration_workflow_timers, integration_inbound_messages, integration_outbound_messages, integration_audit_log).
+- [ ] Generate Drizzle migrations for the 7 control-plane + FSM-engine tables in [schema-reference.json](./schema-reference.json): `integrations`, `integration_credentials`, `integration_workflows`, `integration_workflow_transitions`, `integration_workflow_timers`, `integration_inbound_messages`, `integration_outbound_messages`. (No per-module audit table — see [ADR-0024](../../adr/0024-audit-deferred-to-pre-prod.md) and [§4.4 of the schema design](./01-schema-design.md#44-audit-posture--no-per-module-audit-table).)
 - [ ] Implement REST handlers for the **Integrations** tag in [integration-hub.v1.yaml](../../../../specs/openapi/integration-hub.v1.yaml): list/get/create/update integrations, add credentials.
 - [ ] Wire identity adapter (`@hims/ts-sdk-identity`), tenant context (`@hims/ts-sdk-tenant`), event publisher (`@hims/ts-sdk-events`), DB helpers (`@hims/ts-sdk-db`).
 - [ ] Cerbos policies for Integration Hub admin actions.
@@ -34,19 +34,19 @@ The Integration Hub is platform infrastructure -- always deployed alongside the 
 
 - [ ] Create `packages/ts-sdk-workflow/` with the engine API: `start(definition, context)`, `dispatch(workflow_id, event, payload)`, `cancel(workflow_id, reason)`.
 - [ ] Implement the engine's atomic transition flow per [01-schema-design.md §5.3](./01-schema-design.md#53-transition-execution): `SELECT ... FOR UPDATE` lock; validate transition against definition; execute side effects; UPDATE workflow row; INSERT transition record; INSERT/SUPERSEDE timers.
-- [ ] Implement side-effect kinds: `outbound_call`, `event_publish`, `record_audit`, `set_context`, `clear_timer`, `set_timer`. JSON-Logic guard evaluation.
+- [ ] Implement side-effect kinds: `outbound_call`, `event_publish`, `set_context`, `clear_timer`, `set_timer`. JSON-Logic guard evaluation. (No `record_audit` kind — every transition is already an audit-by-construction row in `integration_workflow_transitions`. See [ADR-0024](../../adr/0024-audit-deferred-to-pre-prod.md).)
 - [ ] Implement the timer worker with `SELECT ... FOR UPDATE SKIP LOCKED` polling and pg_advisory_lock-based leader election (per [dev-doubts/01.md §1](./dev-doubts/01.md)).
 - [ ] FSM definition JSON Schema validator in CI.
 - [ ] Mermaid renderer for FSM definitions (build-time, emits state diagrams to docs site).
 - [ ] Vitest test pattern: `runFsmReplay(definition, eventList)` per [02-fsm-specifications.md §10](./02-fsm-specifications.md#10-testing-the-fsms).
 - [ ] Acceptance: a trivial FSM `test.flow.v1` (states: A, B, C; transitions A->B on event "go"; B->C on timeout 30s) runs end-to-end with all four engine guarantees observed.
 
-## Phase 0c -- Vault adapter, audit, message logs (1 dev-week)
+## Phase 0c -- Secrets SDK + message logs (3-4 dev-days)
 
-- [ ] Scaffold `packages/ts-sdk-secrets/` with an in-process map-backed implementation for dev (env-var-seeded). Production Azure Key Vault wiring is Phase 1.
-- [ ] Implement the inbound and outbound message logging middlewares.
-- [ ] Implement the audit-log writer (rules per [01-schema-design.md §4.4](./01-schema-design.md#44-integration_audit_log--the-regulatory-stream): no PHI cleartext in summary/metadata).
-- [ ] Acceptance: an inbound test request creates a row in `integration_inbound_messages`, an outbound side-effect creates a row in `integration_outbound_messages`, both correlated to a workflow row in the audit log.
+- [ ] Scaffold `packages/ts-sdk-secrets/` with a scheme-dispatching resolver. **Phase 0/1 default scheme is `env:`** (reads `process.env.<NAME>`); the same SDK supports `azure-keyvault://`, `aws-sm://`, `vault://`, `file://` resolvers added later when an ops vault is provisioned. Migration is a config edit, not code.
+- [ ] Wire a `.env.example` checked into the repo listing the variable names a developer needs (`ABDM_SANDBOX_CLIENT_ID`, `ABDM_SANDBOX_CLIENT_SECRET`, etc.) — no actual secret values committed.
+- [ ] Implement the inbound and outbound message logging middlewares. These are *operational* logs (idempotency, retry, observability), not audit. PHI rule: message bodies live at `payload_storage_ref`; the row itself carries metadata only.
+- [ ] Acceptance: an inbound test request creates a row in `integration_inbound_messages`; an outbound side-effect creates a row in `integration_outbound_messages`; both correlate to a workflow via `workflow_id`. The `@hims/ts-sdk-secrets` test suite verifies an `env:`-prefixed ref resolves correctly.
 
 ## Phase 1a -- ABDM Adapter foundation (2 dev-weeks)
 
@@ -85,7 +85,7 @@ The Integration Hub is platform infrastructure -- always deployed alongside the 
 - [ ] Fidelius envelope encryption against the HIU's `transferPublicKey`.
 - [ ] Outbound push to HIU's `dataPushUrl`.
 - [ ] Outbound notify to gateway `/v3/health-information/notify` with `transferred` status.
-- [ ] Acceptance: end-to-end Facilitation Testing scenario -- external HIU requests a record under consent; bundle disclosure observed at HIU, audit row visible in `integration_audit_log`.
+- [ ] Acceptance: end-to-end Facilitation Testing scenario -- external HIU requests a record under consent; bundle disclosure observed at HIU. Disclosure is verifiable from `integration_outbound_messages` (the encrypted bundle leaving the platform) + `integration_workflow_transitions` (the state changes under `consent_id`), per [§4.4 audit posture](./01-schema-design.md#44-audit-posture--no-per-module-audit-table).
 
 ## Phase 1e -- M3 HIU (2 dev-weeks)
 

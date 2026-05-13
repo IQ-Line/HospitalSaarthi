@@ -201,7 +201,7 @@ Modules call SDK builders to produce *resources* (`Encounter`, `MedicationReques
 
 ## 6. `external_health_records` -- the HIU inbox
 
-When the platform acts as HIU and fetches records from external HIPs (M3), the bundles arrive encrypted. Integration Hub decrypts (Fidelius) and emits `abdm.health-record.received` (per [Integration Platform LLD section 4.4](../integration-platform/01-schema-design.md#44-integration_audit_log--the-regulatory-stream)). Record Foundation's consumer:
+When the platform acts as HIU and fetches records from external HIPs (M3), the bundles arrive encrypted. Integration Hub decrypts (Fidelius) and emits `abdm.health-record.received` (per [Integration Platform LLD section 4.4](../integration-platform/01-schema-design.md#44-audit-posture--no-per-module-audit-table)). Record Foundation's consumer:
 
 1. Inserts a `bundle_storage` row with the decrypted bundle bytes.
 2. Inserts a `record_bundle_manifests` row (`producer_kind = 'external_hip'`, `validation_status = 'not_validated'` -- we trust the source HIP's declared profile conformance and do not re-validate).

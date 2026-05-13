@@ -46,7 +46,7 @@ Every FSM definition is a JSON document validated in CI against a JSON Schema. T
 Key properties:
 
 - **`id` is version-pinned.** A workflow row stores `definition_id` at start; later changes to the definition do not retroactively affect in-flight workflows. Breaking changes get a new version (`abdm.m1.aadhaar-otp.v2`).
-- **Side effects are declarative.** They are not arbitrary code. The catalog of `side_effects[].kind` is bounded: `outbound_call` (HTTP), `event_publish` (event bus), `record_audit` (write to `integration_audit_log`), `set_context` (in-memory), `clear_timer`, `set_timer`. New kinds require explicit engine support.
+- **Side effects are declarative.** They are not arbitrary code. The catalog of `side_effects[].kind` is bounded: `outbound_call` (HTTP), `event_publish` (event bus), `set_context` (in-memory), `clear_timer`, `set_timer`. New kinds require explicit engine support. (An earlier draft included a `record_audit` kind that wrote to a per-module audit table; removed per [ADR-0024](../../adr/0024-audit-deferred-to-pre-prod.md). State transitions are captured by `integration_workflow_transitions`; transport messages by inbound/outbound message logs; the centralized audit consumer projects from those.)
 - **`guard` is JSON-Logic.** Evaluated against `(context, payload)`; transitions whose guard is false are inapplicable. JSON-Logic ([JSON-Logic spec](https://jsonlogic.com/)) keeps guards declarative -- no Turing-complete code in the definition file.
 - **Timeouts are per-transition.** A state can declare its outbound transition with a timeout; if the timer fires before the actual transition arrives, the timeout transition runs.
 

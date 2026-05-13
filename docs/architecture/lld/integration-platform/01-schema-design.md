@@ -43,11 +43,11 @@ This LLD assumes [Configurator LLD](../configurator/01-schema-design.md) provide
 
 ## 2. Schema-at-a-glance
 
-The thirteen tables in `integration_hub` divide into three layers.
+The twelve tables in `integration_hub` divide into three layers.
 
 | Layer | Tables | What they hold |
 |---|---|---|
-| **Control plane (generic)** | `integrations`, `integration_credentials`, `integration_inbound_messages`, `integration_outbound_messages`, `integration_audit_log` | The shared infrastructure used by every adapter -- registry, credentials, message logs, unified audit. Not ABDM-specific. |
+| **Control plane (generic)** | `integrations`, `integration_credentials`, `integration_inbound_messages`, `integration_outbound_messages` | The shared infrastructure used by every adapter -- registry, credentials, operational transport logs. Not ABDM-specific. **Audit posture:** per [ADR-0024](../../adr/0024-audit-deferred-to-pre-prod.md), there is no per-module audit table. The two transport-message logs and the workflow transition log below are *operational* artefacts (idempotency, retry, observability); the future centralized audit consumer projects regulatory audit from them + domain events. |
 | **FSM engine (generic)** | `integration_workflows`, `integration_workflow_transitions`, `integration_workflow_timers` | The durable workflow state machine described in [ADR-0020](../../adr/0020-fsm-orchestration-for-integration-hub.md). Reused by every multi-step adapter. |
 | **ABDM adapter (specific)** | `abdm_gateway_sessions`, `abdm_share_tokens`, `abdm_share_token_issuances`, `abdm_consent_artifacts`, `abdm_link_tokens`, `abdm_data_exchange_sessions` | ABDM protocol state. The first adapter built; every other ABDM-specific datum lives in this layer's tables. |
 
@@ -60,7 +60,6 @@ flowchart TB
     CR[integration_credentials]
     IN[integration_inbound_messages]
     OUT[integration_outbound_messages]
-    AUD[integration_audit_log]
   end
 
   subgraph FSM[FSM Engine - generic]
@@ -84,9 +83,6 @@ flowchart TB
   REG --> WF
   WF --> WT
   WF --> TM
-  WF --> AUD
-  IN --> AUD
-  OUT --> AUD
   REG -.kind=abdm.-> SESS
   REG -.-> SH
   SH --> SHI
@@ -104,7 +100,7 @@ Per [ADR-0012](../../adr/0012-multi-tenancy-isolation-strategy.md), every table 
 
 - `integrations` is per-tenant: an organization can run with the ABDM-sandbox integration, while another runs with the ABDM-production integration. Configuration is per-tenant.
 - Workflows belong to a tenant's patients and a tenant's integrations -- joining workflow state to EMPI patients or to OPD events requires shard-locality.
-- Audit and message logs are per-tenant by both compliance and query patterns. Tenant A never reads Tenant B's audit stream.
+- Transport message logs are per-tenant by query pattern. Tenant A never reads Tenant B's inbound/outbound message stream.
 
 The cost: `integration_workflow_timers` is queried *globally* by the timer worker (find all due timers across all tenants). To keep the global poll efficient, the timer worker uses a non-tenant-leading index (`(status, fire_at)`) and re-establishes tenant context on each fire. This is the only Integration Hub table whose primary read pattern is cross-tenant.
 
@@ -120,8 +116,8 @@ ABDM-specific config (sandbox example):
 
 ```json
 {
-  "clientIdRef": "azure-keyvault://hims/abdm/sandbox/clientId",
-  "clientSecretRef": "azure-keyvault://hims/abdm/sandbox/clientSecret",
+  "clientIdRef": "env:ABDM_SANDBOX_CLIENT_ID",
+  "clientSecretRef": "env:ABDM_SANDBOX_CLIENT_SECRET",
   "gatewayBaseUrl": "https://dev.abdm.gov.in/api/hiecm/gateway/v3",
   "cmId": "sbx",
   "hfrFacilityIdRef": "configurator://facilities/<facilityId>/hfrId",
@@ -130,17 +126,29 @@ ABDM-specific config (sandbox example):
 }
 ```
 
+The `env:` URI scheme is the Phase 0/1 default (see §4.2). A production tenant migrates these values to `azure-keyvault://...` (or `aws-sm://...`, `vault://...`) without any schema or code change — the secrets SDK resolves whichever scheme the reference uses.
+
 The `hfrFacilityIdRef` is intentionally indirected through Configurator. Per the question-1 decision, HFR facility IDs live in Configurator, and Integration Hub looks them up at runtime via Configurator's API. This avoids duplicating per-facility identity across two modules.
 
-### 4.2 `integration_credentials` -- vault paths, not bytes
+### 4.2 `integration_credentials` -- references, not bytes
 
-The architecture stores **references** to credentials, never the credentials themselves. The `vault_ref` column is opaque to Integration Hub -- the platform's `@hims/ts-sdk-secrets` package (a future package) is responsible for resolving the reference to a runtime credential value. This abstracts the choice of secret store (Azure Key Vault, AWS Secrets Manager, HashiCorp Vault, plaintext file in dev).
+The architecture stores **references** to credentials, never the credentials themselves. The `vault_ref` column is opaque to Integration Hub -- the platform's `@hims/ts-sdk-secrets` package is responsible for resolving the reference to a runtime credential value. The resolver dispatches by URI scheme:
+
+| Scheme | Resolver | Where used |
+|---|---|---|
+| `env:ABDM_CLIENT_SECRET` | `process.env.ABDM_CLIENT_SECRET` | **Phase 0/1 default** — local dev, sandbox, first-pilot tenant using a single set of platform-owned ABDM sandbox credentials |
+| `azure-keyvault://hims/abdm/sandbox/clientSecret` | Azure SDK | Production tenants once Azure Key Vault is provisioned |
+| `aws-sm://hims/abdm/...` | AWS Secrets Manager SDK | Alternate cloud |
+| `vault://...` | HashiCorp Vault SDK | Self-hosted |
+| `file:///etc/hims/secrets/abdm-secret` | Filesystem read (dev only) | One-off local override |
 
 Reasons:
 
-- No credentials in source control, configuration files, or environment variables ([HLD 05 section 7.3](../../hld/05-integration-and-interop.md#73-credentials-vault)).
-- Credential rotation is a vault concern; Integration Hub continues to resolve the same `vault_ref` and gets the new credential transparently.
-- Per [ADR-0019](../../adr/0019-fastify-node24-lts.md) the Integration Hub runs on Node.js 24 LTS, where AWS/Azure SDKs are first-class. Per [ADR-0016](../../adr/0016-polyglot-nx-monorepo-spec-first-contracts.md) future Python adapters reach the same vault via per-language clients.
+- Same column, same code path, different runtime resolution. Migrating a tenant from `env:` to `azure-keyvault://` is a configuration edit, not a code change.
+- Credential rotation is a resolver concern; Integration Hub continues to resolve the same `vault_ref` and gets the new credential transparently when the resolver fetches it.
+- Per [ADR-0019](../../adr/0019-fastify-node24-lts.md) the Integration Hub runs on Node.js 24 LTS, where cloud SDKs are first-class. Per [ADR-0016](../../adr/0016-polyglot-nx-monorepo-spec-first-contracts.md) future Python adapters reach the same secret stores via per-language clients.
+
+**Phase 0/1 env-var carve-out.** [HLD 05 §7.3](../../hld/05-integration-and-interop.md#73-credentials-vault) is relaxed for Phase 0 / Phase 1: platform-owned sandbox credentials and a single set of ABDM-vendor credentials may live in `.env` files, gated by deployment environment. This unblocks local development without an Azure Key Vault provisioning dependency. **Pre-production gate:** before any *customer-tenant* production deployment, all `env:` credential references for that tenant must migrate to a real secret store and the platform must verify resolution. This gate is owned alongside [ADR-0024](../../adr/0024-audit-deferred-to-pre-prod.md)'s audit gate and tracked on the prod-cutover checklist.
 
 ### 4.3 `integration_inbound_messages` and `integration_outbound_messages` -- transport logs
 
@@ -183,13 +191,18 @@ sequenceDiagram
   end
 ```
 
-### 4.4 `integration_audit_log` -- the regulatory stream
+### 4.4 Audit posture — no per-module audit table
 
-Per HLD 05 section 7.5, every external exchange is logged. This table is **append-only** -- triggers or repository-level discipline reject UPDATE.
+Per [ADR-0024](../../adr/0024-audit-deferred-to-pre-prod.md), Integration Hub does **not** build a per-module `integration_audit_log` table. The substrate that the future centralized audit consumer projects from on the Integration Hub side:
 
-Cross-references to inbound/outbound message rows let the audit summary answer "what data left the platform / arrived at the platform" with full payload traceability via the message-log tables. Cross-reference to `consent_id` answers "all exchanges under this consent" -- the regulatory question DPDP and ABDM both ask.
+1. **`integration_inbound_messages` and `integration_outbound_messages`** — every gateway message in or out is captured here (operational purpose: idempotency, retry, observability; regulatory purpose: traceable transport record).
+2. **`integration_workflow_transitions`** — every state change of every workflow, append-only by repository-level discipline (the audit-by-construction property of the FSM engine, [ADR-0020](../../adr/0020-fsm-orchestration-for-integration-hub.md)).
+3. **Rich domain events** — `abdm.consent.requested`, `abdm.consent.granted`, `abdm.health-record.disclosed`, etc., carrying before/after state and actor per the [CLAUDE.md](../../../../CLAUDE.md) rich-payload rule.
+4. **Structured request logs** — every inbound HTTP request carries `request_id`, `actor`, `iq_tenant_id`, `action`, `resource_type`, `resource_id` from the HTTP middleware ([ADR-0024](../../adr/0024-audit-deferred-to-pre-prod.md)).
 
-PHI handling rule: the `summary` and `metadata` columns must not contain cleartext clinical data. Identifiers (ABHA address) are permitted as their disclosure is itself the regulated event being audited. Free-text clinical narrative is *never* in the audit log; it is in the (vault-resolved) message payload reference, accessed only via authorised viewer paths with their own audit.
+These four feeds answer "what data left / arrived under consent X" via cross-reference (`consent_id` carried on both message-log rows and workflow-transition rows). The PHI rule is preserved: message bodies live at `payload_storage_ref` (resolved-on-demand by authorised viewer paths with their own request log), never inline.
+
+**Pre-production gate:** ABDM Facilitation Testing requires evidence of audit. Before any customer-tenant prod deployment, the centralized audit consumer must be live and the four substrates above must be confirmed flowing into it. This gate is the same one [ADR-0024](../../adr/0024-audit-deferred-to-pre-prod.md) defines for the platform.
 
 ### 4.5 Boundary against Configurator
 
@@ -197,10 +210,10 @@ Integration Hub does **not** own:
 
 - Tenant registry -- in `configurator.tenants` ([Configurator LLD](../configurator/01-schema-design.md)).
 - Facility / HFR IDs -- in Configurator (decision: question 1).
-- ABDM credentials' actual bytes -- in the vault.
+- ABDM credential bytes -- resolved by `@hims/ts-sdk-secrets` from whatever store the `vault_ref` points to (`env:` for Phase 0/1, real store before prod).
 - Module enablement -- in Configurator's `module_enrollments`.
 
-When the Integration Hub needs facility data, it calls Configurator's API. When it needs credentials, it calls the vault. This is enforced by the no-cross-schema-FK rule in [database principles](../../analysis/03-database-principles.md).
+When the Integration Hub needs facility data, it calls Configurator's API. When it needs credentials, it calls the secrets SDK. This is enforced by the no-cross-schema-FK rule in [database principles](../../analysis/03-database-principles.md).
 
 ---
 
@@ -312,7 +325,7 @@ The ABDM adapter is the first integration to register against the control plane.
 
 ### 6.1 `abdm_gateway_sessions`
 
-ABDM gateway access tokens (`xToken`) are short-lived (seconds to minutes per [v3 ABHA APIs spec](../../../external/abdm/v3-m1-abha-v3-apis-creation-verification.md)). Refreshing on every request is wasteful; this table caches them per (tenant, environment). The token bytes themselves are written to the vault and only the `access_token_storage_ref` is stored here -- the same discipline as `integration_credentials`.
+ABDM gateway access tokens (`xToken`) are short-lived (seconds to minutes per [v3 ABHA APIs spec](../../../external/abdm/v3-m1-abha-v3-apis-creation-verification.md)). Refreshing on every request is wasteful; this table caches them per (tenant, environment). The token bytes themselves are written via the secrets SDK (Phase 0/1: an in-process map or `env:`-backed dev store; Phase 2+: the real secret store) and only the `access_token_storage_ref` is stored here -- the same discipline as `integration_credentials`.
 
 ### 6.2 `abdm_share_tokens` and `abdm_share_token_issuances`
 
@@ -341,7 +354,7 @@ This is where the boundary between Integration Hub and Record Foundation is most
 
 Both modules need to know about consent. Putting the artifact in Integration Hub (where the protocol owns it) and the disclosure projection in Record Foundation (where the clinical view lives) is the only split that respects both boundaries.
 
-The `data_erase_at` column on `abdm_consent_artifacts` is denormalised from the `permissions` JSONB for fast scheduler polling. The same value is replicated to `record_foundation.external_health_records.data_erase_at` for the same reason on the Record Foundation side. Two writes, one source of truth (the JSON consent artifact in the vault).
+The `data_erase_at` column on `abdm_consent_artifacts` is denormalised from the `permissions` JSONB for fast scheduler polling. The same value is replicated to `record_foundation.external_health_records.data_erase_at` for the same reason on the Record Foundation side. Two writes, one source of truth (the JSON consent artifact stored via the secrets/object-storage SDK).
 
 ### 6.4 `abdm_link_tokens`
 

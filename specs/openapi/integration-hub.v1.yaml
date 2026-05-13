@@ -5,9 +5,13 @@ info:
   description: >
     Integration Hub API — control plane for external integrations and the ABDM adapter.
     Owns the integration registry, durable workflow FSM engine, inbound/outbound transport logs,
-    audit stream, and ABDM-specific protocol state (gateway sessions, scan-and-share tokens,
-    consent artifacts, link tokens, M3 data-exchange sessions). Does NOT own clinical records
-    (Record Foundation) or facility HFR ID / credentials root (Configurator). Per ADR-0020 and ADR-0021.
+    and ABDM-specific protocol state (gateway sessions, scan-and-share tokens, consent artifacts,
+    link tokens, M3 data-exchange sessions). Does NOT own clinical records (Record Foundation),
+    facility HFR ID (Configurator), or credential bytes (resolved via @hims/ts-sdk-secrets, which
+    supports env:, azure-keyvault://, aws-sm://, vault://, file:// schemes; env: is the Phase 0/1
+    default with a pre-prod migration gate). Does NOT include a per-module audit table —
+    audit substrate is workflow_transitions + inbound/outbound message logs + domain events,
+    projected by the future centralized audit consumer (ADR-0024). Per ADR-0020, ADR-0021, ADR-0024.
 servers:
   - url: http://localhost:3005
 security:
@@ -150,7 +154,7 @@ paths:
   /api/v1/workflows/{id}/transitions:
     get:
       operationId: listWorkflowTransitions
-      summary: Replay all FSM transitions for one workflow (audit)
+      summary: Replay all FSM transitions for one workflow (state-change history)
       tags: [Workflows]
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }

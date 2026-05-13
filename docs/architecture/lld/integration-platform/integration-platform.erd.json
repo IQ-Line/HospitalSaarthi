@@ -38,7 +38,6 @@
       "e5b4d40e-1935-49eb-8b3b-4bf93be653a2",
       "88837e4a-f195-487d-8532-9cdff76e5f61",
       "ff39d942-5c73-456a-a8af-9959cad43829",
-      "7a751ad4-2b8d-4c69-9799-e1bc39cd8a0d",
       "23be3f44-0752-4413-8875-8669a093faa6",
       "bd04ecc7-41b7-48fa-a845-7221ccde87c6",
       "d96b9d45-ed65-4c93-82d6-51039b045533",
@@ -51,7 +50,6 @@
       "c73f7d47-8aa9-4ac5-b232-46701a35b3ca",
       "9673b3c6-45dd-4884-87ab-61a24cee7f98",
       "512cab13-de29-474a-8865-f945163419fe",
-      "c51dd770-fa30-4aab-9125-71de41d9786c",
       "db417782-4118-4dd1-99ce-c1786dfbe664",
       "c29a73cd-3ba5-45fb-8ad0-d0e5425ff74d",
       "c164bc5f-d16b-4e27-a0d9-d361beebe997",
@@ -62,13 +60,9 @@
       "03ecd0cd-a5d8-4014-b4a1-aa141ee3791d",
       "56fed0c4-ffdd-4591-a98f-8030dafa248f",
       "84f5e9fd-08ae-4ac9-9da9-8cac9c94a28a",
-      "1bc226db-e811-4902-a2b1-3060e1889897",
       "d4dac937-b34c-42cd-86ea-215746a986b6",
       "3f50f1d2-02f7-4313-b0c7-34769e4b02aa",
-      "0d5c9d32-0a60-4a7a-b01c-51818b73ecd1",
-      "ae83f607-7339-4ae2-9ede-8681056b4bc0",
-      "7eae6f33-8375-4b2f-9bcf-c479fc1fb869",
-      "e92269b3-293a-4a44-9b92-17a1404586bd"
+      "7eae6f33-8375-4b2f-9bcf-c479fc1fb869"
     ],
     "indexIds": [],
     "memoIds": [
@@ -388,53 +382,6 @@
           "y": 600,
           "zIndex": 2,
           "widthName": 232,
-          "widthComment": 500,
-          "color": "#c8e6c9"
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
-      },
-      "7a751ad4-2b8d-4c69-9799-e1bc39cd8a0d": {
-        "id": "7a751ad4-2b8d-4c69-9799-e1bc39cd8a0d",
-        "name": "integration_audit_log",
-        "comment": "Citus: DISTRIBUTED by iq_tenant_id. Unified audit stream for compliance. One row per logical exchange (in-and-out for sync calls, single direction for async). Cross-references inbound/outbound message rows. Per HLD-05 section 7.5. Append-only.",
-        "columnIds": [
-          "30ab19d3-b571-4fab-a7cd-d86d8d510017",
-          "688ed94c-1a6d-480b-8915-65a0fa2d22a6",
-          "c00ea506-0846-4dae-a2fb-20588ab00b6e",
-          "f94e7b2a-4ca0-4c9c-a91f-d7ecc8dcb58d",
-          "8dc4df96-e881-4915-9c58-65a1de76b1d7",
-          "98ef3ca2-7d01-4214-a620-013820351afa",
-          "35f0626e-284b-4415-adf4-e78726289d27",
-          "e0186024-8012-4c58-b206-8212ceec2c94",
-          "4b1c75d1-c224-4cf0-9725-2dd05cea00d7",
-          "7afd06ae-6e2a-4a32-9bb8-a8ca3799b632",
-          "f85181cd-466a-46a7-b6f8-d45653ed6ca8",
-          "f7102d68-d0d0-4b34-a1f6-67e182e3b34e",
-          "d3c37c51-e57b-4db0-9fcf-eac15c9fa6a0"
-        ],
-        "seqColumnIds": [
-          "30ab19d3-b571-4fab-a7cd-d86d8d510017",
-          "688ed94c-1a6d-480b-8915-65a0fa2d22a6",
-          "c00ea506-0846-4dae-a2fb-20588ab00b6e",
-          "f94e7b2a-4ca0-4c9c-a91f-d7ecc8dcb58d",
-          "8dc4df96-e881-4915-9c58-65a1de76b1d7",
-          "98ef3ca2-7d01-4214-a620-013820351afa",
-          "35f0626e-284b-4415-adf4-e78726289d27",
-          "e0186024-8012-4c58-b206-8212ceec2c94",
-          "4b1c75d1-c224-4cf0-9725-2dd05cea00d7",
-          "7afd06ae-6e2a-4a32-9bb8-a8ca3799b632",
-          "f85181cd-466a-46a7-b6f8-d45653ed6ca8",
-          "f7102d68-d0d0-4b34-a1f6-67e182e3b34e",
-          "d3c37c51-e57b-4db0-9fcf-eac15c9fa6a0"
-        ],
-        "ui": {
-          "x": 2000,
-          "y": 50,
-          "zIndex": 2,
-          "widthName": 168,
           "widthComment": 500,
           "color": "#c8e6c9"
         },
@@ -2427,266 +2374,6 @@
           "createAt": 1777700000000
         }
       },
-      "30ab19d3-b571-4fab-a7cd-d86d8d510017": {
-        "id": "30ab19d3-b571-4fab-a7cd-d86d8d510017",
-        "tableId": "7a751ad4-2b8d-4c69-9799-e1bc39cd8a0d",
-        "name": "id",
-        "comment": "",
-        "dataType": "BIGINT",
-        "default": "nextval('integration_audit_log_id_seq')",
-        "options": 6,
-        "ui": {
-          "keys": 3,
-          "widthName": 60,
-          "widthComment": 60,
-          "widthDataType": 60,
-          "widthDefault": 273
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
-      },
-      "688ed94c-1a6d-480b-8915-65a0fa2d22a6": {
-        "id": "688ed94c-1a6d-480b-8915-65a0fa2d22a6",
-        "tableId": "7a751ad4-2b8d-4c69-9799-e1bc39cd8a0d",
-        "name": "iq_tenant_id",
-        "comment": "",
-        "dataType": "UUID",
-        "default": "",
-        "options": 6,
-        "ui": {
-          "keys": 3,
-          "widthName": 84,
-          "widthComment": 60,
-          "widthDataType": 60,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
-      },
-      "c00ea506-0846-4dae-a2fb-20588ab00b6e": {
-        "id": "c00ea506-0846-4dae-a2fb-20588ab00b6e",
-        "tableId": "7a751ad4-2b8d-4c69-9799-e1bc39cd8a0d",
-        "name": "integration_id",
-        "comment": "",
-        "dataType": "UUID",
-        "default": "",
-        "options": 4,
-        "ui": {
-          "keys": 0,
-          "widthName": 98,
-          "widthComment": 60,
-          "widthDataType": 60,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
-      },
-      "f94e7b2a-4ca0-4c9c-a91f-d7ecc8dcb58d": {
-        "id": "f94e7b2a-4ca0-4c9c-a91f-d7ecc8dcb58d",
-        "tableId": "7a751ad4-2b8d-4c69-9799-e1bc39cd8a0d",
-        "name": "workflow_id",
-        "comment": "",
-        "dataType": "UUID",
-        "default": "",
-        "options": 0,
-        "ui": {
-          "keys": 0,
-          "widthName": 77,
-          "widthComment": 60,
-          "widthDataType": 60,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
-      },
-      "8dc4df96-e881-4915-9c58-65a1de76b1d7": {
-        "id": "8dc4df96-e881-4915-9c58-65a1de76b1d7",
-        "tableId": "7a751ad4-2b8d-4c69-9799-e1bc39cd8a0d",
-        "name": "direction",
-        "comment": "CHECK: direction IN ('inbound','outbound')",
-        "dataType": "TEXT",
-        "default": "",
-        "options": 4,
-        "ui": {
-          "keys": 0,
-          "widthName": 63,
-          "widthComment": 252,
-          "widthDataType": 60,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
-      },
-      "98ef3ca2-7d01-4214-a620-013820351afa": {
-        "id": "98ef3ca2-7d01-4214-a620-013820351afa",
-        "tableId": "7a751ad4-2b8d-4c69-9799-e1bc39cd8a0d",
-        "name": "occurred_at",
-        "comment": "",
-        "dataType": "TIMESTAMPTZ",
-        "default": "now()",
-        "options": 4,
-        "ui": {
-          "keys": 0,
-          "widthName": 77,
-          "widthComment": 60,
-          "widthDataType": 88,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
-      },
-      "35f0626e-284b-4415-adf4-e78726289d27": {
-        "id": "35f0626e-284b-4415-adf4-e78726289d27",
-        "tableId": "7a751ad4-2b8d-4c69-9799-e1bc39cd8a0d",
-        "name": "summary",
-        "comment": "Human-readable summary (e.g., 'M1 OTP requested for ABHA 91-9000-0000-0001'). NO PHI in cleartext beyond what regulation requires.",
-        "dataType": "TEXT",
-        "default": "",
-        "options": 4,
-        "ui": {
-          "keys": 0,
-          "widthName": 60,
-          "widthComment": 500,
-          "widthDataType": 60,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
-      },
-      "e0186024-8012-4c58-b206-8212ceec2c94": {
-        "id": "e0186024-8012-4c58-b206-8212ceec2c94",
-        "tableId": "7a751ad4-2b8d-4c69-9799-e1bc39cd8a0d",
-        "name": "outcome",
-        "comment": "CHECK: outcome IN ('success','failure','retry','duplicate','rejected')",
-        "dataType": "TEXT",
-        "default": "",
-        "options": 4,
-        "ui": {
-          "keys": 0,
-          "widthName": 60,
-          "widthComment": 420,
-          "widthDataType": 60,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
-      },
-      "4b1c75d1-c224-4cf0-9725-2dd05cea00d7": {
-        "id": "4b1c75d1-c224-4cf0-9725-2dd05cea00d7",
-        "tableId": "7a751ad4-2b8d-4c69-9799-e1bc39cd8a0d",
-        "name": "inbound_message_id",
-        "comment": "",
-        "dataType": "UUID",
-        "default": "",
-        "options": 0,
-        "ui": {
-          "keys": 0,
-          "widthName": 126,
-          "widthComment": 60,
-          "widthDataType": 60,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
-      },
-      "7afd06ae-6e2a-4a32-9bb8-a8ca3799b632": {
-        "id": "7afd06ae-6e2a-4a32-9bb8-a8ca3799b632",
-        "tableId": "7a751ad4-2b8d-4c69-9799-e1bc39cd8a0d",
-        "name": "outbound_message_id",
-        "comment": "",
-        "dataType": "UUID",
-        "default": "",
-        "options": 0,
-        "ui": {
-          "keys": 0,
-          "widthName": 133,
-          "widthComment": 60,
-          "widthDataType": 60,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
-      },
-      "f85181cd-466a-46a7-b6f8-d45653ed6ca8": {
-        "id": "f85181cd-466a-46a7-b6f8-d45653ed6ca8",
-        "tableId": "7a751ad4-2b8d-4c69-9799-e1bc39cd8a0d",
-        "name": "patient_id",
-        "comment": "",
-        "dataType": "UUID",
-        "default": "",
-        "options": 0,
-        "ui": {
-          "keys": 0,
-          "widthName": 70,
-          "widthComment": 60,
-          "widthDataType": 60,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
-      },
-      "f7102d68-d0d0-4b34-a1f6-67e182e3b34e": {
-        "id": "f7102d68-d0d0-4b34-a1f6-67e182e3b34e",
-        "tableId": "7a751ad4-2b8d-4c69-9799-e1bc39cd8a0d",
-        "name": "consent_id",
-        "comment": "ABDM consent artifact ID when applicable.",
-        "dataType": "UUID",
-        "default": "",
-        "options": 0,
-        "ui": {
-          "keys": 0,
-          "widthName": 70,
-          "widthComment": 246,
-          "widthDataType": 60,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
-      },
-      "d3c37c51-e57b-4db0-9fcf-eac15c9fa6a0": {
-        "id": "d3c37c51-e57b-4db0-9fcf-eac15c9fa6a0",
-        "tableId": "7a751ad4-2b8d-4c69-9799-e1bc39cd8a0d",
-        "name": "metadata",
-        "comment": "Adapter-specific structured fields (e.g., M3 hi_types disclosed, count of care contexts).",
-        "dataType": "JSONB",
-        "default": "",
-        "options": 0,
-        "ui": {
-          "keys": 0,
-          "widthName": 60,
-          "widthComment": 500,
-          "widthDataType": 60,
-          "widthDefault": 60
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
-      },
       "eed86992-20e8-4ee2-aa1a-95fdebda514c": {
         "id": "eed86992-20e8-4ee2-aa1a-95fdebda514c",
         "tableId": "23be3f44-0752-4413-8875-8669a093faa6",
@@ -4161,34 +3848,6 @@
           "createAt": 1777700000000
         }
       },
-      "c51dd770-fa30-4aab-9125-71de41d9786c": {
-        "id": "c51dd770-fa30-4aab-9125-71de41d9786c",
-        "identification": true,
-        "relationshipType": 16,
-        "startRelationshipType": 1,
-        "start": {
-          "tableId": "7a751ad4-2b8d-4c69-9799-e1bc39cd8a0d",
-          "columnIds": [
-            "c00ea506-0846-4dae-a2fb-20588ab00b6e"
-          ],
-          "x": 2200,
-          "y": 100,
-          "direction": 1
-        },
-        "end": {
-          "tableId": "fa09ee7e-d20a-45d4-81e3-cf4a930ab7b3",
-          "columnIds": [
-            "aa7f674e-4eb2-4e80-b35d-a7b2380f1b83"
-          ],
-          "x": 250,
-          "y": 100,
-          "direction": 2
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
-      },
       "db417782-4118-4dd1-99ce-c1786dfbe664": {
         "id": "db417782-4118-4dd1-99ce-c1786dfbe664",
         "identification": true,
@@ -4469,34 +4128,6 @@
           "createAt": 1777700000000
         }
       },
-      "1bc226db-e811-4902-a2b1-3060e1889897": {
-        "id": "1bc226db-e811-4902-a2b1-3060e1889897",
-        "identification": true,
-        "relationshipType": 16,
-        "startRelationshipType": 1,
-        "start": {
-          "tableId": "7a751ad4-2b8d-4c69-9799-e1bc39cd8a0d",
-          "columnIds": [
-            "f94e7b2a-4ca0-4c9c-a91f-d7ecc8dcb58d"
-          ],
-          "x": 2200,
-          "y": 100,
-          "direction": 1
-        },
-        "end": {
-          "tableId": "d3fe9ee7-eb4d-43e4-8a6b-be486f81558a",
-          "columnIds": [
-            "525986ae-7430-4878-896b-575809cc565a"
-          ],
-          "x": 1550,
-          "y": 100,
-          "direction": 2
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
-      },
       "d4dac937-b34c-42cd-86ea-215746a986b6": {
         "id": "d4dac937-b34c-42cd-86ea-215746a986b6",
         "identification": true,
@@ -4553,62 +4184,6 @@
           "createAt": 1777700000000
         }
       },
-      "0d5c9d32-0a60-4a7a-b01c-51818b73ecd1": {
-        "id": "0d5c9d32-0a60-4a7a-b01c-51818b73ecd1",
-        "identification": true,
-        "relationshipType": 16,
-        "startRelationshipType": 1,
-        "start": {
-          "tableId": "7a751ad4-2b8d-4c69-9799-e1bc39cd8a0d",
-          "columnIds": [
-            "4b1c75d1-c224-4cf0-9725-2dd05cea00d7"
-          ],
-          "x": 2200,
-          "y": 100,
-          "direction": 1
-        },
-        "end": {
-          "tableId": "88837e4a-f195-487d-8532-9cdff76e5f61",
-          "columnIds": [
-            "6d5d43c9-594a-471b-9df8-f924cb8f7c9e"
-          ],
-          "x": 1550,
-          "y": 650,
-          "direction": 2
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
-      },
-      "ae83f607-7339-4ae2-9ede-8681056b4bc0": {
-        "id": "ae83f607-7339-4ae2-9ede-8681056b4bc0",
-        "identification": true,
-        "relationshipType": 16,
-        "startRelationshipType": 1,
-        "start": {
-          "tableId": "7a751ad4-2b8d-4c69-9799-e1bc39cd8a0d",
-          "columnIds": [
-            "7afd06ae-6e2a-4a32-9bb8-a8ca3799b632"
-          ],
-          "x": 2200,
-          "y": 100,
-          "direction": 1
-        },
-        "end": {
-          "tableId": "ff39d942-5c73-456a-a8af-9959cad43829",
-          "columnIds": [
-            "1f9ed0b9-2101-4d1f-b3d7-3daa949f0f2f"
-          ],
-          "x": 2200,
-          "y": 650,
-          "direction": 2
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
-      },
       "7eae6f33-8375-4b2f-9bcf-c479fc1fb869": {
         "id": "7eae6f33-8375-4b2f-9bcf-c479fc1fb869",
         "identification": true,
@@ -4627,34 +4202,6 @@
           "tableId": "8ae9e3bf-d96c-4933-a6ec-c97d0123c14f",
           "columnIds": [
             "9727bdb8-0b64-40c3-98b0-358fc8667986"
-          ],
-          "x": 900,
-          "y": 1200,
-          "direction": 2
-        },
-        "meta": {
-          "updateAt": 1777700000000,
-          "createAt": 1777700000000
-        }
-      },
-      "e92269b3-293a-4a44-9b92-17a1404586bd": {
-        "id": "e92269b3-293a-4a44-9b92-17a1404586bd",
-        "identification": true,
-        "relationshipType": 16,
-        "startRelationshipType": 1,
-        "start": {
-          "tableId": "7a751ad4-2b8d-4c69-9799-e1bc39cd8a0d",
-          "columnIds": [
-            "f7102d68-d0d0-4b34-a1f6-67e182e3b34e"
-          ],
-          "x": 2200,
-          "y": 100,
-          "direction": 1
-        },
-        "end": {
-          "tableId": "8ae9e3bf-d96c-4933-a6ec-c97d0123c14f",
-          "columnIds": [
-            "7046e238-fb8d-4f41-9ff4-a21290f02dd1"
           ],
           "x": 900,
           "y": 1200,

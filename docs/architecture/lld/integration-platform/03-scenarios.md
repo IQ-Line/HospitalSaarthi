@@ -209,9 +209,9 @@ sequenceDiagram
 Notes:
 
 - **Two workflows** are started by the consent grant: the M3-HIP **operational** workflow (which finishes at `ACKNOWLEDGED`) and the consent **lifecycle supervisor** (which lives until `dataEraseAt`). This is the "Process Manager at two granularities" pattern from [§8 of FSM specs](./02-fsm-specifications.md#8-abdmconsentlifecyclev1--the-long-lived-supervisor).
-- **Fidelius encryption** is the ABDM-mandated envelope encryption. The platform never sees the HIU's *plaintext* records on the wire; the bundles are encrypted with the HIU's `transferPublicKey` before leaving the Hub. The vault holds the Fidelius signing/encryption material; the ephemeral keypair is derived per-transfer.
+- **Fidelius encryption** is the ABDM-mandated envelope encryption. The platform never sees the HIU's *plaintext* records on the wire; the bundles are encrypted with the HIU's `transferPublicKey` before leaving the Hub. The secrets SDK resolves the Fidelius signing/encryption material; the ephemeral keypair is derived per-transfer.
 - **Record Foundation does not perform encryption.** It returns plaintext bundles to Integration Hub; encryption happens in the Hub. This preserves the boundary -- Record Foundation's job is the byte-exact retrieval, not protocol-specific transformations.
-- **Audit.** Each step emits a row in `integration_audit_log` with `consent_id` set. A regulator's "show me everything that happened under consent X" query is a single index lookup.
+- **Audit substrate.** Every step writes to `integration_workflow_transitions` (state changes) and `integration_outbound_messages` (the encrypted bundle leaving the platform), with `consent_id` set on both. The future centralized audit consumer answers the regulatory question "show me everything that happened under consent X" by joining those two streams. Per [ADR-0024](../../adr/0024-audit-deferred-to-pre-prod.md), there is no per-module audit table here.
 
 ---
 

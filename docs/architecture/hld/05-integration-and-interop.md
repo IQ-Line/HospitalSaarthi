@@ -175,7 +175,7 @@ ABDM mandates consent-based health information exchange. Before any health data 
 | Consent FSM (`requested -> granted -> revoked / expired / exhausted`) | **Integration Hub** (`abdm.consent.lifecycle.v1` long-lived FSM) |
 | Disclosure decision ("can this care context be sent under this consent?") | **Record Foundation** consults Integration Hub's consent state |
 | Erasure of consent-expired received bundles | **Record Foundation** scheduler |
-| Audit of every disclosure under a consent | **Integration Hub** `integration_audit_log` |
+| Audit substrate for every disclosure under a consent | **Integration Hub** `integration_workflow_transitions` + `integration_outbound_messages` (both carry `consent_id`); projected to the centralized audit consumer per [ADR-0024](../adr/0024-audit-deferred-to-pre-prod.md) |
 
 The architectural rule: consent **state** lives in Integration Hub; consent **enforcement on stored data** is performed by Record Foundation reading that state. A patient's consent revocation flows: gateway -> Integration Hub (state update + event) -> Record Foundation (timeline projection update + erasure scheduling).
 
@@ -356,11 +356,19 @@ Handles field-level mapping and code translation between internal and external r
 
 Mappings are configuration, not code. New mappings can be added for new integrations without modifying the Integration Hub's application code. The Master & Tenant Data module provides the reference data (drug catalogs, code systems) that the mapping engine draws from.
 
-### 7.3 Credentials vault
+### 7.3 Credentials store and the `@hims/ts-sdk-secrets` resolver
 
-All external credentials — API keys, TLS certificates, OAuth client secrets — are stored in Azure Key Vault (assuming Azure deployment; the interface is abstracted for cloud portability). The Integration Hub retrieves credentials at runtime and supports automated rotation.
+External credentials — API keys, TLS certificates, OAuth client secrets — are referenced (not embedded) by `integration_credentials.vault_ref`. The platform's `@hims/ts-sdk-secrets` package dispatches the reference by URI scheme to the appropriate resolver:
 
-No credentials are stored in application configuration files, environment variables, or source code ([Azure Key Vault documentation](https://learn.microsoft.com/en-us/azure/key-vault/general/overview)).
+| Scheme | Resolved by | When used |
+|---|---|---|
+| `env:VAR_NAME` | `process.env.VAR_NAME` | **Phase 0/1 default.** Local dev, sandbox, first-pilot tenants using platform-owned sandbox credentials. Unblocks ABDM M1 development without an external vault dependency. |
+| `azure-keyvault://<vault>/<secret>` | Azure SDK ([Azure Key Vault documentation](https://learn.microsoft.com/en-us/azure/key-vault/general/overview)) | Production-tenant default once an Azure deployment is provisioned. |
+| `aws-sm://...`, `vault://...`, `file://...` | Provider-specific SDKs | Alternate clouds, self-hosted, or per-tenant choice. |
+
+The resolver supports rotation (the SDK re-fetches on a configurable cadence or on a rotation event), never logs resolved values, and is the same code path regardless of scheme — migrating a credential reference from `env:` to `azure-keyvault://` is a configuration edit, not a code change.
+
+**Phase 0/1 environment-variable carve-out.** The default rule is *no credentials in environment variables for production tenants*. Phase 0/1 is exempted to unblock local development and first-pilot deployments using platform-owned sandbox credentials. **Pre-production gate:** before any customer-tenant production deployment, every `env:` credential reference for that tenant must migrate to a real secret store, and the platform must verify resolution end-to-end. This gate is tracked on the prod-cutover checklist alongside [ADR-0024](../adr/0024-audit-deferred-to-pre-prod.md)'s audit gate. Owners: Architect (spec), DevOps (vault provisioning), Tech Lead (verification).
 
 ### 7.4 Observability
 
@@ -372,18 +380,18 @@ Each integration has dedicated monitoring:
 - **Circuit breaker state.** Dashboard showing which integrations are open, half-open, or closed.
 - **Message throughput.** Volume of messages processed per integration over time.
 
-### 7.5 Audit stream
+### 7.5 Audit substrate (no per-module audit table)
 
-Every external data exchange is logged to the audit stream:
+Per [ADR-0024](../adr/0024-audit-deferred-to-pre-prod.md), the Integration Hub does **not** maintain a per-module `integration_audit_log` table. The substrate that the future centralized audit consumer projects from on the Integration Hub side comprises four streams already required for operational reasons:
 
-- Direction (inbound/outbound)
-- Integration identifier
-- Timestamp
-- Payload summary (not full payload — PHI is not logged in cleartext)
-- Outcome (success, failure, retry)
-- Correlation ID linking to the originating clinical event
+| Stream | What it captures | Where it lives |
+|---|---|---|
+| Transport message logs | Every inbound and outbound gateway message — headers, payload reference (PHI bytes are not inline; they sit at `payload_storage_ref`), outcome, retry state | `integration_inbound_messages`, `integration_outbound_messages` |
+| Workflow transition log | Every state change of every FSM workflow — append-only by repository discipline ([ADR-0020](../adr/0020-fsm-orchestration-for-integration-hub.md)) | `integration_workflow_transitions` |
+| Rich domain events | `abdm.consent.requested`, `abdm.consent.granted`, `abdm.health-record.disclosed`, etc., each carrying before/after state and actor | The event bus / outbox per [ADR-0009](../adr/0009-event-driven-inter-module-communication.md) |
+| Structured request logs | `request_id`, `actor`, `iq_tenant_id`, `action`, `resource_type`, `resource_id` on every mutating HTTP request | HTTP middleware (Fastify hooks) |
 
-This audit trail satisfies regulatory requirements for tracking what data left the platform, when, to whom, and under what consent.
+Cross-references (`consent_id` on workflow rows and message rows, `request_id` correlating logs and events) let the audit consumer answer regulatory questions ("what data left the platform under consent X", "who triggered the disclosure", "when was it acknowledged") by joining these streams. **Pre-production gate:** the centralized audit consumer must be live and verified end-to-end in staging before any customer-tenant production deployment.
 
 ---
 

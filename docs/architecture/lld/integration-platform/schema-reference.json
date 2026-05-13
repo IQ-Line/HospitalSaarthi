@@ -1,14 +1,14 @@
 {
   "$schema": "erd/v1",
   "schema": "integration_hub",
-  "description": "Integration Hub control plane + ABDM adapter tables. Owns external integration registry, durable workflow state machines (FSM engine), inbound/outbound transport logs, audit stream, and ABDM-specific protocol state (gateway sessions, scan-and-share tokens, consent artifacts, link tokens, data-exchange sessions). Does NOT own clinical records or FHIR Document Bundles -- that is Record Foundation's responsibility per ADR-0021. Does NOT own facility HFR ID or ABDM credentials -- those live in Configurator (HFR ID) and Configurator's credential vault references.",
+  "description": "Integration Hub control plane + ABDM adapter tables. Owns external integration registry, durable workflow state machines (FSM engine), inbound/outbound transport logs, and ABDM-specific protocol state (gateway sessions, scan-and-share tokens, consent artifacts, link tokens, data-exchange sessions). Does NOT own clinical records or FHIR Document Bundles -- that is Record Foundation's responsibility per ADR-0021. Does NOT own facility HFR ID or ABDM credential bytes -- those live in Configurator (HFR ID) and behind the secrets SDK (credentials, resolved from env: in Phase 0/1 and a real store thereafter, per ADR-0024-style pre-prod gate). Does NOT include a per-module audit table -- audit substrate is workflow_transitions + inbound/outbound message logs + domain events, projected by the future centralized audit consumer (ADR-0024).",
   "citus": {
     "distribution_column": "iq_tenant_id",
     "reference_tables": [],
     "rationale": "All Integration Hub state is tenant-scoped. A tenant's workflows, credentials, audit logs, and ABDM sessions co-locate with the tenant's data in other modules to keep joins shard-local."
   },
   "phasing": {
-    "MVP": "All 13 tables ship in Phase 0 (generic control plane: integrations, integration_credentials, integration_workflows, integration_workflow_transitions, integration_workflow_timers, integration_inbound_messages, integration_outbound_messages, integration_audit_log) plus the ABDM adapter tables empty. ABDM adapter tables (abdm_gateway_sessions, abdm_share_tokens, abdm_consent_artifacts, abdm_link_tokens, abdm_data_exchange_sessions) populated in Phase 1.",
+    "MVP": "12 tables ship in Phase 0 (generic control plane: integrations, integration_credentials, integration_workflows, integration_workflow_transitions, integration_workflow_timers, integration_inbound_messages, integration_outbound_messages) plus the ABDM adapter tables empty. ABDM adapter tables (abdm_gateway_sessions, abdm_share_tokens, abdm_share_token_issuances, abdm_consent_artifacts, abdm_link_tokens, abdm_data_exchange_sessions) populated in Phase 1. NO per-module audit table per ADR-0024; audit substrate is the workflow transition log + inbound/outbound message logs + rich domain events + structured request logs, feeding the future centralized audit consumer.",
     "Post-launch": "Per-integration custom-state JSONB extension for adapters that need adapter-specific state beyond what the generic FSM tables capture. Bulk reconciliation jobs for stuck workflows. Cross-tenant ABDM gateway session pooling (currently per-tenant)."
   },
   "entities": {
@@ -46,7 +46,7 @@
         "iq_tenant_id": {"type": "UUID", "nullable": false},
         "integration_id": {"type": "UUID", "nullable": false, "description": "FK-equivalent to integrations.id (no actual FK because Citus distributed)."},
         "credential_kind": {"type": "TEXT", "nullable": false, "check": "credential_kind IN ('client_id','client_secret','api_key','tls_cert','tls_private_key','oauth_token_endpoint','signing_key','encryption_pubkey')"},
-        "vault_ref": {"type": "TEXT", "nullable": false, "description": "Opaque reference understood by the platform's secret-store adapter (e.g., 'azure-keyvault://hims/abdm/sandbox/clientSecret')."},
+        "vault_ref": {"type": "TEXT", "nullable": false, "description": "Opaque reference resolved by @hims/ts-sdk-secrets. URI scheme dispatches the resolver: 'env:ABDM_CLIENT_SECRET' (Phase 0/1 default, process.env), 'azure-keyvault://hims/abdm/sandbox/clientSecret' (production), 'aws-sm://...', 'vault://...', 'file:///...'. Pre-prod gate: tenant-prod refs must migrate off env: per ADR-0024-style checklist."},
         "rotation_policy": {"type": "TEXT", "nullable": true, "description": "Optional rotation hint, e.g., 'P30D' (ISO-8601 duration)."},
         "expires_at": {"type": "TIMESTAMPTZ", "nullable": true, "description": "Set when the upstream credential has a known expiry (e.g., short-lived gateway access tokens). NULL for static credentials."},
         "created_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
@@ -178,32 +178,6 @@
         {"columns": ["iq_tenant_id", "workflow_id"], "name": "idx_outbound_workflow"},
         {"columns": ["next_retry_at"], "name": "idx_outbound_due_retries", "note": "Polled by retry worker. Sparse on next_retry_at IS NOT NULL."},
         {"columns": ["iq_tenant_id", "outcome", "created_at"], "name": "idx_outbound_outcome_age"}
-      ]
-    },
-    "integration_audit_log": {
-      "description": "Unified audit stream for compliance. One row per logical exchange (in-and-out for sync calls, single direction for async). Cross-references inbound/outbound message rows. Per HLD-05 section 7.5. Append-only.",
-      "distribution": "distributed_by_iq_tenant_id",
-      "columns": {
-        "id": {"type": "BIGINT", "nullable": false, "default": "nextval('integration_audit_log_id_seq')"},
-        "iq_tenant_id": {"type": "UUID", "nullable": false},
-        "integration_id": {"type": "UUID", "nullable": false},
-        "workflow_id": {"type": "UUID", "nullable": true},
-        "direction": {"type": "TEXT", "nullable": false, "check": "direction IN ('inbound','outbound')"},
-        "occurred_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
-        "summary": {"type": "TEXT", "nullable": false, "description": "Human-readable summary (e.g., 'M1 OTP requested for ABHA 91-9000-0000-0001'). NO PHI in cleartext beyond what regulation requires."},
-        "outcome": {"type": "TEXT", "nullable": false, "check": "outcome IN ('success','failure','retry','duplicate','rejected')"},
-        "inbound_message_id": {"type": "UUID", "nullable": true},
-        "outbound_message_id": {"type": "UUID", "nullable": true},
-        "patient_id": {"type": "UUID", "nullable": true},
-        "consent_id": {"type": "UUID", "nullable": true, "description": "ABDM consent artifact ID when applicable."},
-        "metadata": {"type": "JSONB", "nullable": true, "description": "Adapter-specific structured fields (e.g., M3 hi_types disclosed, count of care contexts)."}
-      },
-      "primary_key": ["iq_tenant_id", "id"],
-      "indexes": [
-        {"columns": ["iq_tenant_id", "occurred_at"], "name": "idx_audit_time"},
-        {"columns": ["iq_tenant_id", "patient_id", "occurred_at"], "name": "idx_audit_patient", "note": "Patient access disclosure log -- 'who pulled my records'."},
-        {"columns": ["iq_tenant_id", "consent_id"], "name": "idx_audit_consent", "note": "All exchanges under a given consent."},
-        {"columns": ["iq_tenant_id", "workflow_id"], "name": "idx_audit_workflow"}
       ]
     },
     "abdm_gateway_sessions": {
