@@ -4,6 +4,7 @@ import { useTenantStore } from '@/stores/tenant.store';
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
 const VISITPAD_CATALOG_API_PREFIX = '/api/v1/master-data/visitpad/';
+const EMPI_API_PREFIX = '/api/empi/v1/';
 
 /** Canonical UUID (matches master-data ``iq_tenant_id`` header / ``ts-sdk-db`` tenant column). */
 const CATALOG_IQ_TENANT_UUID_RE =
@@ -42,6 +43,15 @@ export async function apiClient<T>(
   const catalogTenant = catalogIqTenantHeaderValue(tenantId);
   if (catalogTenant) {
     headers.set('iq_tenant_id', catalogTenant);
+  }
+  /** EMPI requires `iq_tenant_id` or `x-tenant-id` (non-UUID dev slugs are fine). */
+  if (
+    path.startsWith(EMPI_API_PREFIX) &&
+    tenantId != null &&
+    tenantId.trim() !== '' &&
+    !headers.has('iq_tenant_id')
+  ) {
+    headers.set('iq_tenant_id', tenantId.trim());
   }
 
   if (

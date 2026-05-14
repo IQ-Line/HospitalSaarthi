@@ -5,6 +5,7 @@ import { Button } from '@pulse/ui/button';
 import { BrandMark } from '@/components/layout/brand-mark';
 import { SidebarNavLink } from '@/components/layout/sidebar-nav-link';
 import { MasterDataNavSection } from '@/features/master-data/components/master-data-nav-section';
+import { FrontdeskNavSection } from '@/features/frontdesk/components/frontdesk-nav-section';
 import { VisitpadNavSection } from '@/features/visitpad/components/visitpad-nav-section';
 import { authClient } from '@/lib/auth-client';
 import { useAuthStore } from '@/stores/auth.store';
@@ -18,6 +19,7 @@ interface AppSidebarProps {
   hasUserManagementAccess: boolean;
   /** Catalog admins: same gate as Master Data until a dedicated Cerbos module exists. */
   hasVisitpadAccess: boolean;
+  hasFrontdeskAccess: boolean;
 }
 
 export function AppSidebar({
@@ -26,6 +28,7 @@ export function AppSidebar({
   hasMasterDataAccess,
   hasUserManagementAccess,
   hasVisitpadAccess,
+  hasFrontdeskAccess,
 }: AppSidebarProps) {
   const sidebarCollapsed = useUIPrefsStore((s) => s.sidebarCollapsed);
 
@@ -34,6 +37,8 @@ export function AppSidebar({
   const [isMasterDataOpen, setIsMasterDataOpen] = useState(true);
   const isInVisitpad = pathname.startsWith('/visitpad');
   const [isVisitpadOpen, setIsVisitpadOpen] = useState(true);
+  const isInFrontdesk = pathname.startsWith('/frontdesk');
+  const [isFrontdeskOpen, setIsFrontdeskOpen] = useState(true);
 
   useEffect(() => {
     if (isInMasterData) {
@@ -46,6 +51,12 @@ export function AppSidebar({
       setIsVisitpadOpen(true);
     }
   }, [isInVisitpad]);
+
+  useEffect(() => {
+    if (isInFrontdesk) {
+      setIsFrontdeskOpen(true);
+    }
+  }, [isInFrontdesk]);
 
   return (
     <aside
@@ -92,6 +103,13 @@ export function AppSidebar({
             icon={Users}
             collapsed={sidebarCollapsed}
             search={{ q: '' }}
+          />
+        )}
+        {hasFrontdeskAccess && (
+          <FrontdeskNavSection
+            collapsed={sidebarCollapsed}
+            isOpen={isFrontdeskOpen}
+            onToggleSection={() => setIsFrontdeskOpen((prev) => !prev)}
           />
         )}
         {hasVisitpadAccess && (

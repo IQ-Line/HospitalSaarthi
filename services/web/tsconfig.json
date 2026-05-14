@@ -3,7 +3,8 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@pulse/ui/*": ["../../packages/pulse-ui/src/*"]
     }
   },
   "include": ["src"]

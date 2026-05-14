@@ -5,6 +5,7 @@
   "type": "module",
   "dependencies": {
     "@hims/empi": "workspace:*",
+    "@hims/ts-sdk-openapi": "workspace:*",
     "@hims/ts-sdk-db": "workspace:*",
     "@hims/ts-sdk-events": "workspace:*",
     "@hims/ts-sdk-identity": "workspace:*",

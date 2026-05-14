@@ -51,3 +51,6 @@ __pycache__/
 .venv/
 .mypy_cache/
 .ruff_cache/
+
+# ABDM wrapper reference repo (cloned for context)
+docs/external/abdm-wrapper/
