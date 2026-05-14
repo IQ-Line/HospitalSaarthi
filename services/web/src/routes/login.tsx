@@ -9,6 +9,9 @@ export const Route = createFileRoute('/login')({
   component: LoginPage,
 });
 
+/** Dev tenant must be a real UUID — EMPI/Citus store `iq_tenant_id` as `uuid`; a slug breaks SQL params. */
+const DEV_TENANT_IQ_ID = '550e8400-e29b-41d4-a716-446655440000';
+
 function LoginPage() {
   const navigate = useNavigate();
   const setSession = useAuthStore((s) => s.setSession);
@@ -23,7 +26,7 @@ function LoginPage() {
       displayName: 'Dev User',
     });
     setTenant({
-      tenantId: 'tenant-001',
+      tenantId: DEV_TENANT_IQ_ID,
       tenantName: 'Dev Hospital',
       branches: [{ id: 'branch-001', name: 'Main Campus' }],
       activeBranch: 'branch-001',
@@ -44,6 +47,9 @@ function LoginPage() {
       'master-data': {
         reference: { read: true, write: true },
         overrides: { read: true, write: true },
+      },
+      frontdesk: {
+        visits: { read: true, write: true },
       },
     });
     navigate({ to: '/dashboard' });

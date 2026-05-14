@@ -4,6 +4,7 @@ import { LayoutGrid } from 'lucide-react';
 import { BrandMark } from '@/components/layout/brand-mark';
 import { SidebarNavLink } from '@/components/layout/sidebar-nav-link';
 import { MasterDataNavSection } from '@/features/master-data/components/master-data-nav-section';
+import { FrontdeskNavSection } from '@/features/frontdesk/components/frontdesk-nav-section';
 import { VisitpadNavSection } from '@/features/visitpad/components/visitpad-nav-section';
 import { useUIPrefsStore } from '@/stores/ui-prefs.store';
 
@@ -13,6 +14,7 @@ interface AppSidebarProps {
   hasMasterDataAccess: boolean;
   /** Catalog admins: same gate as Master Data until a dedicated Cerbos module exists. */
   hasVisitpadAccess: boolean;
+  hasFrontdeskAccess: boolean;
 }
 
 export function AppSidebar({
@@ -20,6 +22,7 @@ export function AppSidebar({
   tenantName,
   hasMasterDataAccess,
   hasVisitpadAccess,
+  hasFrontdeskAccess,
 }: AppSidebarProps) {
   const sidebarCollapsed = useUIPrefsStore((s) => s.sidebarCollapsed);
 
@@ -28,6 +31,8 @@ export function AppSidebar({
   const [isMasterDataOpen, setIsMasterDataOpen] = useState(true);
   const isInVisitpad = pathname.startsWith('/visitpad');
   const [isVisitpadOpen, setIsVisitpadOpen] = useState(true);
+  const isInFrontdesk = pathname.startsWith('/frontdesk');
+  const [isFrontdeskOpen, setIsFrontdeskOpen] = useState(true);
 
   useEffect(() => {
     if (isInMasterData) {
@@ -40,6 +45,12 @@ export function AppSidebar({
       setIsVisitpadOpen(true);
     }
   }, [isInVisitpad]);
+
+  useEffect(() => {
+    if (isInFrontdesk) {
+      setIsFrontdeskOpen(true);
+    }
+  }, [isInFrontdesk]);
 
   return (
     <aside
@@ -77,6 +88,13 @@ export function AppSidebar({
             collapsed={sidebarCollapsed}
             isOpen={isMasterDataOpen}
             onToggleSection={() => setIsMasterDataOpen((prev) => !prev)}
+          />
+        )}
+        {hasFrontdeskAccess && (
+          <FrontdeskNavSection
+            collapsed={sidebarCollapsed}
+            isOpen={isFrontdeskOpen}
+            onToggleSection={() => setIsFrontdeskOpen((prev) => !prev)}
           />
         )}
         {hasVisitpadAccess && (
