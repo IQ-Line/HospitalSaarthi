@@ -62,7 +62,7 @@ If you remember nothing else: **DRAFT is mutable; everything past DRAFT is immut
 These are real concerns but they are Phase 2 or later. Don't accidentally implement them.
 
 **Phase 2 (was in earlier drafts of Phase 1; demoted to match existing-prod parity):**
-- `price_agreements` — Phase 1 handles per-doctor consultation pricing via lazy-explosion in `service_master` (one row per (consultation, doctor)). The agreement abstraction lands with insurance + corporate.
+- `price_agreements` — Phase 1 handles per-doctor consultation pricing via the **`provider_id` column on `service_master`** (one row per `(service_code, provider_id)`; unique with `NULLS NOT DISTINCT`). The agreement abstraction lands with insurance + corporate.
 - `patient_advances` + `advance_utilizations` — existing OPD counter does not take advances. First real use is IPD admission deposit (Phase 2+).
 - `discount_approvals` — existing frontdesk lets operators enter any % freely. Approval workflow is Phase 2 product.
 
