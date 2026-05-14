@@ -1,0 +1,27 @@
+{
+  "name": "billing",
+  "tags": ["type:module", "scope:billing", "language:typescript"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "options": {
+        "outputPath": "dist/modules/billing",
+        "main": "modules/billing/src/index.ts",
+        "tsConfig": "modules/billing/tsconfig.json"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest run",
+        "cwd": "modules/billing"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "options": {
+        "lintFilePatterns": ["modules/billing/src/**/*.ts"]
+      }
+    }
+  }
+}

@@ -31,11 +31,8 @@
       "@hims/user-management": ["./modules/user-management/src/index.ts"],
       "@hims/configurator": ["./modules/configurator/src/index.ts"],
       "@hims/empi": ["./modules/empi/src/index.ts"],
-<<<<<<< Updated upstream
-=======
       "@hims/billing": ["./modules/billing/src/index.ts"],
       "@hims/frontdesk": ["./modules/frontdesk/src/index.ts"],
->>>>>>> Stashed changes
       "@hims/master-data": ["./modules/master-data/src/index.ts"]
     }
   },
