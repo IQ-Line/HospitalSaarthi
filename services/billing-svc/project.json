@@ -1,0 +1,12 @@
+{
+  "name": "billing-svc",
+  "tags": ["type:service", "scope:billing", "language:typescript"],
+  "targets": {
+    "serve": {
+      "command": "tsx watch src/main.ts",
+      "options": {
+        "cwd": "services/billing-svc"
+      }
+    }
+  }
+}
