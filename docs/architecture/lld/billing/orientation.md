@@ -6,7 +6,7 @@
 
 ## What this module does, in one paragraph
 
-Billing owns patient-facing revenue cycle: capture charges from clinical modules, assemble bills, accept payments (cash / card / UPI / cheque / advance), track outstanding, generate receipts. Phase 1 ships counter-billing parity with the production HIMS OPD flow. Insurance (Phase 2), refunds + payment plans + IPD final bills (Phase 3), and doctor commissions (Phase 4) layer on additively.
+Billing owns patient-facing revenue cycle: capture charges from clinical modules, assemble bills, accept payments (cash / card / UPI / cheque), generate receipts. Phase 1 ships **four tables** (`service_master`, `bills`, `bill_items`, `payments`) — the minimum set that reproduces the existing production HIMS OPD counter flow. Advances, discount-approval workflow, price-agreement overrides, insurance, corporate billing, and packages all land in Phase 2; refunds and payment plans in Phase 3; doctor commissions in Phase 4.
 
 Lives in `modules/billing/`, mounted inside `services/opd-svc/` for Phase 1 (extracts to `services/billing-svc/` when a second clinical module needs to emit charges).
 
@@ -57,14 +57,27 @@ If you remember nothing else: **DRAFT is mutable; everything past DRAFT is immut
 
 ## What to ignore in Phase 1
 
-These are real concerns but they are Phase 2/3/4. Don't accidentally implement them.
+These are real concerns but they are Phase 2 or later. Don't accidentally implement them.
 
-- Insurance providers, policies, claims (Phase 2).
-- Corporate clients and credit-day billing (Phase 2).
-- Service packages and package_items (Phase 2).
-- Refunds, payment plans, installments, IPD final bills (Phase 3).
-- Doctor commission rules, accruals, payouts (Phase 4).
-- A `billing_audit_log` table — [ADR-0024](../../adr/0024-audit-deferred-to-pre-prod.md) defers audit to a centralized consumer. Don't add it.
+**Phase 2 (was in earlier drafts of Phase 1; demoted to match existing-prod parity):**
+- `price_agreements` — Phase 1 handles per-doctor consultation pricing via lazy-explosion in `service_master` (one row per (consultation, doctor)). The agreement abstraction lands with insurance + corporate.
+- `patient_advances` + `advance_utilizations` — existing OPD counter does not take advances. First real use is IPD admission deposit (Phase 2+).
+- `discount_approvals` — existing frontdesk lets operators enter any % freely. Approval workflow is Phase 2 product.
+
+**Phase 2 (always was):**
+- Insurance providers, policies, claims.
+- Corporate clients and credit-day billing.
+- Service packages and package_items.
+
+**Phase 3:**
+- Refunds, payment plans, installments, IPD final bills.
+
+**Phase 4:**
+- Doctor commission rules, accruals, payouts.
+
+**Never (per ADRs):**
+- A `billing_audit_log` table — [ADR-0024](../../adr/0024-audit-deferred-to-pre-prod.md). Centralized consumer.
+- A `patients` table in billing — soft `patient_id` ref to EMPI per [ADR-0007](../../adr/0007-empi-dedicated-platform-service.md).
 
 ---
 

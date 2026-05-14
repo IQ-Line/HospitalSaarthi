@@ -107,16 +107,58 @@ Updates to `service_master` after the bill_item row is written do not propagate 
 
 The lead's 23 tables divide into four phases based on what is needed to reach parity with the production HIMS counter-billing workflow versus what extends beyond it.
 
+**Phase 1 is deliberately the minimal set the existing production OPD counter flow uses** — four tables. The reasoning is that the EM and tech-lead's mental model is shaped by what the production HIMS already does, and presenting Phase 1 as anything more than that risks push-back ("why so many tables for one screen?") without commensurate benefit, because Phase 1's *behaviour* is already constrained to that flow. The four tables are enough; everything beyond is Phase 2+ because Phase 2+ is where new product surface lands.
+
 | Phase | Goal | Tables ship (lead's names preserved unless noted) |
 |---|---|---|
-| **Phase 1 — Counter billing parity** | OPD counter operator can capture charges, raise a bill, accept payment (cash/card/UPI/cheque), record advances and discounts, print a receipt. Achieves parity with the production HIMS OPD-only flow. | `service_master`, `price_agreements` (subset: per-tenant default prices, no corporate-client agreements yet), `bills`, `bill_items`, `payments`, `patient_advances`, `advance_utilizations`, `discount_approvals` |
-| **Phase 2 — Insurance and corporate clients** | TPA/insurance cashless and reimbursement flows. Corporate-client agreements with credit-day terms. | `insurance_providers`, `patient_insurance_policies`, `insurance_claims`, `corporate_clients`, `price_agreements` (extended to corporate/insurance entity types), `service_packages`, `package_items` |
+| **Phase 1 — Counter billing parity** | OPD counter operator can find/create patient (EMPI), capture conditional registration fee + per-doctor consultation fee, apply a single bill-level discount %, accept a single payment (cash/card/UPI/cheque) where amount paid must equal total, finalize the bill in one Create-Visit transaction, print a receipt. Reaches feature-parity with the production HIMS OPD counter flow. | `service_master`, `bills`, `bill_items`, `payments` (4 tables). |
+| **Phase 2 — Insurance, corporate, packages, advances, discount approvals, price agreements** | TPA/insurance cashless and reimbursement flows; corporate-client agreements with credit-day terms; product packages; patient advances + advance-utilisation; discount-approval workflow; price-agreement-based pricing overrides (replaces Phase 1's lazy-explosion catalog). | `price_agreements`, `patient_advances`, `advance_utilizations`, `discount_approvals`, `insurance_providers`, `patient_insurance_policies`, `insurance_claims`, `corporate_clients`, `service_packages`, `package_items` (10 tables added). |
 | **Phase 3 — Refunds, payment plans, IPD final bills** | Discharge billing for IPD, payment-plan support for high-value cases, refunds workflow with approval. | `refunds`, `payment_plans`, `installments`, `ipd_discharge_summaries` |
 | **Phase 4 — Provider economics** | Doctor commission rules, accruals on each billable service, periodic payout reconciliation. | `doctor_commission_rules`, `doctor_commissions`, `doctor_commission_payouts` |
 
-The phasing is *additive*: every table ships with its eventual full set of columns where they are knowable at Phase 1, with later-phase columns added as nullable where they are not. No data migration risk on advancing a phase.
+The phasing is *additive*: every table ships with its eventual full set of columns where they are knowable at the phase boundary, with later-phase columns added as nullable where they are not. No data migration risk on advancing a phase.
 
-`service_packages` and `package_items` are placed in Phase 2 rather than Phase 1 because the OPD counter parity flow does not require packages — packages are a marketing/preventive-care construct (master-health-checkup bundles) and add UX complexity that Phase 1 does not need.
+**Phase 2 absorbs four tables that an earlier revision of this ADR placed in Phase 1** (`price_agreements`, `patient_advances`, `advance_utilizations`, `discount_approvals`). Each was demoted for a specific reason rooted in the existing-production flow:
+
+| Demoted to Phase 2 | Why not Phase 1 |
+|---|---|
+| `price_agreements` | Phase 1 has no real "agreement" — only per-doctor consultation prices, which the catalog handles directly via lazy explosion (see below). The agreement abstraction earns its keep when corporate clients and TPAs arrive in Phase 2 with negotiated rates. |
+| `patient_advances` + `advance_utilizations` | The existing OPD counter flow does not take advances — patients pay the total at registration. The first real advance use case is IPD admission deposit, which arrives no earlier than Phase 2. |
+| `discount_approvals` | The existing flow has no approval workflow — the frontdesk operator types in any discount percentage. Threshold-based approvals are a product feature, not a parity requirement. Bill-level discount fields (`discount_amount`, `discount_percentage`, `discount_reason`) remain on `bills` so Phase 1 can still record the discount. |
+
+`service_packages` and `package_items` are placed in Phase 2 because the OPD counter parity flow does not require packages — packages are a marketing/preventive-care construct (master-health-checkup bundles) and add UX complexity that Phase 1 does not need.
+
+### Phase 1 per-doctor consultation pricing — lazy explosion
+
+Without `price_agreements` in Phase 1, per-doctor consultation pricing is encoded by **one `service_master` row per (consultation type, doctor)** combination:
+
+| service_code | service_name | base_price |
+|---|---|---|
+| `REG_FEE` | Registration Fee (first visit) | 100.00 |
+| `CONS_GENERAL_DR_SMITH` | General Consultation — Dr Smith | 500.00 |
+| `CONS_GENERAL_DR_JONES` | General Consultation — Dr Jones | 700.00 |
+| `CONS_SPECIALIST_DR_KUMAR` | Specialist Consultation — Dr Kumar | 1200.00 |
+| `PROC_DRESSING` | Wound Dressing | 200.00 |
+| `PROC_INJECTION` | IM Injection | 80.00 |
+
+Catalog cardinality is bounded (≤ 20 rows for the demo tenant). The frontdesk UI maps "Doctor: <dropdown>" → looks up the corresponding consultation service code → calls `POST /v1/billing/charges`. This is what the production HIMS does in practice; every dev recognises the pattern instantly; the EM/tech-lead read this and say "yes, this is what we have today."
+
+When Phase 2 introduces `price_agreements`, the existing service rows do not change. Per-doctor consultation rows can remain (the agreement abstraction is opt-in), or be folded into a single `CONS_GENERAL` row with `DOCTOR_OVERRIDE` agreements — that's a catalog-cleanup migration the Phase 2 team owns. Either way, **snapshot pricing on `bill_items` means historical bills are unaffected** by any such Phase 2 catalog reorganisation.
+
+### Why this matches the existing-production frontdesk flow exactly
+
+The production HIMS OPD frontdesk page does this:
+
+1. Operator types patient identifier (mobile / ABHA / patient code) → system finds the patient (EMPI) or kicks off a registration form for a new patient.
+2. If new patient: a `REG_FEE` line is added automatically; if the patient has visited before, this line is suppressed.
+3. Operator selects the consulting doctor from a dropdown; the corresponding consultation service is added as a line.
+4. If the prior visit was eligible for a free follow-up, the consultation line is suppressed (the OPD module's visit-creation logic decides this).
+5. Operator can add additional service lines (procedure, basic lab, basic imaging).
+6. Operator enters a discount percentage (free-form, no approval). The bill total recomputes.
+7. Operator enters the payment mode (radio: cash / card / UPI / cheque) and the amount paid. The "Create Visit" button is disabled until `amount_paid == net_amount`.
+8. On Create-Visit click: the bill finalizes (DRAFT → FINALIZED), the payment is recorded (status SUCCESS), the bill auto-transitions to PAID (`paid_amount == net_amount`), the OPD module creates the visit row, and a receipt prints.
+
+Steps 1–6 are charge ingestion; step 7 is the discount and payment capture; step 8 is finalize + record-payment in a single transaction. None of those steps need advances, price-agreements, or a discount-approval workflow. They all map to operations on the four Phase 1 tables.
 
 ### Deliberate departures from the lead's ERD
 

@@ -12,12 +12,12 @@ Billing is the **horizontal supporting module** that owns patient-facing revenue
 
 The module is structured to ship in four additive phases. Phase 1 reaches feature parity with the production HIMS OPD counter-billing flow. Each subsequent phase extends the surface without breaking earlier deployments. The full per-table phasing and the embedded-then-extracted packaging strategy are recorded in [ADR-0025](../adr/0025-billing-module-shape-and-phasing.md).
 
-| Phase | Scope | Goal |
+| Phase | Scope (tables) | Goal |
 |---|---|---|
-| **Phase 1** | Service catalog, price agreements (basic), bills, bill items, payments, advances, discounts | OPD counter parity with production HIMS |
-| **Phase 2** | Insurance providers, policies, claims; corporate clients; service packages | Cashless TPA flow, corporate billing, package products |
-| **Phase 3** | Refunds, payment plans, installments, IPD discharge bills | Discharge billing, EMI, refund workflow |
-| **Phase 4** | Doctor commission rules, accruals, payouts | Provider economics |
+| **Phase 1** | `service_master`, `bills`, `bill_items`, `payments` (4 tables) | OPD counter parity with production HIMS — patient lookup, conditional reg fee, per-doctor consultation fee, bill-level discount, single payment, create-visit in one transaction. Per-doctor pricing via catalog lazy-explosion (no `price_agreements` yet). |
+| **Phase 2** | + `price_agreements`, `patient_advances`, `advance_utilizations`, `discount_approvals`, `insurance_providers`, `patient_insurance_policies`, `insurance_claims`, `corporate_clients`, `service_packages`, `package_items` (10 added) | Cashless TPA, corporate billing, packages, advances, discount-approval workflow, agreement-based pricing |
+| **Phase 3** | + `refunds`, `payment_plans`, `installments`, `ipd_discharge_summaries` (4 added) | Discharge billing, EMI, refund workflow |
+| **Phase 4** | + `doctor_commission_rules`, `doctor_commissions`, `doctor_commission_payouts` (3 added) | Provider economics |
 
 ## 1. Purpose
 
@@ -39,13 +39,15 @@ Billing is the source of truth for:
 
 - **Snapshotted item pricing** — every `bill_item` row carries `unit_price`, `tax_percentage`, `tax_category`, `description`, and `item_code` as they were at the moment of charge capture. The service catalog can change; historical bills do not. The financial-truth invariant lives on the bill_item row, not on a join.
 
-- **Service master and price agreements (Phase 1)** — the tenant-scoped catalog of chargeable services with default prices and tax rules, plus tenant-specific overrides for corporate clients and insurance providers (Phase 2). Lives in `billing.service_master` and `billing.price_agreements`. Possible migration to a Master Data service-catalog domain post-launch; snapshot pricing makes that migration non-breaking for historical bills.
+- **Service master (Phase 1)** — the tenant-scoped catalog of chargeable services with default prices and tax rules. Lives in `billing.service_master`. Phase 1 encodes per-doctor consultation pricing via **lazy catalog explosion** — one service row per (consultation type, doctor) combination — matching what production HIMS does today and what the EM / tech-lead instinctively expect. Possible migration to a Master Data service-catalog domain post-launch; snapshot pricing makes that migration non-breaking for historical bills.
+
+- **Price agreements (Phase 2)** — tenant-specific pricing overrides for corporate clients and insurance providers (negotiated rates). Lives in `billing.price_agreements`. **Not in Phase 1** because the OPD-counter parity flow has no real "agreements" — per-doctor consultation prices are handled by the catalog directly. Arrives with insurance + corporate in Phase 2 where it earns its keep.
 
 - **Payments and receipts** — every cash, card, UPI, cheque, gateway, advance-utilisation, and (Phase 2) insurance-claim-disbursement transaction. Payment method-specific fields (`card_last4`, `upi_transaction_id`, `cheque_number`, `gateway_response`) are stored alongside the canonical amount and a generated `receipt_number`.
 
-- **Patient advances** — pre-payments collected against future services. Each advance has `advance_amount`, `utilized_amount`, `refunded_amount`, `available_balance` (the latter derived but materialised for performance). Utilisations link advances to bills via `advance_utilizations`.
+- **Patient advances (Phase 2)** — pre-payments collected against future services. Each advance has `advance_amount`, `utilized_amount`, `refunded_amount`, `available_balance` (the latter derived but materialised for performance). Utilisations link advances to bills via `advance_utilizations`. **Not in Phase 1** because the OPD counter does not take advances — the first real use case is IPD admission deposit.
 
-- **Discount approvals** — every discount above a configurable threshold (defined in Configurator) requires an approval row with `requested_by`, `approved_by`, `approval_level`, `supporting_document_url`. The bill carries the discount totals; the approval rows are the audit trail.
+- **Discount approvals (Phase 2)** — every discount above a configurable threshold (defined in Configurator) requires an approval row with `requested_by`, `approved_by`, `approval_level`, `supporting_document_url`. The bill carries the discount totals; the approval rows are the audit trail. **Not in Phase 1** because the existing OPD frontdesk flow has no approval workflow — operators enter any percentage freely; the bill-level discount fields on `bills` are sufficient for parity. Phase 2 introduces the workflow as a product feature.
 
 - **Insurance providers, policies, claims (Phase 2)** — TPA and insurer master data, per-patient policy linkages with coverage and copay terms, and per-bill claim records with submission, approval, deduction, and settlement tracking.
 

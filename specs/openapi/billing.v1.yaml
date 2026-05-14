@@ -3,14 +3,31 @@ info:
   title: Billing API
   version: 1.0.0
   description: >
-    Billing API — patient-facing revenue cycle (Phase 1 — counter billing parity).
-    Charge ingest, bill assembly with snapshot pricing, payments (cash/card/UPI/cheque/gateway),
-    patient advances and utilizations, discount approvals, service-catalog admin, and price-agreement
-    admin. Per ADR-0025: every bill_item snapshots `item_code`, `description`, `unit_price`,
-    `tax_percentage`, `tax_category`, and `is_insurance_covered` at charge time — once written,
-    financial fields are immutable unless the parent bill is in DRAFT. Catalog changes after the
-    fact do NOT restate historical bills. Insurance/corporate (Phase 2), refunds/plans (Phase 3),
-    and doctor commissions (Phase 4) are out of scope for this version.
+    Billing API — patient-facing revenue cycle. Per ADR-0025, every bill_item snapshots
+    `item_code`, `description`, `unit_price`, `tax_percentage`, `tax_category`, and
+    `is_insurance_covered` at charge time — once written, financial fields are immutable
+    unless the parent bill is in DRAFT. Catalog changes after the fact do NOT restate
+    historical bills.
+
+    PHASE BOUNDARIES IN THIS SPEC:
+
+    Phase 1 (existing-production OPD counter parity — implement first):
+      • Charge Ingest, Bills, Payments, Service Catalog (read + admin).
+      • Bill-level discount via PATCH /bills/{id} (no approval workflow).
+      • Per-doctor consultation pricing via lazy-explosion service_master rows.
+
+    Phase 2 (NOT implemented in Phase 1 — paths in this spec but tagged Phase 2):
+      • Advances tag — record advance receipt + utilize against bill.
+      • Discount Approvals tag — threshold-based approval workflow.
+      • Price Agreements tag — agreement-based pricing overrides.
+      • Insurance / corporate / packages — added when the Phase 2 LLD ships.
+
+    Phase 3 (NOT in this spec): refunds, payment plans, IPD final bills.
+    Phase 4 (NOT in this spec): doctor commissions.
+
+    A Phase 1 implementer should ignore the Advances / Discount Approvals / Price Agreements
+    tags and ship only the Charge Ingest + Bills + Payments + Service Catalog surface. See
+    the per-tag descriptions below for phase tags on each operation group.
 servers:
   - url: https://api.{tenant_slug}.hims.example/v1
     description: Tenant-scoped billing API.
@@ -22,17 +39,19 @@ security:
   - bearerAuth: []
 tags:
   - name: Charge Ingest
-    description: The single integration surface for clinical modules to capture charges (idempotent).
+    description: "[Phase 1] The single integration surface for clinical modules to capture charges (idempotent)."
   - name: Bills
-    description: Bill header lifecycle — list, fetch, finalize, cancel, amend, item edits, receipt PDF.
+    description: "[Phase 1] Bill header lifecycle — list, fetch, finalize, cancel, amend, item edits, receipt PDF. Bill-level discount is set via PATCH /bills/{id} (no approval workflow in Phase 1)."
   - name: Payments
-    description: Payment transactions against a bill (cash/card/UPI/cheque/gateway).
-  - name: Advances
-    description: Patient pre-payments and their utilization against bills.
-  - name: Discount Approvals
-    description: Approval workflow for discounts above tenant-configured thresholds.
+    description: "[Phase 1] Payment transactions against a bill (cash/card/UPI/cheque/gateway). Phase 1 records a single payment per bill, matching the existing-prod amount-paid-equals-total constraint."
   - name: Service Catalog
-    description: Tenant-scoped chargeable-service master administration.
+    description: "[Phase 1] Tenant-scoped chargeable-service master administration. Per-doctor consultation pricing uses lazy explosion — one row per (consultation type, doctor)."
+  - name: Advances
+    description: "[Phase 2 — NOT in Phase 1] Patient pre-payments and their utilization against bills. The existing OPD counter does not take advances; first real use is IPD admission deposit."
+  - name: Discount Approvals
+    description: "[Phase 2 — NOT in Phase 1] Approval workflow for discounts above tenant-configured thresholds. Existing-prod has no approval workflow; Phase 1 uses bill-level discount % freely."
+  - name: Price Agreements
+    description: "[Phase 2 — NOT in Phase 1] Agreement-based pricing overrides (corporate, insurer, doctor, department). Phase 1 uses catalog lazy-explosion instead."
   - name: Price Agreements
     description: Tenant-scoped pricing overrides (TENANT_DEFAULT, DOCTOR_OVERRIDE, DEPARTMENT_OVERRIDE).
   - name: Reports

@@ -26,7 +26,7 @@ Billing is a **horizontal supporting module** per [ADR-0025](../../adr/0025-bill
 - [ ] Scaffold `modules/billing/src/` per the [module shape template](../../hld/03-module-shape-template.md). Folders: `ports`, `domain`, `use-cases`, `data-access`, `http-handlers`, `rest-handlers`, `events/publishers`, `schema`.
 - [ ] Add the billing Fastify plugin (`router.ts`) and the public surface (`index.ts`).
 - [ ] In `services/opd-svc/src/main.ts`, register the billing plugin under `/billing` prefix.
-- [ ] Generate Drizzle migrations for the 8 Phase 1 tables in [`schema-reference.json`](./schema-reference.json): `service_master`, `price_agreements`, `bills`, `bill_items`, `payments`, `patient_advances`, `advance_utilizations`, `discount_approvals`. All distributed by `iq_tenant_id`; co-location with `bills` for `bill_items`, `payments`, `advance_utilizations`, `discount_approvals` (see [§14 Citus distribution](./01-schema-design.md#14-citus-distribution-summary)).
+- [ ] Generate Drizzle migrations for the **4 Phase 1 tables** in [`schema-reference.json`](./schema-reference.json): `service_master`, `bills`, `bill_items`, `payments`. All distributed by `iq_tenant_id`; co-location with `bills` for `bill_items` and `payments` (see [§14 Citus distribution](./01-schema-design.md#14-citus-distribution-summary)). The Citus calls run only when `HIMS_CITUS_ENABLED=true` ([dev-env-simplifications](../../dev-env-simplifications.md)). Phase 2 tables (`price_agreements`, `patient_advances`, `advance_utilizations`, `discount_approvals`, `insurance_*`, `corporate_clients`, `service_packages`, `package_items`) ship in the Phase 2 issue.
 - [ ] All CHECK constraints from [`schema-reference.json`](./schema-reference.json) included in the migration.
 - [ ] Indexes per [§4–§8 of the LLD](./01-schema-design.md).
 - [ ] Wire identity adapter (`@hims/ts-sdk-identity`), tenant context (`@hims/ts-sdk-tenant`), event publisher (`@hims/ts-sdk-events`), DB helpers (`@hims/ts-sdk-db`).
@@ -48,21 +48,21 @@ Billing is a **horizontal supporting module** per [ADR-0025](../../adr/0025-bill
 **Goal:** All Phase 1 endpoints in the OpenAPI spec are wired end-to-end with happy paths working.
 
 - [ ] Implement `data-access/drizzle-bill-repository.ts`, `drizzle-bill-item-repository.ts`, `drizzle-payment-repository.ts`, `drizzle-advance-repository.ts`, `drizzle-service-master-repository.ts`, `drizzle-price-agreement-repository.ts`, `drizzle-discount-approval-repository.ts`. Repository methods receive a `tx` parameter for transaction-scoped writes.
-- [ ] Implement `use-cases/capture-charge.ts` per [scenarios §1-2](./02-scenarios.md#scenario-1--single-opd-charge--bill--cash-payment--receipt-phase-1-parity-flow):
-  - Resolve `item_code` via `service_master` (current state — this is NOT a snapshot; the snapshot is on the bill_item).
-  - Run price-resolution order ([§3 LLD](./01-schema-design.md#3-price-agreements--price_agreements)): patient policy → corporate → insurer → doctor override → department override → tenant default → rack rate.
+- [ ] Implement `use-cases/capture-charge.ts` per [scenarios §1-2](./02-scenarios.md#scenario-1--new-patient-opd-registration-the-production-parity-flow):
+  - Resolve `item_code` via `service_master` (current state read — the snapshot is on the bill_item).
+  - **Phase 1 price resolution is single-table:** read `service_master.base_price` and `.tax_percentage` directly. No agreements, no per-tenant default rows, no overrides. Per-doctor consultation pricing is encoded as separate `service_master` rows (lazy explosion per [LLD §2.1](./01-schema-design.md#21-per-doctor-pricing-in-phase-1--lazy-catalog-explosion)).
   - Idempotency: if `idempotency_key` exists for the tenant, return the existing bill_item without inserting.
   - Find or create the open DRAFT bill for `(patient_id, visit_id)`.
   - INSERT `bill_items` with snapshotted `item_code`, `description`, `unit_price`, `tax_percentage`, `tax_category`, `is_insurance_covered`.
   - UPDATE `bills` totals (subtotal, tax_amount, net_amount, outstanding_amount).
   - Publish `bill.item-added` (and `bill.created` if new).
 - [ ] Implement `use-cases/finalize-bill.ts`: DRAFT → FINALIZED, generate bill_number, lock totals, publish `bill.finalized`.
-- [ ] Implement `use-cases/cancel-bill.ts`: state validation; release advance utilisations; mark cancelled; publish `bill.cancelled`.
+- [ ] Implement `use-cases/cancel-bill.ts`: state validation; mark cancelled; publish `bill.cancelled`. (No advance-utilisation release logic in Phase 1 — advances are Phase 2.)
 - [ ] Implement `use-cases/amend-bill.ts` per [scenario 5](./02-scenarios.md#scenario-5--bill-amendment-replacement-chain): copy bill + items to new DRAFT row; mark original REPLACED; publish `bill.amended`.
-- [ ] Implement `use-cases/record-payment.ts` per [§6 LLD](./01-schema-design.md#6-payments--payments) and [scenario 1](./02-scenarios.md#scenario-1--single-opd-charge--bill--cash-payment--receipt-phase-1-parity-flow): `SELECT bills FOR UPDATE`; INSERT payment; UPDATE bill totals; transition bill status (FINALIZED → PARTIALLY_PAID → PAID). Publish `payment.received`.
-- [ ] Implement `use-cases/record-advance.ts` per [scenario 3](./02-scenarios.md#scenario-3--patient-advance-receipt-and-utilisation): INSERT payment of method ADVANCE_RECEIPT + INSERT patient_advance. Publish `advance.received`.
-- [ ] Implement `use-cases/utilize-advance.ts`: `SELECT patient_advances FOR UPDATE`; validate balance; INSERT advance_utilizations; UPDATE patient_advances; UPDATE bills. Publish `advance.utilized`.
-- [ ] Implement `use-cases/request-discount.ts` and `use-cases/approve-discount.ts` per [§8 LLD](./01-schema-design.md#8-discount-approvals--discount_approvals). Threshold lookup hard-coded in Phase 1 per [dev-doubts](./dev-doubts/01.md#configurator-controlled-vs-hard-coded-discount-thresholds); Phase 1.5 wires through Configurator.
+- [ ] Implement `use-cases/record-payment.ts` per [§6 LLD](./01-schema-design.md#6-payments--payments) and [scenario 1](./02-scenarios.md#scenario-1--new-patient-opd-registration-the-production-parity-flow): `SELECT bills FOR UPDATE`; INSERT payment; UPDATE bill totals; transition bill status (FINALIZED → PAID in Phase 1 — `PARTIALLY_PAID` state exists but is not exercised in the existing-prod flow). Publish `payment.received`.
+- [ ] Implement `use-cases/apply-bill-level-discount.ts`: PATCH bill with `discount_percentage` + `discount_reason`. Bill-level discount only (sets `bills.discount_amount`, `bills.discount_percentage`); no approval workflow, no `discount_approvals` row. Existing-prod parity.
+
+**NOT in Phase 1 (move to Phase 2 issue):** `record-advance.ts`, `utilize-advance.ts`, `request-discount.ts`, `approve-discount.ts`, agreement-based price resolution. These ship with the Phase 2 tables.
 - [ ] All use-cases follow the function-per-file convention with deps injected as params (no class with multiple methods).
 - [ ] Bill-item immutability enforced in `BillItemRepo.update()` per [dev-doubts §bill-item-immutability](./dev-doubts/01.md#bill-item-immutability-enforcement).
 - [ ] Vitest tests for the happy path of each use-case + the immutability invariant + idempotency.
@@ -100,23 +100,38 @@ Billing is a **horizontal supporting module** per [ADR-0025](../../adr/0025-bill
 
 ## Phase 1g — Demo seed + acceptance (2 dev-days)
 
-- [ ] Seed the demo tenant's `service_master` with ~30 services covering consultation, basic procedures, common labs, common imaging, common drugs (the production HIMS catalog subset).
+- [ ] Seed the demo tenant's `service_master` with **~15-20 rows** matching existing-prod parity scope:
+  - 1 row: `REG_FEE` (registration fee, ₹100).
+  - 4-5 rows: `CONS_<TYPE>_DR_<NAME>` (one per (consultation type, doctor) combination — lazy explosion per [LLD §2.1](./01-schema-design.md#21-per-doctor-pricing-in-phase-1--lazy-catalog-explosion)).
+  - 5-10 rows: common procedures (dressing, injection, nebulization, suturing, simple lab orders) that frontdesk might add to the bill before Create-Visit.
 - [ ] Seed one `TENANT_DEFAULT` price agreement (uses rack rates).
 - [ ] Acceptance scenario: register a patient (frontdesk/EMPI), capture three OPD charges (consultation + two procedures), capture an advance, apply a discount with approval, raise the bill, accept cash payment, print a receipt. End-to-end in < 2 minutes operator time.
 
 ---
 
-## Phase 2 — Insurance, corporate, packages (separate issue; ~3-4 weeks)
+## Phase 2 — Advances, discount-approvals, price-agreements, insurance, corporate, packages (separate issue; ~5-6 weeks)
 
-Schema and column-level detail are sketched in [§9 LLD](./01-schema-design.md#9-phase-2--insurance-and-corporate-sketch). Scope:
+Schema and column-level detail in [§§3, 7, 8 LLD](./01-schema-design.md) (price_agreements, advances, discount_approvals — column-level already designed, just not in Phase 1 scope) and [§9 LLD](./01-schema-design.md#9-phase-2--insurance-corporate-packages-advances-discount-approvals-price-agreements-sketch) (insurance, corporate, packages — sketches).
 
-- [ ] Add 6 tables: `insurance_providers`, `patient_insurance_policies`, `insurance_claims`, `corporate_clients`, `service_packages`, `package_items`.
-- [ ] Extend `price_agreements.agreement_type` to include `CORPORATE` and `INSURER`.
+**Tables added (10):**
+
+- [ ] `price_agreements` — adds the agreement abstraction; Phase 1's lazy-explosion service rows can stay or be reorganised (catalog-cleanup migration, snapshot pricing protects historical bills).
+- [ ] `patient_advances`, `advance_utilizations` — IPD admission deposits, OPD pre-payments.
+- [ ] `discount_approvals` — threshold-based approval workflow (config in Configurator).
+- [ ] `insurance_providers`, `patient_insurance_policies`, `insurance_claims` — TPA / cashless / reimbursement flow.
+- [ ] `corporate_clients` — company-billed accounts with credit-day terms.
+- [ ] `service_packages`, `package_items` — marketed bundles (health checkups, surgical packages).
+
+**Use-cases added:**
+
+- [ ] `record-advance.ts`, `utilize-advance.ts` (with `SELECT FOR UPDATE` + balance CHECK).
+- [ ] `request-discount.ts`, `approve-discount.ts` (with Configurator-driven threshold lookup).
 - [ ] Pre-authorisation flow (calls Integration Hub for TPA gateway transport).
 - [ ] Claim submission flow (FSM lives in Integration Hub per [HLD 05 §4](../../hld/05-integration-and-interop.md); billing holds the data of record).
 - [ ] Settlement consumer projects onto `insurance_claims` and `bills.insurance_*_amount` columns.
 - [ ] Package-aware charge-ingest: a single charge of a package expands into one `bill_items` row per `package_items` entry (item_type = PACKAGE_LINE).
 - [ ] Corporate billing: bill_category = CORPORATE, due_date set, AR aging dashboard.
+- [ ] Agreement-based price resolution: extend `capture-charge.ts` with the 7-step resolution order (patient policy → corporate → insurer → doctor override → department override → tenant default → rack rate) per [LLD §3](./01-schema-design.md#3-price-agreements--price_agreements).
 
 ## Phase 3 — Refunds, payment plans, IPD final bills (separate issue; ~3 weeks)
 

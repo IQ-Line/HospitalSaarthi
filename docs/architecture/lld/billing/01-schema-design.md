@@ -17,20 +17,28 @@
 
 ## 0. Phasing and scope
 
-The billing module ships in four additive phases. Phase 1 reaches OPD counter-billing parity with the production HIMS. Every later phase adds tables (and adds nullable columns to Phase 1 tables where they are required for the new flow). No data migration risk in advancing phases.
+The billing module ships in four additive phases. Phase 1 is **deliberately the minimal set the existing production OPD counter flow uses** — four tables ([ADR-0025 §phasing](../../adr/0025-billing-module-shape-and-phasing.md#phasing--what-ships-when)). Every later phase adds tables (and adds nullable columns to earlier-phase tables where they are required for the new flow). No data migration risk in advancing phases.
 
 | Phase | Tables (lead's names preserved) | Schema cols at this phase's cutoff |
 |---|---|---|
-| **Phase 1 — Counter billing parity** | `service_master`, `price_agreements` (basic — `tenant` + `default` agreement types), `bills`, `bill_items`, `payments`, `patient_advances`, `advance_utilizations`, `discount_approvals` | 8 tables, ~210 columns |
-| **Phase 2 — Insurance & corporate** | `insurance_providers`, `patient_insurance_policies`, `insurance_claims`, `corporate_clients`, `service_packages`, `package_items`; plus extended `price_agreements` (corporate, insurance entity types) | + 6 tables, ~150 columns |
-| **Phase 3 — Refunds, plans, IPD final** | `refunds`, `payment_plans`, `installments`, `ipd_discharge_summaries` | + 4 tables, ~120 columns |
-| **Phase 4 — Provider economics** | `doctor_commission_rules`, `doctor_commissions`, `doctor_commission_payouts` | + 3 tables, ~60 columns |
+| **Phase 1 — Counter billing parity** | `service_master`, `bills`, `bill_items`, `payments` | 4 tables, ~135 columns |
+| **Phase 2 — Insurance, corporate, packages, advances, discount-approvals, price-agreements** | + `price_agreements`, `patient_advances`, `advance_utilizations`, `discount_approvals`, `insurance_providers`, `patient_insurance_policies`, `insurance_claims`, `corporate_clients`, `service_packages`, `package_items` | + 10 tables, ~225 columns |
+| **Phase 3 — Refunds, plans, IPD final** | + `refunds`, `payment_plans`, `installments`, `ipd_discharge_summaries` | + 4 tables, ~120 columns |
+| **Phase 4 — Provider economics** | + `doctor_commission_rules`, `doctor_commissions`, `doctor_commission_payouts` | + 3 tables, ~60 columns |
+
+**Why Phase 1 is 4 tables, not 8.** Earlier drafts of this LLD placed `price_agreements`, `patient_advances`, `advance_utilizations`, and `discount_approvals` in Phase 1. They have been demoted to Phase 2 to match the existing-production OPD counter flow exactly (the EM/tech-lead's mental model) and to keep the first-sprint surface area at the minimum that reaches parity. The full reasoning is in [ADR-0025 §phasing](../../adr/0025-billing-module-shape-and-phasing.md#phasing--what-ships-when); summary:
+
+- `price_agreements` → Phase 2: Phase 1 has no real "agreement"; per-doctor consultation pricing is handled by the catalog directly via lazy-explosion (§2.1 below).
+- `patient_advances` + `advance_utilizations` → Phase 2: existing OPD counter does not take advances; first real use case is IPD admission deposit (Phase 2+).
+- `discount_approvals` → Phase 2: existing flow lets operators enter any discount % freely; approval workflow is a product feature, not a parity requirement. Bill-level discount fields stay on `bills` for Phase 1.
+
+**Phase 2 demoted-from-Phase-1 sections are detailed below at §3, §7, §8** for forward reference — they describe schema that ships in Phase 2, not Phase 1.
 
 **Not built (per [ADR-0024](../../adr/0024-audit-deferred-to-pre-prod.md)):** the lead's ERD's `billing_audit_log`. Audit substrate is the centralized HTTP-middleware + CDC pipeline; per-module audit tables are throwaway code.
 
 **Not built (per [CLAUDE.md](../../../../CLAUDE.md) — no cross-module patient ownership):** the lead's ERD's `patients` table. Billing holds `patient_id UUID` as a soft reference to EMPI's source-of-truth row.
 
-This LLD covers Phase 1 in column-level detail. Phase 2-4 are sketched at the table level with column-set headings; the working LLD for those phases is appended in revisions as each phase is scheduled.
+This LLD covers Phase 1 in column-level detail. Sections 3, 7, 8 detail tables that ship in Phase 2 — their column-level design is preserved here for forward reference, with explicit "[Phase 2]" tags on the section headers. Phase 3-4 are sketched at the table level.
 
 ---
 
@@ -38,24 +46,41 @@ This LLD covers Phase 1 in column-level detail. Phase 2-4 are sketched at the ta
 
 All billing tables are tenant-scoped operational data. Every table carries `iq_tenant_id UUID NOT NULL` and is **Citus-distributed on `iq_tenant_id`**. This is the standard pattern per [ADR-0012](../../adr/0012-multi-tenancy-isolation-strategy.md): tenant data co-locates on a single shard so that all of a tenant's billing reads and writes are routed to one node, and JOINs across billing tables happen locally without cross-shard fanout.
 
+**Phase 1 (4 tables):**
+
 | Table | Citus mode | Rationale |
 |---|---|---|
 | `service_master` | Distributed by `iq_tenant_id` | Tenant-scoped catalog (each tenant owns its own service list and pricing). |
-| `price_agreements` | Distributed by `iq_tenant_id` | Tenant-scoped pricing overrides. |
 | `bills` | Distributed by `iq_tenant_id` | High-volume transactional table; tenant-scoped reads dominate. |
 | `bill_items` | Distributed by `iq_tenant_id` (co-located with `bills`) | JOINs to bills via `bill_id` must be local; co-location is mandatory. |
 | `payments` | Distributed by `iq_tenant_id` (co-located with `bills`) | JOINs to bills via `bill_id`. |
-| `patient_advances` | Distributed by `iq_tenant_id` | Tenant-scoped patient ledger. |
-| `advance_utilizations` | Distributed by `iq_tenant_id` (co-located with `patient_advances`, `bills`) | Joins to both. |
-| `discount_approvals` | Distributed by `iq_tenant_id` (co-located with `bills`) | JOINs to bills via `bill_id`. |
 
-No reference tables in Phase 1: every table is tenant-scoped because every billing concept is tenant-scoped. (Insurance providers in Phase 2 are arguably platform-shared, but the working assumption per [ADR-0025](../../adr/0025-billing-module-shape-and-phasing.md#deliberate-departures-from-the-leads-erd) is they remain tenant-scoped until a clear multi-tenant catalog need emerges.)
+**Phase 2 distribution (for forward reference):** `price_agreements`, `patient_advances`, `advance_utilizations`, `discount_approvals`, and the new Phase-2 tables (`insurance_*`, `corporate_clients`, `service_packages`, `package_items`) all distribute by `iq_tenant_id`; `advance_utilizations` + `discount_approvals` co-locate with `bills`. See §14 for the full DDL summary.
+
+No reference tables in Phase 1: every table is tenant-scoped because every billing concept is tenant-scoped.
 
 ---
 
-## 2. Service catalog — `service_master`
+## 2. Service catalog — `service_master`  [Phase 1]
 
 The service master is the tenant-scoped catalog of chargeable services. The lead's ERD has 25 columns; we keep the bulk of them and apply structural rules. The catalog is read on every charge-ingest (to resolve `item_code` to a price), so it stays close to the billing transactional path.
+
+### 2.1 Per-doctor pricing in Phase 1 — lazy catalog explosion
+
+In Phase 1 there is no `price_agreements` table (it ships in Phase 2). Per-doctor consultation pricing — which the existing production HIMS supports — is encoded in the catalog directly, one row per (consultation type, doctor) combination:
+
+| service_code | service_name | base_price |
+|---|---|---|
+| `REG_FEE` | Registration Fee (first visit) | 100.00 |
+| `CONS_GENERAL_DR_SMITH` | General Consultation — Dr Smith | 500.00 |
+| `CONS_GENERAL_DR_JONES` | General Consultation — Dr Jones | 700.00 |
+| `CONS_SPECIALIST_DR_KUMAR` | Specialist Consultation — Dr Kumar | 1200.00 |
+| `PROC_DRESSING` | Wound Dressing | 200.00 |
+| `PROC_INJECTION` | IM Injection | 80.00 |
+
+Catalog cardinality is bounded — ≤ 20 rows for the Phase 1 demo tenant. The frontdesk UI dropdown for "Consulting Doctor" maps the selected doctor to the matching `CONS_*_DR_<NAME>` service code and calls `POST /v1/billing/charges` with that code. **This is what the production HIMS does in practice**; the EM, tech-lead, and dev reading this recognise the pattern immediately.
+
+When Phase 2 introduces `price_agreements` with `DOCTOR_OVERRIDE` semantics, the existing service rows do not change. A future catalog cleanup may fold per-doctor rows into a single `CONS_GENERAL` row with `DOCTOR_OVERRIDE` agreements — but that's a Phase 2 catalog-cleanup migration, not a Phase 1 concern. **Snapshot pricing on `bill_items` means historical bills are unaffected** by any Phase 2 catalog reorganisation; the bill_item row carries its own copy of `item_code`, `description`, `unit_price`, `tax_percentage` from the moment of charge capture.
 
 ### Columns (matched against lead's ERD)
 
@@ -106,9 +131,11 @@ The lead places `service_master` in a global billing context (no tenant scoping)
 
 ---
 
-## 3. Price agreements — `price_agreements`
+## 3. Price agreements — `price_agreements`  [Phase 2 — moved from Phase 1]
 
-Tenant-scoped pricing overrides. Phase 1 supports the two most common cases: the per-tenant default agreement (the rack rate is `service_master.base_price`, an override happens via an agreement) and the per-doctor or per-department override (e.g., a senior consultant's consultation is priced higher than the default). Phase 2 extends this to corporate clients (`entity_type='CORPORATE'`) and insurance providers (`entity_type='INSURER'`).
+> **Why this is Phase 2 not Phase 1.** Earlier drafts placed this in Phase 1. Demoted because the existing production OPD counter flow has no real "agreement" — per-doctor consultation pricing is handled in Phase 1 by the catalog directly (§2.1 lazy explosion). The agreement abstraction earns its keep when corporate clients and TPAs arrive in Phase 2 with negotiated rates. See [ADR-0025 §phasing](../../adr/0025-billing-module-shape-and-phasing.md#phasing--what-ships-when). The full column-level design is preserved below as forward reference for the Phase 2 build.
+
+Tenant-scoped pricing overrides. Phase 2 supports four agreement types: per-tenant default (override of rack rate), per-doctor override, per-department override, corporate-client override, insurer override.
 
 ### Columns
 
@@ -150,7 +177,7 @@ The resolved price is snapshotted to `bill_items.unit_price`. The selected agree
 
 ---
 
-## 4. Bills — `bills`
+## 4. Bills — `bills`  [Phase 1]
 
 The bill is the financial document. Its row carries the header; line items live in `bill_items`. The lead's ERD has 45 columns on `bills`; we keep the substance and apply structural rules.
 
@@ -257,7 +284,7 @@ Notes:
 
 ---
 
-## 5. Bill items — `bill_items`
+## 5. Bill items — `bill_items`  [Phase 1]
 
 Each chargeable line of a bill. The integrity-critical table: snapshot pricing lives here.
 
@@ -331,7 +358,7 @@ A future hardening could install a Postgres trigger that raises on UPDATE of a b
 
 ---
 
-## 6. Payments — `payments`
+## 6. Payments — `payments`  [Phase 1]
 
 Each payment is a single transaction against a bill. A bill may have many payments (advance utilisation + cash; cash + card split; etc.); a refund is a separate row in `refunds` (Phase 3) and is *not* a negative payment.
 
@@ -407,7 +434,9 @@ The application transaction wraps steps 1–4; the event publish is post-commit 
 
 ---
 
-## 7. Patient advances — `patient_advances` and `advance_utilizations`
+## 7. Patient advances — `patient_advances` and `advance_utilizations`  [Phase 2 — moved from Phase 1]
+
+> **Why this is Phase 2 not Phase 1.** Earlier drafts placed advances in Phase 1. Demoted because the existing production OPD counter flow does **not** take advances — patients pay the total at registration. The first real advance use case is IPD admission deposit, which arrives no earlier than Phase 2 (and may slip to Phase 3 with IPD itself). Including it in Phase 1 would introduce concepts the EM/tech-lead's mental model has no place for. See [ADR-0025 §phasing](../../adr/0025-billing-module-shape-and-phasing.md#phasing--what-ships-when). Column-level design preserved below as forward reference.
 
 Patients pay advances against future or pending services. Each advance carries a running balance; utilisations against bills decrement the balance; refunds are recorded separately (Phase 3).
 
@@ -469,7 +498,9 @@ Two concurrent counter operators could try to utilise the same advance against d
 
 ---
 
-## 8. Discount approvals — `discount_approvals`
+## 8. Discount approvals — `discount_approvals`  [Phase 2 — moved from Phase 1]
+
+> **Why this is Phase 2 not Phase 1.** Earlier drafts placed this in Phase 1. Demoted because the existing production OPD frontdesk flow has **no approval workflow** — the operator types in any discount percentage freely. Threshold-based approvals are a product feature, not a parity requirement. Phase 1 keeps the bill-level discount fields on `bills` (`discount_amount`, `discount_percentage`, `discount_reason`) for recording purposes; no approval row is created. See [ADR-0025 §phasing](../../adr/0025-billing-module-shape-and-phasing.md#phasing--what-ships-when). Column-level design preserved below as forward reference.
 
 A discount above a tenant-configured threshold requires explicit approval. The bill carries the discount totals (`bill_items.discount_amount`, `bills.discount_amount`); approval rows are the audit trail.
 
@@ -521,9 +552,9 @@ The threshold-and-role mapping is held in `configurator.discount_approval_polici
 
 ---
 
-## 9. Phase 2 — Insurance and corporate (sketch)
+## 9. Phase 2 — Insurance, corporate, packages, advances, discount-approvals, price-agreements (sketch)
 
-This section is sketched only; the detailed LLD is appended in a Phase 2 revision.
+The Phase 2 build adds **ten tables** to the Phase 1 four. Four of those ten (`price_agreements`, `patient_advances`, `advance_utilizations`, `discount_approvals`) are already designed at column level in §§3, 7, 8 above — those sections are now their Phase 2 LLD. The other six are sketched below; their detailed LLD is appended in a Phase 2 revision.
 
 ### Tables
 
@@ -607,18 +638,28 @@ Discussion of alternatives (paise-as-bigint) in [dev-doubts](./dev-doubts/01.md#
 ## 14. Citus distribution summary
 
 ```sql
--- Phase 1 (within billing schema)
-SELECT create_distributed_table('billing.service_master',       'iq_tenant_id');
+-- Phase 1 (the four Phase 1 tables)
+SELECT create_distributed_table('billing.service_master', 'iq_tenant_id');
+SELECT create_distributed_table('billing.bills',          'iq_tenant_id');
+SELECT create_distributed_table('billing.bill_items',     'iq_tenant_id', colocate_with => 'billing.bills');
+SELECT create_distributed_table('billing.payments',       'iq_tenant_id', colocate_with => 'billing.bills');
+
+-- Phase 2 (added as those tables ship; same iq_tenant_id, same cluster, no data migration)
 SELECT create_distributed_table('billing.price_agreements',     'iq_tenant_id');
-SELECT create_distributed_table('billing.bills',                'iq_tenant_id');
-SELECT create_distributed_table('billing.bill_items',           'iq_tenant_id', colocate_with => 'billing.bills');
-SELECT create_distributed_table('billing.payments',             'iq_tenant_id', colocate_with => 'billing.bills');
 SELECT create_distributed_table('billing.patient_advances',     'iq_tenant_id');
 SELECT create_distributed_table('billing.advance_utilizations', 'iq_tenant_id', colocate_with => 'billing.bills');
 SELECT create_distributed_table('billing.discount_approvals',   'iq_tenant_id', colocate_with => 'billing.bills');
+SELECT create_distributed_table('billing.insurance_providers',  'iq_tenant_id');
+SELECT create_distributed_table('billing.patient_insurance_policies', 'iq_tenant_id');
+SELECT create_distributed_table('billing.insurance_claims',     'iq_tenant_id', colocate_with => 'billing.bills');
+SELECT create_distributed_table('billing.corporate_clients',    'iq_tenant_id');
+SELECT create_distributed_table('billing.service_packages',     'iq_tenant_id');
+SELECT create_distributed_table('billing.package_items',        'iq_tenant_id');
 ```
 
-Co-location with `bills` is mandatory for `bill_items`, `payments`, `advance_utilizations`, and `discount_approvals` because every transactional query JOINs to `bills`. `service_master`, `price_agreements`, and `patient_advances` are independently distributed; their queries do not require co-location with bills.
+Co-location with `bills` is mandatory for `bill_items`, `payments`, `advance_utilizations`, `discount_approvals`, `insurance_claims` because every transactional query JOINs to `bills`. Catalog and ledger tables (`service_master`, `price_agreements`, `patient_advances`, `insurance_providers`, `corporate_clients`, `service_packages`) distribute independently — their queries do not require co-location.
+
+Per [dev-env-simplifications.md](../../dev-env-simplifications.md), all `create_distributed_table()` calls are gated by `HIMS_CITUS_ENABLED=true`; local development runs vanilla Postgres without the Citus extension.
 
 ---
 

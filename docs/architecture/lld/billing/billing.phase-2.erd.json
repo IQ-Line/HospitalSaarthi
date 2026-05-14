@@ -71,7 +71,7 @@
     ],
     "indexIds": [],
     "memoIds": [
-      "50a99559789f4dd0bb77cb82cffd2335"
+      "5840b3dff8324536af98ec29b4359510"
     ]
   },
   "collections": {
@@ -205,7 +205,7 @@
           "zIndex": 2,
           "widthName": 128,
           "widthComment": 510,
-          "color": "#86efac"
+          "color": "#a7f3d0"
         },
         "meta": {
           "updateAt": 1779000000000,
@@ -553,7 +553,7 @@
           "zIndex": 2,
           "widthName": 128,
           "widthComment": 396,
-          "color": "#86efac"
+          "color": "#a7f3d0"
         },
         "meta": {
           "updateAt": 1779000000000,
@@ -590,7 +590,7 @@
           "zIndex": 2,
           "widthName": 160,
           "widthComment": 354,
-          "color": "#86efac"
+          "color": "#a7f3d0"
         },
         "meta": {
           "updateAt": 1779000000000,
@@ -645,7 +645,7 @@
           "zIndex": 2,
           "widthName": 144,
           "widthComment": 414,
-          "color": "#86efac"
+          "color": "#a7f3d0"
         },
         "meta": {
           "updateAt": 1779000000000,
@@ -6662,9 +6662,9 @@
       }
     },
     "memoEntities": {
-      "50a99559789f4dd0bb77cb82cffd2335": {
-        "id": "50a99559789f4dd0bb77cb82cffd2335",
-        "value": "PHASE 2 \u2014 Insurance + corporate + packages.\n\n14 tables (+6 over Phase 1).\n\nNew tables: insurance_providers,\npatient_insurance_policies, insurance_claims,\ncorporate_clients, service_packages, package_items.\n\nPhase 1 tables gain columns:\n  \u2022 bills.insurance_*, .corporate_client_id, .policy_id,\n    .employee_*\n  \u2022 bill_items.package_id, .insurance_*, .patient_share\n  \u2022 payments.claim_id, .tds_deducted\n  \u2022 price_agreements gains entity_type = CORPORATE/INSURER\n    and the package_id / minimum_volume / payment_terms cols\n\nbills.discharge_date is still trimmed \u2014 that's Phase 3.",
+      "5840b3dff8324536af98ec29b4359510": {
+        "id": "5840b3dff8324536af98ec29b4359510",
+        "value": "PHASE 2 \u2014 Insurance, corporate, packages, advances,\ndiscount-approvals, price-agreements.\n\n14 tables (+10 over Phase 1).\n\nNew tables:\n  \u2022 price_agreements (agreement-based pricing)\n  \u2022 patient_advances + advance_utilizations\n    (IPD deposits, OPD pre-payments)\n  \u2022 discount_approvals (threshold workflow)\n  \u2022 insurance_providers,\n    patient_insurance_policies,\n    insurance_claims (TPA / cashless)\n  \u2022 corporate_clients (credit-day billing)\n  \u2022 service_packages + package_items\n    (marketed bundles)\n\nPhase 1 tables gain columns:\n  \u2022 bills.insurance_*, .corporate_client_id,\n    .policy_id, .employee_*\n  \u2022 bill_items.package_id, .insurance_*,\n    .patient_share\n  \u2022 payments.claim_id, .tds_deducted\n\nbills.discharge_date still trimmed \u2014 that's Phase 3.",
         "ui": {
           "x": 40,
           "y": 40,
