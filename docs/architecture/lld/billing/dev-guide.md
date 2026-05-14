@@ -39,30 +39,29 @@ Billing is a **horizontal supporting module** per [ADR-0025](../../adr/0025-bill
 
 - [ ] Implement `domain/money.ts` per [dev-doubts/01.md §money-type](./dev-doubts/01.md#money-type--numeric184-vs-paise-as-bigint). `Money` wraps `string`; provides `add`, `subtract`, `multiply(quantity: number)`, `applyTax(rate: Money | number)`, `round(decimals: 2 | 4)`. Avoid JS `number` for money internally.
 - [ ] Implement `domain/bill-status.ts` with the state machine in [§4 LLD](./01-schema-design.md#4-bills--bills): valid transitions + transition validators.
-- [ ] Implement `domain/payment-method.ts` with the payment-method enum and method-specific required fields (card_last4 for CARD; upi_id for UPI; cheque_number for CHEQUE; etc.).
-- [ ] Implement `domain/bill.ts`, `domain/bill-item.ts`, `domain/payment.ts`, `domain/patient-advance.ts`, `domain/discount-approval.ts` as constructor functions returning sealed value objects with validated invariants.
+- [ ] Implement `domain/payment-method.ts` with the Phase 1 payment-method enum (`CASH | CARD | UPI | CHEQUE | BANK_TRANSFER`) and `transaction_id` / `reference_number` as the single pair of generic identifier columns (method-specific columns arrive in Phase 2 when product asks).
+- [ ] Implement `domain/bill.ts`, `domain/bill-item.ts`, `domain/payment.ts` as constructor functions returning sealed value objects with validated invariants. (`domain/patient-advance.ts` and `domain/discount-approval.ts` are Phase 2.)
 - [ ] Vitest unit tests for the state machines (every valid transition + every invalid one).
 
 ## Phase 1c — Repositories + use-cases (5-7 dev-days)
 
 **Goal:** All Phase 1 endpoints in the OpenAPI spec are wired end-to-end with happy paths working.
 
-- [ ] Implement `data-access/drizzle-bill-repository.ts`, `drizzle-bill-item-repository.ts`, `drizzle-payment-repository.ts`, `drizzle-advance-repository.ts`, `drizzle-service-master-repository.ts`, `drizzle-price-agreement-repository.ts`, `drizzle-discount-approval-repository.ts`. Repository methods receive a `tx` parameter for transaction-scoped writes.
+- [ ] Implement `data-access/drizzle-bill-repository.ts`, `drizzle-bill-item-repository.ts`, `drizzle-payment-repository.ts`, `drizzle-service-master-repository.ts`. Repository methods receive a `tx` parameter for transaction-scoped writes. (Phase 2 adds `drizzle-advance-repository.ts`, `drizzle-price-agreement-repository.ts`, `drizzle-discount-approval-repository.ts`.)
 - [ ] Implement `use-cases/capture-charge.ts` per [scenarios §1-2](./02-scenarios.md#scenario-1--new-patient-opd-registration-the-production-parity-flow):
-  - Resolve `item_code` via `service_master` (current state read — the snapshot is on the bill_item).
-  - **Phase 1 price resolution is single-table:** read `service_master.base_price` and `.tax_percentage` directly. No agreements, no per-tenant default rows, no overrides. Per-doctor consultation pricing is encoded as separate `service_master` rows (lazy explosion per [LLD §2.1](./01-schema-design.md#21-per-doctor-pricing-in-phase-1--lazy-catalog-explosion)).
+  - **Phase 1 price resolution is a single-key lookup** on `(iq_tenant_id, service_code, provider_id)` against `service_master` using `provider_id IS NOT DISTINCT FROM $param` (treats NULL = NULL). Read `base_price` and `tax_percentage` directly. No agreements, no fallback chain. Per-doctor consultation pricing is encoded by per-`provider_id` rows on `service_master` ([LLD §2.1](./01-schema-design.md#21-per-doctor-pricing-in-phase-1--provider_id-on-service_master)).
+  - If no row matches, return `404 catalog_row_not_found` — Phase 1 does not synthesise a fallback.
   - Idempotency: if `idempotency_key` exists for the tenant, return the existing bill_item without inserting.
   - Find or create the open DRAFT bill for `(patient_id, visit_id)`.
-  - INSERT `bill_items` with snapshotted `item_code`, `description`, `unit_price`, `tax_percentage`, `tax_category`, `is_insurance_covered`.
+  - INSERT `bill_items` with snapshotted `item_code`, `description`, `unit_price`, `tax_percentage`, `performed_by` (mirrors the resolved `service_master.provider_id` for consultation lines).
   - UPDATE `bills` totals (subtotal, tax_amount, net_amount, outstanding_amount).
   - Publish `bill.item-added` (and `bill.created` if new).
 - [ ] Implement `use-cases/finalize-bill.ts`: DRAFT → FINALIZED, generate bill_number, lock totals, publish `bill.finalized`.
 - [ ] Implement `use-cases/cancel-bill.ts`: state validation; mark cancelled; publish `bill.cancelled`. (No advance-utilisation release logic in Phase 1 — advances are Phase 2.)
-- [ ] Implement `use-cases/amend-bill.ts` per [scenario 5](./02-scenarios.md#scenario-5--bill-amendment-replacement-chain): copy bill + items to new DRAFT row; mark original REPLACED; publish `bill.amended`.
-- [ ] Implement `use-cases/record-payment.ts` per [§6 LLD](./01-schema-design.md#6-payments--payments) and [scenario 1](./02-scenarios.md#scenario-1--new-patient-opd-registration-the-production-parity-flow): `SELECT bills FOR UPDATE`; INSERT payment; UPDATE bill totals; transition bill status (FINALIZED → PAID in Phase 1 — `PARTIALLY_PAID` state exists but is not exercised in the existing-prod flow). Publish `payment.received`.
-- [ ] Implement `use-cases/apply-bill-level-discount.ts`: PATCH bill with `discount_percentage` + `discount_reason`. Bill-level discount only (sets `bills.discount_amount`, `bills.discount_percentage`); no approval workflow, no `discount_approvals` row. Existing-prod parity.
+- [ ] Implement `use-cases/record-payment.ts` per [§6 LLD](./01-schema-design.md#6-payments--payments-phase-1) and [scenario 1](./02-scenarios.md#scenario-1--new-patient-opd-registration-the-production-parity-flow): `SELECT bills FOR UPDATE`; INSERT payment; UPDATE bill totals; transition bill status (FINALIZED → PAID in Phase 1 — `PARTIALLY_PAID` state exists but is not exercised in the existing-prod flow). Publish `payment.received`.
+- [ ] Implement `use-cases/apply-bill-level-discount.ts`: PATCH bill with `discount_amount` + `discount_reason`. Bill-level discount only (sets `bills.discount_amount`); no approval workflow, no `discount_approvals` row. Existing-prod parity. (`discount_percentage` is **not** a column in Phase 1; the UI may compute it for display from the entered amount.)
 
-**NOT in Phase 1 (move to Phase 2 issue):** `record-advance.ts`, `utilize-advance.ts`, `request-discount.ts`, `approve-discount.ts`, agreement-based price resolution. These ship with the Phase 2 tables.
+**NOT in Phase 1 (move to Phase 2 issue):** `record-advance.ts`, `utilize-advance.ts`, `request-discount.ts`, `approve-discount.ts`, `amend-bill.ts` (replacement-chain bill amendment — Phase 1 corrects via cancel-and-new bill), agreement-based price resolution. These ship with the Phase 2 tables.
 - [ ] All use-cases follow the function-per-file convention with deps injected as params (no class with multiple methods).
 - [ ] Bill-item immutability enforced in `BillItemRepo.update()` per [dev-doubts §bill-item-immutability](./dev-doubts/01.md#bill-item-immutability-enforcement).
 - [ ] Vitest tests for the happy path of each use-case + the immutability invariant + idempotency.
@@ -104,11 +103,11 @@ Billing is a **horizontal supporting module** per [ADR-0025](../../adr/0025-bill
 
 
 - [ ] Seed the demo tenant's `service_master` with **~15-20 rows** matching existing-prod parity scope:
-  - 1 row: `REG_FEE` (registration fee, ₹100).
-  - 4-5 rows: `CONS_<TYPE>_DR_<NAME>` (one per (consultation type, doctor) combination — lazy explosion per [LLD §2.1](./01-schema-design.md#21-per-doctor-pricing-in-phase-1--lazy-catalog-explosion)).
-  - 5-10 rows: common procedures (dressing, injection, nebulization, suturing, simple lab orders) that frontdesk might add to the bill before Create-Visit.
-- [ ] Seed one `TENANT_DEFAULT` price agreement (uses rack rates).
-- [ ] Acceptance scenario: register a patient (frontdesk/EMPI), capture three OPD charges (consultation + two procedures), capture an advance, apply a discount with approval, raise the bill, accept cash payment, print a receipt. End-to-end in < 2 minutes operator time.
+  - 1 row: `REG_FEE` with `provider_id=NULL` (registration fee, ₹100).
+  - 1 row: `CONS_GENERAL` with `provider_id=NULL` (rack-rate fallback display; not used in Phase 1 charge-ingest since the API requires the exact `(service_code, provider_id)` row).
+  - 3-4 rows: `CONS_GENERAL` and `CONS_SPECIALIST` with `provider_id=<each demo doctor's UUID>` ([LLD §2.1](./01-schema-design.md#21-per-doctor-pricing-in-phase-1--provider_id-on-service_master)).
+  - 5-10 rows: common procedures with `provider_id=NULL` (dressing, injection, nebulization, suturing, simple lab orders) that frontdesk might add to the bill before Create-Visit.
+- [ ] Acceptance scenario: register a patient (frontdesk/EMPI), capture two OPD charges (REG_FEE + per-doctor CONS_GENERAL), optionally a procedure, apply a free-form discount, raise the bill, accept cash payment, print a receipt. End-to-end in < 2 minutes operator time. (Advances and discount-approval workflow are Phase 2 and **not** in the Phase 1 acceptance.)
 
 ---
 
@@ -118,7 +117,7 @@ Schema and column-level detail in [§§3, 7, 8 LLD](./01-schema-design.md) (pric
 
 **Tables added (10):**
 
-- [ ] `price_agreements` — adds the agreement abstraction; Phase 1's lazy-explosion service rows can stay or be reorganised (catalog-cleanup migration, snapshot pricing protects historical bills).
+- [ ] `price_agreements` — adds the agreement abstraction; Phase 1's per-`provider_id` `service_master` rows can stay or be reorganised (catalog-cleanup migration: collapse per-provider rows into a single rack-rate row plus `DOCTOR_OVERRIDE` agreements; snapshot pricing protects historical bills).
 - [ ] `patient_advances`, `advance_utilizations` — IPD admission deposits, OPD pre-payments.
 - [ ] `discount_approvals` — threshold-based approval workflow (config in Configurator).
 - [ ] `insurance_providers`, `patient_insurance_policies`, `insurance_claims` — TPA / cashless / reimbursement flow.

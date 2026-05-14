@@ -26,7 +26,7 @@ Phase 1 success = the four-table schema + the seven endpoints below + the one en
   psql "$DATABASE_URL" -c "\dt billing.*"
   # Expect: billing.service_master, billing.bills, billing.bill_items, billing.payments
   ```
-- [ ] Seed the demo tenant's catalog (~15-20 rows per [LLD §2.1 lazy explosion](./01-schema-design.md#21-per-doctor-pricing-in-phase-1--lazy-catalog-explosion)):
+- [ ] Seed the demo tenant's catalog (~15-20 rows per [LLD §2.1 — `provider_id` on `service_master`](./01-schema-design.md#21-per-doctor-pricing-in-phase-1--provider_id-on-service_master)). Seed must include rack-rate rows for `REG_FEE`, `PROC_DRESSING` (provider_id NULL) and per-doctor rows for `CONS_GENERAL` × {Dr Smith, Dr Jones}, `CONS_SPECIALIST` × Dr Kumar:
   ```bash
   npx nx run billing:seed-demo
   ```
@@ -54,15 +54,26 @@ Each section below has one `curl` to run and the expected behaviour. Run them in
 
 ```bash
 curl -sS -H "Authorization: Bearer $TOKEN" -H "X-Tenant-Id: $TENANT" \
-  http://localhost:3001/billing/v1/billing/services | jq '.items | map(.service_code) | sort'
+  http://localhost:3001/billing/v1/billing/services | jq '.items | map({service_code, provider_id, base_price}) | sort_by(.service_code, .provider_id)'
 ```
 
-**Expected:** an array including at least `REG_FEE`, `CONS_GENERAL_DR_SMITH`, `CONS_GENERAL_DR_JONES`, `PROC_DRESSING`. If empty, the seed didn't run.
+**Expected:** rows including at least:
+
+| service_code | provider_id | base_price |
+|---|---|---|
+| `CONS_GENERAL` | `<dr-smith-uuid>` | 500.00 |
+| `CONS_GENERAL` | `<dr-jones-uuid>` | 700.00 |
+| `CONS_SPECIALIST` | `<dr-kumar-uuid>` | 1200.00 |
+| `PROC_DRESSING` | `null` | 200.00 |
+| `REG_FEE` | `null` | 100.00 |
+
+If empty, the seed didn't run.
 
 ### 2.2 Capture a charge (charge-ingest API)
 
 ```bash
 PATIENT_ID="11111111-1111-1111-1111-111111111111"   # seeded demo patient in EMPI
+DR_SMITH_ID="33333333-3333-3333-3333-333333333333"  # seeded demo doctor in User Management
 
 curl -sS -X POST -H "Authorization: Bearer $TOKEN" -H "X-Tenant-Id: $TENANT" \
   -H "Content-Type: application/json" \
@@ -71,6 +82,7 @@ curl -sS -X POST -H "Authorization: Bearer $TOKEN" -H "X-Tenant-Id: $TENANT" \
     \"patient_id\": \"$PATIENT_ID\",
     \"source_module\": \"opd\",
     \"item_code\": \"REG_FEE\",
+    \"provider_id\": null,
     \"quantity\": 1,
     \"performed_by\": \"22222222-2222-2222-2222-222222222222\",
     \"performed_date\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
@@ -102,14 +114,32 @@ curl -sS -X POST -H "Authorization: Bearer $TOKEN" -H "X-Tenant-Id: $TENANT" \
   -d "{
     \"patient_id\": \"$PATIENT_ID\",
     \"source_module\": \"opd\",
-    \"item_code\": \"CONS_GENERAL_DR_SMITH\",
+    \"item_code\": \"CONS_GENERAL\",
+    \"provider_id\": \"$DR_SMITH_ID\",
     \"quantity\": 1,
-    \"performed_by\": \"33333333-3333-3333-3333-333333333333\",
+    \"performed_by\": \"$DR_SMITH_ID\",
     \"performed_date\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
   }" http://localhost:3001/billing/v1/billing/charges | jq .
 ```
 
-**Expected:** same `bill_id` in the response (charges roll up onto the existing DRAFT bill for this patient).
+**Expected:** same `bill_id` in the response (charges roll up onto the existing DRAFT bill for this patient). The resolved `unit_price` snapshot is **500.00** — Dr Smith's row — not Dr Jones's 700.00 nor the (non-existent) rack rate.
+
+### 2.3a Verify catalog row mismatch returns 404
+
+```bash
+curl -sS -X POST -H "Authorization: Bearer $TOKEN" -H "X-Tenant-Id: $TENANT" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: acceptance-2.3a-mismatch" \
+  -d "{
+    \"patient_id\": \"$PATIENT_ID\",
+    \"source_module\": \"opd\",
+    \"item_code\": \"CONS_GENERAL\",
+    \"provider_id\": \"99999999-9999-9999-9999-999999999999\",
+    \"quantity\": 1
+  }" http://localhost:3001/billing/v1/billing/charges -o /dev/null -w "%{http_code}\n"
+```
+
+**Expected:** `404` (or `422`) with body indicating `catalog_row_not_found` — Phase 1 does not synthesise a fallback when (service_code, provider_id) doesn't exist.
 
 ### 2.4 Verify idempotency — replay the same charge
 
@@ -121,6 +151,7 @@ curl -sS -X POST -H "Authorization: Bearer $TOKEN" -H "X-Tenant-Id: $TENANT" \
     \"patient_id\": \"$PATIENT_ID\",
     \"source_module\": \"opd\",
     \"item_code\": \"REG_FEE\",
+    \"provider_id\": null,
     \"quantity\": 1,
     \"performed_by\": \"22222222-2222-2222-2222-222222222222\",
     \"performed_date\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
@@ -150,14 +181,16 @@ curl -sS -H "Authorization: Bearer $TOKEN" -H "X-Tenant-Id: $TENANT" \
 ```bash
 curl -sS -X PATCH -H "Authorization: Bearer $TOKEN" -H "X-Tenant-Id: $TENANT" \
   -H "Content-Type: application/json" \
-  -d '{"discount_percentage": "10", "discount_reason": "Senior citizen"}' \
-  http://localhost:3001/billing/v1/billing/bills/$BILL_ID | jq '{discount_amount, discount_percentage, net_amount}'
+  -d '{"discount_amount": "60.00", "discount_reason": "Senior citizen"}' \
+  http://localhost:3001/billing/v1/billing/bills/$BILL_ID | jq '{discount_amount, discount_reason, net_amount}'
 ```
 
 **Expected:**
 ```json
-{"discount_amount": "60.00", "discount_percentage": "10.00", "net_amount": "540.00"}
+{"discount_amount": "60.00", "discount_reason": "Senior citizen", "net_amount": "540.00"}
 ```
+
+(Phase 1 does not store `discount_percentage` on `bills` — operators enter the flat ₹ amount. The UI may calculate the percentage for display.)
 
 ### 2.7 Finalize the bill
 
@@ -183,8 +216,9 @@ curl -sS -X POST -H "Authorization: Bearer $TOKEN" -H "X-Tenant-Id: $TENANT" \
     \"patient_id\": \"$PATIENT_ID\",
     \"source_module\": \"opd\",
     \"item_code\": \"PROC_DRESSING\",
+    \"provider_id\": null,
     \"quantity\": 1,
-    \"performed_by\": \"33333333-3333-3333-3333-333333333333\",
+    \"performed_by\": \"$DR_SMITH_ID\",
     \"performed_date\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
   }" http://localhost:3001/billing/v1/billing/charges
 ```
@@ -247,9 +281,13 @@ WHERE iq_tenant_id = :tenant AND patient_id = :patient;
 -- Expect: 1 row, status=PAID, net_amount=540, paid_amount=540, outstanding_amount=0
 
 -- Exactly two bill_items, both ACTIVE, with snapshot prices
-SELECT item_code, unit_price, status FROM billing.bill_items
+SELECT item_code, unit_price, performed_by, status FROM billing.bill_items
 WHERE iq_tenant_id = :tenant AND bill_id = :bill;
--- Expect: 2 rows (REG_FEE 100.00 ACTIVE, CONS_GENERAL_DR_SMITH 500.00 ACTIVE)
+-- Expect: 2 rows
+--   (REG_FEE         100.00 NULL          ACTIVE)
+--   (CONS_GENERAL    500.00 <dr-smith-id> ACTIVE)
+-- Note: item_code is CONS_GENERAL (not CONS_GENERAL_DR_SMITH);
+-- the doctor identity rides on performed_by, snapshotted from service_master.provider_id of the resolved row.
 
 -- Exactly one SUCCESS payment with a receipt number
 SELECT payment_method, amount, status, receipt_number FROM billing.payments

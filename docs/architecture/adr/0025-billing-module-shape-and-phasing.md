@@ -98,7 +98,7 @@ Every `bill_item` row carries a snapshot of pricing fields *at the moment the ch
 - `item_code` (from `service_master.service_code` or `service_packages.package_code` at capture)
 - `description` (from `service_master.service_name` or `service_packages.package_name`)
 - `unit_price` (from the resolved price after applying any active `price_agreements`)
-- `tax_percentage`, `tax_category` (from `service_master` at capture)
+- `tax_percentage` (from `service_master` at capture; `tax_category` is deferred to Phase 2 along with full GST invoice rendering)
 - `is_insurance_covered` (from `service_master` at capture)
 
 Updates to `service_master` after the bill_item row is written do not propagate to that row. The lead's ERD already implies this (it has `bill_items.unit_price` as a column rather than a join), but this ADR makes the principle explicit and binding: **once a `bill_item` exists, its financial fields are immutable.** Amendment is via the bill-replacement chain (`bills.replaced_bill_id`), not via in-place edit.
@@ -112,7 +112,7 @@ The lead's 23 tables divide into four phases based on what is needed to reach pa
 | Phase | Goal | Tables ship (lead's names preserved unless noted) |
 |---|---|---|
 | **Phase 1 — Counter billing parity** | OPD counter operator can find/create patient (EMPI), capture conditional registration fee + per-doctor consultation fee, apply a single bill-level discount %, accept a single payment (cash/card/UPI/cheque) where amount paid must equal total, finalize the bill in one Create-Visit transaction, print a receipt. Reaches feature-parity with the production HIMS OPD counter flow. | `service_master`, `bills`, `bill_items`, `payments` (4 tables). |
-| **Phase 2 — Insurance, corporate, packages, advances, discount approvals, price agreements** | TPA/insurance cashless and reimbursement flows; corporate-client agreements with credit-day terms; product packages; patient advances + advance-utilisation; discount-approval workflow; price-agreement-based pricing overrides (replaces Phase 1's lazy-explosion catalog). | `price_agreements`, `patient_advances`, `advance_utilizations`, `discount_approvals`, `insurance_providers`, `patient_insurance_policies`, `insurance_claims`, `corporate_clients`, `service_packages`, `package_items` (10 tables added). |
+| **Phase 2 — Insurance, corporate, packages, advances, discount approvals, price agreements** | TPA/insurance cashless and reimbursement flows; corporate-client agreements with credit-day terms; product packages; patient advances + advance-utilisation; discount-approval workflow; price-agreement-based pricing overrides (replaces Phase 1's `service_master.provider_id` per-doctor rows by folding them into `DOCTOR_OVERRIDE` agreements). | `price_agreements`, `patient_advances`, `advance_utilizations`, `discount_approvals`, `insurance_providers`, `patient_insurance_policies`, `insurance_claims`, `corporate_clients`, `service_packages`, `package_items` (10 tables added). |
 | **Phase 3 — Refunds, payment plans, IPD final bills** | Discharge billing for IPD, payment-plan support for high-value cases, refunds workflow with approval. | `refunds`, `payment_plans`, `installments`, `ipd_discharge_summaries` |
 | **Phase 4 — Provider economics** | Doctor commission rules, accruals on each billable service, periodic payout reconciliation. | `doctor_commission_rules`, `doctor_commissions`, `doctor_commission_payouts` |
 
@@ -122,28 +122,35 @@ The phasing is *additive*: every table ships with its eventual full set of colum
 
 | Demoted to Phase 2 | Why not Phase 1 |
 |---|---|
-| `price_agreements` | Phase 1 has no real "agreement" — only per-doctor consultation prices, which the catalog handles directly via lazy explosion (see below). The agreement abstraction earns its keep when corporate clients and TPAs arrive in Phase 2 with negotiated rates. |
+| `price_agreements` | Phase 1 has no real "agreement" — only per-doctor consultation prices, which the catalog handles directly via a nullable `provider_id` column on `service_master` (see below). The agreement abstraction earns its keep when corporate clients and TPAs arrive in Phase 2 with negotiated rates. |
 | `patient_advances` + `advance_utilizations` | The existing OPD counter flow does not take advances — patients pay the total at registration. The first real advance use case is IPD admission deposit, which arrives no earlier than Phase 2. |
-| `discount_approvals` | The existing flow has no approval workflow — the frontdesk operator types in any discount percentage. Threshold-based approvals are a product feature, not a parity requirement. Bill-level discount fields (`discount_amount`, `discount_percentage`, `discount_reason`) remain on `bills` so Phase 1 can still record the discount. |
+| `discount_approvals` | The existing flow has no approval workflow — the frontdesk operator types in any discount amount. Threshold-based approvals are a product feature, not a parity requirement. Bill-level discount fields (`discount_amount`, `discount_reason`) remain on `bills` so Phase 1 can still record the discount. |
 
 `service_packages` and `package_items` are placed in Phase 2 because the OPD counter parity flow does not require packages — packages are a marketing/preventive-care construct (master-health-checkup bundles) and add UX complexity that Phase 1 does not need.
 
-### Phase 1 per-doctor consultation pricing — lazy explosion
+### Phase 1 per-doctor consultation pricing — `provider_id` on `service_master`
 
-Without `price_agreements` in Phase 1, per-doctor consultation pricing is encoded by **one `service_master` row per (consultation type, doctor)** combination:
+Without `price_agreements` in Phase 1, per-doctor consultation pricing is encoded by adding a **nullable `provider_id UUID` column** to `service_master`. Each catalog row is one entry per `(service_code, provider_id)`:
 
-| service_code | service_name | base_price |
-|---|---|---|
-| `REG_FEE` | Registration Fee (first visit) | 100.00 |
-| `CONS_GENERAL_DR_SMITH` | General Consultation — Dr Smith | 500.00 |
-| `CONS_GENERAL_DR_JONES` | General Consultation — Dr Jones | 700.00 |
-| `CONS_SPECIALIST_DR_KUMAR` | Specialist Consultation — Dr Kumar | 1200.00 |
-| `PROC_DRESSING` | Wound Dressing | 200.00 |
-| `PROC_INJECTION` | IM Injection | 80.00 |
+| service_code | provider_id | service_name | base_price |
+|---|---|---|---|
+| `REG_FEE` | NULL | Registration Fee (first visit) | 100.00 |
+| `CONS_GENERAL` | NULL | General Consultation (rack rate) | 400.00 |
+| `CONS_GENERAL` | `dr-smith-uuid` | General Consultation — Dr Smith | 500.00 |
+| `CONS_GENERAL` | `dr-jones-uuid` | General Consultation — Dr Jones | 700.00 |
+| `CONS_SPECIALIST` | `dr-kumar-uuid` | Specialist Consultation — Dr Kumar | 1200.00 |
+| `PROC_DRESSING` | NULL | Wound Dressing | 200.00 |
+| `PROC_INJECTION` | NULL | IM Injection | 80.00 |
 
-Catalog cardinality is bounded (≤ 20 rows for the demo tenant). The frontdesk UI maps "Doctor: <dropdown>" → looks up the corresponding consultation service code → calls `POST /v1/billing/charges`. This is what the production HIMS does in practice; every dev recognises the pattern instantly; the EM/tech-lead read this and say "yes, this is what we have today."
+The unique index is `(iq_tenant_id, service_code, provider_id) NULLS NOT DISTINCT` (PG15+), which enforces one rack-rate row per service_code plus one row per `(service_code, provider_id)` for non-NULL providers.
 
-When Phase 2 introduces `price_agreements`, the existing service rows do not change. Per-doctor consultation rows can remain (the agreement abstraction is opt-in), or be folded into a single `CONS_GENERAL` row with `DOCTOR_OVERRIDE` agreements — that's a catalog-cleanup migration the Phase 2 team owns. Either way, **snapshot pricing on `bill_items` means historical bills are unaffected** by any such Phase 2 catalog reorganisation.
+**Charge-ingest resolution is a single-key lookup**, not a chain of fallbacks: the frontdesk submits both `service_code` and `provider_id`; the API looks up the exact row. If no matching row exists, the API returns `404 catalog_row_not_found` — Phase 1 does not synthesise a fallback. This keeps the rule trivially explainable and avoids any appearance of a Phase-1 price-agreement engine.
+
+Catalog cardinality is bounded (≤ 20 rows for the demo tenant). The frontdesk UI's "Consulting Doctor" dropdown joins on `service_master.provider_id → user_management.users.id` (soft ref, read-time join) to populate the menu.
+
+**Earlier draft rejected:** an alternative where the doctor's name was baked into the service_code (`CONS_GENERAL_DR_SMITH`). Rejected because (a) renaming a doctor breaks the catalog code, (b) two doctors with similar names need ad-hoc disambiguators, (c) `service_code` is meant to be a kind/code, not a (kind, doctor) tuple. `provider_id` gives a durable referential link without altering the rest of billing's data model.
+
+When Phase 2 introduces `price_agreements`, the existing service rows can be cleaned up: each `provider_id IS NOT NULL` row collapses into a `DOCTOR_OVERRIDE` agreement keyed on the same `provider_id`. The migration is mechanical and **snapshot pricing on `bill_items` means historical bills are unaffected** by any such reorganisation.
 
 ### Why this matches the existing-production frontdesk flow exactly
 
@@ -191,9 +198,10 @@ Idempotency-Key: <client-generated>
   "visit_type": "OPD" | "IPD" | "ER" | "DAYCARE",
   "source_module": "opd" | "ipd" | "lab" | "pharmacy" | "radiology" | ...,
   "source_ref": "<uuid of the source clinical row>",
-  "item_code": "<service or package code>",
+  "item_code": "<service code>",
+  "provider_id": "<doctor_id as user_id, or null for doctor-independent services>",
   "quantity": 1,
-  "performed_by": "<doctor_id as user_id>",
+  "performed_by": "<doctor_id as user_id; typically same as provider_id for consultation lines>",
   "performed_date": "2026-05-13T10:30:00Z",
   "department": "cardiology",
   "notes": "..."
@@ -209,7 +217,7 @@ Idempotency-Key: <client-generated>
 }
 ```
 
-Billing resolves `item_code` against `service_master` and any active `price_agreements`, snapshots the resulting price into `bill_items`, attaches the row to the current open `bill` for `(patient_id, visit_id)` (creating one if none exists), and returns the resulting row. Idempotency-Key prevents duplicate inserts on retry.
+Billing resolves the `(item_code, provider_id)` pair against `service_master` (single-key lookup; no fallback chain in Phase 1), snapshots the resulting price into `bill_items`, attaches the row to the current open `bill` for `(patient_id, visit_id)` (creating one if none exists), and returns the resulting row. If no row exists for the given `(item_code, provider_id)`, the API returns `404 catalog_row_not_found`. Idempotency-Key prevents duplicate inserts on retry. Phase 2 adds `price_agreements` resolution into the same call.
 
 Phase 1 ingest is **synchronous HTTP** from clinical modules to the embedded billing handler (in-process). Phase 2+ may add an **async outbox path** when extraction happens, so a slow charge-ingest does not block clinical finalisation. The contract above is identical in either case; the clinical module simply enqueues to its outbox instead of awaiting the response.
 
@@ -217,11 +225,11 @@ Phase 1 ingest is **synchronous HTTP** from clinical modules to the embedded bil
 
 ### Positive
 
-- **Phase 1 sprint-shippable.** Eight tables, one state machine, one happy path per bill type. One developer can ship a counter-billing demo in a sprint.
+- **Phase 1 sprint-shippable.** Four tables, 86 columns total, one state machine, one happy path. One developer can ship a counter-billing demo in a sprint.
 - **Reaches existing-production parity quickly.** The OPD counter flow that exists in the production HIMS is reproduced exactly, with the same workflow shape (capture → bill → pay → receipt).
 - **Snapshot pricing isolates billing from catalog churn.** Future changes to `service_master` cannot retroactively change historical bills. Audit and re-print are trustworthy by construction.
 - **Module-boundary clean.** Clinical modules emit charges via a published contract. Billing does not know what clinical events look like; it knows what a chargeable item is. New clinical modules slot in without billing changes.
-- **Lead's ERD respected.** Table names, column intent, and the bill-replacement chain (`replaced_bill_id`, `parent_bill_id`) all come straight from his work. Departures are structural (multi-tenancy, no cross-module FKs, no audit table) not domain-substantive.
+- **Lead's ERD respected.** Table names, the four-table phase-1 shape, and column intent all come from his work. Departures are structural (multi-tenancy, no cross-module FKs, no audit table, Phase-1 column trim to match existing-prod surface, `provider_id` instead of `price_agreements` in Phase 1) and were explicitly approved by him on PR #48.
 - **Embedded-then-extracted defers operational complexity.** Phase 1 deployment is one process, one binary, one log stream. Extraction is a low-risk Phase 2+ move because the code, schema, and contract are designed for it from day one.
 
 ### Negative and mitigations
@@ -229,7 +237,7 @@ Phase 1 ingest is **synchronous HTTP** from clinical modules to the embedded bil
 - **`patients` table is in EMPI, not billing.** Invoice-rendering requires a call to EMPI (or a cache hit). Mitigation: TTL cache of `(patient_id → display_fields)` with event-bust on `patient.updated`. Adds ~5 ms p95 to invoice render in the cache-miss case; well under the 100 ms target.
 - **Insurance flows wait until Phase 2.** Cashless and TPA-reimbursement deployments cannot run on Phase 1 alone. Mitigation: cash-and-card flow is enough for the sprint demo and the first wave of small-clinic tenants. Phase 2 timeline is the next sprint after Phase 1 lands.
 - **Doctor commissions wait until Phase 4.** Hospitals running visiting-consultant arrangements need this earlier than Phase 4 nominally suggests. Mitigation: Phase 4 can start in parallel with Phase 2 if a tenant demands it; the schema is additive and the columns it touches (`bill_items.performed_by`, `bills.created_by`) already exist in Phase 1.
-- **Snapshot pricing means a price-list correction does not retroactively fix bills already issued.** This is by design but operators must be trained: if a wrong price was billed, the correction is a bill amendment (replacement chain) plus a refund-or-additional-charge, not a catalog edit. Mitigation: documented in the dev guide and the operator UX.
+- **Snapshot pricing means a price-list correction does not retroactively fix bills already issued.** This is by design but operators must be trained: if a wrong price was billed, the Phase 1 correction is **cancel-and-new** (the original bill goes to `CANCELLED`; a fresh bill is raised). The replacement-chain via `replaced_bill_id` arrives in Phase 2. Mitigation: documented in the dev guide and the operator UX.
 - **Embedded coupling to OPD service means OPD downtime takes billing down with it in Phase 1.** Mitigation: this is acceptable because the only client in Phase 1 *is* OPD. Extraction triggers the moment a second client appears.
 - **No `billing_audit_log` table in Phase 0/1.** Some operators expect a built-in financial audit trail. Mitigation: structured request logs (captured by HTTP middleware) + rich event payloads (`bill.finalized`, `payment.recorded` with full before/after) are the substrate. The centralized audit consumer projects from these per [ADR-0024](./0024-audit-deferred-to-pre-prod.md).
 
@@ -241,10 +249,11 @@ Phase 1 ingest is **synchronous HTTP** from clinical modules to the embedded bil
 
 ## Validation criteria
 
-- A Phase 1 counter operator can complete the full happy path in the demo tenant: register patient (frontdesk/EMPI), capture three OPD charges (consultation + two procedures), capture an advance, apply a discount with approval, raise the bill, accept cash payment, print a receipt.
+- A Phase 1 counter operator can complete the full happy path in the demo tenant: register patient (frontdesk/EMPI), capture two OPD charges (registration + per-doctor consultation), optionally a procedure, apply a free-form discount, raise the bill, accept cash payment, print a receipt. (Advances and discount-approval workflow are Phase 2.)
 - A re-print of yesterday's bill renders the same total even after today's `service_master` price update.
-- A bill amendment (replacement chain) leaves the original bill untouched in `bills` and `bill_items`; the new bill references the old via `replaced_bill_id`.
+- A bill correction in Phase 1 uses **cancel-and-new** (original bill → `CANCELLED`, fresh bill raised). The replacement-chain via `replaced_bill_id` ships in Phase 2.
 - Charge-ingest is idempotent: replaying the same `Idempotency-Key` returns the existing `bill_item_id` without creating a duplicate row.
+- The `(service_code, provider_id) NULLS NOT DISTINCT` unique index on `service_master` enforces "one rack-rate row per service_code, one row per (service_code, provider_id)" — verified by attempting a duplicate insert in staging.
 - All Phase 1 tables co-locate on the same Citus shard for a given tenant (verified by `SELECT shardid FROM pg_dist_shard_placement` queries in staging).
 
 ## References

@@ -6,7 +6,7 @@
 **Related HLD:** [HLD 06 — Billing](../../hld/06-billing.md) | [HLD 03 — Module shape template](../../hld/03-module-shape-template.md)
 **Related ADRs:** [ADR-0008](../../adr/0008-module-shape-and-boundaries.md) (module shape) | [ADR-0009](../../adr/0009-event-driven-inter-module-communication.md) (events) | [ADR-0012](../../adr/0012-multi-tenancy-isolation-strategy.md) (multi-tenancy) | [ADR-0024](../../adr/0024-audit-deferred-to-pre-prod.md) (audit deferral) | [ADR-0025](../../adr/0025-billing-module-shape-and-phasing.md) (billing shape & phasing)
 **ERDs (visual, one per phase, cumulative — open in VS Code with the dineug ERD Editor extension):**
-- [`billing.phase-1.erd.json`](./billing.phase-1.erd.json) — 8 tables: counter-billing parity (the demo target).
+- [`billing.phase-1.erd.json`](./billing.phase-1.erd.json) — 4 tables, 86 columns: counter-billing parity (the demo target).
 - [`billing.phase-2.erd.json`](./billing.phase-2.erd.json) — 14 tables: adds insurance, corporate clients, packages.
 - [`billing.phase-3.erd.json`](./billing.phase-3.erd.json) — 18 tables: adds refunds, payment plans, IPD final bills.
 - [`billing.phase-4.erd.json`](./billing.phase-4.erd.json) — 21 tables: adds doctor commissions.
@@ -21,14 +21,14 @@ The billing module ships in four additive phases. Phase 1 is **deliberately the 
 
 | Phase | Tables (lead's names preserved) | Schema cols at this phase's cutoff |
 |---|---|---|
-| **Phase 1 — Counter billing parity** | `service_master`, `bills`, `bill_items`, `payments` | 4 tables, ~135 columns |
+| **Phase 1 — Counter billing parity** | `service_master`, `bills`, `bill_items`, `payments` | 4 tables, 86 columns (16+28+26+16) |
 | **Phase 2 — Insurance, corporate, packages, advances, discount-approvals, price-agreements** | + `price_agreements`, `patient_advances`, `advance_utilizations`, `discount_approvals`, `insurance_providers`, `patient_insurance_policies`, `insurance_claims`, `corporate_clients`, `service_packages`, `package_items` | + 10 tables, ~225 columns |
 | **Phase 3 — Refunds, plans, IPD final** | + `refunds`, `payment_plans`, `installments`, `ipd_discharge_summaries` | + 4 tables, ~120 columns |
 | **Phase 4 — Provider economics** | + `doctor_commission_rules`, `doctor_commissions`, `doctor_commission_payouts` | + 3 tables, ~60 columns |
 
 **Why Phase 1 is 4 tables, not 8.** Earlier drafts of this LLD placed `price_agreements`, `patient_advances`, `advance_utilizations`, and `discount_approvals` in Phase 1. They have been demoted to Phase 2 to match the existing-production OPD counter flow exactly (the EM/tech-lead's mental model) and to keep the first-sprint surface area at the minimum that reaches parity. The full reasoning is in [ADR-0025 §phasing](../../adr/0025-billing-module-shape-and-phasing.md#phasing--what-ships-when); summary:
 
-- `price_agreements` → Phase 2: Phase 1 has no real "agreement"; per-doctor consultation pricing is handled by the catalog directly via lazy-explosion (§2.1 below).
+- `price_agreements` → Phase 2: Phase 1 has no real "agreement"; per-doctor consultation pricing is handled by adding a nullable `provider_id` column on `service_master` (§2.1 below). No resolution-order engine, no chain-of-fallbacks lookup — a single-key lookup on `(service_code, provider_id)`.
 - `patient_advances` + `advance_utilizations` → Phase 2: existing OPD counter does not take advances; first real use case is IPD admission deposit (Phase 2+).
 - `discount_approvals` → Phase 2: existing flow lets operators enter any discount % freely; approval workflow is a product feature, not a parity requirement. Bill-level discount fields stay on `bills` for Phase 1.
 
@@ -63,77 +63,107 @@ No reference tables in Phase 1: every table is tenant-scoped because every billi
 
 ## 2. Service catalog — `service_master`  [Phase 1]
 
-The service master is the tenant-scoped catalog of chargeable services. The lead's ERD has 25 columns; we keep the bulk of them and apply structural rules. The catalog is read on every charge-ingest (to resolve `item_code` to a price), so it stays close to the billing transactional path.
+The service master is the tenant-scoped catalog of chargeable services. The lead's ERD has 25 columns; **we keep only the 16 that the existing-production OPD counter flow actually uses in Phase 1** (12 columns dropped as either clinical-coding leftovers or product-driven concerns — see [departures_from_lead_erd.phase_1_column_trim_2026_05_14](./schema-reference.json) for the full drop list). The catalog is read on every charge-ingest (to resolve `(service_code, provider_id)` to a price), so it stays close to the billing transactional path.
 
-### 2.1 Per-doctor pricing in Phase 1 — lazy catalog explosion
+### 2.1 Per-doctor pricing in Phase 1 — `provider_id` on `service_master`
 
-In Phase 1 there is no `price_agreements` table (it ships in Phase 2). Per-doctor consultation pricing — which the existing production HIMS supports — is encoded in the catalog directly, one row per (consultation type, doctor) combination:
+Existing production HIMS supports per-doctor consultation pricing. Phase 1 reproduces this **without introducing the `price_agreements` abstraction** (which ships in Phase 2) by adding a nullable `provider_id UUID` column to `service_master`. The catalog row becomes one entry per **(service_code, provider_id)** combination:
 
-| service_code | service_name | base_price |
-|---|---|---|
-| `REG_FEE` | Registration Fee (first visit) | 100.00 |
-| `CONS_GENERAL_DR_SMITH` | General Consultation — Dr Smith | 500.00 |
-| `CONS_GENERAL_DR_JONES` | General Consultation — Dr Jones | 700.00 |
-| `CONS_SPECIALIST_DR_KUMAR` | Specialist Consultation — Dr Kumar | 1200.00 |
-| `PROC_DRESSING` | Wound Dressing | 200.00 |
-| `PROC_INJECTION` | IM Injection | 80.00 |
+| service_code | provider_id | service_name | base_price |
+|---|---|---|---|
+| `REG_FEE` | NULL | Registration Fee (first visit) | 100.00 |
+| `CONS_GENERAL` | NULL | General Consultation (rack rate) | 400.00 |
+| `CONS_GENERAL` | `dr-smith-uuid` | General Consultation — Dr Smith | 500.00 |
+| `CONS_GENERAL` | `dr-jones-uuid` | General Consultation — Dr Jones | 700.00 |
+| `CONS_SPECIALIST` | `dr-kumar-uuid` | Specialist Consultation — Dr Kumar | 1200.00 |
+| `PROC_DRESSING` | NULL | Wound Dressing | 200.00 |
 
-Catalog cardinality is bounded — ≤ 20 rows for the Phase 1 demo tenant. The frontdesk UI dropdown for "Consulting Doctor" maps the selected doctor to the matching `CONS_*_DR_<NAME>` service code and calls `POST /v1/billing/charges` with that code. **This is what the production HIMS does in practice**; the EM, tech-lead, and dev reading this recognise the pattern immediately.
+**Semantics.**
 
-When Phase 2 introduces `price_agreements` with `DOCTOR_OVERRIDE` semantics, the existing service rows do not change. A future catalog cleanup may fold per-doctor rows into a single `CONS_GENERAL` row with `DOCTOR_OVERRIDE` agreements — but that's a Phase 2 catalog-cleanup migration, not a Phase 1 concern. **Snapshot pricing on `bill_items` means historical bills are unaffected** by any Phase 2 catalog reorganisation; the bill_item row carries its own copy of `item_code`, `description`, `unit_price`, `tax_percentage` from the moment of charge capture.
+- `provider_id IS NULL` ⇒ the price does **not** vary by provider (registration, procedures, lab, pharmacy). One row per service_code.
+- `provider_id IS NOT NULL` ⇒ the price is **specific to this provider** for this service_code (consultation rows). One row per `(service_code, provider_id)`.
+- A given `service_code` may have **either** a rack-rate row (provider_id NULL) **or** per-provider rows, **or both**. The frontdesk UI decides which to send.
 
-### Columns (matched against lead's ERD)
+**Uniqueness.** The unique index on `service_master` is `(iq_tenant_id, service_code, provider_id) NULLS NOT DISTINCT` (PG15+). The `NULLS NOT DISTINCT` clause makes two NULL provider_ids count as a duplicate, so the index correctly enforces "at most one rack-rate row per service_code" and "at most one row per (service_code, provider_id)" for non-NULL providers. If we need to support PG14, the same constraint can be implemented as two partial-unique indexes.
+
+**Charge-ingest resolution.** A single-key lookup, no fallback chain:
+
+```sql
+SELECT * FROM billing.service_master
+WHERE iq_tenant_id = $1
+  AND service_code = $2
+  AND provider_id IS NOT DISTINCT FROM $3   -- treats NULL = NULL
+  AND is_active = true;
+```
+
+The frontdesk UI submits both `service_code` and `provider_id` on every charge. If the (kind, doctor) pair has no row, the API returns a clear `404 catalog_row_not_found` and the operator either adds the row first or selects a different doctor. **Phase 1 does not synthesise a fallback** — every billable (kind, doctor) pair the tenant offers must exist as a row. This keeps the resolution rule trivially explainable and avoids the appearance of a Phase-1 price-agreement engine.
+
+**Frontdesk UI behaviour.** The "consulting doctor" dropdown is populated by:
+
+```sql
+SELECT DISTINCT sm.provider_id, u.full_name
+FROM billing.service_master sm
+JOIN user_management.users u ON u.id = sm.provider_id  -- soft ref, lookup at read time
+WHERE sm.iq_tenant_id = $1
+  AND sm.category = 'consultation'
+  AND sm.is_active = true
+  AND sm.provider_id IS NOT NULL;
+```
+
+The selected doctor's `provider_id` plus the chosen service_code (`CONS_GENERAL`, `CONS_SPECIALIST`) form the `(service_code, provider_id)` charge payload. Non-consultation services use `provider_id = NULL`.
+
+**Catalog seeding.** ≤ 20 rows for the Phase 1 demo tenant. Per-doctor consultation rows are inserted at tenant onboarding; non-consultation services use a single rack-rate row each.
+
+**Phase 2 migration story.** When `price_agreements` ships, per-doctor rows can be folded into a single rack-rate row (`provider_id = NULL`) plus per-doctor `DOCTOR_OVERRIDE` entries in `price_agreements`. The migration is mechanical: for each `provider_id IS NOT NULL` row, insert a `price_agreements` row keyed on `service_id + provider_id` and delete the catalog row. **Historical `bill_items` are unaffected** because pricing is snapshotted at charge time: `item_code`, `description`, `unit_price`, `tax_percentage` are copied onto the line item the moment the charge is captured.
+
+**Why not bake the doctor name into `service_code`?** An earlier draft used `CONS_GENERAL_DR_SMITH` as the unique service_code. We rejected that: doctor renames break the catalog, two doctors with similar names need ad-hoc disambiguators, and `service_code` is meant to be a kind/code, not a (kind, doctor) tuple. `provider_id` gives a durable referential link to User Management's staff row without altering the rest of billing's data model.
+
+### Columns (Phase 1 — 16 cols)
 
 | Column | Type | Source | Notes |
 |---|---|---|---|
 | `id` | UUID PK | lead | `gen_random_uuid()` default |
 | `iq_tenant_id` | UUID NOT NULL | **added** | Citus distribution column. Lead's ERD had no tenant scoping. |
-| `service_code` | VARCHAR(64) NOT NULL | lead | Tenant-unique. UNIQUE (`iq_tenant_id`, `service_code`). |
+| `service_code` | VARCHAR(64) NOT NULL | lead | Service-kind code (e.g., `CONS_GENERAL`, `REG_NEW`). May appear multiple times when per-provider pricing exists — uniqueness is on `(service_code, provider_id)`. |
 | `service_name` | TEXT NOT NULL | lead | Display name; snapshotted onto `bill_items.description`. |
 | `description` | TEXT | lead | Internal/longer description. |
+| `provider_id` | UUID | **added 2026-05-14** | Soft ref (nullable) to the doctor/staff record in User Management. NULL = rack-rate row (price does not vary by provider). NOT NULL = price specific to this provider. See §2.1 above for semantics. |
 | `department` | VARCHAR(64) | lead | Soft reference to User Management's department list; not FK. |
 | `category` | VARCHAR(64) | lead | e.g., `consultation`, `procedure`, `lab`, `radiology`, `pharmacy`. |
 | `sub_category` | VARCHAR(64) | lead | e.g., within `lab`: `biochemistry`, `microbiology`. |
-| `base_price` | NUMERIC(18,4) NOT NULL | lead | Default price before any agreements. |
+| `base_price` | NUMERIC(18,4) NOT NULL | lead | Price for this row (this service_code at this provider_id). Snapshotted onto `bill_items.unit_price` at charge time. |
 | `tax_percentage` | NUMERIC(7,4) NOT NULL DEFAULT 0 | lead | Snapshotted to `bill_items.tax_percentage` at charge time. |
-| `tax_category` | VARCHAR(32) | lead | e.g., `CGST_SGST`, `IGST`, `EXEMPT`. |
-| `hsn_sac_code` | VARCHAR(16) | **added** | Required for Indian invoices; lead's ERD has `icd_10_code` and `cpt_code` but not HSN/SAC. We keep all three. |
-| `is_insurance_covered` | BOOLEAN DEFAULT true | lead | Snapshotted to `bill_items.is_insurance_covered`. |
-| `requires_pre_authorization` | BOOLEAN DEFAULT false | lead | Used by Phase 2 insurance flow. |
-| `icd_10_code` | VARCHAR(16) | lead | Optional clinical-coding linkage. |
-| `cpt_code` | VARCHAR(16) | lead | Optional procedure-coding linkage. |
-| `hcpcs_code` | VARCHAR(16) | lead | Optional. |
-| `duration_minutes` | INTEGER | lead | Scheduling hint; not enforced. |
-| `requires_doctor_approval` | BOOLEAN DEFAULT false | lead | Charge-ingest emits `discount.requested` if a discount is applied without approval. |
-| `is_emergency_service` | BOOLEAN DEFAULT false | lead | Used for emergency-billing reports. |
 | `is_active` | BOOLEAN NOT NULL DEFAULT true | lead | Inactive services are not chargeable but are not deleted. |
-| `effective_from` | TIMESTAMPTZ | lead | Effective-date range for activations. |
-| `effective_to` | TIMESTAMPTZ | lead | NULL = open-ended. |
 | `created_at`, `updated_at` | TIMESTAMPTZ | lead | Standard. |
 | `created_by`, `updated_by` | UUID | lead | Soft refs to User Management. |
 
+**Dropped in Phase 1** (deferred until product asks; see schema-reference.json for full list):
+`tax_category`, `hsn_sac_code`, `is_insurance_covered`, `requires_pre_authorization`, `icd_10_code`, `cpt_code`, `hcpcs_code`, `duration_minutes`, `requires_doctor_approval`, `is_emergency_service`, `effective_from`, `effective_to`. These can be added as nullable columns when their consumer arrives (GST e-invoicing, insurance, scheduling, etc.) — no migration risk.
+
 ### Constraints
 
-- `UNIQUE (iq_tenant_id, service_code)` — service codes are tenant-scoped.
+- `UNIQUE (iq_tenant_id, service_code, provider_id) NULLS NOT DISTINCT` — collapses NULL provider_ids; enforces one rack-rate row per service_code plus one row per `(service_code, provider_id)` for non-NULL providers.
 - `CHECK (base_price >= 0)`, `CHECK (tax_percentage >= 0 AND tax_percentage <= 100)`.
-- `CHECK (effective_to IS NULL OR effective_to > effective_from)`.
 
 ### Index strategy
 
 - Primary key on `id`.
-- Unique index on (`iq_tenant_id`, `service_code`).
-- Lookup index on (`iq_tenant_id`, `is_active`, `category`).
-- Lookup index on (`iq_tenant_id`, `service_name` text_pattern_ops) for autocomplete in the counter UI.
+- Unique index on `(iq_tenant_id, service_code, provider_id) NULLS NOT DISTINCT`.
+- Lookup index on `(iq_tenant_id, is_active, category)` — counter UI menu fetch.
+- Lookup index on `(iq_tenant_id, provider_id, is_active)` WHERE `provider_id IS NOT NULL` — frontdesk "what services does Dr Smith offer".
+- Lookup index on `(iq_tenant_id, service_name)` `text_pattern_ops` — autocomplete.
 
 ### Departure from lead
 
-The lead places `service_master` in a global billing context (no tenant scoping). We scope it per tenant because tenants set their own prices and may differ in service availability. If a future scenario emerges where two tenants of the same organisation want to share a catalog, we add a `parent_service_code` or migrate the table to the Master Data service-catalog domain — snapshot pricing on `bill_items` means historical bills are unaffected by such a migration.
+- The lead's `service_master` is global (no tenant scoping). We scope per tenant because tenants set their own prices and service availability.
+- The lead's ERD has no provider linkage on `service_master`; per-doctor pricing is implicit. We make it explicit via `provider_id` — a durable soft ref to User Management. This is the Phase 1 substitute for the deferred `price_agreements` table.
+- If a future scenario emerges where two tenants of the same organisation want to share a catalog, we either add a `parent_service_code` or migrate the table to the Master Data service-catalog domain. Snapshot pricing on `bill_items` insulates historical bills from any such migration.
 
 ---
 
 ## 3. Price agreements — `price_agreements`  [Phase 2 — moved from Phase 1]
 
-> **Why this is Phase 2 not Phase 1.** Earlier drafts placed this in Phase 1. Demoted because the existing production OPD counter flow has no real "agreement" — per-doctor consultation pricing is handled in Phase 1 by the catalog directly (§2.1 lazy explosion). The agreement abstraction earns its keep when corporate clients and TPAs arrive in Phase 2 with negotiated rates. See [ADR-0025 §phasing](../../adr/0025-billing-module-shape-and-phasing.md#phasing--what-ships-when). The full column-level design is preserved below as forward reference for the Phase 2 build.
+> **Why this is Phase 2 not Phase 1.** Earlier drafts placed this in Phase 1. Demoted because the existing production OPD counter flow has no real "agreement" — per-doctor consultation pricing is handled in Phase 1 by adding a nullable `provider_id` column to `service_master` (§2.1), not by a resolution-order engine. The agreement abstraction earns its keep when corporate clients and TPAs arrive in Phase 2 with negotiated rates. See [ADR-0025 §phasing](../../adr/0025-billing-module-shape-and-phasing.md#phasing--what-ships-when). The full column-level design is preserved below as forward reference for the Phase 2 build.
 
 Tenant-scoped pricing overrides. Phase 2 supports four agreement types: per-tenant default (override of rack rate), per-doctor override, per-department override, corporate-client override, insurer override.
 
@@ -179,7 +209,7 @@ The resolved price is snapshotted to `bill_items.unit_price`. The selected agree
 
 ## 4. Bills — `bills`  [Phase 1]
 
-The bill is the financial document. Its row carries the header; line items live in `bill_items`. The lead's ERD has 45 columns on `bills`; we keep the substance and apply structural rules.
+The bill is the financial document. Its row carries the header; line items live in `bill_items`. The lead's ERD has 45 columns on `bills`; **we keep 28 in Phase 1** — the substance the existing-prod OPD counter flow uses. 18 columns deferred to Phase 2/3 (insurance roll-ups, corporate/policy linkage, bill amendment, advance adjustment, IPD discharge, redundant `payment_status`). See [departures_from_lead_erd.phase_1_column_trim_2026_05_14](./schema-reference.json) for the drop list.
 
 ### State machine
 
@@ -202,11 +232,11 @@ stateDiagram-v2
 ```
 
 Notes:
-- `REPLACED` does not transition further; the new bill is its own row in `DRAFT`, linked via `bills.replaced_bill_id`.
 - `CANCELLED` carries `cancellation_reason` and `cancelled_by`.
 - `CLOSED` is a nightly-batch transition that locks the bill from any further mutation; today is the cutoff for reconciliation tasks (refund window, late-fee accrual).
+- `REPLACED` is reserved for the amendment flow that ships in Phase 2 along with the `replaced_bill_id` linkage column (which is **not** in the Phase 1 table). The Phase 1 amendment scenario in [02-scenarios.md](./02-scenarios.md) uses cancel-and-new-bill rather than the replace-linkage; the state-machine value is preserved here so the enum is stable across phases.
 
-### Columns (Phase 1 essentials)
+### Columns (Phase 1 — 28 cols)
 
 | Column | Type | Source | Notes |
 |---|---|---|---|
@@ -215,47 +245,30 @@ Notes:
 | `bill_number` | VARCHAR(64) NOT NULL | lead | Tenant-unique, generated. Pattern in [dev-doubts](./dev-doubts/01.md#bill-number-format). UNIQUE (`iq_tenant_id`, `bill_number`). |
 | `patient_id` | UUID NOT NULL | lead | Soft ref to EMPI. |
 | `visit_id` | UUID | lead | Soft ref to the clinical visit (OPD visit, IPD admission). May be NULL for visit-less charges (pharmacy walk-in). |
-| `visit_type` | VARCHAR(16) | lead | Enum: `OPD`, `IPD`, `ER`, `DAYCARE`, `WALK_IN`. |
-| `bill_type` | VARCHAR(32) NOT NULL | lead | Enum: `INTERIM` (partial during stay), `FINAL` (discharge / visit close), `STANDALONE` (single-transaction billing). |
-| `bill_category` | VARCHAR(32) | lead | Enum: `SELF_PAY`, `INSURANCE`, `CORPORATE`, `MIXED`. |
+| `visit_type` | VARCHAR(16) | lead | Enum: `OPD`, `IPD`, `ER`, `DAYCARE`, `WALK_IN`. Phase 1 always `OPD`; column carried forward so later phases don't migrate. |
+| `bill_type` | VARCHAR(32) NOT NULL | lead | Enum: `INTERIM` (partial during stay), `FINAL` (discharge / visit close), `STANDALONE` (single-transaction billing). Phase 1 always `STANDALONE`. |
 | `bill_date` | DATE NOT NULL | lead | Defaults to the date of first charge. |
-| `due_date` | DATE | lead | For corporate/credit billing; NULL for cash. |
-| `discharge_date` | DATE | lead | Phase 3 IPD use. |
 | **— Amount roll-ups (recomputed on each item change) —** | | | |
 | `subtotal` | NUMERIC(18,4) NOT NULL DEFAULT 0 | lead | Sum of `bill_items.gross_amount`. |
 | `discount_amount` | NUMERIC(18,4) NOT NULL DEFAULT 0 | lead | Sum of `bill_items.discount_amount`. |
-| `discount_percentage` | NUMERIC(7,4) | lead | Bill-level discount for display; line-level discounts dominate. |
 | `discount_reason` | TEXT | lead | When a bill-level discount is applied. |
 | `tax_amount` | NUMERIC(18,4) NOT NULL DEFAULT 0 | lead | Sum of `bill_items.tax_amount`. |
 | `total_amount` | NUMERIC(18,4) NOT NULL DEFAULT 0 | lead | Pre-rounding total. |
 | `round_off_amount` | NUMERIC(18,4) NOT NULL DEFAULT 0 | lead | The rounding adjustment. |
 | `net_amount` | NUMERIC(18,4) NOT NULL DEFAULT 0 | lead | `total_amount + round_off_amount`. The final payable. |
 | `paid_amount` | NUMERIC(18,4) NOT NULL DEFAULT 0 | lead | Sum of `payments.amount` for non-VOID rows. |
-| `advance_adjusted` | NUMERIC(18,4) NOT NULL DEFAULT 0 | lead | Sum of `advance_utilizations.utilized_amount` for this bill. |
-| `outstanding_amount` | NUMERIC(18,4) NOT NULL DEFAULT 0 | lead | `net_amount - paid_amount - advance_adjusted`. |
-| **— Phase 2 insurance roll-ups (nullable until Phase 2) —** | | | |
-| `insurance_claim_amount` | NUMERIC(18,4) | lead | Set when a claim is filed. |
-| `insurance_approved_amount` | NUMERIC(18,4) | lead | |
-| `insurance_paid_amount` | NUMERIC(18,4) | lead | |
-| `insurance_rejected_amount` | NUMERIC(18,4) | lead | |
-| `patient_payable` | NUMERIC(18,4) | lead | `net_amount - insurance_paid_amount`. |
+| `outstanding_amount` | NUMERIC(18,4) NOT NULL DEFAULT 0 | lead | `net_amount - paid_amount`. (Phase 1 has no advance adjustment.) |
+| `tax_breakup` | JSONB | lead | `{cgst, sgst, igst, cess}` for invoice rendering. Optional in Phase 1; populated only when GST e-invoicing is wired in. |
 | **— Status —** | | | |
 | `status` | VARCHAR(16) NOT NULL DEFAULT 'DRAFT' | lead | One of the state-machine values above. |
-| `payment_status` | VARCHAR(16) | lead | Derived: `UNPAID`, `PARTIAL`, `PAID`. Stored for index. |
-| **— Lineage —** | | | |
-| `parent_bill_id` | UUID | lead | For `INTERIM → FINAL` rollups; NULL for standalone or first interim. |
-| `replaced_bill_id` | UUID | lead | When this bill replaces another via amendment. |
-| **— Corporate / insurance scope (Phase 2 nullable) —** | | | |
-| `corporate_client_id` | UUID | lead | Soft ref. |
-| `employee_id` | VARCHAR(64) | lead | Snapshot of the corporate employee identifier. |
-| `employee_name` | TEXT | lead | Snapshot. |
-| `policy_id` | UUID | **renamed from lead's `advance_ids`** | The lead had `advance_ids` as a JSONB array on the bill; we model advance application via `advance_utilizations` rows instead. `policy_id` is added explicitly for the bill–policy linkage. |
-| `tax_breakup` | JSONB | lead | `{cgst, sgst, igst, cess}` for invoice rendering. |
-| **— Actor and audit-substrate fields —** | | | |
-| `notes`, `internal_notes` | TEXT | lead | |
-| `cancellation_reason` | TEXT | lead | |
+| **— Notes —** | | | |
+| `notes` | TEXT | lead | Operator notes; visible on receipt. |
+| `cancellation_reason` | TEXT | lead | Required when transitioning to `CANCELLED`. |
+| **— Actors —** | | | |
 | `created_by`, `approved_by`, `cancelled_by` | UUID | lead | Soft refs to User Management. |
 | `created_at`, `updated_at`, `approved_at`, `cancelled_at` | TIMESTAMPTZ | lead | |
+
+**Dropped in Phase 1** (see schema-reference.json for the full list): `bill_category`, `due_date`, `discharge_date`, `discount_percentage`, `advance_adjusted`, `insurance_claim_amount`, `insurance_approved_amount`, `insurance_paid_amount`, `insurance_rejected_amount`, `patient_payable`, `payment_status`, `parent_bill_id`, `replaced_bill_id`, `corporate_client_id`, `employee_id`, `employee_name`, `policy_id`, `internal_notes`. All deferred until the consumer (insurance, corporate, IPD, bill amendment) arrives; each is a nullable column add when needed.
 
 ### Constraints
 
@@ -265,7 +278,6 @@ Notes:
 - `CHECK (bill_type IN ('INTERIM','FINAL','STANDALONE'))`.
 - `CHECK (net_amount >= 0 AND paid_amount >= 0 AND outstanding_amount >= 0)`.
 - `CHECK (status != 'DRAFT' OR paid_amount = 0)` — no payment against a DRAFT bill.
-- `CHECK (replaced_bill_id IS NULL OR status IN ('DRAFT','FINALIZED'))` — only DRAFT or FINALIZED bills replace others (the new bill, when DRAFT; the original, when it transitioned to REPLACED — enforced by the application).
 
 ### Indexes
 
@@ -274,11 +286,10 @@ Notes:
 - Lookup: (`iq_tenant_id`, `patient_id`, `bill_date DESC`).
 - Lookup: (`iq_tenant_id`, `visit_id`, `status`) — common query: "open bill for this visit".
 - Lookup: (`iq_tenant_id`, `status`, `bill_date`) — operator dashboard.
-- Lookup: (`iq_tenant_id`, `corporate_client_id`, `due_date`) — Phase 2 corporate AR aging.
 
 ### Departures from lead
 
-- The lead's `bills.advance_ids JSONB[]` is replaced by an explicit `advance_utilizations` table. This makes referential queries possible and matches the lead's own intent on `patient_advances.utilized_amount` (which only makes sense if utilisations are first-class rows).
+- The lead's `bills.advance_ids JSONB[]` is replaced by an explicit `advance_utilizations` table (Phase 2). This makes referential queries possible and matches the lead's own intent on `patient_advances.utilized_amount` (which only makes sense if utilisations are first-class rows).
 - The lead's `bills.tax_breakup` is kept as JSONB for invoice rendering; querying it remains rare so no GIN index is built in Phase 1.
 - Roll-up amounts are kept on the bill row (not derived on read) because the rendering path (PDF, invoice list, dashboard) reads them frequently and the cost of recomputation on every item write is small.
 
@@ -288,7 +299,7 @@ Notes:
 
 Each chargeable line of a bill. The integrity-critical table: snapshot pricing lives here.
 
-### Columns
+### Columns (Phase 1 — 26 cols)
 
 | Column | Type | Source | Notes |
 |---|---|---|---|
@@ -296,14 +307,11 @@ Each chargeable line of a bill. The integrity-critical table: snapshot pricing l
 | `iq_tenant_id` | UUID NOT NULL | **added** | |
 | `bill_id` | UUID NOT NULL | lead | Soft ref within schema; CHECK enforced at application layer (same-tenant). |
 | `service_id` | UUID | lead | Soft ref to `service_master.id` at the time of capture. |
-| `package_id` | UUID | lead | Soft ref to `service_packages.id` (Phase 2). |
-| `price_agreement_id` | UUID | **added** | The agreement chosen by the resolution order in §3; for reproducibility. |
-| `item_type` | VARCHAR(32) NOT NULL | lead | Enum: `SERVICE`, `PACKAGE`, `PACKAGE_LINE` (an individual line within an applied package), `ADJUSTMENT` (manual line not from catalog). |
-| `item_code` | VARCHAR(64) NOT NULL | lead | **Snapshot** of `service_master.service_code` or `service_packages.package_code`. |
-| `description` | TEXT NOT NULL | lead | **Snapshot** of `service_master.service_name` or `service_packages.package_name`. |
-| `quantity` | NUMERIC(10,2) NOT NULL DEFAULT 1 | lead | Decimal supports lab repeats and partial doses. |
-| `unit` | VARCHAR(16) | lead | e.g., `each`, `ml`, `hour`. |
-| `unit_price` | NUMERIC(18,4) NOT NULL | lead | **Snapshot** of the resolved price. Immutable post-write. |
+| `item_type` | VARCHAR(32) NOT NULL | lead | Enum: `SERVICE`, `PACKAGE`, `PACKAGE_LINE` (Phase 2 packaging), `ADJUSTMENT` (manual line not from catalog). Phase 1 writes `SERVICE` only; the enum is preserved for forward compatibility. |
+| `item_code` | VARCHAR(64) NOT NULL | lead | **Snapshot** of `service_master.service_code`. |
+| `description` | TEXT NOT NULL | lead | **Snapshot** of `service_master.service_name`. |
+| `quantity` | NUMERIC(10,2) NOT NULL DEFAULT 1 | lead | Decimal supports lab repeats and partial doses; Phase 1 always 1 for consultation/registration. |
+| `unit_price` | NUMERIC(18,4) NOT NULL | lead | **Snapshot** of the resolved price from `service_master.base_price`. Immutable post-write. |
 | `gross_amount` | NUMERIC(18,4) NOT NULL | lead | `quantity * unit_price`. |
 | `discount_percentage` | NUMERIC(7,4) NOT NULL DEFAULT 0 | lead | |
 | `discount_amount` | NUMERIC(18,4) NOT NULL DEFAULT 0 | lead | Either pct- or amount-driven; the row stores both for clarity. |
@@ -311,22 +319,18 @@ Each chargeable line of a bill. The integrity-critical table: snapshot pricing l
 | `tax_percentage` | NUMERIC(7,4) NOT NULL | lead | **Snapshot** of `service_master.tax_percentage`. |
 | `tax_amount` | NUMERIC(18,4) NOT NULL | lead | `net_amount * tax_percentage / 100`. |
 | `total_amount` | NUMERIC(18,4) NOT NULL | lead | `net_amount + tax_amount`. |
-| `tax_category` | VARCHAR(32) | **added (snapshotted)** | Snapshotted from `service_master.tax_category`. |
-| `is_insurance_covered` | BOOLEAN NOT NULL | lead | **Snapshot** of `service_master.is_insurance_covered`. |
-| `insurance_claim_amount` | NUMERIC(18,4) | lead | Phase 2. |
-| `insurance_approved_amount` | NUMERIC(18,4) | lead | Phase 2. |
-| `insurance_rejection_reason` | TEXT | lead | Phase 2. |
-| `patient_share` | NUMERIC(18,4) | lead | Phase 2 post-claim. |
 | **— Provenance (the source clinical event) —** | | | |
-| `source_module` | VARCHAR(32) NOT NULL | **added** | e.g., `opd`, `ipd`, `lab`, `pharmacy`, `radiology`, `manual`. |
+| `source_module` | VARCHAR(32) NOT NULL | **added** | e.g., `opd`, `ipd`, `lab`, `pharmacy`, `radiology`, `manual`. Phase 1 always `opd` (frontdesk-driven). |
 | `source_ref` | UUID | **added** | The clinical row's ID in its module. NULL for `source_module='manual'`. |
-| `performed_date` | TIMESTAMPTZ | lead | When the service was clinically rendered. |
-| `performed_by` | UUID | lead | Soft ref to User Management. |
+| `performed_date` | TIMESTAMPTZ | lead | When the service was clinically rendered (Phase 1: registration time for consultation). |
+| `performed_by` | UUID | lead | Soft ref to User Management; the doctor for consultation lines. Mirrors `service_master.provider_id` of the resolved row. |
 | `department` | VARCHAR(64) | lead | Snapshot for reporting. |
-| `status` | VARCHAR(16) NOT NULL DEFAULT 'ACTIVE' | lead | Enum: `ACTIVE`, `VOIDED`. Voiding is a controlled pre-finalize correction; post-finalize correction is via bill amendment. |
+| `status` | VARCHAR(16) NOT NULL DEFAULT 'ACTIVE' | lead | Enum: `ACTIVE`, `VOIDED`. Voiding is a controlled pre-finalize correction; post-finalize correction is via bill cancellation + new bill. |
 | `idempotency_key` | TEXT | **added** | Idempotency-Key from charge-ingest; UNIQUE per tenant. |
 | `notes` | TEXT | lead | |
 | `created_at`, `updated_at` | TIMESTAMPTZ | lead | |
+
+**Dropped in Phase 1**: `package_id`, `price_agreement_id` (no agreements in Phase 1), `is_insurance_covered`, `tax_category`, `insurance_claim_amount`, `insurance_approved_amount`, `insurance_rejection_reason`, `patient_share` (insurance is Phase 2), `unit` (quantity defaults to 1 with implicit unit "each" in Phase 1).
 
 ### Constraints
 
@@ -360,9 +364,9 @@ A future hardening could install a Postgres trigger that raises on UPDATE of a b
 
 ## 6. Payments — `payments`  [Phase 1]
 
-Each payment is a single transaction against a bill. A bill may have many payments (advance utilisation + cash; cash + card split; etc.); a refund is a separate row in `refunds` (Phase 3) and is *not* a negative payment.
+Each payment is a single transaction against a bill. A bill may have many payments (cash + card split; multiple partial payments). A refund is a separate row in `refunds` (Phase 3) and is *not* a negative payment.
 
-### Columns (Phase 1 essentials)
+### Columns (Phase 1 — 16 cols)
 
 | Column | Type | Source | Notes |
 |---|---|---|---|
@@ -374,42 +378,23 @@ Each payment is a single transaction against a bill. A bill may have many paymen
 | `patient_id` | UUID NOT NULL | lead | Soft ref to EMPI. Mirrored from bill for fast queries. |
 | `payment_date` | TIMESTAMPTZ NOT NULL DEFAULT now() | lead | |
 | `amount` | NUMERIC(18,4) NOT NULL | lead | Positive. |
-| `payment_method` | VARCHAR(32) NOT NULL | lead | Enum: `CASH`, `CARD`, `UPI`, `CHEQUE`, `BANK_TRANSFER`, `GATEWAY`, `ADVANCE_UTILIZATION`, `INSURANCE_DISBURSEMENT`, `CORPORATE_INVOICE`. |
-| `transaction_id` | TEXT | lead | Method-specific transaction identifier. |
-| `reference_number` | TEXT | lead | |
-| `authorization_code` | TEXT | lead | Card auth code. |
-| **— Card fields (nullable; populated when method='CARD') —** | | | |
-| `card_type` | VARCHAR(16) | lead | e.g., `VISA`, `MC`, `RUPAY`. |
-| `card_last4` | VARCHAR(4) | lead | Last four digits only — PCI scope minimization. |
-| `card_holder_name` | TEXT | lead | |
-| **— Bank / cheque fields —** | | | |
-| `bank_name` | TEXT | lead | |
-| `branch_name` | TEXT | lead | |
-| `cheque_number` | VARCHAR(32) | lead | |
-| `cheque_date` | DATE | lead | |
-| **— UPI fields —** | | | |
-| `upi_id` | TEXT | lead | |
-| `upi_transaction_id` | TEXT | lead | |
-| **— Gateway fields —** | | | |
-| `payment_gateway` | VARCHAR(32) | lead | e.g., `RAZORPAY`, `PAYU`. |
-| `gateway_response` | JSONB | lead | Full gateway callback for audit. |
-| **— Phase 2 insurance disbursement —** | | | |
-| `claim_id` | UUID | lead | Soft ref to `insurance_claims` (Phase 2). |
-| `tds_deducted` | NUMERIC(18,4) | lead | TDS withheld by the insurer. |
-| **— Status & actors —** | | | |
-| `status` | VARCHAR(16) NOT NULL DEFAULT 'SUCCESS' | lead | Enum: `PENDING_GATEWAY`, `SUCCESS`, `FAILED`, `VOIDED`. |
-| `received_by` | UUID | lead | Counter operator. |
-| `verified_by` | UUID | lead | Optional second-set-of-eyes for high-value payments. |
-| `notes`, `remarks` | TEXT | lead | |
-| `created_at`, `updated_at`, `verified_at` | TIMESTAMPTZ | lead | |
+| `payment_method` | VARCHAR(32) NOT NULL | lead | Phase 1 enum: `CASH`, `CARD`, `UPI`, `CHEQUE`, `BANK_TRANSFER`. (Phase 2 adds `ADVANCE_RECEIPT`, `ADVANCE_UTILIZATION`, `INSURANCE_DISBURSEMENT`, `CORPORATE_INVOICE` along with gateway support.) |
+| `transaction_id` | TEXT | lead | **Method-specific transaction id** — single generic column in Phase 1 (covers card auth code, UPI ref, cheque number, gateway txn). Method-specific columns (card_last4, upi_id, cheque_number, etc.) arrive when product asks for them; Phase 1 stores the identifier as a single string. |
+| `reference_number` | TEXT | lead | Free-text reference (POS slip number, bank reference) — operator-supplied. |
+| `status` | VARCHAR(16) NOT NULL DEFAULT 'SUCCESS' | lead | Phase 1 enum: `SUCCESS`, `FAILED`, `VOIDED`. (Phase 2 adds `PENDING_GATEWAY` when online gateways arrive.) |
+| `received_by` | UUID | lead | Counter operator (soft ref to User Management). |
+| `notes` | TEXT | lead | |
+| `created_at`, `updated_at` | TIMESTAMPTZ | lead | |
+
+**Dropped in Phase 1**: `authorization_code`, `card_type`, `card_last4`, `card_holder_name`, `bank_name`, `branch_name`, `cheque_number`, `cheque_date`, `upi_id`, `upi_transaction_id`, `payment_gateway`, `gateway_response`, `claim_id`, `tds_deducted`, `verified_by`, `verified_at`, `remarks`. Method-specific reference data is captured in `transaction_id` and `reference_number` in Phase 1; richer per-method columns arrive when product wants them (no migration risk — all nullable adds).
 
 ### Constraints
 
 - `UNIQUE (iq_tenant_id, payment_number)`.
 - `UNIQUE (iq_tenant_id, receipt_number)` WHERE `receipt_number IS NOT NULL`.
 - `CHECK (amount > 0)`.
-- `CHECK (payment_method IN (...))` — the enum list above.
-- `CHECK (status IN ('PENDING_GATEWAY','SUCCESS','FAILED','VOIDED'))`.
+- `CHECK (payment_method IN ('CASH','CARD','UPI','CHEQUE','BANK_TRANSFER'))`.
+- `CHECK (status IN ('SUCCESS','FAILED','VOIDED'))`.
 
 ### Indexes
 
@@ -418,7 +403,6 @@ Each payment is a single transaction against a bill. A bill may have many paymen
 - Unique on (`iq_tenant_id`, `receipt_number`) WHERE NOT NULL.
 - Lookup: (`iq_tenant_id`, `bill_id`, `payment_date`).
 - Lookup: (`iq_tenant_id`, `patient_id`, `payment_date`).
-- Lookup: (`iq_tenant_id`, `status`) WHERE `status = 'PENDING_GATEWAY'` — operator reconciliation queue.
 
 ### Money flow on payment
 
@@ -500,7 +484,7 @@ Two concurrent counter operators could try to utilise the same advance against d
 
 ## 8. Discount approvals — `discount_approvals`  [Phase 2 — moved from Phase 1]
 
-> **Why this is Phase 2 not Phase 1.** Earlier drafts placed this in Phase 1. Demoted because the existing production OPD frontdesk flow has **no approval workflow** — the operator types in any discount percentage freely. Threshold-based approvals are a product feature, not a parity requirement. Phase 1 keeps the bill-level discount fields on `bills` (`discount_amount`, `discount_percentage`, `discount_reason`) for recording purposes; no approval row is created. See [ADR-0025 §phasing](../../adr/0025-billing-module-shape-and-phasing.md#phasing--what-ships-when). Column-level design preserved below as forward reference.
+> **Why this is Phase 2 not Phase 1.** Earlier drafts placed this in Phase 1. Demoted because the existing production OPD frontdesk flow has **no approval workflow** — the operator types in any discount amount freely. Threshold-based approvals are a product feature, not a parity requirement. Phase 1 keeps the bill-level discount fields on `bills` (`discount_amount`, `discount_reason`) for recording purposes; `discount_percentage` was dropped from the Phase 1 `bills` table because the operator enters a flat amount (the UI may compute the % for display). No approval row is created. See [ADR-0025 §phasing](../../adr/0025-billing-module-shape-and-phasing.md#phasing--what-ships-when). Column-level design preserved below as forward reference.
 
 A discount above a tenant-configured threshold requires explicit approval. The bill carries the discount totals (`bill_items.discount_amount`, `bills.discount_amount`); approval rows are the audit trail.
 
@@ -617,7 +601,7 @@ The substrate that the centralized audit consumer projects from, on the billing 
 1. **Rich event payloads** — `bill.finalized`, `payment.received`, `advance.utilized`, `discount.approved`, `bill.amended` carry before/after states and actor.
 2. **Structured request logs** — HTTP middleware in the embedded service records `{request_id, actor, iq_tenant_id, action, resource_type, resource_id, before_state, after_state, timestamp}` on every mutating request.
 3. **Soft delete by default** — no hard-delete on `bills`, `bill_items`, `payments`, `patient_advances`. Cancellation and voiding transition status, never DELETE.
-4. **Actor capture on every column that needs it** — `created_by`, `approved_by`, `cancelled_by`, `verified_by`, `received_by` etc. populated from the JWT-derived `sub` on every write.
+4. **Actor capture on every column that needs it** — `created_by`, `approved_by`, `cancelled_by`, `received_by` etc. populated from the JWT-derived `sub` on every write. (Phase 2 adds `verified_by` on `payments` and `approved_by` on `discount_approvals` when those flows ship.)
 
 These four substrates are mandatory for Phase 1; the centralized audit consumer is the pre-prod gate.
 
@@ -669,34 +653,28 @@ Per [HLD 03 — Module shape template](../../hld/03-module-shape-template.md):
 
 ```
 modules/billing/src/
-  ports.ts                       → BillRepo, BillItemRepo, PaymentRepo, AdvanceRepo, ServiceMasterRepo, PriceAgreementRepo, DiscountApprovalRepo
-  domain/                        → Bill, BillItem, Payment, Advance value objects + state machine helpers + Money type
+  ports.ts                       → BillRepo, BillItemRepo, PaymentRepo, ServiceMasterRepo
+  domain/                        → Bill, BillItem, Payment value objects + state-machine helpers + Money type
   use-cases/
     capture-charge.ts            → the charge-ingest entrypoint
     finalize-bill.ts             → DRAFT → FINALIZED transition with total recomputation
     record-payment.ts            → POST /payments
-    record-advance.ts            → POST /advances
-    utilize-advance.ts           → POST /advances/:id/utilize
-    request-discount.ts          → POST /discount-approvals
-    approve-discount.ts          → POST /discount-approvals/:id/approve
-    amend-bill.ts                → creates the replacement-chain bill in DRAFT
     cancel-bill.ts               → DRAFT|FINALIZED|PARTIALLY_PAID → CANCELLED
   data-access/
     drizzle-bill-repository.ts
     drizzle-bill-item-repository.ts
     drizzle-payment-repository.ts
-    drizzle-advance-repository.ts
     drizzle-service-master-repository.ts
-    drizzle-price-agreement-repository.ts
-    drizzle-discount-approval-repository.ts
-  http-handlers/                 → intent-based endpoints (capture-charge, finalize, etc.)
-  rest-handlers/                 → RESTful CRUD where appropriate (service-master admin, agreement admin)
-  events/publishers/             → bill.*, payment.*, advance.*, discount.* publishers
+  http-handlers/                 → intent-based endpoints (capture-charge, finalize, cancel)
+  rest-handlers/                 → RESTful CRUD where appropriate (service-master admin in Phase 1)
+  events/publishers/             → bill.*, payment.* publishers (Phase 2 adds advance.*, discount.*, insurance.*)
   events/consumers/              → (none in Phase 1; Phase 2 consumes insurance-claim.* from Integration Hub)
-  schema/                        → Drizzle table definitions + migrations
+  schema/                        → Drizzle table definitions + migrations (4 Phase 1 tables)
   router.ts                      → mounts handlers under /billing/...
   index.ts                       → public API surface (exported into services/opd-svc in Phase 1)
 ```
+
+Phase 2 adds use-cases (`record-advance`, `utilize-advance`, `request-discount`, `approve-discount`, `amend-bill`), data-access classes (`drizzle-advance-repository`, `drizzle-price-agreement-repository`, `drizzle-discount-approval-repository`), and the corresponding ports (`AdvanceRepo`, `PriceAgreementRepo`, `DiscountApprovalRepo`). Phase 1 does not ship these.
 
 The `index.ts` exports a Fastify plugin (`billingPlugin`) and the domain types. The OPD service mounts it via `app.register(billingPlugin, { prefix: '/billing' })`. On extraction to `services/billing-svc`, the entrypoint becomes the standard Fastify bootstrap that registers `billingPlugin` directly without OPD.
 
