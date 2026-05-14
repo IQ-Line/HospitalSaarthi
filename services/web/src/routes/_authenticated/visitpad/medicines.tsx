@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Controller, useForm, type Control, type FieldPath, type FieldValues, type SubmitHandler } from 'react-hook-form';
 import { type ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
@@ -22,8 +22,18 @@ import { EntityFormDialog } from '@/features/master-data/components/entity-form-
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
 import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
-import { rowMatchesSearch } from '@/features/master-data/table-search';
-import { useVisitpadDelete, useVisitpadMedicines, useVisitpadPatch, useVisitpadPost } from '@/features/visitpad/api';
+import {
+  useVisitpadDelete,
+  useVisitpadMedicines,
+  useVisitpadMedicinesGlobalLibrary,
+  useVisitpadPatch,
+  useVisitpadPlatformImport,
+  useVisitpadPost,
+  useVisitpadTenantImportKeys,
+  VISITPAD_CATALOG_DEFAULT_PAGE_SIZE,
+  VISITPAD_CATALOG_PAGE_SIZES,
+} from '@/features/visitpad/api';
+import { ImportFromPlatformCatalogDialog } from '@/features/visitpad/components/import-from-platform-catalog-dialog';
 import { visitpadActionsColumn } from '@/features/visitpad/components/visitpad-actions-column';
 import { VisitpadHeaderActions } from '@/features/visitpad/components/visitpad-header-actions';
 import { VisitpadPageShell } from '@/features/visitpad/components/visitpad-page-shell';
@@ -52,6 +62,9 @@ import {
   type VisitpadMedicineEditFormInput,
   type VisitpadMedicineEditFormSchema,
 } from '@/features/visitpad/validation';
+import { useVisitpadCatalogPermission } from '@/features/visitpad/hooks/use-visitpad-catalog-permission';
+import { useVisitpadImportLibrarySearch } from '@/features/visitpad/hooks/use-visitpad-import-library-search';
+import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 
 const MED_BASE = '/api/v1/master-data/visitpad/medicines';
 
@@ -69,27 +82,80 @@ function FieldSection({ title, children }: { title: string; children: React.Reac
 }
 
 function VisitpadMedicinesPage() {
+  const { canWrite, canRead } = useVisitpadCatalogPermission();
+  const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [schedule, setSchedule] = useState<string>('all');
   const [createOpen, setCreateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [libPageIndex, setLibPageIndex] = useState(0);
+  const libPageSize = 50;
+  const { librarySearch, librarySearchDraft, setLibrarySearchDraft } = useVisitpadImportLibrarySearch(
+    importOpen,
+    setLibPageIndex,
+  );
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadMedicine | null>(null);
   const [deleting, setDeleting] = useState<VisitpadMedicine | null>(null);
   const sch = schedule === 'all' ? undefined : schedule;
-  const { data, isLoading, error } = useVisitpadMedicines(search || undefined, sch);
+  const listPage = useMemo(() => ({ pageIndex, pageSize }), [pageIndex, pageSize]);
+  useEffect(() => {
+    setPageIndex(0);
+  }, [search]);
+  const { data, isLoading, error } = useVisitpadMedicines(search || undefined, sch, listPage);
+  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadMedicinesGlobalLibrary(
+    importOpen,
+    {
+      pageIndex: libPageIndex,
+      pageSize: libPageSize,
+    },
+    librarySearch || undefined,
+  );
   const patch = useVisitpadPatch(MED_BASE);
   const del = useVisitpadDelete(MED_BASE);
   const create = useVisitpadPost(MED_BASE);
+  const platformImport = useVisitpadPlatformImport('/medicines/import-from-platform');
+  const { data: tenantCodeKeys } = useVisitpadTenantImportKeys('/medicines', importOpen && tenantCatalog);
   const rows = data?.data ?? [];
-  const tabCount = visitpadActiveTotal(rows, data?.total);
-  const busy = patch.isPending || del.isPending;
+  const total = data?.total ?? 0;
+  const tabCount = visitpadActiveTotal(rows, total);
+  const busy = patch.isPending || del.isPending || platformImport.isPending;
 
-  const filtered = useMemo(
-    () =>
-      rows.filter((r) =>
-        rowMatchesSearch(search, r.code, r.display_name, r.generic_name, r.schedule),
-      ),
-    [rows, search],
+  const importedKeys = useMemo(() => tenantCodeKeys ?? new Set<string>(), [tenantCodeKeys]);
+  const globalRows = globalLib?.data ?? [];
+  const globalLibTotal = globalLib?.total ?? 0;
+  const getRowKey = useCallback((r: VisitpadMedicine) => r.code, []);
+
+  const importSearchParts = useCallback(
+    (r: VisitpadMedicine) => [r.code, r.display_name, r.generic_name, r.schedule],
+    [],
   );
+
+  const importColumns = useMemo(
+    () => [
+      { id: 'name', header: 'Medicine', cell: (r: VisitpadMedicine) => r.display_name },
+      { id: 'generic', header: 'Generic', cell: (r: VisitpadMedicine) => r.generic_name },
+      { id: 'sched', header: 'Schedule', cell: (r: VisitpadMedicine) => r.schedule },
+    ],
+    [],
+  );
+
+  const runMedicineImport = async (selection: VisitpadMedicine[]) => {
+    try {
+      const res = await platformImport.mutateAsync(selection.map((r) => r.id));
+      const { created, skipped, errors } = res.data;
+      const parts = [`${created.length} created`, `${skipped.length} skipped`];
+      if (errors.length) parts.push(`${errors.length} failed`);
+      toast.success(parts.join(', '));
+      if (errors.length) {
+        toast.error(errors.map((e) => e.message).join('; '));
+      }
+      setImportOpen(false);
+    } catch (e) {
+      toast.error(mutationErrorMessage(e));
+    }
+  };
 
   const columns = useMemo<ColumnDef<VisitpadMedicine, unknown>[]>(
     () => [
@@ -121,7 +187,7 @@ function VisitpadMedicinesPage() {
         cell: ({ row }) => (
           <TableActiveToggle
             active={row.original.is_active}
-            disabled={patch.isPending}
+            disabled={patch.isPending || !canWrite}
             onCheckedChange={async (next) => {
               try {
                 await patch.mutateAsync({ id: row.original.id, body: { is_active: next } });
@@ -136,10 +202,10 @@ function VisitpadMedicinesPage() {
       visitpadActionsColumn<VisitpadMedicine>({
         onEdit: setEditing,
         onDelete: setDeleting,
-        disabled: busy,
+        disabled: busy || !canWrite,
       }),
     ],
-    [patch, busy],
+    [patch, busy, canWrite],
   );
 
   return (
@@ -147,9 +213,20 @@ function VisitpadMedicinesPage() {
       primary="medicines"
       tabCount={tabCount}
       title="Medicines"
-      description="Medication catalog for prescribing support."
+      description={
+        tenantCatalog
+          ? 'Tenant medication catalog: import from the platform library or add local-only medicines.'
+          : 'Platform medication catalog for prescribing support.'
+      }
       actions={
-        <VisitpadHeaderActions addLabel="Add medicine" onAddClick={() => setCreateOpen(true)} />
+        <VisitpadHeaderActions
+          canWrite={canWrite}
+          canRead={canRead}
+          addLabel={tenantCatalog ? 'Add local medicine' : 'Add medicine'}
+          onAddClick={() => setCreateOpen(true)}
+          onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
+          importFromLibraryPending={platformImport.isPending}
+        />
       }
     >
       <div className="space-y-4">
@@ -177,13 +254,47 @@ function VisitpadMedicinesPage() {
           <DataTable
             showColumnMenu
             columns={columns}
-            data={filtered}
+            data={rows}
             isLoading={isLoading}
             emptyTitle="No medicines found"
             emptyDescription="Adjust your search or add catalog entries."
+            manualPagination={{
+              pageIndex,
+              pageSize,
+              total,
+              pageSizeOptions: VISITPAD_CATALOG_PAGE_SIZES,
+              onPageChange: setPageIndex,
+              onPageSizeChange: setPageSize,
+            }}
           />
         )}
       </div>
+
+      <ImportFromPlatformCatalogDialog<VisitpadMedicine>
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Import medicines from platform library"
+        description="Select medicines to add to your tenant catalog. Already-imported codes are disabled."
+        searchPlaceholder="Search code, name, generic, schedule…"
+        rows={globalRows}
+        isLoading={globalLibLoading}
+        getRowKey={getRowKey}
+        importedKeys={importedKeys}
+        columns={importColumns}
+        searchParts={importSearchParts}
+        isSubmitting={platformImport.isPending || create.isPending}
+        onImportRows={runMedicineImport}
+        libraryPagination={{
+          pageIndex: libPageIndex,
+          pageSize: libPageSize,
+          total: globalLibTotal,
+          onPageChange: setLibPageIndex,
+        }}
+        librarySearchControl={{
+          draft: librarySearchDraft,
+          onDraftChange: setLibrarySearchDraft,
+        }}
+      />
 
       <MedicineCreateDialog
         open={createOpen}

@@ -229,6 +229,7 @@ function SystemRolesPage() {
           <MasterDataTableToolbar
             value={tableSearch}
             onChange={setTableSearch}
+            debounceMs={0}
             placeholder="Search name, slug…"
           />
         </div>

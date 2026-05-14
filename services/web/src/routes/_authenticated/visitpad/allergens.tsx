@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { type ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
@@ -21,8 +21,18 @@ import { EntityFormDialog } from '@/features/master-data/components/entity-form-
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
 import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
-import { rowMatchesSearch } from '@/features/master-data/table-search';
-import { useVisitpadAllergens, useVisitpadDelete, useVisitpadPatch, useVisitpadPost } from '@/features/visitpad/api';
+import {
+  useVisitpadAllergens,
+  useVisitpadAllergensGlobalLibrary,
+  useVisitpadDelete,
+  useVisitpadPatch,
+  useVisitpadPlatformImport,
+  useVisitpadPost,
+  useVisitpadTenantImportKeys,
+  VISITPAD_CATALOG_DEFAULT_PAGE_SIZE,
+  VISITPAD_CATALOG_PAGE_SIZES,
+} from '@/features/visitpad/api';
+import { ImportFromPlatformCatalogDialog } from '@/features/visitpad/components/import-from-platform-catalog-dialog';
 import { visitpadActionsColumn } from '@/features/visitpad/components/visitpad-actions-column';
 import { VisitpadHeaderActions } from '@/features/visitpad/components/visitpad-header-actions';
 import { VisitpadPageShell } from '@/features/visitpad/components/visitpad-page-shell';
@@ -37,6 +47,9 @@ import {
   type VisitpadAllergenCreateFormSchema,
   type VisitpadAllergenEditFormSchema,
 } from '@/features/visitpad/validation';
+import { useVisitpadCatalogPermission } from '@/features/visitpad/hooks/use-visitpad-catalog-permission';
+import { useVisitpadImportLibrarySearch } from '@/features/visitpad/hooks/use-visitpad-import-library-search';
+import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 
 const AG_BASE = '/api/v1/master-data/visitpad/allergens';
 
@@ -45,24 +58,79 @@ export const Route = createFileRoute('/_authenticated/visitpad/allergens')({
 });
 
 function VisitpadAllergensPage() {
+  const { canWrite, canRead } = useVisitpadCatalogPermission();
+  const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [allergenType, setAllergenType] = useState<string>('all');
   const [createOpen, setCreateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [libPageIndex, setLibPageIndex] = useState(0);
+  const libPageSize = 50;
+  const { librarySearch, librarySearchDraft, setLibrarySearchDraft } = useVisitpadImportLibrarySearch(
+    importOpen,
+    setLibPageIndex,
+  );
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadAllergen | null>(null);
   const [deleting, setDeleting] = useState<VisitpadAllergen | null>(null);
   const at = allergenType === 'all' ? undefined : allergenType;
-  const { data, isLoading, error } = useVisitpadAllergens(search || undefined, at);
+  const listPage = useMemo(() => ({ pageIndex, pageSize }), [pageIndex, pageSize]);
+  useEffect(() => {
+    setPageIndex(0);
+  }, [search]);
+  const { data, isLoading, error } = useVisitpadAllergens(search || undefined, at, listPage);
+  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadAllergensGlobalLibrary(
+    importOpen,
+    {
+      pageIndex: libPageIndex,
+      pageSize: libPageSize,
+    },
+    librarySearch || undefined,
+  );
   const patch = useVisitpadPatch(AG_BASE);
   const del = useVisitpadDelete(AG_BASE);
   const create = useVisitpadPost(AG_BASE);
+  const platformImport = useVisitpadPlatformImport('/allergens/import-from-platform');
+  const { data: tenantCodeKeys } = useVisitpadTenantImportKeys('/allergens', importOpen && tenantCatalog);
   const rows = data?.data ?? [];
-  const tabCount = visitpadActiveTotal(rows, data?.total);
-  const busy = patch.isPending || del.isPending;
+  const total = data?.total ?? 0;
+  const tabCount = visitpadActiveTotal(rows, total);
+  const busy = patch.isPending || del.isPending || platformImport.isPending;
 
-  const filtered = useMemo(
-    () => rows.filter((r) => rowMatchesSearch(search, r.code, r.display_name, r.allergen_type)),
-    [rows, search],
+  const importedKeys = useMemo(() => tenantCodeKeys ?? new Set<string>(), [tenantCodeKeys]);
+  const globalRows = globalLib?.data ?? [];
+  const globalLibTotal = globalLib?.total ?? 0;
+  const getRowKey = useCallback((r: VisitpadAllergen) => r.code, []);
+
+  const importSearchParts = useCallback(
+    (r: VisitpadAllergen) => [r.code, r.display_name, r.allergen_type, r.drug_class ?? ''],
+    [],
   );
+
+  const importColumns = useMemo(
+    () => [
+      { id: 'name', header: 'Display name', cell: (r: VisitpadAllergen) => r.display_name },
+      { id: 'type', header: 'Type', cell: (r: VisitpadAllergen) => r.allergen_type },
+    ],
+    [],
+  );
+
+  const runAllergenImport = async (selection: VisitpadAllergen[]) => {
+    try {
+      const res = await platformImport.mutateAsync(selection.map((r) => r.id));
+      const { created, skipped, errors } = res.data;
+      const parts = [`${created.length} created`, `${skipped.length} skipped`];
+      if (errors.length) parts.push(`${errors.length} failed`);
+      toast.success(parts.join(', '));
+      if (errors.length) {
+        toast.error(errors.map((e) => e.message).join('; '));
+      }
+      setImportOpen(false);
+    } catch (e) {
+      toast.error(mutationErrorMessage(e));
+    }
+  };
 
   const columns = useMemo<ColumnDef<VisitpadAllergen, unknown>[]>(
     () => [
@@ -108,7 +176,7 @@ function VisitpadAllergensPage() {
         cell: ({ row }) => (
           <TableActiveToggle
             active={row.original.is_active}
-            disabled={patch.isPending}
+            disabled={patch.isPending || !canWrite}
             onCheckedChange={async (next) => {
               try {
                 await patch.mutateAsync({ id: row.original.id, body: { is_active: next } });
@@ -123,10 +191,10 @@ function VisitpadAllergensPage() {
       visitpadActionsColumn<VisitpadAllergen>({
         onEdit: setEditing,
         onDelete: setDeleting,
-        disabled: busy,
+        disabled: busy || !canWrite,
       }),
     ],
-    [patch, busy],
+    [patch, busy, canWrite],
   );
 
   return (
@@ -135,10 +203,21 @@ function VisitpadAllergensPage() {
       tabCount={tabCount}
       breadcrumbLabel="Allergens"
       title="Allergens"
-      description="Allergen catalog: stable code, type, default reaction severity, optional SNOMED (substance/organism), optional drug class when type is drug."
+      description={
+        tenantCatalog
+          ? 'Tenant allergen catalog: import from the platform library or add local-only entries.'
+          : 'Platform allergen catalog: stable code, type, default reaction severity, optional SNOMED (substance/organism), optional drug class when type is drug.'
+      }
       secondaryNav={<VisitpadAllergiesSecondaryNav />}
       actions={
-        <VisitpadHeaderActions addLabel="Add allergen" onAddClick={() => setCreateOpen(true)} />
+        <VisitpadHeaderActions
+          canWrite={canWrite}
+          canRead={canRead}
+          addLabel={tenantCatalog ? 'Add local allergen' : 'Add allergen'}
+          onAddClick={() => setCreateOpen(true)}
+          onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
+          importFromLibraryPending={platformImport.isPending}
+        />
       }
     >
       <div className="space-y-4">
@@ -170,13 +249,47 @@ function VisitpadAllergensPage() {
           <DataTable
             showColumnMenu
             columns={columns}
-            data={filtered}
+            data={rows}
             isLoading={isLoading}
             emptyTitle="No allergens found"
             emptyDescription="Adjust your search or add catalog entries."
+            manualPagination={{
+              pageIndex,
+              pageSize,
+              total,
+              pageSizeOptions: VISITPAD_CATALOG_PAGE_SIZES,
+              onPageChange: setPageIndex,
+              onPageSizeChange: setPageSize,
+            }}
           />
         )}
       </div>
+
+      <ImportFromPlatformCatalogDialog<VisitpadAllergen>
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Import allergens from platform library"
+        description="Select allergens to add to your tenant catalog. Already-imported codes are disabled."
+        searchPlaceholder="Search code, display name, type…"
+        rows={globalRows}
+        isLoading={globalLibLoading}
+        getRowKey={getRowKey}
+        importedKeys={importedKeys}
+        columns={importColumns}
+        searchParts={importSearchParts}
+        isSubmitting={platformImport.isPending || create.isPending}
+        onImportRows={runAllergenImport}
+        libraryPagination={{
+          pageIndex: libPageIndex,
+          pageSize: libPageSize,
+          total: globalLibTotal,
+          onPageChange: setLibPageIndex,
+        }}
+        librarySearchControl={{
+          draft: librarySearchDraft,
+          onDraftChange: setLibrarySearchDraft,
+        }}
+      />
 
       <AllergenCreateDialog
         open={createOpen}

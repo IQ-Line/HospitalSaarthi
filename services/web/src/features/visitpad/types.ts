@@ -90,6 +90,8 @@ export interface VisitpadChiefComplaint {
 export interface VisitpadDiagnosis {
   id: string;
   iq_tenant_id: string | null;
+  /** Stable catalog code (immutable after create). */
+  code: string;
   icd10_code: string;
   icd_version?: string;
   official_descriptor?: string;
