@@ -69,6 +69,9 @@ function AuthenticatedLayout() {
         displayName={displayName}
         tenantName={tenantName}
         hasMasterDataAccess={hasModuleAccess('master-data')}
+        hasFrontdeskAccess={
+          hasModuleAccess('frontdesk') || hasModuleAccess('master-data')
+        }
         hasVisitpadAccess={
           hasModuleAccess('master-data') || hasModuleAccess('visitpad-templates')
         }

@@ -5,6 +5,7 @@ import { useTenantStore } from '@/stores/tenant.store';
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
 const VISITPAD_CATALOG_API_PREFIX = '/api/v1/master-data/visitpad/';
+const EMPI_API_PREFIX = '/api/empi/v1/';
 
 function isWriteHttpMethod(method: string | undefined): boolean {
   const m = (method ?? 'GET').toUpperCase();
@@ -24,6 +25,15 @@ export async function apiClient<T>(path: string, options: RequestInit = {}): Pro
   const catalogTenant = catalogIqTenantHeaderValue(tenantId);
   if (catalogTenant) {
     headers.set('iq_tenant_id', catalogTenant);
+  }
+  /** EMPI requires `iq_tenant_id` or `x-tenant-id` (non-UUID dev slugs are fine). */
+  if (
+    path.startsWith(EMPI_API_PREFIX) &&
+    tenantId != null &&
+    tenantId.trim() !== '' &&
+    !headers.has('iq_tenant_id')
+  ) {
+    headers.set('iq_tenant_id', tenantId.trim());
   }
 
   if (

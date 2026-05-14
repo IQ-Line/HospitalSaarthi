@@ -10,6 +10,13 @@ import type {
   UpdateTenantData,
   TenantFilters,
 } from "./domain/tenant.types.js";
+import type {
+  TenantModule,
+  CreateTenantModuleData,
+  UpdateTenantModuleData,
+  TenantModuleFilters,
+  TenantModuleKey,
+} from "./domain/tenant-module.types.js";
 
 export interface OrganizationRepo {
   findAll(filters?: OrganizationFilters): Promise<Organization[]>;
@@ -26,6 +33,17 @@ export interface TenantRepo {
   findByOrgId(orgId: string): Promise<Tenant[]>;
   create(data: CreateTenantData): Promise<Tenant>;
   update(id: string, data: UpdateTenantData): Promise<Tenant | undefined>;
+}
+
+export interface TenantModuleRepo {
+  findAll(filters: TenantModuleFilters): Promise<TenantModule[]>;
+  findByKey(key: TenantModuleKey): Promise<TenantModule | undefined>;
+  create(data: CreateTenantModuleData): Promise<TenantModule>;
+  update(
+    key: TenantModuleKey,
+    data: UpdateTenantModuleData,
+  ): Promise<TenantModule | undefined>;
+  delete(key: TenantModuleKey): Promise<boolean>;
 }
 
 /** Repos scoped to one DB transaction (atomic org + default tenant, etc.). */

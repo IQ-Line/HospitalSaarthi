@@ -1,0 +1,12 @@
+{
+  "name": "frontdesk-svc",
+  "tags": ["type:service", "scope:frontdesk", "language:typescript"],
+  "targets": {
+    "serve": {
+      "command": "tsx watch src/main.ts",
+      "options": {
+        "cwd": "services/frontdesk-svc"
+      }
+    }
+  }
+}

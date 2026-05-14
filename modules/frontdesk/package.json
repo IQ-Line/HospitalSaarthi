@@ -1,0 +1,16 @@
+{
+  "name": "@hims/frontdesk",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "dependencies": {},
+  "peerDependencies": {
+    "fastify": "^5.3.3",
+    "fastify-plugin": "^5.0.1"
+  },
+  "devDependencies": {
+    "fastify": "^5.3.3",
+    "fastify-plugin": "^5.0.1",
+    "vitest": "^3.1.3"
+  }
+}
