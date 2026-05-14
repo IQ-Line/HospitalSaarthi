@@ -1,0 +1,2165 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dineug/erd-editor/main/json-schema/schema.json",
+  "version": "3.0.0",
+  "settings": {
+    "width": 2400,
+    "height": 1800,
+    "scrollTop": 0,
+    "scrollLeft": 0,
+    "zoomLevel": 1,
+    "show": 431,
+    "database": 4,
+    "databaseName": "record_foundation",
+    "canvasType": "ERD",
+    "language": 4,
+    "tableNameCase": 2,
+    "columnNameCase": 2,
+    "bracketType": 1,
+    "relationshipDataTypeSync": true,
+    "relationshipOptimization": false,
+    "columnOrder": [
+      1,
+      2,
+      4,
+      8,
+      16,
+      32,
+      64
+    ],
+    "maxWidthComment": 80,
+    "ignoreSaveSettings": 0
+  },
+  "doc": {
+    "tableIds": [
+      "debac42d-e22d-4cd6-92d5-25f48745e80c",
+      "46b4166a-76f7-45df-9975-ad5697d45061",
+      "12b0402b-49c3-44b0-84cb-839d30c85d24",
+      "2a1b69de-4b66-4fcc-a412-a1c491116783",
+      "87fbc68b-6ee5-4267-8260-fe492f3ec475",
+      "a8ad08a5-7d78-4b72-84b2-eb27fe9e248c"
+    ],
+    "relationshipIds": [
+      "0ed57ca6-6e13-4e56-bedf-3fa3cb106a21",
+      "1772502c-0597-4bdb-9baa-dd63ac6afe18",
+      "17bac4e5-0fb8-45a4-86dc-c510c748227e",
+      "c0248825-9c68-494b-870f-f536c72095af",
+      "1e7b69be-9af8-4e90-b225-b806b0f4e2b0",
+      "afc33258-5f97-4f60-a346-42aac85ff37e",
+      "aae8d505-5946-425a-81cb-a1ec4c8d8fe1"
+    ],
+    "indexIds": [],
+    "memoIds": [
+      "3fa33fa2-8087-43d0-96ea-341d2fccb614"
+    ]
+  },
+  "collections": {
+    "tableEntities": {
+      "debac42d-e22d-4cd6-92d5-25f48745e80c": {
+        "id": "debac42d-e22d-4cd6-92d5-25f48745e80c",
+        "name": "care_contexts",
+        "comment": "Citus: DISTRIBUTED by iq_tenant_id. The discoverable health-record units linkable to an ABHA. One row per (patient, source clinical event). Mirrors the production ABDM care-context concept but generalised: a care_context is *anything* that can become an ABDM-discoverable record (OPD visit, lab report, prescription, discharge summary, scanned document) -- with origin tracking that distinguishes platform-internal sources from external HIU-received and from legacy-system ingested records.",
+        "columnIds": [
+          "caede98e-2949-44ab-84f7-138ded7ad4e3",
+          "63b9ced1-0bc2-460c-8c8b-7948e5f19ad6",
+          "152bdcdc-7b0d-4cf4-94ae-5dbbf5cd1658",
+          "d1d954a7-5254-458b-9b55-c2d22a4bca42",
+          "69722bf3-17ed-4c19-9143-46fbf65f8996",
+          "850d5c9a-8400-42f0-a0c8-79bf2a433ce0",
+          "7f557e0a-c2c9-4610-9dce-c443ba94b802",
+          "5eb5f8e9-1053-4aee-a617-72ab462c0b85",
+          "478c58bd-8a28-4838-95b9-1e04d65083fb",
+          "fbbd7abe-a1fb-412d-881f-88a1b5f1639a",
+          "a5414357-d02a-4516-8c00-edda7ec8febb",
+          "6dce1136-fdd8-4d5a-8843-0e436a27734d",
+          "a4459385-8b78-43d1-8612-95c29d977ab1",
+          "3fb5aa4e-03a6-47ed-a46e-a1770fc1996b",
+          "ff247764-950a-4da4-9ba8-8baad92abecd",
+          "b54b0f63-b3ce-45e4-8d6b-32085e0d1aac",
+          "c3382a37-4f70-443e-bc1a-edba1578089b",
+          "72f7405e-95b2-4923-b2f6-2fe5b870a1df",
+          "94600e97-326e-40b0-90fc-b8c146202634",
+          "69cce132-410b-4202-a90a-ffc0dc85dd24"
+        ],
+        "seqColumnIds": [
+          "caede98e-2949-44ab-84f7-138ded7ad4e3",
+          "63b9ced1-0bc2-460c-8c8b-7948e5f19ad6",
+          "152bdcdc-7b0d-4cf4-94ae-5dbbf5cd1658",
+          "d1d954a7-5254-458b-9b55-c2d22a4bca42",
+          "69722bf3-17ed-4c19-9143-46fbf65f8996",
+          "850d5c9a-8400-42f0-a0c8-79bf2a433ce0",
+          "7f557e0a-c2c9-4610-9dce-c443ba94b802",
+          "5eb5f8e9-1053-4aee-a617-72ab462c0b85",
+          "478c58bd-8a28-4838-95b9-1e04d65083fb",
+          "fbbd7abe-a1fb-412d-881f-88a1b5f1639a",
+          "a5414357-d02a-4516-8c00-edda7ec8febb",
+          "6dce1136-fdd8-4d5a-8843-0e436a27734d",
+          "a4459385-8b78-43d1-8612-95c29d977ab1",
+          "3fb5aa4e-03a6-47ed-a46e-a1770fc1996b",
+          "ff247764-950a-4da4-9ba8-8baad92abecd",
+          "b54b0f63-b3ce-45e4-8d6b-32085e0d1aac",
+          "c3382a37-4f70-443e-bc1a-edba1578089b",
+          "72f7405e-95b2-4923-b2f6-2fe5b870a1df",
+          "94600e97-326e-40b0-90fc-b8c146202634",
+          "69cce132-410b-4202-a90a-ffc0dc85dd24"
+        ],
+        "ui": {
+          "x": 50,
+          "y": 50,
+          "zIndex": 2,
+          "widthName": 104,
+          "widthComment": 500,
+          "color": "#c8e6c9"
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "46b4166a-76f7-45df-9975-ad5697d45061": {
+        "id": "46b4166a-76f7-45df-9975-ad5697d45061",
+        "name": "record_bundle_manifests",
+        "comment": "Citus: DISTRIBUTED by iq_tenant_id. Manifest per FHIR Document Bundle produced or received. Records what bundle exists, what NRCeS profile it conforms to, who produced it, and where the bytes live. The bytes themselves are in bundle_storage. Per ADR-0022 (immutable) and ADR-0023 (assembly origin).",
+        "columnIds": [
+          "b1f12f28-ea81-4a4c-b342-bcc231e0ed99",
+          "af045595-2aab-4946-b71e-77fcc9b364a0",
+          "80d6b6c3-88b0-41c3-ae51-1d16cef5b29f",
+          "cbf622d3-b4a0-4836-8aed-aeb23f7808eb",
+          "af06134d-880e-4baf-af7f-c7f70a86b631",
+          "61720ea0-116e-4a69-b37a-f57ba53b3895",
+          "f4098f0b-8b1a-4ab9-82cd-92524f3a8578",
+          "84d577d8-06be-4b7d-9bf4-7d3e63c5cd29",
+          "6dd2b310-d585-4b67-96c1-0707d412eee9",
+          "791aa1db-8dce-4a54-ba71-97b51875051b",
+          "6ef58867-d1e7-44d8-b12b-36be43f42023",
+          "96bcdd88-76e0-4fa1-80c1-d7734bd41014",
+          "824f9123-5e2b-44b1-8285-e1843dd7067d",
+          "056ae546-9098-4d2b-acc5-e1ac887c05ae",
+          "02bb23b9-100e-48de-8ab8-d70e5ad990bc",
+          "260656ba-84c6-4585-9c3e-6db6404e6540",
+          "95ee12c2-23c7-4ece-85bc-248c5830d910"
+        ],
+        "seqColumnIds": [
+          "b1f12f28-ea81-4a4c-b342-bcc231e0ed99",
+          "af045595-2aab-4946-b71e-77fcc9b364a0",
+          "80d6b6c3-88b0-41c3-ae51-1d16cef5b29f",
+          "cbf622d3-b4a0-4836-8aed-aeb23f7808eb",
+          "af06134d-880e-4baf-af7f-c7f70a86b631",
+          "61720ea0-116e-4a69-b37a-f57ba53b3895",
+          "f4098f0b-8b1a-4ab9-82cd-92524f3a8578",
+          "84d577d8-06be-4b7d-9bf4-7d3e63c5cd29",
+          "6dd2b310-d585-4b67-96c1-0707d412eee9",
+          "791aa1db-8dce-4a54-ba71-97b51875051b",
+          "6ef58867-d1e7-44d8-b12b-36be43f42023",
+          "96bcdd88-76e0-4fa1-80c1-d7734bd41014",
+          "824f9123-5e2b-44b1-8285-e1843dd7067d",
+          "056ae546-9098-4d2b-acc5-e1ac887c05ae",
+          "02bb23b9-100e-48de-8ab8-d70e5ad990bc",
+          "260656ba-84c6-4585-9c3e-6db6404e6540",
+          "95ee12c2-23c7-4ece-85bc-248c5830d910"
+        ],
+        "ui": {
+          "x": 800,
+          "y": 50,
+          "zIndex": 2,
+          "widthName": 184,
+          "widthComment": 500,
+          "color": "#c8e6c9"
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "12b0402b-49c3-44b0-84cb-839d30c85d24": {
+        "id": "12b0402b-49c3-44b0-84cb-839d30c85d24",
+        "name": "bundle_storage",
+        "comment": "Citus: DISTRIBUTED by iq_tenant_id. Byte-exact storage of FHIR Document Bundles. INSERT-only: rows are NEVER updated. On erasure, rows are DELETE'd and an erasure_log row is written. Storage strategy: JSONB for v1 (PostgreSQL); object-storage extraction is a future optimisation noted in phasing.",
+        "columnIds": [
+          "03e337ed-f035-4393-b73c-8e83f2983881",
+          "6264ffba-93e4-491a-9c19-2af9889c11f6",
+          "7b286c07-b3ce-47fe-9f88-50adc0f753a8",
+          "32e49541-443f-44c9-afb4-be690c35d6f5",
+          "f783ef7e-a620-4196-a462-c44f37d651eb",
+          "456cee8c-baf4-4d32-9b1c-09652e118f2e",
+          "b5c93108-4984-4bda-a6eb-8ca2cf143146"
+        ],
+        "seqColumnIds": [
+          "03e337ed-f035-4393-b73c-8e83f2983881",
+          "6264ffba-93e4-491a-9c19-2af9889c11f6",
+          "7b286c07-b3ce-47fe-9f88-50adc0f753a8",
+          "32e49541-443f-44c9-afb4-be690c35d6f5",
+          "f783ef7e-a620-4196-a462-c44f37d651eb",
+          "456cee8c-baf4-4d32-9b1c-09652e118f2e",
+          "b5c93108-4984-4bda-a6eb-8ca2cf143146"
+        ],
+        "ui": {
+          "x": 1550,
+          "y": 50,
+          "zIndex": 2,
+          "widthName": 112,
+          "widthComment": 500,
+          "color": "#c8e6c9"
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "2a1b69de-4b66-4fcc-a412-a1c491116783": {
+        "id": "2a1b69de-4b66-4fcc-a412-a1c491116783",
+        "name": "external_health_records",
+        "comment": "Citus: DISTRIBUTED by iq_tenant_id. Inbox for FHIR Document Bundles received from external HIPs via M3. One row per (consent_artifact, source HIP, received bundle). The bundle bytes live in bundle_storage (linked via record_bundle_manifests); this table holds the receipt metadata and HIU-side display index.",
+        "columnIds": [
+          "99fffa41-5471-46d5-8ec9-f8a8206c3740",
+          "556abac6-6708-47b6-b79f-2b817dc21def",
+          "592b1b69-c773-40db-b7b7-5e3553d17e14",
+          "de73e260-4974-40c8-afa7-a079af3cb644",
+          "8154f66c-b70d-4d7c-956b-83288c66d726",
+          "9aebf762-a963-4d0c-b6f6-20170dfc224a",
+          "87aeb343-0a74-4aac-8903-8299de5104a4",
+          "c9f067d6-66ab-4929-8784-8458db5ee218",
+          "86aab7aa-f350-481b-ac02-dda080dbfe78",
+          "e4c8cf1f-a00b-4273-b8e3-d8ce7612d6ed",
+          "f00b9aa3-b382-4039-80f9-9c4e40176774",
+          "75dcf8b6-3bde-46e8-afa8-dbfae0bde640"
+        ],
+        "seqColumnIds": [
+          "99fffa41-5471-46d5-8ec9-f8a8206c3740",
+          "556abac6-6708-47b6-b79f-2b817dc21def",
+          "592b1b69-c773-40db-b7b7-5e3553d17e14",
+          "de73e260-4974-40c8-afa7-a079af3cb644",
+          "8154f66c-b70d-4d7c-956b-83288c66d726",
+          "9aebf762-a963-4d0c-b6f6-20170dfc224a",
+          "87aeb343-0a74-4aac-8903-8299de5104a4",
+          "c9f067d6-66ab-4929-8784-8458db5ee218",
+          "86aab7aa-f350-481b-ac02-dda080dbfe78",
+          "e4c8cf1f-a00b-4273-b8e3-d8ce7612d6ed",
+          "f00b9aa3-b382-4039-80f9-9c4e40176774",
+          "75dcf8b6-3bde-46e8-afa8-dbfae0bde640"
+        ],
+        "ui": {
+          "x": 50,
+          "y": 800,
+          "zIndex": 2,
+          "widthName": 184,
+          "widthComment": 500,
+          "color": "#c8e6c9"
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "87fbc68b-6ee5-4267-8260-fe492f3ec475": {
+        "id": "87fbc68b-6ee5-4267-8260-fe492f3ec475",
+        "name": "timeline_index",
+        "comment": "Citus: DISTRIBUTED by iq_tenant_id. Denormalised, patient-keyed timeline projection. Source-of-truth-NEVER (rebuildable from care_contexts + record_bundle_manifests + external_health_records by replay). Read by the doctor's timeline UI and by ABDM HIP discovery responses to avoid joining three tables on every read.",
+        "columnIds": [
+          "6ad95757-3a02-4856-8cb9-5afe5eba72be",
+          "f8a4d2e9-f91f-4d5b-9302-4cd6e9fb6027",
+          "95c197ed-6858-4316-a942-e4e6fdc9f573",
+          "5636a55c-a8df-4436-ab70-a78008820650",
+          "8367d4d3-fe3f-4045-baa5-245234e3df8c",
+          "410e5b7c-78d4-4320-9260-98433827d306",
+          "7407f2fe-a54b-4579-b896-49125e8b0dd1",
+          "2376aac1-1ecc-4ca1-8287-34a0966f6612",
+          "df9320cb-acb2-4620-9bc6-56856c9dd441",
+          "3ceedf93-b2ab-4944-b8c3-69da1294c898",
+          "5ad47c58-9e18-4669-b6c6-f722e99e90ff",
+          "3559fa6b-9c04-430e-adec-385bcffab44c"
+        ],
+        "seqColumnIds": [
+          "6ad95757-3a02-4856-8cb9-5afe5eba72be",
+          "f8a4d2e9-f91f-4d5b-9302-4cd6e9fb6027",
+          "95c197ed-6858-4316-a942-e4e6fdc9f573",
+          "5636a55c-a8df-4436-ab70-a78008820650",
+          "8367d4d3-fe3f-4045-baa5-245234e3df8c",
+          "410e5b7c-78d4-4320-9260-98433827d306",
+          "7407f2fe-a54b-4579-b896-49125e8b0dd1",
+          "2376aac1-1ecc-4ca1-8287-34a0966f6612",
+          "df9320cb-acb2-4620-9bc6-56856c9dd441",
+          "3ceedf93-b2ab-4944-b8c3-69da1294c898",
+          "5ad47c58-9e18-4669-b6c6-f722e99e90ff",
+          "3559fa6b-9c04-430e-adec-385bcffab44c"
+        ],
+        "ui": {
+          "x": 800,
+          "y": 800,
+          "zIndex": 2,
+          "widthName": 112,
+          "widthComment": 500,
+          "color": "#c8e6c9"
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "a8ad08a5-7d78-4b72-84b2-eb27fe9e248c": {
+        "id": "a8ad08a5-7d78-4b72-84b2-eb27fe9e248c",
+        "name": "erasure_log",
+        "comment": "Citus: DISTRIBUTED by iq_tenant_id. Append-only log of erasures performed under ABDM consent expiry. Provides regulatory evidence that the platform honoured the consent's dataEraseAt obligation. Per ADR-0022 / DPDP Act section 11.",
+        "columnIds": [
+          "64299fbe-7b20-4ec7-ac03-3288b5403a0b",
+          "b2313acc-4f0c-4b7b-b48a-4938d22bfb1b",
+          "43385bf4-6a22-4889-8cee-c996bc478d9f",
+          "f172195c-a566-4f30-8b68-5ef47704ed06",
+          "55e063d0-939d-4326-a516-5aed9f1c388f",
+          "ec2bd18e-6122-4d6b-9e2a-f626428f99bb",
+          "23b4993f-ca3a-4105-bf2b-302b701a3021",
+          "1fe79388-6964-41cc-a7dc-1483634b3653",
+          "e6148ec3-2844-4e6f-bbc6-6e2d86e7c74a",
+          "92963cd6-13b6-46ac-845b-8bfc5a4e5d5d",
+          "314d3316-04fd-450c-88cd-68fa2660a654",
+          "42fa3bf7-3f23-478f-97b1-afaf96af6d2d"
+        ],
+        "seqColumnIds": [
+          "64299fbe-7b20-4ec7-ac03-3288b5403a0b",
+          "b2313acc-4f0c-4b7b-b48a-4938d22bfb1b",
+          "43385bf4-6a22-4889-8cee-c996bc478d9f",
+          "f172195c-a566-4f30-8b68-5ef47704ed06",
+          "55e063d0-939d-4326-a516-5aed9f1c388f",
+          "ec2bd18e-6122-4d6b-9e2a-f626428f99bb",
+          "23b4993f-ca3a-4105-bf2b-302b701a3021",
+          "1fe79388-6964-41cc-a7dc-1483634b3653",
+          "e6148ec3-2844-4e6f-bbc6-6e2d86e7c74a",
+          "92963cd6-13b6-46ac-845b-8bfc5a4e5d5d",
+          "314d3316-04fd-450c-88cd-68fa2660a654",
+          "42fa3bf7-3f23-478f-97b1-afaf96af6d2d"
+        ],
+        "ui": {
+          "x": 1550,
+          "y": 800,
+          "zIndex": 2,
+          "widthName": 88,
+          "widthComment": 500,
+          "color": "#c8e6c9"
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      }
+    },
+    "tableColumnEntities": {
+      "caede98e-2949-44ab-84f7-138ded7ad4e3": {
+        "id": "caede98e-2949-44ab-84f7-138ded7ad4e3",
+        "tableId": "debac42d-e22d-4cd6-92d5-25f48745e80c",
+        "name": "id",
+        "comment": "",
+        "dataType": "UUID",
+        "default": "gen_random_uuid()",
+        "options": 6,
+        "ui": {
+          "keys": 3,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 119
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "63b9ced1-0bc2-460c-8c8b-7948e5f19ad6": {
+        "id": "63b9ced1-0bc2-460c-8c8b-7948e5f19ad6",
+        "tableId": "debac42d-e22d-4cd6-92d5-25f48745e80c",
+        "name": "iq_tenant_id",
+        "comment": "",
+        "dataType": "UUID",
+        "default": "",
+        "options": 6,
+        "ui": {
+          "keys": 3,
+          "widthName": 84,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "152bdcdc-7b0d-4cf4-94ae-5dbbf5cd1658": {
+        "id": "152bdcdc-7b0d-4cf4-94ae-5dbbf5cd1658",
+        "tableId": "debac42d-e22d-4cd6-92d5-25f48745e80c",
+        "name": "patient_id",
+        "comment": "EMPI patient_id.",
+        "dataType": "UUID",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 70,
+          "widthComment": 96,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "d1d954a7-5254-458b-9b55-c2d22a4bca42": {
+        "id": "d1d954a7-5254-458b-9b55-c2d22a4bca42",
+        "tableId": "debac42d-e22d-4cd6-92d5-25f48745e80c",
+        "name": "abha_linkage_status",
+        "comment": "Whether this care context has been published to ABDM as a linked context. 'linkable' = patient has ABHA but linking not yet performed. 'linked' = ABDM gateway has acknowledged the link. | CHECK: abha_linkage_status IN ('not_linked','linkable','linked','revoked')",
+        "dataType": "TEXT",
+        "default": "not_linked",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 133,
+          "widthComment": 500,
+          "widthDataType": 60,
+          "widthDefault": 70
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "69722bf3-17ed-4c19-9143-46fbf65f8996": {
+        "id": "69722bf3-17ed-4c19-9143-46fbf65f8996",
+        "tableId": "debac42d-e22d-4cd6-92d5-25f48745e80c",
+        "name": "abdm_reference_number",
+        "comment": "ABDM-side reference number (the gateway-recognised pointer). NULL until linked.",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 147,
+          "widthComment": 474,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "850d5c9a-8400-42f0-a0c8-79bf2a433ce0": {
+        "id": "850d5c9a-8400-42f0-a0c8-79bf2a433ce0",
+        "tableId": "debac42d-e22d-4cd6-92d5-25f48745e80c",
+        "name": "source_origin",
+        "comment": "Distinguishes records authored inside the platform from records ingested from a legacy system through the Integration Hub from records received from an external HIP via M3. | CHECK: source_origin IN ('platform_module','legacy_system','external_abdm')",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 91,
+          "widthComment": 500,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "7f557e0a-c2c9-4610-9dce-c443ba94b802": {
+        "id": "7f557e0a-c2c9-4610-9dce-c443ba94b802",
+        "tableId": "debac42d-e22d-4cd6-92d5-25f48745e80c",
+        "name": "source_system_id",
+        "comment": "For platform_module: module name (e.g., 'opd', 'lab'). For legacy_system: integration name. For external_abdm: external HIP id.",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 112,
+          "widthComment": 500,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "5eb5f8e9-1053-4aee-a617-72ab462c0b85": {
+        "id": "5eb5f8e9-1053-4aee-a617-72ab462c0b85",
+        "tableId": "debac42d-e22d-4cd6-92d5-25f48745e80c",
+        "name": "source_record_type",
+        "comment": "Maps 1:1 to ABDM HI types. | CHECK: source_record_type IN ('opd_visit','ipd_admission','lab_report','prescription','radiology_report','discharge_summary','immunisation_record','wellness_record','health_document','external_record')",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 126,
+          "widthComment": 500,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "478c58bd-8a28-4838-95b9-1e04d65083fb": {
+        "id": "478c58bd-8a28-4838-95b9-1e04d65083fb",
+        "tableId": "debac42d-e22d-4cd6-92d5-25f48745e80c",
+        "name": "source_record_id",
+        "comment": "Primary key in the source module's table. NULL for external_abdm-origin records (no internal source).",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 112,
+          "widthComment": 500,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "fbbd7abe-a1fb-412d-881f-88a1b5f1639a": {
+        "id": "fbbd7abe-a1fb-412d-881f-88a1b5f1639a",
+        "tableId": "debac42d-e22d-4cd6-92d5-25f48745e80c",
+        "name": "encounter_id",
+        "comment": "Optional grouping. Multiple care contexts (visit + prescription + lab) may share an encounter.",
+        "dataType": "UUID",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 84,
+          "widthComment": 500,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "a5414357-d02a-4516-8c00-edda7ec8febb": {
+        "id": "a5414357-d02a-4516-8c00-edda7ec8febb",
+        "tableId": "debac42d-e22d-4cd6-92d5-25f48745e80c",
+        "name": "display",
+        "comment": "Patient-facing display name for the care context (e.g., 'OPD Visit at AIIMS Delhi -- 12 Mar 2026', 'CBC Lab Report -- 14 Mar 2026').",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 500,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "6dce1136-fdd8-4d5a-8843-0e436a27734d": {
+        "id": "6dce1136-fdd8-4d5a-8843-0e436a27734d",
+        "tableId": "debac42d-e22d-4cd6-92d5-25f48745e80c",
+        "name": "period_start",
+        "comment": "",
+        "dataType": "TIMESTAMPTZ",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 84,
+          "widthComment": 60,
+          "widthDataType": 88,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "a4459385-8b78-43d1-8612-95c29d977ab1": {
+        "id": "a4459385-8b78-43d1-8612-95c29d977ab1",
+        "tableId": "debac42d-e22d-4cd6-92d5-25f48745e80c",
+        "name": "period_end",
+        "comment": "",
+        "dataType": "TIMESTAMPTZ",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 70,
+          "widthComment": 60,
+          "widthDataType": 88,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "3fb5aa4e-03a6-47ed-a46e-a1770fc1996b": {
+        "id": "3fb5aa4e-03a6-47ed-a46e-a1770fc1996b",
+        "tableId": "debac42d-e22d-4cd6-92d5-25f48745e80c",
+        "name": "status",
+        "comment": "CHECK: status IN ('draft','final','superseded','cancelled','archived')",
+        "dataType": "TEXT",
+        "default": "draft",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 420,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "ff247764-950a-4da4-9ba8-8baad92abecd": {
+        "id": "ff247764-950a-4da4-9ba8-8baad92abecd",
+        "tableId": "debac42d-e22d-4cd6-92d5-25f48745e80c",
+        "name": "supersedes_id",
+        "comment": "When status='superseded' or when this row supersedes another, points to the prior care_context. Implements the FHIR Composition.relatesTo amendment pattern at the care-context level.",
+        "dataType": "UUID",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 91,
+          "widthComment": 500,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "b54b0f63-b3ce-45e4-8d6b-32085e0d1aac": {
+        "id": "b54b0f63-b3ce-45e4-8d6b-32085e0d1aac",
+        "tableId": "debac42d-e22d-4cd6-92d5-25f48745e80c",
+        "name": "sensitivity_labels",
+        "comment": "Optional labels (e.g., {'restricted','psychiatry','hiv'}) to gate disclosure under finer policy.",
+        "dataType": "TEXT[]",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 126,
+          "widthComment": 500,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "c3382a37-4f70-443e-bc1a-edba1578089b": {
+        "id": "c3382a37-4f70-443e-bc1a-edba1578089b",
+        "tableId": "debac42d-e22d-4cd6-92d5-25f48745e80c",
+        "name": "created_at",
+        "comment": "",
+        "dataType": "TIMESTAMPTZ",
+        "default": "now()",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 70,
+          "widthComment": 60,
+          "widthDataType": 88,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "72f7405e-95b2-4923-b2f6-2fe5b870a1df": {
+        "id": "72f7405e-95b2-4923-b2f6-2fe5b870a1df",
+        "tableId": "debac42d-e22d-4cd6-92d5-25f48745e80c",
+        "name": "updated_at",
+        "comment": "",
+        "dataType": "TIMESTAMPTZ",
+        "default": "now()",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 70,
+          "widthComment": 60,
+          "widthDataType": 88,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "94600e97-326e-40b0-90fc-b8c146202634": {
+        "id": "94600e97-326e-40b0-90fc-b8c146202634",
+        "tableId": "debac42d-e22d-4cd6-92d5-25f48745e80c",
+        "name": "linked_at",
+        "comment": "",
+        "dataType": "TIMESTAMPTZ",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 63,
+          "widthComment": 60,
+          "widthDataType": 88,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "69cce132-410b-4202-a90a-ffc0dc85dd24": {
+        "id": "69cce132-410b-4202-a90a-ffc0dc85dd24",
+        "tableId": "debac42d-e22d-4cd6-92d5-25f48745e80c",
+        "name": "data_erase_at",
+        "comment": "For external_abdm-origin records, the ABDM consent-mandated erasure deadline. Polled by the erasure scheduler.",
+        "dataType": "TIMESTAMPTZ",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 91,
+          "widthComment": 500,
+          "widthDataType": 88,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "b1f12f28-ea81-4a4c-b342-bcc231e0ed99": {
+        "id": "b1f12f28-ea81-4a4c-b342-bcc231e0ed99",
+        "tableId": "46b4166a-76f7-45df-9975-ad5697d45061",
+        "name": "id",
+        "comment": "",
+        "dataType": "UUID",
+        "default": "gen_random_uuid()",
+        "options": 6,
+        "ui": {
+          "keys": 3,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 119
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "af045595-2aab-4946-b71e-77fcc9b364a0": {
+        "id": "af045595-2aab-4946-b71e-77fcc9b364a0",
+        "tableId": "46b4166a-76f7-45df-9975-ad5697d45061",
+        "name": "iq_tenant_id",
+        "comment": "",
+        "dataType": "UUID",
+        "default": "",
+        "options": 6,
+        "ui": {
+          "keys": 3,
+          "widthName": 84,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "80d6b6c3-88b0-41c3-ae51-1d16cef5b29f": {
+        "id": "80d6b6c3-88b0-41c3-ae51-1d16cef5b29f",
+        "tableId": "46b4166a-76f7-45df-9975-ad5697d45061",
+        "name": "care_context_id",
+        "comment": "The care context this bundle represents.",
+        "dataType": "UUID",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 105,
+          "widthComment": 240,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "cbf622d3-b4a0-4836-8aed-aeb23f7808eb": {
+        "id": "cbf622d3-b4a0-4836-8aed-aeb23f7808eb",
+        "tableId": "46b4166a-76f7-45df-9975-ad5697d45061",
+        "name": "bundle_kind",
+        "comment": "Maps to NRCeS R4 profile names. | CHECK: bundle_kind IN ('OpConsultRecord','Prescription','DischargeSummary','DiagnosticReport','HealthDocumentRecord','ImmunizationRecord','WellnessRecord')",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 77,
+          "widthComment": 500,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "af06134d-880e-4baf-af7f-c7f70a86b631": {
+        "id": "af06134d-880e-4baf-af7f-c7f70a86b631",
+        "tableId": "46b4166a-76f7-45df-9975-ad5697d45061",
+        "name": "fhir_profile_url",
+        "comment": "The NRCeS profile canonical URL (e.g., 'https://nrces.in/ndhm/fhir/r4/StructureDefinition/OPConsultRecord').",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 112,
+          "widthComment": 500,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "61720ea0-116e-4a69-b37a-f57ba53b3895": {
+        "id": "61720ea0-116e-4a69-b37a-f57ba53b3895",
+        "tableId": "46b4166a-76f7-45df-9975-ad5697d45061",
+        "name": "fhir_profile_version",
+        "comment": "The pinned profile version (e.g., '2.0.0').",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 140,
+          "widthComment": 258,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "f4098f0b-8b1a-4ab9-82cd-92524f3a8578": {
+        "id": "f4098f0b-8b1a-4ab9-82cd-92524f3a8578",
+        "tableId": "46b4166a-76f7-45df-9975-ad5697d45061",
+        "name": "producer_kind",
+        "comment": "Who composed this bundle. | CHECK: producer_kind IN ('platform_module','external_hip')",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 91,
+          "widthComment": 500,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "84d577d8-06be-4b7d-9bf4-7d3e63c5cd29": {
+        "id": "84d577d8-06be-4b7d-9bf4-7d3e63c5cd29",
+        "tableId": "46b4166a-76f7-45df-9975-ad5697d45061",
+        "name": "producer_id",
+        "comment": "Module name when producer_kind='platform_module'; external HIP id when producer_kind='external_hip'.",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 77,
+          "widthComment": 500,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "6dd2b310-d585-4b67-96c1-0707d412eee9": {
+        "id": "6dd2b310-d585-4b67-96c1-0707d412eee9",
+        "tableId": "46b4166a-76f7-45df-9975-ad5697d45061",
+        "name": "validation_status",
+        "comment": "Result of NRCeS profile validation. 'not_validated' = received from external HIP and validation skipped (we trust the HIP's declared conformance and store the artifact). | CHECK: validation_status IN ('pending','valid','invalid','not_validated')",
+        "dataType": "TEXT",
+        "default": "pending",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 119,
+          "widthComment": 500,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "791aa1db-8dce-4a54-ba71-97b51875051b": {
+        "id": "791aa1db-8dce-4a54-ba71-97b51875051b",
+        "tableId": "46b4166a-76f7-45df-9975-ad5697d45061",
+        "name": "validation_errors",
+        "comment": "",
+        "dataType": "JSONB",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 119,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "6ef58867-d1e7-44d8-b12b-36be43f42023": {
+        "id": "6ef58867-d1e7-44d8-b12b-36be43f42023",
+        "tableId": "46b4166a-76f7-45df-9975-ad5697d45061",
+        "name": "bundle_storage_id",
+        "comment": "FK-equivalent to bundle_storage.id.",
+        "dataType": "UUID",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 119,
+          "widthComment": 210,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "96bcdd88-76e0-4fa1-80c1-d7734bd41014": {
+        "id": "96bcdd88-76e0-4fa1-80c1-d7734bd41014",
+        "tableId": "46b4166a-76f7-45df-9975-ad5697d45061",
+        "name": "bundle_size_bytes",
+        "comment": "",
+        "dataType": "INTEGER",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 119,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "824f9123-5e2b-44b1-8285-e1843dd7067d": {
+        "id": "824f9123-5e2b-44b1-8285-e1843dd7067d",
+        "tableId": "46b4166a-76f7-45df-9975-ad5697d45061",
+        "name": "bundle_hash",
+        "comment": "SHA-256 of the bundle bytes. Critical for integrity and signature verification.",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 77,
+          "widthComment": 474,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "056ae546-9098-4d2b-acc5-e1ac887c05ae": {
+        "id": "056ae546-9098-4d2b-acc5-e1ac887c05ae",
+        "tableId": "46b4166a-76f7-45df-9975-ad5697d45061",
+        "name": "signature_storage_ref",
+        "comment": "Vault/object-storage ref for an optional digital signature over the bundle.",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 147,
+          "widthComment": 450,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "02bb23b9-100e-48de-8ab8-d70e5ad990bc": {
+        "id": "02bb23b9-100e-48de-8ab8-d70e5ad990bc",
+        "tableId": "46b4166a-76f7-45df-9975-ad5697d45061",
+        "name": "produced_at",
+        "comment": "Authoring timestamp (Composition.date).",
+        "dataType": "TIMESTAMPTZ",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 77,
+          "widthComment": 234,
+          "widthDataType": 88,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "260656ba-84c6-4585-9c3e-6db6404e6540": {
+        "id": "260656ba-84c6-4585-9c3e-6db6404e6540",
+        "tableId": "46b4166a-76f7-45df-9975-ad5697d45061",
+        "name": "received_at",
+        "comment": "When the platform received this bundle (for producer_kind='external_hip').",
+        "dataType": "TIMESTAMPTZ",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 77,
+          "widthComment": 444,
+          "widthDataType": 88,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "95ee12c2-23c7-4ece-85bc-248c5830d910": {
+        "id": "95ee12c2-23c7-4ece-85bc-248c5830d910",
+        "tableId": "46b4166a-76f7-45df-9975-ad5697d45061",
+        "name": "stored_at",
+        "comment": "",
+        "dataType": "TIMESTAMPTZ",
+        "default": "now()",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 63,
+          "widthComment": 60,
+          "widthDataType": 88,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "03e337ed-f035-4393-b73c-8e83f2983881": {
+        "id": "03e337ed-f035-4393-b73c-8e83f2983881",
+        "tableId": "12b0402b-49c3-44b0-84cb-839d30c85d24",
+        "name": "id",
+        "comment": "",
+        "dataType": "UUID",
+        "default": "gen_random_uuid()",
+        "options": 6,
+        "ui": {
+          "keys": 3,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 119
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "6264ffba-93e4-491a-9c19-2af9889c11f6": {
+        "id": "6264ffba-93e4-491a-9c19-2af9889c11f6",
+        "tableId": "12b0402b-49c3-44b0-84cb-839d30c85d24",
+        "name": "iq_tenant_id",
+        "comment": "",
+        "dataType": "UUID",
+        "default": "",
+        "options": 6,
+        "ui": {
+          "keys": 3,
+          "widthName": 84,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "7b286c07-b3ce-47fe-9f88-50adc0f753a8": {
+        "id": "7b286c07-b3ce-47fe-9f88-50adc0f753a8",
+        "tableId": "12b0402b-49c3-44b0-84cb-839d30c85d24",
+        "name": "storage_kind",
+        "comment": "v1 always 'inline_jsonb'. Object storage is post-launch. | CHECK: storage_kind IN ('inline_jsonb','object_storage_ref')",
+        "dataType": "TEXT",
+        "default": "inline_jsonb",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 84,
+          "widthComment": 500,
+          "widthDataType": 60,
+          "widthDefault": 84
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "32e49541-443f-44c9-afb4-be690c35d6f5": {
+        "id": "32e49541-443f-44c9-afb4-be690c35d6f5",
+        "tableId": "12b0402b-49c3-44b0-84cb-839d30c85d24",
+        "name": "bundle_jsonb",
+        "comment": "When storage_kind='inline_jsonb'. The full FHIR Bundle. NULL when storage_kind='object_storage_ref'.",
+        "dataType": "JSONB",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 84,
+          "widthComment": 500,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "f783ef7e-a620-4196-a462-c44f37d651eb": {
+        "id": "f783ef7e-a620-4196-a462-c44f37d651eb",
+        "tableId": "12b0402b-49c3-44b0-84cb-839d30c85d24",
+        "name": "object_storage_ref",
+        "comment": "When storage_kind='object_storage_ref'. URL to the bundle bytes in object storage. NULL when storage_kind='inline_jsonb'.",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 126,
+          "widthComment": 500,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "456cee8c-baf4-4d32-9b1c-09652e118f2e": {
+        "id": "456cee8c-baf4-4d32-9b1c-09652e118f2e",
+        "tableId": "12b0402b-49c3-44b0-84cb-839d30c85d24",
+        "name": "encryption_kind",
+        "comment": "CHECK: encryption_kind IN ('at_rest_pg','at_rest_object_kms','app_encrypted')",
+        "dataType": "TEXT",
+        "default": "at_rest_pg",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 105,
+          "widthComment": 462,
+          "widthDataType": 60,
+          "widthDefault": 70
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "b5c93108-4984-4bda-a6eb-8ca2cf143146": {
+        "id": "b5c93108-4984-4bda-a6eb-8ca2cf143146",
+        "tableId": "12b0402b-49c3-44b0-84cb-839d30c85d24",
+        "name": "stored_at",
+        "comment": "",
+        "dataType": "TIMESTAMPTZ",
+        "default": "now()",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 63,
+          "widthComment": 60,
+          "widthDataType": 88,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "99fffa41-5471-46d5-8ec9-f8a8206c3740": {
+        "id": "99fffa41-5471-46d5-8ec9-f8a8206c3740",
+        "tableId": "2a1b69de-4b66-4fcc-a412-a1c491116783",
+        "name": "id",
+        "comment": "",
+        "dataType": "UUID",
+        "default": "gen_random_uuid()",
+        "options": 6,
+        "ui": {
+          "keys": 3,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 119
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "556abac6-6708-47b6-b79f-2b817dc21def": {
+        "id": "556abac6-6708-47b6-b79f-2b817dc21def",
+        "tableId": "2a1b69de-4b66-4fcc-a412-a1c491116783",
+        "name": "iq_tenant_id",
+        "comment": "",
+        "dataType": "UUID",
+        "default": "",
+        "options": 6,
+        "ui": {
+          "keys": 3,
+          "widthName": 84,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "592b1b69-c773-40db-b7b7-5e3553d17e14": {
+        "id": "592b1b69-c773-40db-b7b7-5e3553d17e14",
+        "tableId": "2a1b69de-4b66-4fcc-a412-a1c491116783",
+        "name": "patient_id",
+        "comment": "",
+        "dataType": "UUID",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 70,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "de73e260-4974-40c8-afa7-a079af3cb644": {
+        "id": "de73e260-4974-40c8-afa7-a079af3cb644",
+        "tableId": "2a1b69de-4b66-4fcc-a412-a1c491116783",
+        "name": "care_context_id",
+        "comment": "The care_context row registered for this external record (with source_origin='external_abdm').",
+        "dataType": "UUID",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 105,
+          "widthComment": 500,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "8154f66c-b70d-4d7c-956b-83288c66d726": {
+        "id": "8154f66c-b70d-4d7c-956b-83288c66d726",
+        "tableId": "2a1b69de-4b66-4fcc-a412-a1c491116783",
+        "name": "bundle_manifest_id",
+        "comment": "",
+        "dataType": "UUID",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 126,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "9aebf762-a963-4d0c-b6f6-20170dfc224a": {
+        "id": "9aebf762-a963-4d0c-b6f6-20170dfc224a",
+        "tableId": "2a1b69de-4b66-4fcc-a412-a1c491116783",
+        "name": "consent_artifact_id",
+        "comment": "Refers to integration_hub.abdm_consent_artifacts.id under which this record was disclosed.",
+        "dataType": "UUID",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 133,
+          "widthComment": 500,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "87aeb343-0a74-4aac-8903-8299de5104a4": {
+        "id": "87aeb343-0a74-4aac-8903-8299de5104a4",
+        "tableId": "2a1b69de-4b66-4fcc-a412-a1c491116783",
+        "name": "source_hip_id",
+        "comment": "ABDM HIP id of the originating health information provider.",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 91,
+          "widthComment": 354,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "c9f067d6-66ab-4929-8784-8458db5ee218": {
+        "id": "c9f067d6-66ab-4929-8784-8458db5ee218",
+        "tableId": "2a1b69de-4b66-4fcc-a412-a1c491116783",
+        "name": "source_hip_display_name",
+        "comment": "",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 161,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "86aab7aa-f350-481b-ac02-dda080dbfe78": {
+        "id": "86aab7aa-f350-481b-ac02-dda080dbfe78",
+        "tableId": "2a1b69de-4b66-4fcc-a412-a1c491116783",
+        "name": "received_at",
+        "comment": "",
+        "dataType": "TIMESTAMPTZ",
+        "default": "now()",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 77,
+          "widthComment": 60,
+          "widthDataType": 88,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "e4c8cf1f-a00b-4273-b8e3-d8ce7612d6ed": {
+        "id": "e4c8cf1f-a00b-4273-b8e3-d8ce7612d6ed",
+        "tableId": "2a1b69de-4b66-4fcc-a412-a1c491116783",
+        "name": "display_summary",
+        "comment": "Parsed summary fields for fast timeline display: {title, sectionCount, attestor, encounterDate, primaryDiagnosis}. Derived from the bundle but stored denormalised so the timeline does not parse JSONB on every read.",
+        "dataType": "JSONB",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 105,
+          "widthComment": 500,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "f00b9aa3-b382-4039-80f9-9c4e40176774": {
+        "id": "f00b9aa3-b382-4039-80f9-9c4e40176774",
+        "tableId": "2a1b69de-4b66-4fcc-a412-a1c491116783",
+        "name": "doctor_viewed_at",
+        "comment": "First time a doctor opened this record. Audit / 'unread badge' hint.",
+        "dataType": "TIMESTAMPTZ",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 112,
+          "widthComment": 408,
+          "widthDataType": 88,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "75dcf8b6-3bde-46e8-afa8-dbfae0bde640": {
+        "id": "75dcf8b6-3bde-46e8-afa8-dbfae0bde640",
+        "tableId": "2a1b69de-4b66-4fcc-a412-a1c491116783",
+        "name": "data_erase_at",
+        "comment": "Denormalised from the consent artifact's permissions for fast erasure scheduling.",
+        "dataType": "TIMESTAMPTZ",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 91,
+          "widthComment": 486,
+          "widthDataType": 88,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "6ad95757-3a02-4856-8cb9-5afe5eba72be": {
+        "id": "6ad95757-3a02-4856-8cb9-5afe5eba72be",
+        "tableId": "87fbc68b-6ee5-4267-8260-fe492f3ec475",
+        "name": "id",
+        "comment": "",
+        "dataType": "UUID",
+        "default": "gen_random_uuid()",
+        "options": 6,
+        "ui": {
+          "keys": 3,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 119
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "f8a4d2e9-f91f-4d5b-9302-4cd6e9fb6027": {
+        "id": "f8a4d2e9-f91f-4d5b-9302-4cd6e9fb6027",
+        "tableId": "87fbc68b-6ee5-4267-8260-fe492f3ec475",
+        "name": "iq_tenant_id",
+        "comment": "",
+        "dataType": "UUID",
+        "default": "",
+        "options": 6,
+        "ui": {
+          "keys": 3,
+          "widthName": 84,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "95c197ed-6858-4316-a942-e4e6fdc9f573": {
+        "id": "95c197ed-6858-4316-a942-e4e6fdc9f573",
+        "tableId": "87fbc68b-6ee5-4267-8260-fe492f3ec475",
+        "name": "patient_id",
+        "comment": "",
+        "dataType": "UUID",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 70,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "5636a55c-a8df-4436-ab70-a78008820650": {
+        "id": "5636a55c-a8df-4436-ab70-a78008820650",
+        "tableId": "87fbc68b-6ee5-4267-8260-fe492f3ec475",
+        "name": "care_context_id",
+        "comment": "",
+        "dataType": "UUID",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 105,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "8367d4d3-fe3f-4045-baa5-245234e3df8c": {
+        "id": "8367d4d3-fe3f-4045-baa5-245234e3df8c",
+        "tableId": "87fbc68b-6ee5-4267-8260-fe492f3ec475",
+        "name": "occurred_at",
+        "comment": "The clinical date displayed (Composition.date for internal, encounterDate for external).",
+        "dataType": "TIMESTAMPTZ",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 77,
+          "widthComment": 500,
+          "widthDataType": 88,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "410e5b7c-78d4-4320-9260-98433827d306": {
+        "id": "410e5b7c-78d4-4320-9260-98433827d306",
+        "tableId": "87fbc68b-6ee5-4267-8260-fe492f3ec475",
+        "name": "kind",
+        "comment": "Same vocabulary as care_contexts.source_record_type.",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 312,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "7407f2fe-a54b-4579-b896-49125e8b0dd1": {
+        "id": "7407f2fe-a54b-4579-b896-49125e8b0dd1",
+        "tableId": "87fbc68b-6ee5-4267-8260-fe492f3ec475",
+        "name": "title",
+        "comment": "",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "2376aac1-1ecc-4ca1-8287-34a0966f6612": {
+        "id": "2376aac1-1ecc-4ca1-8287-34a0966f6612",
+        "tableId": "87fbc68b-6ee5-4267-8260-fe492f3ec475",
+        "name": "subtitle",
+        "comment": "Secondary line (e.g., department, attending practitioner, primary diagnosis).",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 462,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "df9320cb-acb2-4620-9bc6-56856c9dd441": {
+        "id": "df9320cb-acb2-4620-9bc6-56856c9dd441",
+        "tableId": "87fbc68b-6ee5-4267-8260-fe492f3ec475",
+        "name": "origin_label",
+        "comment": "'Internal' | 'Legacy: <system>' | 'External: <HIP display name>'.",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 84,
+          "widthComment": 390,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "3ceedf93-b2ab-4944-b8c3-69da1294c898": {
+        "id": "3ceedf93-b2ab-4944-b8c3-69da1294c898",
+        "tableId": "87fbc68b-6ee5-4267-8260-fe492f3ec475",
+        "name": "consent_disclosable",
+        "comment": "Whether ABDM consent currently allows disclosure of this care context. Maintained by the consent.granted/revoked event consumers.",
+        "dataType": "BOOLEAN",
+        "default": "false",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 133,
+          "widthComment": 500,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "5ad47c58-9e18-4669-b6c6-f722e99e90ff": {
+        "id": "5ad47c58-9e18-4669-b6c6-f722e99e90ff",
+        "tableId": "87fbc68b-6ee5-4267-8260-fe492f3ec475",
+        "name": "sensitivity_labels",
+        "comment": "",
+        "dataType": "TEXT[]",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 126,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "3559fa6b-9c04-430e-adec-385bcffab44c": {
+        "id": "3559fa6b-9c04-430e-adec-385bcffab44c",
+        "tableId": "87fbc68b-6ee5-4267-8260-fe492f3ec475",
+        "name": "rebuilt_at",
+        "comment": "",
+        "dataType": "TIMESTAMPTZ",
+        "default": "now()",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 70,
+          "widthComment": 60,
+          "widthDataType": 88,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "64299fbe-7b20-4ec7-ac03-3288b5403a0b": {
+        "id": "64299fbe-7b20-4ec7-ac03-3288b5403a0b",
+        "tableId": "a8ad08a5-7d78-4b72-84b2-eb27fe9e248c",
+        "name": "id",
+        "comment": "",
+        "dataType": "BIGINT",
+        "default": "nextval('erasure_log_id_seq')",
+        "options": 6,
+        "ui": {
+          "keys": 3,
+          "widthName": 60,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 203
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "b2313acc-4f0c-4b7b-b48a-4938d22bfb1b": {
+        "id": "b2313acc-4f0c-4b7b-b48a-4938d22bfb1b",
+        "tableId": "a8ad08a5-7d78-4b72-84b2-eb27fe9e248c",
+        "name": "iq_tenant_id",
+        "comment": "",
+        "dataType": "UUID",
+        "default": "",
+        "options": 6,
+        "ui": {
+          "keys": 3,
+          "widthName": 84,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "43385bf4-6a22-4889-8cee-c996bc478d9f": {
+        "id": "43385bf4-6a22-4889-8cee-c996bc478d9f",
+        "tableId": "a8ad08a5-7d78-4b72-84b2-eb27fe9e248c",
+        "name": "erased_entity_kind",
+        "comment": "CHECK: erased_entity_kind IN ('external_health_record','bundle_storage','care_context')",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 126,
+          "widthComment": 500,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "f172195c-a566-4f30-8b68-5ef47704ed06": {
+        "id": "f172195c-a566-4f30-8b68-5ef47704ed06",
+        "tableId": "a8ad08a5-7d78-4b72-84b2-eb27fe9e248c",
+        "name": "erased_entity_id",
+        "comment": "The id of the erased row. The row no longer exists; this log preserves the reference.",
+        "dataType": "UUID",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 112,
+          "widthComment": 500,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "55e063d0-939d-4326-a516-5aed9f1c388f": {
+        "id": "55e063d0-939d-4326-a516-5aed9f1c388f",
+        "tableId": "a8ad08a5-7d78-4b72-84b2-eb27fe9e248c",
+        "name": "consent_artifact_id",
+        "comment": "Consent under which the original record was disclosed (when applicable).",
+        "dataType": "UUID",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 133,
+          "widthComment": 432,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "ec2bd18e-6122-4d6b-9e2a-f626428f99bb": {
+        "id": "ec2bd18e-6122-4d6b-9e2a-f626428f99bb",
+        "tableId": "a8ad08a5-7d78-4b72-84b2-eb27fe9e248c",
+        "name": "patient_id",
+        "comment": "",
+        "dataType": "UUID",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 70,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "23b4993f-ca3a-4105-bf2b-302b701a3021": {
+        "id": "23b4993f-ca3a-4105-bf2b-302b701a3021",
+        "tableId": "a8ad08a5-7d78-4b72-84b2-eb27fe9e248c",
+        "name": "original_size_bytes",
+        "comment": "",
+        "dataType": "INTEGER",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 133,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "1fe79388-6964-41cc-a7dc-1483634b3653": {
+        "id": "1fe79388-6964-41cc-a7dc-1483634b3653",
+        "tableId": "a8ad08a5-7d78-4b72-84b2-eb27fe9e248c",
+        "name": "original_hash",
+        "comment": "",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 91,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "e6148ec3-2844-4e6f-bbc6-6e2d86e7c74a": {
+        "id": "e6148ec3-2844-4e6f-bbc6-6e2d86e7c74a",
+        "tableId": "a8ad08a5-7d78-4b72-84b2-eb27fe9e248c",
+        "name": "data_erase_at",
+        "comment": "The deadline that triggered this erasure.",
+        "dataType": "TIMESTAMPTZ",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 91,
+          "widthComment": 246,
+          "widthDataType": 88,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "92963cd6-13b6-46ac-845b-8bfc5a4e5d5d": {
+        "id": "92963cd6-13b6-46ac-845b-8bfc5a4e5d5d",
+        "tableId": "a8ad08a5-7d78-4b72-84b2-eb27fe9e248c",
+        "name": "erased_at",
+        "comment": "",
+        "dataType": "TIMESTAMPTZ",
+        "default": "now()",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 63,
+          "widthComment": 60,
+          "widthDataType": 88,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "314d3316-04fd-450c-88cd-68fa2660a654": {
+        "id": "314d3316-04fd-450c-88cd-68fa2660a654",
+        "tableId": "a8ad08a5-7d78-4b72-84b2-eb27fe9e248c",
+        "name": "erasure_actor",
+        "comment": "'scheduler' for time-driven erasure, 'manual:<user_id>' for manual revocations.",
+        "dataType": "TEXT",
+        "default": "scheduler",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 91,
+          "widthComment": 474,
+          "widthDataType": 60,
+          "widthDefault": 63
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "42fa3bf7-3f23-478f-97b1-afaf96af6d2d": {
+        "id": "42fa3bf7-3f23-478f-97b1-afaf96af6d2d",
+        "tableId": "a8ad08a5-7d78-4b72-84b2-eb27fe9e248c",
+        "name": "reason",
+        "comment": "CHECK: reason IN ('consent_expired','consent_revoked','manual_purge','retention_policy')",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 500,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      }
+    },
+    "relationshipEntities": {
+      "0ed57ca6-6e13-4e56-bedf-3fa3cb106a21": {
+        "id": "0ed57ca6-6e13-4e56-bedf-3fa3cb106a21",
+        "identification": true,
+        "relationshipType": 16,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "46b4166a-76f7-45df-9975-ad5697d45061",
+          "columnIds": [
+            "80d6b6c3-88b0-41c3-ae51-1d16cef5b29f"
+          ],
+          "x": 1000,
+          "y": 100,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "debac42d-e22d-4cd6-92d5-25f48745e80c",
+          "columnIds": [
+            "caede98e-2949-44ab-84f7-138ded7ad4e3"
+          ],
+          "x": 250,
+          "y": 100,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "1772502c-0597-4bdb-9baa-dd63ac6afe18": {
+        "id": "1772502c-0597-4bdb-9baa-dd63ac6afe18",
+        "identification": true,
+        "relationshipType": 16,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "46b4166a-76f7-45df-9975-ad5697d45061",
+          "columnIds": [
+            "6ef58867-d1e7-44d8-b12b-36be43f42023"
+          ],
+          "x": 1000,
+          "y": 100,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "12b0402b-49c3-44b0-84cb-839d30c85d24",
+          "columnIds": [
+            "03e337ed-f035-4393-b73c-8e83f2983881"
+          ],
+          "x": 1750,
+          "y": 100,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "17bac4e5-0fb8-45a4-86dc-c510c748227e": {
+        "id": "17bac4e5-0fb8-45a4-86dc-c510c748227e",
+        "identification": true,
+        "relationshipType": 16,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "2a1b69de-4b66-4fcc-a412-a1c491116783",
+          "columnIds": [
+            "de73e260-4974-40c8-afa7-a079af3cb644"
+          ],
+          "x": 250,
+          "y": 850,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "debac42d-e22d-4cd6-92d5-25f48745e80c",
+          "columnIds": [
+            "caede98e-2949-44ab-84f7-138ded7ad4e3"
+          ],
+          "x": 250,
+          "y": 100,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "c0248825-9c68-494b-870f-f536c72095af": {
+        "id": "c0248825-9c68-494b-870f-f536c72095af",
+        "identification": true,
+        "relationshipType": 16,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "2a1b69de-4b66-4fcc-a412-a1c491116783",
+          "columnIds": [
+            "8154f66c-b70d-4d7c-956b-83288c66d726"
+          ],
+          "x": 250,
+          "y": 850,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "46b4166a-76f7-45df-9975-ad5697d45061",
+          "columnIds": [
+            "b1f12f28-ea81-4a4c-b342-bcc231e0ed99"
+          ],
+          "x": 1000,
+          "y": 100,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "1e7b69be-9af8-4e90-b225-b806b0f4e2b0": {
+        "id": "1e7b69be-9af8-4e90-b225-b806b0f4e2b0",
+        "identification": true,
+        "relationshipType": 16,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "87fbc68b-6ee5-4267-8260-fe492f3ec475",
+          "columnIds": [
+            "5636a55c-a8df-4436-ab70-a78008820650"
+          ],
+          "x": 1000,
+          "y": 850,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "debac42d-e22d-4cd6-92d5-25f48745e80c",
+          "columnIds": [
+            "caede98e-2949-44ab-84f7-138ded7ad4e3"
+          ],
+          "x": 250,
+          "y": 100,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "afc33258-5f97-4f60-a346-42aac85ff37e": {
+        "id": "afc33258-5f97-4f60-a346-42aac85ff37e",
+        "identification": true,
+        "relationshipType": 16,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "a8ad08a5-7d78-4b72-84b2-eb27fe9e248c",
+          "columnIds": [
+            "f172195c-a566-4f30-8b68-5ef47704ed06"
+          ],
+          "x": 1750,
+          "y": 850,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "debac42d-e22d-4cd6-92d5-25f48745e80c",
+          "columnIds": [
+            "caede98e-2949-44ab-84f7-138ded7ad4e3"
+          ],
+          "x": 250,
+          "y": 100,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      },
+      "aae8d505-5946-425a-81cb-a1ec4c8d8fe1": {
+        "id": "aae8d505-5946-425a-81cb-a1ec4c8d8fe1",
+        "identification": true,
+        "relationshipType": 16,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "debac42d-e22d-4cd6-92d5-25f48745e80c",
+          "columnIds": [
+            "ff247764-950a-4da4-9ba8-8baad92abecd"
+          ],
+          "x": 250,
+          "y": 100,
+          "direction": 1
+        },
+        "end": {
+          "tableId": "debac42d-e22d-4cd6-92d5-25f48745e80c",
+          "columnIds": [
+            "caede98e-2949-44ab-84f7-138ded7ad4e3"
+          ],
+          "x": 250,
+          "y": 100,
+          "direction": 2
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      }
+    },
+    "indexEntities": {},
+    "indexColumnEntities": {},
+    "memoEntities": {
+      "3fa33fa2-8087-43d0-96ea-341d2fccb614": {
+        "id": "3fa33fa2-8087-43d0-96ea-341d2fccb614",
+        "value": "=== RECORD FOUNDATION CITUS DISTRIBUTION ===\n\nGreen (#c8e6c9): All 6 tables distributed by iq_tenant_id.\n\nBoundary (per ADR-0028/0022):\n- Record Foundation OWNS: care contexts, immutable FHIR Document Bundles, external HIU inbox, timeline projection, erasure log.\n- Does NOT own: clinical source data (operational modules), patient identity (EMPI), ABDM consent artifacts (Integration Hub).\n\nLogical references only -- no cross-distribution-column FKs.\n- erasure_log.erased_entity_id is polymorphic (care_context | bundle_storage | external_health_record).\n- external_health_records.consent_artifact_id refers to integration_hub.abdm_consent_artifacts.id (cross-schema, no FK).\n- care_contexts.supersedes_id is a self-reference for FHIR Composition.relatesTo amendments.\n\nbundle_storage rows are INSERT-only and DELETE-on-erasure. Never UPDATE.",
+        "ui": {
+          "x": 50,
+          "y": 1700,
+          "zIndex": 1,
+          "width": 600,
+          "height": 400,
+          "color": ""
+        },
+        "meta": {
+          "updateAt": 1777700000000,
+          "createAt": 1777700000000
+        }
+      }
+    }
+  }
+}

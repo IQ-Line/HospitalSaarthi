@@ -1,0 +1,1636 @@
+openapi: 3.1.0
+info:
+  title: Billing API
+  version: 1.0.0
+  description: >
+    Billing API — patient-facing revenue cycle. Per ADR-0025, every bill_item snapshots
+    `item_code`, `description`, `unit_price`, `tax_percentage`, `tax_category`, and
+    `is_insurance_covered` at charge time — once written, financial fields are immutable
+    unless the parent bill is in DRAFT. Catalog changes after the fact do NOT restate
+    historical bills.
+
+    PHASE BOUNDARIES IN THIS SPEC:
+
+    Phase 1 (existing-production OPD counter parity — implement first):
+      • Charge Ingest, Bills, Payments, Service Catalog (read + admin).
+      • Bill-level discount via PATCH /bills/{id} (no approval workflow).
+      • Per-doctor consultation pricing via lazy-explosion service_master rows.
+
+    Phase 2 (NOT implemented in Phase 1 — paths in this spec but tagged Phase 2):
+      • Advances tag — record advance receipt + utilize against bill.
+      • Discount Approvals tag — threshold-based approval workflow.
+      • Price Agreements tag — agreement-based pricing overrides.
+      • Insurance / corporate / packages — added when the Phase 2 LLD ships.
+
+    Phase 3 (NOT in this spec): refunds, payment plans, IPD final bills.
+    Phase 4 (NOT in this spec): doctor commissions.
+
+    A Phase 1 implementer should ignore the Advances / Discount Approvals / Price Agreements
+    tags and ship only the Charge Ingest + Bills + Payments + Service Catalog surface. See
+    the per-tag descriptions below for phase tags on each operation group.
+servers:
+  - url: https://api.{tenant_slug}.hims.example/v1
+    description: Tenant-scoped billing API.
+    variables:
+      tenant_slug:
+        default: demo
+        description: The tenant subdomain slug.
+security:
+  - bearerAuth: []
+tags:
+  - name: Charge Ingest
+    description: "[Phase 1] The single integration surface for clinical modules to capture charges (idempotent)."
+  - name: Bills
+    description: "[Phase 1] Bill header lifecycle — list, fetch, finalize, cancel, amend, item edits, receipt PDF. Bill-level discount is set via PATCH /bills/{id} (no approval workflow in Phase 1)."
+  - name: Payments
+    description: "[Phase 1] Payment transactions against a bill (cash/card/UPI/cheque/gateway). Phase 1 records a single payment per bill, matching the existing-prod amount-paid-equals-total constraint."
+  - name: Service Catalog
+    description: "[Phase 1] Tenant-scoped chargeable-service master administration. Per-doctor consultation pricing uses lazy explosion — one row per (consultation type, doctor)."
+  - name: Advances
+    description: "[Phase 2 — NOT in Phase 1] Patient pre-payments and their utilization against bills. The existing OPD counter does not take advances; first real use is IPD admission deposit."
+  - name: Discount Approvals
+    description: "[Phase 2 — NOT in Phase 1] Approval workflow for discounts above tenant-configured thresholds. Existing-prod has no approval workflow; Phase 1 uses bill-level discount % freely."
+  - name: Price Agreements
+    description: "[Phase 2 — NOT in Phase 1] Agreement-based pricing overrides (corporate, insurer, doctor, department). Phase 1 uses catalog lazy-explosion instead."
+  - name: Price Agreements
+    description: Tenant-scoped pricing overrides (TENANT_DEFAULT, DOCTOR_OVERRIDE, DEPARTMENT_OVERRIDE).
+  - name: Reports
+    description: Operational billing reports — daily collection, outstanding aging.
+paths:
+  /v1/billing/charges:
+    post:
+      operationId: ingestCharge
+      summary: Capture a charge from a clinical module (idempotent)
+      description: >
+        The single integration surface between clinical modules and billing. Resolves `item_code`
+        against `service_master` and any active `price_agreements`, snapshots the resulting price,
+        tax, description, and insurance-coverage flag onto a new `bill_items` row, and attaches
+        it to the current open bill for `(patient_id, visit_id)` — creating a new DRAFT bill if
+        none exists. Replaying the same `Idempotency-Key` returns the existing `bill_item_id`
+        without creating a duplicate row.
+      tags: [Charge Ingest]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - $ref: "#/components/parameters/IdempotencyKeyHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ChargeIngestRequest" }
+      responses:
+        "201":
+          description: Charge captured (or replayed). Returns the bill_item and snapshotted financials.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChargeIngestResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+  /v1/billing/bills:
+    get:
+      operationId: listBills
+      summary: List bills for the calling tenant (filterable)
+      tags: [Bills]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: patient_id, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: visit_id, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: status, in: query, required: false, schema: { $ref: "#/components/schemas/BillStatus" } }
+        - { name: bill_type, in: query, required: false, schema: { $ref: "#/components/schemas/BillType" } }
+        - { name: from_date, in: query, required: false, schema: { type: string, format: date } }
+        - { name: to_date, in: query, required: false, schema: { type: string, format: date } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: cursor, in: query, required: false, schema: { type: string } }
+      responses:
+        "200":
+          description: Bill list.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaginatedBills" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+  /v1/billing/bills/{bill_id}:
+    get:
+      operationId: getBill
+      summary: Fetch one bill with its line items
+      tags: [Bills]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: bill_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Bill found.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BillSingleResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+  /v1/billing/bills/{bill_id}/finalize:
+    post:
+      operationId: finalizeBill
+      summary: Finalize a DRAFT bill — recompute totals and lock items
+      description: >
+        Transitions the bill from `DRAFT` to `FINALIZED`. Recomputes `subtotal`, `discount_amount`,
+        `tax_amount`, `total_amount`, `round_off_amount`, `net_amount`, and `outstanding_amount`
+        from the active (non-VOIDED) bill_items. After this call, bill_items become immutable
+        (in-place edits return 409); corrections happen via amendment.
+      tags: [Bills]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: bill_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Bill finalized.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BillSingleResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+  /v1/billing/bills/{bill_id}/cancel:
+    post:
+      operationId: cancelBill
+      summary: Cancel a bill (DRAFT / FINALIZED / PARTIALLY_PAID)
+      description: >
+        Transitions to `CANCELLED` with a recorded `cancellation_reason` and `cancelled_by`.
+        Post-finalize cancellation is rare and requires any received payments to be refunded
+        separately (refunds are Phase 3 and not exposed here — the operator records cash refund
+        out-of-band in Phase 1).
+      tags: [Bills]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: bill_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BillCancelRequest" }
+      responses:
+        "200":
+          description: Bill cancelled.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BillSingleResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+  /v1/billing/bills/{bill_id}/amend:
+    post:
+      operationId: amendBill
+      summary: Amend a FINALIZED or PARTIALLY_PAID bill (creates a replacement DRAFT)
+      description: >
+        Creates a new bill in DRAFT linked to the original via `replaced_bill_id`. The new bill
+        starts as a copy of the original's items (re-snapshotted from current `service_master` if
+        the caller asks for `repricing: true`, otherwise carrying over the prior snapshots). The
+        original transitions to `REPLACED` after the new bill is finalized; until then both exist.
+      tags: [Bills]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - $ref: "#/components/parameters/IdempotencyKeyHeader"
+        - { name: bill_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BillAmendRequest" }
+      responses:
+        "201":
+          description: Amendment bill created in DRAFT.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BillSingleResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+  /v1/billing/bills/{bill_id}/items/{item_id}:
+    patch:
+      operationId: updateBillItem
+      summary: Update a DRAFT bill's line item
+      description: >
+        Allowed only while the parent bill is in DRAFT. Updatable fields are limited to
+        `quantity`, `discount_percentage`, `discount_amount`, and `notes`. Snapshotted financial
+        fields (`unit_price`, `tax_percentage`, `tax_category`, `description`, `is_insurance_covered`)
+        are immutable post-create. Recomputes `gross_amount`, `net_amount`, `tax_amount`, and
+        `total_amount` on the row.
+      tags: [Bills]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: bill_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: item_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BillItemUpdateRequest" }
+      responses:
+        "200":
+          description: Bill item updated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BillItemSingleResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+    delete:
+      operationId: voidBillItem
+      summary: Void a DRAFT bill's line item (soft delete via status)
+      description: >
+        Marks the item as `VOIDED` rather than hard-deleting it; preserves the row for audit and
+        idempotency tracking. Only permitted while the parent bill is in DRAFT.
+      tags: [Bills]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: bill_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: item_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204":
+          description: Item voided.
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+  /v1/billing/bills/{bill_id}/receipt.pdf:
+    get:
+      operationId: getBillReceiptPdf
+      summary: Download the bill / receipt as a PDF
+      tags: [Bills]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: bill_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: PDF rendered for the bill (and any received payments).
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+  /v1/billing/payments:
+    post:
+      operationId: recordPayment
+      summary: Record a payment against a bill (idempotent)
+      description: >
+        Records a `payments` row and recomputes the parent bill's `paid_amount`,
+        `outstanding_amount`, and status (FINALIZED → PARTIALLY_PAID → PAID). `Idempotency-Key`
+        deduplicates retries. Split tenders are modelled as multiple payment rows.
+      tags: [Payments]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - $ref: "#/components/parameters/IdempotencyKeyHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RecordPaymentRequest" }
+      responses:
+        "201":
+          description: Payment recorded.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentSingleResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+    get:
+      operationId: listPayments
+      summary: List payments (filterable)
+      tags: [Payments]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: bill_id, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: patient_id, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: status, in: query, required: false, schema: { $ref: "#/components/schemas/PaymentStatus" } }
+        - { name: payment_method, in: query, required: false, schema: { $ref: "#/components/schemas/PaymentMethod" } }
+        - { name: from_date, in: query, required: false, schema: { type: string, format: date } }
+        - { name: to_date, in: query, required: false, schema: { type: string, format: date } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: cursor, in: query, required: false, schema: { type: string } }
+      responses:
+        "200":
+          description: Payment list.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaginatedPayments" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+  /v1/billing/payments/{payment_id}:
+    get:
+      operationId: getPayment
+      summary: Fetch one payment
+      tags: [Payments]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: payment_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Payment found.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentSingleResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+  /v1/billing/payments/{payment_id}/void:
+    post:
+      operationId: voidPayment
+      summary: Void a payment (sets status=VOIDED and re-rolls bill totals)
+      description: >
+        Voiding is a controlled correction for a same-day mis-keyed payment. The row is preserved
+        for audit; the parent bill's `paid_amount` and `outstanding_amount` are recomputed.
+        Post-CLOSED bills reject voids — use a refund (Phase 3) instead.
+      tags: [Payments]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: payment_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                reason: { type: string }
+      responses:
+        "200":
+          description: Payment voided.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentSingleResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+  /v1/billing/advances:
+    post:
+      operationId: recordAdvance
+      summary: Record a patient advance (idempotent)
+      description: >
+        Records a `patient_advances` row and the matching `payments` row of
+        `payment_method='ADVANCE_RECEIPT'`. The advance starts with `available_balance =
+        advance_amount` and `status='AVAILABLE'`. `Idempotency-Key` deduplicates retries.
+      tags: [Advances]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - $ref: "#/components/parameters/IdempotencyKeyHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RecordAdvanceRequest" }
+      responses:
+        "201":
+          description: Advance recorded.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdvanceSingleResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+    get:
+      operationId: listAdvances
+      summary: List patient advances (filterable)
+      tags: [Advances]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: patient_id, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: visit_id, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: status, in: query, required: false, schema: { $ref: "#/components/schemas/AdvanceStatus" } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: cursor, in: query, required: false, schema: { type: string } }
+      responses:
+        "200":
+          description: Advance list.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaginatedAdvances" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+  /v1/billing/advances/{advance_id}:
+    get:
+      operationId: getAdvance
+      summary: Fetch one advance with its utilization history
+      tags: [Advances]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: advance_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Advance found.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdvanceSingleResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+  /v1/billing/advances/{advance_id}/utilize:
+    post:
+      operationId: utilizeAdvance
+      summary: Apply an advance against a bill
+      description: >
+        Creates an `advance_utilizations` row and atomically decrements the advance's
+        `available_balance`. The handler takes a row-lock on the advance to prevent two operators
+        from over-utilizing the same balance against different bills. Rejects with 409 if
+        `utilized_amount > available_balance`.
+      tags: [Advances]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - $ref: "#/components/parameters/IdempotencyKeyHeader"
+        - { name: advance_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UtilizeAdvanceRequest" }
+      responses:
+        "201":
+          description: Advance utilized; returns the utilization row and updated advance.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdvanceUtilizationSingleResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+  /v1/billing/bills/{bill_id}/discount:
+    post:
+      operationId: requestBillDiscount
+      summary: Request a discount on a bill (auto-approves below threshold)
+      description: >
+        Creates a `discount_approvals` row. Discounts at or below the tenant-configured
+        auto-approval threshold (default 5% of the affected gross) are auto-approved by the
+        handler and applied immediately. Above the threshold the row is created in `PENDING` and
+        routed by `approval_level` (`BILLING_MANAGER`, `MEDICAL_SUPERINTENDENT`).
+      tags: [Discount Approvals]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DiscountRequestBody" }
+      responses:
+        "201":
+          description: Discount request created (PENDING or auto-APPROVED).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DiscountApprovalSingleResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+  /v1/billing/discount-approvals:
+    get:
+      operationId: listDiscountApprovals
+      summary: List discount-approval requests (filterable)
+      tags: [Discount Approvals]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: status, in: query, required: false, schema: { $ref: "#/components/schemas/DiscountApprovalStatus" } }
+        - { name: bill_id, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: requested_by, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: cursor, in: query, required: false, schema: { type: string } }
+      responses:
+        "200":
+          description: Approval list.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaginatedDiscountApprovals" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+  /v1/billing/discount-approvals/{approval_id}:
+    get:
+      operationId: getDiscountApproval
+      summary: Fetch one discount-approval row
+      tags: [Discount Approvals]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: approval_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Approval found.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DiscountApprovalSingleResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+  /v1/billing/discount-approvals/{approval_id}/approve:
+    post:
+      operationId: approveDiscount
+      summary: Approve a pending discount request and apply it
+      tags: [Discount Approvals]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: approval_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                notes: { type: string }
+      responses:
+        "200":
+          description: Approved and applied to the bill / line.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DiscountApprovalSingleResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+  /v1/billing/discount-approvals/{approval_id}/reject:
+    post:
+      operationId: rejectDiscount
+      summary: Reject a pending discount request
+      tags: [Discount Approvals]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: approval_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              additionalProperties: false
+              properties:
+                reason: { type: string }
+      responses:
+        "200":
+          description: Rejected.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DiscountApprovalSingleResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+  /v1/billing/services:
+    get:
+      operationId: listServices
+      summary: List service-catalog entries (filterable, autocomplete-friendly)
+      tags: [Service Catalog]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: q, in: query, required: false, schema: { type: string }, description: Substring match on service_name or service_code. }
+        - { name: category, in: query, required: false, schema: { type: string } }
+        - { name: department, in: query, required: false, schema: { type: string } }
+        - { name: is_active, in: query, required: false, schema: { type: boolean } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: cursor, in: query, required: false, schema: { type: string } }
+      responses:
+        "200":
+          description: Service list.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaginatedServices" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+    post:
+      operationId: createService
+      summary: Create a service-catalog entry
+      tags: [Service Catalog]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ServiceMasterCreate" }
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ServiceMasterSingleResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+  /v1/billing/services/{service_id}:
+    get:
+      operationId: getService
+      summary: Fetch one service-catalog entry
+      tags: [Service Catalog]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: service_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Service found.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ServiceMasterSingleResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+    patch:
+      operationId: updateService
+      summary: Update a service-catalog entry
+      description: >
+        Updates apply forward only — historical `bill_items` retain their snapshotted price, tax,
+        description, and insurance-coverage flag. To stop a service from being chargeable,
+        deactivate it; do not delete.
+      tags: [Service Catalog]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: service_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ServiceMasterUpdate" }
+      responses:
+        "200":
+          description: Service updated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ServiceMasterSingleResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+  /v1/billing/services/{service_id}/deactivate:
+    post:
+      operationId: deactivateService
+      summary: Deactivate a service (sets is_active=false)
+      tags: [Service Catalog]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: service_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Service deactivated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ServiceMasterSingleResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+  /v1/billing/price-agreements:
+    get:
+      operationId: listPriceAgreements
+      summary: List price agreements (filterable)
+      tags: [Price Agreements]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: agreement_type, in: query, required: false, schema: { type: string, enum: [TENANT_DEFAULT, DOCTOR_OVERRIDE, DEPARTMENT_OVERRIDE] } }
+        - { name: service_id, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: entity_id, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: is_active, in: query, required: false, schema: { type: boolean } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: cursor, in: query, required: false, schema: { type: string } }
+      responses:
+        "200":
+          description: Agreement list.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaginatedPriceAgreements" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+    post:
+      operationId: createPriceAgreement
+      summary: Create a price agreement
+      tags: [Price Agreements]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PriceAgreementCreate" }
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PriceAgreementSingleResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+  /v1/billing/price-agreements/{agreement_id}:
+    patch:
+      operationId: updatePriceAgreement
+      summary: Update a price agreement (typically deactivate or extend validity)
+      tags: [Price Agreements]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: agreement_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PriceAgreementUpdate" }
+      responses:
+        "200":
+          description: Agreement updated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PriceAgreementSingleResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+  /v1/billing/reports/daily-collection:
+    get:
+      operationId: getDailyCollectionReport
+      summary: Daily collection summary by payment method
+      tags: [Reports]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: date, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        "200":
+          description: Collection summary for the date.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DailyCollectionReport" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+  /v1/billing/reports/outstanding:
+    get:
+      operationId: getOutstandingReport
+      summary: Outstanding-balance aging report
+      tags: [Reports]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: as_of_date, in: query, required: false, schema: { type: string, format: date } }
+        - { name: bill_category, in: query, required: false, schema: { $ref: "#/components/schemas/BillCategory" } }
+      responses:
+        "200":
+          description: Aging buckets and totals.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OutstandingReport" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    TenantIdHeader:
+      name: X-Tenant-Id
+      in: header
+      required: true
+      schema: { type: string, format: uuid }
+      description: The tenant scope for the request (Citus distribution key).
+    IdempotencyKeyHeader:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 128 }
+      description: >
+        Client-generated key used to deduplicate retries. Replaying a request with the same key
+        returns the original resource without creating a duplicate row.
+  responses:
+    BadRequest:
+      description: Invalid request.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    Unauthorized:
+      description: Missing or invalid bearer token.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    Forbidden:
+      description: Principal is not authorized for this resource.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    Conflict:
+      description: State conflict (e.g., illegal status transition, advance over-utilisation, locked bill).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    InternalServerError:
+      description: Unexpected server error.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+  schemas:
+    # ───────────────────────── Common ─────────────────────────
+    ErrorResponse:
+      type: object
+      description: Standard error envelope.
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              description: Stable application error code (e.g., BILL_NOT_DRAFT, ADVANCE_INSUFFICIENT_BALANCE).
+            message:
+              type: string
+              description: Human-readable summary.
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field: { type: string }
+                  issue: { type: string }
+            request_id: { type: string, description: Server-issued request identifier for correlation. }
+    Money:
+      type: string
+      format: decimal
+      pattern: "^[0-9]+(\\.[0-9]{1,4})?$"
+      description: >
+        Decimal money expressed as a string. Up to four decimal places (NUMERIC(18,4) on the
+        backend). Display layer rounds to two decimals using banker's rounding.
+      examples: ["500.00", "1199.9500"]
+    PageInfo:
+      type: object
+      required: [limit]
+      properties:
+        limit: { type: integer, minimum: 1, maximum: 200 }
+        next_cursor: { type: string, nullable: true }
+        total: { type: integer, minimum: 0, nullable: true, description: Total may be omitted for cursor-paginated queries. }
+    # ───────────────────────── Enums ──────────────────────────
+    BillStatus:
+      type: string
+      enum: [DRAFT, FINALIZED, PARTIALLY_PAID, PAID, CLOSED, CANCELLED, REPLACED]
+    BillType:
+      type: string
+      enum: [INTERIM, FINAL, STANDALONE]
+    BillCategory:
+      type: string
+      enum: [SELF_PAY, INSURANCE, CORPORATE, MIXED]
+    VisitType:
+      type: string
+      enum: [OPD, IPD, ER, DAYCARE, WALK_IN]
+    PaymentMethod:
+      type: string
+      enum: [CASH, CARD, UPI, CHEQUE, BANK_TRANSFER, GATEWAY, ADVANCE_RECEIPT, ADVANCE_UTILIZATION, INSURANCE_DISBURSEMENT, CORPORATE_INVOICE]
+    PaymentStatus:
+      type: string
+      enum: [PENDING_GATEWAY, SUCCESS, FAILED, VOIDED]
+    AdvanceStatus:
+      type: string
+      enum: [AVAILABLE, EXHAUSTED, EXPIRED, REFUNDED]
+    AdvanceType:
+      type: string
+      enum: [OPD_ADVANCE, IPD_DEPOSIT, PROCEDURE_DEPOSIT, GENERAL]
+    DiscountApprovalStatus:
+      type: string
+      enum: [PENDING, APPROVED, REJECTED]
+    DiscountType:
+      type: string
+      enum: [PERCENTAGE, AMOUNT]
+    ItemType:
+      type: string
+      enum: [SERVICE, PACKAGE, PACKAGE_LINE, ADJUSTMENT]
+    BillItemStatus:
+      type: string
+      enum: [ACTIVE, VOIDED]
+    SourceModule:
+      type: string
+      examples: [opd, ipd, lab, pharmacy, radiology, manual]
+      description: The clinical module that emitted the charge.
+    # ──────────────────────── Resources ────────────────────────
+    Bill:
+      type: object
+      required:
+        - id
+        - iq_tenant_id
+        - bill_number
+        - patient_id
+        - bill_type
+        - bill_date
+        - subtotal
+        - discount_amount
+        - tax_amount
+        - total_amount
+        - round_off_amount
+        - net_amount
+        - paid_amount
+        - advance_adjusted
+        - outstanding_amount
+        - status
+        - created_at
+        - updated_at
+      properties:
+        id: { type: string, format: uuid }
+        iq_tenant_id: { type: string, format: uuid }
+        bill_number: { type: string, description: Tenant-unique generated bill number. }
+        patient_id: { type: string, format: uuid, description: Soft reference to EMPI. }
+        visit_id: { type: string, format: uuid, nullable: true, description: Soft reference to clinical visit. }
+        visit_type: { allOf: [{ $ref: "#/components/schemas/VisitType" }], nullable: true }
+        bill_type: { $ref: "#/components/schemas/BillType" }
+        bill_category: { allOf: [{ $ref: "#/components/schemas/BillCategory" }], nullable: true }
+        bill_date: { type: string, format: date }
+        due_date: { type: string, format: date, nullable: true }
+        discharge_date: { type: string, format: date, nullable: true }
+        subtotal: { $ref: "#/components/schemas/Money" }
+        discount_amount: { $ref: "#/components/schemas/Money" }
+        discount_percentage: { type: string, format: decimal, pattern: "^[0-9]+(\\.[0-9]{1,4})?$", nullable: true }
+        discount_reason: { type: string, nullable: true }
+        tax_amount: { $ref: "#/components/schemas/Money" }
+        total_amount: { $ref: "#/components/schemas/Money" }
+        round_off_amount: { $ref: "#/components/schemas/Money" }
+        net_amount: { $ref: "#/components/schemas/Money" }
+        paid_amount: { $ref: "#/components/schemas/Money" }
+        advance_adjusted: { $ref: "#/components/schemas/Money" }
+        outstanding_amount: { $ref: "#/components/schemas/Money" }
+        status: { $ref: "#/components/schemas/BillStatus" }
+        payment_status: { type: string, enum: [UNPAID, PARTIAL, PAID], nullable: true }
+        parent_bill_id: { type: string, format: uuid, nullable: true, description: For INTERIM bills rolled up into a FINAL. }
+        replaced_bill_id: { type: string, format: uuid, nullable: true, description: Original bill this amendment replaces. }
+        tax_breakup:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: '{ cgst, sgst, igst, cess } for invoice rendering.'
+        notes: { type: string, nullable: true }
+        internal_notes: { type: string, nullable: true }
+        cancellation_reason: { type: string, nullable: true }
+        created_by: { type: string, format: uuid, nullable: true }
+        approved_by: { type: string, format: uuid, nullable: true }
+        cancelled_by: { type: string, format: uuid, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        approved_at: { type: string, format: date-time, nullable: true }
+        cancelled_at: { type: string, format: date-time, nullable: true }
+        items:
+          type: array
+          description: Present on single-bill fetch; omitted on list responses.
+          items: { $ref: "#/components/schemas/BillItem" }
+    BillItem:
+      type: object
+      required:
+        - id
+        - iq_tenant_id
+        - bill_id
+        - item_type
+        - item_code
+        - description
+        - quantity
+        - unit_price
+        - gross_amount
+        - discount_percentage
+        - discount_amount
+        - net_amount
+        - tax_percentage
+        - tax_amount
+        - total_amount
+        - is_insurance_covered
+        - source_module
+        - status
+        - created_at
+        - updated_at
+      properties:
+        id: { type: string, format: uuid }
+        iq_tenant_id: { type: string, format: uuid }
+        bill_id: { type: string, format: uuid }
+        service_id: { type: string, format: uuid, nullable: true }
+        package_id: { type: string, format: uuid, nullable: true }
+        price_agreement_id: { type: string, format: uuid, nullable: true, description: The price-resolution agreement chosen at charge time. }
+        item_type: { $ref: "#/components/schemas/ItemType" }
+        item_code:
+          type: string
+          description: Snapshot of `service_master.service_code` (or package_code) at charge time. Immutable post-DRAFT.
+        description:
+          type: string
+          description: Snapshot of `service_master.service_name` at charge time. Immutable post-DRAFT.
+        quantity: { type: string, format: decimal, pattern: "^[0-9]+(\\.[0-9]{1,2})?$" }
+        unit: { type: string, nullable: true }
+        unit_price:
+          allOf: [{ $ref: "#/components/schemas/Money" }]
+          description: Snapshot of resolved price at charge time. Immutable post-DRAFT.
+        gross_amount: { $ref: "#/components/schemas/Money" }
+        discount_percentage: { type: string, format: decimal, pattern: "^[0-9]+(\\.[0-9]{1,4})?$" }
+        discount_amount: { $ref: "#/components/schemas/Money" }
+        net_amount: { $ref: "#/components/schemas/Money" }
+        tax_percentage:
+          type: string
+          format: decimal
+          pattern: "^[0-9]+(\\.[0-9]{1,4})?$"
+          description: Snapshot of `service_master.tax_percentage` at charge time. Immutable post-DRAFT.
+        tax_amount: { $ref: "#/components/schemas/Money" }
+        total_amount: { $ref: "#/components/schemas/Money" }
+        tax_category:
+          type: string
+          nullable: true
+          description: Snapshot of `service_master.tax_category` at charge time (CGST_SGST / IGST / EXEMPT). Immutable post-DRAFT.
+        is_insurance_covered:
+          type: boolean
+          description: Snapshot of `service_master.is_insurance_covered` at charge time. Immutable post-DRAFT.
+        source_module: { $ref: "#/components/schemas/SourceModule" }
+        source_ref: { type: string, format: uuid, nullable: true }
+        performed_date: { type: string, format: date-time, nullable: true }
+        performed_by: { type: string, format: uuid, nullable: true }
+        department: { type: string, nullable: true }
+        status: { $ref: "#/components/schemas/BillItemStatus" }
+        idempotency_key: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    Payment:
+      type: object
+      required:
+        - id
+        - iq_tenant_id
+        - payment_number
+        - patient_id
+        - payment_date
+        - amount
+        - payment_method
+        - status
+        - created_at
+        - updated_at
+      properties:
+        id: { type: string, format: uuid }
+        iq_tenant_id: { type: string, format: uuid }
+        payment_number: { type: string }
+        receipt_number: { type: string, nullable: true }
+        bill_id: { type: string, format: uuid, nullable: true, description: NULL only for unallocated receipts pending reconciliation. }
+        patient_id: { type: string, format: uuid }
+        payment_date: { type: string, format: date-time }
+        amount: { $ref: "#/components/schemas/Money" }
+        payment_method: { $ref: "#/components/schemas/PaymentMethod" }
+        transaction_id: { type: string, nullable: true }
+        reference_number: { type: string, nullable: true }
+        authorization_code: { type: string, nullable: true }
+        card_type: { type: string, nullable: true }
+        card_last4: { type: string, nullable: true, minLength: 4, maxLength: 4 }
+        card_holder_name: { type: string, nullable: true }
+        bank_name: { type: string, nullable: true }
+        branch_name: { type: string, nullable: true }
+        cheque_number: { type: string, nullable: true }
+        cheque_date: { type: string, format: date, nullable: true }
+        upi_id: { type: string, nullable: true }
+        upi_transaction_id: { type: string, nullable: true }
+        payment_gateway: { type: string, nullable: true }
+        gateway_response: { type: object, additionalProperties: true, nullable: true }
+        status: { $ref: "#/components/schemas/PaymentStatus" }
+        received_by: { type: string, format: uuid, nullable: true }
+        verified_by: { type: string, format: uuid, nullable: true }
+        notes: { type: string, nullable: true }
+        remarks: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        verified_at: { type: string, format: date-time, nullable: true }
+    Advance:
+      type: object
+      required:
+        - id
+        - iq_tenant_id
+        - advance_number
+        - patient_id
+        - advance_amount
+        - utilized_amount
+        - refunded_amount
+        - available_balance
+        - advance_type
+        - payment_id
+        - payment_date
+        - payment_method
+        - status
+        - created_at
+        - updated_at
+      properties:
+        id: { type: string, format: uuid }
+        iq_tenant_id: { type: string, format: uuid }
+        advance_number: { type: string }
+        patient_id: { type: string, format: uuid }
+        visit_id: { type: string, format: uuid, nullable: true }
+        advance_amount: { $ref: "#/components/schemas/Money" }
+        utilized_amount: { $ref: "#/components/schemas/Money" }
+        refunded_amount: { $ref: "#/components/schemas/Money" }
+        available_balance: { $ref: "#/components/schemas/Money" }
+        advance_type: { $ref: "#/components/schemas/AdvanceType" }
+        purpose: { type: string, nullable: true }
+        payment_id: { type: string, format: uuid, description: Soft reference to the originating `payments` row of method `ADVANCE_RECEIPT`. }
+        payment_date: { type: string, format: date-time }
+        payment_method: { $ref: "#/components/schemas/PaymentMethod" }
+        status: { $ref: "#/components/schemas/AdvanceStatus" }
+        valid_until: { type: string, format: date, nullable: true }
+        received_by: { type: string, format: uuid, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        utilizations:
+          type: array
+          description: Present on single-advance fetch; omitted on list responses.
+          items: { $ref: "#/components/schemas/AdvanceUtilization" }
+    AdvanceUtilization:
+      type: object
+      required: [id, iq_tenant_id, advance_id, bill_id, utilized_amount, utilization_date]
+      properties:
+        id: { type: string, format: uuid }
+        iq_tenant_id: { type: string, format: uuid }
+        advance_id: { type: string, format: uuid }
+        bill_id: { type: string, format: uuid }
+        utilized_amount: { $ref: "#/components/schemas/Money" }
+        utilization_date: { type: string, format: date-time }
+        utilized_by: { type: string, format: uuid, nullable: true }
+        notes: { type: string, nullable: true }
+    DiscountApproval:
+      type: object
+      required:
+        - id
+        - iq_tenant_id
+        - discount_type
+        - discount_value
+        - discount_amount
+        - original_amount
+        - reason
+        - requested_by
+        - status
+        - created_at
+      properties:
+        id: { type: string, format: uuid }
+        iq_tenant_id: { type: string, format: uuid }
+        bill_id: { type: string, format: uuid, nullable: true, description: NULL for line-scoped requests. }
+        bill_item_id: { type: string, format: uuid, nullable: true, description: NULL for bill-scoped requests. }
+        discount_type: { $ref: "#/components/schemas/DiscountType" }
+        discount_value: { type: string, format: decimal, pattern: "^[0-9]+(\\.[0-9]{1,4})?$" }
+        discount_amount: { $ref: "#/components/schemas/Money" }
+        original_amount: { $ref: "#/components/schemas/Money" }
+        reason: { type: string }
+        reason_category:
+          type: string
+          nullable: true
+          enum: [STAFF_DISCOUNT, SENIOR_CITIZEN, GOODWILL, BPL, EMPLOYEE, OTHER]
+        requested_by: { type: string, format: uuid }
+        approved_by: { type: string, format: uuid, nullable: true }
+        approval_level: { type: string, nullable: true, examples: [BILLING_MANAGER, MEDICAL_SUPERINTENDENT] }
+        status: { $ref: "#/components/schemas/DiscountApprovalStatus" }
+        supporting_document_url: { type: string, format: uri, nullable: true }
+        rejection_reason: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        approved_at: { type: string, format: date-time, nullable: true }
+    ServiceMaster:
+      type: object
+      required: [id, iq_tenant_id, service_code, service_name, base_price, tax_percentage, is_active, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        iq_tenant_id: { type: string, format: uuid }
+        service_code: { type: string, maxLength: 64 }
+        service_name: { type: string }
+        description: { type: string, nullable: true }
+        department: { type: string, nullable: true }
+        category: { type: string, nullable: true }
+        sub_category: { type: string, nullable: true }
+        base_price: { $ref: "#/components/schemas/Money" }
+        tax_percentage: { type: string, format: decimal, pattern: "^[0-9]+(\\.[0-9]{1,4})?$" }
+        tax_category: { type: string, nullable: true }
+        hsn_sac_code: { type: string, nullable: true }
+        is_insurance_covered: { type: boolean }
+        requires_pre_authorization: { type: boolean }
+        icd_10_code: { type: string, nullable: true }
+        cpt_code: { type: string, nullable: true }
+        hcpcs_code: { type: string, nullable: true }
+        duration_minutes: { type: integer, nullable: true }
+        requires_doctor_approval: { type: boolean }
+        is_emergency_service: { type: boolean }
+        is_active: { type: boolean }
+        effective_from: { type: string, format: date-time, nullable: true }
+        effective_to: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        created_by: { type: string, format: uuid, nullable: true }
+        updated_by: { type: string, format: uuid, nullable: true }
+    PriceAgreement:
+      type: object
+      required: [id, iq_tenant_id, agreement_code, agreement_type, agreed_price, valid_from, is_active, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        iq_tenant_id: { type: string, format: uuid }
+        agreement_code: { type: string, maxLength: 64 }
+        agreement_type:
+          type: string
+          enum: [TENANT_DEFAULT, DOCTOR_OVERRIDE, DEPARTMENT_OVERRIDE]
+          description: Phase 1 agreement types only; CORPORATE and INSURER appear in Phase 2.
+        entity_id: { type: string, format: uuid, nullable: true, description: Polymorphic — doctor_id or department_id depending on `agreement_type`. }
+        entity_name: { type: string, nullable: true }
+        service_id: { type: string, format: uuid, nullable: true }
+        package_id: { type: string, format: uuid, nullable: true }
+        original_price: { allOf: [{ $ref: "#/components/schemas/Money" }], nullable: true }
+        agreed_price: { $ref: "#/components/schemas/Money" }
+        discount_percentage: { type: string, format: decimal, pattern: "^[0-9]+(\\.[0-9]{1,4})?$", nullable: true }
+        valid_from: { type: string, format: date-time }
+        valid_to: { type: string, format: date-time, nullable: true }
+        is_active: { type: boolean }
+        approved_by: { type: string, format: uuid, nullable: true }
+        approval_date: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    # ───────────────────────── Requests ─────────────────────────
+    ChargeIngestRequest:
+      type: object
+      required: [patient_id, source_module, item_code, quantity]
+      additionalProperties: false
+      properties:
+        patient_id: { type: string, format: uuid }
+        visit_id: { type: string, format: uuid, nullable: true }
+        visit_type: { allOf: [{ $ref: "#/components/schemas/VisitType" }], nullable: true }
+        source_module: { $ref: "#/components/schemas/SourceModule" }
+        source_ref: { type: string, format: uuid, nullable: true, description: Required when `source_module != 'manual'`. }
+        item_code: { type: string, description: Service code or package code. }
+        quantity: { type: string, format: decimal, pattern: "^[0-9]+(\\.[0-9]{1,2})?$", default: "1" }
+        unit: { type: string, nullable: true }
+        performed_by: { type: string, format: uuid, nullable: true }
+        performed_date: { type: string, format: date-time, nullable: true }
+        department: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+    ChargeIngestResponse:
+      type: object
+      required: [bill_item_id, bill_id, snapshotted_unit_price, snapshotted_tax_percentage, net_amount]
+      properties:
+        bill_item_id: { type: string, format: uuid }
+        bill_id: { type: string, format: uuid }
+        snapshotted_unit_price: { $ref: "#/components/schemas/Money" }
+        snapshotted_tax_percentage: { type: string, format: decimal, pattern: "^[0-9]+(\\.[0-9]{1,4})?$" }
+        snapshotted_tax_category: { type: string, nullable: true }
+        snapshotted_description: { type: string }
+        snapshotted_is_insurance_covered: { type: boolean }
+        gross_amount: { $ref: "#/components/schemas/Money" }
+        tax_amount: { $ref: "#/components/schemas/Money" }
+        net_amount: { $ref: "#/components/schemas/Money" }
+        replayed:
+          type: boolean
+          description: True when this response is the deduplicated replay of a prior call with the same Idempotency-Key.
+    RecordPaymentRequest:
+      type: object
+      required: [bill_id, amount, payment_method]
+      additionalProperties: false
+      properties:
+        bill_id: { type: string, format: uuid }
+        amount: { $ref: "#/components/schemas/Money" }
+        payment_method: { $ref: "#/components/schemas/PaymentMethod" }
+        payment_date: { type: string, format: date-time, nullable: true, description: Defaults to server now() if omitted. }
+        transaction_id: { type: string, nullable: true }
+        reference_number: { type: string, nullable: true }
+        authorization_code: { type: string, nullable: true }
+        card_type: { type: string, nullable: true }
+        card_last4: { type: string, nullable: true, minLength: 4, maxLength: 4 }
+        card_holder_name: { type: string, nullable: true }
+        bank_name: { type: string, nullable: true }
+        branch_name: { type: string, nullable: true }
+        cheque_number: { type: string, nullable: true }
+        cheque_date: { type: string, format: date, nullable: true }
+        upi_id: { type: string, nullable: true }
+        upi_transaction_id: { type: string, nullable: true }
+        payment_gateway: { type: string, nullable: true }
+        gateway_response: { type: object, additionalProperties: true, nullable: true }
+        notes: { type: string, nullable: true }
+        remarks: { type: string, nullable: true }
+    RecordAdvanceRequest:
+      type: object
+      required: [patient_id, advance_amount, advance_type, payment_method]
+      additionalProperties: false
+      properties:
+        patient_id: { type: string, format: uuid }
+        visit_id: { type: string, format: uuid, nullable: true }
+        advance_amount: { $ref: "#/components/schemas/Money" }
+        advance_type: { $ref: "#/components/schemas/AdvanceType" }
+        purpose: { type: string, nullable: true }
+        payment_method: { $ref: "#/components/schemas/PaymentMethod" }
+        payment_date: { type: string, format: date-time, nullable: true }
+        transaction_id: { type: string, nullable: true }
+        reference_number: { type: string, nullable: true }
+        valid_until: { type: string, format: date, nullable: true }
+        notes: { type: string, nullable: true }
+    UtilizeAdvanceRequest:
+      type: object
+      required: [bill_id, utilized_amount]
+      additionalProperties: false
+      properties:
+        bill_id: { type: string, format: uuid }
+        utilized_amount: { $ref: "#/components/schemas/Money" }
+        notes: { type: string, nullable: true }
+    DiscountRequestBody:
+      type: object
+      required: [discount_type, discount_value, reason]
+      additionalProperties: false
+      properties:
+        bill_item_id: { type: string, format: uuid, nullable: true, description: When set, the discount is line-scoped (bill_id from URL is the bill containing the item). }
+        discount_type: { $ref: "#/components/schemas/DiscountType" }
+        discount_value: { type: string, format: decimal, pattern: "^[0-9]+(\\.[0-9]{1,4})?$" }
+        reason: { type: string }
+        reason_category:
+          type: string
+          nullable: true
+          enum: [STAFF_DISCOUNT, SENIOR_CITIZEN, GOODWILL, BPL, EMPLOYEE, OTHER]
+        supporting_document_url: { type: string, format: uri, nullable: true }
+    BillCancelRequest:
+      type: object
+      required: [reason]
+      additionalProperties: false
+      properties:
+        reason: { type: string, description: Recorded on `bills.cancellation_reason`. }
+        notes: { type: string, nullable: true }
+    BillAmendRequest:
+      type: object
+      required: [reason]
+      additionalProperties: false
+      properties:
+        reason: { type: string }
+        repricing:
+          type: boolean
+          default: false
+          description: >
+            When true, re-snapshots prices from the current `service_master` and active
+            `price_agreements`. When false (default), the new bill carries forward the original
+            line-level snapshots — used for corrections that adjust quantities or discounts
+            without re-pricing.
+        notes: { type: string, nullable: true }
+    BillItemUpdateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        quantity: { type: string, format: decimal, pattern: "^[0-9]+(\\.[0-9]{1,2})?$" }
+        discount_percentage: { type: string, format: decimal, pattern: "^[0-9]+(\\.[0-9]{1,4})?$" }
+        discount_amount: { $ref: "#/components/schemas/Money" }
+        notes: { type: string, nullable: true }
+    ServiceMasterCreate:
+      type: object
+      required: [service_code, service_name, base_price, tax_percentage]
+      additionalProperties: false
+      properties:
+        service_code: { type: string, maxLength: 64 }
+        service_name: { type: string }
+        description: { type: string, nullable: true }
+        department: { type: string, nullable: true }
+        category: { type: string, nullable: true }
+        sub_category: { type: string, nullable: true }
+        base_price: { $ref: "#/components/schemas/Money" }
+        tax_percentage: { type: string, format: decimal, pattern: "^[0-9]+(\\.[0-9]{1,4})?$" }
+        tax_category: { type: string, nullable: true }
+        hsn_sac_code: { type: string, nullable: true }
+        is_insurance_covered: { type: boolean, default: true }
+        requires_pre_authorization: { type: boolean, default: false }
+        icd_10_code: { type: string, nullable: true }
+        cpt_code: { type: string, nullable: true }
+        hcpcs_code: { type: string, nullable: true }
+        duration_minutes: { type: integer, nullable: true }
+        requires_doctor_approval: { type: boolean, default: false }
+        is_emergency_service: { type: boolean, default: false }
+        effective_from: { type: string, format: date-time, nullable: true }
+        effective_to: { type: string, format: date-time, nullable: true }
+    ServiceMasterUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        service_name: { type: string }
+        description: { type: string, nullable: true }
+        department: { type: string, nullable: true }
+        category: { type: string, nullable: true }
+        sub_category: { type: string, nullable: true }
+        base_price: { $ref: "#/components/schemas/Money" }
+        tax_percentage: { type: string, format: decimal, pattern: "^[0-9]+(\\.[0-9]{1,4})?$" }
+        tax_category: { type: string, nullable: true }
+        hsn_sac_code: { type: string, nullable: true }
+        is_insurance_covered: { type: boolean }
+        requires_pre_authorization: { type: boolean }
+        icd_10_code: { type: string, nullable: true }
+        cpt_code: { type: string, nullable: true }
+        hcpcs_code: { type: string, nullable: true }
+        duration_minutes: { type: integer, nullable: true }
+        requires_doctor_approval: { type: boolean }
+        is_emergency_service: { type: boolean }
+        effective_from: { type: string, format: date-time, nullable: true }
+        effective_to: { type: string, format: date-time, nullable: true }
+    PriceAgreementCreate:
+      type: object
+      required: [agreement_code, agreement_type, agreed_price, valid_from]
+      additionalProperties: false
+      properties:
+        agreement_code: { type: string, maxLength: 64 }
+        agreement_type:
+          type: string
+          enum: [TENANT_DEFAULT, DOCTOR_OVERRIDE, DEPARTMENT_OVERRIDE]
+        entity_id: { type: string, format: uuid, nullable: true }
+        entity_name: { type: string, nullable: true }
+        service_id: { type: string, format: uuid, nullable: true }
+        package_id: { type: string, format: uuid, nullable: true }
+        original_price: { allOf: [{ $ref: "#/components/schemas/Money" }], nullable: true }
+        agreed_price: { $ref: "#/components/schemas/Money" }
+        discount_percentage: { type: string, format: decimal, pattern: "^[0-9]+(\\.[0-9]{1,4})?$", nullable: true }
+        valid_from: { type: string, format: date-time }
+        valid_to: { type: string, format: date-time, nullable: true }
+    PriceAgreementUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        agreed_price: { $ref: "#/components/schemas/Money" }
+        discount_percentage: { type: string, format: decimal, pattern: "^[0-9]+(\\.[0-9]{1,4})?$", nullable: true }
+        valid_to: { type: string, format: date-time, nullable: true }
+        is_active: { type: boolean }
+    # ─────────────────── Single-resource wrappers ────────────────────
+    BillSingleResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/Bill" }
+    BillItemSingleResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/BillItem" }
+    PaymentSingleResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/Payment" }
+    AdvanceSingleResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/Advance" }
+    AdvanceUtilizationSingleResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/AdvanceUtilization" }
+        advance: { $ref: "#/components/schemas/Advance" }
+    DiscountApprovalSingleResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/DiscountApproval" }
+    ServiceMasterSingleResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/ServiceMaster" }
+    PriceAgreementSingleResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/PriceAgreement" }
+    # ─────────────────── Paginated list wrappers ─────────────────────
+    PaginatedBills:
+      type: object
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Bill" }
+        page: { $ref: "#/components/schemas/PageInfo" }
+    PaginatedPayments:
+      type: object
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Payment" }
+        page: { $ref: "#/components/schemas/PageInfo" }
+    PaginatedAdvances:
+      type: object
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Advance" }
+        page: { $ref: "#/components/schemas/PageInfo" }
+    PaginatedDiscountApprovals:
+      type: object
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/DiscountApproval" }
+        page: { $ref: "#/components/schemas/PageInfo" }
+    PaginatedServices:
+      type: object
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/ServiceMaster" }
+        page: { $ref: "#/components/schemas/PageInfo" }
+    PaginatedPriceAgreements:
+      type: object
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/PriceAgreement" }
+        page: { $ref: "#/components/schemas/PageInfo" }
+    # ───────────────────────── Reports ─────────────────────────
+    DailyCollectionReport:
+      type: object
+      required: [date, totals, breakdown]
+      properties:
+        date: { type: string, format: date }
+        totals:
+          type: object
+          required: [collected_amount, payment_count]
+          properties:
+            collected_amount: { $ref: "#/components/schemas/Money" }
+            payment_count: { type: integer, minimum: 0 }
+        breakdown:
+          type: array
+          items:
+            type: object
+            required: [payment_method, amount, count]
+            properties:
+              payment_method: { $ref: "#/components/schemas/PaymentMethod" }
+              amount: { $ref: "#/components/schemas/Money" }
+              count: { type: integer, minimum: 0 }
+    OutstandingReport:
+      type: object
+      required: [as_of_date, total_outstanding, buckets]
+      properties:
+        as_of_date: { type: string, format: date }
+        total_outstanding: { $ref: "#/components/schemas/Money" }
+        buckets:
+          type: array
+          items:
+            type: object
+            required: [label, range_days, amount, bill_count]
+            properties:
+              label: { type: string, examples: ["0-30", "31-60", "61-90", "90+"] }
+              range_days:
+                type: object
+                properties:
+                  from: { type: integer }
+                  to: { type: integer, nullable: true }
+              amount: { $ref: "#/components/schemas/Money" }
+              bill_count: { type: integer, minimum: 0 }
