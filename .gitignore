@@ -30,6 +30,10 @@ Thumbs.db
 
 # Testing
 coverage/
+**/.vite/
+
+# Drizzle Kit output (canonical apply: modules/empi/migrations/0000_*.sql + 0001_pg_trgm.sql)
+modules/empi/migrations/drizzle/
 
 # Docker volumes
 infra/docker/volumes/

@@ -1,7 +1,7 @@
 {
   "$schema": "erd/v1",
   "schema": "integration_hub",
-  "description": "Integration Hub control plane + ABDM adapter tables. Owns external integration registry, durable workflow state machines (FSM engine), inbound/outbound transport logs, and ABDM-specific protocol state (gateway sessions, scan-and-share tokens, consent artifacts, link tokens, data-exchange sessions). Does NOT own clinical records or FHIR Document Bundles -- that is Record Foundation's responsibility per ADR-0021. Does NOT own facility HFR ID or ABDM credential bytes -- those live in Configurator (HFR ID) and behind the secrets SDK (credentials, resolved from env: in Phase 0/1 and a real store thereafter, per ADR-0024-style pre-prod gate). Does NOT include a per-module audit table -- audit substrate is workflow_transitions + inbound/outbound message logs + domain events, projected by the future centralized audit consumer (ADR-0024).",
+  "description": "Integration Hub control plane + ABDM adapter tables. Owns external integration registry, durable workflow state machines (FSM engine), inbound/outbound transport logs, and ABDM-specific protocol state (gateway sessions, scan-and-share tokens, consent artifacts, link tokens, data-exchange sessions). Does NOT own clinical records or FHIR Document Bundles -- that is Record Foundation's responsibility per ADR-0028. Does NOT own facility HFR ID or ABDM credential bytes -- those live in Configurator (HFR ID) and behind the secrets SDK (credentials, resolved from env: in Phase 0/1 and a real store thereafter, per ADR-0024-style pre-prod gate). Does NOT include a per-module audit table -- audit substrate is workflow_transitions + inbound/outbound message logs + domain events, projected by the future centralized audit consumer (ADR-0024).",
   "citus": {
     "distribution_column": "iq_tenant_id",
     "reference_tables": [],
@@ -58,7 +58,7 @@
       ]
     },
     "integration_workflows": {
-      "description": "FSM instance per workflow run. One row per workflow execution (e.g., one ABDM M1 enrollment attempt, one M3 data-exchange session). The FSM engine reads/writes this table to advance state. Per ADR-0020.",
+      "description": "FSM instance per workflow run. One row per workflow execution (e.g., one ABDM M1 enrollment attempt, one M3 data-exchange session). The FSM engine reads/writes this table to advance state. Per ADR-0027.",
       "distribution": "distributed_by_iq_tenant_id",
       "columns": {
         "id": {"type": "UUID", "nullable": false, "default": "gen_random_uuid()", "description": "Workflow instance ID. Used as correlation_id in audit log."},
@@ -84,7 +84,7 @@
       ]
     },
     "integration_workflow_transitions": {
-      "description": "Append-only log of every FSM state transition. Provides regulatory audit (what state, when, triggered by what). Per ADR-0020. Never UPDATE.",
+      "description": "Append-only log of every FSM state transition. Provides regulatory audit (what state, when, triggered by what). Per ADR-0027. Never UPDATE.",
       "distribution": "distributed_by_iq_tenant_id",
       "columns": {
         "id": {"type": "BIGINT", "nullable": false, "default": "nextval('integration_workflow_transitions_id_seq')", "description": "Monotonic transition ID. Used for ordering."},
@@ -104,7 +104,7 @@
       ]
     },
     "integration_workflow_timers": {
-      "description": "Pending wall-clock timers. The timer worker polls due rows with SELECT ... FOR UPDATE SKIP LOCKED and fires the corresponding transition. Per ADR-0020.",
+      "description": "Pending wall-clock timers. The timer worker polls due rows with SELECT ... FOR UPDATE SKIP LOCKED and fires the corresponding transition. Per ADR-0027.",
       "distribution": "distributed_by_iq_tenant_id",
       "columns": {
         "id": {"type": "UUID", "nullable": false, "default": "gen_random_uuid()"},
@@ -239,7 +239,7 @@
       ]
     },
     "abdm_consent_artifacts": {
-      "description": "ABDM-issued consent artifacts. Owned by Integration Hub because consents are an ABDM protocol artifact (gateway-issued consentId, signed artifact, lifecycle). Record Foundation queries this table when deciding whether a care-context can be disclosed. Per ADR-0021 boundary table.",
+      "description": "ABDM-issued consent artifacts. Owned by Integration Hub because consents are an ABDM protocol artifact (gateway-issued consentId, signed artifact, lifecycle). Record Foundation queries this table when deciding whether a care-context can be disclosed. Per ADR-0028 boundary table.",
       "distribution": "distributed_by_iq_tenant_id",
       "columns": {
         "id": {"type": "UUID", "nullable": false, "default": "gen_random_uuid()"},

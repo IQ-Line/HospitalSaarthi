@@ -8,13 +8,13 @@
 
 Record Foundation is the **fifth core platform module**: the substrate for ABDM care contexts and immutable FHIR Document Bundles. Clinical modules (OPD, IPD, Lab) finalise events and emit `<module>.<event>.finalized` events with their FHIR resources attached; Record Foundation **composes** those resources into a Document Bundle per the NRCeS profile, stores it byte-exactly, and registers a `care_contexts` row that Integration Hub uses for ABDM linkage. Also receives external-HIP bundles (M3 HIU) into the external-record inbox with consent-driven erasure scheduling.
 
-Lives in `modules/record-foundation/`, deployed in `services/record-foundation-svc/` (always-on core module per [ADR-0021](../../adr/0021-record-foundation-fifth-core-module.md)).
+Lives in `modules/record-foundation/`, deployed in `services/record-foundation-svc/` (always-on core module per [ADR-0028](../../adr/0028-record-foundation-fifth-core-module.md)).
 
 ---
 
 ## Where to start
 
-1. **[ADR-0021](../../adr/0021-record-foundation-fifth-core-module.md)** — why this module exists and what makes it the fifth core (not an EMR product).
+1. **[ADR-0028](../../adr/0028-record-foundation-fifth-core-module.md)** — why this module exists and what makes it the fifth core (not an EMR product).
 2. **[ADR-0022](../../adr/0022-immutable-fhir-document-storage.md)** — the byte-exact storage rule. **The load-bearing decision** for this module; if you only read one document, read this.
 3. **[ADR-0023](../../adr/0023-distributed-fhir-assembly.md)** — per-module FHIR serialisers + central Composition assembly. Clarifies who owns what.
 4. **[HLD 02 §5](../../hld/02-core-modules.md#5-record-foundation)** — purpose / owns / exposes / depends-on.

@@ -4,7 +4,7 @@
 
 **Phase 0/1 dev simplifications apply.** See [dev-env-simplifications.md](../../dev-env-simplifications.md) for the `HIMS_CITUS_ENABLED`, `PERMISSIVE_MODE`, `STRICT_SPEC_VALIDATION` knobs, the `env:` secrets default, and the [REQUIRED FOR DEMO] / [DEFER IF TIME-CONSTRAINED] / [POST-DEMO] tag legend. Steps below tagged accordingly; untagged = [REQUIRED FOR DEMO] by default.
 
-The Integration Hub is platform infrastructure -- always deployed alongside the five core modules. Its v1 covers the **control plane + FSM-lite helpers** (Phase 0) and the **ABDM Adapter** (Phase 1). The generic FSM engine described in [ADR-0020](../../adr/0020-fsm-orchestration-for-integration-hub.md) is **deferred to Phase 1.5** per [ADR-0026](../../adr/0026-fsm-lite-phase-1.md); Phase 1 implements the six ABDM flows as plain TypeScript using the same FSM schema tables.
+The Integration Hub is platform infrastructure -- always deployed alongside the five core modules. Its v1 covers the **control plane + FSM-lite helpers** (Phase 0) and the **ABDM Adapter** (Phase 1). The generic FSM engine described in [ADR-0027](../../adr/0027-fsm-orchestration-for-integration-hub.md) is **deferred to Phase 1.5** per [ADR-0026](../../adr/0026-fsm-lite-phase-1.md); Phase 1 implements the six ABDM flows as plain TypeScript using the same FSM schema tables.
 
 ### What's already designed
 
@@ -14,7 +14,7 @@ The Integration Hub is platform infrastructure -- always deployed alongside the 
 - **Scenarios:** [03-scenarios.md](./03-scenarios.md) (7 sequence-driven walkthroughs).
 - **OpenAPI spec:** [`specs/openapi/integration-hub.v1.yaml`](../../../../specs/openapi/integration-hub.v1.yaml) (28 paths).
 - **ERDs (per phase, cumulative):** [`integration-platform.phase-0.erd.json`](./integration-platform.phase-0.erd.json) (7 tables — control plane + FSM engine), [`integration-platform.phase-1.erd.json`](./integration-platform.phase-1.erd.json) (13 — adds the six ABDM adapter tables).
-- **ADRs:** [0011](../../adr/0011-integration-hub-split.md) (Integration Hub split), [0020](../../adr/0020-fsm-orchestration-for-integration-hub.md) (FSM engine target architecture), [0021](../../adr/0021-record-foundation-fifth-core-module.md), [0022](../../adr/0022-immutable-fhir-document-storage.md), [0023](../../adr/0023-distributed-fhir-assembly.md), [0024](../../adr/0024-audit-deferred-to-pre-prod.md) (audit deferred), **[0026](../../adr/0026-fsm-lite-phase-1.md) (FSM-lite Phase 1 implementation — read this before starting Phase 0b)**.
+- **ADRs:** [0011](../../adr/0011-integration-hub-split.md) (Integration Hub split), [0020](../../adr/0027-fsm-orchestration-for-integration-hub.md) (FSM engine target architecture), [0021](../../adr/0028-record-foundation-fifth-core-module.md), [0022](../../adr/0022-immutable-fhir-document-storage.md), [0023](../../adr/0023-distributed-fhir-assembly.md), [0024](../../adr/0024-audit-deferred-to-pre-prod.md) (audit deferred), **[0026](../../adr/0026-fsm-lite-phase-1.md) (FSM-lite Phase 1 implementation — read this before starting Phase 0b)**.
 
 ---
 

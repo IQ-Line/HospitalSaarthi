@@ -1,5 +1,4 @@
-import { eq, and, type SQL } from "drizzle-orm";
-import type { DbInstance } from "@hims/ts-sdk-db";
+import { eq, and, type DbInstance, type SQL } from "@hims/ts-sdk-db";
 import type { TenantRepo } from "../ports.js";
 import type {
   Tenant,
@@ -8,6 +7,7 @@ import type {
   TenantFilters,
 } from "../domain/tenant.types.js";
 import { tenants } from "../schema/tables.js";
+import { omitUndefined } from "./utils.js";
 
 export class DrizzleTenantRepo implements TenantRepo {
   constructor(private readonly db: DbInstance) {}
@@ -39,6 +39,16 @@ export class DrizzleTenantRepo implements TenantRepo {
       .select()
       .from(tenants)
       .where(eq(tenants.iq_tenant_id, id))
+      .limit(1);
+
+    return rows[0] as Tenant | undefined;
+  }
+
+  async findBySlug(slug: string): Promise<Tenant | undefined> {
+    const rows = await this.db
+      .select()
+      .from(tenants)
+      .where(eq(tenants.slug, slug))
       .limit(1);
 
     return rows[0] as Tenant | undefined;
@@ -78,10 +88,11 @@ export class DrizzleTenantRepo implements TenantRepo {
     id: string,
     data: UpdateTenantData,
   ): Promise<Tenant | undefined> {
+    const patch = omitUndefined(data as Record<string, unknown>);
     const rows = await this.db
       .update(tenants)
       .set({
-        ...data,
+        ...patch,
         updated_at: new Date(),
       })
       .where(eq(tenants.iq_tenant_id, id))

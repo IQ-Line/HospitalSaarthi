@@ -141,7 +141,7 @@ External calls are idempotent where the target system supports it. The Outbound 
 
 ## 4. ABDM/ABHA integration
 
-> **Updated 2026-05-08** -- module ownership clarified per [ADR-0021](../adr/0021-record-foundation-fifth-core-module.md), [ADR-0022](../adr/0022-immutable-fhir-document-storage.md), [ADR-0023](../adr/0023-distributed-fhir-assembly.md). Detailed flow specifications in [Integration Platform LLD](../lld/integration-platform/01-schema-design.md) and [Record Foundation LLD](../lld/record-foundation/01-schema-design.md).
+> **Updated 2026-05-08** -- module ownership clarified per [ADR-0028](../adr/0028-record-foundation-fifth-core-module.md), [ADR-0022](../adr/0022-immutable-fhir-document-storage.md), [ADR-0023](../adr/0023-distributed-fhir-assembly.md). Detailed flow specifications in [Integration Platform LLD](../lld/integration-platform/01-schema-design.md) and [Record Foundation LLD](../lld/record-foundation/01-schema-design.md).
 
 ### 4.1 ABHA health ID
 
@@ -149,11 +149,11 @@ ABHA (Ayushman Bharat Health Account) is India's national health identifier. The
 
 ABHA linking happens at patient registration and can be triggered during any clinical encounter. The EMPI handles identity resolution -- a patient may present with an ABHA at one visit and an MRN at another, and EMPI must recognize them as the same person. See [Core Modules § 2 EMPI](02-core-modules.md#2-empi--patient-identity).
 
-The protocol mechanics of ABHA enrollment (ABDM Milestone 1 -- create ABHA via Aadhaar OTP, mobile OTP, biometric, etc.) live in the **Integration Hub's ABDM adapter** as FSM-driven workflows. Per [ADR-0020](../adr/0020-fsm-orchestration-for-integration-hub.md), each enrollment flow is an FSM definition (`abdm.m1.aadhaar-otp.v1`, `abdm.m1.find-by-mobile.v1`, etc.). On successful completion the adapter writes ABHA identifiers to EMPI via EMPI's `POST /patients/:id/identifiers` API. See [Integration Platform LLD -- FSM specifications](../lld/integration-platform/02-fsm-specifications.md#3-abdmm1aadhaar-otpv1--abha-creation-via-aadhaar-otp).
+The protocol mechanics of ABHA enrollment (ABDM Milestone 1 -- create ABHA via Aadhaar OTP, mobile OTP, biometric, etc.) live in the **Integration Hub's ABDM adapter** as FSM-driven workflows. Per [ADR-0027](../adr/0027-fsm-orchestration-for-integration-hub.md), each enrollment flow is an FSM definition (`abdm.m1.aadhaar-otp.v1`, `abdm.m1.find-by-mobile.v1`, etc.). On successful completion the adapter writes ABHA identifiers to EMPI via EMPI's `POST /patients/:id/identifiers` API. See [Integration Platform LLD -- FSM specifications](../lld/integration-platform/02-fsm-specifications.md#3-abdmm1aadhaar-otpv1--abha-creation-via-aadhaar-otp).
 
 ### 4.2 Care contexts and Record Foundation
 
-ABDM's HIP/HIU exchanges happen at the granularity of **care contexts** -- discoverable health-record units like an OPD visit, lab report, prescription, or discharge summary. Care contexts are owned by the **Record Foundation** module per [ADR-0021](../adr/0021-record-foundation-fifth-core-module.md), the fifth core platform module added by this revision.
+ABDM's HIP/HIU exchanges happen at the granularity of **care contexts** -- discoverable health-record units like an OPD visit, lab report, prescription, or discharge summary. Care contexts are owned by the **Record Foundation** module per [ADR-0028](../adr/0028-record-foundation-fifth-core-module.md), the fifth core platform module added by this revision.
 
 Record Foundation owns:
 - The care-context registry (cross-module index of records linkable to ABDM).
@@ -213,7 +213,7 @@ The new platform's ABDM compliance posture is structurally stronger than the exi
 
 - **Immutable bundles** ([ADR-0022](../adr/0022-immutable-fhir-document-storage.md)) survive temporal master-data drift and support digital signatures, both Facilitation Testing concerns the existing implementation handles by accident more than design.
 - **Distributed FHIR assembly** ([ADR-0023](../adr/0023-distributed-fhir-assembly.md)) localises NRCeS profile knowledge to the modules that author the underlying data, reducing the risk of FHIR-mapping bugs in central code that touches every clinical surface.
-- **Explicit FSM choreography** ([ADR-0020](../adr/0020-fsm-orchestration-for-integration-hub.md)) makes the gateway-callback ordering provable rather than emergent, addressing the "stuck session" debugging burden of the existing implementation.
+- **Explicit FSM choreography** ([ADR-0027](../adr/0027-fsm-orchestration-for-integration-hub.md)) makes the gateway-callback ordering provable rather than emergent, addressing the "stuck session" debugging burden of the existing implementation.
 
 Detailed flow specifications, FHIR profile pinning, and the FSM definitions are in the [Integration Platform LLD](../lld/integration-platform/01-schema-design.md) and the [Record Foundation LLD](../lld/record-foundation/01-schema-design.md).
 
@@ -387,7 +387,7 @@ Per [ADR-0024](../adr/0024-audit-deferred-to-pre-prod.md), the Integration Hub d
 | Stream | What it captures | Where it lives |
 |---|---|---|
 | Transport message logs | Every inbound and outbound gateway message — headers, payload reference (PHI bytes are not inline; they sit at `payload_storage_ref`), outcome, retry state | `integration_inbound_messages`, `integration_outbound_messages` |
-| Workflow transition log | Every state change of every FSM workflow — append-only by repository discipline ([ADR-0020](../adr/0020-fsm-orchestration-for-integration-hub.md)) | `integration_workflow_transitions` |
+| Workflow transition log | Every state change of every FSM workflow — append-only by repository discipline ([ADR-0027](../adr/0027-fsm-orchestration-for-integration-hub.md)) | `integration_workflow_transitions` |
 | Rich domain events | `abdm.consent.requested`, `abdm.consent.granted`, `abdm.health-record.disclosed`, etc., each carrying before/after state and actor | The event bus / outbox per [ADR-0009](../adr/0009-event-driven-inter-module-communication.md) |
 | Structured request logs | `request_id`, `actor`, `iq_tenant_id`, `action`, `resource_type`, `resource_id` on every mutating HTTP request | HTTP middleware (Fastify hooks) |
 

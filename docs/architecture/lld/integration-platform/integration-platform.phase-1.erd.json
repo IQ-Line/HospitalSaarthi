@@ -162,7 +162,7 @@
       "d3fe9ee7-eb4d-43e4-8a6b-be486f81558a": {
         "id": "d3fe9ee7-eb4d-43e4-8a6b-be486f81558a",
         "name": "integration_workflows",
-        "comment": "Citus: DISTRIBUTED by iq_tenant_id. FSM instance per workflow run. One row per workflow execution (e.g., one ABDM M1 enrollment attempt, one M3 data-exchange session). The FSM engine reads/writes this table to advance state. Per ADR-0020.",
+        "comment": "Citus: DISTRIBUTED by iq_tenant_id. FSM instance per workflow run. One row per workflow execution (e.g., one ABDM M1 enrollment attempt, one M3 data-exchange session). The FSM engine reads/writes this table to advance state. Per ADR-0027.",
         "columnIds": [
           "525986ae-7430-4878-896b-575809cc565a",
           "75bcf223-9eed-46a4-962a-add8585b43a9",
@@ -209,7 +209,7 @@
       "7f1bf40a-4d6d-4925-b2cf-7bea1858c2f7": {
         "id": "7f1bf40a-4d6d-4925-b2cf-7bea1858c2f7",
         "name": "integration_workflow_transitions",
-        "comment": "Citus: DISTRIBUTED by iq_tenant_id. Append-only log of every FSM state transition. Provides regulatory audit (what state, when, triggered by what). Per ADR-0020. Never UPDATE.",
+        "comment": "Citus: DISTRIBUTED by iq_tenant_id. Append-only log of every FSM state transition. Provides regulatory audit (what state, when, triggered by what). Per ADR-0027. Never UPDATE.",
         "columnIds": [
           "eb66d1a8-bcc8-4233-96d8-2dc249942204",
           "b91a99b9-45b4-48ce-9d96-0a9394d74035",
@@ -248,7 +248,7 @@
       "e5b4d40e-1935-49eb-8b3b-4bf93be653a2": {
         "id": "e5b4d40e-1935-49eb-8b3b-4bf93be653a2",
         "name": "integration_workflow_timers",
-        "comment": "Citus: DISTRIBUTED by iq_tenant_id. Pending wall-clock timers. The timer worker polls due rows with SELECT ... FOR UPDATE SKIP LOCKED and fires the corresponding transition. Per ADR-0020.",
+        "comment": "Citus: DISTRIBUTED by iq_tenant_id. Pending wall-clock timers. The timer worker polls due rows with SELECT ... FOR UPDATE SKIP LOCKED and fires the corresponding transition. Per ADR-0027.",
         "columnIds": [
           "1e14a079-85f3-4005-9432-2bcacae75569",
           "2594bdb5-0ef0-42c2-9fdb-1401dd104ade",
@@ -510,7 +510,7 @@
       "8ae9e3bf-d96c-4933-a6ec-c97d0123c14f": {
         "id": "8ae9e3bf-d96c-4933-a6ec-c97d0123c14f",
         "name": "abdm_consent_artifacts",
-        "comment": "Citus: DISTRIBUTED by iq_tenant_id. ABDM-issued consent artifacts. Owned by Integration Hub because consents are an ABDM protocol artifact (gateway-issued consentId, signed artifact, lifecycle). Record Foundation queries this table when deciding whether a care-context can be disclosed. Per ADR-0021 boundary table.",
+        "comment": "Citus: DISTRIBUTED by iq_tenant_id. ABDM-issued consent artifacts. Owned by Integration Hub because consents are an ABDM protocol artifact (gateway-issued consentId, signed artifact, lifecycle). Record Foundation queries this table when deciding whether a care-context can be disclosed. Per ADR-0028 boundary table.",
         "columnIds": [
           "9727bdb8-0b64-40c3-98b0-358fc8667986",
           "84b4e5f3-7caa-4c11-a87c-6151d17f7e9e",

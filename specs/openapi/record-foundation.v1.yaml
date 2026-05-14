@@ -4,7 +4,7 @@ info:
   version: 1.0.0
   description: >
     Record Foundation API — care-context registry, immutable internal FHIR Document Bundle vault,
-    external HIU bundle inbox, timeline read-model, and erasure log. Per ADR-0021 / ADR-0022 / ADR-0023.
+    external HIU bundle inbox, timeline read-model, and erasure log. Per ADR-0028 / ADR-0022 / ADR-0023.
     Does NOT own clinical source data (operational modules), patient identity (EMPI), or ABDM consent
     artifacts (Integration Hub).
 servers:

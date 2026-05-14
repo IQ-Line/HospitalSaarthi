@@ -1,13 +1,12 @@
 {
   "$schema": "erd/v1",
   "schema": "configurator",
-  "description": "Configurator core module — control plane for tenant registry, module enablement, feature flag overrides, module configuration, and integration profiles. Module/feature registry data is owned by Master Data; the Configurator maintains local read projections synced via events. See 01-schema-design.md for rationale.",
+  "description": "Configurator core module — control plane for tenant registry, module enablement, feature flag overrides, module configuration, and integration profiles. Feature flag definitions and module config schemas are owned by Master Data; the Configurator maintains two local read projections (config_schema_projection, feature_flag_projection) synced via events. Module metadata is fetched via HTTP+cache, not projected (see §3.1 of the LLD). See 01-schema-design.md for rationale.",
   "citus": {
     "distribution_column": "iq_tenant_id",
     "reference_tables": [
       "organizations",
       "tenants",
-      "module_projection",
       "config_schema_projection",
       "feature_flag_projection"
     ]
@@ -85,22 +84,27 @@
           "description": "Last modifier"
         }
       },
-      "primary_key": ["id"],
+      "primary_key": [
+        "id"
+      ],
       "indexes": [
         {
-          "columns": ["slug"],
+          "columns": [
+            "slug"
+          ],
           "name": "idx_organizations_slug",
           "unique": true,
           "note": "Slug lookup for URL routing"
         },
         {
-          "columns": ["status"],
+          "columns": [
+            "status"
+          ],
           "name": "idx_organizations_status",
           "note": "Filter active organizations in admin listing"
         }
       ]
     },
-
     "tenants": {
       "description": "Tenant registry. Each row represents a hospital/facility deployment. Few rows total, queried by every module for tenant context.",
       "distribution": "reference",
@@ -196,91 +200,49 @@
           "description": "Last modifier"
         }
       },
-      "primary_key": ["iq_tenant_id"],
+      "primary_key": [
+        "iq_tenant_id"
+      ],
       "indexes": [
         {
-          "columns": ["slug"],
+          "columns": [
+            "slug"
+          ],
           "name": "idx_tenants_slug",
           "unique": true,
           "note": "Slug lookup for URL routing and tenant resolution"
         },
         {
-          "columns": ["org_id"],
+          "columns": [
+            "org_id"
+          ],
           "name": "idx_tenants_org",
           "note": "List all tenants for an organization"
         },
         {
-          "columns": ["parent_tenant_id"],
+          "columns": [
+            "parent_tenant_id"
+          ],
           "name": "idx_tenants_parent",
           "note": "List child tenants of a parent (tree view in admin UI)"
         },
         {
-          "columns": ["provisioning_status"],
+          "columns": [
+            "provisioning_status"
+          ],
           "name": "idx_tenants_status",
           "note": "Filter active tenants"
         },
         {
-          "columns": ["cerbos_scope_key"],
+          "columns": [
+            "cerbos_scope_key"
+          ],
           "name": "idx_tenants_cerbos_scope",
           "unique": true,
           "note": "Resolve tenant from Cerbos scope key"
         }
       ]
     },
-
-    "module_projection": {
-      "description": "Local read projection of Master Data's modules table. Synced via module.registered and module.updated events. The Configurator never queries master_data.modules directly.",
-      "distribution": "reference",
-      "columns": {
-        "id": {
-          "type": "UUID",
-          "nullable": false,
-          "description": "Module ID — matches master_data.modules.id (preserved from event payload)"
-        },
-        "name": {
-          "type": "TEXT",
-          "nullable": false,
-          "description": "Machine-readable module name (e.g., opd, pharmacy, user_management)"
-        },
-        "display_name": {
-          "type": "TEXT",
-          "nullable": false,
-          "description": "Human-readable module name for admin UI"
-        },
-        "category": {
-          "type": "TEXT",
-          "nullable": false,
-          "check": "category IN ('core', 'clinical', 'administrative', 'support')",
-          "description": "Module classification for admin UI grouping"
-        },
-        "is_core": {
-          "type": "BOOLEAN",
-          "nullable": false,
-          "description": "True for the 4 core modules. Used by provisioning to seed tenant_modules."
-        },
-        "version": {
-          "type": "TEXT",
-          "nullable": false,
-          "description": "Currently deployed semver version"
-        },
-        "synced_at": {
-          "type": "TIMESTAMPTZ",
-          "nullable": false,
-          "default": "now()",
-          "description": "When this projection was last synced from a Master Data event"
-        }
-      },
-      "primary_key": ["id"],
-      "indexes": [
-        {
-          "columns": ["name"],
-          "name": "idx_module_projection_name",
-          "unique": true,
-          "note": "Module name lookup (matches master_data.modules unique constraint)"
-        }
-      ]
-    },
-
     "config_schema_projection": {
       "description": "Local read projection of Master Data's module_config_schemas table. Synced via config-schema.declared events. Used for config validation and admin UI form rendering.",
       "distribution": "reference",
@@ -294,7 +256,7 @@
         "module_id": {
           "type": "UUID",
           "nullable": false,
-          "description": "Module this schema belongs to. References module_projection.id."
+          "description": "Module this schema belongs to. Soft reference to master_data.modules.id — no FK; validated via HTTP at write time (LLD §3.1)."
         },
         "schema_version": {
           "type": "TEXT",
@@ -318,17 +280,21 @@
           "description": "When this projection was last synced from a Master Data event"
         }
       },
-      "primary_key": ["id"],
+      "primary_key": [
+        "id"
+      ],
       "indexes": [
         {
-          "columns": ["module_id", "schema_version"],
+          "columns": [
+            "module_id",
+            "schema_version"
+          ],
           "name": "idx_config_schema_projection_module_version",
           "unique": true,
           "note": "One schema per module per version"
         }
       ]
     },
-
     "feature_flag_projection": {
       "description": "Local read projection of Master Data's feature_flags table. Synced via feature-flag.defined and feature-flag.updated events. Used for flag resolution and admin UI.",
       "distribution": "reference",
@@ -357,7 +323,7 @@
         "module_id": {
           "type": "UUID",
           "nullable": true,
-          "description": "Module this flag belongs to (NULL = platform-wide). References module_projection.id."
+          "description": "Module this flag belongs to (NULL = platform-wide). Soft reference to master_data.modules.id — no FK; validated via HTTP at write time (LLD §3.1)."
         },
         "value_schema": {
           "type": "JSONB",
@@ -371,22 +337,27 @@
           "description": "When this projection was last synced from a Master Data event"
         }
       },
-      "primary_key": ["id"],
+      "primary_key": [
+        "id"
+      ],
       "indexes": [
         {
-          "columns": ["name"],
+          "columns": [
+            "name"
+          ],
           "name": "idx_feature_flag_projection_name",
           "unique": true,
           "note": "Flag name lookup (matches master_data.feature_flags unique constraint)"
         },
         {
-          "columns": ["module_id"],
+          "columns": [
+            "module_id"
+          ],
           "name": "idx_feature_flag_projection_module",
           "note": "List flags for a specific module"
         }
       ]
     },
-
     "tenant_modules": {
       "description": "Module enablement per tenant. This is the mechanism behind fragmented adoption — a tenant sees only its enabled modules.",
       "distribution": "distributed",
@@ -399,7 +370,7 @@
         "module_id": {
           "type": "UUID",
           "nullable": false,
-          "description": "Module being enabled/disabled. References configurator.module_projection.id (local projection of Master Data's module registry)."
+          "description": "Module being enabled/disabled. References configurator.master_data.modules.id (local projection of Master Data's module registry)."
         },
         "is_enabled": {
           "type": "BOOLEAN",
@@ -444,7 +415,10 @@
           "description": "Last modifier"
         }
       },
-      "primary_key": ["iq_tenant_id", "module_id"],
+      "primary_key": [
+        "iq_tenant_id",
+        "module_id"
+      ],
       "check_constraints": [
         {
           "name": "chk_core_module_always_enabled",
@@ -454,13 +428,15 @@
       ],
       "indexes": [
         {
-          "columns": ["iq_tenant_id", "is_enabled"],
+          "columns": [
+            "iq_tenant_id",
+            "is_enabled"
+          ],
           "name": "idx_tenant_modules_enabled",
           "note": "List enabled modules for a tenant (BFF route filtering, module discovery)"
         }
       ]
     },
-
     "tenant_feature_flags": {
       "description": "Per-tenant feature flag overrides. If no row exists for a flag+tenant, the platform default from feature_flags.default_value applies.",
       "distribution": "distributed",
@@ -512,16 +488,21 @@
           "description": "Last modifier"
         }
       },
-      "primary_key": ["iq_tenant_id", "feature_flag_id"],
+      "primary_key": [
+        "iq_tenant_id",
+        "feature_flag_id"
+      ],
       "indexes": [
         {
-          "columns": ["iq_tenant_id", "is_enabled"],
+          "columns": [
+            "iq_tenant_id",
+            "is_enabled"
+          ],
           "name": "idx_tenant_feature_flags_enabled",
           "note": "List active overrides for a tenant"
         }
       ]
     },
-
     "tenant_module_configs": {
       "description": "Actual configuration values per tenant per module. config_values JSONB is validated against module_config_schemas.config_schema.",
       "distribution": "distributed",
@@ -534,7 +515,7 @@
         "module_id": {
           "type": "UUID",
           "nullable": false,
-          "description": "Module this config applies to. References configurator.module_projection.id (local projection of Master Data's module registry)."
+          "description": "Module this config applies to. References configurator.master_data.modules.id (local projection of Master Data's module registry)."
         },
         "config_values": {
           "type": "JSONB",
@@ -574,10 +555,12 @@
           "description": "Admin who last modified this configuration"
         }
       },
-      "primary_key": ["iq_tenant_id", "module_id"],
+      "primary_key": [
+        "iq_tenant_id",
+        "module_id"
+      ],
       "indexes": []
     },
-
     "integration_profiles": {
       "description": "External system connections per tenant. Defines how a tenant connects to lab analyzers, ABDM, PACS, insurance systems, legacy HIS.",
       "distribution": "distributed",
@@ -662,26 +645,37 @@
           "description": "Last modifier"
         }
       },
-      "primary_key": ["iq_tenant_id", "id"],
+      "primary_key": [
+        "iq_tenant_id",
+        "id"
+      ],
       "indexes": [
         {
-          "columns": ["iq_tenant_id", "protocol"],
+          "columns": [
+            "iq_tenant_id",
+            "protocol"
+          ],
           "name": "idx_integration_profiles_protocol",
           "note": "Filter integrations by protocol type"
         },
         {
-          "columns": ["iq_tenant_id", "is_active"],
+          "columns": [
+            "iq_tenant_id",
+            "is_active"
+          ],
           "name": "idx_integration_profiles_active",
           "note": "List active integrations for a tenant"
         },
         {
-          "columns": ["iq_tenant_id", "target_system"],
+          "columns": [
+            "iq_tenant_id",
+            "target_system"
+          ],
           "name": "idx_integration_profiles_target",
           "note": "Look up integrations by target system"
         }
       ]
     },
-
     "tenant_provisioning_log": {
       "description": "Tracks provisioning workflow steps per tenant. Each provisioning run creates multiple step records. Provides visibility, retryability, and audit trail.",
       "distribution": "distributed",
@@ -736,101 +730,26 @@
           "default": "now()"
         }
       },
-      "primary_key": ["iq_tenant_id", "id"],
+      "primary_key": [
+        "iq_tenant_id",
+        "id"
+      ],
       "indexes": [
         {
-          "columns": ["iq_tenant_id", "status"],
+          "columns": [
+            "iq_tenant_id",
+            "status"
+          ],
           "name": "idx_tenant_provisioning_log_status",
           "note": "Find incomplete/failed steps for retry"
         },
         {
-          "columns": ["iq_tenant_id", "step"],
+          "columns": [
+            "iq_tenant_id",
+            "step"
+          ],
           "name": "idx_tenant_provisioning_log_step",
           "note": "Check whether a specific step has been completed"
-        }
-      ]
-    },
-
-    "config_change_audit": {
-      "description": "All configuration changes — who changed what, when, and why. Configurator's equivalent of User Management's permission_change_audit.",
-      "distribution": "distributed",
-      "columns": {
-        "iq_tenant_id": {
-          "type": "UUID",
-          "nullable": false,
-          "description": "Citus distribution key — the target tenant whose configuration was changed. For 'organization' entity type only: the acting admin's tenant context (since organizations have no natural tenant ID)."
-        },
-        "id": {
-          "type": "UUID",
-          "nullable": false,
-          "default": "gen_random_uuid()",
-          "description": "Audit record identifier"
-        },
-        "entity_type": {
-          "type": "TEXT",
-          "nullable": false,
-          "check": "entity_type IN ('tenant', 'organization', 'module_enablement', 'feature_flag', 'module_config', 'integration_profile')",
-          "description": "Type of entity that was changed. Organization changes are tracked with the acting admin's tenant context."
-        },
-        "entity_id": {
-          "type": "UUID",
-          "nullable": false,
-          "description": "ID of the changed entity"
-        },
-        "action": {
-          "type": "TEXT",
-          "nullable": false,
-          "check": "action IN ('created', 'updated', 'enabled', 'disabled', 'suspended', 'reactivated', 'decommissioned')",
-          "description": "What was done to the entity"
-        },
-        "old_value": {
-          "type": "JSONB",
-          "nullable": true,
-          "description": "State before the change (null for 'created' actions)"
-        },
-        "new_value": {
-          "type": "JSONB",
-          "nullable": true,
-          "description": "State after the change (null for some destructive actions)"
-        },
-        "reason": {
-          "type": "TEXT",
-          "nullable": true,
-          "description": "Optional justification for the change (e.g., 'Billing dispute — suspended per ticket #1234')"
-        },
-        "changed_by": {
-          "type": "UUID",
-          "nullable": false,
-          "description": "Admin who made the change (from JWT sub claim)"
-        },
-        "changed_at": {
-          "type": "TIMESTAMPTZ",
-          "nullable": false,
-          "default": "now()",
-          "description": "When the change was made"
-        }
-      },
-      "primary_key": ["iq_tenant_id", "id"],
-      "indexes": [
-        {
-          "columns": ["iq_tenant_id", "entity_type"],
-          "name": "idx_config_change_audit_type",
-          "note": "Filter audit by entity type"
-        },
-        {
-          "columns": ["iq_tenant_id", "entity_id"],
-          "name": "idx_config_change_audit_entity",
-          "note": "All changes to a specific entity"
-        },
-        {
-          "columns": ["iq_tenant_id", "changed_at"],
-          "name": "idx_config_change_audit_time",
-          "note": "Chronological audit trail per tenant"
-        },
-        {
-          "columns": ["iq_tenant_id", "changed_by"],
-          "name": "idx_config_change_audit_actor",
-          "note": "All changes made by a specific admin"
         }
       ]
     }

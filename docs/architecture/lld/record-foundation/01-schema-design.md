@@ -1,12 +1,12 @@
 # Record Foundation -- Schema Design
 
-**Module:** Record Foundation (fifth core platform module per [ADR-0021](../../adr/0021-record-foundation-fifth-core-module.md))
+**Module:** Record Foundation (fifth core platform module per [ADR-0028](../../adr/0028-record-foundation-fifth-core-module.md))
 **Schema name:** `record_foundation`
 **Service:** `services/record-foundation-svc/` (Phase 1)
 **Module:** `modules/record-foundation/` (Phase 1)
 **Related HLD:** [02-core-modules.md](../../hld/02-core-modules.md) (target update -- add Record Foundation as a fifth core module), [05-integration-and-interop.md section 4](../../hld/05-integration-and-interop.md#4-abdmabha-integration)
 **Related ADRs:**
-- [ADR-0021](../../adr/0021-record-foundation-fifth-core-module.md) -- Record Foundation as fifth core module
+- [ADR-0028](../../adr/0028-record-foundation-fifth-core-module.md) -- Record Foundation as fifth core module
 - [ADR-0022](../../adr/0022-immutable-fhir-document-storage.md) -- Immutable FHIR Document Bundles
 - [ADR-0023](../../adr/0023-distributed-fhir-assembly.md) -- Distributed FHIR assembly via per-module serializers
 - [ADR-0010](../../adr/0010-fhir-hl7-interop-standards.md) -- FHIR R4 baseline
@@ -26,7 +26,7 @@ Record Foundation is the **substrate** for clinical-record concerns that operati
 3. **External HIU bundle inbox** -- the bundles received from external HIPs via ABDM Milestone 3.
 4. **Timeline read-model + erasure scheduler** -- the read-projection and the lifecycle worker that honours `dataEraseAt`.
 
-This is **not** the Phase 4 EMR product. The Phase 4 EMR is a richer clinical UI built **on top of** Record Foundation. The boundary is intentionally enforced in [ADR-0021 §"Boundary against the four existing core modules"](../../adr/0021-record-foundation-fifth-core-module.md#boundary-against-the-four-existing-core-modules).
+This is **not** the Phase 4 EMR product. The Phase 4 EMR is a richer clinical UI built **on top of** Record Foundation. The boundary is intentionally enforced in [ADR-0028 §"Boundary against the four existing core modules"](../../adr/0028-record-foundation-fifth-core-module.md#boundary-against-the-four-existing-core-modules).
 
 | Owns | Does not own |
 |---|---|

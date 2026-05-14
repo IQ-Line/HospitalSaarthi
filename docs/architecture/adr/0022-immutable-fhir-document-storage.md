@@ -122,7 +122,7 @@ The principle "store what you need to retrieve, do not derive what must be autho
 
 - Related ADRs:
   - [ADR-0010 -- FHIR / HL7 interop standards](./0010-fhir-hl7-interop-standards.md) -- baseline FHIR R4 commitment
-  - [ADR-0021 -- Record Foundation as a fifth core platform module](./0021-record-foundation-fifth-core-module.md) -- the module that owns the immutable vault
+  - [ADR-0028 -- Record Foundation as a fifth core platform module](./0028-record-foundation-fifth-core-module.md) -- the module that owns the immutable vault
   - [ADR-0023 -- Distributed FHIR assembly via per-module serializers](./0023-distributed-fhir-assembly.md) -- complements this ADR; describes who *produces* the bundles that this ADR stores
 - Related LLD: [Record Foundation LLD](../lld/record-foundation/01-schema-design.md) (target document)
 - External sources:

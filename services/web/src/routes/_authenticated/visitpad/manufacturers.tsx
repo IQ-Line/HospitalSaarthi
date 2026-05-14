@@ -1,0 +1,374 @@
+import { createFileRoute } from '@tanstack/react-router';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useEffect, useMemo, useState } from 'react';
+import { Controller, useForm, type SubmitHandler } from 'react-hook-form';
+import { type ColumnDef } from '@tanstack/react-table';
+import { toast } from 'sonner';
+import { Input } from '@pulse/ui/input';
+import { Label } from '@pulse/ui/label';
+import { Switch } from '@pulse/ui/switch';
+import { ConfirmDialog } from '@/components/confirm-dialog';
+import { DataTable } from '@/components/data-table';
+import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
+import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
+import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
+import { mutationErrorMessage } from '@/features/master-data/mutation-error';
+import {
+  useVisitpadDelete,
+  useVisitpadManufacturers,
+  useVisitpadPatch,
+  useVisitpadPost,
+} from '@/features/visitpad/api';
+import { visitpadActionsColumn } from '@/features/visitpad/components/visitpad-actions-column';
+import { VisitpadHeaderActions } from '@/features/visitpad/components/visitpad-header-actions';
+import { VisitpadPageShell } from '@/features/visitpad/components/visitpad-page-shell';
+import { VisitpadSnomedFooter } from '@/features/visitpad/components/visitpad-snomed-footer';
+import { visitpadActiveTotal } from '@/features/visitpad/tab-count';
+import type { VisitpadManufacturer } from '@/features/visitpad/types';
+import {
+  visitpadManufacturerCreateFormSchema,
+  visitpadManufacturerEditFormSchema,
+  type VisitpadManufacturerCreateFormSchema,
+  type VisitpadManufacturerEditFormSchema,
+} from '@/features/visitpad/validation';
+
+const MF_BASE = '/api/v1/master-data/visitpad/manufacturers';
+
+export const Route = createFileRoute('/_authenticated/visitpad/manufacturers')({
+  component: VisitpadManufacturersPage,
+});
+
+function VisitpadManufacturersPage() {
+  const [search, setSearch] = useState('');
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editing, setEditing] = useState<VisitpadManufacturer | null>(null);
+  const [deleting, setDeleting] = useState<VisitpadManufacturer | null>(null);
+  const { data, isLoading, error } = useVisitpadManufacturers(search || undefined);
+  const patch = useVisitpadPatch(MF_BASE);
+  const del = useVisitpadDelete(MF_BASE);
+  const create = useVisitpadPost(MF_BASE);
+  const rows = data?.data ?? [];
+  const tabCount = visitpadActiveTotal(rows, data?.total);
+  const busy = patch.isPending || del.isPending;
+
+  const columns = useMemo<ColumnDef<VisitpadManufacturer, unknown>[]>(
+    () => [
+      { accessorKey: 'code', header: 'Manufacturer code', meta: { label: 'Manufacturer code' } },
+      { accessorKey: 'display_name', header: 'Display name', meta: { label: 'Display name' } },
+      {
+        accessorKey: 'short_name',
+        header: 'Short name',
+        meta: { label: 'Short name' },
+        cell: ({ row }) =>
+          row.original.short_name || <span className="text-muted-foreground">—</span>,
+      },
+      {
+        accessorKey: 'is_active',
+        header: 'Enabled',
+        meta: { label: 'Enabled' },
+        cell: ({ row }) => (
+          <TableActiveToggle
+            active={row.original.is_active}
+            disabled={patch.isPending}
+            onCheckedChange={async (next) => {
+              try {
+                await patch.mutateAsync({ id: row.original.id, body: { is_active: next } });
+                toast.success(next ? 'Enabled' : 'Disabled');
+              } catch (e) {
+                toast.error(mutationErrorMessage(e));
+              }
+            }}
+          />
+        ),
+      },
+      visitpadActionsColumn<VisitpadManufacturer>({
+        onEdit: setEditing,
+        onDelete: setDeleting,
+        disabled: busy,
+      }),
+    ],
+    [patch, busy],
+  );
+
+  return (
+    <VisitpadPageShell
+      primary="manufacturers"
+      tabCount={tabCount}
+      title="Manufacturers"
+      description="Manufacturer catalog for Visitpad (vaccine and product makers). Same dual-schema rules as other Visitpad masters."
+      actions={
+        <VisitpadHeaderActions addLabel="Add manufacturer" onAddClick={() => setCreateOpen(true)} />
+      }
+    >
+      <div className="space-y-4">
+        <MasterDataTableToolbar
+          value={search}
+          onChange={setSearch}
+          placeholder="Search code, display name, short name…"
+        />
+        {error ? (
+          <p className="text-sm text-destructive">{(error as Error).message}</p>
+        ) : (
+          <DataTable
+            showColumnMenu
+            columns={columns}
+            data={rows}
+            isLoading={isLoading}
+            emptyTitle="No manufacturers found"
+            emptyDescription="Adjust your search or add catalog entries."
+          />
+        )}
+      </div>
+
+      <ManufacturerCreateDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        isSubmitting={create.isPending}
+        onSubmit={async (payload) => {
+          try {
+            await create.mutateAsync(payload);
+            toast.success('Manufacturer created');
+            setCreateOpen(false);
+          } catch (e) {
+            toast.error(mutationErrorMessage(e));
+          }
+        }}
+      />
+
+      <ManufacturerEditDialog
+        row={editing}
+        open={!!editing}
+        onOpenChange={(o) => !o && setEditing(null)}
+        isSubmitting={patch.isPending}
+        onSave={async (body) => {
+          if (!editing) return;
+          try {
+            await patch.mutateAsync({ id: editing.id, body });
+            toast.success('Manufacturer updated');
+            setEditing(null);
+          } catch (e) {
+            toast.error(mutationErrorMessage(e));
+          }
+        }}
+      />
+
+      <ConfirmDialog
+        open={!!deleting}
+        onOpenChange={(o) => !o && setDeleting(null)}
+        title="Delete manufacturer"
+        description={`Remove “${deleting?.display_name ?? deleting?.code ?? ''}” from this catalog?`}
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => {
+          if (!deleting) return;
+          void (async () => {
+            try {
+              await del.mutateAsync(deleting.id);
+              toast.success('Manufacturer deleted');
+              setDeleting(null);
+            } catch (e) {
+              toast.error(mutationErrorMessage(e));
+            }
+          })();
+        }}
+      />
+
+      <VisitpadSnomedFooter />
+    </VisitpadPageShell>
+  );
+}
+
+function ManufacturerCreateDialog({
+  open,
+  onOpenChange,
+  isSubmitting,
+  onSubmit,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  isSubmitting: boolean;
+  onSubmit: (body: Record<string, unknown>) => Promise<void>;
+}) {
+  const form = useForm<VisitpadManufacturerCreateFormSchema>({
+    resolver: zodResolver(visitpadManufacturerCreateFormSchema),
+    defaultValues: { code: '', display_name: '', short_name: '', is_active: true },
+  });
+
+  useEffect(() => {
+    if (open) {
+      form.reset({ code: '', display_name: '', short_name: '', is_active: true });
+    }
+  }, [open, form]);
+
+  const submit: SubmitHandler<VisitpadManufacturerCreateFormSchema> = async (v) => {
+    await onSubmit({
+      code: v.code.trim().toLowerCase(),
+      display_name: v.display_name.trim(),
+      short_name: v.short_name && v.short_name.trim() ? v.short_name.trim() : null,
+      display_order: 0,
+      is_active: v.is_active,
+    });
+  };
+
+  return (
+    <EntityFormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Add manufacturer"
+      description="Manufacturer code is 3–9 characters (letters, digits, underscore), unique in this catalog scope, and cannot be changed after save."
+      submitLabel="Add"
+      isSubmitting={isSubmitting}
+      onSubmit={form.handleSubmit(submit)}
+    >
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="mfr-code">Manufacturer code *</Label>
+          <Input
+            id="mfr-code"
+            placeholder="e.g. pfz_inc"
+            autoComplete="off"
+            {...form.register('code')}
+          />
+          {form.formState.errors.code ? (
+            <p className="text-sm text-destructive">{form.formState.errors.code.message}</p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Code must be 3–9 characters (letters, digits, underscore). Unique in this catalog
+              scope; stored lowercase.
+            </p>
+          )}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="mfr-display">Display name *</Label>
+          <Input
+            id="mfr-display"
+            placeholder="e.g. Pfizer Inc."
+            autoComplete="organization"
+            {...form.register('display_name')}
+          />
+          {form.formState.errors.display_name ? (
+            <p className="text-sm text-destructive">{form.formState.errors.display_name.message}</p>
+          ) : null}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="mfr-short">Short name</Label>
+          <Input
+            id="mfr-short"
+            autoComplete="off"
+            {...form.register('short_name', { required: false })}
+          />
+          <p className="text-xs text-muted-foreground">Optional.</p>
+        </div>
+        <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+          <div>
+            <p className="text-sm font-medium">Active</p>
+            <p className="text-xs text-muted-foreground">
+              Inactive items are hidden from visit-pad pick lists.
+            </p>
+          </div>
+          <Controller
+            name="is_active"
+            control={form.control}
+            render={({ field }) => (
+              <Switch checked={field.value} onCheckedChange={field.onChange} />
+            )}
+          />
+        </div>
+      </div>
+    </EntityFormDialog>
+  );
+}
+
+function ManufacturerEditDialog({
+  row,
+  open,
+  onOpenChange,
+  isSubmitting,
+  onSave,
+}: {
+  row: VisitpadManufacturer | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  isSubmitting: boolean;
+  onSave: (body: Record<string, unknown>) => Promise<void>;
+}) {
+  const form = useForm<VisitpadManufacturerEditFormSchema>({
+    resolver: zodResolver(visitpadManufacturerEditFormSchema),
+    defaultValues: {
+      display_name: '',
+      short_name: '',
+      display_order: 0,
+      is_active: true,
+    },
+  });
+
+  useEffect(() => {
+    if (row && open) {
+      form.reset({
+        display_name: row.display_name,
+        short_name: row.short_name ?? '',
+        display_order: row.display_order,
+        is_active: row.is_active,
+      });
+    }
+  }, [row, open, form]);
+
+  if (!row) return null;
+
+  const submit: SubmitHandler<VisitpadManufacturerEditFormSchema> = async (v) => {
+    await onSave({
+      display_name: v.display_name.trim(),
+      short_name: v.short_name && v.short_name.trim() ? v.short_name.trim() : null,
+      display_order: v.display_order,
+      is_active: v.is_active,
+    });
+  };
+
+  return (
+    <EntityFormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Edit manufacturer"
+      description={`Code: ${row.code} (cannot be changed)`}
+      submitLabel="Save"
+      isSubmitting={isSubmitting}
+      onSubmit={form.handleSubmit(submit)}
+    >
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="edit-mfr-display">Display name *</Label>
+          <Input id="edit-mfr-display" {...form.register('display_name')} />
+          {form.formState.errors.display_name ? (
+            <p className="text-sm text-destructive">{form.formState.errors.display_name.message}</p>
+          ) : null}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="edit-mfr-short">Short name</Label>
+          <Input
+            id="edit-mfr-short"
+            autoComplete="off"
+            {...form.register('short_name', { required: false })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="edit-mfr-order">Display order</Label>
+          <Input
+            id="edit-mfr-order"
+            type="number"
+            {...form.register('display_order', { valueAsNumber: true })}
+          />
+        </div>
+        <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+          <p className="text-sm font-medium">Active</p>
+          <Controller
+            name="is_active"
+            control={form.control}
+            render={({ field }) => (
+              <Switch checked={field.value} onCheckedChange={field.onChange} />
+            )}
+          />
+        </div>
+      </div>
+    </EntityFormDialog>
+  );
+}

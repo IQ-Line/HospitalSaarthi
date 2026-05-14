@@ -37,7 +37,7 @@ Pattern (A) is the path of least resistance for a small team: one place to put a
 
 1. **Centralised FHIR mapper service** (A). A dedicated service that owns FHIR serialisation for every clinical module.
 2. **Distributed FHIR assembly with shared SDK** (B). Each module emits FHIR resources for its domain at finalisation time, attached to its `*.finalized` event payload. Record Foundation orchestrates Composition assembly. Both modules and Record Foundation depend on a shared `@hims/ts-sdk-fhir` (and `@hims/py-sdk-fhir`) package for resource builders, profile registry, and validators.
-3. **Embedded mapping in Integration Hub.** Have the Integration Hub do the mapping at the moment of an outbound `health-information.transfer`. Rejected at the start of analysis because [ADR-0021](./0021-record-foundation-fifth-core-module.md) and [ADR-0022](./0022-immutable-fhir-document-storage.md) require persistence at finalisation, not at transfer.
+3. **Embedded mapping in Integration Hub.** Have the Integration Hub do the mapping at the moment of an outbound `health-information.transfer`. Rejected at the start of analysis because [ADR-0028](./0028-record-foundation-fifth-core-module.md) and [ADR-0022](./0022-immutable-fhir-document-storage.md) require persistence at finalisation, not at transfer.
 
 ## Decision outcome
 
@@ -163,7 +163,7 @@ The centralised mapper is operationally simpler in the small (one place for FHIR
   - [ADR-0008 -- Module shape and boundaries](./0008-module-shape-and-boundaries.md) -- the no-cross-module-imports rule
   - [ADR-0010 -- FHIR / HL7 interop standards](./0010-fhir-hl7-interop-standards.md) -- baseline FHIR R4 commitment
   - [ADR-0016 -- Polyglot Nx monorepo, spec-first](./0016-polyglot-nx-monorepo-spec-first-contracts.md) -- the polyglot constraint that ruled out a TS-only mapper
-  - [ADR-0021 -- Record Foundation as a fifth core module](./0021-record-foundation-fifth-core-module.md) -- the module that owns composition + validation + storage
+  - [ADR-0028 -- Record Foundation as a fifth core module](./0028-record-foundation-fifth-core-module.md) -- the module that owns composition + validation + storage
   - [ADR-0022 -- Immutable FHIR Document Storage](./0022-immutable-fhir-document-storage.md) -- the persistence discipline these bundles satisfy
 - Related LLD: [Record Foundation LLD](../lld/record-foundation/01-schema-design.md), `packages/ts-sdk-fhir/README.md` (target documents)
 - External sources:

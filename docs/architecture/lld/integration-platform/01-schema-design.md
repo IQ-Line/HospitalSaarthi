@@ -7,8 +7,8 @@
 **Related HLD:** [05-integration-and-interop.md](../../hld/05-integration-and-interop.md) (sections 1-4, 7)
 **Related ADRs:**
 - [ADR-0011](../../adr/0011-integration-hub-split.md) -- Inbound/Outbound split with shared control plane
-- [ADR-0020](../../adr/0020-fsm-orchestration-for-integration-hub.md) -- Custom FSM engine
-- [ADR-0021](../../adr/0021-record-foundation-fifth-core-module.md) -- Record Foundation owns clinical records (boundary)
+- [ADR-0027](../../adr/0027-fsm-orchestration-for-integration-hub.md) -- Custom FSM engine
+- [ADR-0028](../../adr/0028-record-foundation-fifth-core-module.md) -- Record Foundation owns clinical records (boundary)
 - [ADR-0022](../../adr/0022-immutable-fhir-document-storage.md) -- Immutable FHIR Document Bundles
 - [ADR-0023](../../adr/0023-distributed-fhir-assembly.md) -- Distributed FHIR assembly
 - [ADR-0010](../../adr/0010-fhir-hl7-interop-standards.md) -- FHIR R4 baseline
@@ -24,7 +24,7 @@
 
 ## 1. Scope and non-scope
 
-The Integration Hub is the platform's external boundary. It is **always deployed** alongside the four (now five, per [ADR-0021](../../adr/0021-record-foundation-fifth-core-module.md)) core modules. It is not an optional feature module. Per [HLD 05 section 1](../../hld/05-integration-and-interop.md#1-integration-hub-overview), the Hub runs as two services -- Inbound Gateway and Outbound Connector -- sharing one control plane.
+The Integration Hub is the platform's external boundary. It is **always deployed** alongside the four (now five, per [ADR-0028](../../adr/0028-record-foundation-fifth-core-module.md)) core modules. It is not an optional feature module. Per [HLD 05 section 1](../../hld/05-integration-and-interop.md#1-integration-hub-overview), the Hub runs as two services -- Inbound Gateway and Outbound Connector -- sharing one control plane.
 
 This LLD covers the **control plane data model** (the tables that both services read/write) and the **ABDM adapter schema** (the first integration to register against the control plane). HL7v2 lab analyzer, SOAP/XML TPA, and other adapter-specific schemas will be added in their own LLD increments when those integrations come online.
 
@@ -50,7 +50,7 @@ The twelve tables in `integration_hub` divide into three layers.
 | Layer | Tables | What they hold |
 |---|---|---|
 | **Control plane (generic)** | `integrations`, `integration_credentials`, `integration_inbound_messages`, `integration_outbound_messages` | The shared infrastructure used by every adapter -- registry, credentials, operational transport logs. Not ABDM-specific. **Audit posture:** per [ADR-0024](../../adr/0024-audit-deferred-to-pre-prod.md), there is no per-module audit table. The two transport-message logs and the workflow transition log below are *operational* artefacts (idempotency, retry, observability); the future centralized audit consumer projects regulatory audit from them + domain events. |
-| **FSM engine (generic)** | `integration_workflows`, `integration_workflow_transitions`, `integration_workflow_timers` | The durable workflow state machine described in [ADR-0020](../../adr/0020-fsm-orchestration-for-integration-hub.md). Reused by every multi-step adapter. |
+| **FSM engine (generic)** | `integration_workflows`, `integration_workflow_transitions`, `integration_workflow_timers` | The durable workflow state machine described in [ADR-0027](../../adr/0027-fsm-orchestration-for-integration-hub.md). Reused by every multi-step adapter. |
 | **ABDM adapter (specific)** | `abdm_gateway_sessions`, `abdm_share_tokens`, `abdm_share_token_issuances`, `abdm_consent_artifacts`, `abdm_link_tokens`, `abdm_data_exchange_sessions` | ABDM protocol state. The first adapter built; every other ABDM-specific datum lives in this layer's tables. |
 
 The full column-level definitions are in [`schema-reference.json`](./schema-reference.json). The narrative below explains the design choices that the JSON's structure cannot.
@@ -198,7 +198,7 @@ sequenceDiagram
 Per [ADR-0024](../../adr/0024-audit-deferred-to-pre-prod.md), Integration Hub does **not** build a per-module `integration_audit_log` table. The substrate that the future centralized audit consumer projects from on the Integration Hub side:
 
 1. **`integration_inbound_messages` and `integration_outbound_messages`** — every gateway message in or out is captured here (operational purpose: idempotency, retry, observability; regulatory purpose: traceable transport record).
-2. **`integration_workflow_transitions`** — every state change of every workflow, append-only by repository-level discipline (the audit-by-construction property of the FSM engine, [ADR-0020](../../adr/0020-fsm-orchestration-for-integration-hub.md)).
+2. **`integration_workflow_transitions`** — every state change of every workflow, append-only by repository-level discipline (the audit-by-construction property of the FSM engine, [ADR-0027](../../adr/0027-fsm-orchestration-for-integration-hub.md)).
 3. **Rich domain events** — `abdm.consent.requested`, `abdm.consent.granted`, `abdm.health-record.disclosed`, etc., carrying before/after state and actor per the [CLAUDE.md](../../../../CLAUDE.md) rich-payload rule.
 4. **Structured request logs** — every inbound HTTP request carries `request_id`, `actor`, `iq_tenant_id`, `action`, `resource_type`, `resource_id` from the HTTP middleware ([ADR-0024](../../adr/0024-audit-deferred-to-pre-prod.md)).
 
@@ -221,14 +221,14 @@ When the Integration Hub needs facility data, it calls Configurator's API. When 
 
 ## 5. FSM engine (sections 5.1-5.4)
 
-The FSM engine is the most consequential piece of the control plane and the one that distinguishes the new platform from `abdi-lims-backed`'s ad-hoc status-field approach. The full justification is [ADR-0020](../../adr/0020-fsm-orchestration-for-integration-hub.md); the schema and runtime patterns are described here.
+The FSM engine is the most consequential piece of the control plane and the one that distinguishes the new platform from `abdi-lims-backed`'s ad-hoc status-field approach. The full justification is [ADR-0027](../../adr/0027-fsm-orchestration-for-integration-hub.md); the schema and runtime patterns are described here.
 
 > **Phase 1 implementation (FSM-lite).** Per [ADR-0026](../../adr/0026-fsm-lite-phase-1.md), Phase 1 implements the six ABDM flows (M1, scan-and-share, M2, M3 HIP, M3 HIU, consent supervisor) as **plain TypeScript code** that reads and writes the three FSM tables below using a small helper package (`@hims/ts-sdk-workflow` exporting `loadWorkflow`, `transitionTo`, `scheduleTimer`, `clearTimer`). The generic engine (JSON definitions, JSON-Logic guards, declarative side-effect catalog, leader-elected timer worker) is the *target* architecture, deferred to Phase 1.5 when a second adapter needs durable workflows. The schema described in §5.1 below is identical in both phases; only the *interpretation* differs. State-machine specifications in [02-fsm-specifications.md](./02-fsm-specifications.md) remain authoritative documentation.
 
 ### 5.1 The three tables
 
 - `integration_workflows` -- one row per workflow instance. Holds current state, `external_correlation_id` (the gateway txnId/requestId that incoming callbacks use to find this row), `context` JSONB (instance-specific variables), and links back to the patient and integration.
-- `integration_workflow_transitions` -- append-only log of every state change with trigger source and payload. The audit-by-construction property described in ADR-0020.
+- `integration_workflow_transitions` -- append-only log of every state change with trigger source and payload. The audit-by-construction property described in ADR-0027.
 - `integration_workflow_timers` -- pending wall-clock timers (OTP expiry, consent expiry, retry-after). The timer worker fires due rows.
 
 ### 5.2 FSM definitions are configuration, not code
@@ -261,7 +261,7 @@ A *definition* (e.g., `abdm.m1.enrollment.v1`) is a JSON document declaring:
 }
 ```
 
-The engine validates the definition with JSON Schema in CI ([ADR-0020 follow-up actions](../../adr/0020-fsm-orchestration-for-integration-hub.md#follow-up-actions)). Definitions are stored alongside the adapter code (a definition file per adapter, version-pinned in the workflow row). The full M1/M2/M3-HIP/M3-HIU definitions are in [`02-fsm-specifications.md`](./02-fsm-specifications.md).
+The engine validates the definition with JSON Schema in CI ([ADR-0027 follow-up actions](../../adr/0027-fsm-orchestration-for-integration-hub.md#follow-up-actions)). Definitions are stored alongside the adapter code (a definition file per adapter, version-pinned in the workflow row). The full M1/M2/M3-HIP/M3-HIU definitions are in [`02-fsm-specifications.md`](./02-fsm-specifications.md).
 
 ### 5.3 Transition execution
 
@@ -346,7 +346,7 @@ The facility ID is a *reference* to Configurator's facility registry (`facility_
 
 ### 6.3 `abdm_consent_artifacts` -- the boundary table
 
-This is where the boundary between Integration Hub and Record Foundation is most carefully drawn (per [ADR-0021](../../adr/0021-record-foundation-fifth-core-module.md)).
+This is where the boundary between Integration Hub and Record Foundation is most carefully drawn (per [ADR-0028](../../adr/0028-record-foundation-fifth-core-module.md)).
 
 | Concern | Owned by |
 |---|---|

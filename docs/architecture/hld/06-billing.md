@@ -8,7 +8,7 @@
 
 ## Overview
 
-Billing is the **horizontal supporting module** that owns patient-facing revenue cycle: capturing charges as services are rendered, generating invoices, accepting payments, tracking outstandings, and (in later phases) running insurance claims, refunds, payment plans, and doctor commission accruals. It is *not* a core platform module ([ADR-0006](../adr/0006-four-core-platform-modules.md), [ADR-0021](../adr/0021-record-foundation-fifth-core-module.md) — Record Foundation is the fifth core); it is a peer of feature modules, present in most adoptions but optional for tenants integrating an external billing system.
+Billing is the **horizontal supporting module** that owns patient-facing revenue cycle: capturing charges as services are rendered, generating invoices, accepting payments, tracking outstandings, and (in later phases) running insurance claims, refunds, payment plans, and doctor commission accruals. It is *not* a core platform module ([ADR-0006](../adr/0006-four-core-platform-modules.md), [ADR-0028](../adr/0028-record-foundation-fifth-core-module.md) — Record Foundation is the fifth core); it is a peer of feature modules, present in most adoptions but optional for tenants integrating an external billing system.
 
 The module is structured to ship in four additive phases. Phase 1 reaches feature parity with the production HIMS OPD counter-billing flow. Each subsequent phase extends the surface without breaking earlier deployments. The full per-table phasing and the embedded-then-extracted packaging strategy are recorded in [ADR-0025](../adr/0025-billing-module-shape-and-phasing.md).
 

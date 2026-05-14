@@ -1,8 +1,11 @@
 """Use-cases for module_permissions junction catalog."""
 
+from __future__ import annotations
+
+from typing import Any
 from uuid import UUID
 
-from app.models.module_permission import ModulePermissionModel
+from app.catalog.platform_table_models import module_permission_model
 from app.repositories.module_permission_repository import ModulePermissionRepository
 from app.repositories.module_repository import ModuleRepository
 from app.repositories.permission_repository import PermissionRepository
@@ -44,7 +47,7 @@ def list_module_permissions(
     permission_id: UUID | None = None,
     limit: int = 50,
     offset: int = 0,
-) -> tuple[list[ModulePermissionModel], int]:
+) -> tuple[list[Any], int]:
     return repository.list_module_permissions(
         module_id=module_id,
         permission_id=permission_id,
@@ -56,14 +59,14 @@ def list_module_permissions(
 def get_module_permission_by_id(
     repository: ModulePermissionRepository,
     row_id: UUID,
-) -> ModulePermissionModel | None:
+) -> Any | None:
     return repository.get_module_permission_by_id(row_id)
 
 
 def get_module_permission_by_slug(
     repository: ModulePermissionRepository,
     slug: str,
-) -> ModulePermissionModel | None:
+) -> Any | None:
     return repository.get_module_permission_by_slug(slug)
 
 
@@ -74,10 +77,11 @@ def create_module_permission(
     payload: ModulePermissionCreate,
     *,
     actor_id: UUID | None,
-) -> ModulePermissionModel:
+) -> Any:
     _require_active_module(module_repository, payload.module_id)
     _require_active_permission(permission_repository, payload.permission_id)
-    row = ModulePermissionModel(
+    M = module_permission_model(mp_repository.scope)
+    kwargs: dict[str, Any] = dict(
         slug=payload.slug,
         module_id=payload.module_id,
         permission_id=payload.permission_id,
@@ -86,6 +90,9 @@ def create_module_permission(
         created_by=actor_id,
         updated_by=actor_id,
     )
+    if mp_repository.scope.is_tenant:
+        kwargs["iq_tenant_id"] = mp_repository.scope.iq_tenant_id
+    row = M(**kwargs)
     return mp_repository.create_module_permission(row)
 
 
@@ -95,7 +102,7 @@ def update_module_permission(
     payload: ModulePermissionUpdate,
     *,
     actor_id: UUID | None,
-) -> ModulePermissionModel:
+) -> Any:
     row = mp_repository.get_module_permission_by_id(row_id, include_deleted=True)
     if row is None:
         raise ModulePermissionNotFoundError
@@ -119,7 +126,7 @@ def soft_delete_module_permission(
     row_id: UUID,
     *,
     actor_id: UUID | None,
-) -> ModulePermissionModel:
+) -> Any:
     row = mp_repository.get_module_permission_by_id(row_id, include_deleted=True)
     if row is None:
         raise ModulePermissionNotFoundError

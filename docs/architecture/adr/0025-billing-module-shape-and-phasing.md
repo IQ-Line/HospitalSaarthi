@@ -251,7 +251,7 @@ Phase 1 ingest is **synchronous HTTP** from clinical modules to the embedded bil
 
 - The lead's reference ERD: `hospital_billing_.erd.json` (23 tables, shared 2026-05-13). Table names and column intent preserved unless explicitly departed from above.
 - [ADR-0002 — Multi-tenant fragmentable adoption](./0002-multi-tenant-fragmentable-adoption.md)
-- [ADR-0006 — Four core platform modules](./0006-four-core-platform-modules.md) (billing is *not* fifth; Record Foundation is per [ADR-0021](./0021-record-foundation-fifth-core-module.md))
+- [ADR-0006 — Four core platform modules](./0006-four-core-platform-modules.md) (billing is *not* fifth; Record Foundation is per [ADR-0028](./0028-record-foundation-fifth-core-module.md))
 - [ADR-0008 — Module shape and boundaries](./0008-module-shape-and-boundaries.md)
 - [ADR-0009 — Event-driven inter-module communication](./0009-event-driven-inter-module-communication.md)
 - [ADR-0012 — Multi-tenancy isolation strategy](./0012-multi-tenancy-isolation-strategy.md)

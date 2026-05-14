@@ -147,7 +147,7 @@
       "d3fe9ee7-eb4d-43e4-8a6b-be486f81558a": {
         "id": "d3fe9ee7-eb4d-43e4-8a6b-be486f81558a",
         "name": "integration_workflows",
-        "comment": "Citus: DISTRIBUTED by iq_tenant_id. FSM instance per workflow run. One row per workflow execution (e.g., one ABDM M1 enrollment attempt, one M3 data-exchange session). The FSM engine reads/writes this table to advance state. Per ADR-0020.",
+        "comment": "Citus: DISTRIBUTED by iq_tenant_id. FSM instance per workflow run. One row per workflow execution (e.g., one ABDM M1 enrollment attempt, one M3 data-exchange session). The FSM engine reads/writes this table to advance state. Per ADR-0027.",
         "columnIds": [
           "525986ae-7430-4878-896b-575809cc565a",
           "75bcf223-9eed-46a4-962a-add8585b43a9",
@@ -194,7 +194,7 @@
       "7f1bf40a-4d6d-4925-b2cf-7bea1858c2f7": {
         "id": "7f1bf40a-4d6d-4925-b2cf-7bea1858c2f7",
         "name": "integration_workflow_transitions",
-        "comment": "Citus: DISTRIBUTED by iq_tenant_id. Append-only log of every FSM state transition. Provides regulatory audit (what state, when, triggered by what). Per ADR-0020. Never UPDATE.",
+        "comment": "Citus: DISTRIBUTED by iq_tenant_id. Append-only log of every FSM state transition. Provides regulatory audit (what state, when, triggered by what). Per ADR-0027. Never UPDATE.",
         "columnIds": [
           "eb66d1a8-bcc8-4233-96d8-2dc249942204",
           "b91a99b9-45b4-48ce-9d96-0a9394d74035",
@@ -233,7 +233,7 @@
       "e5b4d40e-1935-49eb-8b3b-4bf93be653a2": {
         "id": "e5b4d40e-1935-49eb-8b3b-4bf93be653a2",
         "name": "integration_workflow_timers",
-        "comment": "Citus: DISTRIBUTED by iq_tenant_id. Pending wall-clock timers. The timer worker polls due rows with SELECT ... FOR UPDATE SKIP LOCKED and fires the corresponding transition. Per ADR-0020.",
+        "comment": "Citus: DISTRIBUTED by iq_tenant_id. Pending wall-clock timers. The timer worker polls due rows with SELECT ... FOR UPDATE SKIP LOCKED and fires the corresponding transition. Per ADR-0027.",
         "columnIds": [
           "1e14a079-85f3-4005-9432-2bcacae75569",
           "2594bdb5-0ef0-42c2-9fdb-1401dd104ade",
@@ -2329,7 +2329,7 @@
     "memoEntities": {
       "41008d4a635f4627b01bf9f9cdba9c57": {
         "id": "41008d4a635f4627b01bf9f9cdba9c57",
-        "value": "PHASE 0 \u2014 Generic control plane + FSM engine substrate.\n\n7 tables. The substrate every adapter shares \u2014 integration registry,\ncredential references, durable workflow state, transitions log, timers,\ninbound + outbound message logs. No ABDM yet.\n\nPer ADR-0026 (FSM-lite): Phase 0 ships the four helper functions\n(loadWorkflow, transitionTo, scheduleTimer, clearTimer) on top of these\ntables. The generic FSM engine described in ADR-0020 is deferred to\nPhase 1.5; the schema is identical in both phases.\n\nPer ADR-0024: there is no integration_audit_log table. Audit substrate is\nworkflow_transitions + inbound/outbound messages + domain events + structured\nrequest logs, projected by the centralized audit consumer.\n\nSecrets: integration_credentials.vault_ref uses 'env:VAR_NAME' as the\nPhase 0/1 default; real vault schemes (azure-keyvault://, aws-sm://, vault://)\nare pre-prod gate.",
+        "value": "PHASE 0 \u2014 Generic control plane + FSM engine substrate.\n\n7 tables. The substrate every adapter shares \u2014 integration registry,\ncredential references, durable workflow state, transitions log, timers,\ninbound + outbound message logs. No ABDM yet.\n\nPer ADR-0026 (FSM-lite): Phase 0 ships the four helper functions\n(loadWorkflow, transitionTo, scheduleTimer, clearTimer) on top of these\ntables. The generic FSM engine described in ADR-0027 is deferred to\nPhase 1.5; the schema is identical in both phases.\n\nPer ADR-0024: there is no integration_audit_log table. Audit substrate is\nworkflow_transitions + inbound/outbound messages + domain events + structured\nrequest logs, projected by the centralized audit consumer.\n\nSecrets: integration_credentials.vault_ref uses 'env:VAR_NAME' as the\nPhase 0/1 default; real vault schemes (azure-keyvault://, aws-sm://, vault://)\nare pre-prod gate.",
         "ui": {
           "x": 40,
           "y": 40,

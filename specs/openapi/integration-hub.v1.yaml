@@ -11,7 +11,7 @@ info:
     supports env:, azure-keyvault://, aws-sm://, vault://, file:// schemes; env: is the Phase 0/1
     default with a pre-prod migration gate). Does NOT include a per-module audit table —
     audit substrate is workflow_transitions + inbound/outbound message logs + domain events,
-    projected by the future centralized audit consumer (ADR-0024). Per ADR-0020, ADR-0021, ADR-0024.
+    projected by the future centralized audit consumer (ADR-0024). Per ADR-0027, ADR-0028, ADR-0024.
 servers:
   - url: http://localhost:3005
 security:

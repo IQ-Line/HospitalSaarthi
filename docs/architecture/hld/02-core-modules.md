@@ -1,6 +1,6 @@
 # HLD 02 — Core Platform Modules
 
-**Status:** First draft for alignment meeting (revision 2 -- adds Record Foundation per ADR-0021)
+**Status:** First draft for alignment meeting (revision 2 -- adds Record Foundation per ADR-0028)
 **Last updated:** 2026-05-08
 **Related:** [01-system-overview.md](./01-system-overview.md) | [03-module-shape-template.md](./03-module-shape-template.md) | [04-authn-authz-flow.md](./04-authn-authz-flow.md) | [05-integration-and-interop.md](./05-integration-and-interop.md)
 
@@ -8,7 +8,7 @@
 
 ## Overview
 
-The platform has **five core modules** that are always deployed (extended from four per [ADR-0021](../adr/0021-record-foundation-fifth-core-module.md), which adds Record Foundation as the substrate for ABDM care contexts and immutable FHIR Document Bundles). Feature modules (the ~38 from the AIIMS EOI scope) depend on these five for identity, patient identity, configuration, reference data, and clinical-record substrate. This document covers each core module in depth: what it does, what it owns, what it exposes, what it depends on, and what happens when it fails.
+The platform has **five core modules** that are always deployed (extended from four per [ADR-0028](../adr/0028-record-foundation-fifth-core-module.md), which adds Record Foundation as the substrate for ABDM care contexts and immutable FHIR Document Bundles). Feature modules (the ~38 from the AIIMS EOI scope) depend on these five for identity, patient identity, configuration, reference data, and clinical-record substrate. This document covers each core module in depth: what it does, what it owns, what it exposes, what it depends on, and what happens when it fails.
 
 The five core modules map to the [layer model](./01-system-overview.md#4-layer-model):
 
@@ -18,7 +18,7 @@ The five core modules map to the [layer model](./01-system-overview.md#4-layer-m
 | Identity Plane | EMPI / Patient Identity |
 | Control Plane | Configurator |
 | Reference Plane | Master & Tenant Data |
-| Operational Substrate | **Record Foundation** (per [ADR-0021](../adr/0021-record-foundation-fifth-core-module.md)) |
+| Operational Substrate | **Record Foundation** (per [ADR-0028](../adr/0028-record-foundation-fifth-core-module.md)) |
 
 Each core module follows the same [module shape template](./03-module-shape-template.md) as feature modules: independently deployable pod, Cerbos PDP (Policy Decision Point) sidecar, identity adapter, own database/schema, event publication. The difference is that core modules are always-on dependencies — they cannot be "not adopted."
 
@@ -268,6 +268,10 @@ The Configurator is not on the hot path of clinical workflows. No patient-facing
 
 **Recovery:** When the Configurator comes back, modules that detect stale cache entries (via ETag comparison on next poll) refresh their configuration. No manual intervention required. Any configuration changes that were made during the outage (queued in the admin UI, or applied directly to the Configurator's database) take effect as modules refresh.
 
+### 3.6 Audit
+
+The Configurator does not maintain a per-module audit table. Audit logging across the platform is deferred to pre-prod and addressed at a cross-cutting layer (HTTP middleware capturing actor + action + before/after, with CDC as a safety net) rather than per module. See [ADR-0024](../adr/0024-audit-deferred-to-pre-prod.md) for the decision, the substrate Phase 0 must preserve (rich event payloads, actor capture in request context, soft delete), and the pre-prod gate. The same posture applies to Master Data, User Management, and EMPI — none ship per-module audit tables in Phase 0.
+
 ---
 
 ## 4. Master & Tenant Data
@@ -369,7 +373,7 @@ If Master & Tenant Data is completely unavailable:
 
 ## 5. Record Foundation
 
-> Added by [ADR-0021](../adr/0021-record-foundation-fifth-core-module.md). This is the fifth core platform module. Its role is to be the substrate for cross-module clinical-record concerns: care contexts, immutable FHIR Document Bundles, external HIU bundles, the timeline read-model, and consent-driven erasure. Detailed schema and APIs in the [Record Foundation LLD](../lld/record-foundation/01-schema-design.md).
+> Added by [ADR-0028](../adr/0028-record-foundation-fifth-core-module.md). This is the fifth core platform module. Its role is to be the substrate for cross-module clinical-record concerns: care contexts, immutable FHIR Document Bundles, external HIU bundles, the timeline read-model, and consent-driven erasure. Detailed schema and APIs in the [Record Foundation LLD](../lld/record-foundation/01-schema-design.md).
 
 ### 5.1 Purpose
 

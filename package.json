@@ -7,14 +7,18 @@
     "node": ">=24.0.0"
   },
   "scripts": {
-    "dev": "nx run-many -t serve",
+    "dev": "nx run-many -t serve --parallel=10",
+    "dev:web-stack": "nx run-many -t serve -p web,bff,master-data --parallel=5",
     "lint": "nx affected -t lint",
     "test": "nx affected -t test",
     "build": "nx run-many -t build",
     "ci:pr": "nx affected -t lint typecheck test"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["nx", "esbuild"]
+    "onlyBuiltDependencies": [
+      "nx",
+      "esbuild"
+    ]
   },
   "devDependencies": {
     "@nx/eslint": "^22.7.1",

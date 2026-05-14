@@ -3,12 +3,12 @@
 - **Status:** Proposed
 - **Date:** 2026-05-13
 - **Deciders:** [Architect], [Engineering Manager], [Co-Tech-Lead]
-- **Supersedes (partially):** none — refines the **implementation timing** of [ADR-0020](./0020-fsm-orchestration-for-integration-hub.md), which remains the target architecture.
+- **Supersedes (partially):** none — refines the **implementation timing** of [ADR-0027](./0027-fsm-orchestration-for-integration-hub.md), which remains the target architecture.
 - **Related:** [ADR-0011](./0011-integration-hub-split.md) (Integration Hub split) | [ADR-0017](./0017-in-process-event-bus-phase-0.md) (Phase 0 bus) | [ADR-0024](./0024-audit-deferred-to-pre-prod.md) (audit deferred) | [dev-env-simplifications](../dev-env-simplifications.md)
 
 ## Context and problem statement
 
-[ADR-0020](./0020-fsm-orchestration-for-integration-hub.md) commits the Integration Hub to a **custom FSM engine** for orchestrating multi-step external integrations (M1 Aadhaar OTP enrollment, scan-and-share, M2 care-context linking, M3 HIP, M3 HIU, consent lifecycle). The engine interprets FSM **definitions** stored as JSON, evaluates transition guards using JSON-Logic, executes a bounded catalog of declarative side-effects, and runs a separate timer-worker process with `SELECT … FOR UPDATE SKIP LOCKED` polling and pg_advisory_lock leader election.
+[ADR-0027](./0027-fsm-orchestration-for-integration-hub.md) commits the Integration Hub to a **custom FSM engine** for orchestrating multi-step external integrations (M1 Aadhaar OTP enrollment, scan-and-share, M2 care-context linking, M3 HIP, M3 HIU, consent lifecycle). The engine interprets FSM **definitions** stored as JSON, evaluates transition guards using JSON-Logic, executes a bounded catalog of declarative side-effects, and runs a separate timer-worker process with `SELECT … FOR UPDATE SKIP LOCKED` polling and pg_advisory_lock leader election.
 
 That design is sound for the long term. It is *also* a meaningful piece of substrate for a developer to internalise before they can ship a single ABDM M1 flow. With the team's POC timeline (existing-production functional parity in a small number of sprints) and the team's relative unfamiliarity with both ABDM and the platform's architecture, building the generic engine *first* is a velocity risk:
 
@@ -17,7 +17,7 @@ That design is sound for the long term. It is *also* a meaningful piece of subst
 - Debugging takes two passes: "is the engine wrong, or is my definition wrong?".
 - The shape of the engine should *emerge* from concrete flows, not be invented upfront. The team currently has *zero* concrete flows in TypeScript to abstract from.
 
-The opposite extreme — abandoning durable workflow state machines entirely and using ad-hoc status fields like the production HIMS does — is rejected at the start by [ADR-0020](./0020-fsm-orchestration-for-integration-hub.md). The cost of that path is well-documented in `abdi-lims-backed`.
+The opposite extreme — abandoning durable workflow state machines entirely and using ad-hoc status fields like the production HIMS does — is rejected at the start by [ADR-0027](./0027-fsm-orchestration-for-integration-hub.md). The cost of that path is well-documented in `abdi-lims-backed`.
 
 A middle option exists: **keep the FSM schema tables, defer the generic engine, write Phase 1's six ABDM flows as plain TypeScript code** using small helpers that read and write those tables. The schema tables (`integration_workflows`, `integration_workflow_transitions`, `integration_workflow_timers`) earn their keep regardless of whether the engine is generic or hand-coded — they are where durable state lives, where audit-by-construction comes from, and where the timer worker polls.
 
@@ -36,7 +36,7 @@ A middle option exists: **keep the FSM schema tables, defer the generic engine, 
 
 ### Option A — Build the generic engine first, then write flows
 
-Per the original [ADR-0020](./0020-fsm-orchestration-for-integration-hub.md) and [dev-guide Phase 0b](../lld/integration-platform/dev-guide.md). The engine is generic-and-declarative from day one; flows are JSON files; the engine interprets them.
+Per the original [ADR-0027](./0027-fsm-orchestration-for-integration-hub.md) and [dev-guide Phase 0b](../lld/integration-platform/dev-guide.md). The engine is generic-and-declarative from day one; flows are JSON files; the engine interprets them.
 
 Rejected for Phase 1 only. The engine is the *target*; the *path* to it via concrete flows is faster.
 
@@ -44,7 +44,7 @@ Rejected for Phase 1 only. The engine is the *target*; the *path* to it via conc
 
 The production HIMS path. A `status` column on each protocol-specific table (`abdm_share_tokens.status`, `abdm_consent_artifacts.status`, etc.) with side-effects scattered across handler code.
 
-Rejected at the start of analysis (see [ADR-0020 §considered options](./0020-fsm-orchestration-for-integration-hub.md#considered-options)). No durable retry, no timer enforcement, no audit-by-construction, no replay.
+Rejected at the start of analysis (see [ADR-0027 §considered options](./0027-fsm-orchestration-for-integration-hub.md#considered-options)). No durable retry, no timer enforcement, no audit-by-construction, no replay.
 
 ### Option C — FSM-lite: keep the schema tables, defer the generic engine
 
@@ -68,7 +68,7 @@ Chosen option: **C — FSM-lite for Phase 1, generic engine deferred to Phase 1.
 
 ### What changes in Phase 1
 
-| Piece | ADR-0020 design | FSM-lite Phase 1 |
+| Piece | ADR-0027 design | FSM-lite Phase 1 |
 |---|---|---|
 | State transitions | JSON definitions + JSON-Logic guards, interpreted by engine | TypeScript `switch (workflow.state)` + plain `if/else` guards |
 | Side-effects | Declarative `side_effects[].kind` list; engine dispatches | Imperative TS calls in the per-flow handler |
@@ -82,11 +82,11 @@ Chosen option: **C — FSM-lite for Phase 1, generic engine deferred to Phase 1.
 
 ### What stays the same
 
-- **[ADR-0020](./0020-fsm-orchestration-for-integration-hub.md) is still the target.** Phase 1.5 builds the generic engine on top of the FSM schema; existing Phase 1 flows are refactored into the engine then. The engine that emerges has 6 concrete flows worth of evidence behind it.
+- **[ADR-0027](./0027-fsm-orchestration-for-integration-hub.md) is still the target.** Phase 1.5 builds the generic engine on top of the FSM schema; existing Phase 1 flows are refactored into the engine then. The engine that emerges has 6 concrete flows worth of evidence behind it.
 - **[02-fsm-specifications.md](../lld/integration-platform/02-fsm-specifications.md) remains authoritative as state-machine documentation.** The Mermaid state diagrams and JSON definition examples describe what each flow does, regardless of how it is implemented. Phase 1 implements those state machines in TypeScript; Phase 1.5 makes the JSON the runtime source.
 - **The audit-by-construction property is preserved.** Every transition writes both an UPDATE on `integration_workflows` and an INSERT on `integration_workflow_transitions`, atomically. The centralized audit consumer projects from those rows regardless of which implementation wrote them.
 - **The FSM schema tables are unchanged.** No migration is required to advance to Phase 1.5.
-- **All four engine guarantees from ADR-0020 are preserved** — but enforced by per-flow code review in Phase 1 instead of engine code:
+- **All four engine guarantees from ADR-0027 are preserved** — but enforced by per-flow code review in Phase 1 instead of engine code:
   - Atomic transition (single DB transaction).
   - Durable timers (rows in `integration_workflow_timers`).
   - Append-only audit (INSERT-only on `integration_workflow_transitions`).
@@ -193,11 +193,11 @@ No leader election in Phase 1: one instance runs the worker. Locking is via `FOR
 
 ### What this does not change
 
-- [ADR-0020](./0020-fsm-orchestration-for-integration-hub.md) is **still the target architecture**. It is the spec the Phase 1.5 engine is built against.
+- [ADR-0027](./0027-fsm-orchestration-for-integration-hub.md) is **still the target architecture**. It is the spec the Phase 1.5 engine is built against.
 - The FSM schema tables (`integration_workflows`, `integration_workflow_transitions`, `integration_workflow_timers`) are **unchanged**. No data migration on advancing to Phase 1.5.
 - The state-machine specifications in [02-fsm-specifications.md](../lld/integration-platform/02-fsm-specifications.md) are **unchanged in content**. The Phase 1 TypeScript implements those state machines verbatim.
 - The audit substrate is **unchanged**. ADR-0024's four-stream model applies identically.
-- The five ABDM flows + consent supervisor that ADR-0020 enumerates are **all still built in Phase 1** — they're just built as TS, not as JSON definitions.
+- The five ABDM flows + consent supervisor that ADR-0027 enumerates are **all still built in Phase 1** — they're just built as TS, not as JSON definitions.
 
 ## Validation criteria
 
@@ -208,7 +208,7 @@ No leader election in Phase 1: one instance runs the worker. Locking is via `FOR
 
 ## References
 
-- [ADR-0020 — FSM orchestration for Integration Hub](./0020-fsm-orchestration-for-integration-hub.md) (the target architecture; this ADR is the implementation-timing deferral, not a rejection)
+- [ADR-0027 — FSM orchestration for Integration Hub](./0027-fsm-orchestration-for-integration-hub.md) (the target architecture; this ADR is the implementation-timing deferral, not a rejection)
 - [ADR-0024 — Audit deferred to pre-prod](./0024-audit-deferred-to-pre-prod.md)
 - [Integration Platform LLD §5 FSM engine](../lld/integration-platform/01-schema-design.md#5-fsm-engine-sections-51-54)
 - [FSM specifications](../lld/integration-platform/02-fsm-specifications.md)

@@ -1,7 +1,7 @@
 {
   "$schema": "erd/v1",
   "schema": "record_foundation",
-  "description": "Record Foundation -- the fifth core platform module per ADR-0021. Owns: care-context registry, immutable internal FHIR Document Bundle vault, external HIU bundle inbox, timeline read-model, scheduled erasure of consent-expired records. Does NOT own clinical source data (operational modules own that), patient identity (EMPI), or ABDM transport / consent artifacts (Integration Hub).",
+  "description": "Record Foundation -- the fifth core platform module per ADR-0028. Owns: care-context registry, immutable internal FHIR Document Bundle vault, external HIU bundle inbox, timeline read-model, scheduled erasure of consent-expired records. Does NOT own clinical source data (operational modules own that), patient identity (EMPI), or ABDM transport / consent artifacts (Integration Hub).",
   "citus": {
     "distribution_column": "iq_tenant_id",
     "reference_tables": [],

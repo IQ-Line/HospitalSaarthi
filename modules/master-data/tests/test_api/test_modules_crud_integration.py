@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Generator, Iterator
 from uuid import UUID, uuid4
 
 import pytest
@@ -11,7 +11,8 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.api.deps import get_module_repository
+from app.api.deps import get_module_repository, get_session
+from app.core.catalog_scope import CatalogScope
 from app.main import create_app
 from app.models import Base
 from app.repositories.module_repository import ModuleRepository
@@ -27,8 +28,9 @@ def module_sqlite_session() -> Iterator[Session]:
     )
 
     @event.listens_for(engine, "connect")
-    def _sqlite_fk(_dbapi_connection, _connection_record) -> None:
-        _dbapi_connection.execute("PRAGMA foreign_keys=ON")
+    def _sqlite_fk(dbapi_connection, _connection_record) -> None:
+        dbapi_connection.execute("PRAGMA foreign_keys=ON")
+        dbapi_connection.execute("ATTACH DATABASE ':memory:' AS tenant_master")
 
     Base.metadata.create_all(engine)
     factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
@@ -45,9 +47,13 @@ def module_sqlite_session() -> Iterator[Session]:
 def module_client(module_sqlite_session: Session) -> Iterator[TestClient]:
     app = create_app()
 
-    def _repo() -> ModuleRepository:
-        return ModuleRepository(module_sqlite_session)
+    def _session() -> Generator[Session, None, None]:
+        yield module_sqlite_session
 
+    def _repo() -> ModuleRepository:
+        return ModuleRepository(module_sqlite_session, CatalogScope(iq_tenant_id=None))
+
+    app.dependency_overrides[get_session] = _session
     app.dependency_overrides[get_module_repository] = _repo
     with TestClient(app) as client:
         yield client

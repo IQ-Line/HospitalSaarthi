@@ -16,8 +16,8 @@ Lives in `modules/integration-hub/`, deployed in `services/integration-hub-svc/`
 
 1. **[HLD 05 — Integration and interop](../../hld/05-integration-and-interop.md)** — start here for the big picture and the cross-module ownership table.
 2. **[ADR-0011](../../adr/0011-integration-hub-split.md)** — why Integration Hub is platform infrastructure, not a feature module.
-3. **[ADR-0020](../../adr/0020-fsm-orchestration-for-integration-hub.md)** — why we built a custom FSM engine (rejected Temporal/Inngest/Camunda).
-4. **[ADR-0026 — FSM-lite Phase 1 deferral](../../adr/0026-fsm-lite-phase-1.md)** — the Phase 1 implementation simplification. **Read this immediately after ADR-0020** — without it, you'll over-engineer.
+3. **[ADR-0027](../../adr/0027-fsm-orchestration-for-integration-hub.md)** — why we built a custom FSM engine (rejected Temporal/Inngest/Camunda).
+4. **[ADR-0026 — FSM-lite Phase 1 deferral](../../adr/0026-fsm-lite-phase-1.md)** — the Phase 1 implementation simplification. **Read this immediately after ADR-0027** — without it, you'll over-engineer.
 5. **[01-schema-design.md](./01-schema-design.md)** — 13 tables: 7 generic (control plane + FSM engine), 6 ABDM-specific.
 6. **[02-fsm-specifications.md](./02-fsm-specifications.md)** — the M1/M2/M3 state machines as Mermaid + reference JSON. **These are still authoritative as state-machine documentation** even though Phase 1 implements them as plain TypeScript (per ADR-0026).
 7. **[03-scenarios.md](./03-scenarios.md)** — 7 sequence diagrams of end-to-end ABDM flows.

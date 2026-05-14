@@ -10,6 +10,7 @@ class ModulePermissionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    iq_tenant_id: UUID | None = None
     slug: str
     module_id: UUID
     permission_id: UUID

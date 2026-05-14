@@ -12,6 +12,11 @@ from app.repositories.module_permission_repository import DuplicateModulePermiss
 from app.repositories.module_repository import DuplicateModuleKeyError
 from app.repositories.permission_repository import DuplicatePermissionKeyError
 from app.repositories.system_role_repository import DuplicateSystemRoleKeyError
+from app.repositories.visitpad.integrity import DuplicateVisitpadCatalogKeyError
+from app.repositories.visitpad.conversion import (
+    DuplicateVisitpadUnitConversionKeyError,
+)
+from app.repositories.visitpad.unit import DuplicateVisitpadUnitKeyError
 from app.services.module_permission_service import (
     InvalidModulePermissionReferenceError,
     ModulePermissionNotFoundError,
@@ -24,6 +29,11 @@ from app.services.module_service import (
 )
 from app.services.permission_service import PermissionNotFoundError
 from app.services.system_role_service import SystemRoleNotFoundError
+from app.services.visitpad.units import (
+    InvalidVisitpadUnitConversionError,
+    VisitpadUnitBlockedByActiveConversionsError,
+)
+from app.services.visitpad.vitals import InvalidVitalRangeError
 
 
 class ResourceNotFoundError(Exception):
@@ -176,6 +186,69 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=404,
             content=error_payload("NOT_FOUND", exc.message),
+        )
+
+    @app.exception_handler(DuplicateVisitpadUnitKeyError)
+    async def _duplicate_visitpad_unit(
+        _request: Request,
+        _exc: DuplicateVisitpadUnitKeyError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content=error_payload(
+                "CONFLICT",
+                "Another active unit already uses this code for this tenant.",
+            ),
+        )
+
+    @app.exception_handler(DuplicateVisitpadUnitConversionKeyError)
+    async def _duplicate_visitpad_conversion(
+        _request: Request,
+        _exc: DuplicateVisitpadUnitConversionKeyError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content=error_payload(
+                "CONFLICT",
+                "Another active conversion already exists for this from/to pair.",
+            ),
+        )
+
+    @app.exception_handler(InvalidVisitpadUnitConversionError)
+    async def _invalid_visitpad_conversion(
+        _request: Request,
+        exc: InvalidVisitpadUnitConversionError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=400,
+            content=error_payload("BAD_REQUEST", exc.message),
+        )
+
+    @app.exception_handler(VisitpadUnitBlockedByActiveConversionsError)
+    async def _visitpad_unit_blocked_by_conversions(
+        _request: Request,
+        exc: VisitpadUnitBlockedByActiveConversionsError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content=error_payload("CONFLICT", exc.message),
+        )
+
+    @app.exception_handler(DuplicateVisitpadCatalogKeyError)
+    async def _duplicate_visitpad_catalog(
+        _request: Request,
+        exc: DuplicateVisitpadCatalogKeyError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content=error_payload("CONFLICT", exc.message),
+        )
+
+    @app.exception_handler(InvalidVitalRangeError)
+    async def _invalid_vital_range(_request: Request, exc: InvalidVitalRangeError) -> JSONResponse:
+        return JSONResponse(
+            status_code=400,
+            content=error_payload("BAD_REQUEST", exc.message),
         )
 
     @app.exception_handler(IntegrityError)

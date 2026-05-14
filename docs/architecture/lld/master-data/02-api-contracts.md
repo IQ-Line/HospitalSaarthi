@@ -1,7 +1,7 @@
 # Master Data — HTTP API contracts (v1)
 
 **Module:** Master Data  
-**Companion docs:** [Schema design](./01-schema-design.md) | [ERD](./master-data.erd.json) | [Schema reference](./schema-reference.json)
+**Companion docs:** [Schema design](./01-schema-design.md) | [ERD](./master-data.erd.json) | [Schema reference](./schema-reference.json) | [Visitpad Master](./03-visitpad-master.md) | [Visitpad packages](./04-visitpad-package-layout.md)
 
 **Normative machine-readable OpenAPI:** [`specs/openapi/master-data.v1.yaml`](../../../../specs/openapi/master-data.v1.yaml) (repository root). Handlers MUST match this file before merge; extend the YAML when promoting rows from the **Planned** table below.
 
@@ -26,6 +26,7 @@ Initial environments may still **seed** baseline rows via Alembic migrations (se
 | **Timestamps** | RFC 3339 / ISO-8601 in UTC (e.g. `2026-05-04T12:00:00Z`). |
 | **IDs** | UUIDs as lowercase string with hyphens in JSON. |
 | **Authentication** | Module routes use **`security: []`** in OpenAPI (Phase 0). A gateway may add auth; optional service-layer JWT is documented in **`modules/master-data`** (`require_superadmin`, `auth_policy.py`). |
+| **Catalog tenant scope** | Optional **`iq_tenant_id`** request header (canonical UUID string, same type as platform `ts-sdk-db` / tenant registry) routes catalog CRUD to **`tenant_master`**; omit for global **`public`** rows. JSON responses use the same name: **`iq_tenant_id`** (UUID string when tenant-scoped, otherwise `null`). See [dual-schema catalog](./01-catalog-dual-schema.md). |
 | **Authorization** | Cerbos PDP is authoritative; API returns **403** when the principal is authenticated but not allowed (see [module shape template](../../hld/03-module-shape-template.md)). |
 | **List success envelope** | `{ "data": [ ... ], "total": <int> }`. For paginated endpoints, `total` is the full count after filters (before `limit`/`offset`); for unpaginated endpoints, it equals `len(data)`. |
 | **Item success** | When a single-resource GET is added, prefer `{ "data": { ... } }` for consistency with list wrapping. |
@@ -98,6 +99,37 @@ Typical status mapping:
 | `GET` | `/api/v1/master-data/module-permissions/{modulePermissionId}` | `getModulePermissionById` | **404** if missing or soft-deleted. |
 | `PATCH` | `/api/v1/master-data/module-permissions/{modulePermissionId}` | `updateModulePermission` | Partial update (`slug` / flags only). To change `module_id` or `permission_id`, delete + create a new link. |
 | `DELETE` | `/api/v1/master-data/module-permissions/{modulePermissionId}` | `deleteModulePermission` | Soft-delete link; **200** returns updated row. |
+| `GET` | `/api/v1/master-data/visitpad/units` | `listVisitpadUnits` | List Visitpad units (`is_deleted = false`); **`limit`/`offset`**, optional **`search`**, **`dimension`**. |
+| `POST` | `/api/v1/master-data/visitpad/units` | `createVisitpadUnit` | Create unit; **201** + `VisitpadUnitSingleResponse`; **409** on duplicate active `code`. |
+| `GET` | `/api/v1/master-data/visitpad/units/{unitId}` | `getVisitpadUnitById` | **404** if missing or soft-deleted. |
+| `PATCH` | `/api/v1/master-data/visitpad/units/{unitId}` | `updateVisitpadUnit` | Partial update (`VisitpadUnitUpdate`). |
+| `DELETE` | `/api/v1/master-data/visitpad/units/{unitId}` | `deleteVisitpadUnit` | Soft-delete unit; **200** returns updated row. |
+| `GET` | `/api/v1/master-data/visitpad/unit-conversions` | `listVisitpadUnitConversions` | List conversions; filters **`from_unit_code`**, **`search`**. |
+| `POST` | `/api/v1/master-data/visitpad/unit-conversions` | `createVisitpadUnitConversion` | **400** if from/to invalid or unknown unit; **409** on duplicate active pair. |
+| `GET` | `/api/v1/master-data/visitpad/unit-conversions/{conversionId}` | `getVisitpadUnitConversionById` | **404** if missing or soft-deleted. |
+| `PATCH` | `/api/v1/master-data/visitpad/unit-conversions/{conversionId}` | `updateVisitpadUnitConversion` | Partial update. |
+| `DELETE` | `/api/v1/master-data/visitpad/unit-conversions/{conversionId}` | `deleteVisitpadUnitConversion` | Soft-delete conversion; **200** returns updated row. |
+| `GET` | `/api/v1/master-data/visitpad/rx-columns` | *(OpenAPI `operationId`)* | List Rx columns; query **`section`**, **`search`**, pagination. |
+| `POST` | `/api/v1/master-data/visitpad/rx-columns` | | **201**; **409** duplicate `(section, code)` among active rows. |
+| `GET/PATCH/DELETE` | `/api/v1/master-data/visitpad/rx-columns/{rxColumnId}` | | CRUD + soft-delete. |
+| `GET` | `/api/v1/master-data/visitpad/allergens` | | List allergens; filters **`allergen_type`**, **`search`**. |
+| `POST` | `/api/v1/master-data/visitpad/allergens` | | **201**; **409** duplicate active **`code`**. |
+| `GET/PATCH/DELETE` | `/api/v1/master-data/visitpad/allergens/{allergenId}` | | CRUD + soft-delete. |
+| `GET` | `/api/v1/master-data/visitpad/allergy-reactions` | | List reactions; **`search`**. |
+| `POST` | `/api/v1/master-data/visitpad/allergy-reactions` | | **201**; **409** duplicate active **`code`**. |
+| `GET/PATCH/DELETE` | `/api/v1/master-data/visitpad/allergy-reactions/{reactionId}` | | CRUD + soft-delete. |
+| `GET` | `/api/v1/master-data/visitpad/chief-complaints` | | List; filters **`body_system`**, **`triage_priority`**, **`search`**. |
+| `POST` … `DELETE` | `/api/v1/master-data/visitpad/chief-complaints/{id}` | | Full CRUD; **409** on duplicate **`code`**. |
+| `GET` | `/api/v1/master-data/visitpad/diagnoses` | | List; filter **`category`**, **`search`**. |
+| `POST` … `DELETE` | `/api/v1/master-data/visitpad/diagnoses/{id}` | | **409** on duplicate **`(icd10_code, icd_version)`**. |
+| `GET` | `/api/v1/master-data/visitpad/chronic-illnesses` | | List; filter **`category`**, **`search`**. |
+| `POST` … `DELETE` | `/api/v1/master-data/visitpad/chronic-illnesses/{id}` | | **409** on duplicate **`icd10_code`**. |
+| `GET` | `/api/v1/master-data/visitpad/vitals` | | List; filter **`category`**, **`search`**. |
+| `POST` … `DELETE` | `/api/v1/master-data/visitpad/vitals/{id}` | | **400** if merged **`critical_low`** \> **`critical_high`**. |
+| `GET` | `/api/v1/master-data/visitpad/medicines` | | List; filter **`schedule`**, **`search`**. |
+| `POST` … `DELETE` | `/api/v1/master-data/visitpad/medicines/{id}` | | **409** on duplicate **`code`**. |
+| `GET` | `/api/v1/master-data/visitpad/procedures` | | List; filters **`category`**, **`billing_category`**, **`search`**. |
+| `POST` … `DELETE` | `/api/v1/master-data/visitpad/procedures/{id}` | | **409** on duplicate **`cpt_code`**. |
 
 Single-resource success envelope: **`ModuleSingleResponse`** — `{ "data": Module }` (see OpenAPI `ModuleSingleResponse`).
 
@@ -152,6 +184,14 @@ These align with the MVP tables in [`schema-reference.json`](./schema-reference.
 | `GET` | `/api/v1/master-data/picklists/{picklistId}/values` | List values for a picklist | `{ "data": PicklistValue[], "total": int }` |
 | `GET` | `/api/v1/master-data/module-config-schemas` | List declared config schemas | `{ "data": ModuleConfigSchema[], "total": int }` (optional `module_id`, `schema_version`) |
 | `GET` | `/api/v1/master-data/feature-flags` | List feature flag definitions | `{ "data": FeatureFlag[], "total": int }` |
+
+### 3.3 Visitpad Master (backend catalog — done; web next)
+
+Canonical design: [03-visitpad-master.md](./03-visitpad-master.md). **All Visitpad catalog HTTP resources** listed in **§3.1** are implemented in **`modules/master-data`**, with persistence in **`public`** (global) and **`tenant_master`** (per-tenant) per request header `iq_tenant_id` — see [01-catalog-dual-schema.md](./01-catalog-dual-schema.md) and Alembic from **`009_visitpad_units`** / **`010_visitpad_catalog`** through **`011`** and later tenant-master revisions (**`022`** for UUID `iq_tenant_id`). Remaining product work: **`services/web/src/features/visitpad`** (shell, tabs, tables, Cerbos policies when ready) per [implementation plan](../../../../docs/plans/visitpad-master-implementation-plan.md) §12.
+
+**Events:** Visitpad catalog mutations **do not publish** domain events today. That is **intentional for Phase 0** — catalog rows are read through Master Data APIs and projected by consumers on demand; if a module needs invalidation or downstream projection later, add an explicit event contract in the same PR as consumers (see module event rules in the monorepo README).
+
+**Pagination:** list endpoints support `limit` / `offset`; the web client currently uses a fixed page size — surface full pagination in UI when catalog size warrants it (see `TODO(visitpad-pagination)` in `services/web/src/features/visitpad/api/catalog.ts`).
 
 **Illustrative JSON types (for §3.2 planning)** — normalize field names to camelCase or snake_case in OpenAPI consistently with existing `Module`; today the Python slice uses snake_case in JSON matching Pydantic.
 
@@ -283,4 +323,5 @@ The implemented **`Module`** / **`ModuleCreate`** / **`ModuleUpdate`**, **`Permi
 | Change | Action |
 |--------|--------|
 | New route or field | Update `master-data.v1.yaml` first; then implement handler; keep this doc’s §3 tables in sync. |
-| Planned → implemented | Move the row from §3.2 to §3.1 with the canonical response name. |
+| Planned → implemented | Move the row from §3.2 (or §3.3) to §3.1 with the canonical response name. |
+| Visitpad | Follow [03-visitpad-master.md](./03-visitpad-master.md); add §3.3 rows to §3.1 when shipped. |

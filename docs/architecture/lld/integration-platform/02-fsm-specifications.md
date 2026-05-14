@@ -1,7 +1,7 @@
 # Integration Platform -- FSM Specifications
 
 **Module:** Integration Hub
-**Related:** [`01-schema-design.md`](./01-schema-design.md), [ADR-0020](../../adr/0020-fsm-orchestration-for-integration-hub.md), [ADR-0026](../../adr/0026-fsm-lite-phase-1.md), [`03-scenarios.md`](./03-scenarios.md)
+**Related:** [`01-schema-design.md`](./01-schema-design.md), [ADR-0027](../../adr/0027-fsm-orchestration-for-integration-hub.md), [ADR-0026](../../adr/0026-fsm-lite-phase-1.md), [`03-scenarios.md`](./03-scenarios.md)
 **Source ABDM specs (extracted to repo):**
 - [Milestone 1 -- ABHA APIs](../../../docs/external/abdm/v3-m1-abha-v3-apis-creation-verification.md)
 - [Milestone 2 -- Health Records / HIP linking](../../../docs/external/abdm/v3-m2-health-records-hip-link-discovery-consent-transfer.md)
@@ -11,7 +11,7 @@
 > **Authority and Phase 1 implementation.** This document is the **authoritative specification** for what each ABDM flow does — the states, transitions, guards, side-effects, and timer semantics. It applies to both phases:
 >
 > - **Phase 1 (FSM-lite, per [ADR-0026](../../adr/0026-fsm-lite-phase-1.md)):** each flow is implemented as **plain TypeScript** (`modules/integration-hub/src/abdm/<flow>.ts`) that uses the small `@hims/ts-sdk-workflow` helpers (`loadWorkflow`, `transitionTo`, `scheduleTimer`, `clearTimer`) to read and write the FSM schema tables. The state-machine diagrams below are the contract the TypeScript implements verbatim.
-> - **Phase 1.5+ (generic engine, per [ADR-0020](../../adr/0020-fsm-orchestration-for-integration-hub.md)):** the JSON definition format described in §1 below becomes the *runtime* source; an engine interprets these definitions and dispatches side-effects.
+> - **Phase 1.5+ (generic engine, per [ADR-0027](../../adr/0027-fsm-orchestration-for-integration-hub.md)):** the JSON definition format described in §1 below becomes the *runtime* source; an engine interprets these definitions and dispatches side-effects.
 >
 > The JSON definitions documented in §1-9 are valid as documentation today and become executable when the engine ships. Either way, the Mermaid state diagrams are the canonical answer to "what does flow X do." See [orientation.md](./orientation.md) for what this means at the developer's keyboard.
 
@@ -331,7 +331,7 @@ This is the "Process Manager" pattern from Hohpe & Woolf ([Enterprise Integratio
 
 ## 9. Engine guarantees the FSMs depend on
 
-The engine implementation contract ([ADR-0020](../../adr/0020-fsm-orchestration-for-integration-hub.md)) must provide:
+The engine implementation contract ([ADR-0027](../../adr/0027-fsm-orchestration-for-integration-hub.md)) must provide:
 
 | Guarantee | Why these FSMs need it |
 |---|---|

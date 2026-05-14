@@ -2,7 +2,7 @@
 
 > Mirror of the GitHub issue body. Posted as a separate issue to track the implementation.
 
-Record Foundation is the fifth core platform module per [ADR-0021](../../adr/0021-record-foundation-fifth-core-module.md). It owns the cross-module clinical-record substrate: care contexts, immutable FHIR Document Bundles, the external HIU bundle inbox, the timeline read-model, and consent-driven erasure.
+Record Foundation is the fifth core platform module per [ADR-0028](../../adr/0028-record-foundation-fifth-core-module.md). It owns the cross-module clinical-record substrate: care contexts, immutable FHIR Document Bundles, the external HIU bundle inbox, the timeline read-model, and consent-driven erasure.
 
 ### What's already designed
 
@@ -11,7 +11,7 @@ Record Foundation is the fifth core platform module per [ADR-0021](../../adr/002
 - **Scenarios:** [02-scenarios.md](./02-scenarios.md) (8 sequence-driven walkthroughs).
 - **OpenAPI spec:** [`specs/openapi/record-foundation.v1.yaml`](../../../../specs/openapi/record-foundation.v1.yaml) (14 paths).
 - **ERD:** [`record-foundation.erd.json`](./record-foundation.erd.json).
-- **ADRs:** [0021](../../adr/0021-record-foundation-fifth-core-module.md), [0022](../../adr/0022-immutable-fhir-document-storage.md), [0023](../../adr/0023-distributed-fhir-assembly.md).
+- **ADRs:** [0021](../../adr/0028-record-foundation-fifth-core-module.md), [0022](../../adr/0022-immutable-fhir-document-storage.md), [0023](../../adr/0023-distributed-fhir-assembly.md).
 - **Shared SDK:** `packages/ts-sdk-fhir/` (skeleton; bodies implemented in this work).
 
 ---

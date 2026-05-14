@@ -1,14 +1,17 @@
 import {
+  auditColumns,
   pgSchema,
   uuid,
   text,
   jsonb,
+  boolean,
   uniqueIndex,
   index,
   check,
-} from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
-import { auditColumns } from "@hims/ts-sdk-db";
+  primaryKey,
+  tenantColumn,
+  sql,
+} from "@hims/ts-sdk-db";
 
 export const configuratorSchema = pgSchema("configurator");
 
@@ -82,11 +85,30 @@ export const tenants = configuratorSchema.table(
   ],
 );
 
+export const tenantModules = configuratorSchema.table(
+  "tenant_modules",
+  {
+    ...tenantColumn(),
+    module_id: uuid("module_id").notNull(),
+    is_active: boolean("is_active").notNull().default(true),
+    is_core_override: boolean("is_core_override").notNull().default(false),
+    ...auditColumns(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.module_id] }),
+    index("idx_tenant_modules_active").on(t.iq_tenant_id, t.is_active),
+    check(
+      "chk_tenant_modules_core_always_active",
+      sql`NOT (${t.is_core_override} AND NOT ${t.is_active})`,
+    ),
+  ],
+);
+
 // ---------------------------------------------------------------------------
 // Next: Projection tables (synced from Master Data events) — see LLD §1, §10
 //   module_projection, config_schema_projection, feature_flag_projection
 //
 // Next: Distributed tables (by iq_tenant_id) — see LLD §3–§9
-//   tenant_modules, tenant_feature_flags, tenant_module_configs,
+//   tenant_feature_flags, tenant_module_configs,
 //   integration_profiles, tenant_provisioning_log, config_change_audit
 // ---------------------------------------------------------------------------
