@@ -1,5 +1,5 @@
 import type { DbInstance } from "@hims/ts-sdk-db";
-import { and, eq, ilike, sql } from "@hims/ts-sdk-db";
+import { and, asc, desc, eq, ilike, or, sql } from "@hims/ts-sdk-db";
 import { patients } from "../schema/tables.js";
 import type { PatientRepo } from "../ports.js";
 import type {
@@ -43,8 +43,12 @@ export class DrizzlePatientRepo implements PatientRepo {
     tenantId: string,
     filters?: PatientFilters,
   ): Promise<{ data: Patient[]; total: number }> {
-    const page = filters?.page ?? 1;
-    const limit = filters?.limit ?? 20;
+    if (!filters) {
+      return { data: [], total: 0 };
+    }
+
+    const page = filters.page ?? 1;
+    const limit = filters.limit ?? 20;
     const offset = (page - 1) * limit;
 
     const conditions = [
@@ -52,23 +56,39 @@ export class DrizzlePatientRepo implements PatientRepo {
       sql`${patients.merged_into_id} IS NULL`,
     ];
 
-    if (filters?.status) {
+    if (filters.status) {
       conditions.push(eq(patients.status, filters.status));
     }
-    if (filters?.phone_number) {
-      conditions.push(eq(patients.phone_number, filters.phone_number));
+    if (filters.gender) {
+      conditions.push(eq(patients.gender, filters.gender));
     }
-    if (filters?.uhid) {
+    if (filters.phone_any) {
+      conditions.push(
+        or(
+          eq(patients.phone_number, filters.phone_any),
+          eq(patients.alternate_phone, filters.phone_any),
+        )!,
+      );
+    }
+    if (filters.uhid) {
       conditions.push(eq(patients.uhid, filters.uhid));
     }
-    if (filters?.abha_number) {
+    if (filters.abha_number) {
       conditions.push(eq(patients.abha_number, filters.abha_number));
     }
-    if (filters?.name) {
+    if (filters.name) {
       conditions.push(ilike(patients.full_name, `%${filters.name}%`));
     }
 
     const where = and(...conditions);
+
+    const sortCol =
+      filters.sort === "updated_at"
+        ? patients.updated_at
+        : filters.sort === "full_name"
+          ? patients.full_name
+          : patients.created_at;
+    const orderFn = filters.order === "asc" ? asc : desc;
 
     const [data, countResult] = await Promise.all([
       this.db
@@ -77,7 +97,7 @@ export class DrizzlePatientRepo implements PatientRepo {
         .where(where)
         .limit(limit)
         .offset(offset)
-        .orderBy(patients.created_at),
+        .orderBy(orderFn(sortCol)),
       this.db
         .select({ count: sql<number>`count(*)` })
         .from(patients)

@@ -1,0 +1,20 @@
+{
+  "name": "registration",
+  "tags": ["type:module", "scope:registration", "language:typescript"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "options": {
+        "outputPath": "dist/modules/registration",
+        "main": "modules/registration/src/index.ts",
+        "tsConfig": "modules/registration/tsconfig.json"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "options": {
+        "lintFilePatterns": ["modules/registration/src/**/*.ts"]
+      }
+    }
+  }
+}

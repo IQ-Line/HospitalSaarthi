@@ -8,8 +8,11 @@ export { createDb, type DbInstance } from "./connection.js";
 export {
   eq,
   and,
+  or,
   ilike,
   sql,
+  asc,
+  desc,
   type SQL,
   pgSchema,
   uuid,

@@ -7,7 +7,7 @@ import type {
   IdentifierRepo,
   SequenceRepo,
 } from "../ports.js";
-import type { PatientFilters, PatientStatus } from "../domain/patient.types.js";
+import type { Gender, PatientFilters, PatientStatus } from "../domain/patient.types.js";
 import type {
   ChangePatientStatusRequestBody,
   CreateAddressRequestBody,
@@ -20,6 +20,7 @@ import { registerPatient } from "../use-cases/register-patient.js";
 import { isDuplicateRegistrationResult } from "../use-cases/register-patient.types.js";
 import { updatePatient } from "../use-cases/update-patient.js";
 import { searchPatients } from "../use-cases/search-patients.js";
+import { PatientSearchQueryError } from "../errors.js";
 import { getPatient } from "../use-cases/get-patient.js";
 import { changePatientStatus } from "../use-cases/change-patient-status.js";
 import { linkIdentifier } from "../use-cases/link-identifier.js";
@@ -39,9 +40,13 @@ import {
 interface SearchPatientsQuerystring {
   name?: string;
   phone?: string;
+  mobile?: string;
   uhid?: string;
   abha_number?: string;
   status?: PatientStatus;
+  gender?: Gender;
+  sort?: "created_at" | "updated_at" | "full_name";
+  order?: "asc" | "desc";
   page?: string;
   limit?: string;
 }

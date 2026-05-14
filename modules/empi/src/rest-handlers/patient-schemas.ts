@@ -34,11 +34,18 @@ export const searchPatientsQuerySchema = {
   properties: {
     name: { type: "string" },
     phone: { type: "string" },
+    mobile: { type: "string" },
     uhid: { type: "string" },
     abha_number: { type: "string" },
     status: { type: "string", enum: [...patientStatusEnum] },
-    page: { type: "string", pattern: "^[1-9][0-9]*$" },
-    limit: { type: "string", pattern: "^[1-9][0-9]*$" },
+    gender: { type: "string", enum: [...genderEnum] },
+    sort: {
+      type: "string",
+      enum: ["created_at", "updated_at", "full_name"],
+    },
+    order: { type: "string", enum: ["asc", "desc"] },
+    page: { type: "string", pattern: "^[1-9][0-9]{0,8}$" },
+    limit: { type: "string", pattern: "^([1-9]|[1-9][0-9]|100)$" },
   },
 };
 

@@ -1,0 +1,8 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "../../dist/services/registration-svc",
+    "rootDir": "src"
+  },
+  "include": ["src/**/*.ts"]
+}

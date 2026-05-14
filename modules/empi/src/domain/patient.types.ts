@@ -115,11 +115,19 @@ export interface UpdatePatientData {
 }
 
 export interface PatientFilters {
+  /** Case-insensitive substring match on `full_name` (requires ≥2 chars at API layer). */
   name?: string;
-  phone_number?: string;
+  /**
+   * Matches primary `phone_number` or `alternate_phone` (exact string as stored).
+   * Populated from `phone` or `mobile` query params on GET /patients.
+   */
+  phone_any?: string;
   uhid?: string;
   abha_number?: string;
   status?: PatientStatus;
+  gender?: Gender;
+  sort?: "created_at" | "updated_at" | "full_name";
+  order?: "asc" | "desc";
   page?: number;
   limit?: number;
 }
