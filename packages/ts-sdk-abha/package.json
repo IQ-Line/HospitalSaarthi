@@ -29,6 +29,26 @@
     "./constants": {
       "types": "./dist/constants/index.d.ts",
       "import": "./dist/constants/index.js"
+    },
+    "./protocol": {
+      "types": "./dist/protocol/index.d.ts",
+      "import": "./dist/protocol/index.js"
+    },
+    "./protocol/m1": {
+      "types": "./dist/protocol/m1/index.d.ts",
+      "import": "./dist/protocol/m1/index.js"
+    },
+    "./protocol/m2": {
+      "types": "./dist/protocol/m2/index.d.ts",
+      "import": "./dist/protocol/m2/index.js"
+    },
+    "./protocol/m3": {
+      "types": "./dist/protocol/m3/index.d.ts",
+      "import": "./dist/protocol/m3/index.js"
+    },
+    "./protocol/common": {
+      "types": "./dist/protocol/common/index.d.ts",
+      "import": "./dist/protocol/common/index.js"
     }
   },
   "scripts": {
