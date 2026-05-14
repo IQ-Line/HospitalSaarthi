@@ -24,6 +24,8 @@ Read in this order — each one is 10 minutes max:
 
 Then the cheat-sheet: **[docs/architecture/dev-cheatsheet.md](../../dev-cheatsheet.md)**. Pin it.
 
+**When you're ready to call Phase 1 done:** [`phase-1-acceptance.md`](./phase-1-acceptance.md) is the explicit target — curl-by-curl verification of each endpoint and the end-to-end acceptance scenario. If all the checks there pass against your local dev environment, ship the PR.
+
 ---
 
 ## The 4-5 files you'll touch most

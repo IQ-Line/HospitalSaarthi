@@ -100,6 +100,9 @@ Billing is a **horizontal supporting module** per [ADR-0025](../../adr/0025-bill
 
 ## Phase 1g — Demo seed + acceptance (2 dev-days)
 
+> **The explicit acceptance target lives in [`phase-1-acceptance.md`](./phase-1-acceptance.md)** — curl-by-curl verification of each Phase 1 endpoint and the end-to-end scenario. Use that doc as the PR checklist.
+
+
 - [ ] Seed the demo tenant's `service_master` with **~15-20 rows** matching existing-prod parity scope:
   - 1 row: `REG_FEE` (registration fee, ₹100).
   - 4-5 rows: `CONS_<TYPE>_DR_<NAME>` (one per (consultation type, doctor) combination — lazy explosion per [LLD §2.1](./01-schema-design.md#21-per-doctor-pricing-in-phase-1--lazy-catalog-explosion)).
