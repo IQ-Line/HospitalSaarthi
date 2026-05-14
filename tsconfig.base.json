@@ -23,6 +23,7 @@
       "@hims/ts-sdk-events": ["./packages/ts-sdk-events/src/index.ts"],
       "@hims/ts-sdk-db": ["./packages/ts-sdk-db/src/index.ts"],
       "@hims/ts-sdk-tenant": ["./packages/ts-sdk-tenant/src/index.ts"],
+      "@hims/ts-sdk-openapi": ["./packages/ts-sdk-openapi/src/index.ts"],
       "@hims/ts-sdk-testing": ["./packages/ts-sdk-testing/src/index.ts"],
       "@hims/ts-sdk-fhir": ["./packages/ts-sdk-fhir/src/index.ts"],
       "@hims/ts-sdk-abha": ["./packages/ts-sdk-abha/src/index.ts"],
