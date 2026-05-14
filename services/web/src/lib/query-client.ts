@@ -1,15 +1,11 @@
 import { MutationCache, QueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { ApiError } from './api-client';
+import { formatApiErrorBody } from './api-error-format';
 
 function formatError(error: unknown): string {
   if (error instanceof ApiError) {
-    try {
-      const parsed = JSON.parse(error.body);
-      return parsed.detail ?? parsed.message ?? `Request failed (${error.status})`;
-    } catch {
-      return `Request failed (${error.status})`;
-    }
+    return formatApiErrorBody(error.status, error.body);
   }
   if (error instanceof Error) return error.message;
   return 'An unexpected error occurred';

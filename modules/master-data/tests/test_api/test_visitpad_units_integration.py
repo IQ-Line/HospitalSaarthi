@@ -182,3 +182,61 @@ def test_visitpad_units_and_conversions_crud(visitpad_client: TestClient) -> Non
         json={"factor": 1.0},
     )
     assert bad_revalidate.status_code == 400
+
+
+def test_bulk_import_units_from_platform(visitpad_api_client: TestClient) -> None:
+    r = visitpad_api_client.post(
+        "/api/v1/master-data/visitpad/units",
+        json={
+            "code": "bulk_src",
+            "display_name": "Bulk source unit",
+            "dimension": "count",
+            "display_order": 1,
+            "is_active": True,
+        },
+    )
+    assert r.status_code == 201, r.text
+    pid = r.json()["data"]["id"]
+    imp = visitpad_api_client.post(
+        "/api/v1/master-data/visitpad/units/import-from-platform",
+        headers={"iq_tenant_id": TENANT_HDR},
+        json={"platform_row_ids": [pid]},
+    )
+    assert imp.status_code == 200, imp.text
+    data = imp.json()["data"]
+    assert len(data["created"]) == 1
+    assert data["skipped"] == []
+    assert data["errors"] == []
+    lst = visitpad_api_client.get(
+        "/api/v1/master-data/visitpad/units",
+        headers={"iq_tenant_id": TENANT_HDR},
+    )
+    assert lst.status_code == 200
+    assert lst.json()["total"] >= 1
+    again = visitpad_api_client.post(
+        "/api/v1/master-data/visitpad/units/import-from-platform",
+        headers={"iq_tenant_id": TENANT_HDR},
+        json={"platform_row_ids": [pid]},
+    )
+    assert again.status_code == 200
+    skip_body = again.json()["data"]
+    assert skip_body["created"] == []
+    assert skip_body["skipped"] == [pid]
+
+
+def test_bulk_import_units_requires_tenant_header(visitpad_api_client: TestClient) -> None:
+    r = visitpad_api_client.post(
+        "/api/v1/master-data/visitpad/units",
+        json={
+            "code": "pub_only",
+            "display_name": "Public only",
+            "dimension": "count",
+        },
+    )
+    assert r.status_code == 201, r.text
+    pid = r.json()["data"]["id"]
+    bad = visitpad_api_client.post(
+        "/api/v1/master-data/visitpad/units/import-from-platform",
+        json={"platform_row_ids": [pid]},
+    )
+    assert bad.status_code == 400

@@ -43,25 +43,25 @@ sequenceDiagram
     Note over Operator,Billing: Patient is new ⇒ frontdesk adds REG_FEE line.<br/>Operator picks doctor from dropdown.
 
     Operator->>BFF: Select "Consulting Doctor: Dr Smith"
-    BFF->>Billing: POST /v1/billing/charges<br/>{patient_id, source_module:"opd", item_code:"REG_FEE",<br/> quantity:1, performed_by:operator_id}<br/>Idempotency-Key: <ui-session>-reg
-    Billing->>DB: Resolve REG_FEE from service_master<br/>(base_price=100, tax=0)
+    BFF->>Billing: POST /v1/billing/charges<br/>{patient_id, source_module:"opd", item_code:"REG_FEE",<br/> provider_id:null, quantity:1, performed_by:operator_id}<br/>Idempotency-Key: <ui-session>-reg
+    Billing->>DB: SELECT * FROM service_master<br/>WHERE service_code='REG_FEE'<br/>AND provider_id IS NOT DISTINCT FROM null<br/>→ (base_price=100, tax=0)
     Billing->>DB: No open bill → INSERT bills (DRAFT, totals=0)
     Billing->>DB: INSERT bill_items (REG_FEE, snapshot price/tax)
     Billing->>DB: UPDATE bills (subtotal=100, net=100)
     Billing-->>BFF: 201 {bill_id, bill_item_id, net_amount:100}
     Bus-->>Billing: bill.created, bill.item-added
 
-    BFF->>Billing: POST /v1/billing/charges<br/>{patient_id, source_module:"opd",<br/> item_code:"CONS_GENERAL_DR_SMITH",<br/> quantity:1, performed_by:dr_smith_id}<br/>Idempotency-Key: <ui-session>-cons
-    Billing->>DB: Resolve CONS_GENERAL_DR_SMITH (base_price=500)
+    BFF->>Billing: POST /v1/billing/charges<br/>{patient_id, source_module:"opd",<br/> item_code:"CONS_GENERAL",<br/> provider_id:dr_smith_id,<br/> quantity:1, performed_by:dr_smith_id}<br/>Idempotency-Key: <ui-session>-cons
+    Billing->>DB: SELECT * FROM service_master<br/>WHERE service_code='CONS_GENERAL'<br/>AND provider_id IS NOT DISTINCT FROM dr_smith_id<br/>→ (base_price=500)
     Billing->>DB: SELECT bills ... DRAFT for (patient, no visit yet) → existing bill_id
-    Billing->>DB: INSERT bill_items (consultation, snapshot)
+    Billing->>DB: INSERT bill_items (consultation, snapshot, performed_by=dr_smith_id)
     Billing->>DB: UPDATE bills (subtotal=600, net=600)
     Billing-->>BFF: 201 {bill_item_id, net_amount:600}
 
-    Note over Operator: Operator enters discount 10%
-    Operator->>BFF: Enter discount 10%
-    BFF->>Billing: PATCH /v1/billing/bills/{bill_id}<br/>{discount_percentage:10, discount_reason:"Senior citizen"}
-    Billing->>DB: UPDATE bills SET discount_amount=60,<br/>discount_percentage=10, discount_reason="Senior citizen",<br/>net_amount=540
+    Note over Operator: Operator enters flat discount ₹60 (≈10%)
+    Operator->>BFF: Enter discount ₹60
+    BFF->>Billing: PATCH /v1/billing/bills/{bill_id}<br/>{discount_amount:60, discount_reason:"Senior citizen"}
+    Billing->>DB: UPDATE bills SET discount_amount=60,<br/>discount_reason="Senior citizen",<br/>net_amount=540
     Billing-->>BFF: 200 {net_amount:540}
 
     Note over Operator: Operator enters payment_method = CASH<br/>and amount_paid = 540. Create Visit button enables.
@@ -120,7 +120,7 @@ sequenceDiagram
     Note over BFF: prior_visit_count > 0 ⇒ skip REG_FEE line.
 
     Operator->>BFF: Select doctor + discount + payment
-    BFF->>Billing: POST /v1/billing/charges (CONS_GENERAL_DR_SMITH)
+    BFF->>Billing: POST /v1/billing/charges<br/>{item_code:"CONS_GENERAL", provider_id:dr_smith_id, ...}
     Note over BFF,Billing: Only one charge — consultation only.
     BFF->>Billing: PATCH /v1/billing/bills/{bill_id} (discount)
     BFF->>Billing: POST /v1/billing/bills/{bill_id}/finalize
@@ -177,9 +177,9 @@ sequenceDiagram
     participant Billing
 
     Operator->>BFF: Select doctor (Dr Smith) + add procedure (Wound Dressing)
-    BFF->>Billing: POST /charges (REG_FEE)  [if new patient]
-    BFF->>Billing: POST /charges (CONS_GENERAL_DR_SMITH)
-    BFF->>Billing: POST /charges (PROC_DRESSING, qty=1)
+    BFF->>Billing: POST /charges {item_code:"REG_FEE", provider_id:null}  [if new patient]
+    BFF->>Billing: POST /charges {item_code:"CONS_GENERAL", provider_id:dr_smith_id}
+    BFF->>Billing: POST /charges {item_code:"PROC_DRESSING", provider_id:null, qty:1}
     Note over BFF,Billing: All three items roll up onto same bill (same patient,<br/>no visit_id yet but same UI session)
     BFF->>Billing: PATCH bill (discount if any)
     BFF->>Billing: POST /finalize
@@ -191,9 +191,11 @@ sequenceDiagram
 
 ---
 
-## Scenario 5 — Bill amendment (replacement chain)
+## Scenario 5 — Bill correction (cancel + new bill)
 
-A finalised + paid bill is discovered to have a wrong procedure code (the actual procedure was cheaper). The bill is amended.
+A finalised + paid bill is discovered to have a wrong procedure code (the actual procedure was cheaper). Phase 1's correction model: **cancel the original, raise a fresh bill** — no replacement-chain linkage. Existing-prod uses the same approach informally.
+
+> **Phase 2:** introduces `bills.replaced_bill_id` for a durable amendment chain ([01-schema-design.md §4](./01-schema-design.md#4-bills--bills--phase-1)). Phase 1's cancel-and-new keeps the data model minimal and matches what counter operators do today.
 
 ```mermaid
 sequenceDiagram
@@ -202,26 +204,24 @@ sequenceDiagram
     participant DB
     participant Bus
 
-    Operator->>Billing: POST /v1/billing/bills/{bill_id}/amend<br/>{reason:'wrong procedure code on item X'}
+    Operator->>Billing: POST /v1/billing/bills/{bill_id}/cancel<br/>{reason:'wrong procedure code on item X — re-billing'}
     Billing->>DB: SELECT bills FOR UPDATE (original)
     Note over Billing: Validate status IN ('FINALIZED','PARTIALLY_PAID','PAID')
-    Billing->>DB: INSERT bills (NEW, status='DRAFT',<br/>replaced_bill_id=original.id)
-    Billing->>DB: INSERT bill_items (copy of original<br/>except corrected line)
-    Billing->>DB: UPDATE original SET status='REPLACED'
-    Billing-->>Operator: 201 {new_bill_id, status:'DRAFT'}
-    Bus-->>Billing: bill.amended
+    Billing->>DB: UPDATE original SET status='CANCELLED',<br/>cancellation_reason='...', cancelled_by=operator_id
+    Billing-->>Operator: 200 {status:'CANCELLED'}
+    Bus-->>Billing: bill.cancelled
 
-    Operator->>Billing: PATCH /v1/billing/bills/{new}/items/{item}<br/>(corrected price/quantity)
-    Operator->>Billing: POST /v1/billing/bills/{new}/finalize
-    Operator->>Billing: POST /v1/billing/payments OR record refund (Phase 3)
-    Note over Operator,Billing: Phase 1: if original was overpaid, capture the<br/>excess as a "credit note" outside the system or settle<br/>at next visit. Refunds proper land in Phase 3.
+    Operator->>Billing: POST /charges {patient_id, item_code:'CONS_GENERAL',<br/> provider_id:dr_smith_id, ...} (the corrected charges)
+    Operator->>Billing: POST /v1/billing/bills/{new_bill_id}/finalize
+    Operator->>Billing: POST /v1/billing/payments (collect difference if under,<br/>or settle the over-collection at next visit / informal note)
+    Note over Operator,Billing: Phase 1 has no refunds (Phase 3); over-collection<br/>is settled at next visit or noted manually — the same<br/>way existing production handles infrequent counter errors.
 ```
 
 **Key behaviour:**
 
-- Original bill is preserved with `status='REPLACED'` — never DELETEd.
-- The new bill carries `replaced_bill_id` pointing back. Audit trail = the chain.
-- Phase 1 has no refunds table (Phase 3); over/under-collection from an amendment is settled at the next visit or recorded as a manual note. This is also what existing production does — amendments at the counter are rare and handled informally.
+- Original bill is preserved with `status='CANCELLED'` — never DELETEd. Audit trail = the row's status + `cancellation_reason`.
+- The new bill stands alone; no `replaced_bill_id` linkage in Phase 1 (the column is Phase 2).
+- Any payments already collected against the original remain as `payments` rows tied to the cancelled bill, awaiting Phase 3 refund flow or informal settlement.
 
 ---
 
@@ -323,6 +323,6 @@ Phase 1 enforces `amount_paid == net_amount` at finalize time (existing-prod con
 
 - [01-schema-design.md](./01-schema-design.md) — schema details for every table touched here
 - [HLD 06 — Billing](../../hld/06-billing.md)
-- [ADR-0025 — Billing module shape and phasing](../../adr/0025-billing-module-shape-and-phasing.md) — phasing rationale + lazy-explosion catalog approach
+- [ADR-0025 — Billing module shape and phasing](../../adr/0025-billing-module-shape-and-phasing.md) — phasing rationale + `provider_id` catalog approach
 - [HLD 05 — Integration and interop](../../hld/05-integration-and-interop.md) — Integration Hub's role in Phase 2 insurance flows
 - [dev-doubts/01.md](./dev-doubts/01.md) — implementation choices

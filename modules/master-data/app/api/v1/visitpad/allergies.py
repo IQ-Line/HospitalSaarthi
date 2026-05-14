@@ -3,7 +3,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import (
@@ -12,6 +12,7 @@ from app.api.deps import (
     get_visitpad_allergy_reaction_repository,
 )
 from app.api.errors import ResourceNotFoundError
+from app.api.v1.visitpad.catalog_http import require_visitpad_tenant_catalog_scope
 from app.repositories.visitpad.allergen import VisitpadAllergenRepository
 from app.repositories.visitpad.allergy_reaction import VisitpadAllergyReactionRepository
 from app.schemas.visitpad.allergen import (
@@ -27,6 +28,11 @@ from app.schemas.visitpad.allergen import (
     VisitpadAllergyReactionSingleResponse,
     VisitpadAllergyReactionUpdate,
 )
+from app.schemas.visitpad.platform_import import (
+    VisitpadCatalogKeysResponse,
+    VisitpadPlatformImportRequest,
+    VisitpadPlatformImportSingleResponse,
+)
 from app.services.visitpad.allergies import (
     create_visitpad_allergen,
     create_visitpad_allergy_reaction,
@@ -38,6 +44,10 @@ from app.services.visitpad.allergies import (
     soft_delete_visitpad_allergy_reaction,
     update_visitpad_allergen,
     update_visitpad_allergy_reaction,
+)
+from app.services.visitpad.platform_bulk_import import (
+    import_visitpad_allergens_from_platform,
+    import_visitpad_allergy_reactions_from_platform,
 )
 
 allergens_router = APIRouter(prefix="/visitpad/allergens", tags=["Visitpad — Allergens"])
@@ -82,6 +92,41 @@ def post_allergen(
     row = create_visitpad_allergen(repository, payload=payload)
     session.commit()
     return VisitpadAllergenSingleResponse(data=VisitpadAllergenResponse.model_validate(row))
+
+
+@allergens_router.post(
+    "/import-from-platform",
+    response_model=VisitpadPlatformImportSingleResponse,
+    summary="Bulk-import allergens from the platform catalog",
+)
+def post_allergens_import_from_platform(
+    payload: VisitpadPlatformImportRequest,
+    repository: Annotated[VisitpadAllergenRepository, Depends(get_visitpad_allergen_repository)],
+    session: Annotated[Session, Depends(get_session)],
+) -> VisitpadPlatformImportSingleResponse:
+    try:
+        data = import_visitpad_allergens_from_platform(
+            session,
+            scope=repository.scope,
+            tenant_repo=repository,
+            platform_row_ids=payload.platform_row_ids,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    session.commit()
+    return VisitpadPlatformImportSingleResponse(data=data)
+
+
+@allergens_router.get(
+    "/keys",
+    response_model=VisitpadCatalogKeysResponse,
+    summary="List tenant allergen codes for import-from-platform matching",
+)
+def get_allergen_import_keys(
+    repository: Annotated[VisitpadAllergenRepository, Depends(get_visitpad_allergen_repository)],
+) -> VisitpadCatalogKeysResponse:
+    require_visitpad_tenant_catalog_scope(repository.scope)
+    return VisitpadCatalogKeysResponse(data=repository.list_import_key_strings())
 
 
 @allergens_router.get("/{allergen_id}", response_model=VisitpadAllergenSingleResponse, summary="Get allergen")
@@ -165,6 +210,47 @@ def post_reaction(
     row = create_visitpad_allergy_reaction(repository, payload=payload)
     session.commit()
     return VisitpadAllergyReactionSingleResponse(data=VisitpadAllergyReactionResponse.model_validate(row))
+
+
+@reactions_router.post(
+    "/import-from-platform",
+    response_model=VisitpadPlatformImportSingleResponse,
+    summary="Bulk-import allergy reactions from the platform catalog",
+)
+def post_allergy_reactions_import_from_platform(
+    payload: VisitpadPlatformImportRequest,
+    repository: Annotated[
+        VisitpadAllergyReactionRepository,
+        Depends(get_visitpad_allergy_reaction_repository),
+    ],
+    session: Annotated[Session, Depends(get_session)],
+) -> VisitpadPlatformImportSingleResponse:
+    try:
+        data = import_visitpad_allergy_reactions_from_platform(
+            session,
+            scope=repository.scope,
+            tenant_repo=repository,
+            platform_row_ids=payload.platform_row_ids,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    session.commit()
+    return VisitpadPlatformImportSingleResponse(data=data)
+
+
+@reactions_router.get(
+    "/keys",
+    response_model=VisitpadCatalogKeysResponse,
+    summary="List tenant allergy reaction codes for import-from-platform matching",
+)
+def get_allergy_reaction_import_keys(
+    repository: Annotated[
+        VisitpadAllergyReactionRepository,
+        Depends(get_visitpad_allergy_reaction_repository),
+    ],
+) -> VisitpadCatalogKeysResponse:
+    require_visitpad_tenant_catalog_scope(repository.scope)
+    return VisitpadCatalogKeysResponse(data=repository.list_import_key_strings())
 
 
 @reactions_router.get(
