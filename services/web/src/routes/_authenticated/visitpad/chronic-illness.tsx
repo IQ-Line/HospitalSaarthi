@@ -121,12 +121,7 @@ function VisitpadChronicIllnessPage() {
   const del = useVisitpadDelete(CI_BASE);
   const create = useVisitpadPost(CI_BASE);
   const platformImport = useVisitpadPlatformImport('/chronic-illnesses/import-from-platform');
-  const { data: tenantIcdKeys } = useVisitpadTenantImportKeys(
-    '/chronic-illnesses',
-    importOpen && tenantCatalog,
-    'icd10',
-    (row) => String(row.icd10_code),
-  );
+  const { data: tenantIcdKeys } = useVisitpadTenantImportKeys('/chronic-illnesses', importOpen && tenantCatalog);
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);

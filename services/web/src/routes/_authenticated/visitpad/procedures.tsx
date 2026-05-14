@@ -137,12 +137,7 @@ function VisitpadProceduresPage() {
   const del = useVisitpadDelete(PROC_BASE);
   const create = useVisitpadPost(PROC_BASE);
   const platformImport = useVisitpadPlatformImport('/procedures/import-from-platform');
-  const { data: tenantCptKeys } = useVisitpadTenantImportKeys(
-    '/procedures',
-    importOpen && tenantCatalog,
-    'cpt',
-    (row) => String(row.cpt_code),
-  );
+  const { data: tenantCptKeys } = useVisitpadTenantImportKeys('/procedures', importOpen && tenantCatalog);
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);

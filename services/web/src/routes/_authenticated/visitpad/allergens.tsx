@@ -92,12 +92,7 @@ function VisitpadAllergensPage() {
   const del = useVisitpadDelete(AG_BASE);
   const create = useVisitpadPost(AG_BASE);
   const platformImport = useVisitpadPlatformImport('/allergens/import-from-platform');
-  const { data: tenantCodeKeys } = useVisitpadTenantImportKeys(
-    '/allergens',
-    importOpen && tenantCatalog,
-    'code',
-    (row) => String(row.code),
-  );
+  const { data: tenantCodeKeys } = useVisitpadTenantImportKeys('/allergens', importOpen && tenantCatalog);
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);

@@ -116,12 +116,7 @@ function VisitpadMedicinesPage() {
   const del = useVisitpadDelete(MED_BASE);
   const create = useVisitpadPost(MED_BASE);
   const platformImport = useVisitpadPlatformImport('/medicines/import-from-platform');
-  const { data: tenantCodeKeys } = useVisitpadTenantImportKeys(
-    '/medicines',
-    importOpen && tenantCatalog,
-    'code',
-    (row) => String(row.code),
-  );
+  const { data: tenantCodeKeys } = useVisitpadTenantImportKeys('/medicines', importOpen && tenantCatalog);
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);

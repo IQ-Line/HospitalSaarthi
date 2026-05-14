@@ -8,11 +8,8 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_session, get_visitpad_diagnosis_repository
 from app.api.errors import ResourceNotFoundError
+from app.api.v1.visitpad.catalog_http import require_visitpad_tenant_catalog_scope
 from app.repositories.visitpad.diagnosis import VisitpadDiagnosisRepository
-from app.schemas.visitpad.platform_import import (
-    VisitpadPlatformImportRequest,
-    VisitpadPlatformImportSingleResponse,
-)
 from app.schemas.visitpad.diagnosis import (
     VisitpadDiagnosisCategory,
     VisitpadDiagnosisCreate,
@@ -21,7 +18,11 @@ from app.schemas.visitpad.diagnosis import (
     VisitpadDiagnosisSingleResponse,
     VisitpadDiagnosisUpdate,
 )
-from app.services.visitpad.platform_bulk_import import import_visitpad_diagnoses_from_platform
+from app.schemas.visitpad.platform_import import (
+    VisitpadCatalogKeysResponse,
+    VisitpadPlatformImportRequest,
+    VisitpadPlatformImportSingleResponse,
+)
 from app.services.visitpad.diagnoses import (
     create_visitpad_diagnosis,
     get_visitpad_diagnosis_by_id,
@@ -29,6 +30,7 @@ from app.services.visitpad.diagnoses import (
     soft_delete_visitpad_diagnosis,
     update_visitpad_diagnosis,
 )
+from app.services.visitpad.platform_bulk_import import import_visitpad_diagnoses_from_platform
 
 router = APIRouter(prefix="/visitpad/diagnoses", tags=["Visitpad — Diagnoses"])
 
@@ -91,6 +93,18 @@ def post_diagnoses_import_from_platform(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     session.commit()
     return VisitpadPlatformImportSingleResponse(data=data)
+
+
+@router.get(
+    "/keys",
+    response_model=VisitpadCatalogKeysResponse,
+    summary="List tenant diagnosis codes for import-from-platform matching",
+)
+def get_diagnosis_import_keys(
+    repository: Annotated[VisitpadDiagnosisRepository, Depends(get_visitpad_diagnosis_repository)],
+) -> VisitpadCatalogKeysResponse:
+    require_visitpad_tenant_catalog_scope(repository.scope)
+    return VisitpadCatalogKeysResponse(data=repository.list_import_key_strings())
 
 
 @router.get("/{diagnosis_id}", response_model=VisitpadDiagnosisSingleResponse, summary="Get diagnosis")

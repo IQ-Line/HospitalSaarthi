@@ -8,11 +8,8 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_session, get_visitpad_medicine_repository
 from app.api.errors import ResourceNotFoundError
+from app.api.v1.visitpad.catalog_http import require_visitpad_tenant_catalog_scope
 from app.repositories.visitpad.medicine import VisitpadMedicineRepository
-from app.schemas.visitpad.platform_import import (
-    VisitpadPlatformImportRequest,
-    VisitpadPlatformImportSingleResponse,
-)
 from app.schemas.visitpad.medicine import (
     VisitpadMedicineCreate,
     VisitpadMedicineListResponse,
@@ -21,7 +18,11 @@ from app.schemas.visitpad.medicine import (
     VisitpadMedicineSingleResponse,
     VisitpadMedicineUpdate,
 )
-from app.services.visitpad.platform_bulk_import import import_visitpad_medicines_from_platform
+from app.schemas.visitpad.platform_import import (
+    VisitpadCatalogKeysResponse,
+    VisitpadPlatformImportRequest,
+    VisitpadPlatformImportSingleResponse,
+)
 from app.services.visitpad.medicines import (
     create_visitpad_medicine,
     get_visitpad_medicine_by_id,
@@ -29,6 +30,7 @@ from app.services.visitpad.medicines import (
     soft_delete_visitpad_medicine,
     update_visitpad_medicine,
 )
+from app.services.visitpad.platform_bulk_import import import_visitpad_medicines_from_platform
 
 router = APIRouter(prefix="/visitpad/medicines", tags=["Visitpad — Medicines"])
 
@@ -91,6 +93,18 @@ def post_medicines_import_from_platform(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     session.commit()
     return VisitpadPlatformImportSingleResponse(data=data)
+
+
+@router.get(
+    "/keys",
+    response_model=VisitpadCatalogKeysResponse,
+    summary="List tenant medicine codes for import-from-platform matching",
+)
+def get_medicine_import_keys(
+    repository: Annotated[VisitpadMedicineRepository, Depends(get_visitpad_medicine_repository)],
+) -> VisitpadCatalogKeysResponse:
+    require_visitpad_tenant_catalog_scope(repository.scope)
+    return VisitpadCatalogKeysResponse(data=repository.list_import_key_strings())
 
 
 @router.get("/{medicine_id}", response_model=VisitpadMedicineSingleResponse, summary="Get medicine")

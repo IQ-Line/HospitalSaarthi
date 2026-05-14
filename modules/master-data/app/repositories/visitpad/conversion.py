@@ -107,6 +107,19 @@ class VisitpadUnitConversionRepository:
             return None
         return row
 
+    def list_import_key_strings(self) -> list[str]:
+        """Keys as ``from→to`` (same shape as the import UI)."""
+        M = self._M()
+        filters = [M.is_deleted.is_(False)]
+        if self._scope.is_tenant:
+            filters.append(M.iq_tenant_id == self._scope.iq_tenant_id)
+        stmt = (
+            select(M.from_unit_code, M.to_unit_code)
+            .where(*filters)
+            .order_by(M.from_unit_code, M.to_unit_code)
+        )
+        return [f"{fc}→{tc}" for fc, tc in self._session.execute(stmt).all()]
+
     def create_conversion(self, row: Any) -> Any:
         self._session.add(row)
         try:

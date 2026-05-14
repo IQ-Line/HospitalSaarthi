@@ -8,8 +8,10 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_session, get_visitpad_vaccine_repository
 from app.api.errors import ResourceNotFoundError
+from app.api.v1.visitpad.catalog_http import require_visitpad_tenant_catalog_scope
 from app.repositories.visitpad.vaccine import VisitpadVaccineRepository
 from app.schemas.visitpad.platform_import import (
+    VisitpadCatalogKeysResponse,
     VisitpadPlatformImportRequest,
     VisitpadPlatformImportSingleResponse,
 )
@@ -83,6 +85,18 @@ def post_vaccines_import_from_platform(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     session.commit()
     return VisitpadPlatformImportSingleResponse(data=data)
+
+
+@router.get(
+    "/keys",
+    response_model=VisitpadCatalogKeysResponse,
+    summary="List tenant vaccine codes for import-from-platform matching",
+)
+def get_vaccine_import_keys(
+    repository: Annotated[VisitpadVaccineRepository, Depends(get_visitpad_vaccine_repository)],
+) -> VisitpadCatalogKeysResponse:
+    require_visitpad_tenant_catalog_scope(repository.scope)
+    return VisitpadCatalogKeysResponse(data=repository.list_import_key_strings())
 
 
 @router.get("/{vaccine_id}", response_model=VisitpadVaccineSingleResponse, summary="Get vaccine")

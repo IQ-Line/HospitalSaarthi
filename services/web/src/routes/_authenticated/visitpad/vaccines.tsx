@@ -80,12 +80,7 @@ function VisitpadVaccinesPage() {
   const del = useVisitpadDelete(VA_BASE);
   const create = useVisitpadPost(VA_BASE);
   const platformImport = useVisitpadPlatformImport('/vaccines/import-from-platform');
-  const { data: tenantCodeKeys } = useVisitpadTenantImportKeys(
-    '/vaccines',
-    importOpen && tenantCatalog,
-    'code',
-    (row) => String(row.code),
-  );
+  const { data: tenantCodeKeys } = useVisitpadTenantImportKeys('/vaccines', importOpen && tenantCatalog);
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);

@@ -96,42 +96,34 @@ function pageKey(p?: VisitpadCatalogPageParams): [number, number] {
   return [n.pageIndex, n.pageSize];
 }
 
-/** Fetch all row keys for the current tenant catalog (paged server-side) — e.g. import modal “already imported”. */
+export type VisitpadCatalogKeysResponse = { data: string[] };
+
+/**
+ * All canonical import keys for the current tenant catalog (one GET).
+ * Server defines key shape (code, CPT, ICD-10, section::code, from→to, etc.).
+ */
 export function useVisitpadTenantImportKeys(
   path: string,
   enabled: boolean,
-  keyStrategy: string,
-  getRowKey: (row: Record<string, unknown>) => string,
-  listParams?: Record<string, string | undefined>,
+  query?: Record<string, string | undefined>,
 ): UseQueryResult<Set<string>, Error> {
   const scopeKey = useVisitpadCatalogScopeKey();
-  const paramsKey = JSON.stringify(listParams ?? {});
+  const queryKeyExtra = JSON.stringify(query ?? {});
   return useQuery({
-    queryKey: [
-      ...visitpadKeys.all,
-      'tenant-import-keys',
-      path,
-      keyStrategy,
-      paramsKey,
-      scopeKey,
-    ],
+    queryKey: [...visitpadKeys.all, 'tenant-catalog-keys', path, queryKeyExtra, scopeKey],
     enabled,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
-      const keys = new Set<string>();
-      let offset = 0;
-      const limit = 200;
-      for (;;) {
-        const url = buildVisitpadCatalogListUrl(path, listParams ?? {}, {
-          pageIndex: Math.floor(offset / limit),
-          pageSize: limit,
-        });
-        const res = await apiClient<VisitpadListResponse<Record<string, unknown>>>(url);
-        for (const r of res.data) keys.add(getRowKey(r));
-        offset += res.data.length;
-        if (offset >= res.total || res.data.length === 0) break;
+      const q = new URLSearchParams();
+      if (query) {
+        for (const [k, v] of Object.entries(query)) {
+          if (v) q.set(k, v);
+        }
       }
-      return keys;
+      const qs = q.toString();
+      const url = qs.length > 0 ? `${MD}${path}/keys?${qs}` : `${MD}${path}/keys`;
+      const res = await apiClient<VisitpadCatalogKeysResponse>(url);
+      return new Set(res.data);
     },
   });
 }

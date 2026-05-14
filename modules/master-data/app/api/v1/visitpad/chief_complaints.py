@@ -8,11 +8,8 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_session, get_visitpad_chief_complaint_repository
 from app.api.errors import ResourceNotFoundError
+from app.api.v1.visitpad.catalog_http import require_visitpad_tenant_catalog_scope
 from app.repositories.visitpad.chief_complaint import VisitpadChiefComplaintRepository
-from app.schemas.visitpad.platform_import import (
-    VisitpadPlatformImportRequest,
-    VisitpadPlatformImportSingleResponse,
-)
 from app.schemas.visitpad.chief_complaint import (
     VisitpadBodySystem,
     VisitpadChiefComplaintCreate,
@@ -24,13 +21,20 @@ from app.schemas.visitpad.chief_complaint import (
     VisitpadTriagePriority,
     build_visitpad_chief_complaint_descriptor,
 )
-from app.services.visitpad.platform_bulk_import import import_visitpad_chief_complaints_from_platform
+from app.schemas.visitpad.platform_import import (
+    VisitpadCatalogKeysResponse,
+    VisitpadPlatformImportRequest,
+    VisitpadPlatformImportSingleResponse,
+)
 from app.services.visitpad.chief_complaints import (
     create_visitpad_chief_complaint,
     get_visitpad_chief_complaint_by_id,
     list_visitpad_chief_complaints,
     soft_delete_visitpad_chief_complaint,
     update_visitpad_chief_complaint,
+)
+from app.services.visitpad.platform_bulk_import import (
+    import_visitpad_chief_complaints_from_platform,
 )
 
 router = APIRouter(prefix="/visitpad/chief-complaints", tags=["Visitpad — Chief complaints"])
@@ -117,6 +121,21 @@ def post_chief_complaints_import_from_platform(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     session.commit()
     return VisitpadPlatformImportSingleResponse(data=data)
+
+
+@router.get(
+    "/keys",
+    response_model=VisitpadCatalogKeysResponse,
+    summary="List tenant chief complaint codes for import-from-platform matching",
+)
+def get_chief_complaint_import_keys(
+    repository: Annotated[
+        VisitpadChiefComplaintRepository,
+        Depends(get_visitpad_chief_complaint_repository),
+    ],
+) -> VisitpadCatalogKeysResponse:
+    require_visitpad_tenant_catalog_scope(repository.scope)
+    return VisitpadCatalogKeysResponse(data=repository.list_import_key_strings())
 
 
 @router.get(

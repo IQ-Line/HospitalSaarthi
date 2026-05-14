@@ -12,9 +12,11 @@ from app.api.deps import (
     get_visitpad_unit_repository,
 )
 from app.api.errors import ResourceNotFoundError
+from app.api.v1.visitpad.catalog_http import require_visitpad_tenant_catalog_scope
 from app.repositories.visitpad.conversion import VisitpadUnitConversionRepository
 from app.repositories.visitpad.unit import VisitpadUnitRepository
 from app.schemas.visitpad.platform_import import (
+    VisitpadCatalogKeysResponse,
     VisitpadPlatformImportRequest,
     VisitpadPlatformImportSingleResponse,
 )
@@ -72,6 +74,18 @@ def get_visitpad_units(
     )
     data = [VisitpadUnitResponse.model_validate(r) for r in rows]
     return VisitpadUnitListResponse(data=data, total=total)
+
+
+@units_router.get(
+    "/keys",
+    response_model=VisitpadCatalogKeysResponse,
+    summary="List tenant unit codes for import-from-platform matching",
+)
+def get_visitpad_unit_import_keys(
+    repository: Annotated[VisitpadUnitRepository, Depends(get_visitpad_unit_repository)],
+) -> VisitpadCatalogKeysResponse:
+    require_visitpad_tenant_catalog_scope(repository.scope)
+    return VisitpadCatalogKeysResponse(data=repository.list_import_key_strings())
 
 
 @units_router.post(
@@ -204,6 +218,21 @@ def get_visitpad_unit_conversions(
     )
     data = [VisitpadUnitConversionResponse.model_validate(r) for r in rows]
     return VisitpadUnitConversionListResponse(data=data, total=total)
+
+
+@conversions_router.get(
+    "/keys",
+    response_model=VisitpadCatalogKeysResponse,
+    summary="List tenant conversion keys (from→to) for import-from-platform matching",
+)
+def get_visitpad_unit_conversion_import_keys(
+    repository: Annotated[
+        VisitpadUnitConversionRepository,
+        Depends(get_visitpad_unit_conversion_repository),
+    ],
+) -> VisitpadCatalogKeysResponse:
+    require_visitpad_tenant_catalog_scope(repository.scope)
+    return VisitpadCatalogKeysResponse(data=repository.list_import_key_strings())
 
 
 @conversions_router.post(

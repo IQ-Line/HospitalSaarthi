@@ -110,12 +110,7 @@ function VisitpadConversionsPage() {
     [],
   );
 
-  const { data: tenantConvKeys } = useVisitpadTenantImportKeys(
-    '/unit-conversions',
-    importOpen && tenantCatalog,
-    'pair',
-    (row) => `${String(row.from_unit_code)}→${String(row.to_unit_code)}`,
-  );
+  const { data: tenantConvKeys } = useVisitpadTenantImportKeys('/unit-conversions', importOpen && tenantCatalog);
   const importedKeys = useMemo(() => tenantConvKeys ?? new Set<string>(), [tenantConvKeys]);
   const globalRows = globalLib?.data ?? [];
   const globalLibTotal = globalLib?.total ?? 0;

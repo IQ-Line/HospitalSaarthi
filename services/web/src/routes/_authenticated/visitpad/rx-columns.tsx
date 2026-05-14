@@ -96,13 +96,9 @@ function VisitpadRxColumnsPage() {
   const del = useVisitpadDelete(RX_BASE);
   const create = useVisitpadPost(RX_BASE);
   const platformImport = useVisitpadRxColumnsPlatformImport(section);
-  const { data: tenantRxKeys } = useVisitpadTenantImportKeys(
-    '/rx-columns',
-    importOpen && tenantCatalog,
-    'section::code',
-    (row) => `${String(row.section)}::${String(row.code)}`,
-    { section },
-  );
+  const { data: tenantRxKeys } = useVisitpadTenantImportKeys('/rx-columns', importOpen && tenantCatalog, {
+    section,
+  });
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);

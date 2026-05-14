@@ -16,8 +16,8 @@ export const visitpadKeys = {
   manufacturers: () => [...visitpadKeys.all, 'manufacturers'] as const,
 };
 
-const tenantImportKeysPrefix = (listPath: string) =>
-  [...visitpadKeys.all, 'tenant-import-keys', listPath] as const;
+const tenantCatalogKeysPrefix = (listPath: string) =>
+  [...visitpadKeys.all, 'tenant-catalog-keys', listPath] as const;
 
 /**
  * Query key roots to invalidate after `POST …/visitpad/…/import-from-platform` succeeds.
@@ -30,19 +30,19 @@ export function visitpadInvalidationKeysAfterPlatformImport(
   const section = new URLSearchParams(importPath.split('?')[1] ?? '').get('section') ?? undefined;
 
   const pairs: [readonly unknown[], readonly unknown[]][] = [
-    ['/units/import-from-platform', [visitpadKeys.units(), tenantImportKeysPrefix('/units')]],
-    ['/unit-conversions/import-from-platform', [visitpadKeys.conversions(), tenantImportKeysPrefix('/unit-conversions')]],
-    ['/vitals/import-from-platform', [visitpadKeys.vitals(), tenantImportKeysPrefix('/vitals')]],
-    ['/chief-complaints/import-from-platform', [visitpadKeys.chiefComplaints(), tenantImportKeysPrefix('/chief-complaints')]],
-    ['/diagnoses/import-from-platform', [visitpadKeys.diagnoses(), tenantImportKeysPrefix('/diagnoses')]],
-    ['/allergens/import-from-platform', [visitpadKeys.allergens(), tenantImportKeysPrefix('/allergens')]],
-    ['/allergy-reactions/import-from-platform', [visitpadKeys.reactions(), tenantImportKeysPrefix('/allergy-reactions')]],
-    ['/rx-columns/import-from-platform', [visitpadKeys.rxColumns(section), tenantImportKeysPrefix('/rx-columns')]],
-    ['/medicines/import-from-platform', [visitpadKeys.medicines(), tenantImportKeysPrefix('/medicines')]],
-    ['/chronic-illnesses/import-from-platform', [visitpadKeys.chronicIllnesses(), tenantImportKeysPrefix('/chronic-illnesses')]],
-    ['/procedures/import-from-platform', [visitpadKeys.procedures(), tenantImportKeysPrefix('/procedures')]],
-    ['/vaccines/import-from-platform', [visitpadKeys.vaccines(), tenantImportKeysPrefix('/vaccines')]],
-    ['/manufacturers/import-from-platform', [visitpadKeys.manufacturers(), tenantImportKeysPrefix('/manufacturers')]],
+    ['/units/import-from-platform', [visitpadKeys.units(), tenantCatalogKeysPrefix('/units')]],
+    ['/unit-conversions/import-from-platform', [visitpadKeys.conversions(), tenantCatalogKeysPrefix('/unit-conversions')]],
+    ['/vitals/import-from-platform', [visitpadKeys.vitals(), tenantCatalogKeysPrefix('/vitals')]],
+    ['/chief-complaints/import-from-platform', [visitpadKeys.chiefComplaints(), tenantCatalogKeysPrefix('/chief-complaints')]],
+    ['/diagnoses/import-from-platform', [visitpadKeys.diagnoses(), tenantCatalogKeysPrefix('/diagnoses')]],
+    ['/allergens/import-from-platform', [visitpadKeys.allergens(), tenantCatalogKeysPrefix('/allergens')]],
+    ['/allergy-reactions/import-from-platform', [visitpadKeys.reactions(), tenantCatalogKeysPrefix('/allergy-reactions')]],
+    ['/rx-columns/import-from-platform', [visitpadKeys.rxColumns(section), tenantCatalogKeysPrefix('/rx-columns')]],
+    ['/medicines/import-from-platform', [visitpadKeys.medicines(), tenantCatalogKeysPrefix('/medicines')]],
+    ['/chronic-illnesses/import-from-platform', [visitpadKeys.chronicIllnesses(), tenantCatalogKeysPrefix('/chronic-illnesses')]],
+    ['/procedures/import-from-platform', [visitpadKeys.procedures(), tenantCatalogKeysPrefix('/procedures')]],
+    ['/vaccines/import-from-platform', [visitpadKeys.vaccines(), tenantCatalogKeysPrefix('/vaccines')]],
+    ['/manufacturers/import-from-platform', [visitpadKeys.manufacturers(), tenantCatalogKeysPrefix('/manufacturers')]],
   ];
 
   for (const [suffix, keys] of pairs) {

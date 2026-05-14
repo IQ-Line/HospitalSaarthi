@@ -80,12 +80,7 @@ function VisitpadManufacturersPage() {
   const del = useVisitpadDelete(MF_BASE);
   const create = useVisitpadPost(MF_BASE);
   const platformImport = useVisitpadPlatformImport('/manufacturers/import-from-platform');
-  const { data: tenantKeys } = useVisitpadTenantImportKeys(
-    '/manufacturers',
-    importOpen && tenantCatalog,
-    'code-lower',
-    (row) => String(row.code).toLowerCase(),
-  );
+  const { data: tenantKeys } = useVisitpadTenantImportKeys('/manufacturers', importOpen && tenantCatalog);
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);

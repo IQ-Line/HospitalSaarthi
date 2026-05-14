@@ -8,11 +8,8 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_session, get_visitpad_chronic_illness_repository
 from app.api.errors import ResourceNotFoundError
+from app.api.v1.visitpad.catalog_http import require_visitpad_tenant_catalog_scope
 from app.repositories.visitpad.chronic_illness import VisitpadChronicIllnessRepository
-from app.schemas.visitpad.platform_import import (
-    VisitpadPlatformImportRequest,
-    VisitpadPlatformImportSingleResponse,
-)
 from app.schemas.visitpad.chronic_illness import (
     VisitpadChronicIllnessCategory,
     VisitpadChronicIllnessCreate,
@@ -21,13 +18,20 @@ from app.schemas.visitpad.chronic_illness import (
     VisitpadChronicIllnessSingleResponse,
     VisitpadChronicIllnessUpdate,
 )
-from app.services.visitpad.platform_bulk_import import import_visitpad_chronic_illnesses_from_platform
+from app.schemas.visitpad.platform_import import (
+    VisitpadCatalogKeysResponse,
+    VisitpadPlatformImportRequest,
+    VisitpadPlatformImportSingleResponse,
+)
 from app.services.visitpad.chronic_illnesses import (
     create_visitpad_chronic_illness,
     get_visitpad_chronic_illness_by_id,
     list_visitpad_chronic_illnesses,
     soft_delete_visitpad_chronic_illness,
     update_visitpad_chronic_illness,
+)
+from app.services.visitpad.platform_bulk_import import (
+    import_visitpad_chronic_illnesses_from_platform,
 )
 
 router = APIRouter(prefix="/visitpad/chronic-illnesses", tags=["Visitpad — Chronic illnesses"])
@@ -100,6 +104,21 @@ def post_chronic_illnesses_import_from_platform(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     session.commit()
     return VisitpadPlatformImportSingleResponse(data=data)
+
+
+@router.get(
+    "/keys",
+    response_model=VisitpadCatalogKeysResponse,
+    summary="List tenant chronic illness ICD-10 codes for import-from-platform matching",
+)
+def get_chronic_illness_import_keys(
+    repository: Annotated[
+        VisitpadChronicIllnessRepository,
+        Depends(get_visitpad_chronic_illness_repository),
+    ],
+) -> VisitpadCatalogKeysResponse:
+    require_visitpad_tenant_catalog_scope(repository.scope)
+    return VisitpadCatalogKeysResponse(data=repository.list_import_key_strings())
 
 
 @router.get(

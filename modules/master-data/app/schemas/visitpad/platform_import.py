@@ -43,3 +43,11 @@ class VisitpadPlatformImportSingleResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     data: VisitpadPlatformImportData
+
+
+class VisitpadCatalogKeysResponse(BaseModel):
+    """All canonical import keys for the tenant catalog (single round trip for import UI)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    data: list[str]

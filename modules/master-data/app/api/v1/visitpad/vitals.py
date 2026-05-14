@@ -8,8 +8,10 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_session, get_visitpad_vital_repository
 from app.api.errors import ResourceNotFoundError
+from app.api.v1.visitpad.catalog_http import require_visitpad_tenant_catalog_scope
 from app.repositories.visitpad.vital import VisitpadVitalRepository
 from app.schemas.visitpad.platform_import import (
+    VisitpadCatalogKeysResponse,
     VisitpadPlatformImportRequest,
     VisitpadPlatformImportSingleResponse,
 )
@@ -52,6 +54,18 @@ def get_vitals(
         data=[VisitpadVitalResponse.model_validate(r) for r in rows],
         total=total,
     )
+
+
+@router.get(
+    "/keys",
+    response_model=VisitpadCatalogKeysResponse,
+    summary="List tenant vital codes for import-from-platform matching",
+)
+def get_vital_import_keys(
+    repository: Annotated[VisitpadVitalRepository, Depends(get_visitpad_vital_repository)],
+) -> VisitpadCatalogKeysResponse:
+    require_visitpad_tenant_catalog_scope(repository.scope)
+    return VisitpadCatalogKeysResponse(data=repository.list_import_key_strings())
 
 
 @router.post(

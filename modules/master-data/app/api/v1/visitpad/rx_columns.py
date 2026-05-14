@@ -8,8 +8,10 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_session, get_visitpad_rx_column_repository
 from app.api.errors import ResourceNotFoundError
+from app.api.v1.visitpad.catalog_http import require_visitpad_tenant_catalog_scope
 from app.repositories.visitpad.rx_column import VisitpadRxColumnRepository
 from app.schemas.visitpad.platform_import import (
+    VisitpadCatalogKeysResponse,
     VisitpadPlatformImportRequest,
     VisitpadPlatformImportSingleResponse,
 )
@@ -51,6 +53,21 @@ def get_visitpad_rx_columns(
     return VisitpadRxColumnListResponse(
         data=[VisitpadRxColumnResponse.model_validate(r) for r in rows],
         total=total,
+    )
+
+
+@router.get(
+    "/keys",
+    response_model=VisitpadCatalogKeysResponse,
+    summary="List tenant Rx column keys (section::code) for import-from-platform matching",
+)
+def get_rx_column_import_keys(
+    repository: Annotated[VisitpadRxColumnRepository, Depends(get_visitpad_rx_column_repository)],
+    section: Annotated[VisitpadRxColumnSection, Query(description="Same section as the import dialog.")],
+) -> VisitpadCatalogKeysResponse:
+    require_visitpad_tenant_catalog_scope(repository.scope)
+    return VisitpadCatalogKeysResponse(
+        data=repository.list_import_key_strings(section=section.value),
     )
 
 

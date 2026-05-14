@@ -160,12 +160,7 @@ function VisitpadVitalsPage() {
   const tabCount = visitpadActiveTotal(rows, total);
   const busy = patch.isPending || del.isPending || platformImport.isPending;
 
-  const { data: tenantCodes } = useVisitpadTenantImportKeys(
-    '/vitals',
-    importOpen && tenantCatalog,
-    'code',
-    (row) => String(row.code),
-  );
+  const { data: tenantCodes } = useVisitpadTenantImportKeys('/vitals', importOpen && tenantCatalog);
   const importedKeys = useMemo(() => tenantCodes ?? new Set<string>(), [tenantCodes]);
   const globalRows = globalLib?.data ?? [];
   const globalLibTotal = globalLib?.total ?? 0;

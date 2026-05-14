@@ -81,12 +81,7 @@ function VisitpadReactionsPage() {
   const del = useVisitpadDelete(RXN_BASE);
   const create = useVisitpadPost(RXN_BASE);
   const platformImport = useVisitpadPlatformImport('/allergy-reactions/import-from-platform');
-  const { data: tenantCodeKeys } = useVisitpadTenantImportKeys(
-    '/allergy-reactions',
-    importOpen && tenantCatalog,
-    'code',
-    (row) => String(row.code),
-  );
+  const { data: tenantCodeKeys } = useVisitpadTenantImportKeys('/allergy-reactions', importOpen && tenantCatalog);
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);

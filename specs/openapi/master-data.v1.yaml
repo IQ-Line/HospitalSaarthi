@@ -1029,6 +1029,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/units/keys:
+    get:
+      tags:
+      - Visitpad — Units
+      summary: List tenant unit import keys
+      operationId: get_visitpad_unit_import_keys
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadCatalogKeysResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /visitpad/units/import-from-platform:
     post:
       tags:
@@ -1222,6 +1241,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/unit-conversions/keys:
+    get:
+      tags:
+      - Visitpad — Unit conversions
+      summary: List tenant unit conversion import keys
+      operationId: get_visitpad_unit_conversion_import_keys
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadCatalogKeysResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /visitpad/unit-conversions/import-from-platform:
     post:
       tags:
@@ -1409,6 +1447,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/VisitpadVitalSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/vitals/keys:
+    get:
+      tags:
+      - Visitpad — Vitals
+      summary: List tenant vital import keys
+      operationId: get_visitpad_vital_import_keys
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadCatalogKeysResponse'
         '422':
           description: Validation Error
           content:
@@ -1610,6 +1667,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/VisitpadChiefComplaintSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/chief-complaints/keys:
+    get:
+      tags:
+      - Visitpad — Chief complaints
+      summary: List tenant chief complaint import keys
+      operationId: get_visitpad_chief_complaint_import_keys
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadCatalogKeysResponse'
         '422':
           description: Validation Error
           content:
@@ -1830,6 +1906,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/diagnoses/keys:
+    get:
+      tags:
+      - Visitpad — Diagnoses
+      summary: List tenant diagnosis import keys
+      operationId: get_visitpad_diagnosis_import_keys
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadCatalogKeysResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /visitpad/diagnoses/import-from-platform:
     post:
       tags:
@@ -2023,6 +2118,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/allergens/keys:
+    get:
+      tags:
+      - Visitpad — Allergens
+      summary: List tenant allergen import keys
+      operationId: get_visitpad_allergen_import_keys
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadCatalogKeysResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /visitpad/allergens/import-from-platform:
     post:
       tags:
@@ -2202,6 +2316,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/VisitpadAllergyReactionSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/allergy-reactions/keys:
+    get:
+      tags:
+      - Visitpad — Allergy reactions
+      summary: List tenant allergy reaction import keys
+      operationId: get_visitpad_allergy_reaction_import_keys
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadCatalogKeysResponse'
         '422':
           description: Validation Error
           content:
@@ -2395,6 +2528,32 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/VisitpadRxColumnSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/rx-columns/keys:
+    get:
+      tags:
+      - Visitpad — Rx columns
+      summary: List tenant Rx column import keys
+      operationId: get_visitpad_rx_column_import_keys
+      parameters:
+      - name: section
+        in: query
+        required: true
+        schema:
+          $ref: '#/components/schemas/VisitpadRxColumnSection'
+        description: Same section as the import dialog.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadCatalogKeysResponse'
         '422':
           description: Validation Error
           content:
@@ -2601,6 +2760,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/medicines/keys:
+    get:
+      tags:
+      - Visitpad — Medicines
+      summary: List tenant medicine import keys
+      operationId: get_visitpad_medicine_import_keys
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadCatalogKeysResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /visitpad/medicines/import-from-platform:
     post:
       tags:
@@ -2794,6 +2972,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/chronic-illnesses/keys:
+    get:
+      tags:
+      - Visitpad — Chronic illnesses
+      summary: List tenant chronic illness import keys
+      operationId: get_visitpad_chronic_illness_import_keys
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadCatalogKeysResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /visitpad/chronic-illnesses/import-from-platform:
     post:
       tags:
@@ -2979,6 +3176,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/manufacturers/keys:
+    get:
+      tags:
+      - Visitpad — Manufacturers
+      summary: List tenant manufacturer import keys
+      operationId: get_visitpad_manufacturer_import_keys
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadCatalogKeysResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /visitpad/manufacturers/import-from-platform:
     post:
       tags:
@@ -3158,6 +3374,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/VisitpadVaccineSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/vaccines/keys:
+    get:
+      tags:
+      - Visitpad — Vaccines
+      summary: List tenant vaccine import keys
+      operationId: get_visitpad_vaccine_import_keys
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadCatalogKeysResponse'
         '422':
           description: Validation Error
           content:
@@ -3359,6 +3594,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/VisitpadProcedureSingleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /visitpad/procedures/keys:
+    get:
+      tags:
+      - Visitpad — Procedures
+      summary: List tenant procedure import keys
+      operationId: get_visitpad_procedure_import_keys
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadCatalogKeysResponse'
         '422':
           description: Validation Error
           content:
@@ -7057,6 +7311,18 @@ components:
         data:
           $ref: '#/components/schemas/VisitpadPlatformImportData'
       title: VisitpadPlatformImportSingleResponse
+    VisitpadCatalogKeysResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            type: string
+          title: Data
+      title: VisitpadCatalogKeysResponse
     VisitpadUnitDimension:
       type: string
       enum:

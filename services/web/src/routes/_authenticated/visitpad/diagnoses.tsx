@@ -91,12 +91,7 @@ function VisitpadDiagnosesPage() {
   const del = useVisitpadDelete(DX_BASE);
   const create = useVisitpadPost(DX_BASE);
   const platformImport = useVisitpadPlatformImport('/diagnoses/import-from-platform');
-  const { data: tenantCodeKeys } = useVisitpadTenantImportKeys(
-    '/diagnoses',
-    importOpen && tenantCatalog,
-    'code',
-    (row) => String(row.code),
-  );
+  const { data: tenantCodeKeys } = useVisitpadTenantImportKeys('/diagnoses', importOpen && tenantCatalog);
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);

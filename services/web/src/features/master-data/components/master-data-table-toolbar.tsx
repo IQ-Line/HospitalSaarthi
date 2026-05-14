@@ -2,13 +2,20 @@ import { Search } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Input } from '@pulse/ui/input';
 
+/**
+ * Default debounce for server-backed catalog search (e.g. Visitpad tenant/platform lists).
+ * Keeps request rate low while typing without feeling sluggish. Use `debounceMs={0}` for
+ * client-only filtering (see master-data routes).
+ */
+export const SERVER_LIST_SEARCH_DEBOUNCE_MS = 200;
+
 interface MasterDataTableToolbarProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   /**
    * Delay before `onChange` runs after typing stops. Use 0 to disable (e.g. purely client-side filters).
-   * Default 300ms avoids a network request per keystroke on server-backed lists.
+   * Default matches {@link SERVER_LIST_SEARCH_DEBOUNCE_MS} for server-backed lists.
    */
   debounceMs?: number;
 }
@@ -17,7 +24,7 @@ export function MasterDataTableToolbar({
   value,
   onChange,
   placeholder = 'Search…',
-  debounceMs = 300,
+  debounceMs = SERVER_LIST_SEARCH_DEBOUNCE_MS,
 }: MasterDataTableToolbarProps) {
   const [draft, setDraft] = useState(value);
   const onChangeRef = useRef(onChange);

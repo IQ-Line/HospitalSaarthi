@@ -88,12 +88,7 @@ function VisitpadUnitsPage() {
     },
     librarySearch || undefined,
   );
-  const { data: tenantCodeKeys } = useVisitpadTenantImportKeys(
-    '/units',
-    importOpen && tenantCatalog,
-    'code',
-    (row) => String(row.code),
-  );
+  const { data: tenantCodeKeys } = useVisitpadTenantImportKeys('/units', importOpen && tenantCatalog);
   const patch = useVisitpadPatch(UNITS_BASE);
   const del = useVisitpadDelete(UNITS_BASE);
   const create = useVisitpadPost(UNITS_BASE);

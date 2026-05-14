@@ -92,12 +92,7 @@ function VisitpadChiefComplaintsPage() {
   const del = useVisitpadDelete(CC_BASE);
   const create = useVisitpadPost(CC_BASE);
   const platformImport = useVisitpadPlatformImport('/chief-complaints/import-from-platform');
-  const { data: tenantCodeKeys } = useVisitpadTenantImportKeys(
-    '/chief-complaints',
-    importOpen && tenantCatalog,
-    'code',
-    (row) => String(row.code),
-  );
+  const { data: tenantCodeKeys } = useVisitpadTenantImportKeys('/chief-complaints', importOpen && tenantCatalog);
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);
