@@ -14,7 +14,7 @@ export interface RegisterOpenApiDocsOptions {
    * (e.g. `/api/configurator/v1`) so “Try it out” resolves relative to the service.
    */
   apiPrefix?: string;
-  /** Swagger UI mount path (default `/documentation`). */
+  /** Swagger UI mount path (default `/docs`, same convention as master-data FastAPI). */
   uiRoutePrefix?: string;
   /** Override env-based exposure (e.g. tests). */
   enabled?: boolean;
@@ -31,7 +31,7 @@ export async function registerOpenApiDocs(
   const enabled = options.enabled ?? isApiDocsExposureEnabled();
   if (!enabled) return;
 
-  const uiRoutePrefix = options.uiRoutePrefix ?? "/documentation";
+  const uiRoutePrefix = options.uiRoutePrefix ?? "/docs";
 
   await app.register(swagger, {
     openapi: {
