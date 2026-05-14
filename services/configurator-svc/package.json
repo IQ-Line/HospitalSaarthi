@@ -8,7 +8,7 @@
   },
   "dependencies": {
     "@hims/configurator": "workspace:*",
-    "@hims/ts-sdk-identity": "workspace:*",
+    "@hims/ts-sdk-openapi": "workspace:*",
     "@hims/ts-sdk-tenant": "workspace:*",
     "@hims/ts-sdk-db": "workspace:*",
     "fastify": "^5.3.3"

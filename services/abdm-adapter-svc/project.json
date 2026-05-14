@@ -1,0 +1,12 @@
+{
+  "name": "abdm-adapter-svc",
+  "tags": ["type:service", "scope:abdm-adapter", "language:typescript"],
+  "targets": {
+    "serve": {
+      "command": "tsx watch src/main.ts",
+      "options": {
+        "cwd": "services/abdm-adapter-svc"
+      }
+    }
+  }
+}

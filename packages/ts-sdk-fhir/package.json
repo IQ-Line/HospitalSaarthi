@@ -1,0 +1,45 @@
+{
+  "name": "@hims/ts-sdk-fhir",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./types": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/types/index.js"
+    },
+    "./profile-registry": {
+      "types": "./dist/profile-registry/index.d.ts",
+      "import": "./dist/profile-registry/index.js"
+    },
+    "./builders": {
+      "types": "./dist/builders/index.d.ts",
+      "import": "./dist/builders/index.js"
+    },
+    "./validators": {
+      "types": "./dist/validators/profile-validator.d.ts",
+      "import": "./dist/validators/profile-validator.js"
+    },
+    "./canonical-json": {
+      "types": "./dist/canonical-json.d.ts",
+      "import": "./dist/canonical-json.js"
+    },
+    "./identifiers": {
+      "types": "./dist/identifiers.d.ts",
+      "import": "./dist/identifiers.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.json"
+  },
+  "peerDependencies": {
+    "typescript": ">=5.6.0"
+  },
+  "files": ["dist"]
+}

@@ -11,6 +11,10 @@ export { updateOrganization } from "./use-cases/update-organization.js";
 export { createTenant } from "./use-cases/create-tenant.js";
 export { getTenantById } from "./use-cases/get-tenant-by-id.js";
 export { updateTenant } from "./use-cases/update-tenant.js";
+export { createTenantModule } from "./use-cases/create-tenant-module.js";
+export { getTenantModuleByKey } from "./use-cases/get-tenant-module-by-key.js";
+export { updateTenantModule } from "./use-cases/update-tenant-module.js";
+export { deleteTenantModule } from "./use-cases/delete-tenant-module.js";
 
 export type {
   Organization,
@@ -32,17 +36,28 @@ export type {
 } from "./domain/tenant.types.js";
 
 export type {
+  TenantModule,
+  CreateTenantModuleData,
+  UpdateTenantModuleData,
+  TenantModuleFilters,
+  TenantModuleKey,
+} from "./domain/tenant-module.types.js";
+
+export type {
   OrganizationRepo,
   TenantRepo,
+  TenantModuleRepo,
   ConfiguratorTransactionRepos,
   RunConfiguratorTransaction,
 } from "./ports.js";
 
 export { DrizzleOrganizationRepo } from "./data-access/organization.repo.js";
 export { DrizzleTenantRepo } from "./data-access/tenant.repo.js";
+export { DrizzleTenantModuleRepo } from "./data-access/tenant-module.repo.js";
 
 export {
   configuratorSchema,
   organizations,
   tenants,
+  tenantModules,
 } from "./schema/tables.js";

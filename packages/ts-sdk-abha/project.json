@@ -1,0 +1,31 @@
+{
+  "name": "ts-sdk-abha",
+  "tags": ["type:sdk", "scope:platform"],
+  "targets": {
+    "build": {
+      "command": "tsc -p tsconfig.json",
+      "options": {
+        "cwd": "packages/ts-sdk-abha"
+      },
+      "outputs": ["{projectRoot}/dist"]
+    },
+    "test": {
+      "command": "vitest run",
+      "options": {
+        "cwd": "packages/ts-sdk-abha"
+      }
+    },
+    "lint": {
+      "command": "eslint src/",
+      "options": {
+        "cwd": "packages/ts-sdk-abha"
+      }
+    },
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "packages/ts-sdk-abha"
+      }
+    }
+  }
+}

@@ -80,16 +80,21 @@ Master & Tenant Data                    EMPI / Patient Identity
 
 ### Phase 0: Platform Foundation
 
-**What:** The four core modules + platform infrastructure that every feature module depends on.
+**What:** The five core modules + Integration Hub + platform infrastructure that every feature module depends on. (Updated 2026-05-08 per [ADR-0028](../adr/0028-record-foundation-fifth-core-module.md): Record Foundation is the fifth core module, but its v1 build-out happens in Phase 1; only its data model agreement is a Phase 0 exit criterion. Integration Hub control plane + FSM engine ship in Phase 0; the ABDM adapter implementation lands in Phase 1.)
 
 **Who:** Full team. This is the critical path — nothing downstream can start until this is done.
 
 | Component | What it provides | Dependencies |
 |-----------|-----------------|--------------|
 | **User Management** | Authentication (better-auth), JWT issuance, JWKS endpoint, role/assignment storage, IdP federation, SCIM | None — lowest in the graph |
-| **Configurator** | Tenant provisioning, feature flags, module enablement, integration profiles, department/facility config | User Management (auth) |
-| **EMPI / Patient Identity** | Canonical patient record, dedup (port algorithm from production), ABHA linking, identity cross-references, FHIR Patient endpoint | User Management, Configurator |
+| **Configurator** | Tenant provisioning, feature flags, module enablement, integration profiles, department/facility config (incl. HFR facility ID per ABDM) | User Management (auth) |
+| **EMPI / Patient Identity** | Canonical patient record, dedup (port algorithm from production), ABHA number+address linking via `patient_identifiers`, FHIR Patient endpoint | User Management, Configurator |
 | **Master & Tenant Data** | Drug formulary, ICD-10, LOINC, SNOMED, procedure codes, fee schedules, tenant overrides | User Management, Configurator |
+| **Integration Hub (control plane + FSM engine)** | Generic integration registry, durable workflow FSM tables and engine, inbound/outbound message logs, audit stream. ABDM adapter slot present but empty until Phase 1. Per [ADR-0011](../adr/0011-integration-hub-split.md), [ADR-0027](../adr/0027-fsm-orchestration-for-integration-hub.md). | User Management, Configurator |
+| **Record Foundation (data model only)** | Schema agreed and committed in [LLD](../lld/record-foundation/01-schema-design.md). v1 implementation deferred to Phase 1 (no consumers in Phase 0). | -- |
+| **`@hims/ts-sdk-workflow`** | Generic FSM engine package consumed by Integration Hub | None |
+| **`@hims/ts-sdk-fhir` (skeleton)** | Type definitions, profile registry constants, builder API surfaces. Implementation lands with the first consumer (Phase 1: OPD + Record Foundation). | None |
+| **`@hims/ts-sdk-abha` (skeleton)** | ABHA types, validators, FSM state names | `@hims/ts-sdk-fhir` |
 | **Module Shape SDK** | Cerbos policy template, identity adapter library, event publisher/consumer SDK, PEP middleware, tenant context middleware | User Management (for JWKS), Configurator (for tenant context) |
 | **Event bus** | Inter-module event infrastructure (pub/sub) | Infrastructure only |
 | **Platform BFF** | JWT verification, request routing for platform admin UI | User Management |
@@ -108,34 +113,36 @@ After User Management auth works:
           Module Shape SDK ←── continues (now can integrate with real JWKS)
 ```
 
-**Exit criteria:** A developer can provision a tenant, create a user, authenticate, register a patient (with dedup), look up reference data, and see Cerbos authorize a request — all end-to-end.
+**Exit criteria:** A developer can provision a tenant, create a user, authenticate, register a patient (with dedup), look up reference data, see Cerbos authorize a request — all end-to-end. Additionally: Integration Hub registry endpoint accepts a registration with `kind=abdm`, the FSM engine can run a trivial test FSM definition end-to-end (start -> transition -> complete with audit row written), and the Record Foundation schema is committed and ERD reviewed by the team (data model agreed, no implementation).
 
 ---
 
-### Phase 1: OPD + Billing Core + ABDM (Feature Parity)
+### Phase 1: OPD + Billing Core + ABDM + Record Foundation v1 (Feature Parity)
 
-**What:** The clinical core that matches what the production HIMS actually delivers day-to-day, plus a thin billing service that covers production needs and is extensible to full EOI scope.
+**What:** The clinical core that matches what the production HIMS actually delivers day-to-day, plus a thin billing service, plus the ABDM Adapter implementation inside Integration Hub, plus the v1 of Record Foundation. Per the [CEO directive](../../../CLAUDE.md) framing Phase 0 + Phase 1 as "v1 production parity", and per [ADR-0028](../adr/0028-record-foundation-fifth-core-module.md), Record Foundation must be in this phase to support ABDM compliance.
 
 **Who:** Full team fans out. Each module follows the Module Shape Template — the platform foundation handles auth, tenant isolation, and events.
 
 | Module | What it covers | Platform dependencies | Notes |
 |--------|---------------|----------------------|-------|
-| **OPD** | Visit creation, queue/token by department, vitals (V1+V2), chief complaints, prescriptions (medicines/tests/imaging/vaccines), visit lifecycle (registered → in-progress → completed), free follow-up, idle auto-complete, addendum chain, consultation record snapshots | EMPI (patient lookup), Master Data (drug catalog, ICD codes, test catalog), User Management (doctor assignment) | Port visit lifecycle, free follow-up logic, dual vitals from production. Publishes `prescription.created`, `service-request.created`, and `consultation.completed` events from day one so downstream modules can integrate when ready |
-| **Billing (thin core)** | BillingAccount, Charge, Invoice, Payment. Charge-ingest API for clinical modules, auto-invoice capability, payment recording, bill retrieval by patient/visit | Master Data (fee schedules/tariffs), EMPI (patient identity) | Starts as an embedded library in OPD's process with its own schema (`billing.*`). Covers production HIMS pattern (bill at visit creation = auto-invoice) and EOI pattern (async charge capture). Uses himsPlatform billing model as domain reference. Extends later with Estimate, Deposit, Refund, Discount, FinancialClearance, approval workflows — new entities, not schema changes to existing tables, so no backfill risk |
-| **ABDM Integration** | M1 enrollment, M2 linking/consent, care context management, FHIR bundle generation | EMPI (ABHA linking), Integration Hub (protocol adapters) | Rebuild within Integration Hub architecture using production service as protocol reference |
-| **Analytics / Dashboards** | Patient footfall, doctor KPIs, visit statistics, department-level metrics | OPD (read projections), EMPI (patient demographics) | Read-only aggregation layer. Can be built incrementally as OPD data flows |
+| **OPD** | Visit creation, queue/token by department, vitals (V1+V2), chief complaints, prescriptions (medicines/tests/imaging/vaccines), visit lifecycle (registered → in-progress → completed), free follow-up, idle auto-complete, addendum chain, consultation record snapshots, **OPD's FHIR serialiser for OPConsultRecord and Prescription resources** (per [ADR-0023](../adr/0023-distributed-fhir-assembly.md)) | EMPI (patient lookup), Master Data (drug catalog, ICD codes, test catalog), User Management (doctor assignment), `@hims/ts-sdk-fhir` | Port visit lifecycle, free follow-up logic, dual vitals from production. Publishes `prescription.created`, `service-request.created`, and `consultation.finalized` events (the latter with the FHIR resources attached for Record Foundation to compose into bundles). |
+| **Billing (Phase 1 — counter parity)** | Service catalog, price agreements, bills, bill items, payments, advances, discounts. Charge-ingest API for clinical modules (idempotent, snapshot-pricing). Per [ADR-0025](../adr/0025-billing-module-shape-and-phasing.md); see [HLD 06](../hld/06-billing.md) and the [billing LLD](../lld/billing/01-schema-design.md). | EMPI (patient identity), User Management (actor resolution), Configurator (discount thresholds, tax rules) | Starts as an embedded library in OPD's process with its own `billing.*` schema (same DB cluster). Lead's reference ERD honoured: 8 tables in Phase 1 with original names; Phase 2 (insurance, corporate, packages), Phase 3 (refunds, plans, IPD final), Phase 4 (doctor commissions) layered additively. Snapshot pricing on `bill_items` ensures historical bills are immune to catalog changes. Extracts to `services/billing-svc` when a second clinical module needs to emit charges; no data migration. |
+| **Integration Hub: ABDM Adapter** | FSM definitions for M1 (Aadhaar OTP, mobile, biometric), scan-and-share, M2 (user-initiated linking, HIP-initiated linking), M3 HIP, M3 HIU; consent supervisor FSM. Implements the ABDM gateway client, Fidelius encryption helpers, and adapter dispatch. | Integration Hub control plane (Phase 0), Configurator (HFR facility ID), `@hims/ts-sdk-abha`, `@hims/ts-sdk-fhir` | The protocol implementation behind the FSM definitions in [02-fsm-specifications.md](../lld/integration-platform/02-fsm-specifications.md). Per [ADR-0027](../adr/0027-fsm-orchestration-for-integration-hub.md), workflows persist in `integration_hub.integration_workflows`; their state is auditable by SQL. |
+| **Record Foundation v1** | Care-context registry, immutable bundle vault, external HIU bundle inbox, timeline read-model, erasure scheduler. Consumes `consultation.finalized` (assembles FHIR Document Bundle and stores) and `abdm.consent.*`, `abdm.health-record.received` events. | EMPI, Integration Hub (consent state), `@hims/ts-sdk-fhir` | Per [ADR-0028](../adr/0028-record-foundation-fifth-core-module.md). Schema: 6 tables. ~20 endpoints. Substrate for the Phase 4 EMR product. Phase 1 scope is intentionally minimal -- no specialty UI, no AI summaries, no MRD workflow. |
+| **Analytics / Dashboards** | Patient footfall, doctor KPIs, visit statistics, department-level metrics | OPD (read projections), EMPI (patient demographics) | Read-only aggregation layer. Can be built incrementally as OPD data flows. |
 
 **Parallelization within Phase 1:**
 
 ```
-OPD + Billing ←── Lead 1 + 3 devs (OPD is largest; billing is a thin library in the same process)
-ABDM          ←── Lead 2 + 1 dev (protocol rebuild against NHA sandbox)
-Analytics     ←── 1 dev (starts once OPD data model stabilizes)
+OPD + Billing            ←── Lead 1 + 3 devs (OPD largest; billing thin library in OPD process; OPD's FHIR serialiser is part of OPD)
+Integration Hub ABDM     ←── Lead 2 + 1 dev (FSM definitions + adapter implementation against NHA sandbox)
+Record Foundation v1     ←── 1 dev (consumer of consultation.finalized + abdm.* events; orchestrates Composition assembly)
+Analytics                ←── 1 dev (starts once OPD data model stabilizes)
 ```
 
-**Billing deployment model:** Billing starts as a library embedded in OPD's process (same service, separate schema). This avoids a separate service deployment in Phase 1 while maintaining a clean code and data boundary. When other modules need to emit charges (Pharmacy, Lab, IPD), or when billing complexity justifies its own service, billing extracts to a standalone service — the code doesn't change, only the deployment topology. The `billing.*` schema is separate from `opd.*` from day one, so extraction is a deployment decision, not a data migration.
+**Billing deployment model:** Billing starts as a library embedded in OPD's process (same service, separate schema). When other modules need to emit charges (Pharmacy, Lab, IPD), billing extracts to a standalone service — the code doesn't change, only the deployment topology.
 
-**Exit criteria:** A patient can walk in, register (with ABHA linking and dedup), see a doctor (OPD visit with vitals, chief complaints, and prescription), receive a bill (auto-generated from visit charges), have the encounter linked to their ABDM health record, and the operations team can see footfall and doctor KPI dashboards.
+**Exit criteria:** A patient can walk in, register (with ABHA linking via Integration Hub's M1 FSM and EMPI dedup), see a doctor (OPD visit with vitals, chief complaints, and prescription); on consultation finalisation a FHIR OpConsultRecord Document Bundle is composed by Record Foundation and stored immutably; the encounter's care context is published to ABDM and discoverable for HIP requests; an external HIU can request the patient's records under a granted consent and receive the bundle; the patient can also fetch their records from another HIP via the platform's HIU role and view them in the timeline; bills are auto-generated from visit charges; operations dashboards show footfall and doctor KPI.
 
 ---
 
