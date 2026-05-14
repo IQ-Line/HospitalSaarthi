@@ -31,6 +31,7 @@
       "@hims/user-management": ["./modules/user-management/src/index.ts"],
       "@hims/configurator": ["./modules/configurator/src/index.ts"],
       "@hims/empi": ["./modules/empi/src/index.ts"],
+      "@hims/billing": ["./modules/billing/src/index.ts"],
       "@hims/master-data": ["./modules/master-data/src/index.ts"]
     }
   },
