@@ -26,6 +26,15 @@ Decisions are recorded as Markdown ADRs ([MADR format](https://adr.github.io/mad
 | [0019](0019-fastify-node24-lts.md) | Fastify v5 as HTTP framework, Node.js 24 LTS as runtime | Proposed |
 | [0020](0020-master-data-catalog-dual-schema.md) | Master Data Visitpad catalogs: dual schemas (`public` vs `tenant_master`) | Accepted |
 | [0021](0021-master-data-catalog-tenant-key-type.md) | Master Data catalog tenant key: UUID `iq_tenant_id` (aligned with platform) | Accepted |
+| [0022](0022-immutable-fhir-document-storage.md) | Immutable FHIR Document Bundles (byte-exact storage, no UPDATE) | Proposed |
+| [0023](0023-distributed-fhir-assembly.md) | Distributed FHIR assembly via per-module serialisers + central Composition | Proposed |
+| [0024](0024-audit-deferred-to-pre-prod.md) | Audit deferred to pre-prod (no per-module audit tables; centralized consumer) | Accepted |
+| [0025](0025-billing-module-shape-and-phasing.md) | Billing module shape & phasing (Phase 1 = 4 tables matching existing-prod) | Proposed |
+| [0026](0026-fsm-lite-phase-1.md) | FSM-lite for Phase 1; defer generic engine to Phase 1.5 | Proposed |
+| [0027](0027-fsm-orchestration-for-integration-hub.md) | Custom FSM engine for Integration Hub (target architecture for Phase 1.5+) | Proposed |
+| [0028](0028-record-foundation-fifth-core-module.md) | Record Foundation as the fifth core platform module | Proposed |
+
+> Numbering note: ADRs 0027 and 0028 were originally drafted as 0020 and 0021 on `feat/integration-platform-lld`. They were renumbered when that branch merged with `dev`, where Master Data's 0020 and 0021 had landed in parallel. The MADR convention is that the number is a permanent identifier; this is the first renumber in the project's history, performed to resolve the collision.
 
 ## How to use
 
