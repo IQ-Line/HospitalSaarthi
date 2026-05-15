@@ -4,14 +4,40 @@ from pathlib import Path
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Load `.env` from this package root (works when CWD is not `modules/master-data`).
+# `modules/master-data` — stable regardless of CWD.
 _PACKAGE_ROOT = Path(__file__).resolve().parent.parent.parent
+
+
+def _find_workspace_root(package_root: Path) -> Path:
+    """Repo root (Nx monorepo). Matches Nx/Fastify: shared `.env` at workspace root."""
+    for parent in package_root.parents:
+        if (parent / "nx.json").is_file():
+            return parent
+    # Typical layout without `nx.json` (e.g. sparse tests): .../<repo>/modules/master-data
+    if package_root.name == "master-data" and package_root.parent.name == "modules":
+        return package_root.parent.parent
+    return package_root
+
+
+_WORKSPACE_ROOT = _find_workspace_root(_PACKAGE_ROOT)
+
+
+def _master_data_env_files() -> tuple[Path, ...] | None:
+    """Load workspace `.env` first, then optional package `.env` (local overrides)."""
+    paths: list[Path] = []
+    root_env = _WORKSPACE_ROOT / ".env"
+    pkg_env = _PACKAGE_ROOT / ".env"
+    if root_env.is_file():
+        paths.append(root_env)
+    if pkg_env.is_file() and pkg_env.resolve() != root_env.resolve():
+        paths.append(pkg_env)
+    return tuple(paths) if paths else None
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="MASTER_DATA_",
-        env_file=_PACKAGE_ROOT / ".env",
+        env_file=_master_data_env_files(),
         env_file_encoding="utf-8",
         extra="ignore",
     )
