@@ -9,4 +9,4 @@
  * Subfolders mirror the v3 milestones — fill in flow by flow.
  */
 
-export {};
+export { enrolAadhaarOtpRequest } from "./m1/enrol-aadhaar-otp-request.js";

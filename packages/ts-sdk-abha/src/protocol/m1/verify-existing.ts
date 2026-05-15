@@ -1,17 +1,33 @@
 /**
- * M1 — Verification of an existing ABHA Number or Address.
- *
- * Used by frontdesk during registration to confirm a patient's claimed
- * ABHA before linking it to the EMPI record. Triggers an Aadhaar or
- * mobile OTP to the registered authenticator and verifies the response.
- *
- * Source spec:
- *   - `docs/external/abdm/v3-m1-abha-v3-apis-creation-verification.md` §"Verify ABHA"
- *   - `docs/external/abdm-wrapper/docs/wrapperV3.yaml`
- *     (`/api/v3/abha/verify/v3/abhaNumber/send-otp`,
- *      `/api/v3/abha/verify/v3/abhaNumber/verify-otp`)
- *
- * TODO: dev to populate the verify-send + verify-verify DTO pairs.
+ * M1 — Frontdesk verification of existing ABHA (login OTP path on NHA).
  */
 
-export {};
+export interface VerifyAbhaNumberOtpHimsRequest {
+  abhaNumber: string;
+  /** `aadhaar` (default) or `abha-otp` (ABDM app OTP). */
+  channel?: "aadhaar" | "abha-otp";
+}
+
+export interface VerifyAbhaAddressOtpHimsRequest {
+  abhaAddress: string;
+  /** `mobile` (default) or `aadhaar`. */
+  channel?: "mobile" | "aadhaar";
+}
+
+export interface VerifyOtpHimsResponse {
+  sessionId: string;
+  txnId: string;
+  message: string;
+}
+
+export interface VerifyConfirmHimsRequest {
+  sessionId: string;
+  otp: string;
+}
+
+export interface VerifyConfirmHimsResponse {
+  sessionId: string;
+  txnId: string;
+  message: string;
+  authResult?: string;
+}

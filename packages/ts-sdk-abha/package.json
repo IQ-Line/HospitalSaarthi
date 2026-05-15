@@ -35,8 +35,9 @@
       "import": "./dist/protocol/index.js"
     },
     "./protocol/m1": {
-      "types": "./dist/protocol/m1/index.d.ts",
-      "import": "./dist/protocol/m1/index.js"
+      "types": "./src/protocol/m1/index.ts",
+      "import": "./src/protocol/m1/index.ts",
+      "default": "./dist/protocol/m1/index.js"
     },
     "./protocol/m2": {
       "types": "./dist/protocol/m2/index.d.ts",

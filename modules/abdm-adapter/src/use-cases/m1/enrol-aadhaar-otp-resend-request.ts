@@ -1,0 +1,79 @@
+import type {
+  EnrolAadhaarOtpHimsResponse,
+  NhaEnrolmentRequestOtpBody,
+  NhaEnrolmentRequestOtpResponse,
+} from "@hims/ts-sdk-abha/protocol/m1";
+import type { AbdmAdapterDeps } from "../../ports.js";
+import { encryptLoginIdWithAbdmPublicKey } from "../../lib/rsa-abdm-login-id.js";
+import { AbdmUseCaseError } from "../../lib/m1-errors.js";
+import { aadhaarMatchesSessionMask } from "../../lib/m1-aadhaar-mask.js";
+
+export interface EnrolAadhaarOtpResendHimsRequest {
+  sessionId: string;
+  aadhaarNumber: string;
+}
+
+export async function enrolAadhaarOtpResendRequest(
+  input: EnrolAadhaarOtpResendHimsRequest,
+  deps: AbdmAdapterDeps,
+  iqTenantId: string,
+): Promise<EnrolAadhaarOtpHimsResponse> {
+  const digits = String(input.aadhaarNumber ?? "").replace(/\D/g, "");
+  if (!/^\d{12}$/.test(digits)) {
+    throw new AbdmUseCaseError("aadhaarNumber must be exactly 12 digits", 400);
+  }
+  const session = await deps.sessions.findById({
+    iqTenantId,
+    sessionId: input.sessionId,
+  });
+  if (!session) {
+    throw new AbdmUseCaseError("session not found", 404, "NOT_FOUND");
+  }
+  if (session.flowKind !== "abdm.m1.aadhaar-otp.v1") {
+    throw new AbdmUseCaseError("invalid session flow", 400);
+  }
+  if (session.state !== "OTP_REQUESTED") {
+    throw new AbdmUseCaseError(
+      `session state must be OTP_REQUESTED, got ${session.state}`,
+      409,
+      "CONFLICT",
+    );
+  }
+  if (!session.txnId) {
+    throw new AbdmUseCaseError("session missing txnId for resend", 400);
+  }
+  if (!aadhaarMatchesSessionMask(digits, session.context["aadhaarMasked"])) {
+    throw new AbdmUseCaseError("aadhaarNumber does not match session", 400);
+  }
+  const cert = await deps.gateway.getPublicCertificate();
+  const loginId = encryptLoginIdWithAbdmPublicKey(cert.publicKey, digits);
+  const body: NhaEnrolmentRequestOtpBody = {
+    txnId: session.txnId,
+    scope: ["abha-enrol"],
+    loginHint: "aadhaar",
+    loginId,
+    otpSystem: "aadhaar",
+  };
+  const nha = await deps.gateway.post<NhaEnrolmentRequestOtpBody, NhaEnrolmentRequestOtpResponse>({
+    path: "/v3/enrollment/request/otp",
+    body,
+  });
+  const txnId = nha.txnId;
+  if (!txnId || typeof txnId !== "string") {
+    throw new Error("NHA enrollment/request/otp resend response missing txnId");
+  }
+  await deps.sessions.patch({
+    iqTenantId,
+    sessionId: session.sessionId,
+    txnId,
+    contextMerge: {
+      nhaOtpMessage: nha.message,
+      lastOtpResendAt: new Date().toISOString(),
+    },
+  });
+  return {
+    sessionId: session.sessionId,
+    txnId,
+    message: typeof nha.message === "string" ? nha.message : "OTP sent",
+  };
+}

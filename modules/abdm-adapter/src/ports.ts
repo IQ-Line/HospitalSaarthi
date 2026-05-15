@@ -40,19 +40,50 @@ export interface AbdmSessionsPort {
   }): Promise<AbdmSession>;
 }
 
+/** Which upstream base URL to use (see env `ABDM_GATEWAY_BASE_URL` vs `ABDM_ABHA_API_BASE_URL`). */
+export type AbdmGatewayRouteTarget = "gateway" | "abha";
+
+/** How to decode a GET response body from NHA. */
+export type GatewayGetResponseParser = "json" | "abha-card";
+
 export interface GatewayClient {
-  /** Authenticated POST to the ABDM gateway. Adds bearer token + REQUEST-ID + TIMESTAMP. */
+  /**
+   * POST to NHA. `abha` (default): ABHA API paths like `/v3/enrollment/...` with gateway bearer.
+   * `gateway`: HIE-CM gateway paths like `/api/hiecm/gateway/v3/sessions` — no bearer (session uses body creds).
+   */
   post<TReq, TRes>(input: {
     path: string;
     body: TReq;
     headers?: Record<string, string>;
+    target?: AbdmGatewayRouteTarget;
+    /** When false, omit Authorization (only used for gateway session POST). */
+    withBearer?: boolean;
   }): Promise<TRes>;
 
-  /** Authenticated GET. */
+  /** GET with gateway bearer unless `withBearer: false`. */
   get<TRes>(input: {
     path: string;
     headers?: Record<string, string>;
+    target?: AbdmGatewayRouteTarget;
+    withBearer?: boolean;
+    /** Default `json`. Use `abha-card` for PDF/base64 card downloads (NHA often returns non-JSON). */
+    responseParser?: GatewayGetResponseParser;
   }): Promise<TRes>;
+
+  /**
+   * GET `/v3/profile/public/certificate` — gateway bearer; result cached (TTL configurable on client).
+   */
+  getPublicCertificate(): Promise<{
+    publicKey: string;
+    encryptionAlgorithm: string;
+  }>;
+
+  /** Non-secret diagnostics for ops routes (token/cert cache bounds). */
+  getDiagnosticsSnapshot(): {
+    tokenValidUntilMs: number | null;
+    certValidUntilMs: number | null;
+    certCached: boolean;
+  };
 }
 
 export interface FideliusEncryptor {

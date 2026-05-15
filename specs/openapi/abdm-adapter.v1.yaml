@@ -1,0 +1,915 @@
+openapi: 3.1.0
+info:
+  title: ABDM Adapter API
+  version: 1.0.0
+  description: |
+    Hospital platform adapter for NHA ABDM gateway access and Milestone 1 (M1)
+    ABHA enrolment: Aadhaar OTP, verification, mobile confirmation, ABHA address,
+    and profile reads.
+
+    Authenticated routes require header `x-tenant-id` (hospital tenant UUID) on each operation below.
+
+servers:
+  - url: http://localhost:3007/api/abdm/v1
+    description: Development
+
+tags:
+  - name: M0-Gateway
+    description: Gateway session and encryption certificate
+  - name: M1-Enrolment
+    description: ABHA creation via Aadhaar
+  - name: M1-Profile
+    description: Profile and ABHA card download
+  - name: M1-Login
+    description: Login to existing ABHA
+  - name: M1-Verify
+    description: Frontdesk verification of existing ABHA
+
+security:
+  - TenantHeader: []
+
+paths:
+  /m0/gateway/session:
+    get:
+      operationId: abdmM0GatewaySessionProbe
+      summary: Verify gateway access token and ABHA public certificate
+      description: |
+        Confirms NHA gateway client-credentials and ABHA encryption certificate
+        are reachable. Does not create an enrolment session.
+      tags: [M0-Gateway]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      security:
+        - TenantHeader: []
+      responses:
+        "200":
+          description: Upstream reachable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GatewaySessionProbeOk"
+        "400":
+          description: Missing tenant id header
+        "502":
+          description: NHA gateway or ABHA API error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GatewaySessionProbeFail"
+
+  /m1/enrol/aadhaar/otp:
+    post:
+      operationId: abdmM1EnrolAadhaarOtp
+      summary: Send Aadhaar OTP for ABHA enrolment
+      tags: [M1-Enrolment]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      security:
+        - TenantHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrolAadhaarOtpRequest"
+      responses:
+        "200":
+          description: OTP dispatched; platform session created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnrolAadhaarOtpResponse"
+        "400":
+          description: Invalid body (e.g. not 12-digit Aadhaar)
+        "401":
+          description: Missing or invalid auth (when ENABLE_AUTH=true)
+        "4XX":
+          description: Mapped NHA client error
+        "502":
+          description: NHA unavailable or unexpected response
+
+  /m1/enrol/aadhaar/otp/resend:
+    post:
+      operationId: abdmM1EnrolAadhaarOtpResend
+      summary: Resend Aadhaar OTP (same NHA contract with populated txnId)
+      tags: [M1-Enrolment]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      security:
+        - TenantHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrolAadhaarOtpResendRequest"
+      responses:
+        "200":
+          description: OTP resent; session txnId updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnrolAadhaarOtpResponse"
+        "400":
+          description: Invalid body or Aadhaar mismatch
+        "404":
+          description: Session not found
+        "409":
+          description: Session not in OTP_REQUESTED
+        "4XX":
+          description: Mapped NHA client error
+        "502":
+          description: NHA unavailable or unexpected response
+
+  /m1/enrol/aadhaar/verify:
+    post:
+      operationId: abdmM1EnrolAadhaarVerify
+      summary: Verify Aadhaar OTP and create ABHA (NHA byAadhaar)
+      tags: [M1-Enrolment]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      security:
+        - TenantHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrolAadhaarVerifyRequest"
+      responses:
+        "200":
+          description: ABHA created; session stores x_token + new txnId
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnrolAadhaarVerifyResponse"
+        "400":
+          description: Invalid OTP or body
+        "404":
+          description: Session not found
+        "409":
+          description: Session not in OTP_REQUESTED
+        "4XX":
+          description: Mapped NHA client error
+        "502":
+          description: NHA unavailable or unexpected response
+
+  /m1/enrol/mobile-verify/otp:
+    post:
+      operationId: abdmM1EnrolMobileVerifyOtp
+      summary: Send mobile OTP during Aadhaar enrolment chain
+      tags: [M1-Enrolment]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      security:
+        - TenantHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrolMobileVerifyOtpRequest"
+      responses:
+        "200":
+          description: OTP sent to mobile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnrolMobileVerifyOtpResponse"
+        "400":
+          description: Invalid mobile
+        "404":
+          description: Session not found
+        "409":
+          description: Session not in ABHA_CREATED
+        "4XX":
+          description: Mapped NHA client error
+        "502":
+          description: NHA unavailable or unexpected response
+
+  /m1/enrol/mobile-verify/verify:
+    post:
+      operationId: abdmM1EnrolMobileVerifyConfirm
+      summary: Verify mobile OTP (NHA auth/byAbdm)
+      tags: [M1-Enrolment]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      security:
+        - TenantHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrolMobileVerifyConfirmRequest"
+      responses:
+        "200":
+          description: Mobile verified; txnId updated for next enrolment step
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnrolMobileVerifyConfirmResponse"
+        "400":
+          description: Invalid OTP
+        "404":
+          description: Session not found
+        "409":
+          description: Session not in ABHA_CREATED
+        "4XX":
+          description: Mapped NHA client error
+        "502":
+          description: NHA unavailable or unexpected response
+
+  /m1/abha-address/suggestions:
+    get:
+      operationId: abdmM1AbhaAddressSuggestions
+      summary: List suggested ABHA addresses for the enrolment txn
+      tags: [M1-Enrolment]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+        - name: sessionId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security:
+        - TenantHeader: []
+      responses:
+        "200":
+          description: Suggestions returned; session txnId may advance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AbhaAddressSuggestionsResponse"
+        "400":
+          description: Missing or invalid sessionId
+        "404":
+          description: Session not found
+        "409":
+          description: Session not in ABHA_CREATED
+        "4XX":
+          description: Mapped NHA client error
+        "502":
+          description: NHA unavailable or unexpected response
+
+  /m1/abha-address:
+    post:
+      operationId: abdmM1AbhaAddressCreate
+      summary: Create preferred ABHA address
+      tags: [M1-Enrolment]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      security:
+        - TenantHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAbhaAddressRequest"
+      responses:
+        "200":
+          description: Address created; session transitions to ADDRESS_CREATED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateAbhaAddressResponse"
+        "400":
+          description: Invalid body
+        "404":
+          description: Session not found
+        "409":
+          description: Session not in ABHA_CREATED
+        "4XX":
+          description: Mapped NHA client error
+        "502":
+          description: NHA unavailable or unexpected response
+
+  /m1/profile:
+    get:
+      operationId: abdmM1ProfileAccount
+      summary: Fetch ABHA profile (requires session x_token)
+      tags: [M1-Profile]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+        - name: sessionId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security:
+        - TenantHeader: []
+      responses:
+        "200":
+          description: Profile JSON from NHA (passthrough subset)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileAccountResponse"
+        "400":
+          description: Missing or invalid sessionId
+        "404":
+          description: Session not found
+        "409":
+          description: Session state not ready for profile read
+        "4XX":
+          description: Mapped NHA client error
+        "502":
+          description: NHA unavailable or unexpected response
+
+  /m1/profile/abha-card:
+    get:
+      operationId: abdmM1ProfileAbhaCard
+      summary: Download ABHA card payload (requires session x_token)
+      tags: [M1-Profile]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+        - name: sessionId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security:
+        - TenantHeader: []
+      responses:
+        "200":
+          description: Card object from NHA (often base64 data)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileAbhaCardResponse"
+        "400":
+          description: Missing or invalid sessionId
+        "404":
+          description: Session not found
+        "409":
+          description: Session state not ready for profile read
+        "4XX":
+          description: Mapped NHA client error
+        "502":
+          description: NHA unavailable or unexpected response
+
+  /m1/sessions/{sessionId}:
+    get:
+      operationId: abdmM1SessionGet
+      summary: Read platform session state and next-step hint
+      tags: [M1-Enrolment]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Session snapshot for UI routing
+        "404":
+          description: Session not found
+
+  /m1/enrol/mobile/otp:
+    post:
+      operationId: abdmM1EnrolMobileOtp
+      summary: Standalone mobile enrolment — send OTP
+      tags: [M1-Enrolment]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mobile]
+              properties:
+                mobile:
+                  type: string
+                  pattern: "^\\d{10}$"
+      responses:
+        "200":
+          description: OTP dispatched; platform session created
+
+  /m1/enrol/mobile/verify:
+    post:
+      operationId: abdmM1EnrolMobileVerify
+      summary: Standalone mobile enrolment — verify OTP
+      tags: [M1-Enrolment]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrolMobileVerifyConfirmRequest"
+      responses:
+        "200":
+          description: Mobile enrolment verified
+
+  /m1/login/otp:
+    post:
+      operationId: abdmM1LoginAbhaNumberOtp
+      summary: Login via ABHA number OTP
+      tags: [M1-Login]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [abhaNumber]
+              properties:
+                abhaNumber:
+                  type: string
+                channel:
+                  type: string
+                  enum: [aadhaar, abha-otp]
+      responses:
+        "200":
+          description: OTP dispatched
+
+  /m1/login/aadhaar/otp:
+    post:
+      operationId: abdmM1LoginAadhaarOtp
+      summary: Login via Aadhaar OTP
+      tags: [M1-Login]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrolAadhaarOtpRequest"
+      responses:
+        "200":
+          description: OTP dispatched
+
+  /m1/login/mobile/otp:
+    post:
+      operationId: abdmM1LoginMobileOtp
+      summary: Login via mobile OTP
+      tags: [M1-Login]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrolMobileVerifyOtpRequest"
+      responses:
+        "200":
+          description: OTP dispatched
+
+  /m1/login/verify:
+    post:
+      operationId: abdmM1LoginVerify
+      summary: Login OTP verify
+      tags: [M1-Login]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrolMobileVerifyConfirmRequest"
+      responses:
+        "200":
+          description: Login verified; x_token stored on session
+
+  /m1/verify/abha-number/otp:
+    post:
+      operationId: abdmM1VerifyAbhaNumberOtp
+      summary: Frontdesk verify ABHA number — send OTP
+      tags: [M1-Verify]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [abhaNumber]
+              properties:
+                abhaNumber:
+                  type: string
+                channel:
+                  type: string
+                  enum: [aadhaar, abha-otp]
+      responses:
+        "200":
+          description: OTP dispatched
+
+  /m1/verify/abha-number/verify:
+    post:
+      operationId: abdmM1VerifyAbhaNumberConfirm
+      summary: Frontdesk verify ABHA number — confirm OTP
+      tags: [M1-Verify]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrolMobileVerifyConfirmRequest"
+      responses:
+        "200":
+          description: ABHA verified
+
+  /m1/verify/abha-address/otp:
+    post:
+      operationId: abdmM1VerifyAbhaAddressOtp
+      summary: Frontdesk verify ABHA address — send OTP
+      tags: [M1-Verify]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [abhaAddress]
+              properties:
+                abhaAddress:
+                  type: string
+                channel:
+                  type: string
+                  enum: [mobile, aadhaar]
+      responses:
+        "200":
+          description: OTP dispatched
+
+  /m1/verify/abha-address/verify:
+    post:
+      operationId: abdmM1VerifyAbhaAddressConfirm
+      summary: Frontdesk verify ABHA address — confirm OTP
+      tags: [M1-Verify]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrolMobileVerifyConfirmRequest"
+      responses:
+        "200":
+          description: ABHA address verified
+
+  /m1/profile/mobile/update/otp:
+    post:
+      operationId: abdmM1ProfileMobileUpdateOtp
+      summary: Profile mobile update — request OTP
+      tags: [M1-Profile]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrolMobileVerifyOtpRequest"
+      responses:
+        "200":
+          description: OTP sent
+
+  /m1/profile/mobile/update/verify:
+    post:
+      operationId: abdmM1ProfileMobileUpdateVerify
+      summary: Profile mobile update — verify OTP
+      tags: [M1-Profile]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrolMobileVerifyConfirmRequest"
+      responses:
+        "200":
+          description: Mobile updated
+
+  /m1/profile/email/update/otp:
+    post:
+      operationId: abdmM1ProfileEmailUpdateOtp
+      summary: Profile email update — request OTP
+      tags: [M1-Profile]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sessionId, email]
+              properties:
+                sessionId:
+                  type: string
+                  format: uuid
+                email:
+                  type: string
+                  format: email
+      responses:
+        "200":
+          description: OTP sent
+
+  /m1/profile/email/update/verify:
+    post:
+      operationId: abdmM1ProfileEmailUpdateVerify
+      summary: Profile email update — verify OTP
+      tags: [M1-Profile]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrolMobileVerifyConfirmRequest"
+      responses:
+        "200":
+          description: Email updated
+
+  /m1/profile/phr-card:
+    get:
+      operationId: abdmM1ProfilePhrCard
+      summary: Download PHR card (requires session x_token)
+      tags: [M1-Profile]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+        - name: sessionId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: PHR card payload
+
+  /m1/profile/qr-code:
+    get:
+      operationId: abdmM1ProfileQrCode
+      summary: Download profile QR code (requires session x_token)
+      tags: [M1-Profile]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+        - name: sessionId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: QR code payload
+
+components:
+  parameters:
+    XTenantId:
+      name: x-tenant-id
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Hospital tenant UUID (required on every request).
+      example: "00000000-0000-4000-8000-0000000000aa"
+
+  securitySchemes:
+    TenantHeader:
+      type: apiKey
+      in: header
+      name: x-tenant-id
+      description: Hospital tenant UUID (`iq_tenant_id` is accepted as an alias).
+
+  schemas:
+    EnrolAadhaarOtpRequest:
+      type: object
+      required: [aadhaarNumber]
+      properties:
+        aadhaarNumber:
+          type: string
+          pattern: "^\\d{12}$"
+          description: Twelve-digit Aadhaar (sandbox test value in SBX).
+
+    EnrolAadhaarOtpResponse:
+      type: object
+      required: [sessionId, txnId, message]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        txnId:
+          type: string
+        message:
+          type: string
+
+    EnrolAadhaarOtpResendRequest:
+      type: object
+      required: [sessionId, aadhaarNumber]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        aadhaarNumber:
+          type: string
+          pattern: "^\\d{12}$"
+
+    EnrolAadhaarVerifyRequest:
+      type: object
+      required: [sessionId, otp]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        otp:
+          type: string
+          pattern: "^\\d{6}$"
+        mobile:
+          type: string
+          description: Optional 10-digit mobile for NHA when required by policy.
+
+    EnrolAadhaarVerifyResponse:
+      type: object
+      required: [sessionId, txnId, message]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        txnId:
+          type: string
+        healthIdNumber:
+          type: string
+        isNew:
+          type: boolean
+        message:
+          type: string
+
+    EnrolMobileVerifyOtpRequest:
+      type: object
+      required: [sessionId, mobile]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        mobile:
+          type: string
+          pattern: "^\\d{10}$"
+
+    EnrolMobileVerifyOtpResponse:
+      type: object
+      required: [sessionId, txnId, message]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        txnId:
+          type: string
+        message:
+          type: string
+
+    EnrolMobileVerifyConfirmRequest:
+      type: object
+      required: [sessionId, otp]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        otp:
+          type: string
+          pattern: "^\\d{6}$"
+
+    EnrolMobileVerifyConfirmResponse:
+      type: object
+      required: [sessionId, txnId, message]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        txnId:
+          type: string
+        message:
+          type: string
+
+    AbhaAddressSuggestionsResponse:
+      type: object
+      required: [sessionId, txnId, suggestions]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        txnId:
+          type: string
+        suggestions:
+          type: array
+          items:
+            type: string
+
+    CreateAbhaAddressRequest:
+      type: object
+      required: [sessionId, abhaAddress]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        abhaAddress:
+          type: string
+        preferred:
+          type: integer
+          enum: [1]
+          default: 1
+          description: NHA accepts only `1` for this enrolment step (omit to default to 1).
+
+    CreateAbhaAddressResponse:
+      type: object
+      required: [sessionId, txnId]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        txnId:
+          type: string
+        healthIdNumber:
+          type: string
+        preferredAbhaAddress:
+          type: string
+
+    ProfileAccountResponse:
+      type: object
+      required: [sessionId, profile]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        profile:
+          type: object
+          additionalProperties: true
+
+    ProfileAbhaCardResponse:
+      type: object
+      required: [sessionId, card]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        card:
+          type: object
+          additionalProperties: true
+
+    GatewaySessionProbeOk:
+      type: object
+      required: [ok, gateway, certificate]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        gateway:
+          type: object
+          properties:
+            tokenValidUntilApprox:
+              type: string
+              format: date-time
+              nullable: true
+        certificate:
+          type: object
+          properties:
+            encryptionAlgorithm:
+              type: string
+            publicKeyFingerprint:
+              type: string
+            cacheValidUntilApprox:
+              type: string
+              format: date-time
+              nullable: true
+
+    GatewaySessionProbeFail:
+      type: object
+      required: [ok, error]
+      properties:
+        ok:
+          type: boolean
+          const: false
+        error:
+          type: object
+          properties:
+            message:
+              type: string
+            statusCode:
+              type: integer
+            code:
+              type: string
+              nullable: true

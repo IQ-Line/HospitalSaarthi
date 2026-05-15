@@ -7,6 +7,12 @@
       "options": {
         "cwd": "services/abdm-adapter-svc"
       }
+    },
+    "db:migrate": {
+      "command": "node scripts/migrate.mjs",
+      "options": {
+        "cwd": "services/abdm-adapter-svc"
+      }
     }
   }
 }
