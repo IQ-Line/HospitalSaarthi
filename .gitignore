@@ -35,6 +35,9 @@ Thumbs.db
 coverage/
 **/.vite/
 
+# TanStack Router / Vite tooling (local tmp; do not commit)
+services/web/.tanstack/
+
 # Drizzle Kit output (canonical apply: modules/empi/migrations/0000_*.sql + 0001_pg_trgm.sql)
 modules/empi/migrations/drizzle/
 
@@ -51,3 +54,12 @@ __pycache__/
 .venv/
 .mypy_cache/
 .ruff_cache/
+
+# ABDM wrapper reference repo (cloned for context)
+docs/external/abdm-wrapper/
+
+# Local-only ABDM / legacy reference (keep on disk; do not commit to feature branches)
+/abdi-lims-backed/
+/Milestone_1_Postman_Collection_18_08_2025_postman_collection_d202ddf09a.json
+/milestone1.md
+/docs/plans/abdm-milestone1-adapter-specification.md

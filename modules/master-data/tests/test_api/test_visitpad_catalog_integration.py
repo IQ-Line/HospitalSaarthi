@@ -129,3 +129,58 @@ def test_visitpad_procedure_create_and_get(visitpad_catalog_client: TestClient) 
     assert data["short_name"] == "93000"
     assert data["requires_consent"] is True
     assert data["snomed_code"] == "3457005"
+
+
+TENANT_IMPORT = "00000000-0000-0000-0000-000000000007"
+
+
+def test_visitpad_medicine_bulk_import_from_platform(visitpad_catalog_client: TestClient) -> None:
+    body = {
+        "code": "imp_med",
+        "display_name": "Import Med",
+        "generic_name": "Import Generic",
+        "drug_class": "NSAID",
+        "dosage_form": "tablet",
+        "schedule": "otc",
+    }
+    r = visitpad_catalog_client.post("/api/v1/master-data/visitpad/medicines", json=body)
+    assert r.status_code == 201, r.text
+    mid = r.json()["data"]["id"]
+    imp = visitpad_catalog_client.post(
+        "/api/v1/master-data/visitpad/medicines/import-from-platform",
+        headers={"iq_tenant_id": TENANT_IMPORT},
+        json={"platform_row_ids": [mid]},
+    )
+    assert imp.status_code == 200, imp.text
+    out = imp.json()["data"]
+    assert len(out["created"]) == 1
+    assert out["errors"] == []
+
+
+def test_visitpad_rx_column_bulk_import_from_platform(visitpad_catalog_client: TestClient) -> None:
+    body = {
+        "section": "frequency",
+        "display_name": "Weekly",
+        "code": "qw",
+        "display_order": 0,
+        "is_active": True,
+    }
+    r = visitpad_catalog_client.post("/api/v1/master-data/visitpad/rx-columns", json=body)
+    assert r.status_code == 201, r.text
+    rid = r.json()["data"]["id"]
+    imp = visitpad_catalog_client.post(
+        "/api/v1/master-data/visitpad/rx-columns/import-from-platform?section=frequency",
+        headers={"iq_tenant_id": TENANT_IMPORT},
+        json={"platform_row_ids": [rid]},
+    )
+    assert imp.status_code == 200, imp.text
+    out = imp.json()["data"]
+    assert len(out["created"]) == 1
+    wrong = visitpad_catalog_client.post(
+        "/api/v1/master-data/visitpad/rx-columns/import-from-platform?section=route",
+        headers={"iq_tenant_id": TENANT_IMPORT},
+        json={"platform_row_ids": [rid]},
+    )
+    assert wrong.status_code == 200
+    err = wrong.json()["data"]["errors"]
+    assert len(err) == 1

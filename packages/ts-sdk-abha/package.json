@@ -1,0 +1,65 @@
+{
+  "name": "@hims/ts-sdk-abha",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./types": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/types/index.js"
+    },
+    "./domain": {
+      "types": "./dist/domain/index.d.ts",
+      "import": "./dist/domain/index.js"
+    },
+    "./fhir": {
+      "types": "./dist/fhir/patient-identifier.d.ts",
+      "import": "./dist/fhir/patient-identifier.js"
+    },
+    "./validators": {
+      "types": "./dist/validators/index.d.ts",
+      "import": "./dist/validators/index.js"
+    },
+    "./constants": {
+      "types": "./dist/constants/index.d.ts",
+      "import": "./dist/constants/index.js"
+    },
+    "./protocol": {
+      "types": "./dist/protocol/index.d.ts",
+      "import": "./dist/protocol/index.js"
+    },
+    "./protocol/m1": {
+      "types": "./dist/protocol/m1/index.d.ts",
+      "import": "./dist/protocol/m1/index.js"
+    },
+    "./protocol/m2": {
+      "types": "./dist/protocol/m2/index.d.ts",
+      "import": "./dist/protocol/m2/index.js"
+    },
+    "./protocol/m3": {
+      "types": "./dist/protocol/m3/index.d.ts",
+      "import": "./dist/protocol/m3/index.js"
+    },
+    "./protocol/common": {
+      "types": "./dist/protocol/common/index.d.ts",
+      "import": "./dist/protocol/common/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.json"
+  },
+  "dependencies": {
+    "@hims/ts-sdk-fhir": "workspace:*"
+  },
+  "peerDependencies": {
+    "typescript": ">=5.6.0",
+    "zod": ">=3.23.0"
+  },
+  "files": ["dist"]
+}

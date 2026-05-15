@@ -257,6 +257,7 @@ function ModulesPage() {
           <MasterDataTableToolbar
             value={tableSearch}
             onChange={setTableSearch}
+            debounceMs={0}
             placeholder="Search name, slug, category, version…"
           />
         </div>

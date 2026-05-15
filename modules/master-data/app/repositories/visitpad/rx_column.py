@@ -66,6 +66,16 @@ class VisitpadRxColumnRepository:
             empty_total_stmt=empty_total_stmt,
         )
 
+    def list_import_key_strings(self, *, section: str | None = None) -> list[str]:
+        M = self._M()
+        filters = [M.is_deleted.is_(False)]
+        if self._scope.is_tenant:
+            filters.append(M.iq_tenant_id == self._scope.iq_tenant_id)
+        if section is not None:
+            filters.append(M.section == section)
+        stmt = select(M.section, M.code).where(*filters).order_by(M.section, M.code)
+        return [f"{s}::{c}" for s, c in self._session.execute(stmt).all()]
+
     def get_by_id(
         self,
         row_id: UUID,

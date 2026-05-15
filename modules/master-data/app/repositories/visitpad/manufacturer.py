@@ -64,6 +64,15 @@ class VisitpadManufacturerRepository:
             empty_total_stmt=empty_total_stmt,
         )
 
+    def list_import_key_strings(self) -> list[str]:
+        """Lowercase codes (matches import UI comparison for manufacturers)."""
+        M = self._M()
+        filters = [M.is_deleted.is_(False)]
+        if self._scope.is_tenant:
+            filters.append(M.iq_tenant_id == self._scope.iq_tenant_id)
+        stmt = select(func.lower(M.code)).where(*filters).order_by(func.lower(M.code))
+        return [str(c) for (c,) in self._session.execute(stmt).all()]
+
     def get_by_id(
         self,
         row_id: UUID,

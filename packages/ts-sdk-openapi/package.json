@@ -1,0 +1,19 @@
+{
+  "name": "@hims/ts-sdk-openapi",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@fastify/swagger": "^9.5.1",
+    "@fastify/swagger-ui": "^5.2.3"
+  },
+  "peerDependencies": {
+    "fastify": ">=5.0.0"
+  },
+  "devDependencies": {
+    "fastify": "^5.3.3"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "ts-sdk-fhir",
+  "tags": ["type:sdk", "scope:platform"],
+  "targets": {
+    "build": {
+      "command": "tsc -p tsconfig.json",
+      "options": {
+        "cwd": "packages/ts-sdk-fhir"
+      },
+      "outputs": ["{projectRoot}/dist"]
+    },
+    "test": {
+      "command": "vitest run",
+      "options": {
+        "cwd": "packages/ts-sdk-fhir"
+      }
+    },
+    "lint": {
+      "command": "eslint src/",
+      "options": {
+        "cwd": "packages/ts-sdk-fhir"
+      }
+    },
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "packages/ts-sdk-fhir"
+      }
+    }
+  }
+}
