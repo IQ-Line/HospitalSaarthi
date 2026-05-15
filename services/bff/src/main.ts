@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import proxy from '@fastify/http-proxy';
@@ -18,9 +19,11 @@ const upstreams: UpstreamRoute[] = [
     prefix: '/api/configurator/v1',
     upstream: process.env['CONFIGURATOR_URL'] ?? 'http://localhost:3001',
   },
+  {
+    prefix: '/api/empi/v1',
+    upstream: process.env['EMPI_URL'] ?? 'http://localhost:3002',
+  },
   // Add new module upstreams here as they come online:
-  // { prefix: '/api/v1/user-management', upstream: process.env['USER_MANAGEMENT_URL'] ?? 'http://localhost:3002' },
-  // { prefix: '/api/v1/empi', upstream: process.env['EMPI_URL'] ?? 'http://localhost:3003' },
 ];
 
 const isProduction = process.env['NODE_ENV'] === 'production';
@@ -72,6 +75,27 @@ async function main() {
       cb(null, !!origin && productionCorsOrigins.includes(origin));
     },
   });
+
+  /**
+   * Visits API — single stable path for the browser: `POST /api/v1/visits`.
+   * - Default: proxy to `VISITS_SERVICE_URL` (real service when available).
+   * - Local UI without backend: run BFF with `VISITS_STUB=true` to return 201 + JSON id.
+   */
+  const visitsStub = process.env['VISITS_STUB'] === 'true';
+  const visitsUpstream =
+    process.env['VISITS_SERVICE_URL'] ?? 'http://localhost:8020';
+  if (visitsStub) {
+    app.post('/api/v1/visits', async (_req, reply) => {
+      return reply.code(201).send({ id: randomUUID(), status: 'stub' });
+    });
+  } else {
+    await app.register(proxy, {
+      upstream: visitsUpstream,
+      prefix: '/api/v1/visits',
+      rewritePrefix: '/api/v1/visits',
+      http2: false,
+    });
+  }
 
   for (const route of upstreams) {
     await app.register(proxy, {

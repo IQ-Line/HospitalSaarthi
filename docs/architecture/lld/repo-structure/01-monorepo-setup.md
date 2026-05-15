@@ -34,6 +34,10 @@ hims-platform/
 │   ├── ts-sdk-db/                          # Drizzle base config, audit columns, tenant_id helpers
 │   ├── ts-sdk-tenant/                      # AsyncLocalStorage tenant context middleware
 │   ├── ts-sdk-testing/                     # Test helpers: fixtures, mocks, integration DB setup
+│   ├── ts-sdk-fhir/                        # FHIR R4 + NRCeS profile registry, builders, validators (ADR-0023)
+│   ├── ts-sdk-abha/                        # ABHA domain types, validators, FHIR mapping, FSM state names
+│   ├── py-sdk-fhir/                        # Python mirror of ts-sdk-fhir (skeleton; impl deferred until first Python FHIR service)
+│   ├── py-sdk-abha/                        # Python mirror of ts-sdk-abha (skeleton; impl deferred until first Python ABDM service)
 │   ├── openapi-clients/                    # Auto-generated typed HTTP clients from specs/
 │   ├── eslint-config/                      # Shared ESLint config
 │   └── tsconfig/                           # Shared tsconfig base files

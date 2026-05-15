@@ -12,6 +12,7 @@
     "e2e": "playwright test"
   },
   "dependencies": {
+    "@cerbos/core": "^0.30.0",
     "@cerbos/http": "^0.28.0",
     "@cerbos/react": "^0.3.5",
     "@hookform/resolvers": "^5.0.1",
@@ -27,6 +28,7 @@
     "@tanstack/react-router-devtools": "^1.120.6",
     "@tanstack/react-table": "^8.21.3",
     "@tanstack/react-virtual": "^3.13.6",
+    "better-auth": "^1.6.10",
     "lucide-react": "^0.561.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

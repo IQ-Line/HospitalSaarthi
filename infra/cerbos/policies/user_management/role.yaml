@@ -1,0 +1,48 @@
+---
+# User Management — role definition and role composition operations.
+# Policies authorize by tenant + capability keys only; role names are context, not grants.
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "role"
+  version: default
+  rules:
+    - actions:
+        - "role.read"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "um:role:read" in request.principal.attr.capabilities ||
+              "um:role:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "role.create"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "um:role:create" in request.principal.attr.capabilities ||
+              "um:role:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "role.update"
+        - "role.compose"
+        - "role.delete"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "um:role:update" in request.principal.attr.capabilities ||
+              "um:role:update" in request.principal.attr.delegated_capabilities
+            )

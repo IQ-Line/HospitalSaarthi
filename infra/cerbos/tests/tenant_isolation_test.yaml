@@ -1,0 +1,200 @@
+# yaml-language-server: $schema=https://api.cerbos.dev/latest/cerbos/policy/v1/TestSuite.schema.json
+---
+name: tenant_isolation
+description: >-
+  User Management — iq_tenant_id on principal.attr must match resource.attr for all resolver-backed
+  user and role_assignment actions (no cross-tenant access).
+
+principals:
+  actor_tenant_aa:
+    id: principal-aa
+    roles: []
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: null
+      capabilities:
+        - "um:user:read"
+        - "um:user:create"
+        - "um:user:update"
+        - "um:user:deactivate"
+        - "um:role:assign"
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+resources:
+  user_row_aa:
+    id: user-target-aa
+    kind: user
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      department: null
+      required_clearance: 0
+
+  user_row_bb:
+    id: user-target-bb
+    kind: user
+    attr:
+      iq_tenant_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+      department: null
+      required_clearance: 0
+
+  user_list_aa:
+    id: list
+    kind: user
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      department: null
+      required_clearance: 0
+
+  user_list_bb:
+    id: list
+    kind: user
+    attr:
+      iq_tenant_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+      department: null
+      required_clearance: 0
+
+  user_new_aa:
+    id: new
+    kind: user
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      department: null
+      required_clearance: 0
+
+  user_new_bb:
+    id: new
+    kind: user
+    attr:
+      iq_tenant_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+      department: null
+      required_clearance: 0
+
+  role_assign_aa:
+    id: new
+    kind: role_assignment
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      department: null
+      required_clearance: 0
+
+  role_assign_bb:
+    id: new
+    kind: role_assignment
+    attr:
+      iq_tenant_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+      department: null
+      required_clearance: 0
+
+tests:
+  - name: user.read — same tenant ALLOW
+    input:
+      principals: [actor_tenant_aa]
+      resources: [user_row_aa]
+      actions: [user.read]
+    expected:
+      - principal: actor_tenant_aa
+        resource: user_row_aa
+        actions:
+          user.read: EFFECT_ALLOW
+
+  - name: user.read — cross-tenant DENY
+    input:
+      principals: [actor_tenant_aa]
+      resources: [user_row_bb]
+      actions: [user.read]
+    expected:
+      - principal: actor_tenant_aa
+        resource: user_row_bb
+        actions:
+          user.read: EFFECT_DENY
+
+  - name: user.read(list) — same tenant ALLOW
+    input:
+      principals: [actor_tenant_aa]
+      resources: [user_list_aa]
+      actions: [user.read]
+    expected:
+      - principal: actor_tenant_aa
+        resource: user_list_aa
+        actions:
+          user.read: EFFECT_ALLOW
+
+  - name: user.read(list) — cross-tenant DENY
+    input:
+      principals: [actor_tenant_aa]
+      resources: [user_list_bb]
+      actions: [user.read]
+    expected:
+      - principal: actor_tenant_aa
+        resource: user_list_bb
+        actions:
+          user.read: EFFECT_DENY
+
+  - name: user.create — same tenant ALLOW
+    input:
+      principals: [actor_tenant_aa]
+      resources: [user_new_aa]
+      actions: [user.create]
+    expected:
+      - principal: actor_tenant_aa
+        resource: user_new_aa
+        actions:
+          user.create: EFFECT_ALLOW
+
+  - name: user.create — cross-tenant DENY
+    input:
+      principals: [actor_tenant_aa]
+      resources: [user_new_bb]
+      actions: [user.create]
+    expected:
+      - principal: actor_tenant_aa
+        resource: user_new_bb
+        actions:
+          user.create: EFFECT_DENY
+
+  - name: role.assign — same tenant ALLOW
+    input:
+      principals: [actor_tenant_aa]
+      resources: [role_assign_aa]
+      actions: [role.assign]
+    expected:
+      - principal: actor_tenant_aa
+        resource: role_assign_aa
+        actions:
+          role.assign: EFFECT_ALLOW
+
+  - name: role.assign — cross-tenant DENY
+    input:
+      principals: [actor_tenant_aa]
+      resources: [role_assign_bb]
+      actions: [role.assign]
+    expected:
+      - principal: actor_tenant_aa
+        resource: role_assign_bb
+        actions:
+          role.assign: EFFECT_DENY
+
+  - name: user.update — cross-tenant DENY
+    input:
+      principals: [actor_tenant_aa]
+      resources: [user_row_bb]
+      actions: [user.update]
+    expected:
+      - principal: actor_tenant_aa
+        resource: user_row_bb
+        actions:
+          user.update: EFFECT_DENY
+
+  - name: user.update — same tenant ALLOW
+    input:
+      principals: [actor_tenant_aa]
+      resources: [user_row_aa]
+      actions: [user.update]
+    expected:
+      - principal: actor_tenant_aa
+        resource: user_row_aa
+        actions:
+          user.update: EFFECT_ALLOW

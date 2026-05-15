@@ -6,13 +6,12 @@
   "tags": ["scope:sdk", "type:lib"],
   "targets": {
     "build": {
-      "executor": "@nx/js:tsc",
-      "outputs": ["{options.outputPath}"],
+      "executor": "nx:run-commands",
       "options": {
-        "outputPath": "dist/packages/ts-sdk-tenant",
-        "tsConfig": "packages/ts-sdk-tenant/tsconfig.json",
-        "main": "packages/ts-sdk-tenant/src/index.ts"
-      }
+        "command": "tsc -p tsconfig.json",
+        "cwd": "packages/ts-sdk-tenant"
+      },
+      "outputs": ["{projectRoot}/dist"]
     },
     "lint": {
       "executor": "@nx/eslint:lint"

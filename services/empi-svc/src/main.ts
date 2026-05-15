@@ -1,4 +1,5 @@
 import Fastify from "fastify";
+import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import { tenantPlugin } from "@hims/ts-sdk-tenant";
 import { createDb } from "@hims/ts-sdk-db";
 import { InProcessEventBus } from "@hims/ts-sdk-events";
@@ -12,12 +13,13 @@ import {
 } from "@hims/empi";
 import { createTenantNumericCodeLookup } from "./tenant-numeric-code.js";
 
-const PORT = Number(process.env["EMPI_PORT"] ?? 3002);
+const PORT = Number(
+  process.env["EMPI_PORT"] ?? process.env["EMPI_SVC_PORT"] ?? 3002,
+);
 const DATABASE_URL = process.env["DATABASE_URL"] ?? "";
 const JWKS_URL =
   process.env["JWKS_URL"] ?? "http://localhost:3000/.well-known/jwks.json";
 const ENABLE_AUTH = process.env["ENABLE_AUTH"] === "true";
-
 
 const fastifyAjv = {
   customOptions: {
@@ -32,11 +34,15 @@ const fastifyAjv = {
 async function main() {
   const app = Fastify({ logger: true, ajv: fastifyAjv });
 
-  if (ENABLE_AUTH) {
-    const { identityPlugin } = await import("@hims/ts-sdk-identity");
-    await app.register(identityPlugin, { jwksUrl: JWKS_URL });
-  }
-  await app.register(tenantPlugin);
+  await registerOpenApiDocs(app, {
+    serviceId: "empi",
+    title: "EMPI API",
+    version: "1.0.0",
+    description: "Enterprise Master Patient Index — patient registration and identity.",
+    apiPrefix: "/api/empi/v1",
+  });
+
+  app.get("/healthz", async () => ({ status: "ok" }));
 
   const db = createDb(DATABASE_URL);
   const getTenantNumericCode = createTenantNumericCodeLookup(db);
@@ -49,8 +55,6 @@ async function main() {
   const sequenceRepo = new DrizzleSequenceRepo(db);
   const sourceRecordRepo = new DrizzleSourceRecordRepo(db);
 
-  app.get("/healthz", async () => ({ status: "ok" }));
-
   const empiRouter = createRouter({
     patientRepo,
     addressRepo,
@@ -61,10 +65,18 @@ async function main() {
     getTenantNumericCode,
   });
 
-  // Ensure the prefix is applied via encapsulation.
-  await app.register(async (scopedApp) => {
-    await scopedApp.register(empiRouter);
-  }, { prefix: "/api/empi/v1" });
+  await app.register(async (api) => {
+    if (ENABLE_AUTH) {
+      const { identityPlugin } = await import("@hims/ts-sdk-identity");
+      await api.register(identityPlugin, { jwksUrl: JWKS_URL });
+    }
+    await api.register(tenantPlugin);
+
+    await api.register(async (scopedApp) => {
+      await scopedApp.register(empiRouter);
+    }, { prefix: "/empi/v1" });
+  }, { prefix: "/api" });
+
   await app.listen({ port: PORT, host: "0.0.0.0" });
 }
 

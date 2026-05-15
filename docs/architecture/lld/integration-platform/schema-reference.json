@@ -1,0 +1,370 @@
+{
+  "$schema": "erd/v1",
+  "schema": "integration_hub",
+  "description": "Integration Hub control plane + ABDM adapter tables. Owns external integration registry, durable workflow state machines (FSM engine), inbound/outbound transport logs, and ABDM-specific protocol state (gateway sessions, scan-and-share tokens, consent artifacts, link tokens, data-exchange sessions). Does NOT own clinical records or FHIR Document Bundles -- that is Record Foundation's responsibility per ADR-0028. Does NOT own facility HFR ID or ABDM credential bytes -- those live in Configurator (HFR ID) and behind the secrets SDK (credentials, resolved from env: in Phase 0/1 and a real store thereafter, per ADR-0024-style pre-prod gate). Does NOT include a per-module audit table -- audit substrate is workflow_transitions + inbound/outbound message logs + domain events, projected by the future centralized audit consumer (ADR-0024).",
+  "citus": {
+    "distribution_column": "iq_tenant_id",
+    "reference_tables": [],
+    "rationale": "All Integration Hub state is tenant-scoped. A tenant's workflows, credentials, audit logs, and ABDM sessions co-locate with the tenant's data in other modules to keep joins shard-local."
+  },
+  "phasing": {
+    "MVP": "12 tables ship in Phase 0 (generic control plane: integrations, integration_credentials, integration_workflows, integration_workflow_transitions, integration_workflow_timers, integration_inbound_messages, integration_outbound_messages) plus the ABDM adapter tables empty. ABDM adapter tables (abdm_gateway_sessions, abdm_share_tokens, abdm_share_token_issuances, abdm_consent_artifacts, abdm_link_tokens, abdm_data_exchange_sessions) populated in Phase 1. NO per-module audit table per ADR-0024; audit substrate is the workflow transition log + inbound/outbound message logs + rich domain events + structured request logs, feeding the future centralized audit consumer.",
+    "Post-launch": "Per-integration custom-state JSONB extension for adapters that need adapter-specific state beyond what the generic FSM tables capture. Bulk reconciliation jobs for stuck workflows. Cross-tenant ABDM gateway session pooling (currently per-tenant)."
+  },
+  "entities": {
+    "integrations": {
+      "description": "Registry of configured integrations per tenant. One row per (tenant, external system, direction). Used by both inbound and outbound flows to look up protocol, auth method, mappings, and rate limits. Mirrors the integration registry described in HLD-05 section 7.1.",
+      "distribution": "distributed_by_iq_tenant_id",
+      "columns": {
+        "id": {"type": "UUID", "nullable": false, "default": "gen_random_uuid()"},
+        "iq_tenant_id": {"type": "UUID", "nullable": false, "description": "Distribution column. The tenant that owns this integration."},
+        "name": {"type": "TEXT", "nullable": false, "description": "Human-readable integration name (e.g., 'ABDM-sandbox', 'lab-analyzer-cardio-1')."},
+        "kind": {"type": "TEXT", "nullable": false, "check": "kind IN ('abdm','lab_analyzer','legacy_his','tpa','government_reporting','ris_pacs','custom')", "description": "Integration category. Drives which adapter handles this integration."},
+        "direction": {"type": "TEXT", "nullable": false, "check": "direction IN ('inbound','outbound','bidirectional')"},
+        "protocol": {"type": "TEXT", "nullable": false, "check": "protocol IN ('fhir_r4','hl7v2','soap_xml','rest_json','flat_file','proprietary')"},
+        "auth_method": {"type": "TEXT", "nullable": false, "check": "auth_method IN ('api_key','mtls','oauth2_client_credentials','none')", "description": "How this integration authenticates. 'none' is reserved for development; production must use one of the other three."},
+        "status": {"type": "TEXT", "nullable": false, "default": "active", "check": "status IN ('active','paused','erroring','retired')"},
+        "rate_limit_rpm": {"type": "INTEGER", "nullable": true, "description": "Per-tenant rate limit in requests per minute. NULL = no limit."},
+        "config": {"type": "JSONB", "nullable": false, "default": "'{}'::jsonb", "description": "Integration-specific configuration. For ABDM: {clientIdRef, clientSecretRef (vault paths), gatewayBaseUrl, hfrFacilityIdRef (Configurator path), cmId, environment}. For HL7v2: {endpointUrl, vendorProfile, mappingProfileId}."},
+        "registered_by": {"type": "UUID", "nullable": true, "description": "User Management user_id who registered this integration."},
+        "registered_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
+        "updated_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
+        "updated_by": {"type": "UUID", "nullable": true}
+      },
+      "primary_key": ["iq_tenant_id", "id"],
+      "indexes": [
+        {"columns": ["iq_tenant_id", "kind"], "name": "idx_integrations_tenant_kind", "note": "Lookup by integration category for adapter routing."},
+        {"columns": ["iq_tenant_id", "name"], "name": "uq_integrations_tenant_name", "unique": true, "note": "Integration name unique within a tenant."},
+        {"columns": ["iq_tenant_id", "status"], "name": "idx_integrations_tenant_status", "note": "Filter active integrations on adapter startup."}
+      ]
+    },
+    "integration_credentials": {
+      "description": "Per-integration credential references. Stores the *path* into the platform's secret store (e.g., Azure Key Vault) rather than raw credential bytes. The Integration Hub fetches the actual credential at runtime via the configured secret-store client. Per HLD-05 section 7.3 (no credentials in cleartext anywhere except the vault).",
+      "distribution": "distributed_by_iq_tenant_id",
+      "columns": {
+        "id": {"type": "UUID", "nullable": false, "default": "gen_random_uuid()"},
+        "iq_tenant_id": {"type": "UUID", "nullable": false},
+        "integration_id": {"type": "UUID", "nullable": false, "description": "FK-equivalent to integrations.id (no actual FK because Citus distributed)."},
+        "credential_kind": {"type": "TEXT", "nullable": false, "check": "credential_kind IN ('client_id','client_secret','api_key','tls_cert','tls_private_key','oauth_token_endpoint','signing_key','encryption_pubkey')"},
+        "vault_ref": {"type": "TEXT", "nullable": false, "description": "Opaque reference resolved by @hims/ts-sdk-secrets. URI scheme dispatches the resolver: 'env:ABDM_CLIENT_SECRET' (Phase 0/1 default, process.env), 'azure-keyvault://hims/abdm/sandbox/clientSecret' (production), 'aws-sm://...', 'vault://...', 'file:///...'. Pre-prod gate: tenant-prod refs must migrate off env: per ADR-0024-style checklist."},
+        "rotation_policy": {"type": "TEXT", "nullable": true, "description": "Optional rotation hint, e.g., 'P30D' (ISO-8601 duration)."},
+        "expires_at": {"type": "TIMESTAMPTZ", "nullable": true, "description": "Set when the upstream credential has a known expiry (e.g., short-lived gateway access tokens). NULL for static credentials."},
+        "created_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
+        "created_by": {"type": "UUID", "nullable": true}
+      },
+      "primary_key": ["iq_tenant_id", "id"],
+      "indexes": [
+        {"columns": ["iq_tenant_id", "integration_id", "credential_kind"], "name": "uq_integration_credentials_per_kind", "unique": true}
+      ]
+    },
+    "integration_workflows": {
+      "description": "FSM instance per workflow run. One row per workflow execution (e.g., one ABDM M1 enrollment attempt, one M3 data-exchange session). The FSM engine reads/writes this table to advance state. Per ADR-0027.",
+      "distribution": "distributed_by_iq_tenant_id",
+      "columns": {
+        "id": {"type": "UUID", "nullable": false, "default": "gen_random_uuid()", "description": "Workflow instance ID. Used as correlation_id in audit log."},
+        "iq_tenant_id": {"type": "UUID", "nullable": false},
+        "integration_id": {"type": "UUID", "nullable": false},
+        "definition_id": {"type": "TEXT", "nullable": false, "description": "FSM definition identifier, e.g., 'abdm.m1.enrollment.v1', 'abdm.m2.linking.v1', 'abdm.m3.hip.v1', 'abdm.m3.hiu.v1'. Pinned per-workflow so a definition update does not retroactively change in-flight workflows."},
+        "current_state": {"type": "TEXT", "nullable": false, "description": "Current FSM state (e.g., 'OTP_REQUESTED', 'CONSENT_GRANTED'). Constrained by the FSM definition's allowed states."},
+        "status": {"type": "TEXT", "nullable": false, "default": "running", "check": "status IN ('running','completed','failed','cancelled','timed_out')"},
+        "context": {"type": "JSONB", "nullable": false, "default": "'{}'::jsonb", "description": "Workflow-instance variables (txnIds, tokens, intermediate IDs). Definition-driven."},
+        "external_correlation_id": {"type": "TEXT", "nullable": true, "description": "Identifier from the external system (e.g., ABDM gateway txnId or requestId). Indexed for inbound callback lookup."},
+        "patient_id": {"type": "UUID", "nullable": true, "description": "EMPI patient_id when known. Linked at the moment the workflow associates with a patient."},
+        "started_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
+        "last_transition_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
+        "completed_at": {"type": "TIMESTAMPTZ", "nullable": true},
+        "error": {"type": "TEXT", "nullable": true, "description": "Last error message if status in ('failed','timed_out')."}
+      },
+      "primary_key": ["iq_tenant_id", "id"],
+      "indexes": [
+        {"columns": ["iq_tenant_id", "external_correlation_id"], "name": "idx_workflows_correlation", "note": "Look up workflow on inbound callback by external txnId/requestId. Sparse (NULL when no external corr id yet)."},
+        {"columns": ["iq_tenant_id", "definition_id", "status"], "name": "idx_workflows_def_status", "note": "List active workflows per definition for ops dashboards."},
+        {"columns": ["iq_tenant_id", "patient_id"], "name": "idx_workflows_patient", "note": "Look up workflows touching a specific patient (e.g., 'is this patient mid-enrollment')."},
+        {"columns": ["iq_tenant_id", "status", "last_transition_at"], "name": "idx_workflows_status_age", "note": "Find stale running workflows for stuck-workflow alerting."}
+      ]
+    },
+    "integration_workflow_transitions": {
+      "description": "Append-only log of every FSM state transition. Provides regulatory audit (what state, when, triggered by what). Per ADR-0027. Never UPDATE.",
+      "distribution": "distributed_by_iq_tenant_id",
+      "columns": {
+        "id": {"type": "BIGINT", "nullable": false, "default": "nextval('integration_workflow_transitions_id_seq')", "description": "Monotonic transition ID. Used for ordering."},
+        "iq_tenant_id": {"type": "UUID", "nullable": false},
+        "workflow_id": {"type": "UUID", "nullable": false},
+        "from_state": {"type": "TEXT", "nullable": true, "description": "NULL for the initial transition into the start state."},
+        "to_state": {"type": "TEXT", "nullable": false},
+        "trigger_kind": {"type": "TEXT", "nullable": false, "check": "trigger_kind IN ('start','event','timer','manual','retry')"},
+        "trigger_payload": {"type": "JSONB", "nullable": true, "description": "Event payload or timer-fire metadata that caused the transition. Redacted of PHI per audit policy."},
+        "occurred_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
+        "actor": {"type": "TEXT", "nullable": true, "description": "User UUID for 'manual' trigger; service account name otherwise."}
+      },
+      "primary_key": ["iq_tenant_id", "id"],
+      "indexes": [
+        {"columns": ["iq_tenant_id", "workflow_id", "id"], "name": "idx_transitions_workflow_order", "note": "Replay transitions in order for a single workflow."},
+        {"columns": ["iq_tenant_id", "occurred_at"], "name": "idx_transitions_time", "note": "Audit queries by time window."}
+      ]
+    },
+    "integration_workflow_timers": {
+      "description": "Pending wall-clock timers. The timer worker polls due rows with SELECT ... FOR UPDATE SKIP LOCKED and fires the corresponding transition. Per ADR-0027.",
+      "distribution": "distributed_by_iq_tenant_id",
+      "columns": {
+        "id": {"type": "UUID", "nullable": false, "default": "gen_random_uuid()"},
+        "iq_tenant_id": {"type": "UUID", "nullable": false},
+        "workflow_id": {"type": "UUID", "nullable": false},
+        "fire_at": {"type": "TIMESTAMPTZ", "nullable": false, "description": "Wall-clock time at which to fire."},
+        "transition_event": {"type": "TEXT", "nullable": false, "description": "Event name to dispatch (matched against FSM definition transitions)."},
+        "payload": {"type": "JSONB", "nullable": true},
+        "status": {"type": "TEXT", "nullable": false, "default": "pending", "check": "status IN ('pending','fired','cancelled','superseded')"},
+        "created_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
+        "fired_at": {"type": "TIMESTAMPTZ", "nullable": true}
+      },
+      "primary_key": ["iq_tenant_id", "id"],
+      "indexes": [
+        {"columns": ["status", "fire_at"], "name": "idx_timers_due", "note": "Polled by the timer worker to find pending timers due now. Not partitioned by tenant for global poll efficiency; the worker re-establishes tenant context on each fire."},
+        {"columns": ["iq_tenant_id", "workflow_id"], "name": "idx_timers_workflow", "note": "Cancel timers when a workflow advances by a different trigger."}
+      ]
+    },
+    "integration_inbound_messages": {
+      "description": "Receipt log for inbound messages (HL7v2 from analyzers, FHIR R4 from external HIPs, gateway callbacks). Provides idempotency (same external_message_id => same outcome) and correlation to workflow instances.",
+      "distribution": "distributed_by_iq_tenant_id",
+      "columns": {
+        "id": {"type": "UUID", "nullable": false, "default": "gen_random_uuid()"},
+        "iq_tenant_id": {"type": "UUID", "nullable": false},
+        "integration_id": {"type": "UUID", "nullable": false},
+        "external_message_id": {"type": "TEXT", "nullable": true, "description": "External system's message identifier (e.g., HL7v2 MSH-10, ABDM requestId). Used for idempotency."},
+        "received_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
+        "endpoint": {"type": "TEXT", "nullable": false, "description": "Endpoint path that received the message (e.g., '/v3/hip/care-context/on-discover')."},
+        "headers": {"type": "JSONB", "nullable": true, "description": "Selected headers preserved for audit. Redacted of bearer tokens / API keys."},
+        "payload_storage_ref": {"type": "TEXT", "nullable": true, "description": "Reference to where the raw payload is stored (DB column for small, object-storage URL for large). Cleartext payload retention per regulatory policy."},
+        "payload_size_bytes": {"type": "INTEGER", "nullable": true},
+        "payload_hash": {"type": "TEXT", "nullable": true, "description": "SHA-256 of payload bytes for integrity verification."},
+        "workflow_id": {"type": "UUID", "nullable": true, "description": "Resolved workflow this message belongs to (if any)."},
+        "outcome": {"type": "TEXT", "nullable": false, "default": "received", "check": "outcome IN ('received','processed','duplicate','rejected','failed')"},
+        "error": {"type": "TEXT", "nullable": true}
+      },
+      "primary_key": ["iq_tenant_id", "id"],
+      "indexes": [
+        {"columns": ["iq_tenant_id", "integration_id", "external_message_id"], "name": "uq_inbound_external_id", "unique": true, "note": "Idempotency: prevents reprocessing the same external message. Conditional unique on external_message_id IS NOT NULL."},
+        {"columns": ["iq_tenant_id", "workflow_id"], "name": "idx_inbound_workflow", "note": "All inbound messages for a workflow."},
+        {"columns": ["iq_tenant_id", "received_at"], "name": "idx_inbound_time"}
+      ]
+    },
+    "integration_outbound_messages": {
+      "description": "Submission log for outbound messages. Tracks retry state, circuit-breaker counts, and the response from the external system. Idempotency keys are message-level, not request-level.",
+      "distribution": "distributed_by_iq_tenant_id",
+      "columns": {
+        "id": {"type": "UUID", "nullable": false, "default": "gen_random_uuid()"},
+        "iq_tenant_id": {"type": "UUID", "nullable": false},
+        "integration_id": {"type": "UUID", "nullable": false},
+        "idempotency_key": {"type": "TEXT", "nullable": true, "description": "Set by callers to deduplicate retries originating from the platform side."},
+        "endpoint": {"type": "TEXT", "nullable": false, "description": "External endpoint URL or path."},
+        "method": {"type": "TEXT", "nullable": false, "check": "method IN ('GET','POST','PUT','PATCH','DELETE')"},
+        "headers": {"type": "JSONB", "nullable": true, "description": "Selected headers preserved for audit. Tokens redacted."},
+        "payload_storage_ref": {"type": "TEXT", "nullable": true},
+        "payload_size_bytes": {"type": "INTEGER", "nullable": true},
+        "payload_hash": {"type": "TEXT", "nullable": true},
+        "workflow_id": {"type": "UUID", "nullable": true},
+        "attempt_count": {"type": "INTEGER", "nullable": false, "default": 0},
+        "last_attempt_at": {"type": "TIMESTAMPTZ", "nullable": true},
+        "next_retry_at": {"type": "TIMESTAMPTZ", "nullable": true, "description": "Set when scheduled for retry; cleared on terminal outcome."},
+        "outcome": {"type": "TEXT", "nullable": false, "default": "pending", "check": "outcome IN ('pending','succeeded','failed','retrying','circuit_open')"},
+        "response_status": {"type": "INTEGER", "nullable": true},
+        "response_body_storage_ref": {"type": "TEXT", "nullable": true},
+        "created_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
+        "completed_at": {"type": "TIMESTAMPTZ", "nullable": true}
+      },
+      "primary_key": ["iq_tenant_id", "id"],
+      "indexes": [
+        {"columns": ["iq_tenant_id", "integration_id", "idempotency_key"], "name": "uq_outbound_idempotency", "unique": true, "note": "Conditional unique on idempotency_key IS NOT NULL."},
+        {"columns": ["iq_tenant_id", "workflow_id"], "name": "idx_outbound_workflow"},
+        {"columns": ["next_retry_at"], "name": "idx_outbound_due_retries", "note": "Polled by retry worker. Sparse on next_retry_at IS NOT NULL."},
+        {"columns": ["iq_tenant_id", "outcome", "created_at"], "name": "idx_outbound_outcome_age"}
+      ]
+    },
+    "abdm_gateway_sessions": {
+      "description": "Cached ABDM gateway access tokens (xToken). Refreshed on expiry. One row per (tenant, environment). Reduces session-create round-trips on every request.",
+      "distribution": "distributed_by_iq_tenant_id",
+      "columns": {
+        "id": {"type": "UUID", "nullable": false, "default": "gen_random_uuid()"},
+        "iq_tenant_id": {"type": "UUID", "nullable": false},
+        "integration_id": {"type": "UUID", "nullable": false, "description": "FK-equivalent to integrations.id (kind='abdm')."},
+        "environment": {"type": "TEXT", "nullable": false, "check": "environment IN ('sandbox','production')"},
+        "access_token_storage_ref": {"type": "TEXT", "nullable": false, "description": "Vault path holding the token bytes."},
+        "expires_at": {"type": "TIMESTAMPTZ", "nullable": false},
+        "issued_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
+        "renewed_count": {"type": "INTEGER", "nullable": false, "default": 0}
+      },
+      "primary_key": ["iq_tenant_id", "id"],
+      "indexes": [
+        {"columns": ["iq_tenant_id", "integration_id", "environment"], "name": "uq_abdm_session_per_env", "unique": true}
+      ]
+    },
+    "abdm_share_tokens": {
+      "description": "Daily auto-incrementing token counter for ABDM scan-and-share. The HIP returns this token to the gateway in the on-share callback so the patient can be identified at the registration desk. Mirrors the production HIMS's TokenPatient pattern. Reset daily per (tenant, facility).",
+      "distribution": "distributed_by_iq_tenant_id",
+      "columns": {
+        "id": {"type": "UUID", "nullable": false, "default": "gen_random_uuid()"},
+        "iq_tenant_id": {"type": "UUID", "nullable": false},
+        "integration_id": {"type": "UUID", "nullable": false},
+        "facility_id_ref": {"type": "TEXT", "nullable": false, "description": "Configurator facility ID this token pool belongs to. Resolved against Configurator's facility/HFR registry."},
+        "issue_date": {"type": "DATE", "nullable": false},
+        "next_token_number": {"type": "INTEGER", "nullable": false, "default": 1, "description": "Next token number to issue. Incremented atomically."},
+        "created_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"}
+      },
+      "primary_key": ["iq_tenant_id", "id"],
+      "indexes": [
+        {"columns": ["iq_tenant_id", "facility_id_ref", "issue_date"], "name": "uq_share_token_per_facility_day", "unique": true, "note": "One counter row per facility per day."}
+      ]
+    },
+    "abdm_share_token_issuances": {
+      "description": "Each token issued, with the linked patient and the gateway-supplied profile share metadata. Read at the registration desk to resolve a presented token to a patient.",
+      "distribution": "distributed_by_iq_tenant_id",
+      "columns": {
+        "id": {"type": "UUID", "nullable": false, "default": "gen_random_uuid()"},
+        "iq_tenant_id": {"type": "UUID", "nullable": false},
+        "integration_id": {"type": "UUID", "nullable": false},
+        "facility_id_ref": {"type": "TEXT", "nullable": false},
+        "issue_date": {"type": "DATE", "nullable": false},
+        "token_number": {"type": "INTEGER", "nullable": false},
+        "patient_id": {"type": "UUID", "nullable": true, "description": "EMPI patient_id once registration completes. NULL until the patient is matched/created."},
+        "abha_address": {"type": "TEXT", "nullable": false, "description": "ABHA address from the gateway-shared profile."},
+        "profile_storage_ref": {"type": "TEXT", "nullable": true, "description": "Vault/object-storage ref for the full profile JSON shared by the gateway."},
+        "issued_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
+        "redeemed_at": {"type": "TIMESTAMPTZ", "nullable": true, "description": "When the registration desk redeemed this token."},
+        "expires_at": {"type": "TIMESTAMPTZ", "nullable": false, "description": "End-of-day expiry by default."}
+      },
+      "primary_key": ["iq_tenant_id", "id"],
+      "indexes": [
+        {"columns": ["iq_tenant_id", "facility_id_ref", "issue_date", "token_number"], "name": "uq_share_token_issuance", "unique": true},
+        {"columns": ["iq_tenant_id", "abha_address"], "name": "idx_share_issuance_abha"}
+      ]
+    },
+    "abdm_consent_artifacts": {
+      "description": "ABDM-issued consent artifacts. Owned by Integration Hub because consents are an ABDM protocol artifact (gateway-issued consentId, signed artifact, lifecycle). Record Foundation queries this table when deciding whether a care-context can be disclosed. Per ADR-0028 boundary table.",
+      "distribution": "distributed_by_iq_tenant_id",
+      "columns": {
+        "id": {"type": "UUID", "nullable": false, "default": "gen_random_uuid()"},
+        "iq_tenant_id": {"type": "UUID", "nullable": false},
+        "integration_id": {"type": "UUID", "nullable": false},
+        "consent_id": {"type": "TEXT", "nullable": false, "description": "ABDM gateway-issued consent ID."},
+        "patient_id": {"type": "UUID", "nullable": true, "description": "Resolved EMPI patient. NULL until linked."},
+        "abha_address": {"type": "TEXT", "nullable": false},
+        "role": {"type": "TEXT", "nullable": false, "check": "role IN ('hip','hiu')", "description": "Whether the platform is the HIP (granting access) or HIU (receiving access) under this consent."},
+        "status": {"type": "TEXT", "nullable": false, "check": "status IN ('requested','granted','denied','revoked','expired','exhausted')"},
+        "purpose_code": {"type": "TEXT", "nullable": true, "description": "ABDM purpose code (e.g., 'CAREMGT', 'BTG', 'DSRCH')."},
+        "hi_types": {"type": "TEXT[]", "nullable": false, "description": "Array of HI types under this consent (e.g., {'OPConsultation','Prescription','DiagnosticReport'})."},
+        "permissions": {"type": "JSONB", "nullable": false, "description": "Granted permissions: {accessMode, dateRange{from,to}, dataEraseAt, frequency{unit,value,repeats}}."},
+        "care_context_refs": {"type": "JSONB", "nullable": true, "description": "Array of {careContextReference, patientReference} when scoped to specific contexts."},
+        "data_erase_at": {"type": "TIMESTAMPTZ", "nullable": true, "description": "Denormalised from permissions for fast erasure scheduling."},
+        "consent_artifact_storage_ref": {"type": "TEXT", "nullable": true, "description": "Vault/object-storage ref for the signed consent artifact JSON."},
+        "granted_at": {"type": "TIMESTAMPTZ", "nullable": true},
+        "revoked_at": {"type": "TIMESTAMPTZ", "nullable": true},
+        "created_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
+        "updated_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"}
+      },
+      "primary_key": ["iq_tenant_id", "id"],
+      "indexes": [
+        {"columns": ["iq_tenant_id", "consent_id"], "name": "uq_consent_artifact_consent_id", "unique": true},
+        {"columns": ["iq_tenant_id", "patient_id", "status"], "name": "idx_consents_patient_status"},
+        {"columns": ["iq_tenant_id", "abha_address"], "name": "idx_consents_abha"},
+        {"columns": ["data_erase_at"], "name": "idx_consents_erase_due", "note": "Polled by the erasure scheduler. Sparse on data_erase_at IS NOT NULL."}
+      ]
+    },
+    "abdm_link_tokens": {
+      "description": "M2 link tokens (linkToken) issued by the gateway during care-context linking flows. Used to authenticate subsequent care-context publication.",
+      "distribution": "distributed_by_iq_tenant_id",
+      "columns": {
+        "id": {"type": "UUID", "nullable": false, "default": "gen_random_uuid()"},
+        "iq_tenant_id": {"type": "UUID", "nullable": false},
+        "integration_id": {"type": "UUID", "nullable": false},
+        "patient_id": {"type": "UUID", "nullable": false},
+        "abha_address": {"type": "TEXT", "nullable": false},
+        "link_token_storage_ref": {"type": "TEXT", "nullable": false},
+        "expires_at": {"type": "TIMESTAMPTZ", "nullable": true},
+        "status": {"type": "TEXT", "nullable": false, "default": "active", "check": "status IN ('active','revoked','expired')"},
+        "issued_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
+        "workflow_id": {"type": "UUID", "nullable": true}
+      },
+      "primary_key": ["iq_tenant_id", "id"],
+      "indexes": [
+        {"columns": ["iq_tenant_id", "patient_id", "status"], "name": "idx_link_tokens_patient"},
+        {"columns": ["iq_tenant_id", "abha_address"], "name": "idx_link_tokens_abha"}
+      ]
+    },
+    "abdm_data_exchange_sessions": {
+      "description": "M3 data-exchange sessions. One row per consent-driven data transfer (HIP push or HIU fetch). Tracks the encryption key material lifecycle and the bundle delivery state. Linked 1:1 with an integration_workflow row of definition_id 'abdm.m3.hip.v1' or 'abdm.m3.hiu.v1'.",
+      "distribution": "distributed_by_iq_tenant_id",
+      "columns": {
+        "id": {"type": "UUID", "nullable": false, "default": "gen_random_uuid()"},
+        "iq_tenant_id": {"type": "UUID", "nullable": false},
+        "integration_id": {"type": "UUID", "nullable": false},
+        "workflow_id": {"type": "UUID", "nullable": false},
+        "consent_artifact_id": {"type": "UUID", "nullable": false, "description": "FK-equivalent to abdm_consent_artifacts.id."},
+        "direction": {"type": "TEXT", "nullable": false, "check": "direction IN ('hip_push','hiu_fetch')"},
+        "transaction_id": {"type": "TEXT", "nullable": true, "description": "ABDM transactionId for this exchange."},
+        "key_material_storage_ref": {"type": "TEXT", "nullable": true, "description": "Vault ref for the Fidelius key material used in this exchange."},
+        "data_push_url": {"type": "TEXT", "nullable": true, "description": "Callback URL to which encrypted bundles are pushed (HIP role) or from which they were fetched."},
+        "bundle_count": {"type": "INTEGER", "nullable": false, "default": 0, "description": "Number of FHIR Document Bundles transferred under this session."},
+        "status": {"type": "TEXT", "nullable": false, "default": "initiated", "check": "status IN ('initiated','keys_exchanged','data_pushed','acknowledged','failed','expired')"},
+        "started_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
+        "completed_at": {"type": "TIMESTAMPTZ", "nullable": true}
+      },
+      "primary_key": ["iq_tenant_id", "id"],
+      "indexes": [
+        {"columns": ["iq_tenant_id", "consent_artifact_id"], "name": "idx_exchange_consent"},
+        {"columns": ["iq_tenant_id", "workflow_id"], "name": "uq_exchange_workflow", "unique": true},
+        {"columns": ["iq_tenant_id", "transaction_id"], "name": "idx_exchange_txn"}
+      ]
+    }
+  },
+  "events": {
+    "published": [
+      {
+        "name": "integration.workflow.started",
+        "description": "A new workflow instance has been created and entered its start state.",
+        "payload_fields": ["workflow_id", "definition_id", "iq_tenant_id", "integration_id", "patient_id"]
+      },
+      {
+        "name": "integration.workflow.transitioned",
+        "description": "A workflow advanced from from_state to to_state.",
+        "payload_fields": ["workflow_id", "from_state", "to_state", "trigger_kind", "iq_tenant_id"]
+      },
+      {
+        "name": "integration.workflow.completed",
+        "description": "Workflow reached a terminal state (status = completed).",
+        "payload_fields": ["workflow_id", "definition_id", "final_state", "iq_tenant_id", "patient_id"]
+      },
+      {
+        "name": "integration.workflow.failed",
+        "description": "Workflow ended in failure (status in failed/timed_out/cancelled).",
+        "payload_fields": ["workflow_id", "definition_id", "final_state", "status", "error", "iq_tenant_id"]
+      },
+      {
+        "name": "abdm.scan-and-share.token-issued",
+        "description": "A scan-and-share token was issued to the gateway for a redeemed QR scan. Consumed by the registration UI to surface the patient at the front desk.",
+        "payload_fields": ["token_number", "facility_id_ref", "abha_address", "patient_id", "issue_date", "iq_tenant_id"]
+      },
+      {
+        "name": "abdm.consent.granted",
+        "description": "A consent artifact entered status='granted'. Consumed by Record Foundation to mark care contexts as disclosable under this consent.",
+        "payload_fields": ["consent_id", "consent_artifact_id", "patient_id", "abha_address", "role", "hi_types", "permissions", "data_erase_at", "iq_tenant_id"]
+      },
+      {
+        "name": "abdm.consent.revoked",
+        "description": "A consent transitioned to revoked or expired. Consumed by Record Foundation to stop disclosing under this consent and to schedule erasure when applicable.",
+        "payload_fields": ["consent_id", "consent_artifact_id", "patient_id", "iq_tenant_id"]
+      },
+      {
+        "name": "abdm.health-record.received",
+        "description": "An external HIU bundle arrived and was successfully decrypted. Consumed by Record Foundation to ingest the bundle into the external_health_records inbox.",
+        "payload_fields": ["consent_artifact_id", "patient_id", "bundle_storage_ref", "bundle_hash", "fhir_profile", "received_at", "data_erase_at", "iq_tenant_id"]
+      }
+    ],
+    "consumed": [
+      {
+        "name": "consultation.finalized",
+        "publisher": "modules/opd",
+        "description": "(For HIP discovery) When OPD finalises a consultation it emits this event with the FHIR Document Bundle attached. Integration Hub does NOT consume this for ABDM directly -- Record Foundation does. Listed here for reference; the Integration Hub will consume future events that trigger outbound integrations (e.g., insurance claim submission)."
+      }
+    ]
+  }
+}

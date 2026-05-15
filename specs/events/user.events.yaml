@@ -1,0 +1,139 @@
+# User Management domain events (Phase 1A.2)
+#
+# Envelope: each published message MUST be a complete DomainEvent satisfying:
+#   specs/events/_envelope.schema.json
+# Required top-level fields: event_id, event_type, source_module, iq_tenant_id,
+# occurred_at, correlation_id, actor_id, event_contract_version, payload.
+#
+# This file defines the five 1A.2 event_type values and payload shape only.
+# source_module for these events MUST be "user-management".
+# event_contract_version on the envelope MUST be semver.
+# user-management.user.created / user.updated use envelope + payload event_contract_version 2.0.0.
+
+specVersion: "1.0"
+module: user-management
+envelope: ./_envelope.schema.json
+
+# Semantic names (1A.2) ↔ event_type (runtime / envelope)
+# - user.created        → user-management.user.created
+# - user.updated        → user-management.user.updated
+# - user.deactivated    → user-management.user.deactivated
+# - role.assigned       → user-management.role.assigned
+# - role.revoked        → user-management.role.revoked
+
+event_types:
+  user-management.user.created:
+    semantic: user.created
+    description: A tenant-scoped platform user was created.
+    event_contract_version: "2.0.0"
+    payload:
+      type: object
+      required: [id, full_name, status, event_contract_version]
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        full_name:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive, suspended]
+        event_contract_version:
+          type: string
+          const: "2.0.0"
+        email:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        username:
+          type: ["string", "null"]
+        org_id:
+          type: ["string", "null"]
+          format: uuid
+        auth_user_id:
+          type: ["string", "null"]
+          format: uuid
+
+  user-management.user.updated:
+    semantic: user.updated
+    description: User profile fields were updated for a tenant.
+    event_contract_version: "2.0.0"
+    payload:
+      type: object
+      required: [id, full_name, status, event_contract_version]
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        full_name:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive, suspended]
+        event_contract_version:
+          type: string
+          const: "2.0.0"
+        email:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        username:
+          type: ["string", "null"]
+        org_id:
+          type: ["string", "null"]
+          format: uuid
+        auth_user_id:
+          type: ["string", "null"]
+          format: uuid
+
+  user-management.user.deactivated:
+    semantic: user.deactivated
+    description: A user was deactivated for a tenant.
+    payload:
+      type: object
+      required: [id]
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        reason:
+          type: ["string", "null"]
+
+  user-management.role.assigned:
+    semantic: role.assigned
+    description: A role was assigned to a user within a tenant.
+    payload:
+      type: object
+      required: [id, user_id, role_id]
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        role_id:
+          type: string
+          format: uuid
+
+  user-management.role.revoked:
+    semantic: role.revoked
+    description: A role assignment was revoked for a user within a tenant.
+    payload:
+      type: object
+      required: [id, user_id, role_id]
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        role_id:
+          type: string
+          format: uuid

@@ -1,4 +1,6 @@
 import Fastify from "fastify";
+import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
+import { tenantPlugin } from "@hims/ts-sdk-tenant";
 import { createDb, type DbInstance } from "@hims/ts-sdk-db";
 import {
   createRouter,
@@ -8,15 +10,25 @@ import {
   type RunConfiguratorTransaction,
 } from "@hims/configurator";
 
-const PORT = Number(process.env["CONFIGURATOR_PORT"] ?? 3001);
+const PORT = Number(
+  process.env["CONFIGURATOR_PORT"] ??
+    process.env["CONFIGURATOR_SVC_PORT"] ??
+    3001,
+);
 const DATABASE_URL = process.env["DATABASE_URL"] ?? "";
 
 async function main() {
   const app = Fastify({ logger: true });
 
-  // No global `tenantPlugin` here: organizations + tenant discovery are
-  // bootstrap/admin APIs (org-scoped queries, no `request.tenantId` usage).
-  // EMPI and other patient-facing services keep strict tenant headers.
+  await registerOpenApiDocs(app, {
+    serviceId: "configurator",
+    title: "Configurator API",
+    version: "1.0.0",
+    description: "Organization, tenant, and tenant-module provisioning.",
+    apiPrefix: "/api/configurator/v1",
+  });
+
+  app.get("/healthz", async () => ({ status: "ok" }));
 
   const db = createDb(DATABASE_URL);
 
@@ -33,17 +45,21 @@ async function main() {
       }),
     );
 
-  app.get("/healthz", async () => ({ status: "ok" }));
+  // `tenantPlugin` only under `/api`: org + tenant discovery are bootstrap/admin
+  // routes. EMPI and other patient-facing services keep stricter tenant headers.
+  await app.register(async (api) => {
+    await api.register(tenantPlugin);
 
-  await app.register(
-    createRouter({
-      organizationRepo,
-      tenantRepo,
-      tenantModuleRepo,
-      runConfiguratorTransaction,
-    }),
-    { prefix: "/api/configurator/v1" },
-  );
+    await api.register(
+      createRouter({
+        organizationRepo,
+        tenantRepo,
+        tenantModuleRepo,
+        runConfiguratorTransaction,
+      }),
+      { prefix: "/configurator/v1" },
+    );
+  }, { prefix: "/api" });
 
   await app.listen({ port: PORT, host: "0.0.0.0" });
 }

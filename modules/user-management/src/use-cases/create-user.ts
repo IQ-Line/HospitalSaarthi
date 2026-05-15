@@ -1,0 +1,132 @@
+import type { EventBus } from "@hims/ts-sdk-events";
+import { UnexpectedPersistenceError, RoleNotFoundError, ValidationError } from "../domain/errors.js";
+import { USER_MANAGEMENT_EVENT_USER_CREATED } from "../events/constants.js";
+import { ensureUserEventPayload } from "../events/ensure-user-event-payload.js";
+import { publishUserManagementEvent } from "../events/publish-user-management-event.js";
+import { assignRole } from "./assign-role.js";
+import type {
+  AuthAccountProvisioner,
+  CreateUserInput,
+  PrincipalRoleProjectionRepository,
+  RoleAssignmentRepository,
+  RoleRepository,
+  User,
+  UserRepository,
+} from "../ports/index.js";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export type CreateUserDeps = {
+  userRepository: UserRepository;
+  roleRepository: RoleRepository;
+  roleAssignmentRepository: RoleAssignmentRepository;
+  principalRoleProjectionRepository: PrincipalRoleProjectionRepository;
+  authAccountProvisioner: AuthAccountProvisioner;
+  eventBus: EventBus;
+};
+
+export type CreateUserContext = {
+  tenantId: string;
+  actorId: string;
+  correlationId: string;
+};
+
+/**
+ * Creates a tenant-scoped platform user and publishes `user-management.user.created`.
+ */
+export async function createUser(
+  deps: CreateUserDeps,
+  ctx: CreateUserContext,
+  input: CreateUserInput,
+): Promise<User> {
+  if (typeof input.full_name !== "string") {
+    throw new ValidationError("full_name_invalid_type");
+  }
+  if (input.full_name.trim() === "") {
+    throw new ValidationError("full_name_empty");
+  }
+
+  if (typeof input.email !== "string") {
+    throw new ValidationError("email_invalid_type");
+  }
+  const email = input.email.trim();
+  if (email === "") {
+    throw new ValidationError("email_required");
+  }
+  if (!EMAIL_RE.test(email)) {
+    throw new ValidationError("email_invalid_type");
+  }
+
+  if (typeof input.password !== "string") {
+    throw new ValidationError("password_invalid_type");
+  }
+  if (input.password.trim() === "") {
+    throw new ValidationError("password_required");
+  }
+  if (input.password.length < 8) {
+    throw new ValidationError("password_too_short");
+  }
+
+  if (
+    input.role_ids !== undefined &&
+    (!Array.isArray(input.role_ids) ||
+      input.role_ids.some((roleId) => typeof roleId !== "string" || !UUID_RE.test(roleId)))
+  ) {
+    throw new ValidationError("create_user_role_ids_invalid");
+  }
+
+  const roleIds = [...new Set((input.role_ids ?? []).map((roleId) => roleId.trim()))];
+  if (roleIds.length > 0) {
+    const roles = await deps.roleRepository.listRolesByIds(ctx.tenantId, roleIds);
+    if (roles.length !== roleIds.length) {
+      const roleIdsFound = new Set(roles.map((role) => role.id));
+      const missingRoleId = roleIds.find((roleId) => !roleIdsFound.has(roleId));
+      throw new RoleNotFoundError(missingRoleId);
+    }
+  }
+
+  const user = await deps.userRepository.createUser(ctx.tenantId, {
+    ...input,
+    email,
+  });
+
+  const authAccount = await deps.authAccountProvisioner.createPasswordAccount({
+    platformUserId: user.id,
+    tenantId: ctx.tenantId,
+    fullName: user.full_name,
+    email,
+    password: input.password,
+  });
+
+  const linkedUser = await deps.userRepository.updateUser(ctx.tenantId, user.id, {
+    auth_user_id: authAccount.authUserId,
+  });
+  if (linkedUser === null) {
+    throw new UnexpectedPersistenceError();
+  }
+
+  for (const roleId of roleIds) {
+    await assignRole(
+      {
+        userRepository: deps.userRepository,
+        roleRepository: deps.roleRepository,
+        roleAssignmentRepository: deps.roleAssignmentRepository,
+        eventBus: deps.eventBus,
+      },
+      ctx,
+      { user_id: linkedUser.id, role_id: roleId },
+    );
+  }
+
+  deps.principalRoleProjectionRepository.clearCache();
+
+  await publishUserManagementEvent(
+    { eventBus: deps.eventBus },
+    USER_MANAGEMENT_EVENT_USER_CREATED,
+    ctx,
+    ensureUserEventPayload(linkedUser),
+  );
+  return linkedUser;
+}

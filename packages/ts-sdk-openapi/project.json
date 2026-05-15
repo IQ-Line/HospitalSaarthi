@@ -1,0 +1,21 @@
+{
+  "name": "ts-sdk-openapi",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "packages/ts-sdk-openapi/src",
+  "projectType": "library",
+  "tags": ["scope:sdk", "type:lib"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/packages/ts-sdk-openapi",
+        "tsConfig": "packages/ts-sdk-openapi/tsconfig.json",
+        "main": "packages/ts-sdk-openapi/src/index.ts"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    }
+  }
+}

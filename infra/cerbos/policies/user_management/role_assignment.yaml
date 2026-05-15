@@ -1,0 +1,39 @@
+---
+# User Management — role assignment operations (tenant + capability ABAC).
+#
+# Policy contract (RBAC regression guard): do not grant using Cerbos principal `roles` field alone.
+# EFFECT_ALLOW must require request.principal.attr.iq_tenant_id and um:role:assign in capabilities
+# or delegated_capabilities (see condition below).
+#
+# PEP passes resource.attr: iq_tenant_id, department, required_clearance (same shape as user resources).
+# um:role:assign may be granted via delegated_capabilities with the same effect as capabilities.
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "role_assignment"
+  version: default
+  rules:
+    - actions:
+        - "role.assign"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "um:role:assign" in request.principal.attr.capabilities ||
+              "um:role:assign" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "role.revoke"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "um:role:assign" in request.principal.attr.capabilities ||
+              "um:role:assign" in request.principal.attr.delegated_capabilities
+            )

@@ -1,0 +1,142 @@
+# yaml-language-server: $schema=https://api.cerbos.dev/latest/cerbos/policy/v1/TestSuite.schema.json
+---
+name: clearance_enforcement
+description: >-
+  User Management — sensitive user.read requires um_clearance_effective_tier >= required_clearance
+  and a non-empty clearances map (ABAC).
+
+principals:
+  high_clearance_reader:
+    id: security-officer
+    roles: []
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: null
+      capabilities:
+        - "um:user:read"
+        - "um:user:update"
+      delegated_capabilities: []
+      clearances:
+        um: "3"
+      um_clearance_effective_tier: 3
+
+  low_clearance_reader:
+    id: junior-staff
+    roles: []
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: null
+      capabilities:
+        - "um:user:read"
+        - "um:user:update"
+      delegated_capabilities: []
+      clearances:
+        um: "1"
+      um_clearance_effective_tier: 1
+
+  tier_ok_empty_clearances:
+    id: tier-without-map
+    roles: []
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: null
+      capabilities:
+        - "um:user:read"
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 3
+
+resources:
+  public_profile:
+    id: user-public
+    kind: user
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      department: null
+      required_clearance: 0
+
+  restricted_profile:
+    id: user-restricted
+    kind: user
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      department: null
+      required_clearance: 2
+
+  restricted_update_target:
+    id: user-restricted-2
+    kind: user
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      department: null
+      required_clearance: 2
+
+tests:
+  - name: user.read — required_clearance 0 bypasses clearance gate ALLOW
+    input:
+      principals: [low_clearance_reader]
+      resources: [public_profile]
+      actions: [user.read]
+    expected:
+      - principal: low_clearance_reader
+        resource: public_profile
+        actions:
+          user.read: EFFECT_ALLOW
+
+  - name: user.read — high tier satisfies required_clearance ALLOW
+    input:
+      principals: [high_clearance_reader]
+      resources: [restricted_profile]
+      actions: [user.read]
+    expected:
+      - principal: high_clearance_reader
+        resource: restricted_profile
+        actions:
+          user.read: EFFECT_ALLOW
+
+  - name: user.read — insufficient tier DENY
+    input:
+      principals: [low_clearance_reader]
+      resources: [restricted_profile]
+      actions: [user.read]
+    expected:
+      - principal: low_clearance_reader
+        resource: restricted_profile
+        actions:
+          user.read: EFFECT_DENY
+
+  - name: user.read — tier OK but empty clearances map DENY
+    input:
+      principals: [tier_ok_empty_clearances]
+      resources: [restricted_profile]
+      actions: [user.read]
+    expected:
+      - principal: tier_ok_empty_clearances
+        resource: restricted_profile
+        actions:
+          user.read: EFFECT_DENY
+
+  - name: user.update — high clearance satisfies required_clearance ALLOW
+    input:
+      principals: [high_clearance_reader]
+      resources: [restricted_update_target]
+      actions: [user.update]
+    expected:
+      - principal: high_clearance_reader
+        resource: restricted_update_target
+        actions:
+          user.update: EFFECT_ALLOW
+
+  - name: user.update — insufficient clearance DENY
+    input:
+      principals: [low_clearance_reader]
+      resources: [restricted_update_target]
+      actions: [user.update]
+    expected:
+      - principal: low_clearance_reader
+        resource: restricted_update_target
+        actions:
+          user.update: EFFECT_DENY

@@ -1,4 +1,5 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
+import { forbidden } from "@hims/ts-sdk-http";
 import type { PepMiddlewareOptions } from "./types.js";
 
 export function createPepMiddleware(options: PepMiddlewareOptions) {
@@ -22,7 +23,7 @@ export function createPepMiddleware(options: PepMiddlewareOptions) {
     );
 
     if (!result.isAllowed(action)) {
-      reply.code(403).send({ error: "Forbidden" });
+      forbidden(reply, request, "AUTHZ_FORBIDDEN", "Forbidden");
     }
   };
 }

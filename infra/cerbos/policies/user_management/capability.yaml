@@ -1,0 +1,19 @@
+---
+# User Management — capability catalog read operations.
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "capability"
+  version: default
+  rules:
+    - actions:
+        - "capability.read"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "um:capability:read" in request.principal.attr.capabilities ||
+              "um:capability:read" in request.principal.attr.delegated_capabilities
+            )
