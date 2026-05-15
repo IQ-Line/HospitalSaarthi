@@ -17,6 +17,8 @@ import {
 
 interface TenantsQuery {
   org_id?: string;
+  parent_tenant_id?: string;
+  is_root?: string;
   /** Preferred — matches OpenAPI `provisioning_status`. */
   provisioning_status?: string;
   /** Legacy alias for `provisioning_status`. */
@@ -38,10 +40,23 @@ export function registerTenantsHandler(
   app.get<{ Querystring: TenantsQuery }>(
     "/tenants",
     async (request) => {
-      const { org_id, provisioning_status, status, type } = request.query;
+      const {
+        org_id,
+        parent_tenant_id,
+        is_root,
+        provisioning_status,
+        status,
+        type,
+      } = request.query;
       const filters: TenantFilters = {};
 
       if (org_id) filters.org_id = org_id;
+      if (parent_tenant_id) {
+        filters.parent_tenant_id = parent_tenant_id;
+      }
+      if (is_root === "true" || is_root === "1") {
+        filters.is_root = true;
+      }
       const prov = provisioning_status ?? status;
       if (prov) {
         filters.provisioning_status = prov as TenantFilters["provisioning_status"];

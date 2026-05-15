@@ -4,6 +4,7 @@ import { LayoutGrid, LogOut, Users } from 'lucide-react';
 import { Button } from '@pulse/ui/button';
 import { BrandMark } from '@/components/layout/brand-mark';
 import { SidebarNavLink } from '@/components/layout/sidebar-nav-link';
+import { ConfiguratorNavSection } from '@/features/configurator/components/configurator-nav-section';
 import { MasterDataNavSection } from '@/features/master-data/components/master-data-nav-section';
 import { FrontdeskNavSection } from '@/features/frontdesk/components/frontdesk-nav-section';
 import { VisitpadNavSection } from '@/features/visitpad/components/visitpad-nav-section';
@@ -22,6 +23,7 @@ interface AppSidebarProps {
   displayName: string | null;
   tenantName: string | null;
   hasMasterDataAccess: boolean;
+  hasConfiguratorAccess: boolean;
   hasUserManagementAccess: boolean;
   /** Catalog admins: same gate as Master Data until a dedicated Cerbos module exists. */
   hasVisitpadAccess: boolean;
@@ -32,6 +34,7 @@ export function AppSidebar({
   displayName,
   tenantName,
   hasMasterDataAccess,
+  hasConfiguratorAccess,
   hasUserManagementAccess,
   hasVisitpadAccess,
   hasFrontdeskAccess,

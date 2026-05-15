@@ -11,11 +11,15 @@ import type {
 
 const BASE = '/api/v1/master-data/modules';
 
-export function useModules(category?: ModuleCategory) {
+export function useModules(
+  category?: ModuleCategory,
+  options?: { enabled?: boolean },
+) {
   const params = category ? `?category=${category}` : '';
   return useQuery({
     queryKey: masterDataKeys.modules(category),
     queryFn: () => apiClient<ModuleListResponse>(`${BASE}${params}`),
+    enabled: options?.enabled ?? true,
   });
 }
 

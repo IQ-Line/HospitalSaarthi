@@ -6,7 +6,10 @@ import type {
   UpdateOrganizationData,
 } from "../domain/organization.types.js";
 import { listOrganizations } from "../use-cases/list-organizations.js";
-import { createOrganizationWithDefaultTenant } from "../use-cases/create-organization-with-default-tenant.js";
+import {
+  createOrganizationWithDefaultTenantAndTenantModules,
+  type TenantModuleEnablementInput,
+} from "../use-cases/create-organization-with-default-tenant-and-modules.js";
 import { getOrganizationById } from "../use-cases/get-organization-by-id.js";
 import { updateOrganization } from "../use-cases/update-organization.js";
 import {
@@ -14,6 +17,10 @@ import {
   postOrganizationBodySchema,
   uuidParamSchema,
 } from "./route-schemas.js";
+
+type PostOrganizationRequestBody = CreateOrganizationData & {
+  tenant_modules?: TenantModuleEnablementInput[];
+};
 
 interface OrganizationsQuery {
   status?: string;
@@ -45,7 +52,7 @@ export function registerOrganizationsHandler(
     },
   );
 
-  app.post<{ Body: CreateOrganizationData }>(
+  app.post<{ Body: PostOrganizationRequestBody }>(
     "/organizations",
     {
       schema: {
@@ -53,11 +60,15 @@ export function registerOrganizationsHandler(
       },
     },
     async (request, reply) => {
+      const { tenant_modules = [], ...orgData } = request.body;
       const created = await runConfiguratorTransaction((repos) =>
-        createOrganizationWithDefaultTenant(
+        createOrganizationWithDefaultTenantAndTenantModules(
           repos.organizationRepo,
           repos.tenantRepo,
-          request.body,
+          repos.tenantModuleRepo,
+          orgData,
+          tenant_modules,
+          orgData.created_by,
         ),
       );
       return reply.code(201).send(created);

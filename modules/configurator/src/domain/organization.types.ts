@@ -6,6 +6,31 @@ export type OrganizationType =
 
 export type OrganizationStatus = "active" | "suspended" | "decommissioned";
 
+/**
+ * Optional structured payload stored in `Organization.metadata` when provisioning
+ * via the tenant wizard (until dedicated columns or events exist).
+ */
+export interface TenantOrganizationWizardMetadata {
+  gstin?: string | null;
+  pan?: string | null;
+  website?: string | null;
+  address_detail?: {
+    hq_line1: string;
+    locality?: string | null;
+    block?: string | null;
+    district: string;
+    state: string;
+    pin_code: string;
+  };
+  provisioning?: {
+    plan_slug: string;
+    module_override_ids: string[];
+    trial_end_date?: string | null;
+    max_users_override?: number | null;
+    max_branches_override?: number | null;
+  };
+}
+
 export interface Organization {
   id: string;
   name: string;
@@ -30,6 +55,7 @@ export interface CreateOrganizationData {
   contact_email?: string | null;
   contact_phone?: string | null;
   address?: string | null;
+  /** May include {@link TenantOrganizationWizardMetadata} from the admin UI wizard. */
   metadata?: Record<string, unknown> | null;
   created_by?: string | null;
 }
@@ -42,6 +68,7 @@ export interface UpdateOrganizationData {
   contact_email?: string | null;
   contact_phone?: string | null;
   address?: string | null;
+  /** May include {@link TenantOrganizationWizardMetadata} from the admin UI wizard. */
   metadata?: Record<string, unknown> | null;
   updated_by?: string | null;
 }
