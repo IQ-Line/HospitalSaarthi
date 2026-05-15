@@ -2,7 +2,7 @@
 
 Shared FHIR R4 + NRCeS profile primitives for the HIMS platform. Pure transformation code: no I/O, no DB, no HTTP.
 
-> Status: skeleton (v0.1.0). API surface declared; bodies are TODOs.
+> Status: v0.1.0 — builders, structural profile checks, and RFC 8785 canonical JSON are implemented. Full NRCeS IG validation remains a CI concern (HL7 Validator).
 >
 > See [ADR-0023 — Distributed FHIR assembly](../../docs/architecture/adr/0023-distributed-fhir-assembly.md) for the rationale and the work split between this SDK, clinical modules, and Record Foundation.
 
@@ -50,4 +50,4 @@ This package provides:
 
 ## Status
 
-This is a skeleton. Every builder, the validator, and the canonical-JSON serialiser have signatures but no bodies. The first real implementation lands when the OPD module's serialiser is built (Phase 1). See ADR-0023 §"Follow-up actions".
+Runtime code covers document assembly primitives (`buildComposition`, `buildDocumentBundle`, resource builders, `serializeCanonical`, `validateAgainstProfile` structural checks). Tightening against live NRCeS packages and expanding the typed FHIR surface happens alongside clinical module work; see ADR-0023.

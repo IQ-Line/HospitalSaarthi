@@ -14,37 +14,50 @@ import type {
   FhirCodeableConcept,
   FhirDateTime,
   FhirIdentifier,
+  FhirMeta,
   FhirReference,
-} from '../types/index.js';
+} from "../types/index.js";
 
 export interface BuildMedicationRequestInput {
   identifier?: FhirIdentifier[];
-  status: MedicationRequest['status'];
-  intent: MedicationRequest['intent'];
-  /** Either `medicationCodeableConcept` (free-text or coded drug) or
-   *  `medicationReference` (reference to a `Medication` resource).
-   *  Exactly one must be provided. */
+  status: MedicationRequest["status"];
+  intent: MedicationRequest["intent"];
+  /** Either `medicationCodeableConcept` or `medicationReference` — exactly one required. */
   medicationCodeableConcept?: FhirCodeableConcept;
   medicationReference?: FhirReference;
   subject: FhirReference;
   encounter?: FhirReference;
   authoredOn?: FhirDateTime;
   requester?: FhirReference;
+  meta?: FhirMeta;
 }
 
 /**
  * Build a `MedicationRequest` resource.
  *
- * TODO: implement. The body must:
- *   1. Enforce the `medicationCodeableConcept` / `medicationReference` XOR.
- *   2. Stamp `meta.profile` with the Prescription profile when callers
- *      indicate they're producing a NRCeS Prescription bundle.
- *   3. Default `authoredOn` to current ISO 8601 when omitted.
- *
  * @see docs/architecture/adr/0023-distributed-fhir-assembly.md
  */
-export function buildMedicationRequest(_input: BuildMedicationRequestInput): MedicationRequest {
-  // TODO: implement per ADR-0023.
-  // @see docs/architecture/adr/0023-distributed-fhir-assembly.md
-  throw new Error('buildMedicationRequest: not implemented');
+export function buildMedicationRequest(input: BuildMedicationRequestInput): MedicationRequest {
+  const hasC = input.medicationCodeableConcept !== undefined;
+  const hasR = input.medicationReference !== undefined;
+  if (hasC === hasR) {
+    throw new Error(
+      "MedicationRequest: exactly one of medicationCodeableConcept or medicationReference must be set",
+    );
+  }
+  const authoredOn = input.authoredOn ?? new Date().toISOString();
+  return {
+    resourceType: "MedicationRequest",
+    ...(input.identifier ? { identifier: input.identifier } : {}),
+    ...(input.meta ? { meta: input.meta } : {}),
+    status: input.status,
+    intent: input.intent,
+    ...(input.medicationCodeableConcept
+      ? { medicationCodeableConcept: input.medicationCodeableConcept }
+      : { medicationReference: input.medicationReference }),
+    subject: input.subject,
+    ...(input.encounter ? { encounter: input.encounter } : {}),
+    authoredOn,
+    ...(input.requester ? { requester: input.requester } : {}),
+  };
 }

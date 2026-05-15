@@ -5,9 +5,8 @@
  * identifiers to a FHIR Patient, and by clinical modules when issuing
  * MRN-typed identifiers on `Patient`, `Encounter`, etc.
  *
- * TODO: confirm exact NRCeS / NHA-published values during Phase 1
- * implementation. The placeholder URIs below match the convention published in
- * the NRCeS R4 IG examples.
+ * Note: confirm exact NRCeS / NHA-published values before production hardening.
+ * The URIs below follow the convention used in the NRCeS R4 IG examples.
  *
  * @see docs/architecture/adr/0023-distributed-fhir-assembly.md
  * @see https://nrces.in/ndhm/fhir/r4/index.html

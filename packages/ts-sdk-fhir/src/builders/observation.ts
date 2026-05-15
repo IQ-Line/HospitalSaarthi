@@ -13,34 +13,65 @@ import type {
   FhirCodeableConcept,
   FhirDateTime,
   FhirIdentifier,
+  FhirMeta,
   FhirReference,
-} from '../types/index.js';
+} from "../types/index.js";
+
+const LAB_CATEGORY: FhirCodeableConcept = {
+  coding: [
+    {
+      system: "http://terminology.hl7.org/CodeSystem/observation-category",
+      code: "laboratory",
+      display: "Laboratory",
+    },
+  ],
+};
 
 export interface BuildObservationInput {
   identifier?: FhirIdentifier[];
-  status: Observation['status'];
+  status: Observation["status"];
   category?: FhirCodeableConcept[];
   code: FhirCodeableConcept;
   subject?: FhirReference;
   effectiveDateTime?: FhirDateTime;
-  /** Use exactly one of `valueQuantity` / `valueString` / `valueCodeableConcept`. */
   valueQuantity?: { value: number; unit?: string; system?: string; code?: string };
   valueString?: string;
   valueCodeableConcept?: FhirCodeableConcept;
+  meta?: FhirMeta;
+  /** When `"lab"`, default `category` to laboratory if omitted. */
+  domainHint?: "lab" | "vitals" | "other";
 }
 
 /**
  * Build an `Observation` resource.
  *
- * TODO: implement. The body must:
- *   1. Enforce the `value[x]` XOR (at most one of the value variants).
- *   2. Default `category` to LOINC `laboratory` when not provided
- *      and the caller hints `category: 'lab'`.
- *
  * @see docs/architecture/adr/0023-distributed-fhir-assembly.md
  */
-export function buildObservation(_input: BuildObservationInput): Observation {
-  // TODO: implement per ADR-0023.
-  // @see docs/architecture/adr/0023-distributed-fhir-assembly.md
-  throw new Error('buildObservation: not implemented');
+export function buildObservation(input: BuildObservationInput): Observation {
+  const valueCount = [
+    input.valueQuantity,
+    input.valueString,
+    input.valueCodeableConcept,
+  ].filter(Boolean).length;
+  if (valueCount > 1) {
+    throw new TypeError("Observation: at most one of valueQuantity, valueString, valueCodeableConcept may be set");
+  }
+
+  const category =
+    input.category ??
+    (input.domainHint === "lab" ? [LAB_CATEGORY] : undefined);
+
+  return {
+    resourceType: "Observation",
+    ...(input.identifier ? { identifier: input.identifier } : {}),
+    ...(input.meta ? { meta: input.meta } : {}),
+    status: input.status,
+    ...(category ? { category } : {}),
+    code: input.code,
+    ...(input.subject ? { subject: input.subject } : {}),
+    ...(input.effectiveDateTime ? { effectiveDateTime: input.effectiveDateTime } : {}),
+    ...(input.valueQuantity ? { valueQuantity: input.valueQuantity } : {}),
+    ...(input.valueString ? { valueString: input.valueString } : {}),
+    ...(input.valueCodeableConcept ? { valueCodeableConcept: input.valueCodeableConcept } : {}),
+  };
 }

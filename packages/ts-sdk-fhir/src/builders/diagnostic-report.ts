@@ -14,12 +14,15 @@ import type {
   FhirDateTime,
   FhirIdentifier,
   FhirInstant,
+  FhirMeta,
   FhirReference,
-} from '../types/index.js';
+} from "../types/index.js";
+
+const LOINC_SYSTEM = "http://loinc.org";
 
 export interface BuildDiagnosticReportInput {
   identifier?: FhirIdentifier[];
-  status: DiagnosticReport['status'];
+  status: DiagnosticReport["status"];
   category?: FhirCodeableConcept[];
   code: FhirCodeableConcept;
   subject?: FhirReference;
@@ -29,20 +32,43 @@ export interface BuildDiagnosticReportInput {
   performer?: FhirReference[];
   /** References to `Observation` resources for individual results. */
   result?: FhirReference[];
+  meta?: FhirMeta;
+  /**
+   * When true, require `code.coding` to include a LOINC (`http://loinc.org`) entry.
+   * Recommended for lab reports bound to NRCeS DiagnosticReportRecord.
+   */
+  requireLoinc?: boolean;
+}
+
+function hasLoinc(code: FhirCodeableConcept): boolean {
+  return Boolean(
+    code.coding?.some((c) => c.system === LOINC_SYSTEM && Boolean(c.code?.length)),
+  );
 }
 
 /**
  * Build a `DiagnosticReport` resource.
  *
- * TODO: implement. The body must:
- *   1. Stamp `meta.profile` with the DiagnosticReport profile when
- *      callers indicate NRCeS DiagnosticReportRecord production.
- *   2. Validate `code` system is LOINC for lab reports.
- *
  * @see docs/architecture/adr/0023-distributed-fhir-assembly.md
  */
-export function buildDiagnosticReport(_input: BuildDiagnosticReportInput): DiagnosticReport {
-  // TODO: implement per ADR-0023.
-  // @see docs/architecture/adr/0023-distributed-fhir-assembly.md
-  throw new Error('buildDiagnosticReport: not implemented');
+export function buildDiagnosticReport(input: BuildDiagnosticReportInput): DiagnosticReport {
+  if (input.requireLoinc && !hasLoinc(input.code)) {
+    throw new TypeError(
+      `DiagnosticReport.code must include a LOINC coding (${LOINC_SYSTEM}) when requireLoinc is true`,
+    );
+  }
+  return {
+    resourceType: "DiagnosticReport",
+    ...(input.identifier ? { identifier: input.identifier } : {}),
+    ...(input.meta ? { meta: input.meta } : {}),
+    status: input.status,
+    ...(input.category ? { category: input.category } : {}),
+    code: input.code,
+    ...(input.subject ? { subject: input.subject } : {}),
+    ...(input.encounter ? { encounter: input.encounter } : {}),
+    ...(input.effectiveDateTime ? { effectiveDateTime: input.effectiveDateTime } : {}),
+    ...(input.issued ? { issued: input.issued } : {}),
+    ...(input.performer ? { performer: input.performer } : {}),
+    ...(input.result ? { result: input.result } : {}),
+  };
 }
