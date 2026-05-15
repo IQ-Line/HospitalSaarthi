@@ -1,5 +1,7 @@
 -- Configurator module — organizations & tenants (see modules/configurator/src/schema/tables.ts)
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 CREATE SCHEMA IF NOT EXISTS configurator;
 
 CREATE TABLE IF NOT EXISTS configurator.organizations (

@@ -66,13 +66,21 @@ jobs:
       # - name: Typecheck
       #   run: npx nx affected -t typecheck --parallel=3
 
-      # Stage 3: Spec validation
-      # - name: Validate specs
-      #   run: npx nx affected -t validate-spec
+      # Stage 3: Spec validation (User Management OpenAPI ↔ runtime contract)
+      - name: Validate specs
+        run: npx nx run user-management-svc:validate-spec
 
       # Stage 4: Unit tests
       - name: Test
         run: npx nx affected -t test --parallel=2
+
+      # Stage 4b: Cerbos policy compile + governance tests (PDP contract)
+      - name: Cerbos policies (compile + tests)
+        run: >-
+          docker run --rm
+          -v "${{ github.workspace }}/infra/cerbos:/work"
+          ghcr.io/cerbos/cerbos:latest
+          compile --tests=/work/tests /work/policies --verbose
 
       # Stage 5: Integration tests
       # - name: Integration tests
@@ -81,14 +89,10 @@ jobs:
       #     DATABASE_URL: postgresql://hims:hims@localhost:5432/hims_test
       #     CERBOS_URL: localhost:3593
 
-      # Stage 6: Cerbos policy tests
-      # - name: Cerbos policy tests
-      #   run: cd infra/cerbos && cerbos test
-
-      # Stage 7: E2E tests (when applicable)
+      # Stage 6: E2E tests (when applicable)
       # - name: E2E tests
       #   run: npx nx affected -t e2e
 
-      # Stage 8: AI code review (when configured)
+      # Stage 7: AI code review (when configured)
       # - name: AI code review
       #   run: npx nx affected -t ai-review

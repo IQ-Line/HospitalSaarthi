@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "baseUrl": "../..",
+    "ignoreDeprecations": "6.0",
+    "lib": ["ES2024", "DOM"]
+  },
+  "include": ["src/**/*.ts", "src/**/*.d.ts"]
+}

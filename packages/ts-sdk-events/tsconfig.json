@@ -1,8 +1,10 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "./../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
+    "ignoreDeprecations": "6.0",
+    "types": ["node"],
     // See packages/ts-sdk-db/tsconfig.json — empty `paths` avoids `baseUrl` + `ignoreDeprecations`.
     "paths": {}
   },

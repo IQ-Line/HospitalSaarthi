@@ -1,5 +1,6 @@
 import { create, type StateCreator } from 'zustand';
 import { createJSONStorage, devtools, persist } from 'zustand/middleware';
+import { usePermissionsStore } from '@/stores/permissions.store';
 
 interface TenantState {
   tenantId: string | null;
@@ -23,7 +24,8 @@ const tenantSlice: StateCreator<TenantState> = (set) => ({
   activeBranch: null,
   branches: [],
 
-  setTenant: (tenant) =>
+  setTenant: (tenant) => {
+    usePermissionsStore.getState().clearPermissions();
     set(
       {
         tenantId: tenant.tenantId,
@@ -33,12 +35,22 @@ const tenantSlice: StateCreator<TenantState> = (set) => ({
       },
       false,
       'setTenant',
-    ),
+    );
+  },
 
-  switchBranch: (branchId) => set({ activeBranch: branchId }, false, 'switchBranch'),
+  switchBranch: (branchId) => {
+    usePermissionsStore.getState().clearPermissions();
+    set({ activeBranch: branchId }, false, 'switchBranch');
+  },
 
-  clearTenant: () =>
-    set({ tenantId: null, tenantName: null, activeBranch: null, branches: [] }, false, 'clearTenant'),
+  clearTenant: () => {
+    usePermissionsStore.getState().clearPermissions();
+    set(
+      { tenantId: null, tenantName: null, activeBranch: null, branches: [] },
+      false,
+      'clearTenant',
+    );
+  },
 });
 
 const tenantStoreCreator = import.meta.env.DEV

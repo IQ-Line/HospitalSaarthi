@@ -1,0 +1,97 @@
+# yaml-language-server: $schema=https://api.cerbos.dev/latest/cerbos/policy/v1/TestSuite.schema.json
+---
+name: department_isolation
+description: >-
+  User Management — user.read / user.update require department alignment when both principal and
+  resource departments are set (resolver maps resource.attr.department from target user row).
+
+principals:
+  dept_cardiology:
+    id: doc-cardio
+    roles: []
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: "cardiology"
+      capabilities:
+        - "um:user:read"
+        - "um:user:update"
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  dept_oncology:
+    id: doc-oncology
+    roles: []
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: "oncology"
+      capabilities:
+        - "um:user:read"
+        - "um:user:update"
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+resources:
+  patient_cardiology:
+    id: patient-1
+    kind: user
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      department: "cardiology"
+      required_clearance: 0
+
+  patient_oncology:
+    id: patient-2
+    kind: user
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      department: "oncology"
+      required_clearance: 0
+
+tests:
+  - name: user.read — same department ALLOW
+    input:
+      principals: [dept_cardiology]
+      resources: [patient_cardiology]
+      actions: [user.read]
+    expected:
+      - principal: dept_cardiology
+        resource: patient_cardiology
+        actions:
+          user.read: EFFECT_ALLOW
+
+  - name: user.read — different department DENY
+    input:
+      principals: [dept_cardiology]
+      resources: [patient_oncology]
+      actions: [user.read]
+    expected:
+      - principal: dept_cardiology
+        resource: patient_oncology
+        actions:
+          user.read: EFFECT_DENY
+
+  - name: user.update — same department ALLOW
+    input:
+      principals: [dept_oncology]
+      resources: [patient_oncology]
+      actions: [user.update]
+    expected:
+      - principal: dept_oncology
+        resource: patient_oncology
+        actions:
+          user.update: EFFECT_ALLOW
+
+  - name: user.update — different department DENY
+    input:
+      principals: [dept_oncology]
+      resources: [patient_cardiology]
+      actions: [user.update]
+    expected:
+      - principal: dept_oncology
+        resource: patient_cardiology
+        actions:
+          user.update: EFFECT_DENY

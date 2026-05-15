@@ -1,262 +1,167 @@
 # User Management — Schema Design
 
-**Module:** User Management (core platform module)  
+**Module:** User Management  
 **Schema name:** `user_management`  
-**Related HLD:** [02-core-modules.md §1](../../hld/02-core-modules.md#1-user-management) | [04-authn-authz-flow.md](../../hld/04-authn-authz-flow.md)  
-**Related ADRs:** [ADR-0003](../../adr/0003-authn-better-auth-identity-adapter.md) (AuthN) | [ADR-0005](../../adr/0005-policy-as-code-permission-data-as-config.md) (Policy/Data split) | [ADR-0004](../../adr/0004-authz-cerbos-sidecar.md) (Cerbos sidecar) | [ADR-0012](../../adr/0012-multi-tenancy-isolation-strategy.md) (Multi-tenancy)  
-**ERD (visual):** [`user-management.erd.json`](./user-management.erd.json) — open in VS Code with ERD Editor extension  
-**Schema reference:** [`schema-reference.json`](./schema-reference.json) — full column descriptions, indexes, check constraints, Citus distribution notes
-
-**Phasing:** Sections §15–§18 are tagged with their implementation phase (MVP, Post-launch, or Federation). Future-phase sections validate that the MVP schema supports later features without migrations. See [HLD-04 — Implementation phasing](../../hld/04-authn-authz-flow.md) for the full phase breakdown.
-
----
-
-## 1. Three-layer auth data model
-
-Authentication and authorization data is split across three layers, each with its own change cadence and governance:
-
-| Layer | What | Where | Changes via |
-|-------|------|-------|-------------|
-| **Layer 1 — AuthN** | Credentials, sessions, OAuth accounts, MFA state | better-auth managed tables in `user_management` schema | better-auth library (login, registration, MFA enrollment) |
-| **Layer 2 — AuthZ policies** | Cerbos YAML policies — who can do what under what conditions | Git repository, deployed as compiled bundles to Cerbos sidecars | Pull request, CI (`cerbos compile` + `cerbos test`), deploy |
-| **Layer 3 — AuthZ data** | Roles, capabilities, role assignments, department assignments, delegations, clearances | Platform-owned tables in `user_management` schema | Admin UI, User Management APIs |
-
-Layer 2 is NOT in the database. Cerbos policies are code, stored in Git, and deployed to sidecars as bundles. This schema covers Layers 1 and 3.
-
-The boundary between Layer 2 and Layer 3 is the core insight from [ADR-0005](../../adr/0005-policy-as-code-permission-data-as-config.md): **policies are stable and change with software releases; permission data changes with organizational structure and must be immediately configurable by hospital admins without a code deployment.**
-
----
-
-## 2. Capability model
-
-### What capabilities are
-
-Capabilities are the atomic unit of authorization. Each capability represents a single action on a single feature (e.g., `opd:registration:create`, `lab:results:verify`, `pharmacy:dispensing:override_interaction`). They are the bridge between:
-
-- **Cerbos policies** (Layer 2) — which evaluate whether a principal has a given capability
-- **Roles** (Layer 3 data) — which are containers of capabilities, configurable per tenant via admin UI
-
-### Why capabilities exist
-
-Without capabilities, tenant-specific authorization customization requires Cerbos policy changes. "Hospital A allows nurses to order labs; Hospital B does not" would mean forking a Cerbos policy per tenant. With capabilities, this becomes a data change: the "Nurse" role in Hospital A includes `lab:order:create`; in Hospital B it does not. The Cerbos policy simply checks `principal.capabilities.includes("lab:order:create")` — same policy for all tenants.
-
-### Capability naming convention — hierarchical namespacing
-
-Capabilities use colon-separated hierarchical names:
-
-```
-module:feature:action
-module:feature:sub-feature:action
-```
-
-Examples:
-```
-opd:registration:create
-opd:registration:search:advanced
-opd:consultation:notes:view
-opd:consultation:notes:edit
-lab:order:create
-lab:results:verify
-lab:results:amend
-pharmacy:dispensing:dispense
-pharmacy:dispensing:override_interaction
-billing:invoice:create
-billing:invoice:void
-admin:user:create
-admin:user:deactivate
-admin:role:assign
-org:tenant:configure
-org:reports:view
-```
-
-This naming convention is for **readability and UI grouping** — the frontend renders the capabilities list as a collapsible tree by splitting on `:`. The database stores each capability as a flat record with the full colon-separated `name`. Depth is organic per module, not fixed at a specific number of levels.
-
-### Capabilities are a Citus reference table
-
-The `capabilities` table is a **Citus reference table** (`SELECT create_reference_table('user_management.capabilities')`), NOT a distributed table. Reference tables are replicated to all Citus worker nodes, meaning:
-
-- Capability lookups are always node-local (no cross-node queries)
-- JOINs between the distributed `role_capabilities` table and the reference `capabilities` table are local on every node
-- Capabilities are platform-defined (the same set across all tenants), so replication is semantically correct
-
-### What capabilities are NOT
-
-- **Capabilities are NOT in the JWT.** JWTs carry `roles[]`. The PEP middleware resolves roles → capabilities at request time from cached User Management data. This keeps JWTs small and avoids capability-list staleness between token refreshes.
-- **Capabilities are NOT Cerbos policies.** Cerbos policies reference capabilities as principal attributes. The policy is code; the capability assignment is data.
-- **Capabilities do NOT form an inheritance hierarchy.** `opd:registration:create` does not automatically grant `opd:registration:search`. Each capability is independently assigned. If a role should have both, assign both. Inheritance makes auditing ("what can this person do?") exponentially harder.
-
----
-
-## 3. Role model
-
-### No role inheritance
-
-Roles are flat containers of capabilities. A "Senior Doctor" role does not "inherit from" a "Doctor" role. If Senior Doctor should have all Doctor capabilities plus more, all Doctor capabilities are explicitly assigned to the Senior Doctor role.
-
-**Why:** Role inheritance creates transitive permission chains that are extremely difficult to audit. When a compliance officer asks "can Dr. Sharma prescribe controlled substances?", the answer should be a single database query, not a recursive traversal of a role hierarchy. The Pathlock/NIST RBAC literature explicitly warns about hierarchy complexity in constrained RBAC (INCITS 359-2004, §6.2 — Role Hierarchies). The added verbosity is a small price for auditability.
-
-### Tenant-scoped roles
-
-Roles are defined per tenant. The same tenant may define different roles from another tenant. Platform-seeded roles (marked `is_system = true`) provide defaults that tenants can supplement but not delete.
-
-### Organization-scoped roles
-
-For multi-hospital organizations, roles can have `scope_level = 'organization'`. These grant access across all tenants within an `org_id`. Example: a Regional Medical Director needs read access to reports across all hospitals in their organization. The org-scoped role is assigned to their `users` record in each tenant (see §4 for org-level user design), and Cerbos policies evaluate `scope_level` as an attribute.
-
----
-
-## 4. Organization-level users
-
-### Design: user record per tenant, linked by `auth_user_id`
-
-A user who operates across multiple tenants (e.g., Dr. Sharma works at both City Hospital and District Hospital) has **one `users` row per tenant**, linked by the same `auth_user_id` (pointing to the better-auth user record). This is not duplication — it reflects the fact that Dr. Sharma may have different roles, department assignments, and clearances at each hospital.
-
-**Why this design (vs. a single user record with a `user_tenant_assignments` table):**
-
-1. **Citus co-location.** Each `users` row is distributed by `iq_tenant_id` and lives on that tenant's shard. JOINs to `role_assignments`, `user_department_assignments`, and other tenant-scoped tables are all shard-local. A single user record spanning tenants cannot be distributed by `iq_tenant_id` — it would need to be a reference table, which defeats the purpose of Citus distribution for the largest table in the module.
-
-2. **Multi-tenant login flow.** On authentication, better-auth resolves the `auth_user_id`. User Management looks up all `users` rows sharing that `auth_user_id`. The frontend presents a tenant picker. The user selects a tenant, and the JWT is issued with that specific `iq_tenant_id` and the roles from that tenant's `users` + `role_assignments` rows. Tenant switching re-issues a JWT — no re-authentication needed.
-
-3. **Clean authorization boundary.** Every module downstream sees a single-tenant user. The JWT has one `iq_tenant_id`, one set of roles. The multi-tenant concept does not leak past the login flow.
-
-### Organization ID
-
-Users who are part of a multi-hospital organization carry `org_id` on their `users` record. This enables:
-
-- Org-scoped roles (see §3) that grant cross-tenant access within the organization
-- `org_id` as a JWT claim, available to Cerbos policies for organization-level authorization
-- Organization-level dashboards and reports
-
----
-
-## 5. Delegations
-
-Time-bounded delegation of authority from one user to another. Covers scenarios like:
-
-- A superintendent delegates approval authority to a deputy for 2 weeks during leave
-- A department head delegates prescription counter-signing to a senior resident during a conference
-
-Delegations can be scoped to a specific role or a specific capability. They have explicit `effective_from` / `effective_to` dates and a mandatory `reason`. The PEP enrichment pattern (see §7) includes active delegations when constructing the Cerbos principal.
-
-Delegations are always tenant-scoped (the delegator and delegatee must be in the same tenant).
-
----
-
-## 6. Clearances
-
-Sensitivity clearances control access to records flagged with sensitivity levels (psychiatric, VIP, HIV status, substance abuse). These are distinct from role-based access:
-
-- A cardiologist (role) may or may not have psychiatric record clearance (clearance)
-- A nurse (role) in the VIP ward may have VIP clearance; the same nurse transferred to general medicine loses it
-
-Clearances have lifecycle: `granted_by`, `granted_at`, `expires_at`, `revoked_at`. They are an ABAC attribute that Cerbos policies evaluate alongside roles and capabilities.
-
----
-
-## 7. PEP enrichment pattern
-
-When a module's PEP middleware receives a request, it:
-
-1. Extracts `sub`, `iq_tenant_id`, `roles[]`, `department`, `org_id` from the JWT
-2. Looks up the user's **capabilities** by resolving `roles[]` → `role_capabilities` → `capabilities` (from User Management cache, not live DB query)
-3. Looks up **active delegations** for this user (from cache)
-4. Looks up **clearances** for this user (from cache)
-5. Constructs a Cerbos principal with all attributes:
-   ```
-   {
-     id: user_id,
-     roles: ["attending-physician"],
-     attr: {
-       iq_tenant_id: "...",
-       department: "cardiology",
-       org_id: "..." or null,
-       capabilities: ["opd:consultation:notes:edit", "opd:prescription:create", ...],
-       delegated_capabilities: ["opd:consultation:notes:approve"],
-       clearances: { psychiatric: "view", vip: "view_and_edit" }
-     }
-   }
-   ```
-6. Calls the Cerbos sidecar with this principal + the requested action + resource attributes
-
-The cache is refreshed on `user.updated` and `role-assignment.changed` events from User Management, plus a TTL-based fallback.
-
----
-
-## 8. JWT claims
-
-| Claim | Source | Description |
-|-------|--------|-------------|
-| `sub` | `users.id` | Platform-internal user ID for the selected tenant |
-| `iq_tenant_id` | `users.iq_tenant_id` | Tenant context for this session |
-| `roles` | `role_assignments` | Array of role names assigned to this user in this tenant |
-| `department` | `user_department_assignments` | Primary department ID |
-| `org_id` | `users.org_id` | Organization ID, if applicable (null for single-tenant users) |
-| `jti` | AuthN service | Unique token ID for audit correlation and replay detection |
-| `iss` | AuthN service | Issuer identifier |
-| `exp` | AuthN service | Expiration timestamp (1-2 minutes — Token Handler pattern, see §16) |
-| `iat` | AuthN service | Issued-at timestamp |
-
-**What is NOT in the JWT:** Capabilities, delegations, clearances, email. Capabilities/delegations/clearances are resolved by the PEP at request time from cached User Management data (see §7). Email is excluded because `ba_users.email` is a synthetic internal key with no business meaning (see §9.1). This keeps JWTs compact and avoids staleness between token refreshes.
-
----
-
-## 9. better-auth managed tables
-
-better-auth manages its own tables for credential storage, session tracking, OAuth account linking, and JWKS key management. These tables live in the `user_management` schema but are **not directly modified by platform code** — they are managed by the better-auth library through its adapter interface. Session revocation, password resets, and user management operations MUST use `auth.api.*` methods, never direct SQL.
-
-The link between better-auth and platform data is `users.auth_user_id` → `ba_users.id`. This is a logical reference, not a database foreign key, because better-auth's schema is managed by the library and may change across versions.
-
-Table names are prefixed with `ba_` to distinguish them from platform-owned tables.
-
-**Username as primary login credential:** The username plugin adds `ba_users.username` (TEXT, NOT NULL, UNIQUE) as the primary login field. Users authenticate with username + password — email is never shown on the login form and is never used for authentication.
-
-**`jwks` table:** The JWT plugin manages a `jwks` table for JWKS key storage. Keys are DB-persisted (surviving pod restarts), with private keys encrypted at rest using AES-256-GCM by default. Key rotation must be explicitly configured — see §17 for details.
-
-### 9.1 Synthetic email as identity anchor
-
-better-auth requires `ba_users.email` to be NOT NULL and UNIQUE. Since real emails cannot be unique across tenants (Indian hospitals regularly have multiple staff sharing one email), and making the identity anchor depend on external mail infrastructure would violate the fragmented adoption constraint, all `ba_users.email` values use a non-routable synthetic pattern:
-
-```
-ba_users.email = "{username}@auth.internal"
+**Related HLD:** [04-authn-authz-flow.md](../../hld/04-authn-authz-flow.md)  
+**Related ADRs:** [ADR-0003](../../adr/0003-authn-better-auth-identity-adapter.md), [ADR-0004](../../adr/0004-authz-cerbos-sidecar.md), [ADR-0005](../../adr/0005-policy-as-code-permission-data-as-config.md)
+
+## Canonical model
+User Management uses a single authorization vocabulary:
+
+- **Capability**: atomic machine-readable grant key such as `um:user:create`
+- **Role**: flat, tenant-scoped container of capabilities
+- **Role assignment**: tenant-scoped binding of a role to a user
+- **Delegation**: direct capability grant outside the base role composition
+- **Clearance**: ABAC attribute evaluated by Cerbos
+- **Principal enrichment**: runtime resolution of capabilities, delegations, clearances, tenant, department, and org context
+
+`permission` is not a storage or runtime primitive in this module. If the word appears in UI copy, it is presentation-only.
+
+## Data layers
+Authorization is split across three layers:
+
+1. **AuthN data** lives in better-auth managed tables.
+2. **AuthZ policies** live in Cerbos YAML under `infra/cerbos/policies`.
+3. **AuthZ data** lives in User Management tables and is admin-managed.
+
+The database owns roles, capabilities, assignments, delegations, and clearances. Cerbos owns evaluation logic. JWTs carry lightweight identity context only.
+
+## Current tables
+The canonical schema is:
+
+### `users`
+Tenant-scoped platform user profile and lightweight identity linkage.
+
+Key fields:
+- `id`
+- `iq_tenant_id`
+- `auth_user_id`
+- `full_name`
+- `email`
+- `phone`
+- `username`
+- `org_id`
+- `department`
+- `status`
+- `clearance_tier_required`
+
+### `roles`
+Tenant-scoped flat role definitions.
+
+Key fields:
+- `id`
+- `iq_tenant_id`
+- `code`
+- `display_name`
+- `description`
+- `is_system`
+- `status`
+
+### `capabilities`
+Tenant-scoped capability catalog. Every table keeps `iq_tenant_id` for Citus alignment, so canonical platform capabilities are seeded consistently per tenant rather than stored as a separate global table.
+
+Key fields:
+- `iq_tenant_id`
+- `capability`
+- `module`
+- `feature`
+- `action`
+- `display_name`
+- `description`
+- `is_active`
+
+### `role_capabilities`
+Role composition table.
+
+Key fields:
+- `iq_tenant_id`
+- `role_id`
+- `capability`
+
+Each row means "this role includes this capability".
+
+### `role_assignments`
+Bindings of users to roles within a tenant.
+
+Key fields:
+- `iq_tenant_id`
+- `id`
+- `user_id`
+- `role_id`
+
+### `delegated_capability_grants`
+Direct delegated capability grants.
+
+Key fields:
+- `iq_tenant_id`
+- `delegatee_user_id`
+- `capability`
+- `active`
+
+### `user_clearances`
+Clearance map consumed as principal attributes.
+
+Key fields:
+- `iq_tenant_id`
+- `user_id`
+- `clearance_key`
+- `access_level`
+
+## Runtime contract
+JWTs remain lightweight and contain only identity and coarse context:
+
+- `sub`
+- `iq_tenant_id`
+- `roles`
+- `department`
+- `org_id`
+- session metadata such as `jti`, `iat`, `exp`, `iss`
+
+JWTs do **not** contain:
+
+- capabilities
+- delegated capabilities
+- clearances
+
+Those are resolved at request time by principal enrichment:
+
+1. verify JWT
+2. resolve assigned role codes
+3. resolve role-derived capabilities from `role_capabilities`
+4. resolve delegated capabilities
+5. resolve clearances and effective clearance tier
+6. build Cerbos principal
+
+Cerbos consumes:
+
+```json
+{
+  "id": "user-id",
+  "roles": ["tenant-role-code"],
+  "attr": {
+    "iq_tenant_id": "tenant-id",
+    "department": "cardiology",
+    "org_id": "org-id",
+    "capabilities": ["um:user:create", "um:user:read"],
+    "delegated_capabilities": ["um:role:assign"],
+    "clearances": { "psychiatric": "view" },
+    "um_clearance_effective_tier": 1
+  }
+}
 ```
 
-**Why synthetic, not sub-addressed:** An earlier design proposed sub-addressed emails (`admin+N@hospital.com`). This was rejected after adversarial review because:
+## Design rules
+- Roles never inherit from other roles.
+- Capabilities are the only canonical grant primitive.
+- Policies must check capabilities and ABAC attributes, not role names.
+- Tenant isolation must be explicit on every protected resource.
+- Frontend authorization is UX only. Backend Cerbos decisions remain authoritative.
 
-- It couples the AuthN identity anchor to tenant mail server features (many Indian hospitals run legacy Exchange/government mail that does not support RFC 5233 sub-addressing)
-- Changing `ba_users.email` when a user gets their own email triggers better-auth's internal email verification, session invalidation, and account linking logic — unnecessary mutation of the identity anchor
-- It creates social engineering risk: password reset emails to an admin inbox allow anyone with inbox access to hijack delegated accounts
-
-The `@auth.internal` domain is non-routable. `ba_users.email` is an internal key that never changes, never leaks to business logic, and never depends on external infrastructure. Real emails, recovery routes, and contact info belong exclusively in platform-owned tables.
-
-**Separation of concerns:**
-
-| Concern | Where it lives | Mutability |
-|---------|---------------|------------|
-| AuthN identity anchor | `ba_users.email` = `{username}@auth.internal` | Never changes (username is immutable) |
-| Business contact email | `users.email` (nullable, non-unique) | User or admin can update freely |
-| Recovery email route | `delegated_recovery_routes` or `users.email` | Platform-managed, per recovery tier (§15) |
-| Phone contact/auth | `ba_users.phoneNumber` (via phone plugin) | User-updatable with OTP verification |
-
-**Precedent in better-auth source code:**
-
-- The phone-number plugin uses `getTempEmail()` for phone-only users
-- The anonymous plugin uses `getAnonUserEmail()` for anonymous users
-- Source contains `TODO(#9124)` acknowledging email should be nullable in v2
-- GitHub issues #2059, #2215, #2402 confirm community demand for non-unique/nullable email
-
-**Security invariant:** Synthetic email values must never appear in JWTs, logs, UI, or any end-user-visible context. The `definePayload` callback on the JWT plugin explicitly excludes email from token claims.
-
----
-
-## 10. Projection tables
-
-### `department_projection`
-
-User Management subscribes to `master-data.department.created`, `master-data.department.updated`, and `master-data.department.deleted` events from the Master Data module. It maintains a local read projection of departments for:
-
-- Populating department dropdowns in the admin UI
-- Resolving department names for display alongside user records
-- Providing department hierarchy to the PEP for Cerbos principal construction
+## Operational implications
+- Tenant customization is a data change: update `role_capabilities`, not Cerbos YAML.
+- Role administration uses `/roles`, `/roles/{id}`, and `/roles/{id}/capabilities`.
+- Capability catalog is read-only from the admin surface; it drives role composition.
+- List filtering should prefer Cerbos `PlanResources` over row-by-row checks.
 
 Per [database principle §8](../../analysis/03-database-principles.md#8-projection-tables-are-first-class-schema-citizens), the projection is named `*_projection`, includes `last_synced`, and is rebuildable from events.
 

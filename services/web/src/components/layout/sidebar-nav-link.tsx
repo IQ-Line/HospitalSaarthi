@@ -7,16 +7,19 @@ export function SidebarNavLink({
   icon: Icon,
   collapsed,
   nested = false,
+  search,
 }: {
   to: string;
   label: string;
   icon?: ComponentType<{ className?: string }>;
   collapsed: boolean;
   nested?: boolean;
+  search?: Record<string, unknown>;
 }) {
   return (
     <Link
       to={to}
+      {...(search !== undefined ? { search } : {})}
       className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-foreground/70 hover:bg-sidebar-accent transition-colors ${
         nested && !collapsed ? 'ml-6' : ''
       } ${collapsed ? 'justify-center' : ''}`}
