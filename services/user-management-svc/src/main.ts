@@ -3,6 +3,7 @@ import { assertCerbosReachable, authzPlugin } from "@hims/ts-sdk-authz";
 import { createDb } from "@hims/ts-sdk-db";
 import { createEventBus } from "@hims/ts-sdk-events";
 import { identityPlugin, validateAuthConfig } from "@hims/ts-sdk-identity";
+import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import Fastify, { type FastifyInstance } from "fastify";
 import { createUserManagementAuthzTargetResolver } from "./authz-target-resolver.js";
 import { createHimsBetterAuth } from "./auth/create-hims-better-auth.js";
@@ -100,6 +101,17 @@ async function createApp(): Promise<FastifyInstance> {
 
   await app.register(sensible);
 
+  await registerOpenApiDocs(app, {
+    serviceId: "user-management",
+    title: "HIMS User Management API",
+    version: "1.0.0",
+    description:
+      "Tenant-scoped users, roles, capabilities, assignments, and principal enrichment.",
+    apiPrefix: "/api/user-management",
+  });
+
+  app.get("/healthz", async () => ({ status: "ok" }));
+
   if (!process.env.CERBOS_URL || process.env.CERBOS_URL.trim() === "") {
     throw new Error("CERBOS_URL is required for authorization service");
   }
@@ -168,7 +180,7 @@ async function createApp(): Promise<FastifyInstance> {
 
   await app.register(identityPlugin, {
     ...identityAuth,
-    skipPathPrefixes: ["/api/auth"],
+    skipPathPrefixes: ["/api/auth", "/docs"],
   });
 
   await assertCerbosReachable(cerbosUrl);

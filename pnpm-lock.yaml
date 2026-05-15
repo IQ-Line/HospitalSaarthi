@@ -662,6 +662,9 @@ importers:
       '@hims/ts-sdk-identity':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-identity
+      '@hims/ts-sdk-openapi':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-openapi
       '@hims/user-management':
         specifier: workspace:*
         version: link:../../modules/user-management
