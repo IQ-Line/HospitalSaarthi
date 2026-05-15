@@ -1,15 +1,15 @@
 import type { DbInstance } from "@hims/ts-sdk-db";
 import { and, eq } from "drizzle-orm";
 import type { PrincipalRoleProjectionRepository } from "../ports/index.js";
-import { role_assignments, roles } from "../schema/tables.js";
+import { roles, user_roles } from "../schema/tables.js";
 
 function projectionCacheKey(tenantId: string, userId: string): string {
   return `${tenantId}\0${userId}`;
 }
 
 /**
- * One query: assignments for (tenant, user) INNER JOIN roles on composite tenant + role id.
- * Orphan assignments (no matching role row) are excluded, matching prior per-row getRoleById null-skip.
+ * One query: applied user role templates for (tenant, user) INNER JOIN roles on composite tenant + role id.
+ * Orphan template links (no matching role row) are excluded, matching prior per-row getRoleById null-skip.
  * Future: add LEFT JOIN capability/grant tables here — still one round-trip.
  */
 export class DrizzlePrincipalRoleProjectionRepository implements PrincipalRoleProjectionRepository {
@@ -30,18 +30,18 @@ export class DrizzlePrincipalRoleProjectionRepository implements PrincipalRolePr
 
     const rows = await this.db
       .select({ code: roles.code })
-      .from(role_assignments)
+      .from(user_roles)
       .innerJoin(
         roles,
         and(
-          eq(role_assignments.iq_tenant_id, roles.iq_tenant_id),
-          eq(role_assignments.role_id, roles.id),
+          eq(user_roles.iq_tenant_id, roles.iq_tenant_id),
+          eq(user_roles.role_id, roles.id),
         ),
       )
       .where(
         and(
-          eq(role_assignments.iq_tenant_id, tenantId),
-          eq(role_assignments.user_id, userId),
+          eq(user_roles.iq_tenant_id, tenantId),
+          eq(user_roles.user_id, userId),
         ),
       );
 

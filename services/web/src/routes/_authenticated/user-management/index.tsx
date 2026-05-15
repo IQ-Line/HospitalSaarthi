@@ -4,16 +4,24 @@ import { useMemo } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Badge } from '@pulse/ui/badge';
 import { Button } from '@pulse/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@pulse/ui/dialog';
 import { Input } from '@pulse/ui/input';
 import { DataTable } from '@/components/data-table';
-import { PageHeader } from '@/components/page-header';
 import {
   capabilityListOptions,
   roleListOptions,
   userListOptions,
   useUserListSuspense,
 } from '@/features/user-management/api/queries';
-import { RoleManagementPanel } from '@/features/user-management/components/role-management-panel';
+import { CreateUserForm } from '@/features/user-management/components/create-user-form';
+import { UserManagementPageShell } from '@/features/user-management/components/user-management-page-shell';
+import { UserManagementSectionCard } from '@/features/user-management/components/user-management-section-card';
 import type { UmUser } from '@/features/user-management/types';
 import { usePermissionsStore } from '@/stores/permissions.store';
 
@@ -22,6 +30,7 @@ const UM = 'user-management';
 export const Route = createFileRoute('/_authenticated/user-management/')({
   validateSearch: (search: Record<string, unknown>) => ({
     q: typeof search.q === 'string' ? search.q : '',
+    createUser: search.createUser === true || search.createUser === 'true',
   }),
   beforeLoad: () => {
     if (!usePermissionsStore.getState().hasFeaturePermission(UM, 'users', 'read')) {
@@ -43,15 +52,17 @@ export const Route = createFileRoute('/_authenticated/user-management/')({
 });
 
 function UserManagementListPage() {
-  const { q } = Route.useSearch();
+  const { q, createUser } = Route.useSearch();
   const navigate = useNavigate();
   const { data: users } = useUserListSuspense();
   const canCreate = usePermissionsStore((s) => s.hasFeaturePermission(UM, 'users', 'write'));
-  const canReadRoles = usePermissionsStore((s) => s.hasFeaturePermission(UM, 'roles', 'read'));
+  const canReadRoleTemplates = usePermissionsStore((s) => s.hasFeaturePermission(UM, 'roles', 'read'));
   const canReadCapabilities = usePermissionsStore((s) =>
     s.hasFeaturePermission(UM, 'capabilities', 'read'),
   );
-  const canWriteRoles = usePermissionsStore((s) => s.hasFeaturePermission(UM, 'roles', 'write'));
+  const canManageAccess = usePermissionsStore((s) =>
+    s.hasFeaturePermission(UM, 'userAccess', 'write'),
+  );
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -93,52 +104,84 @@ function UserManagementListPage() {
     [],
   );
 
+  const setCreateUserOpen = (open: boolean) => {
+    void navigate({
+      to: '/user-management',
+      search: { q, createUser: open },
+      replace: true,
+    });
+  };
+
   return (
-    <div className="p-6 space-y-6">
-      <PageHeader
+    <>
+      <UserManagementPageShell
+        section="users"
         title="Users"
-        description="Tenant-scoped platform users (Cerbos-filtered list)."
+        description="Search tenant-scoped users, open a profile, and create new users from the main directory."
         actions={
           canCreate ? (
-            <Button asChild>
-              <Link to="/user-management/create">Create user</Link>
+            <Button type="button" onClick={() => setCreateUserOpen(true)}>
+              Create user
             </Button>
           ) : null
         }
-      />
+      >
+        <UserManagementSectionCard
+          title="User directory"
+          description="Filter users by name, email, or username, then open the profile that needs attention."
+          actions={<Badge variant="secondary">{filtered.length} results</Badge>}
+          contentClassName="space-y-4"
+        >
+          <div className="flex max-w-md gap-2 items-center">
+            <Input
+              placeholder="Search name, email, username..."
+              value={q}
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                void navigate({
+                  to: '/user-management',
+                  search: { q: e.target.value, createUser },
+                })
+              }
+            />
+          </div>
 
-      <div className="flex max-w-md gap-2 items-center">
-        <Input
-          placeholder="Search name, email, username…"
-          value={q}
-          onChange={(e: ChangeEvent<HTMLInputElement>) =>
-            void navigate({
-              to: '/user-management',
-              search: { q: e.target.value },
-            })
-          }
-        />
-      </div>
+          <DataTable
+            columns={columns}
+            data={filtered}
+            emptyTitle="No users"
+            emptyDescription={
+              q.trim()
+                ? 'No users match your search.'
+                : 'No users returned for this tenant, or you lack list visibility under ABAC.'
+            }
+          />
+        </UserManagementSectionCard>
+      </UserManagementPageShell>
 
-      <div className="rounded-lg border">
-        <DataTable
-          columns={columns}
-          data={filtered}
-          emptyTitle="No users"
-          emptyDescription={
-            q.trim()
-              ? 'No users match your search.'
-              : 'No users returned for this tenant, or you lack list visibility under ABAC.'
-          }
-        />
-      </div>
+      {canCreate ? (
+        <Dialog open={createUser} onOpenChange={setCreateUserOpen}>
+          <DialogContent className="flex max-h-[min(88dvh,960px)] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-6xl">
+            <div className="shrink-0 border-b p-4 pb-3">
+              <DialogHeader>
+                <DialogTitle>Create user</DialogTitle>
+                <DialogDescription>
+                  Add the user's details, optional role templates, and direct capabilities without leaving the user list.
+                </DialogDescription>
+              </DialogHeader>
+            </div>
 
-      {canReadRoles ? (
-        <RoleManagementPanel
-          canWriteRoles={canWriteRoles}
-          canReadCapabilities={canReadCapabilities}
-        />
+            <div className="flex min-h-0 flex-1 overflow-hidden p-4">
+              <CreateUserForm
+                canReadRoleTemplates={canReadRoleTemplates}
+                canReadCapabilities={canReadCapabilities}
+                canManageAccess={canManageAccess}
+                layout="dialog"
+                onCancel={() => setCreateUserOpen(false)}
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
       ) : null}
-    </div>
+    </>
   );
 }

@@ -70,17 +70,6 @@ function normalizeCapabilityList(caps: string[]): string[] {
   return [...set].sort((a, b) => a.localeCompare(b));
 }
 
-function warnMissingRoleCapabilities(
-  tenantId: string,
-  userId: string,
-  roles: readonly string[],
-): void {
-  console.warn(
-    "[user-management] Principal has DB-projected roles but role_capabilities returned no capabilities; authorization will see an empty capability set until rows exist.",
-    { tenantId, userId, roles: [...roles] },
-  );
-}
-
 function asIdentityPrincipal(requestUser: unknown): IdentityPrincipal | null {
   if (requestUser == null || typeof requestUser !== "object") return null;
   const u = requestUser as Partial<IdentityPrincipal>;
@@ -101,7 +90,7 @@ function asIdentityPrincipal(requestUser: unknown): IdentityPrincipal | null {
  * `principal.attr.capabilities`.
  *
  * ```
- * user → role_assignments → role_capabilities(capability)
+ * user → user_capabilities(capability)
  *   → capabilities[] (keys, deduplicated + sorted)
  *   → Cerbos principal.attr.capabilities
  * ```
@@ -139,10 +128,6 @@ export class DefaultPrincipalService implements PrincipalService {
         context.userId,
       ),
     ]);
-
-    if (roles.length > 0 && capabilityKeys.length === 0) {
-      warnMissingRoleCapabilities(context.tenantId, context.userId, roles);
-    }
 
     const department = abacStringFromPersistence(user.department);
     const orgIdAttr = abacStringFromPersistence(user.org_id);

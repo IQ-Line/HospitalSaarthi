@@ -8,7 +8,8 @@ description: >-
 principals:
   actor_tenant_aa:
     id: principal-aa
-    roles: []
+    roles:
+      - "_unresolved"
     attr:
       iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
       org_id: null

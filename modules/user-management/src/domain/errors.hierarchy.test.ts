@@ -39,8 +39,8 @@ describe("UserManagementError hierarchy", () => {
   });
 
   it("ValidationError exposes issue alongside base code", () => {
-    const err = new ValidationError("assign_role_ids_invalid");
-    expect(err.issue).toBe("assign_role_ids_invalid");
+    const err = new ValidationError("apply_role_template_ids_invalid");
+    expect(err.issue).toBe("apply_role_template_ids_invalid");
     expect(err.code).toBe("INVALID_INPUT");
   });
 

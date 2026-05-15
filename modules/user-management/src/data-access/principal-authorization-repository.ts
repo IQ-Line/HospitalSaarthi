@@ -4,8 +4,7 @@ import type { PrincipalAuthorizationRepository } from "../ports/index.js";
 import {
   capabilities,
   delegated_capability_grants,
-  role_assignments,
-  role_capabilities,
+  user_capabilities,
   user_clearances,
 } from "../schema/tables.js";
 
@@ -15,19 +14,13 @@ export class DrizzlePrincipalAuthorizationRepository implements PrincipalAuthori
   async listEffectiveCapabilityKeys(tenantId: string, userId: string): Promise<string[]> {
     const rows = await this.db
       .select({ capability_key: capabilities.capability_key })
-      .from(role_assignments)
-      .innerJoin(
-        role_capabilities,
-        and(
-          eq(role_capabilities.iq_tenant_id, role_assignments.iq_tenant_id),
-          eq(role_capabilities.role_id, role_assignments.role_id),
-        ),
-      )
-      .innerJoin(capabilities, eq(role_capabilities.capability_id, capabilities.id))
+      .from(user_capabilities)
+      .innerJoin(capabilities, eq(user_capabilities.capability_id, capabilities.id))
       .where(
         and(
-          eq(role_assignments.iq_tenant_id, tenantId),
-          eq(role_assignments.user_id, userId),
+          eq(user_capabilities.iq_tenant_id, tenantId),
+          eq(user_capabilities.user_id, userId),
+          isNull(user_capabilities.revoked_at),
         ),
       );
 

@@ -8,7 +8,8 @@ import type {
   PrincipalRoleProjectionRepository,
   RoleCapabilityRepository,
   RoleRepository,
-  RoleAssignmentRepository,
+  PrincipalAuthorizationRepository,
+  UserAccessRepository,
   UserRepository,
 } from "./ports/index.js";
 import { TenantMismatchError } from "./domain/errors.js";
@@ -52,8 +53,9 @@ export interface UserManagementPluginOptions {
   capabilityRepository: CapabilityRepository;
   roleRepository: RoleRepository;
   roleCapabilityRepository: RoleCapabilityRepository;
-  roleAssignmentRepository: RoleAssignmentRepository;
+  userAccessRepository: UserAccessRepository;
   principalRoleProjectionRepository: PrincipalRoleProjectionRepository;
+  principalAuthorizationRepository: PrincipalAuthorizationRepository;
   authAccountProvisioner: AuthAccountProvisioner;
   eventBus: EventBus;
   getTenantId?: (request: FastifyRequest) => string;
@@ -69,8 +71,9 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
     capabilityRepository,
     roleRepository,
     roleCapabilityRepository,
-    roleAssignmentRepository,
+    userAccessRepository,
     principalRoleProjectionRepository,
+    principalAuthorizationRepository,
     authAccountProvisioner,
     eventBus,
   } = options;
@@ -100,14 +103,37 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
     getActorId,
     createUserDeps: {
       userRepository,
+      capabilityRepository,
       roleRepository,
-      roleAssignmentRepository,
+      roleCapabilityRepository,
+      userAccessRepository,
       principalRoleProjectionRepository,
       authAccountProvisioner,
       eventBus,
     },
+    applyRoleTemplateDeps: {
+      userRepository,
+      roleRepository,
+      roleCapabilityRepository,
+      userAccessRepository,
+      principalRoleProjectionRepository,
+    },
+    detachRoleTemplateDeps: {
+      userRepository,
+      roleRepository,
+      userAccessRepository,
+      principalRoleProjectionRepository,
+    },
     getUserDeps: { userRepository },
+    getUserCapabilitiesDeps: { userRepository, userAccessRepository },
+    getUserEffectiveCapabilitiesDeps: { userRepository, principalAuthorizationRepository },
+    listUserRolesDeps: { userRepository, userAccessRepository },
     listUsersAuthzDeps: { userRepository },
+    replaceUserCapabilitiesDeps: {
+      userRepository,
+      capabilityRepository,
+      userAccessRepository,
+    },
     updateUserDeps: { userRepository, eventBus },
     deactivateUserDeps: { userRepository, eventBus },
   });
@@ -124,10 +150,6 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
     deleteRoleDeps: { roleRepository },
     getRoleCapabilitiesDeps: { roleRepository, roleCapabilityRepository },
     replaceRoleCapabilitiesDeps: { roleRepository, capabilityRepository, roleCapabilityRepository },
-    listRoleAssignmentsDeps: { roleAssignmentRepository },
-    listUserRolesDeps: { userRepository, roleAssignmentRepository, roleRepository },
-    assignRoleDeps: { userRepository, roleRepository, roleAssignmentRepository, eventBus },
-    revokeRoleDeps: { userRepository, roleRepository, roleAssignmentRepository, eventBus },
   });
 
   registerAuthHandlers(fastify, {

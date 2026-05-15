@@ -1,15 +1,22 @@
 import type { EventBus } from "@hims/ts-sdk-events";
-import { UnexpectedPersistenceError, RoleNotFoundError, ValidationError } from "../domain/errors.js";
+import {
+  CapabilityNotFoundError,
+  UnexpectedPersistenceError,
+  RoleNotFoundError,
+  ValidationError,
+} from "../domain/errors.js";
 import { USER_MANAGEMENT_EVENT_USER_CREATED } from "../events/constants.js";
 import { ensureUserEventPayload } from "../events/ensure-user-event-payload.js";
 import { publishUserManagementEvent } from "../events/publish-user-management-event.js";
-import { assignRole } from "./assign-role.js";
+import { applyRoleTemplate } from "./apply-role-template.js";
 import type {
   AuthAccountProvisioner,
+  CapabilityRepository,
   CreateUserInput,
   PrincipalRoleProjectionRepository,
-  RoleAssignmentRepository,
+  RoleCapabilityRepository,
   RoleRepository,
+  UserAccessRepository,
   User,
   UserRepository,
 } from "../ports/index.js";
@@ -20,8 +27,10 @@ const UUID_RE =
 
 export type CreateUserDeps = {
   userRepository: UserRepository;
+  capabilityRepository: CapabilityRepository;
   roleRepository: RoleRepository;
-  roleAssignmentRepository: RoleAssignmentRepository;
+  roleCapabilityRepository: RoleCapabilityRepository;
+  userAccessRepository: UserAccessRepository;
   principalRoleProjectionRepository: PrincipalRoleProjectionRepository;
   authAccountProvisioner: AuthAccountProvisioner;
   eventBus: EventBus;
@@ -70,14 +79,36 @@ export async function createUser(
   }
 
   if (
-    input.role_ids !== undefined &&
-    (!Array.isArray(input.role_ids) ||
-      input.role_ids.some((roleId) => typeof roleId !== "string" || !UUID_RE.test(roleId)))
+    input.capability_ids !== undefined &&
+    (!Array.isArray(input.capability_ids) ||
+      input.capability_ids.some(
+        (capabilityId) => typeof capabilityId !== "string" || !UUID_RE.test(capabilityId),
+      ))
   ) {
-    throw new ValidationError("create_user_role_ids_invalid");
+    throw new ValidationError("create_user_capability_ids_invalid");
   }
 
-  const roleIds = [...new Set((input.role_ids ?? []).map((roleId) => roleId.trim()))];
+  if (
+    input.role_template_ids !== undefined &&
+    (!Array.isArray(input.role_template_ids) ||
+      input.role_template_ids.some((roleId) => typeof roleId !== "string" || !UUID_RE.test(roleId)))
+  ) {
+    throw new ValidationError("create_user_role_template_ids_invalid");
+  }
+
+  const capabilityIds = [...new Set((input.capability_ids ?? []).map((capabilityId) => capabilityId.trim()))];
+  if (capabilityIds.length > 0) {
+    const capabilities = await deps.capabilityRepository.listCapabilitiesByIds(capabilityIds);
+    if (capabilities.length !== capabilityIds.length) {
+      const capabilityIdsFound = new Set(capabilities.map((capability) => capability.id));
+      const missingCapabilityId = capabilityIds.find(
+        (capabilityId) => !capabilityIdsFound.has(capabilityId),
+      );
+      throw new CapabilityNotFoundError(missingCapabilityId);
+    }
+  }
+
+  const roleIds = [...new Set((input.role_template_ids ?? []).map((roleId) => roleId.trim()))];
   if (roleIds.length > 0) {
     const roles = await deps.roleRepository.listRolesByIds(ctx.tenantId, roleIds);
     if (roles.length !== roleIds.length) {
@@ -107,13 +138,22 @@ export async function createUser(
     throw new UnexpectedPersistenceError();
   }
 
+  if (capabilityIds.length > 0) {
+    await deps.userAccessRepository.replaceManualCapabilityGrants(ctx.tenantId, {
+      userId: linkedUser.id,
+      capabilityIds,
+      actorId: ctx.actorId,
+    });
+  }
+
   for (const roleId of roleIds) {
-    await assignRole(
+    await applyRoleTemplate(
       {
         userRepository: deps.userRepository,
         roleRepository: deps.roleRepository,
-        roleAssignmentRepository: deps.roleAssignmentRepository,
-        eventBus: deps.eventBus,
+        roleCapabilityRepository: deps.roleCapabilityRepository,
+        userAccessRepository: deps.userAccessRepository,
+        principalRoleProjectionRepository: deps.principalRoleProjectionRepository,
       },
       ctx,
       { user_id: linkedUser.id, role_id: roleId },

@@ -6,19 +6,19 @@ import { describe, expect, it } from "vitest";
 import { unauthorized } from "@hims/ts-sdk-http";
 import { identityPlugin } from "@hims/ts-sdk-identity";
 import type {
-  AssignRoleInput,
+  AppliedRoleTemplate,
   Capability,
   CreateUserInput,
   ListUsersOptions,
   ReplaceRoleCapabilitiesInput,
   Role,
-  RoleAssignment,
-  RoleAssignmentRef,
-  RoleAssignmentRepository,
   PrincipalRoleProjectionRepository,
+  PrincipalAuthorizationRepository,
   RoleCapabilityRepository,
   RoleRepository,
   UpdateUserInput,
+  UserAccessRepository,
+  UserCapabilityGrant,
   User,
   UserRepository,
   UserWithTenant,
@@ -27,26 +27,20 @@ import { userManagementPlugin } from "./router.js";
 import { publishUserManagementEvent } from "./events/publish-user-management-event.js";
 import { USER_MANAGEMENT_EVENT_ROLE_ASSIGNED } from "./events/constants.js";
 
-class NoopRoleAssignmentRepository implements RoleAssignmentRepository {
-  async assignRole(_tenantId: string, _input: AssignRoleInput): Promise<RoleAssignment> {
+class NoopUserAccessRepository implements UserAccessRepository {
+  async applyRoleTemplate(): Promise<AppliedRoleTemplate> {
     throw new Error("not implemented");
   }
-  async revokeRole(_tenantId: string, _input: AssignRoleInput): Promise<RoleAssignment | null> {
+  async detachRoleTemplate(): Promise<AppliedRoleTemplate | null> {
     return null;
   }
-  async listAssignments(): Promise<RoleAssignmentRef[]> {
+  async listRoleTemplatesByUser(): Promise<AppliedRoleTemplate[]> {
     return [];
   }
-  async listAssignmentsByUser(_tenantId: string, _userId: string): Promise<RoleAssignmentRef[]> {
+  async listActiveCapabilityGrantsByUser(): Promise<UserCapabilityGrant[]> {
     return [];
   }
-  async listAssignmentsByRole(_tenantId: string, _roleId: string): Promise<RoleAssignmentRef[]> {
-    return [];
-  }
-  async listAssignmentsByTenant(
-    _tenantId: string,
-    _filter?: Readonly<{ userId?: string; roleId?: string }>,
-  ): Promise<RoleAssignmentRef[]> {
+  async replaceManualCapabilityGrants(): Promise<UserCapabilityGrant[]> {
     return [];
   }
 }
@@ -105,6 +99,18 @@ class NoopPrincipalRoleProjectionRepository implements PrincipalRoleProjectionRe
     return [];
   }
   clearCache(): void {}
+}
+
+class NoopPrincipalAuthorizationRepository implements PrincipalAuthorizationRepository {
+  async listEffectiveCapabilityKeys(): Promise<string[]> {
+    return [];
+  }
+  async getClearanceLevels(): Promise<Record<string, string>> {
+    return {};
+  }
+  async listDelegatedCapabilityKeys(): Promise<string[]> {
+    return [];
+  }
 }
 
 const noopAuthAccountProvisioner = {
@@ -392,8 +398,9 @@ describe("OpenAPI/runtime coherence", () => {
           capabilityRepository: new StubCapabilityRepository(),
           roleRepository: new StubRoleRepository(),
           roleCapabilityRepository: new NoopRoleCapabilityRepository(),
-          roleAssignmentRepository: new NoopRoleAssignmentRepository(),
+          userAccessRepository: new NoopUserAccessRepository(),
           principalRoleProjectionRepository: new NoopPrincipalRoleProjectionRepository(),
+          principalAuthorizationRepository: new NoopPrincipalAuthorizationRepository(),
           authAccountProvisioner: noopAuthAccountProvisioner,
         });
       },
@@ -432,8 +439,9 @@ describe("OpenAPI/runtime coherence", () => {
           capabilityRepository: new StubCapabilityRepository(),
           roleRepository: new StubRoleRepository(),
           roleCapabilityRepository: new NoopRoleCapabilityRepository(),
-          roleAssignmentRepository: new NoopRoleAssignmentRepository(),
+          userAccessRepository: new NoopUserAccessRepository(),
           principalRoleProjectionRepository: new NoopPrincipalRoleProjectionRepository(),
+          principalAuthorizationRepository: new NoopPrincipalAuthorizationRepository(),
           authAccountProvisioner: noopAuthAccountProvisioner,
         });
       },
@@ -488,8 +496,9 @@ describe("OpenAPI/runtime coherence", () => {
           capabilityRepository: new StubCapabilityRepository(),
           roleRepository: new StubRoleRepository(),
           roleCapabilityRepository: new NoopRoleCapabilityRepository(),
-          roleAssignmentRepository: new NoopRoleAssignmentRepository(),
+          userAccessRepository: new NoopUserAccessRepository(),
           principalRoleProjectionRepository: new NoopPrincipalRoleProjectionRepository(),
+          principalAuthorizationRepository: new NoopPrincipalAuthorizationRepository(),
           authAccountProvisioner: noopAuthAccountProvisioner,
         });
       },
@@ -510,11 +519,13 @@ describe("OpenAPI/runtime coherence", () => {
         "/users",
         "/users/:id",
         "/users/:id/roles",
+        "/users/:id/roles/:roleId",
+        "/users/:id/capabilities",
+        "/users/:id/effective-capabilities",
         "/users/:id/deactivate",
         "/roles",
         "/roles/:id",
         "/roles/:id/capabilities",
-        "/role-assignments",
       ].includes(p);
     });
     expect(managedRoutes.length).toBeGreaterThan(0);

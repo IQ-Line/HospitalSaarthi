@@ -1,5 +1,10 @@
 import type { DomainEvent, EventBus, EventHandler, Subscription } from "@hims/ts-sdk-events";
 import { describe, expect, it } from "vitest";
+import { InMemoryCapabilityRepository } from "../data-access/in-memory-capability-repository.js";
+import { InMemoryPrincipalRoleProjectionRepository } from "../data-access/in-memory-principal-role-projection-repository.js";
+import { InMemoryRoleCapabilityRepository } from "../data-access/in-memory-role-capability-repository.js";
+import { InMemoryRoleRepository } from "../data-access/in-memory-role-repository.js";
+import { InMemoryUserAccessRepository } from "../data-access/in-memory-user-access-repository.js";
 import { InMemoryUserRepository } from "../data-access/in-memory-user-repository.js";
 import { createUser } from "../use-cases/create-user.js";
 import { updateUser } from "../use-cases/update-user.js";
@@ -31,6 +36,31 @@ class CapturingEventBus implements EventBus {
   }
 }
 
+function createUserDeps(userRepository: InMemoryUserRepository, eventBus: EventBus) {
+  const roleRepository = new InMemoryRoleRepository();
+  const userAccessRepository = new InMemoryUserAccessRepository((tenantId, roleId) =>
+    roleRepository.getRoleById(tenantId, roleId),
+  );
+
+  return {
+    userRepository,
+    capabilityRepository: new InMemoryCapabilityRepository(),
+    roleRepository,
+    roleCapabilityRepository: new InMemoryRoleCapabilityRepository(),
+    userAccessRepository,
+    principalRoleProjectionRepository: new InMemoryPrincipalRoleProjectionRepository(
+      userAccessRepository,
+      roleRepository,
+    ),
+    authAccountProvisioner: {
+      async createPasswordAccount(input: { platformUserId: string }) {
+        return { authUserId: input.platformUserId };
+      },
+    },
+    eventBus,
+  };
+}
+
 function assertUserEventPayloadCore(payload: unknown): void {
   expect(payload).toEqual(expect.any(Object));
   expect(payload).not.toBeNull();
@@ -47,11 +77,12 @@ describe("user lifecycle event payloads", () => {
     const eventBus = new CapturingEventBus();
 
     await createUser(
-      { userRepository, eventBus },
+      createUserDeps(userRepository, eventBus),
       eventCtx,
       {
         full_name: "Created User",
         email: "created@example.com",
+        password: "password123",
         phone: "111",
         username: "created",
         org_id: "f47ac10b-58cc-4372-a567-0e02b2c3d470",
@@ -66,7 +97,7 @@ describe("user lifecycle event payloads", () => {
     const p = event.payload as Record<string, unknown>;
     expect(p.status).toBe("active");
     expect(p).toHaveProperty("auth_user_id");
-    expect(p.auth_user_id).toBeNull();
+    expect(p.auth_user_id).toBe(p.id);
     expect(p).toHaveProperty("org_id");
     expect(p).toHaveProperty("username");
     expect(p).toHaveProperty("email");

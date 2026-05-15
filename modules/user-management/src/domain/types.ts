@@ -5,6 +5,7 @@
 /** Lifecycle state for platform user rows (LLD MVP). */
 export type UserStatus = "active" | "inactive" | "suspended";
 export type RoleStatus = "active" | "inactive";
+export type UserCapabilityGrantSource = "manual" | "role_template" | "delegated" | "system";
 
 /** Matches OpenAPI `User` / `components.schemas.User`; `email` / `phone` are persisted fields for projections/events. */
 export interface User {
@@ -58,8 +59,10 @@ export interface CreateUserInput {
   department?: string | null;
   /** 0–3; higher tiers require stronger principal clearances for read/update/delete. */
   clearance_tier_required?: number;
-  /** Tenant role ids to assign immediately after user creation. */
-  role_ids?: string[];
+  /** Direct user capability grants to persist immediately after creation. */
+  capability_ids?: string[];
+  /** Optional role-template ids to apply immediately after creation. */
+  role_template_ids?: string[];
 }
 
 /** PATCH /users/{id} request body (partial). */
@@ -95,6 +98,10 @@ export interface ReplaceRoleCapabilitiesInput {
   capability_ids: string[];
 }
 
+export interface ReplaceUserCapabilitiesInput {
+  capability_ids: string[];
+}
+
 /** POST /role-assignments 201 response shape. */
 export interface RoleAssignment {
   id: string;
@@ -106,6 +113,46 @@ export interface RoleAssignment {
 export interface AssignRoleInput {
   user_id: string;
   role_id: string;
+}
+
+export interface AppliedRoleTemplate {
+  id: string;
+  user_id: string;
+  role_id: string;
+  assigned_by_user_id: string | null;
+  assigned_at: string;
+  role: Role;
+}
+
+export interface UserCapabilityGrant {
+  id: string;
+  user_id: string;
+  capability_id: string;
+  capability_key: string;
+  module: string;
+  feature: string;
+  action: string;
+  display_name: string;
+  description?: string | null;
+  grant_source: UserCapabilityGrantSource;
+  source_role_id: string | null;
+  granted_by_user_id: string | null;
+  granted_at: string;
+  revoked_at: string | null;
+  revoked_by_user_id: string | null;
+}
+
+export interface UserCapabilitiesSnapshot {
+  direct_grants: UserCapabilityGrant[];
+  copied_grants: UserCapabilityGrant[];
+  role_templates: AppliedRoleTemplate[];
+}
+
+export interface UserEffectiveCapabilities {
+  capability_keys: string[];
+  delegated_capability_keys: string[];
+  clearances: Record<string, string>;
+  um_clearance_effective_tier: number;
 }
 
 /**

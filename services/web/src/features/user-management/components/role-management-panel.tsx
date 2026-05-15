@@ -1,349 +1,540 @@
-import type { ChangeEvent, ReactNode } from 'react';
-import { useEffect, useMemo, useState } from 'react';
-import { useQuery, type UseQueryResult } from '@tanstack/react-query';
-import { Badge } from '@pulse/ui/badge';
-import { Button } from '@pulse/ui/button';
-import { Input } from '@pulse/ui/input';
-import { Label } from '@pulse/ui/label';
-import type { Capability } from '../types';
+import { useEffect, useMemo, useReducer, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { ConfirmDialog } from '@/components/confirm-dialog';
+import { apiClient, ApiError } from '@/lib/api-client';
+import type { Capability, UmRole } from '../types';
 import {
   useCreateRole,
   useDeleteRole,
-  useReplaceRoleCapabilities,
   useUpdateRole,
 } from '../api/mutations';
+import { userManagementKeys } from '../api/keys';
 import { capabilityListOptions, useRoleCapabilities, useRolesSuspense } from '../api/queries';
+import {
+  RoleEditorDialog,
+  RoleListSection,
+} from './role-management-sections';
 
 type RoleManagementPanelProps = {
   canWriteRoles: boolean;
   canReadCapabilities: boolean;
 };
 
-function groupCapabilitiesByModule(capabilities: Capability[]): Record<string, Capability[]> {
-  return capabilities.reduce<Record<string, Capability[]>>((acc, capability) => {
-    const current = acc[capability.module] ?? [];
-    acc[capability.module] = [...current, capability];
-    return acc;
-  }, {});
-}
+type RoleEditorMode = 'create' | 'edit' | null;
 
-function buildAssignedCapabilitiesContent(
-  roleCapabilitiesQuery: UseQueryResult<Capability[], Error>,
-): ReactNode {
-  if (roleCapabilitiesQuery.isPending) {
-    return <p className="text-sm text-muted-foreground">Loading assigned capabilities...</p>;
-  }
-
-  if (roleCapabilitiesQuery.isError) {
-    return <p className="text-sm text-destructive">Unable to load capabilities for this role.</p>;
-  }
-
-  if (roleCapabilitiesQuery.data && roleCapabilitiesQuery.data.length > 0) {
-    return (
-      <div className="flex flex-wrap gap-2">
-        {roleCapabilitiesQuery.data.map((capability) => (
-          <div key={capability.id} className="rounded-md border px-2 py-1">
-            <div className="text-sm font-medium">{capability.display_name}</div>
-            <code className="text-xs text-muted-foreground">{capability.capability_key}</code>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  return <p className="text-sm text-muted-foreground">This role currently has no capabilities assigned.</p>;
-}
-
-type CapabilityCatalogSectionProps = {
-  capabilitiesByModule: Record<string, Capability[]>;
-  canWriteRoles: boolean;
+type RoleManagementState = {
+  selectedRoleId: string;
+  createCodeManuallyEdited: boolean;
+  createRoleForm: {
+    code: string;
+    displayName: string;
+    description: string;
+  };
+  editRoleForm: {
+    code: string;
+    displayName: string;
+    description: string;
+  };
   selectedCapabilityIds: string[];
-  onToggleCapability: (capabilityId: string, checked: boolean) => void;
 };
 
-function CapabilityCatalogSection({
-  capabilitiesByModule,
-  canWriteRoles,
-  selectedCapabilityIds,
-  onToggleCapability,
-}: CapabilityCatalogSectionProps) {
-  return Object.entries(capabilitiesByModule).map(([moduleId, moduleCapabilities]) => (
-    <div key={moduleId} className="space-y-2">
-      <p className="text-sm font-medium capitalize">{moduleId.replace(/-/g, ' ')}</p>
-      <div className="grid gap-2 md:grid-cols-2">
-        {moduleCapabilities.map((capability) => {
-          const checked = selectedCapabilityIds.includes(capability.id);
-          return (
-            <label key={capability.id} className="flex items-start gap-2 rounded-md border p-2">
-              <input
-                type="checkbox"
-                checked={checked}
-                disabled={!canWriteRoles}
-                onChange={(e) => onToggleCapability(capability.id, e.target.checked)}
-              />
-              <span className="text-sm">
-                <span className="block font-medium">{capability.display_name}</span>
-                <code className="text-xs text-muted-foreground">{capability.capability_key}</code>
-              </span>
-            </label>
-          );
-        })}
-      </div>
-    </div>
-  ));
+type RoleManagementAction =
+  | { type: 'selectRole'; roleId: string }
+  | { type: 'updateCreateField'; field: keyof RoleManagementState['createRoleForm']; value: string }
+  | { type: 'resetCreateForm' }
+  | { type: 'hydrateEditForm'; role: UmRole | null }
+  | { type: 'updateEditField'; field: keyof RoleManagementState['editRoleForm']; value: string }
+  | { type: 'setSelectedCapabilityIds'; capabilityIds: string[] }
+  | { type: 'toggleCapability'; capabilityId: string };
+
+const initialState: RoleManagementState = {
+  selectedRoleId: '',
+  createCodeManuallyEdited: false,
+  createRoleForm: {
+    code: '',
+    displayName: '',
+    description: '',
+  },
+  editRoleForm: {
+    code: '',
+    displayName: '',
+    description: '',
+  },
+  selectedCapabilityIds: [],
+};
+
+const BASE = '/api/user-management';
+
+function mutationErrorMessage(err: unknown): string {
+  if (err instanceof ApiError) {
+    const body = err.body?.trim();
+    if (body) {
+      return body.length > 280 ? `${body.slice(0, 280)}...` : body;
+    }
+    return err.message;
+  }
+
+  if (err instanceof Error) {
+    return err.message;
+  }
+
+  return 'Request failed';
+}
+
+function toRoleCode(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function normalizeRoleDraft(role: {
+  code: string;
+  displayName: string;
+  description: string;
+}): {
+  code: string;
+  display_name: string;
+  description: string | null;
+} {
+  return {
+    code: role.code.trim(),
+    display_name: role.displayName.trim(),
+    description: role.description.trim() === '' ? null : role.description.trim(),
+  };
+}
+
+function normalizeExistingRole(role: UmRole): {
+  code: string;
+  display_name: string;
+  description: string | null;
+} {
+  return {
+    code: role.code,
+    display_name: role.display_name,
+    description: role.description ?? null,
+  };
+}
+
+function sameCapabilitySet(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  const rightSet = new Set(right);
+  return left.every((item) => rightSet.has(item));
+}
+
+function roleMatchesSearch(role: UmRole, search: string): boolean {
+  if (search === '') {
+    return true;
+  }
+
+  return [role.display_name, role.code, role.description ?? ''].some((value) =>
+    value.toLowerCase().includes(search),
+  );
+}
+
+function capabilityMatchesSearch(capability: Capability, search: string): boolean {
+  if (search === '') {
+    return true;
+  }
+
+  return [
+    capability.display_name,
+    capability.capability_key,
+    capability.module,
+    capability.feature,
+    capability.action,
+    capability.description ?? '',
+  ].some((value) => value.toLowerCase().includes(search));
+}
+
+function roleManagementReducer(
+  state: RoleManagementState,
+  action: RoleManagementAction,
+): RoleManagementState {
+  switch (action.type) {
+    case 'selectRole':
+      return { ...state, selectedRoleId: action.roleId };
+    case 'updateCreateField':
+      if (action.field === 'displayName') {
+        return {
+          ...state,
+          createRoleForm: {
+            ...state.createRoleForm,
+            displayName: action.value,
+            code: state.createCodeManuallyEdited ? state.createRoleForm.code : toRoleCode(action.value),
+          },
+        };
+      }
+
+      if (action.field === 'code') {
+        return {
+          ...state,
+          createCodeManuallyEdited: true,
+          createRoleForm: {
+            ...state.createRoleForm,
+            code: action.value,
+          },
+        };
+      }
+
+      return {
+        ...state,
+        createRoleForm: {
+          ...state.createRoleForm,
+          [action.field]: action.value,
+        },
+      };
+    case 'resetCreateForm':
+      return {
+        ...state,
+        createCodeManuallyEdited: false,
+        createRoleForm: initialState.createRoleForm,
+      };
+    case 'hydrateEditForm':
+      return {
+        ...state,
+        editRoleForm: action.role
+          ? {
+              code: action.role.code,
+              displayName: action.role.display_name,
+              description: action.role.description ?? '',
+            }
+          : initialState.editRoleForm,
+      };
+    case 'updateEditField':
+      return {
+        ...state,
+        editRoleForm: {
+          ...state.editRoleForm,
+          [action.field]: action.value,
+        },
+      };
+    case 'setSelectedCapabilityIds':
+      return { ...state, selectedCapabilityIds: action.capabilityIds };
+    case 'toggleCapability':
+      return {
+        ...state,
+        selectedCapabilityIds: state.selectedCapabilityIds.includes(action.capabilityId)
+          ? state.selectedCapabilityIds.filter((item) => item !== action.capabilityId)
+          : [...state.selectedCapabilityIds, action.capabilityId],
+      };
+    default:
+      return state;
+  }
 }
 
 export function RoleManagementPanel({
   canWriteRoles,
   canReadCapabilities,
 }: RoleManagementPanelProps) {
+  const qc = useQueryClient();
   const { data: roles } = useRolesSuspense();
-  const capabilitiesQuery = useQuery({
-    ...capabilityListOptions(),
-    enabled: canReadCapabilities,
-  });
-  const [selectedRoleId, setSelectedRoleId] = useState('');
-  const [createCode, setCreateCode] = useState('');
-  const [createDisplayName, setCreateDisplayName] = useState('');
-  const [createDescription, setCreateDescription] = useState('');
-  const [editCode, setEditCode] = useState('');
-  const [editDisplayName, setEditDisplayName] = useState('');
-  const [editDescription, setEditDescription] = useState('');
-  const [selectedCapabilityIds, setSelectedCapabilityIds] = useState<string[]>([]);
+  const [state, dispatch] = useReducer(roleManagementReducer, initialState);
+  const [editorMode, setEditorMode] = useState<RoleEditorMode>(null);
+  const [deleteRoleDialogOpen, setDeleteRoleDialogOpen] = useState(false);
+  const [roleSearch, setRoleSearch] = useState('');
+  const [capabilitySearch, setCapabilitySearch] = useState('');
+  const [dialogSavePending, setDialogSavePending] = useState(false);
 
   const createRole = useCreateRole();
   const deleteRole = useDeleteRole();
-  const selectedRole = roles.find((role) => role.id === selectedRoleId) ?? null;
-  const roleCapabilitiesQuery = useRoleCapabilities(selectedRoleId, selectedRole !== null);
-  const updateRole = useUpdateRole(selectedRoleId);
-  const replaceRoleCapabilities = useReplaceRoleCapabilities(selectedRoleId);
+  const selectedRole = roles.find((role) => role.id === state.selectedRoleId) ?? null;
+  const capabilitiesQuery = useQuery({
+    ...capabilityListOptions(),
+    enabled: canReadCapabilities && editorMode !== null,
+  });
+  const roleCapabilitiesQuery = useRoleCapabilities(
+    state.selectedRoleId,
+    canReadCapabilities && editorMode === 'edit' && selectedRole !== null,
+  );
+  const updateRole = useUpdateRole(state.selectedRoleId);
+
+  const normalizedRoleSearch = roleSearch.trim().toLowerCase();
+  const filteredRoles = useMemo(
+    () => roles.filter((role) => roleMatchesSearch(role, normalizedRoleSearch)),
+    [roles, normalizedRoleSearch],
+  );
 
   useEffect(() => {
     const [firstRole] = roles;
     if (!selectedRole && firstRole) {
-      setSelectedRoleId(firstRole.id);
+      dispatch({ type: 'selectRole', roleId: firstRole.id });
     }
   }, [roles, selectedRole]);
 
   useEffect(() => {
-    if (!selectedRole) {
-      setEditCode('');
-      setEditDisplayName('');
-      setEditDescription('');
-      return;
-    }
-    setEditCode(selectedRole.code);
-    setEditDisplayName(selectedRole.display_name);
-    setEditDescription(selectedRole.description ?? '');
+    dispatch({ type: 'hydrateEditForm', role: selectedRole });
   }, [selectedRole]);
 
   useEffect(() => {
-    if (!roleCapabilitiesQuery.data) return;
-    setSelectedCapabilityIds(roleCapabilitiesQuery.data.map((capability) => capability.id));
-  }, [roleCapabilitiesQuery.data]);
+    if (editorMode !== 'edit' || !roleCapabilitiesQuery.data) return;
+    dispatch({
+      type: 'setSelectedCapabilityIds',
+      capabilityIds: roleCapabilitiesQuery.data.map((capability: Capability) => capability.id),
+    });
+  }, [editorMode, roleCapabilitiesQuery.data]);
 
   const editableCapabilities = capabilitiesQuery.data ?? [];
-  const capabilitiesByModule = useMemo(
-    () => groupCapabilitiesByModule(editableCapabilities),
-    [editableCapabilities],
-  );
-  const assignedCapabilitiesContent = buildAssignedCapabilitiesContent(roleCapabilitiesQuery);
+  const filteredCapabilities = useMemo(() => {
+    const search = capabilitySearch.trim().toLowerCase();
+    return editableCapabilities.filter((capability) => capabilityMatchesSearch(capability, search));
+  }, [editableCapabilities, capabilitySearch]);
 
-  const handleCreateCodeChange = (e: ChangeEvent<HTMLInputElement>) => setCreateCode(e.target.value);
-  const handleCreateDisplayNameChange = (e: ChangeEvent<HTMLInputElement>) =>
-    setCreateDisplayName(e.target.value);
-  const handleCreateDescriptionChange = (e: ChangeEvent<HTMLInputElement>) =>
-    setCreateDescription(e.target.value);
-  const handleEditCodeChange = (e: ChangeEvent<HTMLInputElement>) => setEditCode(e.target.value);
-  const handleEditDisplayNameChange = (e: ChangeEvent<HTMLInputElement>) =>
-    setEditDisplayName(e.target.value);
-  const handleEditDescriptionChange = (e: ChangeEvent<HTMLInputElement>) =>
-    setEditDescription(e.target.value);
-  const handleToggleCapability = (capabilityId: string, checked: boolean) => {
-    setSelectedCapabilityIds((current) =>
-      checked
-        ? [...new Set([...current, capabilityId])]
-        : current.filter((item) => item !== capabilityId),
+  const visibleCapabilityIds = useMemo(
+    () => filteredCapabilities.map((capability) => capability.id),
+    [filteredCapabilities],
+  );
+  const assignedCapabilityIds = useMemo(
+    () => (roleCapabilitiesQuery.data ?? []).map((capability: Capability) => capability.id),
+    [roleCapabilitiesQuery.data],
+  );
+  const editorOpen = editorMode !== null;
+  const isCreateMode = editorMode === 'create';
+  const activeForm = isCreateMode ? state.createRoleForm : state.editRoleForm;
+  const activeDraft = normalizeRoleDraft(activeForm);
+  const createHasDraft =
+    state.createRoleForm.code !== '' ||
+    state.createRoleForm.displayName !== '' ||
+    state.createRoleForm.description !== '' ||
+    state.selectedCapabilityIds.length > 0;
+  const createRoleDraft = normalizeRoleDraft(state.createRoleForm);
+  const editRoleDraft = normalizeRoleDraft(state.editRoleForm);
+  const editRoleDirty =
+    selectedRole !== null &&
+    JSON.stringify(editRoleDraft) !== JSON.stringify(normalizeExistingRole(selectedRole));
+  const capabilitiesDirty =
+    selectedRole !== null && !sameCapabilitySet(assignedCapabilityIds, state.selectedCapabilityIds);
+  const editorDirty = isCreateMode ? createHasDraft : editRoleDirty || capabilitiesDirty;
+  const savePending = dialogSavePending || createRole.isPending || updateRole.isPending;
+  const saveDisabled =
+    canWriteRoles &&
+    activeDraft.code.length > 0 &&
+    activeDraft.display_name.length > 0;
+
+  const canSaveDialog =
+    editorMode === 'create'
+      ? saveDisabled && !savePending
+      : saveDisabled &&
+        selectedRole !== null &&
+        editorDirty &&
+        !savePending &&
+        (!canReadCapabilities || !roleCapabilitiesQuery.isPending);
+
+  const handleToggleCapability = (capabilityId: string) => {
+    dispatch({ type: 'toggleCapability', capabilityId });
+  };
+
+  const resetCapabilityFilters = () => {
+    setCapabilitySearch('');
+  };
+
+  const openCreateEditor = () => {
+    dispatch({ type: 'resetCreateForm' });
+    dispatch({ type: 'setSelectedCapabilityIds', capabilityIds: [] });
+    resetCapabilityFilters();
+    setEditorMode('create');
+  };
+
+  const openEditEditor = (roleId: string) => {
+    dispatch({ type: 'selectRole', roleId });
+    dispatch({ type: 'setSelectedCapabilityIds', capabilityIds: [] });
+    resetCapabilityFilters();
+    setEditorMode('edit');
+  };
+
+  const closeEditor = () => {
+    resetCapabilityFilters();
+    if (editorMode === 'create') {
+      dispatch({ type: 'resetCreateForm' });
+      dispatch({ type: 'setSelectedCapabilityIds', capabilityIds: [] });
+    } else if (selectedRole) {
+      dispatch({ type: 'hydrateEditForm', role: selectedRole });
+      dispatch({ type: 'setSelectedCapabilityIds', capabilityIds: assignedCapabilityIds });
+    }
+    setEditorMode(null);
+  };
+
+  async function persistRoleCapabilities(roleId: string, capabilityIds: string[]): Promise<void> {
+    const capabilities = await apiClient<Capability[]>(
+      `${BASE}/roles/${encodeURIComponent(roleId)}/capabilities`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ capability_ids: capabilityIds }),
+      },
     );
+
+    qc.setQueryData(userManagementKeys.roleCapabilities(roleId), capabilities);
+    qc.invalidateQueries({ queryKey: userManagementKeys.roleCapabilities(roleId) }).catch(() => {
+      /* best-effort */
+    });
+  }
+
+  const handleDeleteRole = () => {
+    if (!selectedRole) return;
+
+    const nextRoleId = roles.find((role) => role.id !== selectedRole.id)?.id ?? '';
+
+    deleteRole.mutate(selectedRole.id, {
+      onSuccess: () => {
+        toast.success(`Role "${selectedRole.display_name}" deleted`);
+        setDeleteRoleDialogOpen(false);
+        setEditorMode(null);
+        dispatch({ type: 'selectRole', roleId: nextRoleId });
+      },
+      onError: (error) => {
+        toast.error(mutationErrorMessage(error));
+      },
+    });
+  };
+
+  const handleResetEditor = () => {
+    if (isCreateMode) {
+      dispatch({ type: 'resetCreateForm' });
+      dispatch({ type: 'setSelectedCapabilityIds', capabilityIds: [] });
+      return;
+    }
+
+    dispatch({ type: 'hydrateEditForm', role: selectedRole });
+    dispatch({ type: 'setSelectedCapabilityIds', capabilityIds: assignedCapabilityIds });
+  };
+
+  const handleSaveEditor = async () => {
+    if (!canSaveDialog) {
+      return;
+    }
+
+    setDialogSavePending(true);
+    try {
+      let savedRole: UmRole;
+
+      if (editorMode === 'create') {
+        savedRole = await createRole.mutateAsync(createRoleDraft);
+        if (canReadCapabilities) {
+          await persistRoleCapabilities(savedRole.id, state.selectedCapabilityIds);
+        }
+        toast.success(`Role "${savedRole.display_name}" created`);
+      } else {
+        if (!selectedRole) {
+          return;
+        }
+
+        savedRole = editRoleDirty ? await updateRole.mutateAsync(editRoleDraft) : selectedRole;
+        if (canReadCapabilities && capabilitiesDirty) {
+          await persistRoleCapabilities(savedRole.id, state.selectedCapabilityIds);
+        }
+        toast.success(`Role "${savedRole.display_name}" updated`);
+      }
+
+      dispatch({ type: 'selectRole', roleId: savedRole.id });
+      setRoleSearch('');
+      closeEditor();
+    } catch (error) {
+      toast.error(mutationErrorMessage(error));
+    } finally {
+      setDialogSavePending(false);
+    }
   };
 
   return (
-    <section className="rounded-lg border p-4 space-y-6">
-      <div>
-        <h3 className="text-lg font-medium">Role administration</h3>
-        <p className="text-sm text-muted-foreground mt-1">
-          Manage tenant roles as flat containers of canonical capabilities.
-        </p>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-[18rem,1fr]">
-        <div className="space-y-3">
-          <div>
-            <p className="text-sm font-medium mb-2">Roles</p>
-            <div className="space-y-2">
-              {roles.map((role) => (
-                <button
-                  key={role.id}
-                  type="button"
-                  className={`w-full rounded-md border px-3 py-2 text-left ${
-                    selectedRoleId === role.id ? 'border-primary' : ''
-                  }`}
-                  onClick={() => setSelectedRoleId(role.id)}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium">{role.display_name}</span>
-                    <Badge variant={role.status === 'active' ? 'default' : 'secondary'}>
-                      {role.status}
-                    </Badge>
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-1">{role.code}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {canWriteRoles && (
-            <div className="rounded-md border p-3 space-y-2">
-              <p className="text-sm font-medium">Create role</p>
-              <Input placeholder="role code" value={createCode} onChange={handleCreateCodeChange} />
-              <Input
-                placeholder="display name"
-                value={createDisplayName}
-                onChange={handleCreateDisplayNameChange}
-              />
-              <Input
-                placeholder="description"
-                value={createDescription}
-                onChange={handleCreateDescriptionChange}
-              />
-              <Button
-                type="button"
-                disabled={createRole.isPending}
-                onClick={() =>
-                  createRole.mutate(
-                    {
-                      code: createCode,
-                      display_name: createDisplayName,
-                      description: createDescription === '' ? null : createDescription,
-                    },
-                    {
-                      onSuccess: (role) => {
-                        setSelectedRoleId(role.id);
-                        setCreateCode('');
-                        setCreateDisplayName('');
-                        setCreateDescription('');
-                      },
-                    },
-                  )
-                }
-              >
-                Create role
-              </Button>
-            </div>
-          )}
+    <>
+      <section className="space-y-6">
+        <div>
+          <h3 className="text-lg font-medium">Role template administration</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Create role templates and edit their capability bundles. Applying a template copies its
+            current capabilities onto users.
+          </p>
         </div>
 
-        <div className="space-y-4">
-          {selectedRole ? (
-            <>
-              <div className="rounded-md border p-4 space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="font-medium">Role details</p>
-                  {canWriteRoles ? (
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      disabled={deleteRole.isPending}
-                      onClick={() =>
-                        deleteRole.mutate(selectedRole.id, {
-                          onSuccess: () => setSelectedRoleId(''),
-                        })
-                      }
-                    >
-                      Delete role
-                    </Button>
-                  ) : null}
-                </div>
+        <RoleListSection
+          roles={filteredRoles}
+          totalRoleCount={roles.length}
+          roleSearch={roleSearch}
+          selectedRoleId={state.selectedRoleId}
+          canWriteRoles={canWriteRoles}
+          onRoleSearchChange={setRoleSearch}
+          onSelectRole={openEditEditor}
+          onCreateRole={openCreateEditor}
+        />
+      </section>
 
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="role-code">Code</Label>
-                    <Input id="role-code" value={editCode} onChange={handleEditCodeChange} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="role-display-name">Display name</Label>
-                    <Input
-                      id="role-display-name"
-                      value={editDisplayName}
-                      onChange={handleEditDisplayNameChange}
-                    />
-                  </div>
-                </div>
+      {editorMode ? (
+        <RoleEditorDialog
+          open={editorOpen}
+          mode={editorMode}
+          role={selectedRole}
+          canWriteRoles={canWriteRoles}
+          canReadCapabilities={canReadCapabilities}
+          code={activeForm.code}
+          displayName={activeForm.displayName}
+          description={activeForm.description}
+          selectedCapabilityIds={state.selectedCapabilityIds}
+          assignedCount={isCreateMode ? 0 : assignedCapabilityIds.length}
+          visibleCount={visibleCapabilityIds.length}
+          totalCapabilityCount={editableCapabilities.length}
+          isDirty={editorDirty}
+          savePending={savePending}
+          saveDisabled={!canSaveDialog}
+          deletePending={deleteRole.isPending}
+          assignedCapabilitiesPending={editorMode === 'edit' ? roleCapabilitiesQuery.isPending : false}
+          assignedCapabilitiesError={editorMode === 'edit' ? roleCapabilitiesQuery.isError : false}
+          capabilitySearch={capabilitySearch}
+          capabilities={filteredCapabilities}
+          onOpenChange={(open) => {
+            if (!open) {
+              closeEditor();
+            }
+          }}
+          onCodeChange={(value) =>
+            dispatch({
+              type: isCreateMode ? 'updateCreateField' : 'updateEditField',
+              field: 'code',
+              value,
+            })
+          }
+          onDisplayNameChange={(value) =>
+            dispatch({
+              type: isCreateMode ? 'updateCreateField' : 'updateEditField',
+              field: 'displayName',
+              value,
+            })
+          }
+          onDescriptionChange={(value) =>
+            dispatch({
+              type: isCreateMode ? 'updateCreateField' : 'updateEditField',
+              field: 'description',
+              value,
+            })
+          }
+          onCapabilitySearchChange={setCapabilitySearch}
+          onSetSelectedCapabilityIds={(capabilityIds) =>
+            dispatch({ type: 'setSelectedCapabilityIds', capabilityIds })
+          }
+          onToggleCapability={handleToggleCapability}
+          onReset={handleResetEditor}
+          onSave={() => void handleSaveEditor()}
+          onDelete={() => setDeleteRoleDialogOpen(true)}
+        />
+      ) : null}
 
-                <div className="space-y-2">
-                  <Label htmlFor="role-description">Description</Label>
-                  <Input
-                    id="role-description"
-                    value={editDescription}
-                    onChange={handleEditDescriptionChange}
-                  />
-                </div>
-
-                {canWriteRoles ? (
-                  <Button
-                    type="button"
-                    disabled={updateRole.isPending}
-                    onClick={() =>
-                      updateRole.mutate({
-                        code: editCode,
-                        display_name: editDisplayName,
-                        description: editDescription === '' ? null : editDescription,
-                      })
-                    }
-                  >
-                    Save role
-                  </Button>
-                ) : null}
-              </div>
-
-              <div className="rounded-md border p-4 space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="font-medium">Capability composition</p>
-                  {canWriteRoles && canReadCapabilities ? (
-                    <Button
-                      type="button"
-                      disabled={replaceRoleCapabilities.isPending}
-                      onClick={() =>
-                        replaceRoleCapabilities.mutate({ capability_ids: selectedCapabilityIds })
-                      }
-                    >
-                      Save capabilities
-                    </Button>
-                  ) : null}
-                </div>
-                {canReadCapabilities ? (
-                  <CapabilityCatalogSection
-                    capabilitiesByModule={capabilitiesByModule}
-                    canWriteRoles={canWriteRoles}
-                    selectedCapabilityIds={selectedCapabilityIds}
-                    onToggleCapability={handleToggleCapability}
-                  />
-                ) : (
-                  <div className="space-y-3">
-                    <p className="text-sm text-muted-foreground">
-                      Your account can read roles, but it cannot read the full capability catalog.
-                      Showing the currently assigned capabilities only.
-                    </p>
-                    {assignedCapabilitiesContent}
-                  </div>
-                )}
-              </div>
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">Create or select a role to manage.</p>
-          )}
-        </div>
-      </div>
-    </section>
+      <ConfirmDialog
+        open={deleteRoleDialogOpen}
+        onOpenChange={setDeleteRoleDialogOpen}
+        title="Delete role template?"
+        description={
+          selectedRole
+            ? `Delete "${selectedRole.display_name}" and remove it from the tenant role-template library. Existing users keep any capabilities copied earlier.`
+            : 'Delete the selected role template.'
+        }
+        confirmLabel={deleteRole.isPending ? 'Deleting...' : 'Delete template'}
+        destructive
+        onConfirm={handleDeleteRole}
+      />
+    </>
   );
 }

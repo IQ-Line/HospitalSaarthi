@@ -8,9 +8,11 @@ export type ValidationIssue =
   | "password_required"
   | "password_too_short"
   | "route_id_invalid"
-  | "create_user_role_ids_invalid"
-  | "assign_role_ids_invalid"
-  | "revoke_role_query_invalid"
+  | "create_user_capability_ids_invalid"
+  | "create_user_role_template_ids_invalid"
+  | "apply_role_template_ids_invalid"
+  | "detach_role_template_query_invalid"
+  | "replace_user_capabilities_invalid"
   | "role_code_invalid_type"
   | "role_code_empty"
   | "role_display_name_invalid_type"
@@ -50,17 +52,25 @@ const VALIDATION_ISSUE_META: Record<ValidationIssue, { code: string; message: st
     code: "INVALID_INPUT",
     message: "route parameter id must be a UUID.",
   },
-  create_user_role_ids_invalid: {
+  create_user_capability_ids_invalid: {
     code: "INVALID_INPUT",
-    message: "role_ids must be an array of UUID strings.",
+    message: "capability_ids must be an array of UUID strings.",
   },
-  assign_role_ids_invalid: {
+  create_user_role_template_ids_invalid: {
     code: "INVALID_INPUT",
-    message: "user_id and role_id are required.",
+    message: "role_template_ids must be an array of UUID strings.",
   },
-  revoke_role_query_invalid: {
+  apply_role_template_ids_invalid: {
     code: "INVALID_INPUT",
-    message: "user_id and role_id query parameters are required UUIDs.",
+    message: "user_id and role_id are required UUID strings.",
+  },
+  detach_role_template_query_invalid: {
+    code: "INVALID_INPUT",
+    message: "role_id route parameter must be a UUID string.",
+  },
+  replace_user_capabilities_invalid: {
+    code: "INVALID_INPUT",
+    message: "capability_ids must be an array of non-empty UUID strings.",
   },
   role_code_invalid_type: {
     code: "INVALID_INPUT",
@@ -156,6 +166,12 @@ export class DuplicateRoleAssignmentError extends UserManagementError {
   }
 }
 
+export class DuplicateUserRoleTemplateError extends UserManagementError {
+  constructor() {
+    super("USER_ROLE_TEMPLATE_DUPLICATE", "This role template is already applied to the user.");
+  }
+}
+
 export class AuthEmailConflictError extends UserManagementError {
   constructor(public readonly email?: string) {
     super("AUTH_EMAIL_CONFLICT", "A login account with this email already exists.");
@@ -166,6 +182,12 @@ export class AuthEmailConflictError extends UserManagementError {
 export class RoleAssignmentNotFoundError extends UserManagementError {
   constructor() {
     super("ROLE_ASSIGNMENT_NOT_FOUND", "Role assignment not found for this tenant.");
+  }
+}
+
+export class UserRoleTemplateNotFoundError extends UserManagementError {
+  constructor() {
+    super("USER_ROLE_TEMPLATE_NOT_FOUND", "Role template association not found for this tenant.");
   }
 }
 

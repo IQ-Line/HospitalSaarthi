@@ -3,6 +3,56 @@ import { useAuthStore } from '@/stores/auth.store';
 
 let authBootstrapComplete = false;
 let authBootstrapPromise: Promise<void> | null = null;
+let authRefreshPromise: Promise<string | null> | null = null;
+
+type ResolvedAuthSession = {
+  accessToken: string;
+  sessionToken: string;
+  userId: string;
+  displayName: string;
+};
+
+async function resolveAuthSessionFromBetterAuth(): Promise<ResolvedAuthSession | null> {
+  const { data: sessionData, error: sessionError } = await authClient.getSession();
+  const sessionToken = sessionData?.session?.token;
+  const userId = sessionData?.user?.id;
+  const displayName = sessionData?.user?.name;
+
+  if (
+    sessionError ||
+    typeof sessionToken !== 'string' ||
+    sessionToken.length === 0 ||
+    typeof userId !== 'string' ||
+    userId.length === 0
+  ) {
+    return null;
+  }
+
+  const { data: tokenData, error: tokenError } = await authClient.token();
+  const accessToken = tokenData?.token;
+  if (tokenError || typeof accessToken !== 'string' || accessToken.length === 0) {
+    return null;
+  }
+
+  return {
+    accessToken,
+    sessionToken,
+    userId,
+    displayName: typeof displayName === 'string' ? displayName : '',
+  };
+}
+
+function redirectToLoginIfBrowserSessionExpired(): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  if (window.location.pathname === '/login') {
+    return;
+  }
+
+  window.location.replace('/login');
+}
 
 /**
  * Restores the browser session from better-auth's cookie-backed session before route guards run.
@@ -25,35 +75,13 @@ export async function ensureAuthSession(): Promise<void> {
 
   authBootstrapPromise = (async () => {
     try {
-      const { data: sessionData, error: sessionError } = await authClient.getSession();
-      const sessionToken = sessionData?.session?.token;
-      const userId = sessionData?.user?.id;
-      const displayName = sessionData?.user?.name;
-
-      if (
-        sessionError ||
-        typeof sessionToken !== 'string' ||
-        sessionToken.length === 0 ||
-        typeof userId !== 'string' ||
-        userId.length === 0
-      ) {
+      const resolvedSession = await resolveAuthSessionFromBetterAuth();
+      if (resolvedSession === null) {
         useAuthStore.getState().clearSession();
         return;
       }
 
-      const { data: tokenData, error: tokenError } = await authClient.token();
-      const accessToken = tokenData?.token;
-      if (tokenError || typeof accessToken !== 'string' || accessToken.length === 0) {
-        useAuthStore.getState().clearSession();
-        return;
-      }
-
-      useAuthStore.getState().setSession({
-        accessToken,
-        sessionToken,
-        userId,
-        displayName: typeof displayName === 'string' ? displayName : '',
-      });
+      useAuthStore.getState().setSession(resolvedSession);
     } finally {
       authBootstrapComplete = true;
       authBootstrapPromise = null;
@@ -61,4 +89,36 @@ export async function ensureAuthSession(): Promise<void> {
   })();
 
   await authBootstrapPromise;
+}
+
+/**
+ * Re-fetches a short-lived JWT from the active better-auth cookie session and updates the auth
+ * store. This is used when APIs reject the in-memory JWT after it expires during navigation.
+ */
+export async function refreshAccessToken(): Promise<string | null> {
+  if (authRefreshPromise) {
+    return authRefreshPromise;
+  }
+
+  authRefreshPromise = (async () => {
+    try {
+      const resolvedSession = await resolveAuthSessionFromBetterAuth();
+      if (resolvedSession === null) {
+        useAuthStore.getState().clearSession();
+        redirectToLoginIfBrowserSessionExpired();
+        return null;
+      }
+
+      useAuthStore.getState().setSession(resolvedSession);
+      return resolvedSession.accessToken;
+    } catch {
+      useAuthStore.getState().clearSession();
+      redirectToLoginIfBrowserSessionExpired();
+      return null;
+    } finally {
+      authRefreshPromise = null;
+    }
+  })();
+
+  return authRefreshPromise;
 }

@@ -2,24 +2,33 @@ import { describe, expect, it, vi } from "vitest";
 import type { DbInstance } from "@hims/ts-sdk-db";
 import { DrizzlePrincipalRoleProjectionRepository } from "./drizzle-principal-role-projection-repository.js";
 import { InMemoryPrincipalRoleProjectionRepository } from "./in-memory-principal-role-projection-repository.js";
-import { InMemoryRoleAssignmentRepository } from "./in-memory-role-assignment-repository.js";
 import { InMemoryRoleRepository } from "./in-memory-role-repository.js";
+import { InMemoryUserAccessRepository } from "./in-memory-user-access-repository.js";
 
 describe("PrincipalRoleProjectionRepository instance cache", () => {
   describe("InMemoryPrincipalRoleProjectionRepository", () => {
     it("reuses cached projection for same tenant+user without re-querying assignments", async () => {
-      const roleAssignmentRepository = new InMemoryRoleAssignmentRepository();
+      const userAccessRepository = new InMemoryUserAccessRepository(async (_tenantId, _roleId) => ({
+        id: "r1",
+        code: "doctor",
+        display_name: "D",
+      }));
       const roleRepository = new InMemoryRoleRepository([
         {
           tenantId: "t1",
           role: { id: "r1", code: "doctor", display_name: "D" },
         },
       ]);
-      await roleAssignmentRepository.assignRole("t1", { user_id: "u1", role_id: "r1" });
+      await userAccessRepository.applyRoleTemplate("t1", {
+        userId: "u1",
+        roleId: "r1",
+        capabilityIds: [],
+        actorId: null,
+      });
 
-      const listSpy = vi.spyOn(roleAssignmentRepository, "listAssignmentsByUser");
+      const listSpy = vi.spyOn(userAccessRepository, "listRoleTemplatesByUser");
       const projection = new InMemoryPrincipalRoleProjectionRepository(
-        roleAssignmentRepository,
+        userAccessRepository,
         roleRepository,
       );
 
@@ -32,16 +41,28 @@ describe("PrincipalRoleProjectionRepository instance cache", () => {
     });
 
     it("does not share cache between different users", async () => {
-      const roleAssignmentRepository = new InMemoryRoleAssignmentRepository();
+      const userAccessRepository = new InMemoryUserAccessRepository((tenantId, roleId) =>
+        roleRepository.getRoleById(tenantId, roleId),
+      );
       const roleRepository = new InMemoryRoleRepository([
         { tenantId: "t1", role: { id: "r1", code: "a", display_name: "A" } },
         { tenantId: "t1", role: { id: "r2", code: "b", display_name: "B" } },
       ]);
-      await roleAssignmentRepository.assignRole("t1", { user_id: "u1", role_id: "r1" });
-      await roleAssignmentRepository.assignRole("t1", { user_id: "u2", role_id: "r2" });
+      await userAccessRepository.applyRoleTemplate("t1", {
+        userId: "u1",
+        roleId: "r1",
+        capabilityIds: [],
+        actorId: null,
+      });
+      await userAccessRepository.applyRoleTemplate("t1", {
+        userId: "u2",
+        roleId: "r2",
+        capabilityIds: [],
+        actorId: null,
+      });
 
       const projection = new InMemoryPrincipalRoleProjectionRepository(
-        roleAssignmentRepository,
+        userAccessRepository,
         roleRepository,
       );
 
@@ -50,14 +71,21 @@ describe("PrincipalRoleProjectionRepository instance cache", () => {
     });
 
     it("returns defensive copies so mutating a result does not affect cache or later calls", async () => {
-      const roleAssignmentRepository = new InMemoryRoleAssignmentRepository();
+      const userAccessRepository = new InMemoryUserAccessRepository((tenantId, roleId) =>
+        roleRepository.getRoleById(tenantId, roleId),
+      );
       const roleRepository = new InMemoryRoleRepository([
         { tenantId: "t1", role: { id: "r1", code: "x", display_name: "X" } },
       ]);
-      await roleAssignmentRepository.assignRole("t1", { user_id: "u1", role_id: "r1" });
+      await userAccessRepository.applyRoleTemplate("t1", {
+        userId: "u1",
+        roleId: "r1",
+        capabilityIds: [],
+        actorId: null,
+      });
 
       const projection = new InMemoryPrincipalRoleProjectionRepository(
-        roleAssignmentRepository,
+        userAccessRepository,
         roleRepository,
       );
 
@@ -68,15 +96,22 @@ describe("PrincipalRoleProjectionRepository instance cache", () => {
     });
 
     it("clearCache forces a fresh projection", async () => {
-      const roleAssignmentRepository = new InMemoryRoleAssignmentRepository();
+      const userAccessRepository = new InMemoryUserAccessRepository((tenantId, roleId) =>
+        roleRepository.getRoleById(tenantId, roleId),
+      );
       const roleRepository = new InMemoryRoleRepository([
         { tenantId: "t1", role: { id: "r1", code: "one", display_name: "O" } },
       ]);
-      await roleAssignmentRepository.assignRole("t1", { user_id: "u1", role_id: "r1" });
+      await userAccessRepository.applyRoleTemplate("t1", {
+        userId: "u1",
+        roleId: "r1",
+        capabilityIds: [],
+        actorId: null,
+      });
 
-      const listSpy = vi.spyOn(roleAssignmentRepository, "listAssignmentsByUser");
+      const listSpy = vi.spyOn(userAccessRepository, "listRoleTemplatesByUser");
       const projection = new InMemoryPrincipalRoleProjectionRepository(
-        roleAssignmentRepository,
+        userAccessRepository,
         roleRepository,
       );
 

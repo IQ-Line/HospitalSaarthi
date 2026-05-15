@@ -62,9 +62,17 @@ export async function registerBetterAuth(
 
       const res = await auth.handler(req);
       reply.status(res.status);
+      const setCookies =
+        typeof res.headers.getSetCookie === "function" ? res.headers.getSetCookie() : [];
       res.headers.forEach((value, key) => {
+        if (key.toLowerCase() === "set-cookie") {
+          return;
+        }
         reply.header(key, value);
       });
+      if (setCookies.length > 0) {
+        reply.header("set-cookie", setCookies);
+      }
       const text = await res.text();
       return reply.send(text.length > 0 ? text : null);
     },

@@ -2,13 +2,15 @@
 ---
 name: role_assignment_permissions
 description: >-
-  User Management — POST /role-assignments → role.assign; DELETE /role-assignments → role.revoke;
-  both require tenant match and um:role:assign in capabilities or delegated_capabilities.
+  User Management user-access mutations — POST /users/{id}/roles and PUT /users/{id}/capabilities
+  map to role.assign; DELETE /users/{id}/roles/{roleId} maps to role.revoke. All require
+  tenant match and um:role:assign in capabilities or delegated_capabilities.
 
 principals:
   assigner:
     id: rbac-admin
-    roles: []
+    roles:
+      - "_unresolved"
     attr:
       iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
       org_id: null
@@ -21,7 +23,8 @@ principals:
 
   not_assigner:
     id: plain-user
-    roles: []
+    roles:
+      - "_unresolved"
     attr:
       iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
       org_id: null
@@ -34,7 +37,8 @@ principals:
 
   assigner_delegated_only:
     id: delegated-rbac-admin
-    roles: []
+    roles:
+      - "_unresolved"
     attr:
       iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
       org_id: null
@@ -64,6 +68,17 @@ resources:
 
 tests:
   - name: role.assign — um:role:assign capability ALLOW
+    input:
+      principals: [assigner]
+      resources: [role_assignment_new]
+      actions: [role.assign]
+    expected:
+      - principal: assigner
+        resource: role_assignment_new
+        actions:
+          role.assign: EFFECT_ALLOW
+
+  - name: role.assign — direct capability replacement uses same tenant/capability gate
     input:
       principals: [assigner]
       resources: [role_assignment_new]

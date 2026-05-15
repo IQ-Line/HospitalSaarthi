@@ -77,8 +77,8 @@ export async function buildUxPermissionMap(
         read: capabilityReadOk,
         write: false,
       },
-      roleAssignments: {
-        read: roleReadOk,
+      userAccess: {
+        read: roleReadOk || capabilityReadOk,
         write: assignOk || revokeOk,
       },
     },

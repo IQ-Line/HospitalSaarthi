@@ -12,8 +12,8 @@ import {
   InMemoryPrincipalAuthorizationRepository,
   InMemoryPrincipalRoleProjectionRepository,
   InMemoryRoleCapabilityRepository,
-  InMemoryRoleAssignmentRepository,
   InMemoryRoleRepository,
+  InMemoryUserAccessRepository,
   InMemoryUserRepository,
   buildCerbosUserMgmtResourceAttr,
   createDefaultPrincipalService,
@@ -135,9 +135,11 @@ describe("Phase 1A.12 smoke", () => {
     const userRepository = new InMemoryUserRepository();
     userRepository.insertUserWithId(tenantId, actorId, { full_name: "Smoke Actor" });
     const roleRepository = new InMemoryRoleRepository();
-    const roleAssignmentRepository = new InMemoryRoleAssignmentRepository();
+    const userAccessRepository = new InMemoryUserAccessRepository((currentTenantId, roleId) =>
+      roleRepository.getRoleById(currentTenantId, roleId),
+    );
     const principalRoleProjectionRepository = new InMemoryPrincipalRoleProjectionRepository(
-      roleAssignmentRepository,
+      userAccessRepository,
       roleRepository,
     );
 
@@ -162,8 +164,9 @@ describe("Phase 1A.12 smoke", () => {
           capabilityRepository,
           roleRepository,
           roleCapabilityRepository,
-          roleAssignmentRepository,
+          userAccessRepository,
           principalRoleProjectionRepository,
+          principalAuthorizationRepository,
           authAccountProvisioner: {
             async createPasswordAccount(input) {
               return { authUserId: input.platformUserId };

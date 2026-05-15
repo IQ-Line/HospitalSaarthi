@@ -622,7 +622,7 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorMessage"];
                     };
                 };
-                /** @description Role still has active assignments and cannot be deleted. */
+                /** @description Role template still has active user associations and cannot be deleted. */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -915,8 +915,8 @@ export interface paths {
         };
         put?: never;
         /**
-         * Create a tenant-scoped platform user record
-         * @description Creates a row in the platform `users` table for the current tenant (`iq_tenant_id` is the Citus distribution key and is taken from request context, not the request body). Credential storage and synthetic identity anchors remain in better-auth (`ba_*`) and are out of scope for this request body.
+         * Create a tenant-scoped user with login access
+         * @description Creates the tenant-scoped platform `users` row for the current tenant (`iq_tenant_id` is the Citus distribution key and is taken from request context, not the request body), provisions the linked better-auth login account for the same principal, and optionally writes direct user capabilities from `capability_ids` plus copied template access from `role_template_ids`.
          */
         post: {
             parameters: {
@@ -936,8 +936,13 @@ export interface paths {
                     "application/json": {
                         /** @description Display name for the principal (required platform profile field). */
                         full_name: string;
-                        /** @description Business contact email (nullable, non-unique per tenant); not the better-auth synthetic anchor. */
-                        email?: string | null;
+                        /**
+                         * Format: email
+                         * @description Login email used to provision the current minimal better-auth account and retained as business contact email.
+                         */
+                        email: string;
+                        /** @description Initial login password for the linked better-auth account. */
+                        password: string;
                         /** @description Business contact phone. */
                         phone?: string | null;
                         /** @description Optional login handle; unique per tenant when set. */
@@ -951,11 +956,15 @@ export interface paths {
                         department?: string | null;
                         /** @description Initial minimum clearance tier required to access this user record (ABAC). */
                         clearance_tier_required?: number;
+                        /** @description Direct user capability ids to persist immediately after the user is created. */
+                        capability_ids?: string[];
+                        /** @description Optional role-template ids to apply immediately after the user is created. */
+                        role_template_ids?: string[];
                     };
                 };
             };
             responses: {
-                /** @description Platform user created for the tenant. */
+                /** @description Platform user and linked login account created for the tenant. */
                 201: {
                     headers: {
                         [name: string]: unknown;
@@ -1164,8 +1173,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List roles assigned to a tenant-scoped user
-         * @description Returns the tenant-scoped role containers currently assigned to the specified user. The response expands role assignment rows into role definitions so admin clients can render role metadata without a second lookup.
+         * List applied role templates for a tenant-scoped user
+         * @description Returns the role templates applied to the specified user. These rows are reporting and admin convenience only; runtime authorization still resolves from persisted `user_capabilities`.
          */
         get: {
             parameters: {
@@ -1185,13 +1194,393 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Roles currently assigned to the user within the active tenant. */
+                /** @description Role templates currently associated with the user within the active tenant. */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Role"][];
+                        "application/json": components["schemas"]["AppliedRoleTemplate"][];
+                    };
+                };
+                /** @description Request validation error (including malformed user id). */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                /** @description Missing or invalid bearer token. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                403: components["responses"]["Forbidden"];
+                /** @description User not found for this tenant. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                500: components["responses"]["InternalError"];
+            };
+        };
+        put?: never;
+        /**
+         * Apply a role template to a user
+         * @description Creates a `user_roles` association and copies the template's current capabilities into `user_capabilities` during the same write flow. Later edits to the role template do not retroactively change the user's access.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /**
+                     * @deprecated
+                     * @description Optional diagnostic header. Canonical tenant scope is JWT `iq_tenant_id`. If this header is supplied, runtime requires exact match with JWT tenant scope.
+                     */
+                    iq_tenant_id?: components["parameters"]["IqTenantIdHeader"];
+                };
+                path: {
+                    /** @description Platform user id within the current tenant. */
+                    id: components["parameters"]["UserIdPath"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /**
+                         * Format: uuid
+                         * @description Role-template id within the current tenant.
+                         */
+                        role_id: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Role template applied and capability copy completed. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AppliedRoleTemplate"];
+                    };
+                };
+                /** @description Malformed request body or invalid UUID fields. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                /** @description Missing or invalid bearer token. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                403: components["responses"]["Forbidden"];
+                /** @description User or role template not found for this tenant. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                /** @description This role template is already applied to the user. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                500: components["responses"]["InternalError"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{id}/roles/{roleId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a role-template association from a user
+         * @description Removes the `user_roles` association only. Previously copied `user_capabilities` remain untouched until an explicit capability edit changes them.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /**
+                     * @deprecated
+                     * @description Optional diagnostic header. Canonical tenant scope is JWT `iq_tenant_id`. If this header is supplied, runtime requires exact match with JWT tenant scope.
+                     */
+                    iq_tenant_id?: components["parameters"]["IqTenantIdHeader"];
+                };
+                path: {
+                    /** @description Platform user id within the current tenant. */
+                    id: components["parameters"]["UserIdPath"];
+                    /** @description Role-template id within the current tenant. */
+                    roleId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Role-template association removed. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AppliedRoleTemplate"];
+                    };
+                };
+                /** @description Invalid or missing path parameters. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                /** @description Missing or invalid bearer token. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                403: components["responses"]["Forbidden"];
+                /** @description User, role template, or user-role association not found for this tenant. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                500: components["responses"]["InternalError"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{id}/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get persisted user capability grants
+         * @description Returns the user's persisted base grants split into direct grants, copied template grants, and applied role-template associations. Delegated overlays are excluded from this endpoint.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /**
+                     * @deprecated
+                     * @description Optional diagnostic header. Canonical tenant scope is JWT `iq_tenant_id`. If this header is supplied, runtime requires exact match with JWT tenant scope.
+                     */
+                    iq_tenant_id?: components["parameters"]["IqTenantIdHeader"];
+                };
+                path: {
+                    /** @description Platform user id within the current tenant. */
+                    id: components["parameters"]["UserIdPath"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Persisted user capability grants plus applied role-template associations. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UserCapabilitiesSnapshot"];
+                    };
+                };
+                /** @description Request validation error (including malformed user id). */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                /** @description Missing or invalid bearer token. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                403: components["responses"]["Forbidden"];
+                /** @description User not found for this tenant. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                500: components["responses"]["InternalError"];
+            };
+        };
+        /**
+         * Replace direct user capability grants
+         * @description Replaces the user's direct manual capability grants. Copied template grants remain untouched until an explicit capability edit changes them.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /**
+                     * @deprecated
+                     * @description Optional diagnostic header. Canonical tenant scope is JWT `iq_tenant_id`. If this header is supplied, runtime requires exact match with JWT tenant scope.
+                     */
+                    iq_tenant_id?: components["parameters"]["IqTenantIdHeader"];
+                };
+                path: {
+                    /** @description Platform user id within the current tenant. */
+                    id: components["parameters"]["UserIdPath"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        capability_ids: string[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Direct user grants replaced; response returns the refreshed persisted grant snapshot. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UserCapabilitiesSnapshot"];
+                    };
+                };
+                /** @description Invalid input (e.g. malformed body or invalid UUID format). */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                /** @description Missing or invalid bearer token. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                403: components["responses"]["Forbidden"];
+                /** @description User or capability not found. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                500: components["responses"]["InternalError"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{id}/effective-capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get effective runtime capabilities for a user
+         * @description Returns the runtime-effective capability keys resolved from persisted user grants plus delegated overlays and clearance context. Role traversal is not part of this read path.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /**
+                     * @deprecated
+                     * @description Optional diagnostic header. Canonical tenant scope is JWT `iq_tenant_id`. If this header is supplied, runtime requires exact match with JWT tenant scope.
+                     */
+                    iq_tenant_id?: components["parameters"]["IqTenantIdHeader"];
+                };
+                path: {
+                    /** @description Platform user id within the current tenant. */
+                    id: components["parameters"]["UserIdPath"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Effective runtime authorization snapshot for the specified user. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UserEffectiveCapabilities"];
                     };
                 };
                 /** @description Request validation error (including malformed user id). */
@@ -1310,219 +1699,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/role-assignments": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List role assignments in the active tenant
-         * @description Returns tenant-scoped role assignments. Optional query parameters narrow the result set by user or role.
-         */
-        get: {
-            parameters: {
-                query?: {
-                    user_id?: string;
-                    role_id?: string;
-                };
-                header?: {
-                    /**
-                     * @deprecated
-                     * @description Optional diagnostic header. Canonical tenant scope is JWT `iq_tenant_id`. If this header is supplied, runtime requires exact match with JWT tenant scope.
-                     */
-                    iq_tenant_id?: components["parameters"]["IqTenantIdHeader"];
-                };
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Role assignments visible in the active tenant. */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RoleAssignment"][];
-                    };
-                };
-                /** @description Invalid query parameters. */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorMessage"];
-                    };
-                };
-                /** @description Missing or invalid bearer token. */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorMessage"];
-                    };
-                };
-                403: components["responses"]["Forbidden"];
-                500: components["responses"]["InternalError"];
-            };
-        };
-        put?: never;
-        /**
-         * Assign a role to a user
-         * @description Creates a row in `role_assignments` for the current tenant. `iq_tenant_id` is taken from request context, not the request body.
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: {
-                    /**
-                     * @deprecated
-                     * @description Optional diagnostic header. Canonical tenant scope is JWT `iq_tenant_id`. If this header is supplied, runtime requires exact match with JWT tenant scope.
-                     */
-                    iq_tenant_id?: components["parameters"]["IqTenantIdHeader"];
-                };
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": {
-                        /**
-                         * Format: uuid
-                         * @description Platform user id within the current tenant.
-                         */
-                        user_id: string;
-                        /**
-                         * Format: uuid
-                         * @description Role id within the current tenant.
-                         */
-                        role_id: string;
-                    };
-                };
-            };
-            responses: {
-                /** @description Role assignment created. */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RoleAssignment"];
-                    };
-                };
-                /** @description Malformed request (e.g. invalid JSON, missing required fields, or invalid UUID format). */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorMessage"];
-                    };
-                };
-                /** @description Missing or invalid bearer token. */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorMessage"];
-                    };
-                };
-                403: components["responses"]["Forbidden"];
-                /** @description User or role not found for this tenant. */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorMessage"];
-                    };
-                };
-                /** @description Duplicate role assignment (user already has this role for this tenant under the same scope). */
-                409: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorMessage"];
-                    };
-                };
-                500: components["responses"]["InternalError"];
-            };
-        };
-        /**
-         * Revoke a role assignment
-         * @description Removes the role assignment for `user_id` + `role_id` in the current tenant. Query parameters identify the assignment (same pair as POST assign). Publishes `user-management.role.revoked` on success.
-         */
-        delete: {
-            parameters: {
-                query: {
-                    /** @description Platform user id within the current tenant. */
-                    user_id: string;
-                    /** @description Role id within the current tenant. */
-                    role_id: string;
-                };
-                header?: {
-                    /**
-                     * @deprecated
-                     * @description Optional diagnostic header. Canonical tenant scope is JWT `iq_tenant_id`. If this header is supplied, runtime requires exact match with JWT tenant scope.
-                     */
-                    iq_tenant_id?: components["parameters"]["IqTenantIdHeader"];
-                };
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Role assignment removed; body echoes the revoked row identifiers. */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RoleAssignment"];
-                    };
-                };
-                /** @description Invalid or missing query parameters. */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorMessage"];
-                    };
-                };
-                /** @description Missing or invalid bearer token. */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorMessage"];
-                    };
-                };
-                403: components["responses"]["Forbidden"];
-                /** @description User, role, or role assignment not found for this tenant. */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorMessage"];
-                    };
-                };
-                500: components["responses"]["InternalError"];
-            };
-        };
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1548,6 +1724,58 @@ export interface components {
             is_system: boolean;
             /** @enum {string} */
             status: "active" | "inactive";
+        };
+        AppliedRoleTemplate: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            user_id: string;
+            /** Format: uuid */
+            role_id: string;
+            /** Format: uuid */
+            assigned_by_user_id: string | null;
+            /** Format: date-time */
+            assigned_at: string;
+            role: components["schemas"]["Role"];
+        };
+        UserCapabilityGrant: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            user_id: string;
+            /** Format: uuid */
+            capability_id: string;
+            capability_key: string;
+            module: string;
+            feature: string;
+            action: string;
+            display_name: string;
+            description?: string | null;
+            /** @enum {string} */
+            grant_source: "manual" | "role_template" | "delegated" | "system";
+            /** Format: uuid */
+            source_role_id: string | null;
+            /** Format: uuid */
+            granted_by_user_id: string | null;
+            /** Format: date-time */
+            granted_at: string;
+            /** Format: date-time */
+            revoked_at: string | null;
+            /** Format: uuid */
+            revoked_by_user_id: string | null;
+        };
+        UserCapabilitiesSnapshot: {
+            direct_grants: components["schemas"]["UserCapabilityGrant"][];
+            copied_grants: components["schemas"]["UserCapabilityGrant"][];
+            role_templates: components["schemas"]["AppliedRoleTemplate"][];
+        };
+        UserEffectiveCapabilities: {
+            capability_keys: string[];
+            delegated_capability_keys: string[];
+            clearances: {
+                [key: string]: string;
+            };
+            um_clearance_effective_tier: number;
         };
         /** @description Nested map keyed by module id (e.g. user-management), then feature id (e.g. users), then action id (e.g. read). Values are Cerbos-backed UX hints from GET /auth/permissions-map. */
         PermissionsUxMap: {

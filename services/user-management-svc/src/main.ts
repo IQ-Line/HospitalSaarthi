@@ -5,7 +5,10 @@ import { createEventBus } from "@hims/ts-sdk-events";
 import { identityPlugin, validateAuthConfig } from "@hims/ts-sdk-identity";
 import Fastify, { type FastifyInstance } from "fastify";
 import { createUserManagementAuthzTargetResolver } from "./authz-target-resolver.js";
-import { createHimsBetterAuth } from "./auth/create-hims-better-auth.js";
+import {
+  createHimsBetterAuth,
+  repairJwksForDevelopment,
+} from "./auth/create-hims-better-auth.js";
 import { createPasswordAuthAccountProvisioner } from "./auth/create-password-auth-account-provisioner.js";
 import { registerBetterAuth } from "./auth/register-better-auth.js";
 import {
@@ -17,8 +20,8 @@ import {
   DrizzlePrincipalRoleProjectionRepository,
   DrizzlePrincipalAuthorizationRepository,
   DrizzleRoleCapabilityRepository,
-  DrizzleRoleAssignmentRepository,
   DrizzleRoleRepository,
+  DrizzleUserAccessRepository,
   DrizzleUserRepository,
   createDefaultPrincipalService,
   principalRoleEnricherPlugin,
@@ -114,7 +117,7 @@ async function createApp(): Promise<FastifyInstance> {
   const capabilityRepository = new DrizzleCapabilityRepository(pgDb);
   const roleRepository = new DrizzleRoleRepository(pgDb);
   const roleCapabilityRepository = new DrizzleRoleCapabilityRepository(pgDb);
-  const roleAssignmentRepository = new DrizzleRoleAssignmentRepository(pgDb);
+  const userAccessRepository = new DrizzleUserAccessRepository(pgDb);
   const principalRoleProjectionRepository = new DrizzlePrincipalRoleProjectionRepository(pgDb);
   const principalAuthorizationRepository = new DrizzlePrincipalAuthorizationRepository(pgDb);
 
@@ -125,20 +128,21 @@ async function createApp(): Promise<FastifyInstance> {
   });
 
   const trustedOrigins = readTrustedOrigins();
-  const auth = createHimsBetterAuth(
-    pgDb,
-    {
-      authBaseUrl,
-      secret: readBetterAuthSecret(),
-      jwtIssuer: identityAuth.issuer,
-      jwtAudience: identityAuth.audience,
-      trustedOrigins,
-      disableJwtPrivateKeyEncryption:
-        process.env.NODE_ENV === "test" ||
-        process.env.BETTER_AUTH_DISABLE_JWT_KEY_ENCRYPTION === "true",
-    },
-    { userRepository, principalRoleProjectionRepository },
-  );
+  const authEnv = {
+    authBaseUrl,
+    secret: readBetterAuthSecret(),
+    jwtIssuer: identityAuth.issuer,
+    jwtAudience: identityAuth.audience,
+    trustedOrigins,
+    disableJwtPrivateKeyEncryption:
+      process.env.NODE_ENV === "test" ||
+      process.env.BETTER_AUTH_DISABLE_JWT_KEY_ENCRYPTION === "true",
+  };
+  await repairJwksForDevelopment(pgDb, authEnv);
+  const auth = createHimsBetterAuth(pgDb, authEnv, {
+    userRepository,
+    principalRoleProjectionRepository,
+  });
   const authAccountProvisioner = createPasswordAuthAccountProvisioner(pgDb, auth);
 
   if (shouldRunDevelopmentBootstrap()) {
@@ -197,8 +201,9 @@ async function createApp(): Promise<FastifyInstance> {
     capabilityRepository,
     roleRepository,
     roleCapabilityRepository,
-    roleAssignmentRepository,
+    userAccessRepository,
     principalRoleProjectionRepository,
+    principalAuthorizationRepository,
     authAccountProvisioner,
   });
 

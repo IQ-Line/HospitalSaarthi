@@ -32,8 +32,10 @@ describe("DrizzleRoleAssignmentRepository RBAC FK integrity", () => {
       "utf8",
     );
 
-    expect(migration).toContain("CONSTRAINT fk_role_assignments_tenant_user");
-    expect(migration).toContain("CONSTRAINT fk_role_assignments_tenant_role");
+    expect(migration).toContain("CONSTRAINT fk_user_roles_tenant_user");
+    expect(migration).toContain("CONSTRAINT fk_user_roles_tenant_role");
+    expect(migration).toContain("CONSTRAINT fk_user_capabilities_tenant_user");
+    expect(migration).toContain("CONSTRAINT fk_user_capabilities_tenant_source_role");
     expect(migration).toContain("ON DELETE RESTRICT");
     expect(migration).toContain("ON UPDATE RESTRICT");
   });

@@ -1,3 +1,4 @@
+import { refreshAccessToken } from '@/lib/auth-session';
 import { useAuthStore } from '@/stores/auth.store';
 import { useTenantStore } from '@/stores/tenant.store';
 
@@ -30,12 +31,42 @@ export async function apiClient<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const token = useAuthStore.getState().accessToken;
+  return apiClientInternal<T>(path, options, true);
+}
+
+type ApiErrorBody = {
+  code?: string;
+  message?: string;
+};
+
+function parseApiErrorBody(body: string): ApiErrorBody | null {
+  try {
+    return JSON.parse(body) as ApiErrorBody;
+  } catch {
+    return null;
+  }
+}
+
+function isInvalidOrExpiredTokenResponse(response: Response, body: string): boolean {
+  if (response.status !== 401) {
+    return false;
+  }
+
+  const parsed = parseApiErrorBody(body);
+  return parsed?.code === 'AUTH_INVALID_TOKEN';
+}
+
+async function apiClientInternal<T>(
+  path: string,
+  options: RequestInit,
+  canRetryWithFreshToken: boolean,
+): Promise<T> {
   const tenantId = useTenantStore.getState().tenantId;
 
   const headers = new Headers(options.headers);
   headers.set('Content-Type', 'application/json');
 
+  const token = useAuthStore.getState().accessToken;
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
   }
@@ -62,7 +93,16 @@ export async function apiClient<T>(
   });
 
   if (!response.ok) {
-    throw new ApiError(response.status, await response.text());
+    const body = await response.text();
+
+    if (canRetryWithFreshToken && isInvalidOrExpiredTokenResponse(response, body)) {
+      const refreshedToken = await refreshAccessToken();
+      if (refreshedToken) {
+        return apiClientInternal<T>(path, options, false);
+      }
+    }
+
+    throw new ApiError(response.status, body);
   }
 
   return response.json() as Promise<T>;

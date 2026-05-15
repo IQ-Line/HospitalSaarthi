@@ -3,6 +3,7 @@
  */
 
 import type {
+  AppliedRoleTemplate,
   AssignRoleInput,
   Capability,
   AuthContext,
@@ -10,10 +11,15 @@ import type {
   CreateRoleInput,
   Principal,
   ReplaceRoleCapabilitiesInput,
+  ReplaceUserCapabilitiesInput,
   Role,
   RoleAssignment,
   UpdateRoleInput,
   UpdateUserInput,
+  UserCapabilitiesSnapshot,
+  UserCapabilityGrant,
+  UserCapabilityGrantSource,
+  UserEffectiveCapabilities,
   User,
   RoleStatus,
   UserStatus,
@@ -22,6 +28,7 @@ import type {
 import type { UserReadListResourceAbac } from "../domain/user-read-list-resource-filter.js";
 
 export type {
+  AppliedRoleTemplate,
   AssignRoleInput,
   Capability,
   AuthContext,
@@ -30,11 +37,16 @@ export type {
   Principal,
   PrincipalAttributes,
   ReplaceRoleCapabilitiesInput,
+  ReplaceUserCapabilitiesInput,
   Role,
   RoleAssignment,
   RoleStatus,
   UpdateRoleInput,
   UpdateUserInput,
+  UserCapabilitiesSnapshot,
+  UserCapabilityGrant,
+  UserCapabilityGrantSource,
+  UserEffectiveCapabilities,
   User,
   UserStatus,
 } from "../domain/types.js";
@@ -109,6 +121,35 @@ export interface RoleCapabilityRepository {
     roleId: string,
     input: ReplaceRoleCapabilitiesInput,
   ): Promise<Capability[]>;
+}
+
+export interface UserAccessRepository {
+  applyRoleTemplate(
+    tenantId: string,
+    input: {
+      userId: string;
+      roleId: string;
+      capabilityIds: string[];
+      actorId: string | null;
+    },
+  ): Promise<AppliedRoleTemplate>;
+  detachRoleTemplate(
+    tenantId: string,
+    input: {
+      userId: string;
+      roleId: string;
+    },
+  ): Promise<AppliedRoleTemplate | null>;
+  listRoleTemplatesByUser(tenantId: string, userId: string): Promise<AppliedRoleTemplate[]>;
+  listActiveCapabilityGrantsByUser(tenantId: string, userId: string): Promise<UserCapabilityGrant[]>;
+  replaceManualCapabilityGrants(
+    tenantId: string,
+    input: {
+      userId: string;
+      capabilityIds: string[];
+      actorId: string | null;
+    },
+  ): Promise<UserCapabilityGrant[]>;
 }
 
 /**

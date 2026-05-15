@@ -13,6 +13,7 @@ export type {
 } from "./principal-role-enricher-plugin.js";
 export type {
   AuthAccountProvisioner,
+  AppliedRoleTemplate,
   CapabilityRepository,
   CreatePasswordAuthAccountInput,
   CreatePasswordAuthAccountResult,
@@ -20,7 +21,12 @@ export type {
   PrincipalRoleProjectionRepository,
   PrincipalAuthorizationRepository,
   RoleCapabilityRepository,
+  ReplaceUserCapabilitiesInput,
   UserReadListResourceAbac,
+  UserAccessRepository,
+  UserCapabilitiesSnapshot,
+  UserCapabilityGrant,
+  UserEffectiveCapabilities,
   UserWithTenant,
 } from "./ports/index.js";
 export {
@@ -47,6 +53,7 @@ export {
   AuthEmailConflictError,
   CerbosPrincipalUnavailableError,
   DuplicateRoleAssignmentError,
+  DuplicateUserRoleTemplateError,
   DuplicateRoleCodeError,
   CapabilityNotFoundError,
   RoleAssignmentNotFoundError,
@@ -56,6 +63,7 @@ export {
   RoleNotFoundError,
   TenantMismatchError,
   UnexpectedPersistenceError,
+  UserRoleTemplateNotFoundError,
   UserManagementError,
   UserNotFoundError,
   ValidationError,
@@ -73,10 +81,12 @@ export type {
 export { DrizzleCapabilityRepository } from "./data-access/capability-repository.js";
 export { DrizzleRoleCapabilityRepository } from "./data-access/role-capability-repository.js";
 export { DrizzleRoleAssignmentRepository } from "./data-access/role-assignment-repository.js";
+export { DrizzleUserAccessRepository } from "./data-access/user-access-repository.js";
 export { DrizzlePrincipalRoleProjectionRepository } from "./data-access/drizzle-principal-role-projection-repository.js";
 export { DrizzleRoleRepository } from "./data-access/role-repository.js";
 export { DrizzleUserRepository } from "./data-access/user-repository.js";
 export { InMemoryCapabilityRepository } from "./data-access/in-memory-capability-repository.js";
+export { InMemoryUserAccessRepository } from "./data-access/in-memory-user-access-repository.js";
 export { InMemoryRoleRepository } from "./data-access/in-memory-role-repository.js";
 export { InMemoryRoleCapabilityRepository } from "./data-access/in-memory-role-capability-repository.js";
 export { InMemoryPrincipalRoleProjectionRepository } from "./data-access/in-memory-principal-role-projection-repository.js";
@@ -93,6 +103,8 @@ export {
   role_assignments,
   role_capabilities,
   roles,
+  user_capabilities,
+  user_roles,
   userManagementSchema,
   user_clearances,
   users,
@@ -109,12 +121,20 @@ export { getPrincipal } from "./use-cases/get-principal.js";
 export type { GetPrincipalDeps } from "./use-cases/get-principal.js";
 export { createRole } from "./use-cases/create-role.js";
 export type { CreateRoleDeps } from "./use-cases/create-role.js";
+export { applyRoleTemplate } from "./use-cases/apply-role-template.js";
+export type { ApplyRoleTemplateDeps } from "./use-cases/apply-role-template.js";
 export { deactivateUser } from "./use-cases/deactivate-user.js";
 export type { DeactivateUserDeps } from "./use-cases/deactivate-user.js";
 export { deleteRole } from "./use-cases/delete-role.js";
 export type { DeleteRoleDeps } from "./use-cases/delete-role.js";
+export { detachRoleTemplate } from "./use-cases/detach-role-template.js";
+export type { DetachRoleTemplateDeps } from "./use-cases/detach-role-template.js";
 export { getCapabilityById } from "./use-cases/get-capability.js";
 export type { GetCapabilityDeps } from "./use-cases/get-capability.js";
+export { getUserCapabilities } from "./use-cases/get-user-capabilities.js";
+export type { GetUserCapabilitiesDeps } from "./use-cases/get-user-capabilities.js";
+export { getUserEffectiveCapabilities } from "./use-cases/get-user-effective-capabilities.js";
+export type { GetUserEffectiveCapabilitiesDeps } from "./use-cases/get-user-effective-capabilities.js";
 export { getRoleById } from "./use-cases/get-role.js";
 export type { GetRoleDeps } from "./use-cases/get-role.js";
 export { getRoleCapabilities } from "./use-cases/get-role-capabilities.js";
@@ -129,6 +149,8 @@ export { listUserRoles } from "./use-cases/list-user-roles.js";
 export type { ListUserRolesDeps } from "./use-cases/list-user-roles.js";
 export { replaceRoleCapabilities } from "./use-cases/replace-role-capabilities.js";
 export type { ReplaceRoleCapabilitiesDeps } from "./use-cases/replace-role-capabilities.js";
+export { replaceUserCapabilities } from "./use-cases/replace-user-capabilities.js";
+export type { ReplaceUserCapabilitiesDeps } from "./use-cases/replace-user-capabilities.js";
 export { revokeRole } from "./use-cases/revoke-role.js";
 export type { RevokeRoleDeps, RevokeRoleContext } from "./use-cases/revoke-role.js";
 export { updateRole } from "./use-cases/update-role.js";

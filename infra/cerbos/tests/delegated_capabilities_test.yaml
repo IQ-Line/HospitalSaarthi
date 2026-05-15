@@ -7,7 +7,8 @@ description: >-
 principals:
   delegated_only_list:
     id: svc-delegated-list
-    roles: []
+    roles:
+      - "_unresolved"
     attr:
       iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
       org_id: null
@@ -20,7 +21,8 @@ principals:
 
   delegated_only_create:
     id: svc-delegated-create
-    roles: []
+    roles:
+      - "_unresolved"
     attr:
       iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
       org_id: null
@@ -33,7 +35,8 @@ principals:
 
   no_caps:
     id: user-no-caps
-    roles: []
+    roles:
+      - "_unresolved"
     attr:
       iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
       org_id: null

@@ -5,11 +5,15 @@ export const userManagementKeys = {
   roleList: () => [...userManagementKeys.roles(), 'list'] as const,
   roleDetail: (id: string) => [...userManagementKeys.roles(), 'detail', id] as const,
   roleCapabilities: (id: string) => [...userManagementKeys.roles(), 'capabilities', id] as const,
+  userAccessRoot: () => [...userManagementKeys.all, 'user-access'] as const,
+  roleAssignmentsRoot: () => [...userManagementKeys.userAccessRoot(), 'legacy-role-assignments'] as const,
   roleAssignments: (filter?: { userId?: string; roleId?: string }) =>
-    [...userManagementKeys.all, 'role-assignments', filter?.userId ?? '', filter?.roleId ?? ''] as const,
+    [...userManagementKeys.roleAssignmentsRoot(), filter?.userId ?? '', filter?.roleId ?? ''] as const,
   users: () => [...userManagementKeys.all, 'users'] as const,
   userList: () => [...userManagementKeys.users(), 'list'] as const,
   userDetail: (id: string) => [...userManagementKeys.users(), 'detail', id] as const,
-  /** Optional SPA snapshot of `GET /auth/principal` (role codes for the signed-in user). */
-  authPrincipal: () => [...userManagementKeys.all, 'auth-principal'] as const,
+  userCapabilities: (id: string) => [...userManagementKeys.userAccessRoot(), 'capabilities', id] as const,
+  userEffectiveCapabilities: (id: string) =>
+    [...userManagementKeys.userAccessRoot(), 'effective-capabilities', id] as const,
+  userRoleTemplates: (id: string) => [...userManagementKeys.userAccessRoot(), 'role-templates', id] as const,
 };
