@@ -18,6 +18,7 @@
     "@hims/ts-sdk-db": "workspace:*",
     "@hims/ts-sdk-events": "workspace:*",
     "@hims/ts-sdk-identity": "workspace:*",
+    "@hims/ts-sdk-openapi": "workspace:*",
     "@hims/user-management": "workspace:*",
     "better-auth": "^1.6.10",
     "drizzle-orm": "^0.45.2",

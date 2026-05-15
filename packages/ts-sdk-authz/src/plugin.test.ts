@@ -95,4 +95,25 @@ describe("authzPlugin", () => {
       "__hims_authenticated__",
     ]);
   });
+
+  it("skips Cerbos for routes that are not authMode protected", async () => {
+    const app = Fastify();
+    apps.push(app);
+
+    await app.register(identityStubPlugin);
+    await app.register(authzPlugin, {
+      cerbosUrl: "localhost:3593",
+      resolveTarget: async () => null,
+    });
+
+    app.get("/docs", async () => ({ ok: true }));
+    app.get("/public-route", { config: { authMode: "public" } }, async () => ({ ok: true }));
+
+    const docsResponse = await app.inject({ method: "GET", url: "/docs" });
+    const publicResponse = await app.inject({ method: "GET", url: "/public-route" });
+
+    expect(docsResponse.statusCode).toBe(200);
+    expect(publicResponse.statusCode).toBe(200);
+    expect(cerbosCheckResource).not.toHaveBeenCalled();
+  });
 });
