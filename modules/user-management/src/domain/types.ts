@@ -63,6 +63,11 @@ export interface CreateUserInput {
   capability_ids?: string[];
   /** Optional role-template ids to apply immediately after creation. */
   role_template_ids?: string[];
+  /**
+   * Optional subset of capabilities to grant from the role template(s).
+   * When set, `role_template_ids` must contain exactly one id, and each entry must belong to that role.
+   */
+  role_template_capability_ids?: string[];
 }
 
 /** PATCH /users/{id} request body (partial). */

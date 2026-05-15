@@ -1,21 +1,37 @@
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from '@tanstack/react-router';
-import { useMemo } from 'react';
-import { useQueries, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from '@pulse/ui/button';
 import type { CreateUserBody } from '../types';
 import { useCreateUser } from '../api/mutations';
-import { capabilityListOptions, roleCapabilitiesOptions, roleListOptions } from '../api/queries';
+import { roleCapabilitiesOptions, roleListOptions } from '../api/queries';
 import {
-  createUserFormSchema,
+  buildCreateUserFormSchema,
   CreateUserAccessSection,
   CreateUserIdentitySection,
   CreateUserOrganizationSection,
   type CreateUserFormValues,
 } from './create-user-form-sections';
 
-function toBody(values: CreateUserFormValues, canManageAccess: boolean): CreateUserBody {
+function toBody(
+  values: CreateUserFormValues,
+  canManageAccess: boolean,
+  allRoleCapabilityIds: string[],
+): CreateUserBody {
+  const roleIds = canManageAccess ? values.role_template_ids : [];
+  let role_template_capability_ids: string[] | undefined;
+  if (canManageAccess && roleIds.length === 1 && allRoleCapabilityIds.length > 0) {
+    const picked = new Set(values.role_capability_selection_ids);
+    const allSelected = allRoleCapabilityIds.every((id) => picked.has(id));
+    if (!allSelected) {
+      role_template_capability_ids = values.role_capability_selection_ids.filter((id) =>
+        allRoleCapabilityIds.includes(id),
+      );
+    }
+  }
+
   return {
     full_name: values.full_name,
     email: values.email.trim(),
@@ -25,8 +41,9 @@ function toBody(values: CreateUserFormValues, canManageAccess: boolean): CreateU
     org_id: values.org_id === '' ? null : values.org_id,
     department: values.department === '' ? null : values.department,
     clearance_tier_required: values.clearance_tier_required,
-    capability_ids: canManageAccess ? values.capability_ids : [],
-    role_template_ids: canManageAccess ? values.role_template_ids : [],
+    capability_ids: [],
+    role_template_ids: roleIds,
+    ...(role_template_capability_ids !== undefined ? { role_template_capability_ids } : {}),
   };
 }
 
@@ -47,18 +64,20 @@ export function CreateUserForm({
 }: CreateUserFormProps) {
   const navigate = useNavigate();
   const create = useCreateUser();
+  const requireRoleTemplate = canManageAccess;
+  const formSchema = useMemo(
+    () => buildCreateUserFormSchema({ requireRoleTemplate }),
+    [requireRoleTemplate],
+  );
+
   const rolesQuery = useQuery({
     ...roleListOptions(),
     enabled: canReadRoleTemplates,
     staleTime: 30_000,
   });
-  const capabilitiesQuery = useQuery({
-    ...capabilityListOptions(),
-    enabled: canReadCapabilities,
-    staleTime: 30_000,
-  });
+
   const form = useForm<CreateUserFormValues>({
-    resolver: zodResolver(createUserFormSchema),
+    resolver: zodResolver(formSchema),
     defaultValues: {
       full_name: '',
       email: '',
@@ -69,52 +88,96 @@ export function CreateUserForm({
       department: '',
       clearance_tier_required: 0,
       role_template_ids: [],
-      capability_ids: [],
+      role_capability_selection_ids: [],
     },
   });
-  const selectedRoleTemplateIds = form.watch('role_template_ids');
-  const selectedCapabilityIds = form.watch('capability_ids');
-  const availableRoles = (rolesQuery.data ?? []).filter((role) => role.status === 'active');
-  const availableCapabilities = capabilitiesQuery.data ?? [];
 
-  const templateCapabilityQueries = useQueries({
-    queries: selectedRoleTemplateIds.map((roleId) => ({
-      ...roleCapabilitiesOptions(roleId),
-      enabled: canReadCapabilities && canReadRoleTemplates,
-      staleTime: 30_000,
-    })),
+  const availableRoles = (rolesQuery.data ?? []).filter((role) => role.status === 'active');
+
+  useLayoutEffect(() => {
+    if (!requireRoleTemplate) {
+      return;
+    }
+    if (!canReadRoleTemplates) {
+      return;
+    }
+    const roles = (rolesQuery.data ?? []).filter((role) => role.status === 'active');
+    if (roles.length === 0) {
+      return;
+    }
+    const current = form.getValues('role_template_ids');
+    if (current.length !== 1) {
+      form.setValue('role_template_ids', [roles[0].id], { shouldValidate: true });
+    }
+  }, [requireRoleTemplate, canReadRoleTemplates, rolesQuery.data, form]);
+
+  const selectedRoleTemplateIds = form.watch('role_template_ids');
+  const selectedRoleId = selectedRoleTemplateIds[0] ?? '';
+
+  const roleCapabilitiesQueryEnabled =
+    Boolean(selectedRoleId) && canReadRoleTemplates && canReadCapabilities;
+
+  const roleCapabilitiesQuery = useQuery({
+    ...roleCapabilitiesOptions(selectedRoleId),
+    enabled: roleCapabilitiesQueryEnabled,
+    staleTime: 30_000,
   });
 
-  const copiedCapabilities = useMemo(() => {
-    const byId = new Map<string, (typeof availableCapabilities)[number]>();
-    for (const query of templateCapabilityQueries) {
-      for (const capability of query.data ?? []) {
-        byId.set(capability.id, capability);
-      }
-    }
-    return [...byId.values()].toSorted((left, right) =>
-      left.display_name.localeCompare(right.display_name),
-    );
-  }, [availableCapabilities, templateCapabilityQueries]);
+  const roleTemplatesPending =
+    canReadRoleTemplates && rolesQuery.isFetching && rolesQuery.data === undefined;
+  const roleCapabilitiesPending =
+    roleCapabilitiesQueryEnabled &&
+    roleCapabilitiesQuery.isFetching &&
+    roleCapabilitiesQuery.data === undefined;
 
-  const effectiveCapabilities = useMemo(() => {
-    const byId = new Map<string, (typeof availableCapabilities)[number]>();
-    const selectedCapabilityIdSet = new Set(selectedCapabilityIds);
-    for (const capability of copiedCapabilities) {
-      byId.set(capability.id, capability);
+  const roleCapabilities = roleCapabilitiesQuery.data ?? [];
+  const allRoleCapabilityIds = useMemo(
+    () => roleCapabilities.map((capability) => capability.id),
+    [roleCapabilities],
+  );
+
+  const prevRoleIdRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!selectedRoleId) {
+      form.setValue('role_capability_selection_ids', [], {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+      prevRoleIdRef.current = undefined;
+      return;
     }
-    for (const capability of availableCapabilities) {
-      if (selectedCapabilityIdSet.has(capability.id)) {
-        byId.set(capability.id, capability);
-      }
+    const caps = roleCapabilitiesQuery.data;
+    if (!caps?.length) {
+      return;
     }
-    return [...byId.values()].toSorted((left, right) =>
-      left.display_name.localeCompare(right.display_name),
-    );
-  }, [availableCapabilities, copiedCapabilities, selectedCapabilityIds]);
+    if (prevRoleIdRef.current !== selectedRoleId) {
+      prevRoleIdRef.current = selectedRoleId;
+      form.setValue(
+        'role_capability_selection_ids',
+        caps.map((c) => c.id),
+        { shouldDirty: true, shouldValidate: true },
+      );
+    }
+  }, [selectedRoleId, roleCapabilitiesQuery.data, form]);
+
+  const roleAssignmentBlocked =
+    requireRoleTemplate &&
+    (!canReadRoleTemplates || (rolesQuery.data !== undefined && availableRoles.length === 0));
 
   const onSubmit = form.handleSubmit((values) => {
-    create.mutate(toBody(values, canManageAccess), {
+    if (
+      canManageAccess &&
+      values.role_template_ids.length === 1 &&
+      allRoleCapabilityIds.length > 0 &&
+      values.role_capability_selection_ids.length === 0
+    ) {
+      form.setError('role_capability_selection_ids', {
+        type: 'custom',
+        message: 'Select at least one capability from the role.',
+      });
+      return;
+    }
+    create.mutate(toBody(values, canManageAccess, allRoleCapabilityIds), {
       onSuccess: (user) => {
         void navigate({
           to: '/user-management/$userId',
@@ -123,20 +186,6 @@ export function CreateUserForm({
       },
     });
   });
-
-  const toggleRoleTemplate = (roleId: string) => {
-    const next = selectedRoleTemplateIds.includes(roleId)
-      ? selectedRoleTemplateIds.filter((id) => id !== roleId)
-      : [...selectedRoleTemplateIds, roleId];
-    form.setValue('role_template_ids', next, { shouldDirty: true, shouldValidate: true });
-  };
-
-  const toggleCapability = (capabilityId: string) => {
-    const next = selectedCapabilityIds.includes(capabilityId)
-      ? selectedCapabilityIds.filter((id) => id !== capabilityId)
-      : [...selectedCapabilityIds, capabilityId];
-    form.setValue('capability_ids', next, { shouldDirty: true, shouldValidate: true });
-  };
 
   const isDialog = layout === 'dialog';
 
@@ -152,10 +201,7 @@ export function CreateUserForm({
             : 'space-y-6'
         }
       >
-        <CreateUserIdentitySection
-          register={form.register}
-          errors={form.formState.errors}
-        />
+        <CreateUserIdentitySection register={form.register} errors={form.formState.errors} />
 
         <CreateUserOrganizationSection
           register={form.register}
@@ -168,18 +214,13 @@ export function CreateUserForm({
           canReadCapabilities={canReadCapabilities}
           canManageAccess={canManageAccess}
           roleTemplates={availableRoles}
-          roleTemplatesPending={rolesQuery.isPending}
+          roleTemplatesPending={roleTemplatesPending}
           roleTemplatesError={rolesQuery.isError}
-          capabilities={availableCapabilities}
-          capabilitiesPending={capabilitiesQuery.isPending}
-          capabilitiesError={capabilitiesQuery.isError}
-          selectedRoleTemplateIds={selectedRoleTemplateIds}
-          selectedCapabilityIds={selectedCapabilityIds}
-          copiedCapabilities={copiedCapabilities}
-          effectiveCapabilities={effectiveCapabilities}
-          onToggleRoleTemplate={toggleRoleTemplate}
-          onToggleCapability={toggleCapability}
+          roleCapabilities={roleCapabilities}
+          roleCapabilitiesPending={roleCapabilitiesPending}
+          roleCapabilitiesError={roleCapabilitiesQuery.isError}
           control={form.control}
+          errors={form.formState.errors}
         />
       </div>
 
@@ -195,7 +236,15 @@ export function CreateUserForm({
             Cancel
           </Button>
         ) : null}
-        <Button type="submit" disabled={create.isPending}>
+        <Button
+          type="submit"
+          disabled={
+            create.isPending ||
+            roleAssignmentBlocked ||
+            (requireRoleTemplate && roleTemplatesPending) ||
+            roleCapabilitiesPending
+          }
+        >
           {create.isPending ? 'Creating...' : 'Create user'}
         </Button>
       </div>

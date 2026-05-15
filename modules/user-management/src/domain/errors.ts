@@ -10,7 +10,11 @@ export type ValidationIssue =
   | "route_id_invalid"
   | "create_user_capability_ids_invalid"
   | "create_user_role_template_ids_invalid"
+  | "create_user_role_template_capability_ids_invalid"
+  | "create_user_role_template_capability_ids_requires_single_role"
   | "apply_role_template_ids_invalid"
+  | "apply_role_template_capability_not_on_role"
+  | "apply_role_template_capability_ids_invalid"
   | "detach_role_template_query_invalid"
   | "replace_user_capabilities_invalid"
   | "role_code_invalid_type"
@@ -60,9 +64,26 @@ const VALIDATION_ISSUE_META: Record<ValidationIssue, { code: string; message: st
     code: "INVALID_INPUT",
     message: "role_template_ids must be an array of UUID strings.",
   },
+  create_user_role_template_capability_ids_invalid: {
+    code: "INVALID_INPUT",
+    message: "role_template_capability_ids must be an array of UUID strings.",
+  },
+  create_user_role_template_capability_ids_requires_single_role: {
+    code: "INVALID_INPUT",
+    message:
+      "role_template_capability_ids may only be sent when exactly one role_template_id is provided.",
+  },
   apply_role_template_ids_invalid: {
     code: "INVALID_INPUT",
     message: "user_id and role_id are required UUID strings.",
+  },
+  apply_role_template_capability_not_on_role: {
+    code: "INVALID_INPUT",
+    message: "Each capability id must belong to the role template being applied.",
+  },
+  apply_role_template_capability_ids_invalid: {
+    code: "INVALID_INPUT",
+    message: "role_template_capability_ids must contain only UUID strings.",
   },
   detach_role_template_query_invalid: {
     code: "INVALID_INPUT",

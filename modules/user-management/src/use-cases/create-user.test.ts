@@ -11,6 +11,7 @@ import type {
   CreatePasswordAuthAccountInput,
   CreatePasswordAuthAccountResult,
   CreateUserInput,
+  Capability,
 } from "../ports/index.js";
 import { createUser } from "./create-user.js";
 
@@ -238,5 +239,91 @@ describe("createUser", () => {
         }),
       ]),
     );
+  });
+
+  it("applies only selected role capabilities when role_template_capability_ids is set", async () => {
+    const capCreate: Capability = {
+      id: "f47ac10b-58cc-4372-a567-0e02b2c3d610",
+      capability_key: "um:user:create",
+      module: "user-management",
+      feature: "users",
+      action: "create",
+      display_name: "Create users",
+      description: null,
+      is_active: true,
+    };
+    const capRead: Capability = {
+      id: "f47ac10b-58cc-4372-a567-0e02b2c3d611",
+      capability_key: "um:user:read",
+      module: "user-management",
+      feature: "users",
+      action: "read",
+      display_name: "Read users",
+      description: null,
+      is_active: true,
+    };
+    const userRepository = new InMemoryUserRepository();
+    const capabilityRepository = new InMemoryCapabilityRepository([
+      { capability: capCreate },
+      { capability: capRead },
+    ]);
+    const roleRepository = new InMemoryRoleRepository([
+      {
+        tenantId: "tenant-a",
+        role: {
+          id: "f47ac10b-58cc-4372-a567-0e02b2c3d621",
+          code: "registrar",
+          display_name: "Registrar",
+          status: "active",
+          is_system: false,
+        },
+      },
+    ]);
+    const userAccessRepository = new InMemoryUserAccessRepository((tenantId, roleId) =>
+      roleRepository.getRoleById(tenantId, roleId),
+    );
+    const roleCapabilityRepository = new InMemoryRoleCapabilityRepository([
+      {
+        tenantId: "tenant-a",
+        roleId: "f47ac10b-58cc-4372-a567-0e02b2c3d621",
+        capabilities: [capCreate, capRead],
+      },
+    ]);
+    const principalRoleProjectionRepository = new InMemoryPrincipalRoleProjectionRepository(
+      userAccessRepository,
+      roleRepository,
+    );
+
+    const created = await createUser(
+      {
+        userRepository,
+        capabilityRepository,
+        roleRepository,
+        roleCapabilityRepository,
+        userAccessRepository,
+        principalRoleProjectionRepository,
+        authAccountProvisioner: new AuthAccountProvisionerStub(),
+        eventBus: new TestEventBus(),
+      },
+      {
+        tenantId: "tenant-a",
+        actorId: "f47ac10b-58cc-4372-a567-0e02b2c3d613",
+        correlationId: "f47ac10b-58cc-4372-a567-0e02b2c3d614",
+      },
+      {
+        full_name: "Subset User",
+        email: "subset.user@example.com",
+        password: "password123",
+        role_template_ids: ["f47ac10b-58cc-4372-a567-0e02b2c3d621"],
+        role_template_capability_ids: ["f47ac10b-58cc-4372-a567-0e02b2c3d611"],
+      },
+    );
+
+    const grants = await userAccessRepository.listActiveCapabilityGrantsByUser("tenant-a", created.id);
+    expect(grants).toHaveLength(1);
+    expect(grants[0]).toMatchObject({
+      capability_id: "f47ac10b-58cc-4372-a567-0e02b2c3d611",
+      grant_source: "role_template",
+    });
   });
 });

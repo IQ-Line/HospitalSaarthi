@@ -27,6 +27,8 @@ export type CreateUserBody = {
   clearance_tier_required?: number;
   capability_ids?: string[];
   role_template_ids?: string[];
+  /** Subset of role capabilities; requires exactly one `role_template_ids` entry when present. */
+  role_template_capability_ids?: string[];
 };
 
 export type UpdateUserBody = {

@@ -916,7 +916,7 @@ export interface paths {
         put?: never;
         /**
          * Create a tenant-scoped user with login access
-         * @description Creates the tenant-scoped platform `users` row for the current tenant (`iq_tenant_id` is the Citus distribution key and is taken from request context, not the request body), provisions the linked better-auth login account for the same principal, and optionally writes direct user capabilities from `capability_ids` plus copied template access from `role_template_ids`.
+         * @description Creates the tenant-scoped platform `users` row for the current tenant (`iq_tenant_id` is the Citus distribution key and is taken from request context, not the request body), provisions the linked better-auth login account for the same principal, and optionally writes direct user capabilities from `capability_ids` plus copied template access from `role_template_ids`. When `role_template_capability_ids` is present, exactly one role id must be listed in `role_template_ids`, and only those capabilities (each belonging to that role) are granted with source `role_template`; omit the field to copy the full role composition.
          */
         post: {
             parameters: {
@@ -960,6 +960,8 @@ export interface paths {
                         capability_ids?: string[];
                         /** @description Optional role-template ids to apply immediately after the user is created. */
                         role_template_ids?: string[];
+                        /** @description Optional subset of capability ids to grant from the role template(s). When this array is present, `role_template_ids` must contain exactly one id, and every entry must be a capability currently assigned to that role. Omit to grant the full capability set defined on each role template. */
+                        role_template_capability_ids?: string[];
                     };
                 };
             };

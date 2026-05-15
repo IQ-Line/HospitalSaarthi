@@ -35,6 +35,8 @@ export async function applyRoleTemplate(
   input: {
     user_id: string;
     role_id: string;
+    /** When set, only these capabilities are granted (each must belong to the role). */
+    role_template_capability_ids?: string[];
   },
 ): Promise<AppliedRoleTemplate> {
   if (!UUID_RE.test(input.user_id) || !UUID_RE.test(input.role_id)) {
@@ -55,11 +57,28 @@ export async function applyRoleTemplate(
     ctx.tenantId,
     input.role_id,
   );
+  const allowedIds = new Set(capabilities.map((capability) => capability.id));
+
+  let capabilityIdsToApply: string[];
+  if (input.role_template_capability_ids !== undefined) {
+    const unique = [...new Set(input.role_template_capability_ids.map((id) => id.trim()))];
+    for (const capabilityId of unique) {
+      if (!UUID_RE.test(capabilityId)) {
+        throw new ValidationError("apply_role_template_capability_ids_invalid");
+      }
+      if (!allowedIds.has(capabilityId)) {
+        throw new ValidationError("apply_role_template_capability_not_on_role");
+      }
+    }
+    capabilityIdsToApply = unique;
+  } else {
+    capabilityIdsToApply = capabilities.map((capability) => capability.id);
+  }
 
   const applied = await deps.userAccessRepository.applyRoleTemplate(ctx.tenantId, {
     userId: input.user_id,
     roleId: input.role_id,
-    capabilityIds: capabilities.map((capability) => capability.id),
+    capabilityIds: capabilityIdsToApply,
     actorId: ctx.actorId,
   });
   deps.principalRoleProjectionRepository.clearCache();

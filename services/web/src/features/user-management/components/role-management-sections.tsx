@@ -108,7 +108,7 @@ export function RoleListSection({
   );
 }
 
-type CapabilityTreeNode =
+export type CapabilityTreeNode =
   | {
       id: string;
       kind: 'branch';
@@ -186,7 +186,7 @@ function finalizeCapabilityTree(branch: MutableCapabilityTreeBranch): Capability
     });
 }
 
-function buildCapabilityTree(capabilities: Capability[]): CapabilityTreeNode[] {
+export function buildCapabilityTree(capabilities: Capability[]): CapabilityTreeNode[] {
   const root = createBranch([]);
 
   capabilities.forEach((capability) => {
@@ -241,13 +241,13 @@ function formatModuleLabel(label: string): string {
   return label.replace(/[-_]/g, ' ');
 }
 
-function treeBranchIds(nodes: CapabilityTreeNode[]): string[] {
+export function treeBranchIds(nodes: CapabilityTreeNode[]): string[] {
   return nodes.flatMap((node) =>
     node.kind === 'branch' ? [node.id, ...treeBranchIds(node.children)] : [],
   );
 }
 
-function CapabilityTreeNodeRow({
+export function CapabilityTreeNodeRow({
   node,
   depth,
   canWriteRoles,

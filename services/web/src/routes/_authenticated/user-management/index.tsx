@@ -63,6 +63,8 @@ function UserManagementListPage() {
   const canManageAccess = usePermissionsStore((s) =>
     s.hasFeaturePermission(UM, 'userAccess', 'write'),
   );
+  /** Anyone who can create users should assign roles on create; `userAccess` write alone is too narrow for UX. */
+  const canAssignAccessOnCreate = canManageAccess || canCreate;
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -165,7 +167,7 @@ function UserManagementListPage() {
               <DialogHeader>
                 <DialogTitle>Create user</DialogTitle>
                 <DialogDescription>
-                  Add the user's details, optional role templates, and direct capabilities without leaving the user list.
+                  Add the user&apos;s details, then assign a required role template and capabilities.
                 </DialogDescription>
               </DialogHeader>
             </div>
@@ -174,7 +176,7 @@ function UserManagementListPage() {
               <CreateUserForm
                 canReadRoleTemplates={canReadRoleTemplates}
                 canReadCapabilities={canReadCapabilities}
-                canManageAccess={canManageAccess}
+                canManageAccess={canAssignAccessOnCreate}
                 layout="dialog"
                 onCancel={() => setCreateUserOpen(false)}
               />

@@ -84,9 +84,10 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
       const cid = request.correlationId ?? request.id;
       try {
         const hasAccessMutation =
-          Array.isArray(request.body?.capability_ids) && request.body.capability_ids.length > 0
-            ? true
-            : Array.isArray(request.body?.role_template_ids) && request.body.role_template_ids.length > 0;
+          (Array.isArray(request.body?.capability_ids) && request.body.capability_ids.length > 0) ||
+          (Array.isArray(request.body?.role_template_ids) && request.body.role_template_ids.length > 0) ||
+          (Array.isArray(request.body?.role_template_capability_ids) &&
+            request.body.role_template_capability_ids.length > 0);
         if (hasAccessMutation) {
           const allowed = await ensureUserAccessMutationAllowed(request, reply, tenantId);
           if (!allowed) {

@@ -96,6 +96,26 @@ export async function createUser(
     throw new ValidationError("create_user_role_template_ids_invalid");
   }
 
+  if (
+    input.role_template_capability_ids !== undefined &&
+    (!Array.isArray(input.role_template_capability_ids) ||
+      input.role_template_capability_ids.some(
+        (capabilityId) => typeof capabilityId !== "string" || !UUID_RE.test(capabilityId),
+      ))
+  ) {
+    throw new ValidationError("create_user_role_template_capability_ids_invalid");
+  }
+
+  const roleIds = [...new Set((input.role_template_ids ?? []).map((roleId) => roleId.trim()))];
+  const roleTemplateCapabilityIds =
+    input.role_template_capability_ids !== undefined
+      ? [...new Set(input.role_template_capability_ids.map((id) => id.trim()))]
+      : undefined;
+
+  if (roleTemplateCapabilityIds !== undefined && roleIds.length !== 1) {
+    throw new ValidationError("create_user_role_template_capability_ids_requires_single_role");
+  }
+
   const capabilityIds = [...new Set((input.capability_ids ?? []).map((capabilityId) => capabilityId.trim()))];
   if (capabilityIds.length > 0) {
     const capabilities = await deps.capabilityRepository.listCapabilitiesByIds(capabilityIds);
@@ -108,7 +128,6 @@ export async function createUser(
     }
   }
 
-  const roleIds = [...new Set((input.role_template_ids ?? []).map((roleId) => roleId.trim()))];
   if (roleIds.length > 0) {
     const roles = await deps.roleRepository.listRolesByIds(ctx.tenantId, roleIds);
     if (roles.length !== roleIds.length) {
@@ -156,7 +175,13 @@ export async function createUser(
         principalRoleProjectionRepository: deps.principalRoleProjectionRepository,
       },
       ctx,
-      { user_id: linkedUser.id, role_id: roleId },
+      {
+        user_id: linkedUser.id,
+        role_id: roleId,
+        ...(roleTemplateCapabilityIds !== undefined && roleIds.length === 1
+          ? { role_template_capability_ids: roleTemplateCapabilityIds }
+          : {}),
+      },
     );
   }
 
