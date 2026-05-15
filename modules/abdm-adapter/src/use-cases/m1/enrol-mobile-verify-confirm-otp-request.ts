@@ -62,9 +62,12 @@ export async function enrolMobileVerifyConfirmOtpRequest(
   await deps.sessions.patch({
     iqTenantId,
     sessionId: session.sessionId,
+    state: "OTP_VERIFIED",
     txnId,
     contextMerge: {
-      mobileVerifyResult: nha,
+      mobileVerifiedAt: new Date().toISOString(),
+      mobileVerifyAuthResult:
+        typeof nha.authResult === "string" ? nha.authResult : undefined,
     },
   });
   return {

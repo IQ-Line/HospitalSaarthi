@@ -9,6 +9,7 @@ import {
   type NhaEnrolByAadhaarResponse,
   extractEnrolmentProfileTokens,
 } from "@hims/ts-sdk-abha/protocol/m1";
+import { snapshotEnrolByAadhaarResponse } from "../../lib/nha-enrol-context-snapshot.js";
 
 export async function enrolAadhaarVerifyRequest(
   input: EnrolAadhaarVerifyHimsRequest,
@@ -83,9 +84,7 @@ export async function enrolAadhaarVerifyRequest(
     xToken,
     ...(tToken ? { tToken } : {}),
     contextMerge: {
-      enrolByAadhaarResponse: nha,
-      healthIdNumber: nha.healthIdNumber,
-      abhaProfile: nha.ABHAProfile ?? null,
+      enrolSnapshot: snapshotEnrolByAadhaarResponse(nha),
     },
   });
   return {

@@ -35,12 +35,12 @@ function suggestNextStep(session: AbdmSession): string {
     case "OTP_REQUESTED":
       return "POST /m1/enrol/aadhaar/verify (or POST /m1/enrol/aadhaar/otp/resend if OTP expired)";
     case "ABHA_CREATED":
-      return "POST /m1/enrol/mobile-verify/otp then verify, or GET /m1/abha-address/suggestions";
-    case "ADDRESS_CREATED":
-      return "GET /m1/profile or GET /m1/profile/abha-card";
+      return "POST /m1/enrol/mobile-verify/otp then POST /m1/enrol/mobile-verify/verify (required before ABHA address)";
     case "OTP_VERIFIED":
+      return "GET /m1/abha-address/suggestions then POST /m1/abha-address";
+    case "ADDRESS_CREATED":
     case "LINKED":
-      return "GET /m1/profile";
+      return "GET /m1/profile or GET /m1/profile/abha-card";
     default:
       return "contact support — unexpected session state";
   }

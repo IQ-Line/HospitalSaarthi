@@ -10,6 +10,7 @@ import {
   gatewayUnavailable,
   parseNhaErrorBody,
 } from "../lib/gateway-errors.js";
+import { fetchWithTimeout } from "../lib/fetch-with-timeout.js";
 import { parseNhaAbhaCardBody } from "../lib/parse-nha-abha-card-body.js";
 import type { GatewayGetResponseParser } from "../ports.js";
 
@@ -167,7 +168,7 @@ export class HttpGatewayClient implements GatewayClient {
       grantType: "client_credentials",
     };
     const url = joinUrl(this.gatewayBaseUrl, "/api/hiecm/gateway/v3/sessions");
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -245,7 +246,7 @@ export class HttpGatewayClient implements GatewayClient {
     if (target === "gateway") {
       headers["X-CM-ID"] = headers["X-CM-ID"] ?? this.xCmId;
     }
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, {
       method: "POST",
       headers,
       body: JSON.stringify(input.body),
@@ -290,7 +291,7 @@ export class HttpGatewayClient implements GatewayClient {
       const token = await this.getBearerToken();
       headers.Authorization = `Bearer ${token}`;
     }
-    const res = await fetch(url, { method: "GET", headers });
+    const res = await fetchWithTimeout(url, { method: "GET", headers });
     const parser = input.responseParser ?? "json";
     if (parser === "abha-card") {
       return this.parseAbhaCardResponse<TRes>(res);

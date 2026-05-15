@@ -10,8 +10,8 @@ const PROFILE_READ_FLOWS = new Set<AbdmSession["flowKind"]>([
 
 const PROFILE_READ_STATES = new Set<AbdmSession["state"]>([
   "ABHA_CREATED",
-  "ADDRESS_CREATED",
   "OTP_VERIFIED",
+  "ADDRESS_CREATED",
   "LINKED",
 ]);
 

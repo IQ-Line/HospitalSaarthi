@@ -4,6 +4,7 @@
   "targets": {
     "serve": {
       "command": "tsx watch src/main.ts",
+      "dependsOn": ["ts-sdk-abha:build"],
       "options": {
         "cwd": "services/abdm-adapter-svc"
       }

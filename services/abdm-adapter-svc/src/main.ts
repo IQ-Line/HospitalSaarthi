@@ -54,6 +54,19 @@ async function main() {
   const app = Fastify({ logger: true, ajv: fastifyAjv });
   registerHttpErrorHandler(app);
 
+  if (!ENABLE_AUTH) {
+    const nodeEnv = process.env["NODE_ENV"] ?? "development";
+    if (nodeEnv === "production" || nodeEnv === "staging") {
+      app.log.error(
+        "ENABLE_AUTH is false — M1 routes are open to anyone with a tenant UUID. Set ENABLE_AUTH=true and JWKS_URL before staging/production.",
+      );
+    } else {
+      app.log.warn(
+        "ENABLE_AUTH is false — local dev only. M1 enrol/profile APIs trust x-tenant-id alone.",
+      );
+    }
+  }
+
   await registerOpenApiDocs(app, {
     serviceId: "abdm-adapter",
     title: "ABDM Adapter API",

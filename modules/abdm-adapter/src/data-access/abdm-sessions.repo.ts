@@ -35,13 +35,21 @@ export class DrizzleAbdmSessionsRepo implements AbdmSessionsPort {
     flowKind: AbdmSession["flowKind"];
     initialContext?: Record<string, unknown>;
   }): Promise<AbdmSession> {
+    const ttlHours = Number(process.env["ABDM_SESSION_TTL_HOURS"] ?? 24);
+    const expiresAt =
+      Number.isFinite(ttlHours) && ttlHours > 0
+        ? new Date(Date.now() + ttlHours * 3_600_000).toISOString()
+        : undefined;
     const [row] = await this.db
       .insert(abdmSessions)
       .values({
         iq_tenant_id: input.iqTenantId,
         flow_kind: input.flowKind,
         state: "INIT",
-        context: input.initialContext ?? {},
+        context: {
+          ...(input.initialContext ?? {}),
+          ...(expiresAt ? { expiresAt } : {}),
+        },
       })
       .returning();
     if (!row) {

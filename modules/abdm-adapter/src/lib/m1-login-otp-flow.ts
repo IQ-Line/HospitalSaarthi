@@ -133,7 +133,10 @@ export async function m1LoginOtpVerify(
     txnId,
     xToken,
     ...(tToken ? { tToken } : {}),
-    contextMerge: { loginVerifyResponse: nha },
+    contextMerge: {
+      loginVerifiedAt: new Date().toISOString(),
+      loginAuthResult: typeof nha.authResult === "string" ? nha.authResult : undefined,
+    },
   });
   return {
     sessionId: session.sessionId,

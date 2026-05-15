@@ -13,7 +13,7 @@ function sessionRow(overrides: Partial<AbdmSession> = {}): AbdmSession {
     iqTenantId: TENANT,
     sessionId: SID,
     flowKind: "abdm.m1.aadhaar-otp.v1",
-    state: "ABHA_CREATED",
+    state: "OTP_VERIFIED",
     txnId: "chain-txn",
     requestId: null,
     xToken: "jwt",
