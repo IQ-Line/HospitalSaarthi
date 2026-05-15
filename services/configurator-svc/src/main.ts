@@ -1,5 +1,4 @@
 import Fastify from "fastify";
-import { tenantPlugin } from "@hims/ts-sdk-tenant";
 import { createDb, type DbInstance } from "@hims/ts-sdk-db";
 import {
   createRouter,
@@ -15,7 +14,9 @@ const DATABASE_URL = process.env["DATABASE_URL"] ?? "";
 async function main() {
   const app = Fastify({ logger: true });
 
-  await app.register(tenantPlugin);
+  // No global `tenantPlugin` here: organizations + tenant discovery are
+  // bootstrap/admin APIs (org-scoped queries, no `request.tenantId` usage).
+  // EMPI and other patient-facing services keep strict tenant headers.
 
   const db = createDb(DATABASE_URL);
 
