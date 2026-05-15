@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Controller, useForm, type SubmitHandler } from 'react-hook-form';
 import { type ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
@@ -20,8 +20,18 @@ import { EntityFormDialog } from '@/features/master-data/components/entity-form-
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
 import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
-import { rowMatchesSearch } from '@/features/master-data/table-search';
-import { useVisitpadDelete, useVisitpadPatch, useVisitpadPost, useVisitpadProcedures } from '@/features/visitpad/api';
+import {
+  useVisitpadDelete,
+  useVisitpadPatch,
+  useVisitpadPlatformImport,
+  useVisitpadPost,
+  useVisitpadProcedures,
+  useVisitpadProceduresGlobalLibrary,
+  useVisitpadTenantImportKeys,
+  VISITPAD_CATALOG_DEFAULT_PAGE_SIZE,
+  VISITPAD_CATALOG_PAGE_SIZES,
+} from '@/features/visitpad/api';
+import { ImportFromPlatformCatalogDialog } from '@/features/visitpad/components/import-from-platform-catalog-dialog';
 import { visitpadActionsColumn } from '@/features/visitpad/components/visitpad-actions-column';
 import { VisitpadHeaderActions } from '@/features/visitpad/components/visitpad-header-actions';
 import { VisitpadPageShell } from '@/features/visitpad/components/visitpad-page-shell';
@@ -40,6 +50,9 @@ import {
   type VisitpadProcedureEditFormInput,
   type VisitpadProcedureEditFormSchema,
 } from '@/features/visitpad/validation';
+import { useVisitpadCatalogPermission } from '@/features/visitpad/hooks/use-visitpad-catalog-permission';
+import { useVisitpadImportLibrarySearch } from '@/features/visitpad/hooks/use-visitpad-import-library-search';
+import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 
 const PROC_BASE = '/api/v1/master-data/visitpad/procedures';
 
@@ -88,35 +101,86 @@ export const Route = createFileRoute('/_authenticated/visitpad/procedures')({
 });
 
 function VisitpadProceduresPage() {
+  const { canWrite, canRead } = useVisitpadCatalogPermission();
+  const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string>('all');
   const [billing, setBilling] = useState<string>('all');
   const [createOpen, setCreateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [libPageIndex, setLibPageIndex] = useState(0);
+  const libPageSize = 50;
+  const { librarySearch, librarySearchDraft, setLibrarySearchDraft } = useVisitpadImportLibrarySearch(
+    importOpen,
+    setLibPageIndex,
+  );
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadProcedure | null>(null);
   const [deleting, setDeleting] = useState<VisitpadProcedure | null>(null);
   const cat = category === 'all' ? undefined : category;
   const bill = billing === 'all' ? undefined : billing;
-  const { data, isLoading, error } = useVisitpadProcedures(search || undefined, cat, bill);
+  const listPage = useMemo(() => ({ pageIndex, pageSize }), [pageIndex, pageSize]);
+  useEffect(() => {
+    setPageIndex(0);
+  }, [search]);
+  const { data, isLoading, error } = useVisitpadProcedures(search || undefined, cat, bill, listPage);
+  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadProceduresGlobalLibrary(
+    importOpen,
+    {
+      pageIndex: libPageIndex,
+      pageSize: libPageSize,
+    },
+    librarySearch || undefined,
+  );
   const patch = useVisitpadPatch(PROC_BASE);
   const del = useVisitpadDelete(PROC_BASE);
   const create = useVisitpadPost(PROC_BASE);
+  const platformImport = useVisitpadPlatformImport('/procedures/import-from-platform');
+  const { data: tenantCptKeys } = useVisitpadTenantImportKeys('/procedures', importOpen && tenantCatalog);
   const rows = data?.data ?? [];
-  const tabCount = visitpadActiveTotal(rows, data?.total);
-  const busy = patch.isPending || del.isPending;
+  const total = data?.total ?? 0;
+  const tabCount = visitpadActiveTotal(rows, total);
+  const busy = patch.isPending || del.isPending || platformImport.isPending;
 
-  const filtered = useMemo(
-    () =>
-      rows.filter((r) =>
-        rowMatchesSearch(
-          search,
-          r.cpt_code,
-          r.short_name ?? '',
-          r.display_name,
-          r.official_descriptor ?? '',
-        ),
-      ),
-    [rows, search],
+  const importedKeys = useMemo(() => tenantCptKeys ?? new Set<string>(), [tenantCptKeys]);
+  const globalRows = globalLib?.data ?? [];
+  const globalLibTotal = globalLib?.total ?? 0;
+  const getRowKey = useCallback((r: VisitpadProcedure) => r.cpt_code, []);
+
+  const importSearchParts = useCallback(
+    (r: VisitpadProcedure) => [
+      r.cpt_code,
+      r.short_name ?? '',
+      r.display_name,
+      r.official_descriptor ?? '',
+    ],
+    [],
   );
+
+  const importColumns = useMemo(
+    () => [
+      { id: 'name', header: 'Display name', cell: (r: VisitpadProcedure) => r.display_name },
+      { id: 'cat', header: 'Category', cell: (r: VisitpadProcedure) => r.category },
+    ],
+    [],
+  );
+
+  const runProcedureImport = async (selection: VisitpadProcedure[]) => {
+    try {
+      const res = await platformImport.mutateAsync(selection.map((r) => r.id));
+      const { created, skipped, errors } = res.data;
+      const parts = [`${created.length} created`, `${skipped.length} skipped`];
+      if (errors.length) parts.push(`${errors.length} failed`);
+      toast.success(parts.join(', '));
+      if (errors.length) {
+        toast.error(errors.map((e) => e.message).join('; '));
+      }
+      setImportOpen(false);
+    } catch (e) {
+      toast.error(mutationErrorMessage(e));
+    }
+  };
 
   const columns = useMemo<ColumnDef<VisitpadProcedure, unknown>[]>(
     () => [
@@ -147,7 +211,7 @@ function VisitpadProceduresPage() {
         cell: ({ row }) => (
           <TableActiveToggle
             active={row.original.is_active}
-            disabled={patch.isPending}
+            disabled={patch.isPending || !canWrite}
             onCheckedChange={async (next) => {
               try {
                 await patch.mutateAsync({ id: row.original.id, body: { is_active: next } });
@@ -162,10 +226,10 @@ function VisitpadProceduresPage() {
       visitpadActionsColumn<VisitpadProcedure>({
         onEdit: setEditing,
         onDelete: setDeleting,
-        disabled: busy,
+        disabled: busy || !canWrite,
       }),
     ],
-    [patch, busy],
+    [patch, busy, canWrite],
   );
 
   return (
@@ -173,9 +237,20 @@ function VisitpadProceduresPage() {
       primary="procedures"
       tabCount={tabCount}
       title="Procedures"
-      description="Procedure library for Visitpad (catalog code is stored as cpt_code in the API)."
+      description={
+        tenantCatalog
+          ? 'Tenant procedure library: import from the platform library or add local-only CPT rows.'
+          : 'Platform procedure library for Visitpad (catalog code is stored as cpt_code in the API).'
+      }
       actions={
-        <VisitpadHeaderActions addLabel="Add procedure" onAddClick={() => setCreateOpen(true)} />
+        <VisitpadHeaderActions
+          canWrite={canWrite}
+          canRead={canRead}
+          addLabel={tenantCatalog ? 'Add local procedure' : 'Add procedure'}
+          onAddClick={() => setCreateOpen(true)}
+          onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
+          importFromLibraryPending={platformImport.isPending}
+        />
       }
     >
       <div className="space-y-4">
@@ -220,13 +295,48 @@ function VisitpadProceduresPage() {
           <DataTable
             showColumnMenu
             columns={columns}
-            data={filtered}
+            data={rows}
             isLoading={isLoading}
             emptyTitle="No procedures found"
             emptyDescription="Adjust your search or add catalog entries."
+            manualPagination={{
+              pageIndex,
+              pageSize,
+              total,
+              pageSizeOptions: VISITPAD_CATALOG_PAGE_SIZES,
+              onPageChange: setPageIndex,
+              onPageSizeChange: setPageSize,
+            }}
           />
         )}
       </div>
+
+      <ImportFromPlatformCatalogDialog<VisitpadProcedure>
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Import procedures from platform library"
+        description="Select procedures to add to your tenant catalog. Already-imported CPT codes are disabled."
+        searchPlaceholder="Search CPT, display name, descriptor…"
+        rows={globalRows}
+        isLoading={globalLibLoading}
+        getRowKey={getRowKey}
+        rowKeyHeader="CPT"
+        importedKeys={importedKeys}
+        columns={importColumns}
+        searchParts={importSearchParts}
+        isSubmitting={platformImport.isPending || create.isPending}
+        onImportRows={runProcedureImport}
+        libraryPagination={{
+          pageIndex: libPageIndex,
+          pageSize: libPageSize,
+          total: globalLibTotal,
+          onPageChange: setLibPageIndex,
+        }}
+        librarySearchControl={{
+          draft: librarySearchDraft,
+          onDraftChange: setLibrarySearchDraft,
+        }}
+      />
 
       <ProcedureCreateDialog
         open={createOpen}
@@ -377,6 +487,9 @@ function ProcedureCreateDialog({
             maxLength={512}
             {...form.register('official_descriptor')}
           />
+          {form.formState.errors.official_descriptor ? (
+            <p className="text-sm text-destructive">{form.formState.errors.official_descriptor.message}</p>
+          ) : null}
         </div>
         <div className="space-y-2 sm:col-span-2">
           <Label htmlFor="vp-pr-disp">Display name *</Label>

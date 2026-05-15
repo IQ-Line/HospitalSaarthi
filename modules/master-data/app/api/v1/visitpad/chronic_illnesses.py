@@ -3,11 +3,12 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_session, get_visitpad_chronic_illness_repository
 from app.api.errors import ResourceNotFoundError
+from app.api.v1.visitpad.catalog_http import require_visitpad_tenant_catalog_scope
 from app.repositories.visitpad.chronic_illness import VisitpadChronicIllnessRepository
 from app.schemas.visitpad.chronic_illness import (
     VisitpadChronicIllnessCategory,
@@ -17,12 +18,20 @@ from app.schemas.visitpad.chronic_illness import (
     VisitpadChronicIllnessSingleResponse,
     VisitpadChronicIllnessUpdate,
 )
+from app.schemas.visitpad.platform_import import (
+    VisitpadCatalogKeysResponse,
+    VisitpadPlatformImportRequest,
+    VisitpadPlatformImportSingleResponse,
+)
 from app.services.visitpad.chronic_illnesses import (
     create_visitpad_chronic_illness,
     get_visitpad_chronic_illness_by_id,
     list_visitpad_chronic_illnesses,
     soft_delete_visitpad_chronic_illness,
     update_visitpad_chronic_illness,
+)
+from app.services.visitpad.platform_bulk_import import (
+    import_visitpad_chronic_illnesses_from_platform,
 )
 
 router = APIRouter(prefix="/visitpad/chronic-illnesses", tags=["Visitpad — Chronic illnesses"])
@@ -69,6 +78,47 @@ def post_chronic_illness(
     row = create_visitpad_chronic_illness(repository, payload=payload)
     session.commit()
     return VisitpadChronicIllnessSingleResponse(data=VisitpadChronicIllnessResponse.model_validate(row))
+
+
+@router.post(
+    "/import-from-platform",
+    response_model=VisitpadPlatformImportSingleResponse,
+    summary="Bulk-import chronic illnesses from the platform catalog",
+)
+def post_chronic_illnesses_import_from_platform(
+    payload: VisitpadPlatformImportRequest,
+    repository: Annotated[
+        VisitpadChronicIllnessRepository,
+        Depends(get_visitpad_chronic_illness_repository),
+    ],
+    session: Annotated[Session, Depends(get_session)],
+) -> VisitpadPlatformImportSingleResponse:
+    try:
+        data = import_visitpad_chronic_illnesses_from_platform(
+            session,
+            scope=repository.scope,
+            tenant_repo=repository,
+            platform_row_ids=payload.platform_row_ids,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    session.commit()
+    return VisitpadPlatformImportSingleResponse(data=data)
+
+
+@router.get(
+    "/keys",
+    response_model=VisitpadCatalogKeysResponse,
+    summary="List tenant chronic illness ICD-10 codes for import-from-platform matching",
+)
+def get_chronic_illness_import_keys(
+    repository: Annotated[
+        VisitpadChronicIllnessRepository,
+        Depends(get_visitpad_chronic_illness_repository),
+    ],
+) -> VisitpadCatalogKeysResponse:
+    require_visitpad_tenant_catalog_scope(repository.scope)
+    return VisitpadCatalogKeysResponse(data=repository.list_import_key_strings())
 
 
 @router.get(

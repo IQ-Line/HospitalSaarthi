@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { type ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
@@ -21,8 +21,18 @@ import { EntityFormDialog } from '@/features/master-data/components/entity-form-
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
 import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
-import { rowMatchesSearch } from '@/features/master-data/table-search';
-import { useVisitpadDelete, useVisitpadDiagnoses, useVisitpadPatch, useVisitpadPost } from '@/features/visitpad/api';
+import {
+  useVisitpadDelete,
+  useVisitpadDiagnoses,
+  useVisitpadDiagnosesGlobalLibrary,
+  useVisitpadPatch,
+  useVisitpadPlatformImport,
+  useVisitpadPost,
+  useVisitpadTenantImportKeys,
+  VISITPAD_CATALOG_DEFAULT_PAGE_SIZE,
+  VISITPAD_CATALOG_PAGE_SIZES,
+} from '@/features/visitpad/api';
+import { ImportFromPlatformCatalogDialog } from '@/features/visitpad/components/import-from-platform-catalog-dialog';
 import { visitpadActionsColumn } from '@/features/visitpad/components/visitpad-actions-column';
 import { VisitpadHeaderActions } from '@/features/visitpad/components/visitpad-header-actions';
 import { VisitpadPageShell } from '@/features/visitpad/components/visitpad-page-shell';
@@ -36,6 +46,9 @@ import {
   type VisitpadDiagnosisCreateFormSchema,
   type VisitpadDiagnosisEditFormSchema,
 } from '@/features/visitpad/validation';
+import { useVisitpadCatalogPermission } from '@/features/visitpad/hooks/use-visitpad-catalog-permission';
+import { useVisitpadImportLibrarySearch } from '@/features/visitpad/hooks/use-visitpad-import-library-search';
+import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 
 const DX_BASE = '/api/v1/master-data/visitpad/diagnoses';
 
@@ -44,27 +57,83 @@ export const Route = createFileRoute('/_authenticated/visitpad/diagnoses')({
 });
 
 function VisitpadDiagnosesPage() {
+  const { canWrite, canRead } = useVisitpadCatalogPermission();
+  const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string>('all');
   const [createOpen, setCreateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [libPageIndex, setLibPageIndex] = useState(0);
+  const libPageSize = 50;
+  const { librarySearch, librarySearchDraft, setLibrarySearchDraft } = useVisitpadImportLibrarySearch(
+    importOpen,
+    setLibPageIndex,
+  );
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadDiagnosis | null>(null);
   const [deleting, setDeleting] = useState<VisitpadDiagnosis | null>(null);
   const cat = category === 'all' ? undefined : category;
-  const { data, isLoading, error } = useVisitpadDiagnoses(search || undefined, cat);
+  const listPage = useMemo(() => ({ pageIndex, pageSize }), [pageIndex, pageSize]);
+  useEffect(() => {
+    setPageIndex(0);
+  }, [search]);
+  const { data, isLoading, error } = useVisitpadDiagnoses(search || undefined, cat, listPage);
+  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadDiagnosesGlobalLibrary(
+    importOpen,
+    {
+      pageIndex: libPageIndex,
+      pageSize: libPageSize,
+    },
+    librarySearch || undefined,
+  );
   const patch = useVisitpadPatch(DX_BASE);
   const del = useVisitpadDelete(DX_BASE);
   const create = useVisitpadPost(DX_BASE);
+  const platformImport = useVisitpadPlatformImport('/diagnoses/import-from-platform');
+  const { data: tenantCodeKeys } = useVisitpadTenantImportKeys('/diagnoses', importOpen && tenantCatalog);
   const rows = data?.data ?? [];
-  const tabCount = visitpadActiveTotal(rows, data?.total);
-  const busy = patch.isPending || del.isPending;
+  const total = data?.total ?? 0;
+  const tabCount = visitpadActiveTotal(rows, total);
+  const busy = patch.isPending || del.isPending || platformImport.isPending;
 
-  const filtered = useMemo(
-    () =>
-      rows.filter((r) =>
-        rowMatchesSearch(search, r.code, r.display_name, r.short_name ?? '', r.snomed_code ?? ''),
-      ),
-    [rows, search],
+  const importedKeys = useMemo(() => tenantCodeKeys ?? new Set<string>(), [tenantCodeKeys]);
+  const globalRows = globalLib?.data ?? [];
+  const globalLibTotal = globalLib?.total ?? 0;
+  const getRowKey = useCallback((r: VisitpadDiagnosis) => r.code, []);
+
+  const importSearchParts = useCallback(
+    (r: VisitpadDiagnosis) => [r.code, r.display_name, r.short_name ?? '', r.snomed_code ?? ''],
+    [],
   );
+
+  const importColumns = useMemo(
+    () => [
+      { id: 'name', header: 'Display name', cell: (r: VisitpadDiagnosis) => r.display_name },
+      {
+        id: 'snomed',
+        header: 'SNOMED',
+        cell: (r: VisitpadDiagnosis) => r.snomed_code ?? '—',
+      },
+    ],
+    [],
+  );
+
+  const runDiagnosisImport = async (selection: VisitpadDiagnosis[]) => {
+    try {
+      const res = await platformImport.mutateAsync(selection.map((r) => r.id));
+      const { created, skipped, errors } = res.data;
+      const parts = [`${created.length} created`, `${skipped.length} skipped`];
+      if (errors.length) parts.push(`${errors.length} failed`);
+      toast.success(parts.join(', '));
+      if (errors.length) {
+        toast.error(errors.map((e) => e.message).join('; '));
+      }
+      setImportOpen(false);
+    } catch (e) {
+      toast.error(mutationErrorMessage(e));
+    }
+  };
 
   const columns = useMemo<ColumnDef<VisitpadDiagnosis, unknown>[]>(
     () => [
@@ -113,7 +182,7 @@ function VisitpadDiagnosesPage() {
         cell: ({ row }) => (
           <TableActiveToggle
             active={row.original.is_active}
-            disabled={patch.isPending}
+            disabled={patch.isPending || !canWrite}
             onCheckedChange={async (next) => {
               try {
                 await patch.mutateAsync({ id: row.original.id, body: { is_active: next } });
@@ -128,10 +197,10 @@ function VisitpadDiagnosesPage() {
       visitpadActionsColumn<VisitpadDiagnosis>({
         onEdit: setEditing,
         onDelete: setDeleting,
-        disabled: busy,
+        disabled: busy || !canWrite,
       }),
     ],
-    [patch, busy],
+    [patch, busy, canWrite],
   );
 
   return (
@@ -139,9 +208,20 @@ function VisitpadDiagnosesPage() {
       primary="diagnoses"
       tabCount={tabCount}
       title="Diagnosis"
-      description="Diagnosis codes, display names, SNOMED, and chronic / notifiable flags. Optional ICD-10 enrichment when you need registry-backed rows."
+      description={
+        tenantCatalog
+          ? 'Tenant diagnosis catalog: import from the platform library or add local-only codes.'
+          : 'Platform diagnosis codes, display names, SNOMED, and chronic / notifiable flags. Optional ICD-10 enrichment when you need registry-backed rows.'
+      }
       actions={
-        <VisitpadHeaderActions addLabel="Add diagnosis" onAddClick={() => setCreateOpen(true)} />
+        <VisitpadHeaderActions
+          canWrite={canWrite}
+          canRead={canRead}
+          addLabel={tenantCatalog ? 'Add local diagnosis' : 'Add diagnosis'}
+          onAddClick={() => setCreateOpen(true)}
+          onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
+          importFromLibraryPending={platformImport.isPending}
+        />
       }
     >
       <div className="space-y-4">
@@ -173,13 +253,47 @@ function VisitpadDiagnosesPage() {
           <DataTable
             showColumnMenu
             columns={columns}
-            data={filtered}
+            data={rows}
             isLoading={isLoading}
             emptyTitle="No diagnoses found"
             emptyDescription="Adjust your search or add catalog entries."
+            manualPagination={{
+              pageIndex,
+              pageSize,
+              total,
+              pageSizeOptions: VISITPAD_CATALOG_PAGE_SIZES,
+              onPageChange: setPageIndex,
+              onPageSizeChange: setPageSize,
+            }}
           />
         )}
       </div>
+
+      <ImportFromPlatformCatalogDialog<VisitpadDiagnosis>
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Import diagnoses from platform library"
+        description="Select diagnoses to add to your tenant catalog. Already-imported codes are disabled."
+        searchPlaceholder="Search code, display name, SNOMED…"
+        rows={globalRows}
+        isLoading={globalLibLoading}
+        getRowKey={getRowKey}
+        importedKeys={importedKeys}
+        columns={importColumns}
+        searchParts={importSearchParts}
+        isSubmitting={platformImport.isPending || create.isPending}
+        onImportRows={runDiagnosisImport}
+        libraryPagination={{
+          pageIndex: libPageIndex,
+          pageSize: libPageSize,
+          total: globalLibTotal,
+          onPageChange: setLibPageIndex,
+        }}
+        librarySearchControl={{
+          draft: librarySearchDraft,
+          onDraftChange: setLibrarySearchDraft,
+        }}
+      />
 
       <DiagnosisCreateDialog
         open={createOpen}

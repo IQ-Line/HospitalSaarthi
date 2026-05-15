@@ -284,6 +284,7 @@ function ModulePermissionsPage() {
           <MasterDataTableToolbar
             value={tableSearch}
             onChange={setTableSearch}
+            debounceMs={0}
             placeholder="Search slug, module, permission…"
           />
         </div>

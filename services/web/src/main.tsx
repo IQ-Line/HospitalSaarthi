@@ -3,6 +3,9 @@ import ReactDOM from 'react-dom/client';
 import { RouterProvider, createRouter } from '@tanstack/react-router';
 import { queryClient } from '@/lib/query-client';
 import { AppProviders } from '@/app/providers';
+import { useAuthStore } from '@/stores/auth.store';
+import { usePermissionsStore } from '@/stores/permissions.store';
+import { useTenantStore } from '@/stores/tenant.store';
 import { routeTree } from './routeTree.gen';
 import '@/styles/index.css';
 
@@ -22,12 +25,27 @@ declare module '@tanstack/react-router' {
 
 const rootElement = document.getElementById('app')!;
 
-if (!rootElement.innerHTML) {
-  ReactDOM.createRoot(rootElement).render(
-    <React.StrictMode>
-      <AppProviders>
-        <RouterProvider router={router} />
-      </AppProviders>
-    </React.StrictMode>,
+async function rehydrateDevPersistedStores() {
+  if (!import.meta.env.DEV) return;
+  const stores = [useAuthStore, useTenantStore, usePermissionsStore];
+  await Promise.all(
+    stores.map((store) => {
+      if ('persist' in store && typeof store.persist.rehydrate === 'function') {
+        return store.persist.rehydrate();
+      }
+      return Promise.resolve();
+    }),
   );
+}
+
+if (!rootElement.innerHTML) {
+  void rehydrateDevPersistedStores().then(() => {
+    ReactDOM.createRoot(rootElement).render(
+      <React.StrictMode>
+        <AppProviders>
+          <RouterProvider router={router} />
+        </AppProviders>
+      </React.StrictMode>,
+    );
+  });
 }

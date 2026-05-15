@@ -1,19 +1,13 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { type ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
 import { Badge } from '@pulse/ui/badge';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@pulse/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@pulse/ui/select';
 import { Switch } from '@pulse/ui/switch';
 import { Textarea } from '@pulse/ui/textarea';
 import { ConfirmDialog } from '@/components/confirm-dialog';
@@ -22,19 +16,27 @@ import { EntityFormDialog } from '@/features/master-data/components/entity-form-
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
 import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
-import { rowMatchesSearch } from '@/features/master-data/table-search';
 import {
   useVisitpadChiefComplaintDescriptor,
   useVisitpadChiefComplaints,
+  useVisitpadChiefComplaintsGlobalLibrary,
   useVisitpadDelete,
   useVisitpadPatch,
+  useVisitpadPlatformImport,
   useVisitpadPost,
+  useVisitpadTenantImportKeys,
+  VISITPAD_CATALOG_DEFAULT_PAGE_SIZE,
+  VISITPAD_CATALOG_PAGE_SIZES,
 } from '@/features/visitpad/api';
 import { visitpadActionsColumn } from '@/features/visitpad/components/visitpad-actions-column';
+import { ImportFromPlatformCatalogDialog } from '@/features/visitpad/components/import-from-platform-catalog-dialog';
 import { VisitpadHeaderActions } from '@/features/visitpad/components/visitpad-header-actions';
 import { VisitpadPageShell } from '@/features/visitpad/components/visitpad-page-shell';
 import { VisitpadSnomedFooter } from '@/features/visitpad/components/visitpad-snomed-footer';
-import { VISITPAD_BODY_SYSTEMS, VISITPAD_TRIAGE_PRIORITIES } from '@/features/visitpad/openapi-constants';
+import {
+  VISITPAD_BODY_SYSTEMS,
+  VISITPAD_TRIAGE_PRIORITIES,
+} from '@/features/visitpad/openapi-constants';
 import { visitpadActiveTotal } from '@/features/visitpad/tab-count';
 import type { VisitpadChiefComplaint } from '@/features/visitpad/types';
 import {
@@ -43,6 +45,9 @@ import {
   type VisitpadChiefComplaintCreateFormSchema,
   type VisitpadChiefComplaintEditFormSchema,
 } from '@/features/visitpad/validation';
+import { useVisitpadCatalogPermission } from '@/features/visitpad/hooks/use-visitpad-catalog-permission';
+import { useVisitpadImportLibrarySearch } from '@/features/visitpad/hooks/use-visitpad-import-library-search';
+import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 
 const CC_BASE = '/api/v1/master-data/visitpad/chief-complaints';
 
@@ -51,28 +56,106 @@ export const Route = createFileRoute('/_authenticated/visitpad/chief-complaints'
 });
 
 function VisitpadChiefComplaintsPage() {
+  const { canWrite, canRead } = useVisitpadCatalogPermission();
   const [search, setSearch] = useState('');
   const [bodySystem, setBodySystem] = useState<string>('all');
   const [triage, setTriage] = useState<string>('all');
   const [createOpen, setCreateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [libPageIndex, setLibPageIndex] = useState(0);
+  const libPageSize = 50;
+  const { librarySearch, librarySearchDraft, setLibrarySearchDraft } = useVisitpadImportLibrarySearch(
+    importOpen,
+    setLibPageIndex,
+  );
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadChiefComplaint | null>(null);
   const [deleting, setDeleting] = useState<VisitpadChiefComplaint | null>(null);
+  const { tenantCatalog } = useVisitpadTenantCatalog();
   const bs = bodySystem === 'all' ? undefined : bodySystem;
   const tr = triage === 'all' ? undefined : triage;
-  const { data, isLoading, error } = useVisitpadChiefComplaints(search || undefined, bs, tr);
+  const listPage = useMemo(() => ({ pageIndex, pageSize }), [pageIndex, pageSize]);
+  useEffect(() => {
+    setPageIndex(0);
+  }, [search]);
+  const { data, isLoading, error } = useVisitpadChiefComplaints(search || undefined, bs, tr, listPage);
+  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadChiefComplaintsGlobalLibrary(
+    importOpen,
+    {
+      pageIndex: libPageIndex,
+      pageSize: libPageSize,
+    },
+    librarySearch || undefined,
+  );
   const patch = useVisitpadPatch(CC_BASE);
   const del = useVisitpadDelete(CC_BASE);
   const create = useVisitpadPost(CC_BASE);
+  const platformImport = useVisitpadPlatformImport('/chief-complaints/import-from-platform');
+  const { data: tenantCodeKeys } = useVisitpadTenantImportKeys('/chief-complaints', importOpen && tenantCatalog);
   const rows = data?.data ?? [];
-  const tabCount = visitpadActiveTotal(rows, data?.total);
-  const busy = patch.isPending || del.isPending;
+  const total = data?.total ?? 0;
+  const tabCount = visitpadActiveTotal(rows, total);
+  const busy = patch.isPending || del.isPending || platformImport.isPending;
+
+  const importedKeys = useMemo(() => tenantCodeKeys ?? new Set<string>(), [tenantCodeKeys]);
+  const globalRows = globalLib?.data ?? [];
+  const globalLibTotal = globalLib?.total ?? 0;
+
+  const importSearchParts = useCallback(
+    (r: VisitpadChiefComplaint) => [
+      r.code,
+      r.display_name,
+      r.short_name ?? '',
+      r.body_system,
+      r.triage_priority,
+    ],
+    [],
+  );
+
+  const getRowKey = useCallback((r: VisitpadChiefComplaint) => r.code, []);
+
+  const importColumns = useMemo(
+    () => [
+      {
+        id: 'display',
+        header: 'Name',
+        cell: (r: VisitpadChiefComplaint) => r.display_name,
+      },
+      {
+        id: 'body',
+        header: 'Body system',
+        cell: (r: VisitpadChiefComplaint) => r.body_system,
+      },
+      {
+        id: 'triage',
+        header: 'Triage',
+        cell: (r: VisitpadChiefComplaint) => r.triage_priority,
+      },
+    ],
+    [],
+  );
+
+  const runChiefComplaintImport = async (selection: VisitpadChiefComplaint[]) => {
+    try {
+      const res = await platformImport.mutateAsync(selection.map((r) => r.id));
+      const { created, skipped, errors } = res.data;
+      const parts = [`${created.length} created`, `${skipped.length} skipped`];
+      if (errors.length) parts.push(`${errors.length} failed`);
+      toast.success(parts.join(', '));
+      if (errors.length) {
+        toast.error(errors.map((e) => e.message).join('; '));
+      }
+      setImportOpen(false);
+    } catch (e) {
+      toast.error(mutationErrorMessage(e));
+    }
+  };
 
   const { data: ccDescriptor } = useVisitpadChiefComplaintDescriptor();
   const bodySystemOpts = useMemo(
     () =>
-      ccDescriptor?.body_systems?.length
-        ? ccDescriptor.body_systems
-        : [...VISITPAD_BODY_SYSTEMS],
+      ccDescriptor?.body_systems?.length ? ccDescriptor.body_systems : [...VISITPAD_BODY_SYSTEMS],
     [ccDescriptor?.body_systems],
   );
   const triageOpts = useMemo(
@@ -81,21 +164,6 @@ function VisitpadChiefComplaintsPage() {
         ? ccDescriptor.triage_priorities
         : [...VISITPAD_TRIAGE_PRIORITIES],
     [ccDescriptor?.triage_priorities],
-  );
-
-  const filtered = useMemo(
-    () =>
-      rows.filter((r) =>
-        rowMatchesSearch(
-          search,
-          r.code,
-          r.display_name,
-          r.short_name,
-          r.body_system,
-          r.triage_priority,
-        ),
-      ),
-    [rows, search],
   );
 
   const columns = useMemo<ColumnDef<VisitpadChiefComplaint, unknown>[]>(
@@ -108,7 +176,11 @@ function VisitpadChiefComplaintsPage() {
         meta: { label: 'Short' },
         cell: ({ getValue }) => {
           const v = getValue<string | null | undefined>();
-          return v ? <span className="text-xs">{v}</span> : <span className="text-muted-foreground">—</span>;
+          return v ? (
+            <span className="text-xs">{v}</span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          );
         },
       },
       {
@@ -129,7 +201,11 @@ function VisitpadChiefComplaintsPage() {
         meta: { label: 'SNOMED' },
         cell: ({ getValue }) => {
           const v = getValue<string | null | undefined>();
-          return v ? <span className="font-mono text-xs">{v}</span> : <span className="text-muted-foreground">—</span>;
+          return v ? (
+            <span className="font-mono text-xs">{v}</span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          );
         },
       },
       {
@@ -139,7 +215,12 @@ function VisitpadChiefComplaintsPage() {
         cell: ({ row }) => {
           const s = row.original.synonyms;
           if (!s?.length) return <span className="text-muted-foreground">—</span>;
-          return <span className="text-xs text-muted-foreground">{s.slice(0, 3).join(', ')}{s.length > 3 ? '…' : ''}</span>;
+          return (
+            <span className="text-xs text-muted-foreground">
+              {s.slice(0, 3).join(', ')}
+              {s.length > 3 ? '…' : ''}
+            </span>
+          );
         },
       },
       {
@@ -149,7 +230,7 @@ function VisitpadChiefComplaintsPage() {
         cell: ({ row }) => (
           <TableActiveToggle
             active={row.original.is_active}
-            disabled={patch.isPending}
+            disabled={patch.isPending || !canWrite}
             onCheckedChange={async (next) => {
               try {
                 await patch.mutateAsync({ id: row.original.id, body: { is_active: next } });
@@ -164,10 +245,10 @@ function VisitpadChiefComplaintsPage() {
       visitpadActionsColumn<VisitpadChiefComplaint>({
         onEdit: setEditing,
         onDelete: setDeleting,
-        disabled: busy,
+        disabled: busy || !canWrite,
       }),
     ],
-    [patch, busy],
+    [patch, busy, canWrite],
   );
 
   return (
@@ -175,9 +256,20 @@ function VisitpadChiefComplaintsPage() {
       primary="chief-complaints"
       tabCount={tabCount}
       title="Chief complaints"
-      description="Complaint catalog for triage. Body system and triage options load from GET …/chief-complaints/descriptor (same enum values as create/patch)."
+      description={
+        tenantCatalog
+          ? 'Tenant catalog: import from the platform library or add local-only rows. Descriptor enums still load from GET …/chief-complaints/descriptor.'
+          : 'Complaint catalog for triage. Body system and triage options load from GET …/chief-complaints/descriptor (same enum values as create/patch).'
+      }
       actions={
-        <VisitpadHeaderActions addLabel="Add complaint" onAddClick={() => setCreateOpen(true)} />
+        <VisitpadHeaderActions
+          canWrite={canWrite}
+          canRead={canRead}
+          addLabel={tenantCatalog ? 'Add local complaint' : 'Add complaint'}
+          onAddClick={() => setCreateOpen(true)}
+          onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
+          importFromLibraryPending={platformImport.isPending}
+        />
       }
     >
       <div className="space-y-4">
@@ -222,10 +314,18 @@ function VisitpadChiefComplaintsPage() {
           <DataTable
             showColumnMenu
             columns={columns}
-            data={filtered}
+            data={rows}
             isLoading={isLoading}
             emptyTitle="No chief complaints found"
             emptyDescription="Adjust your search or add catalog entries."
+            manualPagination={{
+              pageIndex,
+              pageSize,
+              total,
+              pageSizeOptions: VISITPAD_CATALOG_PAGE_SIZES,
+              onPageChange: setPageIndex,
+              onPageSizeChange: setPageSize,
+            }}
           />
         )}
       </div>
@@ -244,6 +344,32 @@ function VisitpadChiefComplaintsPage() {
           } catch (e) {
             toast.error(mutationErrorMessage(e));
           }
+        }}
+      />
+
+      <ImportFromPlatformCatalogDialog<VisitpadChiefComplaint>
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Import chief complaints from platform library"
+        description="Select complaints to add to your tenant catalog. Already-imported rows are disabled."
+        searchPlaceholder="Search by code, display name, body system…"
+        rows={globalRows}
+        isLoading={globalLibLoading}
+        getRowKey={getRowKey}
+        importedKeys={importedKeys}
+        columns={importColumns}
+        searchParts={importSearchParts}
+        isSubmitting={platformImport.isPending || create.isPending}
+        onImportRows={runChiefComplaintImport}
+        libraryPagination={{
+          pageIndex: libPageIndex,
+          pageSize: libPageSize,
+          total: globalLibTotal,
+          onPageChange: setLibPageIndex,
+        }}
+        librarySearchControl={{
+          draft: librarySearchDraft,
+          onDraftChange: setLibrarySearchDraft,
         }}
       />
 
@@ -376,7 +502,9 @@ function ChiefComplaintCreateDialog({
         <div className="space-y-2">
           <Label htmlFor="vp-cc-code">Complaint code *</Label>
           <Input id="vp-cc-code" maxLength={64} {...form.register('code')} />
-          <p className="text-muted-foreground text-xs">Unique, immutable after save (max 64 characters).</p>
+          <p className="text-muted-foreground text-xs">
+            Unique, immutable after save (max 64 characters).
+          </p>
           {form.formState.errors.code ? (
             <p className="text-xs text-destructive">{form.formState.errors.code.message}</p>
           ) : null}
@@ -390,23 +518,37 @@ function ChiefComplaintCreateDialog({
         </div>
         <div className="space-y-2 sm:col-span-2">
           <Label htmlFor="vp-cc-short">Short name</Label>
-          <Input id="vp-cc-short" maxLength={120} placeholder="e.g. CP" {...form.register('short_name')} />
+          <Input
+            id="vp-cc-short"
+            maxLength={120}
+            placeholder="e.g. CP"
+            {...form.register('short_name')}
+          />
           <p className="text-muted-foreground text-xs">
-            Optional short label for lists (max 120 characters). Search uses code, display name, and short name.
+            Optional short label for lists (max 120 characters). Search uses code, display name, and
+            short name.
           </p>
         </div>
         <div className="space-y-2">
           <Label htmlFor="vp-cc-order">Display order</Label>
-          <Input id="vp-cc-order" type="number" {...form.register('display_order', { valueAsNumber: true })} />
+          <Input
+            id="vp-cc-order"
+            type="number"
+            {...form.register('display_order', { valueAsNumber: true })}
+          />
         </div>
         <div className="space-y-2">
           <Label>Body system *</Label>
           <Select
             value={form.watch('body_system')}
             onValueChange={(x) =>
-              form.setValue('body_system', x as VisitpadChiefComplaintCreateFormSchema['body_system'], {
-                shouldValidate: true,
-              })
+              form.setValue(
+                'body_system',
+                x as VisitpadChiefComplaintCreateFormSchema['body_system'],
+                {
+                  shouldValidate: true,
+                },
+              )
             }
           >
             <SelectTrigger id="vp-cc-bs">
@@ -426,9 +568,13 @@ function ChiefComplaintCreateDialog({
           <Select
             value={form.watch('triage_priority')}
             onValueChange={(x) =>
-              form.setValue('triage_priority', x as VisitpadChiefComplaintCreateFormSchema['triage_priority'], {
-                shouldValidate: true,
-              })
+              form.setValue(
+                'triage_priority',
+                x as VisitpadChiefComplaintCreateFormSchema['triage_priority'],
+                {
+                  shouldValidate: true,
+                },
+              )
             }
           >
             <SelectTrigger id="vp-cc-tr">
@@ -445,7 +591,12 @@ function ChiefComplaintCreateDialog({
         </div>
         <div className="space-y-2 sm:col-span-2">
           <Label htmlFor="vp-cc-snomed">SNOMED CT (clinical finding)</Label>
-          <Input id="vp-cc-snomed" maxLength={64} placeholder="Concept ID or text" {...form.register('snomed_code')} />
+          <Input
+            id="vp-cc-snomed"
+            maxLength={64}
+            placeholder="Concept ID or text"
+            {...form.register('snomed_code')}
+          />
         </div>
         <div className="space-y-2 sm:col-span-2">
           <Label htmlFor="vp-cc-syn">Synonyms</Label>
@@ -456,7 +607,9 @@ function ChiefComplaintCreateDialog({
             placeholder="Comma or newline separated (e.g. chest tightness, angina)"
             {...form.register('synonyms_text')}
           />
-          <p className="text-muted-foreground text-xs">Stored as an array on the API (max 50 terms).</p>
+          <p className="text-muted-foreground text-xs">
+            Stored as an array on the API (max 50 terms).
+          </p>
         </div>
         <div className="flex items-center justify-between rounded-md border p-3 sm:col-span-2">
           <div>
@@ -472,7 +625,9 @@ function ChiefComplaintCreateDialog({
         <div className="flex items-center justify-between rounded-md border p-3 sm:col-span-2">
           <div>
             <Label htmlFor="vp-cc-act">Active</Label>
-            <p className="text-muted-foreground text-xs">Inactive items are hidden from triage pickers.</p>
+            <p className="text-muted-foreground text-xs">
+              Inactive items are hidden from triage pickers.
+            </p>
           </div>
           <Switch
             id="vp-cc-act"
@@ -525,7 +680,8 @@ function ChiefComplaintEditDialog({
         display_name: row.display_name,
         short_name: row.short_name ?? '',
         body_system: row.body_system as VisitpadChiefComplaintEditFormSchema['body_system'],
-        triage_priority: row.triage_priority as VisitpadChiefComplaintEditFormSchema['triage_priority'],
+        triage_priority:
+          row.triage_priority as VisitpadChiefComplaintEditFormSchema['triage_priority'],
         snomed_code: row.snomed_code ?? null,
         is_paediatric_relevant: !!row.is_paediatric_relevant,
         display_order: row.display_order,
@@ -585,7 +741,12 @@ function ChiefComplaintEditDialog({
             <Label>Body system</Label>
             <Select
               value={form.watch('body_system')}
-              onValueChange={(x) => form.setValue('body_system', x as VisitpadChiefComplaintEditFormSchema['body_system'])}
+              onValueChange={(x) =>
+                form.setValue(
+                  'body_system',
+                  x as VisitpadChiefComplaintEditFormSchema['body_system'],
+                )
+              }
             >
               <SelectTrigger>
                 <SelectValue />
@@ -604,7 +765,10 @@ function ChiefComplaintEditDialog({
             <Select
               value={form.watch('triage_priority')}
               onValueChange={(x) =>
-                form.setValue('triage_priority', x as VisitpadChiefComplaintEditFormSchema['triage_priority'])
+                form.setValue(
+                  'triage_priority',
+                  x as VisitpadChiefComplaintEditFormSchema['triage_priority'],
+                )
               }
             >
               <SelectTrigger>
@@ -625,11 +789,20 @@ function ChiefComplaintEditDialog({
           </div>
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="vp-ce-syn">Synonyms (one per line or comma-separated)</Label>
-            <Textarea id="vp-ce-syn" rows={4} className="font-mono text-sm" {...form.register('synonyms_text')} />
+            <Textarea
+              id="vp-ce-syn"
+              rows={4}
+              className="font-mono text-sm"
+              {...form.register('synonyms_text')}
+            />
           </div>
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="vp-ce-order">Display order</Label>
-            <Input id="vp-ce-order" type="number" {...form.register('display_order', { valueAsNumber: true })} />
+            <Input
+              id="vp-ce-order"
+              type="number"
+              {...form.register('display_order', { valueAsNumber: true })}
+            />
           </div>
           <div className="flex items-center justify-between rounded-md border p-3 sm:col-span-2">
             <Label htmlFor="vp-ce-paed">Paediatric relevant</Label>

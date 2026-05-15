@@ -66,6 +66,14 @@ class VisitpadAllergenRepository:
             empty_total_stmt=empty_total_stmt,
         )
 
+    def list_import_key_strings(self) -> list[str]:
+        M = self._M()
+        filters = [M.is_deleted.is_(False)]
+        if self._scope.is_tenant:
+            filters.append(M.iq_tenant_id == self._scope.iq_tenant_id)
+        stmt = select(M.code).where(*filters).order_by(M.code)
+        return [str(c) for (c,) in self._session.execute(stmt).all()]
+
     def get_by_id(
         self,
         row_id: UUID,

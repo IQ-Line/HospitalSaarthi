@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Controller, useForm, type SubmitHandler } from 'react-hook-form';
 import { type ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
@@ -16,9 +16,15 @@ import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import {
   useVisitpadDelete,
   useVisitpadManufacturers,
+  useVisitpadManufacturersGlobalLibrary,
   useVisitpadPatch,
+  useVisitpadPlatformImport,
   useVisitpadPost,
+  useVisitpadTenantImportKeys,
+  VISITPAD_CATALOG_DEFAULT_PAGE_SIZE,
+  VISITPAD_CATALOG_PAGE_SIZES,
 } from '@/features/visitpad/api';
+import { ImportFromPlatformCatalogDialog } from '@/features/visitpad/components/import-from-platform-catalog-dialog';
 import { visitpadActionsColumn } from '@/features/visitpad/components/visitpad-actions-column';
 import { VisitpadHeaderActions } from '@/features/visitpad/components/visitpad-header-actions';
 import { VisitpadPageShell } from '@/features/visitpad/components/visitpad-page-shell';
@@ -31,6 +37,9 @@ import {
   type VisitpadManufacturerCreateFormSchema,
   type VisitpadManufacturerEditFormSchema,
 } from '@/features/visitpad/validation';
+import { useVisitpadCatalogPermission } from '@/features/visitpad/hooks/use-visitpad-catalog-permission';
+import { useVisitpadImportLibrarySearch } from '@/features/visitpad/hooks/use-visitpad-import-library-search';
+import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 
 const MF_BASE = '/api/v1/master-data/visitpad/manufacturers';
 
@@ -39,17 +48,74 @@ export const Route = createFileRoute('/_authenticated/visitpad/manufacturers')({
 });
 
 function VisitpadManufacturersPage() {
+  const { canWrite, canRead } = useVisitpadCatalogPermission();
+  const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [libPageIndex, setLibPageIndex] = useState(0);
+  const libPageSize = 50;
+  const { librarySearch, librarySearchDraft, setLibrarySearchDraft } = useVisitpadImportLibrarySearch(
+    importOpen,
+    setLibPageIndex,
+  );
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadManufacturer | null>(null);
   const [deleting, setDeleting] = useState<VisitpadManufacturer | null>(null);
-  const { data, isLoading, error } = useVisitpadManufacturers(search || undefined);
+  const listPage = useMemo(() => ({ pageIndex, pageSize }), [pageIndex, pageSize]);
+  useEffect(() => {
+    setPageIndex(0);
+  }, [search]);
+  const { data, isLoading, error } = useVisitpadManufacturers(search || undefined, listPage);
+  const { data: globalLib, isLoading: globalLibLoading } = useVisitpadManufacturersGlobalLibrary(
+    importOpen,
+    {
+      pageIndex: libPageIndex,
+      pageSize: libPageSize,
+    },
+    librarySearch || undefined,
+  );
   const patch = useVisitpadPatch(MF_BASE);
   const del = useVisitpadDelete(MF_BASE);
   const create = useVisitpadPost(MF_BASE);
+  const platformImport = useVisitpadPlatformImport('/manufacturers/import-from-platform');
+  const { data: tenantKeys } = useVisitpadTenantImportKeys('/manufacturers', importOpen && tenantCatalog);
   const rows = data?.data ?? [];
-  const tabCount = visitpadActiveTotal(rows, data?.total);
-  const busy = patch.isPending || del.isPending;
+  const total = data?.total ?? 0;
+  const tabCount = visitpadActiveTotal(rows, total);
+  const busy = patch.isPending || del.isPending || platformImport.isPending;
+
+  const importedKeys = useMemo(() => tenantKeys ?? new Set<string>(), [tenantKeys]);
+  const globalRows = globalLib?.data ?? [];
+  const globalLibTotal = globalLib?.total ?? 0;
+  const getRowKey = useCallback((r: VisitpadManufacturer) => r.code.toLowerCase(), []);
+
+  const importSearchParts = useCallback(
+    (r: VisitpadManufacturer) => [r.code, r.display_name, r.short_name ?? ''],
+    [],
+  );
+
+  const importColumns = useMemo(
+    () => [{ id: 'name', header: 'Display name', cell: (r: VisitpadManufacturer) => r.display_name }],
+    [],
+  );
+
+  const runManufacturerImport = async (selection: VisitpadManufacturer[]) => {
+    try {
+      const res = await platformImport.mutateAsync(selection.map((r) => r.id));
+      const { created, skipped, errors } = res.data;
+      const parts = [`${created.length} created`, `${skipped.length} skipped`];
+      if (errors.length) parts.push(`${errors.length} failed`);
+      toast.success(parts.join(', '));
+      if (errors.length) {
+        toast.error(errors.map((e) => e.message).join('; '));
+      }
+      setImportOpen(false);
+    } catch (e) {
+      toast.error(mutationErrorMessage(e));
+    }
+  };
 
   const columns = useMemo<ColumnDef<VisitpadManufacturer, unknown>[]>(
     () => [
@@ -69,7 +135,7 @@ function VisitpadManufacturersPage() {
         cell: ({ row }) => (
           <TableActiveToggle
             active={row.original.is_active}
-            disabled={patch.isPending}
+            disabled={patch.isPending || !canWrite}
             onCheckedChange={async (next) => {
               try {
                 await patch.mutateAsync({ id: row.original.id, body: { is_active: next } });
@@ -84,10 +150,10 @@ function VisitpadManufacturersPage() {
       visitpadActionsColumn<VisitpadManufacturer>({
         onEdit: setEditing,
         onDelete: setDeleting,
-        disabled: busy,
+        disabled: busy || !canWrite,
       }),
     ],
-    [patch, busy],
+    [patch, busy, canWrite],
   );
 
   return (
@@ -95,9 +161,20 @@ function VisitpadManufacturersPage() {
       primary="manufacturers"
       tabCount={tabCount}
       title="Manufacturers"
-      description="Manufacturer catalog for Visitpad (vaccine and product makers). Same dual-schema rules as other Visitpad masters."
+      description={
+        tenantCatalog
+          ? 'Tenant manufacturer catalog: import from the platform library or add local-only makers.'
+          : 'Platform manufacturer catalog for Visitpad (vaccine and product makers).'
+      }
       actions={
-        <VisitpadHeaderActions addLabel="Add manufacturer" onAddClick={() => setCreateOpen(true)} />
+        <VisitpadHeaderActions
+          canWrite={canWrite}
+          canRead={canRead}
+          addLabel={tenantCatalog ? 'Add local manufacturer' : 'Add manufacturer'}
+          onAddClick={() => setCreateOpen(true)}
+          onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
+          importFromLibraryPending={platformImport.isPending}
+        />
       }
     >
       <div className="space-y-4">
@@ -116,9 +193,43 @@ function VisitpadManufacturersPage() {
             isLoading={isLoading}
             emptyTitle="No manufacturers found"
             emptyDescription="Adjust your search or add catalog entries."
+            manualPagination={{
+              pageIndex,
+              pageSize,
+              total,
+              pageSizeOptions: VISITPAD_CATALOG_PAGE_SIZES,
+              onPageChange: setPageIndex,
+              onPageSizeChange: setPageSize,
+            }}
           />
         )}
       </div>
+
+      <ImportFromPlatformCatalogDialog<VisitpadManufacturer>
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Import manufacturers from platform library"
+        description="Select manufacturers to add to your tenant catalog. Already-imported codes are disabled."
+        searchPlaceholder="Search code, display name, short name…"
+        rows={globalRows}
+        isLoading={globalLibLoading}
+        getRowKey={getRowKey}
+        importedKeys={importedKeys}
+        columns={importColumns}
+        searchParts={importSearchParts}
+        isSubmitting={platformImport.isPending || create.isPending}
+        onImportRows={runManufacturerImport}
+        libraryPagination={{
+          pageIndex: libPageIndex,
+          pageSize: libPageSize,
+          total: globalLibTotal,
+          onPageChange: setLibPageIndex,
+        }}
+        librarySearchControl={{
+          draft: librarySearchDraft,
+          onDraftChange: setLibrarySearchDraft,
+        }}
+      />
 
       <ManufacturerCreateDialog
         open={createOpen}
