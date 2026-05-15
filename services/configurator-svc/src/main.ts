@@ -10,7 +10,11 @@ import {
   type RunConfiguratorTransaction,
 } from "@hims/configurator";
 
-const PORT = Number(process.env["CONFIGURATOR_SVC_PORT"] ?? 3001);
+const PORT = Number(
+  process.env["CONFIGURATOR_PORT"] ??
+    process.env["CONFIGURATOR_SVC_PORT"] ??
+    3001,
+);
 const DATABASE_URL = process.env["DATABASE_URL"] ?? "";
 
 async function main() {
@@ -37,9 +41,12 @@ async function main() {
       fn({
         organizationRepo: new DrizzleOrganizationRepo(tx as DbInstance),
         tenantRepo: new DrizzleTenantRepo(tx as DbInstance),
+        tenantModuleRepo: new DrizzleTenantModuleRepo(tx as DbInstance),
       }),
     );
 
+  // `tenantPlugin` only under `/api`: org + tenant discovery are bootstrap/admin
+  // routes. EMPI and other patient-facing services keep stricter tenant headers.
   await app.register(async (api) => {
     await api.register(tenantPlugin);
 

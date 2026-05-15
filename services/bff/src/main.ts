@@ -54,7 +54,12 @@ async function main() {
   await app.register(cors, {
     credentials: true,
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'iq_tenant_id'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'iq_tenant_id',
+      'x-tenant-id',
+    ],
     origin: (origin, cb) => {
       if (!isProduction) {
         cb(null, isDevBrowserOrigin(origin));

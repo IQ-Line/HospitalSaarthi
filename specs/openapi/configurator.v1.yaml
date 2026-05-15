@@ -38,7 +38,10 @@ paths:
     post:
       operationId: createOrganization
       summary: Create organization
-      description: Creates the organization and a root default tenant (same name/slug, full_platform, provisioning, shared isolation; cerbos_scope_key is tenant:{organization.id}).
+      description: >
+        Atomically creates the organization, a root default tenant (same name/slug,
+        full_platform, provisioning, shared isolation; cerbos_scope_key is tenant:{organization.id}),
+        and optional tenant_modules rows for that default tenant when `tenant_modules` is supplied.
       tags:
         - Organizations
       requestBody:
@@ -150,6 +153,20 @@ paths:
             type: string
             format: uuid
           description: Filter tenants by parent organization.
+        - name: parent_tenant_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Only tenants with this parent tenant (e.g. branches under the root tenant).
+        - name: is_root
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: ["true", "1", "false", "0"]
+          description: When `true` or `1`, only tenants with no parent (organization root tenants).
         - name: provisioning_status
           in: query
           required: false
@@ -474,6 +491,12 @@ components:
         - full_platform
         - fragmented
         - lite
+    BranchType:
+      type: string
+      enum:
+        - hub_lab
+        - hub
+        - satellite
     ProvisioningStatus:
       type: string
       enum:
@@ -491,11 +514,17 @@ components:
       required:
         - organization
         - default_tenant
+        - tenant_modules
       properties:
         organization:
           $ref: "#/components/schemas/Organization"
         default_tenant:
           $ref: "#/components/schemas/Tenant"
+        tenant_modules:
+          type: array
+          description: Tenant module rows created for the default tenant (empty if none requested).
+          items:
+            $ref: "#/components/schemas/TenantModule"
     OrganizationCreateRequest:
       type: object
       required:
@@ -508,7 +537,8 @@ components:
           minLength: 1
         slug:
           type: string
-          minLength: 1
+          minLength: 3
+          description: URL-safe identifier; minimum 3 characters.
         type:
           $ref: "#/components/schemas/OrganizationType"
         status:
@@ -521,6 +551,28 @@ components:
           type: string
         metadata:
           type: object
+          description: >
+            Optional structured fields (e.g. gstin, pan, website, address_detail,
+            provisioning with plan_slug, module_override_ids, trial_end_date, limits).
+            Persisted as JSON; schema may evolve before dedicated columns exist.
+        tenant_modules:
+          type: array
+          description: >
+            Modules to attach to the new default tenant: one tenant_modules row per item (typically
+            only user-selected modules). Each row uses the given is_active flag. Omitted or empty skips
+            module inserts. Applied in the same database transaction as the organization and tenant.
+          maxItems: 2000
+          items:
+            type: object
+            required:
+              - module_id
+              - is_active
+            properties:
+              module_id:
+                type: string
+                format: uuid
+              is_active:
+                type: boolean
     OrganizationPatchRequest:
       type: object
       properties:
@@ -529,7 +581,7 @@ components:
           minLength: 1
         slug:
           type: string
-          minLength: 1
+          minLength: 3
         type:
           $ref: "#/components/schemas/OrganizationType"
         status:
@@ -590,6 +642,30 @@ components:
           type:
             - object
             - "null"
+        branch_code:
+          type: string
+          nullable: true
+        branch_type:
+          $ref: "#/components/schemas/BranchType"
+          nullable: true
+        address_line1:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        state:
+          type: string
+          nullable: true
+        pin_code:
+          type: string
+          nullable: true
+        contact_phone:
+          type: string
+          nullable: true
+        contact_email:
+          type: string
+          nullable: true
     TenantPatchRequest:
       type: object
       properties:
@@ -624,6 +700,20 @@ components:
           type:
             - object
             - "null"
+        branch_type:
+          $ref: "#/components/schemas/BranchType"
+        address_line1:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        pin_code:
+          type: string
+        contact_phone:
+          type: string
+        contact_email:
+          type: string
     Organization:
       type: object
       required:
@@ -741,6 +831,30 @@ components:
             - en-IN
         metadata:
           type: object
+          nullable: true
+        branch_code:
+          type: string
+          nullable: true
+        branch_type:
+          $ref: "#/components/schemas/BranchType"
+          nullable: true
+        address_line1:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        state:
+          type: string
+          nullable: true
+        pin_code:
+          type: string
+          nullable: true
+        contact_phone:
+          type: string
+          nullable: true
+        contact_email:
+          type: string
           nullable: true
         created_at:
           type: string

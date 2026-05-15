@@ -10,11 +10,15 @@ import type {
 
 const BASE = '/api/v1/master-data/system-roles';
 
-export function useSystemRoles(isTemplate?: boolean) {
+export function useSystemRoles(
+  isTemplate?: boolean,
+  options?: { enabled?: boolean },
+) {
   const params = isTemplate === undefined ? '' : `?is_template=${isTemplate}`;
   return useQuery({
     queryKey: masterDataKeys.systemRoles(isTemplate),
     queryFn: () => apiClient<SystemRoleListResponse>(`${BASE}${params}`),
+    enabled: options?.enabled ?? true,
   });
 }
 

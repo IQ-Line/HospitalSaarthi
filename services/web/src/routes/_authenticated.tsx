@@ -115,6 +115,7 @@ function AuthenticatedLayout() {
         displayName={displayName}
         tenantName={tenantName}
         hasMasterDataAccess={hasModuleAccess('master-data')}
+        hasConfiguratorAccess={hasModuleAccess('configurator')}
         hasUserManagementAccess={hasModuleAccess('user-management')}
         hasFrontdeskAccess={
           hasModuleAccess('frontdesk') || hasModuleAccess('master-data')
