@@ -1,5 +1,6 @@
 import type { DbInstance } from "@hims/ts-sdk-db";
-import { UnexpectedPersistenceError } from "../domain/errors.js";
+import { DuplicateUsernameError, UnexpectedPersistenceError } from "../domain/errors.js";
+import { isPostgresUniqueViolation } from "./postgres-errors.js";
 import type { UserReadListResourceAbac } from "../domain/user-read-list-resource-filter.js";
 import { clampClearanceTierRequired } from "../domain/um-clearance-tier.js";
 import { and, eq, gt, isNull, lte, or, sql } from "drizzle-orm";
@@ -76,27 +77,34 @@ export class DrizzleUserRepository implements UserRepository {
   constructor(private readonly db: DbInstance) {}
 
   async createUser(tenantId: string, input: CreateUserInput): Promise<User> {
-    const [row] = await this.db
-      .insert(users)
-      .values({
-        iq_tenant_id: tenantId,
-        full_name: input.full_name,
-        email: input.email ?? null,
-        phone: input.phone ?? null,
-        username: input.username ?? null,
-        org_id: input.org_id ?? null,
-        department: input.department ?? null,
-        clearance_tier_required:
-          input.clearance_tier_required !== undefined
-            ? clampClearanceTierRequired(input.clearance_tier_required)
-            : 0,
-      })
-      .returning(userColumns);
+    try {
+      const [row] = await this.db
+        .insert(users)
+        .values({
+          iq_tenant_id: tenantId,
+          full_name: input.full_name,
+          email: input.email ?? null,
+          phone: input.phone ?? null,
+          username: input.username ?? null,
+          org_id: input.org_id ?? null,
+          department: input.department ?? null,
+          clearance_tier_required:
+            input.clearance_tier_required !== undefined
+              ? clampClearanceTierRequired(input.clearance_tier_required)
+              : 0,
+        })
+        .returning(userColumns);
 
-    if (!row) {
-      throw new UnexpectedPersistenceError();
+      if (!row) {
+        throw new UnexpectedPersistenceError();
+      }
+      return rowToUser(row);
+    } catch (error) {
+      if (isPostgresUniqueViolation(error)) {
+        throw new DuplicateUsernameError(input.username ?? undefined);
+      }
+      throw error;
     }
-    return rowToUser(row);
   }
 
   async getUserById(tenantId: string, userId: string): Promise<User | null> {

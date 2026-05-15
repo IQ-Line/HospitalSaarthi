@@ -142,6 +142,11 @@ export async function createUser(
     email,
   });
 
+  const grantActorId =
+    (await deps.userRepository.getUserById(ctx.tenantId, ctx.actorId)) !== null
+      ? ctx.actorId
+      : null;
+
   const authAccount = await deps.authAccountProvisioner.createPasswordAccount({
     platformUserId: user.id,
     tenantId: ctx.tenantId,
@@ -161,7 +166,7 @@ export async function createUser(
     await deps.userAccessRepository.replaceManualCapabilityGrants(ctx.tenantId, {
       userId: linkedUser.id,
       capabilityIds,
-      actorId: ctx.actorId,
+      actorId: grantActorId,
     });
   }
 
@@ -174,7 +179,7 @@ export async function createUser(
         userAccessRepository: deps.userAccessRepository,
         principalRoleProjectionRepository: deps.principalRoleProjectionRepository,
       },
-      ctx,
+      { ...ctx, actorId: grantActorId },
       {
         user_id: linkedUser.id,
         role_id: roleId,

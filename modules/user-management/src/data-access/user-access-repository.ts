@@ -5,7 +5,12 @@ import type {
   UserAccessRepository,
   UserCapabilityGrant,
 } from "../ports/index.js";
-import { DuplicateUserRoleTemplateError, UnexpectedPersistenceError } from "../domain/errors.js";
+import {
+  DuplicateUserRoleTemplateError,
+  UnexpectedPersistenceError,
+  UserNotFoundError,
+} from "../domain/errors.js";
+import { isPostgresForeignKeyViolation } from "./postgres-errors.js";
 import { capabilities, roles, user_capabilities, user_roles } from "../schema/tables.js";
 
 function asIsoString(value: Date): string {
@@ -180,7 +185,7 @@ export class DrizzleUserAccessRepository implements UserAccessRepository {
                 grant_source: "role_template",
                 source_role_id: input.roleId,
                 granted_by_user_id: input.actorId,
-                granted_at,
+                granted_at: grantedAt,
                 revoked_at: null,
                 revoked_by_user_id: null,
               },
@@ -201,6 +206,9 @@ export class DrizzleUserAccessRepository implements UserAccessRepository {
         (error as { code: unknown }).code === "23505"
       ) {
         throw new DuplicateUserRoleTemplateError();
+      }
+      if (isPostgresForeignKeyViolation(error)) {
+        throw new UserNotFoundError(input.actorId ?? undefined);
       }
       throw error;
     }
@@ -369,7 +377,7 @@ export class DrizzleUserAccessRepository implements UserAccessRepository {
               grant_source: "manual",
               source_role_id: null,
               granted_by_user_id: input.actorId,
-              granted_at,
+              granted_at: grantedAt,
               revoked_at: null,
               revoked_by_user_id: null,
             },

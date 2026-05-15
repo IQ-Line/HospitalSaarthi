@@ -25,7 +25,7 @@ export type ApplyRoleTemplateDeps = {
 
 export type ApplyRoleTemplateContext = {
   tenantId: string;
-  actorId: string;
+  actorId: string | null;
   correlationId: string;
 };
 
@@ -62,6 +62,9 @@ export async function applyRoleTemplate(
   let capabilityIdsToApply: string[];
   if (input.role_template_capability_ids !== undefined) {
     const unique = [...new Set(input.role_template_capability_ids.map((id) => id.trim()))];
+    if (unique.length === 0) {
+      throw new ValidationError("apply_role_template_capability_ids_empty");
+    }
     for (const capabilityId of unique) {
       if (!UUID_RE.test(capabilityId)) {
         throw new ValidationError("apply_role_template_capability_ids_invalid");

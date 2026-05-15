@@ -14,6 +14,7 @@ export type ValidationIssue =
   | "create_user_role_template_capability_ids_requires_single_role"
   | "apply_role_template_ids_invalid"
   | "apply_role_template_capability_not_on_role"
+  | "apply_role_template_capability_ids_empty"
   | "apply_role_template_capability_ids_invalid"
   | "detach_role_template_query_invalid"
   | "replace_user_capabilities_invalid"
@@ -80,6 +81,10 @@ const VALIDATION_ISSUE_META: Record<ValidationIssue, { code: string; message: st
   apply_role_template_capability_not_on_role: {
     code: "INVALID_INPUT",
     message: "Each capability id must belong to the role template being applied.",
+  },
+  apply_role_template_capability_ids_empty: {
+    code: "INVALID_INPUT",
+    message: "role_template_capability_ids must not be an empty array.",
   },
   apply_role_template_capability_ids_invalid: {
     code: "INVALID_INPUT",
@@ -196,6 +201,31 @@ export class DuplicateUserRoleTemplateError extends UserManagementError {
 export class AuthEmailConflictError extends UserManagementError {
   constructor(public readonly email?: string) {
     super("AUTH_EMAIL_CONFLICT", "A login account with this email already exists.");
+  }
+}
+
+export class AuthAccountProvisioningError extends UserManagementError {
+  constructor(options?: Readonly<{ cause?: unknown }>) {
+    super(
+      "AUTH_ACCOUNT_PROVISIONING_FAILED",
+      "Login account could not be provisioned after the platform user was created.",
+      options ?? {},
+    );
+  }
+}
+
+export class AuthAccountIdentityMismatchError extends UserManagementError {
+  constructor() {
+    super(
+      "AUTH_ACCOUNT_IDENTITY_MISMATCH",
+      "Auth account id does not match the platform user id.",
+    );
+  }
+}
+
+export class DuplicateUsernameError extends UserManagementError {
+  constructor(public readonly username?: string) {
+    super("USERNAME_CONFLICT", "A user with this username already exists for this tenant.");
   }
 }
 

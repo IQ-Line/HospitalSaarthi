@@ -31,8 +31,12 @@ describe("createUserManagementAuthzTargetResolver", () => {
     expect(getUserProfile).not.toHaveBeenCalled();
   });
 
-  it("maps GET /users/:id/roles to role.read without loading a user profile", async () => {
-    const getUserProfile = vi.fn().mockResolvedValue(null);
+  it("maps GET /users/:id/roles to user.read on the target user", async () => {
+    const getUserProfile = vi.fn().mockResolvedValue({
+      org_id: null,
+      department: "admin",
+      clearance_tier_required: 0,
+    });
     const resolver = createUserManagementAuthzTargetResolver({ getUserProfile });
 
     const target = await resolver({
@@ -48,11 +52,40 @@ describe("createUserManagementAuthzTargetResolver", () => {
     } as never);
 
     expect(target).toEqual({
-      kind: "role",
-      id: "user-roles:f47ac10b-58cc-4372-a567-0e02b2c3d611",
-      action: "role.read",
+      kind: "user",
+      id: "f47ac10b-58cc-4372-a567-0e02b2c3d611",
+      action: "user.read",
       attr: {
         iq_tenant_id: "tenant-a",
+        department: "admin",
+        required_clearance: 0,
+        org_id: null,
+      },
+    });
+    expect(getUserProfile).toHaveBeenCalledWith("tenant-a", "f47ac10b-58cc-4372-a567-0e02b2c3d611");
+  });
+
+  it("maps GET /auth/principal to auth.read (tenant-only; no um:user:read)", async () => {
+    const getUserProfile = vi.fn();
+    const resolver = createUserManagementAuthzTargetResolver({ getUserProfile });
+
+    const target = await resolver({
+      method: "GET",
+      url: "/api/user-management/auth/principal",
+      routeOptions: { url: "/api/user-management/auth/principal" },
+      user: {
+        userId: "c26740ca-acb9-49be-aeb3-81812f80252d",
+        tenantId: "f47ac10b-58cc-4372-a567-0e02b2c3d480",
+        department: null,
+      },
+    } as never);
+
+    expect(target).toEqual({
+      kind: "auth",
+      id: "self",
+      action: "auth.read",
+      attr: {
+        iq_tenant_id: "f47ac10b-58cc-4372-a567-0e02b2c3d480",
         department: null,
         required_clearance: 0,
       },

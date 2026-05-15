@@ -50,7 +50,10 @@ export {
   UM_USER_UPDATE,
 } from "./domain/user-management-capabilities.js";
 export {
+  AuthAccountIdentityMismatchError,
+  AuthAccountProvisioningError,
   AuthEmailConflictError,
+  DuplicateUsernameError,
   CerbosPrincipalUnavailableError,
   DuplicateRoleAssignmentError,
   DuplicateUserRoleTemplateError,

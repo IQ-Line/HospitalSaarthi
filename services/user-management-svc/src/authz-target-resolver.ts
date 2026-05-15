@@ -126,7 +126,12 @@ export function createUserManagementAuthzTargetResolver(
     if (method === "GET" && path === "/users/:id/roles") {
       const id = resolvePathParam(request);
       if (id === null) return null;
-      return { kind: "role", id: `user-roles:${id}`, action: "role.read", attr: tenantAttr(request) };
+      return {
+        kind: "user",
+        id,
+        action: "user.read",
+        attr: await userResourceAttr(deps, request, id),
+      };
     }
 
     if (method === "POST" && path === "/users/:id/roles") {
@@ -145,17 +150,22 @@ export function createUserManagementAuthzTargetResolver(
     if (method === "GET" && path === "/users/:id/capabilities") {
       const id = resolvePathParam(request);
       if (id === null) return null;
-      return { kind: "capability", id: `user-capabilities:${id}`, action: "capability.read", attr: tenantAttr(request) };
+      return {
+        kind: "user",
+        id,
+        action: "user.read",
+        attr: await userResourceAttr(deps, request, id),
+      };
     }
 
     if (method === "GET" && path === "/users/:id/effective-capabilities") {
       const id = resolvePathParam(request);
       if (id === null) return null;
       return {
-        kind: "capability",
-        id: `effective-user-capabilities:${id}`,
-        action: "capability.read",
-        attr: tenantAttr(request),
+        kind: "user",
+        id,
+        action: "user.read",
+        attr: await userResourceAttr(deps, request, id),
       };
     }
 
@@ -206,10 +216,17 @@ export function createUserManagementAuthzTargetResolver(
       (path === "/auth/me" || path === "/auth/principal" || path === "/auth/permissions-map")
     ) {
       return {
-        kind: "user",
-        id: request.user.userId,
-        action: "user.read",
-        attr: await userResourceAttr(deps, request, request.user.userId),
+        // `/auth/*` endpoints are UX/shell support endpoints:
+        // - `/auth/principal` returns the PDP-enriched principal snapshot
+        // - `/auth/permissions-map` returns a derived set of UX booleans
+        //
+        // They must not require `um:user:read`, otherwise a role-admin who can
+        // manage roles but lacks user.read would be unable to fetch the permissions-map
+        // that gates access to the UI.
+        kind: "auth",
+        id: "self",
+        action: "auth.read",
+        attr: tenantAttr(request),
       };
     }
 

@@ -31,6 +31,8 @@ import { UserManagementSectionCard } from './user-management-section-card';
 type UserAccessPanelProps = {
   userId: string;
   sessionUserId: string | null;
+  /** View assigned roles and capability grants on the user profile (needs `users.read`). */
+  canViewUserAccess: boolean;
   canReadRoleTemplates: boolean;
   canReadCapabilities: boolean;
   canManageAccess: boolean;
@@ -97,11 +99,12 @@ function CapabilityGrantList({
 export function UserAccessPanel({
   userId,
   sessionUserId,
+  canViewUserAccess,
   canReadRoleTemplates,
   canReadCapabilities,
   canManageAccess,
 }: UserAccessPanelProps) {
-  if (!canReadRoleTemplates && !canReadCapabilities) {
+  if (!canViewUserAccess) {
     return null;
   }
 
@@ -109,6 +112,7 @@ export function UserAccessPanel({
     <UserAccessPanelContent
       userId={userId}
       sessionUserId={sessionUserId}
+      canViewUserAccess={canViewUserAccess}
       canReadRoleTemplates={canReadRoleTemplates}
       canReadCapabilities={canReadCapabilities}
       canManageAccess={canManageAccess}
@@ -121,6 +125,7 @@ type UserAccessPanelContentProps = UserAccessPanelProps;
 function UserAccessPanelContent({
   userId,
   sessionUserId,
+  canViewUserAccess,
   canReadRoleTemplates,
   canReadCapabilities,
   canManageAccess,
@@ -135,11 +140,8 @@ function UserAccessPanelContent({
     enabled: canReadCapabilities,
     staleTime: 30_000,
   });
-  const capabilitiesSnapshotQuery = useUserCapabilities(
-    userId,
-    canReadRoleTemplates || canReadCapabilities,
-  );
-  const effectiveCapabilitiesQuery = useUserEffectiveCapabilities(userId, canReadCapabilities);
+  const capabilitiesSnapshotQuery = useUserCapabilities(userId, canViewUserAccess);
+  const effectiveCapabilitiesQuery = useUserEffectiveCapabilities(userId, canViewUserAccess);
 
   const replaceCapabilities = useReplaceUserCapabilities(userId);
   const applyRoleTemplate = useApplyRoleTemplate(userId);
@@ -229,10 +231,10 @@ function UserAccessPanelContent({
   };
 
   let roleTemplateContent: ReactNode = null;
-  if (canReadRoleTemplates) {
-    if (roleTemplatesQuery.isPending || capabilitiesSnapshotQuery.isPending) {
+  if (canViewUserAccess) {
+    if (capabilitiesSnapshotQuery.isPending) {
       roleTemplateContent = <p className="text-sm text-muted-foreground">Loading applied templates...</p>;
-    } else if (roleTemplatesQuery.isError || capabilitiesSnapshotQuery.isError) {
+    } else if (capabilitiesSnapshotQuery.isError) {
       roleTemplateContent = <p className="text-sm text-destructive">Unable to load applied templates right now.</p>;
     } else {
       const appliedTemplates = capabilitiesSnapshotQuery.data?.role_templates ?? [];
@@ -277,7 +279,7 @@ function UserAccessPanelContent({
             </div>
           )}
 
-          {canManageAccess ? (
+          {canManageAccess && canReadRoleTemplates ? (
             <div className="max-w-md space-y-2">
               <Label htmlFor="apply-role-template">Apply another template</Label>
               <div className="flex gap-2">
@@ -285,7 +287,7 @@ function UserAccessPanelContent({
                   <SelectTrigger
                     id="apply-role-template"
                     className="flex-1"
-                    disabled={availableRoleTemplates.length === 0}
+                    disabled={availableRoleTemplates.length === 0 || roleTemplatesQuery.isPending}
                   >
                     <SelectValue
                       placeholder={
@@ -381,14 +383,14 @@ function UserAccessPanelContent({
         ) : null}
         {roleTemplateContent}
         {directCapabilitiesContent}
-        {canReadCapabilities ? (
+        {canViewUserAccess ? (
           <CapabilityGrantList
             title="Copied capabilities"
             description="Capabilities copied from applied templates. These are persisted grants, not runtime inheritance."
             grants={copiedGrants}
           />
         ) : null}
-        {canReadCapabilities ? (
+        {canViewUserAccess ? (
           <div className="space-y-3 rounded-lg border p-4">
             <div className="space-y-1">
               <p className="text-sm font-medium">Effective capabilities</p>
@@ -429,7 +431,7 @@ function UserAccessPanelContent({
             )}
           </div>
         ) : null}
-        {canReadCapabilities ? (
+        {canViewUserAccess ? (
           <CapabilityGrantList
             title="Persisted direct grants"
             description="This includes direct manual grants currently stored for the user."
