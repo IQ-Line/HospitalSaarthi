@@ -1,4 +1,4 @@
-import { catalogIqTenantHeaderValue } from '@/lib/catalog-tenant';
+import { catalogIqTenantHeaderValue, serviceIqTenantHeaderValue } from '@/lib/catalog-tenant';
 import { useAuthStore } from '@/stores/auth.store';
 import { useTenantStore } from '@/stores/tenant.store';
 
@@ -6,6 +6,18 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
 const VISITPAD_CATALOG_API_PREFIX = '/api/v1/master-data/visitpad/';
 const EMPI_API_PREFIX = '/api/empi/v1/';
+const REGISTRATION_API_PREFIX = '/api/registration/v1/';
+
+function isRegistrationApiPath(path: string): boolean {
+  return (
+    path.startsWith(REGISTRATION_API_PREFIX) || path.includes('/api/registration/v1/')
+  );
+}
+
+function resolveRequestUrl(path: string): string {
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  return `${BASE_URL}${path}`;
+}
 
 function isWriteHttpMethod(method: string | undefined): boolean {
   const m = (method ?? 'GET').toUpperCase();
@@ -26,14 +38,12 @@ export async function apiClient<T>(path: string, options: RequestInit = {}): Pro
   if (catalogTenant) {
     headers.set('iq_tenant_id', catalogTenant);
   }
-  /** EMPI requires `iq_tenant_id` or `x-tenant-id` (non-UUID dev slugs are fine). */
+  /** EMPI and Registration require `iq_tenant_id` (or `x-tenant-id`). */
   if (
-    path.startsWith(EMPI_API_PREFIX) &&
-    tenantId != null &&
-    tenantId.trim() !== '' &&
+    (path.startsWith(EMPI_API_PREFIX) || isRegistrationApiPath(path)) &&
     !headers.has('iq_tenant_id')
   ) {
-    headers.set('iq_tenant_id', tenantId.trim());
+    headers.set('iq_tenant_id', serviceIqTenantHeaderValue(tenantId));
   }
 
   if (
@@ -48,7 +58,7 @@ export async function apiClient<T>(path: string, options: RequestInit = {}): Pro
     );
   }
 
-  const response = await fetch(`${BASE_URL}${path}`, {
+  const response = await fetch(resolveRequestUrl(path), {
     ...options,
     headers,
   });
@@ -77,7 +87,7 @@ export async function apiClientGlobalCatalogRead<T>(
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  const response = await fetch(`${BASE_URL}${path}`, {
+  const response = await fetch(resolveRequestUrl(path), {
     ...options,
     headers,
   });

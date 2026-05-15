@@ -114,3 +114,16 @@ export function mapVisitRegistrationToEmpiCreatePatient(
 
   return body;
 }
+
+/**
+ * Maps visit registration form values to registration `POST .../workflows/new-patient/registrations`
+ * body (`patient` uses the same shape as EMPI create patient).
+ */
+export function mapVisitRegistrationToNewPatientIntakeBody(
+  data: CreateVisitRequestBody,
+): Record<string, unknown> {
+  return {
+    patient: mapVisitRegistrationToEmpiCreatePatient(data),
+    registration_status: 'pending',
+  };
+}

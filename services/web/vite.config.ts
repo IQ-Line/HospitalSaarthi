@@ -14,6 +14,14 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
+      /**
+       * Must use a RegExp context so this wins over the generic `/api` proxy (both match the same URL;
+       * `for...in` order is not a safe tie-breaker across environments).
+       */
+      '^/api/registration/v1': {
+        target: process.env.REGISTRATION_PROXY_TARGET ?? 'http://localhost:3006',
+        changeOrigin: true,
+      },
       '/api': {
         target: 'http://localhost:3000',
         changeOrigin: true,

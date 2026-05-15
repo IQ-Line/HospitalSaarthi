@@ -1,15 +1,16 @@
 import {
+  ArrowLeft,
   Building2,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   ClipboardList,
   Printer,
-  Users,
 } from 'lucide-react';
 import { useEffect, useState, type ChangeEvent } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useForm, useWatch, type SubmitHandler, type UseFormRegister } from 'react-hook-form';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Button } from '@pulse/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@pulse/ui/card';
@@ -23,12 +24,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@pulse/ui/select';
-import { registerPatientThroughBff } from '@/features/frontdesk/api/register-patient';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@pulse/ui/table';
+import { createNewPatientRegistration, listRegistrations } from '@/features/frontdesk/api/registrations';
 import type { CreateVisitRequestBody } from '@/features/frontdesk/types';
 import {
   ageYmdSinceBirth,
   EMPI_BLOOD_GROUP_OPTIONS,
-  mapVisitRegistrationToEmpiCreatePatient,
+  mapVisitRegistrationToNewPatientIntakeBody,
   parseDateOnly,
   startOfLocalDay,
 } from '@/features/frontdesk/utils/visit-registration-helpers';
@@ -61,6 +70,42 @@ function VisitRegistrationRoute() {
   const [showExtendedPatient, setShowExtendedPatient] = useState(false);
   const [openAdditional, setOpenAdditional] = useState(false);
   const [openVisitDetails, setOpenVisitDetails] = useState(false);
+  const [phase, setPhase] = useState<'list' | 'form'>('list');
+  const [draftUhid, setDraftUhid] = useState('');
+  const [draftMobile, setDraftMobile] = useState('');
+  const [draftName, setDraftName] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState({ uhid: '', mobile: '', name: '' });
+  const [listPage, setListPage] = useState(1);
+  const queryClient = useQueryClient();
+
+  const listQuery = useQuery({
+    queryKey: [
+      'registrations',
+      'list',
+      listPage,
+      appliedSearch.uhid,
+      appliedSearch.mobile,
+      appliedSearch.name,
+    ],
+    queryFn: () =>
+      listRegistrations({
+        page: listPage,
+        limit: 10,
+        uhid: appliedSearch.uhid || undefined,
+        mobile: appliedSearch.mobile || undefined,
+        name: appliedSearch.name || undefined,
+      }),
+    enabled: phase === 'list',
+  });
+
+  const applyListFilters = () => {
+    setAppliedSearch({
+      uhid: draftUhid.trim(),
+      mobile: draftMobile.trim(),
+      name: draftName.trim(),
+    });
+    setListPage(1);
+  };
 
   const form = useForm<FormValues>({
     defaultValues: {
@@ -146,9 +191,15 @@ function VisitRegistrationRoute() {
 
   const mutation = useMutation({
     mutationFn: (data: CreateVisitRequestBody) =>
-      registerPatientThroughBff(mapVisitRegistrationToEmpiCreatePatient(data)),
+      createNewPatientRegistration(mapVisitRegistrationToNewPatientIntakeBody(data)),
     onSuccess: (res) => {
-      toast.success(`Patient registered — UHID ${res.uhid}`);
+      void queryClient.invalidateQueries({ queryKey: ['registrations', 'list'] });
+      if (res.patient_uhid) {
+        toast.success(`Registration saved — UHID ${res.patient_uhid}`);
+      } else {
+        toast.success('Registration saved.');
+      }
+      setPhase('list');
     },
     onError: (err) => {
       toast.error(mutationErrorMessage(err));
@@ -171,34 +222,178 @@ function VisitRegistrationRoute() {
         <div className="flex-1 p-6 space-y-6 border-r border-border">
           <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <h1 className="text-2xl font-semibold tracking-tight">Visit Registration</h1>
+              <h1 className="text-2xl font-semibold tracking-tight">
+                {phase === 'list' ? 'Visit registrations' : 'New visit registration'}
+              </h1>
               <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
                 <Building2 className="size-4 shrink-0" />
                 {branchLabel}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              {phase === 'form' ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1"
+                  onClick={() => setPhase('list')}
+                >
+                  <ArrowLeft className="size-4 shrink-0" />
+                  Back to list
+                </Button>
+              ) : null}
               <Button type="button" variant="outline" size="sm" disabled>
                 Customize sections
               </Button>
               <Button type="button" variant="outline" size="sm" disabled>
                 Patient Queue
               </Button>
-              <Button type="button" size="sm" disabled>
-                + New Patient
-              </Button>
+              {phase === 'list' ? (
+                <Button type="button" size="sm" onClick={() => setPhase('form')}>
+                  + New registration
+                </Button>
+              ) : null}
             </div>
           </header>
 
-          <div className="relative">
-            <Input
-              className="h-11 pl-10"
-              placeholder="Search by name, MRN, UHID, or phone"
-              disabled
-            />
-            <Users className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          </div>
+          {phase === 'list' ? (
+            <div className="space-y-4 rounded-lg border border-border bg-card p-4 md:p-5 shadow-sm">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Patient search (UHID / mobile / name)
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Name search requires at least two characters (EMPI). Results are encounter registrations
+                for matching patients, newest first.
+              </p>
+              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4 lg:items-end">
+                <div className="space-y-2">
+                  <Label htmlFor="reg-list-uhid">UHID</Label>
+                  <Input
+                    id="reg-list-uhid"
+                    value={draftUhid}
+                    onChange={(e) => setDraftUhid(e.target.value)}
+                    placeholder="Exact UHID"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reg-list-mobile">Mobile</Label>
+                  <Input
+                    id="reg-list-mobile"
+                    value={draftMobile}
+                    onChange={(e) => setDraftMobile(e.target.value)}
+                    placeholder="As stored in EMPI"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reg-list-name">Name</Label>
+                  <Input
+                    id="reg-list-name"
+                    value={draftName}
+                    onChange={(e) => setDraftName(e.target.value)}
+                    placeholder="Min. 2 characters when used"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button type="button" variant="secondary" className="w-full lg:w-auto" onClick={applyListFilters}>
+                    Apply filters
+                  </Button>
+                </div>
+              </div>
 
+              {listQuery.isError ? (
+                <p className="text-sm text-destructive" role="alert">
+                  {mutationErrorMessage(listQuery.error)}
+                </p>
+              ) : null}
+
+              {listQuery.isFetching ? (
+                <p className="text-sm text-muted-foreground">Loading registrations…</p>
+              ) : null}
+
+              {!listQuery.isFetching && listQuery.data ? (
+                <>
+                  <div className="rounded-md border border-border overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Registered</TableHead>
+                          <TableHead>UHID</TableHead>
+                          <TableHead>Patient</TableHead>
+                          <TableHead>Phone</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Visit type</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {listQuery.data.data.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={6} className="text-center text-muted-foreground">
+                              No registrations match these filters.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          listQuery.data.data.map((row) => (
+                            <TableRow key={row.registration_id}>
+                              <TableCell className="whitespace-nowrap tabular-nums text-muted-foreground">
+                                {new Date(row.created_at).toLocaleString()}
+                              </TableCell>
+                              <TableCell className="font-medium tabular-nums">
+                                {row.patient_uhid ?? '—'}
+                              </TableCell>
+                              <TableCell>{row.patient_full_name ?? '—'}</TableCell>
+                              <TableCell className="tabular-nums">{row.patient_phone_number ?? '—'}</TableCell>
+                              <TableCell>{row.registration_status}</TableCell>
+                              <TableCell>{row.visit_type ?? '—'}</TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                    <span className="text-muted-foreground">
+                      Page {listQuery.data.page} of {Math.max(1, listQuery.data.total_pages)} —{' '}
+                      {listQuery.data.total} total
+                    </span>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={listPage <= 1 || listQuery.isFetching}
+                        onClick={() => setListPage((p) => Math.max(1, p - 1))}
+                        className="gap-1"
+                      >
+                        <ChevronLeft className="size-4" />
+                        Previous
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={
+                          listQuery.data.total_pages === 0 ||
+                          listPage >= listQuery.data.total_pages ||
+                          listQuery.isFetching
+                        }
+                        onClick={() => setListPage((p) => p + 1)}
+                        className="gap-1"
+                      >
+                        Next
+                        <ChevronRight className="size-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+
+          {phase === 'form' ? (
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             <section className="rounded-lg border border-border bg-card p-4 md:p-5 space-y-4 shadow-sm">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
@@ -515,7 +710,7 @@ function VisitRegistrationRoute() {
                   Clear
                 </Button>
                 <Button type="submit" disabled={mutation.isPending}>
-                  {mutation.isPending ? 'Creating…' : 'Create Visit'}
+                  {mutation.isPending ? 'Saving…' : 'Create registration'}
                 </Button>
                 <Button type="button" variant="secondary" disabled>
                   Save &amp; Print Labels
@@ -523,6 +718,7 @@ function VisitRegistrationRoute() {
               </div>
             </footer>
           </form>
+          ) : null}
         </div>
 
         <aside className="w-full lg:w-72 shrink-0 p-6 bg-muted/30 border-t lg:border-t-0 lg:border-l border-border">

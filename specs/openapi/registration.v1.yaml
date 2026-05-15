@@ -31,11 +31,63 @@ tags:
       demographic edits and for search before existing-patient intake.
 
 servers:
-  - url: http://localhost:3004/api/registration/v1
-    description: Local registration-svc
+  - url: http://localhost:3006/api/registration/v1
+    description: Local registration-svc (REGISTRATION_SVC_PORT; default 3006 to avoid collision with frontdesk-svc on 3004)
 
 paths:
   /registrations:
+    get:
+      operationId: listRegistrations
+      summary: List encounter registrations (paginated)
+      description: |
+        Returns tenant-scoped registration rows newest first. Optional **patient search** filters
+        rows to registrations whose `patient_id` appears in an EMPI search for the same tenant
+        (`uhid` exact, `mobile` exact on phone fields, `name` substring with EMPI’s ≥2 character rule).
+
+        Defaults: `page=1`, `limit=10` (max `limit` 100).
+      tags: [EncounterRegistrations]
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: uhid
+          in: query
+          schema:
+            type: string
+          description: Exact UHID (delegates to EMPI patient search).
+        - name: mobile
+          in: query
+          schema:
+            type: string
+          description: Exact phone/mobile (delegates to EMPI `phone` search).
+        - name: name
+          in: query
+          schema:
+            type: string
+            minLength: 2
+          description: Substring on patient full name (EMPI rule — minimum 2 characters when used).
+      responses:
+        "200":
+          description: Paginated registration list with optional patient snapshot fields
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegistrationListPage"
+        "400":
+          description: Invalid query (e.g. name shorter than 2 characters)
+        "503":
+          description: Patient search requested but EMPI gateway is not configured on the service
+
     post:
       operationId: createRegistration
       summary: Create a registration row
@@ -267,6 +319,42 @@ components:
           type: string
           format: uuid
           nullable: true
+
+    RegistrationListPage:
+      type: object
+      required: [data, total, page, limit, total_pages]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/RegistrationListItem"
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        limit:
+          type: integer
+          minimum: 1
+        total_pages:
+          type: integer
+          minimum: 0
+
+    RegistrationListItem:
+      allOf:
+        - $ref: "#/components/schemas/Registration"
+        - type: object
+          properties:
+            patient_uhid:
+              type: string
+              nullable: true
+            patient_full_name:
+              type: string
+              nullable: true
+            patient_phone_number:
+              type: string
+              nullable: true
 
     Registration:
       type: object
