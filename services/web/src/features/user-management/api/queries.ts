@@ -36,12 +36,25 @@ export function authPrincipalSnapshotOptions(scope: AuthPrincipalQueryScope) {
   return authPrincipalQueryOptions(scope);
 }
 
-export function capabilityListOptions() {
+/** Full global runtime capability catalog (admin/diagnostics). */
+export function runtimeCapabilityCatalogOptions() {
   return queryOptions({
     queryKey: userManagementKeys.capabilities(),
     queryFn: () => apiClient<Capability[]>(`${BASE}/capabilities`, { method: 'GET' }),
   });
 }
+
+/** Tenant-enabled module slugs → assignable runtime capabilities for role editors. */
+export function assignableCapabilityCatalogOptions() {
+  return queryOptions({
+    queryKey: userManagementKeys.assignableCapabilities(),
+    queryFn: () =>
+      apiClient<Capability[]>(`${BASE}/capabilities/assignable`, { method: 'GET' }),
+  });
+}
+
+/** @deprecated Use {@link runtimeCapabilityCatalogOptions}. */
+export const capabilityListOptions = runtimeCapabilityCatalogOptions;
 
 export function roleListOptions() {
   return queryOptions({
@@ -101,9 +114,16 @@ export function useUserDetailSuspense(userId: string) {
   return useSuspenseQuery(userDetailOptions(userId));
 }
 
-export function useCapabilitiesSuspense() {
-  return useSuspenseQuery(capabilityListOptions());
+export function useRuntimeCapabilityCatalogSuspense() {
+  return useSuspenseQuery(runtimeCapabilityCatalogOptions());
 }
+
+export function useAssignableCapabilityCatalogSuspense() {
+  return useSuspenseQuery(assignableCapabilityCatalogOptions());
+}
+
+/** @deprecated Use {@link useRuntimeCapabilityCatalogSuspense}. */
+export const useCapabilitiesSuspense = useRuntimeCapabilityCatalogSuspense;
 
 export function useRolesSuspense() {
   return useSuspenseQuery(roleListOptions());

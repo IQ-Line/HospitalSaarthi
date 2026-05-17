@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { CapabilityNotFoundError, RoleNotFoundError, ValidationError } from "../domain/errors.js";
+import { logRejectedNonEntitledCapabilityId } from "../http/log-rejected-non-entitled-capability.js";
 import { replyWithUserManagementError } from "../http/map-user-management-error.js";
 import type {
   CreateRoleInput,
@@ -16,6 +17,8 @@ import { getCapabilityById } from "../use-cases/get-capability.js";
 import type { GetCapabilityDeps } from "../use-cases/get-capability.js";
 import { getRoleById } from "../use-cases/get-role.js";
 import type { GetRoleDeps } from "../use-cases/get-role.js";
+import { listAssignableRuntimeCapabilities } from "../use-cases/list-assignable-runtime-capabilities.js";
+import type { ListAssignableRuntimeCapabilitiesDeps } from "../use-cases/list-assignable-runtime-capabilities.js";
 import { listCapabilities } from "../use-cases/list-capabilities.js";
 import type { ListCapabilitiesDeps } from "../use-cases/list-capabilities.js";
 import { listRoles } from "../use-cases/list-roles.js";
@@ -32,6 +35,7 @@ export type RoleHandlersDeps = {
   getTenantId: (request: FastifyRequest) => string;
   getActorId: (request: FastifyRequest) => string;
   listCapabilitiesDeps: ListCapabilitiesDeps;
+  listAssignableRuntimeCapabilitiesDeps: ListAssignableRuntimeCapabilitiesDeps;
   getCapabilityDeps: GetCapabilityDeps;
   listRolesDeps: ListRolesDeps;
   createRoleDeps: CreateRoleDeps;
@@ -57,6 +61,25 @@ export function registerRoleHandlers(fastify: FastifyInstance, deps: RoleHandler
       const cid = request.correlationId ?? request.id;
       try {
         return reply.send(await listCapabilities(deps.listCapabilitiesDeps));
+      } catch (err) {
+        return replyWithUserManagementError(reply, err, cid);
+      }
+    },
+  );
+
+  fastify.get(
+    "/capabilities/assignable",
+    { config: { authMode: "protected" } },
+    async (request, reply) => {
+      const tenantId = deps.getTenantId(request);
+      const cid = request.correlationId ?? request.id;
+      const authorization = request.headers.authorization;
+      try {
+        return reply.send(
+          await listAssignableRuntimeCapabilities(deps.listAssignableRuntimeCapabilitiesDeps, tenantId, {
+            authorization: typeof authorization === "string" ? authorization : undefined,
+          }),
+        );
       } catch (err) {
         return replyWithUserManagementError(reply, err, cid);
       }
@@ -200,6 +223,7 @@ export function registerRoleHandlers(fastify: FastifyInstance, deps: RoleHandler
           ),
         );
       } catch (err) {
+        logRejectedNonEntitledCapabilityId(request.log, tenantId, err);
         return replyWithUserManagementError(reply, err, cid);
       }
     },

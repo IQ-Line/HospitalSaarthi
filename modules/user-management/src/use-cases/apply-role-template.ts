@@ -5,12 +5,16 @@ import {
 } from "../domain/errors.js";
 import type {
   AppliedRoleTemplate,
+  CapabilityRepository,
+  MasterDataModuleCatalogPort,
   PrincipalRoleProjectionRepository,
   RoleCapabilityRepository,
   RoleRepository,
+  TenantModuleEntitlementPort,
   UserAccessRepository,
   UserRepository,
 } from "../ports/index.js";
+import { assertRuntimeCapabilitiesEntitledForTenant } from "./assert-runtime-capabilities-entitled-for-tenant.js";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -21,6 +25,9 @@ export type ApplyRoleTemplateDeps = {
   roleCapabilityRepository: RoleCapabilityRepository;
   userAccessRepository: UserAccessRepository;
   principalRoleProjectionRepository: PrincipalRoleProjectionRepository;
+  capabilityRepository: CapabilityRepository;
+  tenantModuleEntitlementPort: TenantModuleEntitlementPort;
+  masterDataModuleCatalogPort: MasterDataModuleCatalogPort;
 };
 
 export type ApplyRoleTemplateContext = {
@@ -77,6 +84,17 @@ export async function applyRoleTemplate(
   } else {
     capabilityIdsToApply = capabilities.map((capability) => capability.id);
   }
+
+  await assertRuntimeCapabilitiesEntitledForTenant(
+    {
+      capabilityRepository: deps.capabilityRepository,
+      tenantModuleEntitlementPort: deps.tenantModuleEntitlementPort,
+      masterDataModuleCatalogPort: deps.masterDataModuleCatalogPort,
+    },
+    ctx.tenantId,
+    capabilityIdsToApply,
+    { cachePolicy: "bypass-cache" },
+  );
 
   const applied = await deps.userAccessRepository.applyRoleTemplate(ctx.tenantId, {
     userId: input.user_id,

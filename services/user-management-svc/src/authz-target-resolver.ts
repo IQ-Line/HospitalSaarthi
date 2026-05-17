@@ -79,6 +79,37 @@ export function createUserManagementAuthzTargetResolver(
       return { kind: "capability", id: "list", action: "capability.read", attr: tenantAttr(request) };
     }
 
+    if (method === "GET" && path === "/capabilities/assignable") {
+      return { kind: "capability", id: "assignable", action: "capability.read", attr: tenantAttr(request) };
+    }
+
+    if (method === "GET" && path === "/internal/runtime-capability-catalog") {
+      return {
+        kind: "capability",
+        id: "internal-catalog",
+        action: "capability.read",
+        attr: tenantAttr(request),
+      };
+    }
+
+    if (method === "GET" && path === "/internal/runtime-capability-catalog/assignable") {
+      return {
+        kind: "capability",
+        id: "internal-assignable",
+        action: "capability.read",
+        attr: tenantAttr(request),
+      };
+    }
+
+    if (method === "GET" && path === "/internal/module-entitlements/:tenantId") {
+      return {
+        kind: "capability",
+        id: "internal-entitlements",
+        action: "capability.read",
+        attr: tenantAttr(request),
+      };
+    }
+
     if (method === "GET" && path === "/capabilities/:id") {
       const id = resolvePathParam(request);
       if (id === null) return null;
@@ -135,12 +166,12 @@ export function createUserManagementAuthzTargetResolver(
     }
 
     if (method === "POST" && path === "/users/:id/roles") {
-      return { kind: "role_assignment", id: "new", action: "role.assign", attr: tenantAttr(request) };
+      return { kind: "user_role_template", id: "new", action: "role.assign", attr: tenantAttr(request) };
     }
 
     if (method === "DELETE" && path === "/users/:id/roles/:roleId") {
       return {
-        kind: "role_assignment",
+        kind: "user_role_template",
         id: "revoke",
         action: "role.revoke",
         attr: tenantAttr(request),
@@ -193,7 +224,7 @@ export function createUserManagementAuthzTargetResolver(
 
     if (method === "PUT" && path === "/users/:id/capabilities") {
       return {
-        kind: "role_assignment",
+        kind: "user_role_template",
         id: "new",
         action: "role.assign",
         attr: tenantAttr(request),

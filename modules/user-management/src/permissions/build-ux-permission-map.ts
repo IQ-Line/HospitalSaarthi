@@ -60,8 +60,8 @@ export async function buildUxPermissionMap(
   const roleCreateOk = await allow("role", "new", "role.create", tenantOnly);
   const roleUpdateOk = await allow("role", "sample", "role.update", tenantOnly);
   const roleDeleteOk = await allow("role", "sample", "role.delete", tenantOnly);
-  const assignOk = await allow("role_assignment", "new", "role.assign", tenantOnly);
-  const revokeOk = await allow("role_assignment", "revoke", "role.revoke", tenantOnly);
+  const assignOk = await allow("user_role_template", "new", "role.assign", tenantOnly);
+  const revokeOk = await allow("user_role_template", "revoke", "role.revoke", tenantOnly);
 
   return {
     "user-management": {

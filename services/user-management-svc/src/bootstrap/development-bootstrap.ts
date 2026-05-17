@@ -20,6 +20,7 @@ import {
   UM_USER_READ,
   UM_USER_UPDATE,
   users,
+  assertValidModuleSlug,
 } from "@hims/user-management";
 import { authUser } from "../auth/auth-schema.js";
 import type { HimsBetterAuthInstance } from "../auth/create-hims-better-auth.js";
@@ -255,11 +256,12 @@ async function ensureFoundationalCapabilities(
   db: DbInstance,
 ): Promise<Array<{ id: string; capability_key: string }>> {
   for (const capability of FOUNDATIONAL_CAPABILITIES) {
+    const moduleSlug = assertValidModuleSlug(capability.module, "bootstrap capability module");
     await db
       .insert(capabilities)
       .values({
         capability_key: capability.capability_key,
-        module: capability.module,
+        module: moduleSlug,
         feature: capability.feature,
         action: capability.action,
         display_name: capability.display_name,
@@ -269,7 +271,7 @@ async function ensureFoundationalCapabilities(
       .onConflictDoUpdate({
         target: [capabilities.capability_key],
         set: {
-          module: capability.module,
+          module: moduleSlug,
           feature: capability.feature,
           action: capability.action,
           display_name: capability.display_name,
@@ -621,7 +623,7 @@ async function verifyBootstrapCerbos(
     { kind: "role", id: "new", action: "role.create", attr: tenantOnlyAttr },
     { kind: "role", id: DEVELOPMENT_BOOTSTRAP_ROLE_CODE, action: "role.read", attr: tenantOnlyAttr },
     { kind: "role", id: DEVELOPMENT_BOOTSTRAP_ROLE_CODE, action: "role.update", attr: tenantOnlyAttr },
-    { kind: "role_assignment", id: "new", action: "role.assign", attr: tenantOnlyAttr },
+    { kind: "user_role_template", id: "new", action: "role.assign", attr: tenantOnlyAttr },
     { kind: "capability", id: "list", action: "capability.read", attr: tenantOnlyAttr },
   ] as const;
 

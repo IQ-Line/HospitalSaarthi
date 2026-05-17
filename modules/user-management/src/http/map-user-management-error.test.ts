@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  DuplicateRoleAssignmentError,
   DuplicateUserRoleTemplateError,
   InvalidRoleSeedError,
   RoleNotFoundError,
@@ -53,12 +52,6 @@ describe("resolveUserManagementHttpError", () => {
     );
     expect(r.status).toBe(400);
     expect(r.body.code).toBe("INVALID_INPUT");
-  });
-
-  it("maps DuplicateRoleAssignmentError to 409", () => {
-    const r = resolveUserManagementHttpError(new DuplicateRoleAssignmentError(), cid);
-    expect(r.status).toBe(409);
-    expect(r.body.code).toBe("ROLE_ASSIGNMENT_DUPLICATE");
   });
 
   it("maps user role-template errors to 404/409", () => {

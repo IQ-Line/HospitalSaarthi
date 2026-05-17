@@ -3,13 +3,21 @@ import {
   UserNotFoundError,
   ValidationError,
 } from "../domain/errors.js";
+import {
+  RUNTIME_AUTH_LIMITS,
+  assertWithinLimit,
+  dedupeTrimmedIds,
+} from "../domain/runtime-authorization-limits.js";
 import type {
   CapabilityRepository,
+  MasterDataModuleCatalogPort,
   ReplaceUserCapabilitiesInput,
+  TenantModuleEntitlementPort,
   UserAccessRepository,
   UserCapabilitiesSnapshot,
   UserRepository,
 } from "../ports/index.js";
+import { assertRuntimeCapabilitiesEntitledForTenant } from "./assert-runtime-capabilities-entitled-for-tenant.js";
 import { getUserCapabilities } from "./get-user-capabilities.js";
 
 const UUID_RE =
@@ -19,6 +27,8 @@ export type ReplaceUserCapabilitiesDeps = {
   userRepository: UserRepository;
   capabilityRepository: CapabilityRepository;
   userAccessRepository: UserAccessRepository;
+  tenantModuleEntitlementPort: TenantModuleEntitlementPort;
+  masterDataModuleCatalogPort: MasterDataModuleCatalogPort;
 };
 
 export type ReplaceUserCapabilitiesContext = {
@@ -45,7 +55,13 @@ export async function replaceUserCapabilities(
     throw new ValidationError("replace_user_capabilities_invalid");
   }
 
-  const capabilityIds = [...new Set(input.capability_ids.map((capabilityId) => capabilityId.trim()))];
+  const capabilityIds = dedupeTrimmedIds(input.capability_ids);
+  assertWithinLimit(
+    capabilityIds.length,
+    RUNTIME_AUTH_LIMITS.maxCapabilityIdsPerRequest,
+    "replace_user_capabilities_limit_exceeded",
+  );
+
   if (capabilityIds.length > 0) {
     const capabilities = await deps.capabilityRepository.listCapabilitiesByIds(capabilityIds);
     if (capabilities.length !== capabilityIds.length) {
@@ -53,6 +69,17 @@ export async function replaceUserCapabilities(
       const missingCapabilityId = capabilityIds.find((capabilityId) => !foundIds.has(capabilityId));
       throw new CapabilityNotFoundError(missingCapabilityId);
     }
+
+    await assertRuntimeCapabilitiesEntitledForTenant(
+      {
+        capabilityRepository: deps.capabilityRepository,
+        tenantModuleEntitlementPort: deps.tenantModuleEntitlementPort,
+        masterDataModuleCatalogPort: deps.masterDataModuleCatalogPort,
+      },
+      ctx.tenantId,
+      capabilityIds,
+      { cachePolicy: "bypass-cache" },
+    );
   }
 
   await deps.userAccessRepository.replaceManualCapabilityGrants(ctx.tenantId, {

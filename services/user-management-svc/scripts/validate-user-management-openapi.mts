@@ -147,7 +147,22 @@ class StubCapabilityRepository {
   async listCapabilitiesByKeys(): Promise<Capability[]> {
     return [];
   }
+  async listActiveRuntimeCapabilitiesByModuleSlugs(): Promise<Capability[]> {
+    return [];
+  }
 }
+
+const noopTenantModuleEntitlementPort = {
+  async listTenantEnabledModuleIds(): Promise<string[]> {
+    return [];
+  },
+};
+
+const noopMasterDataModuleCatalogPort = {
+  async resolveModuleSlugsByIds(): Promise<Map<string, string>> {
+    return new Map();
+  },
+};
 
 class NoopRoleCapabilityRepository implements RoleCapabilityRepository {
   async listCapabilitiesByRole(): Promise<Capability[]> {
@@ -231,12 +246,24 @@ async function main(): Promise<void> {
       await instance.register(userManagementPlugin, {
         eventBus: noopEventBus as never,
         userRepository: new StubUserRepository(),
+        userProvisioningRepository: {
+          async provisionUserWithAccess() {
+            throw new Error("USER_PROVISIONING_NOT_IMPLEMENTED");
+          },
+        },
         capabilityRepository: new StubCapabilityRepository(),
         roleRepository: new StubRoleRepository(),
         roleCapabilityRepository: new NoopRoleCapabilityRepository(),
         userAccessRepository: new NoopUserAccessRepository(),
         principalRoleProjectionRepository: new NoopPrincipalRoleProjectionRepository(),
         principalAuthorizationRepository: new NoopPrincipalAuthorizationRepository(),
+        authAccountProvisioner: {
+          async createPasswordAccount(input: { platformUserId: string }) {
+            return { authUserId: input.platformUserId };
+          },
+        },
+        tenantModuleEntitlementPort: noopTenantModuleEntitlementPort,
+        masterDataModuleCatalogPort: noopMasterDataModuleCatalogPort,
       });
     },
     { prefix: "/api/user-management" },

@@ -2,6 +2,34 @@ import { describe, expect, it, vi } from "vitest";
 import { createUserManagementAuthzTargetResolver } from "./authz-target-resolver.js";
 
 describe("createUserManagementAuthzTargetResolver", () => {
+  it("maps GET /capabilities/assignable to capability.read", async () => {
+    const getUserProfile = vi.fn();
+    const resolver = createUserManagementAuthzTargetResolver({ getUserProfile });
+
+    const target = await resolver({
+      method: "GET",
+      url: "/api/user-management/capabilities/assignable",
+      routeOptions: { url: "/api/user-management/capabilities/assignable" },
+      user: {
+        userId: "user-1",
+        tenantId: "tenant-a",
+        department: "admin",
+      },
+    } as never);
+
+    expect(target).toEqual({
+      kind: "capability",
+      id: "assignable",
+      action: "capability.read",
+      attr: {
+        iq_tenant_id: "tenant-a",
+        department: "admin",
+        required_clearance: 0,
+      },
+    });
+    expect(getUserProfile).not.toHaveBeenCalled();
+  });
+
   it("maps GET /capabilities/:id to capability.read", async () => {
     const getUserProfile = vi.fn().mockResolvedValue(null);
     const resolver = createUserManagementAuthzTargetResolver({ getUserProfile });

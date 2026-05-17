@@ -29,13 +29,21 @@ export interface User {
 /** Canonical machine-readable authorization primitive managed as data and consumed by Cerbos. */
 export interface Capability {
   id: string;
+  /** Cerbos / PDP vocabulary (e.g. `um:user:read`). Stable once granted. */
   capability_key: string;
+  /** Master Data `modules.slug` (kebab-case). */
   module: string;
   feature: string;
   action: string;
   display_name: string;
   description?: string | null;
   is_active: boolean;
+  /** Future MD sync: originating module slug when imported from catalog. */
+  source_module_slug?: string | null;
+  /** Future MD sync: originating `permissions.slug` when imported from catalog. */
+  source_permission_slug?: string | null;
+  /** Future MD sync: catalog system of record. */
+  source_catalog?: "master_data" | null;
 }
 
 /** Tenant-scoped flat container of capabilities. */
@@ -105,19 +113,6 @@ export interface ReplaceRoleCapabilitiesInput {
 
 export interface ReplaceUserCapabilitiesInput {
   capability_ids: string[];
-}
-
-/** POST /role-assignments 201 response shape. */
-export interface RoleAssignment {
-  id: string;
-  user_id: string;
-  role_id: string;
-}
-
-/** POST /role-assignments request body. */
-export interface AssignRoleInput {
-  user_id: string;
-  role_id: string;
 }
 
 export interface AppliedRoleTemplate {

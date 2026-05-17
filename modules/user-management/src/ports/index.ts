@@ -4,7 +4,6 @@
 
 import type {
   AppliedRoleTemplate,
-  AssignRoleInput,
   Capability,
   AuthContext,
   CreateUserInput,
@@ -13,7 +12,6 @@ import type {
   ReplaceRoleCapabilitiesInput,
   ReplaceUserCapabilitiesInput,
   Role,
-  RoleAssignment,
   UpdateRoleInput,
   UpdateUserInput,
   UserCapabilitiesSnapshot,
@@ -29,7 +27,6 @@ import type { UserReadListResourceAbac } from "../domain/user-read-list-resource
 
 export type {
   AppliedRoleTemplate,
-  AssignRoleInput,
   Capability,
   AuthContext,
   CreateUserInput,
@@ -39,7 +36,6 @@ export type {
   ReplaceRoleCapabilitiesInput,
   ReplaceUserCapabilitiesInput,
   Role,
-  RoleAssignment,
   RoleStatus,
   UpdateRoleInput,
   UpdateUserInput,
@@ -103,7 +99,32 @@ export interface CapabilityRepository {
   listCapabilities(): Promise<Capability[]>;
   listCapabilitiesByIds(capabilityIds: string[]): Promise<Capability[]>;
   listCapabilitiesByKeys(capabilityKeys: string[]): Promise<Capability[]>;
+  /** Active runtime capabilities whose `module` slug is in the given set. */
+  listActiveRuntimeCapabilitiesByModuleSlugs(moduleSlugs: string[]): Promise<Capability[]>;
 }
+
+export type {
+  CapabilitySourceCatalog,
+} from "../domain/module-slug.js";
+export type {
+  EntitlementRequestContext,
+  MasterDataModuleCatalogPort,
+  ModuleCatalogPort,
+  ModuleEntitlementRequestContext,
+  TenantEntitlementPort,
+  TenantModuleEntitlementPort,
+} from "./module-integration-ports.js";
+export type {
+  CapabilityCatalogSyncPort,
+  CapabilityCatalogSyncRequest,
+  CapabilityCatalogSyncResult,
+  RuntimeCapabilityCatalogPort,
+} from "./capability-catalog-ports.js";
+export type {
+  ProvisionUserWithAccessInput,
+  RoleTemplateGrantPlan,
+  UserProvisioningRepository,
+} from "./user-provisioning-repository.js";
 
 export interface RoleRepository {
   getRoleById(tenantId: string, roleId: string): Promise<Role | null>;
@@ -138,6 +159,7 @@ export interface UserAccessRepository {
     input: {
       userId: string;
       roleId: string;
+      actorId: string | null;
     },
   ): Promise<AppliedRoleTemplate | null>;
   listRoleTemplatesByUser(tenantId: string, userId: string): Promise<AppliedRoleTemplate[]>;
@@ -161,28 +183,6 @@ export interface PrincipalRoleProjectionRepository {
   listRoleCodesByUser(tenantId: string, userId: string): Promise<string[]>;
   /** Clears instance-scoped projection cache (e.g. after role mutations in the same process). */
   clearCache(): void;
-}
-
-export interface RoleAssignmentRef {
-  id: string;
-  tenant_id: string;
-  user_id: string;
-  role_id: string;
-}
-
-export interface RoleAssignmentRepository {
-  assignRole(tenantId: string, input: AssignRoleInput): Promise<RoleAssignment>;
-  revokeRole(
-    tenantId: string,
-    input: AssignRoleInput,
-  ): Promise<RoleAssignment | null>;
-  listAssignments(): Promise<RoleAssignmentRef[]>;
-  listAssignmentsByUser(tenantId: string, userId: string): Promise<RoleAssignmentRef[]>;
-  listAssignmentsByRole(tenantId: string, roleId: string): Promise<RoleAssignmentRef[]>;
-  listAssignmentsByTenant(
-    tenantId: string,
-    filter?: Readonly<{ userId?: string; roleId?: string }>,
-  ): Promise<RoleAssignmentRef[]>;
 }
 
 /**

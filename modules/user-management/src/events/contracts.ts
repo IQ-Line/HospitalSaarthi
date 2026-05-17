@@ -67,13 +67,8 @@ export type UserDeactivatedEventPayload = {
   reason: string | null;
 };
 
-export type RoleAssignedEventPayload = {
-  id: string;
-  user_id: string;
-  role_id: string;
-};
-
-export type RoleRevokedEventPayload = {
+/** Applied role template association (`user_roles` row identity). */
+export type AppliedRoleTemplateAssociationPayload = {
   id: string;
   user_id: string;
   role_id: string;
@@ -83,8 +78,8 @@ export type UserManagementEventPayloadMap = {
   [USER_MANAGEMENT_EVENT_USER_CREATED]: UserCreatedEventPayload;
   [USER_MANAGEMENT_EVENT_USER_UPDATED]: UserUpdatedEventPayload;
   [USER_MANAGEMENT_EVENT_USER_DEACTIVATED]: UserDeactivatedEventPayload;
-  [USER_MANAGEMENT_EVENT_ROLE_ASSIGNED]: RoleAssignedEventPayload;
-  [USER_MANAGEMENT_EVENT_ROLE_REVOKED]: RoleRevokedEventPayload;
+  [USER_MANAGEMENT_EVENT_ROLE_ASSIGNED]: AppliedRoleTemplateAssociationPayload;
+  [USER_MANAGEMENT_EVENT_ROLE_REVOKED]: AppliedRoleTemplateAssociationPayload;
 };
 
 function validateOptionalNullOrString(
@@ -169,7 +164,7 @@ function validateUserEventPayload(payload: unknown): ContractValidationResult {
   return errors.length === 0 ? { ok: true } : { ok: false, errors };
 }
 
-function validateRoleAssignmentPayload(payload: unknown): ContractValidationResult {
+function validateAppliedRoleTemplateAssociationPayload(payload: unknown): ContractValidationResult {
   if (payload == null || typeof payload !== "object" || Array.isArray(payload)) {
     return { ok: false, errors: ["payload must be an object"] };
   }
@@ -237,14 +232,14 @@ export const USER_MANAGEMENT_EVENT_CONTRACTS: EventContractMap = {
   },
   [USER_MANAGEMENT_EVENT_ROLE_ASSIGNED]: {
     eventContractVersion: "1.0.0",
-    validatePayload: (payload): payload is RoleAssignedEventPayload =>
-      validateRoleAssignmentPayload(payload).ok,
-    validatePayloadVerbose: (payload) => validateRoleAssignmentPayload(payload),
+    validatePayload: (payload): payload is AppliedRoleTemplateAssociationPayload =>
+      validateAppliedRoleTemplateAssociationPayload(payload).ok,
+    validatePayloadVerbose: (payload) => validateAppliedRoleTemplateAssociationPayload(payload),
   },
   [USER_MANAGEMENT_EVENT_ROLE_REVOKED]: {
     eventContractVersion: "1.0.0",
-    validatePayload: (payload): payload is RoleRevokedEventPayload =>
-      validateRoleAssignmentPayload(payload).ok,
-    validatePayloadVerbose: (payload) => validateRoleAssignmentPayload(payload),
+    validatePayload: (payload): payload is AppliedRoleTemplateAssociationPayload =>
+      validateAppliedRoleTemplateAssociationPayload(payload).ok,
+    validatePayloadVerbose: (payload) => validateAppliedRoleTemplateAssociationPayload(payload),
   },
 };
