@@ -54,11 +54,15 @@ def upgrade() -> None:
         ),
     )
 
-    # Slug from machine name: replace underscores with hyphens.
+    # Slug from machine name: replace underscores with hyphens (fallback when name is empty).
     op.execute(
         """
         UPDATE public.modules
-        SET slug = replace(name, '_', '-')
+        SET slug = replace(
+          coalesce(nullif(trim(name), ''), id::text),
+          '_',
+          '-'
+        )
         WHERE slug IS NULL
         """
     )
