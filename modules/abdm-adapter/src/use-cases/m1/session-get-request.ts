@@ -2,6 +2,7 @@ import type { AbdmSession } from "../../domain/session.js";
 import type { AbdmAdapterDeps } from "../../ports.js";
 import type { AbdmTenantInput } from "../../ports.js";
 import { AbdmUseCaseError } from "../../lib/m1-errors.js";
+import { LOGIN_NEEDS_USER_VERIFY_KEY } from "../../lib/m1-login-session-context.js";
 
 export interface SessionGetHimsResponse {
   sessionId: string;
@@ -15,12 +16,13 @@ export interface SessionGetHimsResponse {
 }
 
 function suggestNextStep(session: AbdmSession): string {
-  if (session.flowKind === "abdm.m1.mobile-otp.v1") {
-    if (session.state === "OTP_REQUESTED") return "POST /m1/enrol/mobile/verify";
-    return "POST /m1/enrol/mobile/otp";
-  }
   if (session.flowKind === "abdm.m1.verify-existing.v1") {
-    if (session.state === "OTP_REQUESTED") return "POST /m1/verify/abha-number/verify or /m1/verify/abha-address/verify";
+    if (session.state === "OTP_REQUESTED") {
+      return "POST /m1/verify/abha-number/verify or /m1/verify/abha-address/verify";
+    }
+    if (session.context[LOGIN_NEEDS_USER_VERIFY_KEY] === true) {
+      return "POST /m1/verify/abha-number/verify/user (ABHA number + multiple accounts only; not for ABHA address)";
+    }
     if (session.xToken) return "GET /m1/profile";
     return "POST /m1/verify/abha-number/otp or /m1/verify/abha-address/otp";
   }

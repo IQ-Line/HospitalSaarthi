@@ -52,8 +52,8 @@ export interface NhaEnrolByAadhaarResponse {
 export interface EnrolAadhaarVerifyHimsRequest {
   sessionId: string;
   otp: string;
-  /** Optional 10-digit mobile (NHA may require for some policies). */
-  mobile?: string;
+  /** Primary 10-digit mobile for ABHA (NHA `enrol/byAadhaar` — required). */
+  mobile: string;
 }
 
 export interface EnrolAadhaarVerifyHimsResponse {

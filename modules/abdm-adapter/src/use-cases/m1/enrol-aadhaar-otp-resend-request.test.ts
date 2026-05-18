@@ -8,7 +8,7 @@ const TENANT = "00000000-0000-4000-8000-000000000099";
 const SID = randomUUID();
 
 describe("enrolAadhaarOtpResendRequest", () => {
-  it("posts request/otp with non-empty txnId from session", async () => {
+  it("posts request/otp with empty txnId (resend issues a new NHA transaction)", async () => {
     let stored: AbdmSession = {
       iqTenantId: TENANT,
       sessionId: SID,
@@ -79,7 +79,7 @@ describe("enrolAadhaarOtpResendRequest", () => {
     const call = vi.mocked(deps.gateway.post).mock.calls[0][0] as {
       body: { txnId: string; loginHint: string };
     };
-    expect(call.body.txnId).toBe("existing-txn");
+    expect(call.body.txnId).toBe("");
     expect(call.body.loginHint).toBe("aadhaar");
   });
 });

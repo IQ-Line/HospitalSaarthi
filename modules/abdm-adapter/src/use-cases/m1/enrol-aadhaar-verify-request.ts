@@ -41,14 +41,14 @@ export async function enrolAadhaarVerifyRequest(
   if (!session.txnId) {
     throw new AbdmUseCaseError("session missing txnId", 400);
   }
-  let mobile: string | undefined;
-  if (input.mobile !== undefined && input.mobile !== null && String(input.mobile).trim() !== "") {
-    const m = String(input.mobile).replace(/\D/g, "");
-    if (m.length !== 10) {
-      throw new AbdmUseCaseError("mobile must be 10 digits when provided", 400);
-    }
-    mobile = m;
+  const mobileDigits = String(input.mobile ?? "").replace(/\D/g, "");
+  if (mobileDigits.length !== 10) {
+    throw new AbdmUseCaseError(
+      "mobile is required (10 digits) — primary number for ABHA; use the mobile where you received the Aadhaar OTP",
+      400,
+    );
   }
+  const mobile = mobileDigits;
   const cert = await deps.gateway.getPublicCertificate();
   const otpValue = encryptLoginIdWithAbdmPublicKey(cert.publicKey, otp);
   const body: NhaEnrolByAadhaarBody = {
@@ -57,7 +57,7 @@ export async function enrolAadhaarVerifyRequest(
       otp: {
         txnId: session.txnId,
         otpValue,
-        ...(mobile ? { mobile } : {}),
+        mobile,
       },
     },
     consent: { ...NHA_ABHA_ENROLMENT_CONSENT },

@@ -371,45 +371,6 @@ paths:
         "404":
           description: Session not found
 
-  /m1/enrol/mobile/otp:
-    post:
-      operationId: abdmM1EnrolMobileOtp
-      summary: Standalone mobile enrolment — send OTP
-      tags: [M1-Enrolment]
-      parameters:
-        - $ref: "#/components/parameters/XTenantId"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [mobile]
-              properties:
-                mobile:
-                  type: string
-                  pattern: "^\\d{10}$"
-      responses:
-        "200":
-          description: OTP dispatched; platform session created
-
-  /m1/enrol/mobile/verify:
-    post:
-      operationId: abdmM1EnrolMobileVerify
-      summary: Standalone mobile enrolment — verify OTP
-      tags: [M1-Enrolment]
-      parameters:
-        - $ref: "#/components/parameters/XTenantId"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/EnrolMobileVerifyConfirmRequest"
-      responses:
-        "200":
-          description: Mobile enrolment verified
-
   /m1/login/otp:
     post:
       operationId: abdmM1LoginAbhaNumberOtp
@@ -454,7 +415,7 @@ paths:
   /m1/login/mobile/otp:
     post:
       operationId: abdmM1LoginMobileOtp
-      summary: Login via mobile OTP
+      summary: Login via mobile OTP (creates a new platform session)
       tags: [M1-Login]
       parameters:
         - $ref: "#/components/parameters/XTenantId"
@@ -463,10 +424,16 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/EnrolMobileVerifyOtpRequest"
+              $ref: "#/components/schemas/LoginMobileOtpRequest"
+            example:
+              mobile: "6789789078"
       responses:
         "200":
-          description: OTP dispatched
+          description: OTP dispatched; response includes new sessionId
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginOtpDispatchResponse"
 
   /m1/login/verify:
     post:
@@ -604,7 +571,10 @@ paths:
   /m1/verify/abha-address/verify/user:
     post:
       operationId: abdmM1VerifyAbhaAddressVerifyUser
-      summary: Frontdesk verify ABHA address — select ABHA after mobile OTP (NHA verify/user)
+      summary: Not used for ABHA address (PHR flow) — returns 409; use verify then GET profile
+      description: |
+        ABHA address login uses PHR `/v3/phr/web/login/abha/*` and returns profile tokens on verify.
+        Do not call this after `/m1/verify/abha-address/verify`. For mobile + multiple ABHAs on ABHA number, use `/m1/verify/abha-number/verify/user`.
       tags: [M1-Verify]
       parameters:
         - $ref: "#/components/parameters/XTenantId"
@@ -782,7 +752,8 @@ components:
 
     EnrolAadhaarVerifyRequest:
       type: object
-      required: [sessionId, otp]
+      required: [sessionId, otp, mobile]
+      additionalProperties: false
       properties:
         sessionId:
           type: string
@@ -792,7 +763,12 @@ components:
           pattern: "^\\d{6}$"
         mobile:
           type: string
-          description: Optional 10-digit mobile for NHA when required by policy.
+          pattern: "^\\d{10}$"
+          description: Primary 10-digit mobile for ABHA (where Aadhaar OTP was received, or chosen primary number).
+      example:
+        sessionId: "402851e2-9949-4371-9902-1e2954c3c412"
+        otp: "123456"
+        mobile: "6789789089"
 
     EnrolAadhaarVerifyResponse:
       type: object
@@ -810,9 +786,31 @@ components:
         message:
           type: string
 
+    LoginMobileOtpRequest:
+      type: object
+      required: [mobile]
+      additionalProperties: false
+      properties:
+        mobile:
+          type: string
+          pattern: "^\\d{10}$"
+
+    LoginOtpDispatchResponse:
+      type: object
+      required: [sessionId, txnId, message]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        txnId:
+          type: string
+        message:
+          type: string
+
     EnrolMobileVerifyOtpRequest:
       type: object
       required: [sessionId, mobile]
+      additionalProperties: false
       properties:
         sessionId:
           type: string

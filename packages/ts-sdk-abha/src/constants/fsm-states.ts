@@ -25,7 +25,7 @@ export const M1_AADHAAR_OTP_STATES = [
   'FAILED',
 ] as const;
 
-/** Shared OTP states for login, standalone mobile enrol, and verify-existing. */
+/** Shared OTP states for login and verify-existing flows. */
 export const M1_SIMPLE_OTP_STATES = [
   'INIT',
   'OTP_REQUESTED',

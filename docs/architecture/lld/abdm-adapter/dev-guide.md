@@ -28,8 +28,9 @@ Order:
 3. `profile.ts` — read-only against an existing session.
 4. `login.ts` — exercises the auth-method discriminated union.
 5. `verify-existing.ts` — the frontdesk-side check.
-6. `enrol-mobile-otp.ts` — provisional account path.
-7. `profile-update.ts` — last; consistent shape with #1.
+6. `profile-update.ts` — last; consistent shape with #1.
+
+Standalone mobile-only enrol and DL (`dl-flow`) are out of M1 scope — use `enrol-mobile-verify-enrolment.ts` for the Aadhaar-chain mobile-verify step only.
 
 Each file should export both the request and response types per step. Examples follow the structure:
 

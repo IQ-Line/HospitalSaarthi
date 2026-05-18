@@ -44,6 +44,13 @@ export function parseNhaErrorBody(body: unknown): {
       message: typeof topMessage === "string" ? topMessage : undefined,
     };
   }
+  // NHA validation shape: { "loginHint": "Invalid Login Hint", "timestamp": "..." }
+  const fieldMessages = Object.entries(o)
+    .filter(([k, v]) => k !== "timestamp" && typeof v === "string" && v.length > 0)
+    .map(([k, v]) => `${k}: ${v}`);
+  if (fieldMessages.length > 0) {
+    return { message: fieldMessages.join("; ") };
+  }
   return {};
 }
 
@@ -53,4 +60,14 @@ export function gatewayUnavailable(message: string, statusCode: number, body: un
     abdmCode: ABDM_ERROR_CODES.GATEWAY_UNAVAILABLE,
     responseBody: body,
   });
+}
+
+/** Prefer NHA `error.message` over generic HTTP status text (e.g. "Bad Request"). */
+export function formatNhaUpstreamMessage(err: AbdmGatewayError): string {
+  const parsed = parseNhaErrorBody(err.responseBody);
+  if (parsed.message) return parsed.message;
+  if (err.message && !/^(bad request|unauthorized|forbidden|not found)$/i.test(err.message.trim())) {
+    return err.message;
+  }
+  return err.message;
 }

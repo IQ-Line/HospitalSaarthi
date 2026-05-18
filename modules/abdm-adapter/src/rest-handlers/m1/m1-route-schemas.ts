@@ -94,7 +94,7 @@ export const aadhaarOtpResendBodySchema = {
 
 export const enrolAadhaarVerifyBodySchema = {
   type: "object" as const,
-  required: ["sessionId", "otp"],
+  required: ["sessionId", "otp", "mobile"],
   additionalProperties: false,
   properties: {
     sessionId: uuidParam,

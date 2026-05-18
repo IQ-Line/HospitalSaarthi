@@ -1,16 +1,24 @@
 import {
   extractLoginProfileTokens,
   mapNhaLoginAccounts,
+  mapNhaPhrLoginUsers,
   type NhaLoginRequestOtpBody,
   type NhaLoginRequestOtpResponse,
   type NhaLoginVerifyBody,
   type NhaLoginVerifyResponse,
 } from "@hims/ts-sdk-abha/protocol/m1";
 import {
+  LOGIN_API_VARIANT_KEY,
   LOGIN_NEEDS_USER_VERIFY_KEY,
   LOGIN_SCOPES_CONTEXT_KEY,
   LOGIN_TRANSFER_TOKEN_KEY,
+  type M1NhaLoginApiVariant,
 } from "./m1-login-session-context.js";
+import {
+  nhaLoginRequestOtpPath,
+  nhaLoginVerifyOtpPath,
+  parseLoginApiVariant,
+} from "./m1-nha-login-paths.js";
 import type { AbdmFlowKind } from "../domain/session.js";
 import type { AbdmAdapterDeps } from "../ports.js";
 import { encryptLoginIdWithAbdmPublicKey } from "./rsa-abdm-login-id.js";
@@ -25,6 +33,8 @@ export interface M1LoginOtpSendParams {
   loginHint: string;
   otpSystem: string;
   plainLoginId: string;
+  /** ABHA address login uses PHR web paths; ABHA number/mobile/aadhaar use profile login. */
+  nhaLoginApi?: M1NhaLoginApiVariant;
   initialContext?: Record<string, unknown>;
 }
 
@@ -50,8 +60,9 @@ export async function m1LoginOtpSend(
     loginId,
     otpSystem: params.otpSystem,
   };
+  const loginApi = params.nhaLoginApi ?? "profile";
   const nha = await deps.gateway.post<NhaLoginRequestOtpBody, NhaLoginRequestOtpResponse>({
-    path: "/v3/profile/login/request/otp",
+    path: nhaLoginRequestOtpPath(loginApi),
     body,
   });
   const txnId = typeof nha.txnId === "string" && nha.txnId ? nha.txnId : "";
@@ -70,6 +81,7 @@ export async function m1LoginOtpSend(
     txnId,
     contextMerge: {
       [LOGIN_SCOPES_CONTEXT_KEY]: params.scope,
+      [LOGIN_API_VARIANT_KEY]: loginApi,
       loginOtpMessage: nha.message,
     },
   });
@@ -92,6 +104,7 @@ export async function m1LoginOtpVerify(
   authResult?: string;
   accounts?: ReturnType<typeof mapNhaLoginAccounts>;
   needsUserSelection?: boolean;
+  loginTransferToken?: string;
 }> {
   const otp = String(input.otp ?? "").trim();
   if (!/^\d{6}$/.test(otp)) {
@@ -131,18 +144,47 @@ export async function m1LoginOtpVerify(
     },
   };
   const nha = await deps.gateway.post<NhaLoginVerifyBody, NhaLoginVerifyResponse>({
-    path: "/v3/profile/login/verify",
+    path: nhaLoginVerifyOtpPath(parseLoginApiVariant(session.context[LOGIN_API_VARIANT_KEY])),
     body,
   });
-  const accounts = mapNhaLoginAccounts(nha.accounts);
-  const needsUserSelection = accounts.length > 0;
+  const loginApi = parseLoginApiVariant(session.context[LOGIN_API_VARIANT_KEY]);
   const txnId = typeof nha.txnId === "string" && nha.txnId ? nha.txnId : session.txnId;
 
+  // PHR ABHA-address login: verify returns profile tokens directly (no verify/user in Postman/milestone1).
+  if (loginApi === "phr-abha") {
+    const { xToken, tToken } = extractLoginProfileTokens(nha);
+    await deps.sessions.patch({
+      iqTenantId,
+      sessionId: session.sessionId,
+      state: "OTP_VERIFIED",
+      txnId,
+      xToken,
+      ...(tToken ? { tToken } : {}),
+      contextMerge: {
+        [LOGIN_NEEDS_USER_VERIFY_KEY]: false,
+        loginUsers: mapNhaPhrLoginUsers(nha.users),
+        loginVerifiedAt: new Date().toISOString(),
+        loginAuthResult: typeof nha.authResult === "string" ? nha.authResult : undefined,
+      },
+    });
+    return {
+      sessionId: session.sessionId,
+      txnId,
+      message: typeof nha.message === "string" ? nha.message : "OTP verified",
+      authResult: typeof nha.authResult === "string" ? nha.authResult : undefined,
+      needsUserSelection: false,
+    };
+  }
+
+  const accounts = mapNhaLoginAccounts(nha.accounts);
+  const needsUserSelection = accounts.length > 0;
+
   if (needsUserSelection) {
-    const transferToken =
-      typeof nha.token === "string" && nha.token ? nha.token : "";
+    const transferToken = resolveLoginTransferToken(nha);
     if (!transferToken) {
-      throw new Error("NHA login/verify response missing token for account selection");
+      throw new Error(
+        "NHA login/verify response missing token/refreshToken for account selection (check multi-account verify response)",
+      );
     }
     await deps.sessions.patch({
       iqTenantId,
@@ -164,6 +206,7 @@ export async function m1LoginOtpVerify(
       authResult: typeof nha.authResult === "string" ? nha.authResult : undefined,
       accounts,
       needsUserSelection: true,
+      loginTransferToken: transferToken,
     };
   }
 
@@ -197,4 +240,15 @@ export function assertFlowKind(
   if (flowKind !== expected) {
     throw new AbdmUseCaseError("invalid session flow", 400);
   }
+}
+
+/** NHA may return `token` or `refreshToken` for multi-account selection (Postman sets both). */
+function resolveLoginTransferToken(nha: NhaLoginVerifyResponse): string {
+  if (typeof nha.token === "string" && nha.token.trim()) {
+    return nha.token.trim();
+  }
+  if (typeof nha.refreshToken === "string" && nha.refreshToken.trim()) {
+    return nha.refreshToken.trim();
+  }
+  return "";
 }

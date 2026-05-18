@@ -24,9 +24,10 @@ export function createAbdmEnvelope<T extends Record<string, unknown>>(
     event_type: eventType,
     source_module: ABDM_ADAPTER_SOURCE_MODULE,
     iq_tenant_id: iqTenantId,
+    occurred_at: new Date().toISOString(),
     correlation_id: randomUUID(),
     actor_id: ABDM_SYSTEM_ACTOR_ID,
-    schema_version: SCHEMA_VERSION,
+    event_contract_version: SCHEMA_VERSION,
     payload,
   });
 }

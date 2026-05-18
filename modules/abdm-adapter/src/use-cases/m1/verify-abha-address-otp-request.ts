@@ -24,6 +24,7 @@ export async function verifyAbhaAddressOtpRequest(
   const otpSystem = channel === "aadhaar" ? "aadhaar" : "abdm";
   return m1LoginOtpSend(deps, iqTenantId, {
     flowKind: "abdm.m1.verify-existing.v1",
+    nhaLoginApi: "phr-abha",
     scope: [...scope],
     loginHint: "abha-address",
     otpSystem,

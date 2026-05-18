@@ -10,9 +10,11 @@ import { normalizeAbhaNumber } from "./m1-abha-number.js";
 import { nhaLoginTTokenHeaders } from "./nha-login-headers.js";
 import type { M1OtpSessionFlowKind } from "./m1-login-otp-flow.js";
 import {
+  LOGIN_API_VARIANT_KEY,
   LOGIN_NEEDS_USER_VERIFY_KEY,
   LOGIN_TRANSFER_TOKEN_KEY,
 } from "./m1-login-session-context.js";
+import { parseLoginApiVariant } from "./m1-nha-login-paths.js";
 
 export async function m1LoginVerifyUser(
   deps: AbdmAdapterDeps,
@@ -37,13 +39,28 @@ export async function m1LoginVerifyUser(
       "CONFLICT",
     );
   }
+  const loginApi = parseLoginApiVariant(session.context[LOGIN_API_VARIANT_KEY]);
+  if (loginApi === "phr-abha") {
+    throw new AbdmUseCaseError(
+      "verify/user is not used for ABHA address login; after POST /m1/verify/abha-address/verify call GET /m1/profile?sessionId=...",
+      409,
+      "CONFLICT",
+    );
+  }
+  if (session.context[LOGIN_NEEDS_USER_VERIFY_KEY] === false) {
+    throw new AbdmUseCaseError(
+      "session already has profile tokens from verify; use GET /m1/profile — verify/user is only for mobile login with multiple ABHA numbers",
+      409,
+      "CONFLICT",
+    );
+  }
   if (!session.txnId) {
     throw new AbdmUseCaseError("session missing txnId", 400);
   }
   const transferToken = session.context[LOGIN_TRANSFER_TOKEN_KEY];
-  if (typeof transferToken !== "string" || !transferToken) {
+  if (typeof transferToken !== "string" || !transferToken.trim()) {
     throw new AbdmUseCaseError(
-      "session has no pending account selection; login verify/user not required",
+      "session has no pending account selection; call verify OTP first and ensure the response has needsUserSelection true and accounts[]",
       409,
       "CONFLICT",
     );

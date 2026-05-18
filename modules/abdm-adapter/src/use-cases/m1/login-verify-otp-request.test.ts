@@ -84,4 +84,48 @@ describe("loginVerifyOtpRequest", () => {
     );
     expect(patch.mock.calls[0]?.[0]).not.toHaveProperty("xToken");
   });
+
+  it("stores refreshToken as transfer token when token is absent", async () => {
+    const patch = vi.fn(async () => session({ state: "OTP_VERIFIED" }));
+    const deps: AbdmAdapterDeps = {
+      sessions: {
+        findById: vi.fn(async () => session()),
+        patch,
+        create: vi.fn(),
+      },
+      gateway: {
+        getPublicCertificate: vi.fn(async () => ({
+          publicKey: "pk",
+          encryptionAlgorithm: "RSA",
+        })),
+        post: vi.fn(async () => ({
+          txnId: "txn-new",
+          refreshToken: "transfer-from-refresh",
+          accounts: [{ ABHANumber: "91-7561-4088-1234" }],
+        })),
+        get: vi.fn(),
+        getDiagnosticsSnapshot: vi.fn(() => ({
+          tokenValidUntilMs: null,
+          certValidUntilMs: null,
+          certCached: false,
+        })),
+      },
+      fidelius: {} as AbdmAdapterDeps["fidelius"],
+      secrets: {} as AbdmAdapterDeps["secrets"],
+    };
+
+    const out = await loginVerifyOtpRequest(
+      { sessionId: "sess-1", otp: "123456", iqTenantId: TENANT },
+      deps,
+    );
+
+    expect(out.loginTransferToken).toBe("transfer-from-refresh");
+    expect(patch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contextMerge: expect.objectContaining({
+          loginTransferToken: "transfer-from-refresh",
+        }),
+      }),
+    );
+  });
 });

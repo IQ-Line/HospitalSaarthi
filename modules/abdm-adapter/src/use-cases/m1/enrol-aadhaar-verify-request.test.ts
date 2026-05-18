@@ -101,7 +101,7 @@ describe("enrolAadhaarVerifyRequest", () => {
     });
 
     const out = await enrolAadhaarVerifyRequest(
-      { sessionId: SID, otp: "123456", iqTenantId: TENANT },
+      { sessionId: SID, otp: "123456", mobile: "9876543210", iqTenantId: TENANT },
       deps,
     );
 
@@ -120,6 +120,7 @@ describe("enrolAadhaarVerifyRequest", () => {
     expect(call.path).toBe("/v3/enrollment/enrol/byAadhaar");
     expect(call.body.authData.authMethods).toEqual(["otp"]);
     expect(call.body.authData.otp.txnId).toBe("txn-from-otp");
+    expect(call.body.authData.otp.mobile).toBe("9876543210");
     expect(call.body.consent.code).toBe("abha-enrollment");
   });
 });

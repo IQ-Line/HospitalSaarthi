@@ -44,13 +44,12 @@ Override with env if your Postman environment uses different hosts.
 | Done | `GET /api/abdm/v1/m1/profile/phr-card` | `GET /v3/profile/account/phr-card` | §4 |
 | Done | `GET /api/abdm/v1/m1/profile/qr-code` | `GET /v3/profile/account/qrCode` | §4 |
 | Done | `POST …/m1/profile/mobile/update/otp` etc. | `profile/account/request/otp` + `verify` | §5 — **not** enrolment-chain mobile verify |
-| Done | `POST /api/abdm/v1/m1/enrol/mobile/otp` + verify | Standalone mobile enrol (`auth/byAbdm`) | **Not** Phase A Aadhaar chain — separate `abdm.m1.mobile-otp.v1` |
 | Done | Login + verify-existing platform routes | `profile/login/*` | §6–§7 |
 
 ### LLD vs Postman (important)
 
 - **[02-m1-flows.md](./02-m1-flows.md) §3** historically referenced `…/abha-address/suggestion`. The **Postman collection** and **adapter** use **`GET /v3/enrollment/enrol/suggestion`** — §02 is updated to match.
-- **§2 “Enrol via Mobile OTP”** (`abdm.m1.mobile-otp.v1`) is **standalone** (`POST …/m1/enrol/mobile/otp`). Phase A **Aadhaar chain** uses `…/mobile-verify/…`; ABHA address steps require session state **`MOBILE_OTP_VERIFIED`** after mobile-verify confirm.
+- **Standalone mobile-only enrol** and **DL enrolment** are **out of M1 scope** (require `dl-flow` on NHA). Phase A **Aadhaar chain** uses `…/mobile-verify/…`; ABHA address steps require session state **`MOBILE_OTP_VERIFIED`** after mobile-verify confirm.
 
 ## Staging / production checklist (PR review)
 
