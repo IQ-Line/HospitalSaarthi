@@ -1256,6 +1256,7 @@ components:
         department: { type: string, nullable: true }
         category: { type: string, nullable: true }
         sub_category: { type: string, nullable: true }
+        tax_type: { type: string, nullable: true, description: "Tax classification (e.g. CGST_SGST, IGST, EXEMPT). }
         base_price: { $ref: "#/components/schemas/Money" }
         tax_percentage: { type: string, format: decimal, pattern: "^[0-9]+(\\.[0-9]{1,4})?$" }
         tax_category: { type: string, nullable: true }
@@ -1439,8 +1440,10 @@ components:
         department: { type: string, nullable: true }
         category: { type: string, nullable: true }
         sub_category: { type: string, nullable: true }
+        tax_type: { type: string, nullable: true }
         base_price: { $ref: "#/components/schemas/Money" }
         tax_percentage: { type: string, format: decimal, pattern: "^[0-9]+(\\.[0-9]{1,4})?$" }
+        is_active: { type: boolean, default: true }
         tax_category: { type: string, nullable: true }
         hsn_sac_code: { type: string, nullable: true }
         is_insurance_covered: { type: boolean, default: true }
@@ -1462,6 +1465,8 @@ components:
         department: { type: string, nullable: true }
         category: { type: string, nullable: true }
         sub_category: { type: string, nullable: true }
+        tax_type: { type: string, nullable: true }
+        is_active: { type: boolean }
         base_price: { $ref: "#/components/schemas/Money" }
         tax_percentage: { type: string, format: decimal, pattern: "^[0-9]+(\\.[0-9]{1,4})?$" }
         tax_category: { type: string, nullable: true }

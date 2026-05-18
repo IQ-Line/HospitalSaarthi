@@ -2,6 +2,10 @@ import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import fp from "fastify-plugin";
 import { and, eq, sql, type DbInstance } from "@hims/ts-sdk-db";
+import { createTariffMasterRepo } from "./data-access/tariff-master.repository.js";
+import type { TariffMasterRow } from "./domain/tariff-master.types.js";
+import { formatMoney, parseEffectiveWindow, toTariffRow } from "./lib/tariff-api.js";
+import { registerUpdateServiceHandler } from "./rest-handlers/update-service.handler.js";
 import { billingMaster } from "./schema/tables.js";
 
 export interface BillingRouterOptions {
@@ -19,25 +23,6 @@ type ListQuery = {
   cursor?: string;
 };
 
-type ServiceRow = {
-  id: string;
-  iq_tenant_id: string;
-  service_code: string;
-  service_name: string;
-  description: string | null;
-  provider_id: string | null;
-  department: string | null;
-  category: string | null;
-  sub_category: string | null;
-  base_price: string;
-  tax_percentage: string;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-  created_by: string | null;
-  updated_by: string | null;
-};
-
 type Cursor = { service_name: string; id: string };
 
 type CreateBody = {
@@ -50,6 +35,10 @@ type CreateBody = {
   department?: string | null;
   category?: string | null;
   sub_category?: string | null;
+  tax_type?: string | null;
+  is_active?: boolean;
+  effective_from?: string;
+  effective_to?: string | null;
 };
 
 const DEFAULT_LIMIT = 50;
@@ -64,6 +53,7 @@ export const CREATE_SERVICE_DUMMY: CreateBody = {
   tax_percentage: "0",
   description: "Complete blood count",
   category: "lab",
+  tax_type: "CGST_SGST",
   department: "pathology",
   provider_id: null,
 };
@@ -82,11 +72,15 @@ const createServiceSchema = {
       department: { type: ["string", "null"] },
       category: { type: ["string", "null"] },
       sub_category: { type: ["string", "null"] },
+      tax_type: { type: ["string", "null"] },
+      is_active: { type: "boolean", default: true },
+      effective_from: { type: "string", format: "date-time" },
+      effective_to: { type: ["string", "null"], format: "date-time" },
     },
   },
 } as const;
 
-const MOCK_ROWS: ServiceRow[] = [
+const MOCK_ROWS: TariffMasterRow[] = [
   {
     id: "11111111-1111-4111-8111-111111111101",
     iq_tenant_id: "00000000-0000-0000-0000-000000000007",
@@ -97,9 +91,12 @@ const MOCK_ROWS: ServiceRow[] = [
     department: "frontdesk",
     category: "registration",
     sub_category: null,
+    tax_type: "EXEMPT",
     base_price: "100.0000",
     tax_percentage: "0.0000",
     is_active: true,
+    effective_from: MOCK_TS,
+    effective_to: null,
     created_at: MOCK_TS,
     updated_at: MOCK_TS,
     created_by: null,
@@ -115,9 +112,12 @@ const MOCK_ROWS: ServiceRow[] = [
     department: "opd",
     category: "consultation",
     sub_category: null,
+    tax_type: "CGST_SGST",
     base_price: "400.0000",
     tax_percentage: "0.0000",
     is_active: true,
+    effective_from: MOCK_TS,
+    effective_to: null,
     created_at: MOCK_TS,
     updated_at: MOCK_TS,
     created_by: null,
@@ -133,9 +133,12 @@ const MOCK_ROWS: ServiceRow[] = [
     department: "opd",
     category: "consultation",
     sub_category: null,
+    tax_type: "CGST_SGST",
     base_price: "500.0000",
     tax_percentage: "0.0000",
     is_active: true,
+    effective_from: MOCK_TS,
+    effective_to: null,
     created_at: MOCK_TS,
     updated_at: MOCK_TS,
     created_by: null,
@@ -151,9 +154,12 @@ const MOCK_ROWS: ServiceRow[] = [
     department: "opd",
     category: "procedure",
     sub_category: null,
+    tax_type: "CGST_SGST",
     base_price: "200.0000",
     tax_percentage: "0.0000",
     is_active: true,
+    effective_from: MOCK_TS,
+    effective_to: null,
     created_at: MOCK_TS,
     updated_at: MOCK_TS,
     created_by: null,
@@ -187,16 +193,6 @@ function encodeCursor(row: { service_name: string; id: string }): string {
   return Buffer.from(JSON.stringify(row)).toString("base64url");
 }
 
-function toApi(row: typeof billingMaster.$inferSelect): ServiceRow {
-  return {
-    ...row,
-    base_price: String(row.base_price),
-    tax_percentage: String(row.tax_percentage),
-    created_at: row.created_at.toISOString(),
-    updated_at: row.updated_at.toISOString(),
-  };
-}
-
 function parseCreateBody(body: unknown): CreateBody | null {
   if (!body || typeof body !== "object") return null;
   const b = body as Record<string, unknown>;
@@ -218,6 +214,15 @@ function parseCreateBody(body: unknown): CreateBody | null {
     department: (b.department as string | null | undefined) ?? null,
     category: (b.category as string | null | undefined) ?? null,
     sub_category: (b.sub_category as string | null | undefined) ?? null,
+    tax_type: (b.tax_type as string | null | undefined) ?? null,
+    is_active: typeof b.is_active === "boolean" ? b.is_active : undefined,
+    effective_from: typeof b.effective_from === "string" ? b.effective_from : undefined,
+    effective_to:
+      b.effective_to === null
+        ? null
+        : typeof b.effective_to === "string"
+          ? b.effective_to
+          : undefined,
   };
 }
 
@@ -244,12 +249,9 @@ function hasDuplicate(tenantId: string, code: string, providerId: string | null)
   );
 }
 
-function formatMoney(n: number): string {
-  return n.toFixed(4);
-}
-
-function createMockRow(tenantId: string, body: CreateBody): ServiceRow {
+function createMockRow(tenantId: string, body: CreateBody): TariffMasterRow {
   const now = new Date().toISOString();
+  const effectiveFrom = body.effective_from ?? now;
   const providerId = body.provider_id ?? null;
   return {
     id: randomUUID(),
@@ -261,9 +263,12 @@ function createMockRow(tenantId: string, body: CreateBody): ServiceRow {
     department: body.department ?? null,
     category: body.category ?? null,
     sub_category: body.sub_category ?? null,
+    tax_type: body.tax_type ?? null,
     base_price: formatMoney(Number(body.base_price)),
     tax_percentage: formatMoney(Number(body.tax_percentage ?? 0)),
-    is_active: true,
+    is_active: body.is_active ?? true,
+    effective_from: effectiveFrom,
+    effective_to: body.effective_to ?? null,
     created_at: now,
     updated_at: now,
     created_by: null,
@@ -370,7 +375,7 @@ async function billingRouter(
       const last = pageRows.at(-1);
 
       return reply.send({
-        data: pageRows.map(toApi),
+        data: pageRows.map(toTariffRow),
         page: {
           limit,
           next_cursor:
@@ -433,6 +438,15 @@ async function billingRouter(
         });
       }
 
+      const effective = parseEffectiveWindow(body.effective_from, body.effective_to);
+      if (typeof effective === "string") {
+        return reply.code(400).send({
+          statusCode: 400,
+          error: "Bad Request",
+          message: effective,
+        });
+      }
+
       try {
         const [row] = await db
           .insert(billingMaster)
@@ -445,8 +459,12 @@ async function billingRouter(
             department: body.department ?? null,
             category: body.category ?? null,
             sub_category: body.sub_category ?? null,
+            tax_type: body.tax_type ?? null,
+            is_active: body.is_active ?? true,
             base_price: formatMoney(Number(body.base_price)),
             tax_percentage: formatMoney(Number(body.tax_percentage ?? 0)),
+            effective_from: effective.from,
+            effective_to: effective.to,
           })
           .returning();
 
@@ -457,7 +475,7 @@ async function billingRouter(
             message: "Insert failed",
           });
         }
-        return reply.code(201).send({ data: toApi(row) });
+        return reply.code(201).send({ data: toTariffRow(row) });
       } catch (err: unknown) {
         if ((err as { code?: string }).code === "23505") {
           return reply.code(409).send({
@@ -469,6 +487,11 @@ async function billingRouter(
         throw err;
       }
     },
+  );
+
+  registerUpdateServiceHandler(
+    app,
+    createTariffMasterRepo(useMock || !db ? MOCK_ROWS : db),
   );
 }
 

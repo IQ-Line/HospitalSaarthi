@@ -22,9 +22,12 @@ CREATE TABLE IF NOT EXISTS billing.tariff_master (
   department varchar(64),
   category varchar(64),
   sub_category varchar(64),
+  tax_type text,
   base_price numeric(18, 4) NOT NULL,
   tax_percentage numeric(7, 4) NOT NULL DEFAULT 0,
   is_active boolean NOT NULL DEFAULT true,
+  effective_from timestamptz NOT NULL DEFAULT now(),
+  effective_to timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   created_by uuid,
@@ -33,6 +36,9 @@ CREATE TABLE IF NOT EXISTS billing.tariff_master (
   CONSTRAINT tariff_master_base_price_nonneg_chk CHECK (base_price >= 0),
   CONSTRAINT tariff_master_tax_percentage_range_chk CHECK (
     tax_percentage >= 0 AND tax_percentage <= 100
+  ),
+  CONSTRAINT tariff_master_effective_range_chk CHECK (
+    effective_to IS NULL OR effective_to > effective_from
   )
 );
 
@@ -54,6 +60,11 @@ CREATE INDEX IF NOT EXISTS idx_tariff_master_tenant_provider_active
 -- Autocomplete on service_name.
 CREATE INDEX IF NOT EXISTS idx_tariff_master_tenant_service_name
   ON billing.tariff_master (iq_tenant_id, service_name text_pattern_ops);
+
+-- Charge resolution: active row for (service_code, provider_id) at a point in time.
+CREATE INDEX IF NOT EXISTS idx_tariff_master_tenant_code_provider_effective
+  ON billing.tariff_master (iq_tenant_id, service_code, provider_id, effective_from DESC)
+  WHERE is_active = true;
 
 -- Citus (run only when HIMS_CITUS_ENABLED=true):
 --   SELECT create_distributed_table('billing.tariff_master', 'iq_tenant_id');

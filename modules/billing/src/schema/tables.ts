@@ -24,11 +24,14 @@ export const billingMaster = billingSchema.table(
     department: text("department"),
     category: text("category"),
     sub_category: text("sub_category"),
+    tax_type: text("tax_type"),
     base_price: numeric("base_price", { precision: 18, scale: 4 }).notNull(),
     tax_percentage: numeric("tax_percentage", { precision: 7, scale: 4 })
       .notNull()
       .default("0"),
     is_active: boolean("is_active").notNull().default(true),
+    effective_from: timestamp("effective_from", { withTimezone: true }).notNull().defaultNow(),
+    effective_to: timestamp("effective_to", { withTimezone: true }),
     created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     created_by: uuid("created_by"),
