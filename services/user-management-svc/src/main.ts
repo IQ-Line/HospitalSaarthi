@@ -257,7 +257,9 @@ async function createApp(): Promise<FastifyInstance> {
 
 async function main(): Promise<void> {
   const app = await createApp();
-  const port = Number(process.env.PORT ?? 3000);
+  const port = Number(
+    process.env.USER_MANAGEMENT_SVC_PORT ?? process.env.PORT ?? 3005,
+  );
   await app.listen({ port, host: "0.0.0.0" });
   console.log(`User Management service listening on http://localhost:${port}`);
 }

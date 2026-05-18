@@ -1334,11 +1334,12 @@ components:
           description: >
             Future catalog sync — originating Master Data `permissions.slug` (nullable until sync exists).
         source_catalog:
-          type: string
-          nullable: true
-          enum:
-            - master_data
           description: Future catalog sync — system of record for provenance metadata.
+          oneOf:
+            - type: string
+              enum:
+                - master_data
+            - type: "null"
     Role:
       type: object
       required:

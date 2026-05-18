@@ -8,16 +8,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@pulse/ui/card';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
 import { authClient } from '@/lib/auth-client';
-import { buildDevPermissionMap } from '@/lib/permissions-map';
-import { DEV_TENANT_IQ_CATALOG_UUID } from '@/lib/catalog-tenant';
 import { useAuthStore } from '@/stores/auth.store';
-import { usePermissionsStore } from '@/stores/permissions.store';
 import { useTenantStore } from '@/stores/tenant.store';
 
 const DEV_TENANT_ID = 'f47ac10b-58cc-4372-a567-0e02b2c3d480';
 
 const signInSchema = z.object({
-  email: z.string().email('Enter a valid email'),
+  username: z.string().min(1, 'Username is required'),
   password: z.string().min(1, 'Password is required'),
 });
 type SignInValues = z.infer<typeof signInSchema>;
@@ -43,13 +40,12 @@ function LoginPage() {
   const navigate = useNavigate();
   const setSession = useAuthStore((s) => s.setSession);
   const setTenant = useTenantStore((s) => s.setTenant);
-  const setPermissions = usePermissionsStore((s) => s.setPermissions);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const form = useForm<SignInValues>({
     resolver: zodResolver(signInSchema),
-    defaultValues: { email: '', password: '' },
+    defaultValues: { username: '', password: '' },
   });
 
   async function handleSignIn(values: SignInValues) {
@@ -57,7 +53,7 @@ function LoginPage() {
     setLoading(true);
     try {
       const { data, error: authError } = await authClient.signIn.email({
-        email: values.email,
+        email: values.username,
         password: values.password,
       });
       if (authError) {
@@ -85,42 +81,6 @@ function LoginPage() {
     }
   }
 
-  const handleDevLogin = () => {
-    // Dev-only mock login — bypasses better-auth.
-    // `tenantId` null ⇒ `iq_tenant_id` omitted ⇒ Visitpad reads/writes the **global** catalog.
-    setSession({
-      accessToken: 'dev-token',
-      sessionToken: 'dev-session',
-      userId: 'dev-user-001',
-      displayName: 'Dev User',
-    });
-    setTenant({
-      tenantId: null,
-      tenantName: 'Dev Hospital (platform catalog)',
-      branches: [{ id: 'branch-001', name: 'Main Campus' }],
-      activeBranch: 'branch-001',
-    });
-    setPermissions(buildDevPermissionMap('superadmin'));
-    navigate({ to: '/dashboard' });
-  };
-
-  const handleTenantDevLogin = () => {
-    setSession({
-      accessToken: 'dev-token-tenant',
-      sessionToken: 'dev-session-tenant',
-      userId: 'dev-tenant-admin-001',
-      displayName: 'Tenant Admin',
-    });
-    setTenant({
-      tenantId: DEV_TENANT_IQ_CATALOG_UUID,
-      tenantName: 'Demo Tenant (catalog)',
-      branches: [{ id: 'branch-001', name: 'Main Campus' }],
-      activeBranch: 'branch-001',
-    });
-    setPermissions(buildDevPermissionMap('tenant-catalog-readonly'));
-    navigate({ to: '/dashboard' });
-  };
-
   return (
     <div className="flex h-screen items-center justify-center bg-muted">
       <Card className="w-full max-w-sm">
@@ -133,18 +93,20 @@ function LoginPage() {
               {error}
             </p>
           )}
+
           <form onSubmit={form.handleSubmit(handleSignIn)} className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="username">Username</Label>
               <Input
-                id="email"
-                type="email"
-                autoComplete="email"
-                {...form.register('email')}
+                id="username"
+                type="text"
+                autoComplete="username"
+                placeholder="e.g. vishal@hospitalsaarthi.dev"
+                {...form.register('username')}
               />
-              {form.formState.errors.email && (
+              {form.formState.errors.username && (
                 <p className="text-xs text-destructive">
-                  {form.formState.errors.email.message}
+                  {form.formState.errors.username.message}
                 </p>
               )}
             </div>
@@ -166,31 +128,6 @@ function LoginPage() {
               {loading ? 'Signing in...' : 'Sign In'}
             </Button>
           </form>
-
-          <div className="mt-6 space-y-2 border-t pt-4">
-            <p className="text-xs font-medium text-muted-foreground">Dev shortcuts</p>
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              onClick={handleDevLogin}
-            >
-              Dev Login (platform catalog)
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-full"
-              onClick={handleTenantDevLogin}
-            >
-              Tenant dev login (tenant catalog)
-            </Button>
-            <p className="pt-1 text-xs text-muted-foreground">
-              Tenant login uses a static UUID so `iq_tenant_id` is sent — Visitpad lists tenant scope.
-              Mock Visitpad catalog: read + import-from-library; Add / row edits / toggles hidden
-              without write.
-            </p>
-          </div>
         </CardContent>
       </Card>
     </div>
