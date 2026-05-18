@@ -12,6 +12,12 @@ export async function listRegistrations(
   tenantId: string,
   params: ListRegistrationsParams,
 ): Promise<RegistrationListPage> {
+  const q = params.q?.trim();
+  const hasLegacy = !!(params.uhid?.trim() || params.mobile?.trim() || params.name?.trim());
+  if (q && hasLegacy) {
+    throw new Error("list_search_params_conflict");
+  }
+
   const name = params.name?.trim();
   if (name && name.length > 0 && name.length < 2) {
     throw new Error("name_search_too_short");

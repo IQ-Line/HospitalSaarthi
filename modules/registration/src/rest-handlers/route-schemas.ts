@@ -15,7 +15,7 @@ export const paramsRegistrationIdSchema = {
   },
 };
 
-const registrationStatusEnum = ["pending", "in_progress", "completed"] as const;
+const registrationStatusEnum = ["pending", "in_progress", "completed", "cancelled"] as const;
 
 const intakeCompletionEnum = ["pending", "partial", "complete"] as const;
 

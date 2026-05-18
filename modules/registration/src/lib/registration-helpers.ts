@@ -9,11 +9,13 @@ import type { PatientDemographicsSnapshot } from "../domain/registration.types.j
 export const REGISTRATION_STATUS_PENDING = "pending" as const;
 export const REGISTRATION_STATUS_IN_PROGRESS = "in_progress" as const;
 export const REGISTRATION_STATUS_COMPLETED = "completed" as const;
+export const REGISTRATION_STATUS_CANCELLED = "cancelled" as const;
 
 export const REGISTRATION_STATUSES = [
   REGISTRATION_STATUS_PENDING,
   REGISTRATION_STATUS_IN_PROGRESS,
   REGISTRATION_STATUS_COMPLETED,
+  REGISTRATION_STATUS_CANCELLED,
 ] as const;
 
 export type RegistrationStatus = (typeof REGISTRATION_STATUSES)[number];

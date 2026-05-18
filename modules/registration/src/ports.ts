@@ -51,6 +51,7 @@ export type EmpiRegisterPatientResult =
       snapshot: PatientDemographicsSnapshot;
       body: unknown;
     }
+  | { ok: false; kind: "empi_unavailable"; status: number; body: string }
   | { ok: false; kind: "error"; status: number; body: string };
 
 export interface EmpiHttpPort {

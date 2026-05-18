@@ -89,6 +89,14 @@ export function registerRegistrationsHandler(
             code: "registration_list_invalid_name",
           });
         }
+        if (err instanceof Error && err.message === "list_search_params_conflict") {
+          return reply.code(400).send({
+            statusCode: 400,
+            error: "Bad Request",
+            message: "Use either `q` or legacy `uhid`/`mobile`/`name`, not both.",
+            code: "registration_list_search_conflict",
+          });
+        }
         request.log.error({ err }, "listRegistrations failed");
         throw err;
       }

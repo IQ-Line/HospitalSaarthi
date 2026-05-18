@@ -13,9 +13,9 @@ info:
     - *New patient:* `POST /workflows/new-patient/registrations` — Registration calls EMPI once,
       then persists the snapshot from EMPI's response.
 
-    **Status (three values):** set on create via `intake_completion` (`pending` | `partial` →
-    `in_progress` | `complete` → `completed`). Call `POST /registrations/{id}/complete` when the
-    full desk chain (registration + appointment + billing) finishes.
+    **Status:** `pending`, `in_progress`, `completed` (desk intake progress via `intake_completion`),
+    and `cancelled` (operator void — preserved from legacy data). Call
+    `POST /registrations/{id}/complete` when the full desk chain finishes.
 
 tags:
   - name: EncounterRegistrations
@@ -39,7 +39,10 @@ paths:
         (`patient_full_name`, `patient_phone_number`, `patient_uhid`).
 
         Free-text `q` matches UHID, phone, or full name (substring, case-insensitive).
-        Legacy aliases: `uhid`, `mobile`, `name` (name requires ≥2 characters).
+
+        **Search param precedence:** use `q` *or* legacy `uhid` / `mobile` / `name` — not both;
+        sending `q` together with any legacy alias returns `400` (`registration_list_search_conflict`).
+        Legacy `name` alone requires ≥2 characters.
 
         Defaults: `page=1`, `limit=20` (max `limit` 100).
       tags: [EncounterRegistrations]
@@ -89,7 +92,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/RegistrationListPage"
         "400":
-          description: Invalid query (e.g. name shorter than 2 characters)
+          description: Invalid query (conflicting search params or name shorter than 2 characters)
 
   /registrations/{registrationId}:
     get:
@@ -196,6 +199,10 @@ paths:
           description: Invalid body or missing Idempotency-Key
         "409":
           description: Patient already exists in EMPI
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DuplicatePatientResponse"
         "503":
           description: EMPI unavailable or gateway not configured
 
@@ -230,8 +237,23 @@ components:
   schemas:
     RegistrationStatus:
       type: string
-      enum: [pending, in_progress, completed]
+      enum: [pending, in_progress, completed, cancelled]
       default: pending
+
+    DuplicatePatientResponse:
+      type: object
+      required: [code, message, patient_id, patient_snapshot]
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          enum: [patient_already_exists]
+        message: { type: string }
+        patient_id:
+          type: string
+          format: uuid
+        patient_snapshot:
+          $ref: "#/components/schemas/PatientSnapshot"
 
     IntakeCompletion:
       type: string

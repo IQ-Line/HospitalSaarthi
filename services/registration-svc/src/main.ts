@@ -76,6 +76,12 @@ async function main() {
     throw new Error("DATABASE_URL is required for registration-svc");
   }
 
+  const isProduction = process.env["NODE_ENV"] === "production";
+  const enableAuth = process.env["ENABLE_AUTH"] === "true";
+  if (isProduction && !enableAuth) {
+    throw new Error("ENABLE_AUTH=true is required when NODE_ENV=production");
+  }
+
   if (process.env["REGISTRATION_SKIP_MIGRATE"] !== "true") {
     await applyRegistrationSchemaMigration(DATABASE_URL);
     app.log.info("Registration schema migration applied (or already up to date)");
@@ -83,7 +89,9 @@ async function main() {
 
   const db = createDb(DATABASE_URL);
   const registrationRepo = new DrizzleRegistrationRepo(db);
-  const empiGateway = new HttpEmpiGateway(EMPI_URL);
+  const empiGateway = new HttpEmpiGateway(EMPI_URL, {
+    warn: (detail, message) => app.log.warn(detail, message),
+  });
   const eventBus = new InProcessEventBus();
   await eventBus.connect();
 
@@ -93,8 +101,7 @@ async function main() {
     eventBus,
   };
 
-  const ENABLE_AUTH = process.env["ENABLE_AUTH"] === "true";
-  const identityAuth = ENABLE_AUTH ? validateAuthConfig() : undefined;
+  const identityAuth = enableAuth ? validateAuthConfig() : undefined;
 
   async function registerRegistrationApi(api: FastifyInstance): Promise<void> {
     if (identityAuth) {
@@ -106,12 +113,6 @@ async function main() {
   }
 
   await app.register(registerRegistrationApi, { prefix: "/api/registration/v1" });
-
-  /**
-   * Some gateways strip the matched prefix and only forward `/registrations` (see BFF
-   * @fastify/http-proxy). Keep the same handlers at root for those callers.
-   */
-  await app.register(registerRegistrationApi);
 
   await app.listen({ port: PORT, host: "0.0.0.0" });
 }

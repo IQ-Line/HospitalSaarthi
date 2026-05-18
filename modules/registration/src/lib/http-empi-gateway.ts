@@ -1,4 +1,5 @@
 import type { EmpiHttpPort, EmpiRegisterPatientResult } from "../ports.js";
+import type { PatientDemographicsSnapshot } from "../domain/registration.types.js";
 import type { EmpiPatientWire } from "./registration-helpers.js";
 import { mapEmpiPatientToSnapshot } from "./registration-helpers.js";
 
@@ -19,10 +20,16 @@ function isPatientWire(value: unknown): value is EmpiPatientWire {
   );
 }
 
-function parseRegisterSuccess(json: unknown): Extract<EmpiRegisterPatientResult, { ok: true }> {
+function parseRegisterSuccess(json: unknown): {
+  patientId: string;
+  sourceRecordId: string;
+  snapshot: PatientDemographicsSnapshot;
+} {
   const root = json as Record<string, unknown>;
 
   if (root.patient && isPatientWire(root.patient)) {
+    // TODO(empi-contract): drop fallback once EMPI returns patient_source_record_id on create
+    // (HospitalSaarthi#12 — honor Idempotency-Key on POST /patients).
     const sourceRecordId =
       typeof root.patient_source_record_id === "string"
         ? root.patient_source_record_id
@@ -34,7 +41,7 @@ function parseRegisterSuccess(json: unknown): Extract<EmpiRegisterPatientResult,
     const sourceRecordId =
       typeof root.patient_source_record_id === "string"
         ? root.patient_source_record_id
-        : root.id;
+        : json.id;
     return mapEmpiPatientToSnapshot(json, sourceRecordId);
   }
 
@@ -45,7 +52,10 @@ function parseRegisterSuccess(json: unknown): Extract<EmpiRegisterPatientResult,
   throw new Error("EMPI create patient: unrecognised response shape");
 }
 
-function parseDuplicate(json: unknown): Extract<EmpiRegisterPatientResult, { ok: false; kind: "duplicate" }> {
+function parseDuplicate(
+  json: unknown,
+  warn?: (detail: Record<string, unknown>, message: string) => void,
+): Extract<EmpiRegisterPatientResult, { ok: false; kind: "duplicate" }> {
   const root = json as Record<string, unknown>;
   const existing = root.existing_patient;
   if (root.potential_duplicate === true && isPatientWire(existing)) {
@@ -59,6 +69,7 @@ function parseDuplicate(json: unknown): Extract<EmpiRegisterPatientResult, { ok:
       body: json,
     };
   }
+  warn?.({ body: json }, "EMPI 409: unrecognised duplicate body shape");
   return {
     ok: false,
     kind: "duplicate",
@@ -73,8 +84,15 @@ function parseDuplicate(json: unknown): Extract<EmpiRegisterPatientResult, { ok:
   };
 }
 
+export type EmpiGatewayLog = {
+  warn: (detail: Record<string, unknown>, message: string) => void;
+};
+
 export class HttpEmpiGateway implements EmpiHttpPort {
-  constructor(private readonly empiServiceOrigin: string) {}
+  constructor(
+    private readonly empiServiceOrigin: string,
+    private readonly log?: EmpiGatewayLog,
+  ) {}
 
   private jsonHeaders(tenantId: string, idempotencyKey: string): Record<string, string> {
     return {
@@ -90,11 +108,23 @@ export class HttpEmpiGateway implements EmpiHttpPort {
     body: Record<string, unknown>,
   ): Promise<EmpiRegisterPatientResult> {
     const url = joinUrl(this.empiServiceOrigin, "/api/empi/v1/patients");
-    const res = await fetch(url, {
-      method: "POST",
-      headers: this.jsonHeaders(tenantId, idempotencyKey),
-      body: JSON.stringify(body),
-    });
+
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: this.jsonHeaders(tenantId, idempotencyKey),
+        body: JSON.stringify(body),
+      });
+    } catch (err) {
+      return {
+        ok: false,
+        kind: "empi_unavailable",
+        status: 503,
+        body: err instanceof Error ? err.message : "EMPI unreachable",
+      };
+    }
+
     const text = await res.text();
 
     if (res.status === 201 || res.status === 200) {
@@ -113,7 +143,7 @@ export class HttpEmpiGateway implements EmpiHttpPort {
 
     if (res.status === 409) {
       try {
-        return parseDuplicate(JSON.parse(text) as unknown);
+        return parseDuplicate(JSON.parse(text) as unknown, this.log?.warn.bind(this.log));
       } catch {
         return {
           ok: false,

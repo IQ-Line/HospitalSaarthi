@@ -66,7 +66,7 @@ export interface NewPatientIntakeInput {
 export interface ListRegistrationsParams {
   page: number;
   limit: number;
-  /** Free-text: name (trgm), exact uhid, or phone */
+  /** Substring match on snapshot uhid, phone, or full name (see `q` precedence in OpenAPI). */
   q?: string;
   /** @deprecated Use `q` — kept for transitional FE */
   uhid?: string;

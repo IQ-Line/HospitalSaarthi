@@ -57,20 +57,35 @@ export async function createIntakeForNewPatient(
           kind: "duplicate",
           body: {
             code: "patient_already_exists",
-            message:
-              "Patient already exists.",
+            message: "Patient already exists.",
             patient_id: empiResult.existingPatientId,
             patient_snapshot: empiResult.snapshot,
           },
         };
       }
+      return {
+        ok: false,
+        kind: "empi_error",
+        status: 409,
+        body:
+          typeof empiResult.body === "string"
+            ? empiResult.body
+            : JSON.stringify(empiResult.body ?? "EMPI duplicate response unrecognised"),
+      };
     }
-
+    if (empiResult.kind === "empi_unavailable") {
+      return {
+        ok: false,
+        kind: "empi_unavailable",
+        status: empiResult.status,
+        body: empiResult.body,
+      };
+    }
     return {
       ok: false,
       kind: "empi_error",
-      status: 409,
-      body: "EMPI patient registration failed",
+      status: empiResult.status,
+      body: empiResult.body,
     };
   }
 

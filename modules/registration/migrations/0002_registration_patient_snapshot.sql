@@ -14,16 +14,29 @@ ALTER TABLE registration.registration
   ADD COLUMN IF NOT EXISTS patient_source_record_id uuid;
 
 -- Backfill nullable snapshot columns for rows created before this migration (best-effort).
-UPDATE registration.registration
-SET
-  patient_uhid = COALESCE(patient_uhid, 'UNKNOWN'),
-  patient_full_name = COALESCE(patient_full_name, 'Unknown'),
-  patient_phone_number = COALESCE(patient_phone_number, ''),
-  patient_source_record_id = COALESCE(patient_source_record_id, patient_id)
-WHERE patient_uhid IS NULL
-   OR patient_full_name IS NULL
-   OR patient_phone_number IS NULL
-   OR patient_source_record_id IS NULL;
+DO $backfill$
+DECLARE
+  backfilled integer;
+BEGIN
+  WITH updated AS (
+    UPDATE registration.registration
+    SET
+      patient_uhid = COALESCE(patient_uhid, 'UNKNOWN'),
+      patient_full_name = COALESCE(patient_full_name, 'Unknown'),
+      patient_phone_number = COALESCE(patient_phone_number, ''),
+      patient_source_record_id = COALESCE(patient_source_record_id, patient_id)
+    WHERE patient_uhid IS NULL
+       OR patient_full_name IS NULL
+       OR patient_phone_number IS NULL
+       OR patient_source_record_id IS NULL
+    RETURNING 1
+  )
+  SELECT count(*)::integer INTO backfilled FROM updated;
+
+  IF backfilled > 0 THEN
+    RAISE NOTICE 'registration 0002: backfilled patient snapshot on % row(s)', backfilled;
+  END IF;
+END $backfill$;
 
 ALTER TABLE registration.registration
   ALTER COLUMN patient_uhid SET NOT NULL,
