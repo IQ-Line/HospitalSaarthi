@@ -17,13 +17,12 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 from alembic import op
+from schema_names import GLOBAL_SCHEMA as _GM, TENANT_SCHEMA as _TM
 
 revision: str = "020_vp_disp_nm_audit_cols"
 down_revision: str | Sequence[str] | None = "019_tm_iq_tenant_id_col"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
-
-_TM = "tenant_master"
 
 _VISITPAD_TABLES = (
     "units",
@@ -45,7 +44,7 @@ def upgrade() -> None:
     if bind.dialect.name != "postgresql":
         return
 
-    for schema in ("public", _TM):
+    for schema in (_GM, _TM):
         op.execute(
             sa.text(
                 f'ALTER TABLE {schema}."units" RENAME COLUMN display_label TO display_name'
@@ -88,7 +87,7 @@ def downgrade() -> None:
         op.drop_column(table, "updated_by")
         op.drop_column(table, "created_by")
 
-    for schema in ("public", _TM):
+    for schema in (_GM, _TM):
         op.execute(
             sa.text(
                 f'ALTER TABLE {schema}."units" RENAME COLUMN display_name TO display_label'

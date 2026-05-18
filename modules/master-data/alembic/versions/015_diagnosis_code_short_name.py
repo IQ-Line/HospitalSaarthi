@@ -19,13 +19,12 @@ import sqlalchemy as sa
 from sqlalchemy import text
 
 from alembic import op
+from schema_names import GLOBAL_SCHEMA as _GM, TENANT_SCHEMA as _TM
 
 revision: str = "015_diagnosis_code_short_name"
 down_revision: str | Sequence[str] | None = "014_cc_short_name"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
-
-_TM = "tenant_master"
 
 
 def upgrade() -> None:
@@ -35,9 +34,9 @@ def upgrade() -> None:
 
     # IF EXISTS: some DBs never got the tenant_master ICD index (e.g. partial upgrade paths); 015 must still run.
     op.execute(text(f'DROP INDEX IF EXISTS "{_TM}".diagnoses_tenant_icd_active_key'))
-    op.execute(text('DROP INDEX IF EXISTS public.diagnoses_global_icd_active_key'))
+    op.execute(text('DROP INDEX IF EXISTS global_master.diagnoses_global_icd_active_key'))
 
-    for schema in ("public", _TM):
+    for schema in (_GM, _TM):
         op.add_column(
             "diagnoses",
             sa.Column("code", sa.String(length=64), nullable=True),
@@ -52,7 +51,7 @@ def upgrade() -> None:
     op.execute(
         text(
             """
-            UPDATE public.diagnoses
+            UPDATE global_master.diagnoses
             SET code = 'dx' || replace(cast(id as text), '-', '')
             WHERE code IS NULL
             """
@@ -68,7 +67,7 @@ def upgrade() -> None:
         )
     )
 
-    for schema in ("public", _TM):
+    for schema in (_GM, _TM):
         with op.batch_alter_table("diagnoses", schema=schema) as batch:
             batch.alter_column("code", existing_type=sa.String(length=64), nullable=False)
             batch.alter_column("icd10_code", existing_type=sa.String(length=16), nullable=True)
@@ -81,13 +80,13 @@ def upgrade() -> None:
         "diagnoses",
         ["code"],
         unique=True,
-        schema="public",
+        schema=_GM,
         postgresql_where=sa.text("NOT is_deleted"),
     )
     op.create_index(
         "diagnoses_tenant_code_active_key",
         "diagnoses",
-        ["tenant_id", "code"],
+        ["iq_tenant_id", "code"],
         unique=True,
         schema=_TM,
         postgresql_where=sa.text("NOT is_deleted"),
@@ -102,7 +101,7 @@ def downgrade() -> None:
     op.drop_index(
         "diagnoses_global_code_active_key",
         table_name="diagnoses",
-        schema="public",
+        schema=_GM,
         if_exists=True,
     )
     op.drop_index(
@@ -112,7 +111,7 @@ def downgrade() -> None:
         if_exists=True,
     )
 
-    for schema in ("public", _TM):
+    for schema in (_GM, _TM):
         with op.batch_alter_table("diagnoses", schema=schema) as batch:
             batch.drop_column("short_name")
             batch.drop_column("code")
@@ -127,13 +126,13 @@ def downgrade() -> None:
         "diagnoses",
         ["icd10_code", "icd_version"],
         unique=True,
-        schema="public",
+        schema=_GM,
         postgresql_where=sa.text("NOT is_deleted"),
     )
     op.create_index(
         "diagnoses_tenant_icd_active_key",
         "diagnoses",
-        ["tenant_id", "icd10_code", "icd_version"],
+        ["iq_tenant_id", "icd10_code", "icd_version"],
         unique=True,
         schema=_TM,
         postgresql_where=sa.text("NOT is_deleted"),

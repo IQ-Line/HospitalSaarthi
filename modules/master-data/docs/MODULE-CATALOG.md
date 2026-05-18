@@ -1,4 +1,4 @@
-# Master Data — module catalog (`public.modules`)
+# Master Data — module catalog (`global_master.modules`)
 
 This document describes how the **modules** slice is implemented in the Python service and how it maps to architecture artifacts.
 
@@ -22,7 +22,7 @@ Cross-cutting HLD: [HLD 02 §4.2 — Owns (platform module registry)](../../../d
 
 | Revision | Purpose |
 |----------|---------|
-| `001_initial_schema` | Creates `public.modules` with seed rows for core modules. Uses `gen_random_uuid()` defaults (no `uuid-ossp`). |
+| `001_initial_schema` | Creates `global_master.modules` with seed rows for core modules. Uses `gen_random_uuid()` defaults (no `uuid-ossp`). |
 | `002_extend_modules_catalog` | Adds LLD columns: `parent_id`, `slug`, `description`, `level`, `icon`, `is_active`; FK and indexes; backfills `slug` from `name`. |
 | `003_soft_delete_audit` | Adds `is_deleted` (soft delete; default `false`), optional `created_by` / `updated_by`, index on `is_deleted`. |
 | `004_partial_unique` | Replaces global unique on `name`/`slug` with **partial unique** indexes (`WHERE NOT is_deleted`) so soft-deleted rows do not block reuse of names/slugs (fresh DBs run 002 full unique first, then this replacement). |
@@ -33,9 +33,9 @@ Cross-cutting HLD: [HLD 02 §4.2 — Owns (platform module registry)](../../../d
 | `024_visitpad_templates_module_catalog` | Idempotent seed: `visitpad-templates` module + catalog read/write `permissions` + `module_permissions` junction rows (Visitpad templates). |
 | `025_visitpad_templates_catalog_manage` | Optional: `visitpad-templates-catalog-manage` (`action` = `manage`) + junction row for coarse superadmin-style Cerbos bindings (does not remove 024 rows). |
 
-All catalog tables are created in the PostgreSQL **`public`** schema (same default as most services).
+All catalog tables are created in the PostgreSQL **`global_master`** schema (`tenant_master` for per-tenant copies). The shared database also holds other modules’ schemas (`configurator`, `empi`, …) and `public.alembic_version` for Alembic.
 
-**If an older database already has tables under `master_data`:** do **not** reset seeded environments. Use a one-time DBA migration: move/rename tables to `public`, recreate constraints/indexes if needed, then align Alembic with `uv run alembic stamp <current_revision>` and continue with `uv run alembic upgrade head`. For local throwaway DBs only, a clean rebuild is acceptable.
+**Local development:** treat the database as disposable. Drop `global_master` and `tenant_master` (and any stray `public` catalog leftovers), then run `alembic upgrade head` on an empty `hims_dev` — no in-place migration from legacy `public` or `master_data` schemas.
 
 **Run migrations on any machine** (same Alembic chain; only `MASTER_DATA_DATABASE_URL` changes):
 
@@ -60,7 +60,7 @@ All catalog tables are created in the PostgreSQL **`public`** schema (same defau
 
 **Workflow:** When you add columns or endpoints (including Swagger-visible changes), read **[SETUP.md](../SETUP.md)** section **§7 — After DB or API changes** — migrate first, then code; **`uvicorn --reload`** does not apply migrations automatically.
 
-Ad-hoc DBA / pgAdmin examples (inspect `modules` / `permissions` / `module_permissions`, optional granular Visitpad slugs, copy `public` → `tenant_master`): [`../scripts/visitpad_catalog_and_tenant_examples.sql`](../scripts/visitpad_catalog_and_tenant_examples.sql).
+Ad-hoc DBA / pgAdmin examples (inspect `modules` / `permissions` / `module_permissions`, optional granular Visitpad slugs, copy `global_master` → `tenant_master`): [`../scripts/visitpad_catalog_and_tenant_examples.sql`](../scripts/visitpad_catalog_and_tenant_examples.sql).
 
 ## HTTP endpoints (implemented)
 

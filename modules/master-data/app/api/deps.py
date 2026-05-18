@@ -35,7 +35,7 @@ def get_catalog_scope(
 ) -> CatalogScope:
     """Resolve where catalog CRUD goes for this request.
 
-    - No / blank header → ``CatalogScope(iq_tenant_id=None)`` → ORM uses ``public`` models (**no** ``iq_tenant_id`` column).
+    - No / blank header → ``CatalogScope(iq_tenant_id=None)`` → ORM uses ``global_master`` models (**no** ``iq_tenant_id`` column).
     - Valid UUID string → ``CatalogScope(iq_tenant_id=…)`` → ORM uses ``tenant_master`` models (**every** row carries ``iq_tenant_id``).
     """
     try:
@@ -47,7 +47,7 @@ def get_catalog_scope(
             detail = (
                 "Invalid iq_tenant_id: expected a canonical UUID string "
                 "(e.g. 550e8400-e29b-41d4-a716-446655440000). "
-                "Numeric-only legacy keys are not accepted. Omit the header for schema public."
+                "Numeric-only legacy keys are not accepted. Omit the header for the global catalog (global_master schema)."
             )
         else:
             detail = "Invalid iq_tenant_id. Omit the header for the shared global catalog."

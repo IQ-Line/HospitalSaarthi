@@ -1,4 +1,4 @@
-"""Database access for ``permissions`` — ``public`` vs ``tenant_master``."""
+"""Database access for ``permissions`` — ``global_master`` vs ``tenant_master``."""
 
 from __future__ import annotations
 
