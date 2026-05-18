@@ -17,6 +17,9 @@ routeTree.gen.ts
 .env.local
 .env.*.local
 
+# Keys (never commit PEM material)
+*.pem
+
 # OS
 .DS_Store
 Thumbs.db

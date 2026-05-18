@@ -1,0 +1,44 @@
+{
+  "name": "user-management-svc",
+  "tags": ["type:app", "scope:platform"],
+  "targets": {
+    "serve": {
+      "command": "tsx src/main.ts",
+      "options": {
+        "cwd": "services/user-management-svc"
+      }
+    },
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "services/user-management-svc"
+      }
+    },
+    "build": {
+      "dependsOn": [],
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "services/user-management-svc"
+      }
+    },
+    "test": {
+      "command": "vitest run",
+      "options": {
+        "cwd": "services/user-management-svc"
+      }
+    },
+    "validate-spec": {
+      "dependsOn": ["^build"],
+      "command": "pnpm run validate-spec",
+      "options": {
+        "cwd": "services/user-management-svc"
+      }
+    },
+    "openapi-codegen": {
+      "command": "pnpm run openapi:codegen",
+      "options": {
+        "cwd": "services/user-management-svc"
+      }
+    }
+  }
+}

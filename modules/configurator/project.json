@@ -10,6 +10,18 @@
         "tsConfig": "modules/configurator/tsconfig.json"
       }
     },
+    "db:migrate": {
+      "command": "tsx ../../tools/run-sql-migrations.mts --db-env DATABASE_URL ./../../infra/db/migrations/001_configurator_core_tables.sql",
+      "options": {
+        "cwd": "modules/configurator"
+      }
+    },
+    "db-migrate": {
+      "command": "tsx ../../tools/run-sql-migrations.mts --db-env DATABASE_URL ./../../infra/db/migrations/001_configurator_core_tables.sql",
+      "options": {
+        "cwd": "modules/configurator"
+      }
+    },
     "test": {
       "executor": "@nx/js:node",
       "options": {

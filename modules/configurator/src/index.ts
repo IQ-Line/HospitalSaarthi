@@ -6,6 +6,11 @@ export { ConfiguratorError } from "./errors.js";
 export { createOrganization } from "./use-cases/create-organization.js";
 export { createOrganizationWithDefaultTenant } from "./use-cases/create-organization-with-default-tenant.js";
 export type { OrganizationWithDefaultTenantResult } from "./use-cases/create-organization-with-default-tenant.js";
+export { createOrganizationWithDefaultTenantAndTenantModules } from "./use-cases/create-organization-with-default-tenant-and-modules.js";
+export type {
+  OrganizationProvisionWithModulesResult,
+  TenantModuleEnablementInput,
+} from "./use-cases/create-organization-with-default-tenant-and-modules.js";
 export { getOrganizationById } from "./use-cases/get-organization-by-id.js";
 export { updateOrganization } from "./use-cases/update-organization.js";
 export { createTenant } from "./use-cases/create-tenant.js";
@@ -23,6 +28,7 @@ export type {
   OrganizationFilters,
   OrganizationType,
   OrganizationStatus,
+  TenantOrganizationWizardMetadata,
 } from "./domain/organization.types.js";
 
 export type {
@@ -31,6 +37,7 @@ export type {
   UpdateTenantData,
   TenantFilters,
   TenantType,
+  BranchType,
   ProvisioningStatus,
   DataIsolationLevel,
 } from "./domain/tenant.types.js";

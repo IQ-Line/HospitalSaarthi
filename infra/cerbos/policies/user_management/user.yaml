@@ -1,0 +1,124 @@
+---
+# User Management — ABAC: capabilities, delegated capabilities, department, clearance tiers.
+#
+# Policy contract (RBAC regression guard):
+# - Do NOT authorize using Cerbos principal `roles` field alone. That field may be passed through
+#   the PEP for identity/context only; all EFFECT_ALLOW rules here must use request.principal.attr
+#   (tenant iq_tenant_id, capabilities or delegated_capabilities, department/clearances where applicable).
+# - New rules must keep tenant alignment (principal.attr.iq_tenant_id vs resource.attr.iq_tenant_id)
+#   and a capability or delegated_capability check; do not add role-name-only conditions.
+#
+# Capability grant: direct role_capabilities OR same string in delegated_capabilities (equivalent for authz).
+# Principal clearance map: request.principal.attr.clearances.
+# Effective tier: request.principal.attr.um_clearance_effective_tier.
+# Resource sensitivity: request.resource.attr.required_clearance (0 = none, 1–3 = stronger).
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "user"
+  version: default
+  rules:
+    - actions:
+        - "user.create"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "um:user:create" in request.principal.attr.capabilities ||
+              "um:user:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "user.read"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "um:user:read" in request.principal.attr.capabilities ||
+              "um:user:read" in request.principal.attr.delegated_capabilities
+            ) &&
+            (
+              !has(request.resource.attr.department) ||
+              request.resource.attr.department == null ||
+              request.resource.attr.department == "" ||
+              !has(request.principal.attr.department) ||
+              request.principal.attr.department == null ||
+              request.principal.attr.department == "" ||
+              request.resource.attr.department == request.principal.attr.department
+            ) &&
+            (
+              !has(request.resource.attr.required_clearance) ||
+              request.resource.attr.required_clearance <= 0 ||
+              (
+                request.principal.attr.um_clearance_effective_tier >= request.resource.attr.required_clearance &&
+                has(request.principal.attr.clearances) &&
+                size(request.principal.attr.clearances) > 0
+              )
+            )
+
+    - actions:
+        - "user.update"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "um:user:update" in request.principal.attr.capabilities ||
+              "um:user:update" in request.principal.attr.delegated_capabilities
+            ) &&
+            (
+              !has(request.resource.attr.department) ||
+              request.resource.attr.department == null ||
+              request.resource.attr.department == "" ||
+              !has(request.principal.attr.department) ||
+              request.principal.attr.department == null ||
+              request.principal.attr.department == "" ||
+              request.resource.attr.department == request.principal.attr.department
+            ) &&
+            (
+              !has(request.resource.attr.required_clearance) ||
+              request.resource.attr.required_clearance <= 0 ||
+              (
+                request.principal.attr.um_clearance_effective_tier >= request.resource.attr.required_clearance &&
+                has(request.principal.attr.clearances) &&
+                size(request.principal.attr.clearances) > 0
+              )
+            )
+
+    - actions:
+        - "user.deactivate"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "um:user:deactivate" in request.principal.attr.capabilities ||
+              "um:user:deactivate" in request.principal.attr.delegated_capabilities
+            ) &&
+            (
+              !has(request.resource.attr.department) ||
+              request.resource.attr.department == null ||
+              request.resource.attr.department == "" ||
+              !has(request.principal.attr.department) ||
+              request.principal.attr.department == null ||
+              request.principal.attr.department == "" ||
+              request.resource.attr.department == request.principal.attr.department
+            ) &&
+            (
+              !has(request.resource.attr.required_clearance) ||
+              request.resource.attr.required_clearance <= 0 ||
+              (
+                request.principal.attr.um_clearance_effective_tier >= request.resource.attr.required_clearance &&
+                has(request.principal.attr.clearances) &&
+                size(request.principal.attr.clearances) > 0
+              )
+            )

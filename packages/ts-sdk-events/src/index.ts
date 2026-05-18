@@ -12,7 +12,7 @@ export {
   validateEnvelope,
   EnvelopeValidationError,
 } from './envelope.js';
-export type { CreateEnvelopeInput } from './envelope.js';
+export type { CreateEnvelopeInput, ValidateEnvelopeOptions } from './envelope.js';
 
 export { InProcessEventBus } from './in-process-event-bus.js';
 

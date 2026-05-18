@@ -1,5 +1,5 @@
 /** Re-exports for consumers that share Drizzle query builders / pg-core (single resolution path). */
-export { eq, and, ilike, sql, type SQL } from "drizzle-orm";
+export { eq, and, ilike, isNull, sql, type SQL } from "drizzle-orm";
 export {
   pgSchema,
   uuid,

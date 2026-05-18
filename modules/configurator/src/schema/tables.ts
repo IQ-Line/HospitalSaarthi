@@ -62,6 +62,14 @@ export const tenants = configuratorSchema.table(
     timezone: text("timezone").notNull().default("Asia/Kolkata"),
     locale: text("locale").notNull().default("en-IN"),
     metadata: jsonb("metadata"),
+    branch_code: text("branch_code"),
+    branch_type: text("branch_type"),
+    address_line1: text("address_line1"),
+    city: text("city"),
+    state: text("state"),
+    pin_code: text("pin_code"),
+    contact_phone: text("contact_phone"),
+    contact_email: text("contact_email"),
     ...auditColumns(),
   },
   (t) => [
@@ -81,6 +89,10 @@ export const tenants = configuratorSchema.table(
     check(
       "chk_tenants_data_isolation_level",
       sql`${t.data_isolation_level} IN ('shared', 'isolated')`,
+    ),
+    check(
+      "chk_tenants_branch_type",
+      sql`${t.branch_type} IS NULL OR ${t.branch_type} IN ('hub_lab', 'hub', 'satellite')`,
     ),
   ],
 );

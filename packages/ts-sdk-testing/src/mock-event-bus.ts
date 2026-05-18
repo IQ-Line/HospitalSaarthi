@@ -3,10 +3,11 @@ export interface DomainEvent<T extends Record<string, unknown> = Record<string, 
   readonly event_type: string;
   readonly source_module: string;
   readonly iq_tenant_id: string;
-  readonly timestamp: string;
+  readonly occurred_at: string;
+  readonly published_at?: string;
   readonly correlation_id: string;
   readonly actor_id: string;
-  readonly schema_version: string;
+  readonly event_contract_version: string;
   readonly payload: T;
 }
 

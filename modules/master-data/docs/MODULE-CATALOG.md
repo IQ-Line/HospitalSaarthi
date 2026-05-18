@@ -4,7 +4,7 @@ This document describes how the **modules** slice is implemented in the Python s
 
 ## Catalog lifecycle
 
-- **Runtime (Phase 0):** **`POST`**, **`PATCH`**, and **`DELETE`** on `/api/v1/master-data/modules` are **not** gated by this service’s bearer dependency; a gateway may still authenticate. **`DELETE` sets `is_deleted = true`** — no hard SQL delete in application flows. When **`require_superadmin`** is wired back, **`created_by` / `updated_by`** are set only from a verified JWT **`sub`** (UUID); test bypass / dev shared secret / **`auth_disabled`** leave those columns **`NULL`** (see **`app/middleware/auth_policy.py`** and **`tests/test_utils/test_auth_policy.py`**). HS256 verification uses **`MASTER_DATA_JWT_SECRET`** when set — [`.env.example`](../.env.example).
+- **Runtime (Phase 0):** **`POST`**, **`PATCH`**, and **`DELETE`** on `/api/v1/master-data/modules` are **not** gated by this service’s bearer dependency; a gateway may still authenticate. **`DELETE` sets `is_deleted = true`** — no hard SQL delete in application flows. When **`require_superadmin`** is wired back, **`created_by` / `updated_by`** are set only from a verified JWT **`sub`** (UUID); test bypass / dev shared secret / **`auth_disabled`** leave those columns **`NULL`** (see **`app/middleware/auth_policy.py`** and **`tests/test_utils/test_auth_policy.py`**). HS256 verification uses **`MASTER_DATA_JWT_SECRET`** when set — repo root [`.env.example`](../../../.env.example).
 - **Bootstrap:** Alembic still creates the table and may **seed** core modules (`001_initial_schema`, …). That complements API-driven catalog management; see [LLD §9](../../../docs/architecture/lld/master-data/01-schema-design.md#9-module-registration-lifecycle).
 
 Cross-cutting HLD: [HLD 02 §4.2 — Owns (platform module registry)](../../../docs/architecture/hld/02-core-modules.md#42-owns).
@@ -40,7 +40,7 @@ All catalog tables are created in the PostgreSQL **`public`** schema (same defau
 **Run migrations on any machine** (same Alembic chain; only `MASTER_DATA_DATABASE_URL` changes):
 
 1. Install deps once: from repo root, `pnpm nx run master-data:setup`, **or** `cd modules/master-data && uv sync`.
-2. Copy [`../.env.example`](../.env.example) to `../.env` and set **`MASTER_DATA_DATABASE_URL`** to your Postgres (Docker in this repo defaults to port **5433** — see [`SETUP.md`](../SETUP.md)).
+2. Copy the repo root [`.env.example`](../../../.env.example) to `.env` at the repo root and set **`MASTER_DATA_DATABASE_URL`** to your Postgres (Docker in this repo defaults to port **5433** — see [`SETUP.md`](../SETUP.md)).
 3. Apply schema:
 
    **From repository root (recommended):**

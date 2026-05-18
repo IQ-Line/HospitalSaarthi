@@ -1,8 +1,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { RouterProvider, createRouter } from '@tanstack/react-router';
-import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/query-client';
+import { AppProviders } from '@/app/providers';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePermissionsStore } from '@/stores/permissions.store';
 import { useTenantStore } from '@/stores/tenant.store';
@@ -42,9 +42,9 @@ if (!rootElement.innerHTML) {
   void rehydrateDevPersistedStores().then(() => {
     ReactDOM.createRoot(rootElement).render(
       <React.StrictMode>
-        <QueryClientProvider client={queryClient}>
+        <AppProviders>
           <RouterProvider router={router} />
-        </QueryClientProvider>
+        </AppProviders>
       </React.StrictMode>,
     );
   });
