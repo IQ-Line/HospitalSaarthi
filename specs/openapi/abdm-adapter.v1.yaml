@@ -601,6 +601,23 @@ paths:
         "200":
           description: ABHA address verified
 
+  /m1/verify/abha-address/verify/user:
+    post:
+      operationId: abdmM1VerifyAbhaAddressVerifyUser
+      summary: Frontdesk verify ABHA address — select ABHA after mobile OTP (NHA verify/user)
+      tags: [M1-Verify]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginVerifyUserRequest"
+      responses:
+        "200":
+          description: Profile x_token stored on session
+
   /m1/profile/mobile/update/otp:
     post:
       operationId: abdmM1ProfileMobileUpdateOtp

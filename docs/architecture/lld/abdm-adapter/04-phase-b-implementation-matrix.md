@@ -16,7 +16,8 @@ NHA paths use **`/v3/profile/login/request/otp`** and **`/v3/profile/login/verif
 | Done | Verify via mobile — Verify User | `POST /m1/login/verify/user` | `login/verify/user` + header **`T-token: Bearer <transfer jwt>`** |
 | Done | Frontdesk verify ABHA number (mirror) | `POST /m1/verify/abha-number/*` | Same NHA login paths; `flowKind: abdm.m1.verify-existing.v1` |
 | Done | Frontdesk verify ABHA address | `POST /m1/verify/abha-address/otp` + verify | `abha-address-login` scopes per channel |
-| Done | Frontdesk mobile multi-account | `POST /m1/verify/abha-number/verify/user` | Same as `login/verify/user` |
+| Done | Frontdesk mobile multi-account (ABHA number) | `POST /m1/verify/abha-number/verify/user` | Same as `login/verify/user` |
+| Done | Frontdesk mobile multi-account (ABHA address) | `POST /m1/verify/abha-address/verify/user` | Same NHA path + `T-token`; `flowKind: abdm.m1.verify-existing.v1` |
 
 ### Out of scope (Phase B)
 

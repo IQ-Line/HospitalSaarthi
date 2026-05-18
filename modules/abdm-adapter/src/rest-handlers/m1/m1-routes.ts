@@ -422,6 +422,30 @@ export async function registerM1Routes(
   );
 
   app.post(
+    "/m1/verify/abha-address/verify/user",
+    { schema: { body: loginVerifyUserBodySchema } },
+    async (req, reply) => {
+      const raw = req.body as { sessionId?: unknown; abhaNumber?: unknown };
+      try {
+        const out = await loginVerifyUserRequest(
+          {
+            sessionId: String(raw.sessionId),
+            abhaNumber: String(raw?.abhaNumber ?? ""),
+            iqTenantId: req.tenantId,
+          },
+          deps,
+          "abdm.m1.verify-existing.v1",
+        );
+        return reply.status(200).send(out);
+      } catch (err) {
+        if (err instanceof AbdmGatewayError) return sendUpstream(reply, err);
+        if (err instanceof AbdmUseCaseError) return sendUseCase(reply, err);
+        throw err;
+      }
+    },
+  );
+
+  app.post(
     "/m1/verify/abha-number/verify/user",
     { schema: { body: loginVerifyUserBodySchema } },
     async (req, reply) => {
