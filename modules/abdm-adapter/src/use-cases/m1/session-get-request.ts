@@ -15,10 +15,6 @@ export interface SessionGetHimsResponse {
 }
 
 function suggestNextStep(session: AbdmSession): string {
-  if (session.flowKind === "abdm.m1.mobile-otp.v1") {
-    if (session.state === "OTP_REQUESTED") return "POST /m1/enrol/mobile/verify";
-    return "POST /m1/enrol/mobile/otp";
-  }
   if (session.flowKind === "abdm.m1.verify-existing.v1") {
     if (session.state === "OTP_REQUESTED") return "POST /m1/verify/abha-number/verify or /m1/verify/abha-address/verify";
     if (session.xToken) return "GET /m1/profile";

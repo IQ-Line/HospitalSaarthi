@@ -4,7 +4,6 @@ export type M1OtpRateLimitAction =
   | "enrol-aadhaar-otp"
   | "enrol-aadhaar-resend"
   | "enrol-mobile-verify-send"
-  | "enrol-mobile-otp"
   | "login-otp"
   | "verify-otp"
   | "profile-update-otp";

@@ -38,6 +38,20 @@ export interface NhaLoginVerifyResponse {
   expiresIn?: number;
   refreshExpiresIn?: number;
   accounts?: unknown[];
+  /** PHR ABHA-address verify (`/v3/phr/web/login/abha/verify`). */
+  users?: unknown[];
+  tokens?: {
+    token?: string;
+    refreshToken?: string;
+    expiresIn?: number;
+    refreshExpiresIn?: number;
+  };
+  jwtResponse?: {
+    token?: string;
+    refreshToken?: string;
+    expiresIn?: number;
+    refreshExpiresIn?: number;
+  };
 }
 
 export interface LoginAbhaNumberOtpHimsRequest {
@@ -85,6 +99,8 @@ export interface LoginVerifyHimsResponse {
   /** Present when NHA returns `accounts` (mobile login) — call verify/user next. */
   accounts?: LoginAccountSummary[];
   needsUserSelection?: boolean;
+  /** Set when `needsUserSelection`; pass as `T-token` to verify/user. */
+  loginTransferToken?: string;
 }
 
 export interface NhaLoginVerifyUserBody {
@@ -121,7 +137,21 @@ export function extractLoginProfileTokens(nha: NhaLoginVerifyResponse): {
       tToken: typeof nha.refreshToken === "string" ? nha.refreshToken : undefined,
     };
   }
-  throw new Error("NHA login/verify response missing token");
+  const pack = nha.tokens ?? nha.jwtResponse;
+  const packedToken =
+    pack && typeof pack === "object" && typeof (pack as { token?: unknown }).token === "string"
+      ? (pack as { token: string }).token
+      : undefined;
+  if (packedToken) {
+    const refresh =
+      pack &&
+      typeof pack === "object" &&
+      typeof (pack as { refreshToken?: unknown }).refreshToken === "string"
+        ? (pack as { refreshToken: string }).refreshToken
+        : undefined;
+    return { xToken: packedToken, tToken: refresh };
+  }
+  throw new Error("NHA login/verify response missing token / tokens.token / jwtResponse.token");
 }
 
 export function mapNhaLoginAccounts(accounts: unknown): LoginAccountSummary[] {
@@ -141,6 +171,46 @@ export function mapNhaLoginAccounts(accounts: unknown): LoginAccountSummary[] {
       dob: typeof r.dob === "string" ? r.dob : undefined,
       status: typeof r.status === "string" ? r.status : undefined,
       kycVerified: typeof r.kycVerified === "boolean" ? r.kycVerified : undefined,
+    });
+  }
+  return out;
+}
+
+/** PHR web login verify returns `users[]` (not `accounts[]`). */
+export function mapNhaPhrLoginUsers(users: unknown): LoginAccountSummary[] {
+  if (!Array.isArray(users)) return [];
+  const out: LoginAccountSummary[] = [];
+  for (const row of users) {
+    if (!row || typeof row !== "object") continue;
+    const r = row as Record<string, unknown>;
+    const abhaNumber =
+      typeof r.abhaNumber === "string"
+        ? r.abhaNumber
+        : typeof r.ABHANumber === "string"
+          ? r.ABHANumber
+          : "";
+    if (!abhaNumber) continue;
+    out.push({
+      abhaNumber,
+      preferredAbhaAddress:
+        typeof r.abhaAddress === "string"
+          ? r.abhaAddress
+          : typeof r.preferredAbhaAddress === "string"
+            ? r.preferredAbhaAddress
+            : undefined,
+      name:
+        typeof r.fullName === "string"
+          ? r.fullName
+          : typeof r.name === "string"
+            ? r.name
+            : undefined,
+      status: typeof r.status === "string" ? r.status : undefined,
+      kycVerified:
+        typeof r.kycVerified === "boolean"
+          ? r.kycVerified
+          : typeof r.kycStatus === "string"
+            ? r.kycStatus === "VERIFIED"
+            : undefined,
     });
   }
   return out;

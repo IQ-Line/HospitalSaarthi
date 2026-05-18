@@ -42,16 +42,14 @@ export async function enrolAadhaarOtpResendRequest(
       "CONFLICT",
     );
   }
-  if (!session.txnId) {
-    throw new AbdmUseCaseError("session missing txnId for resend", 400);
-  }
   if (!aadhaarMatchesSessionMask(digits, session.context["aadhaarMasked"])) {
     throw new AbdmUseCaseError("aadhaarNumber does not match session", 400);
   }
   const cert = await deps.gateway.getPublicCertificate();
   const loginId = encryptLoginIdWithAbdmPublicKey(cert.publicKey, digits);
+  // milestone1 Step 2 / Postman: resend body has no prior txnId — use "" like first Send OTP.
   const body: NhaEnrolmentRequestOtpBody = {
-    txnId: session.txnId,
+    txnId: "",
     scope: ["abha-enrol"],
     loginHint: "aadhaar",
     loginId,

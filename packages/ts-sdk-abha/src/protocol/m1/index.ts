@@ -9,7 +9,6 @@
 export * from './enrol-aadhaar-otp.js';
 export * from './enrol-aadhaar-verify.js';
 export * from './enrol-mobile-verify-enrolment.js';
-export * from './enrol-mobile-otp.js';
 export * from './abha-address.js';
 export * from './profile.js';
 export * from './profile-update.js';

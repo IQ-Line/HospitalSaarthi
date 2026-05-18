@@ -80,4 +80,43 @@ describe("loginVerifyUserRequest", () => {
       }),
     );
   });
+
+  it("rejects ABHA-address (PHR) sessions — verify/user is profile/mobile only", async () => {
+    const deps: AbdmAdapterDeps = {
+      sessions: {
+        findById: vi.fn(async () =>
+          session({
+            flowKind: "abdm.m1.verify-existing.v1",
+            context: {
+              loginTransferToken: "transfer.jwt",
+              loginNeedsUserVerify: true,
+              loginApiVariant: "phr-abha",
+            },
+          }),
+        ),
+        patch: vi.fn(),
+        create: vi.fn(),
+      },
+      gateway: {
+        post: vi.fn(),
+        get: vi.fn(),
+        getPublicCertificate: vi.fn(),
+        getDiagnosticsSnapshot: vi.fn(() => ({
+          tokenValidUntilMs: null,
+          certValidUntilMs: null,
+          certCached: false,
+        })),
+      },
+      fidelius: {} as AbdmAdapterDeps["fidelius"],
+      secrets: {} as AbdmAdapterDeps["secrets"],
+    };
+
+    await expect(
+      loginVerifyUserRequest(
+        { sessionId: "sess-1", abhaNumber: "91-7561-4088-1234", iqTenantId: TENANT },
+        deps,
+        "abdm.m1.verify-existing.v1",
+      ),
+    ).rejects.toMatchObject({ httpStatus: 409 });
+  });
 });

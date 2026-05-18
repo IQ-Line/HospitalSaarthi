@@ -1,6 +1,10 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import type { AbdmAdapterDeps } from "../../ports.js";
-import { AbdmGatewayError } from "../../lib/gateway-errors.js";
+import {
+  AbdmGatewayError,
+  formatNhaUpstreamMessage,
+  parseNhaErrorBody,
+} from "../../lib/gateway-errors.js";
 import { AbdmUseCaseError } from "../../lib/m1-errors.js";
 import { enrolAadhaarOtpRequest } from "../../use-cases/m1/enrol-aadhaar-otp-request.js";
 import { enrolAadhaarOtpResendRequest } from "../../use-cases/m1/enrol-aadhaar-otp-resend-request.js";
@@ -19,8 +23,6 @@ import { loginAadhaarOtpRequest } from "../../use-cases/m1/login-aadhaar-otp-req
 import { loginMobileOtpRequest } from "../../use-cases/m1/login-mobile-otp-request.js";
 import { loginVerifyOtpRequest } from "../../use-cases/m1/login-verify-otp-request.js";
 import { loginVerifyUserRequest } from "../../use-cases/m1/login-verify-user-request.js";
-import { enrolMobileOtpRequest } from "../../use-cases/m1/enrol-mobile-otp-request.js";
-import { enrolMobileVerifyRequest } from "../../use-cases/m1/enrol-mobile-verify-request.js";
 import { profileMobileUpdateOtpRequest } from "../../use-cases/m1/profile-mobile-update-otp-request.js";
 import { profileMobileUpdateVerifyRequest } from "../../use-cases/m1/profile-mobile-update-verify-request.js";
 import { profileEmailUpdateOtpRequest } from "../../use-cases/m1/profile-email-update-otp-request.js";
@@ -49,10 +51,14 @@ import {
 function sendUpstream(reply: FastifyReply, err: AbdmGatewayError): unknown {
   const status =
     err.statusCode >= 400 && err.statusCode < 600 ? err.statusCode : 502;
+  const parsed = parseNhaErrorBody(err.responseBody);
   return reply.status(status).send({
     error: "Upstream",
-    message: err.message,
-    code: err.abdmCode ?? null,
+    message: formatNhaUpstreamMessage(err),
+    code: err.abdmCode ?? parsed.code ?? null,
+    ...(process.env["NODE_ENV"] !== "production" && err.responseBody !== undefined
+      ? { details: err.responseBody }
+      : {}),
   });
 }
 
@@ -95,34 +101,6 @@ export async function registerM1Routes(
   },
   );
 
-  app.post("/m1/enrol/mobile/otp", { schema: { body: mobile10BodySchema } }, async (req, reply) => {
-    try {
-      const out = await enrolMobileOtpRequest(
-        { mobile: String((req.body as { mobile?: unknown }).mobile ?? ""), iqTenantId: req.tenantId }, deps);
-      return reply.status(200).send(out);
-    } catch (err) {
-      if (err instanceof AbdmGatewayError) return sendUpstream(reply, err);
-      if (err instanceof AbdmUseCaseError) return sendUseCase(reply, err);
-      throw err;
-    }
-  });
-
-  app.post(
-    "/m1/enrol/mobile/verify",
-    { schema: { body: otp6SessionBodySchema } },
-    async (req, reply) => {
-      const raw = req.body as { sessionId?: unknown; otp?: unknown };
-      try {
-        const out = await enrolMobileVerifyRequest({ sessionId: String(raw.sessionId), otp: String(raw.otp ?? ""), iqTenantId: req.tenantId }, deps);
-        return reply.status(200).send(out);
-      } catch (err) {
-        if (err instanceof AbdmGatewayError) return sendUpstream(reply, err);
-        if (err instanceof AbdmUseCaseError) return sendUseCase(reply, err);
-        throw err;
-      }
-    },
-  );
-
   app.post("/m1/enrol/aadhaar/otp", { schema: { body: aadhaar12BodySchema } }, async (req, reply) => {
     const raw = req.body as { aadhaarNumber: string };
     try {
@@ -160,12 +138,12 @@ export async function registerM1Routes(
     "/m1/enrol/aadhaar/verify",
     { schema: { body: enrolAadhaarVerifyBodySchema } },
     async (req, reply) => {
-    const raw = req.body as { sessionId: string; otp: string; mobile?: string };
+    const raw = req.body as { sessionId: string; otp: string; mobile: string };
     try {
       const out = await enrolAadhaarVerifyRequest({
         sessionId: raw.sessionId,
         otp: raw.otp,
-        ...(raw.mobile !== undefined ? { mobile: raw.mobile } : {}),
+        mobile: raw.mobile,
         iqTenantId: req.tenantId,
       }, deps);
       return reply.status(200).send(out);
