@@ -1,6 +1,5 @@
-import { catalogIqTenantHeaderValue, DEV_TENANT_IQ_CATALOG_UUID } from '@/lib/catalog-tenant';
+import { DEV_TENANT_IQ_CATALOG_UUID } from '@/lib/catalog-tenant';
 import { formatMoneyApi } from '../lib/format';
-import { useTenantStore } from '@/stores/tenant.store';
 import type {
   ServiceCreateInput,
   ServiceSingleResponse,
@@ -11,7 +10,8 @@ import type {
 } from '../types';
 
 const MOCK_TS = '2026-05-15T00:00:00.000Z';
-const LIST_LIMIT = 200;
+const DEFAULT_LIST_LIMIT = 50;
+const MAX_LIST_LIMIT = 200;
 
 type Seed = Pick<
   TariffService,
@@ -84,8 +84,13 @@ function toTariffRow(seed: Seed): TariffService {
   };
 }
 
-function activeTenantId(): string {
-  return catalogIqTenantHeaderValue(useTenantStore.getState().tenantId) ?? DEV_TENANT_IQ_CATALOG_UUID;
+function sameProvider(a: string | null, b: string | null): boolean {
+  return a === b;
+}
+
+function clampLimit(raw: number | undefined): number {
+  const n = raw ?? DEFAULT_LIST_LIMIT;
+  return Math.min(Math.max(n, 1), MAX_LIST_LIMIT);
 }
 
 function matchesListFilters(row: TariffService, params: ServicesListParams, tenantId: string): boolean {
@@ -106,26 +111,43 @@ function matchesListFilters(row: TariffService, params: ServicesListParams, tena
   return true;
 }
 
-class MockTariffStore {
+export class MockTariffStore {
   private rows: TariffService[] = SEEDS.map(toTariffRow);
 
-  list(params: ServicesListParams): ServicesListResponse {
-    const tenantId = activeTenantId();
+  list(params: ServicesListParams, tenantId: string): ServicesListResponse {
+    const limit = clampLimit(params.limit);
     const data = this.rows
       .filter((row) => matchesListFilters(row, params, tenantId))
       .sort((a, b) => a.service_name.localeCompare(b.service_name));
-    return { data, page: { limit: LIST_LIMIT, next_cursor: null } };
+    const pageRows = data.slice(0, limit);
+    const hasMore = data.length > limit;
+    const last = pageRows.at(-1);
+    return {
+      data: pageRows,
+      page: {
+        limit,
+        next_cursor:
+          hasMore && last
+            ? btoa(JSON.stringify({ service_name: last.service_name, id: last.id }))
+            : null,
+      },
+    };
   }
 
-  create(input: ServiceCreateInput): ServiceSingleResponse {
+  create(input: ServiceCreateInput, tenantId: string): ServiceSingleResponse {
+    const code = input.service_code.trim();
+    const providerId = input.provider_id ?? null;
+    if (this.hasDuplicate(tenantId, code, providerId)) {
+      throw new Error('Service code already exists for this provider (409 Conflict)');
+    }
     const now = new Date().toISOString();
     const row: TariffService = {
       id: crypto.randomUUID(),
-      iq_tenant_id: activeTenantId(),
-      service_code: input.service_code.trim(),
+      iq_tenant_id: tenantId,
+      service_code: code,
       service_name: input.service_name.trim(),
       description: input.description ?? null,
-      provider_id: input.provider_id ?? null,
+      provider_id: providerId,
       department: input.department ?? null,
       category: input.category ?? null,
       sub_category: input.sub_category ?? null,
@@ -167,6 +189,15 @@ class MockTariffStore {
     };
     this.rows[idx] = next;
     return { data: next };
+  }
+
+  private hasDuplicate(tenantId: string, code: string, providerId: string | null): boolean {
+    return this.rows.some(
+      (r) =>
+        r.iq_tenant_id === tenantId &&
+        r.service_code === code &&
+        sameProvider(r.provider_id, providerId),
+    );
   }
 }
 

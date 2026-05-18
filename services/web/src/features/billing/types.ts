@@ -62,4 +62,6 @@ export type ServicesListParams = {
   category?: string;
   department?: string;
   is_active?: boolean;
+  limit?: number;
+  cursor?: string;
 };

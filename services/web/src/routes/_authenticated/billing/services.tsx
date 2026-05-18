@@ -1,5 +1,5 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { useMemo, useState } from 'react';
+import { createFileRoute, redirect } from '@tanstack/react-router';
+import { useCallback, useMemo, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { type ColumnDef } from '@tanstack/react-table';
@@ -31,14 +31,24 @@ import {
 import { BillingMockNotice } from '@/features/billing/components/billing-mock-notice';
 import { BillingPageShell } from '@/features/billing/components/billing-page-shell';
 import { TariffServiceFormFields } from '@/features/billing/components/tariff-service-form-fields';
+import {
+  canReadBillingServices,
+  useBillingServicesPermission,
+} from '@/features/billing/hooks/use-billing-services-permission';
 import { formatDateTime, formatMoneyDisplay } from '@/features/billing/lib/format';
-import { formToCreatePayload, formToUpdatePayload, serviceToFormValues } from '@/features/billing/lib/form-mappers';
+import {
+  formToCreatePayload,
+  formToUpdatePayload,
+  serviceToEditFormValues,
+} from '@/features/billing/lib/form-mappers';
 import type { TariffService } from '@/features/billing/types';
 import {
   EMPTY_TARIFF_CREATE_VALUES,
+  EMPTY_TARIFF_EDIT_VALUES,
   tariffServiceCreateSchema,
   tariffServiceEditSchema,
   type TariffServiceCreateFormValues,
+  type TariffServiceEditFormValues,
 } from '@/features/billing/validation';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { EntityRowActions } from '@/features/master-data/components/entity-row-actions';
@@ -47,10 +57,16 @@ import { TableActiveToggle } from '@/features/master-data/components/table-activ
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 
 export const Route = createFileRoute('/_authenticated/billing/services')({
+  beforeLoad: () => {
+    if (!canReadBillingServices()) {
+      throw redirect({ to: '/dashboard' });
+    }
+  },
   component: BillingServicesPage,
 });
 
 function BillingServicesPage() {
+  const { canWrite } = useBillingServicesPermission();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string>('all');
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all');
@@ -77,10 +93,37 @@ function BillingServicesPage() {
     defaultValues: EMPTY_TARIFF_CREATE_VALUES,
   });
 
-  const editForm = useForm<TariffServiceCreateFormValues>({
+  const editForm = useForm<TariffServiceEditFormValues>({
     resolver: zodResolver(tariffServiceEditSchema),
-    defaultValues: EMPTY_TARIFF_CREATE_VALUES,
+    defaultValues: EMPTY_TARIFF_EDIT_VALUES,
   });
+
+  const handleActiveChange = useCallback(
+    async (service: TariffService, next: boolean) => {
+      if (!canWrite || next === service.is_active) return;
+      try {
+        await updateMutation.mutateAsync({ id: service.id, input: { is_active: next } });
+        toast.success(next ? 'Service activated' : 'Service deactivated');
+      } catch (err) {
+        toast.error(mutationErrorMessage(err));
+      }
+    },
+    [canWrite, updateMutation],
+  );
+
+  const handleDeactivate = useCallback(async () => {
+    if (!deactivating || !canWrite) return;
+    try {
+      await updateMutation.mutateAsync({
+        id: deactivating.id,
+        input: { is_active: false },
+      });
+      toast.success('Service deactivated');
+      setDeactivating(null);
+    } catch (err) {
+      toast.error(mutationErrorMessage(err));
+    }
+  }, [canWrite, deactivating, updateMutation]);
 
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -127,17 +170,8 @@ function BillingServicesPage() {
         cell: ({ row }) => (
           <TableActiveToggle
             active={row.original.is_active}
-            disabled={updateMutation.isPending}
-            onCheckedChange={(next) => {
-              if (next === row.original.is_active) return;
-              updateMutation.mutate(
-                { id: row.original.id, input: { is_active: next } },
-                {
-                  onSuccess: () => toast.success(next ? 'Service activated' : 'Service deactivated'),
-                  onError: (err) => toast.error(mutationErrorMessage(err)),
-                },
-              );
-            }}
+            disabled={updateMutation.isPending || !canWrite}
+            onCheckedChange={(next) => void handleActiveChange(row.original, next)}
           />
         ),
       },
@@ -149,14 +183,15 @@ function BillingServicesPage() {
             onView={() => setViewing(row.original)}
             onEdit={() => {
               setEditing(row.original);
-              editForm.reset(serviceToFormValues(row.original));
+              editForm.reset(serviceToEditFormValues(row.original));
             }}
             onDelete={() => setDeactivating(row.original)}
+            readOnly={!canWrite}
           />
         ),
       },
     ],
-    [editForm, updateMutation],
+    [canWrite, editForm, handleActiveChange, updateMutation.isPending],
   );
 
   return (
@@ -164,15 +199,17 @@ function BillingServicesPage() {
       title="Tariff catalog"
       description="Tenant chargeable services (tariff master). Price changes apply from the effective date; historical bills keep snapshotted prices."
       actions={
-        <Button
-          onClick={() => {
-            createForm.reset(EMPTY_TARIFF_CREATE_VALUES);
-            setIsCreateOpen(true);
-          }}
-        >
-          <Plus className="size-4 mr-1" />
-          Add service
-        </Button>
+        canWrite ? (
+          <Button
+            onClick={() => {
+              createForm.reset(EMPTY_TARIFF_CREATE_VALUES);
+              setIsCreateOpen(true);
+            }}
+          >
+            <Plus className="size-4 mr-1" />
+            Add service
+          </Button>
+        ) : undefined
       }
     >
       <BillingMockNotice />
@@ -220,50 +257,64 @@ function BillingServicesPage() {
         <DataTable columns={columns} data={services} isLoading={isLoading} />
       )}
 
-      <EntityFormDialog
-        open={isCreateOpen}
-        onOpenChange={setIsCreateOpen}
-        title="Add service"
-        description="Create a new tariff row. Rack-rate rows leave provider empty."
-        submitLabel="Create"
-        isSubmitting={createMutation.isPending}
-        onSubmit={createForm.handleSubmit((values) => {
-          createMutation.mutate(formToCreatePayload(values), {
-            onSuccess: () => {
-              toast.success('Service created');
-              setIsCreateOpen(false);
-              createForm.reset(EMPTY_TARIFF_CREATE_VALUES);
-            },
-            onError: (err) => toast.error(mutationErrorMessage(err)),
-          });
-        })}
-      >
-        <TariffServiceFormFields control={createForm.control} mode="create" />
-      </EntityFormDialog>
+      {canWrite ? (
+        <>
+          <EntityFormDialog
+            open={isCreateOpen}
+            onOpenChange={setIsCreateOpen}
+            title="Add service"
+            description="Create a new tariff row. Rack-rate rows leave provider empty."
+            submitLabel="Create"
+            isSubmitting={createMutation.isPending}
+            onSubmit={createForm.handleSubmit((values) => {
+              createMutation.mutate(formToCreatePayload(values), {
+                onSuccess: () => {
+                  toast.success('Service created');
+                  setIsCreateOpen(false);
+                  createForm.reset(EMPTY_TARIFF_CREATE_VALUES);
+                },
+                onError: (err) => toast.error(mutationErrorMessage(err)),
+              });
+            })}
+          >
+            <TariffServiceFormFields control={createForm.control} mode="create" />
+          </EntityFormDialog>
 
-      <EntityFormDialog
-        open={editing !== null}
-        onOpenChange={(open) => !open && setEditing(null)}
-        title="Edit service"
-        description={`Update ${editing?.service_code ?? 'service'}. Code and provider cannot change.`}
-        submitLabel="Save"
-        isSubmitting={updateMutation.isPending}
-        onSubmit={editForm.handleSubmit((values) => {
-          if (!editing) return;
-          updateMutation.mutate(
-            { id: editing.id, input: formToUpdatePayload(values) },
-            {
-              onSuccess: () => {
-                toast.success('Service updated');
-                setEditing(null);
-              },
-              onError: (err) => toast.error(mutationErrorMessage(err)),
-            },
-          );
-        })}
-      >
-        <TariffServiceFormFields control={editForm.control} mode="edit" />
-      </EntityFormDialog>
+          <EntityFormDialog
+            open={editing !== null}
+            onOpenChange={(open) => !open && setEditing(null)}
+            title="Edit service"
+            description={`Update ${editing?.service_code ?? 'service'}. Code and provider cannot change.`}
+            submitLabel="Save"
+            isSubmitting={updateMutation.isPending}
+            onSubmit={editForm.handleSubmit((values) => {
+              if (!editing) return;
+              updateMutation.mutate(
+                { id: editing.id, input: formToUpdatePayload(values) },
+                {
+                  onSuccess: () => {
+                    toast.success('Service updated');
+                    setEditing(null);
+                  },
+                  onError: (err) => toast.error(mutationErrorMessage(err)),
+                },
+              );
+            })}
+          >
+            <TariffServiceFormFields control={editForm.control} mode="edit" />
+          </EntityFormDialog>
+
+          <ConfirmDialog
+            open={deactivating !== null}
+            onOpenChange={(open) => !open && setDeactivating(null)}
+            title="Deactivate service?"
+            description="Inactive services cannot be charged. You can re-activate from the table."
+            confirmLabel="Deactivate"
+            destructive
+            onConfirm={() => void handleDeactivate()}
+          />
+        </>
+      ) : null}
 
       <Dialog open={viewing !== null} onOpenChange={(open) => !open && setViewing(null)}>
         <DialogContent>
@@ -294,28 +345,6 @@ function BillingServicesPage() {
           )}
         </DialogContent>
       </Dialog>
-
-      <ConfirmDialog
-        open={deactivating !== null}
-        onOpenChange={(open) => !open && setDeactivating(null)}
-        title="Deactivate service?"
-        description="Inactive services cannot be charged. You can re-activate from the table."
-        confirmLabel="Deactivate"
-        destructive
-        onConfirm={() => {
-          if (!deactivating) return;
-          updateMutation.mutate(
-            { id: deactivating.id, input: { is_active: false } },
-            {
-              onSuccess: () => {
-                toast.success('Service deactivated');
-                setDeactivating(null);
-              },
-              onError: (err) => toast.error(mutationErrorMessage(err)),
-            },
-          );
-        }}
-      />
     </BillingPageShell>
   );
 }

@@ -11,14 +11,18 @@ import {
 } from '@pulse/ui/select';
 import { Switch } from '@pulse/ui/switch';
 import { Textarea } from '@pulse/ui/textarea';
-import type { TariffServiceCreateFormValues } from '../validation';
+import type { TariffServiceCreateFormValues, TariffServiceEditFormValues } from '../validation';
 
 const TAX_TYPE_OPTIONS = ['EXEMPT', 'CGST_SGST', 'IGST'] as const;
 
-interface TariffServiceFormFieldsProps {
-  control: Control<TariffServiceCreateFormValues>;
-  mode: 'create' | 'edit';
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
+  return <p className="text-xs text-destructive">{message}</p>;
 }
+
+type TariffServiceFormFieldsProps =
+  | { mode: 'create'; control: Control<TariffServiceCreateFormValues> }
+  | { mode: 'edit'; control: Control<TariffServiceEditFormValues> };
 
 export function TariffServiceFormFields({ control, mode }: TariffServiceFormFieldsProps) {
   return (
@@ -29,8 +33,11 @@ export function TariffServiceFormFields({ control, mode }: TariffServiceFormFiel
           <Controller
             name="service_code"
             control={control}
-            render={({ field }) => (
-              <Input id="service_code" {...field} placeholder="e.g. CONS_GENERAL" />
+            render={({ field, fieldState }) => (
+              <>
+                <Input id="service_code" {...field} placeholder="e.g. CONS_GENERAL" />
+                <FieldError message={fieldState.error?.message} />
+              </>
             )}
           />
         </div>
@@ -40,7 +47,12 @@ export function TariffServiceFormFields({ control, mode }: TariffServiceFormFiel
         <Controller
           name="service_name"
           control={control}
-          render={({ field }) => <Input id="service_name" {...field} />}
+          render={({ field, fieldState }) => (
+            <>
+              <Input id="service_name" {...field} />
+              <FieldError message={fieldState.error?.message} />
+            </>
+          )}
         />
       </div>
       <div className="space-y-2">
@@ -48,8 +60,11 @@ export function TariffServiceFormFields({ control, mode }: TariffServiceFormFiel
         <Controller
           name="base_price"
           control={control}
-          render={({ field }) => (
-            <Input id="base_price" type="number" min={0} step="0.01" {...field} />
+          render={({ field, fieldState }) => (
+            <>
+              <Input id="base_price" type="number" min={0} step="0.01" {...field} />
+              <FieldError message={fieldState.error?.message} />
+            </>
           )}
         />
       </div>
@@ -58,8 +73,11 @@ export function TariffServiceFormFields({ control, mode }: TariffServiceFormFiel
         <Controller
           name="tax_percentage"
           control={control}
-          render={({ field }) => (
-            <Input id="tax_percentage" type="number" min={0} max={100} step="0.01" {...field} />
+          render={({ field, fieldState }) => (
+            <>
+              <Input id="tax_percentage" type="number" min={0} max={100} step="0.01" {...field} />
+              <FieldError message={fieldState.error?.message} />
+            </>
           )}
         />
       </div>
@@ -68,23 +86,26 @@ export function TariffServiceFormFields({ control, mode }: TariffServiceFormFiel
         <Controller
           name="tax_type"
           control={control}
-          render={({ field }) => (
-            <Select
-              value={field.value ?? '__none__'}
-              onValueChange={(v) => field.onChange(v === '__none__' ? null : v)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select tax type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">—</SelectItem>
-                {TAX_TYPE_OPTIONS.map((t) => (
-                  <SelectItem key={t} value={t}>
-                    {t}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          render={({ field, fieldState }) => (
+            <>
+              <Select
+                value={field.value ?? '__none__'}
+                onValueChange={(v) => field.onChange(v === '__none__' ? null : v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select tax type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">—</SelectItem>
+                  {TAX_TYPE_OPTIONS.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FieldError message={fieldState.error?.message} />
+            </>
           )}
         />
       </div>
@@ -93,8 +114,11 @@ export function TariffServiceFormFields({ control, mode }: TariffServiceFormFiel
         <Controller
           name="category"
           control={control}
-          render={({ field }) => (
-            <Input id="category" value={field.value ?? ''} onChange={field.onChange} />
+          render={({ field, fieldState }) => (
+            <>
+              <Input id="category" value={field.value ?? ''} onChange={field.onChange} />
+              <FieldError message={fieldState.error?.message} />
+            </>
           )}
         />
       </div>
@@ -103,8 +127,11 @@ export function TariffServiceFormFields({ control, mode }: TariffServiceFormFiel
         <Controller
           name="department"
           control={control}
-          render={({ field }) => (
-            <Input id="department" value={field.value ?? ''} onChange={field.onChange} />
+          render={({ field, fieldState }) => (
+            <>
+              <Input id="department" value={field.value ?? ''} onChange={field.onChange} />
+              <FieldError message={fieldState.error?.message} />
+            </>
           )}
         />
       </div>
@@ -113,8 +140,11 @@ export function TariffServiceFormFields({ control, mode }: TariffServiceFormFiel
         <Controller
           name="sub_category"
           control={control}
-          render={({ field }) => (
-            <Input id="sub_category" value={field.value ?? ''} onChange={field.onChange} />
+          render={({ field, fieldState }) => (
+            <>
+              <Input id="sub_category" value={field.value ?? ''} onChange={field.onChange} />
+              <FieldError message={fieldState.error?.message} />
+            </>
           )}
         />
       </div>
@@ -124,13 +154,16 @@ export function TariffServiceFormFields({ control, mode }: TariffServiceFormFiel
           <Controller
             name="provider_id"
             control={control}
-            render={({ field }) => (
-              <Input
-                id="provider_id"
-                value={field.value ?? ''}
-                onChange={field.onChange}
-                placeholder="UUID for doctor-specific price"
-              />
+            render={({ field, fieldState }) => (
+              <>
+                <Input
+                  id="provider_id"
+                  value={field.value ?? ''}
+                  onChange={field.onChange}
+                  placeholder="UUID for doctor-specific price"
+                />
+                <FieldError message={fieldState.error?.message} />
+              </>
             )}
           />
         </div>
@@ -140,13 +173,16 @@ export function TariffServiceFormFields({ control, mode }: TariffServiceFormFiel
         <Controller
           name="description"
           control={control}
-          render={({ field }) => (
-            <Textarea
-              id="description"
-              value={field.value ?? ''}
-              onChange={field.onChange}
-              rows={2}
-            />
+          render={({ field, fieldState }) => (
+            <>
+              <Textarea
+                id="description"
+                value={field.value ?? ''}
+                onChange={field.onChange}
+                rows={2}
+              />
+              <FieldError message={fieldState.error?.message} />
+            </>
           )}
         />
       </div>
@@ -155,13 +191,16 @@ export function TariffServiceFormFields({ control, mode }: TariffServiceFormFiel
         <Controller
           name="effective_from"
           control={control}
-          render={({ field }) => (
-            <Input
-              id="effective_from"
-              type="datetime-local"
-              value={field.value ?? ''}
-              onChange={field.onChange}
-            />
+          render={({ field, fieldState }) => (
+            <>
+              <Input
+                id="effective_from"
+                type="datetime-local"
+                value={field.value ?? ''}
+                onChange={field.onChange}
+              />
+              <FieldError message={fieldState.error?.message} />
+            </>
           )}
         />
       </div>
@@ -170,13 +209,16 @@ export function TariffServiceFormFields({ control, mode }: TariffServiceFormFiel
         <Controller
           name="effective_to"
           control={control}
-          render={({ field }) => (
-            <Input
-              id="effective_to"
-              type="datetime-local"
-              value={typeof field.value === 'string' ? field.value : ''}
-              onChange={field.onChange}
-            />
+          render={({ field, fieldState }) => (
+            <>
+              <Input
+                id="effective_to"
+                type="datetime-local"
+                value={typeof field.value === 'string' ? field.value : ''}
+                onChange={field.onChange}
+              />
+              <FieldError message={fieldState.error?.message} />
+            </>
           )}
         />
       </div>
