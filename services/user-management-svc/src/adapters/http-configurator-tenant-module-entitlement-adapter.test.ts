@@ -34,7 +34,10 @@ describe("HttpConfiguratorTenantModuleEntitlementAdapter", () => {
     expect(fetch).toHaveBeenCalledWith(
       `http://localhost:3001/api/configurator/v1/tenants/${tenantId}/modules?is_active=true`,
       expect.objectContaining({
-        headers: expect.objectContaining({ authorization: "Bearer token" }),
+        headers: expect.objectContaining({
+          authorization: "Bearer token",
+          "x-tenant-id": tenantId,
+        }),
       }),
     );
   });

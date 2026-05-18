@@ -1,4 +1,5 @@
 -- Configurator module — tenant module enablement (see modules/configurator/src/schema/tables.ts)
+-- Rerunnable: safe when 003 has already renamed is_enabled → is_active.
 
 CREATE TABLE IF NOT EXISTS configurator.tenant_modules (
   iq_tenant_id uuid NOT NULL,
@@ -17,5 +18,16 @@ CREATE TABLE IF NOT EXISTS configurator.tenant_modules (
   )
 );
 
-CREATE INDEX IF NOT EXISTS idx_tenant_modules_enabled
-  ON configurator.tenant_modules (iq_tenant_id, is_enabled);
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'configurator'
+      AND table_name = 'tenant_modules'
+      AND column_name = 'is_enabled'
+  ) THEN
+    CREATE INDEX IF NOT EXISTS idx_tenant_modules_enabled
+      ON configurator.tenant_modules (iq_tenant_id, is_enabled);
+  END IF;
+END $$;

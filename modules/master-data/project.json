@@ -13,18 +13,18 @@
   },
   "targets": {
     "setup": {
-      "command": "uv sync",
+      "command": "py -m pip install -r requirements.txt",
       "options": {
         "cwd": "modules/master-data"
       },
-      "inputs": ["default"],
-      "cache": true,
-      "outputs": ["{projectRoot}/.venv"]
+      "inputs": ["default", "{projectRoot}/requirements.txt"],
+      "cache": true
     },
     "serve": {
-      "command": "uv run uvicorn app.main:app --host 0.0.0.0 --port 8010 --reload",
+      "command": "py -m uvicorn app.main:app --host 0.0.0.0 --port 8010 --reload",
       "options": {
-        "cwd": "modules/master-data"
+        "cwd": "modules/master-data",
+        "envFile": "{workspaceRoot}/.env"
       },
       "dependsOn": ["setup"]
     },
@@ -47,9 +47,10 @@
       "cache": true
     },
     "migrate": {
-      "command": "uv run alembic upgrade head",
+      "command": "py -m alembic upgrade head",
       "options": {
-        "cwd": "modules/master-data"
+        "cwd": "modules/master-data",
+        "envFile": "{workspaceRoot}/.env"
       },
       "dependsOn": ["setup"]
     }

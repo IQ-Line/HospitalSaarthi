@@ -116,9 +116,66 @@ export const tenantModules = configuratorSchema.table(
   ],
 );
 
+/** Local platform module catalog (dev-phase; Master Data remains long-term owner). */
+export const modules = configuratorSchema.table(
+  "modules",
+  {
+    id: uuid("id").notNull().primaryKey(),
+    name: text("name").notNull(),
+    slug: text("slug").notNull(),
+    category: text("category").notNull(),
+    version: text("version").notNull().default("1.0.0"),
+    is_active: boolean("is_active").notNull().default(true),
+    is_deleted: boolean("is_deleted").notNull().default(false),
+    ...auditColumns(),
+  },
+  (t) => [
+    check(
+      "chk_configurator_modules_category",
+      sql`${t.category} IN ('core', 'clinical', 'administrative', 'support')`,
+    ),
+  ],
+);
+
+export const permissions = configuratorSchema.table("permissions", {
+  id: uuid("id").notNull().primaryKey(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull(),
+  action: text("action").notNull(),
+  description: text("description"),
+  is_active: boolean("is_active").notNull().default(true),
+  is_deleted: boolean("is_deleted").notNull().default(false),
+  ...auditColumns(),
+});
+
+export const modulePermissions = configuratorSchema.table("module_permissions", {
+  id: uuid("id").notNull().primaryKey(),
+  slug: text("slug").notNull(),
+  module_id: uuid("module_id").notNull(),
+  permission_id: uuid("permission_id").notNull(),
+  is_default: boolean("is_default").notNull().default(false),
+  is_active: boolean("is_active").notNull().default(true),
+  is_deleted: boolean("is_deleted").notNull().default(false),
+  ...auditColumns(),
+});
+
+export const tenantPermissions = configuratorSchema.table(
+  "tenant_permissions",
+  {
+    ...tenantColumn(),
+    module_permission_id: uuid("module_permission_id").notNull(),
+    is_active: boolean("is_active").notNull().default(true),
+    ...auditColumns(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.module_permission_id] }),
+    index("idx_configurator_tenant_permissions_active").on(t.iq_tenant_id, t.is_active),
+  ],
+);
+
 // ---------------------------------------------------------------------------
 // Next: Projection tables (synced from Master Data events) — see LLD §1, §10
-//   module_projection, config_schema_projection, feature_flag_projection
+//   config_schema_projection, feature_flag_projection
 //
 // Next: Distributed tables (by iq_tenant_id) — see LLD §3–§9
 //   tenant_feature_flags, tenant_module_configs,

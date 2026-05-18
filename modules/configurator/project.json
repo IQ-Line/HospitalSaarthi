@@ -11,13 +11,13 @@
       }
     },
     "db:migrate": {
-      "command": "tsx ../../tools/run-sql-migrations.mts --db-env DATABASE_URL ./../../infra/db/migrations/001_configurator_core_tables.sql",
+      "command": "tsx ../../tools/run-sql-migrations.mts --db-env CONFIGURATOR_DATABASE_URL --fallback-env DATABASE_URL ./../../infra/db/migrations/001_configurator_core_tables.sql ./../../infra/db/migrations/002_configurator_tenant_modules.sql ./../../infra/db/migrations/003_configurator_tenant_modules_standard_columns.sql",
       "options": {
         "cwd": "modules/configurator"
       }
     },
     "db-migrate": {
-      "command": "tsx ../../tools/run-sql-migrations.mts --db-env DATABASE_URL ./../../infra/db/migrations/001_configurator_core_tables.sql",
+      "command": "tsx ../../tools/run-sql-migrations.mts --db-env CONFIGURATOR_DATABASE_URL --fallback-env DATABASE_URL ./../../infra/db/migrations/001_configurator_core_tables.sql ./../../infra/db/migrations/002_configurator_tenant_modules.sql ./../../infra/db/migrations/003_configurator_tenant_modules_standard_columns.sql",
       "options": {
         "cwd": "modules/configurator"
       }

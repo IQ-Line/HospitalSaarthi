@@ -97,7 +97,7 @@ function requireDatabaseUrl(): string {
   const databaseUrl = (process.env.USER_MGMT_DATABASE_URL ?? process.env.DATABASE_URL)?.trim();
   if (!databaseUrl || databaseUrl.length === 0) {
     throw new Error(
-      "DATABASE_URL is required (PostgreSQL for user-management and better-auth persistence)",
+      "USER_MGMT_DATABASE_URL is required (PostgreSQL database hims-user-management)",
     );
   }
   return databaseUrl;

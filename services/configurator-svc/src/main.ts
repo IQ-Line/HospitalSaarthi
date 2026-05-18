@@ -9,13 +9,28 @@ import {
   DrizzleTenantModuleRepo,
   type RunConfiguratorTransaction,
 } from "@hims/configurator";
+import {
+  runConfiguratorDevelopmentBootstrap,
+  shouldRunDevelopmentBootstrap,
+} from "./bootstrap/development-bootstrap.js";
 
 const PORT = Number(
   process.env["CONFIGURATOR_PORT"] ??
     process.env["CONFIGURATOR_SVC_PORT"] ??
     3001,
 );
-const DATABASE_URL = process.env["DATABASE_URL"] ?? "";
+
+function requireConfiguratorDatabaseUrl(): string {
+  const databaseUrl = (
+    process.env.CONFIGURATOR_DATABASE_URL ?? process.env.DATABASE_URL
+  )?.trim();
+  if (!databaseUrl || databaseUrl.length === 0) {
+    throw new Error(
+      "CONFIGURATOR_DATABASE_URL is required (PostgreSQL database hims-configurator)",
+    );
+  }
+  return databaseUrl;
+}
 
 async function main() {
   const app = Fastify({ logger: true });
@@ -30,7 +45,19 @@ async function main() {
 
   app.get("/healthz", async () => ({ status: "ok" }));
 
-  const db = createDb(DATABASE_URL);
+  const db = createDb(requireConfiguratorDatabaseUrl());
+
+  if (shouldRunDevelopmentBootstrap()) {
+    const bootstrap = await runConfiguratorDevelopmentBootstrap(db);
+    app.log.info(
+      {
+        orgId: bootstrap.orgId,
+        tenantId: bootstrap.tenantId,
+        tenantModuleIds: bootstrap.tenantModuleIds,
+      },
+      "Configurator development bootstrap ready",
+    );
+  }
 
   const organizationRepo = new DrizzleOrganizationRepo(db);
   const tenantRepo = new DrizzleTenantRepo(db);
