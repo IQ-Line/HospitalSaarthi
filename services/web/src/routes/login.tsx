@@ -8,7 +8,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@pulse/ui/card';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
 import { authClient } from '@/lib/auth-client';
+import { buildDevPermissionMap } from '@/lib/permissions-map';
+import { DEV_TENANT_IQ_CATALOG_UUID } from '@/lib/catalog-tenant';
 import { useAuthStore } from '@/stores/auth.store';
+import { usePermissionsStore } from '@/stores/permissions.store';
 import { useTenantStore } from '@/stores/tenant.store';
 
 const DEV_TENANT_ID = 'f47ac10b-58cc-4372-a567-0e02b2c3d480';
@@ -40,6 +43,7 @@ function LoginPage() {
   const navigate = useNavigate();
   const setSession = useAuthStore((s) => s.setSession);
   const setTenant = useTenantStore((s) => s.setTenant);
+  const setPermissions = usePermissionsStore((s) => s.setPermissions);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -80,6 +84,40 @@ function LoginPage() {
       setLoading(false);
     }
   }
+
+  const handleDevLogin = () => {
+    setSession({
+      accessToken: 'dev-token',
+      sessionToken: 'dev-session',
+      userId: 'dev-user-001',
+      displayName: 'Dev User',
+    });
+    setTenant({
+      tenantId: null,
+      tenantName: 'Dev Hospital (platform catalog)',
+      branches: [{ id: 'branch-001', name: 'Main Campus' }],
+      activeBranch: 'branch-001',
+    });
+    setPermissions(buildDevPermissionMap('superadmin'));
+    navigate({ to: '/dashboard' });
+  };
+
+  const handleTenantDevLogin = () => {
+    setSession({
+      accessToken: 'dev-token-tenant',
+      sessionToken: 'dev-session-tenant',
+      userId: 'dev-tenant-admin-001',
+      displayName: 'Tenant Admin',
+    });
+    setTenant({
+      tenantId: DEV_TENANT_IQ_CATALOG_UUID,
+      tenantName: 'Demo Tenant (catalog)',
+      branches: [{ id: 'branch-001', name: 'Main Campus' }],
+      activeBranch: 'branch-001',
+    });
+    setPermissions(buildDevPermissionMap('tenant-catalog-readonly'));
+    navigate({ to: '/dashboard' });
+  };
 
   return (
     <div className="flex h-screen items-center justify-center bg-muted">
@@ -128,6 +166,31 @@ function LoginPage() {
               {loading ? 'Signing in...' : 'Sign In'}
             </Button>
           </form>
+
+          <div className="mt-6 space-y-2 border-t pt-4">
+            <p className="text-xs font-medium text-muted-foreground">Dev shortcuts</p>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={handleDevLogin}
+            >
+              Dev Login (platform catalog)
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full"
+              onClick={handleTenantDevLogin}
+            >
+              Tenant dev login (tenant catalog)
+            </Button>
+            <p className="pt-1 text-xs text-muted-foreground">
+              Dev shortcuts bypass better-auth. Real-login currently has a username/email field
+              mismatch and a hardcoded tenantId (tracked as a follow-up to wire username-primary
+              signin + JWT tenant claim).
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>
