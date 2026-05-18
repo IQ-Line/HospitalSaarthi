@@ -11,13 +11,13 @@
       "outputs": ["{projectRoot}/dist"]
     },
     "db:migrate": {
-      "command": "tsx ../../tools/run-sql-migrations.mts --db-env USER_MGMT_DATABASE_URL --fallback-env DATABASE_URL ./migrations/0000_user_management_schema.sql ./migrations/0001_better_auth_auth_schema.sql ./migrations/0001_capability_catalog_provenance.sql ./migrations/0002_capability_catalog_seed.sql",
+      "command": "tsx scripts/apply-migration.ts",
       "options": {
         "cwd": "modules/user-management"
       }
     },
     "db-migrate": {
-      "command": "tsx ../../tools/run-sql-migrations.mts --db-env USER_MGMT_DATABASE_URL --fallback-env DATABASE_URL ./migrations/0000_user_management_schema.sql ./migrations/0001_better_auth_auth_schema.sql ./migrations/0001_capability_catalog_provenance.sql ./migrations/0002_capability_catalog_seed.sql",
+      "command": "tsx scripts/apply-migration.ts",
       "options": {
         "cwd": "modules/user-management"
       }

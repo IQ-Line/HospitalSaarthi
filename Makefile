@@ -58,6 +58,9 @@ infra-logs: ## Tail docker infrastructure logs
 db-migrate: ## Run all pending migrations
 	$(NX) run configurator:db-migrate
 	$(NX) run user-management:db-migrate
+	$(NX) run empi:db-migrate
+	$(NX) run registration:db-migrate
+	$(NX) run billing:db-migrate
 
 .PHONY: db-reset
 db-reset: ## Drop, recreate, migrate, seed
