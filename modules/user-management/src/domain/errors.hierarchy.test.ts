@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  DuplicateRoleAssignmentError,
+  DuplicateUserRoleTemplateError,
   InvalidRoleSeedError,
   RbacIntegrityViolationError,
   RoleNotFoundError,
@@ -24,9 +24,9 @@ describe("UserManagementError hierarchy", () => {
     assertUserManagementError(new ValidationError("full_name_empty"));
     assertUserManagementError(new UserNotFoundError("u1"));
     assertUserManagementError(new RoleNotFoundError("r1"));
-    assertUserManagementError(new DuplicateRoleAssignmentError());
+    assertUserManagementError(new DuplicateUserRoleTemplateError());
     assertUserManagementError(new TenantMismatchError());
-    assertUserManagementError(new RbacIntegrityViolationError("orphan_role_assignment"));
+    assertUserManagementError(new RbacIntegrityViolationError("orphan_user_role_template"));
     assertUserManagementError(new UnexpectedPersistenceError());
     assertUserManagementError(new InvalidRoleSeedError());
   });

@@ -4,11 +4,18 @@ import { LayoutGrid, LogOut, Users } from 'lucide-react';
 import { Button } from '@pulse/ui/button';
 import { BrandMark } from '@/components/layout/brand-mark';
 import { SidebarNavLink } from '@/components/layout/sidebar-nav-link';
+import { ConfiguratorNavSection } from '@/features/configurator/components/configurator-nav-section';
 import { MasterDataNavSection } from '@/features/master-data/components/master-data-nav-section';
 import { FrontdeskNavSection } from '@/features/frontdesk/components/frontdesk-nav-section';
 import { VisitpadNavSection } from '@/features/visitpad/components/visitpad-nav-section';
 import { authClient } from '@/lib/auth-client';
+import {
+  canReadRoles,
+  canReadUsers,
+  canWriteUsers,
+} from '@/features/user-management/lib/um-permissions';
 import { useAuthStore } from '@/stores/auth.store';
+import { usePermissionsStore } from '@/stores/permissions.store';
 import { useTenantStore } from '@/stores/tenant.store';
 import { useUIPrefsStore } from '@/stores/ui-prefs.store';
 
@@ -16,6 +23,7 @@ interface AppSidebarProps {
   displayName: string | null;
   tenantName: string | null;
   hasMasterDataAccess: boolean;
+  hasConfiguratorAccess: boolean;
   hasUserManagementAccess: boolean;
   /** Catalog admins: same gate as Master Data until a dedicated Cerbos module exists. */
   hasVisitpadAccess: boolean;
@@ -26,6 +34,7 @@ export function AppSidebar({
   displayName,
   tenantName,
   hasMasterDataAccess,
+  hasConfiguratorAccess,
   hasUserManagementAccess,
   hasVisitpadAccess,
   hasFrontdeskAccess,
@@ -39,6 +48,22 @@ export function AppSidebar({
   const [isVisitpadOpen, setIsVisitpadOpen] = useState(true);
   const isInFrontdesk = pathname.startsWith('/frontdesk');
   const [isFrontdeskOpen, setIsFrontdeskOpen] = useState(true);
+  const canReadUmUsers = usePermissionsStore(canReadUsers);
+  const canWriteUmUsers = usePermissionsStore(canWriteUsers);
+  const canReadUmRoles = usePermissionsStore(canReadRoles);
+  const userManagementNavTo =
+    canReadUmUsers || canWriteUmUsers
+      ? '/user-management'
+      : canReadUmRoles
+        ? '/user-management/roles'
+        : '/user-management';
+  const userManagementNavSearch =
+    canReadUmUsers || canWriteUmUsers ? { q: '' as const } : undefined;
+  const userManagementNavLabel = canReadUmUsers
+    ? 'Users'
+    : canWriteUmUsers
+      ? 'Create user'
+      : 'User management';
 
   useEffect(() => {
     if (isInMasterData) {
@@ -98,11 +123,11 @@ export function AppSidebar({
         )}
         {hasUserManagementAccess && (
           <SidebarNavLink
-            to="/user-management"
-            label="Users"
+            to={userManagementNavTo}
+            label={userManagementNavLabel}
             icon={Users}
             collapsed={sidebarCollapsed}
-            search={{ q: '' }}
+            search={userManagementNavSearch}
           />
         )}
         {hasFrontdeskAccess && (

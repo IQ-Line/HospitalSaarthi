@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Badge } from '@pulse/ui/badge';
 import { Button } from '@pulse/ui/button';
@@ -20,17 +20,24 @@ import {
   useReplaceUserCapabilities,
 } from '../api/mutations';
 import {
-  capabilityListOptions,
+  roleCapabilitiesOptions,
+  runtimeCapabilityCatalogOptions,
   roleListOptions,
   useUserCapabilities,
   useUserEffectiveCapabilities,
 } from '../api/queries';
 import type { AppliedRoleTemplate, Capability, UserCapabilityGrant } from '../types';
 import { UserManagementSectionCard } from './user-management-section-card';
+import {
+  buildApplyRoleTemplateRequestBody,
+  RoleTemplateCapabilityPicker,
+} from './role-template-capability-picker';
 
 type UserAccessPanelProps = {
   userId: string;
   sessionUserId: string | null;
+  /** View assigned roles and capability grants on the user profile (needs `users.read`). */
+  canViewUserAccess: boolean;
   canReadRoleTemplates: boolean;
   canReadCapabilities: boolean;
   canManageAccess: boolean;
@@ -97,11 +104,12 @@ function CapabilityGrantList({
 export function UserAccessPanel({
   userId,
   sessionUserId,
+  canViewUserAccess,
   canReadRoleTemplates,
   canReadCapabilities,
   canManageAccess,
 }: UserAccessPanelProps) {
-  if (!canReadRoleTemplates && !canReadCapabilities) {
+  if (!canViewUserAccess) {
     return null;
   }
 
@@ -109,6 +117,7 @@ export function UserAccessPanel({
     <UserAccessPanelContent
       userId={userId}
       sessionUserId={sessionUserId}
+      canViewUserAccess={canViewUserAccess}
       canReadRoleTemplates={canReadRoleTemplates}
       canReadCapabilities={canReadCapabilities}
       canManageAccess={canManageAccess}
@@ -121,6 +130,7 @@ type UserAccessPanelContentProps = UserAccessPanelProps;
 function UserAccessPanelContent({
   userId,
   sessionUserId,
+  canViewUserAccess,
   canReadRoleTemplates,
   canReadCapabilities,
   canManageAccess,
@@ -131,23 +141,29 @@ function UserAccessPanelContent({
     staleTime: 30_000,
   });
   const capabilitiesCatalogQuery = useQuery({
-    ...capabilityListOptions(),
+    ...runtimeCapabilityCatalogOptions(),
     enabled: canReadCapabilities,
     staleTime: 30_000,
   });
-  const capabilitiesSnapshotQuery = useUserCapabilities(
-    userId,
-    canReadRoleTemplates || canReadCapabilities,
-  );
-  const effectiveCapabilitiesQuery = useUserEffectiveCapabilities(userId, canReadCapabilities);
+  const capabilitiesSnapshotQuery = useUserCapabilities(userId, canViewUserAccess);
+  const effectiveCapabilitiesQuery = useUserEffectiveCapabilities(userId, canViewUserAccess);
 
   const replaceCapabilities = useReplaceUserCapabilities(userId);
   const applyRoleTemplate = useApplyRoleTemplate(userId);
   const detachRoleTemplate = useDetachRoleTemplate(userId);
 
   const [selectedRoleTemplateId, setSelectedRoleTemplateId] = useState('');
+  const [selectedRoleCapabilityIds, setSelectedRoleCapabilityIds] = useState<string[]>([]);
   const [manualCapabilityIds, setManualCapabilityIds] = useState<string[]>([]);
   const [detachCandidate, setDetachCandidate] = useState<AppliedRoleTemplate | null>(null);
+
+  const handleRoleCapabilitySelectionChange = useCallback((capabilityIds: string[]) => {
+    setSelectedRoleCapabilityIds(capabilityIds);
+  }, []);
+
+  useEffect(() => {
+    setSelectedRoleCapabilityIds([]);
+  }, [selectedRoleTemplateId]);
 
   useEffect(() => {
     const nextManualIds =
@@ -199,14 +215,37 @@ function UserAccessPanelContent({
     );
   };
 
+  const roleCapabilitiesForApplyQuery = useQuery({
+    ...roleCapabilitiesOptions(selectedRoleTemplateId),
+    enabled: Boolean(selectedRoleTemplateId) && canReadCapabilities,
+    staleTime: 30_000,
+  });
+  const allRoleCapabilityIds = useMemo(
+    () => (roleCapabilitiesForApplyQuery.data ?? []).map((capability) => capability.id),
+    [roleCapabilitiesForApplyQuery.data],
+  );
+  const roleCapabilitiesStillLoading =
+    Boolean(selectedRoleTemplateId) &&
+    canReadCapabilities &&
+    (roleCapabilitiesForApplyQuery.isFetching || roleCapabilitiesForApplyQuery.data === undefined);
+
   const handleApplyRoleTemplate = () => {
     if (!selectedRoleTemplateId) return;
+    if (allRoleCapabilityIds.length > 0 && selectedRoleCapabilityIds.length === 0) {
+      toast.error('Select at least one capability from the role.');
+      return;
+    }
     applyRoleTemplate.mutate(
-      { role_id: selectedRoleTemplateId },
+      buildApplyRoleTemplateRequestBody(
+        selectedRoleTemplateId,
+        selectedRoleCapabilityIds,
+        allRoleCapabilityIds,
+      ),
       {
         onSuccess: () => {
           toast.success('Applied role template');
           setSelectedRoleTemplateId('');
+          setSelectedRoleCapabilityIds([]);
         },
         onError: (error) => {
           toast.error(mutationErrorMessage(error));
@@ -219,7 +258,7 @@ function UserAccessPanelContent({
     if (!detachCandidate) return;
     detachRoleTemplate.mutate(detachCandidate.role_id, {
       onSuccess: () => {
-        toast.success(`Removed ${detachCandidate.role.display_name} template association`);
+        toast.success(`Removed ${detachCandidate.role.display_name} and revoked its copied capabilities`);
         setDetachCandidate(null);
       },
       onError: (error) => {
@@ -229,10 +268,10 @@ function UserAccessPanelContent({
   };
 
   let roleTemplateContent: ReactNode = null;
-  if (canReadRoleTemplates) {
-    if (roleTemplatesQuery.isPending || capabilitiesSnapshotQuery.isPending) {
+  if (canViewUserAccess) {
+    if (capabilitiesSnapshotQuery.isPending) {
       roleTemplateContent = <p className="text-sm text-muted-foreground">Loading applied templates...</p>;
-    } else if (roleTemplatesQuery.isError || capabilitiesSnapshotQuery.isError) {
+    } else if (capabilitiesSnapshotQuery.isError) {
       roleTemplateContent = <p className="text-sm text-destructive">Unable to load applied templates right now.</p>;
     } else {
       const appliedTemplates = capabilitiesSnapshotQuery.data?.role_templates ?? [];
@@ -277,15 +316,15 @@ function UserAccessPanelContent({
             </div>
           )}
 
-          {canManageAccess ? (
-            <div className="max-w-md space-y-2">
+          {canManageAccess && canReadRoleTemplates ? (
+            <div className="space-y-3">
               <Label htmlFor="apply-role-template">Apply another template</Label>
-              <div className="flex gap-2">
+              <div className="flex max-w-md gap-2">
                 <Select value={selectedRoleTemplateId} onValueChange={setSelectedRoleTemplateId}>
                   <SelectTrigger
                     id="apply-role-template"
                     className="flex-1"
-                    disabled={availableRoleTemplates.length === 0}
+                    disabled={availableRoleTemplates.length === 0 || roleTemplatesQuery.isPending}
                   >
                     <SelectValue
                       placeholder={
@@ -306,11 +345,28 @@ function UserAccessPanelContent({
                 <Button
                   type="button"
                   onClick={handleApplyRoleTemplate}
-                  disabled={applyRoleTemplate.isPending || selectedRoleTemplateId.length === 0}
+                  disabled={
+                    applyRoleTemplate.isPending ||
+                    selectedRoleTemplateId.length === 0 ||
+                    roleCapabilitiesStillLoading
+                  }
                 >
                   {applyRoleTemplate.isPending ? 'Applying...' : 'Apply'}
                 </Button>
               </div>
+              {selectedRoleTemplateId ? (
+                <RoleTemplateCapabilityPicker
+                  roleId={selectedRoleTemplateId}
+                  canReadCapabilities={canReadCapabilities}
+                  canManageAccess={canManageAccess}
+                  selectedCapabilityIds={selectedRoleCapabilityIds}
+                  onSelectedCapabilityIdsChange={handleRoleCapabilitySelectionChange}
+                />
+              ) : null}
+              <p className="text-xs text-muted-foreground">
+                Choose which capabilities to copy from the template. Re-applying the same template later
+                synchronizes the role-scoped snapshot to your selection.
+              </p>
             </div>
           ) : null}
         </div>
@@ -381,14 +437,14 @@ function UserAccessPanelContent({
         ) : null}
         {roleTemplateContent}
         {directCapabilitiesContent}
-        {canReadCapabilities ? (
+        {canViewUserAccess ? (
           <CapabilityGrantList
             title="Copied capabilities"
             description="Capabilities copied from applied templates. These are persisted grants, not runtime inheritance."
             grants={copiedGrants}
           />
         ) : null}
-        {canReadCapabilities ? (
+        {canViewUserAccess ? (
           <div className="space-y-3 rounded-lg border p-4">
             <div className="space-y-1">
               <p className="text-sm font-medium">Effective capabilities</p>
@@ -429,7 +485,7 @@ function UserAccessPanelContent({
             )}
           </div>
         ) : null}
-        {canReadCapabilities ? (
+        {canViewUserAccess ? (
           <CapabilityGrantList
             title="Persisted direct grants"
             description="This includes direct manual grants currently stored for the user."
@@ -448,10 +504,10 @@ function UserAccessPanelContent({
         title="Remove applied template?"
         description={
           detachCandidate
-            ? `This removes the ${detachCandidate.role.display_name} template label only. Copied capabilities stay until you change direct user capabilities explicitly.`
+            ? `This removes the ${detachCandidate.role.display_name} role template and revokes capabilities that were copied from it. Manual and delegated capabilities are not changed.`
             : 'Remove the selected applied template.'
         }
-        confirmLabel={detachRoleTemplate.isPending ? 'Removing...' : 'Remove template label'}
+        confirmLabel={detachRoleTemplate.isPending ? 'Removing...' : 'Remove role template'}
         destructive
         onConfirm={handleDetachRoleTemplate}
       />

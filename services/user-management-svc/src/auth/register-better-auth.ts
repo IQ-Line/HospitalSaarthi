@@ -39,7 +39,13 @@ export async function registerBetterAuth(
         return reply.status(204).send();
       }
 
-      const host = request.headers.host ?? "localhost";
+      const xfHost = request.headers["x-forwarded-host"];
+      const host =
+        (typeof xfHost === "string" && xfHost.trim().length > 0
+          ? xfHost.trim()
+          : undefined) ??
+        request.headers.host ??
+        "localhost";
       const xfProto = request.headers["x-forwarded-proto"];
       const proto =
         typeof xfProto === "string" && xfProto.trim().length > 0 ? xfProto.trim() : "http";

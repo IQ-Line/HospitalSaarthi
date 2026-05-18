@@ -5,7 +5,16 @@ import type {
   UserAccessRepository,
   UserCapabilityGrant,
 } from "../ports/index.js";
-import { DuplicateUserRoleTemplateError, UnexpectedPersistenceError } from "../domain/errors.js";
+import {
+  DuplicateUserRoleTemplateError,
+  UnexpectedPersistenceError,
+  UserNotFoundError,
+} from "../domain/errors.js";
+import { isPostgresForeignKeyViolation } from "./postgres-errors.js";
+import {
+  revokeRoleTemplateCapabilitySnapshot,
+  syncRoleTemplateCapabilitySnapshot,
+} from "./role-template-grant-writes.js";
 import { capabilities, roles, user_capabilities, user_roles } from "../schema/tables.js";
 
 function asIsoString(value: Date): string {
@@ -137,55 +146,7 @@ export class DrizzleUserAccessRepository implements UserAccessRepository {
           })
           .onConflictDoNothing();
 
-        const existing = await tx
-          .select({ capability_id: user_capabilities.capability_id })
-          .from(user_capabilities)
-          .where(
-            and(
-              eq(user_capabilities.iq_tenant_id, tenantId),
-              eq(user_capabilities.user_id, input.userId),
-              isNull(user_capabilities.revoked_at),
-            ),
-          );
-
-        const existingIds = new Set(existing.map((row) => row.capability_id));
-        const capabilityIdsToInsert = [...new Set(input.capabilityIds)].filter(
-          (capabilityId) => !existingIds.has(capabilityId),
-        );
-
-        if (capabilityIdsToInsert.length > 0) {
-          const grantedAt = new Date();
-          await tx
-            .insert(user_capabilities)
-            .values(
-              capabilityIdsToInsert.map((capabilityId) => ({
-                iq_tenant_id: tenantId,
-                user_id: input.userId,
-                capability_id: capabilityId,
-                grant_source: "role_template" as const,
-                source_role_id: input.roleId,
-                granted_by_user_id: input.actorId,
-                granted_at: grantedAt,
-                revoked_at: null,
-                revoked_by_user_id: null,
-              })),
-            )
-            .onConflictDoUpdate({
-              target: [
-                user_capabilities.iq_tenant_id,
-                user_capabilities.user_id,
-                user_capabilities.capability_id,
-              ],
-              set: {
-                grant_source: "role_template",
-                source_role_id: input.roleId,
-                granted_by_user_id: input.actorId,
-                granted_at,
-                revoked_at: null,
-                revoked_by_user_id: null,
-              },
-            });
-        }
+        await syncRoleTemplateCapabilitySnapshot(tx, tenantId, input);
 
         const applied = await selectRoleTemplateByUserAndRole(tx, tenantId, input.userId, input.roleId);
         if (applied === null) {
@@ -202,6 +163,9 @@ export class DrizzleUserAccessRepository implements UserAccessRepository {
       ) {
         throw new DuplicateUserRoleTemplateError();
       }
+      if (isPostgresForeignKeyViolation(error)) {
+        throw new UserNotFoundError(input.actorId ?? undefined);
+      }
       throw error;
     }
   }
@@ -211,6 +175,7 @@ export class DrizzleUserAccessRepository implements UserAccessRepository {
     input: {
       userId: string;
       roleId: string;
+      actorId: string | null;
     },
   ): Promise<AppliedRoleTemplate | null> {
     return this.db.transaction(async (tx) => {
@@ -228,6 +193,12 @@ export class DrizzleUserAccessRepository implements UserAccessRepository {
             eq(user_roles.role_id, input.roleId),
           ),
         );
+
+      await revokeRoleTemplateCapabilitySnapshot(tx, tenantId, {
+        userId: input.userId,
+        roleId: input.roleId,
+        actorId: input.actorId,
+      });
 
       return existing;
     });
@@ -369,7 +340,7 @@ export class DrizzleUserAccessRepository implements UserAccessRepository {
               grant_source: "manual",
               source_role_id: null,
               granted_by_user_id: input.actorId,
-              granted_at,
+              granted_at: grantedAt,
               revoked_at: null,
               revoked_by_user_id: null,
             },

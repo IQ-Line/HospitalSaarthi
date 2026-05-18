@@ -90,7 +90,8 @@ function asIdentityPrincipal(requestUser: unknown): IdentityPrincipal | null {
  * `principal.attr.capabilities`.
  *
  * ```
- * user → user_capabilities(capability)
+ * user → user_capabilities (direct grants, not revoked)
+ *     ∪ role_capabilities via user_roles (active roles)
  *   → capabilities[] (keys, deduplicated + sorted)
  *   → Cerbos principal.attr.capabilities
  * ```

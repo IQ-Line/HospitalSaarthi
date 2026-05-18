@@ -1,11 +1,7 @@
 import type { DomainEvent, EventBus, EventHandler, Subscription } from "@hims/ts-sdk-events";
 import { describe, expect, it } from "vitest";
-import { InMemoryCapabilityRepository } from "../data-access/in-memory-capability-repository.js";
-import { InMemoryPrincipalRoleProjectionRepository } from "../data-access/in-memory-principal-role-projection-repository.js";
-import { InMemoryRoleCapabilityRepository } from "../data-access/in-memory-role-capability-repository.js";
-import { InMemoryRoleRepository } from "../data-access/in-memory-role-repository.js";
-import { InMemoryUserAccessRepository } from "../data-access/in-memory-user-access-repository.js";
 import { InMemoryUserRepository } from "../data-access/in-memory-user-repository.js";
+import { createUserTestDeps } from "../test-support/create-user-test-deps.js";
 import { createUser } from "../use-cases/create-user.js";
 import { updateUser } from "../use-cases/update-user.js";
 import {
@@ -36,30 +32,6 @@ class CapturingEventBus implements EventBus {
   }
 }
 
-function createUserDeps(userRepository: InMemoryUserRepository, eventBus: EventBus) {
-  const roleRepository = new InMemoryRoleRepository();
-  const userAccessRepository = new InMemoryUserAccessRepository((tenantId, roleId) =>
-    roleRepository.getRoleById(tenantId, roleId),
-  );
-
-  return {
-    userRepository,
-    capabilityRepository: new InMemoryCapabilityRepository(),
-    roleRepository,
-    roleCapabilityRepository: new InMemoryRoleCapabilityRepository(),
-    userAccessRepository,
-    principalRoleProjectionRepository: new InMemoryPrincipalRoleProjectionRepository(
-      userAccessRepository,
-      roleRepository,
-    ),
-    authAccountProvisioner: {
-      async createPasswordAccount(input: { platformUserId: string }) {
-        return { authUserId: input.platformUserId };
-      },
-    },
-    eventBus,
-  };
-}
 
 function assertUserEventPayloadCore(payload: unknown): void {
   expect(payload).toEqual(expect.any(Object));
@@ -77,7 +49,7 @@ describe("user lifecycle event payloads", () => {
     const eventBus = new CapturingEventBus();
 
     await createUser(
-      createUserDeps(userRepository, eventBus),
+      createUserTestDeps({ userRepository, eventBus }),
       eventCtx,
       {
         full_name: "Created User",

@@ -10,7 +10,18 @@ interface UpstreamRoute {
   upstream: string;
 }
 
+const userManagementUrl =
+  process.env['USER_MANAGEMENT_URL'] ?? 'http://localhost:3005';
+
 const upstreams: UpstreamRoute[] = [
+  {
+    prefix: '/api/auth',
+    upstream: userManagementUrl,
+  },
+  {
+    prefix: '/api/user-management',
+    upstream: userManagementUrl,
+  },
   {
     prefix: '/api/v1/master-data',
     upstream: process.env['MASTER_DATA_URL'] ?? 'http://localhost:8010',
@@ -54,7 +65,12 @@ async function main() {
   await app.register(cors, {
     credentials: true,
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'iq_tenant_id'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'iq_tenant_id',
+      'x-tenant-id',
+    ],
     origin: (origin, cb) => {
       if (!isProduction) {
         cb(null, isDevBrowserOrigin(origin));
@@ -98,6 +114,17 @@ async function main() {
       prefix: route.prefix,
       rewritePrefix: route.prefix,
       http2: false,
+      preHandler(request, _reply, done) {
+        const host = request.headers.host;
+        if (host) {
+          request.headers['x-forwarded-host'] = host;
+        }
+        const proto =
+          request.headers['x-forwarded-proto'] ??
+          (request.protocol === 'https' ? 'https' : 'http');
+        request.headers['x-forwarded-proto'] = proto;
+        done();
+      },
     });
   }
 

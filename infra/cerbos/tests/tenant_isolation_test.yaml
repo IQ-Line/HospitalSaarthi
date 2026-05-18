@@ -3,7 +3,7 @@
 name: tenant_isolation
 description: >-
   User Management — iq_tenant_id on principal.attr must match resource.attr for all resolver-backed
-  user and role_assignment actions (no cross-tenant access).
+  user and user_role_template actions (no cross-tenant access).
 
 principals:
   actor_tenant_aa:
@@ -73,17 +73,17 @@ resources:
       department: null
       required_clearance: 0
 
-  role_assign_aa:
+  user_role_template_aa:
     id: new
-    kind: role_assignment
+    kind: user_role_template
     attr:
       iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
       department: null
       required_clearance: 0
 
-  role_assign_bb:
+  user_role_template_bb:
     id: new
-    kind: role_assignment
+    kind: user_role_template
     attr:
       iq_tenant_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
       department: null
@@ -159,22 +159,22 @@ tests:
   - name: role.assign — same tenant ALLOW
     input:
       principals: [actor_tenant_aa]
-      resources: [role_assign_aa]
+      resources: [user_role_template_aa]
       actions: [role.assign]
     expected:
       - principal: actor_tenant_aa
-        resource: role_assign_aa
+        resource: user_role_template_aa
         actions:
           role.assign: EFFECT_ALLOW
 
   - name: role.assign — cross-tenant DENY
     input:
       principals: [actor_tenant_aa]
-      resources: [role_assign_bb]
+      resources: [user_role_template_bb]
       actions: [role.assign]
     expected:
       - principal: actor_tenant_aa
-        resource: role_assign_bb
+        resource: user_role_template_bb
         actions:
           role.assign: EFFECT_DENY
 

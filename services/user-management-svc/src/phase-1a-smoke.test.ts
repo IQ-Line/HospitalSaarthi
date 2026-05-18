@@ -14,6 +14,7 @@ import {
   InMemoryRoleCapabilityRepository,
   InMemoryRoleRepository,
   InMemoryUserAccessRepository,
+  InMemoryUserProvisioningRepository,
   InMemoryUserRepository,
   buildCerbosUserMgmtResourceAttr,
   createDefaultPrincipalService,
@@ -161,6 +162,10 @@ describe("Phase 1A.12 smoke", () => {
         await instance.register(userManagementPlugin, {
           eventBus,
           userRepository,
+          userProvisioningRepository: new InMemoryUserProvisioningRepository(
+            userRepository,
+            userAccessRepository,
+          ),
           capabilityRepository,
           roleRepository,
           roleCapabilityRepository,
@@ -170,6 +175,16 @@ describe("Phase 1A.12 smoke", () => {
           authAccountProvisioner: {
             async createPasswordAccount(input) {
               return { authUserId: input.platformUserId };
+            },
+          },
+          tenantModuleEntitlementPort: {
+            async listTenantEnabledModuleIds() {
+              return [];
+            },
+          },
+          masterDataModuleCatalogPort: {
+            async resolveModuleSlugsByIds() {
+              return new Map();
             },
           },
         });

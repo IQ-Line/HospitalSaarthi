@@ -54,13 +54,15 @@ password: hims
 
 Developer-oriented notes for the **modules** catalog (migrations, endpoints, tests) live in [`docs/MODULE-CATALOG.md`](docs/MODULE-CATALOG.md).
 
-From the repo root:
+Use the **same workspace `.env` as the rest of the monorepo** (Fastify services, Nx `serve`). From the repo root:
 
 ```bash
-cp modules/master-data/.env.example modules/master-data/.env
+cp .env.example .env   # if you do not already have a root .env
 ```
 
-Edit `modules/master-data/.env` and set **`MASTER_DATA_DATABASE_URL`** for where Postgres actually runs.
+Edit **`.env`** at the repo root and set **`MASTER_DATA_DATABASE_URL`** (see `.env.example` — same host/database as `DATABASE_URL`, with the `postgresql+psycopg://` driver prefix for SQLAlchemy).
+
+Optional: create **`modules/master-data/.env`** only for Master Data–specific overrides; values there override the workspace file for duplicate keys.
 
 **API base path:** Every HTTP route is under **`MASTER_DATA_API_PREFIX`**, default **`/api/v1/master-data`** (major version `v1` in the URL — required). Example health URL: `http://localhost:8010/api/v1/master-data/health`. If an older `.env` still has `/api/master-data`, update it or you will get **404** on clients that expect **`/api/v1/master-data`**.
 
@@ -69,7 +71,8 @@ Edit `modules/master-data/.env` and set **`MASTER_DATA_DATABASE_URL`** for where
 The app and Alembic read **`MASTER_DATA_DATABASE_URL`** from:
 
 1. **Real environment variables** (highest priority — use this in CI or hosted deploys).
-2. **`modules/master-data/.env`** (local development).
+2. **`.env` at the repository root** (same pattern as Nx/Fastify local dev).
+3. **`modules/master-data/.env`** (optional local overrides).
 
 The connection string is standard SQLAlchemy/psycopg. Same migrations apply to **Docker**, **native Postgres**, or **hosted** Postgres as long as the URL points at the correct server and database.
 
@@ -81,7 +84,7 @@ The connection string is standard SQLAlchemy/psycopg. Same migrations apply to *
 
 **Ports:** Compose publishes Postgres on host **5433**; native Postgres can stay on **5432**. Point `MASTER_DATA_DATABASE_URL` at the port your database actually uses.
 
-The default in `.env.example` matches Docker Compose:
+The default in the repo **`.env.example`** (root) and **`modules/master-data/.env.example`** matches Docker Compose:
 
 ```text
 MASTER_DATA_DATABASE_URL=postgresql+psycopg://hims:hims@localhost:5433/hims_dev
@@ -114,7 +117,7 @@ Alembic applies the same revisions everywhere — **CI**, **laptop**, or **serve
 **Checklist**
 
 1. Postgres is running and reachable (see §2–§3 for Docker vs native ports).
-2. `MASTER_DATA_DATABASE_URL` is set (shell env **overrides** `modules/master-data/.env`).
+2. `MASTER_DATA_DATABASE_URL` is set (shell env **overrides** `.env` files).
 3. Python deps: `pnpm nx run master-data:setup` **or** `cd modules/master-data && uv sync`.
 
 **Apply migrations**
@@ -251,7 +254,7 @@ docker compose -f infra/docker/docker-compose.yml ps
 PGPASSWORD='YOUR_PASSWORD' psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -c 'SELECT 1'
 ```
 
-If that fails, fix the password or point `MASTER_DATA_DATABASE_URL` at the correct host/port. Also run `env | grep MASTER_DATA` — a shell-exported URL overrides `modules/master-data/.env`.
+If that fails, fix the password or point `MASTER_DATA_DATABASE_URL` at the correct host/port. Also run `env | grep MASTER_DATA` — a shell-exported URL overrides values from `.env` files.
 
 **"pnpm nx" fails with missing modules** — run `pnpm install` from the repo root first.
 

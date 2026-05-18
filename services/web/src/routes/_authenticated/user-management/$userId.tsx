@@ -6,7 +6,9 @@ import { useDeactivateUser } from '@/features/user-management/api/mutations';
 import {
   capabilityListOptions,
   roleListOptions,
+  userCapabilitiesOptions,
   userDetailOptions,
+  userEffectiveCapabilitiesOptions,
   useUserDetailSuspense,
 } from '@/features/user-management/api/queries';
 import { UserManagementPageShell } from '@/features/user-management/components/user-management-page-shell';
@@ -26,9 +28,16 @@ export const Route = createFileRoute('/_authenticated/user-management/$userId')(
   },
   loader: async ({ context, params }) => {
     const permissions = usePermissionsStore.getState();
+    const canViewUserAccess = permissions.hasFeaturePermission(UM, 'users', 'read');
     const loads: Array<Promise<unknown>> = [
       context.queryClient.ensureQueryData(userDetailOptions(params.userId)),
     ];
+    if (canViewUserAccess) {
+      loads.push(
+        context.queryClient.ensureQueryData(userCapabilitiesOptions(params.userId)),
+        context.queryClient.ensureQueryData(userEffectiveCapabilitiesOptions(params.userId)),
+      );
+    }
     if (permissions.hasFeaturePermission(UM, 'roles', 'read')) {
       loads.push(context.queryClient.ensureQueryData(roleListOptions()));
     }
@@ -44,9 +53,11 @@ function UserDetailPage() {
   const { userId } = Route.useParams();
   const { data: user } = useUserDetailSuspense(userId);
   const sessionUserId = useAuthStore((s) => s.userId);
-  const { canWriteProfile, canReadRoleTemplates, canReadCapabilities, canManageAccess } = usePermissionsStore(
+  const { canWriteProfile, canViewUserAccess, canReadRoleTemplates, canReadCapabilities, canManageAccess } =
+    usePermissionsStore(
     useShallow((s) => ({
       canWriteProfile: s.hasFeaturePermission(UM, 'users', 'write'),
+      canViewUserAccess: s.hasFeaturePermission(UM, 'users', 'read'),
       canReadRoleTemplates: s.hasFeaturePermission(UM, 'roles', 'read'),
       canReadCapabilities: s.hasFeaturePermission(UM, 'capabilities', 'read'),
       canManageAccess: s.hasFeaturePermission(UM, 'userAccess', 'write'),
@@ -70,7 +81,7 @@ function UserDetailPage() {
       actions={
         <div className="flex gap-2">
           <Button variant="outline" asChild>
-            <Link to="/user-management" search={{ q: '' }}>
+            <Link to="/user-management" search={{ q: '', createUser: false }}>
               Back to list
             </Link>
           </Button>
@@ -117,6 +128,7 @@ function UserDetailPage() {
       <UserAccessPanel
         userId={user.id}
         sessionUserId={sessionUserId}
+        canViewUserAccess={canViewUserAccess}
         canReadRoleTemplates={canReadRoleTemplates}
         canReadCapabilities={canReadCapabilities}
         canManageAccess={canManageAccess}

@@ -3,14 +3,13 @@ import { apiClient } from '@/lib/api-client';
 import { refreshAuthorizationContext } from '@/lib/authorization-context';
 import { useAuthStore } from '@/stores/auth.store';
 import type {
+  AppliedRoleTemplate,
   ApplyRoleTemplateBody,
-  AssignRoleBody,
   Capability,
   CreateRoleBody,
   CreateUserBody,
   ReplaceRoleCapabilitiesBody,
   ReplaceUserCapabilitiesBody,
-  RoleAssignment,
   UmRole,
   UmUser,
   UpdateRoleBody,
@@ -91,38 +90,6 @@ export function useDeactivateUser(userId: string) {
   });
 }
 
-export function useAssignRole() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (body: AssignRoleBody) =>
-      apiClient<RoleAssignment>(`${BASE}/users/${encodeURIComponent(body.user_id)}/roles`, {
-        method: 'POST',
-        body: JSON.stringify({ role_id: body.role_id }),
-      }),
-    onSuccess: async (_, variables) => {
-      invalidateUserAccessQueries(qc, variables.user_id);
-      await refreshSelfAuthorizationContextIfNeeded(qc, variables.user_id);
-    },
-  });
-}
-
-export function useRevokeRole() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ user_id, role_id }: AssignRoleBody) =>
-      apiClient<RoleAssignment>(
-        `${BASE}/users/${encodeURIComponent(user_id)}/roles/${encodeURIComponent(role_id)}`,
-        {
-          method: 'DELETE',
-        },
-      ),
-    onSuccess: async (_, variables) => {
-      invalidateUserAccessQueries(qc, variables.user_id);
-      await refreshSelfAuthorizationContextIfNeeded(qc, variables.user_id);
-    },
-  });
-}
-
 export function useReplaceUserCapabilities(userId: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -142,7 +109,7 @@ export function useApplyRoleTemplate(userId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: ApplyRoleTemplateBody) =>
-      apiClient<RoleAssignment>(`${BASE}/users/${encodeURIComponent(userId)}/roles`, {
+      apiClient<AppliedRoleTemplate>(`${BASE}/users/${encodeURIComponent(userId)}/roles`, {
         method: 'POST',
         body: JSON.stringify(body),
       }),
@@ -157,9 +124,12 @@ export function useDetachRoleTemplate(userId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (roleId: string) =>
-      apiClient<RoleAssignment>(`${BASE}/users/${encodeURIComponent(userId)}/roles/${encodeURIComponent(roleId)}`, {
-        method: 'DELETE',
-      }),
+      apiClient<AppliedRoleTemplate>(
+        `${BASE}/users/${encodeURIComponent(userId)}/roles/${encodeURIComponent(roleId)}`,
+        {
+          method: 'DELETE',
+        },
+      ),
     onSuccess: async () => {
       invalidateUserAccessQueries(qc, userId);
       await refreshSelfAuthorizationContextIfNeeded(qc, userId);

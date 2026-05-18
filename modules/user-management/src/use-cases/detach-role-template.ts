@@ -53,6 +53,7 @@ export async function detachRoleTemplate(
   const removed = await deps.userAccessRepository.detachRoleTemplate(ctx.tenantId, {
     userId: input.user_id,
     roleId: input.role_id,
+    actorId: ctx.actorId,
   });
   if (removed === null) {
     throw new UserRoleTemplateNotFoundError();

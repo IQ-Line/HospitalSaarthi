@@ -10,7 +10,11 @@ import {
   useUpdateRole,
 } from '../api/mutations';
 import { userManagementKeys } from '../api/keys';
-import { capabilityListOptions, useRoleCapabilities, useRolesSuspense } from '../api/queries';
+import {
+  assignableCapabilityCatalogOptions,
+  useRoleCapabilities,
+  useRolesSuspense,
+} from '../api/queries';
 import {
   RoleEditorDialog,
   RoleListSection,
@@ -245,7 +249,7 @@ export function RoleManagementPanel({
   const deleteRole = useDeleteRole();
   const selectedRole = roles.find((role) => role.id === state.selectedRoleId) ?? null;
   const capabilitiesQuery = useQuery({
-    ...capabilityListOptions(),
+    ...assignableCapabilityCatalogOptions(),
     enabled: canReadCapabilities && editorMode !== null,
   });
   const roleCapabilitiesQuery = useRoleCapabilities(
@@ -316,14 +320,20 @@ export function RoleManagementPanel({
     activeDraft.code.length > 0 &&
     activeDraft.display_name.length > 0;
 
+  const needsAssignableCatalog = Boolean(canReadCapabilities && (isCreateMode || capabilitiesDirty));
+  const assignableCatalogBlocking =
+    needsAssignableCatalog &&
+    (capabilitiesQuery.isPending || capabilitiesQuery.isError);
+
   const canSaveDialog =
     editorMode === 'create'
-      ? saveDisabled && !savePending
+      ? saveDisabled && !savePending && !assignableCatalogBlocking
       : saveDisabled &&
         selectedRole !== null &&
         editorDirty &&
         !savePending &&
-        (!canReadCapabilities || !roleCapabilitiesQuery.isPending);
+        (!canReadCapabilities || !roleCapabilitiesQuery.isPending) &&
+        !assignableCatalogBlocking;
 
   const handleToggleCapability = (capabilityId: string) => {
     dispatch({ type: 'toggleCapability', capabilityId });
@@ -483,6 +493,12 @@ export function RoleManagementPanel({
           deletePending={deleteRole.isPending}
           assignedCapabilitiesPending={editorMode === 'edit' ? roleCapabilitiesQuery.isPending : false}
           assignedCapabilitiesError={editorMode === 'edit' ? roleCapabilitiesQuery.isError : false}
+          assignableCatalogPending={canReadCapabilities && capabilitiesQuery.isPending}
+          assignableCatalogError={canReadCapabilities && capabilitiesQuery.isError}
+          showCapabilityProvenance={canReadCapabilities}
+          onRetryAssignableCatalog={() => {
+            void qc.invalidateQueries({ queryKey: userManagementKeys.assignableCapabilities() });
+          }}
           capabilitySearch={capabilitySearch}
           capabilities={filteredCapabilities}
           onOpenChange={(open) => {

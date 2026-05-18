@@ -15,21 +15,23 @@ import {
   type CreateUserFormValues,
 } from './create-user-form-sections';
 
-function toBody(
+/** Maps form values to `POST /users` body. Exported for unit tests. */
+export function buildCreateUserRequestBody(
   values: CreateUserFormValues,
   canManageAccess: boolean,
   allRoleCapabilityIds: string[],
 ): CreateUserBody {
   const roleIds = canManageAccess ? values.role_template_ids : [];
   let role_template_capability_ids: string[] | undefined;
+
   if (canManageAccess && roleIds.length === 1 && allRoleCapabilityIds.length > 0) {
-    const picked = new Set(values.role_capability_selection_ids);
-    const allSelected = allRoleCapabilityIds.every((id) => picked.has(id));
-    if (!allSelected) {
-      role_template_capability_ids = values.role_capability_selection_ids.filter((id) =>
-        allRoleCapabilityIds.includes(id),
-      );
-    }
+    const picked = values.role_capability_selection_ids.filter((id) =>
+      allRoleCapabilityIds.includes(id),
+    );
+    // Always send explicit capability ids when the UI loaded the role catalog — matches what
+    // the admin selected (including default "select all"). Never send [] (backend = grant nothing).
+    role_template_capability_ids =
+      picked.length > 0 ? picked : [...allRoleCapabilityIds];
   }
 
   return {
@@ -52,7 +54,10 @@ type CreateUserFormProps = {
   canReadCapabilities: boolean;
   canManageAccess: boolean;
   layout?: 'page' | 'dialog';
+  /** When false, stay on the form after create (e.g. create-only admins without user.read). Default true. */
+  navigateToProfileOnSuccess?: boolean;
   onCancel?: () => void;
+  onCreated?: (user: { id: string; full_name: string }) => void;
 };
 
 export function CreateUserForm({
@@ -60,7 +65,9 @@ export function CreateUserForm({
   canReadCapabilities,
   canManageAccess,
   layout = 'page',
+  navigateToProfileOnSuccess = true,
   onCancel,
+  onCreated,
 }: CreateUserFormProps) {
   const navigate = useNavigate();
   const create = useCreateUser();
@@ -163,6 +170,11 @@ export function CreateUserForm({
   const roleAssignmentBlocked =
     requireRoleTemplate &&
     (!canReadRoleTemplates || (rolesQuery.data !== undefined && availableRoles.length === 0));
+  const roleCapabilitiesStillLoading =
+    requireRoleTemplate &&
+    Boolean(selectedRoleId) &&
+    roleCapabilitiesQueryEnabled &&
+    (roleCapabilitiesQuery.isFetching || roleCapabilitiesQuery.data === undefined);
 
   const onSubmit = form.handleSubmit((values) => {
     if (
@@ -177,12 +189,17 @@ export function CreateUserForm({
       });
       return;
     }
-    create.mutate(toBody(values, canManageAccess, allRoleCapabilityIds), {
+    create.mutate(buildCreateUserRequestBody(values, canManageAccess, allRoleCapabilityIds), {
       onSuccess: (user) => {
-        void navigate({
-          to: '/user-management/$userId',
-          params: { userId: user.id },
-        });
+        if (navigateToProfileOnSuccess) {
+          void navigate({
+            to: '/user-management/$userId',
+            params: { userId: user.id },
+          });
+          return;
+        }
+        form.reset();
+        onCreated?.(user);
       },
     });
   });
@@ -241,6 +258,7 @@ export function CreateUserForm({
           disabled={
             create.isPending ||
             roleAssignmentBlocked ||
+            roleCapabilitiesStillLoading ||
             (requireRoleTemplate && roleTemplatesPending) ||
             roleCapabilitiesPending
           }

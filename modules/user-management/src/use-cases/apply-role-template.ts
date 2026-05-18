@@ -5,12 +5,16 @@ import {
 } from "../domain/errors.js";
 import type {
   AppliedRoleTemplate,
+  CapabilityRepository,
+  MasterDataModuleCatalogPort,
   PrincipalRoleProjectionRepository,
   RoleCapabilityRepository,
   RoleRepository,
+  TenantModuleEntitlementPort,
   UserAccessRepository,
   UserRepository,
 } from "../ports/index.js";
+import { assertRuntimeCapabilitiesEntitledForTenant } from "./assert-runtime-capabilities-entitled-for-tenant.js";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -21,11 +25,14 @@ export type ApplyRoleTemplateDeps = {
   roleCapabilityRepository: RoleCapabilityRepository;
   userAccessRepository: UserAccessRepository;
   principalRoleProjectionRepository: PrincipalRoleProjectionRepository;
+  capabilityRepository: CapabilityRepository;
+  tenantModuleEntitlementPort: TenantModuleEntitlementPort;
+  masterDataModuleCatalogPort: MasterDataModuleCatalogPort;
 };
 
 export type ApplyRoleTemplateContext = {
   tenantId: string;
-  actorId: string;
+  actorId: string | null;
   correlationId: string;
 };
 
@@ -62,6 +69,9 @@ export async function applyRoleTemplate(
   let capabilityIdsToApply: string[];
   if (input.role_template_capability_ids !== undefined) {
     const unique = [...new Set(input.role_template_capability_ids.map((id) => id.trim()))];
+    if (unique.length === 0) {
+      throw new ValidationError("apply_role_template_capability_ids_empty");
+    }
     for (const capabilityId of unique) {
       if (!UUID_RE.test(capabilityId)) {
         throw new ValidationError("apply_role_template_capability_ids_invalid");
@@ -74,6 +84,17 @@ export async function applyRoleTemplate(
   } else {
     capabilityIdsToApply = capabilities.map((capability) => capability.id);
   }
+
+  await assertRuntimeCapabilitiesEntitledForTenant(
+    {
+      capabilityRepository: deps.capabilityRepository,
+      tenantModuleEntitlementPort: deps.tenantModuleEntitlementPort,
+      masterDataModuleCatalogPort: deps.masterDataModuleCatalogPort,
+    },
+    ctx.tenantId,
+    capabilityIdsToApply,
+    { cachePolicy: "bypass-cache" },
+  );
 
   const applied = await deps.userAccessRepository.applyRoleTemplate(ctx.tenantId, {
     userId: input.user_id,

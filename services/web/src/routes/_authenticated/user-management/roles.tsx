@@ -3,12 +3,19 @@ import { usePermissionsStore } from '@/stores/permissions.store';
 import { roleListOptions } from '@/features/user-management/api/queries';
 import { UserManagementPageShell } from '@/features/user-management/components/user-management-page-shell';
 import { RoleManagementPanel } from '@/features/user-management/components/role-management-panel';
-
-const UM = 'user-management';
+import {
+  canAccessUsersSection,
+  canReadRoles,
+  UM_MODULE,
+} from '@/features/user-management/lib/um-permissions';
 
 export const Route = createFileRoute('/_authenticated/user-management/roles')({
   beforeLoad: () => {
-    if (!usePermissionsStore.getState().hasFeaturePermission(UM, 'roles', 'read')) {
+    const permissions = usePermissionsStore.getState();
+    if (!canReadRoles(permissions)) {
+      if (canAccessUsersSection(permissions)) {
+        throw redirect({ to: '/user-management', search: { q: '' } });
+      }
       throw redirect({ to: '/dashboard' });
     }
   },
@@ -18,9 +25,9 @@ export const Route = createFileRoute('/_authenticated/user-management/roles')({
 
 function UserManagementRolesPage() {
   const canReadCapabilities = usePermissionsStore((s) =>
-    s.hasFeaturePermission(UM, 'capabilities', 'read'),
+    s.hasFeaturePermission(UM_MODULE, 'capabilities', 'read'),
   );
-  const canWriteRoles = usePermissionsStore((s) => s.hasFeaturePermission(UM, 'roles', 'write'));
+  const canWriteRoles = usePermissionsStore((s) => s.hasFeaturePermission(UM_MODULE, 'roles', 'write'));
 
   return (
     <UserManagementPageShell

@@ -1,0 +1,51 @@
+import { z } from 'zod';
+import type { OrganizationType } from './types';
+
+const organizationTypeEnum = z.enum([
+  'hospital_chain',
+  'medical_college',
+  'standalone_hospital',
+  'government_network',
+]);
+
+const organizationStatusEnum = z.enum(['active', 'suspended', 'decommissioned']);
+
+export const organizationFormSchema = z
+  .object({
+    name: z.string().min(1, 'Name is required'),
+    slug: z.string().min(3, 'Slug must be at least 3 characters'),
+    type: organizationTypeEnum,
+    status: organizationStatusEnum.optional(),
+    contact_email: z.string().optional(),
+    contact_phone: z.string().optional(),
+    address: z.string().optional(),
+  })
+  .superRefine((data, ctx) => {
+    const email = data.contact_email?.trim();
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Invalid email',
+        path: ['contact_email'],
+      });
+    }
+  });
+
+export type OrganizationFormValues = z.infer<typeof organizationFormSchema>;
+
+export const EMPTY_ORGANIZATION_FORM_VALUES: OrganizationFormValues = {
+  name: '',
+  slug: '',
+  type: 'standalone_hospital',
+  status: 'active',
+  contact_email: '',
+  contact_phone: '',
+  address: '',
+};
+
+export const organizationTypeOptions: Array<{ value: OrganizationType; label: string }> = [
+  { value: 'hospital_chain', label: 'Hospital chain' },
+  { value: 'medical_college', label: 'Medical college' },
+  { value: 'standalone_hospital', label: 'Standalone hospital' },
+  { value: 'government_network', label: 'Government network' },
+];

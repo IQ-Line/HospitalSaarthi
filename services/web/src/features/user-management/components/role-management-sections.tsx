@@ -257,10 +257,12 @@ export function CapabilityTreeNodeRow({
   onBranchToggle,
   onSetSelectedCapabilityIds,
   onToggleCapability,
+  showCapabilityProvenance = false,
 }: {
   node: CapabilityTreeNode;
   depth: number;
   canWriteRoles: boolean;
+  showCapabilityProvenance?: boolean;
   selectedCapabilityIds: Set<string>;
   expandedBranchIds: Set<string>;
   forceExpanded: boolean;
@@ -287,6 +289,21 @@ export function CapabilityTreeNodeRow({
             </p>
             {capability.description ? (
               <p className="mt-1 text-sm text-muted-foreground">{capability.description}</p>
+            ) : null}
+            {showCapabilityProvenance &&
+            (capability.source_module_slug ||
+              capability.source_permission_slug ||
+              capability.source_catalog) ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Provenance:{' '}
+                {[
+                  capability.source_catalog,
+                  capability.source_module_slug,
+                  capability.source_permission_slug,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </p>
             ) : null}
           </div>
         </label>
@@ -356,6 +373,7 @@ export function CapabilityTreeNodeRow({
               onBranchToggle={onBranchToggle}
               onSetSelectedCapabilityIds={onSetSelectedCapabilityIds}
               onToggleCapability={onToggleCapability}
+              showCapabilityProvenance={showCapabilityProvenance}
             />
           ))}
         </div>
@@ -383,6 +401,8 @@ type RoleEditorDialogProps = {
   deletePending: boolean;
   assignedCapabilitiesPending: boolean;
   assignedCapabilitiesError: boolean;
+  assignableCatalogPending: boolean;
+  assignableCatalogError: boolean;
   capabilitySearch: string;
   capabilities: Capability[];
   onOpenChange: (open: boolean) => void;
@@ -392,9 +412,12 @@ type RoleEditorDialogProps = {
   onCapabilitySearchChange: (value: string) => void;
   onSetSelectedCapabilityIds: (capabilityIds: string[]) => void;
   onToggleCapability: (capabilityId: string) => void;
+  onRetryAssignableCatalog: () => void;
   onReset: () => void;
   onSave: () => void;
   onDelete: () => void;
+  /** When true, shows catalog provenance metadata on capability rows (admin operators). */
+  showCapabilityProvenance?: boolean;
 };
 
 export function RoleEditorDialog({
@@ -416,6 +439,8 @@ export function RoleEditorDialog({
   deletePending,
   assignedCapabilitiesPending,
   assignedCapabilitiesError,
+  assignableCatalogPending,
+  assignableCatalogError,
   capabilitySearch,
   capabilities,
   onOpenChange,
@@ -425,9 +450,11 @@ export function RoleEditorDialog({
   onCapabilitySearchChange,
   onSetSelectedCapabilityIds,
   onToggleCapability,
+  onRetryAssignableCatalog,
   onReset,
   onSave,
   onDelete,
+  showCapabilityProvenance = false,
 }: RoleEditorDialogProps) {
   const isCreate = mode === 'create';
   const capabilityTree = useMemo(() => buildCapabilityTree(capabilities), [capabilities]);
@@ -579,9 +606,22 @@ export function RoleEditorDialog({
                 <p className="text-sm text-destructive">
                   Unable to load the current capabilities for this role.
                 </p>
+              ) : assignableCatalogPending ? (
+                <p className="text-sm text-muted-foreground">Loading tenant assignable capabilities…</p>
+              ) : assignableCatalogError ? (
+                <div className="space-y-3 rounded-md border border-destructive/35 bg-destructive/5 p-3">
+                  <p className="text-sm text-destructive">
+                    Could not load tenant-scoped capabilities. The entitlement lookup (Configurator /
+                    Master Data) failed — this is not an empty permission catalog.
+                  </p>
+                  <Button type="button" size="sm" variant="outline" onClick={onRetryAssignableCatalog}>
+                    Retry
+                  </Button>
+                </div>
               ) : totalCapabilityCount === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  No capabilities are available in the catalog yet.
+                  No assignable capabilities for this tenant. Platform modules may still apply,
+                  but the tenant-scoped catalog is empty.
                 </p>
               ) : (
                 <>
@@ -625,6 +665,7 @@ export function RoleEditorDialog({
                           onBranchToggle={handleToggleBranch}
                           onSetSelectedCapabilityIds={onSetSelectedCapabilityIds}
                           onToggleCapability={onToggleCapability}
+                          showCapabilityProvenance={showCapabilityProvenance}
                         />
                       ))}
                     </div>

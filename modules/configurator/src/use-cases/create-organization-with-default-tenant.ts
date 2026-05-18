@@ -14,6 +14,8 @@ export interface OrganizationWithDefaultTenantResult {
  * provisioning, shared isolation). `cerbos_scope_key` is `tenant:{organization.id}` (globally unique).
  *
  * Call inside `runConfiguratorTransaction` so both inserts commit or roll back together.
+ * For module enablement rows on the default tenant in the same transaction, use
+ * `createOrganizationWithDefaultTenantAndTenantModules`.
  */
 export async function createOrganizationWithDefaultTenant(
   organizationRepo: OrganizationRepo,

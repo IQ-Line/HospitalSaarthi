@@ -14,7 +14,18 @@ export type {
 export type {
   AuthAccountProvisioner,
   AppliedRoleTemplate,
+  CapabilityCatalogSyncPort,
+  CapabilityCatalogSyncRequest,
+  CapabilityCatalogSyncResult,
   CapabilityRepository,
+  RuntimeCapabilityCatalogPort,
+  CapabilitySourceCatalog,
+  EntitlementRequestContext,
+  MasterDataModuleCatalogPort,
+  ModuleCatalogPort,
+  ModuleEntitlementRequestContext,
+  TenantEntitlementPort,
+  TenantModuleEntitlementPort,
   CreatePasswordAuthAccountInput,
   CreatePasswordAuthAccountResult,
   ListUsersOptions,
@@ -24,6 +35,9 @@ export type {
   ReplaceUserCapabilitiesInput,
   UserReadListResourceAbac,
   UserAccessRepository,
+  UserProvisioningRepository,
+  ProvisionUserWithAccessInput,
+  RoleTemplateGrantPlan,
   UserCapabilitiesSnapshot,
   UserCapabilityGrant,
   UserEffectiveCapabilities,
@@ -50,13 +64,20 @@ export {
   UM_USER_UPDATE,
 } from "./domain/user-management-capabilities.js";
 export {
+  AuthAccountIdentityMismatchError,
+  AuthAccountProvisioningError,
   AuthEmailConflictError,
+  DuplicateUsernameError,
   CerbosPrincipalUnavailableError,
-  DuplicateRoleAssignmentError,
   DuplicateUserRoleTemplateError,
   DuplicateRoleCodeError,
+  CapabilityNotEntitledForTenantError,
   CapabilityNotFoundError,
-  RoleAssignmentNotFoundError,
+  InvalidCapabilityProvenanceError,
+  InvalidCapabilityKeyError,
+  InvalidModuleSlugError,
+  ModuleEntitlementLookupError,
+  TenantEntitlementLookupError,
   InvalidRoleSeedError,
   RbacIntegrityViolationError,
   RoleInUseError,
@@ -80,17 +101,17 @@ export type {
 
 export { DrizzleCapabilityRepository } from "./data-access/capability-repository.js";
 export { DrizzleRoleCapabilityRepository } from "./data-access/role-capability-repository.js";
-export { DrizzleRoleAssignmentRepository } from "./data-access/role-assignment-repository.js";
 export { DrizzleUserAccessRepository } from "./data-access/user-access-repository.js";
 export { DrizzlePrincipalRoleProjectionRepository } from "./data-access/drizzle-principal-role-projection-repository.js";
 export { DrizzleRoleRepository } from "./data-access/role-repository.js";
 export { DrizzleUserRepository } from "./data-access/user-repository.js";
+export { DrizzleUserProvisioningRepository } from "./data-access/user-provisioning-repository.js";
+export { InMemoryUserProvisioningRepository } from "./data-access/in-memory-user-provisioning-repository.js";
 export { InMemoryCapabilityRepository } from "./data-access/in-memory-capability-repository.js";
 export { InMemoryUserAccessRepository } from "./data-access/in-memory-user-access-repository.js";
 export { InMemoryRoleRepository } from "./data-access/in-memory-role-repository.js";
 export { InMemoryRoleCapabilityRepository } from "./data-access/in-memory-role-capability-repository.js";
 export { InMemoryPrincipalRoleProjectionRepository } from "./data-access/in-memory-principal-role-projection-repository.js";
-export { InMemoryRoleAssignmentRepository } from "./data-access/in-memory-role-assignment-repository.js";
 export { InMemoryUserRepository } from "./data-access/in-memory-user-repository.js";
 export { DrizzlePrincipalAuthorizationRepository } from "./data-access/principal-authorization-repository.js";
 export { InMemoryPrincipalAuthorizationRepository } from "./data-access/in-memory-principal-authorization-repository.js";
@@ -100,7 +121,6 @@ export { DefaultPrincipalService } from "./services/default-principal-service.js
 export {
   capabilities,
   delegated_capability_grants,
-  role_assignments,
   role_capabilities,
   roles,
   user_capabilities,
@@ -141,8 +161,74 @@ export { getRoleCapabilities } from "./use-cases/get-role-capabilities.js";
 export type { GetRoleCapabilitiesDeps } from "./use-cases/get-role-capabilities.js";
 export { listCapabilities } from "./use-cases/list-capabilities.js";
 export type { ListCapabilitiesDeps } from "./use-cases/list-capabilities.js";
-export { listRoleAssignments } from "./use-cases/list-role-assignments.js";
-export type { ListRoleAssignmentsDeps } from "./use-cases/list-role-assignments.js";
+export { listAssignableCapabilities } from "./use-cases/list-assignable-capabilities.js";
+export type { ListAssignableCapabilitiesDeps } from "./use-cases/list-assignable-capabilities.js";
+export { listAssignableRuntimeCapabilities } from "./use-cases/list-assignable-runtime-capabilities.js";
+export type { ListAssignableRuntimeCapabilitiesDeps } from "./use-cases/list-assignable-runtime-capabilities.js";
+export { assertRuntimeCapabilitiesEntitledForTenant } from "./use-cases/assert-runtime-capabilities-entitled-for-tenant.js";
+export {
+  MODULE_SLUG_PATTERN,
+  assertValidModuleSlug,
+  isValidModuleSlug,
+  normalizeModuleSlug,
+  normalizeModuleSlugSet,
+} from "./domain/module-slug.js";
+export {
+  CAPABILITY_KEY_SEGMENT_PATTERN,
+  RUNTIME_CAPABILITY_ACTIONS,
+  RUNTIME_CAPABILITY_KEY_PATTERN,
+  RUNTIME_MODULE_KEY_BY_CATALOG_SLUG,
+  RESERVED_RUNTIME_MODULE_KEYS,
+  assertCapabilityKeyMatchesCatalogModule,
+  assertValidCapabilityKey,
+  assertValidRuntimeCapabilityRow,
+  catalogSlugForRuntimeModuleKey,
+  findDuplicateCapabilityKeys,
+  normalizeCapabilityKey,
+  parseCapabilityKey,
+  runtimeModuleKeyForCatalogSlug,
+} from "./domain/capability-key.js";
+export type {
+  ParsedCapabilityKey,
+  RuntimeCapabilityAction,
+  RuntimeCapabilityRowShape,
+} from "./domain/capability-key.js";
+export {
+  mapMasterDataPermissionToRuntimeCapability,
+  suggestMasterDataPermissionSlug,
+} from "./domain/map-master-data-permission.js";
+export type {
+  MappedRuntimeCapability,
+  MasterDataPermissionRef,
+} from "./domain/map-master-data-permission.js";
+export {
+  RUNTIME_AUTH_LIMITS,
+  assertWithinLimit,
+  dedupeTrimmedIds,
+} from "./domain/runtime-authorization-limits.js";
+export {
+  validateRuntimeAuthorizationStartup,
+  formatRuntimeAuthorizationStartupFailure,
+} from "./startup/validate-runtime-authorization.js";
+export type {
+  RuntimeAuthorizationStartupDiagnostic,
+  ValidateRuntimeAuthorizationStartupInput,
+  ValidateRuntimeAuthorizationStartupResult,
+} from "./startup/validate-runtime-authorization.js";
+export { createDefaultRuntimeCapabilityCatalogPort } from "./services/default-runtime-capability-catalog-port.js";
+export {
+  normalizeCapabilityProvenance,
+} from "./domain/capability-provenance.js";
+export type { CapabilityProvenanceInput } from "./domain/capability-provenance.js";
+export {
+  PLATFORM_ASSIGNABLE_MODULE_SLUGS,
+  PLATFORM_RUNTIME_MODULE_SLUGS,
+  isPlatformRuntimeModuleSlug,
+} from "./domain/platform-module-slugs.js";
+export type {
+  PlatformAssignableModuleSlug,
+  PlatformRuntimeModuleSlug,
+} from "./domain/platform-module-slugs.js";
 export { listRoles } from "./use-cases/list-roles.js";
 export type { ListRolesDeps } from "./use-cases/list-roles.js";
 export { listUserRoles } from "./use-cases/list-user-roles.js";
@@ -151,8 +237,6 @@ export { replaceRoleCapabilities } from "./use-cases/replace-role-capabilities.j
 export type { ReplaceRoleCapabilitiesDeps } from "./use-cases/replace-role-capabilities.js";
 export { replaceUserCapabilities } from "./use-cases/replace-user-capabilities.js";
 export type { ReplaceUserCapabilitiesDeps } from "./use-cases/replace-user-capabilities.js";
-export { revokeRole } from "./use-cases/revoke-role.js";
-export type { RevokeRoleDeps, RevokeRoleContext } from "./use-cases/revoke-role.js";
 export { updateRole } from "./use-cases/update-role.js";
 export type { UpdateRoleDeps } from "./use-cases/update-role.js";
 export { AUTHENTICATE_LOCAL_PHASE_1A_OWNER } from "./use-cases/authenticate-local.js";

@@ -68,6 +68,9 @@ export const capabilities = userManagementSchema.table(
     display_name: text("display_name").notNull(),
     description: text("description"),
     is_active: boolean("is_active").notNull().default(true),
+    source_module_slug: text("source_module_slug"),
+    source_permission_slug: text("source_permission_slug"),
+    source_catalog: text("source_catalog"),
     created_at: createdAt(),
     updated_at: updatedAt(),
   },
@@ -82,6 +85,10 @@ export const capabilities = userManagementSchema.table(
     check("capabilities_feature_not_blank_chk", sql`length(btrim(${t.feature})) > 0`),
     check("capabilities_action_not_blank_chk", sql`length(btrim(${t.action})) > 0`),
     check("capabilities_display_name_not_blank_chk", sql`length(btrim(${t.display_name})) > 0`),
+    check(
+      "capabilities_source_catalog_chk",
+      sql`${t.source_catalog} is null or ${t.source_catalog} in ('master_data')`,
+    ),
     unique("uq_capabilities_key").on(t.capability_key),
     unique("uq_capabilities_module_feature_action").on(t.module, t.feature, t.action),
     index("idx_capabilities_module_feature").on(t.module, t.feature),
@@ -255,9 +262,6 @@ export const user_capabilities = userManagementSchema.table(
     index("idx_user_capabilities_tenant_capability").on(t.iq_tenant_id, t.capability_id),
   ],
 );
-
-// Temporary alias while the dev reset removes old role-assignment imports.
-export const role_assignments = user_roles;
 
 export const delegated_capability_grants = userManagementSchema.table(
   "delegated_capability_grants",

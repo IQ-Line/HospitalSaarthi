@@ -24,6 +24,7 @@ import type {
   UserWithTenant,
 } from "./ports/index.js";
 import { userManagementPlugin } from "./router.js";
+import { NoopUserProvisioningRepository } from "./test-support/noop-user-provisioning-repository.js";
 import { publishUserManagementEvent } from "./events/publish-user-management-event.js";
 import { USER_MANAGEMENT_EVENT_ROLE_ASSIGNED } from "./events/constants.js";
 
@@ -79,7 +80,22 @@ class StubCapabilityRepository {
   async listCapabilitiesByKeys(): Promise<Capability[]> {
     return [];
   }
+  async listActiveRuntimeCapabilitiesByModuleSlugs(): Promise<Capability[]> {
+    return [];
+  }
 }
+
+const noopTenantModuleEntitlementPort = {
+  async listTenantEnabledModuleIds(): Promise<string[]> {
+    return [];
+  },
+};
+
+const noopMasterDataModuleCatalogPort = {
+  async resolveModuleSlugsByIds(): Promise<Map<string, string>> {
+    return new Map();
+  },
+};
 
 class NoopRoleCapabilityRepository implements RoleCapabilityRepository {
   async listCapabilitiesByRole(): Promise<Capability[]> {
@@ -395,6 +411,7 @@ describe("OpenAPI/runtime coherence", () => {
         await instance.register(userManagementPlugin, {
           eventBus: noopEventBus,
           userRepository: new StubUserRepository(),
+          userProvisioningRepository: new NoopUserProvisioningRepository(),
           capabilityRepository: new StubCapabilityRepository(),
           roleRepository: new StubRoleRepository(),
           roleCapabilityRepository: new NoopRoleCapabilityRepository(),
@@ -402,6 +419,8 @@ describe("OpenAPI/runtime coherence", () => {
           principalRoleProjectionRepository: new NoopPrincipalRoleProjectionRepository(),
           principalAuthorizationRepository: new NoopPrincipalAuthorizationRepository(),
           authAccountProvisioner: noopAuthAccountProvisioner,
+          tenantModuleEntitlementPort: noopTenantModuleEntitlementPort,
+          masterDataModuleCatalogPort: noopMasterDataModuleCatalogPort,
         });
       },
       { prefix: "/api/user-management" },
@@ -436,6 +455,7 @@ describe("OpenAPI/runtime coherence", () => {
         await instance.register(userManagementPlugin, {
           eventBus: noopEventBus,
           userRepository: new StubUserRepository(),
+          userProvisioningRepository: new NoopUserProvisioningRepository(),
           capabilityRepository: new StubCapabilityRepository(),
           roleRepository: new StubRoleRepository(),
           roleCapabilityRepository: new NoopRoleCapabilityRepository(),
@@ -443,6 +463,8 @@ describe("OpenAPI/runtime coherence", () => {
           principalRoleProjectionRepository: new NoopPrincipalRoleProjectionRepository(),
           principalAuthorizationRepository: new NoopPrincipalAuthorizationRepository(),
           authAccountProvisioner: noopAuthAccountProvisioner,
+          tenantModuleEntitlementPort: noopTenantModuleEntitlementPort,
+          masterDataModuleCatalogPort: noopMasterDataModuleCatalogPort,
         });
       },
       { prefix: "/api/user-management" },
@@ -476,6 +498,11 @@ describe("OpenAPI/runtime coherence", () => {
     expect(spec).not.toContain("security: []");
     expect(spec).toContain("required: false");
     expect(spec).toContain("deprecated: true");
+    const applyRoleTemplateSection = spec.slice(spec.indexOf("Apply a role template to a user"));
+    expect(applyRoleTemplateSection).toContain("role_template_capability_ids:");
+    const detachRoleTemplateSection = spec.slice(spec.indexOf("Remove a role-template association from a user"));
+    expect(detachRoleTemplateSection).toContain("soft-revokes");
+    expect(detachRoleTemplateSection).not.toContain("remain untouched");
 
     const app = Fastify();
     const routes: Array<{ method: string; path: string; authMode?: string }> = [];
@@ -493,6 +520,7 @@ describe("OpenAPI/runtime coherence", () => {
         await instance.register(userManagementPlugin, {
           eventBus: noopEventBus,
           userRepository: new StubUserRepository(),
+          userProvisioningRepository: new NoopUserProvisioningRepository(),
           capabilityRepository: new StubCapabilityRepository(),
           roleRepository: new StubRoleRepository(),
           roleCapabilityRepository: new NoopRoleCapabilityRepository(),
@@ -500,6 +528,8 @@ describe("OpenAPI/runtime coherence", () => {
           principalRoleProjectionRepository: new NoopPrincipalRoleProjectionRepository(),
           principalAuthorizationRepository: new NoopPrincipalAuthorizationRepository(),
           authAccountProvisioner: noopAuthAccountProvisioner,
+          tenantModuleEntitlementPort: noopTenantModuleEntitlementPort,
+          masterDataModuleCatalogPort: noopMasterDataModuleCatalogPort,
         });
       },
       { prefix: "/api/user-management" },
@@ -515,6 +545,7 @@ describe("OpenAPI/runtime coherence", () => {
         "/auth/principal",
         "/auth/permissions-map",
         "/capabilities",
+        "/capabilities/assignable",
         "/capabilities/:id",
         "/users",
         "/users/:id",

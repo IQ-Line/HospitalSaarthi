@@ -16,9 +16,21 @@ function roleKey(tenantId: string, roleId: string): string {
 
 export class InMemoryRoleCapabilityRepository implements RoleCapabilityRepository {
   private readonly roleCapabilities = new Map<string, Capability[]>();
+  private readonly capabilityById = new Map<string, Capability>();
 
-  constructor(seed: SeedRoleCapabilities[] = []) {
+  /**
+   * @param seed Initial role → capability lists
+   * @param extraPool Additional capability rows used to resolve {@link replaceCapabilitiesForRole}
+   * ids (mirrors FK to the global `capabilities` catalog in Postgres).
+   */
+  constructor(seed: SeedRoleCapabilities[] = [], extraPool: Capability[] = []) {
+    for (const capability of extraPool) {
+      this.capabilityById.set(capability.id, capability);
+    }
     for (const entry of seed) {
+      for (const capability of entry.capabilities) {
+        this.capabilityById.set(capability.id, capability);
+      }
       this.roleCapabilities.set(roleKey(entry.tenantId, entry.roleId), [...entry.capabilities]);
     }
   }
@@ -32,9 +44,14 @@ export class InMemoryRoleCapabilityRepository implements RoleCapabilityRepositor
     roleId: string,
     input: ReplaceRoleCapabilitiesInput,
   ): Promise<Capability[]> {
-    const current = this.roleCapabilities.get(roleKey(tenantId, roleId)) ?? [];
-    const allowed = new Set(input.capability_ids);
-    const next = current.filter((capability) => allowed.has(capability.id));
+    const next: Capability[] = [];
+    for (const capabilityId of [...new Set(input.capability_ids)]) {
+      const capability = this.capabilityById.get(capabilityId);
+      if (capability === undefined) {
+        throw new Error(`IN_MEMORY_ROLE_CAPABILITY_UNKNOWN_ID:${capabilityId}`);
+      }
+      next.push(capability);
+    }
     this.roleCapabilities.set(roleKey(tenantId, roleId), next);
     return [...next];
   }

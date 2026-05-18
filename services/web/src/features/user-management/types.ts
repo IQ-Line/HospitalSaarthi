@@ -43,17 +43,6 @@ export type UpdateUserBody = {
   auth_user_id?: string | null;
 };
 
-export type RoleAssignment = {
-  id: string;
-  user_id: string;
-  role_id: string;
-};
-
-export type AssignRoleBody = {
-  user_id: string;
-  role_id: string;
-};
-
 export type Capability = {
   id: string;
   capability_key: string;
@@ -63,6 +52,9 @@ export type Capability = {
   display_name: string;
   description?: string | null;
   is_active: boolean;
+  source_module_slug?: string | null;
+  source_permission_slug?: string | null;
+  source_catalog?: "master_data" | null;
 };
 
 export type UmRole = {
@@ -100,6 +92,7 @@ export type ReplaceUserCapabilitiesBody = {
 
 export type ApplyRoleTemplateBody = {
   role_id: string;
+  role_template_capability_ids?: string[];
 };
 
 export type UserCapabilityGrantSource = 'manual' | 'role_template' | 'delegated' | 'system';

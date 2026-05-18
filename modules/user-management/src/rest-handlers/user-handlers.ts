@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import { forbidden } from "@hims/ts-sdk-http";
 import { buildCerbosUserMgmtResourceAttr } from "../authz/cerbos-resource-attr.js";
 import { UserNotFoundError } from "../domain/errors.js";
+import { logRejectedNonEntitledCapabilityId } from "../http/log-rejected-non-entitled-capability.js";
 import { replyWithUserManagementError } from "../http/map-user-management-error.js";
 import type {
   CreateUserInput,
@@ -62,7 +63,7 @@ async function ensureUserAccessMutationAllowed(
   tenantId: string,
 ): Promise<boolean> {
   const result = await request.checkResource(
-    "role_assignment",
+    "user_role_template",
     "new",
     "role.assign",
     tenantOnlyResourceAttr(tenantId),
@@ -101,6 +102,7 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
         );
         return reply.status(201).send(user);
       } catch (err) {
+        logRejectedNonEntitledCapabilityId(request.log, tenantId, err);
         return replyWithUserManagementError(reply, err, cid);
       }
     },
@@ -143,6 +145,7 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
           ),
         );
       } catch (err) {
+        logRejectedNonEntitledCapabilityId(request.log, tenantId, err);
         return replyWithUserManagementError(reply, err, cid);
       }
     },
@@ -182,7 +185,10 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
     },
   );
 
-  fastify.post<{ Params: { id: string }; Body: { role_id: string } }>(
+  fastify.post<{
+    Params: { id: string };
+    Body: { role_id: string; role_template_capability_ids?: string[] };
+  }>(
     "/users/:id/roles",
     { config: { authMode: "protected" } },
     async (request, reply) => {
@@ -197,10 +203,17 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
         const applied = await applyRoleTemplate(
           deps.applyRoleTemplateDeps,
           { tenantId, actorId, correlationId: cid },
-          { user_id: request.params.id, role_id: request.body.role_id },
+          {
+            user_id: request.params.id,
+            role_id: request.body.role_id,
+            ...(request.body.role_template_capability_ids !== undefined
+              ? { role_template_capability_ids: request.body.role_template_capability_ids }
+              : {}),
+          },
         );
         return reply.status(201).send(applied);
       } catch (err) {
+        logRejectedNonEntitledCapabilityId(request.log, tenantId, err);
         return replyWithUserManagementError(reply, err, cid);
       }
     },

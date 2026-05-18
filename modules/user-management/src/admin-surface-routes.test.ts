@@ -10,6 +10,7 @@ import { InMemoryRoleRepository } from "./data-access/in-memory-role-repository.
 import { InMemoryUserAccessRepository } from "./data-access/in-memory-user-access-repository.js";
 import { InMemoryUserRepository } from "./data-access/in-memory-user-repository.js";
 import { userManagementPlugin } from "./router.js";
+import { InMemoryUserProvisioningRepository } from "./data-access/in-memory-user-provisioning-repository.js";
 
 const apps: Array<ReturnType<typeof Fastify>> = [];
 
@@ -146,6 +147,10 @@ async function createTestApp() {
       await instance.register(userManagementPlugin, {
         eventBus: noopEventBus,
         userRepository,
+        userProvisioningRepository: new InMemoryUserProvisioningRepository(
+          userRepository,
+          userAccessRepository,
+        ),
         capabilityRepository,
         roleRepository,
         roleCapabilityRepository: new InMemoryRoleCapabilityRepository(),
@@ -155,6 +160,16 @@ async function createTestApp() {
         authAccountProvisioner: {
           async createPasswordAccount(input) {
             return { authUserId: input.platformUserId };
+          },
+        },
+        tenantModuleEntitlementPort: {
+          async listTenantEnabledModuleIds() {
+            return [];
+          },
+        },
+        masterDataModuleCatalogPort: {
+          async resolveModuleSlugsByIds() {
+            return new Map();
           },
         },
       });

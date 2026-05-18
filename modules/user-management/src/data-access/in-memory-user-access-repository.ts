@@ -5,6 +5,26 @@ import type {
   UserAccessRepository,
   UserCapabilityGrant,
 } from "../ports/index.js";
+import {
+  applyRoleTemplateCapabilitySyncToGrantMap,
+  planRoleTemplateCapabilitySync,
+} from "./role-template-grant-writes.js";
+
+function revokeRoleTemplateGrantsInMemory(
+  grants: Map<string, UserCapabilityGrant>,
+  input: { userId: string; roleId: string; actorId: string | null },
+): void {
+  const plan = planRoleTemplateCapabilitySync([], [...grants.values()], input.roleId);
+  const grantedAt = new Date().toISOString();
+  const grantsById = new Map([...grants.values()].map((grant) => [grant.id, grant]));
+  for (const grantId of plan.revokeGrantIds) {
+    const grant = grantsById.get(grantId);
+    if (grant && grant.revoked_at === null) {
+      grant.revoked_at = grantedAt;
+      grant.revoked_by_user_id = input.actorId;
+    }
+  }
+}
 
 function tenantUser(tenantId: string, userId: string): string {
   return `${tenantId}\0${userId}`;
@@ -35,29 +55,35 @@ export class InMemoryUserAccessRepository implements UserAccessRepository {
     }
 
     const key = tenantUserRole(tenantId, input.userId, input.roleId);
-    const existing = this.roleTemplates.get(key);
-    if (existing) {
-      return existing;
+    let applied = this.roleTemplates.get(key);
+    if (!applied) {
+      applied = {
+        id: randomUUID(),
+        user_id: input.userId,
+        role_id: input.roleId,
+        assigned_by_user_id: input.actorId,
+        assigned_at: new Date().toISOString(),
+        role,
+      };
+      this.roleTemplates.set(key, applied);
     }
-
-    const applied: AppliedRoleTemplate = {
-      id: randomUUID(),
-      user_id: input.userId,
-      role_id: input.roleId,
-      assigned_by_user_id: input.actorId,
-      assigned_at: new Date().toISOString(),
-      role,
-    };
-    this.roleTemplates.set(key, applied);
 
     const userKey = tenantUser(tenantId, input.userId);
     const grants = this.capabilityGrants.get(userKey) ?? new Map<string, UserCapabilityGrant>();
     this.capabilityGrants.set(userKey, grants);
 
-    for (const capabilityId of [...new Set(input.capabilityIds)]) {
-      if (grants.has(capabilityId)) continue;
-      grants.set(capabilityId, {
-        id: randomUUID(),
+    const plan = planRoleTemplateCapabilitySync(
+      input.capabilityIds,
+      [...grants.values()],
+      input.roleId,
+    );
+
+    applyRoleTemplateCapabilitySyncToGrantMap(grants, plan, {
+      userId: input.userId,
+      roleId: input.roleId,
+      actorId: input.actorId,
+      createGrant: (capabilityId, existing, grantedAt) => ({
+        id: existing?.id ?? randomUUID(),
         user_id: input.userId,
         capability_id: capabilityId,
         capability_key: capabilityId,
@@ -69,11 +95,11 @@ export class InMemoryUserAccessRepository implements UserAccessRepository {
         grant_source: "role_template",
         source_role_id: input.roleId,
         granted_by_user_id: input.actorId,
-        granted_at: new Date().toISOString(),
+        granted_at: grantedAt,
         revoked_at: null,
         revoked_by_user_id: null,
-      });
-    }
+      }),
+    });
 
     return applied;
   }
@@ -83,13 +109,23 @@ export class InMemoryUserAccessRepository implements UserAccessRepository {
     input: {
       userId: string;
       roleId: string;
+      actorId: string | null;
     },
   ): Promise<AppliedRoleTemplate | null> {
     const key = tenantUserRole(tenantId, input.userId, input.roleId);
     const existing = this.roleTemplates.get(key) ?? null;
-    if (existing) {
-      this.roleTemplates.delete(key);
+    if (existing === null) {
+      return null;
     }
+
+    this.roleTemplates.delete(key);
+
+    const userKey = tenantUser(tenantId, input.userId);
+    const grants = this.capabilityGrants.get(userKey);
+    if (grants) {
+      revokeRoleTemplateGrantsInMemory(grants, input);
+    }
+
     return existing;
   }
 

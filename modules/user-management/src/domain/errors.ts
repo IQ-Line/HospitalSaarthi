@@ -14,6 +14,7 @@ export type ValidationIssue =
   | "create_user_role_template_capability_ids_requires_single_role"
   | "apply_role_template_ids_invalid"
   | "apply_role_template_capability_not_on_role"
+  | "apply_role_template_capability_ids_empty"
   | "apply_role_template_capability_ids_invalid"
   | "detach_role_template_query_invalid"
   | "replace_user_capabilities_invalid"
@@ -80,6 +81,10 @@ const VALIDATION_ISSUE_META: Record<ValidationIssue, { code: string; message: st
   apply_role_template_capability_not_on_role: {
     code: "INVALID_INPUT",
     message: "Each capability id must belong to the role template being applied.",
+  },
+  apply_role_template_capability_ids_empty: {
+    code: "INVALID_INPUT",
+    message: "role_template_capability_ids must not be an empty array.",
   },
   apply_role_template_capability_ids_invalid: {
     code: "INVALID_INPUT",
@@ -169,6 +174,54 @@ export class CapabilityNotFoundError extends UserManagementError {
   }
 }
 
+/** Runtime capability is not assignable for the tenant (module not enabled). */
+export class CapabilityNotEntitledForTenantError extends UserManagementError {
+  constructor(public readonly capabilityId?: string) {
+    super(
+      "CAPABILITY_NOT_ENTITLED_FOR_TENANT",
+      "One or more capabilities are not assignable for this tenant.",
+    );
+  }
+}
+
+/** `capabilities.module` or related slug failed kebab-case validation. */
+export class InvalidModuleSlugError extends UserManagementError {
+  constructor(message: string) {
+    super("INVALID_MODULE_SLUG", message);
+  }
+}
+
+/** Invalid combination of nullable provenance columns on `capabilities`. */
+export class InvalidCapabilityProvenanceError extends UserManagementError {
+  constructor(message: string) {
+    super("INVALID_CAPABILITY_PROVENANCE", message);
+  }
+}
+
+/** `capabilities.capability_key` failed canonical runtime vocabulary validation. */
+export class InvalidCapabilityKeyError extends UserManagementError {
+  constructor(message: string) {
+    super("INVALID_CAPABILITY_KEY", message);
+  }
+}
+
+/** Configurator or Master Data module integration lookup failed; callers must fail closed. */
+export class ModuleEntitlementLookupError extends UserManagementError {
+  constructor(
+    public readonly source: "configurator" | "master_data",
+    options?: Readonly<{ cause?: unknown }>,
+  ) {
+    super(
+      "MODULE_ENTITLEMENT_LOOKUP_FAILED",
+      "Tenant-enabled module entitlement could not be resolved.",
+      { retryable: true, ...options },
+    );
+  }
+}
+
+/** @deprecated Use {@link ModuleEntitlementLookupError}. */
+export const TenantEntitlementLookupError = ModuleEntitlementLookupError;
+
 export class DuplicateRoleCodeError extends UserManagementError {
   constructor(public readonly roleCode?: string) {
     super("ROLE_CODE_DUPLICATE", "A role with this code already exists for this tenant.");
@@ -178,12 +231,6 @@ export class DuplicateRoleCodeError extends UserManagementError {
 export class RoleInUseError extends UserManagementError {
   constructor(public readonly roleId?: string) {
     super("ROLE_IN_USE", "This role cannot be deleted while assignments still exist.");
-  }
-}
-
-export class DuplicateRoleAssignmentError extends UserManagementError {
-  constructor() {
-    super("ROLE_ASSIGNMENT_DUPLICATE", "This role is already assigned to the user.");
   }
 }
 
@@ -199,10 +246,28 @@ export class AuthEmailConflictError extends UserManagementError {
   }
 }
 
-/** No matching role assignment row for revoke (idempotent delete had nothing to remove). */
-export class RoleAssignmentNotFoundError extends UserManagementError {
+export class AuthAccountProvisioningError extends UserManagementError {
+  constructor(options?: Readonly<{ cause?: unknown }>) {
+    super(
+      "AUTH_ACCOUNT_PROVISIONING_FAILED",
+      "Login account could not be provisioned after the platform user was created.",
+      options ?? {},
+    );
+  }
+}
+
+export class AuthAccountIdentityMismatchError extends UserManagementError {
   constructor() {
-    super("ROLE_ASSIGNMENT_NOT_FOUND", "Role assignment not found for this tenant.");
+    super(
+      "AUTH_ACCOUNT_IDENTITY_MISMATCH",
+      "Auth account id does not match the platform user id.",
+    );
+  }
+}
+
+export class DuplicateUsernameError extends UserManagementError {
+  constructor(public readonly username?: string) {
+    super("USERNAME_CONFLICT", "A user with this username already exists for this tenant.");
   }
 }
 
@@ -219,10 +284,10 @@ export class TenantMismatchError extends UserManagementError {
 }
 
 export class RbacIntegrityViolationError extends UserManagementError {
-  constructor(public readonly reason: "orphan_role_assignment") {
+  constructor(public readonly reason: "orphan_user_role_template") {
     super(
       "RBAC_INTEGRITY_VIOLATION",
-      "RBAC integrity violation: orphan role assignment detected",
+      "RBAC integrity violation: orphan user role template association detected",
     );
   }
 }

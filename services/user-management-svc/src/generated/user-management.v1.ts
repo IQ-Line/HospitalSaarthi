@@ -233,8 +233,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List canonical capability catalog
-         * @description Returns the canonical capability catalog. Capabilities are the atomic machine-readable authorization primitives used by Cerbos and composed into tenant-scoped roles.
+         * List full runtime capability catalog
+         * @description Returns the full global **runtime capability** catalog (not Master Data permissions). Each row's `module` field is a **module slug** aligned with `master_data.modules.slug`. For tenant-scoped role editors, prefer `GET /capabilities/assignable`.
          */
         get: {
             parameters: {
@@ -280,6 +280,80 @@ export interface paths {
                 };
                 403: components["responses"]["Forbidden"];
                 500: components["responses"]["InternalError"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/capabilities/assignable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List assignable runtime capabilities for tenant roles
+         * @description Returns active **runtime capabilities** from the UM catalog, filtered to **module slugs** enabled for the tenant (`configurator.tenant_modules` resolved via `master_data.modules.slug`) plus platform runtime modules (`user-management`, `configurator`). This is not a Master Data permissions API. Fails closed when tenant module entitlement or module catalog lookup fails.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /**
+                     * @deprecated
+                     * @description Optional diagnostic header. Canonical tenant scope is JWT `iq_tenant_id`. If this header is supplied, runtime requires exact match with JWT tenant scope.
+                     */
+                    iq_tenant_id?: components["parameters"]["IqTenantIdHeader"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Tenant-scoped assignable runtime capability catalog for role composition. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Capability"][];
+                    };
+                };
+                /** @description Request validation error (including tenant header/JWT mismatch when header is provided). */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                /** @description Missing or invalid bearer token. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                403: components["responses"]["Forbidden"];
+                500: components["responses"]["InternalError"];
+                /** @description Configurator tenant module entitlement or Master Data module catalog lookup failed. */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
             };
         };
         put?: never;
@@ -1176,7 +1250,7 @@ export interface paths {
         };
         /**
          * List applied role templates for a tenant-scoped user
-         * @description Returns the role templates applied to the specified user. These rows are reporting and admin convenience only; runtime authorization still resolves from persisted `user_capabilities`.
+         * @description Returns the role templates applied to the specified user (`user_roles` associations). Runtime authorization resolves from active rows in `user_capabilities` (snapshot grants). See ADR-0031 for snapshot semantics; PEP may temporarily union live template capabilities until issue #60.
          */
         get: {
             parameters: {
@@ -1239,7 +1313,7 @@ export interface paths {
         put?: never;
         /**
          * Apply a role template to a user
-         * @description Creates a `user_roles` association and copies the template's current capabilities into `user_capabilities` during the same write flow. Later edits to the role template do not retroactively change the user's access.
+         * @description Creates or updates a `user_roles` association and synchronizes the role-scoped capability snapshot in `user_capabilities` during the same write flow. Re-applying the same template narrows or widens the copied grants for that `source_role_id`. When `role_template_capability_ids` is present, only those capabilities (each belonging to the role) are included in the snapshot; omit the field to use the role's full composition. Later edits to the role template definition do not retroactively change existing user rows.
          */
         post: {
             parameters: {
@@ -1265,11 +1339,13 @@ export interface paths {
                          * @description Role-template id within the current tenant.
                          */
                         role_id: string;
+                        /** @description Optional subset of capability ids to grant from this role template. Each entry must be a capability currently assigned to the role. Omit to synchronize the full capability set defined on the role template. */
+                        role_template_capability_ids?: string[];
                     };
                 };
             };
             responses: {
-                /** @description Role template applied and capability copy completed. */
+                /** @description Role template applied and capability snapshot synchronized. */
                 201: {
                     headers: {
                         [name: string]: unknown;
@@ -1336,7 +1412,7 @@ export interface paths {
         post?: never;
         /**
          * Remove a role-template association from a user
-         * @description Removes the `user_roles` association only. Previously copied `user_capabilities` remain untouched until an explicit capability edit changes them.
+         * @description Removes the `user_roles` association and soft-revokes active `user_capabilities` rows where `grant_source` is `role_template` and `source_role_id` matches the detached role. Manual, delegated, and system grants are not changed. Revoked rows retain audit fields (`revoked_at`, `revoked_by_user_id`).
          */
         delete: {
             parameters: {
@@ -1358,7 +1434,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Role-template association removed. */
+                /** @description Role-template association removed and matching role-scoped capability snapshot revoked. */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -1556,7 +1632,7 @@ export interface paths {
         };
         /**
          * Get effective runtime capabilities for a user
-         * @description Returns the runtime-effective capability keys resolved from persisted user grants plus delegated overlays and clearance context. Role traversal is not part of this read path.
+         * @description Returns the runtime-effective capability keys for Cerbos principal enrichment. Primary source is active `user_capabilities` snapshot rows; delegated overlays and clearances are included. Until issue #60, implementation may temporarily union live `user_roles` join `role_capabilities` for active associations (hybrid PEP — see ADR-0031).
          */
         get: {
             parameters: {
@@ -1708,14 +1784,24 @@ export interface components {
         Capability: {
             /** Format: uuid */
             id: string;
-            /** @description Canonical machine-readable capability key. */
+            /** @description Runtime Cerbos vocabulary key (e.g. `um:user:read`). Stable once granted; distinct from Master Data `permissions.slug`. */
             capability_key: string;
+            /** @description Module slug — MUST equal `master_data.modules.slug` (kebab-case, e.g. `user-management`, `opd`, `billing`). */
             module: string;
             feature: string;
             action: string;
             display_name: string;
             description?: string | null;
             is_active: boolean;
+            /** @description Future catalog sync — originating Master Data module slug when this runtime capability was imported (nullable until sync exists). */
+            source_module_slug?: string | null;
+            /** @description Future catalog sync — originating Master Data `permissions.slug` (nullable until sync exists). */
+            source_permission_slug?: string | null;
+            /**
+             * @description Future catalog sync — system of record for provenance metadata.
+             * @enum {string|null}
+             */
+            source_catalog?: "master_data" | null;
         };
         Role: {
             /** Format: uuid */
@@ -1845,14 +1931,6 @@ export interface components {
                 /** @description Highest clearance tier derived from `clearances` for comparison with `resource.attr.required_clearance` on user resources in Cerbos. */
                 um_clearance_effective_tier: number;
             };
-        };
-        RoleAssignment: {
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
-            user_id: string;
-            /** Format: uuid */
-            role_id: string;
         };
     };
     responses: {
