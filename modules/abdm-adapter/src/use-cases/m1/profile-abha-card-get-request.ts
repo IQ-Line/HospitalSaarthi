@@ -2,6 +2,10 @@ import type { NhaAbhaCardResponse, ProfileAbhaCardHimsResponse } from "@hims/ts-
 import type { AbdmAdapterDeps } from "../../ports.js";
 import type { AbdmTenantInput } from "../../ports.js";
 import { loadM1ProfileSession } from "../../lib/load-m1-profile-session.js";
+import {
+  nhaProfileResourcePath,
+  resolveSessionProfileApiVariant,
+} from "../../lib/m1-nha-profile-paths.js";
 import { nhaProfileXTokenHeaders } from "../../lib/nha-profile-headers.js";
 
 export async function profileAbhaCardGetRequest(
@@ -10,8 +14,9 @@ export async function profileAbhaCardGetRequest(
 ): Promise<ProfileAbhaCardHimsResponse> {
   const iqTenantId = input.iqTenantId;
   const session = await loadM1ProfileSession(deps.sessions, iqTenantId, input.sessionId);
+  const variant = resolveSessionProfileApiVariant(session);
   const card = await deps.gateway.get<NhaAbhaCardResponse>({
-    path: "/v3/profile/account/abha-card",
+    path: nhaProfileResourcePath(variant, "abha-card"),
     headers: nhaProfileXTokenHeaders(session.xToken!),
     responseParser: "abha-card",
   });
