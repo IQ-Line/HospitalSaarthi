@@ -1,8 +1,10 @@
-import Fastify from "fastify";
+import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
+import { validateAuthConfig } from "@hims/ts-sdk-identity";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import { tenantPlugin } from "@hims/ts-sdk-tenant";
 import { createDb } from "@hims/ts-sdk-db";
+import { InProcessEventBus } from "@hims/ts-sdk-events";
 import {
   applyRegistrationSchemaMigration,
   DrizzleRegistrationRepo,
@@ -28,7 +30,13 @@ async function main() {
   await app.register(cors, {
     credentials: true,
     methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "iq_tenant_id", "x-tenant-id"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "iq_tenant_id",
+      "x-tenant-id",
+      "Idempotency-Key",
+    ],
     origin: (
       origin: string | undefined,
       cb: (err: Error | null, allow: boolean | string) => void,
@@ -76,25 +84,34 @@ async function main() {
   const db = createDb(DATABASE_URL);
   const registrationRepo = new DrizzleRegistrationRepo(db);
   const empiGateway = new HttpEmpiGateway(EMPI_URL);
+  const eventBus = new InProcessEventBus();
+  await eventBus.connect();
 
   const handlerDeps = {
     registrationRepo,
     empiGateway,
+    eventBus,
   };
 
-  await app.register(async (api) => {
+  const ENABLE_AUTH = process.env["ENABLE_AUTH"] === "true";
+  const identityAuth = ENABLE_AUTH ? validateAuthConfig() : undefined;
+
+  async function registerRegistrationApi(api: FastifyInstance): Promise<void> {
+    if (identityAuth) {
+      const { identityPlugin } = await import("@hims/ts-sdk-identity");
+      await api.register(identityPlugin, identityAuth);
+    }
     await api.register(tenantPlugin);
     registerRegistrationsHandler(api, handlerDeps);
-  }, { prefix: "/api/registration/v1" });
+  }
+
+  await app.register(registerRegistrationApi, { prefix: "/api/registration/v1" });
 
   /**
    * Some gateways strip the matched prefix and only forward `/registrations` (see BFF
    * @fastify/http-proxy). Keep the same handlers at root for those callers.
    */
-  await app.register(async (api) => {
-    await api.register(tenantPlugin);
-    registerRegistrationsHandler(api, handlerDeps);
-  });
+  await app.register(registerRegistrationApi);
 
   await app.listen({ port: PORT, host: "0.0.0.0" });
 }

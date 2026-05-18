@@ -1,6 +1,7 @@
-import type { CreateVisitRequestBody } from '@/features/frontdesk/types';
+import type { CreateVisitRequestBody, VisitRegistrationBillingFeeLine } from '@/features/frontdesk/types';
 
-/** EMPI `blood_group` enum — single source for UI selects and create-patient mapping. */
+// ─── Dropdown / catalog options (visit registration UI) ─────────────────────
+
 export const EMPI_BLOOD_GROUP_OPTIONS = [
   'A+',
   'A-',
@@ -14,9 +15,134 @@ export const EMPI_BLOOD_GROUP_OPTIONS = [
 
 const EMPI_BLOOD_GROUP_SET = new Set<string>(EMPI_BLOOD_GROUP_OPTIONS);
 
-// ─── Date of birth → age (local calendar) ───────────────────────────────────
+export const VISIT_REGISTRATION_DEPARTMENTS = [
+  { id: '00000000-0000-4000-8000-000000000001', name: 'General Medicine' },
+  { id: '00000000-0000-4000-8000-000000000002', name: 'Cardiology' },
+  { id: '00000000-0000-4000-8000-000000000003', name: 'Orthopaedics' },
+] as const;
 
-/** Parse `YYYY-MM-DD` (from `<input type="date">`) as a local calendar date. */
+export const VISIT_REGISTRATION_PROVIDERS: ReadonlyArray<{ id: string; name: string }> = [];
+
+export const VISIT_REGISTRATION_VISIT_TYPES = [
+  { value: 'opd_first', label: 'OPD — First visit' },
+  { value: 'opd_follow_up', label: 'OPD — Follow-up' },
+  { value: 'ipd_admission', label: 'IPD admission' },
+  { value: 'emergency', label: 'Emergency' },
+  { value: 'daycare', label: 'Day care' },
+] as const;
+
+export const VISIT_REGISTRATION_RIS_MODALITIES = [
+  { value: 'xray', label: 'X-Ray' },
+  { value: 'ct', label: 'CT' },
+  { value: 'mri', label: 'MRI' },
+  { value: 'usg', label: 'Ultrasound (USG)' },
+  { value: 'mammography', label: 'Mammography' },
+] as const;
+
+export const VISIT_REGISTRATION_RIS_STUDY_TYPES: Record<
+  string,
+  ReadonlyArray<{ value: string; label: string }>
+> = {
+  xray: [
+    { value: 'cxr', label: 'Chest X-Ray' },
+    { value: 'knee_ap_lat', label: 'Knee AP/LAT' },
+  ],
+  ct: [
+    { value: 'ct_abdomen', label: 'CT Abdomen' },
+    { value: 'ct_brain', label: 'CT Brain' },
+  ],
+  mri: [
+    { value: 'mri_brain', label: 'MRI Brain' },
+    { value: 'mri_spine', label: 'MRI Spine' },
+  ],
+  usg: [
+    { value: 'usg_abdomen', label: 'USG Abdomen' },
+    { value: 'usg_pelvis', label: 'USG Pelvis' },
+  ],
+  mammography: [{ value: 'mammo_bilateral', label: 'Bilateral mammography' }],
+};
+
+export const VISIT_REGISTRATION_RIS_PRIORITIES = [
+  { value: 'routine', label: 'Routine' },
+  { value: 'urgent', label: 'Urgent' },
+  { value: 'stat', label: 'STAT' },
+] as const;
+
+export const VISIT_REGISTRATION_RIS_BOOKING_TYPES = [
+  { value: 'scheduled', label: 'Scheduled' },
+  { value: 'walk_in', label: 'Walk-in' },
+  { value: 'emergency', label: 'Emergency' },
+] as const;
+
+export const VISIT_REGISTRATION_RIS_CONTRAST_OPTIONS = [
+  { value: 'no', label: 'No' },
+  { value: 'yes', label: 'Yes' },
+] as const;
+
+export const VISIT_REGISTRATION_PAYMENT_MODES = [
+  { value: 'cash', label: 'Cash' },
+  { value: 'card', label: 'Card' },
+  { value: 'upi', label: 'UPI' },
+  { value: 'insurance', label: 'Insurance' },
+] as const;
+
+export const VISIT_REGISTRATION_LAB_TEST_CATALOG = [
+  { code: 'CBC', name: 'Complete Blood Count', department: 'Haematology' },
+  { code: 'LFT', name: 'Liver Function Test', department: 'Biochemistry' },
+  { code: 'KFT', name: 'Kidney Function Test', department: 'Biochemistry' },
+  { code: 'TSH', name: 'Thyroid Stimulating Hormone', department: 'Endocrinology' },
+  { code: 'HBA1C', name: 'HbA1c', department: 'Biochemistry' },
+  { code: 'URINE-R/M', name: 'Urine Routine & Microscopy', department: 'Pathology' },
+] as const;
+
+const VITAL_FIELDS = [
+  { key: 'weight_kg', label: 'Weight (kg)', placeholder: '72.5', step: '0.1' },
+  { key: 'height_cm', label: 'Height (cm)', placeholder: '168', step: '1' },
+  { key: 'bp_systolic', label: 'BP Systolic', placeholder: '120', step: '1' },
+  { key: 'bp_diastolic', label: 'BP Diastolic', placeholder: '80', step: '1' },
+  { key: 'pulse_bpm', label: 'Pulse (bpm)', placeholder: '80', step: '1' },
+  { key: 'temp_celsius', label: 'Temp (°C)', placeholder: '37.2', step: '0.1' },
+  { key: 'spo2_percent', label: 'SpO2 (%)', placeholder: '98', step: '1' },
+  { key: 'resp_rate_per_min', label: 'Resp. rate (/min)', placeholder: '16', step: '1' },
+] as const satisfies ReadonlyArray<{
+  key: keyof NonNullable<CreateVisitRequestBody['vitals']>;
+  label: string;
+  placeholder: string;
+  step: string;
+}>;
+
+export { VITAL_FIELDS };
+
+export const VISIT_REGISTRATION_TEXTAREA_CLASS =
+  'flex min-h-[72px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]';
+
+// ─── Billing helpers ───────────────────────────────────────────────────────────
+
+export function billingLineNetPrice(line: VisitRegistrationBillingFeeLine): number {
+  const unit = line.unit_price ?? 0;
+  const tax = line.tax_percent ?? 0;
+  return Math.round(unit * (1 + tax / 100));
+}
+
+export function billingLineTotal(line: VisitRegistrationBillingFeeLine): number {
+  return billingLineNetPrice(line) - (line.discount ?? 0);
+}
+
+export function computeBillingGrandTotal(
+  registrationFee: VisitRegistrationBillingFeeLine,
+  consultationFee: VisitRegistrationBillingFeeLine,
+  invoiceDiscount: number,
+): number {
+  const subtotal = billingLineTotal(registrationFee) + billingLineTotal(consultationFee);
+  return Math.max(0, subtotal - (invoiceDiscount ?? 0));
+}
+
+export function formatInr(amount: number): string {
+  return `₹${amount.toLocaleString('en-IN')}`;
+}
+
+// ─── Date of birth → age ─────────────────────────────────────────────────────
+
 export function parseDateOnly(iso: string): Date | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.trim());
   if (!m) return null;
@@ -32,10 +158,6 @@ export function startOfLocalDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
-/**
- * Completed years, months, and days from birth to reference
- * (both interpreted as local calendar dates at start-of-day).
- */
 export function ageYmdSinceBirth(
   birthLocal: Date,
   referenceLocal: Date,
@@ -54,12 +176,8 @@ export function ageYmdSinceBirth(
   return { years: y, months: mo, days: d };
 }
 
-// ─── Form → EMPI register patient body ─────────────────────────────────────
+// ─── API payload mapping ─────────────────────────────────────────────────────
 
-/**
- * Maps visit registration form values to EMPI `POST /patients` JSON
- * (`createPatientBodySchema` — only known keys, no extras).
- */
 export function mapVisitRegistrationToEmpiCreatePatient(
   data: CreateVisitRequestBody,
 ): Record<string, unknown> {
@@ -115,15 +233,43 @@ export function mapVisitRegistrationToEmpiCreatePatient(
   return body;
 }
 
-/**
- * Maps visit registration form values to registration `POST .../workflows/new-patient/registrations`
- * body (`patient` uses the same shape as EMPI create patient).
- */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function optionalUuid(value: string | undefined): string | null {
+  const v = value?.trim();
+  if (!v || !UUID_RE.test(v)) return null;
+  return v;
+}
+
 export function mapVisitRegistrationToNewPatientIntakeBody(
   data: CreateVisitRequestBody,
 ): Record<string, unknown> {
-  return {
+  const body: Record<string, unknown> = {
     patient: mapVisitRegistrationToEmpiCreatePatient(data),
-    registration_status: 'pending',
+    intake_completion: 'partial',
+  };
+
+  const apt = data.appointment;
+  const visitType = apt?.visit_type_code?.trim();
+  if (visitType) body.visit_type = visitType;
+
+  const departmentId = optionalUuid(apt?.department_id);
+  if (departmentId) body.department_id = departmentId;
+
+  const providerId = optionalUuid(apt?.provider_id);
+  if (providerId) body.provider_id = providerId;
+
+  return body;
+}
+
+export function defaultVisitRegistrationAddress(): CreateVisitRequestBody['permanent_address'] {
+  return {
+    line1: '',
+    line2: '',
+    city: '',
+    state: '',
+    district: '',
+    pincode: '',
   };
 }

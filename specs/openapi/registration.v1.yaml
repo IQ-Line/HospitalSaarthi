@@ -3,111 +3,93 @@ info:
   title: Registration — Encounter intake (OPD / IPD / shared)
   version: 1.0.0
   description: |
-    **Scope:** tenant-scoped encounter registration rows (patient + visit context). IDs reference
-    other modules by contract only — no cross-schema foreign keys.
+    **ADR-0029:** Registration owns the intake row and the new-patient EMPI orchestration saga.
+    List/get/search are **EMPI-free** via a frozen patient demographics snapshot on each row
+    (`patient_source_record_id` points to EMPI for audit/lineage).
 
-    **New vs existing patient (workflows):**
-    - *New patient:* `POST /workflows/new-patient/registrations` accepts demographics plus visit fields,
-      creates the patient via an injected **EMPI** gateway, then persists the encounter registration row.
-      When the gateway is not configured, this operation returns `503` (deployment must supply
-      `EmpiPatientsPort`).
-    - *Existing patient:* `POST /workflows/existing-patient/registrations` or `POST /registrations`
-      with a known `patient_id` (from EMPI search / prior registration).
+    **Workflows:**
+    - *Existing patient:* `POST /workflows/existing-patient/registrations` — caller supplies
+      `patient_id`, `patient_source_record_id`, and `patient_snapshot` from EMPI search.
+    - *New patient:* `POST /workflows/new-patient/registrations` — Registration calls EMPI once,
+      then persists the snapshot from EMPI's response.
 
-    **Patient demographics (create/update):** owned by **EMPI** — `POST /api/empi/v1/patients`,
-    `PATCH /api/empi/v1/patients/{id}` (`specs/openapi/empi.v1.yaml`). The new-patient workflow
-    embeds the same create payload shape here for a single desk call when orchestration is enabled.
+    **Status (three values):** set on create via `intake_completion` (`pending` | `partial` →
+    `in_progress` | `complete` → `completed`). Call `POST /registrations/{id}/complete` when the
+    full desk chain (registration + appointment + billing) finishes.
 
 tags:
   - name: EncounterRegistrations
-    description: Raw encounter row CRUD (patient_id must already exist unless using new-patient workflow).
+    description: List, get, and status transitions on registration rows.
   - name: ExistingPatientIntake
     description: Register a visit for a patient already known to EMPI.
   - name: NewPatientIntake
-    description: Register demographics (via EMPI) plus encounter row in one request when EMPI gateway is configured.
-  - name: PatientDemographics
-    description: |
-      Demographic persistence is implemented in **EMPI**, not this service. Use EMPI for standalone
-      demographic edits and for search before existing-patient intake.
+    description: Register demographics (via EMPI) plus encounter row in one desk action.
 
 servers:
   - url: http://localhost:3006/api/registration/v1
-    description: Local registration-svc (REGISTRATION_SVC_PORT; default 3006 to avoid collision with frontdesk-svc on 3004)
+    description: Local registration-svc (REGISTRATION_SVC_PORT; default 3006)
 
 paths:
   /registrations:
     get:
       operationId: listRegistrations
-      summary: List encounter registrations (paginated)
+      summary: List encounter registrations (paginated, local snapshot search)
       description: |
-        Returns tenant-scoped registration rows newest first. Optional **patient search** filters
-        rows to registrations whose `patient_id` appears in an EMPI search for the same tenant
-        (`uhid` exact, `mobile` exact on phone fields, `name` substring with EMPI’s ≥2 character rule).
+        Tenant-scoped rows newest first. **No EMPI calls** — search uses snapshot columns
+        (`patient_full_name`, `patient_phone_number`, `patient_uhid`).
 
-        Defaults: `page=1`, `limit=10` (max `limit` 100).
+        Free-text `q` matches UHID, phone, or full name (substring, case-insensitive).
+        Legacy aliases: `uhid`, `mobile`, `name` (name requires ≥2 characters).
+
+        Defaults: `page=1`, `limit=20` (max `limit` 100).
       tags: [EncounterRegistrations]
       parameters:
         - name: page
           in: query
-          schema:
-            type: integer
-            minimum: 1
-            default: 1
+          schema: { type: integer, minimum: 1, default: 1 }
         - name: limit
           in: query
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 10
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: q
+          in: query
+          schema: { type: string }
+          description: Free-text against snapshot uhid / phone / full name.
         - name: uhid
           in: query
-          schema:
-            type: string
-          description: Exact UHID (delegates to EMPI patient search).
+          schema: { type: string }
+          description: Alias for UHID substring match (same as `q` when only uhid set).
         - name: mobile
           in: query
-          schema:
-            type: string
-          description: Exact phone/mobile (delegates to EMPI `phone` search).
+          schema: { type: string }
+          description: Alias for phone substring match.
         - name: name
           in: query
-          schema:
-            type: string
-            minLength: 2
-          description: Substring on patient full name (EMPI rule — minimum 2 characters when used).
+          schema: { type: string, minLength: 2 }
+          description: Substring on `patient_full_name` (minimum 2 characters when used).
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/RegistrationStatus" }
+        - name: patient_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: facility_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: department_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: provider_id
+          in: query
+          schema: { type: string, format: uuid }
       responses:
         "200":
-          description: Paginated registration list with optional patient snapshot fields
+          description: Paginated registration list
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/RegistrationListPage"
         "400":
           description: Invalid query (e.g. name shorter than 2 characters)
-        "503":
-          description: Patient search requested but EMPI gateway is not configured on the service
-
-    post:
-      operationId: createRegistration
-      summary: Create a registration row
-      description: Lowest-level create when `patient_id` is already resolved (typically from EMPI).
-      tags: [EncounterRegistrations]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateRegistrationRequest"
-      responses:
-        "201":
-          description: Registration created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Registration"
-        "400":
-          description: Invalid body
 
   /registrations/{registrationId}:
     get:
@@ -118,7 +100,26 @@ paths:
         - $ref: "#/components/parameters/RegistrationId"
       responses:
         "200":
-          description: Registration
+          description: Registration row with patient snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Registration"
+        "404":
+          description: Not found
+
+  /registrations/{registrationId}/complete:
+    post:
+      operationId: completeRegistrationIntake
+      summary: Mark registration completed (full visit-intake done)
+      description: |
+        Sets `registration_status` to `completed` after appointment and billing succeed.
+      tags: [EncounterRegistrations]
+      parameters:
+        - $ref: "#/components/parameters/RegistrationId"
+      responses:
+        "200":
+          description: Registration marked completed
           content:
             application/json:
               schema:
@@ -130,15 +131,25 @@ paths:
     post:
       operationId: createRegistrationForExistingPatient
       summary: Existing-patient visit registration
-      description: Same contract as `POST /registrations`; intent-specific URL for desk workflows.
-      tags: [ExistingPatientIntake, EncounterRegistrations]
+      description: |
+        Caller has already resolved the patient in EMPI. Registration stores the supplied
+        snapshot — no EMPI round trip on this path.
+      tags: [ExistingPatientIntake]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateRegistrationRequest"
+              $ref: "#/components/schemas/ExistingPatientRegistrationRequest"
       responses:
+        "200":
+          description: Idempotent replay — existing registration returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Registration"
         "201":
           description: Registration created
           content:
@@ -146,16 +157,22 @@ paths:
               schema:
                 $ref: "#/components/schemas/Registration"
         "400":
-          description: Invalid body
+          description: Invalid body or missing Idempotency-Key
 
   /workflows/new-patient/registrations:
     post:
       operationId: createRegistrationForNewPatient
-      summary: New-patient visit registration (orchestrated)
+      summary: New-patient visit registration (EMPI saga)
       description: |
-        Creates patient in EMPI via service-injected gateway, then creates the encounter registration.
-        Returns `503` with code `empi_gateway_not_configured` when the deployment has not wired EMPI.
-      tags: [NewPatientIntake, PatientDemographics]
+        Creates patient in EMPI (forwards `Idempotency-Key`), then inserts the registration row
+        with demographics snapshot from EMPI's response.
+
+        Returns `503` (`empi_gateway_not_configured`) when EMPI is not wired.
+        Returns `409` (`patient_already_exists`) when EMPI reports a duplicate — use
+        existing-patient flow with the returned `patient_id`.
+      tags: [NewPatientIntake]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyHeader"
       requestBody:
         required: true
         content:
@@ -163,6 +180,12 @@ paths:
             schema:
               $ref: "#/components/schemas/NewPatientIntakeRequest"
       responses:
+        "200":
+          description: Idempotent replay — existing registration returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Registration"
         "201":
           description: Registration created
           content:
@@ -170,12 +193,32 @@ paths:
               schema:
                 $ref: "#/components/schemas/Registration"
         "400":
-          description: Invalid body
+          description: Invalid body or missing Idempotency-Key
+        "409":
+          description: Patient already exists in EMPI
         "503":
-          description: EMPI patient gateway not configured on this service instance
+          description: EMPI unavailable or gateway not configured
 
 components:
   parameters:
+    IdempotencyKeyHeader:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+      description: >
+        Client-generated key for retry-safe creates. Same key + tenant returns the original row (200).
+    IdempotencyKeyHeaderOptional:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
     RegistrationId:
       name: registrationId
       in: path
@@ -185,102 +228,86 @@ components:
         format: uuid
 
   schemas:
-    CreateRegistrationRequest:
+    RegistrationStatus:
+      type: string
+      enum: [pending, in_progress, completed]
+      default: pending
+
+    IntakeCompletion:
+      type: string
+      enum: [pending, partial, complete]
+      description: |
+        Desk visit-intake progress at create time. `partial` → `in_progress` (registration only);
+        `complete` → `completed`; omitted defaults to `partial` on workflow POSTs.
+
+    PatientSnapshot:
       type: object
-      required: [patient_id]
+      required: [uhid, full_name, phone_number]
+      additionalProperties: false
+      properties:
+        uhid: { type: string }
+        abha_number: { type: string, nullable: true }
+        abha_address: { type: string, nullable: true }
+        full_name: { type: string }
+        phone_number: { type: string }
+        gender: { type: string, nullable: true }
+        date_of_birth: { type: string, format: date, nullable: true }
+        year_of_birth: { type: integer, nullable: true }
+
+    ExistingPatientRegistrationRequest:
+      type: object
+      required: [patient_id, patient_source_record_id, patient_snapshot]
       additionalProperties: false
       properties:
         patient_id:
           type: string
           format: uuid
-          description: EMPI patient id (same tenant)
-        visit_id:
+        patient_source_record_id:
           type: string
           format: uuid
-          nullable: true
-        facility_id:
-          type: string
-          format: uuid
-          nullable: true
+          description: Soft-ref to empi.patient_source_records.id
+        patient_snapshot:
+          $ref: "#/components/schemas/PatientSnapshot"
+        facility_id: { type: string, format: uuid, nullable: true }
         visit_type:
           type: string
-          description: e.g. opd_first, follow_up, emergency — codes from master data when wired
-        department_id:
-          type: string
-          format: uuid
-          nullable: true
-        provider_id:
-          type: string
-          format: uuid
-          nullable: true
-        appointment_id:
-          type: string
-          format: uuid
-          nullable: true
-        registration_status:
-          type: string
-          default: pending
+          description: Phase 1 free string; align with Master Data visit_types catalog later.
+        department_id: { type: string, format: uuid, nullable: true }
+        provider_id: { type: string, format: uuid, nullable: true }
+        appointment_id: { type: string, format: uuid, nullable: true }
+        intake_completion:
+          $ref: "#/components/schemas/IntakeCompletion"
 
     CreatePatientDemographicsRequest:
       type: object
-      description: |
-        Same required fields and shape as EMPI `CreatePatientRequest` — persisted in EMPI only.
+      description: Same shape as EMPI `CreatePatientRequest` (specs/openapi/empi.v1.yaml).
       required: [first_name, gender, phone_number]
       additionalProperties: false
       properties:
-        first_name:
-          type: string
-        middle_name:
-          type: string
-        last_name:
-          type: string
-        salutation:
-          type: string
-          enum: [Mr, Mrs, Ms, Dr, Master, Baby]
-        father_name:
-          type: string
-        mother_name:
-          type: string
-        date_of_birth:
-          type: string
-          format: date
-        year_of_birth:
-          type: integer
-        age_years:
-          type: integer
-        age_months:
-          type: integer
-        age_days:
-          type: integer
+        first_name: { type: string }
+        middle_name: { type: string }
+        last_name: { type: string }
+        full_name: { type: string }
+        salutation: { type: string }
+        father_name: { type: string }
+        mother_name: { type: string }
+        date_of_birth: { type: string, format: date }
+        year_of_birth: { type: integer }
         gender:
           type: string
           enum: [male, female, other]
-        phone_number:
-          type: string
-        alternate_phone:
-          type: string
-        blood_group:
-          type: string
-          enum: ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
-        occupation:
-          type: string
-        nationality:
-          type: string
-          default: Indian
-        education:
-          type: string
-        emergency_contact_name:
-          type: string
-        emergency_contact_relationship:
-          type: string
-        emergency_contact_phone:
-          type: string
-        abha_number:
-          type: string
-        force_create:
-          type: boolean
-          description: Skip dedup check and create anyway
-          default: false
+        phone_number: { type: string }
+        alternate_phone: { type: string }
+        blood_group: { type: string }
+        occupation: { type: string }
+        nationality: { type: string, default: Indian }
+        education: { type: string }
+        emergency_contact_name: { type: string }
+        emergency_contact_relationship: { type: string }
+        emergency_contact_phone: { type: string }
+        abha_number: { type: string }
+        abha_address: { type: string }
+        force_create: { type: boolean, default: false }
 
     NewPatientIntakeRequest:
       type: object
@@ -289,36 +316,13 @@ components:
       properties:
         patient:
           $ref: "#/components/schemas/CreatePatientDemographicsRequest"
-        visit_id:
-          type: string
-          format: uuid
-          nullable: true
-        facility_id:
-          type: string
-          format: uuid
-          nullable: true
-        visit_type:
-          type: string
-          nullable: true
-        department_id:
-          type: string
-          format: uuid
-          nullable: true
-        provider_id:
-          type: string
-          format: uuid
-          nullable: true
-        appointment_id:
-          type: string
-          format: uuid
-          nullable: true
-        registration_status:
-          type: string
-          default: pending
-        created_by:
-          type: string
-          format: uuid
-          nullable: true
+        facility_id: { type: string, format: uuid, nullable: true }
+        visit_type: { type: string }
+        department_id: { type: string, format: uuid, nullable: true }
+        provider_id: { type: string, format: uuid, nullable: true }
+        appointment_id: { type: string, format: uuid, nullable: true }
+        intake_completion:
+          $ref: "#/components/schemas/IntakeCompletion"
 
     RegistrationListPage:
       type: object
@@ -327,34 +331,11 @@ components:
         data:
           type: array
           items:
-            $ref: "#/components/schemas/RegistrationListItem"
-        total:
-          type: integer
-          minimum: 0
-        page:
-          type: integer
-          minimum: 1
-        limit:
-          type: integer
-          minimum: 1
-        total_pages:
-          type: integer
-          minimum: 0
-
-    RegistrationListItem:
-      allOf:
-        - $ref: "#/components/schemas/Registration"
-        - type: object
-          properties:
-            patient_uhid:
-              type: string
-              nullable: true
-            patient_full_name:
-              type: string
-              nullable: true
-            patient_phone_number:
-              type: string
-              nullable: true
+            $ref: "#/components/schemas/Registration"
+        total: { type: integer, minimum: 0 }
+        page: { type: integer, minimum: 1 }
+        limit: { type: integer, minimum: 1 }
+        total_pages: { type: integer, minimum: 0 }
 
     Registration:
       type: object
@@ -362,55 +343,35 @@ components:
         - registration_id
         - iq_tenant_id
         - patient_id
+        - patient_uhid
+        - patient_full_name
+        - patient_phone_number
+        - patient_source_record_id
         - registration_status
         - created_at
         - updated_at
       properties:
-        registration_id:
-          type: string
-          format: uuid
-        iq_tenant_id:
-          type: string
-          format: uuid
-        visit_id:
-          type: string
-          format: uuid
-          nullable: true
-        patient_id:
-          type: string
-          format: uuid
-        facility_id:
-          type: string
-          format: uuid
-          nullable: true
-        visit_type:
-          type: string
-          nullable: true
-        department_id:
-          type: string
-          format: uuid
-          nullable: true
-        provider_id:
-          type: string
-          format: uuid
-          nullable: true
-        appointment_id:
-          type: string
-          format: uuid
-          nullable: true
+        registration_id: { type: string, format: uuid }
+        iq_tenant_id: { type: string, format: uuid }
+        visit_id: { type: string, format: uuid, nullable: true }
+        patient_id: { type: string, format: uuid }
+        patient_uhid: { type: string }
+        patient_abha_number: { type: string, nullable: true }
+        patient_abha_address: { type: string, nullable: true }
+        patient_full_name: { type: string }
+        patient_phone_number: { type: string }
+        patient_gender: { type: string, nullable: true }
+        patient_date_of_birth: { type: string, format: date, nullable: true }
+        patient_year_of_birth: { type: integer, nullable: true }
+        patient_source_record_id: { type: string, format: uuid }
+        facility_id: { type: string, format: uuid, nullable: true }
+        visit_type: { type: string, nullable: true }
+        department_id: { type: string, format: uuid, nullable: true }
+        provider_id: { type: string, format: uuid, nullable: true }
+        appointment_id: { type: string, format: uuid, nullable: true }
         registration_status:
-          type: string
-        created_by:
-          type: string
-          format: uuid
-          nullable: true
-        updated_by:
-          type: string
-          format: uuid
-          nullable: true
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
+          $ref: "#/components/schemas/RegistrationStatus"
+        created_by: { type: string, format: uuid, nullable: true }
+        updated_by: { type: string, format: uuid, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }

@@ -1,4 +1,6 @@
-import type { EmpiHttpPort } from "../ports.js";
+import type { EmpiHttpPort, EmpiRegisterPatientResult } from "../ports.js";
+import type { EmpiPatientWire } from "./registration-helpers.js";
+import { mapEmpiPatientToSnapshot } from "./registration-helpers.js";
 
 function joinUrl(base: string, path: string): string {
   const b = base.replace(/\/$/, "");
@@ -6,109 +8,122 @@ function joinUrl(base: string, path: string): string {
   return `${b}${p}`;
 }
 
+function isPatientWire(value: unknown): value is EmpiPatientWire {
+  if (!value || typeof value !== "object") return false;
+  const o = value as Record<string, unknown>;
+  return (
+    typeof o.id === "string" &&
+    typeof o.uhid === "string" &&
+    typeof o.full_name === "string" &&
+    typeof o.phone_number === "string"
+  );
+}
+
+function parseRegisterSuccess(json: unknown): Extract<EmpiRegisterPatientResult, { ok: true }> {
+  const root = json as Record<string, unknown>;
+
+  if (root.patient && isPatientWire(root.patient)) {
+    const sourceRecordId =
+      typeof root.patient_source_record_id === "string"
+        ? root.patient_source_record_id
+        : root.patient.id;
+    return mapEmpiPatientToSnapshot(root.patient, sourceRecordId);
+  }
+
+  if (isPatientWire(json)) {
+    const sourceRecordId =
+      typeof root.patient_source_record_id === "string"
+        ? root.patient_source_record_id
+        : root.id;
+    return mapEmpiPatientToSnapshot(json, sourceRecordId);
+  }
+
+  if (typeof root.id === "string") {
+    throw new Error("EMPI create patient: response missing demographics (contract upgrade pending)");
+  }
+
+  throw new Error("EMPI create patient: unrecognised response shape");
+}
+
+function parseDuplicate(json: unknown): Extract<EmpiRegisterPatientResult, { ok: false; kind: "duplicate" }> {
+  const root = json as Record<string, unknown>;
+  const existing = root.existing_patient;
+  if (root.potential_duplicate === true && isPatientWire(existing)) {
+    const mapped = mapEmpiPatientToSnapshot(existing, existing.id);
+    return {
+      ok: false,
+      kind: "duplicate",
+      existingPatientId: mapped.patientId,
+      sourceRecordId: mapped.sourceRecordId,
+      snapshot: mapped.snapshot,
+      body: json,
+    };
+  }
+  return {
+    ok: false,
+    kind: "duplicate",
+    existingPatientId: "",
+    sourceRecordId: "",
+    snapshot: {
+      uhid: "",
+      full_name: "",
+      phone_number: "",
+    },
+    body: json,
+  };
+}
+
 export class HttpEmpiGateway implements EmpiHttpPort {
   constructor(private readonly empiServiceOrigin: string) {}
 
-  private tenantHeaders(tenantId: string): Record<string, string> {
-    return { iq_tenant_id: tenantId };
-  }
-
-  private jsonHeaders(tenantId: string): Record<string, string> {
-    return { ...this.tenantHeaders(tenantId), "Content-Type": "application/json" };
+  private jsonHeaders(tenantId: string, idempotencyKey: string): Record<string, string> {
+    return {
+      iq_tenant_id: tenantId,
+      "Content-Type": "application/json",
+      "Idempotency-Key": idempotencyKey,
+    };
   }
 
   async registerPatient(
     tenantId: string,
+    idempotencyKey: string,
     body: Record<string, unknown>,
-  ): Promise<
-    | { ok: true; patientId: string }
-    | { ok: false; status: 409; body: unknown }
-    | { ok: false; status: number; body: string }
-  > {
+  ): Promise<EmpiRegisterPatientResult> {
     const url = joinUrl(this.empiServiceOrigin, "/api/empi/v1/patients");
     const res = await fetch(url, {
       method: "POST",
-      headers: this.jsonHeaders(tenantId),
+      headers: this.jsonHeaders(tenantId, idempotencyKey),
       body: JSON.stringify(body),
     });
     const text = await res.text();
-    if (res.status === 201) {
-      const json = JSON.parse(text) as { id?: string };
-      if (!json.id) {
-        return { ok: false, status: 502, body: "EMPI create patient: missing id" };
+
+    if (res.status === 201 || res.status === 200) {
+      try {
+        const json = JSON.parse(text) as unknown;
+        return { ok: true, ...parseRegisterSuccess(json) };
+      } catch (err) {
+        return {
+          ok: false,
+          kind: "error",
+          status: 502,
+          body: err instanceof Error ? err.message : "EMPI response parse failed",
+        };
       }
-      return { ok: true, patientId: json.id };
     }
+
     if (res.status === 409) {
       try {
-        return { ok: false, status: 409, body: JSON.parse(text) as unknown };
+        return parseDuplicate(JSON.parse(text) as unknown);
       } catch {
-        return { ok: false, status: 409, body: text };
+        return {
+          ok: false,
+          kind: "error",
+          status: 409,
+          body: text,
+        };
       }
     }
-    return { ok: false, status: res.status, body: text };
-  }
 
-  async searchPatientIds(
-    tenantId: string,
-    filters: { uhid?: string; mobile?: string; name?: string },
-  ): Promise<string[]> {
-    const params = new URLSearchParams();
-    if (filters.uhid?.trim()) params.set("uhid", filters.uhid.trim());
-    if (filters.mobile?.trim()) params.set("phone", filters.mobile.trim());
-    if (filters.name?.trim()) params.set("name", filters.name.trim());
-    params.set("limit", "100");
-
-    const collected = new Set<string>();
-    let page = 1;
-    let totalPages = 1;
-
-    do {
-      params.set("page", String(page));
-      const url = `${joinUrl(this.empiServiceOrigin, "/api/empi/v1/patients")}?${params.toString()}`;
-      const res = await fetch(url, { headers: this.tenantHeaders(tenantId) });
-      const text = await res.text();
-      if (!res.ok) {
-        throw new Error(`EMPI search failed (${res.status}): ${text}`);
-      }
-      const json = JSON.parse(text) as {
-        data?: { id: string }[];
-        total_pages?: number;
-      };
-      totalPages = json.total_pages ?? 1;
-      for (const row of json.data ?? []) {
-        collected.add(row.id);
-      }
-      page++;
-    } while (page <= totalPages && page <= 50);
-
-    return [...collected];
-  }
-
-  async getPatientSummary(
-    tenantId: string,
-    patientId: string,
-  ): Promise<{
-    uhid: string;
-    full_name: string;
-    phone_number: string;
-  } | null> {
-    const url = joinUrl(this.empiServiceOrigin, `/api/empi/v1/patients/${patientId}`);
-    const res = await fetch(url, { headers: this.tenantHeaders(tenantId) });
-    if (res.status === 404) return null;
-    const text = await res.text();
-    if (!res.ok) {
-      throw new Error(`EMPI get patient failed (${res.status}): ${text}`);
-    }
-    const json = JSON.parse(text) as {
-      patient?: { uhid: string; full_name: string; phone_number: string };
-    };
-    const p = json.patient;
-    if (!p) return null;
-    return {
-      uhid: p.uhid,
-      full_name: p.full_name,
-      phone_number: p.phone_number,
-    };
+    return { ok: false, kind: "error", status: res.status, body: text };
   }
 }

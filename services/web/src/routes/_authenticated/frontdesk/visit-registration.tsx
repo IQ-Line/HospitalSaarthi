@@ -6,8 +6,9 @@ import {
   ChevronRight,
   ClipboardList,
   Printer,
+  Search,
 } from 'lucide-react';
-import { useEffect, useState, type ChangeEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useForm, useWatch, type SubmitHandler, type UseFormRegister } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -32,29 +33,30 @@ import {
   TableHeader,
   TableRow,
 } from '@pulse/ui/table';
-import { createNewPatientRegistration, listRegistrations } from '@/features/frontdesk/api/registrations';
+import { executeCreateVisitFlow, listRegistrations } from '@/features/frontdesk/api/registrations';
+import {
+  VisitRegistrationAppointmentSection,
+  VisitRegistrationBillingSection,
+  VisitRegistrationClinicalSections,
+  VisitRegistrationSectionMenu,
+} from '@/features/frontdesk/components/visit-registration-sections';
+import { useVisitRegistrationSectionsStore } from '@/features/frontdesk/visit-registration-sections.store';
 import type { CreateVisitRequestBody } from '@/features/frontdesk/types';
 import {
   ageYmdSinceBirth,
+  computeBillingGrandTotal,
+  defaultVisitRegistrationAddress,
   EMPI_BLOOD_GROUP_OPTIONS,
-  mapVisitRegistrationToNewPatientIntakeBody,
+  formatInr,
   parseDateOnly,
   startOfLocalDay,
 } from '@/features/frontdesk/utils/visit-registration-helpers';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
+import { useDebouncedValue } from '@/lib/use-debounced-value';
 import { useTenantStore } from '@/stores/tenant.store';
 
 export const Route = createFileRoute('/_authenticated/frontdesk/visit-registration')({
   component: VisitRegistrationRoute,
-});
-
-const defaultAddress = (): CreateVisitRequestBody['permanent_address'] => ({
-  line1: '',
-  line2: '',
-  city: '',
-  state: '',
-  district: '',
-  pincode: '',
 });
 
 type FormValues = CreateVisitRequestBody;
@@ -68,44 +70,27 @@ function VisitRegistrationRoute() {
   const branchLabel = [tenantName, branchName].filter(Boolean).join(' — ') || 'Noida — Main Branch';
 
   const [showExtendedPatient, setShowExtendedPatient] = useState(false);
-  const [openAdditional, setOpenAdditional] = useState(false);
-  const [openVisitDetails, setOpenVisitDetails] = useState(false);
   const [phase, setPhase] = useState<'list' | 'form'>('list');
-  const [draftUhid, setDraftUhid] = useState('');
-  const [draftMobile, setDraftMobile] = useState('');
-  const [draftName, setDraftName] = useState('');
-  const [appliedSearch, setAppliedSearch] = useState({ uhid: '', mobile: '', name: '' });
+  const [listSearchDraft, setListSearchDraft] = useState('');
+  const listSearch = useDebouncedValue(listSearchDraft.trim(), 300);
   const [listPage, setListPage] = useState(1);
   const queryClient = useQueryClient();
+  const sectionVisible = useVisitRegistrationSectionsStore((s) => s.visible);
+
+  useEffect(() => {
+    setListPage(1);
+  }, [listSearch]);
 
   const listQuery = useQuery({
-    queryKey: [
-      'registrations',
-      'list',
-      listPage,
-      appliedSearch.uhid,
-      appliedSearch.mobile,
-      appliedSearch.name,
-    ],
+    queryKey: ['registrations', 'list', listPage, listSearch],
     queryFn: () =>
       listRegistrations({
         page: listPage,
         limit: 10,
-        uhid: appliedSearch.uhid || undefined,
-        mobile: appliedSearch.mobile || undefined,
-        name: appliedSearch.name || undefined,
+        q: listSearch || undefined,
       }),
     enabled: phase === 'list',
   });
-
-  const applyListFilters = () => {
-    setAppliedSearch({
-      uhid: draftUhid.trim(),
-      mobile: draftMobile.trim(),
-      name: draftName.trim(),
-    });
-    setListPage(1);
-  };
 
   const form = useForm<FormValues>({
     defaultValues: {
@@ -129,8 +114,8 @@ function VisitRegistrationRoute() {
         name: '',
         phone: '',
       },
-      permanent_address: defaultAddress(),
-      residential_address: defaultAddress(),
+      permanent_address: defaultVisitRegistrationAddress(),
+      residential_address: defaultVisitRegistrationAddress(),
       residential_same_as_permanent: true,
       other: {
         education: '',
@@ -141,8 +126,67 @@ function VisitRegistrationRoute() {
         referral: '',
         additional: '',
       },
+      vitals: {
+        weight_kg: null,
+        height_cm: null,
+        bp_systolic: null,
+        bp_diastolic: null,
+        pulse_bpm: null,
+        temp_celsius: null,
+        spo2_percent: null,
+        resp_rate_per_min: null,
+      },
+      appointment: {
+        department_id: '',
+        room_number: '',
+        provider_id: '',
+        visit_type_code: '',
+        visit_reason: '',
+      },
+      lab_tests: {
+        search_query: '',
+      },
+      ris_appointment: {
+        modality: '',
+        study_type: '',
+        body_region: '',
+        priority: 'routine',
+        booking_type: 'scheduled',
+        scheduled_at: '',
+        referring_doctor: '',
+        contrast_required: 'no',
+        prep_instructions: '',
+        notes: '',
+        clinical_indication: '',
+      },
+      billing: {
+        add_item_search: '',
+        registration_fee: { unit_price: 100, tax_percent: 0, discount: 0 },
+        consultation_fee: { unit_price: 0, tax_percent: 0, discount: 0 },
+        invoice_discount: 0,
+        payment_mode: '',
+        amount_paid: 0,
+      },
     },
   });
+
+  const billingRegistrationFee = useWatch({
+    control: form.control,
+    name: 'billing.registration_fee',
+  });
+  const billingConsultationFee = useWatch({
+    control: form.control,
+    name: 'billing.consultation_fee',
+  });
+  const billingInvoiceDiscount = useWatch({
+    control: form.control,
+    name: 'billing.invoice_discount',
+  });
+  const footerGrandTotal = computeBillingGrandTotal(
+    billingRegistrationFee ?? { unit_price: 100, tax_percent: 0, discount: 0 },
+    billingConsultationFee ?? { unit_price: 0, tax_percent: 0, discount: 0 },
+    billingInvoiceDiscount ?? 0,
+  );
 
   const dateOfBirth = useWatch({ control: form.control, name: 'patient.date_of_birth' });
 
@@ -189,9 +233,18 @@ function VisitRegistrationRoute() {
     },
   });
 
+  const submitIdempotencyKeyRef = useRef<string | undefined>(undefined);
+
   const mutation = useMutation({
-    mutationFn: (data: CreateVisitRequestBody) =>
-      createNewPatientRegistration(mapVisitRegistrationToNewPatientIntakeBody(data)),
+    mutationFn: (data: CreateVisitRequestBody) => {
+      const idempotencyKey = submitIdempotencyKeyRef.current ?? crypto.randomUUID();
+      submitIdempotencyKeyRef.current = idempotencyKey;
+      // Phase 1 only: registration-svc. Appointment + billing chain in executeCreateVisitFlow.
+      return executeCreateVisitFlow(data, { idempotencyKey });
+    },
+    onSettled: () => {
+      submitIdempotencyKeyRef.current = undefined;
+    },
     onSuccess: (res) => {
       void queryClient.invalidateQueries({ queryKey: ['registrations', 'list'] });
       if (res.patient_uhid) {
@@ -207,6 +260,7 @@ function VisitRegistrationRoute() {
   });
 
   const onSubmit: SubmitHandler<FormValues> = (data) => {
+    submitIdempotencyKeyRef.current = crypto.randomUUID();
     const payload: CreateVisitRequestBody = {
       ...data,
       residential_address: data.residential_same_as_permanent
@@ -243,12 +297,7 @@ function VisitRegistrationRoute() {
                   Back to list
                 </Button>
               ) : null}
-              <Button type="button" variant="outline" size="sm" disabled>
-                Customize sections
-              </Button>
-              <Button type="button" variant="outline" size="sm" disabled>
-                Patient Queue
-              </Button>
+              {phase === 'form' ? <VisitRegistrationSectionMenu /> : null}
               {phase === 'list' ? (
                 <Button type="button" size="sm" onClick={() => setPhase('form')}>
                   + New registration
@@ -260,49 +309,25 @@ function VisitRegistrationRoute() {
           {phase === 'list' ? (
             <div className="space-y-4 rounded-lg border border-border bg-card p-4 md:p-5 shadow-sm">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Patient search (UHID / mobile / name)
+                Registrations
               </h2>
-              <p className="text-xs text-muted-foreground">
-                Name search requires at least two characters (EMPI). Results are encounter registrations
-                for matching patients, newest first.
-              </p>
-              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4 lg:items-end">
-                <div className="space-y-2">
-                  <Label htmlFor="reg-list-uhid">UHID</Label>
-                  <Input
-                    id="reg-list-uhid"
-                    value={draftUhid}
-                    onChange={(e) => setDraftUhid(e.target.value)}
-                    placeholder="Exact UHID"
-                    autoComplete="off"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="reg-list-mobile">Mobile</Label>
-                  <Input
-                    id="reg-list-mobile"
-                    value={draftMobile}
-                    onChange={(e) => setDraftMobile(e.target.value)}
-                    placeholder="As stored in EMPI"
-                    autoComplete="off"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="reg-list-name">Name</Label>
-                  <Input
-                    id="reg-list-name"
-                    value={draftName}
-                    onChange={(e) => setDraftName(e.target.value)}
-                    placeholder="Min. 2 characters when used"
-                    autoComplete="off"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Button type="button" variant="secondary" className="w-full lg:w-auto" onClick={applyListFilters}>
-                    Apply filters
-                  </Button>
-                </div>
+              <div className="relative max-w-xl">
+                <Label htmlFor="reg-list-search" className="sr-only">
+                  Search registrations
+                </Label>
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="reg-list-search"
+                  value={listSearchDraft}
+                  onChange={(e) => setListSearchDraft(e.target.value)}
+                  placeholder="Search by UHID, name, or phone number"
+                  className="h-10 pl-9"
+                  autoComplete="off"
+                />
               </div>
+              <p className="text-xs text-muted-foreground">
+                Results update as you type. Newest registrations first.
+              </p>
 
               {listQuery.isError ? (
                 <p className="text-sm text-destructive" role="alert">
@@ -332,7 +357,7 @@ function VisitRegistrationRoute() {
                         {listQuery.data.data.length === 0 ? (
                           <TableRow>
                             <TableCell colSpan={6} className="text-center text-muted-foreground">
-                              No registrations match these filters.
+                              No registrations match your search.
                             </TableCell>
                           </TableRow>
                         ) : (
@@ -395,6 +420,7 @@ function VisitRegistrationRoute() {
 
           {phase === 'form' ? (
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+            {sectionVisible.patientDetails ? (
             <section className="rounded-lg border border-border bg-card p-4 md:p-5 space-y-4 shadow-sm">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                 Patient details
@@ -584,6 +610,7 @@ function VisitRegistrationRoute() {
                 </div>
               )}
             </section>
+            ) : null}
 
             <section className="rounded-lg border border-border bg-card p-4 md:p-5 space-y-4 shadow-sm">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
@@ -643,10 +670,10 @@ function VisitRegistrationRoute() {
 
             <section className="rounded-lg border border-border bg-card p-4 md:p-5 space-y-4 shadow-sm">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Other details
+                Background
               </h2>
               <p className="text-xs text-muted-foreground">
-                Education, occupation, religion — dummy until captured on patient / visit API.
+                Education, occupation, religion — captured on patient profile when integrated.
               </p>
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
@@ -664,30 +691,54 @@ function VisitRegistrationRoute() {
               </div>
             </section>
 
-            <CollapsibleSection
-              title="Additional registration (Visit registration extensions)"
-              open={openAdditional}
-              onToggle={() => setOpenAdditional((o) => !o)}
-            />
-            <CollapsibleSection
-              title="Visit details"
-              open={openVisitDetails}
-              onToggle={() => setOpenVisitDetails((o) => !o)}
+            <VisitRegistrationClinicalSections
+              register={form.register}
+              watch={form.watch}
+              setValue={form.setValue}
+              visible={{
+                vitals: sectionVisible.vitals,
+                labTests: sectionVisible.labTests,
+                risAppointment: sectionVisible.risAppointment,
+              }}
             />
 
+            {sectionVisible.appointmentDetails ? (
+              <VisitRegistrationAppointmentSection
+                register={form.register}
+                watch={form.watch}
+                setValue={form.setValue}
+              />
+            ) : null}
+
+            {sectionVisible.billing ? (
+              <VisitRegistrationBillingSection
+                register={form.register}
+                watch={form.watch}
+                setValue={form.setValue}
+              />
+            ) : null}
+
             <section className="rounded-lg border border-border bg-card p-4 md:p-5 space-y-4 shadow-sm">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Notes</h2>
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Other details
+              </h2>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Referral / source notes</Label>
-                  <Input {...form.register('notes.referral')} placeholder="Referring doctor or camp name" />
+                  <Label htmlFor="visit-reg-referred-by">Referred by</Label>
+                  <Input
+                    id="visit-reg-referred-by"
+                    {...form.register('notes.referral')}
+                    placeholder="Referring doctor or source"
+                    className="h-10"
+                  />
                 </div>
                 <div className="space-y-2 md:col-span-2">
-                  <Label>Additional notes</Label>
+                  <Label htmlFor="visit-reg-clinical-notes">Notes</Label>
                   <textarea
+                    id="visit-reg-clinical-notes"
                     className="flex min-h-[88px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
                     {...form.register('notes.additional')}
-                    placeholder="Anything else to capture for this registration"
+                    placeholder="Clinical notes or remarks"
                   />
                 </div>
               </div>
@@ -703,14 +754,16 @@ function VisitRegistrationRoute() {
                   <Printer className="size-4 mr-1" />
                   Print Visit Form
                 </Button>
-                <span className="text-sm text-muted-foreground ml-2">Total: ₹100</span>
+                <span className="text-sm text-muted-foreground ml-2">
+                  Total: {formatInr(footerGrandTotal)}
+                </span>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="outline" onClick={() => form.reset()} disabled={mutation.isPending}>
                   Clear
                 </Button>
                 <Button type="submit" disabled={mutation.isPending}>
-                  {mutation.isPending ? 'Saving…' : 'Create registration'}
+                  {mutation.isPending ? 'Saving…' : 'Create Visit'}
                 </Button>
                 <Button type="button" variant="secondary" disabled>
                   Save &amp; Print Labels
@@ -767,34 +820,6 @@ function StatRow({
       >
         {value}
       </span>
-    </div>
-  );
-}
-
-function CollapsibleSection({
-  title,
-  open,
-  onToggle,
-}: {
-  title: string;
-  open: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <div className="rounded-lg border border-dashed border-border bg-muted/30">
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium"
-      >
-        {title}
-        {open ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
-      </button>
-      {open && (
-        <div className="border-t border-border px-4 py-3 text-sm text-muted-foreground">
-          Placeholder — fields will map to visit extensions when APIs are available.
-        </div>
-      )}
     </div>
   );
 }

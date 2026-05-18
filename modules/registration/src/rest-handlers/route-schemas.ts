@@ -15,18 +15,9 @@ export const paramsRegistrationIdSchema = {
   },
 };
 
-const salutationEnum = ["Mr", "Mrs", "Ms", "Dr", "Master", "Baby"] as const;
-const genderEnum = ["male", "female", "other"] as const;
-const bloodGroupEnum = [
-  "A+",
-  "A-",
-  "B+",
-  "B-",
-  "AB+",
-  "AB-",
-  "O+",
-  "O-",
-] as const;
+const registrationStatusEnum = ["pending", "in_progress", "completed"] as const;
+
+const intakeCompletionEnum = ["pending", "partial", "complete"] as const;
 
 export const listRegistrationsQuerySchema = {
   type: "object" as const,
@@ -34,11 +25,33 @@ export const listRegistrationsQuerySchema = {
   properties: {
     page: { type: "string", pattern: "^[1-9][0-9]*$" },
     limit: { type: "string", pattern: "^[1-9][0-9]*$" },
+    q: { type: "string" },
     uhid: { type: "string" },
     mobile: { type: "string" },
     name: { type: "string" },
+    status: { type: "string", enum: [...registrationStatusEnum] },
+    patient_id: uuidParam,
+    facility_id: uuidParam,
+    department_id: uuidParam,
+    provider_id: uuidParam,
   },
 };
+
+const patientSnapshotSchema = {
+  type: "object" as const,
+  required: ["uhid", "full_name", "phone_number"],
+  additionalProperties: false,
+  properties: {
+    uhid: { type: "string", minLength: 1 },
+    abha_number: { type: "string" },
+    abha_address: { type: "string" },
+    full_name: { type: "string", minLength: 1 },
+    phone_number: { type: "string", minLength: 1 },
+    gender: { type: "string" },
+    date_of_birth: { type: "string" },
+    year_of_birth: { type: "integer" },
+  },
+} as const;
 
 const demographicsSchema = {
   type: "object" as const,
@@ -48,7 +61,7 @@ const demographicsSchema = {
     first_name: { type: "string", minLength: 1 },
     middle_name: { type: "string" },
     last_name: { type: "string" },
-    salutation: { type: "string", enum: [...salutationEnum] },
+    salutation: { type: "string" },
     father_name: { type: "string" },
     mother_name: { type: "string" },
     date_of_birth: { type: "string" },
@@ -56,10 +69,10 @@ const demographicsSchema = {
     age_years: { type: "integer" },
     age_months: { type: "integer" },
     age_days: { type: "integer" },
-    gender: { type: "string", enum: [...genderEnum] },
+    gender: { type: "string", enum: ["male", "female", "other"] },
     phone_number: { type: "string", minLength: 1 },
     alternate_phone: { type: "string" },
-    blood_group: { type: "string", enum: [...bloodGroupEnum] },
+    blood_group: { type: "string" },
     occupation: { type: "string" },
     nationality: { type: "string" },
     education: { type: "string" },
@@ -75,19 +88,20 @@ const nullableUuid = {
   anyOf: [uuidParam, { type: "null" as const }],
 } as const;
 
-export const createRegistrationBodySchema = {
+export const existingPatientRegistrationBodySchema = {
   type: "object" as const,
-  required: ["patient_id"],
+  required: ["patient_id", "patient_source_record_id", "patient_snapshot"],
   additionalProperties: false,
   properties: {
     patient_id: uuidParam,
-    visit_id: nullableUuid,
+    patient_source_record_id: uuidParam,
+    patient_snapshot: patientSnapshotSchema,
     facility_id: nullableUuid,
     visit_type: { type: "string" },
     department_id: nullableUuid,
     provider_id: nullableUuid,
     appointment_id: nullableUuid,
-    registration_status: { type: "string" },
+    intake_completion: { type: "string", enum: [...intakeCompletionEnum] },
   },
 } as const;
 
@@ -97,13 +111,11 @@ export const newPatientIntakeBodySchema = {
   additionalProperties: false,
   properties: {
     patient: demographicsSchema,
-    visit_id: nullableUuid,
     facility_id: nullableUuid,
     visit_type: { type: "string" },
     department_id: nullableUuid,
     provider_id: nullableUuid,
     appointment_id: nullableUuid,
-    registration_status: { type: "string" },
-    created_by: nullableUuid,
+    intake_completion: { type: "string", enum: [...intakeCompletionEnum] },
   },
 } as const;

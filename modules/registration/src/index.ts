@@ -12,7 +12,22 @@ export type {
   NewPatientIntakeInput,
   RegistrationListPage,
   RegistrationListItem,
+  InsertRegistrationResult,
 } from "./domain/registration.types.js";
+
+export {
+  REGISTRATION_EVENT_REGISTRATION_CREATED,
+  REGISTRATION_STATUS_PENDING,
+  REGISTRATION_STATUS_IN_PROGRESS,
+  REGISTRATION_STATUS_COMPLETED,
+  type IntakeCompletion,
+  type RegistrationEventType,
+  type RegistrationStatus,
+  registrationStatusFromIntakeCompletion,
+  readIdempotencyKey,
+  resolveActorId,
+} from "./lib/registration-helpers.js";
+export { publishRegistrationCreated } from "./events/publish-registration-created.js";
 
 export type { RegistrationRepo, EmpiHttpPort } from "./ports.js";
 

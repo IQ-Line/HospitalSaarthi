@@ -6,6 +6,12 @@ node_modules/
 dist/
 *.tsbuildinfo
 
+# Accidental tsc emit into package src/ (canonical output is dist/)
+packages/**/src/**/*.js
+packages/**/src/**/*.js.map
+packages/**/src/**/*.d.ts
+packages/**/src/**/*.d.ts.map
+
 # Generated
 routeTree.gen.ts
 
