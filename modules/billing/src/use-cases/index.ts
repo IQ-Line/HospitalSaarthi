@@ -1,3 +1,1 @@
-/** One factory function per file; dependencies injected as parameters. */
-
-export {};
+export { updateTariffService } from "./update-tariff-service.js";

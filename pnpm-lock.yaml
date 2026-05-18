@@ -68,6 +68,10 @@ importers:
         version: 3.2.4(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.8.4)
 
   modules/billing:
+    dependencies:
+      '@hims/ts-sdk-db':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-db
     devDependencies:
       fastify:
         specifier: ^5.3.3
@@ -551,6 +555,9 @@ importers:
       '@hims/billing':
         specifier: workspace:*
         version: link:../../modules/billing
+      '@hims/ts-sdk-db':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-db
       '@hims/ts-sdk-openapi':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-openapi

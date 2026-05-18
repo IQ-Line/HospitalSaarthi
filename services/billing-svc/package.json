@@ -5,6 +5,7 @@
   "type": "module",
   "dependencies": {
     "@hims/billing": "workspace:*",
+    "@hims/ts-sdk-db": "workspace:*",
     "@hims/ts-sdk-openapi": "workspace:*",
     "@hims/ts-sdk-tenant": "workspace:*",
     "fastify": "^5.3.3",
