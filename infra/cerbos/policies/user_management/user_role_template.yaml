@@ -1,15 +1,12 @@
 ---
-# User Management — role assignment operations (tenant + capability ABAC).
+# User Management applied role template mutations (tenant + capability ABAC).
 #
-# Policy contract (RBAC regression guard): do not grant using Cerbos principal `roles` field alone.
-# EFFECT_ALLOW must require request.principal.attr.iq_tenant_id and um:role:assign in capabilities
-# or delegated_capabilities (see condition below).
-#
-# PEP passes resource.attr: iq_tenant_id, department, required_clearance (same shape as user resources).
+# PEP uses this policy for POST /users/{id}/roles, DELETE /users/{id}/roles/{roleId},
+# and PUT /users/{id}/capabilities (manual grant replacement).
 # um:role:assign may be granted via delegated_capabilities with the same effect as capabilities.
 apiVersion: api.cerbos.dev/v1
 resourcePolicy:
-  resource: "role_assignment"
+  resource: "user_role_template"
   version: default
   rules:
     - actions:

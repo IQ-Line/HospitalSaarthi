@@ -4,9 +4,9 @@ import { CerbosProvider } from '@cerbos/react';
 import type { Principal } from '@cerbos/core';
 import { queryClient } from '@/lib/query-client';
 import { cerbosClient } from '@/lib/cerbos-client';
+import { authPrincipalQueryOptions } from '@/lib/auth-principal-query';
 import {
   authPrincipalToCerbosPrincipal,
-  fetchAuthPrincipal,
 } from '@/lib/auth-principal';
 import { useAuthStore } from '@/stores/auth.store';
 import { useTenantStore } from '@/stores/tenant.store';
@@ -43,11 +43,9 @@ function CerbosPrincipalBridge({ children }: { children: ReactNode }): ReactElem
   const activeBranch = useTenantStore((s) => s.activeBranch);
 
   const principalQuery = useQuery({
-    queryKey: ['auth', 'cerbos-principal', userId, tenantId, activeBranch],
-    queryFn: fetchAuthPrincipal,
+    ...authPrincipalQueryOptions({ userId, tenantId, activeBranch }),
     enabled: Boolean(isAuthenticated && userId && tenantId),
     select: authPrincipalToCerbosPrincipal,
-    staleTime: 30_000,
   });
 
   const principal = useMemo((): Principal => {

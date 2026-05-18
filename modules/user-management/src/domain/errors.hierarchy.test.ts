@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  DuplicateRoleAssignmentError,
+  DuplicateUserRoleTemplateError,
   InvalidRoleSeedError,
   RbacIntegrityViolationError,
   RoleNotFoundError,
@@ -24,9 +24,9 @@ describe("UserManagementError hierarchy", () => {
     assertUserManagementError(new ValidationError("full_name_empty"));
     assertUserManagementError(new UserNotFoundError("u1"));
     assertUserManagementError(new RoleNotFoundError("r1"));
-    assertUserManagementError(new DuplicateRoleAssignmentError());
+    assertUserManagementError(new DuplicateUserRoleTemplateError());
     assertUserManagementError(new TenantMismatchError());
-    assertUserManagementError(new RbacIntegrityViolationError("orphan_role_assignment"));
+    assertUserManagementError(new RbacIntegrityViolationError("orphan_user_role_template"));
     assertUserManagementError(new UnexpectedPersistenceError());
     assertUserManagementError(new InvalidRoleSeedError());
   });
@@ -39,8 +39,8 @@ describe("UserManagementError hierarchy", () => {
   });
 
   it("ValidationError exposes issue alongside base code", () => {
-    const err = new ValidationError("assign_role_ids_invalid");
-    expect(err.issue).toBe("assign_role_ids_invalid");
+    const err = new ValidationError("apply_role_template_ids_invalid");
+    expect(err.issue).toBe("apply_role_template_ids_invalid");
     expect(err.code).toBe("INVALID_INPUT");
   });
 

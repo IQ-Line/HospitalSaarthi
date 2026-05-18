@@ -6,9 +6,10 @@ import { getCerbosClient } from "@hims/ts-sdk-authz";
 import {
   buildCerbosUserMgmtResourceAttr,
   capabilities,
-  role_assignments,
   role_capabilities,
   roles,
+  user_capabilities,
+  user_roles,
   UM_CAPABILITY_READ,
   UM_ROLE_ASSIGN,
   UM_ROLE_CREATE,
@@ -19,6 +20,7 @@ import {
   UM_USER_READ,
   UM_USER_UPDATE,
   users,
+  assertValidModuleSlug,
 } from "@hims/user-management";
 import { authUser } from "../auth/auth-schema.js";
 import type { HimsBetterAuthInstance } from "../auth/create-hims-better-auth.js";
@@ -254,11 +256,12 @@ async function ensureFoundationalCapabilities(
   db: DbInstance,
 ): Promise<Array<{ id: string; capability_key: string }>> {
   for (const capability of FOUNDATIONAL_CAPABILITIES) {
+    const moduleSlug = assertValidModuleSlug(capability.module, "bootstrap capability module");
     await db
       .insert(capabilities)
       .values({
         capability_key: capability.capability_key,
-        module: capability.module,
+        module: moduleSlug,
         feature: capability.feature,
         action: capability.action,
         display_name: capability.display_name,
@@ -268,7 +271,7 @@ async function ensureFoundationalCapabilities(
       .onConflictDoUpdate({
         target: [capabilities.capability_key],
         set: {
-          module: capability.module,
+          module: moduleSlug,
           feature: capability.feature,
           action: capability.action,
           display_name: capability.display_name,
@@ -499,13 +502,13 @@ async function ensureBootstrapRoleCapabilities(
     });
 }
 
-async function ensureBootstrapRoleAssignment(
+async function ensureBootstrapUserRoleTemplate(
   db: DbInstance,
   userId: string,
   roleId: string,
 ): Promise<void> {
   await db
-    .insert(role_assignments)
+    .insert(user_roles)
     .values({
       iq_tenant_id: DEVELOPMENT_BOOTSTRAP_TENANT_ID,
       user_id: userId,
@@ -513,10 +516,50 @@ async function ensureBootstrapRoleAssignment(
     })
     .onConflictDoNothing({
       target: [
-        role_assignments.iq_tenant_id,
-        role_assignments.user_id,
-        role_assignments.role_id,
+        user_roles.iq_tenant_id,
+        user_roles.user_id,
+        user_roles.role_id,
       ],
+    });
+}
+
+async function ensureBootstrapUserCapabilities(
+  db: DbInstance,
+  userId: string,
+  roleId: string,
+  capabilityIds: readonly string[],
+): Promise<void> {
+  if (capabilityIds.length === 0) return;
+  const grantedAt = new Date();
+  await db
+    .insert(user_capabilities)
+    .values(
+      capabilityIds.map((capabilityId) => ({
+        iq_tenant_id: DEVELOPMENT_BOOTSTRAP_TENANT_ID,
+        user_id: userId,
+        capability_id: capabilityId,
+        grant_source: "role_template" as const,
+        source_role_id: roleId,
+        granted_by_user_id: null,
+        granted_at: grantedAt,
+        revoked_at: null,
+        revoked_by_user_id: null,
+      })),
+    )
+    .onConflictDoUpdate({
+      target: [
+        user_capabilities.iq_tenant_id,
+        user_capabilities.user_id,
+        user_capabilities.capability_id,
+      ],
+      set: {
+        grant_source: "role_template",
+        source_role_id: roleId,
+        granted_by_user_id: null,
+        granted_at: grantedAt,
+        revoked_at: null,
+        revoked_by_user_id: null,
+      },
     });
 }
 
@@ -580,7 +623,7 @@ async function verifyBootstrapCerbos(
     { kind: "role", id: "new", action: "role.create", attr: tenantOnlyAttr },
     { kind: "role", id: DEVELOPMENT_BOOTSTRAP_ROLE_CODE, action: "role.read", attr: tenantOnlyAttr },
     { kind: "role", id: DEVELOPMENT_BOOTSTRAP_ROLE_CODE, action: "role.update", attr: tenantOnlyAttr },
-    { kind: "role_assignment", id: "new", action: "role.assign", attr: tenantOnlyAttr },
+    { kind: "user_role_template", id: "new", action: "role.assign", attr: tenantOnlyAttr },
     { kind: "capability", id: "list", action: "capability.read", attr: tenantOnlyAttr },
   ] as const;
 
@@ -632,7 +675,13 @@ export async function runDevelopmentBootstrap(
   const platformUserId = await ensureBootstrapPlatformUser(deps.db, preferredUserId);
   const authUserId = await ensureBootstrapAuthUser(deps.db, deps.auth, platformUserId);
   await ensurePlatformUserAuthLink(deps.db, platformUserId, authUserId);
-  await ensureBootstrapRoleAssignment(deps.db, platformUserId, roleId);
+  await ensureBootstrapUserRoleTemplate(deps.db, platformUserId, roleId);
+  await ensureBootstrapUserCapabilities(
+    deps.db,
+    platformUserId,
+    roleId,
+    capabilityRows.map((row) => row.id),
+  );
 
   const principal = await verifyBootstrapPrincipal(deps.principalService, platformUserId);
   const verifiedActions = await verifyBootstrapCerbos(deps.cerbosUrl, principal, platformUserId);

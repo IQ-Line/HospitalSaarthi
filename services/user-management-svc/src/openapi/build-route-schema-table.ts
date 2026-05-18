@@ -85,22 +85,9 @@ export function buildRouteSchemaTable(bundle: Record<string, unknown>): Map<
         schema.body = jsonBody.schema;
       }
 
-      const responses = op.responses as
-        | Record<string, { content?: Record<string, { schema?: unknown }> }>
-        | undefined;
-      const responseSchema: Record<string, unknown> = {};
-      if (responses) {
-        for (const [code, resp] of Object.entries(responses)) {
-          if (!/^\d{3}$/.test(code)) continue;
-          const sch = resp?.content?.["application/json"]?.schema;
-          if (sch !== undefined) {
-            responseSchema[code] = sch;
-          }
-        }
-      }
-      if (Object.keys(responseSchema).length > 0) {
-        schema.response = responseSchema;
-      }
+      // Response bodies are validated in CI (`capability-response-validation.test.ts`, etc.)
+      // and via the preSerialization hook (log-only). Do not attach `schema.response` here —
+      // Fastify response serializers reject some valid OpenAPI nullable shapes at runtime.
 
       if (Object.keys(schema).length > 0) {
         out.set(`${methodU}:${routeUrl}`, { schema });
@@ -111,8 +98,9 @@ export function buildRouteSchemaTable(bundle: Record<string, unknown>): Map<
   return out;
 }
 
+/** Compiles OpenAPI success response schemas for log-only runtime checks (CI + preSerialization). */
 export function createResponseValidatorTable(
-  routeSchemas: Map<string, { schema: Record<string, unknown> }>,
+  bundle: Record<string, unknown>,
 ): Map<string, Map<number, ValidateFunction>> {
   const ajv = new Ajv({
     allErrors: true,
@@ -121,19 +109,39 @@ export function createResponseValidatorTable(
   });
   addFormats(ajv);
 
+  const paths = bundle.paths as Record<string, PathItem> | undefined;
   const table = new Map<string, Map<number, ValidateFunction>>();
-  for (const [routeKey, entry] of routeSchemas) {
-    const response = entry.schema.response as Record<string, unknown> | undefined;
-    if (!response) continue;
-    const inner = new Map<number, ValidateFunction>();
-    for (const [code, sch] of Object.entries(response)) {
-      const n = Number(code);
-      if (n !== 200 && n !== 201) continue;
-      inner.set(n, ajv.compile(sch));
-    }
-    if (inner.size > 0) {
-      table.set(routeKey, inner);
+  if (!paths) return table;
+
+  const servers = bundle.servers as Array<{ url?: string }> | undefined;
+  const pathPrefix = (servers?.[0]?.url ?? "").replace(/\/+$/, "");
+  const httpMethods = ["get", "post", "put", "patch", "delete"] as const;
+
+  for (const [openPath, pathItem] of Object.entries(paths)) {
+    const routeUrl = `${pathPrefix}${openapiPathToFastify(openPath)}`;
+    for (const method of httpMethods) {
+      const op = pathItem[method];
+      if (op === null || op === undefined || typeof op !== "object") continue;
+      const responses = op.responses as
+        | Record<string, { content?: Record<string, { schema?: unknown }> }>
+        | undefined;
+      if (!responses) continue;
+
+      const inner = new Map<number, ValidateFunction>();
+      for (const [code, resp] of Object.entries(responses)) {
+        if (!/^\d{3}$/.test(code)) continue;
+        const n = Number(code);
+        if (n !== 200 && n !== 201) continue;
+        const sch = resp?.content?.["application/json"]?.schema;
+        if (sch !== undefined) {
+          inner.set(n, ajv.compile(sch));
+        }
+      }
+      if (inner.size > 0) {
+        table.set(`${method.toUpperCase()}:${routeUrl}`, inner);
+      }
     }
   }
+
   return table;
 }

@@ -1,0 +1,5 @@
+# Emit via `tsc -p tsconfig.json` → dist/ (see package.json `files`)
+src/**/*.js
+src/**/*.js.map
+src/**/*.d.ts
+src/**/*.d.ts.map

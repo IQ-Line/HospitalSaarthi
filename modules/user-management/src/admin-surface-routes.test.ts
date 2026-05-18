@@ -3,12 +3,14 @@ import Fastify from "fastify";
 import fp from "fastify-plugin";
 import { afterEach, describe, expect, it } from "vitest";
 import { InMemoryCapabilityRepository } from "./data-access/in-memory-capability-repository.js";
+import { InMemoryPrincipalAuthorizationRepository } from "./data-access/in-memory-principal-authorization-repository.js";
 import { InMemoryPrincipalRoleProjectionRepository } from "./data-access/in-memory-principal-role-projection-repository.js";
-import { InMemoryRoleAssignmentRepository } from "./data-access/in-memory-role-assignment-repository.js";
 import { InMemoryRoleCapabilityRepository } from "./data-access/in-memory-role-capability-repository.js";
 import { InMemoryRoleRepository } from "./data-access/in-memory-role-repository.js";
+import { InMemoryUserAccessRepository } from "./data-access/in-memory-user-access-repository.js";
 import { InMemoryUserRepository } from "./data-access/in-memory-user-repository.js";
 import { userManagementPlugin } from "./router.js";
+import { InMemoryUserProvisioningRepository } from "./data-access/in-memory-user-provisioning-repository.js";
 
 const apps: Array<ReturnType<typeof Fastify>> = [];
 
@@ -117,20 +119,27 @@ async function createTestApp() {
       },
     },
   ]);
-  const roleAssignmentRepository = new InMemoryRoleAssignmentRepository();
-  await roleAssignmentRepository.assignRole("tenant-a", {
-    user_id: "f47ac10b-58cc-4372-a567-0e02b2c3d590",
-    role_id: "f47ac10b-58cc-4372-a567-0e02b2c3d593",
+  const userAccessRepository = new InMemoryUserAccessRepository((tenantId, roleId) =>
+    roleRepository.getRoleById(tenantId, roleId),
+  );
+  await userAccessRepository.applyRoleTemplate("tenant-a", {
+    userId: "f47ac10b-58cc-4372-a567-0e02b2c3d590",
+    roleId: "f47ac10b-58cc-4372-a567-0e02b2c3d593",
+    capabilityIds: [],
+    actorId: null,
   });
-  await roleAssignmentRepository.assignRole("tenant-a", {
-    user_id: "f47ac10b-58cc-4372-a567-0e02b2c3d590",
-    role_id: "f47ac10b-58cc-4372-a567-0e02b2c3d592",
+  await userAccessRepository.applyRoleTemplate("tenant-a", {
+    userId: "f47ac10b-58cc-4372-a567-0e02b2c3d590",
+    roleId: "f47ac10b-58cc-4372-a567-0e02b2c3d592",
+    capabilityIds: [],
+    actorId: null,
   });
 
   const principalRoleProjectionRepository = new InMemoryPrincipalRoleProjectionRepository(
-    roleAssignmentRepository,
+    userAccessRepository,
     roleRepository,
   );
+  const principalAuthorizationRepository = new InMemoryPrincipalAuthorizationRepository();
 
   await app.register(identityStubPlugin);
   await app.register(
@@ -138,14 +147,29 @@ async function createTestApp() {
       await instance.register(userManagementPlugin, {
         eventBus: noopEventBus,
         userRepository,
+        userProvisioningRepository: new InMemoryUserProvisioningRepository(
+          userRepository,
+          userAccessRepository,
+        ),
         capabilityRepository,
         roleRepository,
         roleCapabilityRepository: new InMemoryRoleCapabilityRepository(),
-        roleAssignmentRepository,
+        userAccessRepository,
         principalRoleProjectionRepository,
+        principalAuthorizationRepository,
         authAccountProvisioner: {
           async createPasswordAccount(input) {
             return { authUserId: input.platformUserId };
+          },
+        },
+        tenantModuleEntitlementPort: {
+          async listTenantEnabledModuleIds() {
+            return [];
+          },
+        },
+        masterDataModuleCatalogPort: {
+          async resolveModuleSlugsByIds() {
+            return new Map();
           },
         },
       });
@@ -191,7 +215,7 @@ describe("User Management admin surface routes", () => {
     );
   });
 
-  it("lists tenant-scoped roles assigned to a user", async () => {
+  it("lists applied role templates for a user", async () => {
     const app = await createTestApp();
 
     const response = await app.inject({
@@ -202,12 +226,16 @@ describe("User Management admin surface routes", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual([
       expect.objectContaining({
-        id: "f47ac10b-58cc-4372-a567-0e02b2c3d593",
-        code: "auditor",
+        role_id: "f47ac10b-58cc-4372-a567-0e02b2c3d593",
+        role: expect.objectContaining({
+          code: "auditor",
+        }),
       }),
       expect.objectContaining({
-        id: "f47ac10b-58cc-4372-a567-0e02b2c3d592",
-        code: "admin",
+        role_id: "f47ac10b-58cc-4372-a567-0e02b2c3d592",
+        role: expect.objectContaining({
+          code: "admin",
+        }),
       }),
     ]);
   });

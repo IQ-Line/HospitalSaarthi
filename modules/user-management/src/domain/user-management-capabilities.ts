@@ -1,5 +1,6 @@
 /**
  * Canonical User Management capability keys (Cerbos policies, capability catalog seeds).
+ * Format: `um:<resource>:<action>` — see `runtime-capability-vocabulary.md`.
  * Runtime principals resolve capabilities from persisted role composition, never from JWT.
  */
 export const UM_USER_CREATE = "um:user:create" as const;

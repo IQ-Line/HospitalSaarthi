@@ -1,42 +1,29 @@
 import { describe, expect, it, vi } from "vitest";
-import type { RoleAssignmentRef, RoleAssignmentRepository } from "../ports/index.js";
+import type { UserAccessRepository } from "../ports/index.js";
 import { InMemoryPrincipalRoleProjectionRepository } from "./in-memory-principal-role-projection-repository.js";
-import { InMemoryRoleAssignmentRepository } from "./in-memory-role-assignment-repository.js";
 import { InMemoryRoleRepository } from "./in-memory-role-repository.js";
 
-class StubAssignmentsByUser implements RoleAssignmentRepository {
-  constructor(private readonly refs: RoleAssignmentRef[]) {}
+class StubRoleTemplatesByUser implements Pick<UserAccessRepository, "listRoleTemplatesByUser"> {
+  constructor(
+    private readonly refs: Array<{
+      tenant_id: string;
+      user_id: string;
+      role_id: string;
+    }>,
+  ) {}
 
-  async assignRole(): Promise<never> {
-    throw new Error("not implemented");
-  }
-
-  async revokeRole(): Promise<null> {
-    return null;
-  }
-
-  async listAssignments(): Promise<RoleAssignmentRef[]> {
-    return [];
-  }
-
-  async listAssignmentsByUser(tenantId: string, userId: string): Promise<RoleAssignmentRef[]> {
-    return this.refs.filter((r) => r.tenant_id === tenantId && r.user_id === userId);
-  }
-
-  async listAssignmentsByRole(tenantId: string, roleId: string): Promise<RoleAssignmentRef[]> {
-    return this.refs.filter((r) => r.tenant_id === tenantId && r.role_id === roleId);
-  }
-
-  async listAssignmentsByTenant(
-    tenantId: string,
-    filter?: Readonly<{ userId?: string; roleId?: string }>,
-  ): Promise<RoleAssignmentRef[]> {
-    return this.refs.filter((r) => {
-      if (r.tenant_id !== tenantId) return false;
-      if (filter?.userId && r.user_id !== filter.userId) return false;
-      if (filter?.roleId && r.role_id !== filter.roleId) return false;
-      return true;
-    });
+  async listRoleTemplatesByUser(tenantId: string, userId: string) {
+    return this.refs
+      .filter((r) => r.tenant_id === tenantId && r.user_id === userId)
+      .map((r, index) => ({
+        id: `applied-${index}`,
+        tenant_id: r.tenant_id,
+        user_id: r.user_id,
+        role_id: r.role_id,
+        assigned_at: new Date(0).toISOString(),
+        assigned_by_user_id: null,
+        role: null,
+      }));
   }
 }
 
@@ -50,13 +37,13 @@ describe("InMemoryPrincipalRoleProjectionRepository", () => {
     ]);
     const getRoleById = vi.spyOn(roleRepository, "getRoleById");
 
-    const assignmentRepository = new StubAssignmentsByUser([
-      { id: "a1", tenant_id: "tenant-a", user_id: "user-1", role_id: "role-a" },
-      { id: "a2", tenant_id: "tenant-a", user_id: "user-1", role_id: "role-a" },
+    const userAccessRepository = new StubRoleTemplatesByUser([
+      { tenant_id: "tenant-a", user_id: "user-1", role_id: "role-a" },
+      { tenant_id: "tenant-a", user_id: "user-1", role_id: "role-a" },
     ]);
 
     const projection = new InMemoryPrincipalRoleProjectionRepository(
-      assignmentRepository,
+      userAccessRepository as unknown as UserAccessRepository,
       roleRepository,
     );
     const codes = await projection.listRoleCodesByUser("tenant-a", "user-1");
@@ -66,15 +53,13 @@ describe("InMemoryPrincipalRoleProjectionRepository", () => {
   });
 
   it("skips assignments whose role is missing (orphan protection)", async () => {
-    const roleAssignmentRepository = new InMemoryRoleAssignmentRepository();
+    const userAccessRepository = new StubRoleTemplatesByUser([
+      { tenant_id: "tenant-a", user_id: "user-1", role_id: "missing-role" },
+    ]);
     const roleRepository = new InMemoryRoleRepository([]);
-    await roleAssignmentRepository.assignRole("tenant-a", {
-      user_id: "user-1",
-      role_id: "missing-role",
-    });
 
     const projection = new InMemoryPrincipalRoleProjectionRepository(
-      roleAssignmentRepository,
+      userAccessRepository as unknown as UserAccessRepository,
       roleRepository,
     );
     const codes = await projection.listRoleCodesByUser("tenant-a", "user-1");

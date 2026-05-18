@@ -1,7 +1,19 @@
 import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
-import { fetchAuthPrincipal } from '@/lib/auth-principal';
-import type { Capability, RoleAssignment, UmRole, UmUser } from '../types';
+import {
+  authPrincipalQueryOptions,
+  type AuthPrincipalQueryScope,
+} from '@/lib/auth-principal-query';
+import { useAuthStore } from '@/stores/auth.store';
+import { useTenantStore } from '@/stores/tenant.store';
+import type {
+  AppliedRoleTemplate,
+  Capability,
+  UmRole,
+  UmUser,
+  UserCapabilitiesSnapshot,
+  UserEffectiveCapabilities,
+} from '../types';
 import { userManagementKeys } from './keys';
 
 const BASE = '/api/user-management';
@@ -20,20 +32,29 @@ export function userDetailOptions(userId: string) {
   });
 }
 
-export function authPrincipalSnapshotOptions() {
-  return queryOptions({
-    queryKey: userManagementKeys.authPrincipal(),
-    queryFn: () => fetchAuthPrincipal(),
-    staleTime: 30_000,
-  });
+export function authPrincipalSnapshotOptions(scope: AuthPrincipalQueryScope) {
+  return authPrincipalQueryOptions(scope);
 }
 
-export function capabilityListOptions() {
+/** Full global runtime capability catalog (admin/diagnostics). */
+export function runtimeCapabilityCatalogOptions() {
   return queryOptions({
     queryKey: userManagementKeys.capabilities(),
     queryFn: () => apiClient<Capability[]>(`${BASE}/capabilities`, { method: 'GET' }),
   });
 }
+
+/** Tenant-enabled module slugs → assignable runtime capabilities for role editors. */
+export function assignableCapabilityCatalogOptions() {
+  return queryOptions({
+    queryKey: userManagementKeys.assignableCapabilities(),
+    queryFn: () =>
+      apiClient<Capability[]>(`${BASE}/capabilities/assignable`, { method: 'GET' }),
+  });
+}
+
+/** @deprecated Use {@link runtimeCapabilityCatalogOptions}. */
+export const capabilityListOptions = runtimeCapabilityCatalogOptions;
 
 export function roleListOptions() {
   return queryOptions({
@@ -49,18 +70,39 @@ export function roleCapabilitiesOptions(roleId: string) {
       apiClient<Capability[]>(`${BASE}/roles/${encodeURIComponent(roleId)}/capabilities`, {
         method: 'GET',
       }),
-    enabled: roleId.length > 0,
   });
 }
 
-export function roleAssignmentsOptions(filter?: { userId?: string; roleId?: string }) {
-  const q = new URLSearchParams();
-  if (filter?.userId) q.set('user_id', filter.userId);
-  if (filter?.roleId) q.set('role_id', filter.roleId);
-  const suffix = q.size > 0 ? `?${q.toString()}` : '';
+export function userCapabilitiesOptions(userId: string) {
   return queryOptions({
-    queryKey: userManagementKeys.roleAssignments(filter),
-    queryFn: () => apiClient<RoleAssignment[]>(`${BASE}/role-assignments${suffix}`, { method: 'GET' }),
+    queryKey: userManagementKeys.userCapabilities(userId),
+    queryFn: () =>
+      apiClient<UserCapabilitiesSnapshot>(`${BASE}/users/${encodeURIComponent(userId)}/capabilities`, {
+        method: 'GET',
+      }),
+  });
+}
+
+export function userEffectiveCapabilitiesOptions(userId: string) {
+  return queryOptions({
+    queryKey: userManagementKeys.userEffectiveCapabilities(userId),
+    queryFn: () =>
+      apiClient<UserEffectiveCapabilities>(
+        `${BASE}/users/${encodeURIComponent(userId)}/effective-capabilities`,
+        {
+          method: 'GET',
+        },
+      ),
+  });
+}
+
+export function userRoleTemplatesOptions(userId: string) {
+  return queryOptions({
+    queryKey: userManagementKeys.userRoleTemplates(userId),
+    queryFn: () =>
+      apiClient<AppliedRoleTemplate[]>(`${BASE}/users/${encodeURIComponent(userId)}/roles`, {
+        method: 'GET',
+      }),
   });
 }
 
@@ -72,9 +114,16 @@ export function useUserDetailSuspense(userId: string) {
   return useSuspenseQuery(userDetailOptions(userId));
 }
 
-export function useCapabilitiesSuspense() {
-  return useSuspenseQuery(capabilityListOptions());
+export function useRuntimeCapabilityCatalogSuspense() {
+  return useSuspenseQuery(runtimeCapabilityCatalogOptions());
 }
+
+export function useAssignableCapabilityCatalogSuspense() {
+  return useSuspenseQuery(assignableCapabilityCatalogOptions());
+}
+
+/** @deprecated Use {@link useRuntimeCapabilityCatalogSuspense}. */
+export const useCapabilitiesSuspense = useRuntimeCapabilityCatalogSuspense;
 
 export function useRolesSuspense() {
   return useSuspenseQuery(roleListOptions());
@@ -87,14 +136,35 @@ export function useRoleCapabilities(roleId: string, enabled: boolean) {
   });
 }
 
-export function useRoleAssignments(filter?: { userId?: string; roleId?: string }) {
-  return useQuery(roleAssignmentsOptions(filter));
+export function useUserCapabilities(userId: string, enabled: boolean) {
+  return useQuery({
+    ...userCapabilitiesOptions(userId),
+    enabled: enabled && userId.length > 0,
+  });
+}
+
+export function useUserEffectiveCapabilities(userId: string, enabled: boolean) {
+  return useQuery({
+    ...userEffectiveCapabilitiesOptions(userId),
+    enabled: enabled && userId.length > 0,
+  });
+}
+
+export function useUserRoleTemplates(userId: string, enabled: boolean) {
+  return useQuery({
+    ...userRoleTemplatesOptions(userId),
+    enabled: enabled && userId.length > 0,
+  });
 }
 
 /** Cerbos principal snapshot for the active session (used to show role codes on your own profile). */
 export function useAuthPrincipalSnapshot(enabled: boolean) {
+  const userId = useAuthStore((s) => s.userId);
+  const tenantId = useTenantStore((s) => s.tenantId);
+  const activeBranch = useTenantStore((s) => s.activeBranch);
+
   return useQuery({
-    ...authPrincipalSnapshotOptions(),
-    enabled,
+    ...authPrincipalSnapshotOptions({ userId, tenantId, activeBranch }),
+    enabled: enabled && Boolean(userId && tenantId),
   });
 }

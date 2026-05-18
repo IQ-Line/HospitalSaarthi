@@ -7,6 +7,7 @@ import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
 import type { UmUser, UpdateUserBody } from '../types';
 import { useUpdateUser } from '../api/mutations';
+import { UserManagementSectionCard } from './user-management-section-card';
 
 const schema = z.object({
   full_name: z.string().min(1, 'Required'),
@@ -75,42 +76,56 @@ export function UserEditForm({ user }: { user: UmUser }) {
   });
 
   return (
-    <form onSubmit={onSubmit} className="rounded-lg border p-4 space-y-4 max-w-xl">
-      <h3 className="text-lg font-medium">Edit profile</h3>
-      <div className="space-y-2">
-        <Label htmlFor="full_name">Full name</Label>
-        <Input id="full_name" {...register('full_name')} />
-        {formState.errors.full_name && (
-          <p className="text-sm text-destructive">{formState.errors.full_name.message}</p>
-        )}
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="email">Email</Label>
-        <Input id="email" type="email" {...register('email')} />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="phone">Phone</Label>
-        <Input id="phone" {...register('phone')} />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="username">Username</Label>
-        <Input id="username" {...register('username')} />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="org_id">Organization id (UUID)</Label>
-        <Input id="org_id" {...register('org_id')} />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="department">Department</Label>
-        <Input id="department" {...register('department')} />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="clearance_tier_required">Clearance tier (0–3)</Label>
-        <Input id="clearance_tier_required" type="number" min={0} max={3} {...register('clearance_tier_required')} />
-      </div>
-      <Button type="submit" disabled={update.isPending}>
-        Save changes
-      </Button>
+    <form onSubmit={onSubmit} className="max-w-3xl">
+      <UserManagementSectionCard
+        title="Edit profile"
+        description="Update the user's core profile and tenant-scoped routing details."
+        contentClassName="space-y-4"
+      >
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="full_name">Full name</Label>
+            <Input id="full_name" {...register('full_name')} />
+            {formState.errors.full_name && (
+              <p className="text-sm text-destructive">{formState.errors.full_name.message}</p>
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <Input id="email" type="email" {...register('email')} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="phone">Phone</Label>
+            <Input id="phone" {...register('phone')} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="username">Username</Label>
+            <Input id="username" {...register('username')} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="department">Department</Label>
+            <Input id="department" {...register('department')} />
+          </div>
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="org_id">Organization id (UUID)</Label>
+            <Input id="org_id" {...register('org_id')} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="clearance_tier_required">Clearance tier (0–3)</Label>
+            <Input
+              id="clearance_tier_required"
+              type="number"
+              min={0}
+              max={3}
+              {...register('clearance_tier_required')}
+            />
+          </div>
+        </div>
+
+        <Button type="submit" disabled={update.isPending}>
+          Save changes
+        </Button>
+      </UserManagementSectionCard>
     </form>
   );
 }

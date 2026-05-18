@@ -2,6 +2,10 @@
 
 This document shows the canonical capability-based model in realistic flows.
 
+> **Phase 1A admin API (PR #56):** Role template access uses `POST/GET/DELETE /users/{id}/roles` and materialized grants in `user_capabilities`. There is **no** `/role-assignments` surface. Snapshot semantics (apply, re-apply subset sync, detach revoke) are defined in [ADR-0031](../../adr/0031-um-role-template-snapshot-semantics.md).
+
+> **Legacy sections below (§9+):** Detailed walkthroughs may still reference target-state `role_assignments`, ward scoping, and live join resolution. Treat those as forward-looking unless explicitly mapped to Phase 1A tables.
+
 ## 1. Tenant onboarding
 When a new tenant is initialized:
 
@@ -23,28 +27,29 @@ An administrator creates a role such as `chief-resident`:
 
 The role does not inherit from any other role. Everything it grants is explicit in `role_capabilities`.
 
-## 3. Assigning a role to a user
-When a tenant admin assigns a role:
+## 3. Applying a role template to a user
+When a tenant admin applies a role template:
 
-1. `POST /role-assignments` writes a row in `role_assignments`
-2. the user's next request is enriched from:
-   - assigned role codes
-   - `role_capabilities`
-   - delegated capability grants
-   - clearances
+1. `POST /users/{id}/roles` with `role_id` (optional `role_template_capability_ids` subset) writes:
+   - a `user_roles` association row
+   - `user_capabilities` snapshot rows with `grant_source = role_template` and `source_role_id = role_id`
+2. Entitlement assert runs before persist (Configurator module enablement + Master Data catalog).
+3. The user's next request is enriched from **active** `user_capabilities` (plus delegated overlays and clearances). Until issue #60, PEP may temporarily union live `role_capabilities` for active `user_roles` — see ADR-0031.
 
-The JWT remains unchanged except for its lightweight role context. Effective capabilities are always resolved at runtime.
+The JWT remains unchanged. Effective capabilities are resolved at runtime from persisted grants, not from JWT claims.
 
 ## 4. Request authorization
 For a protected request:
 
 1. JWT verification resolves `sub`, `iq_tenant_id`, `roles`, `department`, and `org_id`
 2. principal enrichment resolves:
-   - role-derived capabilities
-   - delegated capabilities
-   - clearances
+   - active capability keys from `user_capabilities` (`revoked_at IS NULL`)
+   - delegated capabilities and clearances
+   - *(temporary)* live template capabilities from `user_roles ⨝ role_capabilities` until #60
 3. Cerbos evaluates the request using `principal.attr.capabilities` and ABAC resource attributes
 4. the handler proceeds only on `ALLOW`
+
+Master Data and Configurator are **not** called during step 3.
 
 Example Cerbos principal shape:
 
@@ -75,16 +80,17 @@ Cerbos policy stays the same in both cases: allow only if the principal has `lab
 ## 6. Role administration in the UI
 The admin surface is capability-driven:
 
-1. `/capabilities` provides the catalog
-2. `/roles` manages role definitions
-3. `/roles/{id}/capabilities` manages role composition
-4. `/role-assignments` manages which users hold which roles
+1. `/capabilities` and `/capabilities/assignable` provide catalog and entitlement-filtered pick lists
+2. `/roles` manages role template definitions
+3. `/roles/{id}/capabilities` manages template composition (`role_capabilities`)
+4. `/users/{id}/roles` applies or detaches role templates for a user
+5. `/users/{id}/capabilities` replaces **manual** direct grants only
 
-This keeps UI workflows aligned with the runtime model:
+Runtime model:
 
 - capabilities are the primitive
-- roles are containers
-- assignments bind users to those containers
+- roles are templates (`role_capabilities`)
+- apply copies a snapshot into `user_capabilities`; detach revokes scoped `role_template` rows
 
 ## 7. Delegation and clearance overlays
 Role-derived capabilities are not the whole entitlement set.
@@ -94,11 +100,39 @@ Role-derived capabilities are not the whole entitlement set.
 
 The effective authorization set is therefore:
 
-`assigned roles -> role_capabilities -> capabilities`
+`user_capabilities` (manual + role_template snapshots, active rows only)
 `+ delegated_capability_grants`
 `+ clearances`
 
-That effective set is what Cerbos evaluates at request time.
+That effective set is what Cerbos evaluates at request time (with temporary live-join overlay per ADR-0031 until #60).
+
+## 8. Role template snapshot lifecycle (PR #56)
+
+### 8.1 Apply with subset
+
+1. Admin selects role template "Registrar" and picks two of five capabilities in the UI.
+2. `POST /users/{id}/roles` sends `role_id` + `role_template_capability_ids`.
+3. UM validates each id belongs to the role and is entitled for the tenant, then upserts `user_capabilities` rows (`grant_source = role_template`, `source_role_id = registrar_role_id`).
+
+### 8.2 Re-apply to narrow
+
+1. Admin re-applies the same template with a smaller subset.
+2. UM synchronizes: revokes active `role_template` grants for that `source_role_id` outside the new set; upserts missing ids; never touches `manual` / `delegated` / `system`.
+
+### 8.3 Detach
+
+1. Admin removes the template from the user.
+2. `DELETE /users/{id}/roles/{roleId}` deletes the `user_roles` row and soft-revokes all active `role_template` grants with matching `source_role_id`.
+3. Manual grants for the same capability ids remain if they existed before apply.
+
+### 8.4 Template definition change without re-apply
+
+1. Administrator adds a new capability to the Registrar role via `PUT /roles/{id}/capabilities`.
+2. Users who already have Registrar applied **do not** gain the new capability until an administrator re-applies (full or subset) or grants it manually.
+
+---
+
+## 9. Delegation worked example (target-state detail)
 
 **Step 2 — Audit record created**
 
