@@ -3,9 +3,11 @@
   "tags": ["type:app", "scope:platform"],
   "targets": {
     "serve": {
+      "dependsOn": ["user-management:db-migrate"],
       "command": "tsx src/main.ts",
       "options": {
-        "cwd": "services/user-management-svc"
+        "cwd": "services/user-management-svc",
+        "envFile": "{workspaceRoot}/.env"
       }
     },
     "typecheck": {

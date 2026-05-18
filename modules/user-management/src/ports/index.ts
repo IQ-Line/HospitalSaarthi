@@ -3,17 +3,21 @@
  */
 
 import type {
-  AssignRoleInput,
+  AppliedRoleTemplate,
   Capability,
   AuthContext,
   CreateUserInput,
   CreateRoleInput,
   Principal,
   ReplaceRoleCapabilitiesInput,
+  ReplaceUserCapabilitiesInput,
   Role,
-  RoleAssignment,
   UpdateRoleInput,
   UpdateUserInput,
+  UserCapabilitiesSnapshot,
+  UserCapabilityGrant,
+  UserCapabilityGrantSource,
+  UserEffectiveCapabilities,
   User,
   RoleStatus,
   UserStatus,
@@ -22,7 +26,7 @@ import type {
 import type { UserReadListResourceAbac } from "../domain/user-read-list-resource-filter.js";
 
 export type {
-  AssignRoleInput,
+  AppliedRoleTemplate,
   Capability,
   AuthContext,
   CreateUserInput,
@@ -30,11 +34,15 @@ export type {
   Principal,
   PrincipalAttributes,
   ReplaceRoleCapabilitiesInput,
+  ReplaceUserCapabilitiesInput,
   Role,
-  RoleAssignment,
   RoleStatus,
   UpdateRoleInput,
   UpdateUserInput,
+  UserCapabilitiesSnapshot,
+  UserCapabilityGrant,
+  UserCapabilityGrantSource,
+  UserEffectiveCapabilities,
   User,
   UserStatus,
 } from "../domain/types.js";
@@ -91,7 +99,32 @@ export interface CapabilityRepository {
   listCapabilities(): Promise<Capability[]>;
   listCapabilitiesByIds(capabilityIds: string[]): Promise<Capability[]>;
   listCapabilitiesByKeys(capabilityKeys: string[]): Promise<Capability[]>;
+  /** Active runtime capabilities whose `module` slug is in the given set. */
+  listActiveRuntimeCapabilitiesByModuleSlugs(moduleSlugs: string[]): Promise<Capability[]>;
 }
+
+export type {
+  CapabilitySourceCatalog,
+} from "../domain/module-slug.js";
+export type {
+  EntitlementRequestContext,
+  MasterDataModuleCatalogPort,
+  ModuleCatalogPort,
+  ModuleEntitlementRequestContext,
+  TenantEntitlementPort,
+  TenantModuleEntitlementPort,
+} from "./module-integration-ports.js";
+export type {
+  CapabilityCatalogSyncPort,
+  CapabilityCatalogSyncRequest,
+  CapabilityCatalogSyncResult,
+  RuntimeCapabilityCatalogPort,
+} from "./capability-catalog-ports.js";
+export type {
+  ProvisionUserWithAccessInput,
+  RoleTemplateGrantPlan,
+  UserProvisioningRepository,
+} from "./user-provisioning-repository.js";
 
 export interface RoleRepository {
   getRoleById(tenantId: string, roleId: string): Promise<Role | null>;
@@ -111,6 +144,36 @@ export interface RoleCapabilityRepository {
   ): Promise<Capability[]>;
 }
 
+export interface UserAccessRepository {
+  applyRoleTemplate(
+    tenantId: string,
+    input: {
+      userId: string;
+      roleId: string;
+      capabilityIds: string[];
+      actorId: string | null;
+    },
+  ): Promise<AppliedRoleTemplate>;
+  detachRoleTemplate(
+    tenantId: string,
+    input: {
+      userId: string;
+      roleId: string;
+      actorId: string | null;
+    },
+  ): Promise<AppliedRoleTemplate | null>;
+  listRoleTemplatesByUser(tenantId: string, userId: string): Promise<AppliedRoleTemplate[]>;
+  listActiveCapabilityGrantsByUser(tenantId: string, userId: string): Promise<UserCapabilityGrant[]>;
+  replaceManualCapabilityGrants(
+    tenantId: string,
+    input: {
+      userId: string;
+      capabilityIds: string[];
+      actorId: string | null;
+    },
+  ): Promise<UserCapabilityGrant[]>;
+}
+
 /**
  * Tenant-scoped projection of assigned role codes for principal enrichment.
  * Implementations should use a single round-trip (e.g. JOIN) so the auth path stays O(1) in queries.
@@ -120,28 +183,6 @@ export interface PrincipalRoleProjectionRepository {
   listRoleCodesByUser(tenantId: string, userId: string): Promise<string[]>;
   /** Clears instance-scoped projection cache (e.g. after role mutations in the same process). */
   clearCache(): void;
-}
-
-export interface RoleAssignmentRef {
-  id: string;
-  tenant_id: string;
-  user_id: string;
-  role_id: string;
-}
-
-export interface RoleAssignmentRepository {
-  assignRole(tenantId: string, input: AssignRoleInput): Promise<RoleAssignment>;
-  revokeRole(
-    tenantId: string,
-    input: AssignRoleInput,
-  ): Promise<RoleAssignment | null>;
-  listAssignments(): Promise<RoleAssignmentRef[]>;
-  listAssignmentsByUser(tenantId: string, userId: string): Promise<RoleAssignmentRef[]>;
-  listAssignmentsByRole(tenantId: string, roleId: string): Promise<RoleAssignmentRef[]>;
-  listAssignmentsByTenant(
-    tenantId: string,
-    filter?: Readonly<{ userId?: string; roleId?: string }>,
-  ): Promise<RoleAssignmentRef[]>;
 }
 
 /**

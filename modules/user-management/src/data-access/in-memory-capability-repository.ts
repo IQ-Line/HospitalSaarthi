@@ -1,3 +1,6 @@
+import { assertValidRuntimeCapabilityRow } from "../domain/capability-key.js";
+import { normalizeCapabilityProvenance } from "../domain/capability-provenance.js";
+import { assertValidModuleSlug, normalizeModuleSlug } from "../domain/module-slug.js";
 import type { Capability, CapabilityRepository } from "../ports/index.js";
 
 type SeedCapability = {
@@ -13,7 +16,19 @@ export class InMemoryCapabilityRepository implements CapabilityRepository {
 
   constructor(seedCapabilities: SeedCapability[] = []) {
     for (const seed of seedCapabilities) {
-      this.capabilities.set(capabilityKey(seed.capability.id), seed.capability);
+      const module = assertValidModuleSlug(seed.capability.module, "capability.module");
+      const provenance = normalizeCapabilityProvenance({
+        source_module_slug: seed.capability.source_module_slug,
+        source_permission_slug: seed.capability.source_permission_slug,
+        source_catalog: seed.capability.source_catalog ?? null,
+      });
+      const capability = {
+        ...seed.capability,
+        module,
+        ...provenance,
+      };
+      assertValidRuntimeCapabilityRow(capability, `seed:${seed.capability.id}`);
+      this.capabilities.set(capabilityKey(seed.capability.id), capability);
     }
   }
 
@@ -36,5 +51,20 @@ export class InMemoryCapabilityRepository implements CapabilityRepository {
     return [...this.capabilities.values()]
       .filter((capability) => keys.has(capability.capability_key))
       .filter((capability): capability is Capability => capability !== null);
+  }
+
+  async listActiveRuntimeCapabilitiesByModuleSlugs(moduleSlugs: string[]): Promise<Capability[]> {
+    const normalized = [
+      ...new Set(moduleSlugs.map((m) => normalizeModuleSlug(m)).filter((m) => m.length > 0)),
+    ];
+    if (normalized.length === 0) {
+      return [];
+    }
+    const moduleSet = new Set(
+      normalized.map((m) => assertValidModuleSlug(m, "assignable module slug filter")),
+    );
+    return [...this.capabilities.values()].filter(
+      (capability) => capability.is_active && moduleSet.has(capability.module),
+    );
   }
 }

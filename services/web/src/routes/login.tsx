@@ -17,7 +17,7 @@ import { useTenantStore } from '@/stores/tenant.store';
 const DEV_TENANT_ID = 'f47ac10b-58cc-4372-a567-0e02b2c3d480';
 
 const signInSchema = z.object({
-  email: z.string().email('Enter a valid email'),
+  username: z.string().min(1, 'Username is required'),
   password: z.string().min(1, 'Password is required'),
 });
 type SignInValues = z.infer<typeof signInSchema>;
@@ -49,7 +49,7 @@ function LoginPage() {
 
   const form = useForm<SignInValues>({
     resolver: zodResolver(signInSchema),
-    defaultValues: { email: '', password: '' },
+    defaultValues: { username: '', password: '' },
   });
 
   async function handleSignIn(values: SignInValues) {
@@ -57,7 +57,7 @@ function LoginPage() {
     setLoading(true);
     try {
       const { data, error: authError } = await authClient.signIn.email({
-        email: values.email,
+        email: values.username,
         password: values.password,
       });
       if (authError) {
@@ -86,8 +86,6 @@ function LoginPage() {
   }
 
   const handleDevLogin = () => {
-    // Dev-only mock login — bypasses better-auth.
-    // `tenantId` null ⇒ `iq_tenant_id` omitted ⇒ Visitpad reads/writes the **global** catalog.
     setSession({
       accessToken: 'dev-token',
       sessionToken: 'dev-session',
@@ -133,18 +131,20 @@ function LoginPage() {
               {error}
             </p>
           )}
+
           <form onSubmit={form.handleSubmit(handleSignIn)} className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="username">Username</Label>
               <Input
-                id="email"
-                type="email"
-                autoComplete="email"
-                {...form.register('email')}
+                id="username"
+                type="text"
+                autoComplete="username"
+                placeholder="e.g. vishal@hospitalsaarthi.dev"
+                {...form.register('username')}
               />
-              {form.formState.errors.email && (
+              {form.formState.errors.username && (
                 <p className="text-xs text-destructive">
-                  {form.formState.errors.email.message}
+                  {form.formState.errors.username.message}
                 </p>
               )}
             </div>
@@ -186,9 +186,9 @@ function LoginPage() {
               Tenant dev login (tenant catalog)
             </Button>
             <p className="pt-1 text-xs text-muted-foreground">
-              Tenant login uses a static UUID so `iq_tenant_id` is sent — Visitpad lists tenant scope.
-              Mock Visitpad catalog: read + import-from-library; Add / row edits / toggles hidden
-              without write.
+              Dev shortcuts bypass better-auth. Real-login currently has a username/email field
+              mismatch and a hardcoded tenantId (tracked as a follow-up to wire username-primary
+              signin + JWT tenant claim).
             </p>
           </div>
         </CardContent>

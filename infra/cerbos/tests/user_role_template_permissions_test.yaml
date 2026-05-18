@@ -1,0 +1,134 @@
+# yaml-language-server: $schema=https://api.cerbos.dev/latest/cerbos/policy/v1/TestSuite.schema.json
+---
+name: user_role_template_permissions
+description: >-
+  User Management applied role template mutations — POST /users/{id}/roles and
+  PUT /users/{id}/capabilities map to role.assign; DELETE /users/{id}/roles/{roleId} maps to
+  role.revoke. All require tenant match and um:role:assign in capabilities or delegated_capabilities.
+
+principals:
+  assigner:
+    id: rbac-admin
+    roles:
+      - "_unresolved"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: null
+      capabilities:
+        - "um:role:assign"
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  not_assigner:
+    id: plain-user
+    roles:
+      - "_unresolved"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: null
+      capabilities:
+        - "um:user:read"
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  assigner_delegated_only:
+    id: delegated-rbac-admin
+    roles:
+      - "_unresolved"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: null
+      capabilities: []
+      delegated_capabilities:
+        - "um:role:assign"
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+resources:
+  user_role_template_apply:
+    id: new
+    kind: user_role_template
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      department: null
+      required_clearance: 0
+
+  user_role_template_detach:
+    id: revoke
+    kind: user_role_template
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      department: null
+      required_clearance: 0
+
+tests:
+  - name: role.assign — um:role:assign capability ALLOW
+    input:
+      principals: [assigner]
+      resources: [user_role_template_apply]
+      actions: [role.assign]
+    expected:
+      - principal: assigner
+        resource: user_role_template_apply
+        actions:
+          role.assign: EFFECT_ALLOW
+
+  - name: role.assign — direct capability replacement uses same tenant/capability gate
+    input:
+      principals: [assigner]
+      resources: [user_role_template_apply]
+      actions: [role.assign]
+    expected:
+      - principal: assigner
+        resource: user_role_template_apply
+        actions:
+          role.assign: EFFECT_ALLOW
+
+  - name: role.assign — missing um:role:assign DENY
+    input:
+      principals: [not_assigner]
+      resources: [user_role_template_apply]
+      actions: [role.assign]
+    expected:
+      - principal: not_assigner
+        resource: user_role_template_apply
+        actions:
+          role.assign: EFFECT_DENY
+
+  - name: role.assign — delegated um:role:assign ALLOW
+    input:
+      principals: [assigner_delegated_only]
+      resources: [user_role_template_apply]
+      actions: [role.assign]
+    expected:
+      - principal: assigner_delegated_only
+        resource: user_role_template_apply
+        actions:
+          role.assign: EFFECT_ALLOW
+
+  - name: role.revoke — um:role:assign capability ALLOW
+    input:
+      principals: [assigner]
+      resources: [user_role_template_detach]
+      actions: [role.revoke]
+    expected:
+      - principal: assigner
+        resource: user_role_template_detach
+        actions:
+          role.revoke: EFFECT_ALLOW
+
+  - name: role.revoke — missing um:role:assign DENY
+    input:
+      principals: [not_assigner]
+      resources: [user_role_template_detach]
+      actions: [role.revoke]
+    expected:
+      - principal: not_assigner
+        resource: user_role_template_detach
+        actions:
+          role.revoke: EFFECT_DENY

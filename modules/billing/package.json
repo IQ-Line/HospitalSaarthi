@@ -3,7 +3,9 @@
   "version": "0.0.0",
   "type": "module",
   "main": "./src/index.ts",
-  "dependencies": {},
+  "dependencies": {
+    "@hims/ts-sdk-db": "workspace:*"
+  },
   "peerDependencies": {
     "fastify": "^5.3.3",
     "fastify-plugin": "^5.0.1"

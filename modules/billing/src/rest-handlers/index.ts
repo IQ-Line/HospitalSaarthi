@@ -1,3 +1,1 @@
-/** REST route registration helpers for billing HTTP surface. */
-
-export {};
+export { registerUpdateServiceHandler } from "./update-service.handler.js";

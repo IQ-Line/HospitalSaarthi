@@ -6,7 +6,10 @@ import { identityPlugin, validateAuthConfig } from "@hims/ts-sdk-identity";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import Fastify, { type FastifyInstance } from "fastify";
 import { createUserManagementAuthzTargetResolver } from "./authz-target-resolver.js";
-import { createHimsBetterAuth } from "./auth/create-hims-better-auth.js";
+import {
+  createHimsBetterAuth,
+  repairJwksForDevelopment,
+} from "./auth/create-hims-better-auth.js";
 import { createPasswordAuthAccountProvisioner } from "./auth/create-password-auth-account-provisioner.js";
 import { registerBetterAuth } from "./auth/register-better-auth.js";
 import {
@@ -18,13 +21,28 @@ import {
   DrizzlePrincipalRoleProjectionRepository,
   DrizzlePrincipalAuthorizationRepository,
   DrizzleRoleCapabilityRepository,
-  DrizzleRoleAssignmentRepository,
   DrizzleRoleRepository,
+  DrizzleUserAccessRepository,
+  DrizzleUserProvisioningRepository,
   DrizzleUserRepository,
   createDefaultPrincipalService,
+  formatRuntimeAuthorizationStartupFailure,
+  validateRuntimeAuthorizationStartup,
   principalRoleEnricherPlugin,
 } from "../../../modules/user-management/src/index.js";
+import { HttpConfiguratorTenantModuleEntitlementAdapter } from "./adapters/http-configurator-tenant-module-entitlement-adapter.js";
+import { HttpMasterDataModuleCatalogAdapter } from "./adapters/http-master-data-module-catalog-adapter.js";
 import { registerUserManagementApi } from "./openapi/register-user-management-api.js";
+
+function requireUpstreamBaseUrl(envKey: string): string {
+  const raw = process.env[envKey]?.trim();
+  if (!raw || raw.length === 0) {
+    throw new Error(
+      `${envKey} is required for tenant module entitlements and Master Data module catalog integration`,
+    );
+  }
+  return raw.replace(/\/+$/, "");
+}
 
 function normalizeIdentityJwksUrl(authBaseUrl: string): string {
   const expected = `${authBaseUrl}/api/auth/.well-known/jwks.json`;
@@ -122,13 +140,40 @@ async function createApp(): Promise<FastifyInstance> {
   const identityAuth = validateAuthConfig();
   const pgDb = createDb(requireDatabaseUrl());
 
+  const configuratorUrl = requireUpstreamBaseUrl("CONFIGURATOR_URL");
+  const masterDataUrl = requireUpstreamBaseUrl("MASTER_DATA_URL");
+
   const userRepository = new DrizzleUserRepository(pgDb);
+  const userProvisioningRepository = new DrizzleUserProvisioningRepository(pgDb);
   const capabilityRepository = new DrizzleCapabilityRepository(pgDb);
   const roleRepository = new DrizzleRoleRepository(pgDb);
   const roleCapabilityRepository = new DrizzleRoleCapabilityRepository(pgDb);
-  const roleAssignmentRepository = new DrizzleRoleAssignmentRepository(pgDb);
+  const userAccessRepository = new DrizzleUserAccessRepository(pgDb);
   const principalRoleProjectionRepository = new DrizzlePrincipalRoleProjectionRepository(pgDb);
   const principalAuthorizationRepository = new DrizzlePrincipalAuthorizationRepository(pgDb);
+
+  const startupValidation = await validateRuntimeAuthorizationStartup({
+    configuratorUrl,
+    masterDataUrl,
+    capabilityRepository,
+  });
+  for (const entry of startupValidation.diagnostics) {
+    if (entry.level === "info") {
+      app.log.info(entry.detail ?? {}, entry.message);
+    }
+  }
+  if (!startupValidation.ok) {
+    throw new Error(formatRuntimeAuthorizationStartupFailure(startupValidation.diagnostics));
+  }
+
+  const tenantModuleEntitlementPort = new HttpConfiguratorTenantModuleEntitlementAdapter({
+    baseUrl: configuratorUrl,
+    log: (event, message) => app.log.info(event, message),
+  });
+  const masterDataModuleCatalogPort = new HttpMasterDataModuleCatalogAdapter({
+    baseUrl: masterDataUrl,
+    log: (event, message) => app.log.info(event, message),
+  });
 
   const principalService = createDefaultPrincipalService({
     userRepository,
@@ -137,20 +182,21 @@ async function createApp(): Promise<FastifyInstance> {
   });
 
   const trustedOrigins = readTrustedOrigins();
-  const auth = createHimsBetterAuth(
-    pgDb,
-    {
-      authBaseUrl,
-      secret: readBetterAuthSecret(),
-      jwtIssuer: identityAuth.issuer,
-      jwtAudience: identityAuth.audience,
-      trustedOrigins,
-      disableJwtPrivateKeyEncryption:
-        process.env.NODE_ENV === "test" ||
-        process.env.BETTER_AUTH_DISABLE_JWT_KEY_ENCRYPTION === "true",
-    },
-    { userRepository, principalRoleProjectionRepository },
-  );
+  const authEnv = {
+    authBaseUrl,
+    secret: readBetterAuthSecret(),
+    jwtIssuer: identityAuth.issuer,
+    jwtAudience: identityAuth.audience,
+    trustedOrigins,
+    disableJwtPrivateKeyEncryption:
+      process.env.NODE_ENV === "test" ||
+      process.env.BETTER_AUTH_DISABLE_JWT_KEY_ENCRYPTION === "true",
+  };
+  await repairJwksForDevelopment(pgDb, authEnv);
+  const auth = createHimsBetterAuth(pgDb, authEnv, {
+    userRepository,
+    principalRoleProjectionRepository,
+  });
   const authAccountProvisioner = createPasswordAuthAccountProvisioner(pgDb, auth);
 
   if (shouldRunDevelopmentBootstrap()) {
@@ -206,12 +252,16 @@ async function createApp(): Promise<FastifyInstance> {
   await registerUserManagementApi(app, {
     eventBus,
     userRepository,
+    userProvisioningRepository,
     capabilityRepository,
     roleRepository,
     roleCapabilityRepository,
-    roleAssignmentRepository,
+    userAccessRepository,
     principalRoleProjectionRepository,
+    principalAuthorizationRepository,
     authAccountProvisioner,
+    tenantModuleEntitlementPort,
+    masterDataModuleCatalogPort,
   });
 
   return app;
@@ -219,7 +269,9 @@ async function createApp(): Promise<FastifyInstance> {
 
 async function main(): Promise<void> {
   const app = await createApp();
-  const port = Number(process.env.PORT ?? 3000);
+  const port = Number(
+    process.env.USER_MANAGEMENT_SVC_PORT ?? process.env.PORT ?? 3005,
+  );
   await app.listen({ port, host: "0.0.0.0" });
   console.log(`User Management service listening on http://localhost:${port}`);
 }

@@ -8,7 +8,8 @@ description: >-
 principals:
   high_clearance_reader:
     id: security-officer
-    roles: []
+    roles:
+      - "_unresolved"
     attr:
       iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
       org_id: null
@@ -23,7 +24,8 @@ principals:
 
   low_clearance_reader:
     id: junior-staff
-    roles: []
+    roles:
+      - "_unresolved"
     attr:
       iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
       org_id: null
@@ -38,7 +40,8 @@ principals:
 
   tier_ok_empty_clearances:
     id: tier-without-map
-    roles: []
+    roles:
+      - "_unresolved"
     attr:
       iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
       org_id: null

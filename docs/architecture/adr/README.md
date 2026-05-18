@@ -35,6 +35,7 @@ Decisions are recorded as Markdown ADRs ([MADR format](https://adr.github.io/mad
 | [0028](0028-record-foundation-fifth-core-module.md) | Record Foundation as the fifth core platform module | Proposed |
 | [0029](0029-registration-as-encounter-intake-owner.md) | Registration module owns encounter-intake; clinical modules own clinical encounters | Accepted |
 | [0030](0030-abdm-adapter-prototype-phase.md) | ABDM Adapter prototype phase — ship M1 against sandbox before FSM engine lands | Accepted |
+| [0031](0031-um-role-template-snapshot-semantics.md) | User Management role-template snapshot semantics (PR #56) | Accepted |
 
 > Numbering note: ADRs 0027 and 0028 were originally drafted as 0020 and 0021 on `feat/integration-platform-lld`. They were renumbered when that branch merged with `dev`, where Master Data's 0020 and 0021 had landed in parallel. The MADR convention is that the number is a permanent identifier; this is the first renumber in the project's history, performed to resolve the collision.
 

@@ -3,7 +3,7 @@ info:
   title: HIMS User Management API
   version: 1.0.0
   description: >
-    Tenant-scoped platform user profile, role, capability, assignment, and principal-enrichment APIs.
+    Tenant-scoped platform user profile, role-template, capability-grant, and principal-enrichment APIs.
     Credential issuance and session lifecycle are owned by better-auth (see implementation task 1A.7);
     they are not exposed as paths in this contract.
     Tenant scope authority is JWT-derived (`iq_tenant_id` claim). If `iq_tenant_id` header is
@@ -141,10 +141,11 @@ paths:
     get:
       tags:
         - Capabilities
-      summary: List canonical capability catalog
+      summary: List full runtime capability catalog
       description: >
-        Returns the canonical capability catalog. Capabilities are the atomic machine-readable
-        authorization primitives used by Cerbos and composed into tenant-scoped roles.
+        Returns the full global **runtime capability** catalog (not Master Data permissions).
+        Each row's `module` field is a **module slug** aligned with `master_data.modules.slug`.
+        For tenant-scoped role editors, prefer `GET /capabilities/assignable`.
       parameters:
         - $ref: "#/components/parameters/IqTenantIdHeader"
       responses:
@@ -170,6 +171,74 @@ paths:
                 $ref: "#/components/schemas/ErrorMessage"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /capabilities/assignable:
+    get:
+      tags:
+        - Capabilities
+      summary: List assignable runtime capabilities for tenant roles
+      description: >
+        Returns active **runtime capabilities** from the UM catalog, filtered to **module slugs**
+        enabled for the tenant (`configurator.tenant_modules` resolved via `master_data.modules.slug`)
+        plus platform runtime modules (`user-management`, `configurator`). This is not a Master Data
+        permissions API. Fails closed when tenant module entitlement or module catalog lookup fails.
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+      responses:
+        "200":
+          description: Tenant-scoped assignable runtime capability catalog for role composition.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Capability"
+              examples:
+                tenantWithOpd:
+                  summary: Tenant with OPD and platform modules enabled
+                  value:
+                    - id: "f47ac10b-58cc-4372-a567-0e02b2c3d611"
+                      capability_key: "um:user:read"
+                      module: "user-management"
+                      feature: "users"
+                      action: "read"
+                      display_name: "Read users"
+                      is_active: true
+                    - id: "f47ac10b-58cc-4372-a567-0e02b2c3d612"
+                      capability_key: "opd:visit:read"
+                      module: "opd"
+                      feature: "visit"
+                      action: "read"
+                      display_name: "Read visits"
+                      is_active: true
+        "400":
+          description: Request validation error (including tenant header/JWT mismatch when header is provided).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "503":
+          description: Configurator tenant module entitlement or Master Data module catalog lookup failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+              examples:
+                moduleEntitlementLookupFailed:
+                  summary: Upstream module entitlement unavailable
+                  value:
+                    code: "MODULE_ENTITLEMENT_LOOKUP_FAILED"
+                    message: "Tenant-enabled module entitlement could not be resolved."
+                    correlation_id: "f47ac10b-58cc-4372-a567-0e02b2c3d499"
         "500":
           $ref: "#/components/responses/InternalError"
   /capabilities/{id}:
@@ -442,7 +511,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorMessage"
         "409":
-          description: Role still has active assignments and cannot be deleted.
+          description: Role template still has active user associations and cannot be deleted.
           content:
             application/json:
               schema:
@@ -586,7 +655,10 @@ paths:
         Creates the tenant-scoped platform `users` row for the current tenant (`iq_tenant_id`
         is the Citus distribution key and is taken from request context, not the request body),
         provisions the linked better-auth login account for the same principal, and optionally
-        assigns tenant role ids supplied in `role_ids`.
+        writes direct user capabilities from `capability_ids` plus copied template access from
+        `role_template_ids`. When `role_template_capability_ids` is present, exactly one role id must
+        be listed in `role_template_ids`, and only those capabilities (each belonging to that role)
+        are granted with source `role_template`; omit the field to copy the full role composition.
       parameters:
         - $ref: "#/components/parameters/IqTenantIdHeader"
       requestBody:
@@ -635,9 +707,25 @@ paths:
                   minimum: 0
                   maximum: 3
                   description: Initial minimum clearance tier required to access this user record (ABAC).
-                role_ids:
+                capability_ids:
                   type: array
-                  description: Tenant role ids to assign immediately after the user is created.
+                  description: Direct user capability ids to persist immediately after the user is created.
+                  items:
+                    type: string
+                    format: uuid
+                role_template_ids:
+                  type: array
+                  description: Optional role-template ids to apply immediately after the user is created.
+                  items:
+                    type: string
+                    format: uuid
+                role_template_capability_ids:
+                  type: array
+                  description: >
+                    Optional subset of capability ids to grant from the role template(s). When this
+                    array is present, `role_template_ids` must contain exactly one id, and every
+                    entry must be a capability currently assigned to that role. Omit to grant the
+                    full capability set defined on each role template.
                   items:
                     type: string
                     format: uuid
@@ -798,24 +886,282 @@ paths:
   /users/{id}/roles:
     get:
       tags:
-        - RoleAssignments
-      summary: List roles assigned to a tenant-scoped user
+        - RoleTemplates
+      summary: List applied role templates for a tenant-scoped user
       description: >
-        Returns the tenant-scoped role containers currently assigned to the specified user. The
-        response expands role assignment rows into role definitions so admin clients can render role
-        metadata without a second lookup.
+        Returns the role templates applied to the specified user (`user_roles` associations).
+        Runtime authorization resolves from active rows in `user_capabilities` (snapshot grants).
+        See ADR-0031 for snapshot semantics; PEP may temporarily union live template capabilities
+        until issue #60.
       parameters:
         - $ref: "#/components/parameters/IqTenantIdHeader"
         - $ref: "#/components/parameters/UserIdPath"
       responses:
         "200":
-          description: Roles currently assigned to the user within the active tenant.
+          description: Role templates currently associated with the user within the active tenant.
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Role"
+                  $ref: "#/components/schemas/AppliedRoleTemplate"
+        "400":
+          description: Request validation error (including malformed user id).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: User not found for this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - RoleTemplates
+      summary: Apply a role template to a user
+      description: >
+        Creates or updates a `user_roles` association and synchronizes the role-scoped capability
+        snapshot in `user_capabilities` during the same write flow. Re-applying the same template
+        narrows or widens the copied grants for that `source_role_id`. When
+        `role_template_capability_ids` is present, only those capabilities (each belonging to the
+        role) are included in the snapshot; omit the field to use the role's full composition.
+        Later edits to the role template definition do not retroactively change existing user rows.
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+        - $ref: "#/components/parameters/UserIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - role_id
+              properties:
+                role_id:
+                  type: string
+                  format: uuid
+                  description: Role-template id within the current tenant.
+                role_template_capability_ids:
+                  type: array
+                  description: >
+                    Optional subset of capability ids to grant from this role template. Each entry
+                    must be a capability currently assigned to the role. Omit to synchronize the
+                    full capability set defined on the role template.
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        "201":
+          description: Role template applied and capability snapshot synchronized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppliedRoleTemplate"
+        "400":
+          description: Malformed request body or invalid UUID fields.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: User or role template not found for this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "409":
+          description: This role template is already applied to the user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /users/{id}/roles/{roleId}:
+    delete:
+      tags:
+        - RoleTemplates
+      summary: Remove a role-template association from a user
+      description: >
+        Removes the `user_roles` association and soft-revokes active `user_capabilities` rows where
+        `grant_source` is `role_template` and `source_role_id` matches the detached role. Manual,
+        delegated, and system grants are not changed. Revoked rows retain audit fields
+        (`revoked_at`, `revoked_by_user_id`).
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+        - $ref: "#/components/parameters/UserIdPath"
+        - name: roleId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Role-template id within the current tenant.
+      responses:
+        "200":
+          description: Role-template association removed and matching role-scoped capability snapshot revoked.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppliedRoleTemplate"
+        "400":
+          description: Invalid or missing path parameters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: User, role template, or user-role association not found for this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /users/{id}/capabilities:
+    get:
+      tags:
+        - Capabilities
+      summary: Get persisted user capability grants
+      description: >
+        Returns the user's persisted base grants split into direct grants, copied template grants,
+        and applied role-template associations. Delegated overlays are excluded from this endpoint.
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+        - $ref: "#/components/parameters/UserIdPath"
+      responses:
+        "200":
+          description: Persisted user capability grants plus applied role-template associations.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserCapabilitiesSnapshot"
+        "400":
+          description: Request validation error (including malformed user id).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: User not found for this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      tags:
+        - Capabilities
+      summary: Replace direct user capability grants
+      description: >
+        Replaces the user's direct manual capability grants. Copied template grants remain
+        untouched until an explicit capability edit changes them.
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+        - $ref: "#/components/parameters/UserIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - capability_ids
+              properties:
+                capability_ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        "200":
+          description: Direct user grants replaced; response returns the refreshed persisted grant snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserCapabilitiesSnapshot"
+        "400":
+          description: Invalid input (e.g. malformed body or invalid UUID format).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: User or capability not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /users/{id}/effective-capabilities:
+    get:
+      tags:
+        - Capabilities
+      summary: Get effective runtime capabilities for a user
+      description: >
+        Returns the runtime-effective capability keys for Cerbos principal enrichment. Primary
+        source is active `user_capabilities` snapshot rows; delegated overlays and clearances are
+        included. Until issue #60, implementation may temporarily union live `user_roles` join
+        `role_capabilities` for active associations (hybrid PEP — see ADR-0031).
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+        - $ref: "#/components/parameters/UserIdPath"
+      responses:
+        "200":
+          description: Effective runtime authorization snapshot for the specified user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserEffectiveCapabilities"
         "400":
           description: Request validation error (including malformed user id).
           content:
@@ -884,169 +1230,6 @@ paths:
                 $ref: "#/components/schemas/ErrorMessage"
         "500":
           $ref: "#/components/responses/InternalError"
-  /role-assignments:
-    get:
-      tags:
-        - RoleAssignments
-      summary: List role assignments in the active tenant
-      description: >
-        Returns tenant-scoped role assignments. Optional query parameters narrow the result set by
-        user or role.
-      parameters:
-        - $ref: "#/components/parameters/IqTenantIdHeader"
-        - name: user_id
-          in: query
-          required: false
-          schema:
-            type: string
-            format: uuid
-        - name: role_id
-          in: query
-          required: false
-          schema:
-            type: string
-            format: uuid
-      responses:
-        "200":
-          description: Role assignments visible in the active tenant.
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/RoleAssignment"
-        "400":
-          description: Invalid query parameters.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorMessage"
-        "401":
-          description: Missing or invalid bearer token.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorMessage"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "500":
-          $ref: "#/components/responses/InternalError"
-    post:
-      tags:
-        - RoleAssignments
-      summary: Assign a role to a user
-      description: >
-        Creates a row in `role_assignments` for the current tenant. `iq_tenant_id` is taken
-        from request context, not the request body.
-      parameters:
-        - $ref: "#/components/parameters/IqTenantIdHeader"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: false
-              required:
-                - user_id
-                - role_id
-              properties:
-                user_id:
-                  type: string
-                  format: uuid
-                  description: Platform user id within the current tenant.
-                role_id:
-                  type: string
-                  format: uuid
-                  description: Role id within the current tenant.
-      responses:
-        "201":
-          description: Role assignment created.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/RoleAssignment"
-        "400":
-          description: Malformed request (e.g. invalid JSON, missing required fields, or invalid UUID format).
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorMessage"
-        "401":
-          description: Missing or invalid bearer token.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorMessage"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          description: User or role not found for this tenant.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorMessage"
-        "409":
-          description: Duplicate role assignment (user already has this role for this tenant under the same scope).
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorMessage"
-        "500":
-          $ref: "#/components/responses/InternalError"
-    delete:
-      tags:
-        - RoleAssignments
-      summary: Revoke a role assignment
-      description: >
-        Removes the role assignment for `user_id` + `role_id` in the current tenant. Query parameters
-        identify the assignment (same pair as POST assign). Publishes `user-management.role.revoked` on success.
-      parameters:
-        - $ref: "#/components/parameters/IqTenantIdHeader"
-        - name: user_id
-          in: query
-          required: true
-          schema:
-            type: string
-            format: uuid
-          description: Platform user id within the current tenant.
-        - name: role_id
-          in: query
-          required: true
-          schema:
-            type: string
-            format: uuid
-          description: Role id within the current tenant.
-      responses:
-        "200":
-          description: Role assignment removed; body echoes the revoked row identifiers.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/RoleAssignment"
-        "400":
-          description: Invalid or missing query parameters.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorMessage"
-        "401":
-          description: Missing or invalid bearer token.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorMessage"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          description: User, role, or role assignment not found for this tenant.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorMessage"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
 components:
   responses:
     Forbidden:
@@ -1120,9 +1303,14 @@ components:
           format: uuid
         capability_key:
           type: string
-          description: Canonical machine-readable capability key.
+          description: >
+            Runtime Cerbos vocabulary key (e.g. `um:user:read`). Stable once granted; distinct from
+            Master Data `permissions.slug`.
         module:
           type: string
+          description: >
+            Module slug — MUST equal `master_data.modules.slug` (kebab-case, e.g. `user-management`,
+            `opd`, `billing`).
         feature:
           type: string
         action:
@@ -1134,6 +1322,24 @@ components:
           nullable: true
         is_active:
           type: boolean
+        source_module_slug:
+          type: string
+          nullable: true
+          description: >
+            Future catalog sync — originating Master Data module slug when this runtime capability
+            was imported (nullable until sync exists).
+        source_permission_slug:
+          type: string
+          nullable: true
+          description: >
+            Future catalog sync — originating Master Data `permissions.slug` (nullable until sync exists).
+        source_catalog:
+          description: Future catalog sync — system of record for provenance metadata.
+          oneOf:
+            - type: string
+              enum:
+                - master_data
+            - type: "null"
     Role:
       type: object
       required:
@@ -1158,6 +1364,139 @@ components:
         status:
           type: string
           enum: [active, inactive]
+    AppliedRoleTemplate:
+      type: object
+      required:
+        - id
+        - user_id
+        - role_id
+        - assigned_by_user_id
+        - assigned_at
+        - role
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        role_id:
+          type: string
+          format: uuid
+        assigned_by_user_id:
+          type: string
+          format: uuid
+          nullable: true
+        assigned_at:
+          type: string
+          format: date-time
+        role:
+          $ref: "#/components/schemas/Role"
+    UserCapabilityGrant:
+      type: object
+      required:
+        - id
+        - user_id
+        - capability_id
+        - capability_key
+        - module
+        - feature
+        - action
+        - display_name
+        - grant_source
+        - source_role_id
+        - granted_by_user_id
+        - granted_at
+        - revoked_at
+        - revoked_by_user_id
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        capability_id:
+          type: string
+          format: uuid
+        capability_key:
+          type: string
+        module:
+          type: string
+        feature:
+          type: string
+        action:
+          type: string
+        display_name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        grant_source:
+          type: string
+          enum: [manual, role_template, delegated, system]
+        source_role_id:
+          type: string
+          format: uuid
+          nullable: true
+        granted_by_user_id:
+          type: string
+          format: uuid
+          nullable: true
+        granted_at:
+          type: string
+          format: date-time
+        revoked_at:
+          type: string
+          format: date-time
+          nullable: true
+        revoked_by_user_id:
+          type: string
+          format: uuid
+          nullable: true
+    UserCapabilitiesSnapshot:
+      type: object
+      required:
+        - direct_grants
+        - copied_grants
+        - role_templates
+      properties:
+        direct_grants:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserCapabilityGrant"
+        copied_grants:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserCapabilityGrant"
+        role_templates:
+          type: array
+          items:
+            $ref: "#/components/schemas/AppliedRoleTemplate"
+    UserEffectiveCapabilities:
+      type: object
+      required:
+        - capability_keys
+        - delegated_capability_keys
+        - clearances
+        - um_clearance_effective_tier
+      properties:
+        capability_keys:
+          type: array
+          items:
+            type: string
+        delegated_capability_keys:
+          type: array
+          items:
+            type: string
+        clearances:
+          type: object
+          additionalProperties:
+            type: string
+        um_clearance_effective_tier:
+          type: integer
+          minimum: 0
+          maximum: 3
     PermissionsUxMap:
       type: object
       description: >
@@ -1296,19 +1635,3 @@ components:
               description: >
                 Highest clearance tier derived from `clearances` for comparison with
                 `resource.attr.required_clearance` on user resources in Cerbos.
-    RoleAssignment:
-      type: object
-      required:
-        - id
-        - user_id
-        - role_id
-      properties:
-        id:
-          type: string
-          format: uuid
-        user_id:
-          type: string
-          format: uuid
-        role_id:
-          type: string
-          format: uuid

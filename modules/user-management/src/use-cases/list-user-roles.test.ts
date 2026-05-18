@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { InMemoryRoleAssignmentRepository } from "../data-access/in-memory-role-assignment-repository.js";
 import { InMemoryRoleRepository } from "../data-access/in-memory-role-repository.js";
+import { InMemoryUserAccessRepository } from "../data-access/in-memory-user-access-repository.js";
 import { InMemoryUserRepository } from "../data-access/in-memory-user-repository.js";
 import { UserNotFoundError } from "../domain/errors.js";
 import { listUserRoles } from "./list-user-roles.js";
@@ -43,35 +43,47 @@ describe("listUserRoles", () => {
         },
       },
     ]);
-    const roleAssignmentRepository = new InMemoryRoleAssignmentRepository();
+    const userAccessRepository = new InMemoryUserAccessRepository((tenantId, roleId) =>
+      roleRepository.getRoleById(tenantId, roleId),
+    );
 
-    await roleAssignmentRepository.assignRole("tenant-a", {
-      user_id: "f47ac10b-58cc-4372-a567-0e02b2c3d510",
-      role_id: "f47ac10b-58cc-4372-a567-0e02b2c3d501",
+    await userAccessRepository.applyRoleTemplate("tenant-a", {
+      userId: "f47ac10b-58cc-4372-a567-0e02b2c3d510",
+      roleId: "f47ac10b-58cc-4372-a567-0e02b2c3d501",
+      capabilityIds: [],
+      actorId: null,
     });
-    await roleAssignmentRepository.assignRole("tenant-a", {
-      user_id: "f47ac10b-58cc-4372-a567-0e02b2c3d510",
-      role_id: "f47ac10b-58cc-4372-a567-0e02b2c3d500",
+    await userAccessRepository.applyRoleTemplate("tenant-a", {
+      userId: "f47ac10b-58cc-4372-a567-0e02b2c3d510",
+      roleId: "f47ac10b-58cc-4372-a567-0e02b2c3d500",
+      capabilityIds: [],
+      actorId: null,
     });
-    await roleAssignmentRepository.assignRole("tenant-b", {
-      user_id: "f47ac10b-58cc-4372-a567-0e02b2c3d510",
-      role_id: "f47ac10b-58cc-4372-a567-0e02b2c3d502",
+    await userAccessRepository.applyRoleTemplate("tenant-b", {
+      userId: "f47ac10b-58cc-4372-a567-0e02b2c3d510",
+      roleId: "f47ac10b-58cc-4372-a567-0e02b2c3d502",
+      capabilityIds: [],
+      actorId: null,
     });
 
     await expect(
       listUserRoles(
-        { userRepository, roleAssignmentRepository, roleRepository },
+        { userRepository, userAccessRepository },
         "tenant-a",
         "f47ac10b-58cc-4372-a567-0e02b2c3d510",
       ),
     ).resolves.toEqual([
       expect.objectContaining({
-        id: "f47ac10b-58cc-4372-a567-0e02b2c3d501",
-        code: "admin",
+        role_id: "f47ac10b-58cc-4372-a567-0e02b2c3d501",
+        role: expect.objectContaining({
+          code: "admin",
+        }),
       }),
       expect.objectContaining({
-        id: "f47ac10b-58cc-4372-a567-0e02b2c3d500",
-        code: "doctor",
+        role_id: "f47ac10b-58cc-4372-a567-0e02b2c3d500",
+        role: expect.objectContaining({
+          code: "doctor",
+        }),
       }),
     ]);
   });
@@ -86,8 +98,7 @@ describe("listUserRoles", () => {
       listUserRoles(
         {
           userRepository,
-          roleAssignmentRepository: new InMemoryRoleAssignmentRepository(),
-          roleRepository: new InMemoryRoleRepository(),
+          userAccessRepository: new InMemoryUserAccessRepository(async () => null),
         },
         "tenant-a",
         "f47ac10b-58cc-4372-a567-0e02b2c3d511",
@@ -100,8 +111,7 @@ describe("listUserRoles", () => {
       listUserRoles(
         {
           userRepository: new InMemoryUserRepository(),
-          roleAssignmentRepository: new InMemoryRoleAssignmentRepository(),
-          roleRepository: new InMemoryRoleRepository(),
+          userAccessRepository: new InMemoryUserAccessRepository(async () => null),
         },
         "tenant-a",
         "f47ac10b-58cc-4372-a567-0e02b2c3d512",
