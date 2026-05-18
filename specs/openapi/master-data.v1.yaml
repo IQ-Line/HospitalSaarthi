@@ -7,7 +7,7 @@ info:
     (API keys / JWT) is expected before production; this spec does not model per-route security yet.
 
     **Catalog scope:** optional `iq_tenant_id` request header — a canonical UUID string (same type as platform ``ts-sdk-db`` ``tenantColumn()``)
-    routes catalog CRUD to schema `tenant_master` (responses include `iq_tenant_id` as a UUID string when the row is tenant-scoped). Omit the header for global rows in `public`.
+    routes catalog CRUD to schema `tenant_master` (responses include `iq_tenant_id` as a UUID string when the row is tenant-scoped). Omit the header for global rows in `global_master`.
 
     '
 servers:
