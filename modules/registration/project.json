@@ -1,0 +1,34 @@
+{
+  "name": "registration",
+  "tags": ["type:module", "scope:registration", "language:typescript"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "options": {
+        "outputPath": "dist/modules/registration",
+        "main": "modules/registration/src/index.ts",
+        "tsConfig": "modules/registration/tsconfig.json"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest run",
+        "cwd": "modules/registration"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "options": {
+        "lintFilePatterns": ["modules/registration/src/**/*.ts"]
+      }
+    },
+    "db:migrate": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsx scripts/apply-migration.ts",
+        "cwd": "modules/registration"
+      }
+    }
+  }
+}

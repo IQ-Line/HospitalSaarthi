@@ -97,6 +97,15 @@ Rationale, in one paragraph: A separate `registration` module gives the EM/tech-
 - *Bad:* Cross-cutting "platform schema" violates the one-concern-per-module rule and turns the platform schema into a junk drawer.
 - *Bad:* Operationally indistinguishable from Option B but with worse naming.
 
+## Registration status model (desk lifecycle)
+
+Stored statuses: `pending`, `in_progress`, `completed`, and `cancelled`.
+
+- **Normal intake:** `intake_completion` on create maps `pending` / `partial` → `pending` / `in_progress` and `complete` → `completed`; `POST /registrations/{id}/complete` marks the full desk chain done.
+- **`cancelled`:** Preserves operator intent when desk staff void an intake (legacy production had a cancel path). Migration `0003` maps legacy `routed` → `in_progress` only — it does **not** rewrite `cancelled` rows.
+
+Three active desk states are enough for routing UX; `cancelled` is a terminal audit state, not part of the happy-path intake progression.
+
 ## Links
 
 - Related ADRs:

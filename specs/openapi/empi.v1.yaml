@@ -43,18 +43,36 @@ paths:
     get:
       operationId: searchPatients
       summary: Search patients
+      description: |
+        Tenant-scoped lookup with **required** identity-style criteria (at least one of `uhid`,
+        `phone`, `mobile`, `abha_number`, or `name` with ≥2 characters). Combine with `status`,
+        `gender`, pagination (`page`, `limit` max 100), and `sort`/`order` for desk workflows.
+
+        **Phone / mobile:** `phone` and `mobile` are equivalent for matching — both compare against
+        stored `phone_number` **or** `alternate_phone` (exact string as stored).
+
+        **Name:** case-insensitive substring on `full_name`; uses `pg_trgm` GIN when migration
+        `0001_pg_trgm.sql` is applied.
+
+        **Performance:** UHID and phone matches use btree indexes; name search uses trigram GIN.
       tags: [Patients]
       parameters:
         - name: name
           in: query
           schema:
             type: string
-          description: Fuzzy search on full_name
+            minLength: 2
+          description: Substring match on `full_name` (minimum 2 characters when used as the primary criterion).
         - name: phone
           in: query
           schema:
             type: string
-          description: Exact match on phone_number
+          description: Exact match on `phone_number` or `alternate_phone` (same as `mobile`).
+        - name: mobile
+          in: query
+          schema:
+            type: string
+          description: Alias of `phone` for registration-desk wording; first non-empty of `mobile`/`phone` wins if both are sent.
         - name: uhid
           in: query
           schema:
@@ -70,15 +88,39 @@ paths:
           schema:
             type: string
             enum: [active, inactive, deceased]
+          description: Filter by patient status (optional; narrows other criteria).
+        - name: gender
+          in: query
+          schema:
+            type: string
+            enum: [male, female, other]
+          description: Optional filter on gender.
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [created_at, updated_at, full_name]
+            default: created_at
+          description: Sort column for the result page.
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+          description: Sort direction.
         - name: page
           in: query
           schema:
             type: integer
+            minimum: 1
             default: 1
         - name: limit
           in: query
           schema:
             type: integer
+            minimum: 1
+            maximum: 100
             default: 20
       responses:
         "200":
@@ -86,14 +128,13 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Patient"
-                  total:
-                    type: integer
+                $ref: "#/components/schemas/PatientSearchPage"
+        "400":
+          description: Missing or invalid search criteria (e.g. no keys, name too short)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PatientSearchError"
 
   /patients/{id}:
     get:
@@ -294,6 +335,45 @@ components:
         to:
           type: string
           enum: [active, inactive, deceased]
+
+    PatientSearchPage:
+      type: object
+      required: [data, total, page, limit, total_pages]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Patient"
+        total:
+          type: integer
+          description: Total rows matching the filter (all pages).
+        page:
+          type: integer
+          minimum: 1
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total_pages:
+          type: integer
+          minimum: 0
+          description: ceil(total / limit); 0 when total is 0.
+
+    PatientSearchError:
+      type: object
+      required: [statusCode, error, message, code]
+      properties:
+        statusCode:
+          type: integer
+          example: 400
+        error:
+          type: string
+          example: Bad Request
+        message:
+          type: string
+        code:
+          type: string
+          enum: [patient_search_invalid_query]
 
     CreatePatientRequest:
       type: object
