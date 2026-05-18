@@ -14,7 +14,7 @@
  */
 
 import type {
-  M1AadhaarOtpState,
+  M1SessionState,
   M2UserLinkState,
   M3HipState,
   M3HiuState,
@@ -33,7 +33,7 @@ export type AbdmFlowKind =
 
 /** Aggregate state name — discriminated by `flowKind` at the call site. */
 export type AbdmSessionState =
-  | M1AadhaarOtpState
+  | M1SessionState
   | M2UserLinkState
   | M3HipState
   | M3HiuState;

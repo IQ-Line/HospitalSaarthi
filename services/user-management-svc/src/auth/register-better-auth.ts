@@ -39,7 +39,13 @@ export async function registerBetterAuth(
         return reply.status(204).send();
       }
 
-      const host = request.headers.host ?? "localhost";
+      const xfHost = request.headers["x-forwarded-host"];
+      const host =
+        (typeof xfHost === "string" && xfHost.trim().length > 0
+          ? xfHost.trim()
+          : undefined) ??
+        request.headers.host ??
+        "localhost";
       const xfProto = request.headers["x-forwarded-proto"];
       const proto =
         typeof xfProto === "string" && xfProto.trim().length > 0 ? xfProto.trim() : "http";
@@ -62,9 +68,17 @@ export async function registerBetterAuth(
 
       const res = await auth.handler(req);
       reply.status(res.status);
+      const setCookies =
+        typeof res.headers.getSetCookie === "function" ? res.headers.getSetCookie() : [];
       res.headers.forEach((value, key) => {
+        if (key.toLowerCase() === "set-cookie") {
+          return;
+        }
         reply.header(key, value);
       });
+      if (setCookies.length > 0) {
+        reply.header("set-cookie", setCookies);
+      }
       const text = await res.text();
       return reply.send(text.length > 0 ? text : null);
     },

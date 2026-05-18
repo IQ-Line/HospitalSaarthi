@@ -1,1 +1,1 @@
-export { userManagementSchema, users, role_assignments } from "./tables.js";
+export { userManagementSchema, users, user_roles, user_capabilities } from "./tables.js";

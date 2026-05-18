@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { betterAuth, type Auth } from "better-auth";
+import { symmetricDecrypt } from "better-auth/crypto";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { bearer, jwt } from "better-auth/plugins";
 import type { DbInstance } from "@hims/ts-sdk-db";
@@ -7,7 +8,7 @@ import {
   loadIdentityJwtClaims,
   type IdentityJwtClaimsDeps,
 } from "@hims/user-management";
-import { authSchema } from "./auth-schema.js";
+import { authJwks, authSchema } from "./auth-schema.js";
 
 export type HimsBetterAuthEnv = {
   /** Public base URL of this service (e.g. `http://127.0.0.1:3000`). Used as better-auth `baseURL`. */
@@ -18,6 +19,59 @@ export type HimsBetterAuthEnv = {
   trustedOrigins: string[];
   disableJwtPrivateKeyEncryption: boolean;
 };
+
+function shouldAutoRepairJwks(env: HimsBetterAuthEnv): boolean {
+  if (process.env.NODE_ENV === "production") {
+    return false;
+  }
+
+  try {
+    const { hostname } = new URL(env.authBaseUrl);
+    return hostname === "localhost" || hostname === "127.0.0.1";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Dev-only safety valve: if the stored JWKS private keys were encrypted with an
+ * older BETTER_AUTH_SECRET, Better Auth cannot mint session JWTs and login
+ * stalls forever. In local dev we can safely drop the stale signing keys so the
+ * plugin regenerates them with the current secret on the next request.
+ */
+export async function repairJwksForDevelopment(
+  db: DbInstance,
+  env: HimsBetterAuthEnv,
+): Promise<boolean> {
+  if (!shouldAutoRepairJwks(env) || env.disableJwtPrivateKeyEncryption) {
+    return false;
+  }
+
+  const jwksRows = await db
+    .select({
+      id: authJwks.id,
+      privateKey: authJwks.privateKey,
+    })
+    .from(authJwks);
+
+  for (const row of jwksRows) {
+    try {
+      const encryptedPrivateKey = JSON.parse(row.privateKey);
+      if (typeof encryptedPrivateKey !== "string") {
+        throw new Error("JWKS private key is not stored as an encrypted string");
+      }
+      await symmetricDecrypt({ key: env.secret, data: encryptedPrivateKey });
+    } catch {
+      await db.delete(authJwks);
+      console.warn(
+        "Detected undecryptable better-auth JWKS rows in local development; cleared auth.jwks so signing keys can be regenerated with the current secret.",
+      );
+      return true;
+    }
+  }
+
+  return false;
+}
 
 /**
  * better-auth: sessions, bearer, refresh lifecycle, RS256 JWT + JWKS.

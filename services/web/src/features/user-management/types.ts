@@ -25,7 +25,10 @@ export type CreateUserBody = {
   org_id?: string | null;
   department?: string | null;
   clearance_tier_required?: number;
-  role_ids?: string[];
+  capability_ids?: string[];
+  role_template_ids?: string[];
+  /** Subset of role capabilities; requires exactly one `role_template_ids` entry when present. */
+  role_template_capability_ids?: string[];
 };
 
 export type UpdateUserBody = {
@@ -40,17 +43,6 @@ export type UpdateUserBody = {
   auth_user_id?: string | null;
 };
 
-export type RoleAssignment = {
-  id: string;
-  user_id: string;
-  role_id: string;
-};
-
-export type AssignRoleBody = {
-  user_id: string;
-  role_id: string;
-};
-
 export type Capability = {
   id: string;
   capability_key: string;
@@ -60,6 +52,9 @@ export type Capability = {
   display_name: string;
   description?: string | null;
   is_active: boolean;
+  source_module_slug?: string | null;
+  source_permission_slug?: string | null;
+  source_catalog?: "master_data" | null;
 };
 
 export type UmRole = {
@@ -89,4 +84,55 @@ export type UpdateRoleBody = {
 
 export type ReplaceRoleCapabilitiesBody = {
   capability_ids: string[];
+};
+
+export type ReplaceUserCapabilitiesBody = {
+  capability_ids: string[];
+};
+
+export type ApplyRoleTemplateBody = {
+  role_id: string;
+  role_template_capability_ids?: string[];
+};
+
+export type UserCapabilityGrantSource = 'manual' | 'role_template' | 'delegated' | 'system';
+
+export type AppliedRoleTemplate = {
+  id: string;
+  user_id: string;
+  role_id: string;
+  assigned_by_user_id: string | null;
+  assigned_at: string;
+  role: UmRole;
+};
+
+export type UserCapabilityGrant = {
+  id: string;
+  user_id: string;
+  capability_id: string;
+  capability_key: string;
+  module: string;
+  feature: string;
+  action: string;
+  display_name: string;
+  description?: string | null;
+  grant_source: UserCapabilityGrantSource;
+  source_role_id: string | null;
+  granted_by_user_id: string | null;
+  granted_at: string;
+  revoked_at: string | null;
+  revoked_by_user_id: string | null;
+};
+
+export type UserCapabilitiesSnapshot = {
+  direct_grants: UserCapabilityGrant[];
+  copied_grants: UserCapabilityGrant[];
+  role_templates: AppliedRoleTemplate[];
+};
+
+export type UserEffectiveCapabilities = {
+  capability_keys: string[];
+  delegated_capability_keys: string[];
+  clearances: Record<string, string>;
+  um_clearance_effective_tier: number;
 };

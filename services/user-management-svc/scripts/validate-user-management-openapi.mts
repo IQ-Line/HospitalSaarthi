@@ -14,15 +14,16 @@ import Fastify from "fastify";
 import fp from "fastify-plugin";
 import SwaggerParser from "@apidevtools/swagger-parser";
 import type {
+  AppliedRoleTemplate,
   Capability,
   Role,
-  RoleAssignment,
-  RoleAssignmentRef,
-  RoleAssignmentRepository,
+  PrincipalAuthorizationRepository,
   PrincipalRoleProjectionRepository,
   ReplaceRoleCapabilitiesInput,
   RoleCapabilityRepository,
   RoleRepository,
+  UserAccessRepository,
+  UserCapabilityGrant,
   User,
   UserRepository,
   UserWithTenant,
@@ -94,23 +95,20 @@ const identityStubPlugin = fp(
   { name: "@hims/ts-sdk-identity-stub" },
 );
 
-class NoopRoleAssignmentRepository implements RoleAssignmentRepository {
-  async assignRole(): Promise<RoleAssignment> {
+class NoopUserAccessRepository implements UserAccessRepository {
+  async applyRoleTemplate(): Promise<AppliedRoleTemplate> {
     throw new Error("not implemented");
   }
-  async revokeRole(): Promise<RoleAssignment | null> {
+  async detachRoleTemplate(): Promise<AppliedRoleTemplate | null> {
     return null;
   }
-  async listAssignments(): Promise<RoleAssignmentRef[]> {
+  async listRoleTemplatesByUser(): Promise<AppliedRoleTemplate[]> {
     return [];
   }
-  async listAssignmentsByUser(): Promise<RoleAssignmentRef[]> {
+  async listActiveCapabilityGrantsByUser(): Promise<UserCapabilityGrant[]> {
     return [];
   }
-  async listAssignmentsByRole(): Promise<RoleAssignmentRef[]> {
-    return [];
-  }
-  async listAssignmentsByTenant(): Promise<RoleAssignmentRef[]> {
+  async replaceManualCapabilityGrants(): Promise<UserCapabilityGrant[]> {
     return [];
   }
 }
@@ -149,7 +147,22 @@ class StubCapabilityRepository {
   async listCapabilitiesByKeys(): Promise<Capability[]> {
     return [];
   }
+  async listActiveRuntimeCapabilitiesByModuleSlugs(): Promise<Capability[]> {
+    return [];
+  }
 }
+
+const noopTenantModuleEntitlementPort = {
+  async listTenantEnabledModuleIds(): Promise<string[]> {
+    return [];
+  },
+};
+
+const noopMasterDataModuleCatalogPort = {
+  async resolveModuleSlugsByIds(): Promise<Map<string, string>> {
+    return new Map();
+  },
+};
 
 class NoopRoleCapabilityRepository implements RoleCapabilityRepository {
   async listCapabilitiesByRole(): Promise<Capability[]> {
@@ -169,6 +182,18 @@ class NoopPrincipalRoleProjectionRepository implements PrincipalRoleProjectionRe
     return [];
   }
   clearCache(): void {}
+}
+
+class NoopPrincipalAuthorizationRepository implements PrincipalAuthorizationRepository {
+  async listEffectiveCapabilityKeys(): Promise<string[]> {
+    return [];
+  }
+  async getClearanceLevels(): Promise<Record<string, string>> {
+    return {};
+  }
+  async listDelegatedCapabilityKeys(): Promise<string[]> {
+    return [];
+  }
 }
 
 class StubUserRepository implements UserRepository {
@@ -221,11 +246,24 @@ async function main(): Promise<void> {
       await instance.register(userManagementPlugin, {
         eventBus: noopEventBus as never,
         userRepository: new StubUserRepository(),
+        userProvisioningRepository: {
+          async provisionUserWithAccess() {
+            throw new Error("USER_PROVISIONING_NOT_IMPLEMENTED");
+          },
+        },
         capabilityRepository: new StubCapabilityRepository(),
         roleRepository: new StubRoleRepository(),
         roleCapabilityRepository: new NoopRoleCapabilityRepository(),
-        roleAssignmentRepository: new NoopRoleAssignmentRepository(),
+        userAccessRepository: new NoopUserAccessRepository(),
         principalRoleProjectionRepository: new NoopPrincipalRoleProjectionRepository(),
+        principalAuthorizationRepository: new NoopPrincipalAuthorizationRepository(),
+        authAccountProvisioner: {
+          async createPasswordAccount(input: { platformUserId: string }) {
+            return { authUserId: input.platformUserId };
+          },
+        },
+        tenantModuleEntitlementPort: noopTenantModuleEntitlementPort,
+        masterDataModuleCatalogPort: noopMasterDataModuleCatalogPort,
       });
     },
     { prefix: "/api/user-management" },

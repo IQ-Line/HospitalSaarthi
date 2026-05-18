@@ -110,33 +110,93 @@ CREATE INDEX IF NOT EXISTS idx_role_capabilities_tenant_role
 CREATE INDEX IF NOT EXISTS idx_role_capabilities_capability
   ON user_management.role_capabilities (capability_id);
 
-CREATE TABLE IF NOT EXISTS user_management.role_assignments (
+CREATE TABLE IF NOT EXISTS user_management.user_roles (
   iq_tenant_id uuid NOT NULL,
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL,
   role_id uuid NOT NULL,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT pk_role_assignments PRIMARY KEY (iq_tenant_id, id),
-  CONSTRAINT fk_role_assignments_tenant_user
+  assigned_by_user_id uuid,
+  assigned_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT pk_user_roles PRIMARY KEY (iq_tenant_id, id),
+  CONSTRAINT fk_user_roles_tenant_user
     FOREIGN KEY (iq_tenant_id, user_id)
     REFERENCES user_management.users (iq_tenant_id, id)
     ON DELETE RESTRICT
     ON UPDATE RESTRICT,
-  CONSTRAINT fk_role_assignments_tenant_role
+  CONSTRAINT fk_user_roles_tenant_role
     FOREIGN KEY (iq_tenant_id, role_id)
     REFERENCES user_management.roles (iq_tenant_id, id)
+    ON DELETE RESTRICT
+    ON UPDATE RESTRICT,
+  CONSTRAINT fk_user_roles_tenant_assigned_by_user
+    FOREIGN KEY (iq_tenant_id, assigned_by_user_id)
+    REFERENCES user_management.users (iq_tenant_id, id)
     ON DELETE RESTRICT
     ON UPDATE RESTRICT
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_role_assignments_tenant_user_role
-  ON user_management.role_assignments (iq_tenant_id, user_id, role_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_user_roles_tenant_user_role
+  ON user_management.user_roles (iq_tenant_id, user_id, role_id);
 
-CREATE INDEX IF NOT EXISTS idx_role_assignments_tenant_user
-  ON user_management.role_assignments (iq_tenant_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_user_roles_tenant_user
+  ON user_management.user_roles (iq_tenant_id, user_id);
 
-CREATE INDEX IF NOT EXISTS idx_role_assignments_tenant_role
-  ON user_management.role_assignments (iq_tenant_id, role_id);
+CREATE INDEX IF NOT EXISTS idx_user_roles_tenant_role
+  ON user_management.user_roles (iq_tenant_id, role_id);
+
+CREATE TABLE IF NOT EXISTS user_management.user_capabilities (
+  iq_tenant_id uuid NOT NULL,
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  capability_id uuid NOT NULL,
+  grant_source text NOT NULL,
+  source_role_id uuid,
+  granted_by_user_id uuid,
+  granted_at timestamptz NOT NULL DEFAULT now(),
+  revoked_at timestamptz,
+  revoked_by_user_id uuid,
+  CONSTRAINT pk_user_capabilities PRIMARY KEY (iq_tenant_id, id),
+  CONSTRAINT fk_user_capabilities_tenant_user
+    FOREIGN KEY (iq_tenant_id, user_id)
+    REFERENCES user_management.users (iq_tenant_id, id)
+    ON DELETE RESTRICT
+    ON UPDATE RESTRICT,
+  CONSTRAINT fk_user_capabilities_capability
+    FOREIGN KEY (capability_id)
+    REFERENCES user_management.capabilities (id)
+    ON DELETE RESTRICT
+    ON UPDATE RESTRICT,
+  CONSTRAINT fk_user_capabilities_tenant_source_role
+    FOREIGN KEY (iq_tenant_id, source_role_id)
+    REFERENCES user_management.roles (iq_tenant_id, id)
+    ON DELETE RESTRICT
+    ON UPDATE RESTRICT,
+  CONSTRAINT fk_user_capabilities_tenant_granted_by_user
+    FOREIGN KEY (iq_tenant_id, granted_by_user_id)
+    REFERENCES user_management.users (iq_tenant_id, id)
+    ON DELETE RESTRICT
+    ON UPDATE RESTRICT,
+  CONSTRAINT fk_user_capabilities_tenant_revoked_by_user
+    FOREIGN KEY (iq_tenant_id, revoked_by_user_id)
+    REFERENCES user_management.users (iq_tenant_id, id)
+    ON DELETE RESTRICT
+    ON UPDATE RESTRICT,
+  CONSTRAINT user_capabilities_grant_source_chk CHECK (
+    grant_source IN ('manual', 'role_template', 'delegated', 'system')
+  )
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_user_capabilities_tenant_user_capability
+  ON user_management.user_capabilities (iq_tenant_id, user_id, capability_id);
+
+CREATE INDEX IF NOT EXISTS idx_user_capabilities_tenant_user
+  ON user_management.user_capabilities (iq_tenant_id, user_id);
+
+CREATE INDEX IF NOT EXISTS idx_user_capabilities_tenant_user_revoked
+  ON user_management.user_capabilities (iq_tenant_id, user_id, revoked_at);
+
+CREATE INDEX IF NOT EXISTS idx_user_capabilities_tenant_capability
+  ON user_management.user_capabilities (iq_tenant_id, capability_id);
 
 CREATE TABLE IF NOT EXISTS user_management.delegated_capability_grants (
   iq_tenant_id uuid NOT NULL,

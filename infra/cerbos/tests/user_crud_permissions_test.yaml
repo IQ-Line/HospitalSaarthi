@@ -8,7 +8,8 @@ description: >-
 principals:
   full_crud:
     id: um-admin
-    roles: []
+    roles:
+      - "_unresolved"
     attr:
       iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
       org_id: null
@@ -24,7 +25,8 @@ principals:
 
   read_only:
     id: um-viewer
-    roles: []
+    roles:
+      - "_unresolved"
     attr:
       iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
       org_id: null
@@ -37,7 +39,8 @@ principals:
 
   update_only:
     id: um-editor
-    roles: []
+    roles:
+      - "_unresolved"
     attr:
       iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
       org_id: null

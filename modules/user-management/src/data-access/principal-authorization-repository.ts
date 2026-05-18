@@ -4,36 +4,62 @@ import type { PrincipalAuthorizationRepository } from "../ports/index.js";
 import {
   capabilities,
   delegated_capability_grants,
-  role_assignments,
   role_capabilities,
+  roles,
+  user_capabilities,
   user_clearances,
+  user_roles,
 } from "../schema/tables.js";
 
 export class DrizzlePrincipalAuthorizationRepository implements PrincipalAuthorizationRepository {
   constructor(private readonly db: DbInstance) {}
 
   async listEffectiveCapabilityKeys(tenantId: string, userId: string): Promise<string[]> {
-    const rows = await this.db
-      .select({ capability_key: capabilities.capability_key })
-      .from(role_assignments)
-      .innerJoin(
-        role_capabilities,
-        and(
-          eq(role_capabilities.iq_tenant_id, role_assignments.iq_tenant_id),
-          eq(role_capabilities.role_id, role_assignments.role_id),
+    const [directRows, roleRows] = await Promise.all([
+      this.db
+        .select({ capability_key: capabilities.capability_key })
+        .from(user_capabilities)
+        .innerJoin(capabilities, eq(user_capabilities.capability_id, capabilities.id))
+        .where(
+          and(
+            eq(user_capabilities.iq_tenant_id, tenantId),
+            eq(user_capabilities.user_id, userId),
+            isNull(user_capabilities.revoked_at),
+          ),
         ),
-      )
-      .innerJoin(capabilities, eq(role_capabilities.capability_id, capabilities.id))
-      .where(
-        and(
-          eq(role_assignments.iq_tenant_id, tenantId),
-          eq(role_assignments.user_id, userId),
+      this.db
+        .select({ capability_key: capabilities.capability_key })
+        .from(user_roles)
+        .innerJoin(
+          roles,
+          and(eq(user_roles.iq_tenant_id, roles.iq_tenant_id), eq(user_roles.role_id, roles.id)),
+        )
+        .innerJoin(
+          role_capabilities,
+          and(
+            eq(user_roles.iq_tenant_id, role_capabilities.iq_tenant_id),
+            eq(user_roles.role_id, role_capabilities.role_id),
+          ),
+        )
+        .innerJoin(capabilities, eq(role_capabilities.capability_id, capabilities.id))
+        .where(
+          and(
+            eq(user_roles.iq_tenant_id, tenantId),
+            eq(user_roles.user_id, userId),
+            eq(roles.status, "active"),
+          ),
         ),
-      );
+    ]);
 
-    return [...new Set(rows.map((row) => row.capability_key.trim()).filter(Boolean))].sort(
-      (a, b) => a.localeCompare(b),
-    );
+    const keys = new Set<string>();
+    for (const row of [...directRows, ...roleRows]) {
+      const key = row.capability_key.trim();
+      if (key.length > 0) {
+        keys.add(key);
+      }
+    }
+
+    return [...keys].sort((a, b) => a.localeCompare(b));
   }
 
   async getClearanceLevels(tenantId: string, userId: string): Promise<Record<string, string>> {
