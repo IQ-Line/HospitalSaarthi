@@ -13,7 +13,7 @@ describe("abhaAddressSuggestionsRequest", () => {
       iqTenantId: TENANT,
       sessionId: SID,
       flowKind: "abdm.m1.aadhaar-otp.v1",
-      state: "OTP_VERIFIED",
+      state: "MOBILE_OTP_VERIFIED",
       txnId: "chain-txn",
       requestId: null,
       xToken: "jwt",
@@ -61,7 +61,10 @@ describe("abhaAddressSuggestionsRequest", () => {
       abhaAddressList: ["a", "b"],
     });
 
-    const out = await abhaAddressSuggestionsRequest({ sessionId: SID }, deps, TENANT);
+    const out = await abhaAddressSuggestionsRequest(
+      { sessionId: SID, iqTenantId: TENANT },
+      deps,
+    );
 
     expect(out.suggestions).toEqual(["a", "b"]);
     expect(out.txnId).toBe("suggestion-txn");

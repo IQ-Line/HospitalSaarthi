@@ -10,6 +10,7 @@ import { loadM1ProfileSession } from "./load-m1-profile-session.js";
 import { nhaProfileXTokenHeaders } from "./nha-profile-headers.js";
 import { encryptLoginIdWithAbdmPublicKey } from "./rsa-abdm-login-id.js";
 import { AbdmUseCaseError } from "./m1-errors.js";
+import { assertM1OtpRateLimit } from "./m1-otp-rate-limit.js";
 
 const PROFILE_UPDATE_SCOPES_KEY = "profileUpdateScopes";
 const PROFILE_UPDATE_TXN_KEY = "profileUpdateTxnId";
@@ -29,6 +30,7 @@ export async function m1ProfileUpdateSendOtp(
   iqTenantId: string,
   input: { sessionId: string; channel: ProfileUpdateChannel; plainValue: string },
 ): Promise<{ sessionId: string; txnId: string; message: string }> {
+  assertM1OtpRateLimit(iqTenantId, "profile-update-otp");
   const session = await loadM1ProfileSession(deps.sessions, iqTenantId, input.sessionId);
   const { scope, loginHint } = channelConfig(input.channel);
   const cert = await deps.gateway.getPublicCertificate();

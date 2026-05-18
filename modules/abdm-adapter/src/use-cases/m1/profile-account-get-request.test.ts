@@ -54,7 +54,10 @@ describe("profileAccountGetRequest", () => {
 
     vi.mocked(deps.gateway.get).mockResolvedValue({ ABHANumber: "x" });
 
-    const out = await profileAccountGetRequest({ sessionId: SID }, deps, TENANT);
+    const out = await profileAccountGetRequest(
+      { sessionId: SID, iqTenantId: TENANT },
+      deps,
+    );
 
     expect(out.profile).toEqual({ ABHANumber: "x" });
     expect(deps.gateway.get).toHaveBeenCalledWith(

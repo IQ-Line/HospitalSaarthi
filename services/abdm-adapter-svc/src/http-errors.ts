@@ -62,7 +62,7 @@ export function registerHttpErrorHandler(app: {
         return reply.status(503).send({
           error: "Service Unavailable",
           message:
-            "Database authentication failed — verify ABDM_DATA_DATABASE_URL (postgresql://user:password@host:port/db?sslmode=require for Azure)",
+            "Database authentication failed — verify DATABASE_URL (postgresql://user:password@host:port/db?sslmode=require for Azure)",
         });
       }
       return reply.status(503).send({

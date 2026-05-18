@@ -25,9 +25,13 @@ export interface VerifyConfirmHimsRequest {
   otp: string;
 }
 
+import type { LoginAccountSummary } from "./login.js";
+
 export interface VerifyConfirmHimsResponse {
   sessionId: string;
   txnId: string;
   message: string;
   authResult?: string;
+  accounts?: LoginAccountSummary[];
+  needsUserSelection?: boolean;
 }

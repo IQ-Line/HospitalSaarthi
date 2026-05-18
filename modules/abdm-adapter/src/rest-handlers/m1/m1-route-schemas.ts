@@ -82,6 +82,58 @@ export const profileUpdateMobileOtpBodySchema = {
   },
 };
 
+export const aadhaarOtpResendBodySchema = {
+  type: "object" as const,
+  required: ["sessionId", "aadhaarNumber"],
+  additionalProperties: false,
+  properties: {
+    sessionId: uuidParam,
+    aadhaarNumber: { type: "string", pattern: "^\\d{12}$" },
+  },
+};
+
+export const enrolAadhaarVerifyBodySchema = {
+  type: "object" as const,
+  required: ["sessionId", "otp"],
+  additionalProperties: false,
+  properties: {
+    sessionId: uuidParam,
+    otp: { type: "string", pattern: "^\\d{6}$" },
+    mobile: { type: "string", pattern: "^\\d{10}$" },
+  },
+};
+
+export const mobileVerifyOtpBodySchema = {
+  type: "object" as const,
+  required: ["sessionId", "mobile"],
+  additionalProperties: false,
+  properties: {
+    sessionId: uuidParam,
+    mobile: { type: "string", pattern: "^\\d{10}$" },
+  },
+};
+
+export const abhaAddressCreateBodySchema = {
+  type: "object" as const,
+  required: ["sessionId", "abhaAddress"],
+  additionalProperties: false,
+  properties: {
+    sessionId: uuidParam,
+    abhaAddress: { type: "string", minLength: 3 },
+    preferred: { type: ["number", "string"] },
+  },
+};
+
+export const loginVerifyUserBodySchema = {
+  type: "object" as const,
+  required: ["sessionId", "abhaNumber"],
+  additionalProperties: false,
+  properties: {
+    sessionId: uuidParam,
+    abhaNumber: { type: "string", minLength: 14 },
+  },
+};
+
 export const profileUpdateEmailOtpBodySchema = {
   type: "object" as const,
   required: ["sessionId", "email"],

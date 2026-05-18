@@ -5,14 +5,17 @@ import type {
   NhaStandaloneMobileEnrolOtpResponse,
 } from "@hims/ts-sdk-abha/protocol/m1";
 import type { AbdmAdapterDeps } from "../../ports.js";
+import type { AbdmTenantInput } from "../../ports.js";
 import { encryptLoginIdWithAbdmPublicKey } from "../../lib/rsa-abdm-login-id.js";
 import { AbdmUseCaseError } from "../../lib/m1-errors.js";
+import { assertM1OtpRateLimit } from "../../lib/m1-otp-rate-limit.js";
 
 export async function enrolMobileOtpRequest(
-  input: EnrolMobileOtpHimsRequest,
+  input: AbdmTenantInput<EnrolMobileOtpHimsRequest>,
   deps: AbdmAdapterDeps,
-  iqTenantId: string,
 ): Promise<EnrolMobileOtpHimsResponse> {
+  const iqTenantId = input.iqTenantId;
+  assertM1OtpRateLimit(iqTenantId, "enrol-mobile-otp");
   const mobile = String(input.mobile ?? "").replace(/\D/g, "");
   if (mobile.length !== 10) {
     throw new AbdmUseCaseError("mobile must be exactly 10 digits", 400);

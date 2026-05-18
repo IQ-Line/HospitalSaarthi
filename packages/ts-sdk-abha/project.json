@@ -4,6 +4,7 @@
   "targets": {
     "build": {
       "command": "tsc -p tsconfig.json",
+      "dependsOn": ["ts-sdk-fhir:build"],
       "options": {
         "cwd": "packages/ts-sdk-abha"
       },

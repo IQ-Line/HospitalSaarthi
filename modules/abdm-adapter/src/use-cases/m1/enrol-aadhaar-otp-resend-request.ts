@@ -4,9 +4,11 @@ import type {
   NhaEnrolmentRequestOtpResponse,
 } from "@hims/ts-sdk-abha/protocol/m1";
 import type { AbdmAdapterDeps } from "../../ports.js";
+import type { AbdmTenantInput } from "../../ports.js";
 import { encryptLoginIdWithAbdmPublicKey } from "../../lib/rsa-abdm-login-id.js";
 import { AbdmUseCaseError } from "../../lib/m1-errors.js";
 import { aadhaarMatchesSessionMask } from "../../lib/m1-aadhaar-mask.js";
+import { assertM1OtpRateLimit } from "../../lib/m1-otp-rate-limit.js";
 
 export interface EnrolAadhaarOtpResendHimsRequest {
   sessionId: string;
@@ -14,10 +16,11 @@ export interface EnrolAadhaarOtpResendHimsRequest {
 }
 
 export async function enrolAadhaarOtpResendRequest(
-  input: EnrolAadhaarOtpResendHimsRequest,
+  input: AbdmTenantInput<EnrolAadhaarOtpResendHimsRequest>,
   deps: AbdmAdapterDeps,
-  iqTenantId: string,
 ): Promise<EnrolAadhaarOtpHimsResponse> {
+  const iqTenantId = input.iqTenantId;
+  assertM1OtpRateLimit(iqTenantId, "enrol-aadhaar-resend");
   const digits = String(input.aadhaarNumber ?? "").replace(/\D/g, "");
   if (!/^\d{12}$/.test(digits)) {
     throw new AbdmUseCaseError("aadhaarNumber must be exactly 12 digits", 400);
@@ -32,9 +35,9 @@ export async function enrolAadhaarOtpResendRequest(
   if (session.flowKind !== "abdm.m1.aadhaar-otp.v1") {
     throw new AbdmUseCaseError("invalid session flow", 400);
   }
-  if (session.state !== "OTP_REQUESTED") {
+  if (session.state !== "AADHAAR_OTP_REQUESTED") {
     throw new AbdmUseCaseError(
-      `session state must be OTP_REQUESTED, got ${session.state}`,
+      `session state must be AADHAAR_OTP_REQUESTED, got ${session.state}`,
       409,
       "CONFLICT",
     );

@@ -483,7 +483,24 @@ paths:
               $ref: "#/components/schemas/EnrolMobileVerifyConfirmRequest"
       responses:
         "200":
-          description: Login verified; x_token stored on session
+          description: Login verified; x_token stored on session (or accounts list when mobile multi-ABHA)
+
+  /m1/login/verify/user:
+    post:
+      operationId: abdmM1LoginVerifyUser
+      summary: Login — select ABHA account after mobile OTP (NHA verify/user)
+      tags: [M1-Login]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginVerifyUserRequest"
+      responses:
+        "200":
+          description: Profile x_token stored on session
 
   /m1/verify/abha-number/otp:
     post:
@@ -549,6 +566,23 @@ paths:
       responses:
         "200":
           description: OTP dispatched
+
+  /m1/verify/abha-number/verify/user:
+    post:
+      operationId: abdmM1VerifyAbhaNumberVerifyUser
+      summary: Frontdesk verify — select ABHA after mobile OTP (NHA verify/user)
+      tags: [M1-Verify]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginVerifyUserRequest"
+      responses:
+        "200":
+          description: Profile x_token stored on session
 
   /m1/verify/abha-address/verify:
     post:
@@ -794,6 +828,29 @@ components:
           pattern: "^\\d{6}$"
 
     EnrolMobileVerifyConfirmResponse:
+      type: object
+      required: [sessionId, txnId, message]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        txnId:
+          type: string
+        message:
+          type: string
+
+    LoginVerifyUserRequest:
+      type: object
+      required: [sessionId, abhaNumber]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        abhaNumber:
+          type: string
+          description: 14-digit ABHA number (hyphens optional)
+
+    LoginVerifyUserResponse:
       type: object
       required: [sessionId, txnId, message]
       properties:

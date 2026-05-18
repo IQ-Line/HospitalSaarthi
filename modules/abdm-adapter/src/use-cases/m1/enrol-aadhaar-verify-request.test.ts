@@ -13,7 +13,7 @@ function baseSession(overrides: Partial<AbdmSession> = {}): AbdmSession {
     iqTenantId: TENANT,
     sessionId: SID,
     flowKind: "abdm.m1.aadhaar-otp.v1",
-    state: "OTP_REQUESTED",
+    state: "AADHAAR_OTP_REQUESTED",
     txnId: "txn-from-otp",
     requestId: null,
     xToken: null,
@@ -101,9 +101,8 @@ describe("enrolAadhaarVerifyRequest", () => {
     });
 
     const out = await enrolAadhaarVerifyRequest(
-      { sessionId: SID, otp: "123456" },
+      { sessionId: SID, otp: "123456", iqTenantId: TENANT },
       deps,
-      TENANT,
     );
 
     expect(out.txnId).toBe("txn-after-create");

@@ -31,3 +31,4 @@ export { EnvSecretsClient } from "./data-access/env-secrets.client.js";
 export { FideliusEncryptorStub } from "./data-access/fidelius.js";
 export { AbdmGatewayError, parseNhaErrorBody } from "./lib/gateway-errors.js";
 export { AbdmUseCaseError } from "./lib/m1-errors.js";
+export { requireSessionTokenCryptoInProd } from "./lib/session-token-crypto.js";

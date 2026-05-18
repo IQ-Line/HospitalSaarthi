@@ -13,7 +13,7 @@ function sessionRow(overrides: Partial<AbdmSession> = {}): AbdmSession {
     iqTenantId: TENANT,
     sessionId: SID,
     flowKind: "abdm.m1.aadhaar-otp.v1",
-    state: "OTP_VERIFIED",
+    state: "MOBILE_OTP_VERIFIED",
     txnId: "chain-txn",
     requestId: null,
     xToken: "jwt",
@@ -58,9 +58,8 @@ describe("abhaAddressCreateRequest", () => {
 
     await expect(
       abhaAddressCreateRequest(
-        { sessionId: SID, abhaAddress: "valid_name", preferred: 0 },
+        { sessionId: SID, abhaAddress: "valid_name", preferred: 0, iqTenantId: TENANT },
         deps,
-        TENANT,
       ),
     ).rejects.toThrow(AbdmUseCaseError);
 
@@ -102,9 +101,8 @@ describe("abhaAddressCreateRequest", () => {
     };
 
     const out = await abhaAddressCreateRequest(
-      { sessionId: SID, abhaAddress: "valid_name" },
+      { sessionId: SID, abhaAddress: "valid_name", iqTenantId: TENANT },
       deps,
-      TENANT,
     );
 
     expect(out.txnId).toBe("new-txn");

@@ -5,15 +5,16 @@ import type {
   NhaEnrolAuthByAbdmResponse,
 } from "@hims/ts-sdk-abha/protocol/m1";
 import type { AbdmAdapterDeps } from "../../ports.js";
-import { abdmOtpTimestampLocal } from "../../lib/abdm-otp-timestamp.js";
+import type { AbdmTenantInput } from "../../ports.js";
+import { abdmOtpTimestampIst } from "../../lib/abdm-otp-timestamp.js";
 import { encryptLoginIdWithAbdmPublicKey } from "../../lib/rsa-abdm-login-id.js";
 import { AbdmUseCaseError } from "../../lib/m1-errors.js";
 
 export async function enrolMobileVerifyRequest(
-  input: EnrolMobileVerifyStandaloneHimsRequest,
+  input: AbdmTenantInput<EnrolMobileVerifyStandaloneHimsRequest>,
   deps: AbdmAdapterDeps,
-  iqTenantId: string,
 ): Promise<EnrolMobileVerifyStandaloneHimsResponse> {
+  const iqTenantId = input.iqTenantId;
   const otp = String(input.otp ?? "").trim();
   if (!/^\d{6}$/.test(otp)) {
     throw new AbdmUseCaseError("otp must be exactly 6 digits", 400);
@@ -45,7 +46,7 @@ export async function enrolMobileVerifyRequest(
     authData: {
       authMethods: ["otp"],
       otp: {
-        timeStamp: abdmOtpTimestampLocal(),
+        timeStamp: abdmOtpTimestampIst(),
         txnId: session.txnId,
         otpValue,
       },

@@ -3,14 +3,15 @@ import type {
   LoginAbhaNumberOtpHimsResponse,
 } from "@hims/ts-sdk-abha/protocol/m1";
 import type { AbdmAdapterDeps } from "../../ports.js";
+import type { AbdmTenantInput } from "../../ports.js";
 import { m1LoginOtpSend } from "../../lib/m1-login-otp-flow.js";
 import { AbdmUseCaseError } from "../../lib/m1-errors.js";
 
 export async function loginMobileOtpRequest(
-  input: LoginMobileOtpHimsRequest,
+  input: AbdmTenantInput<LoginMobileOtpHimsRequest>,
   deps: AbdmAdapterDeps,
-  iqTenantId: string,
 ): Promise<LoginAbhaNumberOtpHimsResponse> {
+  const iqTenantId = input.iqTenantId;
   const mobile = String(input.mobile ?? "").replace(/\D/g, "");
   if (mobile.length !== 10) {
     throw new AbdmUseCaseError("mobile must be exactly 10 digits", 400);

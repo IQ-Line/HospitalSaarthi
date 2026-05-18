@@ -5,14 +5,15 @@ import type {
   NhaCreateAbhaAddressResponse,
 } from "@hims/ts-sdk-abha/protocol/m1";
 import type { AbdmAdapterDeps } from "../../ports.js";
+import type { AbdmTenantInput } from "../../ports.js";
 import { AbdmUseCaseError } from "../../lib/m1-errors.js";
 import { assertAadhaarEnrolMobileVerified } from "../../lib/m1-enrol-chain-guards.js";
 
 export async function abhaAddressCreateRequest(
-  input: CreateAbhaAddressHimsRequest,
+  input: AbdmTenantInput<CreateAbhaAddressHimsRequest>,
   deps: AbdmAdapterDeps,
-  iqTenantId: string,
 ): Promise<CreateAbhaAddressHimsResponse> {
+  const iqTenantId = input.iqTenantId;
   const addr = String(input.abhaAddress ?? "").trim();
   if (addr.length < 3 || addr.length > 64) {
     throw new AbdmUseCaseError("abhaAddress length invalid", 400);

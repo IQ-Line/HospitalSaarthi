@@ -3,14 +3,15 @@ import type {
   NhaAbhaAddressSuggestionResponse,
 } from "@hims/ts-sdk-abha/protocol/m1";
 import type { AbdmAdapterDeps } from "../../ports.js";
+import type { AbdmTenantInput } from "../../ports.js";
 import { AbdmUseCaseError } from "../../lib/m1-errors.js";
 import { assertAadhaarEnrolMobileVerified } from "../../lib/m1-enrol-chain-guards.js";
 
 export async function abhaAddressSuggestionsRequest(
-  input: { sessionId: string },
+  input: AbdmTenantInput<{ sessionId: string }>,
   deps: AbdmAdapterDeps,
-  iqTenantId: string,
 ): Promise<AbhaAddressSuggestionsHimsResponse> {
+  const iqTenantId = input.iqTenantId;
   const session = await deps.sessions.findById({
     iqTenantId,
     sessionId: input.sessionId,

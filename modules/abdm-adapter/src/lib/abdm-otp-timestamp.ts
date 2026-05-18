@@ -1,6 +1,12 @@
-/** NHA mobile-verify OTP expects `YYYY-MM-DD HH:mm:ss` (see milestone1.md). */
-export function abdmOtpTimestampLocal(): string {
-  const d = new Date();
+/** NHA OTP body expects `YYYY-MM-DD HH:mm:ss` in IST (Asia/Kolkata).
+
+Computed via UTC+5:30 offset — does NOT depend on server TZ. */
+export function abdmOtpTimestampIst(): string {
+  const istMs = Date.now() + 5.5 * 60 * 60 * 1000;
+  const d = new Date(istMs);
   const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  return (
+    `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ` +
+    `${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`
+  );
 }

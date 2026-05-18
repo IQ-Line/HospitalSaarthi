@@ -1,4 +1,6 @@
-import type { AbdmAdapterDeps } from "../../ports.js";
+import type { AbdmAdapterDeps, AbdmTenantInput } from "../../ports.js";
+import { assertM1OtpRateLimit } from "../../lib/m1-otp-rate-limit.js";
+import { maskAadhaar } from "../../lib/m1-aadhaar-mask.js";
 import { encryptLoginIdWithAbdmPublicKey } from "../../lib/rsa-abdm-login-id.js";
 import type {
   EnrolAadhaarOtpHimsRequest,
@@ -7,16 +9,12 @@ import type {
   NhaEnrolmentRequestOtpResponse,
 } from "@hims/ts-sdk-abha/protocol/m1";
 
-function maskAadhaar(digits: string): string {
-  if (digits.length < 4) return "****";
-  return `********${digits.slice(-4)}`;
-}
-
 export async function enrolAadhaarOtpRequest(
-  input: EnrolAadhaarOtpHimsRequest,
+  input: AbdmTenantInput<EnrolAadhaarOtpHimsRequest>,
   deps: AbdmAdapterDeps,
-  iqTenantId: string,
 ): Promise<EnrolAadhaarOtpHimsResponse> {
+  const { iqTenantId } = input;
+  assertM1OtpRateLimit(iqTenantId, "enrol-aadhaar-otp");
   const cert = await deps.gateway.getPublicCertificate();
   const loginId = encryptLoginIdWithAbdmPublicKey(cert.publicKey, input.aadhaarNumber);
   const body: NhaEnrolmentRequestOtpBody = {
@@ -45,7 +43,7 @@ export async function enrolAadhaarOtpRequest(
   await deps.sessions.patch({
     iqTenantId,
     sessionId: session.sessionId,
-    state: "OTP_REQUESTED",
+    state: "AADHAAR_OTP_REQUESTED",
     txnId,
     contextMerge: { nhaOtpMessage: nha.message },
   });

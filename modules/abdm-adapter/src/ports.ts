@@ -13,6 +13,9 @@
 
 import type { AbdmSession } from "./domain/session.js";
 
+/** Tenant scope on every use-case input (matches empi / FSM side-effect handler shape). */
+export type AbdmTenantInput<T> = T & { iqTenantId: string };
+
 export interface AbdmSessionsPort {
   /** Insert a fresh session row with state `INIT`. */
   create(input: {

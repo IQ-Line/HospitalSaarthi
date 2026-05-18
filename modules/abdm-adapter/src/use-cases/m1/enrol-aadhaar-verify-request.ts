@@ -1,4 +1,5 @@
 import type { AbdmAdapterDeps } from "../../ports.js";
+import type { AbdmTenantInput } from "../../ports.js";
 import { encryptLoginIdWithAbdmPublicKey } from "../../lib/rsa-abdm-login-id.js";
 import { AbdmUseCaseError } from "../../lib/m1-errors.js";
 import {
@@ -12,10 +13,10 @@ import {
 import { snapshotEnrolByAadhaarResponse } from "../../lib/nha-enrol-context-snapshot.js";
 
 export async function enrolAadhaarVerifyRequest(
-  input: EnrolAadhaarVerifyHimsRequest,
+  input: AbdmTenantInput<EnrolAadhaarVerifyHimsRequest>,
   deps: AbdmAdapterDeps,
-  iqTenantId: string,
 ): Promise<EnrolAadhaarVerifyHimsResponse> {
+  const iqTenantId = input.iqTenantId;
   const otp = String(input.otp ?? "").trim();
   if (!/^\d{6}$/.test(otp)) {
     throw new AbdmUseCaseError("otp must be exactly 6 digits", 400);
@@ -30,9 +31,9 @@ export async function enrolAadhaarVerifyRequest(
   if (session.flowKind !== "abdm.m1.aadhaar-otp.v1") {
     throw new AbdmUseCaseError("invalid session flow", 400);
   }
-  if (session.state !== "OTP_REQUESTED") {
+  if (session.state !== "AADHAAR_OTP_REQUESTED") {
     throw new AbdmUseCaseError(
-      `session state must be OTP_REQUESTED, got ${session.state}`,
+      `session state must be AADHAAR_OTP_REQUESTED, got ${session.state}`,
       409,
       "CONFLICT",
     );

@@ -1,5 +1,6 @@
 import type { AbdmSession } from "../../domain/session.js";
 import type { AbdmAdapterDeps } from "../../ports.js";
+import type { AbdmTenantInput } from "../../ports.js";
 import { AbdmUseCaseError } from "../../lib/m1-errors.js";
 
 export interface SessionGetHimsResponse {
@@ -32,11 +33,13 @@ function suggestNextStep(session: AbdmSession): string {
   switch (session.state) {
     case "INIT":
       return "POST /m1/enrol/aadhaar/otp";
-    case "OTP_REQUESTED":
+    case "AADHAAR_OTP_REQUESTED":
       return "POST /m1/enrol/aadhaar/verify (or POST /m1/enrol/aadhaar/otp/resend if OTP expired)";
     case "ABHA_CREATED":
       return "POST /m1/enrol/mobile-verify/otp then POST /m1/enrol/mobile-verify/verify (required before ABHA address)";
-    case "OTP_VERIFIED":
+    case "MOBILE_OTP_REQUESTED":
+      return "POST /m1/enrol/mobile-verify/verify";
+    case "MOBILE_OTP_VERIFIED":
       return "GET /m1/abha-address/suggestions then POST /m1/abha-address";
     case "ADDRESS_CREATED":
     case "LINKED":
@@ -47,10 +50,10 @@ function suggestNextStep(session: AbdmSession): string {
 }
 
 export async function sessionGetRequest(
-  input: { sessionId: string },
+  input: AbdmTenantInput<{ sessionId: string }>,
   deps: AbdmAdapterDeps,
-  iqTenantId: string,
 ): Promise<SessionGetHimsResponse> {
+  const iqTenantId = input.iqTenantId;
   const session = await deps.sessions.findById({
     iqTenantId,
     sessionId: input.sessionId,

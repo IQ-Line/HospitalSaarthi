@@ -4,16 +4,16 @@ import type {
   NhaEnrolAuthByAbdmBody,
   NhaEnrolAuthByAbdmResponse,
 } from "@hims/ts-sdk-abha/protocol/m1";
-import type { AbdmAdapterDeps } from "../../ports.js";
+import type { AbdmAdapterDeps, AbdmTenantInput } from "../../ports.js";
 import { encryptLoginIdWithAbdmPublicKey } from "../../lib/rsa-abdm-login-id.js";
 import { AbdmUseCaseError } from "../../lib/m1-errors.js";
-import { abdmOtpTimestampLocal } from "../../lib/abdm-otp-timestamp.js";
+import { abdmOtpTimestampIst } from "../../lib/abdm-otp-timestamp.js";
 
 export async function enrolMobileVerifyConfirmOtpRequest(
-  input: EnrolMobileVerifyConfirmHimsRequest,
+  input: AbdmTenantInput<EnrolMobileVerifyConfirmHimsRequest>,
   deps: AbdmAdapterDeps,
-  iqTenantId: string,
 ): Promise<EnrolMobileVerifyConfirmHimsResponse> {
+  const { iqTenantId } = input;
   const otp = String(input.otp ?? "").trim();
   if (!/^\d{6}$/.test(otp)) {
     throw new AbdmUseCaseError("otp must be exactly 6 digits", 400);
@@ -28,9 +28,9 @@ export async function enrolMobileVerifyConfirmOtpRequest(
   if (session.flowKind !== "abdm.m1.aadhaar-otp.v1") {
     throw new AbdmUseCaseError("invalid session flow", 400);
   }
-  if (session.state !== "ABHA_CREATED") {
+  if (session.state !== "MOBILE_OTP_REQUESTED") {
     throw new AbdmUseCaseError(
-      `session state must be ABHA_CREATED, got ${session.state}`,
+      `session state must be MOBILE_OTP_REQUESTED, got ${session.state}`,
       409,
       "CONFLICT",
     );
@@ -45,7 +45,7 @@ export async function enrolMobileVerifyConfirmOtpRequest(
     authData: {
       authMethods: ["otp"],
       otp: {
-        timeStamp: abdmOtpTimestampLocal(),
+        timeStamp: abdmOtpTimestampIst(),
         txnId: session.txnId,
         otpValue,
       },
@@ -62,7 +62,7 @@ export async function enrolMobileVerifyConfirmOtpRequest(
   await deps.sessions.patch({
     iqTenantId,
     sessionId: session.sessionId,
-    state: "OTP_VERIFIED",
+    state: "MOBILE_OTP_VERIFIED",
     txnId,
     contextMerge: {
       mobileVerifiedAt: new Date().toISOString(),

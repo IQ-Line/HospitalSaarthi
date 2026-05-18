@@ -14,15 +14,17 @@ import {
 } from "@hims/abdm-adapter";
 import {
   normalizeAbdmEnvAliases,
-  resolveAbdmDatabaseUrlFromEnv,
+  resolveDatabaseUrlFromEnv,
   serviceRoot,
 } from "./load-env.js";
 import { registerHttpErrorHandler } from "./http-errors.js";
+import { requireSessionTokenCryptoInProd } from "@hims/abdm-adapter";
 
 normalizeAbdmEnvAliases();
+requireSessionTokenCryptoInProd();
 
 const PORT = Number(process.env["ABDM_ADAPTER_SVC_PORT"] ?? 3007);
-const DATABASE_URL = resolveAbdmDatabaseUrlFromEnv();
+const DATABASE_URL = resolveDatabaseUrlFromEnv();
 const JWKS_URL =
   process.env["JWKS_URL"] ?? "http://localhost:3000/.well-known/jwks.json";
 const ENABLE_AUTH = process.env["ENABLE_AUTH"] === "true";
@@ -47,7 +49,7 @@ const fastifyAjv = {
 async function main() {
   if (!DATABASE_URL) {
     throw new Error(
-      "ABDM_DATA_DATABASE_URL is required in services/abdm-adapter-svc/.env (postgresql://… or postgresql+psycopg://…)",
+      "DATABASE_URL is required (postgresql://… or postgresql+psycopg://…)",
     );
   }
 
@@ -90,7 +92,7 @@ async function main() {
   } catch (dbErr) {
     app.log.error(dbErr, "Database connection failed at startup");
     throw new Error(
-      "Cannot connect to Postgres — check ABDM_DATA_DATABASE_URL in services/abdm-adapter-svc/.env (Azure: add ?sslmode=require, URL-encode special characters in password)",
+      "Cannot connect to Postgres — check DATABASE_URL (Azure: add ?sslmode=require, URL-encode special characters in password)",
     );
   }
 

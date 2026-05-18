@@ -5,10 +5,15 @@ import { abdmSessions } from "../schema/tables.js";
 import type { AbdmSessionsPort } from "../ports.js";
 import type { AbdmSession } from "../domain/session.js";
 import { createSessionStateChangedEnvelope } from "../lib/abdm-envelope.js";
+import {
+  createSessionTokenCryptoFromEnv,
+  type SessionTokenCrypto,
+} from "../lib/session-token-crypto.js";
 
 type AbdmSessionRow = typeof abdmSessions.$inferSelect;
 
-function rowToSession(row: AbdmSessionRow): AbdmSession {
+function rowToSession(row: AbdmSessionRow, crypto: SessionTokenCrypto | null): AbdmSession {
+  const decrypt = (v: string | null) => (crypto ? crypto.decrypt(v) : v);
   return {
     iqTenantId: row.iq_tenant_id,
     sessionId: row.session_id,
@@ -16,8 +21,8 @@ function rowToSession(row: AbdmSessionRow): AbdmSession {
     state: row.state as AbdmSession["state"],
     txnId: row.txn_id,
     requestId: row.request_id,
-    xToken: row.x_token,
-    tToken: row.t_token,
+    xToken: decrypt(row.x_token),
+    tToken: decrypt(row.t_token),
     context: (row.context ?? {}) as Record<string, unknown>,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -25,10 +30,20 @@ function rowToSession(row: AbdmSessionRow): AbdmSession {
 }
 
 export class DrizzleAbdmSessionsRepo implements AbdmSessionsPort {
+  private readonly tokenCrypto: SessionTokenCrypto | null;
+
   constructor(
     private readonly db: DbInstance,
     private readonly eventBus?: EventBus,
-  ) {}
+    tokenCrypto: SessionTokenCrypto | null = createSessionTokenCryptoFromEnv(),
+  ) {
+    this.tokenCrypto = tokenCrypto;
+  }
+
+  private encryptToken(value: string | undefined): string | undefined {
+    if (value === undefined) return undefined;
+    return this.tokenCrypto ? (this.tokenCrypto.encrypt(value) ?? undefined) : value;
+  }
 
   async create(input: {
     iqTenantId: string;
@@ -55,7 +70,7 @@ export class DrizzleAbdmSessionsRepo implements AbdmSessionsPort {
     if (!row) {
       throw new Error("abdm_sessions insert returned no row");
     }
-    return rowToSession(row);
+    return rowToSession(row, this.tokenCrypto);
   }
 
   async findById(input: {
@@ -73,7 +88,7 @@ export class DrizzleAbdmSessionsRepo implements AbdmSessionsPort {
       )
       .limit(1);
     const row = rows[0];
-    return row ? rowToSession(row) : null;
+    return row ? rowToSession(row, this.tokenCrypto) : null;
   }
 
   async patch(input: {
@@ -103,8 +118,8 @@ export class DrizzleAbdmSessionsRepo implements AbdmSessionsPort {
         ...(input.state !== undefined ? { state: input.state } : {}),
         ...(input.txnId !== undefined ? { txn_id: input.txnId } : {}),
         ...(input.requestId !== undefined ? { request_id: input.requestId } : {}),
-        ...(input.xToken !== undefined ? { x_token: input.xToken } : {}),
-        ...(input.tToken !== undefined ? { t_token: input.tToken } : {}),
+        ...(input.xToken !== undefined ? { x_token: this.encryptToken(input.xToken) } : {}),
+        ...(input.tToken !== undefined ? { t_token: this.encryptToken(input.tToken) } : {}),
         ...(hasContextMerge
           ? {
               context: sql`${abdmSessions.context} || ${JSON.stringify(input.contextMerge)}::jsonb`,
@@ -123,7 +138,7 @@ export class DrizzleAbdmSessionsRepo implements AbdmSessionsPort {
     if (!row) {
       throw new Error("abdm_sessions patch affected no row");
     }
-    const session = rowToSession(row);
+    const session = rowToSession(row, this.tokenCrypto);
     if (
       this.eventBus &&
       prev &&

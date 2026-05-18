@@ -6,9 +6,9 @@ export function assertAadhaarEnrolMobileVerified(session: AbdmSession): void {
   if (session.flowKind !== "abdm.m1.aadhaar-otp.v1") {
     throw new AbdmUseCaseError("invalid session flow", 400);
   }
-  if (session.state !== "OTP_VERIFIED") {
+  if (session.state !== "MOBILE_OTP_VERIFIED") {
     throw new AbdmUseCaseError(
-      `complete mobile-verify before ABHA address (expected OTP_VERIFIED, got ${session.state})`,
+      `complete mobile-verify before ABHA address (expected MOBILE_OTP_VERIFIED, got ${session.state})`,
       409,
       "CONFLICT",
     );

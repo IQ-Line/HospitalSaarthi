@@ -3,14 +3,15 @@ import type {
   VerifyOtpHimsResponse,
 } from "@hims/ts-sdk-abha/protocol/m1";
 import type { AbdmAdapterDeps } from "../../ports.js";
+import type { AbdmTenantInput } from "../../ports.js";
 import { m1LoginOtpSend } from "../../lib/m1-login-otp-flow.js";
 import { AbdmUseCaseError } from "../../lib/m1-errors.js";
 
 export async function verifyAbhaAddressOtpRequest(
-  input: VerifyAbhaAddressOtpHimsRequest,
+  input: AbdmTenantInput<VerifyAbhaAddressOtpHimsRequest>,
   deps: AbdmAdapterDeps,
-  iqTenantId: string,
 ): Promise<VerifyOtpHimsResponse> {
+  const iqTenantId = input.iqTenantId;
   const abhaAddress = String(input.abhaAddress ?? "").trim();
   if (!abhaAddress.includes("@")) {
     throw new AbdmUseCaseError("abhaAddress must include @ (e.g. user@sbx)", 400);

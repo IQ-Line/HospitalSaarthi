@@ -3,7 +3,8 @@
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
-    "ignoreDeprecations": "6.0"
+    "ignoreDeprecations": "6.0",
+    "paths": {}
   },
   "include": ["src"],
   "exclude": ["dist", "node_modules", "**/*.test.ts"]

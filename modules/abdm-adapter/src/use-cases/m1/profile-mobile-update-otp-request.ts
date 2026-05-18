@@ -3,14 +3,15 @@ import type {
   ProfileUpdateOtpHimsResponse,
 } from "@hims/ts-sdk-abha/protocol/m1";
 import type { AbdmAdapterDeps } from "../../ports.js";
+import type { AbdmTenantInput } from "../../ports.js";
 import { m1ProfileUpdateSendOtp } from "../../lib/m1-profile-update-flow.js";
 import { AbdmUseCaseError } from "../../lib/m1-errors.js";
 
 export async function profileMobileUpdateOtpRequest(
-  input: ProfileUpdateOtpHimsRequest,
+  input: AbdmTenantInput<ProfileUpdateOtpHimsRequest>,
   deps: AbdmAdapterDeps,
-  iqTenantId: string,
 ): Promise<ProfileUpdateOtpHimsResponse> {
+  const iqTenantId = input.iqTenantId;
   const mobile = String(input.mobile ?? "").replace(/\D/g, "");
   if (mobile.length !== 10) {
     throw new AbdmUseCaseError("mobile must be exactly 10 digits", 400);

@@ -3,14 +3,15 @@ import type {
   LoginAbhaNumberOtpHimsResponse,
 } from "@hims/ts-sdk-abha/protocol/m1";
 import type { AbdmAdapterDeps } from "../../ports.js";
+import type { AbdmTenantInput } from "../../ports.js";
 import { m1LoginOtpSend } from "../../lib/m1-login-otp-flow.js";
 import { maskAbhaNumber, normalizeAbhaNumber } from "../../lib/m1-abha-number.js";
 
 export async function loginAbhaNumberOtpRequest(
-  input: LoginAbhaNumberOtpHimsRequest,
+  input: AbdmTenantInput<LoginAbhaNumberOtpHimsRequest>,
   deps: AbdmAdapterDeps,
-  iqTenantId: string,
 ): Promise<LoginAbhaNumberOtpHimsResponse> {
+  const iqTenantId = input.iqTenantId;
   const abhaNumber = normalizeAbhaNumber(input.abhaNumber);
   const channel = input.channel ?? "aadhaar";
   const scope =

@@ -25,7 +25,7 @@ Override with env if your Postman environment uses different hosts.
 ## Node service: database URL
 
 - Config file: **`services/abdm-adapter-svc/.env`** only (loaded at boot).
-- Variable: **`ABDM_DATA_DATABASE_URL`** — `postgresql://…` or `postgresql+psycopg://…` (dialect suffix stripped for Node `pg`).
+- Variable: **`DATABASE_URL`** (monorepo standard) — `postgresql://…` or `postgresql+psycopg://…` (dialect suffix stripped for Node `pg`). Legacy `ABDM_DATA_DATABASE_URL` still accepted at boot.
 - Migrate: `pnpm --filter @hims/abdm-adapter-svc db:migrate` (uses same `.env`).
 
 ## Phase A — implemented platform routes ↔ NHA (Aadhaar enrolment chain)
@@ -50,21 +50,25 @@ Override with env if your Postman environment uses different hosts.
 ### LLD vs Postman (important)
 
 - **[02-m1-flows.md](./02-m1-flows.md) §3** historically referenced `…/abha-address/suggestion`. The **Postman collection** and **adapter** use **`GET /v3/enrollment/enrol/suggestion`** — §02 is updated to match.
-- **§2 “Enrol via Mobile OTP”** (`abdm.m1.mobile-otp.v1`) is **standalone** (`POST …/m1/enrol/mobile/otp`). Phase A **Aadhaar chain** uses `…/mobile-verify/…`; ABHA address steps require session state **`OTP_VERIFIED`** after mobile-verify confirm.
+- **§2 “Enrol via Mobile OTP”** (`abdm.m1.mobile-otp.v1`) is **standalone** (`POST …/m1/enrol/mobile/otp`). Phase A **Aadhaar chain** uses `…/mobile-verify/…`; ABHA address steps require session state **`MOBILE_OTP_VERIFIED`** after mobile-verify confirm.
 
 ## Staging / production checklist (PR review)
 
 | Item | Status |
 |------|--------|
 | `ENABLE_AUTH=true` in staging/prod | **Required** — service logs error when `NODE_ENV` is production/staging and auth is off |
-| Encrypt `x_token` / `t_token` at rest | **Open** — document in schema; implement before prod |
+| Encrypt `x_token` / `t_token` at rest | **Done** — AES-256-GCM via `ABDM_TOKEN_ENCRYPTION_KEY` (required staging/prod) |
 | Whitelist `context` JSONB (no full NHA bodies) | **Done** |
 | `fetch` timeout to NHA | **Done** — `ABDM_GATEWAY_TIMEOUT_MS` (default 30s) |
 | Aadhaar resend mask check | **Done** — fail closed |
-| Enrol state machine (mobile before address) | **Done** — `OTP_VERIFIED` required for address APIs |
-| Session TTL | **Partial** — `context.expiresAt`; DB cleanup job **open** |
-| Full sandbox e2e | **Open** |
-| Rate limiting on OTP | **Open** |
+| AJV on Aadhaar chain + address + profile GETs | **Done** — `m1-route-schemas.ts` on routes |
+| OTP body `timeStamp` in IST | **Done** — `abdmOtpTimestampIst()` (UTC+5:30, not server TZ) |
+| FSM state names (aadhaar vs mobile-verify) | **Done** — `M1_AADHAAR_OTP_STATES` in `ts-sdk-abha` |
+| Enrol state machine (mobile before address) | **Done** — `MOBILE_OTP_VERIFIED` required for address APIs |
+| Session TTL | **Done** — `context.expiresAt`; cleanup: `services/abdm-adapter-svc/scripts/cleanup-expired-sessions.mjs` |
+| Full sandbox e2e | **Done** — gated `m1-aadhaar-chain.sandbox.integration.test.ts` (`pnpm -F @hims/abdm-adapter test:sandbox`) |
+| Rate limiting on OTP | **Done** — `assertM1OtpRateLimit` on all OTP-dispatch paths (in-process; Redis later) |
+| Mobile-verify unit tests | **Done** — send + confirm use-case tests |
 | `ts-sdk-abha` build before serve | **Done** — `abdm-adapter-svc:serve` → `dependsOn: ts-sdk-abha:build` |
 
 ## Types and ports (robust layering)
@@ -74,12 +78,14 @@ Override with env if your Postman environment uses different hosts.
 | NHA / HIMS wire DTOs | `packages/ts-sdk-abha/src/protocol/m1/*.ts` | Serializable request/response shapes |
 | Session aggregate | `modules/abdm-adapter/src/domain/session.ts` | `AbdmSession`, `AbdmFlowKind`, `AbdmSessionState` |
 | Ports | `modules/abdm-adapter/src/ports.ts` | `AbdmSessionsPort`, `GatewayClient`, `SecretsClient`, `AbdmAdapterDeps` |
-| Use-cases | `modules/abdm-adapter/src/use-cases/m1/*.ts` | One exported function per file; `(input, deps, iqTenantId)` |
+| Use-cases | `modules/abdm-adapter/src/use-cases/m1/*.ts` | One exported function per file; `(input & { iqTenantId }, deps)` |
 | HTTP | `modules/abdm-adapter/src/rest-handlers/m1/m1-routes.ts` | Fastify registrations |
 
 ## Next phase
 
-- Email verification link (enrol chain); Verify User (mobile login); AJV on all Aadhaar handlers; full gated sandbox e2e; OTP rate limits; token encryption at rest; session cleanup job.
+- Email verification link (enrol chain) — optional enrol step; see Postman / `milestone1.md` §3.
+
+Phase B (verification) is tracked in [04-phase-b-implementation-matrix.md](./04-phase-b-implementation-matrix.md).
 
 ## Related
 

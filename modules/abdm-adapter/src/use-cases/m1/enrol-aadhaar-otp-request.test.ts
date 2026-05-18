@@ -79,9 +79,11 @@ describe("enrolAadhaarOtpRequest", () => {
     });
 
     const out = await enrolAadhaarOtpRequest(
-      { aadhaarNumber: "123456789012" },
+      {
+        aadhaarNumber: "123456789012",
+        iqTenantId: "00000000-0000-4000-8000-000000000099",
+      },
       deps,
-      "00000000-0000-4000-8000-000000000099",
     );
 
     expect(out.txnId).toBe("txn-from-nha");

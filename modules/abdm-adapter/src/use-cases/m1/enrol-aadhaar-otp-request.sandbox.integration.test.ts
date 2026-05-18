@@ -47,9 +47,8 @@ describe.skipIf(!RUN)("enrolAadhaarOtpRequest — ABDM sandbox (RUN_ABDM_SANDBOX
       "00000000-0000-4000-8000-0000000000aa";
 
     const out = await enrolAadhaarOtpRequest(
-      { aadhaarNumber: aadhaar },
+      { aadhaarNumber: aadhaar, iqTenantId: tenantId },
       deps,
-      tenantId,
     );
     expect(out.txnId.length).toBeGreaterThan(0);
     expect(out.sessionId.length).toBeGreaterThan(0);
