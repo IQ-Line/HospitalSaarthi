@@ -23,16 +23,10 @@
         "lintFilePatterns": ["modules/billing/src/**/*.ts"]
       }
     },
-    "db:migrate": {
-      "command": "tsx scripts/apply-migration.ts",
+    "migrate": {
+      "executor": "nx:run-commands",
       "options": {
-        "cwd": "modules/billing"
-      }
-    },
-    "db-migrate": {
-      "command": "tsx scripts/apply-migration.ts",
-      "options": {
-        "cwd": "modules/billing"
+        "command": "psql \"${DATABASE_URL}\" -f modules/billing/migrations/0000_billing_master.sql && psql \"${DATABASE_URL}\" -f modules/billing/migrations/0001_bills_payments.sql"
       }
     }
   }

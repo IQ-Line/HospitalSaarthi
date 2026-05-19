@@ -5,6 +5,8 @@ import { and, eq, sql, type DbInstance } from "@hims/ts-sdk-db";
 import { createTariffMasterRepo } from "./data-access/tariff-master.repository.js";
 import type { TariffMasterRow } from "./domain/tariff-master.types.js";
 import { formatMoney, parseEffectiveWindow, toTariffRow } from "./lib/tariff-api.js";
+import { createBillingRepo, createInMemoryBillingRepo } from "./data-access/billing.repository.js";
+import { registerBillingHandlers } from "./rest-handlers/billing.handlers.js";
 import { registerUpdateServiceHandler } from "./rest-handlers/update-service.handler.js";
 import { billingMaster } from "./schema/tables.js";
 
@@ -489,10 +491,12 @@ async function billingRouter(
     },
   );
 
-  registerUpdateServiceHandler(
-    app,
-    createTariffMasterRepo(useMock || !db ? MOCK_ROWS : db),
-  );
+  const tariffRepo = createTariffMasterRepo(useMock || !db ? MOCK_ROWS : db);
+  registerUpdateServiceHandler(app, tariffRepo);
+
+  const billingRepo =
+    useMock || !db ? createInMemoryBillingRepo().repo : createBillingRepo(db);
+  registerBillingHandlers(app, { tariffRepo, billingRepo });
 }
 
 export function createRouter(options: BillingRouterOptions) {

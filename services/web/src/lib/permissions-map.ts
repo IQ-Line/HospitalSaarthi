@@ -54,6 +54,9 @@ const BASE_MODULES: PermissionMap = {
     reference: { read: true, write: true },
     overrides: { read: true, write: true },
   },
+  billing: {
+    services: { read: true, write: true },
+  },
 };
 
 /**
