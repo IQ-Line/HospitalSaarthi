@@ -6,8 +6,8 @@ CREATE EXTENSION IF NOT EXISTS citus;
 CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Create module schemas
+-- Create module schemas (empty shells; DDL applied by each module's migrations).
+-- Master Data catalog uses global_master + tenant_master via Alembic — not master_data.
 CREATE SCHEMA IF NOT EXISTS user_management;
 CREATE SCHEMA IF NOT EXISTS configurator;
 CREATE SCHEMA IF NOT EXISTS empi;
-CREATE SCHEMA IF NOT EXISTS master_data;
