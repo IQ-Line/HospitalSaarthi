@@ -699,6 +699,29 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /modules/nav:
+    get:
+      operationId: listModulesForNav
+      summary: List modules for shell navigation
+      description: >-
+        Returns every active catalog module (`is_active = true`, `is_deleted = false`) with
+        navigation fields only. Full list in one response (no pagination).
+      security: []
+      tags:
+        - Modules
+      responses:
+        '200':
+          description: Navigation module catalog.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleNavListResponse'
+        '500':
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /modules:
     get:
       operationId: listModules
@@ -4250,6 +4273,48 @@ components:
       properties:
         data:
           $ref: '#/components/schemas/Module'
+    ModuleNav:
+      type: object
+      required:
+        - id
+        - name
+        - slug
+        - category
+        - level
+      properties:
+        id:
+          type: string
+          format: uuid
+        iq_tenant_id:
+          type: string
+          format: uuid
+          nullable: true
+        parent_id:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+        slug:
+          type: string
+        category:
+          $ref: '#/components/schemas/ModuleCategory'
+        level:
+          type: integer
+          minimum: 1
+          maximum: 10
+        icon:
+          type: string
+          nullable: true
+    ModuleNavListResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModuleNav'
     ModuleListResponse:
       type: object
       required:

@@ -24,6 +24,22 @@ export interface ModuleListResponse {
   total: number;
 }
 
+/** Minimal module row from `GET /modules/nav` (shell navigation). */
+export interface NavModule {
+  id: string;
+  iq_tenant_id: string | null;
+  parent_id: string | null;
+  name: string;
+  slug: string;
+  category: ModuleCategory;
+  level: number;
+  icon: string | null;
+}
+
+export interface NavModuleListResponse {
+  data: NavModule[];
+}
+
 export interface ModuleSingleResponse {
   data: Module;
 }

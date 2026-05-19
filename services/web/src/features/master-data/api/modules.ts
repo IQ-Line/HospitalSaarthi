@@ -7,9 +7,19 @@ import type {
   ModuleListResponse,
   ModuleSingleResponse,
   ModuleUpdateInput,
+  NavModuleListResponse,
 } from '../types';
 
 const BASE = '/api/v1/master-data/modules';
+const NAV_MODULES_PATH = `${BASE}/nav`;
+
+export function useNavModules(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: masterDataKeys.navModules(),
+    queryFn: () => apiClient<NavModuleListResponse>(NAV_MODULES_PATH),
+    enabled: options?.enabled ?? true,
+  });
+}
 
 export function useModules(
   category?: ModuleCategory,
@@ -48,9 +58,13 @@ export function useCreateModule() {
         body: JSON.stringify(input),
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: masterDataKeys.modulesRoot() });
+      invalidateModuleCatalogQueries(qc);
     },
   });
+}
+
+function invalidateModuleCatalogQueries(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: masterDataKeys.modulesRoot() });
 }
 
 /** PATCH — pass `{ id, input }` from dialogs and inline toggles (single stable mutation per screen). */
@@ -64,7 +78,7 @@ export function useUpdateModule() {
       }),
     onSuccess: (result, { id }) => {
       qc.setQueryData(masterDataKeys.moduleDetail(id), result);
-      qc.invalidateQueries({ queryKey: masterDataKeys.modulesRoot() });
+      invalidateModuleCatalogQueries(qc);
     },
   });
 }
@@ -77,7 +91,7 @@ export function useDeleteModule() {
         method: 'DELETE',
       }),
     onSuccess: (_data, id) => {
-      qc.invalidateQueries({ queryKey: masterDataKeys.modulesRoot() });
+      invalidateModuleCatalogQueries(qc);
       qc.removeQueries({ queryKey: masterDataKeys.moduleDetail(id) });
     },
   });
