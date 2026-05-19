@@ -1,6 +1,6 @@
 # Unified Service Authentication and Authorization
 
-> **Status:** Draft v0.1 (2026-05-19)  
+> **Status:** Draft v0.2 (2026-05-19) — incorporates architecture review (M1–M5, P1–P6)  
 > **Audience:** backend and frontend developers, architects, security reviewers  
 > **Purpose:** One canonical plan to stop ad-hoc auth bypasses, align every current and future service on the same security stack, and document how the web app, BFF, and module services fit together.
 
@@ -26,12 +26,16 @@ Today the platform has **correct building blocks** but **inconsistent adoption**
 | EMPI/ABDM register `identityPlugin` with **only** `jwksUrl` (no `issuer` / `audience`) | Weaker validation than `validateAuthConfig()`; type-unsafe shortcut |
 | Billing injects a **mock tenant header** when none is sent | Anyone who can reach the port can act as a fixed tenant |
 | `tenantPlugin` prefers **header** tenant over JWT `Principal.tenantId` | Tenant spoofing when auth is on but clients send `x-tenant-id` |
-| Frontend **dev login** bypasses better-auth | No real JWT; Cerbos principal is synthetic; APIs that require auth fail or are never tested end-to-end |
+| Login flow still hardcodes tenant after better-auth sign-in | JWT `iq_tenant_id` ignored; tenant header/catalog context out of sync with identity |
 | Cerbos `authzPlugin` only wired on **user-management-svc** | Other modules declare `authMode: "protected"` routes but PEP may not run |
 | Master Data (Python) uses a **separate** JWT path (HS256 / optional verify) | Divergent trust model from TypeScript services |
 | No `services/bff/` yet; Vite proxies `/api` to UM and some paths directly to module ports | Token may not be validated on every hop |
 
 **Goal:** Any new `services/<module>-svc` should enable platform security in **one registration call** and **one env contract**, with production failing fast if misconfigured.
+
+**In scope:** Human user JWT authn (better-auth / UM), per-service Cerbos authz, tenant binding from JWT, Fastify service bootstrap.
+
+**Explicitly deferred (not omitted):** Service-to-service machine principals (`kind: service` JWTs) — follow-up ADR + UM issuance (see §4.5). Python `py-sdk-identity` until a second Python HTTP service exists (see §6).
 
 ---
 
@@ -51,12 +55,14 @@ The monorepo already follows **Interface Segregation** — one job per package:
 
 **Do not** merge these into a monolithic `platform-auth` package. Tests, embedded mode, and services that only need identity (internal health) benefit from narrow imports.
 
-### 2.2 Add one thin facade: `@hims/ts-sdk-service-security`
+### 2.2 Add one thin facade (Fastify-only)
 
-Introduce a **composition package** (~200–400 lines) that every `services/*-svc/src/main.ts` uses:
+Introduce a **composition package** (~200–400 lines) that every TypeScript `services/*-svc/src/main.ts` uses.
+
+**Package name (team review):** Working title `@hims/ts-sdk-service-security`. Alternative `@hims/ts-sdk-fastify-security` is more accurate — the facade registers Fastify plugins only and does not help Master Data (Python), which keeps its own middleware. Pick one name in Phase 0 before implementation; exports stay `registerServiceSecurity()`.
 
 ```typescript
-// packages/ts-sdk-service-security/src/register-service-security.ts (proposed API)
+// packages/ts-sdk-fastify-security/src/register-service-security.ts (proposed API)
 
 import type { FastifyInstance } from "fastify";
 import { identityPlugin, validateAuthConfig } from "@hims/ts-sdk-identity";
@@ -69,7 +75,7 @@ export interface RegisterServiceSecurityOptions {
   api: FastifyInstance;
   /** Paths that skip JWT (e.g. module-local public hooks). Health is always skipped. */
   skipPathPrefixes?: string[];
-  /** Register Cerbos PEP on this scope. Default: true when policy is not `disabled`. */
+  /** Register Cerbos PEP. Default: true only when `AUTH_POLICY=required`. */
   enableAuthz?: boolean;
   /** Optional Cerbos target resolver (per service). */
   resolveAuthzTarget?: AuthzPluginOptions["resolveTarget"];
@@ -100,9 +106,11 @@ export async function registerServiceSecurity(
     await opts.api.register(tenantPlugin, { tenantSource: "header-or-jwt" });
   }
 
-  if (opts.enableAuthz !== false && policy !== "disabled") {
+  // Authz only when identity is verified — optional/disabled modes skip PEP entirely.
+  // Local Cerbos testing: AUTH_POLICY=required + PERMISSIVE_MODE=true (see §3.3).
+  if (policy === "required" && opts.enableAuthz !== false) {
     const cerbosUrl = process.env.CERBOS_URL?.trim();
-    if (!cerbosUrl) throw new Error("CERBOS_URL required when authz is enabled");
+    if (!cerbosUrl) throw new Error("CERBOS_URL required when AUTH_POLICY=required");
     if (opts.assertCerbosOnStartup) await assertCerbosReachable(cerbosUrl);
     await opts.api.register(authzPlugin, {
       cerbosUrl,
@@ -129,33 +137,42 @@ export async function registerServiceSecurity(
 
 ### 3.1 Canonical variables (root `.env`)
 
-Already defined in `.env.example`:
+Canonical values live in **root** [`.env.example`](../../../../.env.example) (aligned with PR #67 — BFF/UM dev proxy on port **3000**):
 
 ```env
-JWKS_URL=http://localhost:3010/api/auth/.well-known/jwks.json
-JWT_ISSUER=http://localhost:3010
+# Issuer = user-management-svc better-auth (via BFF / VITE_API_BASE_URL in dev)
+JWKS_URL=http://localhost:3000/api/auth/.well-known/jwks.json
+JWT_ISSUER=http://localhost:3000
 JWT_AUDIENCE=hims-platform
 CERBOS_URL=localhost:3593
 ```
+
+If your local root `.env` still points JWKS at `:3010` (direct `user-management-svc` port), **issuer, audience, and JWKS host must match the process that actually signs tokens** — mismatched triples cause `401` on every service. Prefer `3000` when using the web app proxy; use `3010` only when calling UM directly and set all three vars consistently.
 
 Every authenticated service **must** use `validateAuthConfig()` (issuer + audience + JWKS) — never `{ jwksUrl }` alone.
 
 ### 3.2 `AUTH_POLICY` (new, replaces `ENABLE_AUTH`)
 
-| Value | JWT required | Cerbos enforced | Allowed environments |
-|-------|--------------|-----------------|----------------------|
-| `required` | Yes | Yes (`PERMISSIVE_MODE` must be false) | staging, production |
-| `optional` | No (warn on startup) | Per `PERMISSIVE_MODE` | local dev only |
-| `disabled` | No | No | **tests only** — `registerServiceSecurity` throws if `NODE_ENV=production` |
+| Value | JWT required | Cerbos PEP registered | Allowed environments |
+|-------|--------------|----------------------|----------------------|
+| `required` | Yes | Yes — enforce unless `PERMISSIVE_MODE=true` (log-only) | staging, production |
+| `optional` | No (warn on startup) | **No** — no principal to evaluate | local dev only |
+| `disabled` | No | No | **tests only** |
 
 **Derivation (recommended):**
 
-```text
-if NODE_ENV === "production" || NODE_ENV === "staging"
-  → AUTH_POLICY=required (hard-coded default; cannot override)
+Use **`DEPLOY_ENV`** (or `APP_ENV`) for deployment tier — not `NODE_ENV=staging`. Node convention is `NODE_ENV=production` in staging builds (minification, no dev assertions), so a staging check on `NODE_ENV` alone will miss real staging deployments.
 
-else if AUTH_POLICY env set
-  → use env
+```text
+if DEPLOY_ENV is "staging" or "production"
+  → AUTH_POLICY=required (hard-coded; cannot override)
+
+else if DEPLOY_ENV unset and NODE_ENV === "production"
+  → AUTH_POLICY=required
+  (safety net: release build without DEPLOY_ENV still requires auth)
+
+else if AUTH_POLICY env set explicitly
+  → use env (only when DEPLOY_ENV is development or unset)
 
 else if legacy ENABLE_AUTH === "true"
   → AUTH_POLICY=required (migration shim; log deprecation)
@@ -163,6 +180,8 @@ else if legacy ENABLE_AUTH === "true"
 else
   → AUTH_POLICY=optional
 ```
+
+`registerServiceSecurity` throws if `policy` is `optional` or `disabled` while `DEPLOY_ENV` is `staging`/`production` (or `NODE_ENV=production` with `DEPLOY_ENV` unset).
 
 Remove `ENABLE_AUTH` from all services after migration (one release cycle).
 
@@ -172,11 +191,12 @@ From [dev-env-simplifications.md](../../dev-env-simplifications.md):
 
 | Knob | Local dev | Staging / prod |
 |------|-----------|----------------|
-| `AUTH_POLICY` | `optional` (default) | `required` |
-| `PERMISSIVE_MODE` | `true` (log-only Cerbos) | `false` or unset |
+| `DEPLOY_ENV` | `development` (or unset) | `staging` / `production` |
+| `AUTH_POLICY` | `optional` (default) | `required` (derived from `DEPLOY_ENV`) |
+| `PERMISSIVE_MODE` | `true` only meaningful with `AUTH_POLICY=required` | `false` or unset |
 | Mock tenant injection | **Forbidden** when `AUTH_POLICY=required` | **Forbidden** |
 
-**Important:** `PERMISSIVE_MODE` bypasses **authorization**, not **authentication**. With `AUTH_POLICY=required`, anonymous requests must still receive `401`.
+**Important:** `PERMISSIVE_MODE` bypasses **authorization**, not **authentication**. It only applies when `AUTH_POLICY=required` and `authzPlugin` is registered. With `AUTH_POLICY=optional`, there is no JWT and no PEP — use that for handler-only local work; use `required` + `PERMISSIVE_MODE=true` to exercise Cerbos logging without denying traffic.
 
 ---
 
@@ -215,7 +235,9 @@ sequenceDiagram
 | JWKS | `GET /api/auth/.well-known/jwks.json` |
 | Capability / role data | User Management DB + Cerbos policies |
 
-No module should issue user JWTs except UM (service accounts are a separate follow-up: machine JWTs with `kind: service`).
+No module should issue **user** JWTs except UM.
+
+Internal RPC-style endpoints (e.g. principal enricher, diagnostics) **accept** UM-issued JWTs only — they must not re-issue, downgrade, or substitute HS256 dev tokens for RS256 platform JWTs.
 
 ### 4.3 Tenant binding — close the spoofing gap
 
@@ -225,10 +247,10 @@ No module should issue user JWTs except UM (service accounts are a separate foll
 
 1. `identityPlugin` runs first and sets `request.user.tenantId` from claim `iq_tenant_id`.
 2. `tenantPlugin` sets `request.tenantId` from **`request.user.tenantId` only**.
-3. If client sends a header tenant **different** from JWT → `403` (`AUTH_TENANT_MISMATCH`), not silent override.
-4. Optional: still **echo** `iq_tenant_id` header for backwards-compatible clients, but only if it matches JWT.
+3. If client sends `iq_tenant_id` / `x-tenant-id` **different** from JWT → `403` (`AUTH_TENANT_MISMATCH`), not silent override.
+4. If header is **omitted**, tenant comes from JWT only (no echo mode — clients may stop sending redundant headers once handlers read `request.tenantId`).
 
-Implement via `tenantPlugin` option: `tenantSource: "jwt" | "header-or-jwt"` (default `"jwt"` when used through `registerServiceSecurity`).
+Implement via `tenantPlugin` option: `tenantSource: "jwt" | "header-or-jwt"` — two modes only. Default `"jwt"` when registered through the facade with `AUTH_POLICY=required`; `"header-or-jwt"` for `optional` / `disabled` dev and test paths.
 
 ### 4.4 Route-level authorization
 
@@ -246,9 +268,9 @@ app.post("/items", { config: { authMode: "protected" } }, createItem);
 
 Each module needs Cerbos policies under `infra/cerbos/policies/<module>/` before staging.
 
-### 4.5 Service-to-service (future)
+### 4.5 Service-to-service (**deferred** — follow-up ADR)
 
-Same stack: caller presents **service-account JWT** → callee runs `identityPlugin` + `authzPlugin` with principal `kind: service`. Document in a follow-up ADR; do not use shared static API keys.
+Not in Phase 1–4 of this plan. Target model: caller presents **service-account JWT** (`kind: service`) → callee runs `identityPlugin` + `authzPlugin`. Document issuance/rotation in a dedicated ADR; do not use shared static API keys as a stopgap.
 
 ---
 
@@ -266,11 +288,11 @@ Same stack: caller presents **service-account JWT** → callee runs `identityPlu
 
 ### 5.2 Gaps to fix
 
-| Gap | Plan |
-|-----|------|
-| Dev login bypasses better-auth | Gate behind `import.meta.env.DEV` **and** `VITE_ALLOW_DEV_LOGIN=true`; hide in staging builds |
-| Real login tenant mismatch | Wire sign-in to JWT `iq_tenant_id` from UM; remove hardcoded tenant in login flow |
-| Direct proxy to registration-svc | Acceptable in dev; document that **registration-svc must use `AUTH_POLICY=required`** when exposed beyond localhost |
+| Gap | Status / plan |
+|-----|----------------|
+| Dev login UI bypassing better-auth | **Removed** (PR #77, 2026-05-19) — login page uses better-auth only. Add guardrail: any future shortcut must be behind `import.meta.env.DEV && VITE_ALLOW_DEV_LOGIN=true`; staging builds must not set that flag. If PR #69 reintroduces a temporary shortcut, treat it as debt until real-login tenant wiring lands. |
+| Real login tenant mismatch | **Open** — `login.tsx` still calls `setTenant` with hardcoded `DEV_TENANT_ID` after sign-in instead of JWT `iq_tenant_id` / UM profile |
+| Direct proxy to registration-svc | Acceptable in dev; **registration-svc must use `AUTH_POLICY=required`** when exposed beyond localhost |
 | No global 401 handler | On `401`, clear auth store and redirect to `/login` (except auth endpoints) |
 | Calls without token succeed on open services | Fixed when all services use `AUTH_POLICY=required` in staging |
 
@@ -303,16 +325,28 @@ Extract shared JWKS URL / issuer / audience docs; consider `py-sdk-identity` onl
 
 ## 7. Current service audit (baseline)
 
+*Verified against `dev` branch HEAD 2026-05-19 unless noted.*
+
 | Service | JWT (`identityPlugin`) | Full `validateAuthConfig` | Cerbos (`authzPlugin`) | Tenant bypass risk | Notes |
 |---------|------------------------|---------------------------|------------------------|--------------------|-------|
 | user-management-svc | Yes (always) | Yes | Yes | Low (UM owns auth) | better-auth host |
 | registration-svc | If `ENABLE_AUTH` | When enabled | No | Medium | Prod requires `ENABLE_AUTH` |
 | empi-svc | If `ENABLE_AUTH` | **No** (jwks only) | No | High (header tenant) | Fix config + policy |
 | abdm-adapter-svc | If `ENABLE_AUTH` | **No** | No | High | Same as EMPI |
-| billing-svc | **No** | — | Routes marked protected but **no PEP** | **Critical** (mock tenant) | Priority 1 |
-| configurator-svc | **No** | — | No | High | Bootstrap APIs need careful `public` routes |
+| billing-svc | **No** | — | **No PEP on svc** — module routes set `authMode: "protected"` | **Critical** — `main.ts` injects `DEV_MOCK_TENANT_ID` when header missing | Priority 1; recent billing PRs did not wire identity/Cerbos on the service |
+| configurator-svc | **No** | — | No | High | See route notes below |
 | frontdesk-svc | **No** | — | No | High | |
 | master-data (Python) | Partial | Divergent | N/A | Dev bypass flags | Align JWKS path |
+
+**Configurator — routes to mark `authMode: "public"` explicitly** (everything else `protected` once PEP exists):
+
+| Route area | Rationale |
+|------------|-----------|
+| `GET /organizations`, `GET /tenants` (list/read) | Platform operators / bootstrap discovery before full session (narrow to superadmin via Cerbos when wired) |
+| `POST /organizations`, `POST /tenants` | Initial hospital onboarding — highest risk; prefer superadmin + break-glass policy, not anonymous |
+| `GET/PATCH/DELETE` org/tenant by id, all `/tenants/:id/modules/*` | Normal tenant-scoped admin — **protected**; tenant from JWT |
+
+Until the facade lands, configurator remains header-tenant-only like billing — treat as high risk on any non-localhost bind.
 
 ---
 
@@ -321,14 +355,14 @@ Extract shared JWKS URL / issuer / audience docs; consider `py-sdk-identity` onl
 ### Phase 0 — Document + policy (this doc, no code)
 
 - [x] Publish unified plan
-- [ ] Team review: confirm `ts-sdk-service-security` name and `AUTH_POLICY` values
+- [ ] Team review: package name (`ts-sdk-fastify-security` vs `ts-sdk-service-security`), `AUTH_POLICY` values, `DEPLOY_ENV` convention for CI/K8s
 - [ ] Add pre-prod checklist item: no service ships without `AUTH_POLICY=required` in staging
 
 ### Phase 1 — Package + tenant hardening (1 sprint)
 
 | Task | Deliverable |
 |------|-------------|
-| Create `@hims/ts-sdk-service-security` | `registerServiceSecurity()`, `resolveServiceSecurityPolicy()`, tests |
+| Create facade package (name TBD) | `registerServiceSecurity()`, `resolveServiceSecurityPolicy()` using `DEPLOY_ENV`, tests |
 | Extend `tenantPlugin` | `tenantSource`, JWT-only mode, mismatch → 403 |
 | Deprecation shim | Map `ENABLE_AUTH` → `AUTH_POLICY` with warning log |
 | Unit tests | Policy matrix: prod rejects `optional` / `disabled` |
@@ -356,7 +390,7 @@ Extract shared JWKS URL / issuer / audience docs; consider `py-sdk-identity` onl
 
 | Task | Deliverable |
 |------|-------------|
-| Remove / gate dev login | Staging build requires real login |
+| Dev-login guardrail | PR #77 removed UI shortcuts; add `VITE_ALLOW_DEV_LOGIN` gate if any shortcut returns; verify staging build never enables it |
 | Global 401 → logout | `api-client.ts` |
 | BFF skeleton | Proxy + JWKS verify; Vite single `/api` target |
 | E2E smoke | Playwright: login → EMPI → billing with real JWT |
@@ -377,7 +411,7 @@ After Phase 2, every TypeScript service should resemble:
 ```typescript
 import Fastify from "fastify";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
-import { registerServiceSecurity } from "@hims/ts-sdk-service-security";
+import { registerServiceSecurity } from "@hims/ts-sdk-fastify-security"; // name TBD
 import { createRouter } from "@hims/<module>";
 
 async function main() {
@@ -403,7 +437,7 @@ async function main() {
 
 1. Add module OpenAPI `securitySchemes.bearerAuth`.
 2. Add Cerbos policy folder + tests.
-3. Add `.env.example` lines: `AUTH_POLICY`, `JWKS_URL`, `JWT_ISSUER`, `JWT_AUDIENCE`, `CERBOS_URL`.
+3. Add `.env.example` lines: `DEPLOY_ENV`, `AUTH_POLICY`, `JWKS_URL`, `JWT_ISSUER`, `JWT_AUDIENCE`, `CERBOS_URL`.
 4. Never inject mock tenant IDs in production code paths.
 5. Integration tests use `@hims/ts-sdk-testing` principal factory + `AUTH_POLICY=required`.
 
@@ -443,7 +477,7 @@ Use this before any module touches a real tenant:
 A: Identity, tenant context, and Cerbos PEP evolve independently. The facade composes them; it does not replace them.
 
 **Q: Can I skip Cerbos in dev?**  
-A: Yes — `PERMISSIVE_MODE=true` logs checks but allows traffic. You must still run `AUTH_POLICY=required` to test JWT paths.
+A: Yes — set `AUTH_POLICY=required` and `PERMISSIVE_MODE=true` (PEP registered, decisions logged, traffic allowed). `AUTH_POLICY=optional` skips both JWT and PEP; use only when you are not testing auth at all.
 
 **Q: Does the frontend need to send `iq_tenant_id` if it's in the JWT?**  
 A: For transition, yes — many handlers read headers today. After tenant hardening, header must **match** JWT or be omitted.
@@ -458,3 +492,4 @@ A: UM is the identity **adapter** ([ADR-0003](../../adr/0003-better-auth-identit
 | Date | Change |
 |------|--------|
 | 2026-05-19 | Initial draft: audit, facade recommendation, migration phases |
+| 2026-05-19 | v0.2: review fixes — JWKS port 3000, drop tenant echo mode, authz only when `required`, `DEPLOY_ENV` ladder, PR #77 dev login, configurator route table, S2S scope-out, package naming note |
