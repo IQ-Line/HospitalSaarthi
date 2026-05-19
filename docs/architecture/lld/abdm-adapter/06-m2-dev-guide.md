@@ -49,7 +49,9 @@ The scaffold files exist with `export {}` placeholders. Fill them in this order:
 
 1. **`discovery.ts`** — `DiscoveryRequest` (inbound, §5.3.2) + `OnDiscoverRequest` (outbound to gateway, §5.3.3). Includes `transactionId`, `patient[]`, `careContexts[]`, `hiType`, `count`, `error?`. **This is the most-touched flow shape; nail it first.**
 2. **`link-init.ts`** — `LinkInitRequest` (inbound, §5.3.6) + `OnLinkInitRequest` (outbound, §5.3.7). Includes `link.referenceNumber`, `link.authenticationType`, `link.meta.{communicationMedium, communicationHint, communicationExpiry}`.
-3. **`link-confirm.ts`** — `LinkConfirmRequest` (inbound, §5.3.10 has `confirmation.token` + `confirmation.linkRefNumber`). The HIP responds inline (HTTP body, not a separate `on-confirm` POST) per §5.3.11 — verify in spec, the doc strongly implies the HIP response is in the HTTP body of §5.3.10's callback handler.
+3. **`link-confirm.ts`** — **two types, two endpoints**, mirroring discover/init:
+   - `LinkConfirmRequest` (inbound, §5.3.10) — `{ confirmation: { token: string; linkRefNumber: string } }`. Inbound callback returns `202 Accepted` immediately (after dedupe + signature verify).
+   - `OnLinkConfirmRequest` (outbound, §5.3.11) — POSTed to `/api/hiecm/user-initiated-linking/v3/link/care-context/on-confirm` with `{ patient: PatientWithCareContexts[], response: { requestId } }`. The HIP runs OTP verification + record linking, then posts this. Same shape as `OnDiscoverRequest`. **This is NOT an inline response** — it's a separate outbound POST. Earlier doc draft got this wrong; verify against spec §5.3.11.
 4. **`hip-initiated-link.ts`** — **new file**. Just one pair of types (token-generation lives in `link-token.ts`, see #4b):
    - `LinkCareContextRequest` (HIP outbound, §4.3.3) — `patient[]` with `careContexts[]`, `hiType`, `count`. Requires `X-LINK-TOKEN` header (read from cache, see §4.6).
    - `OnLinkCareContextCallback` (gateway inbound, §4.3.4) — `status` enum + optional `error`.
@@ -57,24 +59,61 @@ The scaffold files exist with `export {}` placeholders. Fill them in this order:
 4b. **`link-token.ts`** — **new file** for the per-patient link-token cache helper (NOT a flow). See [`05-m2-flows.md §2.1`](./05-m2-flows.md#21-link-token-cache-per-patient-ephemeral--a-helper-not-a-flow):
    - `GenerateTokenRequest` (HIP outbound, §4.3.1) — `abhaAddress`, `name`, `gender`, `yearOfBirth`. Used only by `lib/link-token-cache.ts` internally; **not** by hip-initiated-link use-cases directly.
    - `OnGenerateTokenCallback` (gateway inbound, §4.3.2) — `linkToken` JWT. Handled by the cache's callback handler (UPSERTs the row), **not** as a flow transition.
-5. **`consent-notify.ts`** — `ConsentNotifyRequest` (inbound, §6.3.1) — full consent artefact. Export `ConsentArtefact` type for repo use. `OnConsentNotifyRequest` (outbound ack, §6.3.2).
+5. **`consent-notify.ts`** — `ConsentNotifyRequest` (inbound, §6.3.1) is **wrapped**, NOT a flat artefact:
+   ```ts
+   export interface ConsentNotifyRequest {
+     notification: {
+       consentId: string;
+       consentDetail: ConsentArtefact;     // the actual artefact
+     };
+     signature: string;                     // base64 signature over consentDetail
+   }
+   export interface ConsentArtefact { /* schemaVersion, consentId, status, patient, hip, hiu, purpose, hiTypes, permission, ... */ }
+   ```
+   `OnConsentNotifyRequest` (outbound ack, §6.3.2) — `{ acknowledgement: { status: 'OK'; consentId }, response: { requestId } }`. Earlier doc draft described the inbound as flat top-level fields; preserve the wrapper.
 6. **`care-context-publish.ts`** — `AddContextsRequest` (outbound, §4.3.6) — `notification.{patient, careContext, hiTypes, date, hip}`. `OnAddContextsCallback` (inbound ack, §4.3.7).
 7. **`sms-notify.ts`** — *optional*. `SmsNotifyRequest` (outbound, §4.3.8) — `notification.{phoneNo, hip}`. `OnSmsNotifyCallback` (inbound ack, §4.3.9).
 
 Each file exports interfaces, not classes. Suffix with `Request` for the wire shape, `Callback` for inbound-after-our-outbound. Match `protocol/m1/*.ts` for casing.
 
-Shared inbound headers go into a single `protocol/common/inbound-gateway-headers.ts` — reuse, don't repeat per endpoint:
+Inbound headers are **endpoint-specific** — don't model them with one strict shared type. Different callbacks require different identity headers; `X-CM-ID` is not universally required.
+
+Define a base + endpoint-family specializations in `protocol/common/inbound-gateway-headers.ts`:
 
 ```ts
-export interface InboundGatewayHeaders {
-  'request-id': string;             // gateway-issued UUID
-  timestamp: string;                // ISO-8601
-  'x-cm-id': string;
-  'x-hip-id'?: string;              // present on most HIP inbound; absent on some
-  'x-hiu-id'?: string;              // present on user-initiated linking inbound
-  authorization?: string;           // sandbox: optional; staging+: required signature
+export interface InboundGatewayHeadersBase {
+  'request-id': string;             // gateway-issued UUID, always present
+  timestamp: string;                // ISO-8601, always present
+  authorization?: string;           // sandbox: optional; staging+: required JWS
+}
+
+// HIP-side callbacks (discover, link/init, on_carecontext, consent/notify, on-notify, sms on-notify)
+export interface HipInboundHeaders extends InboundGatewayHeadersBase {
+  'x-hip-id': string;
+  'x-cm-id'?: string;
+}
+
+// HIU-side callbacks (link/confirm — gateway routes through HIU-id when the patient is on the HIU side)
+export interface HiuInboundHeaders extends InboundGatewayHeadersBase {
+  'x-hiu-id': string;
+  'x-cm-id'?: string;
 }
 ```
+
+Per-route, validate only the header subset the spec requires for that route:
+
+| Inbound endpoint | Required identity header | Notes |
+|---|---|---|
+| `/care-context/discover` (§5.3.2) | `X-HIP-ID` | |
+| `/link/care-context/init` (§5.3.6) | `X-HIP-ID` | |
+| `/link/care-context/confirm` (§5.3.10) | `X-HIU-ID` | **HIU**, not HIP |
+| `/link/on_carecontext` (§4.3.4) | `X-HIP-ID` | |
+| `/links/context/on-notify` (§4.3.7) | `X-HIP-ID` (per spec) | |
+| `/patients/sms/on-notify` (§4.3.9) | `X-HIP-ID` | |
+| `/consent/request/hip/notify` (§6.3.1) | `X-HIP-ID` | |
+| `/hip/token/on-generate-token` (§4.3.2) | `X-HIP-ID` | |
+
+Use the route handler's body+header schema (Zod or AJV) to enforce per-route — do not paper over the differences with `?:` optionals on a single shared type.
 
 ## 3. Per-flow typed context — **the portable shape**
 
@@ -236,15 +275,19 @@ markCareContextLinked(input: { iqTenantId, careContextId }): Promise<void>
 
 Endpoint: `RECORD_FOUNDATION_BASE_URL`. Same service-account JWT.
 
-### 4.6 Link Token Cache (new) — **the per-patient ephemeral helper**
+### 4.6 Link Token Cache (new) — **per-patient ephemeral helper, tenant-partitioned for namespace safety**
 
-A small cache for the link tokens that authorise `link/carecontext` calls. See [`05-m2-flows.md §2.1`](./05-m2-flows.md#21-link-token-cache-per-patient-ephemeral--a-helper-not-a-flow) for the architectural rationale. **The hip-initiated-link flow does NOT manage tokens** — it calls `linkTokenCache.getOrAcquire(abha, demographics)` and gets a string back.
+A small cache for the link tokens that authorise `link/carecontext` calls. See [`05-m2-flows.md §2.1`](./05-m2-flows.md#21-link-token-cache-per-patient-ephemeral--a-helper-not-a-flow) for the architectural rationale + the "credential is not workflow-scoped and not tenant-owned, but partitioned by `(iq_tenant_id, abha_address)` for namespace safety" framing.
+
+**The hip-initiated-link flow does NOT manage tokens** — it calls `linkTokenCache.getOrAcquire({ iqTenantId, abhaAddress, ... })` and gets a string back.
 
 Key principles:
 
-- **Keyed by patient ABHA address, not tenant.** The JWT's `sub` claim is the patient; the credential's natural key is the patient. There is no `iq_tenant_id` column.
-- **Citus reference table** (no distribution), small and high-churn.
-- **No background refresh worker.** TTL is too short (<15min); pre-warming for unknown patients is pointless. Acquisition is on-demand.
+- **Composite PK `(iq_tenant_id, abha_address)`.** The credential's logical identity is `(hipId, patient)`; since `iq_tenant_id` maps 1:1 to HIP in this codebase, it serves as the HIP-boundary partition. Prevents cross-HIP collisions in multi-tenant deployments.
+- **TTL comes from JWT `exp`, not a hardcoded value.** Production HIMS hardcodes a 6-month Mongo TTL and never decodes `exp`; this leaks stale tokens. Don't repeat that.
+- **Citus distributed table** by `iq_tenant_id`, co-located with other adapter tables. (Earlier draft used a reference table — corrected for hot-write workload.)
+- **No background refresh worker.** Validity window is short; the set of patients about to be linked next is unpredictable. Acquisition is on-demand.
+- **`pending_expires_at`** guards against orphaned pending rows blocking acquisition forever (e.g., requesting process crashes mid-flight).
 
 Components:
 
@@ -252,21 +295,24 @@ Components:
 
    ```sql
    CREATE TABLE abdm_adapter.abdm_link_tokens (
-     abha_address        text PRIMARY KEY,         -- patient's ABHA address
-     link_token          text NOT NULL,            -- encrypted via lib/payload-encryptor
-     expires_at          timestamptz NOT NULL,
-     obtained_at         timestamptz NOT NULL DEFAULT now(),
-     pending_request_id  text                      -- present while generate-token is in flight
+     iq_tenant_id        uuid NOT NULL,
+     abha_address        text NOT NULL,
+     link_token          text,                              -- NULL while pending; encrypted at rest once populated
+     expires_at          timestamptz,                       -- NULL while pending; set to JWT exp on receipt
+     obtained_at         timestamptz,
+     pending_request_id  text,
+     pending_expires_at  timestamptz,                       -- claim grace period (now() + 30s)
+     PRIMARY KEY (iq_tenant_id, abha_address)
    );
-   SELECT create_reference_table('abdm_adapter.abdm_link_tokens');
+   SELECT create_distributed_table('abdm_adapter.abdm_link_tokens', 'iq_tenant_id');
    ```
 
    Methods:
-   - `findFresh(abhaAddress): Promise<{ linkToken: string; expiresAt: Date } | null>` — returns null if absent or expiring within 60s.
-   - `claimAcquisition(abhaAddress, requestId): Promise<boolean>` — INSERT a stub row with `pending_request_id`; returns false if another acquisition is already in flight.
-   - `completeAcquisition(abhaAddress, encryptedToken, expiresAt): Promise<void>` — UPSERT the real token (called by the callback handler).
-   - `invalidate(abhaAddress): Promise<void>` — DELETE.
-   - `janitor(): Promise<number>` — `DELETE WHERE expires_at < now()`; called on a 5-minute timer.
+   - `findFresh(iqTenantId, abhaAddress): Promise<{ linkToken: string; expiresAt: Date } | null>` — returns null if no row, no token, or token expiring within 60s.
+   - `claimAcquisition(iqTenantId, abhaAddress, requestId): Promise<'claimed' | 'fresh-exists' | 'another-in-flight'>` — see the `INSERT … ON CONFLICT DO UPDATE` SQL in [`05-m2-flows.md §2.1`](./05-m2-flows.md#21-link-token-cache-per-patient-ephemeral--a-helper-not-a-flow). The three return values map to: claim succeeded, an unexpired fresh token already exists (caller should re-read), another acquisition is in flight within its `pending_expires_at` window.
+   - `completeAcquisition(iqTenantId, abhaAddress, encryptedToken, expiresAt): Promise<void>` — UPSERT the real token. Called by the callback handler.
+   - `invalidate(iqTenantId, abhaAddress): Promise<void>` — DELETE row.
+   - `janitor(): Promise<number>` — `DELETE WHERE expires_at IS NOT NULL AND expires_at < now()`; runs on a 5-minute timer.
 
 2. **`lib/link-token-cache.ts`** (new) — the helper used by use-cases:
 
@@ -274,6 +320,7 @@ Components:
    export class LinkTokenNotAvailable extends Error {}
 
    export interface LinkTokenAcquireInput {
+     iqTenantId: string;
      abhaAddress: string;
      abhaNumber?: string;
      name: string;                              // pipe-separated First | Middle | Last
@@ -287,46 +334,49 @@ Components:
      deps: { linkTokens: LinkTokenRepo; gateway: GatewayClient; encryptor: PayloadEncryptor },
    ): Promise<string> {
      // 1. fast path: cache hit
-     const cached = await deps.linkTokens.findFresh(input.abhaAddress);
+     const cached = await deps.linkTokens.findFresh(input.iqTenantId, input.abhaAddress);
      if (cached) return deps.encryptor.decrypt(cached.linkToken);
 
      // 2. miss: claim, post generate-token, poll
      const requestId = randomUUID();
-     const claimed = await deps.linkTokens.claimAcquisition(input.abhaAddress, requestId);
-     if (!claimed) {
-       // someone else is acquiring; just poll
-     } else {
+     const claim = await deps.linkTokens.claimAcquisition(input.iqTenantId, input.abhaAddress, requestId);
+     if (claim === 'fresh-exists') {
+       // raced — re-read and return
+       const fresh = await deps.linkTokens.findFresh(input.iqTenantId, input.abhaAddress);
+       if (fresh) return deps.encryptor.decrypt(fresh.linkToken);
+     } else if (claim === 'claimed') {
        await deps.gateway.postGenerateToken({
          requestId,
          body: { abhaAddress: input.abhaAddress, abhaNumber: input.abhaNumber,
                  name: input.name, gender: input.gender, yearOfBirth: input.yearOfBirth },
        });
      }
+     // claim === 'another-in-flight' → just poll
 
      // 3. poll the cache up to timeoutMs
      const deadline = Date.now() + (input.timeoutMs ?? 8000);
      while (Date.now() < deadline) {
        await sleep(200);
-       const row = await deps.linkTokens.findFresh(input.abhaAddress);
+       const row = await deps.linkTokens.findFresh(input.iqTenantId, input.abhaAddress);
        if (row) return deps.encryptor.decrypt(row.linkToken);
      }
-     await deps.linkTokens.invalidate(input.abhaAddress);    // clean up stub row
      throw new LinkTokenNotAvailable();
+     // NOTE: don't invalidate the pending row on timeout — pending_expires_at handles cleanup
    }
    ```
 
-3. **`use-cases/m2/link-token/handle-token-callback.ts`** (new) — handles inbound `on-generate-token` (§4.3.2). Signature: `(input: OnGenerateTokenCallback, deps) → Promise<void>`. Logic:
-   - Extract `abhaAddress` and `linkToken` from the body.
-   - Decode the JWT to read `exp` → `expiresAt`.
+3. **`use-cases/m2/link-token/handle-token-callback.ts`** (new) — handles inbound `on-generate-token` (§4.3.2). Signature: `(input: OnGenerateTokenCallback & { iqTenantId }, deps) → Promise<void>`. Logic:
+   - Extract `abhaAddress` and `linkToken` from the body. Tenant comes from `X-HIP-ID` → tenant lookup in the route handler.
+   - **Decode the JWT** to read `exp` → `expiresAt`. **Do not hardcode a TTL.**
    - Encrypt the token via `lib/payload-encryptor`.
-   - Call `deps.linkTokens.completeAcquisition(abhaAddress, encryptedToken, expiresAt)`.
+   - Call `deps.linkTokens.completeAcquisition(iqTenantId, abhaAddress, encryptedToken, expiresAt)`.
    - **No flow transition** — the cache UPSERT IS the side effect. The waiting `getOrAcquire` will pick this up via its poll.
 
 4. **REST handler for inbound callback:** `rest-handlers/m2/link-token-routes.ts` registers `POST /api/v3/hip/token/on-generate-token`. Standard dedupe sandwich; invokes `handle-token-callback`.
 
 5. **Timer kind: `link-token-janitor`** — a tiny 5-minute periodic timer that calls `linkTokens.janitor()` to delete expired rows. Doesn't generate, doesn't refresh — just cleans.
 
-**This entire component is invisible to the hip-initiated-link use-cases.** They call `linkTokenCache.getOrAcquire(…)` and get a string or an exception.
+**This entire component is invisible to the hip-initiated-link use-cases.** They call `linkTokenCache.getOrAcquire({ iqTenantId, abhaAddress, … })` and get a string or an exception.
 
 ### 4.7 Signature verifier (new, in `lib/`)
 
@@ -347,7 +397,7 @@ modules/abdm-adapter/src/use-cases/m2/
     context.ts                       # M2UserLinkContext
     handle-discover-callback.ts      # inbound discover → resolve EMPI → list contexts → post on-discover
     handle-link-init-callback.ts     # inbound link/init → generate linkRefNumber + dispatch OTP → post on-init
-    handle-link-confirm-callback.ts  # inbound link/confirm → verify OTP → mark linked → post on-confirm inline
+    handle-link-confirm-callback.ts  # inbound link/confirm (respond 202) → verify OTP → mark linked → post SEPARATE outbound on-confirm to /api/hiecm/.../on-confirm
     finalise-link.ts                 # PATCH Record Foundation, transition LINKED
     *.test.ts
   hip-initiated-link/
@@ -394,33 +444,43 @@ Discipline (rules from [HLD 04 §11](../integration-platform/04-orchestration-ph
 
 ## 6. Wire REST handlers (`modules/abdm-adapter/src/rest-handlers/m2/`)
 
-One file per flow folder. Each inbound handler does **exactly four things**:
+One file per flow folder. Each inbound handler does **exactly four things**. **Response status is per-spec, not blanket 202** — see [`05-m2-flows.md "Common pitfalls" §3`](./05-m2-flows.md#pitfall-3--inbound-response-status-varies-by-endpoint-200-vs-202) for the full table. Discover and link/init are `200`; confirm, on_carecontext, consent/notify are `202`.
 
 ```ts
 app.post(
   "/api/v3/hip/patient/care-context/discover",       // public callback URL path — must match what's registered with ABDM
-  { schema: { body: discoveryRequestSchema, headers: inboundGatewayHeadersSchema } },
+  { schema: { body: discoveryRequestSchema, headers: hipInboundHeadersSchema } },
   async (req, reply) => {
     // 1. Verify signature (sandbox: always returns true; staging: real JWS check)
     const signatureValid = await verifyAbdmSignature(req.headers, req.body);
     if (!signatureValid) return reply.code(401).send({ error: { code: "ABDM-1411", message: "invalid-signature" } });
 
-    // 2. Idempotency check — duplicate → 202 immediately
+    // 2. Idempotency check — duplicate → respond with spec status, do nothing
     const isNew = await deps.inboundMessages.insertIfNew({
       iqTenantId: req.tenantId,
       requestId: req.headers['request-id'] as string,
       flowKind: 'abdm.m2.user-initiated-link.v1',
     });
-    if (!isNew) return reply.code(202).send();
+    if (!isNew) return reply.code(200).send();          // discover spec status = 200
 
-    // 3. Schedule async on-discover post (or run inline for Phase 1 sandbox)
+    // 3. Kick off async on-discover work (the actual gateway POST happens in the use-case)
     await handleDiscoverCallback({ iqTenantId: req.tenantId, ...req.body }, deps);
 
-    // 4. Return 202 — gateway expects this fast
-    return reply.code(202).send();
+    // 4. Respond with the spec status for this route — gateway expects this fast
+    return reply.code(200).send();                      // §5.3.2 — discover responds 200, not 202
   },
 );
 ```
+
+**Status code per route** (from the spec; sandbox is permissive but code to spec):
+- `/care-context/discover` → `200`
+- `/link/care-context/init` → `200`
+- `/link/care-context/confirm` → `202`
+- `/link/on_carecontext` → `202`
+- `/consent/request/hip/notify` → `202`
+- `/hip/token/on-generate-token` → `202`
+- `/links/context/on-notify` → `202`
+- `/patients/sms/on-notify` → `202`
 
 Handler is ≤50 LOC. If it grows beyond that, the work belongs in the use-case (rule 1 in HLD 04 §11).
 
@@ -437,7 +497,7 @@ ON CONFLICT (iq_tenant_id, request_id) DO NOTHING
 RETURNING request_id;
 ```
 
-Zero rows ⇒ duplicate ⇒ return 202 and stop. **Do not** skip this — the gateway retries with the same `REQUEST-ID` and will deliver the same callback 2-3 times under load.
+Zero rows ⇒ duplicate ⇒ return the route's spec status (200 or 202 — see table in §6) and stop. **Do not** skip this — the gateway retries with the same `REQUEST-ID` and will deliver the same callback 2-3 times under load.
 
 For outbound posts that fail mid-flight (e.g., gateway is briefly unreachable), **do not auto-retry inside the use-case**. Update state to a `*_PENDING_ON_RETRY` shape and schedule a timer (see [`04-orchestration-phase-1-http-first.md §6`](../integration-platform/04-orchestration-phase-1-http-first.md#6-timer-worker)). The worker picks it up.
 
@@ -482,8 +542,12 @@ curl -X POST http://localhost:3007/api/v3/hip/patient/care-context/discover \
 ## 10. Commit checklist before opening the PR
 
 - All four mandatory flows: DTOs populated, use-cases populated, inbound REST handlers wired, outbound posters wired.
-- `abdm_inbound_messages` and `abdm_consent_artefacts` migrations applied locally.
+- `abdm_inbound_messages`, `abdm_consent_artefacts`, `abdm_link_tokens` migrations applied locally.
 - Per-flow typed context in `domain/session.ts` working; `findById<F>()` IntelliSense surfaces the right `context` shape.
+- **Every outbound `on-*` body carries `response.requestId` echoing the matching inbound REQUEST-ID** — grep for the field, audit visually. Missing it = gateway silently drops the response. See [`05-m2-flows.md "Common pitfalls" §1`](./05-m2-flows.md#pitfall-1--every-outbound-on--must-echo-responserequestid).
+- **Inbound response status matches spec per route** — `/discover` and `/link/init` return 200; everything else returns 202. Integration tests assert the exact status. See [`05-m2-flows.md "Common pitfalls" §3`](./05-m2-flows.md#pitfall-3--inbound-response-status-varies-by-endpoint-200-vs-202).
+- **HI type enum casing matches the endpoint** — `link/carecontext` uses ALL CAPS, `link/context/notify` and consent body use PascalCase. Per-endpoint wire enums or a normalizer. See [`05-m2-flows.md "Common pitfalls" §2`](./05-m2-flows.md#pitfall-2--hi-type-casing-varies-by-endpoint).
+- **No shared `InboundGatewayHeaders` type** — per-route header DTO (HipInboundHeaders vs HiuInboundHeaders) per §2.
 - `pnpm -F @hims/ts-sdk-abha build` clean.
 - `npx nx run abdm-adapter:lint` and `npx nx run abdm-adapter:test` clean.
 - One sandbox happy-path test passing locally per mandatory flow (gated, not in CI).
@@ -504,6 +568,18 @@ curl -X POST http://localhost:3007/api/v3/hip/patient/care-context/discover \
 - **Inbound message log retention.** How long do we keep `abdm_inbound_messages` rows? Default to 30 days with a janitor; flag for ops review.
 - **Add-contexts retry.** Three attempts × exponential backoff per [`05-m2-flows.md §4`](./05-m2-flows.md#4-abdmm2add-contextsv1). DLQ shape: post-Phase 1; for now, log + alert on third failure.
 - **SMS-notify** — implement or defer? Confirm with product before adding to scope.
+
+## 11.1 Production reference caveats — don't copy `hims/abdi-lims-backed` blindly
+
+The production HIMS at `/home/ayushiqline/projects/hims/abdi-lims-backed` is the **only running ABDM-certified implementation in-house** and is invaluable for "what shape works against the sandbox in practice." But it has **known divergences** from the v3 spec — discovered during the M2 doc vetting on 2026-05-19 — that you should NOT replicate:
+
+| Where (production file) | Bug | What to do |
+|---|---|---|
+| `src/models/LinkToken.ts` | Mongo TTL is hardcoded at 6 months on `updatedAt`; the JWT's `exp` is never decoded. Production reuses tokens long after they expire on the gateway side and relies on retry-on-failure to catch this. | **Decode the JWT `exp`** in `handle-token-callback.ts` and store as `expires_at`. Cache expires based on JWT, not on Mongo TTL. |
+| `src/services/milestone2CreationService.ts` (`smsNotificationToPatients` around lines 284-303) | SMS notify body omits top-level `requestId` and `timestamp` (commented out). Spec §4.3.8 requires them. | **Include `requestId` and `timestamp`** at the top level of the SMS notify body, alongside `notification`. |
+| `src/services/callbackService.ts` (`UserInitiatedCallbackDiscover` around lines 283-352) | Saves `identifiers` with `abha_address: identifiers.abhaAddress`, but `identifiers.abhaAddress` is never set on that object. Result: ABHA address goes unrecorded. | Map inbound discover patient ABHA from `body.patient.id`, not from a never-set `identifiers.abhaAddress`. |
+
+Use production for **wire shapes the sandbox actually accepts** (error message strings, exact `on-*` field ordering quirks, gateway error code catalogue) — that knowledge is hard-won and not in the spec. But cross-check every architectural pattern against the spec doc before adopting it.
 
 ## 12. Port-out promise (durable execution target)
 
