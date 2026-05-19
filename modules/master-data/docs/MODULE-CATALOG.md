@@ -32,6 +32,9 @@ Cross-cutting HLD: [HLD 02 §4.2 — Owns (platform module registry)](../../../d
 | `008_module_permissions` | Creates `module_permissions` (FKs to `modules` / `permissions`, partial uniques on `slug` and `(module_id, permission_id)`). |
 | `024_visitpad_templates_module_catalog` | Idempotent seed: `visitpad-templates` module + catalog read/write `permissions` + `module_permissions` junction rows (Visitpad templates). |
 | `025_visitpad_templates_catalog_manage` | Optional: `visitpad-templates-catalog-manage` (`action` = `manage`) + junction row for coarse superadmin-style Cerbos bindings (does not remove 024 rows). |
+| `030_picklist_catalog` | Creates `global_master.picklist` (domain headers; partial unique on `slug`). |
+| `031_picklist_catalog_seed` | Seeds platform picklist domains (gender, blood-group, role-types, nationality, religion). |
+| `032_picklist_values_catalog` | Creates `global_master.picklist_values` (FK `category_id` → `picklist.id`). Picklist catalog is `global_master` only (no `tenant_master` copy). |
 
 All catalog tables are created in the PostgreSQL **`global_master`** schema (`tenant_master` for per-tenant copies). The shared database also holds other modules’ schemas (`configurator`, `empi`, …) and `public.alembic_version` for Alembic.
 
@@ -91,6 +94,15 @@ Ad-hoc DBA / pgAdmin examples (inspect `modules` / `permissions` / `module_permi
 | `GET` | `/api/v1/master-data/module-permissions/{modulePermissionId}` | **404** if missing or soft-deleted. |
 | `PATCH` | `/api/v1/master-data/module-permissions/{modulePermissionId}` | Partial update (`ModulePermissionUpdate`). |
 | `DELETE` | `/api/v1/master-data/module-permissions/{modulePermissionId}` | Soft-delete link row. |
+| `GET` | `/api/v1/master-data/picklists` | List active picklist domains (read-only; domains are migration-seeded). |
+| `GET` | `/api/v1/master-data/picklists/by-slug/{slug}` | **404** if missing or soft-deleted. |
+| `GET` | `/api/v1/master-data/picklists/{picklistId}` | **404** if missing or soft-deleted. |
+| `GET` | `/api/v1/master-data/picklists/{picklistId}/values` | List values; optional `is_active` query. |
+| `POST` | `/api/v1/master-data/picklists/{picklistId}/values` | Create value; **201**; **409** on slug or `(category_id, value)` clash. |
+| `GET` | `/api/v1/master-data/picklists/{picklistId}/values/by-slug/{slug}` | **404** if picklist or value missing. |
+| `GET` | `/api/v1/master-data/picklists/{picklistId}/values/{valueId}` | **404** if wrong parent or missing. |
+| `PATCH` | `/api/v1/master-data/picklists/{picklistId}/values/{valueId}` | Partial update (`PicklistValueUpdate`). |
+| `DELETE` | `/api/v1/master-data/picklists/{picklistId}/values/{valueId}` | Deactivate (`is_active = false`); clears `is_default`. |
 
 Errors use **`ErrorResponse`** (`error.code`, `error.message`). **`tests/test_api/test_modules_crud_integration.py`** exercises full CRUD against SQLite + real repository.
 
@@ -111,4 +123,4 @@ Repository tests use SQLite in memory with schema translation; API/service tests
 
 ## Next slices (order)
 
-Per LLD MVP: **permissions** (done) → **module_permissions** (done) → **system_roles** (done) → picklists → config schemas / feature flags — each slice gets Alembic revision(s), OpenAPI updates, handlers, and tests.
+Per LLD MVP: **permissions** (done) → **module_permissions** (done) → **system_roles** (done) → **picklists / picklist values** (done) → config schemas / feature flags — each slice gets Alembic revision(s), OpenAPI updates, handlers, and tests.

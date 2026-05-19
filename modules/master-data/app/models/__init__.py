@@ -2,6 +2,8 @@ from app.models.base import Base
 from app.models.module import ModuleModel
 from app.models.module_permission import ModulePermissionModel
 from app.models.permission import PermissionModel
+from app.models.picklist import PicklistModel, PicklistPublicModel
+from app.models.picklist_value import PicklistValueModel, PicklistValuePublicModel
 from app.models.system_role import SystemRoleModel
 from app.models.visitpad.allergen import VisitpadAllergenModel, VisitpadAllergenPublicModel
 from app.models.visitpad.allergy_reaction import (
@@ -34,6 +36,10 @@ __all__ = [
     "ModuleModel",
     "ModulePermissionModel",
     "PermissionModel",
+    "PicklistModel",
+    "PicklistPublicModel",
+    "PicklistValueModel",
+    "PicklistValuePublicModel",
     "SystemRoleModel",
     "VisitpadAllergenModel",
     "VisitpadAllergenPublicModel",

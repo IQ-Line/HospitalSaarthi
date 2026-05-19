@@ -174,18 +174,29 @@ Item shape reference: **`Module`** in OpenAPI.
 
 ---
 
-### 3.2 Planned (target v1 catalogue — not yet in OpenAPI)
+### 3.2 Picklists (implemented)
 
-These align with the MVP tables in [`schema-reference.json`](./schema-reference.json). Add paths and schemas to **`master-data.v1.yaml`** in the same PR as the implementing handler.
+Picklist **domains** and **values** are read/write in **`global_master` only** (migration-seeded domains; values via CRUD). The `iq_tenant_id` header does not apply to picklist routes — platform-global catalog, unlike modules/permissions which support [dual schema](./01-catalog-dual-schema.md).
+
+| Method | Path | Summary | Success response shape |
+|--------|------|--------|------------------------|
+| `GET` | `/api/v1/master-data/picklists` | List picklist domains | `{ "data": Picklist[], "total": int }` |
+| `GET` | `/api/v1/master-data/picklists/{picklistId}` | Get one domain | `{ "data": Picklist }` |
+| `GET` | `/api/v1/master-data/picklists/by-slug/{slug}` | Get domain by slug | `{ "data": Picklist }` |
+| `GET` | `/api/v1/master-data/picklists/{picklistId}/values` | List values (optional `is_active`) | `{ "data": PicklistValue[], "total": int }` |
+| `POST` | `/api/v1/master-data/picklists/{picklistId}/values` | Create value | `{ "data": PicklistValue }` |
+| `GET` | `/api/v1/master-data/picklists/{picklistId}/values/{valueId}` | Get value | `{ "data": PicklistValue }` |
+| `PATCH` | `/api/v1/master-data/picklists/{picklistId}/values/{valueId}` | Update value | `{ "data": PicklistValue }` |
+| `DELETE` | `/api/v1/master-data/picklists/{picklistId}/values/{valueId}` | Deactivate value (`is_active = false`) | `{ "data": PicklistValue }` |
+
+### 3.3 Planned (target v1 catalogue — not yet in OpenAPI)
 
 | Method | Path (proposal) | Summary | Success response shape (proposal) |
 |--------|-----------------|--------|-------------------------------------|
-| `GET` | `/api/v1/master-data/picklists` | List picklist domains | `{ "data": Picklist[], "total": int }` |
-| `GET` | `/api/v1/master-data/picklists/{picklistId}/values` | List values for a picklist | `{ "data": PicklistValue[], "total": int }` |
 | `GET` | `/api/v1/master-data/module-config-schemas` | List declared config schemas | `{ "data": ModuleConfigSchema[], "total": int }` (optional `module_id`, `schema_version`) |
 | `GET` | `/api/v1/master-data/feature-flags` | List feature flag definitions | `{ "data": FeatureFlag[], "total": int }` |
 
-### 3.3 Visitpad Master (backend catalog — done; web next)
+### 3.4 Visitpad Master (backend catalog — done; web next)
 
 Canonical design: [03-visitpad-master.md](./03-visitpad-master.md). **All Visitpad catalog HTTP resources** listed in **§3.1** are implemented in **`modules/master-data`**, with persistence in **`public`** (global) and **`tenant_master`** (per-tenant) per request header `iq_tenant_id` — see [01-catalog-dual-schema.md](./01-catalog-dual-schema.md) and Alembic from **`009_visitpad_units`** / **`010_visitpad_catalog`** through **`011`** and later tenant-master revisions (**`022`** for UUID `iq_tenant_id`). Remaining product work: **`services/web/src/features/visitpad`** (shell, tabs, tables, Cerbos policies when ready) per [implementation plan](../../../../docs/plans/visitpad-master-implementation-plan.md) §12.
 

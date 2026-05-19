@@ -226,6 +226,341 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /picklists:
+    get:
+      operationId: listPicklists
+      summary: List picklist domains
+      description: Returns active picklist domain rows (`is_deleted = false`). Domains are migration-seeded; no write API on this path.
+      security: []
+      tags:
+      - Picklists
+      responses:
+        '200':
+          description: Picklist domain rows.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PicklistListResponse'
+        '500':
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /picklists/by-slug/{slug}:
+    get:
+      operationId: getPicklistBySlug
+      summary: Get one picklist domain by slug
+      security: []
+      tags:
+      - Picklists
+      parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Picklist found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PicklistSingleResponse'
+        '404':
+          description: No picklist with this slug.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /picklists/{picklistId}:
+    get:
+      operationId: getPicklistById
+      summary: Get one picklist domain by id
+      security: []
+      tags:
+      - Picklists
+      parameters:
+      - name: picklistId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Picklist found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PicklistSingleResponse'
+        '404':
+          description: Picklist id not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /picklists/{picklistId}/values:
+    get:
+      operationId: listPicklistValues
+      summary: List values for a picklist domain
+      security: []
+      tags:
+      - Picklists
+      parameters:
+      - name: picklistId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: is_active
+        in: query
+        required: false
+        schema:
+          type: boolean
+        description: When set, filter rows by `is_active`.
+      responses:
+        '200':
+          description: Picklist value rows.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PicklistValueListResponse'
+        '404':
+          description: Picklist id not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      operationId: createPicklistValue
+      summary: Create a picklist value
+      security: []
+      tags:
+      - Picklists
+      parameters:
+      - name: picklistId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PicklistValueCreate'
+      responses:
+        '201':
+          description: Picklist value created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PicklistValueSingleResponse'
+        '404':
+          description: Picklist id not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Slug or value key conflict within this picklist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /picklists/{picklistId}/values/by-slug/{slug}:
+    get:
+      operationId: getPicklistValueBySlug
+      summary: Get one picklist value by slug
+      security: []
+      tags:
+      - Picklists
+      parameters:
+      - name: picklistId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Picklist value found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PicklistValueSingleResponse'
+        '404':
+          description: Picklist or value not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /picklists/{picklistId}/values/{valueId}:
+    get:
+      operationId: getPicklistValueById
+      summary: Get one picklist value by id
+      security: []
+      tags:
+      - Picklists
+      parameters:
+      - name: picklistId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: valueId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Picklist value found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PicklistValueSingleResponse'
+        '404':
+          description: Picklist or value not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      operationId: updatePicklistValue
+      summary: Update a picklist value
+      security: []
+      tags:
+      - Picklists
+      parameters:
+      - name: picklistId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: valueId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PicklistValueUpdate'
+      responses:
+        '200':
+          description: Picklist value updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PicklistValueSingleResponse'
+        '404':
+          description: Picklist or value not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Slug or value key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      operationId: deletePicklistValue
+      summary: Deactivate a picklist value
+      description: Sets `is_active` to false (no hard delete). Clears `is_default` when deactivating the default row.
+      security: []
+      tags:
+      - Picklists
+      parameters:
+      - name: picklistId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: valueId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Picklist value deactivated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PicklistValueSingleResponse'
+        '404':
+          description: Picklist or value not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /system-roles:
     get:
       operationId: listSystemRoles
@@ -3889,6 +4224,190 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Permission'
+        total:
+          type: integer
+          minimum: 0
+    Picklist:
+      type: object
+      required:
+      - id
+      - name
+      - slug
+      - is_active
+      - is_deleted
+      - created_at
+      - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        iq_tenant_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Present when the row was read from tenant_master.
+        name:
+          type: string
+        slug:
+          type: string
+        is_active:
+          type: boolean
+        is_deleted:
+          type: boolean
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    PicklistSingleResponse:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Picklist'
+    PicklistListResponse:
+      type: object
+      required:
+      - data
+      - total
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Picklist'
+        total:
+          type: integer
+          minimum: 0
+    PicklistValueCreate:
+      type: object
+      required:
+      - slug
+      - value
+      - label
+      additionalProperties: false
+      properties:
+        slug:
+          type: string
+        value:
+          type: string
+          description: Stable stored key (unique per picklist domain).
+        label:
+          type: string
+        description:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+        is_active:
+          type: boolean
+          default: true
+        is_default:
+          type: boolean
+          default: false
+        display_order:
+          type: integer
+          default: 0
+    PicklistValueUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        slug:
+          type: string
+        value:
+          type: string
+        label:
+          type: string
+        description:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+        is_active:
+          type: boolean
+        is_default:
+          type: boolean
+        display_order:
+          type: integer
+    PicklistValue:
+      type: object
+      required:
+      - id
+      - category_id
+      - slug
+      - value
+      - label
+      - is_active
+      - is_default
+      - display_order
+      - created_at
+      - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        iq_tenant_id:
+          type: string
+          format: uuid
+          nullable: true
+        category_id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        value:
+          type: string
+        label:
+          type: string
+        description:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+        is_active:
+          type: boolean
+        is_default:
+          type: boolean
+        display_order:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    PicklistValueSingleResponse:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/PicklistValue'
+    PicklistValueListResponse:
+      type: object
+      required:
+      - data
+      - total
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PicklistValue'
         total:
           type: integer
           minimum: 0

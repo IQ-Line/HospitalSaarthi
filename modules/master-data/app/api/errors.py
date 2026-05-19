@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from app.repositories.module_permission_repository import DuplicateModulePermissionKeyError
 from app.repositories.module_repository import DuplicateModuleKeyError
 from app.repositories.permission_repository import DuplicatePermissionKeyError
+from app.repositories.picklist_value_repository import DuplicatePicklistValueKeyError
 from app.repositories.system_role_repository import DuplicateSystemRoleKeyError
 from app.repositories.visitpad.integrity import DuplicateVisitpadCatalogKeyError
 from app.repositories.visitpad.conversion import (
@@ -28,6 +29,8 @@ from app.services.module_service import (
     ParentModuleNotFoundError,
 )
 from app.services.permission_service import PermissionNotFoundError
+from app.services.picklist_service import PicklistNotFoundError
+from app.services.picklist_value_service import PicklistValueNotFoundError
 from app.services.system_role_service import SystemRoleNotFoundError
 from app.services.visitpad.units import (
     InvalidVisitpadUnitConversionError,
@@ -169,6 +172,42 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=404,
             content=error_payload("NOT_FOUND", "No permission with this id."),
+        )
+
+    @app.exception_handler(PicklistNotFoundError)
+    async def _picklist_missing(_request: Request, _exc: PicklistNotFoundError) -> JSONResponse:
+        return JSONResponse(
+            status_code=404,
+            content=error_payload("NOT_FOUND", "No picklist with this id."),
+        )
+
+    @app.exception_handler(PicklistValueNotFoundError)
+    async def _picklist_value_missing(
+        _request: Request,
+        _exc: PicklistValueNotFoundError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=404,
+            content=error_payload(
+                "NOT_FOUND",
+                "No picklist value with this id for this picklist.",
+            ),
+        )
+
+    @app.exception_handler(DuplicatePicklistValueKeyError)
+    async def _duplicate_picklist_value_key(
+        _request: Request,
+        _exc: DuplicatePicklistValueKeyError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content=error_payload(
+                "CONFLICT",
+                (
+                    "Another picklist value already uses this slug or the same "
+                    "value key within this picklist."
+                ),
+            ),
         )
 
     @app.exception_handler(SystemRoleNotFoundError)

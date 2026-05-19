@@ -6,6 +6,8 @@ from app.core.catalog_scope import CatalogScope
 from app.models.module import ModulePublicModel, ModuleTenantModel
 from app.models.module_permission import ModulePermissionPublicModel, ModulePermissionTenantModel
 from app.models.permission import PermissionPublicModel, PermissionTenantModel
+from app.models.picklist import PicklistPublicModel
+from app.models.picklist_value import PicklistValuePublicModel
 from app.models.system_role import SystemRolePublicModel, SystemRoleTenantModel
 
 
@@ -23,3 +25,13 @@ def system_role_model(scope: CatalogScope):
 
 def module_permission_model(scope: CatalogScope):
     return ModulePermissionTenantModel if scope.is_tenant else ModulePermissionPublicModel
+
+
+def picklist_model(_scope: CatalogScope):
+    """Picklist domains are platform-global only (``global_master``)."""
+    return PicklistPublicModel
+
+
+def picklist_value_model(_scope: CatalogScope):
+    """Picklist values are platform-global only (``global_master``)."""
+    return PicklistValuePublicModel
