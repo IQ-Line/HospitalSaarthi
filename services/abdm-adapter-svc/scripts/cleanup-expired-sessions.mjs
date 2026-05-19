@@ -5,25 +5,18 @@
  * Schedule via cron / K8s CronJob in staging and production.
  */
 import { spawnSync } from "node:child_process";
-import { config } from "dotenv";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { loadWorkspaceEnv } from "./load-workspace-env.mjs";
 
-const serviceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-config({ path: path.join(serviceRoot, ".env") });
+loadWorkspaceEnv();
 
 function resolveDatabaseUrl() {
-  const raw = (
-    process.env["DATABASE_URL"] ??
-    process.env["ABDM_DATA_DATABASE_URL"] ??
-    ""
-  ).trim();
+  const raw = (process.env["DATABASE_URL"] ?? "").trim();
   return raw.replace(/^postgresql\+psycopg:\/\//i, "postgresql://");
 }
 
 const url = resolveDatabaseUrl();
 if (!url) {
-  console.error("DATABASE_URL is missing in services/abdm-adapter-svc/.env");
+  console.error("DATABASE_URL is missing in repo root .env");
   process.exit(1);
 }
 

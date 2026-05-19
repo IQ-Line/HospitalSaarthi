@@ -1,4 +1,4 @@
-import "./load-env.js";
+import "./workspace-env.js";
 import path from "node:path";
 import Fastify from "fastify";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
@@ -16,7 +16,7 @@ import {
   normalizeAbdmEnvAliases,
   resolveDatabaseUrlFromEnv,
   serviceRoot,
-} from "./load-env.js";
+} from "./workspace-env.js";
 import { registerHttpErrorHandler } from "./http-errors.js";
 import { requireSessionTokenCryptoInProd } from "@hims/abdm-adapter";
 

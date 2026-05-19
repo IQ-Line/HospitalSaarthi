@@ -1,21 +1,15 @@
 #!/usr/bin/env node
 /**
- * Apply `abdm_adapter` schema using `DATABASE_URL` from `.env` in this directory.
+ * Apply `abdm_adapter` schema using `DATABASE_URL` from repo root `.env`.
  */
 import { spawnSync } from "node:child_process";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { config } from "dotenv";
+import { loadWorkspaceEnv, serviceRoot } from "./load-workspace-env.mjs";
 
-const serviceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-config({ path: path.join(serviceRoot, ".env") });
+loadWorkspaceEnv();
 
 function resolveDatabaseUrl() {
-  const raw = (
-    process.env["DATABASE_URL"] ??
-    process.env["ABDM_DATA_DATABASE_URL"] ??
-    ""
-  ).trim();
+  const raw = (process.env["DATABASE_URL"] ?? "").trim();
   if (!raw) return "";
   let urlString = raw.replace(/^postgresql\+psycopg:\/\//i, "postgresql://");
   try {
@@ -37,7 +31,7 @@ function resolveDatabaseUrl() {
 
 const url = resolveDatabaseUrl();
 if (!url) {
-  console.error("DATABASE_URL is missing in services/abdm-adapter-svc/.env");
+  console.error("DATABASE_URL is missing in repo root .env");
   process.exit(1);
 }
 

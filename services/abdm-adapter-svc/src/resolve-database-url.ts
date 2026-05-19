@@ -4,12 +4,7 @@
  * - Adds `sslmode=require` for Azure Postgres hosts when omitted
  */
 export function resolveDatabaseUrl(rawInput?: string): string {
-  const raw = (
-    rawInput ??
-    process.env["DATABASE_URL"] ??
-    process.env["ABDM_DATA_DATABASE_URL"] ??
-    ""
-  ).trim();
+  const raw = (rawInput ?? process.env["DATABASE_URL"] ?? "").trim();
   if (!raw) return "";
 
   let urlString = raw.replace(/^postgresql\+psycopg:\/\//i, "postgresql://");
