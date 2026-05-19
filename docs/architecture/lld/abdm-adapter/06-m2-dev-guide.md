@@ -8,7 +8,7 @@
 - ABDM Sandbox credentials, same env keys as M1 (`ABDM_SANDBOX_CLIENT_ID` / `ABDM_SANDBOX_CLIENT_SECRET`).
 - **`X-CM-ID`** and **`X-HIP-ID`** header values for the sandbox. `X-CM-ID` is fixed per environment (sandbox: `sbx`). `X-HIP-ID` is your facility's HIP id, registered in HFR. **`X-HIU-ID`** appears on inbound user-initiated-linking callbacks (gateway tells us *which* PHR app is asking) — you don't set it, you read it.
 - **Callback URL.** ABDM gateway needs a public URL to POST inbound callbacks to. For local dev, use `ngrok http 3007` and register the public URL in the sandbox console under your facility's "callback URL" setting. Path is fixed: all `/api/v3/…` routes documented in [`05-m2-flows.md`](./05-m2-flows.md).
-- Reference impl at `hims/abdi-lims-backed/src/services/milestone2*Service.ts` available locally. Useful for *which exact `on-*` response shape the sandbox accepts* and *what gateway error codes appear in practice*. **Do not copy structure** — the production service intermingles handlers and persistence; M2 here keeps the M1 typed-port layering.
+- Reference impl at `/home/ayushiqline/projects/hims/abdi-lims-backed` available locally. Start with `src/services/milestone2CreationService.ts`, `src/services/callbackService.ts`, `src/routes/callback.ts`, and `src/models/LinkToken.ts`. Useful for *which exact `on-*` response shape the sandbox accepts* and *what gateway error codes appear in practice*. **Do not copy structure** — the production service intermingles handlers and persistence; M2 here keeps the M1 typed-port layering.
 - Postman: M2 sandbox collection (ask the lead — published separately from the M1 collection).
 
 Reading order before code:
@@ -51,7 +51,7 @@ The scaffold files exist with `export {}` placeholders. Fill them in this order:
 2. **`link-init.ts`** — `LinkInitRequest` (inbound, §5.3.6) + `OnLinkInitRequest` (outbound, §5.3.7). Includes `link.referenceNumber`, `link.authenticationType`, `link.meta.{communicationMedium, communicationHint, communicationExpiry}`.
 3. **`link-confirm.ts`** — **two types, two endpoints**, mirroring discover/init:
    - `LinkConfirmRequest` (inbound, §5.3.10) — `{ confirmation: { token: string; linkRefNumber: string } }`. Inbound callback returns `202 Accepted` immediately (after dedupe + signature verify).
-   - `OnLinkConfirmRequest` (outbound, §5.3.11) — POSTed to `/api/hiecm/user-initiated-linking/v3/link/care-context/on-confirm` with `{ patient: PatientWithCareContexts[], response: { requestId } }`. The HIP runs OTP verification + record linking, then posts this. Same shape as `OnDiscoverRequest`. **This is NOT an inline response** — it's a separate outbound POST. Earlier doc draft got this wrong; verify against spec §5.3.11.
+   - `OnLinkConfirmRequest` (outbound, §5.3.11) — POSTed to `/api/hiecm/user-initiated-linking/v3/link/care-context/on-confirm` with `{ patient: PatientWithCareContexts[], response: { requestId } }`. The HIP runs OTP verification + record linking, then posts this. It reuses the same `patient[]` record shape as `OnDiscoverRequest`, but the top-level body has no `transactionId`. **This is NOT an inline response** — it's a separate outbound POST. Earlier doc draft got this wrong; verify against spec §5.3.11.
 4. **`hip-initiated-link.ts`** — **new file**. Just one pair of types (token-generation lives in `link-token.ts`, see #4b):
    - `LinkCareContextRequest` (HIP outbound, §4.3.3) — `patient[]` with `careContexts[]`, `hiType`, `count`. Requires `X-LINK-TOKEN` header (read from cache, see §4.6).
    - `OnLinkCareContextCallback` (gateway inbound, §4.3.4) — `status` enum + optional `error`.
@@ -63,12 +63,14 @@ The scaffold files exist with `export {}` placeholders. Fill them in this order:
    ```ts
    export interface ConsentNotifyRequest {
      notification: {
+       status: 'GRANTED' | 'REVOKED';
        consentId: string;
        consentDetail: ConsentArtefact;     // the actual artefact
+       signature: string;                   // base64 signature over consentDetail
+       grantAcknowledgement: boolean;
      };
-     signature: string;                     // base64 signature over consentDetail
    }
-   export interface ConsentArtefact { /* schemaVersion, consentId, status, patient, hip, hiu, purpose, hiTypes, permission, ... */ }
+   export interface ConsentArtefact { /* schemaVersion, consentId, patient, hip, hiu, purpose, hiTypes, permission, ... */ }
    ```
    `OnConsentNotifyRequest` (outbound ack, §6.3.2) — `{ acknowledgement: { status: 'OK'; consentId }, response: { requestId } }`. Earlier doc draft described the inbound as flat top-level fields; preserve the wrapper.
 6. **`care-context-publish.ts`** — `AddContextsRequest` (outbound, §4.3.6) — `notification.{patient, careContext, hiTypes, date, hip}`. `OnAddContextsCallback` (inbound ack, §4.3.7).
@@ -406,7 +408,7 @@ modules/abdm-adapter/src/use-cases/m2/
     handle-link-callback.ts          # inbound on_carecontext → success/failure
     *.test.ts
   link-token/                        # PER-PATIENT EPHEMERAL CACHE — NOT a flow
-    handle-token-callback.ts         # inbound on-generate-token → UPSERT cache row keyed by abha_address
+    handle-token-callback.ts         # inbound on-generate-token → UPSERT cache row keyed by (iqTenantId, abhaAddress)
     *.test.ts
     # (no refresh.ts — acquisition is on-demand via lib/link-token-cache.ts; no background worker)
   consent-notify/
@@ -504,7 +506,7 @@ For outbound posts that fail mid-flight (e.g., gateway is briefly unreachable), 
 ## 8. Tests
 
 - **Unit tests** for every use-case using a fake `AbdmAdapterDeps` — same pattern as M1. Tests live next to use-cases as `*.test.ts`.
-- **Idempotency test** per inbound handler: same `REQUEST-ID` twice → second returns 202 with no DB writes.
+- **Idempotency test** per inbound handler: same `REQUEST-ID` twice → second returns that route's spec status (`200` or `202`) with no DB writes/use-case call.
 - **Per-flow integration test** against the sandbox, gated behind `RUN_ABDM_SANDBOX_TESTS=1`:
   - `m2-user-initiated-link.sandbox.integration.test.ts` — simulate three inbound callbacks via local POST; assert state arrives at `LINKED`.
   - `m2-hip-initiated-link.sandbox.integration.test.ts` — drive outbound + inbound chain via the sandbox.
@@ -544,7 +546,7 @@ curl -X POST http://localhost:3007/api/v3/hip/patient/care-context/discover \
 - All four mandatory flows: DTOs populated, use-cases populated, inbound REST handlers wired, outbound posters wired.
 - `abdm_inbound_messages`, `abdm_consent_artefacts`, `abdm_link_tokens` migrations applied locally.
 - Per-flow typed context in `domain/session.ts` working; `findById<F>()` IntelliSense surfaces the right `context` shape.
-- **Every outbound `on-*` body carries `response.requestId` echoing the matching inbound REQUEST-ID** — grep for the field, audit visually. Missing it = gateway silently drops the response. See [`05-m2-flows.md "Common pitfalls" §1`](./05-m2-flows.md#pitfall-1--every-outbound-on--must-echo-responserequestid).
+- **Every outbound acknowledgement body carries `response.requestId` echoing the matching inbound REQUEST-ID** — grep `on-discover`, `on-init`, `on-confirm`, and `consent/request/hip/on-notify`; audit visually. Missing it = gateway silently drops the response. See [`05-m2-flows.md "Common pitfalls" §1`](./05-m2-flows.md#pitfall-1--correlation-direction-matters-for-responserequestid).
 - **Inbound response status matches spec per route** — `/discover` and `/link/init` return 200; everything else returns 202. Integration tests assert the exact status. See [`05-m2-flows.md "Common pitfalls" §3`](./05-m2-flows.md#pitfall-3--inbound-response-status-varies-by-endpoint-200-vs-202).
 - **HI type enum casing matches the endpoint** — `link/carecontext` uses ALL CAPS, `link/context/notify` and consent body use PascalCase. Per-endpoint wire enums or a normalizer. See [`05-m2-flows.md "Common pitfalls" §2`](./05-m2-flows.md#pitfall-2--hi-type-casing-varies-by-endpoint).
 - **No shared `InboundGatewayHeaders` type** — per-route header DTO (HipInboundHeaders vs HiuInboundHeaders) per §2.
@@ -562,7 +564,7 @@ curl -X POST http://localhost:3007/api/v3/hip/patient/care-context/discover \
 
 - **Signature verification.** Sandbox is permissive; staging requires JWS verification using the gateway's published JWKS. Ship the sandbox stub for this sprint; **file a follow-up issue** for the staging path with a target date before any production tenant uses M2. Source: spec §3.2.3.
 - **EMPI demographic matching.** What's the score threshold for "match" vs "no match"? Default to ≥ 0.85 and surface this — confirm with EMPI owner.
-- **Link Token Cache TTL window.** Spec doesn't pin the exact JWT TTL; observed in production HIMS is "<15min." Decode the JWT `exp` claim and use it directly — don't hardcode 15min. Surface the observed value in PR for the record.
+- **Link Token Cache TTL window.** Spec doesn't pin the exact JWT TTL. Decode the JWT `exp` claim and use it directly — don't hardcode 15min or copy production HIMS's 6-month Mongo TTL. Surface the observed sandbox `exp` window in PR for the record.
 - **Multi-instance behaviour of `getOrAcquire`.** When two instances simultaneously cache-miss for the same patient, one's `claimAcquisition` wins (PK constraint), the other polls. Confirm under load test before staging — single-Postgres serialisation should be sufficient but verify.
 - **Care-context publish trigger.** Which Record Foundation event do you consume? Coordinate with the Record Foundation owner — the event name `record-foundation.care-context.created` is a *proposal*; confirm before wiring.
 - **Inbound message log retention.** How long do we keep `abdm_inbound_messages` rows? Default to 30 days with a janitor; flag for ops review.

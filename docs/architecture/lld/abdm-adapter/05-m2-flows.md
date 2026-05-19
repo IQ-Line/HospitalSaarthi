@@ -20,7 +20,7 @@ This is the dividing line between M1 and M2.
 
 **State diagrams in [`02-fsm-specifications.md §5`](../integration-platform/02-fsm-specifications.md#5-abdmm2user-initiated-linkv1----patient-links-from-phr-app)** are authoritative for `abdm.m2.user-initiated-link.v1`. Hip-initiated linking, consent-notify, add-contexts, and SMS-notify are documented in §1–§5 of *this* file; the FSM spec doc will be updated to include them as a follow-up.
 
-**Reference impl:** `hims/abdi-lims-backed/src/services/milestone2*Service.ts` in the production HIMS. The exact files (verify locally — names may have drifted): `milestone2HipInitiatedService.ts`, `milestone2UserInitiatedService.ts`, `milestone2ConsentService.ts`. Useful for *which exact on-\* response shape works in the sandbox* and *which gateway error codes you'll see in practice*. **Do not copy code structure** — the production HIMS uses Mongo + ad-hoc handlers; M2 here keeps the M1 typed-port layering.
+**Reference impl:** production HIMS under `/home/ayushiqline/projects/hims/abdi-lims-backed`, especially `src/services/milestone2CreationService.ts`, `src/services/callbackService.ts`, `src/routes/callback.ts`, and `src/models/LinkToken.ts`. Useful for *which exact on-\* response shape works in the sandbox* and *which gateway error codes you'll see in practice*. **Do not copy code structure** — the production HIMS uses Mongo + ad-hoc handlers; M2 here keeps the M1 typed-port layering.
 
 ---
 
@@ -99,16 +99,16 @@ States used: [`M2_USER_LINK_STATES`](../../../../packages/ts-sdk-abha/src/consta
 
 ### Correlation
 
-- **External correlation:** `REQUEST-ID` header on each inbound; `transactionId` field in the request body (issued by gateway at discover, echoed through init and confirm). Both identify the same session.
-- **Internal correlation:** `sessionId` (platform-issued UUID at `DISCOVERY_RECEIVED`). Every outbound `on-*` must echo `requestId` and `transactionId`.
-- **Idempotency:** `INSERT INTO abdm_inbound_messages (iq_tenant_id, request_id) ON CONFLICT DO NOTHING`. If 0 rows inserted, return `202` immediately — the gateway is retrying.
+- **External correlation:** `REQUEST-ID` header on each inbound; `transactionId` is issued by gateway at discover and echoed through link/init. The inbound link/confirm body does **not** carry `transactionId`; correlate confirm by `confirmation.linkRefNumber`.
+- **Internal correlation:** `sessionId` (platform-issued UUID at `DISCOVERY_RECEIVED`). User-link outbound `on-discover` / `on-init` carry `transactionId` plus `response.requestId`; outbound `on-confirm` carries `patient[]` plus `response.requestId` and no `transactionId`.
+- **Idempotency:** `INSERT INTO abdm_inbound_messages (iq_tenant_id, request_id) ON CONFLICT DO NOTHING`. If 0 rows inserted, return the route's spec status (`200` or `202`) immediately — the gateway is retrying.
 
 ### Failure modes
 
 - **No matching patient.** Reply `on-discover` with **only** `transactionId`, `error: { code: "ABDM-1010", message: "Patient not found" }`, and `response.requestId` — **do not include a `patient` field** (spec §5.3.3 failure body omits it). Transition `→ NO_MATCH`. Terminal — do not error.
 - **EMPI / Record Foundation unavailable.** Persist `DISCOVERY_RECEIVED`, schedule a retry timer, do not post `on-discover` until both resolve. If retries exhaust, transition `→ FAILED`.
 - **Patient abandons after `on-discover`.** Gateway never sends `link/init`. Sweep via janitor after 24h, transition `→ FAILED`.
-- **Wrong OTP at `link/confirm`.** Inbound confirm callback returns `202 Accepted`, then HIP posts outbound `on-confirm` with `error: { code, message }` and `response.requestId` — there is no inline error response. State stays at `OTP_DISPATCHED`; patient can retry from PHR app (gateway will resend a fresh `confirm`).
+- **Wrong OTP at `link/confirm`.** The inbound confirm callback still returns `202 Accepted`, but do **not** mark contexts linked and do **not** post a success `on-confirm`. Spec §5.3.11 is explicit about the success body (`patient[]` + `response`) but not explicit about an OTP-failure `on-confirm` error body; validate this in sandbox before implementing an error-shaped outbound response. State stays at `OTP_DISPATCHED` / retryable failure until the product decision is captured.
 
 ---
 
@@ -120,14 +120,14 @@ Hospital staff at the registration desk (or after a visit) **already knows the p
 
 ### Decoupling note — link token is NOT a state in the flow
 
-Spec §4.3.1/§4.3.2 documents a short-lived JWT **link token** that authorises `link/carecontext`. **Production HIMS keeps token generation inline as a state of every linking flow; we explicitly do not.** The token is a **per-patient ephemeral credential** with no relationship to tenants or workflows — it belongs to a small cache that the linking use-case consults transparently. The linking flow's state machine has no `TOKEN_*` state.
+Spec §4.3.1/§4.3.2 documents a short-lived JWT **link token** that authorises `link/carecontext`. **Production HIMS keeps token generation inline as a state of every linking flow; we explicitly do not.** The token is a **per-patient ephemeral credential** that is not workflow-scoped; operationally it is still partitioned by the HIP/tenant boundary. It belongs to a small cache that the linking use-case consults transparently. The linking flow's state machine has no `TOKEN_*` state.
 
 Rationale:
 
-- **The token is a credential, not a workflow.** Per spec §4.3.2 the JWT's `sub` claim is the patient's ABHA address; the token is scoped to (HIP, patient). It does not represent a user-facing or business outcome. Credentials belong in caches, not state machines.
-- **Nothing about it is tenant-shaped.** Tenant is a deployment dimension; the token's natural identity is the patient. Coupling the token to tenant adds noise to the data model.
+- **The token is a credential, not a workflow.** Per spec §4.3.2 the token is scoped to (HIP, patient). It does not represent a user-facing or business outcome. Credentials belong in caches, not state machines.
+- **Tenant is a namespace boundary, not the credential's business owner.** Since this codebase maps `iq_tenant_id` 1:1 to HIP, the cache key is `(iq_tenant_id, abha_address)` to prevent cross-HIP collisions for the same ABHA address.
 - **Linking should feel synchronous to staff.** A `TOKEN_REQUESTED → TOKEN_RECEIVED` waiting state would expose plumbing as a user-visible flow milestone.
-- **Token-gen still happens.** It's just hidden behind a `linkTokenCache.getOrAcquire(abha, demographics)` helper that returns a string. Cache hit → instant. Cache miss → triggers generate-token, awaits the callback, returns. Helper has its own short timeout.
+- **Token-gen still happens.** It's just hidden behind a `linkTokenCache.getOrAcquire({ iqTenantId, abhaAddress, ...demographics })` helper that returns a string. Cache hit → instant. Cache miss → triggers generate-token, awaits the callback, returns. Helper has its own short timeout.
 
 The token's lifecycle is documented separately in §2.1 below — but importantly, §2.1 documents a *helper*, not a flow.
 
@@ -234,7 +234,7 @@ export const M2_HIP_INITIATED_LINK_STATES = [
 
 ## 2.1 Link Token Cache (per-patient, ephemeral) — a helper, not a flow
 
-The link token is a **per-patient credential** whose lifetime is set by the JWT's `exp` claim (observed: minutes, not hours). It is cached in a small ephemeral table. It is **not** a flow — it is plumbing the linking use-case consults transparently.
+The link token is a **per-patient credential** whose lifetime is set by the JWT's `exp` claim; do not assume a fixed duration. It is cached in a small ephemeral table. It is **not** a flow — it is plumbing the linking use-case consults transparently.
 
 ### Why this is not a flow
 
@@ -352,9 +352,20 @@ Implementation outline:
          pending_expires_at  = EXCLUDED.pending_expires_at,
          link_token          = NULL,
          expires_at          = NULL
-     WHERE abdm_link_tokens.expires_at IS NULL OR abdm_link_tokens.expires_at <= now() + interval '60 seconds';
+     WHERE
+       (
+         abdm_link_tokens.link_token IS NULL
+         AND (
+           abdm_link_tokens.pending_expires_at IS NULL
+           OR abdm_link_tokens.pending_expires_at < now()
+         )
+       )
+       OR (
+         abdm_link_tokens.link_token IS NOT NULL
+         AND abdm_link_tokens.expires_at <= now() + interval '60 seconds'
+       );
    ```
-   If the WHERE blocks the update (because another instance already has a fresh row), step 1's SELECT will see it on the next poll iteration.
+   If the WHERE blocks the update, re-read the row: a fresh token means `fresh-exists`, while an unexpired `pending_expires_at` means `another-in-flight`. Do **not** let a new caller overwrite an active pending claim.
 3. After successful claim, POST `/api/hiecm/v3/token/generate-token` with the patient demographics and `pending_request_id` as the `REQUEST-ID` header.
 4. Poll the cache: `SELECT … WHERE (iq_tenant_id, abha_address) = ($1, $2) AND link_token IS NOT NULL` every 200ms × 40 = up to 8s.
 5. Row populated with a real token → return it. Timeout → leave the row as-is for the next attempt (the `pending_expires_at` guard ensures it doesn't block future acquisitions); throw `LinkTokenNotAvailable`.
@@ -404,12 +415,12 @@ stateDiagram-v2
 ```jsonc
 {
   "notification": {
+    "status": "GRANTED",                         // or "REVOKED"; wrapper-level field
     "consentId": "<UUID>",                       // pull from here for indexed column
     "consentDetail": {
       "schemaVersion": "1.5",
       "consentId": "<UUID>",                     // mirrored inside consentDetail too
       "createdAt": "2026-05-19T10:00:00Z",
-      "status": "GRANTED",                       // or "REVOKED"
       "patient":  { "id": "ayush@abdm" },        // patient ABHA address
       "hip":      { "id": "<our-hip-id>" },
       "hiu":      { "id": "<requesting-hiu-id>" },
@@ -424,12 +435,13 @@ stateDiagram-v2
       "consentManager": { "id": "sbx" },
       "requester": { "name": "...", "identifier": { ... } }
     },
-    "signature": "<base64>"                      // signature of consentDetail
+    "signature": "<base64>",                     // signature of consentDetail
+    "grantAcknowledgement": false
   }
 }
 ```
 
-Persist `notification.consentDetail` verbatim plus the wrapper-level `signature`. Pull indexed values from `notification.consentDetail`:
+Persist the full `notification` wrapper verbatim, including `consentDetail`, `signature`, `status`, and `grantAcknowledgement`. Pull indexed values from these paths:
 
 | Indexed column | Source path |
 |---|---|
@@ -437,11 +449,12 @@ Persist `notification.consentDetail` verbatim plus the wrapper-level `signature`
 | `patient_id` (resolved via EMPI from `consentDetail.patient.id`) | `notification.consentDetail.patient.id` |
 | `hip_id` | `notification.consentDetail.hip.id` |
 | `hiu_id` | `notification.consentDetail.hiu.id` |
-| `status` | `notification.consentDetail.status` |
+| `status` | `notification.status` |
 | `data_erase_at` | `notification.consentDetail.permission.dataEraseAt` |
 | `granted_at` | `notification.consentDetail.createdAt` |
+| `signature` | `notification.signature` |
 
-**`artefact_json jsonb`** stores the full `notification` object (wrapper + consentDetail + signature) — do not flatten. Future M3 / consent-supervisor consumers may need wrapper metadata.
+**`artefact_json jsonb`** stores the full `notification` object (wrapper + consentDetail + signature + grant acknowledgement) — do not flatten. Future M3 / consent-supervisor consumers may need wrapper metadata.
 
 States used: **new**:
 
@@ -506,7 +519,7 @@ This flow is **not** started by an HTTP request. It is started by an in-process 
       "patientReference": "MRN-2024-001",
       "careContextReference": "VISIT-2024-1115"
     },
-    "hiTypes": ["OPCONSULTATION"],
+    "hiTypes": ["OPConsultation"],
     "date": "2024-11-15T14:30:00Z",
     "hip": { "id": "<our-hip-id>" }
   }
@@ -592,11 +605,13 @@ This flow is **optional for M2 sprint** — implement only if the product spec c
 
 These are M2-wide gotchas that bite implementers in sandbox testing. None of them are obvious from a quick spec scan; all of them are real.
 
-### Pitfall 1 — Every outbound `on-*` must echo `response.requestId`
+### Pitfall 1 — Correlation direction matters for `response.requestId`
 
-The ABDM gateway correlates outbound `on-*` posts back to the original inbound REQUEST-ID via the `response.requestId` field in the body. **If you omit it, the gateway silently drops the response** — the flow stalls with no error in our logs. The DTO for every outbound `on-*` shape includes a top-level `response: { requestId: string }` field; the value is the `REQUEST-ID` header from the matching inbound callback (NOT a fresh one).
+The ABDM gateway correlates response posts back to the original request via `response.requestId`. **If you omit or generate the wrong value, the gateway silently drops the response** — the flow stalls with no error in our logs.
 
-Affected endpoints: `on-discover`, `on-init`, `on-confirm`, `on-notify` (add-contexts, consent ack, SMS), `on_carecontext`. Make this a code-review checklist item.
+Outbound acknowledgements we post after an inbound gateway callback must echo the inbound `REQUEST-ID` in `response.requestId`: `on-discover`, `on-init`, `on-confirm`, and `consent/request/hip/on-notify`.
+
+Inbound callbacks that arrive after our outbound requests (`on_carecontext`, `links/context/on-notify`, `patients/sms/on-notify`, `hip/token/on-generate-token`) also contain `response.requestId`, but that value is generated by the gateway to echo **our** outbound `REQUEST-ID`. Use it for correlation; do not model these inbound callbacks as outbound DTOs we send.
 
 ### Pitfall 2 — HI type casing varies by endpoint
 
@@ -631,6 +646,9 @@ The "respond fast" rule is universal; the **status code is not**. Spec values:
 | Inbound `link/care-context/confirm` (§5.3.10) | `202 Accepted` |
 | Inbound `on_carecontext` (§4.3.4) | `202 Accepted` |
 | Inbound `consent/request/hip/notify` (§6.3.1) | `202 Accepted` |
+| Inbound `hip/token/on-generate-token` (§4.3.2) | `202 Accepted` |
+| Inbound `links/context/on-notify` (§4.3.7) | `202 Accepted` |
+| Inbound `patients/sms/on-notify` (§4.3.9) | `202 Accepted` |
 
 **Sandbox is permissive and tolerates `202` universally** — but code to the spec value per route, and have the integration test assert on the spec status. That way the doc stays correct even if sandbox tightens up.
 
@@ -644,9 +662,9 @@ Don't model all inbound callbacks with one strict `InboundGatewayHeaders` type. 
 
 - All four mandatory flows (user-initiated-link, hip-initiated-link, consent-notify, add-contexts) have populated DTO types in `@hims/ts-sdk-abha/protocol/m2/`. SMS-notify is optional per product.
 - Inbound REST handlers in `modules/abdm-adapter/src/rest-handlers/m2/` with **signature verification** + **`REQUEST-ID` idempotency** + body validation (Zod or AJV — match M1's convention).
-- Outbound HTTP clients added: gateway `generate-token`, `link/carecontext`, `on-discover`, `on-init`, `on-confirm`, `link/context/notify`, `consent/request/hip/on-notify`, optionally `links/sms/notify2`. **Every outbound `on-*` body carries `response.requestId` echoing the matching inbound REQUEST-ID.**
+- Outbound HTTP clients added: gateway `generate-token`, `link/carecontext`, `on-discover`, `on-init`, `on-confirm`, `link/context/notify`, `consent/request/hip/on-notify`, optionally `links/sms/notify2`. **Outbound acknowledgement bodies** (`on-discover`, `on-init`, `on-confirm`, `consent/request/hip/on-notify`) carry `response.requestId` echoing the matching inbound `REQUEST-ID`.
 - Per-flow typed session: each M2 use-case sees `AbdmSession<'abdm.m2.…v1'>` with its own context type. See [`06-m2-dev-guide.md §3`](./06-m2-dev-guide.md#3-per-flow-typed-context--the-portable-shape).
-- New tables migrated: `abdm_inbound_messages`, `abdm_consent_artefacts`. (Decide spelling — `abdm_*` or generic `integration_*` — with the lead before naming.)
+- New tables migrated: `abdm_inbound_messages`, `abdm_consent_artefacts`, `abdm_link_tokens`. (Decide spelling — `abdm_*` or generic `integration_*` — with the lead before naming.)
 - Integration tests: one happy-path against ABDM sandbox per mandatory flow; gated behind `RUN_ABDM_SANDBOX_TESTS=1`.
 - Telemetry counters per state transition: `// TODO(metrics)` markers — same as M1.
 - New events emitted: `abdm.consent.granted`, `abdm.care-context.linked`, `abdm.care-context.published`.
