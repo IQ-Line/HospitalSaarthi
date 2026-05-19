@@ -115,7 +115,7 @@ _MODULE_SEEDS: tuple[tuple[str | None, str, str, str, str, str, int], ...] = (
     ),
 )
 
-# (name, slug, description) — parent slug is usermanagement (L1, L2)
+# (name, slug, description) — parent slug is user-management (L1, L2)
 _USER_MANAGEMENT_L2_SEEDS: tuple[tuple[str, str, str], ...] = (
     ("Users", "users", "Tenant-scoped platform users."),
     ("User Roles", "user-roles", "Roles assigned to users."),
@@ -130,7 +130,7 @@ _CONFIGURATOR_L2_SEEDS: tuple[tuple[str, str, str], ...] = (
     ("Tenants", "tenants", "Tenant registry and lifecycle."),
 )
 
-# (name, slug, description) — parent slug is always visitpadmaster
+# (name, slug, description) — parent slug is visitpad-master (L3)
 _VISITPAD_L3_SEEDS: tuple[tuple[str, str, str], ...] = (
     ("Units", "units", "Measurement units and unit conversions."),
     ("Vitals", "vitals", "Vital sign definitions."),
@@ -228,7 +228,7 @@ def upgrade() -> None:
 
     for name, slug, description in _USER_MANAGEMENT_L2_SEEDS:
         _insert_module(
-            "usermanagement",
+            "user-management",
             name,
             slug,
             description,
@@ -250,7 +250,7 @@ def upgrade() -> None:
 
     for name, slug, description in _VISITPAD_L3_SEEDS:
         _insert_module(
-            "visitpadmaster",
+            "visitpad-master",
             name,
             slug,
             description,
