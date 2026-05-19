@@ -34,10 +34,6 @@ This seeds Master Data catalog, Configurator tenant modules, UM capabilities, ro
 
 Stable IDs live in `packages/dev-bootstrap/src/development-seed-users.ts`.
 
-## Local UI shortcuts
-
-In `import.meta.env.DEV`, the login page lists the seeded users. Each button runs the same `signIn.email` + `refreshAuthorizationContext` path as manual entry — **no** `setCapabilityKeys` shortcuts.
-
 ## What was removed
 
 | Removed | Replacement |

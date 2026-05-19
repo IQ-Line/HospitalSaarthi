@@ -16,6 +16,8 @@ import { UserManagementSectionCard } from './user-management-section-card';
 
 type UserAccessPanelProps = {
   userId: string;
+  /** Hospital tenant when opened from the platform-wide user list. */
+  tenantScope?: string;
 };
 
 function mutationErrorMessage(err: unknown): string {
@@ -34,7 +36,7 @@ function grantsForRole(grants: UserCapabilityGrant[], roleId: string): string[] 
     .map((grant) => grant.capability_id);
 }
 
-export function UserAccessPanel({ userId }: UserAccessPanelProps) {
+export function UserAccessPanel({ userId, tenantScope }: UserAccessPanelProps) {
   const umRoleRead = useCapability(UM_ROLE_READ);
   const umRoleAssign = useCapability(UM_ROLE_ASSIGN);
   const showPanel = useAnyCapability([UM_ROLE_READ, UM_ROLE_ASSIGN]);
@@ -44,12 +46,12 @@ export function UserAccessPanel({ userId }: UserAccessPanelProps) {
   }
 
   const rolesQuery = useQuery({
-    ...roleListOptions(),
+    ...roleListOptions(tenantScope),
     enabled: umRoleRead,
     staleTime: 30_000,
   });
-  const capabilitiesSnapshotQuery = useUserCapabilities(userId, true);
-  const detachRole = useDetachRoleTemplate(userId);
+  const capabilitiesSnapshotQuery = useUserCapabilities(userId, true, tenantScope);
+  const detachRole = useDetachRoleTemplate(userId, tenantScope);
 
   const [assignOpen, setAssignOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<AppliedRoleTemplate | null>(null);
@@ -152,6 +154,7 @@ export function UserAccessPanel({ userId }: UserAccessPanelProps) {
         onOpenChange={setAssignOpen}
         userId={userId}
         availableRoles={availableRoles}
+        tenantScope={tenantScope}
       />
 
       <ManageRolePermissionsDialog
@@ -160,6 +163,7 @@ export function UserAccessPanel({ userId }: UserAccessPanelProps) {
           if (!open) setEditingRole(null);
         }}
         userId={userId}
+        tenantScope={tenantScope}
         applied={editingRole}
         grantedCapabilityIds={
           editingRole ? grantsForRole(copiedGrants, editingRole.role_id) : []

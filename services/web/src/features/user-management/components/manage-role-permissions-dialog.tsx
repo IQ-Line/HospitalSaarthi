@@ -36,6 +36,7 @@ type ManageRolePermissionsDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   userId: string;
+  tenantScope?: string;
   applied: AppliedRoleTemplate | null;
   grantedCapabilityIds: string[];
 };
@@ -44,16 +45,17 @@ export function ManageRolePermissionsDialog({
   open,
   onOpenChange,
   userId,
+  tenantScope,
   applied,
   grantedCapabilityIds,
 }: ManageRolePermissionsDialogProps) {
   const umRoleRead = useCapability(UM_ROLE_READ);
   const [selectedCapabilityIds, setSelectedCapabilityIds] = useState(grantedCapabilityIds);
-  const applyRole = useApplyRoleTemplate(userId);
+  const applyRole = useApplyRoleTemplate(userId, tenantScope);
 
   const roleId = applied?.role_id ?? '';
   const roleCapabilitiesQuery = useQuery({
-    ...roleCapabilitiesOptions(roleId),
+    ...roleCapabilitiesOptions(roleId, tenantScope),
     enabled: open && Boolean(roleId) && umRoleRead,
     staleTime: 30_000,
   });

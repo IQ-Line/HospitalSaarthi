@@ -38,8 +38,10 @@ function isSectionActive(pathname: string, section: UserManagementSection): bool
   if (section === 'roles') {
     return pathname === '/user-management/roles';
   }
-
-  return pathname === '/user-management' || (pathname.startsWith('/user-management/') && pathname !== '/user-management/roles');
+  return (
+    pathname === '/user-management' ||
+    (pathname.startsWith('/user-management/') && pathname !== '/user-management/roles')
+  );
 }
 
 function usersTabLabel(umUserRead: boolean, umUserCreate: boolean): string {

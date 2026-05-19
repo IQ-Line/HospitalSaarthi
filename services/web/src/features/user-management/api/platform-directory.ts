@@ -1,10 +1,6 @@
 import { queryOptions } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
-import {
-  fetchOrganizations,
-  fetchTenants,
-  groupTenantsByOrganization,
-} from '@/features/configurator/api/catalog';
+import { fetchOrganizations, fetchTenants } from '@/features/configurator/api/catalog';
 import type { ConfiguratorTenant, Organization } from '@/features/configurator/types';
 import type { UmRole, UmUser } from '../types';
 import { userManagementKeys } from './keys';
@@ -53,22 +49,24 @@ function errorMessage(reason: unknown): string {
   return String(reason);
 }
 
+/** Tenants that should appear in the platform user directory (excludes decommissioned). */
+export function directoryEligibleTenants(tenants: ConfiguratorTenant[]): ConfiguratorTenant[] {
+  return tenants.filter((t) => t.provisioning_status !== 'decommissioned');
+}
+
 /**
- * Loads every active Configurator tenant and fetches UM users + roles per tenant
+ * Loads every non-decommissioned Configurator tenant and fetches UM users + roles per tenant
  * (platform super-admin cross-tenant `iq_tenant_id` header).
  */
 export async function fetchPlatformDirectory(): Promise<PlatformDirectorySnapshot> {
   const [orgRes, tenantRes] = await Promise.all([
     fetchOrganizations({ status: 'active' }),
-    fetchTenants({ provisioning_status: 'active' }),
+    fetchTenants(),
   ]);
 
   const organizations = orgRes.data;
-  const tenants = tenantRes.data;
+  const tenants = directoryEligibleTenants(tenantRes.data);
   const orgNameById = new Map(organizations.map((o) => [o.id, o.name]));
-  const tenantsByOrg = groupTenantsByOrganization(tenants);
-
-  void tenantsByOrg;
 
   const usersByTenant: PlatformDirectoryTenantUsers[] = [];
   const rolesByTenant: PlatformDirectoryTenantRoles[] = [];
@@ -116,6 +114,7 @@ export type PlatformDirectoryUserRow = UmUser & {
   iq_tenant_id: string;
   tenant_name: string;
   tenant_slug: string;
+  tenant_provisioning_status: string;
   organization_name: string;
 };
 
@@ -137,6 +136,7 @@ export function flattenPlatformDirectoryUsers(
         iq_tenant_id: block.tenant.iq_tenant_id,
         tenant_name: block.tenant.name,
         tenant_slug: block.tenant.slug,
+        tenant_provisioning_status: block.tenant.provisioning_status,
         organization_name: block.organizationName,
       });
     }

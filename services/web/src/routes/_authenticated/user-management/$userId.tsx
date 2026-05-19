@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { createFileRoute, Link, redirect } from '@tanstack/react-router';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import { Badge } from '@pulse/ui/badge';
 import { Button } from '@pulse/ui/button';
 import { ConfirmDialog } from '@/components/confirm-dialog';
@@ -26,17 +26,27 @@ import { UserAccessPanel } from '@/features/user-management/components/user-acce
 import { usePermissionsStore } from '@/stores/permissions.store';
 
 export const Route = createFileRoute('/_authenticated/user-management/$userId')({
+  validateSearch: (search: Record<string, unknown>) => ({
+    tenant:
+      typeof search.tenant === 'string' && search.tenant.trim().length > 0
+        ? search.tenant.trim()
+        : undefined,
+  }),
   beforeLoad: requireCapability(UM_USER_READ),
-  loader: async ({ context, params }) => {
+  loaderDeps: ({ search }) => ({ tenant: search.tenant }),
+  loader: async ({ context, params, deps }) => {
     const p = usePermissionsStore.getState();
+    const tenantScope = deps.tenant;
     const loads: Array<Promise<unknown>> = [
-      context.queryClient.ensureQueryData(userDetailOptions(params.userId)),
+      context.queryClient.ensureQueryData(userDetailOptions(params.userId, tenantScope)),
     ];
     if (p.hasCapability(UM_ROLE_ASSIGN) || p.hasCapability(UM_ROLE_READ)) {
-      loads.push(context.queryClient.ensureQueryData(userCapabilitiesOptions(params.userId)));
+      loads.push(
+        context.queryClient.ensureQueryData(userCapabilitiesOptions(params.userId, tenantScope)),
+      );
     }
     if (p.hasCapability(UM_ROLE_READ)) {
-      loads.push(context.queryClient.ensureQueryData(roleListOptions()));
+      loads.push(context.queryClient.ensureQueryData(roleListOptions(tenantScope)));
     }
     await Promise.all(loads);
   },
@@ -45,13 +55,14 @@ export const Route = createFileRoute('/_authenticated/user-management/$userId')(
 
 function UserDetailPage() {
   const { userId } = Route.useParams();
-  const { data: user } = useUserDetailSuspense(userId);
+  const { tenant: tenantScope } = Route.useSearch();
+  const { data: user } = useUserDetailSuspense(userId, tenantScope);
   const [editOpen, setEditOpen] = useState(false);
   const [deactivateOpen, setDeactivateOpen] = useState(false);
 
   const umUserUpdate = useCapability(UM_USER_UPDATE);
   const umUserDeactivate = useCapability(UM_USER_DEACTIVATE);
-  const deactivate = useDeactivateUser(userId);
+  const deactivate = useDeactivateUser(userId, tenantScope);
 
   return (
     <>
@@ -89,11 +100,16 @@ function UserDetailPage() {
           </div>
         }
       >
-        <UserAccessPanel userId={user.id} />
+        <UserAccessPanel userId={user.id} tenantScope={tenantScope} />
       </UserManagementPageShell>
 
       {umUserUpdate ? (
-        <EditUserDialog open={editOpen} onOpenChange={setEditOpen} user={user} />
+        <EditUserDialog
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          user={user}
+          tenantScope={tenantScope}
+        />
       ) : null}
 
       <ConfirmDialog

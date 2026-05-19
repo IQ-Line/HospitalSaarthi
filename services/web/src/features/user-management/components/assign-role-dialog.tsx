@@ -45,6 +45,7 @@ type AssignRoleDialogProps = {
   onOpenChange: (open: boolean) => void;
   userId: string;
   availableRoles: UmRole[];
+  tenantScope?: string;
 };
 
 export function AssignRoleDialog({
@@ -52,14 +53,15 @@ export function AssignRoleDialog({
   onOpenChange,
   userId,
   availableRoles,
+  tenantScope,
 }: AssignRoleDialogProps) {
   const umRoleRead = useCapability(UM_ROLE_READ);
   const [roleId, setRoleId] = useState('');
   const [selectedCapabilityIds, setSelectedCapabilityIds] = useState<string[]>([]);
-  const applyRole = useApplyRoleTemplate(userId);
+  const applyRole = useApplyRoleTemplate(userId, tenantScope);
 
   const roleCapabilitiesQuery = useQuery({
-    ...roleCapabilitiesOptions(roleId),
+    ...roleCapabilitiesOptions(roleId, tenantScope),
     enabled: open && Boolean(roleId) && umRoleRead,
     staleTime: 30_000,
   });

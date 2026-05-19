@@ -15,18 +15,26 @@ import type {
   UpdateRoleBody,
   UpdateUserBody,
 } from '../types';
+import { userTenantApiContext, userTenantScopeKey } from '../lib/user-tenant-scope';
 import { userManagementKeys } from './keys';
 
 const BASE = '/api/user-management';
 
-function invalidateUserAccessQueries(qc: ReturnType<typeof useQueryClient>, userId: string) {
-  qc.invalidateQueries({ queryKey: userManagementKeys.userCapabilities(userId) }).catch(() => {
+function invalidateUserAccessQueries(
+  qc: ReturnType<typeof useQueryClient>,
+  userId: string,
+  tenantScope?: string | null,
+) {
+  const scopeKey = userTenantScopeKey(tenantScope);
+  qc.invalidateQueries({ queryKey: userManagementKeys.userCapabilities(userId, scopeKey) }).catch(() => {
     /* best-effort */
   });
-  qc.invalidateQueries({ queryKey: userManagementKeys.userEffectiveCapabilities(userId) }).catch(() => {
+  qc.invalidateQueries({
+    queryKey: userManagementKeys.userEffectiveCapabilities(userId, scopeKey),
+  }).catch(() => {
     /* best-effort */
   });
-  qc.invalidateQueries({ queryKey: userManagementKeys.userRoleTemplates(userId) }).catch(() => {
+  qc.invalidateQueries({ queryKey: userManagementKeys.userRoleTemplates(userId, scopeKey) }).catch(() => {
     /* best-effort */
   });
 }
@@ -63,85 +71,100 @@ export function useCreateUser() {
       qc.invalidateQueries({ queryKey: userManagementKeys.userList() }).catch(() => {
         /* cache invalidation is best-effort */
       });
+      qc.invalidateQueries({ queryKey: userManagementKeys.platformDirectory() }).catch(() => {
+        /* cache invalidation is best-effort */
+      });
     },
   });
 }
 
-export function useUpdateUser(userId: string) {
+export function useUpdateUser(userId: string, tenantScope?: string | null) {
   const qc = useQueryClient();
+  const scopeKey = userTenantScopeKey(tenantScope);
   return useMutation({
     mutationFn: (body: UpdateUserBody) =>
-      apiClient<UmUser>(`${BASE}/users/${encodeURIComponent(userId)}`, {
-        method: 'PATCH',
-        body: JSON.stringify(body),
-      }),
+      apiClient<UmUser>(
+        `${BASE}/users/${encodeURIComponent(userId)}`,
+        { method: 'PATCH', body: JSON.stringify(body) },
+        userTenantApiContext(tenantScope),
+      ),
     onSuccess: (user) => {
-      qc.setQueryData(userManagementKeys.userDetail(userId), user);
+      qc.setQueryData(userManagementKeys.userDetail(userId, scopeKey), user);
       qc.invalidateQueries({ queryKey: userManagementKeys.userList() }).catch(() => {
+        /* best-effort */
+      });
+      qc.invalidateQueries({ queryKey: userManagementKeys.platformDirectory() }).catch(() => {
         /* best-effort */
       });
     },
   });
 }
 
-export function useDeactivateUser(userId: string) {
+export function useDeactivateUser(userId: string, tenantScope?: string | null) {
   const qc = useQueryClient();
+  const scopeKey = userTenantScopeKey(tenantScope);
   return useMutation({
     mutationFn: () =>
-      apiClient<UmUser>(`${BASE}/users/${encodeURIComponent(userId)}/deactivate`, {
-        method: 'POST',
-      }),
+      apiClient<UmUser>(
+        `${BASE}/users/${encodeURIComponent(userId)}/deactivate`,
+        { method: 'POST' },
+        userTenantApiContext(tenantScope),
+      ),
     onSuccess: (user) => {
-      qc.setQueryData(userManagementKeys.userDetail(userId), user);
+      qc.setQueryData(userManagementKeys.userDetail(userId, scopeKey), user);
       qc.invalidateQueries({ queryKey: userManagementKeys.userList() }).catch(() => {
+        /* best-effort */
+      });
+      qc.invalidateQueries({ queryKey: userManagementKeys.platformDirectory() }).catch(() => {
         /* best-effort */
       });
     },
   });
 }
 
-export function useReplaceUserCapabilities(userId: string) {
+export function useReplaceUserCapabilities(userId: string, tenantScope?: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: ReplaceUserCapabilitiesBody) =>
-      apiClient(`${BASE}/users/${encodeURIComponent(userId)}/capabilities`, {
-        method: 'PUT',
-        body: JSON.stringify(body),
-      }),
+      apiClient(
+        `${BASE}/users/${encodeURIComponent(userId)}/capabilities`,
+        { method: 'PUT', body: JSON.stringify(body) },
+        userTenantApiContext(tenantScope),
+      ),
     onSuccess: async () => {
-      invalidateUserAccessQueries(qc, userId);
+      invalidateUserAccessQueries(qc, userId, tenantScope);
       await refreshSelfAuthorizationContextIfNeeded(qc, userId);
     },
   });
 }
 
-export function useApplyRoleTemplate(userId: string) {
+export function useApplyRoleTemplate(userId: string, tenantScope?: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: ApplyRoleTemplateBody) =>
-      apiClient<AppliedRoleTemplate>(`${BASE}/users/${encodeURIComponent(userId)}/roles`, {
-        method: 'POST',
-        body: JSON.stringify(body),
-      }),
+      apiClient<AppliedRoleTemplate>(
+        `${BASE}/users/${encodeURIComponent(userId)}/roles`,
+        { method: 'POST', body: JSON.stringify(body) },
+        userTenantApiContext(tenantScope),
+      ),
     onSuccess: async () => {
-      invalidateUserAccessQueries(qc, userId);
+      invalidateUserAccessQueries(qc, userId, tenantScope);
       await refreshSelfAuthorizationContextIfNeeded(qc, userId);
     },
   });
 }
 
-export function useDetachRoleTemplate(userId: string) {
+export function useDetachRoleTemplate(userId: string, tenantScope?: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (roleId: string) =>
       apiClient<AppliedRoleTemplate>(
         `${BASE}/users/${encodeURIComponent(userId)}/roles/${encodeURIComponent(roleId)}`,
-        {
-          method: 'DELETE',
-        },
+        { method: 'DELETE' },
+        userTenantApiContext(tenantScope),
       ),
     onSuccess: async () => {
-      invalidateUserAccessQueries(qc, userId);
+      invalidateUserAccessQueries(qc, userId, tenantScope);
       await refreshSelfAuthorizationContextIfNeeded(qc, userId);
     },
   });

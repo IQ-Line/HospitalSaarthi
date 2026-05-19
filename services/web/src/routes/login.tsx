@@ -9,11 +9,9 @@ import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
 import { authClient } from '@/lib/auth-client';
 import { refreshAuthorizationContext } from '@/lib/authorization-context';
-import { DEVELOPMENT_SIGN_IN_SHORTCUTS } from '@/lib/development-seed-users';
 import { queryClient } from '@/lib/query-client';
 import { applyTenantSessionFromAuth } from '@/lib/tenant-session';
 import { useAuthStore } from '@/stores/auth.store';
-import { useTenantStore } from '@/stores/tenant.store';
 
 const signInSchema = z.object({
   email: z.string().min(1, 'Email is required').email('Enter a valid email'),
@@ -44,7 +42,6 @@ async function fetchJwt(): Promise<string> {
 function LoginPage() {
   const navigate = useNavigate();
   const setSession = useAuthStore((s) => s.setSession);
-  const clearTenant = useTenantStore((s) => s.clearTenant);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -99,21 +96,6 @@ function LoginPage() {
     }
   }
 
-  async function handleSeedUserSignIn(email: string, password: string) {
-    setError(null);
-    setLoading(true);
-    clearTenant();
-    try {
-      await handleSignIn({ email, password });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sign-in failed');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const showDevShortcuts = import.meta.env.DEV;
-
   return (
     <div className="flex h-screen items-center justify-center bg-muted">
       <Card className="w-full max-w-sm">
@@ -134,7 +116,7 @@ function LoginPage() {
                 id="email"
                 type="email"
                 autoComplete="username"
-                placeholder="e.g. platform@hospitalsaarthi.dev"
+                placeholder="you@hospital.org"
                 {...form.register('email')}
               />
               {form.formState.errors.email && (
@@ -159,36 +141,6 @@ function LoginPage() {
               {loading ? 'Signing in...' : 'Sign In'}
             </Button>
           </form>
-
-          {showDevShortcuts ? (
-            <div className="mt-6 space-y-2 border-t pt-4">
-              <p className="text-xs font-medium text-muted-foreground">
-                Development users (run <code className="text-[0.7rem]">make seed</code> or{' '}
-                <code className="text-[0.7rem]">pnpm seed</code> first)
-              </p>
-              <div className="space-y-2">
-                {DEVELOPMENT_SIGN_IN_SHORTCUTS.map((shortcut) => (
-                  <Button
-                    key={shortcut.email}
-                    type="button"
-                    variant="outline"
-                    className="h-auto w-full flex-col items-start gap-0.5 py-2 text-left"
-                    disabled={loading}
-                    onClick={() => void handleSeedUserSignIn(shortcut.email, shortcut.password)}
-                  >
-                    <span className="font-medium">{shortcut.label}</span>
-                    <span className="text-xs font-normal text-muted-foreground">
-                      {shortcut.description}
-                    </span>
-                  </Button>
-                ))}
-              </div>
-              <p className="pt-1 text-xs text-muted-foreground">
-                Capabilities load from <code className="text-[0.7rem]">GET /auth/principal</code>{' '}
-                after sign-in. Cerbos PDP remains authoritative on APIs.
-              </p>
-            </div>
-          ) : null}
         </CardContent>
       </Card>
     </div>

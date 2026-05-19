@@ -14,6 +14,7 @@ import type {
   UserCapabilitiesSnapshot,
   UserEffectiveCapabilities,
 } from '../types';
+import { userTenantApiContext, userTenantScopeKey } from '../lib/user-tenant-scope';
 import { userManagementKeys } from './keys';
 
 const BASE = '/api/user-management';
@@ -30,10 +31,16 @@ export function userListOptions(tenantScope?: string | null) {
   });
 }
 
-export function userDetailOptions(userId: string) {
+export function userDetailOptions(userId: string, tenantScope?: string | null) {
+  const scopeKey = userTenantScopeKey(tenantScope);
   return queryOptions({
-    queryKey: userManagementKeys.userDetail(userId),
-    queryFn: () => apiClient<UmUser>(`${BASE}/users/${encodeURIComponent(userId)}`, { method: 'GET' }),
+    queryKey: userManagementKeys.userDetail(userId, scopeKey),
+    queryFn: () =>
+      apiClient<UmUser>(
+        `${BASE}/users/${encodeURIComponent(userId)}`,
+        { method: 'GET' },
+        userTenantApiContext(tenantScope),
+      ),
   });
 }
 
@@ -85,36 +92,42 @@ export function roleCapabilitiesOptions(roleId: string, tenantScope?: string | n
   });
 }
 
-export function userCapabilitiesOptions(userId: string) {
+export function userCapabilitiesOptions(userId: string, tenantScope?: string | null) {
+  const scopeKey = userTenantScopeKey(tenantScope);
   return queryOptions({
-    queryKey: userManagementKeys.userCapabilities(userId),
+    queryKey: userManagementKeys.userCapabilities(userId, scopeKey),
     queryFn: () =>
-      apiClient<UserCapabilitiesSnapshot>(`${BASE}/users/${encodeURIComponent(userId)}/capabilities`, {
-        method: 'GET',
-      }),
-  });
-}
-
-export function userEffectiveCapabilitiesOptions(userId: string) {
-  return queryOptions({
-    queryKey: userManagementKeys.userEffectiveCapabilities(userId),
-    queryFn: () =>
-      apiClient<UserEffectiveCapabilities>(
-        `${BASE}/users/${encodeURIComponent(userId)}/effective-capabilities`,
-        {
-          method: 'GET',
-        },
+      apiClient<UserCapabilitiesSnapshot>(
+        `${BASE}/users/${encodeURIComponent(userId)}/capabilities`,
+        { method: 'GET' },
+        userTenantApiContext(tenantScope),
       ),
   });
 }
 
-export function userRoleTemplatesOptions(userId: string) {
+export function userEffectiveCapabilitiesOptions(userId: string, tenantScope?: string | null) {
+  const scopeKey = userTenantScopeKey(tenantScope);
   return queryOptions({
-    queryKey: userManagementKeys.userRoleTemplates(userId),
+    queryKey: userManagementKeys.userEffectiveCapabilities(userId, scopeKey),
     queryFn: () =>
-      apiClient<AppliedRoleTemplate[]>(`${BASE}/users/${encodeURIComponent(userId)}/roles`, {
-        method: 'GET',
-      }),
+      apiClient<UserEffectiveCapabilities>(
+        `${BASE}/users/${encodeURIComponent(userId)}/effective-capabilities`,
+        { method: 'GET' },
+        userTenantApiContext(tenantScope),
+      ),
+  });
+}
+
+export function userRoleTemplatesOptions(userId: string, tenantScope?: string | null) {
+  const scopeKey = userTenantScopeKey(tenantScope);
+  return queryOptions({
+    queryKey: userManagementKeys.userRoleTemplates(userId, scopeKey),
+    queryFn: () =>
+      apiClient<AppliedRoleTemplate[]>(
+        `${BASE}/users/${encodeURIComponent(userId)}/roles`,
+        { method: 'GET' },
+        userTenantApiContext(tenantScope),
+      ),
   });
 }
 
@@ -124,8 +137,8 @@ export function useUserListSuspense(tenantScope?: string | null) {
   return useSuspenseQuery(userListOptions(scope));
 }
 
-export function useUserDetailSuspense(userId: string) {
-  return useSuspenseQuery(userDetailOptions(userId));
+export function useUserDetailSuspense(userId: string, tenantScope?: string | null) {
+  return useSuspenseQuery(userDetailOptions(userId, tenantScope));
 }
 
 export function useRuntimeCapabilityCatalogSuspense() {
@@ -150,23 +163,35 @@ export function useRoleCapabilities(roleId: string, enabled: boolean) {
   });
 }
 
-export function useUserCapabilities(userId: string, enabled: boolean) {
+export function useUserCapabilities(
+  userId: string,
+  enabled: boolean,
+  tenantScope?: string | null,
+) {
   return useQuery({
-    ...userCapabilitiesOptions(userId),
+    ...userCapabilitiesOptions(userId, tenantScope),
     enabled: enabled && userId.length > 0,
   });
 }
 
-export function useUserEffectiveCapabilities(userId: string, enabled: boolean) {
+export function useUserEffectiveCapabilities(
+  userId: string,
+  enabled: boolean,
+  tenantScope?: string | null,
+) {
   return useQuery({
-    ...userEffectiveCapabilitiesOptions(userId),
+    ...userEffectiveCapabilitiesOptions(userId, tenantScope),
     enabled: enabled && userId.length > 0,
   });
 }
 
-export function useUserRoleTemplates(userId: string, enabled: boolean) {
+export function useUserRoleTemplates(
+  userId: string,
+  enabled: boolean,
+  tenantScope?: string | null,
+) {
   return useQuery({
-    ...userRoleTemplatesOptions(userId),
+    ...userRoleTemplatesOptions(userId, tenantScope),
     enabled: enabled && userId.length > 0,
   });
 }

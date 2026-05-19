@@ -40,10 +40,11 @@ type EditUserDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   user: UmUser;
+  tenantScope?: string;
 };
 
-export function EditUserDialog({ open, onOpenChange, user }: EditUserDialogProps) {
-  const update = useUpdateUser(user.id);
+export function EditUserDialog({ open, onOpenChange, user, tenantScope }: EditUserDialogProps) {
+  const update = useUpdateUser(user.id, tenantScope);
   const { reset, handleSubmit, register, formState } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
