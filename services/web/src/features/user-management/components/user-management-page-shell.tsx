@@ -10,8 +10,8 @@ import {
 } from '@pulse/ui/breadcrumb';
 import { PageHeader } from '@/components/page-header';
 import {
+  canAccessRolesAdmin,
   canAccessUsersSection,
-  canReadRoles,
   canReadUsers,
   canWriteUsers,
 } from '@/features/user-management/lib/um-permissions';
@@ -21,7 +21,7 @@ type UserManagementSection = 'users' | 'roles';
 
 const sectionItems = [
   { section: 'users' as const, label: 'Users', to: '/user-management' as const },
-  { section: 'roles' as const, label: 'Role templates', to: '/user-management/roles' as const },
+  { section: 'roles' as const, label: 'Roles', to: '/user-management/roles' as const },
 ];
 
 type UserManagementPageShellProps = {
@@ -60,7 +60,7 @@ export function UserManagementPageShell({
   const canRead = usePermissionsStore(canReadUsers);
   const canWrite = usePermissionsStore(canWriteUsers);
   const showUsersTab = usePermissionsStore(canAccessUsersSection);
-  const showRolesTab = usePermissionsStore(canReadRoles);
+  const showRolesTab = usePermissionsStore(canAccessRolesAdmin);
 
   const visibleSections = sectionItems.filter((item) => {
     if (item.section === 'users') return showUsersTab;

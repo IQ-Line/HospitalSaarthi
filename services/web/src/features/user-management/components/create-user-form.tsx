@@ -50,8 +50,7 @@ export function buildCreateUserRequestBody(
 }
 
 type CreateUserFormProps = {
-  canReadRoleTemplates: boolean;
-  canReadCapabilities: boolean;
+  canReadRoles: boolean;
   canManageAccess: boolean;
   layout?: 'page' | 'dialog';
   /** When false, stay on the form after create (e.g. create-only admins without user.read). Default true. */
@@ -61,8 +60,7 @@ type CreateUserFormProps = {
 };
 
 export function CreateUserForm({
-  canReadRoleTemplates,
-  canReadCapabilities,
+  canReadRoles,
   canManageAccess,
   layout = 'page',
   navigateToProfileOnSuccess = true,
@@ -79,7 +77,7 @@ export function CreateUserForm({
 
   const rolesQuery = useQuery({
     ...roleListOptions(),
-    enabled: canReadRoleTemplates,
+    enabled: canReadRoles,
     staleTime: 30_000,
   });
 
@@ -105,7 +103,7 @@ export function CreateUserForm({
     if (!requireRoleTemplate) {
       return;
     }
-    if (!canReadRoleTemplates) {
+    if (!canReadRoles) {
       return;
     }
     const roles = (rolesQuery.data ?? []).filter((role) => role.status === 'active');
@@ -116,13 +114,12 @@ export function CreateUserForm({
     if (current.length !== 1) {
       form.setValue('role_template_ids', [roles[0].id], { shouldValidate: true });
     }
-  }, [requireRoleTemplate, canReadRoleTemplates, rolesQuery.data, form]);
+  }, [requireRoleTemplate, canReadRoles, rolesQuery.data, form]);
 
   const selectedRoleTemplateIds = form.watch('role_template_ids');
   const selectedRoleId = selectedRoleTemplateIds[0] ?? '';
 
-  const roleCapabilitiesQueryEnabled =
-    Boolean(selectedRoleId) && canReadRoleTemplates && canReadCapabilities;
+  const roleCapabilitiesQueryEnabled = Boolean(selectedRoleId) && canReadRoles;
 
   const roleCapabilitiesQuery = useQuery({
     ...roleCapabilitiesOptions(selectedRoleId),
@@ -131,7 +128,7 @@ export function CreateUserForm({
   });
 
   const roleTemplatesPending =
-    canReadRoleTemplates && rolesQuery.isFetching && rolesQuery.data === undefined;
+    canReadRoles && rolesQuery.isFetching && rolesQuery.data === undefined;
   const roleCapabilitiesPending =
     roleCapabilitiesQueryEnabled &&
     roleCapabilitiesQuery.isFetching &&
@@ -169,7 +166,7 @@ export function CreateUserForm({
 
   const roleAssignmentBlocked =
     requireRoleTemplate &&
-    (!canReadRoleTemplates || (rolesQuery.data !== undefined && availableRoles.length === 0));
+    (!canReadRoles || (rolesQuery.data !== undefined && availableRoles.length === 0));
   const roleCapabilitiesStillLoading =
     requireRoleTemplate &&
     Boolean(selectedRoleId) &&
@@ -227,8 +224,8 @@ export function CreateUserForm({
         />
 
         <CreateUserAccessSection
-          canReadRoleTemplates={canReadRoleTemplates}
-          canReadCapabilities={canReadCapabilities}
+          canReadRoles={canReadRoles}
+          canReadRoleCapabilities={canReadRoles}
           canManageAccess={canManageAccess}
           roleTemplates={availableRoles}
           roleTemplatesPending={roleTemplatesPending}

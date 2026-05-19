@@ -10,7 +10,7 @@ import { FrontdeskNavSection } from '@/features/frontdesk/components/frontdesk-n
 import { VisitpadNavSection } from '@/features/visitpad/components/visitpad-nav-section';
 import { authClient } from '@/lib/auth-client';
 import {
-  canReadRoles,
+  canAccessRolesAdmin,
   canReadUsers,
   canWriteUsers,
 } from '@/features/user-management/lib/um-permissions';
@@ -50,11 +50,11 @@ export function AppSidebar({
   const [isFrontdeskOpen, setIsFrontdeskOpen] = useState(true);
   const canReadUmUsers = usePermissionsStore(canReadUsers);
   const canWriteUmUsers = usePermissionsStore(canWriteUsers);
-  const canReadUmRoles = usePermissionsStore(canReadRoles);
+  const canAccessUmRoles = usePermissionsStore(canAccessRolesAdmin);
   const userManagementNavTo =
     canReadUmUsers || canWriteUmUsers
       ? '/user-management'
-      : canReadUmRoles
+      : canAccessUmRoles
         ? '/user-management/roles'
         : '/user-management';
   const userManagementNavSearch =

@@ -36,24 +36,34 @@ export function buildApplyRoleTemplateRequestBody(
 
 type RoleTemplateCapabilityPickerProps = {
   roleId: string;
-  canReadCapabilities: boolean;
+  /** PDP: GET /roles/:id/capabilities uses role.read. */
+  canReadRoleCapabilities: boolean;
   canManageAccess: boolean;
   selectedCapabilityIds: string[];
   onSelectedCapabilityIdsChange: (capabilityIds: string[]) => void;
+  /** When false, does not auto-select every capability after the role catalog loads. */
+  selectAllCapabilitiesOnLoad?: boolean;
+  /** Seeds selection when the role catalog loads (e.g. capabilities already granted to the user). */
+  initialSelectedCapabilityIds?: string[];
+  /** Hides technical permission codes in the checklist. */
+  plainLanguage?: boolean;
 };
 
 export function RoleTemplateCapabilityPicker({
   roleId,
-  canReadCapabilities,
+  canReadRoleCapabilities,
   canManageAccess,
   selectedCapabilityIds,
   onSelectedCapabilityIdsChange,
+  selectAllCapabilitiesOnLoad = true,
+  initialSelectedCapabilityIds,
+  plainLanguage = false,
 }: RoleTemplateCapabilityPickerProps) {
   const [expandedBranchIds, setExpandedBranchIds] = useState<Set<string>>(new Set());
 
   const roleCapabilitiesQuery = useQuery({
     ...roleCapabilitiesOptions(roleId),
-    enabled: Boolean(roleId) && canReadCapabilities,
+    enabled: Boolean(roleId) && canReadRoleCapabilities,
     staleTime: 30_000,
   });
 
@@ -88,9 +98,18 @@ export function RoleTemplateCapabilityPicker({
       onSelectedCapabilityIdsChange([]);
       return;
     }
-    onSelectedCapabilityIdsChange(caps.map((capability) => capability.id));
+    if (initialSelectedCapabilityIds !== undefined) {
+      const allowed = new Set(caps.map((capability) => capability.id));
+      onSelectedCapabilityIdsChange(
+        initialSelectedCapabilityIds.filter((capabilityId) => allowed.has(capabilityId)),
+      );
+      return;
+    }
+    if (selectAllCapabilitiesOnLoad) {
+      onSelectedCapabilityIdsChange(caps.map((capability) => capability.id));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- selection resets when role catalog loads
-  }, [roleId, roleCapabilitiesQuery.data]);
+  }, [roleId, roleCapabilitiesQuery.data, initialSelectedCapabilityIds, selectAllCapabilitiesOnLoad]);
 
   const handleToggleBranch = (nodeId: string) => {
     setExpandedBranchIds((current) => {
@@ -105,24 +124,26 @@ export function RoleTemplateCapabilityPicker({
   };
 
   let content: ReactNode;
-  if (!canReadCapabilities) {
+  if (!canReadRoleCapabilities) {
     content = (
       <p className="text-sm text-muted-foreground">
-        Capability visibility is required to pick capabilities from a role template.
+        You do not have permission to view this role&apos;s permissions.
       </p>
     );
   } else if (roleCapabilitiesQuery.isPending) {
-    content = <p className="text-sm text-muted-foreground">Loading role capabilities...</p>;
+    content = <p className="text-sm text-muted-foreground">Loading permissions...</p>;
   } else if (roleCapabilitiesQuery.isError) {
-    content = <p className="text-sm text-destructive">Unable to load capabilities for this role.</p>;
+    content = <p className="text-sm text-destructive">Could not load permissions. Try again.</p>;
   } else if (roleCapabilities.length === 0) {
-    content = <p className="text-sm text-muted-foreground">This role has no capabilities yet.</p>;
+    content = <p className="text-sm text-muted-foreground">This role has no permissions set up yet.</p>;
   } else {
     const selectedSet = new Set(selectedCapabilityIds);
     content = (
       <>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <Badge variant="secondary">{selectedCapabilityIds.length} selected</Badge>
+          <Badge variant="secondary">
+            {selectedCapabilityIds.length} selected
+          </Badge>
           {canManageAccess ? (
             <div className="flex flex-wrap gap-2">
               <Button
@@ -166,6 +187,7 @@ export function RoleTemplateCapabilityPicker({
                   : [...selectedCapabilityIds, capabilityId];
                 onSelectedCapabilityIdsChange(next);
               }}
+              plainLanguage={plainLanguage}
             />
           ))}
         </div>

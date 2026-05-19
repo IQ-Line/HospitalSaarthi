@@ -8,7 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@pulse/ui/card';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
 import { authClient } from '@/lib/auth-client';
+import { refreshAuthorizationContext } from '@/lib/authorization-context';
 import { buildDevPermissionMap } from '@/lib/permissions-map';
+import { queryClient } from '@/lib/query-client';
 import { DEV_TENANT_IQ_CATALOG_UUID } from '@/lib/catalog-tenant';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePermissionsStore } from '@/stores/permissions.store';
@@ -77,6 +79,7 @@ function LoginPage() {
         branches: [{ id: 'branch-001', name: 'Main Campus' }],
         activeBranch: 'branch-001',
       });
+      await refreshAuthorizationContext(queryClient);
       navigate({ to: '/dashboard' });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign-in failed');
@@ -98,6 +101,7 @@ function LoginPage() {
       branches: [{ id: 'branch-001', name: 'Main Campus' }],
       activeBranch: 'branch-001',
     });
+    usePermissionsStore.getState().clearPermissions();
     setPermissions(buildDevPermissionMap('superadmin'));
     navigate({ to: '/dashboard' });
   };
@@ -115,6 +119,7 @@ function LoginPage() {
       branches: [{ id: 'branch-001', name: 'Main Campus' }],
       activeBranch: 'branch-001',
     });
+    usePermissionsStore.getState().clearPermissions();
     setPermissions(buildDevPermissionMap('tenant-catalog-readonly'));
     navigate({ to: '/dashboard' });
   };

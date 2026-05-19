@@ -5,7 +5,8 @@ import {
   redirect,
   useNavigate,
 } from '@tanstack/react-router';
-import { hydratePermissionsFromBackend } from '@/lib/permissions';
+import { refreshAuthorizationContext } from '@/lib/authorization-context';
+import { queryClient } from '@/lib/query-client';
 import { LogOut, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { Badge } from '@pulse/ui/badge';
 import { Button } from '@pulse/ui/button';
@@ -22,14 +23,11 @@ export const Route = createFileRoute('/_authenticated')({
     if (!isAuthenticated) {
       throw redirect({ to: '/login' });
     }
-    const permissionsState = usePermissionsStore.getState();
-    const needsHydration =
-      !permissionsState.isLoaded || Object.keys(permissionsState.map).length === 0;
-    if (needsHydration) {
-      try {
-        await hydratePermissionsFromBackend();
-      } catch {
-        // UX-only: allow shell when PDP/API is down in dev; all APIs still enforce Cerbos.
+    try {
+      await refreshAuthorizationContext(queryClient);
+    } catch {
+      // UX-only: allow shell when PDP/API is down in dev; all APIs still enforce Cerbos.
+      if (!usePermissionsStore.getState().isLoaded) {
         usePermissionsStore.getState().setPermissions({});
       }
     }
@@ -50,13 +48,12 @@ function AuthenticatedLayout() {
   const hasEmptyFallback = isLoaded && Object.keys(permissionMap).length === 0;
 
   useEffect(() => {
-    if (isLoaded && !hasEmptyFallback) return;
     let cancelled = false;
     let retryTimer: ReturnType<typeof setInterval> | undefined;
 
     const hydrate = async () => {
       try {
-        await hydratePermissionsFromBackend();
+        await refreshAuthorizationContext(queryClient);
       } catch {
         if (!cancelled) {
           usePermissionsStore.getState().setPermissions({});
@@ -78,7 +75,7 @@ function AuthenticatedLayout() {
         clearInterval(retryTimer);
       }
     };
-  }, [isLoaded, hasEmptyFallback, tenantId, activeBranch]);
+  }, [userId, tenantId, activeBranch, hasEmptyFallback]);
   const sidebarCollapsed = useUIPrefsStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUIPrefsStore((s) => s.toggleSidebar);
 
@@ -98,7 +95,9 @@ function AuthenticatedLayout() {
     useAuthStore.getState().clearSession();
     useTenantStore.getState().clearTenant();
     usePermissionsStore.getState().clearPermissions();
-    void navigate({ to: '/login' });
+    void refreshAuthorizationContext(queryClient).finally(() => {
+      void navigate({ to: '/login' });
+    });
   };
 
   if (!isLoaded) {

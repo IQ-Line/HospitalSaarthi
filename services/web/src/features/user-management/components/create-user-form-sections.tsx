@@ -27,7 +27,7 @@ import {
 import { UserManagementSectionCard } from './user-management-section-card';
 
 export type CreateUserAccessOptions = {
-  /** When true, exactly one role template id is required to submit. */
+  /** When true, exactly one role id is required to submit. */
   requireRoleTemplate: boolean;
 };
 
@@ -42,7 +42,7 @@ export function buildCreateUserFormSchema(options: CreateUserAccessOptions) {
     department: z.string(),
     clearance_tier_required: z.coerce.number().int().min(0).max(3),
     role_template_ids: options.requireRoleTemplate
-      ? z.array(z.string().uuid()).length(1, 'Select a role template.')
+      ? z.array(z.string().uuid()).length(1, 'Select a role.')
       : z.array(z.string().uuid()).max(1).default([]),
     role_capability_selection_ids: z.array(z.string().uuid()).default([]),
   });
@@ -167,8 +167,8 @@ export function CreateUserOrganizationSection({
 }
 
 type CreateUserAccessSectionProps = {
-  canReadRoleTemplates: boolean;
-  canReadCapabilities: boolean;
+  canReadRoles: boolean;
+  canReadRoleCapabilities: boolean;
   canManageAccess: boolean;
   roleTemplates: UmRole[];
   roleTemplatesPending: boolean;
@@ -181,8 +181,8 @@ type CreateUserAccessSectionProps = {
 };
 
 export function CreateUserAccessSection({
-  canReadRoleTemplates,
-  canReadCapabilities,
+  canReadRoles,
+  canReadRoleCapabilities,
   canManageAccess,
   roleTemplates,
   roleTemplatesPending,
@@ -232,25 +232,25 @@ export function CreateUserAccessSection({
   };
 
   let roleBlock: ReactNode;
-  if (!canReadRoleTemplates) {
+  if (!canReadRoles) {
     roleBlock = (
       <p className="text-sm text-muted-foreground">
-        You can create the user, but you do not have permission to review role templates.
+        You can create the user, but you do not have permission to review roles.
       </p>
     );
   } else if (roleTemplatesPending) {
-    roleBlock = <p className="text-sm text-muted-foreground">Loading role templates...</p>;
+    roleBlock = <p className="text-sm text-muted-foreground">Loading roles...</p>;
   } else if (roleTemplatesError) {
-    roleBlock = <p className="text-sm text-destructive">Unable to load role templates right now.</p>;
+    roleBlock = <p className="text-sm text-destructive">Unable to load roles right now.</p>;
   } else if (roleTemplates.length === 0) {
     roleBlock = (
-      <p className="text-sm text-muted-foreground">No active role templates are available yet.</p>
+      <p className="text-sm text-muted-foreground">No active roles are available yet.</p>
     );
   } else {
     roleBlock = (
       <div className="space-y-2">
         <Label htmlFor="c_role_template">
-          {canManageAccess ? 'Role template (required)' : 'Role template'}
+          {canManageAccess ? 'Role (required)' : 'Role'}
         </Label>
         <Controller
           control={control}
@@ -266,12 +266,12 @@ export function CreateUserAccessSection({
                 }}
               >
                 <SelectTrigger id="c_role_template">
-                  <SelectValue placeholder="Select a role template" />
+                  <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
                 <SelectContent>
                   {roleTemplates.map((role) => (
                     <SelectItem key={role.id} value={role.id}>
-                      {`${role.display_name} (${role.code})`}
+                      {role.display_name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -281,28 +281,28 @@ export function CreateUserAccessSection({
         />
         <p className="text-xs text-muted-foreground">
           {canManageAccess
-            ? 'A role template is required. Then choose which of its capabilities this user receives; module rows support select-all for their subtree.'
-            : 'Role assignment is shown for your review only.'}
+            ? 'Choose a role, then tick the permissions they should have.'
+            : 'You can review the role but cannot change it.'}
         </p>
       </div>
     );
   }
 
   let treeBlock: ReactNode;
-  if (!canReadCapabilities) {
+  if (!canReadRoleCapabilities) {
     treeBlock = (
       <p className="text-sm text-muted-foreground">
-        Capability visibility is required to pick capabilities from a role template.
+        You do not have permission to view this role&apos;s permissions.
       </p>
     );
   } else if (roleCapabilitiesPending) {
-    treeBlock = <p className="text-sm text-muted-foreground">Loading role capabilities...</p>;
+    treeBlock = <p className="text-sm text-muted-foreground">Loading permissions...</p>;
   } else if (roleCapabilitiesError) {
-    treeBlock = <p className="text-sm text-destructive">Unable to load capabilities for this role.</p>;
+    treeBlock = <p className="text-sm text-destructive">Could not load permissions for this role.</p>;
   } else if (roleCapabilities.length === 0) {
     treeBlock = (
       <p className="text-sm text-muted-foreground">
-        This role has no capabilities yet, or no role is selected.
+        This role has no permissions set up yet, or no role is selected.
       </p>
     );
   } else {
@@ -362,6 +362,7 @@ export function CreateUserAccessSection({
                         : [...field.value, capabilityId];
                       field.onChange(next);
                     }}
+                    plainLanguage
                   />
                 ))}
               </div>
@@ -374,8 +375,8 @@ export function CreateUserAccessSection({
 
   return (
     <UserManagementSectionCard
-      title="Access setup"
-      description="Assign a role template (required when you can manage access) and choose which of its capabilities the new user receives."
+      title="Role & permissions"
+      description="Pick a role and choose what this person is allowed to do."
       contentClassName="space-y-4"
     >
       {roleBlock}

@@ -32,6 +32,13 @@ describe('projectUnknownActionsToWrite', () => {
 });
 
 describe('buildDevPermissionMap', () => {
+  it('superadmin has granular user-management role mutations', () => {
+    const m = buildDevPermissionMap('superadmin');
+    expect(m['user-management'].roles.create).toBe(true);
+    expect(m['user-management'].roles.update).toBe(true);
+    expect(m['user-management'].roles.delete).toBe(true);
+  });
+
   it('superadmin has visitpad catalog write', () => {
     const m = buildDevPermissionMap('superadmin');
     expect(m[VISITPAD_TEMPLATES_MODULE][VISITPAD_CATALOG_FEATURE].write).toBe(true);

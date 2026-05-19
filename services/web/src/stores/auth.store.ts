@@ -19,14 +19,17 @@ interface AuthState {
   clearSession: () => void;
 }
 
-const authSlice: StateCreator<AuthState> = (set) => ({
+const authSlice: StateCreator<AuthState> = (set, get) => ({
   isAuthenticated: false,
   accessToken: null,
   sessionToken: null,
   userId: null,
   displayName: null,
 
-  setSession: (session) =>
+  setSession: (session) => {
+    if (get().userId !== session.userId) {
+      usePermissionsStore.getState().clearPermissions();
+    }
     set(
       {
         isAuthenticated: true,
@@ -37,7 +40,8 @@ const authSlice: StateCreator<AuthState> = (set) => ({
       },
       false,
       'setSession',
-    ),
+    );
+  },
 
   clearSession: () => {
     usePermissionsStore.getState().clearPermissions();

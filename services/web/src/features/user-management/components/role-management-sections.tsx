@@ -30,7 +30,8 @@ type RoleListSectionProps = {
   totalRoleCount: number;
   roleSearch: string;
   selectedRoleId: string;
-  canWriteRoles: boolean;
+  canCreateRoles: boolean;
+  canUpdateRoles: boolean;
   onRoleSearchChange: (value: string) => void;
   onSelectRole: (roleId: string) => void;
   onCreateRole: () => void;
@@ -41,21 +42,26 @@ export function RoleListSection({
   totalRoleCount,
   roleSearch,
   selectedRoleId,
-  canWriteRoles,
+  canCreateRoles,
+  canUpdateRoles,
   onRoleSearchChange,
   onSelectRole,
   onCreateRole,
 }: RoleListSectionProps) {
   return (
     <UserManagementSectionCard
-      title="Role templates"
-      description="Click a template to edit it, or create a new one from the same flow."
+      title="Roles"
+      description={
+        canUpdateRoles
+          ? 'Select a role to change it, or create a new one.'
+          : 'Select a role to view its permissions.'
+      }
       actions={
         <div className="flex items-center gap-2">
           <Badge variant="secondary">{roles.length} shown</Badge>
-          {canWriteRoles ? (
+          {canCreateRoles ? (
             <Button type="button" size="sm" onClick={onCreateRole}>
-              Create template
+              Create role
             </Button>
           ) : null}
         </div>
@@ -63,15 +69,15 @@ export function RoleListSection({
       contentClassName="space-y-3"
     >
       <div className="space-y-2">
-        <Label htmlFor="role-search">Search role templates</Label>
+        <Label htmlFor="role-search">Search roles</Label>
         <Input
           id="role-search"
-          placeholder="Search name, code, description"
+          placeholder="Search by name or description"
           value={roleSearch}
           onChange={(event) => onRoleSearchChange(event.target.value)}
         />
         <p className="text-xs text-muted-foreground">
-          Showing {roles.length} of {totalRoleCount} role templates.
+          Showing {roles.length} of {totalRoleCount} roles.
         </p>
       </div>
 
@@ -91,7 +97,6 @@ export function RoleListSection({
                 {role.status}
               </Badge>
             </div>
-            <div className="mt-1 text-xs text-muted-foreground">{role.code}</div>
             {role.description ? (
               <p className="mt-2 text-sm text-muted-foreground">{role.description}</p>
             ) : null}
@@ -100,8 +105,8 @@ export function RoleListSection({
       ) : (
         <p className="text-sm text-muted-foreground">
           {roleSearch.trim() === ''
-            ? 'No role templates have been created for this tenant yet.'
-            : 'No role templates match the current search.'}
+            ? 'No roles have been set up yet.'
+            : 'No roles match the current search.'}
         </p>
       )}
     </UserManagementSectionCard>
@@ -258,12 +263,16 @@ export function CapabilityTreeNodeRow({
   onSetSelectedCapabilityIds,
   onToggleCapability,
   showCapabilityProvenance = false,
+  plainLanguage = false,
+  assignedCapabilityIds,
 }: {
   node: CapabilityTreeNode;
   depth: number;
   canWriteRoles: boolean;
   showCapabilityProvenance?: boolean;
+  plainLanguage?: boolean;
   selectedCapabilityIds: Set<string>;
+  assignedCapabilityIds?: Set<string>;
   expandedBranchIds: Set<string>;
   forceExpanded: boolean;
   onBranchToggle: (nodeId: string) => void;
@@ -273,20 +282,36 @@ export function CapabilityTreeNodeRow({
   if (node.kind === 'capability') {
     const capability = node.capability;
     const checked = selectedCapabilityIds.has(capability.id);
+    const onRole = assignedCapabilityIds?.has(capability.id) ?? false;
     return (
       <div className="space-y-2" style={{ marginLeft: depth * 20 }}>
-        <label className="flex items-start gap-3 rounded-md border p-3">
+        <label
+          className={`flex items-start gap-3 rounded-md border p-3 ${
+            onRole ? 'border-primary/40 bg-primary/5' : ''
+          }`}
+        >
           <Checkbox
             checked={checked}
             disabled={!canWriteRoles}
             onCheckedChange={() => onToggleCapability(capability.id)}
           />
-          <div className="min-w-0">
-            <div className="font-medium">{capability.display_name}</div>
-            <code className="text-xs text-muted-foreground">{capability.capability_key}</code>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {capability.feature} / {capability.action}
-            </p>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium">{capability.display_name}</span>
+              {onRole ? (
+                <Badge variant="secondary" className="text-xs font-normal">
+                  On this role
+                </Badge>
+              ) : null}
+            </div>
+            {!plainLanguage ? (
+              <>
+                <code className="text-xs text-muted-foreground">{capability.capability_key}</code>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {capability.feature} / {capability.action}
+                </p>
+              </>
+            ) : null}
             {capability.description ? (
               <p className="mt-1 text-sm text-muted-foreground">{capability.description}</p>
             ) : null}
@@ -313,6 +338,9 @@ export function CapabilityTreeNodeRow({
 
   const checkedState = getNodeCheckedState(node, selectedCapabilityIds);
   const expanded = forceExpanded || expandedBranchIds.has(node.id);
+  const onRoleCount = assignedCapabilityIds
+    ? node.capabilityIds.filter((capabilityId) => assignedCapabilityIds.has(capabilityId)).length
+    : 0;
 
   const handleBranchCheckedChange = () => {
     const allSelected = node.capabilityIds.every((capabilityId) =>
@@ -354,7 +382,11 @@ export function CapabilityTreeNodeRow({
         <div className="min-w-0 flex-1">
           <div className="font-medium capitalize">{formatModuleLabel(node.label)}</div>
           <p className="text-xs text-muted-foreground">
-            {node.capabilityIds.length} capabilities in this branch
+            {node.capabilityIds.length}{' '}
+            {plainLanguage ? 'permissions in this group' : 'capabilities in this branch'}
+            {assignedCapabilityIds && onRoleCount > 0
+              ? ` · ${onRoleCount} on this role`
+              : null}
           </p>
         </div>
       </div>
@@ -368,12 +400,14 @@ export function CapabilityTreeNodeRow({
               depth={depth + 1}
               canWriteRoles={canWriteRoles}
               selectedCapabilityIds={selectedCapabilityIds}
+              assignedCapabilityIds={assignedCapabilityIds}
               expandedBranchIds={expandedBranchIds}
               forceExpanded={forceExpanded}
               onBranchToggle={onBranchToggle}
               onSetSelectedCapabilityIds={onSetSelectedCapabilityIds}
               onToggleCapability={onToggleCapability}
               showCapabilityProvenance={showCapabilityProvenance}
+              plainLanguage={plainLanguage}
             />
           ))}
         </div>
@@ -384,14 +418,18 @@ export function CapabilityTreeNodeRow({
 
 type RoleEditorDialogProps = {
   open: boolean;
-  mode: 'create' | 'edit';
+  mode: 'create' | 'edit' | 'view';
   role: UmRole | null;
-  canWriteRoles: boolean;
+  canCreateRoles: boolean;
+  canUpdateRoles: boolean;
+  canDeleteRoles: boolean;
   canReadCapabilities: boolean;
   code: string;
   displayName: string;
   description: string;
   selectedCapabilityIds: string[];
+  /** Capability ids currently saved on the role (baseline). */
+  assignedCapabilityIds: string[];
   assignedCount: number;
   visibleCount: number;
   totalCapabilityCount: number;
@@ -424,12 +462,15 @@ export function RoleEditorDialog({
   open,
   mode,
   role,
-  canWriteRoles,
+  canCreateRoles,
+  canUpdateRoles,
+  canDeleteRoles,
   canReadCapabilities,
   code,
   displayName,
   description,
   selectedCapabilityIds,
+  assignedCapabilityIds,
   assignedCount,
   visibleCount,
   totalCapabilityCount,
@@ -457,11 +498,28 @@ export function RoleEditorDialog({
   showCapabilityProvenance = false,
 }: RoleEditorDialogProps) {
   const isCreate = mode === 'create';
+  const isView = mode === 'view';
+  const canModifyRole = !isView && (isCreate ? canCreateRoles : canUpdateRoles);
   const capabilityTree = useMemo(() => buildCapabilityTree(capabilities), [capabilities]);
   const selectedCapabilityIdSet = useMemo(
     () => new Set(selectedCapabilityIds),
     [selectedCapabilityIds],
   );
+  const assignedCapabilityIdSet = useMemo(
+    () => new Set(assignedCapabilityIds),
+    [assignedCapabilityIds],
+  );
+  const showFullCatalog = canReadCapabilities;
+  const permissionsPending = showFullCatalog
+    ? isCreate
+      ? assignableCatalogPending
+      : assignedCapabilitiesPending || assignableCatalogPending
+    : assignedCapabilitiesPending;
+  const permissionsError = showFullCatalog
+    ? isCreate
+      ? assignableCatalogError
+      : assignedCapabilitiesError || assignableCatalogError
+    : assignedCapabilitiesError;
   const [expandedBranchIds, setExpandedBranchIds] = useState<Set<string>>(new Set());
   const forceExpanded = capabilitySearch.trim() !== '';
 
@@ -509,11 +567,15 @@ export function RoleEditorDialog({
       <DialogContent className="flex max-h-[min(88dvh,960px)] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-6xl">
         <div className="shrink-0 space-y-2 border-b p-4 pb-3">
           <DialogHeader>
-            <DialogTitle>{isCreate ? 'Create role' : 'Edit role'}</DialogTitle>
+            <DialogTitle>
+              {isCreate ? 'New role' : isView ? 'View role' : 'Edit role'}
+            </DialogTitle>
             <DialogDescription>
               {isCreate
-                ? 'Define the role metadata and select capabilities from the module catalog before saving.'
-                : 'Update role details and adjust its capability mix from the same editor.'}
+                ? 'Give the role a name and choose what people with this role can do.'
+                : isView
+                  ? 'See what this role allows. You cannot make changes with your account.'
+                  : 'Update the name or change what this role allows.'}
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -536,29 +598,28 @@ export function RoleEditorDialog({
                   {isDirty ? <Badge variant="outline">Unsaved changes</Badge> : null}
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Role code and display name are required. Capabilities can be selected by module on
-                  the right.
+                  Give the role a name, then choose what it allows on the right.
                 </p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="role-editor-code">Role code</Label>
+                <Label htmlFor="role-editor-code">Short ID</Label>
                 <Input
                   id="role-editor-code"
-                  placeholder="clinical-admin"
+                  placeholder="e.g. clinical-admin"
                   value={code}
-                  disabled={!canWriteRoles}
+                  disabled={!canModifyRole}
                   onChange={(event) => onCodeChange(event.target.value)}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="role-editor-name">Display name</Label>
+                <Label htmlFor="role-editor-name">Role name</Label>
                 <Input
                   id="role-editor-name"
                   placeholder="Clinical administrator"
                   value={displayName}
-                  disabled={!canWriteRoles}
+                  disabled={!canModifyRole}
                   onChange={(event) => onDisplayNameChange(event.target.value)}
                 />
               </div>
@@ -569,12 +630,12 @@ export function RoleEditorDialog({
                   id="role-editor-description"
                   placeholder="Summarize who should receive this role."
                   value={description}
-                  disabled={!canWriteRoles}
+                  disabled={!canModifyRole}
                   onChange={(event) => onDescriptionChange(event.target.value)}
                 />
               </div>
 
-              {!canWriteRoles ? (
+              {!canModifyRole ? (
                 <p className="text-sm text-muted-foreground">
                   This editor is read-only for your account.
                 </p>
@@ -584,53 +645,81 @@ export function RoleEditorDialog({
             <section className="space-y-4 rounded-md border p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <h4 className="font-medium">Capabilities</h4>
+                  <h4 className="font-medium">Permissions</h4>
                   <p className="text-sm text-muted-foreground">
-                    Build the role from module capabilities in the same save flow.
+                    {showFullCatalog
+                      ? isCreate
+                        ? 'All permissions your organization can assign. Tick what this role includes.'
+                        : 'All module permissions below. Highlighted items are already on this role.'
+                      : 'Permissions saved on this role.'}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="secondary">{selectedCapabilityIds.length} selected</Badge>
-                  {!isCreate ? <Badge variant="outline">{assignedCount} currently assigned</Badge> : null}
+                  {!isCreate ? (
+                    <Badge variant="outline">{assignedCount} on this role</Badge>
+                  ) : null}
+                  {showFullCatalog ? (
+                    <Badge variant="outline">{totalCapabilityCount} available</Badge>
+                  ) : null}
                 </div>
               </div>
 
-              {!canReadCapabilities ? (
-                <p className="text-sm text-muted-foreground">
-                  Your account cannot read the capability catalog, so capabilities cannot be reviewed
-                  or edited here.
-                </p>
-              ) : assignedCapabilitiesPending ? (
-                <p className="text-sm text-muted-foreground">Loading role capabilities...</p>
-              ) : assignedCapabilitiesError ? (
-                <p className="text-sm text-destructive">
-                  Unable to load the current capabilities for this role.
-                </p>
-              ) : assignableCatalogPending ? (
-                <p className="text-sm text-muted-foreground">Loading tenant assignable capabilities…</p>
-              ) : assignableCatalogError ? (
+              {!showFullCatalog && (isView || !canReadCapabilities) ? (
+                assignedCapabilitiesPending ? (
+                  <p className="text-sm text-muted-foreground">Loading permissions for this role...</p>
+                ) : assignedCapabilitiesError ? (
+                  <p className="text-sm text-destructive">
+                    Could not load permissions for this role. Try again.
+                  </p>
+                ) : totalCapabilityCount === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    This role has no permissions set up yet.
+                  </p>
+                ) : (
+                  <div className="space-y-5">
+                    {capabilityTree.map((node) => (
+                      <CapabilityTreeNodeRow
+                        key={node.id}
+                        node={node}
+                        depth={0}
+                        canWriteRoles={canModifyRole}
+                        selectedCapabilityIds={selectedCapabilityIdSet}
+                        expandedBranchIds={expandedBranchIds}
+                        forceExpanded={forceExpanded}
+                        onBranchToggle={handleToggleBranch}
+                        onSetSelectedCapabilityIds={onSetSelectedCapabilityIds}
+                        onToggleCapability={onToggleCapability}
+                        showCapabilityProvenance={showCapabilityProvenance}
+                        plainLanguage
+                        assignedCapabilityIds={undefined}
+                      />
+                    ))}
+                  </div>
+                )
+              ) : permissionsPending ? (
+                <p className="text-sm text-muted-foreground">Loading permissions...</p>
+              ) : permissionsError ? (
                 <div className="space-y-3 rounded-md border border-destructive/35 bg-destructive/5 p-3">
                   <p className="text-sm text-destructive">
-                    Could not load tenant-scoped capabilities. The entitlement lookup (Configurator /
-                    Master Data) failed — this is not an empty permission catalog.
+                    Could not load the permission list. Check your connection and try again.
                   </p>
                   <Button type="button" size="sm" variant="outline" onClick={onRetryAssignableCatalog}>
-                    Retry
+                    Try again
                   </Button>
                 </div>
               ) : totalCapabilityCount === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  No assignable capabilities for this tenant. Platform modules may still apply,
-                  but the tenant-scoped catalog is empty.
+                  No permissions are available to assign for this organization yet.
                 </p>
               ) : (
                 <>
                   <div className="space-y-3 rounded-md border bg-muted/30 p-3">
                     <div className="space-y-2">
-                      <Label htmlFor="role-editor-capability-search">Search capabilities</Label>
+                      <Label htmlFor="role-editor-capability-search">Search permissions</Label>
                       <Input
                         id="role-editor-capability-search"
-                        placeholder="Search module, capability key, feature, action"
+                        placeholder="Search by name or area"
                         value={capabilitySearch}
                         onChange={(event) => onCapabilitySearchChange(event.target.value)}
                       />
@@ -638,18 +727,17 @@ export function RoleEditorDialog({
 
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="text-sm text-muted-foreground">
-                        {visibleCount} visible capabilities in the current tree.
+                        {visibleCount} permission{visibleCount === 1 ? '' : 's'} shown.
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Module checkboxes select all nested capabilities. Future submodules will nest
-                        under the same tree.
+                        Tick a group to select everything under it.
                       </p>
                     </div>
                   </div>
 
                   {capabilityTree.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
-                      No capabilities match the current search.
+                      No permissions match your search.
                     </p>
                   ) : (
                     <div className="space-y-5">
@@ -658,14 +746,18 @@ export function RoleEditorDialog({
                           key={node.id}
                           node={node}
                           depth={0}
-                          canWriteRoles={canWriteRoles}
+                          canWriteRoles={canModifyRole}
                           selectedCapabilityIds={selectedCapabilityIdSet}
+                          assignedCapabilityIds={
+                            !isCreate ? assignedCapabilityIdSet : undefined
+                          }
                           expandedBranchIds={expandedBranchIds}
                           forceExpanded={forceExpanded}
                           onBranchToggle={handleToggleBranch}
                           onSetSelectedCapabilityIds={onSetSelectedCapabilityIds}
                           onToggleCapability={onToggleCapability}
                           showCapabilityProvenance={showCapabilityProvenance}
+                          plainLanguage
                         />
                       ))}
                     </div>
@@ -678,7 +770,7 @@ export function RoleEditorDialog({
 
         <DialogFooter className="mx-0 mb-0 flex w-full shrink-0 items-center justify-between border-t px-4 py-3">
           <div>
-            {!isCreate && canWriteRoles ? (
+            {!isCreate && !isView && canDeleteRoles ? (
               <Button
                 type="button"
                 variant="destructive"
@@ -692,9 +784,9 @@ export function RoleEditorDialog({
 
           <div className="flex flex-wrap items-center gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
+              {isView ? 'Close' : 'Cancel'}
             </Button>
-            {canWriteRoles ? (
+            {canModifyRole ? (
               <>
                 <Button type="button" variant="outline" disabled={!isDirty} onClick={onReset}>
                   Reset

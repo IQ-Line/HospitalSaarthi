@@ -36,6 +36,9 @@ describe("buildUxPermissionMap", () => {
     );
 
     expect(map["user-management"]?.roles?.read).toBe(true);
+    expect(map["user-management"]?.roles?.create).toBe(false);
+    expect(map["user-management"]?.roles?.update).toBe(false);
+    expect(map["user-management"]?.roles?.delete).toBe(false);
     expect(map["user-management"]?.roles?.write).toBe(false);
     expect(map["user-management"]?.capabilities?.read).toBe(false);
     expect(map["user-management"]?.userAccess?.read).toBe(true);

@@ -71,6 +71,9 @@ export async function buildUxPermissionMap(
       },
       roles: {
         read: roleReadOk,
+        create: roleCreateOk,
+        update: roleUpdateOk,
+        delete: roleDeleteOk,
         write: roleCreateOk || roleUpdateOk || roleDeleteOk,
       },
       capabilities: {

@@ -1,5 +1,5 @@
 import { create, type StateCreator } from 'zustand';
-import { createJSONStorage, devtools, persist } from 'zustand/middleware';
+import { devtools } from 'zustand/middleware';
 
 type ActionPermissions = Record<string, boolean>;
 type FeaturePermissions = Record<string, ActionPermissions>;
@@ -16,13 +16,20 @@ export interface PermissionsState {
   hasFeaturePermission: (module: string, feature: string, action: string) => boolean;
 }
 
+const DEV_PERMISSIONS_STORAGE_KEY = 'hims-dev-permissions';
+
 const permissionsSlice: StateCreator<PermissionsState> = (set, get) => ({
   map: {},
   isLoaded: false,
 
   setPermissions: (map) => set({ map, isLoaded: true }, false, 'setPermissions'),
 
-  clearPermissions: () => set({ map: {}, isLoaded: false }, false, 'clearPermissions'),
+  clearPermissions: () => {
+    if (import.meta.env.DEV && typeof sessionStorage !== 'undefined') {
+      sessionStorage.removeItem(DEV_PERMISSIONS_STORAGE_KEY);
+    }
+    set({ map: {}, isLoaded: false }, false, 'clearPermissions');
+  },
 
   hasModuleAccess: (module) => {
     const features = get().map[module];
@@ -31,18 +38,10 @@ const permissionsSlice: StateCreator<PermissionsState> = (set, get) => ({
   },
 
   hasFeaturePermission: (module, feature, action) => {
-    return get().map[module]?.[feature]?.[action] ?? false;
+    return get().map[module]?.[feature]?.[action] === true;
   },
 });
 
-const permissionsStoreCreator = import.meta.env.DEV
-  ? persist(permissionsSlice, {
-      name: 'hims-dev-permissions',
-      storage: createJSONStorage(() => sessionStorage),
-      partialize: (s) => ({ map: s.map, isLoaded: s.isLoaded }),
-    })
-  : permissionsSlice;
-
 export const usePermissionsStore = create<PermissionsState>()(
-  devtools(permissionsStoreCreator, { name: 'permissions' }),
+  devtools(permissionsSlice, { name: 'permissions' }),
 );

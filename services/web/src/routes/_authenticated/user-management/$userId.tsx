@@ -1,21 +1,26 @@
+import { useState } from 'react';
 import { createFileRoute, Link, redirect } from '@tanstack/react-router';
 import { useShallow } from 'zustand/react/shallow';
 import { Badge } from '@pulse/ui/badge';
 import { Button } from '@pulse/ui/button';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import { useDeactivateUser } from '@/features/user-management/api/mutations';
 import {
-  capabilityListOptions,
   roleListOptions,
   userCapabilitiesOptions,
   userDetailOptions,
-  userEffectiveCapabilitiesOptions,
   useUserDetailSuspense,
 } from '@/features/user-management/api/queries';
+import { EditUserDialog } from '@/features/user-management/components/edit-user-dialog';
 import { UserManagementPageShell } from '@/features/user-management/components/user-management-page-shell';
 import { UserAccessPanel } from '@/features/user-management/components/user-access-panel';
-import { UserManagementSectionCard } from '@/features/user-management/components/user-management-section-card';
-import { UserEditForm } from '@/features/user-management/components/user-edit-form';
-import { useAuthStore } from '@/stores/auth.store';
+import {
+  canManageUserAccess,
+  canReadRoleCapabilities,
+  canReadRoles,
+  canViewUserRoleAccess,
+  canWriteUsers,
+} from '@/features/user-management/lib/um-permissions';
 import { usePermissionsStore } from '@/stores/permissions.store';
 
 const UM = 'user-management';
@@ -28,21 +33,17 @@ export const Route = createFileRoute('/_authenticated/user-management/$userId')(
   },
   loader: async ({ context, params }) => {
     const permissions = usePermissionsStore.getState();
-    const canViewUserAccess = permissions.hasFeaturePermission(UM, 'users', 'read');
     const loads: Array<Promise<unknown>> = [
       context.queryClient.ensureQueryData(userDetailOptions(params.userId)),
     ];
-    if (canViewUserAccess) {
-      loads.push(
-        context.queryClient.ensureQueryData(userCapabilitiesOptions(params.userId)),
-        context.queryClient.ensureQueryData(userEffectiveCapabilitiesOptions(params.userId)),
-      );
+    if (
+      permissions.hasFeaturePermission(UM, 'userAccess', 'read') ||
+      permissions.hasFeaturePermission(UM, 'userAccess', 'write')
+    ) {
+      loads.push(context.queryClient.ensureQueryData(userCapabilitiesOptions(params.userId)));
     }
-    if (permissions.hasFeaturePermission(UM, 'roles', 'read')) {
+    if (permissions.hasFeaturePermission(UM, 'roles', 'read') === true) {
       loads.push(context.queryClient.ensureQueryData(roleListOptions()));
-    }
-    if (permissions.hasFeaturePermission(UM, 'capabilities', 'read')) {
-      loads.push(context.queryClient.ensureQueryData(capabilityListOptions()));
     }
     await Promise.all(loads);
   },
@@ -52,87 +53,86 @@ export const Route = createFileRoute('/_authenticated/user-management/$userId')(
 function UserDetailPage() {
   const { userId } = Route.useParams();
   const { data: user } = useUserDetailSuspense(userId);
-  const sessionUserId = useAuthStore((s) => s.userId);
-  const { canWriteProfile, canViewUserAccess, canReadRoleTemplates, canReadCapabilities, canManageAccess } =
-    usePermissionsStore(
+  const [editOpen, setEditOpen] = useState(false);
+  const [deactivateOpen, setDeactivateOpen] = useState(false);
+
+  const {
+    canWriteProfile,
+    showUserRoleAccess,
+    canReadRolesList,
+    canReadRoleCaps,
+    canManageAccess,
+  } = usePermissionsStore(
     useShallow((s) => ({
-      canWriteProfile: s.hasFeaturePermission(UM, 'users', 'write'),
-      canViewUserAccess: s.hasFeaturePermission(UM, 'users', 'read'),
-      canReadRoleTemplates: s.hasFeaturePermission(UM, 'roles', 'read'),
-      canReadCapabilities: s.hasFeaturePermission(UM, 'capabilities', 'read'),
-      canManageAccess: s.hasFeaturePermission(UM, 'userAccess', 'write'),
+      canWriteProfile: canWriteUsers(s),
+      showUserRoleAccess: canViewUserRoleAccess(s),
+      canReadRolesList: canReadRoles(s),
+      canReadRoleCaps: canReadRoleCapabilities(s),
+      canManageAccess: canManageUserAccess(s),
     })),
   );
   const deactivate = useDeactivateUser(userId);
 
   return (
-    <UserManagementPageShell
-      section="users"
-      breadcrumbLabel={user.full_name}
-      title={user.full_name}
-      description={`User id ${user.id}`}
-      pageContext={
-        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          <Badge variant={user.status === 'active' ? 'default' : 'secondary'}>{user.status}</Badge>
-          {user.email ? <span>{user.email}</span> : null}
-          {user.username ? <span>@{user.username}</span> : null}
-        </div>
-      }
-      actions={
-        <div className="flex gap-2">
-          <Button variant="outline" asChild>
-            <Link to="/user-management" search={{ q: '', createUser: false }}>
-              Back to list
-            </Link>
-          </Button>
-          {canWriteProfile && user.status === 'active' ? (
-            <Button
-              variant="destructive"
-              type="button"
-              disabled={deactivate.isPending}
-              onClick={() => deactivate.mutate()}
-            >
-              Deactivate
+    <>
+      <UserManagementPageShell
+        section="users"
+        breadcrumbLabel={user.full_name}
+        title={user.full_name}
+        description={[user.email, user.username ? `@${user.username}` : null]
+          .filter(Boolean)
+          .join(' · ')}
+        pageContext={
+          <Badge variant={user.status === 'active' ? 'default' : 'secondary'}>
+            {user.status === 'active' ? 'Active' : 'Inactive'}
+          </Badge>
+        }
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" asChild>
+              <Link to="/user-management" search={{ q: '', createUser: false }}>
+                Back
+              </Link>
             </Button>
-          ) : null}
-        </div>
-      }
-    >
-      <UserManagementSectionCard
-        title="Identity and tenancy snapshot"
-        description="Quick profile facts for support, access reviews, and tenant-scoped troubleshooting."
-        contentClassName="pt-0"
+            {canWriteProfile ? (
+              <Button type="button" variant="outline" onClick={() => setEditOpen(true)}>
+                Edit profile
+              </Button>
+            ) : null}
+            {canWriteProfile && user.status === 'active' ? (
+              <Button type="button" variant="destructive" onClick={() => setDeactivateOpen(true)}>
+                Deactivate
+              </Button>
+            ) : null}
+          </div>
+        }
       >
-        <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-          <div>
-            <dt className="text-muted-foreground">Department</dt>
-            <dd>{user.department ?? '—'}</dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground">Clearance tier</dt>
-            <dd>{user.clearance_tier_required ?? 0}</dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground">Organization id</dt>
-            <dd className="break-all font-mono text-xs">{user.org_id ?? '—'}</dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground">Auth user id</dt>
-            <dd className="break-all font-mono text-xs">{user.auth_user_id ?? '—'}</dd>
-          </div>
-        </dl>
-      </UserManagementSectionCard>
+        <UserAccessPanel
+          userId={user.id}
+          canViewUserAccess={showUserRoleAccess}
+          canReadRoles={canReadRolesList}
+          canReadRoleCapabilities={canReadRoleCaps}
+          canManageAccess={canManageAccess}
+        />
+      </UserManagementPageShell>
 
-      {canWriteProfile ? <UserEditForm user={user} /> : null}
+      {canWriteProfile ? (
+        <EditUserDialog open={editOpen} onOpenChange={setEditOpen} user={user} />
+      ) : null}
 
-      <UserAccessPanel
-        userId={user.id}
-        sessionUserId={sessionUserId}
-        canViewUserAccess={canViewUserAccess}
-        canReadRoleTemplates={canReadRoleTemplates}
-        canReadCapabilities={canReadCapabilities}
-        canManageAccess={canManageAccess}
+      <ConfirmDialog
+        open={deactivateOpen}
+        onOpenChange={setDeactivateOpen}
+        title="Deactivate this user?"
+        description={`${user.full_name} will no longer be able to sign in.`}
+        confirmLabel={deactivate.isPending ? 'Deactivating...' : 'Deactivate'}
+        destructive
+        onConfirm={() => {
+          deactivate.mutate(undefined, {
+            onSuccess: () => setDeactivateOpen(false),
+          });
+        }}
       />
-    </UserManagementPageShell>
+    </>
   );
 }

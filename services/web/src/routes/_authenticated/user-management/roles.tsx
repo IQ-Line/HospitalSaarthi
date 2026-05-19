@@ -4,15 +4,19 @@ import { roleListOptions } from '@/features/user-management/api/queries';
 import { UserManagementPageShell } from '@/features/user-management/components/user-management-page-shell';
 import { RoleManagementPanel } from '@/features/user-management/components/role-management-panel';
 import {
+  canAccessRolesAdmin,
   canAccessUsersSection,
+  canCreateRoles,
+  canDeleteRoles,
+  canReadCapabilities,
   canReadRoles,
-  UM_MODULE,
+  canUpdateRoles,
 } from '@/features/user-management/lib/um-permissions';
 
 export const Route = createFileRoute('/_authenticated/user-management/roles')({
   beforeLoad: () => {
     const permissions = usePermissionsStore.getState();
-    if (!canReadRoles(permissions)) {
+    if (!canAccessRolesAdmin(permissions)) {
       if (canAccessUsersSection(permissions)) {
         throw redirect({ to: '/user-management', search: { q: '' } });
       }
@@ -24,20 +28,29 @@ export const Route = createFileRoute('/_authenticated/user-management/roles')({
 });
 
 function UserManagementRolesPage() {
-  const canReadCapabilities = usePermissionsStore((s) =>
-    s.hasFeaturePermission(UM_MODULE, 'capabilities', 'read'),
-  );
-  const canWriteRoles = usePermissionsStore((s) => s.hasFeaturePermission(UM_MODULE, 'roles', 'write'));
+  const canAccessAdmin = usePermissionsStore(canAccessRolesAdmin);
+  const canRead = usePermissionsStore(canReadRoles);
+  const canReadCapabilityCatalog = usePermissionsStore(canReadCapabilities);
+  const canCreate = usePermissionsStore(canCreateRoles);
+  const canUpdate = usePermissionsStore(canUpdateRoles);
+  const canDelete = usePermissionsStore(canDeleteRoles);
+
+  if (!canAccessAdmin) {
+    return null;
+  }
 
   return (
     <UserManagementPageShell
       section="roles"
-      title="Role templates"
-      description="Create, review, and update role templates that copy capabilities onto users when applied."
+      title="Roles"
+      description="Set up roles and choose what each role allows people to do."
     >
       <RoleManagementPanel
-        canWriteRoles={canWriteRoles}
-        canReadCapabilities={canReadCapabilities}
+        canReadRoles={canRead}
+        canCreateRoles={canCreate}
+        canUpdateRoles={canUpdate}
+        canDeleteRoles={canDelete}
+        canReadCapabilities={canReadCapabilityCatalog}
       />
     </UserManagementPageShell>
   );

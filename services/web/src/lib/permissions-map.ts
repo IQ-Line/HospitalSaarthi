@@ -37,10 +37,12 @@ export function projectUnknownActionsToWrite(actions: readonly string[]): { read
 
 type DevPermissionVariant = 'superadmin' | 'tenant-catalog-readonly';
 
+const FULL_ROLE_MUTATIONS = { read: true, create: true, update: true, delete: true, write: true };
+
 const BASE_MODULES: PermissionMap = {
   'user-management': {
     users: { read: true, write: true },
-    roles: { read: true, write: true },
+    roles: FULL_ROLE_MUTATIONS,
   },
   configurator: {
     tenants: { read: true, write: true },
