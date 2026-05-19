@@ -7,6 +7,7 @@ export function SidebarNavLink({
   icon: Icon,
   collapsed,
   nested = false,
+  indentLevel = 0,
   search,
 }: {
   to: string;
@@ -14,19 +15,32 @@ export function SidebarNavLink({
   icon?: ComponentType<{ className?: string }>;
   collapsed: boolean;
   nested?: boolean;
+  /** Extra nesting depth for dynamic module trees (each level adds 1.5rem). */
+  indentLevel?: number;
   search?: Record<string, unknown>;
 }) {
+  const indentClass =
+    !collapsed && (nested || indentLevel > 0)
+      ? indentLevel > 0
+        ? undefined
+        : 'ml-6'
+      : '';
+  const indentStyle =
+    !collapsed && indentLevel > 0 ? { marginLeft: `${indentLevel * 1.5}rem` } : undefined;
+
   return (
     <Link
       to={to}
       {...(search !== undefined ? { search } : {})}
-      className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-foreground/70 hover:bg-sidebar-accent transition-colors ${
-        nested && !collapsed ? 'ml-6' : ''
-      } ${collapsed ? 'justify-center' : ''}`}
+      style={indentStyle}
+      className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-foreground/70 hover:bg-sidebar-accent transition-colors ${indentClass} ${
+        collapsed ? 'justify-center' : ''
+      }`}
       activeProps={{
-        className: `flex items-center gap-2 rounded-md px-2 py-1.5 text-sm bg-sidebar-accent font-semibold text-foreground ${
-          nested && !collapsed ? 'ml-6' : ''
-        } ${collapsed ? 'justify-center' : ''}`,
+        className: `flex items-center gap-2 rounded-md px-2 py-1.5 text-sm bg-sidebar-accent font-semibold text-foreground ${indentClass} ${
+          collapsed ? 'justify-center' : ''
+        }`,
+        style: indentStyle,
       }}
       title={collapsed ? label : undefined}
     >

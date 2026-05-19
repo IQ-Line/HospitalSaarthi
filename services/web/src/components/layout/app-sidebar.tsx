@@ -1,15 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { getRolesFromAccessToken, isSuperAdminRole } from '@/lib/access-token';
 import { useLocation, useNavigate } from '@tanstack/react-router';
 import { LayoutGrid, LogOut, Users } from 'lucide-react';
 import { Button } from '@pulse/ui/button';
 import { BrandMark } from '@/components/layout/brand-mark';
+import { DynamicModuleNav } from '@/components/layout/dynamic-module-nav';
 import { SidebarNavLink } from '@/components/layout/sidebar-nav-link';
 import { ConfiguratorNavSection } from '@/features/configurator/components/configurator-nav-section';
 import { MasterDataNavSection } from '@/features/master-data/components/master-data-nav-section';
+import { useNavModules } from '@/features/master-data/api';
 import { FrontdeskNavSection } from '@/features/frontdesk/components/frontdesk-nav-section';
 import { BillingNavSection } from '@/features/billing/components/billing-nav-section';
 import { VisitpadNavSection } from '@/features/visitpad/components/visitpad-nav-section';
 import { authClient } from '@/lib/auth-client';
+import { buildNavModuleTree } from '@/lib/nav-modules-tree';
 import {
   canReadRoles,
   canReadUsers,
@@ -43,6 +47,11 @@ export function AppSidebar({
   hasFrontdeskAccess,
 }: AppSidebarProps) {
   const sidebarCollapsed = useUIPrefsStore((s) => s.sidebarCollapsed);
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const isSuperAdmin = useMemo(
+    () => isSuperAdminRole(getRolesFromAccessToken(accessToken)),
+    [accessToken],
+  );
 
   const { pathname } = useLocation();
   const isInMasterData = pathname.startsWith('/master-data');
@@ -69,6 +78,17 @@ export function AppSidebar({
     : canWriteUmUsers
       ? 'Create user'
       : 'User management';
+
+  const { data: modulesResponse, isLoading: modulesLoading } = useNavModules({
+    enabled: isSuperAdmin,
+  });
+
+  const dynamicNavTree = useMemo(() => {
+    if (!isSuperAdmin || !modulesResponse?.data) {
+      return [];
+    }
+    return buildNavModuleTree(modulesResponse.data);
+  }, [isSuperAdmin, modulesResponse?.data]);
 
   useEffect(() => {
     if (isInMasterData) {
@@ -101,73 +121,83 @@ export function AppSidebar({
       }`}
     >
       <div
-        className={`mb-4 flex items-center ${
-          sidebarCollapsed ? 'justify-center' : 'gap-2'
-        }`}
-      >
-        <div className="flex items-center gap-2 min-w-0">
-          <BrandMark />
-          {!sidebarCollapsed && (
-            <div className="min-w-0">
-              <h1 className="text-sm font-semibold truncate">HIMS</h1>
-              {tenantName && (
-                <p className="text-xs text-muted-foreground truncate">{tenantName}</p>
-              )}
-            </div>
-          )}
+          className={`mb-4 flex items-center ${
+            sidebarCollapsed ? 'justify-center' : 'gap-2'
+          }`}
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <BrandMark />
+            {!sidebarCollapsed && (
+              <div className="min-w-0">
+                <h1 className="text-sm font-semibold truncate">HIMS</h1>
+                {tenantName && (
+                  <p className="text-xs text-muted-foreground truncate">{tenantName}</p>
+                )}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
 
-      <nav className="space-y-1 flex-1 overflow-y-auto">
-        <SidebarNavLink
-          to="/dashboard"
-          label="Dashboard"
-          icon={LayoutGrid}
-          collapsed={sidebarCollapsed}
-        />
-        {hasMasterDataAccess && (
-          <MasterDataNavSection
-            collapsed={sidebarCollapsed}
-            isOpen={isMasterDataOpen}
-            onToggleSection={() => setIsMasterDataOpen((prev) => !prev)}
-          />
-        )}
-        {hasUserManagementAccess && (
+        <nav className="space-y-1 flex-1 overflow-y-auto">
           <SidebarNavLink
-            to={userManagementNavTo}
-            label={userManagementNavLabel}
-            icon={Users}
+            to="/dashboard"
+            label="Dashboard"
+            icon={LayoutGrid}
             collapsed={sidebarCollapsed}
-            search={userManagementNavSearch}
           />
-        )}
-        {hasFrontdeskAccess && (
-          <FrontdeskNavSection
-            collapsed={sidebarCollapsed}
-            isOpen={isFrontdeskOpen}
-            onToggleSection={() => setIsFrontdeskOpen((prev) => !prev)}
-          />
-        )}
-        {hasVisitpadAccess && (
-          <VisitpadNavSection
-            collapsed={sidebarCollapsed}
-            isOpen={isVisitpadOpen}
-            onToggleSection={() => setIsVisitpadOpen((prev) => !prev)}
-          />
-        )}
-        {hasBillingAccess && (
-          <BillingNavSection
-            collapsed={sidebarCollapsed}
-            isOpen={isBillingOpen}
-            onToggleSection={() => setIsBillingOpen((prev) => !prev)}
-          />
-        )}
-      </nav>
 
-      <SidebarFooter
-        displayName={displayName}
-        collapsed={sidebarCollapsed}
-      />
+          {isSuperAdmin ? (
+            modulesLoading ? (
+              !sidebarCollapsed && (
+                <p className="px-2 py-1 text-xs text-muted-foreground">Loading modules…</p>
+              )
+            ) : dynamicNavTree.length > 0 ? (
+              <DynamicModuleNav
+                nodes={dynamicNavTree}
+                collapsed={sidebarCollapsed}
+                pathname={pathname}
+              />
+            ) : null
+          ) : (
+            <>
+              {hasMasterDataAccess && (
+                <MasterDataNavSection
+                  collapsed={sidebarCollapsed}
+                  isOpen={isMasterDataOpen}
+                  onToggleSection={() => setIsMasterDataOpen((prev) => !prev)}
+                />
+              )}
+              {hasConfiguratorAccess && (
+                <ConfiguratorNavSection collapsed={sidebarCollapsed} />
+              )}
+              {hasUserManagementAccess && (
+                <SidebarNavLink
+                  to={userManagementNavTo}
+                  label={userManagementNavLabel}
+                  icon={Users}
+                  collapsed={sidebarCollapsed}
+                  search={userManagementNavSearch}
+                />
+              )}
+              {hasFrontdeskAccess && (
+                <FrontdeskNavSection
+                  collapsed={sidebarCollapsed}
+                  isOpen={isFrontdeskOpen}
+                  onToggleSection={() => setIsFrontdeskOpen((prev) => !prev)}
+                />
+              )}
+              {hasVisitpadAccess && (
+                <VisitpadNavSection
+                  collapsed={sidebarCollapsed}
+                  isOpen={isVisitpadOpen}
+                  onToggleSection={() => setIsVisitpadOpen((prev) => !prev)}
+                />
+              )}
+            </>
+          )}
+        </nav>
+
+      <SidebarFooter displayName={displayName} collapsed={sidebarCollapsed} />
     </aside>
   );
 }

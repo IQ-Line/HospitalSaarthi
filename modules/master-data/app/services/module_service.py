@@ -50,6 +50,11 @@ def list_modules(
     return repository.list_modules(category=category)
 
 
+def list_modules_for_nav(repository: ModuleRepository) -> list[Any]:
+    """Return all active, non-deleted modules for shell navigation (no pagination)."""
+    return repository.list_modules_for_nav()
+
+
 def list_submodules(repository: ModuleRepository, parent_id: UUID) -> list[Any]:
     """Return **all** active rows directly under ``parent_id`` (full list; no pagination).
 

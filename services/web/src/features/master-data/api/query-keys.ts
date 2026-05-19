@@ -4,6 +4,7 @@ export const masterDataKeys = {
   all: ['master-data'] as const,
 
   modulesRoot: () => [...masterDataKeys.all, 'modules'] as const,
+  navModules: () => [...masterDataKeys.modulesRoot(), 'nav'] as const,
   modules: (category?: ModuleCategory) =>
     [...masterDataKeys.modulesRoot(), category ?? 'all'] as const,
   moduleDetail: (id: string) => [...masterDataKeys.modules(), id] as const,

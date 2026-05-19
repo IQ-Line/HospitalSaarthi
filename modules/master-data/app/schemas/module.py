@@ -47,6 +47,27 @@ class ModuleResponse(BaseModel):
     updated_at: datetime
 
 
+class ModuleNavResponse(BaseModel):
+    """Minimal module row for shell navigation (active, non-deleted catalog only)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    iq_tenant_id: UUID | None = None
+    parent_id: UUID | None = None
+    name: str
+    slug: str
+    category: ModuleCategory
+    level: int = Field(ge=1, le=10)
+    icon: str | None = None
+
+
+class ModuleNavListResponse(BaseModel):
+    """Full navigation catalog in one response (no pagination)."""
+
+    data: list[ModuleNavResponse]
+
+
 class ModuleListResponse(BaseModel):
     data: list[ModuleResponse]
     total: int

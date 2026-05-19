@@ -8,8 +8,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@pulse/ui/card';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
 import { authClient } from '@/lib/auth-client';
+import { getRolesFromAccessToken, isSuperAdminRole } from '@/lib/access-token';
+import { apiClient } from '@/lib/api-client';
+import { buildDevPermissionMap } from '@/lib/permissions-map';
+import { DEV_TENANT_IQ_CATALOG_UUID } from '@/lib/catalog-tenant';
+import { masterDataKeys } from '@/features/master-data/api/query-keys';
+import type { NavModuleListResponse } from '@/features/master-data/types';
+import { queryClient } from '@/lib/query-client';
 import { useAuthStore } from '@/stores/auth.store';
 import { useTenantStore } from '@/stores/tenant.store';
+
+const NAV_MODULES_PATH = '/api/v1/master-data/modules/nav';
 
 const DEV_TENANT_ID = 'f47ac10b-58cc-4372-a567-0e02b2c3d480';
 
@@ -66,7 +75,18 @@ function LoginPage() {
         return;
       }
       const jwt = await fetchJwt();
-      setSession({ accessToken: jwt, sessionToken, userId: data.user.id, displayName: data.user.name });
+      setSession({
+        accessToken: jwt,
+        sessionToken,
+        userId: data.user.id,
+        displayName: data.user.name,
+      });
+      if (isSuperAdminRole(getRolesFromAccessToken(jwt))) {
+        void queryClient.prefetchQuery({
+          queryKey: masterDataKeys.navModules(),
+          queryFn: () => apiClient<NavModuleListResponse>(NAV_MODULES_PATH),
+        });
+      }
       setTenant({
         tenantId: DEV_TENANT_ID,
         tenantName: 'Dev Hospital',
@@ -84,15 +104,15 @@ function LoginPage() {
   return (
     <div className="flex h-screen items-center justify-center bg-muted">
       <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">HIMS Platform</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {error && (
-            <p className="mb-4 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
-            </p>
-          )}
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl">HIMS Platform</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {error && (
+              <p className="mb-4 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {error}
+              </p>
+            )}
 
           <form onSubmit={form.handleSubmit(handleSignIn)} className="space-y-4">
             <div className="space-y-1.5">
