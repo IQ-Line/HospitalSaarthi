@@ -19,34 +19,6 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
-CORE_MODULES = [
-    {
-        "id": "11111111-1111-4111-8111-111111111111",
-        "name": "user_management",
-        "category": "core",
-        "version": "1.0.0",
-    },
-    {
-        "id": "22222222-2222-4222-8222-222222222222",
-        "name": "configurator",
-        "category": "core",
-        "version": "1.0.0",
-    },
-    {
-        "id": "33333333-3333-4333-8333-333333333333",
-        "name": "empi",
-        "category": "core",
-        "version": "1.0.0",
-    },
-    {
-        "id": "44444444-4444-4444-8444-444444444444",
-        "name": "master_data",
-        "category": "core",
-        "version": "1.0.0",
-    },
-]
-
-
 def upgrade() -> None:
     op.execute(sa.text(f"CREATE SCHEMA IF NOT EXISTS {_GM}"))
 
@@ -82,16 +54,7 @@ def upgrade() -> None:
         schema=_GM,
     )
 
-    modules_table = sa.table(
-        "modules",
-        sa.column("id", postgresql.UUID(as_uuid=True)),
-        sa.column("name", sa.String),
-        sa.column("category", sa.String),
-        sa.column("version", sa.String),
-        schema=_GM,
-    )
-    op.bulk_insert(modules_table, CORE_MODULES)
-
+    # Core module rows are seeded in ``027_core_modules_catalog`` (after catalog columns exist).
     # Citus: create_reference_table runs in 002 after slug backfill (UPDATE before replicate).
 
 

@@ -1,4 +1,4 @@
-"""Seed Master Data catalog permissions (read, write, edit) in ``global_master.permissions`` only.
+"""Seed Master Data catalog permissions (read, create, edit, delete) in ``global_master.permissions`` only.
 
 Revision ID: 026_master_data_catalog_permissions
 Revises: 025_visitpad_templates_catalog_manage
@@ -8,9 +8,10 @@ Idempotent inserts for fresh Postgres DBs. Skipped on non-PostgreSQL (ORM create
 Action mapping (DB ``permissions.action`` check constraint):
   - read  → ``read``
   - write → ``create`` (insert catalog rows)
-  - edit  → ``update`` (modify catalog rows)
+  - edit   → ``update`` (modify catalog rows)
+  - delete → ``delete`` (soft-delete catalog rows)
 
-Link to ``modules`` via a follow-up migration or ``module_permissions`` API when needed.
+Link to ``modules`` via ``028`` (module_permissions for L2+).
 """
 
 from __future__ import annotations
@@ -40,8 +41,14 @@ _PERMISSION_SEEDS: tuple[tuple[str, str, str, str], ...] = (
     (
         "Edit",
         "edit",
-        "edit",
+        "update",
         "Update Master Data platform catalog rows.",
+    ),
+    (
+        "Delete",
+        "delete",
+        "delete",
+        "Soft-delete Master Data platform catalog rows.",
     ),
 )
 
