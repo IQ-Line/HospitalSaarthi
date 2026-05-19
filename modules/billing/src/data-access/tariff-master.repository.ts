@@ -1,4 +1,4 @@
-import { and, eq, type DbInstance } from "@hims/ts-sdk-db";
+import { and, eq, sql, type DbInstance } from "@hims/ts-sdk-db";
 import { billingMaster } from "../schema/tables.js";
 import type { TariffMasterRepo, TariffMasterUpdatePatch } from "../ports.js";
 import type { TariffMasterRow } from "../domain/tariff-master.types.js";
@@ -12,6 +12,22 @@ class DrizzleTariffMasterRepository implements TariffMasterRepo {
       .select()
       .from(billingMaster)
       .where(and(eq(billingMaster.iq_tenant_id, tenantId), eq(billingMaster.id, id)))
+      .limit(1);
+    return row ? toTariffRow(row) : undefined;
+  }
+
+  async findByCodeAndProvider(tenantId: string, serviceCode: string, providerId: string | null) {
+    const [row] = await this.db
+      .select()
+      .from(billingMaster)
+      .where(
+        and(
+          eq(billingMaster.iq_tenant_id, tenantId),
+          eq(billingMaster.service_code, serviceCode.trim()),
+          eq(billingMaster.is_active, true),
+          sql`${billingMaster.provider_id} IS NOT DISTINCT FROM ${providerId}`,
+        ),
+      )
       .limit(1);
     return row ? toTariffRow(row) : undefined;
   }
@@ -30,10 +46,22 @@ class DrizzleTariffMasterRepository implements TariffMasterRepo {
   }
 }
 
+function sameProvider(a: string | null, b: string | null): boolean {
+  return a === b;
+}
+
 function createInMemoryRepo(rows: TariffMasterRow[]): TariffMasterRepo {
   return {
     findById: async (tenantId, id) =>
       rows.find((r) => r.iq_tenant_id === tenantId && r.id === id),
+    findByCodeAndProvider: async (tenantId, code, providerId) =>
+      rows.find(
+        (r) =>
+          r.iq_tenant_id === tenantId &&
+          r.service_code === code.trim() &&
+          r.is_active &&
+          sameProvider(r.provider_id, providerId),
+      ),
     update: async (tenantId, id, patch) => {
       const index = rows.findIndex((r) => r.iq_tenant_id === tenantId && r.id === id);
       if (index < 0) return undefined;
