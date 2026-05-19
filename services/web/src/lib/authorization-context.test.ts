@@ -72,10 +72,33 @@ describe("refreshAuthorizationContext", () => {
     expect(hydrateCapabilitiesFromPrincipal).not.toHaveBeenCalled();
   });
 
+  it("clears permissions when authenticated but access token is missing", async () => {
+    authGetState.mockReturnValue({
+      isAuthenticated: true,
+      userId: "user-1",
+      accessToken: null,
+    });
+    tenantGetState.mockReturnValue({
+      tenantId: "tenant-a",
+      activeBranch: "main",
+    });
+
+    const queryClient = {
+      invalidateQueries: vi.fn().mockResolvedValue(undefined),
+      fetchQuery: vi.fn().mockResolvedValue(undefined),
+    } as unknown as QueryClient;
+
+    await refreshAuthorizationContext(queryClient);
+
+    expect(clearPermissions).toHaveBeenCalledTimes(1);
+    expect(queryClient.fetchQuery).not.toHaveBeenCalled();
+  });
+
   it("clears permissions when authenticated but tenant scope is missing", async () => {
     authGetState.mockReturnValue({
       isAuthenticated: true,
       userId: "user-1",
+      accessToken: "jwt-token",
     });
     tenantGetState.mockReturnValue({
       tenantId: "  ",
@@ -98,6 +121,7 @@ describe("refreshAuthorizationContext", () => {
     authGetState.mockReturnValue({
       isAuthenticated: true,
       userId: "user-1",
+      accessToken: "jwt-token",
     });
     tenantGetState.mockReturnValue({
       tenantId: "tenant-a",

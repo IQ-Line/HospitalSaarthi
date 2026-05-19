@@ -73,10 +73,10 @@ export interface UserRepository {
   createUser(tenantId: string, input: CreateUserInput): Promise<User>;
   getUserById(tenantId: string, userId: string): Promise<User | null>;
   /**
-   * Resolves a platform user by primary key alone. Prefer tenant-scoped {@link getUserById} when
-   * tenant is known; this exists for auth issuance where `sub` is the only stable key on the token.
+   * Resolves a platform user from JWT `sub` (platform user id or linked `auth_user_id`).
+   * Prefer tenant-scoped {@link getUserById} when tenant and platform user id are both known.
    */
-  findUserByGlobalId(userId: string): Promise<UserWithTenant | null>;
+  findUserByGlobalId(identityUserId: string): Promise<UserWithTenant | null>;
   listUsers(tenantId: string, options?: ListUsersOptions): Promise<User[]>;
   updateUser(tenantId: string, userId: string, input: UpdateUserInput): Promise<User | null>;
 }

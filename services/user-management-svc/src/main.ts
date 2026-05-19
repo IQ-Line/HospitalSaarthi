@@ -16,6 +16,7 @@ import {
   runDevelopmentBootstrap,
   shouldRunDevelopmentBootstrap,
 } from "./bootstrap/development-bootstrap.js";
+import { repairPlatformSuperAdminCapabilitySnapshots } from "./bootstrap/repair-platform-super-admin.js";
 import {
   DrizzleCapabilityRepository,
   DrizzlePrincipalRoleProjectionRepository,
@@ -66,10 +67,18 @@ function normalizeIdentityJwksUrl(authBaseUrl: string): string {
 }
 
 function readAuthBaseUrl(): string {
+  /**
+   * Browser origin for better-auth cookies (Vite :5173). JWT issuer/JWKS stay on AUTH_BASE_URL / BFF.
+   */
+  const webPublic = process.env.WEB_PUBLIC_ORIGIN?.trim();
+  if (webPublic && process.env.NODE_ENV !== "production") {
+    return webPublic.replace(/\/+$/, "");
+  }
+
   const raw = process.env.AUTH_BASE_URL?.trim();
   if (!raw || raw.length === 0) {
     throw new Error(
-      "AUTH_BASE_URL is required (better-auth baseURL; must align with JWT_ISSUER / identity issuer)",
+      "AUTH_BASE_URL is required (better-auth baseURL; JWT_ISSUER / JWKS_URL use the BFF origin)",
     );
   }
   return raw.replace(/\/+$/, "");
@@ -205,6 +214,16 @@ async function createApp(): Promise<FastifyInstance> {
   });
   const authAccountProvisioner = createPasswordAuthAccountProvisioner(pgDb, auth);
 
+  if (process.env.NODE_ENV !== "production") {
+    const repair = await repairPlatformSuperAdminCapabilitySnapshots(pgDb);
+    if (repair.repaired) {
+      app.log.info(
+        { capabilityCount: repair.capabilityCount },
+        "Platform super-admin capability snapshots refreshed",
+      );
+    }
+  }
+
   if (shouldRunDevelopmentBootstrap()) {
     app.log.warn(
       "PLATFORM_DEV_BOOTSTRAP=true — prefer `make seed` for deterministic dev data",
@@ -242,6 +261,7 @@ async function createApp(): Promise<FastifyInstance> {
 
   await app.register(principalRoleEnricherPlugin, {
     principalService,
+    userRepository,
   });
   await app.register(authzPlugin, {
     cerbosUrl,

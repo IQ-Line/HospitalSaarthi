@@ -3,6 +3,8 @@
  * Avoids EADDRINUSE from stale BFF / Vite / uvicorn / Fastify processes.
  */
 import { execSync } from "node:child_process";
+import { readdirSync, unlinkSync } from "node:fs";
+import { join } from "node:path";
 
 /** Canonical web-stack listen ports — keep in sync with docs/dev/port-allocation.md */
 const DEV_STACK_PORTS = [3000, 3001, 3005, 5173, 5174, 5175, 8010] as const;
@@ -101,6 +103,42 @@ function killMasterDataPythonProcesses(port: number): void {
   } catch {
     // No matching processes — fine.
   }
+}
+
+/** Stale `src/*.js` next to `*.ts` shadows sources when Node resolves `.js` imports (e.g. `@hims/ts-sdk-authz`). */
+function removeStaleCompiledSrcArtifacts(packageSrcDir: string): void {
+  const names = readdirSync(packageSrcDir);
+  const tsBasenames = new Set(
+    names.filter((name) => name.endsWith(".ts") && !name.endsWith(".d.ts")).map((name) => name.slice(0, -3)),
+  );
+  let removed = 0;
+  for (const base of tsBasenames) {
+    for (const suffix of [".js", ".js.map", ".d.ts", ".d.ts.map"] as const) {
+      const artifact = `${base}${suffix}`;
+      if (!names.includes(artifact)) continue;
+      try {
+        unlinkSync(join(packageSrcDir, artifact));
+        removed += 1;
+      } catch {
+        // Best-effort.
+      }
+    }
+  }
+  if (removed > 0) {
+    console.log(`[dev-stack-prep] removed ${removed} stale compiled artifact(s) in ${packageSrcDir}`);
+  }
+}
+
+removeStaleCompiledSrcArtifacts(join(process.cwd(), "packages", "ts-sdk-authz", "src"));
+
+try {
+  execSync("pnpm nx run ts-sdk-authz:build", {
+    cwd: process.cwd(),
+    stdio: "inherit",
+  });
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  console.warn(`[dev-stack-prep] ts-sdk-authz:build failed (${message}); continuing`);
 }
 
 console.log(`[dev-stack-prep] freeing ports: ${DEV_STACK_PORTS.join(", ")}`);

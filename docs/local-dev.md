@@ -27,6 +27,7 @@ Edit `.env` only if ports clash. Required keys are documented in `.env.example`:
 | `CERBOS_URL` | gRPC PDP `localhost:3593` |
 | `VITE_CERBOS_URL` | Browser HTTP `http://localhost:3592` |
 | `JWT_ISSUER` / `JWKS_URL` / `AUTH_BASE_URL` | BFF origin (`http://localhost:3000`) |
+| `WEB_PUBLIC_ORIGIN` | Vite origin for better-auth cookies (`http://localhost:5173`) |
 | `ENABLE_AUTH` | `true` for EMPI JWT enforcement |
 | `PLATFORM_DEV_BOOTSTRAP` | `false` — use seed, not service bootstrap |
 

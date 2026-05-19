@@ -1,5 +1,9 @@
 import type { AuthzTargetResolver } from "@hims/ts-sdk-authz";
-import { buildCerbosUserMgmtResourceAttr } from "@hims/user-management";
+import {
+  buildCerbosUserMgmtResourceAttr,
+  resolveEffectiveTenantId,
+} from "@hims/user-management";
+import type { FastifyRequest } from "fastify";
 
 export type UserProfileForAuthz = {
   org_id: string | null;
@@ -38,9 +42,13 @@ function resolvePathParam(
   return typeof id === "string" && id.length > 0 ? id : null;
 }
 
+function resolveResourceTenantId(request: Parameters<AuthzTargetResolver>[0]): string {
+  return resolveEffectiveTenantId(request as FastifyRequest);
+}
+
 function tenantAttr(request: Parameters<AuthzTargetResolver>[0]) {
   return buildCerbosUserMgmtResourceAttr({
-    iq_tenant_id: request.user.tenantId,
+    iq_tenant_id: resolveResourceTenantId(request),
     department: request.user.department ?? null,
     required_clearance: 0,
   });
@@ -51,9 +59,10 @@ async function userResourceAttr(
   request: Parameters<AuthzTargetResolver>[0],
   userId: string,
 ): Promise<ReturnType<typeof buildCerbosUserMgmtResourceAttr>> {
-  const profile = await deps.getUserProfile(request.user.tenantId, userId);
+  const tenantId = resolveResourceTenantId(request);
+  const profile = await deps.getUserProfile(tenantId, userId);
   return buildCerbosUserMgmtResourceAttr({
-    iq_tenant_id: request.user.tenantId,
+    iq_tenant_id: tenantId,
     department: profile?.department ?? null,
     required_clearance: profile?.clearance_tier_required ?? 0,
     org_id: profile?.org_id ?? null,

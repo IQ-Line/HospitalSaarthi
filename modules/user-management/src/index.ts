@@ -94,6 +94,18 @@ export {
   replyWithUserManagementError,
   resolveUserManagementHttpError,
 } from "./http/map-user-management-error.js";
+export {
+  assertTenantHeaderAllowedForPrincipal,
+  isPlatformSuperAdminPrincipal,
+  isPlatformSuperAdminRole,
+  resolveEffectiveTenantId,
+  resolveJwtTenantIdFromRequest,
+  PLATFORM_SUPER_ADMIN_ROLE,
+} from "./http/resolve-effective-tenant-id.js";
+export {
+  syncSuperAdminCapabilitySnapshots,
+  type SyncSuperAdminCapabilitySnapshotsInput,
+} from "./dev/sync-super-admin-capability-snapshots.js";
 export type {
   ResolvedUserManagementHttpError,
   UserManagementErrorBody,

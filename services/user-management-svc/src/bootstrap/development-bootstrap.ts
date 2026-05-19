@@ -11,6 +11,7 @@ import {
   DEVELOPMENT_BOOTSTRAP_USER_NAME,
   DEVELOPMENT_BOOTSTRAP_USER_PASSWORD,
   DEVELOPMENT_BOOTSTRAP_USER_USERNAME,
+  PLATFORM_OPERATOR_CAPABILITY_KEYS,
   shouldRunPlatformDevelopmentBootstrap,
 } from "@hims/dev-bootstrap";
 import { inArray } from "drizzle-orm";
@@ -33,6 +34,9 @@ import {
   UM_USER_UPDATE,
   users,
   assertValidModuleSlug,
+  catalogSlugForRuntimeModuleKey,
+  parseCapabilityKey,
+  syncSuperAdminCapabilitySnapshots,
 } from "@hims/user-management";
 import { authUser } from "../auth/auth-schema.js";
 import type { HimsBetterAuthInstance } from "../auth/create-hims-better-auth.js";
@@ -211,6 +215,46 @@ async function ensureFoundationalCapabilities(
   }
 
   return rows.sort((a, b) => a.capability_key.localeCompare(b.capability_key));
+}
+
+async function ensurePlatformOperatorCatalogCapabilities(db: DbInstance): Promise<void> {
+  for (const capabilityKey of PLATFORM_OPERATOR_CAPABILITY_KEYS) {
+    const parsed = parseCapabilityKey(capabilityKey);
+    const catalogSlug = catalogSlugForRuntimeModuleKey(parsed.moduleKey);
+    if (catalogSlug === null) {
+      throw new Error(`Bootstrap cannot map capability module key: ${parsed.moduleKey}`);
+    }
+    const moduleSlug = assertValidModuleSlug(catalogSlug, "bootstrap capability module");
+    await db
+      .insert(capabilities)
+      .values({
+        capability_key: capabilityKey,
+        module: moduleSlug,
+        feature: parsed.resource,
+        action: parsed.action,
+        display_name: capabilityKey,
+        description: `Bootstrap platform operator capability (${capabilityKey}).`,
+        is_active: true,
+        source_module_slug: moduleSlug,
+        source_permission_slug: capabilityKey,
+        source_catalog: "master_data",
+      })
+      .onConflictDoUpdate({
+        target: [capabilities.capability_key],
+        set: {
+          module: moduleSlug,
+          feature: parsed.resource,
+          action: parsed.action,
+          display_name: capabilityKey,
+          description: `Bootstrap platform operator capability (${capabilityKey}).`,
+          is_active: true,
+          source_module_slug: moduleSlug,
+          source_permission_slug: capabilityKey,
+          source_catalog: "master_data",
+          updated_at: new Date(),
+        },
+      });
+  }
 }
 
 async function ensureBootstrapRole(db: DbInstance): Promise<string> {
@@ -502,8 +546,7 @@ async function verifyBootstrapPrincipal(
     userId,
   });
 
-  const expectedCapabilities = new Set(FOUNDATIONAL_CAPABILITIES.map((item) => item.capability_key));
-  for (const capability of expectedCapabilities) {
+  for (const capability of PLATFORM_OPERATOR_CAPABILITY_KEYS) {
     if (!principal.attributes.capabilities.includes(capability)) {
       throw new Error(`Bootstrap principal missing capability ${capability}.`);
     }
@@ -534,15 +577,24 @@ async function verifyBootstrapCerbos(
     org_id: DEVELOPMENT_BOOTSTRAP_ORG_ID,
   });
 
+  const crossTenantAttr = buildCerbosUserMgmtResourceAttr({
+    iq_tenant_id: "00000000-0000-4000-8000-000000000001",
+    department: null,
+    required_clearance: 0,
+  });
+
   const checks = [
     { kind: "user", id: "new", action: "user.create", attr: tenantOnlyAttr },
+    { kind: "user", id: "new", action: "user.create", attr: crossTenantAttr },
     { kind: "user", id: userId, action: "user.read", attr: selfAttr },
     { kind: "user", id: userId, action: "user.update", attr: selfAttr },
     { kind: "user", id: userId, action: "user.deactivate", attr: selfAttr },
     { kind: "role", id: "new", action: "role.create", attr: tenantOnlyAttr },
+    { kind: "role", id: "new", action: "role.create", attr: crossTenantAttr },
     { kind: "role", id: DEVELOPMENT_BOOTSTRAP_ROLE_CODE, action: "role.read", attr: tenantOnlyAttr },
     { kind: "role", id: DEVELOPMENT_BOOTSTRAP_ROLE_CODE, action: "role.update", attr: tenantOnlyAttr },
     { kind: "user_role_template", id: "new", action: "role.assign", attr: tenantOnlyAttr },
+    { kind: "user_role_template", id: "new", action: "role.assign", attr: crossTenantAttr },
     { kind: "capability", id: "list", action: "capability.read", attr: tenantOnlyAttr },
   ] as const;
 
@@ -574,13 +626,9 @@ async function verifyBootstrapCerbos(
 export async function runDevelopmentBootstrap(
   deps: BootstrapDeps,
 ): Promise<DevelopmentBootstrapResult> {
-  const capabilityRows = await ensureFoundationalCapabilities(deps.db);
+  await ensureFoundationalCapabilities(deps.db);
+  await ensurePlatformOperatorCatalogCapabilities(deps.db);
   const roleId = await ensureBootstrapRole(deps.db);
-  await ensureBootstrapRoleCapabilities(
-    deps.db,
-    roleId,
-    capabilityRows.map((row) => row.id),
-  );
 
   const existingAuthUser = await readAuthUserByEmail(deps.db);
   const existingPlatformUser = await readPlatformUserByEmail(deps.db);
@@ -592,12 +640,14 @@ export async function runDevelopmentBootstrap(
   const authUserId = await ensureBootstrapAuthUser(deps.db, deps.auth, platformUserId);
   await ensurePlatformUserAuthLink(deps.db, platformUserId, authUserId);
   await ensureBootstrapUserRoleTemplate(deps.db, platformUserId, roleId);
-  await ensureBootstrapUserCapabilities(
-    deps.db,
-    platformUserId,
+  const synced = await syncSuperAdminCapabilitySnapshots(deps.db, {
+    tenantId: DEVELOPMENT_BOOTSTRAP_TENANT_ID,
+    userId: platformUserId,
     roleId,
-    capabilityRows.map((row) => row.id),
-  );
+  });
+  if (synced.capabilityCount === 0) {
+    throw new Error("Bootstrap super-admin sync found no active capabilities in catalog.");
+  }
 
   const principal = await verifyBootstrapPrincipal(deps.principalService, platformUserId);
   const verifiedActions = await verifyBootstrapCerbos(deps.cerbosUrl, principal, platformUserId);

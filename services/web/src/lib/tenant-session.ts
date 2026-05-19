@@ -22,7 +22,7 @@ async function fetchTenantName(tenantId: string): Promise<string> {
     const row = await apiClient<ConfiguratorTenantRow>(
       `/api/configurator/v1/tenants/${encodeURIComponent(tenantId)}`,
       { method: 'GET' },
-      { tenantIdOverride: null },
+      { tenantIdOverride: tenantId },
     );
     return row.name?.trim() || row.slug || tenantId;
   } catch {

@@ -54,7 +54,7 @@ describe("GET /auth/principal", () => {
     });
 
     await app.register(identityPluginStub);
-    await app.register(principalRoleEnricherPlugin, { principalService });
+    await app.register(principalRoleEnricherPlugin, { principalService, userRepository });
     registerAuthHandlers(app, {
       getTenantId: (request) => resolveEffectiveTenantId(request),
       getUserId: () => "user-1",
@@ -75,10 +75,12 @@ describe("GET /auth/principal", () => {
         capabilities: string[];
         delegated_capabilities: string[];
         iq_tenant_id: string;
+        role_codes: string[];
       };
     };
     expect(body.id).toBe("user-1");
     expect(body.roles).toEqual(["platform_operator"]);
+    expect(body.attributes.role_codes).toEqual(["platform_operator"]);
     expect(body.attributes.iq_tenant_id).toBe("tenant-a");
     expect(body.attributes.capabilities).toEqual(["md:shell:access", "um:user:read"]);
     expect(body.attributes.delegated_capabilities).toEqual([]);

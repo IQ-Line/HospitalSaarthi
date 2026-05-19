@@ -11,6 +11,7 @@ import {
   DEVELOPMENT_BOOTSTRAP_USER_NAME,
   DEVELOPMENT_BOOTSTRAP_USER_PASSWORD,
   DEVELOPMENT_BOOTSTRAP_USER_USERNAME,
+  PLATFORM_OPERATOR_CAPABILITY_KEYS,
 } from "../../packages/dev-bootstrap/src/index.ts";
 
 export {
@@ -76,7 +77,7 @@ export const SEED_CAPABILITIES: readonly SeedCapabilityDef[] = [
 
 const UM_PREFIX = "um:";
 
-export const PLATFORM_OPERATOR_CAPABILITY_KEYS = SEED_CAPABILITIES.map((c) => c.capability_key);
+export { PLATFORM_OPERATOR_CAPABILITY_KEYS };
 
 export const TENANT_ADMIN_CAPABILITY_KEYS = SEED_CAPABILITIES.filter(
   (c) =>

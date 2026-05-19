@@ -20,7 +20,7 @@ export async function refreshAuthorizationContext(queryClient: QueryClient): Pro
   const auth = useAuthStore.getState();
   const tenant = useTenantStore.getState();
 
-  if (!auth.isAuthenticated || !auth.userId) {
+  if (!auth.isAuthenticated || !auth.userId || !auth.accessToken?.trim()) {
     usePermissionsStore.getState().clearPermissions();
     await queryClient.invalidateQueries({ queryKey: authPrincipalQueryKeys.all });
     return;

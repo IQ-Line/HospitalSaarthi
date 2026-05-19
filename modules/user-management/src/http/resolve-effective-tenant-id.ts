@@ -25,12 +25,44 @@ export function isPlatformSuperAdminRole(role: string): boolean {
   return role.trim().toLowerCase() === PLATFORM_SUPER_ADMIN_ROLE;
 }
 
-export function isPlatformSuperAdminPrincipal(user: unknown): boolean {
-  return resolveJwtRoles(user).some(isPlatformSuperAdminRole);
+type CerbosPrincipalRolesSource = {
+  roles?: string[];
+  attributes?: { role_codes?: string[] };
+};
+
+function roleCodesFromCerbosPrincipal(
+  cerbosPrincipal?: CerbosPrincipalRolesSource,
+): string[] {
+  const attrCodes = cerbosPrincipal?.attributes?.role_codes;
+  if (Array.isArray(attrCodes)) {
+    return attrCodes.filter((r): r is string => typeof r === "string");
+  }
+  const persistedRoles = cerbosPrincipal?.roles;
+  if (!Array.isArray(persistedRoles)) {
+    return [];
+  }
+  return persistedRoles.filter((r): r is string => typeof r === "string");
+}
+
+export function isPlatformSuperAdminPrincipal(
+  user: unknown,
+  cerbosPrincipal?: CerbosPrincipalRolesSource,
+): boolean {
+  if (resolveJwtRoles(user).some(isPlatformSuperAdminRole)) {
+    return true;
+  }
+  if (roleCodesFromCerbosPrincipal(cerbosPrincipal).some(isPlatformSuperAdminRole)) {
+    return true;
+  }
+  const persistedRoles = cerbosPrincipal?.roles;
+  if (!Array.isArray(persistedRoles)) {
+    return false;
+  }
+  return persistedRoles.some(isPlatformSuperAdminRole);
 }
 
 function pickHeaderTenantId(request: FastifyRequest): string | undefined {
-  const raw = request.headers["iq_tenant_id"];
+  const raw = request.headers?.["iq_tenant_id"];
   if (typeof raw !== "string") {
     return undefined;
   }
@@ -49,13 +81,19 @@ export function resolveJwtTenantIdFromRequest(request: FastifyRequest): string {
  * Effective tenant for UM persistence and Cerbos resource attributes.
  * Platform super-admins may scope requests with `iq_tenant_id` header to another tenant.
  */
+function cerbosPrincipalFromRequest(request: FastifyRequest): CerbosPrincipalRolesSource | undefined {
+  const raw = (request as FastifyRequest & { cerbosPrincipal?: CerbosPrincipalRolesSource }).cerbosPrincipal;
+  return raw;
+}
+
 export function resolveEffectiveTenantId(request: FastifyRequest): string {
   const jwtTenant = resolveJwtTenantIdFromRequest(request);
   const headerTenant = pickHeaderTenantId(request);
+  const requestUser = (request as FastifyRequest & { user?: unknown }).user;
   if (
     headerTenant !== undefined &&
     headerTenant !== jwtTenant &&
-    isPlatformSuperAdminPrincipal((request as FastifyRequest & { user?: unknown }).user)
+    isPlatformSuperAdminPrincipal(requestUser, cerbosPrincipalFromRequest(request))
   ) {
     return headerTenant;
   }
@@ -67,10 +105,11 @@ export function assertTenantHeaderAllowedForPrincipal(
 ): { ok: true } | { ok: false; jwtTenant: string; headerTenant: string } {
   const jwtTenant = resolveJwtTenantIdFromRequest(request);
   const headerTenant = pickHeaderTenantId(request);
+  const requestUser = (request as FastifyRequest & { user?: unknown }).user;
   if (headerTenant === undefined || headerTenant === jwtTenant) {
     return { ok: true };
   }
-  if (isPlatformSuperAdminPrincipal((request as FastifyRequest & { user?: unknown }).user)) {
+  if (isPlatformSuperAdminPrincipal(requestUser, cerbosPrincipalFromRequest(request))) {
     return { ok: true };
   }
   return { ok: false, jwtTenant, headerTenant };

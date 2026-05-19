@@ -117,7 +117,7 @@ export class DrizzleUserRepository implements UserRepository {
     return row ? rowToUser(row) : null;
   }
 
-  async findUserByGlobalId(userId: string): Promise<UserWithTenant | null> {
+  async findUserByGlobalId(identityUserId: string): Promise<UserWithTenant | null> {
     const [row] = await this.db
       .select({
         id: users.id,
@@ -133,7 +133,7 @@ export class DrizzleUserRepository implements UserRepository {
         iq_tenant_id: users.iq_tenant_id,
       })
       .from(users)
-      .where(eq(users.id, userId))
+      .where(or(eq(users.id, identityUserId), eq(users.auth_user_id, identityUserId)))
       .limit(1);
 
     if (!row) return null;

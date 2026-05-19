@@ -180,6 +180,7 @@ export class DefaultPrincipalService implements PrincipalService {
         iq_tenant_id: context.tenantId,
         department,
         org_id: orgIdAttr,
+        role_codes: roles,
         capabilities,
         delegated_capabilities: delegatedCapabilities,
         clearances,

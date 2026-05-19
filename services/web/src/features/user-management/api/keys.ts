@@ -15,4 +15,5 @@ export const userManagementKeys = {
   userEffectiveCapabilities: (id: string) =>
     [...userManagementKeys.userAccessRoot(), 'effective-capabilities', id] as const,
   userRoleTemplates: (id: string) => [...userManagementKeys.userAccessRoot(), 'role-templates', id] as const,
+  platformDirectory: () => [...userManagementKeys.all, 'platform-directory'] as const,
 };

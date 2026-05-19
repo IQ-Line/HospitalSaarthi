@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=https://api.cerbos.dev/latest/cerbos/policy/v1/TestSuite.schema.json
+---
+name: role_cross_tenant_provision_test
+description: >-
+  Platform operator provisions roles in a new tenant via iq_tenant_id header.
+  Cerbos principal.roles may be __hims_authenticated__ only; role_codes + capabilities authorize.
+
+principals:
+  platform_operator_pep:
+    id: platform-user
+    roles:
+      - "__hims_authenticated__"
+    attr:
+      iq_tenant_id: "f47ac10b-58cc-4372-a567-0e02b2c3d480"
+      org_id: null
+      department: null
+      role_codes:
+        - "super-admin"
+      capabilities:
+        - "um:role:create"
+        - "um:user:create"
+        - "um:role:assign"
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+resources:
+  new_tenant_role:
+    id: new
+    kind: role
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      department: null
+      required_clearance: 0
+
+  home_tenant_role:
+    id: new
+    kind: role
+    attr:
+      iq_tenant_id: "f47ac10b-58cc-4372-a567-0e02b2c3d480"
+      department: null
+      required_clearance: 0
+
+tests:
+  - name: role.create — cross-tenant allowed for platform operator attr
+    input:
+      principals: [platform_operator_pep]
+      resources: [new_tenant_role]
+      actions: [role.create]
+    expected:
+      - principal: platform_operator_pep
+        resource: new_tenant_role
+        actions:
+          role.create: EFFECT_ALLOW
+
+  - name: role.create — same-tenant still allowed
+    input:
+      principals: [platform_operator_pep]
+      resources: [home_tenant_role]
+      actions: [role.create]
+    expected:
+      - principal: platform_operator_pep
+        resource: home_tenant_role
+        actions:
+          role.create: EFFECT_ALLOW

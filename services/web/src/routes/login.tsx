@@ -60,17 +60,13 @@ export const Route = createFileRoute('/login')({
 
 
 async function fetchJwt(): Promise<string> {
-
   const { data, error } = await authClient.token();
 
   if (error || !data?.token) {
-
     throw new Error(`JWT fetch failed: ${error?.message ?? 'empty response'}`);
-
   }
 
   return data.token;
-
 }
 
 
@@ -230,11 +226,11 @@ function LoginPage() {
 
             <div className="space-y-1.5">
 
-              <Label htmlFor="username">Email</Label>
+              <Label htmlFor="email">Email</Label>
 
               <Input
 
-                id="username"
+                id="email"
 
                 type="email"
 
@@ -242,15 +238,15 @@ function LoginPage() {
 
                 placeholder="e.g. platform@hospitalsaarthi.dev"
 
-                {...form.register('username')}
+                {...form.register('email')}
 
               />
 
-              {form.formState.errors.username && (
+              {form.formState.errors.email && (
 
                 <p className="text-xs text-destructive">
 
-                  {form.formState.errors.username.message}
+                  {form.formState.errors.email.message}
 
                 </p>
 

@@ -30,10 +30,12 @@ function tenantPluginImpl(
       return;
     }
 
-    // Platform discovery: list organizations / tenants (Configurator admin catalog).
+    // Platform discovery: organization/tenant registry reads (Configurator admin catalog).
     if (
       /\/configurator\/v1\/organizations\/?$/.test(path) ||
-      /\/configurator\/v1\/tenants\/?$/.test(path)
+      /\/configurator\/v1\/organizations\/[^/]+\/?$/.test(path) ||
+      /\/configurator\/v1\/tenants\/?$/.test(path) ||
+      /\/configurator\/v1\/tenants\/[^/]+\/?$/.test(path)
     ) {
       return;
     }

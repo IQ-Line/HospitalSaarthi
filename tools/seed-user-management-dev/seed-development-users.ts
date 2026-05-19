@@ -18,6 +18,7 @@ import {
   READONLY_CAPABILITY_KEYS,
   TENANT_ADMIN_CAPABILITY_KEYS,
 } from "./constants.ts";
+import { syncSuperAdminCapabilitySnapshots } from "../../modules/user-management/src/dev/sync-super-admin-capability-snapshots.ts";
 import { seedLog } from "./log.ts";
 
 type BetterAuthServerApi = {
@@ -154,27 +155,8 @@ export async function seedDevelopmentUser(
   seedUser: DevelopmentSeedUser,
   capabilityRows: Array<{ id: string; capability_key: string }>,
 ): Promise<void> {
-  const keys = capabilityKeysForPersona(seedUser.persona);
-  const granted = capabilityRows.filter((row) => keys.includes(row.capability_key));
-  if (granted.length === 0) {
-    throw new Error(`No capabilities resolved for persona ${seedUser.persona}`);
-  }
-
   const roleId = await ensureRole(db, seedUser);
   const platformUserId = await ensurePlatformUser(db, seedUser);
-
-  await db
-    .insert(role_capabilities)
-    .values(
-      granted.map((row) => ({
-        iq_tenant_id: DEV_TENANT_ID,
-        role_id: roleId,
-        capability_id: row.id,
-      })),
-    )
-    .onConflictDoNothing({
-      target: [role_capabilities.iq_tenant_id, role_capabilities.role_id, role_capabilities.capability_id],
-    });
 
   await db
     .insert(user_roles)
@@ -187,32 +169,73 @@ export async function seedDevelopmentUser(
       target: [user_roles.iq_tenant_id, user_roles.user_id, user_roles.role_id],
     });
 
-  const grantedAt = new Date();
-  await db
-    .insert(user_capabilities)
-    .values(
-      granted.map((row) => ({
-        iq_tenant_id: DEV_TENANT_ID,
-        user_id: platformUserId,
-        capability_id: row.id,
-        grant_source: "role_template" as const,
-        source_role_id: roleId,
-        granted_by_user_id: null,
-        granted_at: grantedAt,
-        revoked_at: null,
-        revoked_by_user_id: null,
-      })),
-    )
-    .onConflictDoUpdate({
-      target: [user_capabilities.iq_tenant_id, user_capabilities.user_id, user_capabilities.capability_id],
-      set: {
-        grant_source: "role_template",
-        source_role_id: roleId,
-        granted_at: grantedAt,
-        revoked_at: null,
-        revoked_by_user_id: null,
-      },
+  let grantedCount: number;
+  if (seedUser.persona === "platformOperator") {
+    const synced = await syncSuperAdminCapabilitySnapshots(db, {
+      tenantId: DEV_TENANT_ID,
+      userId: platformUserId,
+      roleId,
     });
+    grantedCount = synced.capabilityCount;
+    if (grantedCount === 0) {
+      throw new Error("No active capabilities in catalog for platform super-admin.");
+    }
+  } else {
+    const keys = capabilityKeysForPersona(seedUser.persona);
+    const granted = capabilityRows.filter((row) => keys.includes(row.capability_key));
+    if (granted.length === 0) {
+      throw new Error(`No capabilities resolved for persona ${seedUser.persona}`);
+    }
+
+    await db
+      .insert(role_capabilities)
+      .values(
+        granted.map((row) => ({
+          iq_tenant_id: DEV_TENANT_ID,
+          role_id: roleId,
+          capability_id: row.id,
+        })),
+      )
+      .onConflictDoNothing({
+        target: [
+          role_capabilities.iq_tenant_id,
+          role_capabilities.role_id,
+          role_capabilities.capability_id,
+        ],
+      });
+
+    const grantedAt = new Date();
+    await db
+      .insert(user_capabilities)
+      .values(
+        granted.map((row) => ({
+          iq_tenant_id: DEV_TENANT_ID,
+          user_id: platformUserId,
+          capability_id: row.id,
+          grant_source: "role_template" as const,
+          source_role_id: roleId,
+          granted_by_user_id: null,
+          granted_at: grantedAt,
+          revoked_at: null,
+          revoked_by_user_id: null,
+        })),
+      )
+      .onConflictDoUpdate({
+        target: [
+          user_capabilities.iq_tenant_id,
+          user_capabilities.user_id,
+          user_capabilities.capability_id,
+        ],
+        set: {
+          grant_source: "role_template",
+          source_role_id: roleId,
+          granted_at: grantedAt,
+          revoked_at: null,
+          revoked_by_user_id: null,
+        },
+      });
+    grantedCount = granted.length;
+  }
 
   const authUserId = await ensureAuthUser(db, auth, seedUser, platformUserId);
   await db
@@ -222,7 +245,7 @@ export async function seedDevelopmentUser(
 
   seedLog("user-management", `seeded dev user ${seedUser.persona}`, {
     email: seedUser.email,
-    capabilities: granted.length,
+    capabilities: grantedCount,
     role: seedUser.roleCode,
   });
 }

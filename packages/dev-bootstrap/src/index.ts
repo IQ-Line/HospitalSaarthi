@@ -37,6 +37,7 @@ export {
   DEVELOPMENT_TENANT_ADMIN,
 };
 export type { DevelopmentSeedUser, DevelopmentSeedUserPersona } from "./development-seed-users.js";
+export { PLATFORM_OPERATOR_CAPABILITY_KEYS } from "./platform-operator-capability-keys.js";
 
 export const DEVELOPMENT_BOOTSTRAP_CREDENTIALS = {
   email: DEVELOPMENT_BOOTSTRAP_USER_EMAIL,

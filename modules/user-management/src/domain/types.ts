@@ -171,6 +171,11 @@ export interface PrincipalAttributes {
   iq_tenant_id: string;
   department: string | null;
   org_id: string | null;
+  /**
+   * Canonical role codes for ABAC (JWT ∪ DB projection). Cerbos policies must use this
+   * (not Cerbos `principal.roles`, which may be `__hims_authenticated__` only).
+   */
+  role_codes: string[];
   capabilities: string[];
   delegated_capabilities: string[];
   clearances: Record<string, string>;

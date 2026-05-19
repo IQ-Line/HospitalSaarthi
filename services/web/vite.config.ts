@@ -34,6 +34,15 @@ export default defineConfig(({ mode }) => {
       '/api': {
         target: bffOrigin,
         changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq, req) => {
+            const browserHost = req.headers.host;
+            if (typeof browserHost === 'string' && browserHost.length > 0) {
+              proxyReq.setHeader('x-forwarded-host', browserHost);
+              proxyReq.setHeader('x-forwarded-proto', 'http');
+            }
+          });
+        },
       },
       '/healthz': {
         target: bffOrigin,

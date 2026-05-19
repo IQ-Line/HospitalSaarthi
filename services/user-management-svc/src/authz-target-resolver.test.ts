@@ -120,4 +120,33 @@ describe("createUserManagementAuthzTargetResolver", () => {
     });
     expect(getUserProfile).not.toHaveBeenCalled();
   });
+
+  it("maps POST /users resource tenant from iq_tenant_id header for super-admin", async () => {
+    const getUserProfile = vi.fn();
+    const resolver = createUserManagementAuthzTargetResolver({ getUserProfile });
+
+    const target = await resolver({
+      method: "POST",
+      url: "/api/user-management/users",
+      routeOptions: { url: "/api/user-management/users" },
+      headers: { iq_tenant_id: "tenant-target" },
+      user: {
+        userId: "user-1",
+        tenantId: "tenant-home",
+        roles: ["super-admin"],
+        department: null,
+      },
+    } as never);
+
+    expect(target).toEqual({
+      kind: "user",
+      id: "new",
+      action: "user.create",
+      attr: {
+        iq_tenant_id: "tenant-target",
+        department: null,
+        required_clearance: 0,
+      },
+    });
+  });
 });

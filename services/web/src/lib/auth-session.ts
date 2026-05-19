@@ -69,9 +69,13 @@ function redirectToLoginIfBrowserSessionExpired(): void {
  * JWTs stay in memory; on reload we re-fetch them from the active better-auth session.
  */
 export async function ensureAuthSession(): Promise<void> {
-  if (useAuthStore.getState().isAuthenticated) {
+  const auth = useAuthStore.getState();
+  if (auth.isAuthenticated && auth.accessToken?.trim()) {
     authBootstrapComplete = true;
     return;
+  }
+  if (auth.isAuthenticated && !auth.accessToken?.trim()) {
+    useAuthStore.getState().clearSession();
   }
 
   if (authBootstrapComplete) {
