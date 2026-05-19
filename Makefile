@@ -84,6 +84,7 @@ db-migrate: ## Run all pending migrations
 	$(NX) run registration:db-migrate
 	$(NX) run billing:db-migrate
 	$(NX) run master-data:migrate
+	$(NX) run abdm-adapter-svc:db-migrate
 
 .PHONY: db-reset
 db-reset: ## Drop, recreate, migrate, seed
