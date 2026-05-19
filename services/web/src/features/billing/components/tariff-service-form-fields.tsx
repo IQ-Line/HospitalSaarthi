@@ -150,6 +150,7 @@ export function TariffServiceFormFields({ control, mode }: TariffServiceFormFiel
       </div>
       {mode === 'create' && (
         <div className="space-y-2 sm:col-span-2">
+          {/* TODO(provider-picker): replace free-text UUID with staff/provider lookup from User Management */}
           <Label htmlFor="provider_id">Provider ID (optional)</Label>
           <Controller
             name="provider_id"

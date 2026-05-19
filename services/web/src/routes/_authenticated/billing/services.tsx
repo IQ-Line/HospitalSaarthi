@@ -31,10 +31,8 @@ import {
 import { BillingMockNotice } from '@/features/billing/components/billing-mock-notice';
 import { BillingPageShell } from '@/features/billing/components/billing-page-shell';
 import { TariffServiceFormFields } from '@/features/billing/components/tariff-service-form-fields';
-import {
-  canReadBillingServices,
-  useBillingServicesPermission,
-} from '@/features/billing/hooks/use-billing-services-permission';
+import { canReadBillingServices } from '@/features/billing/lib/can-read-billing-services';
+import { useBillingServicesPermission } from '@/features/billing/hooks/use-billing-services-permission';
 import { formatDateTime, formatMoneyDisplay } from '@/features/billing/lib/format';
 import {
   formToCreatePayload,
@@ -50,11 +48,13 @@ import {
   type TariffServiceCreateFormValues,
   type TariffServiceEditFormValues,
 } from '@/features/billing/validation';
-import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
-import { EntityRowActions } from '@/features/master-data/components/entity-row-actions';
-import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
-import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
-import { mutationErrorMessage } from '@/features/master-data/mutation-error';
+import { EntityFormDialog } from '@/components/entity-table/entity-form-dialog';
+import { EntityRowActions } from '@/components/entity-table/entity-row-actions';
+import { EntityTableToolbar } from '@/components/entity-table/entity-table-toolbar';
+import { TableActiveToggle } from '@/components/entity-table/table-active-toggle';
+import { mutationErrorMessage } from '@/lib/mutation-error';
+
+const EMPTY_SERVICES: TariffService[] = [];
 
 export const Route = createFileRoute('/_authenticated/billing/services')({
   beforeLoad: () => {
@@ -75,15 +75,18 @@ function BillingServicesPage() {
   const [viewing, setViewing] = useState<TariffService | null>(null);
   const [deactivating, setDeactivating] = useState<TariffService | null>(null);
 
-  const listParams = {
-    q: search || undefined,
-    category: category === 'all' ? undefined : category,
-    is_active:
-      activeFilter === 'all' ? undefined : activeFilter === 'active',
-  };
+  const listParams = useMemo(
+    () => ({
+      q: search || undefined,
+      category: category === 'all' ? undefined : category,
+      is_active:
+        activeFilter === 'all' ? undefined : activeFilter === 'active',
+    }),
+    [search, category, activeFilter],
+  );
 
-  const { data, isLoading, error, refetch } = useTariffServices(listParams);
-  const services = data?.data ?? [];
+  const { data, isLoading, isFetching, error, refetch } = useTariffServices(listParams);
+  const services = data?.data ?? EMPTY_SERVICES;
 
   const createMutation = useCreateTariffService();
   const updateMutation = useUpdateTariffService();
@@ -215,10 +218,11 @@ function BillingServicesPage() {
       <BillingMockNotice />
 
       <div className="flex flex-wrap items-center gap-3">
-        <MasterDataTableToolbar
+        <EntityTableToolbar
           value={search}
           onChange={setSearch}
           placeholder="Search code or name…"
+          debounceMs={0}
         />
         <Select value={category} onValueChange={setCategory}>
           <SelectTrigger className="w-[180px]">
@@ -246,7 +250,12 @@ function BillingServicesPage() {
             <SelectItem value="inactive">Inactive</SelectItem>
           </SelectContent>
         </Select>
-        <Button variant="outline" size="sm" onClick={() => void refetch()}>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={isFetching}
+          onClick={() => void refetch()}
+        >
           Refresh
         </Button>
       </div>
@@ -254,7 +263,17 @@ function BillingServicesPage() {
       {error ? (
         <p className="text-sm text-destructive">{mutationErrorMessage(error)}</p>
       ) : (
-        <DataTable columns={columns} data={services} isLoading={isLoading} />
+        <DataTable
+          columns={columns}
+          data={services}
+          isLoading={isLoading}
+          emptyTitle="No tariff services yet"
+          emptyDescription={
+            canWrite
+              ? 'Add service to create your first chargeable tariff row.'
+              : 'No services match your filters.'
+          }
+        />
       )}
 
       {canWrite ? (
