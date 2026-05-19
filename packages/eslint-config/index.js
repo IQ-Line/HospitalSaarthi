@@ -52,6 +52,41 @@ export const base = [
     },
   },
   {
+    files: ['services/web/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/um-permissions', '**/permissions-map', '**/capability-resolution'],
+              message:
+                'Legacy UX permission maps are removed. Use runtime capability keys from @/lib/runtime-capability-keys.',
+            },
+          ],
+        },
+      ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'CallExpression[callee.name="hasFeaturePermission"]',
+          message: 'Use useCapability, CapabilityGate, requireCapability, or requireAnyCapability.',
+        },
+        {
+          selector:
+            'VariableDeclarator[id.name=/^can(Read|Write|Create|Update|Delete|Manage|Access|View)/]',
+          message:
+            'Avoid can* permission booleans. Use useCapability("module:resource:action") or CapabilityGate.',
+        },
+        {
+          selector:
+            'FunctionDeclaration[id.name=/^can(Read|Write|Create|Update|Delete|Manage|Access|View)/], FunctionDeclaration[id.name=/^can[A-Z]/]',
+          message: 'Avoid can* helper functions. Use runtime capability keys directly.',
+        },
+      ],
+    },
+  },
+  {
     ignores: ['**/dist/**', '**/node_modules/**', '**/.nx/**'],
   },
 ];

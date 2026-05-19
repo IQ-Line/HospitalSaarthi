@@ -1,44 +1,58 @@
 import { create, type StateCreator } from 'zustand';
 import { devtools } from 'zustand/middleware';
+import { normalizeCapabilityKey } from '@/lib/principal-capabilities';
 
-type ActionPermissions = Record<string, boolean>;
-type FeaturePermissions = Record<string, ActionPermissions>;
-/** Cerbos-backed UX map from `GET /api/user-management/auth/permissions-map` (shell / gating only). */
-export type PermissionMap = Record<string, FeaturePermissions>;
+export type CapabilityKey = string;
 
 export interface PermissionsState {
-  map: PermissionMap;
+  capabilityKeys: ReadonlySet<CapabilityKey>;
   isLoaded: boolean;
 
-  setPermissions: (map: PermissionMap) => void;
+  setCapabilityKeys: (keys: readonly CapabilityKey[]) => void;
   clearPermissions: () => void;
-  hasModuleAccess: (module: string) => boolean;
-  hasFeaturePermission: (module: string, feature: string, action: string) => boolean;
+  hasCapability: (capabilityKey: CapabilityKey) => boolean;
+  hasAnyCapability: (capabilityKeys: readonly CapabilityKey[]) => boolean;
+  hasAllCapabilities: (capabilityKeys: readonly CapabilityKey[]) => boolean;
 }
 
-const DEV_PERMISSIONS_STORAGE_KEY = 'hims-dev-permissions';
+const emptyKeys = (): ReadonlySet<CapabilityKey> => new Set();
 
 const permissionsSlice: StateCreator<PermissionsState> = (set, get) => ({
-  map: {},
+  capabilityKeys: emptyKeys(),
   isLoaded: false,
 
-  setPermissions: (map) => set({ map, isLoaded: true }, false, 'setPermissions'),
+  setCapabilityKeys: (keys) =>
+    set(
+      {
+        capabilityKeys: new Set(keys.map((k) => normalizeCapabilityKey(k))),
+        isLoaded: true,
+      },
+      false,
+      'setCapabilityKeys',
+    ),
 
   clearPermissions: () => {
-    if (import.meta.env.DEV && typeof sessionStorage !== 'undefined') {
-      sessionStorage.removeItem(DEV_PERMISSIONS_STORAGE_KEY);
+    set({ capabilityKeys: emptyKeys(), isLoaded: false }, false, 'clearPermissions');
+  },
+
+  hasCapability: (capabilityKey) => {
+    return get().capabilityKeys.has(normalizeCapabilityKey(capabilityKey));
+  },
+
+  hasAnyCapability: (capabilityKeys) => {
+    if (capabilityKeys.length === 0) {
+      return false;
     }
-    set({ map: {}, isLoaded: false }, false, 'clearPermissions');
+    const held = get().capabilityKeys;
+    return capabilityKeys.some((key) => held.has(normalizeCapabilityKey(key)));
   },
 
-  hasModuleAccess: (module) => {
-    const features = get().map[module];
-    if (!features) return false;
-    return Object.values(features).some((actions) => Object.values(actions).some((v) => v));
-  },
-
-  hasFeaturePermission: (module, feature, action) => {
-    return get().map[module]?.[feature]?.[action] === true;
+  hasAllCapabilities: (capabilityKeys) => {
+    if (capabilityKeys.length === 0) {
+      return false;
+    }
+    const held = get().capabilityKeys;
+    return capabilityKeys.every((key) => held.has(normalizeCapabilityKey(key)));
   },
 });
 

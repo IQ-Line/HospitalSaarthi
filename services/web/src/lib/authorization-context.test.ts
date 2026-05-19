@@ -4,13 +4,13 @@ import { refreshAuthorizationContext } from "./authorization-context";
 import { authPrincipalQueryKeys } from "./auth-principal-query";
 
 const {
-  hydratePermissionsFromBackend,
+  hydrateCapabilitiesFromPrincipal,
   clearPermissions,
   authGetState,
   tenantGetState,
   permissionsGetState,
 } = vi.hoisted(() => ({
-  hydratePermissionsFromBackend: vi.fn(),
+  hydrateCapabilitiesFromPrincipal: vi.fn(),
   clearPermissions: vi.fn(),
   authGetState: vi.fn(),
   tenantGetState: vi.fn(),
@@ -18,7 +18,7 @@ const {
 }));
 
 vi.mock("@/lib/permissions", () => ({
-  hydratePermissionsFromBackend,
+  hydrateCapabilitiesFromPrincipal,
 }));
 
 vi.mock("@/stores/auth.store", () => ({
@@ -69,10 +69,10 @@ describe("refreshAuthorizationContext", () => {
       queryKey: authPrincipalQueryKeys.all,
     });
     expect(queryClient.fetchQuery).not.toHaveBeenCalled();
-    expect(hydratePermissionsFromBackend).not.toHaveBeenCalled();
+    expect(hydrateCapabilitiesFromPrincipal).not.toHaveBeenCalled();
   });
 
-  it("refreshes principal query and permission map for an authenticated self-access update", async () => {
+  it("refreshes principal query and hydrates capabilities for an authenticated session", async () => {
     authGetState.mockReturnValue({
       isAuthenticated: true,
       userId: "user-1",
@@ -101,7 +101,7 @@ describe("refreshAuthorizationContext", () => {
         }),
       }),
     );
-    expect(hydratePermissionsFromBackend).toHaveBeenCalledTimes(1);
+    expect(hydrateCapabilitiesFromPrincipal).toHaveBeenCalledTimes(1);
     expect(clearPermissions).not.toHaveBeenCalled();
   });
 });

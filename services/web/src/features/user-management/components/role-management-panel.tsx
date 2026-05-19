@@ -15,21 +15,19 @@ import {
   useRoleCapabilities,
   useRolesSuspense,
 } from '../api/queries';
-import { canAccessRolesAdmin } from '../lib/um-permissions';
-import { usePermissionsStore } from '@/stores/permissions.store';
+import { useAnyCapability, useCapability } from '@/hooks/use-capability';
+import {
+  UM_CAPABILITY_READ,
+  UM_ROLE_CREATE,
+  UM_ROLE_DELETE,
+  UM_ROLE_READ,
+  UM_ROLE_UPDATE,
+  UM_ROLES_ADMIN_ANY,
+} from '@/lib/runtime-capability-keys';
 import {
   RoleEditorDialog,
   RoleListSection,
 } from './role-management-sections';
-
-type RoleManagementPanelProps = {
-  canReadRoles: boolean;
-  canCreateRoles: boolean;
-  canUpdateRoles: boolean;
-  canDeleteRoles: boolean;
-  /** GET /capabilities/assignable — tenant catalog for role editors. */
-  canReadCapabilities: boolean;
-};
 
 type RoleEditorMode = 'create' | 'edit' | 'view' | null;
 
@@ -238,15 +236,14 @@ function roleManagementReducer(
   }
 }
 
-export function RoleManagementPanel({
-  canReadRoles,
-  canCreateRoles,
-  canUpdateRoles,
-  canDeleteRoles,
-  canReadCapabilities,
-}: RoleManagementPanelProps) {
+export function RoleManagementPanel() {
   const qc = useQueryClient();
-  const canAccessAdmin = usePermissionsStore(canAccessRolesAdmin);
+  const umRoleRead = useCapability(UM_ROLE_READ);
+  const umRoleCreate = useCapability(UM_ROLE_CREATE);
+  const umRoleUpdate = useCapability(UM_ROLE_UPDATE);
+  const umRoleDelete = useAnyCapability([UM_ROLE_DELETE, UM_ROLE_UPDATE]);
+  const umCapabilityRead = useCapability(UM_CAPABILITY_READ);
+  const umRolesAdmin = useAnyCapability(UM_ROLES_ADMIN_ANY);
   const { data: roles } = useRolesSuspense();
   const [state, dispatch] = useReducer(roleManagementReducer, initialState);
   const [editorMode, setEditorMode] = useState<RoleEditorMode>(null);
@@ -262,11 +259,11 @@ export function RoleManagementPanel({
   const isEditMode = editorMode === 'edit';
   const capabilitiesQuery = useQuery({
     ...assignableCapabilityCatalogOptions(),
-    enabled: canReadCapabilities && editorMode !== null,
+    enabled: umCapabilityRead && editorMode !== null,
   });
   const roleCapabilitiesQuery = useRoleCapabilities(
     state.selectedRoleId,
-    canReadRoles && (isEditMode || isViewMode) && selectedRole !== null,
+    umRoleRead && (isEditMode || isViewMode) && selectedRole !== null,
   );
   const updateRole = useUpdateRole(state.selectedRoleId);
 
@@ -295,7 +292,7 @@ export function RoleManagementPanel({
     });
   }, [editorMode, roleCapabilitiesQuery.data]);
 
-  const editableCapabilities = canReadCapabilities
+  const editableCapabilities = umCapabilityRead
     ? (capabilitiesQuery.data ?? [])
     : (roleCapabilitiesQuery.data ?? []);
   const filteredCapabilities = useMemo(() => {
@@ -314,7 +311,7 @@ export function RoleManagementPanel({
   const editorOpen = editorMode !== null;
   const isCreateMode = editorMode === 'create';
   const canModifyActiveEditor =
-    editorMode === 'create' ? canCreateRoles : editorMode === 'edit' ? canUpdateRoles : false;
+    editorMode === 'create' ? umRoleCreate : editorMode === 'edit' ? umRoleUpdate : false;
   const activeForm = isCreateMode ? state.createRoleForm : state.editRoleForm;
   const activeDraft = normalizeRoleDraft(activeForm);
   const createHasDraft =
@@ -337,13 +334,13 @@ export function RoleManagementPanel({
     activeDraft.display_name.length > 0;
 
   const assignableCatalogBlocking =
-    canReadCapabilities &&
+    umCapabilityRead &&
     editorMode !== null &&
     (capabilitiesQuery.isPending || capabilitiesQuery.isError);
   const roleCapabilitiesBlocking =
     !isCreateMode &&
     (isEditMode || isViewMode) &&
-    canReadRoles &&
+    umRoleRead &&
     (roleCapabilitiesQuery.isPending || roleCapabilitiesQuery.isError);
 
   const canSaveDialog =
@@ -354,7 +351,7 @@ export function RoleManagementPanel({
         editorDirty &&
         !savePending &&
         !roleCapabilitiesBlocking &&
-        (!canReadCapabilities || !assignableCatalogBlocking);
+        (!umCapabilityRead || !assignableCatalogBlocking);
 
   const handleToggleCapability = (capabilityId: string) => {
     dispatch({ type: 'toggleCapability', capabilityId });
@@ -365,7 +362,7 @@ export function RoleManagementPanel({
   };
 
   const openCreateEditor = () => {
-    if (!canCreateRoles) {
+    if (!umRoleCreate) {
       return;
     }
     dispatch({ type: 'resetCreateForm' });
@@ -382,17 +379,17 @@ export function RoleManagementPanel({
   };
 
   const handleSelectRole = (roleId: string) => {
-    if (!canAccessAdmin) {
+    if (!umRolesAdmin) {
       return;
     }
-    if (canUpdateRoles) {
+    if (umRoleUpdate) {
       openRoleEditor(roleId, 'edit');
-    } else if (canReadRoles) {
+    } else if (umRoleRead) {
       openRoleEditor(roleId, 'view');
     }
   };
 
-  if (!canAccessAdmin) {
+  if (!umRolesAdmin) {
     return (
       <p className="text-sm text-muted-foreground">
         You do not have permission to manage roles.
@@ -465,11 +462,11 @@ export function RoleManagementPanel({
       return;
     }
 
-    if (editorMode === 'create' && !canCreateRoles) {
+    if (editorMode === 'create' && !umRoleCreate) {
       return;
     }
 
-    if (editorMode === 'edit' && !canUpdateRoles) {
+    if (editorMode === 'edit' && !umRoleUpdate) {
       return;
     }
 
@@ -479,7 +476,7 @@ export function RoleManagementPanel({
 
       if (editorMode === 'create') {
         savedRole = await createRole.mutateAsync(createRoleDraft);
-        if (canReadCapabilities && canCreateRoles) {
+        if (umCapabilityRead && umRoleCreate) {
           await persistRoleCapabilities(savedRole.id, state.selectedCapabilityIds);
         }
         toast.success(`Role "${savedRole.display_name}" created`);
@@ -489,7 +486,7 @@ export function RoleManagementPanel({
         }
 
         savedRole = editRoleDirty ? await updateRole.mutateAsync(editRoleDraft) : selectedRole;
-        if (canReadCapabilities && canUpdateRoles && capabilitiesDirty) {
+        if (umCapabilityRead && umRoleUpdate && capabilitiesDirty) {
           await persistRoleCapabilities(savedRole.id, state.selectedCapabilityIds);
         }
         toast.success(`Role "${savedRole.display_name}" updated`);
@@ -512,8 +509,6 @@ export function RoleManagementPanel({
           totalRoleCount={roles.length}
           roleSearch={roleSearch}
           selectedRoleId={state.selectedRoleId}
-          canCreateRoles={canCreateRoles}
-          canUpdateRoles={canUpdateRoles}
           onRoleSearchChange={setRoleSearch}
           onSelectRole={handleSelectRole}
           onCreateRole={openCreateEditor}
@@ -524,10 +519,6 @@ export function RoleManagementPanel({
           open={editorOpen}
           mode={editorMode}
           role={selectedRole}
-          canCreateRoles={canCreateRoles}
-          canUpdateRoles={canUpdateRoles}
-          canDeleteRoles={canDeleteRoles}
-          canReadCapabilities={canReadCapabilities}
           code={activeForm.code}
           displayName={activeForm.displayName}
           description={activeForm.description}
@@ -546,9 +537,9 @@ export function RoleManagementPanel({
           assignedCapabilitiesError={
             editorMode === 'edit' || editorMode === 'view' ? roleCapabilitiesQuery.isError : false
           }
-          assignableCatalogPending={canReadCapabilities && capabilitiesQuery.isPending}
-          assignableCatalogError={canReadCapabilities && capabilitiesQuery.isError}
-          showCapabilityProvenance={canReadCapabilities}
+          assignableCatalogPending={umCapabilityRead && capabilitiesQuery.isPending}
+          assignableCatalogError={umCapabilityRead && capabilitiesQuery.isError}
+          showCapabilityProvenance={umCapabilityRead}
           onRetryAssignableCatalog={() => {
             void qc.invalidateQueries({ queryKey: userManagementKeys.assignableCapabilities() });
           }}

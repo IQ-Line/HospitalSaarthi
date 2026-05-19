@@ -18,7 +18,10 @@ import {
   SelectValue,
 } from '@pulse/ui/select';
 import { toast } from 'sonner';
+import { CapabilityGate } from '@/components/capability-gate';
+import { useCapability } from '@/hooks/use-capability';
 import { ApiError } from '@/lib/api-client';
+import { UM_ROLE_ASSIGN, UM_ROLE_READ } from '@/lib/runtime-capability-keys';
 import { useApplyRoleTemplate } from '../api/mutations';
 import { roleCapabilitiesOptions } from '../api/queries';
 import type { UmRole } from '../types';
@@ -42,8 +45,6 @@ type AssignRoleDialogProps = {
   onOpenChange: (open: boolean) => void;
   userId: string;
   availableRoles: UmRole[];
-  canReadRoleCapabilities: boolean;
-  canManageAccess: boolean;
 };
 
 export function AssignRoleDialog({
@@ -51,16 +52,15 @@ export function AssignRoleDialog({
   onOpenChange,
   userId,
   availableRoles,
-  canReadRoleCapabilities,
-  canManageAccess,
 }: AssignRoleDialogProps) {
+  const umRoleRead = useCapability(UM_ROLE_READ);
   const [roleId, setRoleId] = useState('');
   const [selectedCapabilityIds, setSelectedCapabilityIds] = useState<string[]>([]);
   const applyRole = useApplyRoleTemplate(userId);
 
   const roleCapabilitiesQuery = useQuery({
     ...roleCapabilitiesOptions(roleId),
-    enabled: open && Boolean(roleId) && canReadRoleCapabilities,
+    enabled: open && Boolean(roleId) && umRoleRead,
     staleTime: 30_000,
   });
 
@@ -68,7 +68,7 @@ export function AssignRoleDialog({
     roleCapabilitiesQuery.data?.map((capability) => capability.id) ?? [];
   const stillLoading =
     Boolean(roleId) &&
-    canReadRoleCapabilities &&
+    umRoleRead &&
     (roleCapabilitiesQuery.isFetching || roleCapabilitiesQuery.data === undefined);
 
   const handleClose = () => {
@@ -140,8 +140,6 @@ export function AssignRoleDialog({
           {roleId ? (
             <RoleTemplateCapabilityPicker
               roleId={roleId}
-              canReadRoleCapabilities={canReadRoleCapabilities}
-              canManageAccess={canManageAccess}
               selectedCapabilityIds={selectedCapabilityIds}
               onSelectedCapabilityIdsChange={setSelectedCapabilityIds}
               plainLanguage
@@ -153,13 +151,15 @@ export function AssignRoleDialog({
           <Button type="button" variant="outline" onClick={handleClose}>
             Cancel
           </Button>
-          <Button
-            type="button"
-            disabled={!roleId || applyRole.isPending || stillLoading}
-            onClick={handleAssign}
-          >
-            {applyRole.isPending ? 'Adding...' : 'Add role'}
-          </Button>
+          <CapabilityGate capability={UM_ROLE_ASSIGN}>
+            <Button
+              type="button"
+              disabled={!roleId || applyRole.isPending || stillLoading}
+              onClick={handleAssign}
+            >
+              {applyRole.isPending ? 'Adding...' : 'Add role'}
+            </Button>
+          </CapabilityGate>
         </DialogFooter>
       </DialogContent>
     </Dialog>

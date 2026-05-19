@@ -125,6 +125,40 @@ export const SEED_CAPABILITIES: readonly SeedCapabilityDef[] = [
   { capability_key: "billing:invoice:read", module: "billing", feature: "invoice", action: "read", display_name: "Read invoice", source_permission_slug: "invoice.read" },
   { capability_key: "billing:payment:manage", module: "billing", feature: "payment", action: "manage", display_name: "Collect payment", source_permission_slug: "payment.collect" },
   { capability_key: "reports:report:read", module: "reports", feature: "report", action: "read", display_name: "Read report", source_permission_slug: "report.read" },
+  { capability_key: "md:shell:access", module: "master-data", feature: "shell", action: "access", display_name: "Master Data shell", source_permission_slug: "md.shell.access" },
+  { capability_key: "md:visitpad:view", module: "master-data", feature: "visitpad", action: "view", display_name: "Visitpad view", source_permission_slug: "md.visitpad.view" },
+  { capability_key: "md:visitpad:create", module: "master-data", feature: "visitpad", action: "create", display_name: "Visitpad create", source_permission_slug: "md.visitpad.create" },
+  { capability_key: "cfg:shell:access", module: "configurator", feature: "shell", action: "access", display_name: "Configurator shell", source_permission_slug: "cfg.shell.access" },
+  { capability_key: "fd:shell:access", module: "frontdesk", feature: "shell", action: "access", display_name: "Frontdesk shell", source_permission_slug: "fd.shell.access" },
+] as const;
+
+const UM_PREFIX = "um:";
+
+export const PLATFORM_OPERATOR_CAPABILITY_KEYS = SEED_CAPABILITIES.map((c) => c.capability_key);
+
+export const TENANT_ADMIN_CAPABILITY_KEYS = SEED_CAPABILITIES.filter(
+  (c) => c.capability_key.startsWith(UM_PREFIX) || c.capability_key.includes(":shell:") || c.capability_key.startsWith("md:visitpad:"),
+).map((c) => c.capability_key);
+
+export const READONLY_CAPABILITY_KEYS = [
+  "um:user:read",
+  "um:role:read",
+  "um:capability:read",
+  "opd:visit:read",
+  "opd:patient:read",
+  "reports:report:read",
+  "md:shell:access",
+  "md:visitpad:view",
+  "cfg:shell:access",
+  "fd:shell:access",
+] as const;
+
+export const CLINICAL_CAPABILITY_KEYS = [
+  "opd:visit:create",
+  "opd:visit:read",
+  "opd:patient:read",
+  "fd:shell:access",
+  "md:shell:access",
 ] as const;
 
 export const CONFIGURATOR_ENABLED_MODULE_SLUGS = [

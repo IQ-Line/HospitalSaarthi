@@ -1,9 +1,18 @@
 import { useState } from 'react';
 import { createFileRoute, Link, redirect } from '@tanstack/react-router';
-import { useShallow } from 'zustand/react/shallow';
 import { Badge } from '@pulse/ui/badge';
 import { Button } from '@pulse/ui/button';
 import { ConfirmDialog } from '@/components/confirm-dialog';
+import { CapabilityGate } from '@/components/capability-gate';
+import { useCapability } from '@/hooks/use-capability';
+import { requireCapability } from '@/lib/require-capabilities';
+import {
+  UM_ROLE_ASSIGN,
+  UM_ROLE_READ,
+  UM_USER_DEACTIVATE,
+  UM_USER_READ,
+  UM_USER_UPDATE,
+} from '@/lib/runtime-capability-keys';
 import { useDeactivateUser } from '@/features/user-management/api/mutations';
 import {
   roleListOptions,
@@ -14,35 +23,19 @@ import {
 import { EditUserDialog } from '@/features/user-management/components/edit-user-dialog';
 import { UserManagementPageShell } from '@/features/user-management/components/user-management-page-shell';
 import { UserAccessPanel } from '@/features/user-management/components/user-access-panel';
-import {
-  canManageUserAccess,
-  canReadRoleCapabilities,
-  canReadRoles,
-  canViewUserRoleAccess,
-  canWriteUsers,
-} from '@/features/user-management/lib/um-permissions';
 import { usePermissionsStore } from '@/stores/permissions.store';
 
-const UM = 'user-management';
-
 export const Route = createFileRoute('/_authenticated/user-management/$userId')({
-  beforeLoad: () => {
-    if (!usePermissionsStore.getState().hasFeaturePermission(UM, 'users', 'read')) {
-      throw redirect({ to: '/dashboard' });
-    }
-  },
+  beforeLoad: requireCapability(UM_USER_READ),
   loader: async ({ context, params }) => {
-    const permissions = usePermissionsStore.getState();
+    const p = usePermissionsStore.getState();
     const loads: Array<Promise<unknown>> = [
       context.queryClient.ensureQueryData(userDetailOptions(params.userId)),
     ];
-    if (
-      permissions.hasFeaturePermission(UM, 'userAccess', 'read') ||
-      permissions.hasFeaturePermission(UM, 'userAccess', 'write')
-    ) {
+    if (p.hasCapability(UM_ROLE_ASSIGN) || p.hasCapability(UM_ROLE_READ)) {
       loads.push(context.queryClient.ensureQueryData(userCapabilitiesOptions(params.userId)));
     }
-    if (permissions.hasFeaturePermission(UM, 'roles', 'read') === true) {
+    if (p.hasCapability(UM_ROLE_READ)) {
       loads.push(context.queryClient.ensureQueryData(roleListOptions()));
     }
     await Promise.all(loads);
@@ -56,21 +49,8 @@ function UserDetailPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [deactivateOpen, setDeactivateOpen] = useState(false);
 
-  const {
-    canWriteProfile,
-    showUserRoleAccess,
-    canReadRolesList,
-    canReadRoleCaps,
-    canManageAccess,
-  } = usePermissionsStore(
-    useShallow((s) => ({
-      canWriteProfile: canWriteUsers(s),
-      showUserRoleAccess: canViewUserRoleAccess(s),
-      canReadRolesList: canReadRoles(s),
-      canReadRoleCaps: canReadRoleCapabilities(s),
-      canManageAccess: canManageUserAccess(s),
-    })),
-  );
+  const umUserUpdate = useCapability(UM_USER_UPDATE);
+  const umUserDeactivate = useCapability(UM_USER_DEACTIVATE);
   const deactivate = useDeactivateUser(userId);
 
   return (
@@ -94,29 +74,25 @@ function UserDetailPage() {
                 Back
               </Link>
             </Button>
-            {canWriteProfile ? (
+            <CapabilityGate capability={UM_USER_UPDATE}>
               <Button type="button" variant="outline" onClick={() => setEditOpen(true)}>
                 Edit profile
               </Button>
-            ) : null}
-            {canWriteProfile && user.status === 'active' ? (
-              <Button type="button" variant="destructive" onClick={() => setDeactivateOpen(true)}>
-                Deactivate
-              </Button>
+            </CapabilityGate>
+            {umUserDeactivate && user.status === 'active' ? (
+              <CapabilityGate capability={UM_USER_DEACTIVATE}>
+                <Button type="button" variant="destructive" onClick={() => setDeactivateOpen(true)}>
+                  Deactivate
+                </Button>
+              </CapabilityGate>
             ) : null}
           </div>
         }
       >
-        <UserAccessPanel
-          userId={user.id}
-          canViewUserAccess={showUserRoleAccess}
-          canReadRoles={canReadRolesList}
-          canReadRoleCapabilities={canReadRoleCaps}
-          canManageAccess={canManageAccess}
-        />
+        <UserAccessPanel userId={user.id} />
       </UserManagementPageShell>
 
-      {canWriteProfile ? (
+      {umUserUpdate ? (
         <EditUserDialog open={editOpen} onOpenChange={setEditOpen} user={user} />
       ) : null}
 

@@ -1,6 +1,7 @@
 import { GRPC } from "@cerbos/grpc";
 import { buildCerbosUserMgmtResourceAttr } from "../../modules/user-management/src/authz/cerbos-resource-attr.ts";
-import { DEV_TENANT_ID, DEVELOPMENT_BOOTSTRAP_USER_ID } from "./constants.ts";
+import { DEV_TENANT_ID } from "./constants.ts";
+import { DEVELOPMENT_PLATFORM_OPERATOR } from "../../packages/dev-bootstrap/src/index.ts";
 import { seedLog } from "./log.ts";
 import type { createDefaultPrincipalService } from "../../modules/user-management/src/services/default-principal-service.ts";
 
@@ -16,7 +17,7 @@ export async function validateCerbosForBootstrapUser(
   const cerbos = new GRPC(cerbosUrl, { tls: false });
   const principal = await principalService.getPrincipal({
     tenantId: DEV_TENANT_ID,
-    userId: DEVELOPMENT_BOOTSTRAP_USER_ID,
+    userId: DEVELOPMENT_PLATFORM_OPERATOR.userId,
   });
 
   const tenantOnlyAttr = buildCerbosUserMgmtResourceAttr({

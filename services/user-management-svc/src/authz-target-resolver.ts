@@ -244,16 +244,12 @@ export function createUserManagementAuthzTargetResolver(
 
     if (
       method === "GET" &&
-      (path === "/auth/me" || path === "/auth/principal" || path === "/auth/permissions-map")
+      (path === "/auth/me" || path === "/auth/principal")
     ) {
       return {
-        // `/auth/*` endpoints are UX/shell support endpoints:
-        // - `/auth/principal` returns the PDP-enriched principal snapshot
-        // - `/auth/permissions-map` returns a derived set of UX booleans
-        //
-        // They must not require `um:user:read`, otherwise a role-admin who can
-        // manage roles but lacks user.read would be unable to fetch the permissions-map
-        // that gates access to the UI.
+        // `/auth/*` endpoints are shell support: principal snapshot for SPA capability hydration.
+        // They must not require `um:user:read`, otherwise role admins without user.read
+        // could not load the principal used for navigation gating.
         kind: "auth",
         id: "self",
         action: "auth.read",

@@ -10,7 +10,10 @@ import {
   DialogTitle,
 } from '@pulse/ui/dialog';
 import { toast } from 'sonner';
+import { CapabilityGate } from '@/components/capability-gate';
+import { useCapability } from '@/hooks/use-capability';
 import { ApiError } from '@/lib/api-client';
+import { UM_ROLE_ASSIGN, UM_ROLE_READ } from '@/lib/runtime-capability-keys';
 import { useApplyRoleTemplate } from '../api/mutations';
 import { roleCapabilitiesOptions } from '../api/queries';
 import type { AppliedRoleTemplate } from '../types';
@@ -35,8 +38,6 @@ type ManageRolePermissionsDialogProps = {
   userId: string;
   applied: AppliedRoleTemplate | null;
   grantedCapabilityIds: string[];
-  canManageAccess: boolean;
-  canReadRoleCapabilities: boolean;
 };
 
 export function ManageRolePermissionsDialog({
@@ -45,16 +46,15 @@ export function ManageRolePermissionsDialog({
   userId,
   applied,
   grantedCapabilityIds,
-  canManageAccess,
-  canReadRoleCapabilities,
 }: ManageRolePermissionsDialogProps) {
+  const umRoleRead = useCapability(UM_ROLE_READ);
   const [selectedCapabilityIds, setSelectedCapabilityIds] = useState(grantedCapabilityIds);
   const applyRole = useApplyRoleTemplate(userId);
 
   const roleId = applied?.role_id ?? '';
   const roleCapabilitiesQuery = useQuery({
     ...roleCapabilitiesOptions(roleId),
-    enabled: open && Boolean(roleId) && canReadRoleCapabilities,
+    enabled: open && Boolean(roleId) && umRoleRead,
     staleTime: 30_000,
   });
 
@@ -126,8 +126,6 @@ export function ManageRolePermissionsDialog({
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           <RoleTemplateCapabilityPicker
             roleId={applied.role_id}
-            canReadRoleCapabilities={canReadRoleCapabilities}
-            canManageAccess={canManageAccess}
             selectedCapabilityIds={selectedCapabilityIds}
             onSelectedCapabilityIdsChange={setSelectedCapabilityIds}
             selectAllCapabilitiesOnLoad={false}
@@ -136,7 +134,16 @@ export function ManageRolePermissionsDialog({
           />
         </div>
 
-        {canManageAccess ? (
+        <CapabilityGate
+          capability={UM_ROLE_ASSIGN}
+          fallback={
+            <DialogFooter className="shrink-0 border-t px-4 py-3">
+              <Button type="button" variant="outline" onClick={handleClose}>
+                Close
+              </Button>
+            </DialogFooter>
+          }
+        >
           <DialogFooter className="shrink-0 border-t px-4 py-3">
             <Button type="button" variant="outline" onClick={handleClose}>
               Cancel
@@ -144,22 +151,14 @@ export function ManageRolePermissionsDialog({
             <Button
               type="button"
               disabled={
-                applyRole.isPending ||
-                !selectionDirty ||
-                roleCapabilitiesQuery.isPending
+                applyRole.isPending || !selectionDirty || roleCapabilitiesQuery.isPending
               }
               onClick={handleSave}
             >
               {applyRole.isPending ? 'Saving...' : 'Save'}
             </Button>
           </DialogFooter>
-        ) : (
-          <DialogFooter className="shrink-0 border-t px-4 py-3">
-            <Button type="button" variant="outline" onClick={handleClose}>
-              Close
-            </Button>
-          </DialogFooter>
-        )}
+        </CapabilityGate>
       </DialogContent>
     </Dialog>
   );

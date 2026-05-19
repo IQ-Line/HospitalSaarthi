@@ -22,9 +22,7 @@ const umSeed = await import("./seed-user-management-dev/seed-user-management.ts"
 const { validateCerbosForBootstrapUser } = await import(
   "./seed-user-management-dev/validate-cerbos.ts"
 );
-const { DEVELOPMENT_BOOTSTRAP_USER_EMAIL, DEVELOPMENT_BOOTSTRAP_USER_PASSWORD } = await import(
-  "../packages/dev-bootstrap/src/index.ts"
-);
+const { DEVELOPMENT_SEED_USERS } = await import("../packages/dev-bootstrap/src/index.ts");
 
 function readPgRows(result: unknown): Array<Record<string, unknown>> {
   if (Array.isArray(result)) {
@@ -113,9 +111,11 @@ async function main(): Promise<void> {
     roles: um.roles,
     users: um.users,
   });
-  console.log(
-    `[seed] login: ${DEVELOPMENT_BOOTSTRAP_USER_EMAIL} / ${DEVELOPMENT_BOOTSTRAP_USER_PASSWORD}`,
-  );
+  console.log("[seed] development sign-in (better-auth — capabilities from GET /auth/principal):");
+  for (const user of DEVELOPMENT_SEED_USERS) {
+    console.log(`  - ${user.description}`);
+    console.log(`    ${user.email} / ${user.password}`);
+  }
   console.log("[seed] cerbos: user.create, role.create, role.assign — OK");
 }
 

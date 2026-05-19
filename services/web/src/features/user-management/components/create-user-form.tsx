@@ -5,6 +5,8 @@ import { useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@pulse/ui/button';
 import type { CreateUserBody } from '../types';
+import { useCapability } from '@/hooks/use-capability';
+import { UM_ROLE_ASSIGN, UM_ROLE_READ } from '@/lib/runtime-capability-keys';
 import { useCreateUser } from '../api/mutations';
 import { roleCapabilitiesOptions, roleListOptions } from '../api/queries';
 import { useTenantStore } from '@/stores/tenant.store';
@@ -20,15 +22,15 @@ import {
 /** Maps form values to `POST /users` body. Exported for unit tests. */
 export function buildCreateUserRequestBody(
   values: CreateUserFormValues,
-  canManageAccess: boolean,
+  assignRoles: boolean,
   allRoleCapabilityIds: string[],
   /** Configurator organization id when super-admin picked org/tenant. */
   configuratorOrgId?: string | null,
 ): CreateUserBody {
-  const roleIds = canManageAccess ? values.role_template_ids : [];
+  const roleIds = assignRoles ? values.role_template_ids : [];
   let role_template_capability_ids: string[] | undefined;
 
-  if (canManageAccess && roleIds.length === 1 && allRoleCapabilityIds.length > 0) {
+  if (assignRoles && roleIds.length === 1 && allRoleCapabilityIds.length > 0) {
     const picked = values.role_capability_selection_ids.filter((id) =>
       allRoleCapabilityIds.includes(id),
     );
@@ -54,8 +56,6 @@ export function buildCreateUserRequestBody(
 }
 
 type CreateUserFormProps = {
-  canReadRoles: boolean;
-  canManageAccess: boolean;
   /** Platform super-admin: pick target hospital tenant for POST /users. */
   canSelectTargetTenant?: boolean;
   layout?: 'page' | 'dialog';
@@ -66,20 +66,20 @@ type CreateUserFormProps = {
 };
 
 export function CreateUserForm({
-  canReadRoles,
-  canManageAccess,
   canSelectTargetTenant = false,
   layout = 'page',
   navigateToProfileOnSuccess = true,
   onCancel,
   onCreated,
 }: CreateUserFormProps) {
+  const umRoleRead = useCapability(UM_ROLE_READ);
+  const umRoleAssign = useCapability(UM_ROLE_ASSIGN);
   const navigate = useNavigate();
   const create = useCreateUser();
   const activeTenantId = useTenantStore((s) => s.tenantId);
   const [targetTenantId, setTargetTenantId] = useState(activeTenantId ?? '');
   const [configuratorOrgId, setConfiguratorOrgId] = useState<string | null>(null);
-  const requireRoleTemplate = canManageAccess;
+  const requireRoleTemplate = umRoleAssign;
   /** Non–super-admin: always scope APIs to the signed-in tenant. Super-admin: selected catalog tenant. */
   const effectiveTenantId = canSelectTargetTenant
     ? targetTenantId || activeTenantId || ''
@@ -105,7 +105,7 @@ export function CreateUserForm({
 
   const rolesQuery = useQuery({
     ...roleListOptions(apiTenantScope),
-    enabled: canReadRoles && Boolean(effectiveTenantId),
+    enabled: umRoleRead && Boolean(effectiveTenantId),
     staleTime: 30_000,
   });
 
@@ -130,7 +130,7 @@ export function CreateUserForm({
     if (!requireRoleTemplate) {
       return;
     }
-    if (!canReadRoles) {
+    if (!umRoleRead) {
       return;
     }
     const roles = (rolesQuery.data ?? []).filter((role) => role.status === 'active');
@@ -141,12 +141,12 @@ export function CreateUserForm({
     if (current.length !== 1) {
       form.setValue('role_template_ids', [roles[0].id], { shouldValidate: true });
     }
-  }, [requireRoleTemplate, canReadRoles, rolesQuery.data, form]);
+  }, [requireRoleTemplate, umRoleRead, rolesQuery.data, form]);
 
   const selectedRoleTemplateIds = form.watch('role_template_ids');
   const selectedRoleId = selectedRoleTemplateIds[0] ?? '';
 
-  const roleCapabilitiesQueryEnabled = Boolean(selectedRoleId) && canReadRoles;
+  const roleCapabilitiesQueryEnabled = Boolean(selectedRoleId) && umRoleRead;
 
   const roleCapabilitiesQuery = useQuery({
     ...roleCapabilitiesOptions(selectedRoleId, apiTenantScope),
@@ -166,7 +166,7 @@ export function CreateUserForm({
   }, [targetTenantId, canSelectTargetTenant, form]);
 
   const roleTemplatesPending =
-    canReadRoles && rolesQuery.isFetching && rolesQuery.data === undefined;
+    umRoleRead && rolesQuery.isFetching && rolesQuery.data === undefined;
   const roleCapabilitiesPending =
     roleCapabilitiesQueryEnabled &&
     roleCapabilitiesQuery.isFetching &&
@@ -203,7 +203,7 @@ export function CreateUserForm({
 
   const roleAssignmentBlocked =
     requireRoleTemplate &&
-    (!canReadRoles || (rolesQuery.data !== undefined && availableRoles.length === 0));
+    (!umRoleRead || (rolesQuery.data !== undefined && availableRoles.length === 0));
   const roleCapabilitiesStillLoading =
     requireRoleTemplate &&
     Boolean(selectedRoleId) &&
@@ -212,7 +212,7 @@ export function CreateUserForm({
 
   const onSubmit = form.handleSubmit((values) => {
     if (
-      canManageAccess &&
+      umRoleAssign &&
       values.role_template_ids.length === 1 &&
       allRoleCapabilityIds.length > 0 &&
       values.role_capability_selection_ids.length === 0
@@ -229,7 +229,7 @@ export function CreateUserForm({
       {
         body: buildCreateUserRequestBody(
           values,
-          canManageAccess,
+          umRoleAssign,
           allRoleCapabilityIds,
           canSelectTargetTenant ? configuratorOrgId : null,
         ),
@@ -282,9 +282,6 @@ export function CreateUserForm({
         />
 
         <CreateUserAccessSection
-          canReadRoles={canReadRoles}
-          canReadRoleCapabilities={canReadRoles}
-          canManageAccess={canManageAccess}
           roleTemplates={availableRoles}
           roleTemplatesPending={roleTemplatesPending}
           roleTemplatesError={rolesQuery.isError}

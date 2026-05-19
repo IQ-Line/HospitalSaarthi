@@ -543,7 +543,6 @@ describe("OpenAPI/runtime coherence", () => {
       return [
         "/auth/me",
         "/auth/principal",
-        "/auth/permissions-map",
         "/capabilities",
         "/capabilities/assignable",
         "/capabilities/:id",

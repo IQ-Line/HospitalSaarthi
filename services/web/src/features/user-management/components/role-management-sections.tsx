@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import { CapabilityGate } from '@/components/capability-gate';
+import { useCapability } from '@/hooks/use-capability';
+import {
+  UM_CAPABILITY_READ,
+  UM_ROLE_CREATE,
+  UM_ROLE_DELETE,
+  UM_ROLE_UPDATE,
+} from '@/lib/runtime-capability-keys';
 import { Badge } from '@pulse/ui/badge';
 import { Button } from '@pulse/ui/button';
 import { Checkbox } from '@pulse/ui/checkbox';
@@ -30,8 +38,6 @@ type RoleListSectionProps = {
   totalRoleCount: number;
   roleSearch: string;
   selectedRoleId: string;
-  canCreateRoles: boolean;
-  canUpdateRoles: boolean;
   onRoleSearchChange: (value: string) => void;
   onSelectRole: (roleId: string) => void;
   onCreateRole: () => void;
@@ -42,28 +48,27 @@ export function RoleListSection({
   totalRoleCount,
   roleSearch,
   selectedRoleId,
-  canCreateRoles,
-  canUpdateRoles,
   onRoleSearchChange,
   onSelectRole,
   onCreateRole,
 }: RoleListSectionProps) {
+  const umRoleUpdate = useCapability(UM_ROLE_UPDATE);
   return (
     <UserManagementSectionCard
       title="Roles"
       description={
-        canUpdateRoles
+        umRoleUpdate
           ? 'Select a role to change it, or create a new one.'
           : 'Select a role to view its permissions.'
       }
       actions={
         <div className="flex items-center gap-2">
           <Badge variant="secondary">{roles.length} shown</Badge>
-          {canCreateRoles ? (
+          <CapabilityGate capability={UM_ROLE_CREATE}>
             <Button type="button" size="sm" onClick={onCreateRole}>
               Create role
             </Button>
-          ) : null}
+          </CapabilityGate>
         </div>
       }
       contentClassName="space-y-3"
@@ -255,7 +260,7 @@ export function treeBranchIds(nodes: CapabilityTreeNode[]): string[] {
 export function CapabilityTreeNodeRow({
   node,
   depth,
-  canWriteRoles,
+  capabilitiesEditable,
   selectedCapabilityIds,
   expandedBranchIds,
   forceExpanded,
@@ -268,7 +273,7 @@ export function CapabilityTreeNodeRow({
 }: {
   node: CapabilityTreeNode;
   depth: number;
-  canWriteRoles: boolean;
+  capabilitiesEditable: boolean;
   showCapabilityProvenance?: boolean;
   plainLanguage?: boolean;
   selectedCapabilityIds: Set<string>;
@@ -292,7 +297,7 @@ export function CapabilityTreeNodeRow({
         >
           <Checkbox
             checked={checked}
-            disabled={!canWriteRoles}
+            disabled={!capabilitiesEditable}
             onCheckedChange={() => onToggleCapability(capability.id)}
           />
           <div className="min-w-0 flex-1">
@@ -375,7 +380,7 @@ export function CapabilityTreeNodeRow({
 
         <Checkbox
           checked={checkedState}
-          disabled={!canWriteRoles || node.capabilityIds.length === 0}
+          disabled={!capabilitiesEditable || node.capabilityIds.length === 0}
           onCheckedChange={handleBranchCheckedChange}
         />
 
@@ -398,7 +403,7 @@ export function CapabilityTreeNodeRow({
               key={child.id}
               node={child}
               depth={depth + 1}
-              canWriteRoles={canWriteRoles}
+              capabilitiesEditable={capabilitiesEditable}
               selectedCapabilityIds={selectedCapabilityIds}
               assignedCapabilityIds={assignedCapabilityIds}
               expandedBranchIds={expandedBranchIds}
@@ -420,10 +425,6 @@ type RoleEditorDialogProps = {
   open: boolean;
   mode: 'create' | 'edit' | 'view';
   role: UmRole | null;
-  canCreateRoles: boolean;
-  canUpdateRoles: boolean;
-  canDeleteRoles: boolean;
-  canReadCapabilities: boolean;
   code: string;
   displayName: string;
   description: string;
@@ -462,10 +463,6 @@ export function RoleEditorDialog({
   open,
   mode,
   role,
-  canCreateRoles,
-  canUpdateRoles,
-  canDeleteRoles,
-  canReadCapabilities,
   code,
   displayName,
   description,
@@ -497,9 +494,12 @@ export function RoleEditorDialog({
   onDelete,
   showCapabilityProvenance = false,
 }: RoleEditorDialogProps) {
+  const umRoleCreate = useCapability(UM_ROLE_CREATE);
+  const umRoleUpdate = useCapability(UM_ROLE_UPDATE);
+  const umCapabilityRead = useCapability(UM_CAPABILITY_READ);
   const isCreate = mode === 'create';
   const isView = mode === 'view';
-  const canModifyRole = !isView && (isCreate ? canCreateRoles : canUpdateRoles);
+  const roleFormEditable = !isView && (isCreate ? umRoleCreate : umRoleUpdate);
   const capabilityTree = useMemo(() => buildCapabilityTree(capabilities), [capabilities]);
   const selectedCapabilityIdSet = useMemo(
     () => new Set(selectedCapabilityIds),
@@ -509,7 +509,7 @@ export function RoleEditorDialog({
     () => new Set(assignedCapabilityIds),
     [assignedCapabilityIds],
   );
-  const showFullCatalog = canReadCapabilities;
+  const showFullCatalog = umCapabilityRead;
   const permissionsPending = showFullCatalog
     ? isCreate
       ? assignableCatalogPending
@@ -608,7 +608,7 @@ export function RoleEditorDialog({
                   id="role-editor-code"
                   placeholder="e.g. clinical-admin"
                   value={code}
-                  disabled={!canModifyRole}
+                  disabled={!roleFormEditable}
                   onChange={(event) => onCodeChange(event.target.value)}
                 />
               </div>
@@ -619,7 +619,7 @@ export function RoleEditorDialog({
                   id="role-editor-name"
                   placeholder="Clinical administrator"
                   value={displayName}
-                  disabled={!canModifyRole}
+                  disabled={!roleFormEditable}
                   onChange={(event) => onDisplayNameChange(event.target.value)}
                 />
               </div>
@@ -630,12 +630,12 @@ export function RoleEditorDialog({
                   id="role-editor-description"
                   placeholder="Summarize who should receive this role."
                   value={description}
-                  disabled={!canModifyRole}
+                  disabled={!roleFormEditable}
                   onChange={(event) => onDescriptionChange(event.target.value)}
                 />
               </div>
 
-              {!canModifyRole ? (
+              {!roleFormEditable ? (
                 <p className="text-sm text-muted-foreground">
                   This editor is read-only for your account.
                 </p>
@@ -665,7 +665,7 @@ export function RoleEditorDialog({
                 </div>
               </div>
 
-              {!showFullCatalog && (isView || !canReadCapabilities) ? (
+              {!showFullCatalog && (isView || !umCapabilityRead) ? (
                 assignedCapabilitiesPending ? (
                   <p className="text-sm text-muted-foreground">Loading permissions for this role...</p>
                 ) : assignedCapabilitiesError ? (
@@ -683,7 +683,7 @@ export function RoleEditorDialog({
                         key={node.id}
                         node={node}
                         depth={0}
-                        canWriteRoles={canModifyRole}
+                        capabilitiesEditable={roleFormEditable}
                         selectedCapabilityIds={selectedCapabilityIdSet}
                         expandedBranchIds={expandedBranchIds}
                         forceExpanded={forceExpanded}
@@ -746,7 +746,7 @@ export function RoleEditorDialog({
                           key={node.id}
                           node={node}
                           depth={0}
-                          canWriteRoles={canModifyRole}
+                          capabilitiesEditable={roleFormEditable}
                           selectedCapabilityIds={selectedCapabilityIdSet}
                           assignedCapabilityIds={
                             !isCreate ? assignedCapabilityIdSet : undefined
@@ -770,15 +770,17 @@ export function RoleEditorDialog({
 
         <DialogFooter className="mx-0 mb-0 flex w-full shrink-0 items-center justify-between border-t px-4 py-3">
           <div>
-            {!isCreate && !isView && canDeleteRoles ? (
-              <Button
-                type="button"
-                variant="destructive"
-                disabled={deletePending}
-                onClick={onDelete}
-              >
-                {deletePending ? 'Deleting...' : 'Delete role'}
-              </Button>
+            {!isCreate && !isView ? (
+              <CapabilityGate capability={UM_ROLE_DELETE}>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={deletePending}
+                  onClick={onDelete}
+                >
+                  {deletePending ? 'Deleting...' : 'Delete role'}
+                </Button>
+              </CapabilityGate>
             ) : null}
           </div>
 
@@ -786,7 +788,7 @@ export function RoleEditorDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               {isView ? 'Close' : 'Cancel'}
             </Button>
-            {canModifyRole ? (
+            {roleFormEditable ? (
               <>
                 <Button type="button" variant="outline" disabled={!isDirty} onClick={onReset}>
                   Reset

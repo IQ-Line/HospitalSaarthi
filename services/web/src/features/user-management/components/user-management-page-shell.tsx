@@ -9,13 +9,13 @@ import {
   BreadcrumbSeparator,
 } from '@pulse/ui/breadcrumb';
 import { PageHeader } from '@/components/page-header';
+import { useAnyCapability, useCapability } from '@/hooks/use-capability';
 import {
-  canAccessRolesAdmin,
-  canAccessUsersSection,
-  canReadUsers,
-  canWriteUsers,
-} from '@/features/user-management/lib/um-permissions';
-import { usePermissionsStore } from '@/stores/permissions.store';
+  UM_ROLES_ADMIN_ANY,
+  UM_USER_CREATE,
+  UM_USER_READ,
+  UM_USERS_SECTION_ANY,
+} from '@/lib/runtime-capability-keys';
 
 type UserManagementSection = 'users' | 'roles';
 
@@ -42,9 +42,9 @@ function isSectionActive(pathname: string, section: UserManagementSection): bool
   return pathname === '/user-management' || (pathname.startsWith('/user-management/') && pathname !== '/user-management/roles');
 }
 
-function usersTabLabel(canRead: boolean, canWrite: boolean): string {
-  if (canRead) return 'Users';
-  if (canWrite) return 'Create user';
+function usersTabLabel(umUserRead: boolean, umUserCreate: boolean): string {
+  if (umUserRead) return 'Users';
+  if (umUserCreate) return 'Create user';
   return 'Users';
 }
 
@@ -57,10 +57,10 @@ export function UserManagementPageShell({
   pageContext,
   children,
 }: UserManagementPageShellProps) {
-  const canRead = usePermissionsStore(canReadUsers);
-  const canWrite = usePermissionsStore(canWriteUsers);
-  const showUsersTab = usePermissionsStore(canAccessUsersSection);
-  const showRolesTab = usePermissionsStore(canAccessRolesAdmin);
+  const umUserRead = useCapability(UM_USER_READ);
+  const umUserCreate = useCapability(UM_USER_CREATE);
+  const showUsersTab = useAnyCapability(UM_USERS_SECTION_ANY);
+  const showRolesTab = useAnyCapability(UM_ROLES_ADMIN_ANY);
 
   const visibleSections = sectionItems.filter((item) => {
     if (item.section === 'users') return showUsersTab;
@@ -105,7 +105,7 @@ export function UserManagementPageShell({
                     : 'inline-flex h-9 items-center whitespace-nowrap border-b-2 border-transparent px-3 text-sm text-foreground/70 transition-colors hover:text-foreground'
                 }
               >
-                {item.section === 'users' ? usersTabLabel(canRead, canWrite) : item.label}
+                {item.section === 'users' ? usersTabLabel(umUserRead, umUserCreate) : item.label}
               </Link>
             ))}
           </nav>

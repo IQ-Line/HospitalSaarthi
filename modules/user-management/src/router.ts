@@ -184,11 +184,6 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
     getTenantId,
     getUserId,
     getUserDeps: { userRepository },
-    uxPermissionMapDeps: {
-      userRepository,
-      getTenantId,
-      getUserId,
-    },
   });
 
   registerInternalDiagnosticsHandlers(fastify, {

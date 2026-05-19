@@ -12,7 +12,18 @@ import {
   DialogTitle,
 } from '@pulse/ui/dialog';
 import { Input } from '@pulse/ui/input';
+import { CapabilityGate } from '@/components/capability-gate';
 import { DataTable } from '@/components/data-table';
+import { useCapability } from '@/hooks/use-capability';
+import { isPlatformSuperAdminFromAccessToken } from '@/lib/platform-admin';
+import {
+  UM_CAPABILITY_READ,
+  UM_ROLE_READ,
+  UM_ROLES_ADMIN_ANY,
+  UM_USER_CREATE,
+  UM_USER_READ,
+  UM_USERS_SECTION_ANY,
+} from '@/lib/runtime-capability-keys';
 import {
   capabilityListOptions,
   roleListOptions,
@@ -21,15 +32,8 @@ import {
 } from '@/features/user-management/api/queries';
 import { CreateUserForm } from '@/features/user-management/components/create-user-form';
 import { UserManagementPageShell } from '@/features/user-management/components/user-management-page-shell';
-import { UserManagementSectionCard } from '@/features/user-management/components/user-management-section-card';
-import {
-  canAccessRolesAdmin,
-  canAccessUsersSection,
-  canReadUsers,
-  canSelectTenantOnUserCreate,
-  UM_MODULE,
-} from '@/features/user-management/lib/um-permissions';
 import type { UmUser } from '@/features/user-management/types';
+import { useAuthStore } from '@/stores/auth.store';
 import { usePermissionsStore } from '@/stores/permissions.store';
 
 export const Route = createFileRoute('/_authenticated/user-management/')({
@@ -38,24 +42,24 @@ export const Route = createFileRoute('/_authenticated/user-management/')({
     createUser: search.createUser === true || search.createUser === 'true',
   }),
   beforeLoad: () => {
-    const permissions = usePermissionsStore.getState();
-    if (!canAccessUsersSection(permissions)) {
-      if (canAccessRolesAdmin(permissions)) {
+    const p = usePermissionsStore.getState();
+    if (!p.hasAnyCapability(UM_USERS_SECTION_ANY)) {
+      if (p.hasAnyCapability(UM_ROLES_ADMIN_ANY)) {
         throw redirect({ to: '/user-management/roles' });
       }
       throw redirect({ to: '/dashboard' });
     }
   },
   loader: async ({ context }) => {
-    const permissions = usePermissionsStore.getState();
+    const p = usePermissionsStore.getState();
     const loads: Array<Promise<unknown>> = [];
-    if (canReadUsers(permissions)) {
+    if (p.hasCapability(UM_USER_READ)) {
       loads.push(context.queryClient.ensureQueryData(userListOptions()));
     }
-    if (permissions.hasFeaturePermission(UM_MODULE, 'roles', 'read')) {
+    if (p.hasCapability(UM_ROLE_READ)) {
       loads.push(context.queryClient.ensureQueryData(roleListOptions()));
     }
-    if (permissions.hasFeaturePermission(UM_MODULE, 'capabilities', 'read')) {
+    if (p.hasCapability(UM_CAPABILITY_READ)) {
       loads.push(context.queryClient.ensureQueryData(capabilityListOptions()));
     }
     await Promise.all(loads);
@@ -64,24 +68,18 @@ export const Route = createFileRoute('/_authenticated/user-management/')({
 });
 
 function UserManagementIndexPage() {
-  const canRead = usePermissionsStore(canReadUsers);
-  if (!canRead) {
+  const umUserRead = useCapability(UM_USER_READ);
+  if (!umUserRead) {
     return <CreateUserOnlyPage />;
   }
   return <UserManagementListPage />;
 }
 
 function CreateUserOnlyPage() {
-  const canReadRoles = usePermissionsStore((s) =>
-    s.hasFeaturePermission(UM_MODULE, 'roles', 'read'),
-  );
-  const canManageAccess = usePermissionsStore((s) =>
-    s.hasFeaturePermission(UM_MODULE, 'userAccess', 'write'),
-  );
-  const canWrite = usePermissionsStore((s) => s.hasFeaturePermission(UM_MODULE, 'users', 'write'));
-  const canAssignAccessOnCreate = canManageAccess || canWrite;
-
   const [createOpen, setCreateOpen] = useState(true);
+  const canSelectTargetTenant = isPlatformSuperAdminFromAccessToken(
+    useAuthStore.getState().accessToken,
+  );
 
   return (
     <>
@@ -90,9 +88,11 @@ function CreateUserOnlyPage() {
         title="Add a user"
         description="Create a new account for someone in your organization."
         actions={
-          <Button type="button" onClick={() => setCreateOpen(true)}>
-            Add user
-          </Button>
+          <CapabilityGate capability={UM_USER_CREATE}>
+            <Button type="button" onClick={() => setCreateOpen(true)}>
+              Add user
+            </Button>
+          </CapabilityGate>
         }
       >
         <p className="text-sm text-muted-foreground">
@@ -112,9 +112,7 @@ function CreateUserOnlyPage() {
           </div>
           <div className="flex min-h-0 flex-1 overflow-hidden p-4">
             <CreateUserForm
-              canReadRoles={canReadRoles}
-              canManageAccess={canAssignAccessOnCreate}
-              canSelectTargetTenant={canSelectTenantOnUserCreate()}
+              canSelectTargetTenant={canSelectTargetTenant}
               layout="dialog"
               onCancel={() => setCreateOpen(false)}
             />
@@ -129,15 +127,11 @@ function UserManagementListPage() {
   const { q, createUser } = Route.useSearch();
   const navigate = useNavigate();
   const { data: users } = useUserListSuspense();
-  const canCreate = usePermissionsStore((s) => s.hasFeaturePermission(UM_MODULE, 'users', 'write'));
-  const canReadUsersAfterCreate = usePermissionsStore(canReadUsers);
-  const canReadRoles = usePermissionsStore((s) =>
-    s.hasFeaturePermission(UM_MODULE, 'roles', 'read'),
+  const umUserCreate = useCapability(UM_USER_CREATE);
+  const umUserRead = useCapability(UM_USER_READ);
+  const canSelectTargetTenant = isPlatformSuperAdminFromAccessToken(
+    useAuthStore.getState().accessToken,
   );
-  const canManageAccess = usePermissionsStore((s) =>
-    s.hasFeaturePermission(UM_MODULE, 'userAccess', 'write'),
-  );
-  const canAssignAccessOnCreate = canManageAccess || canCreate;
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -194,11 +188,11 @@ function UserManagementListPage() {
         title="People"
         description="Find someone, open their profile, or add a new user."
         actions={
-          canCreate ? (
+          <CapabilityGate capability={UM_USER_CREATE}>
             <Button type="button" onClick={() => setCreateUserOpen(true)}>
               Add user
             </Button>
-          ) : null
+          </CapabilityGate>
         }
       >
         <div className="space-y-4">
@@ -226,7 +220,7 @@ function UserManagementListPage() {
         </div>
       </UserManagementPageShell>
 
-      {canCreate ? (
+      <CapabilityGate capability={UM_USER_CREATE}>
         <Dialog open={createUser} onOpenChange={setCreateUserOpen}>
           <DialogContent className="flex max-h-[min(88dvh,960px)] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-6xl">
             <div className="shrink-0 border-b p-4 pb-3">
@@ -240,17 +234,15 @@ function UserManagementListPage() {
 
             <div className="flex min-h-0 flex-1 overflow-hidden p-4">
               <CreateUserForm
-                canReadRoles={canReadRoles}
-                canManageAccess={canAssignAccessOnCreate}
-                canSelectTargetTenant={canSelectTenantOnUserCreate()}
+                canSelectTargetTenant={canSelectTargetTenant}
                 layout="dialog"
-                navigateToProfileOnSuccess={canReadUsersAfterCreate}
+                navigateToProfileOnSuccess={umUserRead}
                 onCancel={() => setCreateUserOpen(false)}
               />
             </div>
           </DialogContent>
         </Dialog>
-      ) : null}
+      </CapabilityGate>
     </>
   );
 }

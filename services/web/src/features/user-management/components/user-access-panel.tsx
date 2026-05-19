@@ -2,7 +2,10 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@pulse/ui/button';
 import { toast } from 'sonner';
+import { CapabilityGate } from '@/components/capability-gate';
 import { ConfirmDialog } from '@/components/confirm-dialog';
+import { useAnyCapability, useCapability } from '@/hooks/use-capability';
+import { UM_ROLE_ASSIGN, UM_ROLE_READ } from '@/lib/runtime-capability-keys';
 import { ApiError } from '@/lib/api-client';
 import { useDetachRoleTemplate } from '../api/mutations';
 import { roleListOptions, useUserCapabilities } from '../api/queries';
@@ -13,10 +16,6 @@ import { UserManagementSectionCard } from './user-management-section-card';
 
 type UserAccessPanelProps = {
   userId: string;
-  canViewUserAccess: boolean;
-  canReadRoles: boolean;
-  canReadRoleCapabilities: boolean;
-  canManageAccess: boolean;
 };
 
 function mutationErrorMessage(err: unknown): string {
@@ -35,40 +34,18 @@ function grantsForRole(grants: UserCapabilityGrant[], roleId: string): string[] 
     .map((grant) => grant.capability_id);
 }
 
-export function UserAccessPanel({
-  userId,
-  canViewUserAccess,
-  canReadRoles,
-  canReadRoleCapabilities,
-  canManageAccess,
-}: UserAccessPanelProps) {
-  if (!canViewUserAccess) {
+export function UserAccessPanel({ userId }: UserAccessPanelProps) {
+  const umRoleRead = useCapability(UM_ROLE_READ);
+  const umRoleAssign = useCapability(UM_ROLE_ASSIGN);
+  const showPanel = useAnyCapability([UM_ROLE_READ, UM_ROLE_ASSIGN]);
+
+  if (!showPanel) {
     return null;
   }
 
-  return (
-    <UserAccessPanelContent
-      userId={userId}
-      canReadRoles={canReadRoles}
-      canReadRoleCapabilities={canReadRoleCapabilities}
-      canManageAccess={canManageAccess}
-    />
-  );
-}
-
-type UserAccessPanelContentProps = Omit<UserAccessPanelProps, 'canViewUserAccess'> & {
-  userId: string;
-};
-
-function UserAccessPanelContent({
-  userId,
-  canReadRoles,
-  canReadRoleCapabilities,
-  canManageAccess,
-}: UserAccessPanelContentProps) {
   const rolesQuery = useQuery({
     ...roleListOptions(),
-    enabled: canReadRoles,
+    enabled: umRoleRead,
     staleTime: 30_000,
   });
   const capabilitiesSnapshotQuery = useUserCapabilities(userId, true);
@@ -106,11 +83,13 @@ function UserAccessPanelContent({
         description="What this person can do in the system, based on their assigned roles."
         contentClassName="space-y-4"
         actions={
-          canManageAccess && canReadRoles ? (
-            <Button type="button" size="sm" onClick={() => setAssignOpen(true)}>
-              Add role
-            </Button>
-          ) : null
+          <CapabilityGate capability={UM_ROLE_READ}>
+            <CapabilityGate capability={UM_ROLE_ASSIGN}>
+              <Button type="button" size="sm" onClick={() => setAssignOpen(true)}>
+                Add role
+              </Button>
+            </CapabilityGate>
+          </CapabilityGate>
         }
       >
         {capabilitiesSnapshotQuery.isPending ? (
@@ -120,7 +99,9 @@ function UserAccessPanelContent({
         ) : appliedRoles.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No roles assigned yet.
-            {canManageAccess ? ' Use Add role to get started.' : null}
+            <CapabilityGate capability={UM_ROLE_ASSIGN}>
+              <span> Use Add role to get started.</span>
+            </CapabilityGate>
           </p>
         ) : (
           <ul className="divide-y rounded-lg border">
@@ -146,9 +127,9 @@ function UserAccessPanelContent({
                       size="sm"
                       onClick={() => setEditingRole(applied)}
                     >
-                      {canManageAccess ? 'Change access' : 'View access'}
+                      {umRoleAssign ? 'Change access' : 'View access'}
                     </Button>
-                    {canManageAccess ? (
+                    <CapabilityGate capability={UM_ROLE_ASSIGN}>
                       <Button
                         type="button"
                         variant="ghost"
@@ -157,7 +138,7 @@ function UserAccessPanelContent({
                       >
                         Remove
                       </Button>
-                    ) : null}
+                    </CapabilityGate>
                   </div>
                 </li>
               );
@@ -171,8 +152,6 @@ function UserAccessPanelContent({
         onOpenChange={setAssignOpen}
         userId={userId}
         availableRoles={availableRoles}
-        canReadRoleCapabilities={canReadRoleCapabilities}
-        canManageAccess={canManageAccess}
       />
 
       <ManageRolePermissionsDialog
@@ -185,8 +164,6 @@ function UserAccessPanelContent({
         grantedCapabilityIds={
           editingRole ? grantsForRole(copiedGrants, editingRole.role_id) : []
         }
-        canManageAccess={canManageAccess}
-        canReadRoleCapabilities={canReadRoleCapabilities}
       />
 
       <ConfirmDialog

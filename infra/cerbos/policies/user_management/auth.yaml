@@ -1,9 +1,7 @@
 # User Management — Auth endpoints (UX/shell support)
 #
-# `/auth/me`, `/auth/principal`, `/auth/permissions-map` are used by the frontend
-# to fetch:
-# - the PDP-enriched principal snapshot
-# - the Cerbos-aligned UX permission map
+# `/auth/me` and `/auth/principal` are used by the frontend to fetch the
+# PDP-enriched principal snapshot (including runtime capability keys).
 #
 # These endpoints do not expose other users' clinical/operational data; they only
 # support UX gating. They must therefore not depend on `um:user:read`.

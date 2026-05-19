@@ -18,6 +18,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@pulse/ui/select';
+import { CapabilityGate } from '@/components/capability-gate';
+import { useCapability } from '@/hooks/use-capability';
+import { UM_ROLE_ASSIGN, UM_ROLE_READ } from '@/lib/runtime-capability-keys';
 import type { Capability, UmRole } from '../types';
 import {
   buildCapabilityTree,
@@ -161,9 +164,6 @@ export function CreateUserWorkplaceSection({
 }
 
 type CreateUserAccessSectionProps = {
-  canReadRoles: boolean;
-  canReadRoleCapabilities: boolean;
-  canManageAccess: boolean;
   roleTemplates: UmRole[];
   roleTemplatesPending: boolean;
   roleTemplatesError: boolean;
@@ -175,9 +175,6 @@ type CreateUserAccessSectionProps = {
 };
 
 export function CreateUserAccessSection({
-  canReadRoles,
-  canReadRoleCapabilities,
-  canManageAccess,
   roleTemplates,
   roleTemplatesPending,
   roleTemplatesError,
@@ -187,6 +184,8 @@ export function CreateUserAccessSection({
   control,
   errors,
 }: CreateUserAccessSectionProps) {
+  const umRoleRead = useCapability(UM_ROLE_READ);
+  const umRoleAssign = useCapability(UM_ROLE_ASSIGN);
   const [expandedBranchIds, setExpandedBranchIds] = useState<Set<string>>(new Set());
 
   const capabilityTree = useMemo(() => buildCapabilityTree(roleCapabilities), [roleCapabilities]);
@@ -226,7 +225,7 @@ export function CreateUserAccessSection({
   };
 
   let roleBlock: ReactNode;
-  if (!canReadRoles) {
+  if (!umRoleRead) {
     roleBlock = (
       <p className="text-sm text-muted-foreground">
         You can create the user, but you do not have permission to review roles.
@@ -244,7 +243,7 @@ export function CreateUserAccessSection({
     roleBlock = (
       <div className="space-y-2">
         <Label htmlFor="c_role_template">
-          {canManageAccess ? 'Role (required)' : 'Role'}
+          {umRoleAssign ? 'Role (required)' : 'Role'}
         </Label>
         <Controller
           control={control}
@@ -253,7 +252,7 @@ export function CreateUserAccessSection({
             const selectedId = field.value[0] ?? roleTemplates[0]?.id ?? '';
             return (
               <Select
-                disabled={!canManageAccess}
+                disabled={!umRoleAssign}
                 value={selectedId}
                 onValueChange={(value) => {
                   field.onChange([value]);
@@ -274,7 +273,7 @@ export function CreateUserAccessSection({
           }}
         />
         <p className="text-xs text-muted-foreground">
-          {canManageAccess
+          {umRoleAssign
             ? 'Choose a role, then tick the permissions they should have.'
             : 'You can review the role but cannot change it.'}
         </p>
@@ -283,7 +282,7 @@ export function CreateUserAccessSection({
   }
 
   let treeBlock: ReactNode;
-  if (!canReadRoleCapabilities) {
+  if (!umRoleRead) {
     treeBlock = (
       <p className="text-sm text-muted-foreground">
         You do not have permission to view this role&apos;s permissions.
@@ -310,7 +309,7 @@ export function CreateUserAccessSection({
             <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <Badge variant="secondary">{field.value.length} selected</Badge>
-                {canManageAccess ? (
+                <CapabilityGate capability={UM_ROLE_ASSIGN}>
                   <div className="flex flex-wrap gap-2">
                     <Button
                       type="button"
@@ -334,7 +333,7 @@ export function CreateUserAccessSection({
                       Clear all
                     </Button>
                   </div>
-                ) : null}
+                </CapabilityGate>
               </div>
               <div className="space-y-4">
                 {capabilityTree.map((node) => (
@@ -342,7 +341,7 @@ export function CreateUserAccessSection({
                     key={node.id}
                     node={node}
                     depth={0}
-                    canWriteRoles={canManageAccess}
+                    capabilitiesEditable={umRoleAssign}
                     selectedCapabilityIds={selectedSet}
                     expandedBranchIds={expandedBranchIds}
                     forceExpanded={false}

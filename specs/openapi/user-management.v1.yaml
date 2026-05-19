@@ -103,40 +103,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorMessage"
-  /auth/permissions-map:
-    get:
-      tags:
-        - Auth
-      summary: Cerbos-backed SPA permission map (UX only)
-      description: >
-        Returns a nested map (module → feature → action → boolean) derived from the same Cerbos PDP
-        checks as User Management APIs. Intended for frontend navigation and control visibility only;
-        every protected API must still enforce authorization server-side.
-      parameters:
-        - $ref: "#/components/parameters/IqTenantIdHeader"
-      responses:
-        "200":
-          description: Permission map for the authenticated principal in the active tenant.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PermissionsUxMapResponse"
-        "400":
-          description: Request validation error (including tenant header/JWT mismatch when header is provided).
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorMessage"
-        "401":
-          description: Missing or invalid bearer token.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorMessage"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "500":
-          $ref: "#/components/responses/InternalError"
   /capabilities:
     get:
       tags:
@@ -1497,24 +1463,6 @@ components:
           type: integer
           minimum: 0
           maximum: 3
-    PermissionsUxMap:
-      type: object
-      description: >
-        Nested map keyed by module id (e.g. user-management), then feature id (e.g. users), then action id (e.g. read).
-        Values are Cerbos-backed UX hints from GET /auth/permissions-map.
-      additionalProperties:
-        type: object
-        additionalProperties:
-          type: object
-          additionalProperties:
-            type: boolean
-    PermissionsUxMapResponse:
-      type: object
-      required:
-        - map
-      properties:
-        map:
-          $ref: "#/components/schemas/PermissionsUxMap"
     ErrorMessage:
       type: object
       required:

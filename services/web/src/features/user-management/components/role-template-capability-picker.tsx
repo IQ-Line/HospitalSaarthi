@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Badge } from '@pulse/ui/badge';
 import { Button } from '@pulse/ui/button';
+import { CapabilityGate } from '@/components/capability-gate';
+import { useCapability } from '@/hooks/use-capability';
+import { UM_ROLE_ASSIGN, UM_ROLE_READ } from '@/lib/runtime-capability-keys';
 import { roleCapabilitiesOptions } from '../api/queries';
 import type { ApplyRoleTemplateBody } from '../types';
 import {
@@ -36,34 +39,28 @@ export function buildApplyRoleTemplateRequestBody(
 
 type RoleTemplateCapabilityPickerProps = {
   roleId: string;
-  /** PDP: GET /roles/:id/capabilities uses role.read. */
-  canReadRoleCapabilities: boolean;
-  canManageAccess: boolean;
   selectedCapabilityIds: string[];
   onSelectedCapabilityIdsChange: (capabilityIds: string[]) => void;
-  /** When false, does not auto-select every capability after the role catalog loads. */
   selectAllCapabilitiesOnLoad?: boolean;
-  /** Seeds selection when the role catalog loads (e.g. capabilities already granted to the user). */
   initialSelectedCapabilityIds?: string[];
-  /** Hides technical permission codes in the checklist. */
   plainLanguage?: boolean;
 };
 
 export function RoleTemplateCapabilityPicker({
   roleId,
-  canReadRoleCapabilities,
-  canManageAccess,
   selectedCapabilityIds,
   onSelectedCapabilityIdsChange,
   selectAllCapabilitiesOnLoad = true,
   initialSelectedCapabilityIds,
   plainLanguage = false,
 }: RoleTemplateCapabilityPickerProps) {
+  const umRoleRead = useCapability(UM_ROLE_READ);
+  const umRoleAssign = useCapability(UM_ROLE_ASSIGN);
   const [expandedBranchIds, setExpandedBranchIds] = useState<Set<string>>(new Set());
 
   const roleCapabilitiesQuery = useQuery({
     ...roleCapabilitiesOptions(roleId),
-    enabled: Boolean(roleId) && canReadRoleCapabilities,
+    enabled: Boolean(roleId) && umRoleRead,
     staleTime: 30_000,
   });
 
@@ -93,23 +90,20 @@ export function RoleTemplateCapabilityPicker({
   }, [capabilityTree]);
 
   useEffect(() => {
-    const caps = roleCapabilitiesQuery.data;
-    if (!caps?.length) {
-      onSelectedCapabilityIdsChange([]);
+    if (!selectAllCapabilitiesOnLoad || roleCapabilities.length === 0) {
       return;
     }
-    if (initialSelectedCapabilityIds !== undefined) {
-      const allowed = new Set(caps.map((capability) => capability.id));
-      onSelectedCapabilityIdsChange(
-        initialSelectedCapabilityIds.filter((capabilityId) => allowed.has(capabilityId)),
-      );
+    if (initialSelectedCapabilityIds && initialSelectedCapabilityIds.length > 0) {
+      onSelectedCapabilityIdsChange(initialSelectedCapabilityIds);
       return;
     }
-    if (selectAllCapabilitiesOnLoad) {
-      onSelectedCapabilityIdsChange(caps.map((capability) => capability.id));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- selection resets when role catalog loads
-  }, [roleId, roleCapabilitiesQuery.data, initialSelectedCapabilityIds, selectAllCapabilitiesOnLoad]);
+    onSelectedCapabilityIdsChange(roleCapabilities.map((c) => c.id));
+  }, [
+    roleCapabilities,
+    selectAllCapabilitiesOnLoad,
+    initialSelectedCapabilityIds,
+    onSelectedCapabilityIdsChange,
+  ]);
 
   const handleToggleBranch = (nodeId: string) => {
     setExpandedBranchIds((current) => {
@@ -123,51 +117,44 @@ export function RoleTemplateCapabilityPicker({
     });
   };
 
-  let content: ReactNode;
-  if (!canReadRoleCapabilities) {
-    content = (
+  let body: ReactNode;
+  if (!umRoleRead) {
+    body = (
       <p className="text-sm text-muted-foreground">
         You do not have permission to view this role&apos;s permissions.
       </p>
     );
   } else if (roleCapabilitiesQuery.isPending) {
-    content = <p className="text-sm text-muted-foreground">Loading permissions...</p>;
+    body = <p className="text-sm text-muted-foreground">Loading permissions...</p>;
   } else if (roleCapabilitiesQuery.isError) {
-    content = <p className="text-sm text-destructive">Could not load permissions. Try again.</p>;
+    body = <p className="text-sm text-destructive">Could not load permissions for this role.</p>;
   } else if (roleCapabilities.length === 0) {
-    content = <p className="text-sm text-muted-foreground">This role has no permissions set up yet.</p>;
+    body = (
+      <p className="text-sm text-muted-foreground">
+        This role has no permissions set up yet.
+      </p>
+    );
   } else {
     const selectedSet = new Set(selectedCapabilityIds);
-    content = (
-      <>
+    body = (
+      <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <Badge variant="secondary">
-            {selectedCapabilityIds.length} selected
-          </Badge>
-          {canManageAccess ? (
+          <Badge variant="secondary">{selectedCapabilityIds.length} selected</Badge>
+          <CapabilityGate capability={UM_ROLE_ASSIGN}>
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  onSelectedCapabilityIdsChange(roleCapabilities.map((capability) => capability.id));
-                }}
+                onClick={() => onSelectedCapabilityIdsChange(roleCapabilities.map((c) => c.id))}
               >
                 Select all
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  onSelectedCapabilityIdsChange([]);
-                }}
-              >
+              <Button type="button" variant="outline" size="sm" onClick={() => onSelectedCapabilityIdsChange([])}>
                 Clear all
               </Button>
             </div>
-          ) : null}
+          </CapabilityGate>
         </div>
         <div className="space-y-4">
           {capabilityTree.map((node) => (
@@ -175,7 +162,7 @@ export function RoleTemplateCapabilityPicker({
               key={node.id}
               node={node}
               depth={0}
-              canWriteRoles={canManageAccess}
+              capabilitiesEditable={umRoleAssign}
               selectedCapabilityIds={selectedSet}
               expandedBranchIds={expandedBranchIds}
               forceExpanded={false}
@@ -191,9 +178,9 @@ export function RoleTemplateCapabilityPicker({
             />
           ))}
         </div>
-      </>
+      </div>
     );
   }
 
-  return <div className="space-y-3 rounded-lg border p-3">{content}</div>;
+  return <>{body}</>;
 }
