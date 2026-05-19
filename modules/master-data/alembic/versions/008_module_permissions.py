@@ -1,4 +1,4 @@
-"""Add module_permissions junction table (`public.module_permissions`).
+"""Add module_permissions junction table (`global_master.module_permissions`).
 
 Revision ID: 008_module_permissions
 Revises: 007_system_roles_catalog
@@ -12,6 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 from alembic import op
+from schema_names import GLOBAL_SCHEMA as _GM, TENANT_SCHEMA as _TM
 
 revision: str = "008_module_permissions"
 down_revision: str | Sequence[str] | None = "007_system_roles_catalog"
@@ -63,6 +64,7 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.func.now(),
         ),
+        schema=_GM,
     )
 
     op.create_foreign_key(
@@ -86,11 +88,13 @@ def upgrade() -> None:
         "idx_module_permissions_module",
         "module_permissions",
         ["module_id"],
+        schema=_GM,
     )
     op.create_index(
         "idx_module_permissions_permission",
         "module_permissions",
         ["permission_id"],
+        schema=_GM,
     )
 
     op.execute(
@@ -113,7 +117,7 @@ def upgrade() -> None:
         DO $$
         BEGIN
             IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'create_reference_table') THEN
-                PERFORM create_reference_table('module_permissions');
+                PERFORM create_reference_table('global_master.module_permissions');
             END IF;
         EXCEPTION
             WHEN duplicate_object THEN
@@ -127,17 +131,21 @@ def downgrade() -> None:
     op.drop_index(
         "module_permissions_module_permission_active_key",
         table_name="module_permissions",
+        schema=_GM,
     )
     op.drop_index(
         "module_permissions_slug_active_key",
         table_name="module_permissions",
+        schema=_GM,
     )
     op.drop_index(
         "idx_module_permissions_permission",
         table_name="module_permissions",
+        schema=_GM,
     )
     op.drop_index(
         "idx_module_permissions_module",
         table_name="module_permissions",
+        schema=_GM,
     )
     op.drop_table("module_permissions")

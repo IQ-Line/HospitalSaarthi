@@ -17,6 +17,7 @@ from collections.abc import Sequence
 from sqlalchemy import text
 
 from alembic import op
+from schema_names import GLOBAL_SCHEMA as _GM, TENANT_SCHEMA as _TM
 
 revision: str = "021_alembic_ver_num_128"
 down_revision: str | Sequence[str] | None = "020_vp_disp_nm_audit_cols"

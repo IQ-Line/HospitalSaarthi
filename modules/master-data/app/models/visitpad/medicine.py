@@ -1,4 +1,4 @@
-"""SQLAlchemy models for Visitpad ``medicines`` — global vs ``tenant_master``."""
+"""SQLAlchemy models for Visitpad ``medicines`` — global_master vs ``tenant_master``."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import uuid
 from sqlalchemy import Boolean, Float, Index, Integer, JSON, String, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.catalog_schemas import GLOBAL_SCHEMA, TENANT_SCHEMA
 from app.models.base import AuditActorMixin, Base, TimestampMixin
 
 
@@ -20,6 +21,7 @@ class VisitpadMedicinePublicModel(TimestampMixin, AuditActorMixin, Base):
             postgresql_where=text("NOT is_deleted"),
             sqlite_where=text("is_deleted = 0"),
         ),
+        {"schema": GLOBAL_SCHEMA},
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -89,7 +91,7 @@ class VisitpadMedicineTenantModel(TimestampMixin, AuditActorMixin, Base):
             postgresql_where=text("NOT is_deleted"),
             sqlite_where=text("is_deleted = 0"),
         ),
-        {"schema": "tenant_master"},
+        {"schema": TENANT_SCHEMA},
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)

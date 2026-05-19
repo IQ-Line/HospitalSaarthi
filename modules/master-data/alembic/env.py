@@ -1,8 +1,14 @@
+import sys
 from logging.config import fileConfig
+from pathlib import Path
 
-from sqlalchemy import engine_from_config, pool
+# Migration revisions import alembic/schema_names.py without pulling in the app package.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from sqlalchemy import engine_from_config, pool, text
 
 from alembic import context
+from app.core.catalog_schemas import GLOBAL_SCHEMA, TENANT_SCHEMA
 from app.core.config import get_settings
 from app.models import Base
 
@@ -18,6 +24,14 @@ def get_url() -> str:
     return get_settings().database_url
 
 
+def _ensure_catalog_schemas(connection) -> None:
+    connection.execute(text(f"CREATE SCHEMA IF NOT EXISTS {GLOBAL_SCHEMA}"))
+    connection.execute(text(f"CREATE SCHEMA IF NOT EXISTS {TENANT_SCHEMA}"))
+    connection.execute(
+        text(f"SET search_path TO {GLOBAL_SCHEMA}, {TENANT_SCHEMA}, public"),
+    )
+
+
 def run_migrations_offline() -> None:
     context.configure(
         url=get_url(),
@@ -25,6 +39,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         include_schemas=True,
+        version_table_schema="public",
     )
 
     with context.begin_transaction():
@@ -41,11 +56,13 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
 
-    with connectable.connect() as connection:
+    with connectable.begin() as connection:
+        _ensure_catalog_schemas(connection)
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
             include_schemas=True,
+            version_table_schema="public",
         )
 
         with context.begin_transaction():

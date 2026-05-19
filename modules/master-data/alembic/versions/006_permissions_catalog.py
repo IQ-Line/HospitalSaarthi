@@ -1,4 +1,4 @@
-"""Add permissions catalog table (`public.permissions`).
+"""Add permissions catalog table (`global_master.permissions`).
 
 Revision ID: 006_permissions_catalog
 Revises: 005_level_max_10
@@ -10,6 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 from alembic import op
+from schema_names import GLOBAL_SCHEMA as _GM, TENANT_SCHEMA as _TM
 
 revision: str = "006_permissions_catalog"
 down_revision: str | Sequence[str] | None = "005_level_max_10"
@@ -60,12 +61,13 @@ def upgrade() -> None:
             "action IN ('create', 'read', 'update', 'delete', 'manage')",
             name="permissions_action_check",
         ),
+        schema=_GM,
     )
 
     op.execute(
         """
         CREATE UNIQUE INDEX permissions_slug_active_key
-        ON public.permissions (slug)
+        ON global_master.permissions (slug)
         WHERE NOT is_deleted
         """
     )
@@ -75,7 +77,7 @@ def upgrade() -> None:
         DO $$
         BEGIN
             IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'create_reference_table') THEN
-                PERFORM create_reference_table('public.permissions');
+                PERFORM create_reference_table('global_master.permissions');
             END IF;
         EXCEPTION
             WHEN duplicate_object THEN

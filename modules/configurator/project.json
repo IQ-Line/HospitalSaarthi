@@ -11,13 +11,13 @@
       }
     },
     "db:migrate": {
-      "command": "tsx ../../tools/run-sql-migrations.mts --db-env DATABASE_URL ./../../infra/db/migrations/001_configurator_core_tables.sql",
+      "command": "tsx scripts/apply-migration.ts",
       "options": {
         "cwd": "modules/configurator"
       }
     },
     "db-migrate": {
-      "command": "tsx ../../tools/run-sql-migrations.mts --db-env DATABASE_URL ./../../infra/db/migrations/001_configurator_core_tables.sql",
+      "command": "tsx scripts/apply-migration.ts",
       "options": {
         "cwd": "modules/configurator"
       }

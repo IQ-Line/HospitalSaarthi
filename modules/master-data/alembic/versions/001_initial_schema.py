@@ -11,6 +11,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 from alembic import op
+from schema_names import GLOBAL_SCHEMA as _GM
 
 revision: str = "001_initial_schema"
 down_revision: str | Sequence[str] | None = None
@@ -47,6 +48,8 @@ CORE_MODULES = [
 
 
 def upgrade() -> None:
+    op.execute(sa.text(f"CREATE SCHEMA IF NOT EXISTS {_GM}"))
+
     op.create_table(
         "modules",
         sa.Column(
@@ -76,6 +79,7 @@ def upgrade() -> None:
             name="modules_category_check",
         ),
         sa.UniqueConstraint("name", name="modules_name_key"),
+        schema=_GM,
     )
 
     modules_table = sa.table(
@@ -84,23 +88,12 @@ def upgrade() -> None:
         sa.column("name", sa.String),
         sa.column("category", sa.String),
         sa.column("version", sa.String),
+        schema=_GM,
     )
     op.bulk_insert(modules_table, CORE_MODULES)
 
-    op.execute(
-        """
-        DO $$
-        BEGIN
-            IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'create_reference_table') THEN
-                PERFORM create_reference_table('public.modules');
-            END IF;
-        EXCEPTION
-            WHEN duplicate_object THEN
-                NULL;
-        END $$;
-        """
-    )
+    # Citus: create_reference_table runs in 002 after slug backfill (UPDATE before replicate).
 
 
 def downgrade() -> None:
-    op.drop_table("modules")
+    op.drop_table("modules", schema=_GM)
