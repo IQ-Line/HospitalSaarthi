@@ -5,7 +5,7 @@
 ## 0. Prerequisites
 
 - ABDM Sandbox account + client credentials (request from the project lead — credentials live in `env:ABDM_SANDBOX_CLIENT_ID` / `env:ABDM_SANDBOX_CLIENT_SECRET` **or** literal `process.env` keys resolved by [`EnvSecretsClient`](../../../../modules/abdm-adapter/src/data-access/env-secrets.client.ts)).
-- **Postgres URL for `abdm-adapter-svc`:** set **`DATABASE_URL`** (preferred) or **`ABDM_DATA_DATABASE_URL`** to a **`postgresql://…`** URI. If you only have SQLAlchemy’s `postgresql+psycopg://…`, the service normalises that at boot — still **never commit** the real URL.
+- **Postgres URL for `abdm-adapter-svc`:** root **`DATABASE_URL`** (local Citus) or service **`ABDM_DATA_DATABASE_URL`** (dedicated override; wins when set). Use **`postgresql://…`** URIs. If you only have SQLAlchemy’s `postgresql+psycopg://…`, the service normalises that at boot — still **never commit** the real URL.
 - The reference impl at `hims/abdi-lims-backed/` cloned somewhere local. You will reference, **not copy**, its `milestone1CreationService.ts` and `tokenService.ts`.
 - Read in order: [01-overview.md](./01-overview.md), [02-m1-flows.md](./02-m1-flows.md), [03-phase-a-implementation-matrix.md](./03-phase-a-implementation-matrix.md), then this file.
 - **Postman:** repo file [`Milestone_1_Postman_Collection_18_08_2025_postman_collection_d202ddf09a.json`](../../../../Milestone_1_Postman_Collection_18_08_2025_postman_collection_d202ddf09a.json) — default sandbox hosts match `ABDM_GATEWAY_BASE_URL` / `ABDM_ABHA_API_BASE_URL` in `services/abdm-adapter-svc/src/main.ts`.

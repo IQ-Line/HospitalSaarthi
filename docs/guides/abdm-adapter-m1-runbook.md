@@ -68,7 +68,7 @@ This runs `tsx watch src/main.ts` with `cwd` = `services/abdm-adapter-svc` (see 
 | Variable | Required | Purpose |
 |----------|----------|---------|
 | `DATABASE_URL` | Yes* | Postgres for `abdm_adapter.abdm_sessions` (usually from root `.env`) |
-| `ABDM_DATA_DATABASE_URL` | No | Optional dedicated DB override (migration prefers this when set) |
+| `ABDM_DATA_DATABASE_URL` | No | Optional dedicated DB override (runtime + migrate prefer this when set) |
 | `ABDM_SANDBOX_CLIENT_ID` | Yes | NHA sandbox client id (alias: `clientId`) — service `.env` |
 | `ABDM_SANDBOX_CLIENT_SECRET` | Yes | NHA sandbox secret (alias: `clientSecret`) — service `.env` |
 | `ABDM_ADAPTER_SVC_PORT` | No | Default `3007` |

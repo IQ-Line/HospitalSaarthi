@@ -49,7 +49,7 @@ const fastifyAjv = {
 async function main() {
   if (!DATABASE_URL) {
     throw new Error(
-      "DATABASE_URL is required (postgresql://… or postgresql+psycopg://…)",
+      "DATABASE_URL or ABDM_DATA_DATABASE_URL is required (postgresql://… or postgresql+psycopg://…)",
     );
   }
 

@@ -1,14 +1,15 @@
 /**
- * Normalise `DATABASE_URL` for Node `pg`.
+ * Normalise a Postgres URL for Node `pg`.
+ * - Prefers `ABDM_DATA_DATABASE_URL` (dedicated DB override) over `DATABASE_URL`,
+ *   matching `scripts/migrate.mjs` and the `USER_MGMT_DATABASE_URL` convention
  * - Strips SQLAlchemy `postgresql+psycopg://` prefix
  * - Adds `sslmode=require` for Azure Postgres hosts when omitted
- * - Falls back to deprecated `ABDM_DATA_DATABASE_URL` when `DATABASE_URL` is unset
  */
 export function resolveDatabaseUrl(rawInput?: string): string {
   const raw = (
     rawInput ??
-    process.env["DATABASE_URL"] ??
     process.env["ABDM_DATA_DATABASE_URL"] ??
+    process.env["DATABASE_URL"] ??
     ""
   ).trim();
   if (!raw) return "";

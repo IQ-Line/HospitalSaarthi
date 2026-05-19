@@ -11,16 +11,13 @@ config({ path: path.join(serviceRoot, ".env"), override: true });
 
 export { serviceRoot };
 
-/** Map informal Postman-style keys and optional dedicated DB alias. */
+/** Map informal Postman-style keys (Postman env aliases). */
 export function normalizeAbdmEnvAliases(): void {
   if (!process.env["ABDM_SANDBOX_CLIENT_ID"] && process.env["clientId"]) {
     process.env["ABDM_SANDBOX_CLIENT_ID"] = process.env["clientId"];
   }
   if (!process.env["ABDM_SANDBOX_CLIENT_SECRET"] && process.env["clientSecret"]) {
     process.env["ABDM_SANDBOX_CLIENT_SECRET"] = process.env["clientSecret"];
-  }
-  if (!process.env["DATABASE_URL"]?.trim() && process.env["ABDM_DATA_DATABASE_URL"]?.trim()) {
-    process.env["DATABASE_URL"] = process.env["ABDM_DATA_DATABASE_URL"];
   }
 }
 
