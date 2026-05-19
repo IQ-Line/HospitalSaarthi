@@ -34,7 +34,10 @@ const upstreams: UpstreamRoute[] = [
     prefix: '/api/empi/v1',
     upstream: process.env['EMPI_URL'] ?? 'http://localhost:3002',
   },
-  // Add new module upstreams here as they come online:
+  {
+    prefix: '/api/billing/v1',
+    upstream: process.env['BILLING_URL'] ?? 'http://localhost:3003',
+  },
 ];
 
 const isProduction = process.env['NODE_ENV'] === 'production';
