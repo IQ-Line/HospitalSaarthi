@@ -1,4 +1,5 @@
 from app.models.base import Base
+from app.models.department import DepartmentModel, DepartmentPublicModel, DepartmentTenantModel
 from app.models.module import ModuleModel
 from app.models.module_permission import ModulePermissionModel
 from app.models.permission import PermissionModel
@@ -31,6 +32,9 @@ from app.models.visitpad.vaccine import VisitpadVaccineModel, VisitpadVaccinePub
 
 __all__ = [
     "Base",
+    "DepartmentModel",
+    "DepartmentPublicModel",
+    "DepartmentTenantModel",
     "ModuleModel",
     "ModulePermissionModel",
     "PermissionModel",

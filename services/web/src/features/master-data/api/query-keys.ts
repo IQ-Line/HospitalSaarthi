@@ -39,4 +39,8 @@ export const masterDataKeys = {
     ] as const,
   modulePermissionDetail: (id: string) =>
     [...masterDataKeys.modulePermissionsRoot(), id] as const,
+
+  departmentsRoot: () => [...masterDataKeys.all, 'departments'] as const,
+  departments: (type?: string) =>
+    [...masterDataKeys.departmentsRoot(), type ?? 'all'] as const,
 } as const;

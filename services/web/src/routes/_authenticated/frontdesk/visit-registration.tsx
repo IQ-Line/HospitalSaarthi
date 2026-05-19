@@ -126,16 +126,7 @@ function VisitRegistrationRoute() {
         referral: '',
         additional: '',
       },
-      vitals: {
-        weight_kg: null,
-        height_cm: null,
-        bp_systolic: null,
-        bp_diastolic: null,
-        pulse_bpm: null,
-        temp_celsius: null,
-        spo2_percent: null,
-        resp_rate_per_min: null,
-      },
+      vitals: {},
       appointment: {
         department_id: '',
         room_number: '',
@@ -239,7 +230,6 @@ function VisitRegistrationRoute() {
     mutationFn: (data: CreateVisitRequestBody) => {
       const idempotencyKey = submitIdempotencyKeyRef.current ?? crypto.randomUUID();
       submitIdempotencyKeyRef.current = idempotencyKey;
-      // Phase 1 only: registration-svc. Appointment + billing chain in executeCreateVisitFlow.
       return executeCreateVisitFlow(data, { idempotencyKey });
     },
     onSettled: () => {

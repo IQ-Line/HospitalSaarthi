@@ -27,3 +27,4 @@ export {
   useUpdateModulePermission,
   useDeleteModulePermission,
 } from './module-permissions';
+export { useDepartments } from './departments';
