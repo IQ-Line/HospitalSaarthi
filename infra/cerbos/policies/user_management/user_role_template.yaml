@@ -23,6 +23,18 @@ resourcePolicy:
             )
 
     - actions:
+        - "role.assign"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "um:role:assign" in request.principal.attr.capabilities ||
+              "um:role:assign" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
         - "role.revoke"
       roles: ["*"]
       effect: EFFECT_ALLOW

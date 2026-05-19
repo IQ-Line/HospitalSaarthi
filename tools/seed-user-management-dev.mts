@@ -5,7 +5,12 @@
  * Usage: pnpm seed:user-management-dev
  * Prerequisites: migrations applied on hims-master, hims-configurator, hims-user-management
  */
-import { createDb, sql } from "../packages/ts-sdk-db/src/index.ts";
+import {
+  assertConfiguratorDatabaseIsolation,
+  assertUserManagementDatabaseIsolation,
+  createDb,
+  sql,
+} from "../packages/ts-sdk-db/src/index.ts";
 
 const { printSummary, seedError, seedLog } = await import("./seed-user-management-dev/log.ts");
 const { loadWorkspaceEnv, normalizePostgresUrl, requireEnv } = await import(
@@ -71,6 +76,11 @@ async function main(): Promise<void> {
   await assertSchemaExists(configuratorUrl, "configurator");
   await assertSchemaExists(userMgmtUrl, "user_management");
 
+  const umDb = createDb(userMgmtUrl);
+  await assertUserManagementDatabaseIsolation({ db: umDb, connectionString: userMgmtUrl });
+  const cfgDb = createDb(configuratorUrl);
+  await assertConfiguratorDatabaseIsolation({ db: cfgDb, connectionString: configuratorUrl });
+
   seedLog("master-data", "seeding catalog");
   const md = await seedMasterData(masterDataUrl);
 
@@ -85,8 +95,8 @@ async function main(): Promise<void> {
     jwtAudience,
   });
 
-  const db = createDb(normalizePostgresUrl(userMgmtUrl));
-  const principalService = umSeed.buildPrincipalService(db);
+  const umDbForPrincipal = createDb(normalizePostgresUrl(userMgmtUrl));
+  const principalService = umSeed.buildPrincipalService(umDbForPrincipal);
 
   seedLog("cerbos", "validating authorization", { cerbosUrl });
   const cerbos = await validateCerbosForBootstrapUser(cerbosUrl, principalService);

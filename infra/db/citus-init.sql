@@ -6,8 +6,8 @@ CREATE EXTENSION IF NOT EXISTS citus;
 CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Create module schemas
+-- Legacy monolith (hims_dev) schema shells only.
+-- Per-module databases (hims-user-management, hims-configurator, hims-master) get schemas from module migrations.
 CREATE SCHEMA IF NOT EXISTS user_management;
-CREATE SCHEMA IF NOT EXISTS configurator;
 CREATE SCHEMA IF NOT EXISTS empi;
 CREATE SCHEMA IF NOT EXISTS master_data;

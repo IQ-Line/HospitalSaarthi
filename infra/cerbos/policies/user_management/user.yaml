@@ -30,6 +30,19 @@ resourcePolicy:
               "um:user:create" in request.principal.attr.delegated_capabilities
             )
 
+  # Platform super-admin may provision users in a tenant selected in the shell (cross-tenant header).
+    - actions:
+        - "user.create"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "um:user:create" in request.principal.attr.capabilities ||
+              "um:user:create" in request.principal.attr.delegated_capabilities
+            )
+
     - actions:
         - "user.read"
       roles: ["*"]
@@ -59,6 +72,18 @@ resourcePolicy:
                 has(request.principal.attr.clearances) &&
                 size(request.principal.attr.clearances) > 0
               )
+            )
+
+    - actions:
+        - "user.read"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "um:user:read" in request.principal.attr.capabilities ||
+              "um:user:read" in request.principal.attr.delegated_capabilities
             )
 
     - actions:

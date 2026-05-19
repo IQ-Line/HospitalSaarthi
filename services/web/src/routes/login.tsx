@@ -12,11 +12,10 @@ import { refreshAuthorizationContext } from '@/lib/authorization-context';
 import { buildDevPermissionMap } from '@/lib/permissions-map';
 import { queryClient } from '@/lib/query-client';
 import { DEV_TENANT_IQ_CATALOG_UUID } from '@/lib/catalog-tenant';
+import { applyTenantSessionFromAuth } from '@/lib/tenant-session';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePermissionsStore } from '@/stores/permissions.store';
 import { useTenantStore } from '@/stores/tenant.store';
-
-const DEV_TENANT_ID = 'f47ac10b-58cc-4372-a567-0e02b2c3d480';
 
 const signInSchema = z.object({
   username: z.string().min(1, 'Username is required'),
@@ -72,12 +71,11 @@ function LoginPage() {
         return;
       }
       const jwt = await fetchJwt();
+      const authUser = data.user as { iq_tenant_id?: string };
       setSession({ accessToken: jwt, sessionToken, userId: data.user.id, displayName: data.user.name });
-      setTenant({
-        tenantId: DEV_TENANT_ID,
-        tenantName: 'Dev Hospital',
-        branches: [{ id: 'branch-001', name: 'Main Campus' }],
-        activeBranch: 'branch-001',
+      await applyTenantSessionFromAuth({
+        accessToken: jwt,
+        authUserIqTenantId: authUser.iq_tenant_id ?? null,
       });
       await refreshAuthorizationContext(queryClient);
       navigate({ to: '/dashboard' });
@@ -191,9 +189,9 @@ function LoginPage() {
               Tenant dev login (tenant catalog)
             </Button>
             <p className="pt-1 text-xs text-muted-foreground">
-              Dev shortcuts bypass better-auth. Real-login currently has a username/email field
-              mismatch and a hardcoded tenantId (tracked as a follow-up to wire username-primary
-              signin + JWT tenant claim).
+              Dev shortcuts bypass better-auth. Real sign-in uses the tenant on your account
+              (JWT <code className="text-[0.7rem]">iq_tenant_id</code>). Platform super-admins can
+              switch hospitals from the top bar after login.
             </p>
           </div>
         </CardContent>

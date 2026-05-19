@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from '@tanstack/react-router';
@@ -7,11 +7,13 @@ import { Button } from '@pulse/ui/button';
 import type { CreateUserBody } from '../types';
 import { useCreateUser } from '../api/mutations';
 import { roleCapabilitiesOptions, roleListOptions } from '../api/queries';
+import { useTenantStore } from '@/stores/tenant.store';
+import { CreateUserTenantField } from './create-user-tenant-field';
 import {
   buildCreateUserFormSchema,
   CreateUserAccessSection,
   CreateUserIdentitySection,
-  CreateUserOrganizationSection,
+  CreateUserWorkplaceSection,
   type CreateUserFormValues,
 } from './create-user-form-sections';
 
@@ -20,6 +22,8 @@ export function buildCreateUserRequestBody(
   values: CreateUserFormValues,
   canManageAccess: boolean,
   allRoleCapabilityIds: string[],
+  /** Configurator organization id when super-admin picked org/tenant. */
+  configuratorOrgId?: string | null,
 ): CreateUserBody {
   const roleIds = canManageAccess ? values.role_template_ids : [];
   let role_template_capability_ids: string[] | undefined;
@@ -52,6 +56,8 @@ export function buildCreateUserRequestBody(
 type CreateUserFormProps = {
   canReadRoles: boolean;
   canManageAccess: boolean;
+  /** Platform super-admin: pick target hospital tenant for POST /users. */
+  canSelectTargetTenant?: boolean;
   layout?: 'page' | 'dialog';
   /** When false, stay on the form after create (e.g. create-only admins without user.read). Default true. */
   navigateToProfileOnSuccess?: boolean;
@@ -62,6 +68,7 @@ type CreateUserFormProps = {
 export function CreateUserForm({
   canReadRoles,
   canManageAccess,
+  canSelectTargetTenant = false,
   layout = 'page',
   navigateToProfileOnSuccess = true,
   onCancel,
@@ -69,15 +76,36 @@ export function CreateUserForm({
 }: CreateUserFormProps) {
   const navigate = useNavigate();
   const create = useCreateUser();
+  const activeTenantId = useTenantStore((s) => s.tenantId);
+  const [targetTenantId, setTargetTenantId] = useState(activeTenantId ?? '');
+  const [configuratorOrgId, setConfiguratorOrgId] = useState<string | null>(null);
   const requireRoleTemplate = canManageAccess;
+  /** Non–super-admin: always scope APIs to the signed-in tenant. Super-admin: selected catalog tenant. */
+  const effectiveTenantId = canSelectTargetTenant
+    ? targetTenantId || activeTenantId || ''
+    : activeTenantId ?? '';
+  const apiTenantScope =
+    canSelectTargetTenant && targetTenantId ? targetTenantId : activeTenantId ?? undefined;
+
+  useEffect(() => {
+    if (!canSelectTargetTenant && activeTenantId) {
+      setTargetTenantId(activeTenantId);
+    }
+  }, [activeTenantId, canSelectTargetTenant]);
+
+  useEffect(() => {
+    if (canSelectTargetTenant && activeTenantId && !targetTenantId) {
+      setTargetTenantId(activeTenantId);
+    }
+  }, [canSelectTargetTenant, activeTenantId, targetTenantId]);
   const formSchema = useMemo(
     () => buildCreateUserFormSchema({ requireRoleTemplate }),
     [requireRoleTemplate],
   );
 
   const rolesQuery = useQuery({
-    ...roleListOptions(),
-    enabled: canReadRoles,
+    ...roleListOptions(apiTenantScope),
+    enabled: canReadRoles && Boolean(effectiveTenantId),
     staleTime: 30_000,
   });
 
@@ -89,7 +117,6 @@ export function CreateUserForm({
       password: '',
       phone: '',
       username: '',
-      org_id: '',
       department: '',
       clearance_tier_required: 0,
       role_template_ids: [],
@@ -122,10 +149,21 @@ export function CreateUserForm({
   const roleCapabilitiesQueryEnabled = Boolean(selectedRoleId) && canReadRoles;
 
   const roleCapabilitiesQuery = useQuery({
-    ...roleCapabilitiesOptions(selectedRoleId),
+    ...roleCapabilitiesOptions(selectedRoleId, apiTenantScope),
     enabled: roleCapabilitiesQueryEnabled,
     staleTime: 30_000,
   });
+
+  const prevRoleIdRef = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (!canSelectTargetTenant) {
+      return;
+    }
+    form.setValue('role_template_ids', [], { shouldValidate: true });
+    form.setValue('role_capability_selection_ids', [], { shouldValidate: true });
+    prevRoleIdRef.current = undefined;
+  }, [targetTenantId, canSelectTargetTenant, form]);
 
   const roleTemplatesPending =
     canReadRoles && rolesQuery.isFetching && rolesQuery.data === undefined;
@@ -140,7 +178,6 @@ export function CreateUserForm({
     [roleCapabilities],
   );
 
-  const prevRoleIdRef = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (!selectedRoleId) {
       form.setValue('role_capability_selection_ids', [], {
@@ -186,19 +223,32 @@ export function CreateUserForm({
       });
       return;
     }
-    create.mutate(buildCreateUserRequestBody(values, canManageAccess, allRoleCapabilityIds), {
-      onSuccess: (user) => {
-        if (navigateToProfileOnSuccess) {
-          void navigate({
-            to: '/user-management/$userId',
-            params: { userId: user.id },
-          });
-          return;
-        }
-        form.reset();
-        onCreated?.(user);
+    const tenantForCreate =
+      canSelectTargetTenant && targetTenantId.trim() ? targetTenantId.trim() : undefined;
+    create.mutate(
+      {
+        body: buildCreateUserRequestBody(
+          values,
+          canManageAccess,
+          allRoleCapabilityIds,
+          canSelectTargetTenant ? configuratorOrgId : null,
+        ),
+        targetTenantId: tenantForCreate,
       },
-    });
+      {
+        onSuccess: (user) => {
+          if (navigateToProfileOnSuccess) {
+            void navigate({
+              to: '/user-management/$userId',
+              params: { userId: user.id },
+            });
+            return;
+          }
+          form.reset();
+          onCreated?.(user);
+        },
+      },
+    );
   });
 
   const isDialog = layout === 'dialog';
@@ -217,7 +267,15 @@ export function CreateUserForm({
       >
         <CreateUserIdentitySection register={form.register} errors={form.formState.errors} />
 
-        <CreateUserOrganizationSection
+        {canSelectTargetTenant ? (
+          <CreateUserTenantField
+            tenantId={targetTenantId}
+            onTenantChange={setTargetTenantId}
+            onOrganizationChange={setConfiguratorOrgId}
+          />
+        ) : null}
+
+        <CreateUserWorkplaceSection
           register={form.register}
           errors={form.formState.errors}
           control={form.control}

@@ -21,12 +21,9 @@ export type RuntimeAuthorizationStartupDiagnostic = {
   detail?: Record<string, unknown>;
 };
 
-export type ModuleCatalogSource = "configurator" | "master_data";
-
 export type ValidateRuntimeAuthorizationStartupInput = {
   configuratorUrl: string;
   masterDataUrl: string;
-  moduleCatalogSource?: ModuleCatalogSource;
   capabilityRepository: CapabilityRepository;
 };
 
@@ -64,19 +61,7 @@ export async function validateRuntimeAuthorizationStartup(
     "CONFIGURATOR_URL",
     input.configuratorUrl,
   );
-  const moduleCatalogSource = input.moduleCatalogSource ?? "master_data";
-  const masterDataOk =
-    moduleCatalogSource === "configurator"
-      ? true
-      : requireNonEmptyUrl(diagnostics, "MASTER_DATA_URL", input.masterDataUrl);
-
-  if (moduleCatalogSource === "configurator") {
-    diagnostics.push({
-      level: "info",
-      code: "MODULE_CATALOG_SOURCE_CONFIGURATOR",
-      message: "Module slug resolution uses configurator.modules (Master Data URL not required)",
-    });
-  }
+  const masterDataOk = requireNonEmptyUrl(diagnostics, "MASTER_DATA_URL", input.masterDataUrl);
 
   const platformSlugs = normalizeModuleSlugSet([...PLATFORM_RUNTIME_MODULE_SLUGS]);
   if (platformSlugs.length !== PLATFORM_RUNTIME_MODULE_SLUGS.length) {

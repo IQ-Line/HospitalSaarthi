@@ -41,14 +41,24 @@ async function refreshSelfAuthorizationContextIfNeeded(
   await refreshAuthorizationContext(qc);
 }
 
+export type CreateUserMutationInput = {
+  body: CreateUserBody;
+  /** When set (platform super-admin), creates the user in this tenant via `iq_tenant_id` header. */
+  targetTenantId?: string;
+};
+
 export function useCreateUser() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: CreateUserBody) =>
-      apiClient<UmUser>(`${BASE}/users`, {
-        method: 'POST',
-        body: JSON.stringify(body),
-      }),
+    mutationFn: ({ body, targetTenantId }: CreateUserMutationInput) =>
+      apiClient<UmUser>(
+        `${BASE}/users`,
+        {
+          method: 'POST',
+          body: JSON.stringify(body),
+        },
+        targetTenantId ? { tenantIdOverride: targetTenantId } : undefined,
+      ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: userManagementKeys.userList() }).catch(() => {
         /* cache invalidation is best-effort */

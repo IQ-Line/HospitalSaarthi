@@ -30,6 +30,14 @@ function tenantPluginImpl(
       return;
     }
 
+    // Platform discovery: list organizations / tenants (Configurator admin catalog).
+    if (
+      /\/configurator\/v1\/organizations\/?$/.test(path) ||
+      /\/configurator\/v1\/tenants\/?$/.test(path)
+    ) {
+      return;
+    }
+
     const user = (request as unknown as Record<string, unknown>).user as
       | Record<string, unknown>
       | undefined;

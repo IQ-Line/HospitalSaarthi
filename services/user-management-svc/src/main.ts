@@ -1,6 +1,6 @@
 import sensible from "@fastify/sensible";
 import { assertCerbosReachable, authzPlugin } from "@hims/ts-sdk-authz";
-import { createDb } from "@hims/ts-sdk-db";
+import { assertUserManagementDatabaseIsolation, createDb } from "@hims/ts-sdk-db";
 import { createEventBus } from "@hims/ts-sdk-events";
 import { identityPlugin, validateAuthConfig } from "@hims/ts-sdk-identity";
 import Fastify, { type FastifyInstance } from "fastify";
@@ -94,10 +94,11 @@ function readTrustedOrigins(): string[] {
 }
 
 function requireDatabaseUrl(): string {
-  const databaseUrl = (process.env.USER_MGMT_DATABASE_URL ?? process.env.DATABASE_URL)?.trim();
+  const databaseUrl = process.env.USER_MGMT_DATABASE_URL?.trim();
   if (!databaseUrl || databaseUrl.length === 0) {
     throw new Error(
-      "USER_MGMT_DATABASE_URL is required (PostgreSQL database hims-user-management)",
+      "USER_MGMT_DATABASE_URL is required (PostgreSQL database hims-user-management). " +
+        "Do not use DATABASE_URL — Configurator uses a separate database (hims-configurator).",
     );
   }
   return databaseUrl;
@@ -126,7 +127,12 @@ async function createApp(): Promise<FastifyInstance> {
   const authBaseUrl = readAuthBaseUrl();
   normalizeIdentityJwksUrl(authBaseUrl);
   const identityAuth = validateAuthConfig();
-  const pgDb = createDb(requireDatabaseUrl());
+  const userMgmtDatabaseUrl = requireDatabaseUrl();
+  const pgDb = createDb(userMgmtDatabaseUrl);
+  await assertUserManagementDatabaseIsolation({
+    db: pgDb,
+    connectionString: userMgmtDatabaseUrl,
+  });
 
   const configuratorUrl = requireUpstreamBaseUrl("CONFIGURATOR_URL");
   const masterDataUrl = requireUpstreamBaseUrl("MASTER_DATA_URL");

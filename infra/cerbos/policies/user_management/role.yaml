@@ -20,6 +20,18 @@ resourcePolicy:
             )
 
     - actions:
+        - "role.read"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "um:role:read" in request.principal.attr.capabilities ||
+              "um:role:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
         - "role.create"
       roles: ["*"]
       effect: EFFECT_ALLOW

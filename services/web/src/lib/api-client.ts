@@ -1,3 +1,4 @@
+import type { ApiClientContext } from '@/lib/api-client-context';
 import { refreshAccessToken } from '@/lib/auth-session';
 import { catalogIqTenantHeaderValue } from '@/lib/catalog-tenant';
 import { useAuthStore } from '@/stores/auth.store';
@@ -16,8 +17,9 @@ function isWriteHttpMethod(method: string | undefined): boolean {
 export async function apiClient<T>(
   path: string,
   options: RequestInit = {},
+  context?: ApiClientContext,
 ): Promise<T> {
-  return apiClientInternal<T>(path, options, true);
+  return apiClientInternal<T>(path, options, true, context);
 }
 
 type ApiErrorBody = {
@@ -93,7 +95,7 @@ async function apiClientInternal<T>(
     if (canRetryWithFreshToken && isInvalidOrExpiredTokenResponse(response, body)) {
       const refreshedToken = await refreshAccessToken();
       if (refreshedToken) {
-        return apiClientInternal<T>(path, options, false);
+        return apiClientInternal<T>(path, options, false, context);
       }
     }
 

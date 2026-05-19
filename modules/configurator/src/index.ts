@@ -67,8 +67,4 @@ export {
   organizations,
   tenants,
   tenantModules,
-  modules,
-  permissions,
-  modulePermissions,
-  tenantPermissions,
 } from "./schema/tables.js";

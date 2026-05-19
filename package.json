@@ -11,6 +11,7 @@
     "dev:web-stack": "nx run-many -t serve -p web,bff,user-management-svc,configurator-svc,master-data --parallel=6",
     "dev:db-modules": "nx run configurator:db-migrate && nx run user-management:db-migrate",
     "seed:user-management-dev": "tsx tools/seed-user-management-dev.mts",
+    "repair:db-isolation": "tsx tools/repair-database-isolation.mts",
     "lint": "nx affected -t lint",
     "test": "nx affected -t test",
     "build": "nx run-many -t build",

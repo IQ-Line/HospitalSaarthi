@@ -1,7 +1,11 @@
 import Fastify from "fastify";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import { tenantPlugin } from "@hims/ts-sdk-tenant";
-import { createDb, type DbInstance } from "@hims/ts-sdk-db";
+import {
+  assertConfiguratorDatabaseIsolation,
+  createDb,
+  type DbInstance,
+} from "@hims/ts-sdk-db";
 import {
   createRouter,
   DrizzleOrganizationRepo,
@@ -21,12 +25,11 @@ const PORT = Number(
 );
 
 function requireConfiguratorDatabaseUrl(): string {
-  const databaseUrl = (
-    process.env.CONFIGURATOR_DATABASE_URL ?? process.env.DATABASE_URL
-  )?.trim();
+  const databaseUrl = process.env.CONFIGURATOR_DATABASE_URL?.trim();
   if (!databaseUrl || databaseUrl.length === 0) {
     throw new Error(
-      "CONFIGURATOR_DATABASE_URL is required (PostgreSQL database hims-configurator)",
+      "CONFIGURATOR_DATABASE_URL is required (PostgreSQL database hims-configurator). " +
+        "Do not use DATABASE_URL or USER_MGMT_DATABASE_URL — modules use separate databases.",
     );
   }
   return databaseUrl;
@@ -45,7 +48,12 @@ async function main() {
 
   app.get("/healthz", async () => ({ status: "ok" }));
 
-  const db = createDb(requireConfiguratorDatabaseUrl());
+  const configuratorDatabaseUrl = requireConfiguratorDatabaseUrl();
+  const db = createDb(configuratorDatabaseUrl);
+  await assertConfiguratorDatabaseIsolation({
+    db,
+    connectionString: configuratorDatabaseUrl,
+  });
 
   if (shouldRunDevelopmentBootstrap()) {
     const bootstrap = await runConfiguratorDevelopmentBootstrap(db);

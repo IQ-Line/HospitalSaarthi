@@ -17,3 +17,15 @@ resourcePolicy:
               "um:capability:read" in request.principal.attr.capabilities ||
               "um:capability:read" in request.principal.attr.delegated_capabilities
             )
+
+    - actions:
+        - "capability.read"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "um:capability:read" in request.principal.attr.capabilities ||
+              "um:capability:read" in request.principal.attr.delegated_capabilities
+            )

@@ -11,6 +11,7 @@ import { LogOut, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { Badge } from '@pulse/ui/badge';
 import { Button } from '@pulse/ui/button';
 import { AppSidebar } from '@/components/layout/app-sidebar';
+import { TenantSwitcher } from '@/features/auth/components/tenant-switcher';
 import { catalogIqTenantHeaderValue } from '@/lib/catalog-tenant';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePermissionsStore } from '@/stores/permissions.store';
@@ -154,7 +155,8 @@ function AuthenticatedLayout() {
               ) : null}
             </div>
           </div>
-          <Button type="button" variant="outline" size="sm" className="shrink-0 gap-1.5" onClick={handleLogout}>
+            <TenantSwitcher />
+            <Button type="button" variant="outline" size="sm" className="shrink-0 gap-1.5" onClick={handleLogout}>
             <LogOut className="size-3.5" aria-hidden />
             Log out
           </Button>

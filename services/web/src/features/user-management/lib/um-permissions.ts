@@ -1,4 +1,6 @@
+import { isPlatformSuperAdminFromAccessToken } from '@/lib/platform-admin';
 import type { PermissionsState } from '@/stores/permissions.store';
+import { useAuthStore } from '@/stores/auth.store';
 
 export const UM_MODULE = 'user-management' as const;
 
@@ -76,6 +78,11 @@ export function canAccessUsersSection(s: Pick<PermissionsState, 'hasFeaturePermi
 }
 
 /** Default landing route when opening User Management from the sidebar. */
+/** Platform super-admin may pick target tenant when creating users. */
+export function canSelectTenantOnUserCreate(): boolean {
+  return isPlatformSuperAdminFromAccessToken(useAuthStore.getState().accessToken);
+}
+
 export function userManagementSidebarTarget(s: Pick<PermissionsState, 'hasFeaturePermission'>): {
   to: '/user-management' | '/user-management/roles';
   search?: { q: string; createUser?: boolean };

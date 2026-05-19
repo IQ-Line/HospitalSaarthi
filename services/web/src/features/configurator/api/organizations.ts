@@ -1,11 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
+import { fetchOrganizations, organizationsQueryOptions } from './catalog';
 import { configuratorKeys } from './query-keys';
 import type {
   Organization,
   OrganizationCreateInput,
   OrganizationCreateResponse,
-  OrganizationListResponse,
   OrganizationStatus,
   OrganizationType,
   OrganizationUpdateInput,
@@ -13,22 +13,13 @@ import type {
 
 const BASE = '/api/configurator/v1/organizations';
 
-function buildListUrl(filters: { status?: OrganizationStatus; type?: OrganizationType }) {
-  const params = new URLSearchParams();
-  if (filters.status) params.set('status', filters.status);
-  if (filters.type) params.set('type', filters.type);
-  const qs = params.toString();
-  return qs ? `${BASE}?${qs}` : BASE;
-}
+export { fetchOrganizations };
 
 export function useOrganizations(filters: {
   status?: OrganizationStatus;
   type?: OrganizationType;
 }) {
-  return useQuery({
-    queryKey: configuratorKeys.organizations(filters),
-    queryFn: () => apiClient<OrganizationListResponse>(buildListUrl(filters)),
-  });
+  return useQuery(organizationsQueryOptions(filters));
 }
 
 export function useOrganization(id: string) {

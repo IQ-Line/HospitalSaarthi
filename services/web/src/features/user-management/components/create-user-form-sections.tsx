@@ -38,7 +38,6 @@ export function buildCreateUserFormSchema(options: CreateUserAccessOptions) {
     password: z.string().min(8, 'Password must be at least 8 characters'),
     phone: z.string(),
     username: z.string(),
-    org_id: z.union([z.literal(''), z.string().uuid()]),
     department: z.string(),
     clearance_tier_required: z.coerce.number().int().min(0).max(3),
     role_template_ids: options.requireRoleTemplate
@@ -107,28 +106,23 @@ export function CreateUserIdentitySection({ register, errors }: SharedFormSectio
   );
 }
 
-type CreateUserOrganizationSectionProps = SharedFormSectionProps & {
+type CreateUserWorkplaceSectionProps = SharedFormSectionProps & {
   control: Control<CreateUserFormValues>;
 };
 
-export function CreateUserOrganizationSection({
+/** Department and clearance — org/tenant come from Configurator (super-admin) or session tenant. */
+export function CreateUserWorkplaceSection({
   register,
   errors,
   control,
-}: CreateUserOrganizationSectionProps) {
+}: CreateUserWorkplaceSectionProps) {
   return (
     <UserManagementSectionCard
-      title="Organization"
-      description="Add the organization and department details for this user."
+      title="Workplace details"
+      description="Department and access level for this user."
       contentClassName="space-y-4"
     >
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="c_org_id">Organization ID</Label>
-          <Input id="c_org_id" {...register('org_id')} />
-          <FieldError message={errors.org_id?.message?.toString()} />
-        </div>
-
         <div className="space-y-2">
           <Label htmlFor="c_department">Department</Label>
           <Input id="c_department" {...register('department')} />

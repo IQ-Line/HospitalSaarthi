@@ -56,20 +56,27 @@ export function assignableCapabilityCatalogOptions() {
 /** @deprecated Use {@link runtimeCapabilityCatalogOptions}. */
 export const capabilityListOptions = runtimeCapabilityCatalogOptions;
 
-export function roleListOptions() {
+export function roleListOptions(tenantScope?: string | null) {
   return queryOptions({
-    queryKey: userManagementKeys.roleList(),
-    queryFn: () => apiClient<UmRole[]>(`${BASE}/roles`, { method: 'GET' }),
+    queryKey: [...userManagementKeys.roleList(), tenantScope ?? 'active-tenant'] as const,
+    queryFn: () =>
+      apiClient<UmRole[]>(
+        `${BASE}/roles`,
+        { method: 'GET' },
+        tenantScope ? { tenantIdOverride: tenantScope } : undefined,
+      ),
   });
 }
 
-export function roleCapabilitiesOptions(roleId: string) {
+export function roleCapabilitiesOptions(roleId: string, tenantScope?: string | null) {
   return queryOptions({
-    queryKey: userManagementKeys.roleCapabilities(roleId),
+    queryKey: [...userManagementKeys.roleCapabilities(roleId), tenantScope ?? 'active-tenant'] as const,
     queryFn: () =>
-      apiClient<Capability[]>(`${BASE}/roles/${encodeURIComponent(roleId)}/capabilities`, {
-        method: 'GET',
-      }),
+      apiClient<Capability[]>(
+        `${BASE}/roles/${encodeURIComponent(roleId)}/capabilities`,
+        { method: 'GET' },
+        tenantScope ? { tenantIdOverride: tenantScope } : undefined,
+      ),
   });
 }
 

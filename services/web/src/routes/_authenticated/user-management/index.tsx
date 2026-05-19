@@ -26,6 +26,7 @@ import {
   canAccessRolesAdmin,
   canAccessUsersSection,
   canReadUsers,
+  canSelectTenantOnUserCreate,
   UM_MODULE,
 } from '@/features/user-management/lib/um-permissions';
 import type { UmUser } from '@/features/user-management/types';
@@ -113,6 +114,7 @@ function CreateUserOnlyPage() {
             <CreateUserForm
               canReadRoles={canReadRoles}
               canManageAccess={canAssignAccessOnCreate}
+              canSelectTargetTenant={canSelectTenantOnUserCreate()}
               layout="dialog"
               onCancel={() => setCreateOpen(false)}
             />
@@ -240,6 +242,7 @@ function UserManagementListPage() {
               <CreateUserForm
                 canReadRoles={canReadRoles}
                 canManageAccess={canAssignAccessOnCreate}
+                canSelectTargetTenant={canSelectTenantOnUserCreate()}
                 layout="dialog"
                 navigateToProfileOnSuccess={canReadUsersAfterCreate}
                 onCancel={() => setCreateUserOpen(false)}
