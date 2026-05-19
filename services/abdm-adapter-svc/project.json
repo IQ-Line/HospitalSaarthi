@@ -6,13 +6,22 @@
       "command": "tsx watch src/main.ts",
       "dependsOn": ["ts-sdk-fhir:build", "ts-sdk-abha:build"],
       "options": {
-        "cwd": "services/abdm-adapter-svc"
+        "cwd": "services/abdm-adapter-svc",
+        "envFile": "{workspaceRoot}/.env"
       }
     },
     "db:migrate": {
       "command": "node scripts/migrate.mjs",
       "options": {
-        "cwd": "services/abdm-adapter-svc"
+        "cwd": "services/abdm-adapter-svc",
+        "envFile": "{workspaceRoot}/.env"
+      }
+    },
+    "db-migrate": {
+      "command": "node scripts/migrate.mjs",
+      "options": {
+        "cwd": "services/abdm-adapter-svc",
+        "envFile": "{workspaceRoot}/.env"
       }
     }
   }

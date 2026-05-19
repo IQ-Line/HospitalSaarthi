@@ -1,10 +1,11 @@
 /**
  * Visit registration form payload (browser) — full desk capture for **Create Visit**.
  *
- * **Submit flow (sequential, as APIs land):**
- * 1. registration-svc — new-patient workflow (wired today via `executeCreateVisitFlow`)
- * 2. appointment-svc — after registration succeeds (not wired)
- * 3. billing-svc — after appointment succeeds (not wired)
+ * **Submit flow (sequential, via `executeCreateVisitFlow`):**
+ * 1. registration-svc — new-patient workflow (real)
+ * 2. appointment-svc — stub (`createAppointmentStub`)
+ * 3. billing-svc — stub (`createBillingStub`)
+ * 4. registration-svc — `POST .../complete` (real)
  *
  * Sections marked UI-only are kept on this object for the form; only phase-1 fields are
  * mapped to the registration API (see `mapVisitRegistrationToNewPatientIntakeBody`).
@@ -18,16 +19,8 @@ export interface VisitRegistrationAddressBlock {
   pincode: string;
 }
 
-export interface VisitRegistrationVitalsBlock {
-  weight_kg?: number | null;
-  height_cm?: number | null;
-  bp_systolic?: number | null;
-  bp_diastolic?: number | null;
-  pulse_bpm?: number | null;
-  temp_celsius?: number | null;
-  spo2_percent?: number | null;
-  resp_rate_per_min?: number | null;
-}
+/** Values keyed by master-data visitpad vital `code`. */
+export type VisitRegistrationVitalsBlock = Record<string, number | string | null | undefined>;
 
 export interface VisitRegistrationAppointmentBlock {
   department_id?: string;

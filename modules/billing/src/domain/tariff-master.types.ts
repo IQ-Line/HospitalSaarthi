@@ -1,3 +1,5 @@
+import type { UseCaseResult } from "./bill.types.js";
+
 export type TariffMasterRow = {
   id: string;
   iq_tenant_id: string;
@@ -34,6 +36,4 @@ export type UpdateTariffServiceInput = {
   effective_to?: string | null;
 };
 
-export type UpdateTariffServiceResult =
-  | { ok: true; data: TariffMasterRow }
-  | { ok: false; code: "NOT_FOUND" | "CONFLICT" | "VALIDATION"; message: string };
+export type UpdateTariffServiceResult = UseCaseResult<TariffMasterRow>;

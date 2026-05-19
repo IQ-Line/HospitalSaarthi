@@ -10,6 +10,7 @@ import { ConfiguratorNavSection } from '@/features/configurator/components/confi
 import { MasterDataNavSection } from '@/features/master-data/components/master-data-nav-section';
 import { useNavModules } from '@/features/master-data/api';
 import { FrontdeskNavSection } from '@/features/frontdesk/components/frontdesk-nav-section';
+import { BillingNavSection } from '@/features/billing/components/billing-nav-section';
 import { VisitpadNavSection } from '@/features/visitpad/components/visitpad-nav-section';
 import { authClient } from '@/lib/auth-client';
 import { buildNavModuleTree } from '@/lib/nav-modules-tree';
@@ -31,6 +32,7 @@ interface AppSidebarProps {
   hasUserManagementAccess: boolean;
   /** Catalog admins: same gate as Master Data until a dedicated Cerbos module exists. */
   hasVisitpadAccess: boolean;
+  hasBillingAccess: boolean;
   hasFrontdeskAccess: boolean;
 }
 
@@ -41,6 +43,7 @@ export function AppSidebar({
   hasConfiguratorAccess,
   hasUserManagementAccess,
   hasVisitpadAccess,
+  hasBillingAccess,
   hasFrontdeskAccess,
 }: AppSidebarProps) {
   const sidebarCollapsed = useUIPrefsStore((s) => s.sidebarCollapsed);
@@ -55,6 +58,8 @@ export function AppSidebar({
   const [isMasterDataOpen, setIsMasterDataOpen] = useState(true);
   const isInVisitpad = pathname.startsWith('/visitpad');
   const [isVisitpadOpen, setIsVisitpadOpen] = useState(true);
+  const isInBilling = pathname.startsWith('/billing');
+  const [isBillingOpen, setIsBillingOpen] = useState(true);
   const isInFrontdesk = pathname.startsWith('/frontdesk');
   const [isFrontdeskOpen, setIsFrontdeskOpen] = useState(true);
   const canReadUmUsers = usePermissionsStore(canReadUsers);
@@ -96,6 +101,12 @@ export function AppSidebar({
       setIsVisitpadOpen(true);
     }
   }, [isInVisitpad]);
+
+  useEffect(() => {
+    if (isInBilling) {
+      setIsBillingOpen(true);
+    }
+  }, [isInBilling]);
 
   useEffect(() => {
     if (isInFrontdesk) {

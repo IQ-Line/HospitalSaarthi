@@ -35,6 +35,7 @@ export {
   useVisitpadUnits,
   useVisitpadUnitsGlobalLibrary,
   useVisitpadVitals,
+  useVisitpadVitalsCatalog,
   useVisitpadVitalsGlobalLibrary,
   useVisitpadVaccines,
   useVisitpadVaccinesGlobalLibrary,

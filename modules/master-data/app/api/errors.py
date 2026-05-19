@@ -8,6 +8,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
+from app.repositories.department_repository import DuplicateDepartmentKeyError
 from app.repositories.module_permission_repository import DuplicateModulePermissionKeyError
 from app.repositories.module_repository import DuplicateModuleKeyError
 from app.repositories.permission_repository import DuplicatePermissionKeyError
@@ -51,6 +52,19 @@ def error_payload(code: str, message: str, details: dict[str, Any] | None = None
 
 def register_exception_handlers(app: FastAPI) -> None:
     """Register API exception handlers once at app startup."""
+
+    @app.exception_handler(DuplicateDepartmentKeyError)
+    async def _duplicate_department_key(
+        _request: Request,
+        _exc: DuplicateDepartmentKeyError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content=error_payload(
+                "CONFLICT",
+                "Another active department already uses this code.",
+            ),
+        )
 
     @app.exception_handler(DuplicateModuleKeyError)
     async def _duplicate_key(_request: Request, _exc: DuplicateModuleKeyError) -> JSONResponse:

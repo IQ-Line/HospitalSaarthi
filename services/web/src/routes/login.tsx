@@ -16,7 +16,6 @@ import { masterDataKeys } from '@/features/master-data/api/query-keys';
 import type { NavModuleListResponse } from '@/features/master-data/types';
 import { queryClient } from '@/lib/query-client';
 import { useAuthStore } from '@/stores/auth.store';
-import { usePermissionsStore } from '@/stores/permissions.store';
 import { useTenantStore } from '@/stores/tenant.store';
 
 const NAV_MODULES_PATH = '/api/v1/master-data/modules/nav';
@@ -50,7 +49,6 @@ function LoginPage() {
   const navigate = useNavigate();
   const setSession = useAuthStore((s) => s.setSession);
   const setTenant = useTenantStore((s) => s.setTenant);
-  const setPermissions = usePermissionsStore((s) => s.setPermissions);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -103,40 +101,6 @@ function LoginPage() {
     }
   }
 
-  const handleDevLogin = () => {
-    setSession({
-      accessToken: 'dev-token',
-      sessionToken: 'dev-session',
-      userId: 'dev-user-001',
-      displayName: 'Dev User',
-    });
-    setTenant({
-      tenantId: null,
-      tenantName: 'Dev Hospital (platform catalog)',
-      branches: [{ id: 'branch-001', name: 'Main Campus' }],
-      activeBranch: 'branch-001',
-    });
-    setPermissions(buildDevPermissionMap('superadmin'));
-    navigate({ to: '/dashboard' });
-  };
-
-  const handleTenantDevLogin = () => {
-    setSession({
-      accessToken: 'dev-token-tenant',
-      sessionToken: 'dev-session-tenant',
-      userId: 'dev-tenant-admin-001',
-      displayName: 'Tenant Admin',
-    });
-    setTenant({
-      tenantId: DEV_TENANT_IQ_CATALOG_UUID,
-      tenantName: 'Demo Tenant (catalog)',
-      branches: [{ id: 'branch-001', name: 'Main Campus' }],
-      activeBranch: 'branch-001',
-    });
-    setPermissions(buildDevPermissionMap('tenant-catalog-readonly'));
-    navigate({ to: '/dashboard' });
-  };
-
   return (
     <div className="flex h-screen items-center justify-center bg-muted">
       <Card className="w-full max-w-sm">
@@ -150,62 +114,42 @@ function LoginPage() {
               </p>
             )}
 
-            <form onSubmit={form.handleSubmit(handleSignIn)} className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="username">Username</Label>
-                <Input
-                  id="username"
-                  type="text"
-                  autoComplete="username"
-                  placeholder="e.g. vishal@hospitalsaarthi.dev"
-                  {...form.register('username')}
-                />
-                {form.formState.errors.username && (
-                  <p className="text-xs text-destructive">
-                    {form.formState.errors.username.message}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  autoComplete="current-password"
-                  {...form.register('password')}
-                />
-                {form.formState.errors.password && (
-                  <p className="text-xs text-destructive">
-                    {form.formState.errors.password.message}
-                  </p>
-                )}
-              </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? 'Signing in...' : 'Sign In'}
-              </Button>
-            </form>
-
-            <div className="mt-6 space-y-2 border-t pt-4">
-              <p className="text-xs font-medium text-muted-foreground">Dev shortcuts</p>
-              <Button type="button" variant="outline" className="w-full" onClick={handleDevLogin}>
-                Dev Login (platform catalog)
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                className="w-full"
-                onClick={handleTenantDevLogin}
-              >
-                Tenant dev login (tenant catalog)
-              </Button>
-              <p className="pt-1 text-xs text-muted-foreground">
-                Dev shortcuts bypass better-auth. Real-login currently has a username/email field
-                mismatch and a hardcoded tenantId (tracked as a follow-up to wire username-primary
-                signin + JWT tenant claim).
-              </p>
+          <form onSubmit={form.handleSubmit(handleSignIn)} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                type="text"
+                autoComplete="username"
+                placeholder="e.g. vishal@hospitalsaarthi.dev"
+                {...form.register('username')}
+              />
+              {form.formState.errors.username && (
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.username.message}
+                </p>
+              )}
             </div>
-          </CardContent>
-        </Card>
+            <div className="space-y-1.5">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                {...form.register('password')}
+              />
+              {form.formState.errors.password && (
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.password.message}
+                </p>
+              )}
+            </div>
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? 'Signing in...' : 'Sign In'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }

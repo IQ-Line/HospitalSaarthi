@@ -47,14 +47,14 @@
       "cache": true
     },
     "migrate": {
-      "command": "uv run alembic upgrade head",
+      "command": "uv run alembic upgrade heads",
       "options": {
         "cwd": "modules/master-data"
       },
       "dependsOn": ["setup"]
     },
     "db-migrate": {
-      "command": "uv run alembic upgrade head",
+      "command": "uv run alembic upgrade heads",
       "options": {
         "cwd": "modules/master-data"
       },

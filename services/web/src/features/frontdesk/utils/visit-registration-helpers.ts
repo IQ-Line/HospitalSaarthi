@@ -15,12 +15,6 @@ export const EMPI_BLOOD_GROUP_OPTIONS = [
 
 const EMPI_BLOOD_GROUP_SET = new Set<string>(EMPI_BLOOD_GROUP_OPTIONS);
 
-export const VISIT_REGISTRATION_DEPARTMENTS = [
-  { id: '00000000-0000-4000-8000-000000000001', name: 'General Medicine' },
-  { id: '00000000-0000-4000-8000-000000000002', name: 'Cardiology' },
-  { id: '00000000-0000-4000-8000-000000000003', name: 'Orthopaedics' },
-] as const;
-
 export const VISIT_REGISTRATION_PROVIDERS: ReadonlyArray<{ id: string; name: string }> = [];
 
 export const VISIT_REGISTRATION_VISIT_TYPES = [
@@ -94,24 +88,6 @@ export const VISIT_REGISTRATION_LAB_TEST_CATALOG = [
   { code: 'HBA1C', name: 'HbA1c', department: 'Biochemistry' },
   { code: 'URINE-R/M', name: 'Urine Routine & Microscopy', department: 'Pathology' },
 ] as const;
-
-const VITAL_FIELDS = [
-  { key: 'weight_kg', label: 'Weight (kg)', placeholder: '72.5', step: '0.1' },
-  { key: 'height_cm', label: 'Height (cm)', placeholder: '168', step: '1' },
-  { key: 'bp_systolic', label: 'BP Systolic', placeholder: '120', step: '1' },
-  { key: 'bp_diastolic', label: 'BP Diastolic', placeholder: '80', step: '1' },
-  { key: 'pulse_bpm', label: 'Pulse (bpm)', placeholder: '80', step: '1' },
-  { key: 'temp_celsius', label: 'Temp (°C)', placeholder: '37.2', step: '0.1' },
-  { key: 'spo2_percent', label: 'SpO2 (%)', placeholder: '98', step: '1' },
-  { key: 'resp_rate_per_min', label: 'Resp. rate (/min)', placeholder: '16', step: '1' },
-] as const satisfies ReadonlyArray<{
-  key: keyof NonNullable<CreateVisitRequestBody['vitals']>;
-  label: string;
-  placeholder: string;
-  step: string;
-}>;
-
-export { VITAL_FIELDS };
 
 export const VISIT_REGISTRATION_TEXTAREA_CLASS =
   'flex min-h-[72px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]';
@@ -271,5 +247,45 @@ export function defaultVisitRegistrationAddress(): CreateVisitRequestBody['perma
     state: '',
     district: '',
     pincode: '',
+  };
+}
+
+/** Payload shape for appointment-svc (stub until service exists). */
+export function mapVisitRegistrationToAppointmentBody(
+  form: CreateVisitRequestBody,
+  registration: { registration_id: string; patient_id: string },
+): Record<string, unknown> {
+  const apt = form.appointment;
+  return {
+    registration_id: registration.registration_id,
+    patient_id: registration.patient_id,
+    department_id: optionalUuid(apt?.department_id),
+    room_number: apt?.room_number?.trim() || null,
+    provider_id: optionalUuid(apt?.provider_id),
+    visit_type_code: apt?.visit_type_code?.trim() || null,
+    visit_reason: apt?.visit_reason?.trim() || null,
+    vitals: form.vitals ?? null,
+    lab_tests: form.lab_tests ?? null,
+    ris_appointment: form.ris_appointment ?? null,
+  };
+}
+
+/** Payload shape for billing-svc (stub until service exists). */
+export function mapVisitRegistrationToBillingBody(
+  form: CreateVisitRequestBody,
+  ctx: { registration_id: string; appointment_id: string; patient_id: string },
+): Record<string, unknown> {
+  return {
+    registration_id: ctx.registration_id,
+    appointment_id: ctx.appointment_id,
+    patient_id: ctx.patient_id,
+    billing: form.billing ?? null,
+    grand_total: form.billing
+      ? computeBillingGrandTotal(
+          form.billing.registration_fee,
+          form.billing.consultation_fee,
+          form.billing.invoice_discount ?? 0,
+        )
+      : null,
   };
 }
