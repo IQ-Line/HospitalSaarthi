@@ -1,5 +1,6 @@
 import { create, type StateCreator } from 'zustand';
 import { createJSONStorage, devtools, persist } from 'zustand/middleware';
+import { getRolesFromAccessToken } from '@/lib/access-token';
 import { usePermissionsStore } from '@/stores/permissions.store';
 
 interface AuthState {
@@ -9,6 +10,8 @@ interface AuthState {
   sessionToken: string | null;
   userId: string | null;
   displayName: string | null;
+  /** Canonical role codes from the access JWT (`roles` claim), for UX-only shell behavior. */
+  roles: string[];
 
   setSession: (session: {
     accessToken: string;
@@ -25,37 +28,33 @@ const authSlice: StateCreator<AuthState> = (set, get) => ({
   sessionToken: null,
   userId: null,
   displayName: null,
+  roles: [],
 
   setSession: (session) => {
     if (get().userId !== session.userId) {
       usePermissionsStore.getState().clearPermissions();
     }
-    set(
-      {
-        isAuthenticated: true,
-        accessToken: session.accessToken,
-        sessionToken: session.sessionToken,
-        userId: session.userId,
-        displayName: session.displayName,
-      },
-      false,
-      'setSession',
-    );
+    const roles = getRolesFromAccessToken(session.accessToken);
+    set({
+      isAuthenticated: true,
+      accessToken: session.accessToken,
+      sessionToken: session.sessionToken,
+      userId: session.userId,
+      displayName: session.displayName,
+      roles,
+    });
   },
 
   clearSession: () => {
     usePermissionsStore.getState().clearPermissions();
-    set(
-      {
-        isAuthenticated: false,
-        accessToken: null,
-        sessionToken: null,
-        userId: null,
-        displayName: null,
-      },
-      false,
-      'clearSession',
-    );
+    set({
+      isAuthenticated: false,
+      accessToken: null,
+      sessionToken: null,
+      userId: null,
+      displayName: null,
+      roles: [],
+    });
   },
 });
 
@@ -69,8 +68,26 @@ const authStoreCreator = import.meta.env.DEV
         sessionToken: s.sessionToken,
         userId: s.userId,
         displayName: s.displayName,
+        roles: s.roles,
       }),
+      merge: (persisted, current) => {
+        const merged = { ...current, ...(persisted as Partial<AuthState>) };
+        if (merged.accessToken) {
+          merged.roles = getRolesFromAccessToken(merged.accessToken);
+        }
+        return merged;
+      },
+      onRehydrateStorage: () => (state) => {
+        if (state?.accessToken) {
+          state.roles = getRolesFromAccessToken(state.accessToken);
+        }
+      },
     })
   : authSlice;
 
-export const useAuthStore = create<AuthState>()(devtools(authStoreCreator, { name: 'auth' }));
+export const useAuthStore = create<AuthState>()(
+  devtools(
+    authStoreCreator as unknown as StateCreator<AuthState, [['zustand/devtools', never]]>,
+    { name: 'auth' },
+  ),
+);

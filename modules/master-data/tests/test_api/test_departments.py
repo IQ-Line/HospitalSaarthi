@@ -1,0 +1,79 @@
+from datetime import UTC, datetime
+from types import SimpleNamespace
+from uuid import uuid4
+
+from fastapi.testclient import TestClient
+
+from app.api.deps import get_department_repository
+from app.core.catalog_scope import CatalogScope
+from app.main import create_app
+
+
+def _sample_department_row(**overrides):
+    now = datetime.now(UTC)
+    defaults = dict(
+        id=uuid4(),
+        name="General Medicine",
+        code="gen-med",
+        type="clinical",
+        description="OPD general medicine",
+        is_active=True,
+        is_deleted=False,
+        created_by=None,
+        updated_by=None,
+        created_at=now,
+        updated_at=now,
+    )
+    defaults.update(overrides)
+    return SimpleNamespace(**defaults)
+
+
+class FakeDepartmentRepository:
+    scope = CatalogScope(iq_tenant_id=None)
+
+    def __init__(self) -> None:
+        self._rows = [_sample_department_row()]
+
+    def list_departments(self, *, department_type=None):
+        if department_type is None:
+            return list(self._rows)
+        return [r for r in self._rows if r.type == department_type.value]
+
+    def create_department(self, department):
+        self._rows.append(department)
+        return department
+
+
+def test_get_departments_returns_list() -> None:
+    app = create_app()
+    app.dependency_overrides[get_department_repository] = lambda: FakeDepartmentRepository()
+
+    response = TestClient(app).get("/api/v1/master-data/departments")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 1
+    assert body["data"][0]["code"] == "gen-med"
+    assert body["data"][0]["type"] == "clinical"
+
+
+def test_post_department_creates_row() -> None:
+    app = create_app()
+    repo = FakeDepartmentRepository()
+    app.dependency_overrides[get_department_repository] = lambda: repo
+
+    response = TestClient(app).post(
+        "/api/v1/master-data/departments",
+        json={
+            "name": "Cardiology",
+            "code": "CARD",
+            "type": "clinical",
+            "description": "Heart centre",
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()["data"]
+    assert body["name"] == "Cardiology"
+    assert body["code"] == "card"
+    assert len(repo._rows) == 2

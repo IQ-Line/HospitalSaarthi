@@ -19,7 +19,7 @@ Phase 1 success = the four-table schema + the seven endpoints below + the one en
   ```
 - [ ] Drizzle migrations applied:
   ```bash
-  npx nx run billing:migrate
+  npx nx run billing:db-migrate
   ```
   Confirm the four Phase 1 tables exist:
   ```bash

@@ -8,6 +8,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Legacy monolith (hims_dev) schema shells only.
 -- Per-module databases (hims-user-management, hims-configurator, hims-master) get schemas from module migrations.
+-- Master Data catalog uses global_master + tenant_master via Alembic — not master_data.
 CREATE SCHEMA IF NOT EXISTS user_management;
+CREATE SCHEMA IF NOT EXISTS configurator;
 CREATE SCHEMA IF NOT EXISTS empi;
-CREATE SCHEMA IF NOT EXISTS master_data;

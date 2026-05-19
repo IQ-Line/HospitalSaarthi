@@ -24,14 +24,16 @@
       }
     },
     "db:migrate": {
-      "command": "tsx scripts/apply-migration.ts",
+      "executor": "nx:run-commands",
       "options": {
+        "command": "tsx scripts/apply-migration.ts",
         "cwd": "modules/billing"
       }
     },
     "db-migrate": {
-      "command": "tsx scripts/apply-migration.ts",
+      "executor": "nx:run-commands",
       "options": {
+        "command": "tsx scripts/apply-migration.ts",
         "cwd": "modules/billing"
       }
     }

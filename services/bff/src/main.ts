@@ -35,6 +35,10 @@ const upstreams: UpstreamRoute[] = [
     upstream: process.env['EMPI_URL'] ?? 'http://localhost:3002',
   },
   {
+    prefix: '/api/billing/v1',
+    upstream: process.env['BILLING_URL'] ?? 'http://localhost:3003',
+  },
+  {
     prefix: '/api/registration/v1',
     upstream: process.env['REGISTRATION_URL'] ?? 'http://localhost:3006',
   },

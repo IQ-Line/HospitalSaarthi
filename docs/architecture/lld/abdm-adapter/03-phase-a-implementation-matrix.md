@@ -24,9 +24,9 @@ Override with env if your Postman environment uses different hosts.
 
 ## Node service: database URL
 
-- Config file: **`services/abdm-adapter-svc/.env`** only (loaded at boot).
-- Variable: **`DATABASE_URL`** (monorepo standard) — `postgresql://…` or `postgresql+psycopg://…` (dialect suffix stripped for Node `pg`). Legacy `ABDM_DATA_DATABASE_URL` still accepted at boot.
-- Migrate: `pnpm --filter @hims/abdm-adapter-svc db:migrate` (uses same `.env`).
+- Config: repo **`.env`** (Nx `envFile`) + **`services/abdm-adapter-svc/.env`** (layered in `load-env.ts`), same as other TS services.
+- Variable: **`DATABASE_URL`** from root, or explicit **`ABDM_DATA_DATABASE_URL`** in service `.env` (migration and runtime prefer the latter when set).
+- Migrate: `make db-migrate` or `npx nx run abdm-adapter-svc:db-migrate` (Nx loads root `.env`; `scripts/migrate.mjs` layers service `.env`).
 
 ## Phase A — implemented platform routes ↔ NHA (Aadhaar enrolment chain)
 

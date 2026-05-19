@@ -1,6 +1,7 @@
 export { masterDataKeys } from './query-keys';
 export {
   useModules,
+  useNavModules,
   useModule,
   useSubmodules,
   useCreateModule,
@@ -27,3 +28,4 @@ export {
   useUpdateModulePermission,
   useDeleteModulePermission,
 } from './module-permissions';
+export { useDepartments } from './departments';

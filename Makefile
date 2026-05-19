@@ -93,6 +93,7 @@ db-migrate: ## Run all pending migrations
 	$(NX) run registration:db-migrate
 	$(NX) run billing:db-migrate
 	$(NX) run master-data:migrate
+	$(NX) run abdm-adapter-svc:db-migrate
 
 .PHONY: seed
 seed: ## Seed Configurator tenant, UM runtime data, Cerbos smoke check (catalog = Alembic)

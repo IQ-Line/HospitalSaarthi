@@ -1,5 +1,9 @@
 import { apiClient } from '@/lib/api-client';
-import { mapVisitRegistrationToNewPatientIntakeBody } from '@/features/frontdesk/utils/visit-registration-helpers';
+import {
+  mapVisitRegistrationToAppointmentBody,
+  mapVisitRegistrationToBillingBody,
+  mapVisitRegistrationToNewPatientIntakeBody,
+} from '@/features/frontdesk/utils/visit-registration-helpers';
 import type {
   CreateNewPatientRegistrationResponse,
   CreateVisitRequestBody,
@@ -11,6 +15,9 @@ import type {
  * Override with `VITE_REGISTRATION_SERVICE_ORIGIN` (no trailing slash), e.g. production URL.
  */
 const REGISTRATION_V1_PATH = '/api/registration/v1';
+
+/** Simulated network latency for stub phases (ms). */
+const STUB_PHASE_DELAY_MS = 200;
 
 function registrationServiceOrigin(): string {
   const fromEnv = import.meta.env.VITE_REGISTRATION_SERVICE_ORIGIN?.trim().replace(/\/$/, '');
@@ -65,20 +72,81 @@ export async function createNewPatientRegistration(
   );
 }
 
+export interface StubAppointmentResponse {
+  appointment_id: string;
+  registration_id: string;
+  patient_id: string;
+  stub: true;
+}
+
+export interface StubBillingResponse {
+  billing_id: string;
+  registration_id: string;
+  appointment_id: string;
+  patient_id: string;
+  stub: true;
+}
+
+function stubDelay(): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, STUB_PHASE_DELAY_MS);
+  });
+}
+
 /**
- * Desk **Create Visit** orchestration (sequential, one service at a time).
+ * Phase 2 stub — replace with `POST` to appointment-svc when available.
+ * Logs the would-be body in dev; returns a synthetic `appointment_id`.
+ */
+export async function createAppointmentStub(
+  form: CreateVisitRequestBody,
+  registration: CreateNewPatientRegistrationResponse,
+): Promise<StubAppointmentResponse> {
+  const body = mapVisitRegistrationToAppointmentBody(form, registration);
+  if (import.meta.env.DEV) {
+    console.info('[visit-registration] stub POST appointment-svc', body);
+  }
+  await stubDelay();
+  return {
+    appointment_id: crypto.randomUUID(),
+    registration_id: registration.registration_id,
+    patient_id: registration.patient_id,
+    stub: true,
+  };
+}
+
+/**
+ * Phase 3 stub — replace with `POST` to billing-svc when available.
+ */
+export async function createBillingStub(
+  form: CreateVisitRequestBody,
+  registration: CreateNewPatientRegistrationResponse,
+  appointment: StubAppointmentResponse,
+): Promise<StubBillingResponse> {
+  const body = mapVisitRegistrationToBillingBody(form, {
+    registration_id: registration.registration_id,
+    appointment_id: appointment.appointment_id,
+    patient_id: registration.patient_id,
+  });
+  if (import.meta.env.DEV) {
+    console.info('[visit-registration] stub POST billing-svc', body);
+  }
+  await stubDelay();
+  return {
+    billing_id: crypto.randomUUID(),
+    registration_id: registration.registration_id,
+    appointment_id: appointment.appointment_id,
+    patient_id: registration.patient_id,
+    stub: true,
+  };
+}
+
+/**
+ * Desk **Create Visit** orchestration (sequential).
  *
- * **Now (phase 1):** registration-svc only — `POST .../workflows/new-patient/registrations`.
- * Patient demographics + visit context fields that registration accepts today
- * (`visit_type`, `department_id`, `provider_id`). Attendant, vitals, lab, RIS, and billing
- * remain on the form payload but are **not** sent to registration.
- *
- * **Later:**
- * 2. appointment-svc — after registration returns `registration_id`
- * 3. billing-svc — after appointment succeeds
- *
- * Wire phases 2–3 here when those APIs exist; keep the same idempotency key across retries
- * for phase 1 only (appointment/billing will use their own keys).
+ * 1. registration-svc — `POST .../workflows/new-patient/registrations` (real)
+ * 2. appointment-svc — stub
+ * 3. billing-svc — stub
+ * 4. registration-svc — `POST .../registrations/:id/complete` (real)
  */
 export async function executeCreateVisitFlow(
   form: CreateVisitRequestBody,
@@ -89,29 +157,18 @@ export async function executeCreateVisitFlow(
     { idempotencyKey: options.idempotencyKey },
   );
 
-  // Phase 2 — appointment-svc (mapVisitRegistrationToAppointmentBody)
-  // const appointment = await createAppointment({
-  //   registration_id: registration.registration_id,
-  //   patient_id: registration.patient_id,
-  //   ...form.appointment,
-  //   ...form.vitals,
-  // });
+  const appointment = await createAppointmentStub(form, registration);
+  await createBillingStub(form, registration, appointment);
 
-  // Phase 3 — billing-svc (mapVisitRegistrationToBillingBody)
-  // if (!appointment) throw new Error('appointment required before billing');
-  // await createBilling({
-  //   registration_id: registration.registration_id,
-  //   appointment_id: appointment.appointment_id,
-  //   ...form.billing,
-  // });
-
-  return registration;
+  return completeRegistrationIntake(registration.registration_id);
 }
 
 /** After appointment + billing succeed, mark the registration row completed. */
-export async function completeRegistrationIntake(registrationId: string): Promise<CreateNewPatientRegistrationResponse> {
+export async function completeRegistrationIntake(
+  registrationId: string,
+): Promise<CreateNewPatientRegistrationResponse> {
   return apiClient<CreateNewPatientRegistrationResponse>(
     `${registrationApiBase()}/registrations/${registrationId}/complete`,
-    { method: "POST" },
+    { method: 'POST' },
   );
 }
