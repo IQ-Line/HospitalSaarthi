@@ -8,6 +8,7 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 const VISITPAD_CATALOG_API_PREFIX = '/api/v1/master-data/visitpad/';
 const EMPI_API_PREFIX = '/api/empi/v1/';
 const REGISTRATION_API_PREFIX = '/api/registration/v1/';
+const CONFIGURATOR_API_PREFIX = '/api/configurator/v1/';
 
 function isRegistrationApiPath(path: string): boolean {
   return (
@@ -78,6 +79,14 @@ async function apiClientInternal<T>(
     !headers.has('iq_tenant_id')
   ) {
     headers.set('iq_tenant_id', serviceIqTenantHeaderValue(tenantId));
+  }
+  /** Configurator tenantPlugin (legacy) rejects requests without a tenant header. */
+  if (
+    path.startsWith(CONFIGURATOR_API_PREFIX) &&
+    !headers.has('iq_tenant_id') &&
+    !headers.has('x-tenant-id')
+  ) {
+    headers.set('x-tenant-id', serviceIqTenantHeaderValue(tenantId));
   }
 
   if (

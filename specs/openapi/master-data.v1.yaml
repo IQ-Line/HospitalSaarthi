@@ -723,6 +723,76 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /picklists:
+    get:
+      operationId: listPicklists
+      summary: List picklist domains
+      description: Returns active platform picklist domain headers (`is_deleted = false`). Platform catalog only (`global_master`); `iq_tenant_id` header is ignored.
+      security: []
+      tags:
+        - Picklists
+      responses:
+        '200':
+          description: Picklist domain rows.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PicklistListResponse'
+        '500':
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /picklists/{picklistId}/values:
+    get:
+      operationId: listPicklistValues
+      summary: List values for a picklist domain
+      description: Returns active values for the picklist (`category_id` = picklist id), ordered by `display_order` then `label`.
+      security: []
+      tags:
+        - Picklists
+      parameters:
+        - name: picklistId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Picklist value rows.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PicklistValueListResponse'
+        '404':
+          description: No picklist with this id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /departments:
     get:
@@ -3978,6 +4048,109 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Permission'
+        total:
+          type: integer
+          minimum: 0
+    Picklist:
+      type: object
+      required:
+        - id
+        - name
+        - slug
+        - is_active
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        is_active:
+          type: boolean
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    PicklistListResponse:
+      type: object
+      required:
+        - data
+        - total
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Picklist'
+        total:
+          type: integer
+          minimum: 0
+    PicklistValue:
+      type: object
+      required:
+        - id
+        - category_id
+        - value
+        - label
+        - is_active
+        - is_default
+        - display_order
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        category_id:
+          type: string
+          format: uuid
+        value:
+          type: string
+          description: Stable stored key for clinical records.
+        label:
+          type: string
+          description: Default display label.
+        description:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+        is_active:
+          type: boolean
+        is_default:
+          type: boolean
+        display_order:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    PicklistValueListResponse:
+      type: object
+      required:
+        - data
+        - total
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PicklistValue'
         total:
           type: integer
           minimum: 0
