@@ -1,44 +1,43 @@
 #!/usr/bin/env node
 /**
- * Apply `abdm_adapter` schema using `DATABASE_URL` from repo root `.env`.
+ * Apply `abdm_adapter` schema.
+ * Nx loads workspace-root `.env`; this script layers `services/abdm-adapter-svc/.env`.
  */
 import { spawnSync } from "node:child_process";
 import path from "node:path";
-import { loadWorkspaceEnv, serviceRoot } from "./load-workspace-env.mjs";
+import { fileURLToPath } from "node:url";
+import { config } from "dotenv";
 
-loadWorkspaceEnv();
+const serviceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+config({ path: path.join(serviceRoot, ".env"), override: true });
 
-function resolveDatabaseUrl() {
-  const raw = (
-    process.env["DATABASE_URL"] ??
-    process.env["ABDM_DATA_DATABASE_URL"] ??
-    ""
-  ).trim();
-  if (!raw) return "";
-  let urlString = raw.replace(/^postgresql\+psycopg:\/\//i, "postgresql://");
-  try {
-    const url = new URL(urlString);
-    const host = url.hostname.toLowerCase();
-    if (
-      (host.endsWith(".postgres.database.azure.com") ||
-        host.endsWith(".database.azure.com")) &&
-      !url.searchParams.has("sslmode")
-    ) {
-      url.searchParams.set("sslmode", "require");
-      urlString = url.toString();
-    }
-  } catch {
-    /* keep urlString */
-  }
-  return urlString;
-}
+const url = (
+  process.env["ABDM_DATA_DATABASE_URL"] ??
+  process.env["DATABASE_URL"] ??
+  ""
+).trim();
 
-const url = resolveDatabaseUrl();
 if (!url) {
   console.error(
-    "DATABASE_URL is missing (set in repo root .env or deprecated ABDM_DATA_DATABASE_URL)",
+    "DATABASE_URL or ABDM_DATA_DATABASE_URL is required (set in root .env or services/abdm-adapter-svc/.env)",
   );
   process.exit(1);
+}
+
+let urlString = url.replace(/^postgresql\+psycopg:\/\//i, "postgresql://");
+try {
+  const parsed = new URL(urlString);
+  const host = parsed.hostname.toLowerCase();
+  if (
+    (host.endsWith(".postgres.database.azure.com") ||
+      host.endsWith(".database.azure.com")) &&
+    !parsed.searchParams.has("sslmode")
+  ) {
+    parsed.searchParams.set("sslmode", "require");
+    urlString = parsed.toString();
+  }
+} catch {
+  /* keep urlString */
 }
 
 const migration = path.resolve(
@@ -47,7 +46,7 @@ const migration = path.resolve(
 );
 
 console.log("Applying abdm_adapter migration…");
-const result = spawnSync("psql", [url, "-f", migration], {
+const result = spawnSync("psql", [urlString, "-f", migration], {
   stdio: "inherit",
   env: process.env,
 });

@@ -6,7 +6,7 @@ NX := npx nx
 
 # Services that ship a .env.example to seed a personal .env (kept in sync with
 # the actual services/ tree; see docs/dev/port-allocation.md for ports).
-SERVICE_ENVS := bff user-management-svc empi-svc configurator-svc billing-svc frontdesk-svc registration-svc web
+SERVICE_ENVS := bff user-management-svc empi-svc configurator-svc billing-svc frontdesk-svc registration-svc abdm-adapter-svc web
 
 # --- Setup -------------------------------------------------------------------
 
@@ -78,15 +78,12 @@ infra-logs: ## Tail docker infrastructure logs
 
 .PHONY: db-migrate
 db-migrate: ## Run all pending migrations
-	@set -e; \
-	if [ -f .env ]; then set -a && . ./.env && set +a; fi; \
-	if [ -f .env.local ]; then set -a && . ./.env.local && set +a; fi; \
-	$(NX) run configurator:db-migrate; \
-	$(NX) run user-management:db-migrate; \
-	$(NX) run empi:db-migrate; \
-	$(NX) run registration:db-migrate; \
-	$(NX) run billing:db-migrate; \
-	$(NX) run master-data:migrate; \
+	$(NX) run configurator:db-migrate
+	$(NX) run user-management:db-migrate
+	$(NX) run empi:db-migrate
+	$(NX) run registration:db-migrate
+	$(NX) run billing:db-migrate
+	$(NX) run master-data:migrate
 	$(NX) run abdm-adapter-svc:db-migrate
 
 .PHONY: db-reset

@@ -63,18 +63,21 @@ This runs `tsx watch src/main.ts` with `cwd` = `services/abdm-adapter-svc` (see 
 
 ### Environment file location
 
-**Configuration lives in the repo root [`.env`](../../.env)** (and optional [`.env.local`](../../.env.local)), loaded at startup by [`services/abdm-adapter-svc/src/workspace-env.ts`](../../services/abdm-adapter-svc/src/workspace-env.ts). A legacy `services/abdm-adapter-svc/.env` is still read if present (deprecated).
+**Configuration** follows the same layering as other TS services: repo root [`.env`](../../.env) (cross-cutting, via Nx `envFile`) plus [`services/abdm-adapter-svc/.env`](../../services/abdm-adapter-svc/.env) (service-specific, via [`load-env.ts`](../../services/abdm-adapter-svc/src/load-env.ts)).
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `ABDM_DATA_DATABASE_URL` | Yes | Postgres for `abdm_adapter.abdm_sessions` (`postgresql://` or `postgresql+psycopg://`) |
-| `ABDM_SANDBOX_CLIENT_ID` | Yes | NHA sandbox client id (alias: `clientId`) |
-| `ABDM_SANDBOX_CLIENT_SECRET` | Yes | NHA sandbox secret (alias: `clientSecret`) |
+| `DATABASE_URL` | Yes* | Postgres for `abdm_adapter.abdm_sessions` (usually from root `.env`) |
+| `ABDM_DATA_DATABASE_URL` | No | Optional dedicated DB override (migration prefers this when set) |
+| `ABDM_SANDBOX_CLIENT_ID` | Yes | NHA sandbox client id (alias: `clientId`) — service `.env` |
+| `ABDM_SANDBOX_CLIENT_SECRET` | Yes | NHA sandbox secret (alias: `clientSecret`) — service `.env` |
 | `ABDM_ADAPTER_SVC_PORT` | No | Default `3007` |
 | `ABDM_GATEWAY_BASE_URL` | No | Default `https://dev.abdm.gov.in` (Postman) |
 | `ABDM_ABHA_API_BASE_URL` | No | Default `https://abhasbx.abdm.gov.in/abha/api` (Postman) |
 
-Reference template: [repo root `.env.example`](../../.env.example) (ABDM section). Migration notes: [`services/abdm-adapter-svc/.env.example`](../../services/abdm-adapter-svc/.env.example).
+\* Or set only `ABDM_DATA_DATABASE_URL` in service `.env` when using a dedicated ABDM Postgres.
+
+Reference template: [`services/abdm-adapter-svc/.env.example`](../../services/abdm-adapter-svc/.env.example).
 
 ### Database migration
 
@@ -98,8 +101,8 @@ psql "postgresql://USER:PASS@HOST:6432/temp-abdm?sslmode=require" \
 
 ### Connection string
 
-The service reads **`DATABASE_URL`** from the repo root (preferred) or deprecated
-**`ABDM_DATA_DATABASE_URL`** (see `workspace-env.ts` / `resolve-database-url.ts`).
+The service reads **`ABDM_DATA_DATABASE_URL`** (if set in service `.env`) or root
+**`DATABASE_URL`** (see `load-env.ts`, `resolve-database-url.ts`, and `scripts/migrate.mjs`).
 SQLAlchemy-style `postgresql+psycopg://…` is normalised to `postgresql://…` for Node `pg`.
 
 For local docker-compose dev you can still use:

@@ -1,4 +1,4 @@
-import "./workspace-env.js";
+import "./load-env.js";
 import path from "node:path";
 import Fastify from "fastify";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
@@ -15,8 +15,8 @@ import {
 import {
   normalizeAbdmEnvAliases,
   resolveDatabaseUrlFromEnv,
-  workspaceRoot,
-} from "./workspace-env.js";
+  serviceRoot,
+} from "./load-env.js";
 import { registerHttpErrorHandler } from "./http-errors.js";
 import { requireSessionTokenCryptoInProd } from "@hims/abdm-adapter";
 
@@ -36,7 +36,7 @@ const ABHA_API_BASE_URL =
   "https://abhasbx.abdm.gov.in/abha/api";
 const ABDM_X_CM_ID = process.env["ABDM_X_CM_ID"] ?? "sbx";
 
-const repoRoot = workspaceRoot;
+const repoRoot = path.resolve(serviceRoot, "../..");
 
 const fastifyAjv = {
   customOptions: {
