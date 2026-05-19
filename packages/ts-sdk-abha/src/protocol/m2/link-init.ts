@@ -7,12 +7,12 @@
  *
  * Source spec:
  *   - `docs/external/abdm/v3-m2-health-records-hip-link-discovery-consent-transfer.md`
- *   - `docs/external/abdm-wrapper/docs/wrapperV3.yaml`
- *     (`/api/v3/hip/link/care-context/init`,
- *      `/api/v3/hiu/patient/care-context/on-init`)
+ *     §5.3.6-§5.3.7
  *
- * TODO: dev to populate `LinkInitRequest` (inbound) and `OnLinkInitPayload`
- * (our reply: `transactionId`, `meta` carrying OTP delivery hint).
+ * TODO: dev to populate `LinkInitRequest` (inbound) and
+ * `OnLinkInitRequest` (outbound to `/api/hiecm/user-initiated-linking/v3/link/care-context/on-init`:
+ * `transactionId`, `link.{referenceNumber, authenticationType, meta}`,
+ * and `response.requestId`).
  */
 
 export {};

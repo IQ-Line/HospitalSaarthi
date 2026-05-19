@@ -6,7 +6,7 @@
 
 - M1 is **merged on `dev`** (tip ≥ `c967b4d` as of 2026-05-19, ABHA verify in `1667c8c`). Branch off `dev`, not off the M1 PR branch.
 - ABDM Sandbox credentials, same env keys as M1 (`ABDM_SANDBOX_CLIENT_ID` / `ABDM_SANDBOX_CLIENT_SECRET`).
-- **`X-CM-ID`** and **`X-HIP-ID`** header values for the sandbox. `X-CM-ID` is fixed per environment (sandbox: `sbx`). `X-HIP-ID` is your facility's HIP id, registered in HFR. **`X-HIU-ID`** appears on inbound user-initiated-linking callbacks (gateway tells us *which* PHR app is asking) — you don't set it, you read it.
+- **`X-CM-ID`** and **`X-HIP-ID`** header values for the sandbox. `X-CM-ID` is fixed per environment (sandbox: `sbx`). `X-HIP-ID` is your facility's HIP id, registered in HFR. **`X-HIU-ID`** appears on the inbound user-initiated `link/care-context/confirm` callback (gateway tells us *which* PHR app is asking) — you don't set it, you read it.
 - **Callback URL.** ABDM gateway needs a public URL to POST inbound callbacks to. For local dev, use `ngrok http 3007` and register the public URL in the sandbox console under your facility's "callback URL" setting. Path is fixed: all `/api/v3/…` routes documented in [`05-m2-flows.md`](./05-m2-flows.md).
 - Reference impl at `/home/ayushiqline/projects/hims/abdi-lims-backed` available locally. Start with `src/services/milestone2CreationService.ts`, `src/services/callbackService.ts`, `src/routes/callback.ts`, and `src/models/LinkToken.ts`. Useful for *which exact `on-*` response shape the sandbox accepts* and *what gateway error codes appear in practice*. **Do not copy structure** — the production service intermingles handlers and persistence; M2 here keeps the M1 typed-port layering.
 - Postman: M2 sandbox collection (ask the lead — published separately from the M1 collection).
@@ -37,7 +37,7 @@ The portability rules apply to *function shapes* and *boundaries*, not directory
 Read the M2 spec doc end-to-end before writing any code. For each of the five M2 flows in [`05-m2-flows.md`](./05-m2-flows.md), find in the spec:
 
 - The **request body shape** for every endpoint (gateway → HIP *and* HIP → gateway).
-- The **header set** — `REQUEST-ID`, `TIMESTAMP`, `Authorization`, `X-HIP-ID`, `X-CM-ID`. Some endpoints add `X-LINK-TOKEN` (hip-initiated-link) or `X-AUTH-TOKEN` (when a patient JWT is involved). Section 3.2 covers the auth header derivation.
+- The **header set** — `REQUEST-ID`, `TIMESTAMP`, `Authorization`, `X-HIP-ID`, `X-HIU-ID`, `X-CM-ID`. Some endpoints add `X-LINK-TOKEN` (hip-initiated-link) or `X-AUTH-TOKEN` (when a patient JWT is involved). Section 3.2 covers the auth header derivation.
 - The **error code table** — codes `ABDM-1xxx` are M2-specific. Add new codes to [`packages/ts-sdk-abha/src/constants/error-codes.ts`](../../../../packages/ts-sdk-abha/src/constants/error-codes.ts).
 - The **sequence diagrams** in §4.2 and §5.2 — these are the authoritative read for who-talks-to-whom-when.
 
@@ -54,11 +54,11 @@ The scaffold files exist with `export {}` placeholders. Fill them in this order:
    - `OnLinkConfirmRequest` (outbound, §5.3.11) — POSTed to `/api/hiecm/user-initiated-linking/v3/link/care-context/on-confirm` with `{ patient: PatientWithCareContexts[], response: { requestId } }`. The HIP runs OTP verification + record linking, then posts this. It reuses the same `patient[]` record shape as `OnDiscoverRequest`, but the top-level body has no `transactionId`. **This is NOT an inline response** — it's a separate outbound POST. Earlier doc draft got this wrong; verify against spec §5.3.11.
 4. **`hip-initiated-link.ts`** — **new file**. Just one pair of types (token-generation lives in `link-token.ts`, see #4b):
    - `LinkCareContextRequest` (HIP outbound, §4.3.3) — `patient[]` with `careContexts[]`, `hiType`, `count`. Requires `X-LINK-TOKEN` header (read from cache, see §4.6).
-   - `OnLinkCareContextCallback` (gateway inbound, §4.3.4) — `status` enum + optional `error`.
+   - `OnLinkCareContextCallback` (gateway inbound, §4.3.4) — success shape has `{ abhaAddress, status, response: { requestId } }`; error shape may omit `abhaAddress/status` and carry `{ error, response: { requestId } }`. Model this as a union so error callbacks are not rejected.
 
 4b. **`link-token.ts`** — **new file** for the per-patient link-token cache helper (NOT a flow). See [`05-m2-flows.md §2.1`](./05-m2-flows.md#21-link-token-cache-per-patient-ephemeral--a-helper-not-a-flow):
    - `GenerateTokenRequest` (HIP outbound, §4.3.1) — `abhaAddress`, `name`, `gender`, `yearOfBirth`. Used only by `lib/link-token-cache.ts` internally; **not** by hip-initiated-link use-cases directly.
-   - `OnGenerateTokenCallback` (gateway inbound, §4.3.2) — `linkToken` JWT. Handled by the cache's callback handler (UPSERTs the row), **not** as a flow transition.
+   - `OnGenerateTokenCallback` (gateway inbound, §4.3.2) — `{ abhaAddress, linkToken, response: { requestId } }`, or `{ abhaAddress?, error, response }` on failure. Handled by the cache's callback handler (UPSERTs the row or records the error), **not** as a flow transition.
 5. **`consent-notify.ts`** — `ConsentNotifyRequest` (inbound, §6.3.1) is **wrapped**, NOT a flat artefact:
    ```ts
    export interface ConsentNotifyRequest {
@@ -74,7 +74,7 @@ The scaffold files exist with `export {}` placeholders. Fill them in this order:
    ```
    `OnConsentNotifyRequest` (outbound ack, §6.3.2) — `{ acknowledgement: { status: 'OK'; consentId }, response: { requestId } }`. Earlier doc draft described the inbound as flat top-level fields; preserve the wrapper.
 6. **`care-context-publish.ts`** — `AddContextsRequest` (outbound, §4.3.6) — `notification.{patient, careContext, hiTypes, date, hip}`. `OnAddContextsCallback` (inbound ack, §4.3.7).
-7. **`sms-notify.ts`** — *optional*. `SmsNotifyRequest` (outbound, §4.3.8) — `notification.{phoneNo, hip}`. `OnSmsNotifyCallback` (inbound ack, §4.3.9).
+7. **`sms-notify.ts`** — *optional*. `SmsNotifyRequest` (outbound, §4.3.8) — top-level `requestId`, `timestamp`, and `notification.{phoneNo, hip}`. `OnSmsNotifyCallback` (inbound ack, §4.3.9) — top-level `requestId`, `timestamp`, `status?`, `error?`, and **`resp: { requestId }`**. SMS uses `resp`, not `response`.
 
 Each file exports interfaces, not classes. Suffix with `Request` for the wire shape, `Callback` for inbound-after-our-outbound. Match `protocol/m1/*.ts` for casing.
 
@@ -438,7 +438,7 @@ export async function handleDiscoverCallback(
 
 Discipline (rules from [HLD 04 §11](../integration-platform/04-orchestration-phase-1-http-first.md#11-portability-rules--the-structure-that-makes-future-de-migration-mechanical)):
 
-- **No direct DB writes** — only `deps.sessions`, `deps.inboundMessages`, `deps.consentArtefacts`.
+- **No direct DB writes** — only the relevant data-access ports (`deps.sessions`, `deps.inboundMessages`, `deps.consentArtefacts`, `deps.linkTokens` for the link-token helper).
 - **No direct outbound HTTP** — only `deps.gateway`, `deps.empi`, `deps.recordFoundation`.
 - **Atomic transitions only** via `deps.sessions.patch({ state, contextMerge, txnId? })`. No two-write sequences without surrounding TX.
 - **Named state strings** — always from `M2_*_STATES` consts, never literals.
@@ -446,7 +446,7 @@ Discipline (rules from [HLD 04 §11](../integration-platform/04-orchestration-ph
 
 ## 6. Wire REST handlers (`modules/abdm-adapter/src/rest-handlers/m2/`)
 
-One file per flow folder. Each inbound handler does **exactly four things**. **Response status is per-spec, not blanket 202** — see [`05-m2-flows.md "Common pitfalls" §3`](./05-m2-flows.md#pitfall-3--inbound-response-status-varies-by-endpoint-200-vs-202) for the full table. Discover and link/init are `200`; confirm, on_carecontext, consent/notify are `202`.
+One file per flow folder. Each inbound handler does **exactly four things**. **Response status is per-spec, not blanket 202** — see [`05-m2-flows.md "Common pitfalls" §3`](./05-m2-flows.md#pitfall-3--inbound-response-status-varies-by-endpoint-200-vs-202) for the full table. Discover and link/init are `200`; the other inbound M2 callbacks are `202`.
 
 ```ts
 app.post(
@@ -527,7 +527,7 @@ npx nx run abdm-adapter-svc:serve
 # Expose to ABDM sandbox
 ngrok http 3007
 # Take the public URL (e.g., https://abc123.ngrok.io); set it as your facility's callback URL in the sandbox console.
-# All M2 inbound paths must resolve under this URL: /api/v3/hip/..., /api/v3/links/..., /api/v3/consent/..., /api/v3/patients/...
+# All M2 inbound paths must resolve under this URL: /api/v3/hip/..., /api/v3/link/..., /api/v3/links/..., /api/v3/consent/..., /api/v3/patients/...
 
 # Smoke a synthetic inbound discover (no real ABDM involvement)
 curl -X POST http://localhost:3007/api/v3/hip/patient/care-context/discover \
@@ -548,7 +548,7 @@ curl -X POST http://localhost:3007/api/v3/hip/patient/care-context/discover \
 - Per-flow typed context in `domain/session.ts` working; `findById<F>()` IntelliSense surfaces the right `context` shape.
 - **Every outbound acknowledgement body carries `response.requestId` echoing the matching inbound REQUEST-ID** — grep `on-discover`, `on-init`, `on-confirm`, and `consent/request/hip/on-notify`; audit visually. Missing it = gateway silently drops the response. See [`05-m2-flows.md "Common pitfalls" §1`](./05-m2-flows.md#pitfall-1--correlation-direction-matters-for-responserequestid).
 - **Inbound response status matches spec per route** — `/discover` and `/link/init` return 200; everything else returns 202. Integration tests assert the exact status. See [`05-m2-flows.md "Common pitfalls" §3`](./05-m2-flows.md#pitfall-3--inbound-response-status-varies-by-endpoint-200-vs-202).
-- **HI type enum casing matches the endpoint** — `link/carecontext` uses ALL CAPS, `link/context/notify` and consent body use PascalCase. Per-endpoint wire enums or a normalizer. See [`05-m2-flows.md "Common pitfalls" §2`](./05-m2-flows.md#pitfall-2--hi-type-casing-varies-by-endpoint).
+- **HI type enum casing matches the endpoint** — `link/carecontext` uses ALL CAPS, `link/context/notify` uses PascalCase, and inbound consent notify must tolerate/normalize both observed casings. Per-endpoint wire enums or a normalizer. See [`05-m2-flows.md "Common pitfalls" §2`](./05-m2-flows.md#pitfall-2--hi-type-casing-varies-by-endpoint).
 - **No shared `InboundGatewayHeaders` type** — per-route header DTO (HipInboundHeaders vs HiuInboundHeaders) per §2.
 - `pnpm -F @hims/ts-sdk-abha build` clean.
 - `npx nx run abdm-adapter:lint` and `npx nx run abdm-adapter:test` clean.
