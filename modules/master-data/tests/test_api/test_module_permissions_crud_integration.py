@@ -37,8 +37,10 @@ def mp_sqlite_session() -> Iterator[Session]:
     def _sqlite_fk(dbapi_connection, _connection_record) -> None:
         dbapi_connection.execute("PRAGMA foreign_keys=ON")
         dbapi_connection.execute("ATTACH DATABASE ':memory:' AS tenant_master")
+        dbapi_connection.execute("ATTACH DATABASE ':memory:' AS global_master")
 
-    Base.metadata.create_all(engine)
+    with engine.begin() as conn:
+        Base.metadata.create_all(bind=conn)
     factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     session = factory()
     try:

@@ -1,4 +1,4 @@
-"""Add Visitpad ``vaccines`` and ``manufacturers`` in ``public`` and ``tenant_master``.
+"""Add Visitpad ``vaccines`` and ``manufacturers`` in ``global_master`` and ``tenant_master``.
 
 Revision ID: 023_vp_vaccines_manufacturers
 Revises: 022_tm_iq_tenant_uuid
@@ -15,13 +15,12 @@ from sqlalchemy import text
 from sqlalchemy.dialects import postgresql
 
 from alembic import op
+from schema_names import GLOBAL_SCHEMA as _GM, TENANT_SCHEMA as _TM
 
 revision: str = "023_vp_vaccines_manufacturers"
 down_revision: str | Sequence[str] | None = "022_tm_iq_tenant_uuid"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
-
-_TM = "tenant_master"
 
 
 def _stamp_cols() -> list[sa.Column]:
@@ -78,13 +77,13 @@ def upgrade() -> None:
     op.execute(text(f"CREATE SCHEMA IF NOT EXISTS {_TM}"))
 
     # --- vaccines ---
-    op.create_table("vaccines", *_catalog_cols(tenant=False), schema="public")
+    op.create_table("vaccines", *_catalog_cols(tenant=False), schema=_GM)
     op.create_index(
         "vaccines_global_code_active_key",
         "vaccines",
         ["code"],
         unique=True,
-        schema="public",
+        schema=_GM,
         postgresql_where=sa.text("NOT is_deleted"),
     )
 
@@ -99,13 +98,13 @@ def upgrade() -> None:
     )
 
     # --- manufacturers ---
-    op.create_table("manufacturers", *_catalog_cols(tenant=False), schema="public")
+    op.create_table("manufacturers", *_catalog_cols(tenant=False), schema=_GM)
     op.create_index(
         "manufacturers_global_code_active_key",
         "manufacturers",
         ["code"],
         unique=True,
-        schema="public",
+        schema=_GM,
         postgresql_where=sa.text("NOT is_deleted"),
     )
 
@@ -127,10 +126,10 @@ def downgrade() -> None:
 
     op.drop_index("manufacturers_tenant_code_active_key", table_name="manufacturers", schema=_TM)
     op.drop_table("manufacturers", schema=_TM)
-    op.drop_index("manufacturers_global_code_active_key", table_name="manufacturers", schema="public")
-    op.drop_table("manufacturers", schema="public")
+    op.drop_index("manufacturers_global_code_active_key", table_name="manufacturers", schema=_GM)
+    op.drop_table("manufacturers", schema=_GM)
 
     op.drop_index("vaccines_tenant_code_active_key", table_name="vaccines", schema=_TM)
     op.drop_table("vaccines", schema=_TM)
-    op.drop_index("vaccines_global_code_active_key", table_name="vaccines", schema="public")
-    op.drop_table("vaccines", schema="public")
+    op.drop_index("vaccines_global_code_active_key", table_name="vaccines", schema=_GM)
+    op.drop_table("vaccines", schema=_GM)

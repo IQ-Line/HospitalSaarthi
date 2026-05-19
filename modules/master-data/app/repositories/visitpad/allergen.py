@@ -1,4 +1,4 @@
-"""Database access for the Visitpad ``allergens`` catalog (``public`` vs ``tenant_master``)."""
+"""Database access for the Visitpad ``allergens`` catalog (``global_master`` vs ``tenant_master``)."""
 
 from __future__ import annotations
 

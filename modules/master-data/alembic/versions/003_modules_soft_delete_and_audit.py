@@ -10,6 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 from alembic import op
+from schema_names import GLOBAL_SCHEMA as _GM, TENANT_SCHEMA as _TM
 
 revision: str = "003_soft_delete_audit"
 down_revision: str | Sequence[str] | None = "002_extend_modules_catalog"
@@ -27,20 +28,24 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("false"),
         ),
+        schema=_GM,
     )
     # UUID identifiers only — no FK to user_management (cross-schema rule).
     op.add_column(
         "modules",
         sa.Column("created_by", postgresql.UUID(as_uuid=True), nullable=True),
+        schema=_GM,
     )
     op.add_column(
         "modules",
         sa.Column("updated_by", postgresql.UUID(as_uuid=True), nullable=True),
+        schema=_GM,
     )
     op.create_index(
         "idx_modules_is_deleted",
         "modules",
         ["is_deleted"],
+        schema=_GM,
     )
 
 

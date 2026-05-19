@@ -1,4 +1,4 @@
-"""Seed Visitpad templates module + permissions + module_permissions (public catalog).
+"""Seed Visitpad templates module + permissions + module_permissions (``global_master`` catalog).
 
 Revision ID: 024_visitpad_templates_module_catalog
 Revises: 023_vp_vaccines_manufacturers
@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from alembic import op
+from schema_names import GLOBAL_SCHEMA as _GM, TENANT_SCHEMA as _TM
 
 revision: str = "024_visitpad_templates_module_catalog"
 down_revision: str | Sequence[str] | None = "023_vp_vaccines_manufacturers"
@@ -32,7 +33,7 @@ def upgrade() -> None:
 
     op.execute(
         f"""
-        INSERT INTO public.modules (
+        INSERT INTO global_master.modules (
             id, parent_id, name, slug, description, category, version, level, icon,
             is_active, is_deleted, created_at, updated_at
         )
@@ -51,7 +52,7 @@ def upgrade() -> None:
             now(),
             now()
         WHERE NOT EXISTS (
-            SELECT 1 FROM public.modules
+            SELECT 1 FROM global_master.modules
             WHERE slug = 'visitpad-templates' AND NOT is_deleted
         );
         """
@@ -59,7 +60,7 @@ def upgrade() -> None:
 
     op.execute(
         f"""
-        INSERT INTO public.permissions (
+        INSERT INTO global_master.permissions (
             id, name, slug, action, description, is_active, is_deleted, created_at, updated_at
         )
         SELECT
@@ -73,7 +74,7 @@ def upgrade() -> None:
             now(),
             now()
         WHERE NOT EXISTS (
-            SELECT 1 FROM public.permissions
+            SELECT 1 FROM global_master.permissions
             WHERE slug = 'visitpad-templates-catalog-read' AND NOT is_deleted
         );
         """
@@ -81,7 +82,7 @@ def upgrade() -> None:
 
     op.execute(
         f"""
-        INSERT INTO public.permissions (
+        INSERT INTO global_master.permissions (
             id, name, slug, action, description, is_active, is_deleted, created_at, updated_at
         )
         SELECT
@@ -95,7 +96,7 @@ def upgrade() -> None:
             now(),
             now()
         WHERE NOT EXISTS (
-            SELECT 1 FROM public.permissions
+            SELECT 1 FROM global_master.permissions
             WHERE slug = 'visitpad-templates-catalog-write' AND NOT is_deleted
         );
         """
@@ -103,7 +104,7 @@ def upgrade() -> None:
 
     op.execute(
         f"""
-        INSERT INTO public.module_permissions (
+        INSERT INTO global_master.module_permissions (
             id, slug, module_id, permission_id, is_default, is_active, is_deleted,
             created_at, updated_at
         )
@@ -111,19 +112,19 @@ def upgrade() -> None:
             '{MP_READ_ID}'::uuid,
             'visitpad-templates-catalog-read',
             '{MODULE_VISITPAD_ID}'::uuid,
-            (SELECT id FROM public.permissions WHERE slug = 'visitpad-templates-catalog-read' AND NOT is_deleted LIMIT 1),
+            (SELECT id FROM global_master.permissions WHERE slug = 'visitpad-templates-catalog-read' AND NOT is_deleted LIMIT 1),
             true,
             true,
             false,
             now(),
             now()
-        WHERE EXISTS (SELECT 1 FROM public.modules WHERE id = '{MODULE_VISITPAD_ID}'::uuid AND NOT is_deleted)
+        WHERE EXISTS (SELECT 1 FROM global_master.modules WHERE id = '{MODULE_VISITPAD_ID}'::uuid AND NOT is_deleted)
           AND EXISTS (
-              SELECT 1 FROM public.permissions
+              SELECT 1 FROM global_master.permissions
               WHERE slug = 'visitpad-templates-catalog-read' AND NOT is_deleted
           )
           AND NOT EXISTS (
-              SELECT 1 FROM public.module_permissions
+              SELECT 1 FROM global_master.module_permissions
               WHERE slug = 'visitpad-templates-catalog-read' AND NOT is_deleted
           );
         """
@@ -131,7 +132,7 @@ def upgrade() -> None:
 
     op.execute(
         f"""
-        INSERT INTO public.module_permissions (
+        INSERT INTO global_master.module_permissions (
             id, slug, module_id, permission_id, is_default, is_active, is_deleted,
             created_at, updated_at
         )
@@ -139,19 +140,19 @@ def upgrade() -> None:
             '{MP_WRITE_ID}'::uuid,
             'visitpad-templates-catalog-write',
             '{MODULE_VISITPAD_ID}'::uuid,
-            (SELECT id FROM public.permissions WHERE slug = 'visitpad-templates-catalog-write' AND NOT is_deleted LIMIT 1),
+            (SELECT id FROM global_master.permissions WHERE slug = 'visitpad-templates-catalog-write' AND NOT is_deleted LIMIT 1),
             true,
             true,
             false,
             now(),
             now()
-        WHERE EXISTS (SELECT 1 FROM public.modules WHERE id = '{MODULE_VISITPAD_ID}'::uuid AND NOT is_deleted)
+        WHERE EXISTS (SELECT 1 FROM global_master.modules WHERE id = '{MODULE_VISITPAD_ID}'::uuid AND NOT is_deleted)
           AND EXISTS (
-              SELECT 1 FROM public.permissions
+              SELECT 1 FROM global_master.permissions
               WHERE slug = 'visitpad-templates-catalog-write' AND NOT is_deleted
           )
           AND NOT EXISTS (
-              SELECT 1 FROM public.module_permissions
+              SELECT 1 FROM global_master.module_permissions
               WHERE slug = 'visitpad-templates-catalog-write' AND NOT is_deleted
           );
         """
@@ -165,19 +166,19 @@ def downgrade() -> None:
 
     op.execute(
         f"""
-        UPDATE public.module_permissions SET is_deleted = true, updated_at = now()
+        UPDATE global_master.module_permissions SET is_deleted = true, updated_at = now()
         WHERE id IN ('{MP_READ_ID}'::uuid, '{MP_WRITE_ID}'::uuid);
         """
     )
     op.execute(
         f"""
-        UPDATE public.permissions SET is_deleted = true, updated_at = now()
+        UPDATE global_master.permissions SET is_deleted = true, updated_at = now()
         WHERE id IN ('{PERM_CATALOG_READ_ID}'::uuid, '{PERM_CATALOG_WRITE_ID}'::uuid);
         """
     )
     op.execute(
         f"""
-        UPDATE public.modules SET is_deleted = true, updated_at = now()
+        UPDATE global_master.modules SET is_deleted = true, updated_at = now()
         WHERE id = '{MODULE_VISITPAD_ID}'::uuid;
         """
     )

@@ -1,4 +1,4 @@
-# ADR-0020: Master Data Visitpad catalogs use dual physical schemas (`public` vs `tenant_master`)
+# ADR-0020: Master Data Visitpad catalogs use dual physical schemas (`global_master` vs `tenant_master`)
 
 - **Status:** Accepted
 - **Date:** 2026-05-08
@@ -18,12 +18,12 @@ Visitpad (and related) catalog data must exist in two scopes: a **shared global*
 ## Considered options
 
 1. **Single table per entity** with nullable `tenant_id` and two partial unique indexes (global vs tenant).
-2. **Dual physical schemas** — `public.*` for global rows, `tenant_master.*` for tenant rows (same shape, no nullable scope column on `public`).
+2. **Dual physical schemas** — `global_master.*` for global rows, `tenant_master.*` for tenant rows (same shape, no nullable scope column on `global_master`).
 3. **Separate databases** per scope — rejected as operational overhead for Phase 0.
 
 ## Decision outcome
 
-Chosen option: **dual physical schemas (`public` + `tenant_master`)**, because physical separation makes scope errors obvious at the SQL layer, matches the Issue #25 walk-back (disjoint global/tenant, explicit import), and keeps `public` rows free of a synthetic “platform tenant” key.
+Chosen option: **dual physical schemas (`global_master` + `tenant_master`)**, because physical separation makes scope errors obvious at the SQL layer, matches the Issue #25 walk-back (disjoint global/tenant, explicit import), and keeps `global_master` rows free of a synthetic “platform tenant” key.
 
 ### Consequences
 
