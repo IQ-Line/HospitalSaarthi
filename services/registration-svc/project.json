@@ -1,0 +1,12 @@
+{
+  "name": "registration-svc",
+  "tags": ["type:service", "scope:registration", "language:typescript"],
+  "targets": {
+    "serve": {
+      "command": "tsx watch src/main.ts",
+      "options": {
+        "cwd": "services/registration-svc"
+      }
+    }
+  }
+}

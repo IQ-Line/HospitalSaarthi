@@ -22,6 +22,18 @@
       "options": {
         "lintFilePatterns": ["modules/billing/src/**/*.ts"]
       }
+    },
+    "db:migrate": {
+      "command": "tsx scripts/apply-migration.ts",
+      "options": {
+        "cwd": "modules/billing"
+      }
+    },
+    "db-migrate": {
+      "command": "tsx scripts/apply-migration.ts",
+      "options": {
+        "cwd": "modules/billing"
+      }
     }
   }
 }

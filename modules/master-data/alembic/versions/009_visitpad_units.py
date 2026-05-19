@@ -1,9 +1,9 @@
-"""Create ``units`` and ``unit_conversions`` in the default (``public``) schema.
+"""Create ``units`` and ``unit_conversions`` in ``global_master``.
 
 Revision ID: 009_visitpad_units
 Revises: 008_module_permissions
 
-Platform-global catalog rows use ``tenant_id`` (application supplies platform UUID).
+Visitpad rows are tenant-scoped in ``global_master`` until ``011`` splits ``tenant_master`` copies.
 """
 
 from collections.abc import Sequence
@@ -12,6 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 from alembic import op
+from schema_names import GLOBAL_SCHEMA as _GM, TENANT_SCHEMA as _TM
 
 revision: str = "009_visitpad_units"
 down_revision: str | Sequence[str] | None = "008_module_permissions"
@@ -49,12 +50,14 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("now()"),
         ),
+        schema=_GM,
     )
     op.create_index(
         "ix_visitpad_units_tenant_display_order",
         "units",
         ["tenant_id", "display_order", "code"],
         unique=False,
+        schema=_GM,
     )
     op.create_index(
         "units_tenant_code_active_key",
@@ -62,6 +65,7 @@ def upgrade() -> None:
         ["tenant_id", "code"],
         unique=True,
         postgresql_where=sa.text("NOT is_deleted"),
+        schema=_GM,
     )
 
     op.create_table(
@@ -91,12 +95,14 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("now()"),
         ),
+        schema=_GM,
     )
     op.create_index(
         "ix_visitpad_unit_conversions_tenant_order",
         "unit_conversions",
         ["tenant_id", "display_order", "from_unit_code"],
         unique=False,
+        schema=_GM,
     )
     op.create_index(
         "unit_conversions_tenant_from_to_active_key",
@@ -104,6 +110,7 @@ def upgrade() -> None:
         ["tenant_id", "from_unit_code", "to_unit_code"],
         unique=True,
         postgresql_where=sa.text("NOT is_deleted"),
+        schema=_GM,
     )
 
 

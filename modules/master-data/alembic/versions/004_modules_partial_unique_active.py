@@ -12,6 +12,7 @@ Revises: 003_soft_delete_audit
 from collections.abc import Sequence
 
 from alembic import op
+from schema_names import GLOBAL_SCHEMA as _GM, TENANT_SCHEMA as _TM
 
 revision: str = "004_partial_unique"
 down_revision: str | Sequence[str] | None = "003_soft_delete_audit"
@@ -26,14 +27,14 @@ def upgrade() -> None:
     op.execute(
         """
         CREATE UNIQUE INDEX modules_name_active_key
-        ON public.modules (name)
+        ON global_master.modules (name)
         WHERE NOT is_deleted
         """
     )
     op.execute(
         """
         CREATE UNIQUE INDEX modules_slug_active_key
-        ON public.modules (slug)
+        ON global_master.modules (slug)
         WHERE NOT is_deleted
         """
     )
@@ -47,9 +48,11 @@ def downgrade() -> None:
         "modules_name_key",
         "modules",
         ["name"],
+        schema=_GM,
     )
     op.create_unique_constraint(
         "modules_slug_key",
         "modules",
         ["slug"],
+        schema=_GM,
     )

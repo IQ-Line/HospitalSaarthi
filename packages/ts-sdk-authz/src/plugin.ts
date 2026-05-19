@@ -194,7 +194,7 @@ async function authzPluginFn(
 
     const routeKey = routeKeyFromRequest(request);
     const authMode = resolveRouteAuthMode(request.routeOptions?.config);
-    if (authMode === "public") {
+    if (authMode !== "protected") {
       return;
     }
 

@@ -1,22 +1,33 @@
 /**
- * M1 — ABHA creation via Aadhaar OTP.
+ * M1 — ABHA creation via Aadhaar OTP (NHA wire + HIMS shapes).
  *
- * Flow (FSM `abdm.m1.aadhaar-otp.v1`): `INIT` → `OTP_REQUESTED` → `OTP_VERIFIED`
- * → `ABHA_CREATED` → (optional `ADDRESS_CREATED`) → `LINKED`.
- *
- * Source spec:
- *   - `docs/external/abdm/v3-m1-abha-v3-apis-creation-verification.md`
- *   - `docs/external/abdm-wrapper/docs/wrapperV3.yaml` (paths under
- *     `/api/v3/enrollment/request/otp` and `/api/v3/enrollment/enrol/byAadhaar`)
- *
- * TODO: dev to populate the two request/response DTO pairs:
- *   - `EnrolAadhaarOtpRequest`  / `EnrolAadhaarOtpResponse`  (request OTP)
- *   - `EnrolAadhaarVerifyRequest` / `EnrolAadhaarVerifyResponse` (verify + create ABHA)
- *
- * The verify response carries the new ABHA profile (mapped via
- * `@hims/ts-sdk-abha/domain/map-profile-to-patient`) and gateway tokens
- * (`xToken`, `tokens.refresh`) that the platform persists in
- * `abdm_adapter.abdm_sessions` for follow-up profile/card calls.
+ * Source: Postman "ABHA enrolment via Aadhaar" → Send OTP, and
+ * `docs/external/abdm/v3-m1-abha-v3-apis-creation-verification.md`.
  */
 
-export {};
+/** POST `/v3/enrollment/request/otp` body (Aadhaar path). */
+export interface NhaEnrolmentRequestOtpBody {
+  txnId: string;
+  scope: string[];
+  loginHint: string;
+  loginId: string;
+  otpSystem: string;
+}
+
+/** POST `/v3/enrollment/request/otp` success body (subset; NHA may add fields). */
+export interface NhaEnrolmentRequestOtpResponse {
+  txnId?: string;
+  message?: string;
+}
+
+/** HIMS adapter input — plain 12-digit Aadhaar (server encrypts before NHA). */
+export interface EnrolAadhaarOtpHimsRequest {
+  aadhaarNumber: string;
+}
+
+/** HIMS adapter response after OTP dispatch. */
+export interface EnrolAadhaarOtpHimsResponse {
+  sessionId: string;
+  txnId: string;
+  message: string;
+}

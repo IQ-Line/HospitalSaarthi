@@ -1,4 +1,4 @@
-"""Visitpad catalog tables in ``public`` (rx_columns, allergens, complaints, diagnoses, vitals, medicines, …).
+"""Visitpad catalog tables in ``global_master`` (rx_columns, allergens, complaints, diagnoses, vitals, medicines, …).
 
 Revision ID: 010_visitpad_catalog
 Revises: 009_visitpad_units
@@ -10,6 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 from alembic import op
+from schema_names import GLOBAL_SCHEMA as _GM, TENANT_SCHEMA as _TM
 
 revision: str = "010_visitpad_catalog"
 down_revision: str | Sequence[str] | None = "009_visitpad_units"
@@ -49,6 +50,7 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("now()"),
         ),
+        schema=_GM,
     )
     op.create_index(
         "rx_columns_tenant_section_code_active_key",
@@ -56,6 +58,7 @@ def upgrade() -> None:
         ["tenant_id", "section", "code"],
         unique=True,
         postgresql_where=sa.text("NOT is_deleted"),
+        schema=_GM,
     )
 
     op.create_table(
@@ -88,6 +91,7 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("now()"),
         ),
+        schema=_GM,
     )
     op.create_index(
         "allergens_tenant_code_active_key",
@@ -95,6 +99,7 @@ def upgrade() -> None:
         ["tenant_id", "code"],
         unique=True,
         postgresql_where=sa.text("NOT is_deleted"),
+        schema=_GM,
     )
 
     op.create_table(
@@ -123,6 +128,7 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("now()"),
         ),
+        schema=_GM,
     )
     op.create_index(
         "allergy_reactions_tenant_code_active_key",
@@ -130,6 +136,7 @@ def upgrade() -> None:
         ["tenant_id", "code"],
         unique=True,
         postgresql_where=sa.text("NOT is_deleted"),
+        schema=_GM,
     )
 
     op.create_table(
@@ -163,6 +170,7 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("now()"),
         ),
+        schema=_GM,
     )
     op.create_index(
         "chief_complaints_tenant_code_active_key",
@@ -170,6 +178,7 @@ def upgrade() -> None:
         ["tenant_id", "code"],
         unique=True,
         postgresql_where=sa.text("NOT is_deleted"),
+        schema=_GM,
     )
 
     op.create_table(
@@ -204,6 +213,7 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("now()"),
         ),
+        schema=_GM,
     )
     op.create_index(
         "diagnoses_tenant_icd_active_key",
@@ -211,6 +221,7 @@ def upgrade() -> None:
         ["tenant_id", "icd10_code", "icd_version"],
         unique=True,
         postgresql_where=sa.text("NOT is_deleted"),
+        schema=_GM,
     )
 
     op.create_table(
@@ -241,6 +252,7 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("now()"),
         ),
+        schema=_GM,
     )
     op.create_index(
         "chronic_illnesses_tenant_icd_active_key",
@@ -248,6 +260,7 @@ def upgrade() -> None:
         ["tenant_id", "icd10_code"],
         unique=True,
         postgresql_where=sa.text("NOT is_deleted"),
+        schema=_GM,
     )
 
     op.create_table(
@@ -293,6 +306,7 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("now()"),
         ),
+        schema=_GM,
     )
     op.create_index(
         "vitals_tenant_code_active_key",
@@ -300,6 +314,7 @@ def upgrade() -> None:
         ["tenant_id", "code"],
         unique=True,
         postgresql_where=sa.text("NOT is_deleted"),
+        schema=_GM,
     )
 
     op.create_table(
@@ -376,6 +391,7 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("now()"),
         ),
+        schema=_GM,
     )
     op.create_index(
         "medicines_tenant_code_active_key",
@@ -383,6 +399,7 @@ def upgrade() -> None:
         ["tenant_id", "code"],
         unique=True,
         postgresql_where=sa.text("NOT is_deleted"),
+        schema=_GM,
     )
 
     op.create_table(
@@ -418,6 +435,7 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("now()"),
         ),
+        schema=_GM,
     )
     op.create_index(
         "procedures_tenant_cpt_active_key",
@@ -425,6 +443,7 @@ def upgrade() -> None:
         ["tenant_id", "cpt_code"],
         unique=True,
         postgresql_where=sa.text("NOT is_deleted"),
+        schema=_GM,
     )
 
 

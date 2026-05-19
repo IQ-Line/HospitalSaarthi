@@ -34,7 +34,10 @@ const upstreams: UpstreamRoute[] = [
     prefix: '/api/empi/v1',
     upstream: process.env['EMPI_URL'] ?? 'http://localhost:3002',
   },
-  // Add new module upstreams here as they come online:
+  {
+    prefix: '/api/registration/v1',
+    upstream: process.env['REGISTRATION_URL'] ?? 'http://localhost:3006',
+  },
 ];
 
 const isProduction = process.env['NODE_ENV'] === 'production';
@@ -70,6 +73,7 @@ async function main() {
       'Authorization',
       'iq_tenant_id',
       'x-tenant-id',
+      'Idempotency-Key',
     ],
     origin: (origin, cb) => {
       if (!isProduction) {

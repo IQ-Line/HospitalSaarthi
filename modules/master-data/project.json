@@ -53,6 +53,13 @@
         "envFile": "{workspaceRoot}/.env"
       },
       "dependsOn": ["setup"]
+    },
+    "db-migrate": {
+      "command": "uv run alembic upgrade head",
+      "options": {
+        "cwd": "modules/master-data"
+      },
+      "dependsOn": ["setup"]
     }
   }
 }

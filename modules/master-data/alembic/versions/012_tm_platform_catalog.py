@@ -1,13 +1,13 @@
 """Create ``tenant_master`` tables for platform catalog (modules, permissions, system_roles, module_permissions).
 
-Each table mirrors ``public`` plus ``tenant_id`` and tenant-scoped partial unique indexes.
-Rows start empty; global catalog remains in ``public``.
+Each table mirrors ``global_master`` plus ``iq_tenant_id`` (UUID) and tenant-scoped partial unique indexes.
+Rows start empty; global catalog remains in ``global_master``.
 
 Revision ID: 012_tm_platform_catalog (≤32 chars for ``alembic_version.version_num``).
 Revises: 011_tenant_master_visitpad
 
-Chain order: all ``public``-only revisions through ``010`` run first; ``011`` performs Visitpad dual-schema
-(data copy before ``public`` reshape); **this** revision adds platform ``tenant_master`` tables only after ``011``.
+Chain order: all ``global_master``-only revisions through ``010`` run first; ``011`` performs Visitpad dual-schema
+(data copy before ``global_master`` reshape); **this** revision adds platform ``tenant_master`` tables only after ``011``.
 
 SQLite / non-PostgreSQL: no-op (tests use ORM ``create_all`` only).
 """
@@ -20,13 +20,12 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 from alembic import op
+from schema_names import GLOBAL_SCHEMA as _GM, TENANT_SCHEMA as _TM
 
 revision: str = "012_tm_platform_catalog"
 down_revision: str | Sequence[str] | None = "011_tenant_master_visitpad"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
-
-_TM = "tenant_master"
 
 
 def upgrade() -> None:
@@ -44,7 +43,7 @@ def upgrade() -> None:
             primary_key=True,
             server_default=sa.text("gen_random_uuid()"),
         ),
-        sa.Column("tenant_id", sa.Integer(), nullable=False),
+        sa.Column("iq_tenant_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("parent_id", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("name", sa.String(length=100), nullable=False),
         sa.Column("slug", sa.Text(), nullable=False),
@@ -92,14 +91,14 @@ def upgrade() -> None:
     op.execute(
         f"""
         CREATE UNIQUE INDEX tm_modules_name_active_key
-        ON {_TM}.modules (tenant_id, name)
+        ON {_TM}.modules (iq_tenant_id, name)
         WHERE NOT is_deleted
         """
     )
     op.execute(
         f"""
         CREATE UNIQUE INDEX tm_modules_slug_active_key
-        ON {_TM}.modules (tenant_id, slug)
+        ON {_TM}.modules (iq_tenant_id, slug)
         WHERE NOT is_deleted
         """
     )
@@ -112,7 +111,7 @@ def upgrade() -> None:
             primary_key=True,
             server_default=sa.text("gen_random_uuid()"),
         ),
-        sa.Column("tenant_id", sa.Integer(), nullable=False),
+        sa.Column("iq_tenant_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("name", sa.Text(), nullable=False),
         sa.Column("slug", sa.Text(), nullable=False),
         sa.Column("action", sa.String(length=16), nullable=False),
@@ -142,7 +141,7 @@ def upgrade() -> None:
     op.execute(
         f"""
         CREATE UNIQUE INDEX tm_permissions_slug_active_key
-        ON {_TM}.permissions (tenant_id, slug)
+        ON {_TM}.permissions (iq_tenant_id, slug)
         WHERE NOT is_deleted
         """
     )
@@ -155,7 +154,7 @@ def upgrade() -> None:
             primary_key=True,
             server_default=sa.text("gen_random_uuid()"),
         ),
-        sa.Column("tenant_id", sa.Integer(), nullable=False),
+        sa.Column("iq_tenant_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("name", sa.Text(), nullable=False),
         sa.Column("slug", sa.Text(), nullable=False),
         sa.Column("is_template", sa.Boolean(), nullable=False, server_default=sa.text("true")),
@@ -181,7 +180,7 @@ def upgrade() -> None:
     op.execute(
         f"""
         CREATE UNIQUE INDEX tm_system_roles_slug_active_key
-        ON {_TM}.system_roles (tenant_id, slug)
+        ON {_TM}.system_roles (iq_tenant_id, slug)
         WHERE NOT is_deleted
         """
     )
@@ -194,7 +193,7 @@ def upgrade() -> None:
             primary_key=True,
             server_default=sa.text("gen_random_uuid()"),
         ),
-        sa.Column("tenant_id", sa.Integer(), nullable=False),
+        sa.Column("iq_tenant_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("slug", sa.Text(), nullable=False),
         sa.Column("module_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("permission_id", postgresql.UUID(as_uuid=True), nullable=False),
@@ -252,14 +251,14 @@ def upgrade() -> None:
     op.execute(
         f"""
         CREATE UNIQUE INDEX tm_module_permissions_slug_active_key
-        ON {_TM}.module_permissions (tenant_id, slug)
+        ON {_TM}.module_permissions (iq_tenant_id, slug)
         WHERE NOT is_deleted
         """
     )
     op.execute(
         f"""
         CREATE UNIQUE INDEX tm_module_permissions_module_permission_active_key
-        ON {_TM}.module_permissions (tenant_id, module_id, permission_id)
+        ON {_TM}.module_permissions (iq_tenant_id, module_id, permission_id)
         WHERE NOT is_deleted
         """
     )
