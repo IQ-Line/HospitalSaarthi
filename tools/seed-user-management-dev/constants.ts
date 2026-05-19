@@ -32,20 +32,60 @@ export const DEV_TENANT_ID = DEVELOPMENT_BOOTSTRAP_TENANT_ID;
 export const DEV_ORG_ID = DEVELOPMENT_BOOTSTRAP_ORG_ID;
 
 export type SeedModuleDef = {
-  id: string;
+  /** When set, upsert this id when the slug is missing (Alembic may already own the row). */
+  id?: string;
   slug: string;
   name: string;
   description: string;
   category: "core" | "clinical" | "administrative" | "support";
+  level: number;
 };
 
+/** Modules resolved from global_master after Alembic; supplemental rows use fixed ids. */
 export const SEED_MODULES: readonly SeedModuleDef[] = [
   {
-    id: "11111111-1111-4111-8111-111111111111",
     slug: "user-management",
-    name: "user_management",
+    name: "User Management",
     description: "User Management — platform users, roles, and runtime capabilities.",
     category: "core",
+    level: 1,
+  },
+  {
+    slug: "configurator",
+    name: "Configurator",
+    description: "Tenant configuration and module enablement.",
+    category: "core",
+    level: 1,
+  },
+  {
+    slug: "empi",
+    name: "EMPI",
+    description: "Enterprise master patient index.",
+    category: "core",
+    level: 1,
+  },
+  {
+    slug: "master-data",
+    name: "Master Data",
+    description: "Platform catalog and reference data.",
+    category: "core",
+    level: 1,
+  },
+  {
+    id: "55555555-5555-4555-8555-555555555501",
+    slug: "visitpad-templates",
+    name: "Visitpad Templates",
+    description: "Visitpad clinical templates (units, vitals, picklists).",
+    category: "clinical",
+    level: 1,
+  },
+  {
+    id: "66666666-6666-4666-8666-666666666601",
+    slug: "frontdesk",
+    name: "Frontdesk",
+    description: "Front desk registration and OPD workflows.",
+    category: "clinical",
+    level: 1,
   },
   {
     id: "a1000001-0001-4001-8001-000000000001",
@@ -53,20 +93,7 @@ export const SEED_MODULES: readonly SeedModuleDef[] = [
     name: "opd",
     description: "Outpatient department visits and patients.",
     category: "clinical",
-  },
-  {
-    id: "a1000002-0002-4002-8002-000000000002",
-    slug: "billing",
-    name: "billing",
-    description: "Billing, invoices, and payments.",
-    category: "administrative",
-  },
-  {
-    id: "a1000003-0003-4003-8003-000000000003",
-    slug: "reports",
-    name: "reports",
-    description: "Operational and clinical reports.",
-    category: "support",
+    level: 1,
   },
 ] as const;
 
@@ -92,10 +119,13 @@ export const SEED_PERMISSIONS: readonly SeedPermissionDef[] = [
   { id: "c1000001-0001-4001-8001-000000000001", slug: "opd.visit.create", name: "Create OPD visit", action: "create", moduleSlug: "opd" },
   { id: "c1000001-0002-4001-8001-000000000002", slug: "opd.visit.read", name: "Read OPD visit", action: "read", moduleSlug: "opd" },
   { id: "c1000001-0003-4001-8001-000000000003", slug: "opd.patient.read", name: "Read OPD patient", action: "read", moduleSlug: "opd" },
-  { id: "d1000001-0001-4001-8001-000000000001", slug: "invoice.create", name: "Create invoice", action: "create", moduleSlug: "billing" },
-  { id: "d1000001-0002-4001-8001-000000000002", slug: "invoice.read", name: "Read invoice", action: "read", moduleSlug: "billing" },
-  { id: "d1000001-0003-4001-8001-000000000003", slug: "payment.collect", name: "Collect payment", action: "manage", moduleSlug: "billing" },
-  { id: "e1000001-0001-4001-8001-000000000001", slug: "report.read", name: "Read report", action: "read", moduleSlug: "reports" },
+  { id: "f1000001-0001-4001-8001-000000000001", slug: "md.shell.access", name: "Master Data shell", action: "read", moduleSlug: "master-data" },
+  { id: "f1000001-0002-4001-8001-000000000002", slug: "md.visitpad.view", name: "Visitpad view", action: "read", moduleSlug: "master-data" },
+  { id: "f1000001-0003-4001-8001-000000000003", slug: "md.visitpad.create", name: "Visitpad create", action: "create", moduleSlug: "master-data" },
+  { id: "f1000002-0001-4001-8001-000000000001", slug: "cfg.shell.access", name: "Configurator shell", action: "read", moduleSlug: "configurator" },
+  { id: "f1000003-0001-4001-8001-000000000001", slug: "fd.shell.access", name: "Frontdesk shell", action: "read", moduleSlug: "frontdesk" },
+  { id: "f1000004-0001-4001-8001-000000000001", slug: "empi.patient.read", name: "Read patient", action: "read", moduleSlug: "empi" },
+  { id: "f1000004-0002-4001-8001-000000000002", slug: "empi.patient.create", name: "Register patient", action: "create", moduleSlug: "empi" },
 ] as const;
 
 export type SeedCapabilityDef = {
@@ -121,15 +151,13 @@ export const SEED_CAPABILITIES: readonly SeedCapabilityDef[] = [
   { capability_key: "opd:visit:create", module: "opd", feature: "visit", action: "create", display_name: "Create OPD visit", source_permission_slug: "opd.visit.create" },
   { capability_key: "opd:visit:read", module: "opd", feature: "visit", action: "read", display_name: "Read OPD visit", source_permission_slug: "opd.visit.read" },
   { capability_key: "opd:patient:read", module: "opd", feature: "patient", action: "read", display_name: "Read OPD patient", source_permission_slug: "opd.patient.read" },
-  { capability_key: "billing:invoice:create", module: "billing", feature: "invoice", action: "create", display_name: "Create invoice", source_permission_slug: "invoice.create" },
-  { capability_key: "billing:invoice:read", module: "billing", feature: "invoice", action: "read", display_name: "Read invoice", source_permission_slug: "invoice.read" },
-  { capability_key: "billing:payment:manage", module: "billing", feature: "payment", action: "manage", display_name: "Collect payment", source_permission_slug: "payment.collect" },
-  { capability_key: "reports:report:read", module: "reports", feature: "report", action: "read", display_name: "Read report", source_permission_slug: "report.read" },
   { capability_key: "md:shell:access", module: "master-data", feature: "shell", action: "access", display_name: "Master Data shell", source_permission_slug: "md.shell.access" },
   { capability_key: "md:visitpad:view", module: "master-data", feature: "visitpad", action: "view", display_name: "Visitpad view", source_permission_slug: "md.visitpad.view" },
   { capability_key: "md:visitpad:create", module: "master-data", feature: "visitpad", action: "create", display_name: "Visitpad create", source_permission_slug: "md.visitpad.create" },
   { capability_key: "cfg:shell:access", module: "configurator", feature: "shell", action: "access", display_name: "Configurator shell", source_permission_slug: "cfg.shell.access" },
   { capability_key: "fd:shell:access", module: "frontdesk", feature: "shell", action: "access", display_name: "Frontdesk shell", source_permission_slug: "fd.shell.access" },
+  { capability_key: "empi:patient:read", module: "empi", feature: "patient", action: "read", display_name: "Read patients", source_permission_slug: "empi.patient.read" },
+  { capability_key: "empi:patient:create", module: "empi", feature: "patient", action: "create", display_name: "Register patients", source_permission_slug: "empi.patient.create" },
 ] as const;
 
 const UM_PREFIX = "um:";
@@ -137,7 +165,10 @@ const UM_PREFIX = "um:";
 export const PLATFORM_OPERATOR_CAPABILITY_KEYS = SEED_CAPABILITIES.map((c) => c.capability_key);
 
 export const TENANT_ADMIN_CAPABILITY_KEYS = SEED_CAPABILITIES.filter(
-  (c) => c.capability_key.startsWith(UM_PREFIX) || c.capability_key.includes(":shell:") || c.capability_key.startsWith("md:visitpad:"),
+  (c) =>
+    c.capability_key.startsWith(UM_PREFIX) ||
+    c.capability_key.includes(":shell:") ||
+    c.capability_key.startsWith("md:visitpad:"),
 ).map((c) => c.capability_key);
 
 export const READONLY_CAPABILITY_KEYS = [
@@ -146,11 +177,11 @@ export const READONLY_CAPABILITY_KEYS = [
   "um:capability:read",
   "opd:visit:read",
   "opd:patient:read",
-  "reports:report:read",
   "md:shell:access",
   "md:visitpad:view",
   "cfg:shell:access",
   "fd:shell:access",
+  "empi:patient:read",
 ] as const;
 
 export const CLINICAL_CAPABILITY_KEYS = [
@@ -159,11 +190,17 @@ export const CLINICAL_CAPABILITY_KEYS = [
   "opd:patient:read",
   "fd:shell:access",
   "md:shell:access",
+  "empi:patient:read",
+  "empi:patient:create",
 ] as const;
 
+/** Tenant module slugs enabled for the dev hospital (Configurator tenant_modules). */
 export const CONFIGURATOR_ENABLED_MODULE_SLUGS = [
   "user-management",
+  "configurator",
+  "visitpad-templates",
+  "frontdesk",
+  "empi",
+  "master-data",
   "opd",
-  "billing",
-  "reports",
 ] as const;

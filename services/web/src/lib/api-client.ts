@@ -26,6 +26,59 @@ function isWriteHttpMethod(method: string | undefined): boolean {
   return m === 'POST' || m === 'PUT' || m === 'PATCH' || m === 'DELETE';
 }
 
+/** Active tenant for API scope: explicit override, else Zustand selection. */
+function resolveEffectiveTenantId(context?: ApiClientContext): string | null {
+  if (context && 'tenantIdOverride' in context) {
+    const override = context.tenantIdOverride;
+    if (override === null) return null;
+    if (typeof override === 'string' && override.trim() !== '') {
+      return override.trim();
+    }
+  }
+  return useTenantStore.getState().tenantId;
+}
+
+function buildRequestHeaders(
+  path: string,
+  options: RequestInit,
+  context?: ApiClientContext,
+): Headers {
+  const tenantId = resolveEffectiveTenantId(context);
+  const headers = new Headers(options.headers);
+  headers.set('Content-Type', 'application/json');
+
+  const token = useAuthStore.getState().accessToken;
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  const catalogTenant = catalogIqTenantHeaderValue(tenantId);
+  if (catalogTenant) {
+    headers.set('iq_tenant_id', catalogTenant);
+  }
+
+  if (
+    (path.startsWith(EMPI_API_PREFIX) || isRegistrationApiPath(path)) &&
+    !headers.has('iq_tenant_id')
+  ) {
+    headers.set('iq_tenant_id', serviceIqTenantHeaderValue(tenantId));
+  }
+
+  if (
+    isWriteHttpMethod(options.method) &&
+    path.startsWith(VISITPAD_CATALOG_API_PREFIX) &&
+    tenantId != null &&
+    tenantId.trim() !== '' &&
+    catalogTenant == null
+  ) {
+    throw new Error(
+      'Visitpad catalog write blocked: a tenant is selected but its id is not a canonical UUID, so iq_tenant_id would be omitted and the change would apply to the global (public) catalog. Use a UUID tenant id from the platform tenant registry or clear tenant selection before editing the platform catalog.',
+    );
+  }
+
+  return headers;
+}
+
 export async function apiClient<T>(
   path: string,
   options: RequestInit = {},
@@ -60,39 +113,9 @@ async function apiClientInternal<T>(
   path: string,
   options: RequestInit,
   canRetryWithFreshToken: boolean,
+  context?: ApiClientContext,
 ): Promise<T> {
-  const tenantId = useTenantStore.getState().tenantId;
-
-  const headers = new Headers(options.headers);
-  headers.set('Content-Type', 'application/json');
-
-  const token = useAuthStore.getState().accessToken;
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
-  }
-  const catalogTenant = catalogIqTenantHeaderValue(tenantId);
-  if (catalogTenant) {
-    headers.set('iq_tenant_id', catalogTenant);
-  }
-  /** EMPI and Registration require `iq_tenant_id` (or `x-tenant-id`). */
-  if (
-    (path.startsWith(EMPI_API_PREFIX) || isRegistrationApiPath(path)) &&
-    !headers.has('iq_tenant_id')
-  ) {
-    headers.set('iq_tenant_id', serviceIqTenantHeaderValue(tenantId));
-  }
-
-  if (
-    isWriteHttpMethod(options.method) &&
-    path.startsWith(VISITPAD_CATALOG_API_PREFIX) &&
-    tenantId != null &&
-    tenantId.trim() !== '' &&
-    catalogTenant == null
-  ) {
-    throw new Error(
-      'Visitpad catalog write blocked: a tenant is selected but its id is not a canonical UUID, so iq_tenant_id would be omitted and the change would apply to the global (public) catalog. Use a UUID tenant id from the platform tenant registry or clear tenant selection before editing the platform catalog.',
-    );
-  }
+  const headers = buildRequestHeaders(path, options, context);
 
   const response = await fetch(resolveRequestUrl(path), {
     ...options,

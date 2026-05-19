@@ -1,4 +1,5 @@
 import { GRPC } from "@cerbos/grpc";
+import { normalizeCerbosGrpcUrl } from "@hims/ts-sdk-authz";
 import { buildCerbosUserMgmtResourceAttr } from "../../modules/user-management/src/authz/cerbos-resource-attr.ts";
 import { DEV_TENANT_ID } from "./constants.ts";
 import { DEVELOPMENT_PLATFORM_OPERATOR } from "../../packages/dev-bootstrap/src/index.ts";
@@ -14,7 +15,7 @@ export async function validateCerbosForBootstrapUser(
   cerbosUrl: string,
   principalService: ReturnType<typeof createDefaultPrincipalService>,
 ): Promise<CerbosValidationResult> {
-  const cerbos = new GRPC(cerbosUrl, { tls: false });
+  const cerbos = new GRPC(normalizeCerbosGrpcUrl(cerbosUrl), { tls: false });
   const principal = await principalService.getPrincipal({
     tenantId: DEV_TENANT_ID,
     userId: DEVELOPMENT_PLATFORM_OPERATOR.userId,

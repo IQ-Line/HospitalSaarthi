@@ -70,7 +70,7 @@ async function main(): Promise<void> {
   }
 
   seedLog("preflight", "checking database schemas");
-  await assertSchemaExists(masterDataUrl, "public");
+  await assertSchemaExists(masterDataUrl, "global_master");
   await assertSchemaExists(configuratorUrl, "configurator");
   await assertSchemaExists(userMgmtUrl, "user_management");
 

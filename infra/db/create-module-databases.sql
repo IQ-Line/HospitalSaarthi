@@ -1,6 +1,5 @@
 -- Create per-module databases on the local Citus/Postgres instance.
--- Run once (from repo root), e.g.:
---   docker exec -i hims-postgres psql -U hims -d hims_dev -f - < infra/db/create-module-databases.sql
+-- Invoked automatically by `make db-create-modules` (also part of `make setup`).
 
 DO $$
 BEGIN

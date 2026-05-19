@@ -3,7 +3,7 @@ export { authzPlugin } from "./plugin.js";
 export { principalAttrsForCerbos } from "./principal-attr.js";
 export { createPepMiddleware } from "./middleware.js";
 export { DecisionCache } from "./decision-cache.js";
-export { getCerbosClient, closeCerbosClient } from "./client.js";
+export { getCerbosClient, closeCerbosClient, normalizeCerbosGrpcUrl } from "./client.js";
 export type {
   AuthzPluginOptions,
   AuthzTarget,

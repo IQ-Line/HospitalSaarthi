@@ -52,6 +52,10 @@ In `import.meta.env.DEV`, the login page lists the seeded users. Each button run
 
 Seed script validates Cerbos allows `user.create`, `role.create`, and `role.assign` for the platform operator principal. Policy files under `infra/cerbos/policies/` remain the PDP source of truth.
 
+## Local setup
+
+See [Local development](../../local-dev.md) for `make setup`, ports, and seed credentials.
+
 ## Related
 
 - [Runtime capability keys only](../authorization/runtime-capability-keys-only.md)
