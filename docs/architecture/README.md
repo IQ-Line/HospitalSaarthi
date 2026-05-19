@@ -10,7 +10,8 @@ For the **morning meeting**, start here:
 2. [Core Modules](hld/02-core-modules.md) — deep dive on the four always-on platform modules.
 3. [Module Shape Template](hld/03-module-shape-template.md) — the contract every feature module must follow. **Highest-value document for the meeting.**
 4. [AuthN/AuthZ Flow](hld/04-authn-authz-flow.md) — end-to-end identity and access narrative.
-5. [Integration and Interop](hld/05-integration-and-interop.md) — Integration Hub, FHIR/HL7 boundaries, ABDM.
+5. [**Unified service authentication**](lld/platform-security/01-unified-service-authentication.md) — one security stack for all `services/*-svc`, migration plan, frontend token flow, pre-prod checklist.
+6. [Integration and Interop](hld/05-integration-and-interop.md) — Integration Hub, FHIR/HL7 boundaries, ABDM.
 
 ## Problem statement
 
@@ -34,6 +35,7 @@ Start here if you want to understand **what problem we're solving** before readi
 - [**Monorepo Structure and Developer Guide**](lld/repo-structure/01-monorepo-setup.md) — repository layout, package taxonomy, internal module structure (onion layers), spec-first OpenAPI contracts, CI pipeline, deployment modes (service/embedded/offline), and how to add a new module. **Read before writing any code.**
 - [**Frontend Structure and Developer Guide**](lld/frontend/01-frontend-structure.md) — Zustand store architecture (global + feature layering), TanStack Router file-based routing, Cerbos permission integration, React Query patterns, TanStack Table/Virtual usage, and how to add a new frontend feature.
 - [**Implementation Task Breakdown**](lld/implementation/01-task-breakdown.md) — Phase 0 (monorepo foundation) and Phase 1 (first modules) broken into parallelizable work streams with dependencies, exit criteria, and deliverables.
+- [**Unified service authentication**](lld/platform-security/01-unified-service-authentication.md) — standardize JWT + tenant + Cerbos across all backend services; replace ad-hoc `ENABLE_AUTH` bypasses.
 
 ## Supporting documents
 
