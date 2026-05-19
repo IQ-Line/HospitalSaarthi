@@ -16,7 +16,7 @@ example file is a review smell.
 | 3004  | frontdesk-svc               | `services/frontdesk-svc/.env.example`                    |
 | 3005  | user-management-svc         | `services/user-management-svc/.env.example`              |
 | 3006  | registration-svc            | `services/registration-svc/.env.example`                 |
-| 3007  | abdm-adapter-svc            | `services/abdm-adapter-svc/.env.example`                 |
+| 3007  | abdm-adapter-svc            | repo root `.env.example` (`ABDM_ADAPTER_SVC_PORT`)       |
 | 5173  | web (Vite dev server)       | Vite default                                             |
 | 8010  | master-data (Python FastAPI)| `modules/master-data/.env.example`                       |
 | 8020  | visits-service (external)   | (external service; BFF proxy in `services/bff/.env.example`) |

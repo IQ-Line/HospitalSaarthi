@@ -9,7 +9,11 @@ import { loadWorkspaceEnv, serviceRoot } from "./load-workspace-env.mjs";
 loadWorkspaceEnv();
 
 function resolveDatabaseUrl() {
-  const raw = (process.env["DATABASE_URL"] ?? "").trim();
+  const raw = (
+    process.env["DATABASE_URL"] ??
+    process.env["ABDM_DATA_DATABASE_URL"] ??
+    ""
+  ).trim();
   if (!raw) return "";
   let urlString = raw.replace(/^postgresql\+psycopg:\/\//i, "postgresql://");
   try {
@@ -31,7 +35,9 @@ function resolveDatabaseUrl() {
 
 const url = resolveDatabaseUrl();
 if (!url) {
-  console.error("DATABASE_URL is missing in repo root .env");
+  console.error(
+    "DATABASE_URL is missing (set in repo root .env or deprecated ABDM_DATA_DATABASE_URL)",
+  );
   process.exit(1);
 }
 

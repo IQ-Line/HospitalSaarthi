@@ -63,7 +63,7 @@ This runs `tsx watch src/main.ts` with `cwd` = `services/abdm-adapter-svc` (see 
 
 ### Environment file location
 
-**All configuration for this service lives in [`services/abdm-adapter-svc/.env`](../../services/abdm-adapter-svc/.env)** (gitignored). It is loaded automatically on startup (`src/load-env.ts`).
+**Configuration lives in the repo root [`.env`](../../.env)** (and optional [`.env.local`](../../.env.local)), loaded at startup by [`services/abdm-adapter-svc/src/workspace-env.ts`](../../services/abdm-adapter-svc/src/workspace-env.ts). A legacy `services/abdm-adapter-svc/.env` is still read if present (deprecated).
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
@@ -74,7 +74,7 @@ This runs `tsx watch src/main.ts` with `cwd` = `services/abdm-adapter-svc` (see 
 | `ABDM_GATEWAY_BASE_URL` | No | Default `https://dev.abdm.gov.in` (Postman) |
 | `ABDM_ABHA_API_BASE_URL` | No | Default `https://abhasbx.abdm.gov.in/abha/api` (Postman) |
 
-Reference template: [`services/abdm-adapter-svc/.env.example`](../../services/abdm-adapter-svc/.env.example).
+Reference template: [repo root `.env.example`](../../.env.example) (ABDM section). Migration notes: [`services/abdm-adapter-svc/.env.example`](../../services/abdm-adapter-svc/.env.example).
 
 ### Database migration
 
@@ -98,9 +98,9 @@ psql "postgresql://USER:PASS@HOST:6432/temp-abdm?sslmode=require" \
 
 ### Connection string
 
-The service reads **`ABDM_DATA_DATABASE_URL`** only from **`services/abdm-adapter-svc/.env`**
-(see `src/load-env.ts`). SQLAlchemy-style `postgresql+psycopg://…` is normalised to
-`postgresql://…` for Node `pg`.
+The service reads **`DATABASE_URL`** from the repo root (preferred) or deprecated
+**`ABDM_DATA_DATABASE_URL`** (see `workspace-env.ts` / `resolve-database-url.ts`).
+SQLAlchemy-style `postgresql+psycopg://…` is normalised to `postgresql://…` for Node `pg`.
 
 For local docker-compose dev you can still use:
 

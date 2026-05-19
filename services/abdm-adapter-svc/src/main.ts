@@ -15,7 +15,7 @@ import {
 import {
   normalizeAbdmEnvAliases,
   resolveDatabaseUrlFromEnv,
-  serviceRoot,
+  workspaceRoot,
 } from "./workspace-env.js";
 import { registerHttpErrorHandler } from "./http-errors.js";
 import { requireSessionTokenCryptoInProd } from "@hims/abdm-adapter";
@@ -36,7 +36,7 @@ const ABHA_API_BASE_URL =
   "https://abhasbx.abdm.gov.in/abha/api";
 const ABDM_X_CM_ID = process.env["ABDM_X_CM_ID"] ?? "sbx";
 
-const repoRoot = path.resolve(serviceRoot, "../..");
+const repoRoot = workspaceRoot;
 
 const fastifyAjv = {
   customOptions: {

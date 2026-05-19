@@ -80,6 +80,7 @@ infra-logs: ## Tail docker infrastructure logs
 db-migrate: ## Run all pending migrations
 	@set -e; \
 	if [ -f .env ]; then set -a && . ./.env && set +a; fi; \
+	if [ -f .env.local ]; then set -a && . ./.env.local && set +a; fi; \
 	$(NX) run configurator:db-migrate; \
 	$(NX) run user-management:db-migrate; \
 	$(NX) run empi:db-migrate; \
