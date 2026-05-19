@@ -8,7 +8,6 @@ export const masterDataModuleManifest: ModuleManifest = {
   routePrefix: '/master-data',
   sortOrder: 10,
   requiredCapabilities: [MD_SHELL_ACCESS],
-  requiredModulesAny: ['master-data', 'master_data'],
   navigation: [
     {
       id: 'master-data-modules',

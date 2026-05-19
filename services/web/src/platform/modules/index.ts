@@ -10,6 +10,7 @@ export {
   invalidateComposedNavigationCache,
   manifestToNavigationNode,
 } from './module-manifest-loader';
+export { collectNavigationCapabilityKeys } from './collect-navigation-capability-keys';
 export {
   invalidateModuleRegistration,
   moduleCatalogQueryOptions,

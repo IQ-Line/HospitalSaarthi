@@ -8,7 +8,8 @@ export const visitpadModuleManifest: ModuleManifest = {
   routePrefix: '/visitpad',
   sortOrder: 40,
   requiredCapabilities: [MD_VISITPAD_VIEW, MD_VISITPAD_CREATE],
-  requiredModulesAny: ['visitpad-templates', 'visitpad', 'master-data', 'master_data'],
+  /** Catalog L1 slug tenants enable (see master-data `visitpad-templates`). */
+  requiredModulesAny: ['visitpad-templates'],
   navigation: [
     { id: 'visitpad-units', label: 'Units', icon: 'ruler', route: '/visitpad/units', requiredCapabilities: [MD_VISITPAD_VIEW] },
     { id: 'visitpad-conversions', label: 'Conversions', icon: 'arrow-right-left', route: '/visitpad/conversions', requiredCapabilities: [MD_VISITPAD_VIEW] },

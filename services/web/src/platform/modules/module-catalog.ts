@@ -26,6 +26,7 @@ function buildCatalogIndex(modules: readonly Module[]): ModuleCatalogIndex | nul
       is_active: module.is_active,
     };
     byId.set(module.id, entry);
+    byId.set(module.id.toLowerCase(), entry);
     bySlug.set(module.slug, entry);
   }
 
@@ -33,14 +34,21 @@ function buildCatalogIndex(modules: readonly Module[]): ModuleCatalogIndex | nul
 }
 
 /**
- * Master Data module catalog — authoritative id ↔ slug map for tenant_modules.
+ * Platform module registry (`global_master.modules`) for resolving Configurator `tenant_modules`.
+ * Must not send `iq_tenant_id` — tenant-scoped catalog rows use different ids than enablement rows.
  */
 export function useModuleCatalog() {
   const query = useQuery({
-    queryKey: masterDataKeys.modules(),
-    queryFn: () => apiClient<ModuleListResponse>('/api/v1/master-data/modules'),
+    queryKey: masterDataKeys.globalModules(),
+    queryFn: () =>
+      apiClient<ModuleListResponse>(
+        '/api/v1/master-data/modules',
+        { method: 'GET' },
+        { tenantIdOverride: null },
+      ),
     staleTime: MODULE_CATALOG_STALE_MS,
     gcTime: MODULE_CATALOG_STALE_MS * 2,
+    retry: 1,
   });
 
   const index = useMemo(
@@ -57,7 +65,7 @@ export function useModuleCatalog() {
 
 export function moduleCatalogQueryOptions() {
   return {
-    queryKey: masterDataKeys.modules(),
+    queryKey: masterDataKeys.globalModules(),
     staleTime: MODULE_CATALOG_STALE_MS,
   } as const;
 }

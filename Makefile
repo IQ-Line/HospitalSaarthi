@@ -95,8 +95,13 @@ db-migrate: ## Run all pending migrations
 	$(NX) run master-data:migrate
 
 .PHONY: seed
-seed: ## Seed Master Data catalog, Configurator tenant, UM users, Cerbos smoke check
-	pnpm seed:user-management-dev
+seed: ## Seed Configurator tenant, UM runtime data, Cerbos smoke check (catalog = Alembic)
+	pnpm seed
+
+.PHONY: db-drop-modules
+db-drop-modules: ## Drop hims-configurator, hims-user-management, hims-master (sessions terminated)
+	@echo "==> Dropping module databases..."
+	@$(DOCKER_COMPOSE) exec -T postgres psql -U hims -d hims_dev < infra/db/drop-module-databases.sql
 
 .PHONY: db-reset
 db-reset: ## Drop volumes, recreate infra, module DBs, migrate, seed

@@ -1,21 +1,33 @@
+import { catalogSlugVariants } from '@/platform/modules/catalog-slug-variants';
 import type { NavFilterContext, NavigationNode } from './types';
+
+function tenantHasModuleSlug(enabledModuleSlugs: ReadonlySet<string>, slug: string): boolean {
+  return catalogSlugVariants(slug).some((variant) => enabledModuleSlugs.has(variant));
+}
+
+function hasTenantModuleGate(node: NavigationNode): boolean {  return Boolean(node.requiredModules?.length || node.requiredModulesAny?.length);
+}
 
 function passesTenantModuleGate(
   node: NavigationNode,
   enabledModuleSlugs: ReadonlySet<string> | null,
 ): boolean {
-  if (enabledModuleSlugs === null) {
+  if (!hasTenantModuleGate(node)) {
     return true;
   }
 
+  if (enabledModuleSlugs === null) {
+    return false;
+  }
+
   if (node.requiredModules?.length) {
-    if (!node.requiredModules.every((slug) => enabledModuleSlugs.has(slug))) {
+    if (!node.requiredModules.every((slug) => tenantHasModuleSlug(enabledModuleSlugs, slug))) {
       return false;
     }
   }
 
   if (node.requiredModulesAny?.length) {
-    if (!node.requiredModulesAny.some((slug) => enabledModuleSlugs.has(slug))) {
+    if (!node.requiredModulesAny.some((slug) => tenantHasModuleSlug(enabledModuleSlugs, slug))) {
       return false;
     }
   }
@@ -24,6 +36,10 @@ function passesTenantModuleGate(
 }
 
 function passesCapabilityGate(node: NavigationNode, ctx: NavFilterContext): boolean {
+  if (ctx.bypassCapabilityGates) {
+    return true;
+  }
+
   if (node.requiredCapabilitiesAll?.length) {
     return ctx.hasAllCapabilities(node.requiredCapabilitiesAll);
   }

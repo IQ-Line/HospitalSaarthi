@@ -56,6 +56,9 @@ async function main() {
   });
 
   if (shouldRunDevelopmentBootstrap()) {
+    app.log.warn(
+      "PLATFORM_DEV_BOOTSTRAP=true — prefer `make seed` for deterministic dev data",
+    );
     const bootstrap = await runConfiguratorDevelopmentBootstrap(db);
     app.log.info(
       {
@@ -97,6 +100,7 @@ async function main() {
   }, { prefix: "/api" });
 
   await app.listen({ port: PORT, host: "0.0.0.0" });
+  app.log.info(`Configurator service listening on http://localhost:${PORT}`);
 }
 
 main().catch((err) => {

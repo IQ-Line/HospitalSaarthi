@@ -21,6 +21,7 @@ const BANNED: Array<{ label: string; re: RegExp }> = [
   { label: 'DEV_SUPERADMIN_CAPABILITY_KEYS', re: /DEV_SUPERADMIN_CAPABILITY_KEYS/ },
   { label: 'dev-token bypass', re: /dev-token/ },
   { label: 'buildDevPermissionMap', re: /buildDevPermissionMap/ },
+  { label: 'inferModuleSlugsFromCapabilityKeys', re: /inferModuleSlugsFromCapabilityKeys/ },
   { label: 'buildUxPermissionMap', re: /buildUxPermissionMap/ },
   { label: 'canManageAccess', re: /\bcanManageAccess\b/ },
   { label: 'canReadRoles', re: /\bcanReadRoles\b/ },

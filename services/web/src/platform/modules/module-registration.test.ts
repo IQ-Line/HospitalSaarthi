@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from 'vitest';
-import { MD_VISITPAD_VIEW, UM_USER_READ } from '@/lib/runtime-capability-keys';
+import { FD_SHELL_ACCESS, MD_VISITPAD_VIEW, UM_USER_READ } from '@/lib/runtime-capability-keys';
 import { filterNavigationTree } from '@/navigation/filter-navigation-tree';
 import type { NavFilterContext } from '@/navigation/types';
 import {
@@ -40,6 +40,15 @@ describe('module registry', () => {
     expect(slugs.size).toBe(manifests.length);
     expect(slugs.has('dashboard')).toBe(true);
     expect(slugs.has('user-management')).toBe(true);
+    expect(slugs.has('configurator')).toBe(true);
+    expect(slugs.has('master-data')).toBe(true);
+    expect(slugs.has('frontdesk')).toBe(true);
+  });
+
+  it('maps visitpad nav to visitpad-templates catalog slug (not visitpad)', () => {
+    registerBuiltinModuleManifests();
+    const visitpad = getRegisteredModuleManifests().find((m) => m.slug === 'visitpad');
+    expect(visitpad?.requiredModulesAny).toEqual(['visitpad-templates']);
   });
 
   it('composes dashboard leaf and grouped visitpad module', () => {
@@ -69,6 +78,20 @@ describe('module registry', () => {
     );
     expect(filtered.map((n) => n.id)).toContain('user-management');
     expect(filtered.map((n) => n.id)).not.toContain('visitpad');
+  });
+
+  it('frontdesk hidden when only master-data slug enabled (no inference)', () => {
+    registerBuiltinModuleManifests();
+    const manifest = composeNavigationManifest(getRegisteredModuleManifests());
+
+    const filtered = filterNavigationTree(
+      manifest,
+      ctx({
+        hasCapability: (key) => key === FD_SHELL_ACCESS,
+        enabledModuleSlugs: new Set(['master-data']),
+      }),
+    );
+    expect(filtered.map((n) => n.id)).not.toContain('frontdesk');
   });
 
   it('visitpad visible when visitpad-templates slug enabled', () => {

@@ -43,8 +43,8 @@ class Settings(BaseSettings):
     )
 
     database_url: str = Field(
-        default="postgresql+psycopg://hims:hims@localhost:5433/hims_dev",
-        description="SQLAlchemy database URL for the Master Data module.",
+        default="postgresql+psycopg://hims:hims@localhost:5433/hims-master",
+        description="SQLAlchemy database URL for the Master Data module (`hims-master`).",
     )
     api_prefix: str = "/api/v1/master-data"
     log_level: str = "INFO"
@@ -139,3 +139,6 @@ def get_settings() -> Settings:
 def reset_settings_cache_for_tests() -> None:
     """Clear cached settings (tests / after `.env` changes in long-lived shells)."""
     get_settings.cache_clear()
+    from app.core.database import reset_database_engine
+
+    reset_database_engine()

@@ -16,13 +16,17 @@ import type { NavFilterContext } from './types';
 
 function ctx(partial: Partial<NavFilterContext>): NavFilterContext {
   const hasCapability = partial.hasCapability ?? (() => false);
+  const bypassCapabilityGates = partial.bypassCapabilityGates === true;
   return {
-    hasCapability,
+    hasCapability: (key) => bypassCapabilityGates || hasCapability(key),
     hasAnyCapability:
-      partial.hasAnyCapability ?? ((keys) => keys.some((key) => hasCapability(key))),
+      partial.hasAnyCapability ??
+      ((keys) => bypassCapabilityGates || keys.some((key) => hasCapability(key))),
     hasAllCapabilities:
-      partial.hasAllCapabilities ?? ((keys) => keys.every((key) => hasCapability(key))),
+      partial.hasAllCapabilities ??
+      ((keys) => bypassCapabilityGates || keys.every((key) => hasCapability(key))),
     enabledModuleSlugs: partial.enabledModuleSlugs ?? null,
+    bypassCapabilityGates,
   };
 }
 
@@ -52,7 +56,19 @@ describe('filterNavigationTree', () => {
     expect(filtered.map((n) => n.id)).toContain('dashboard');
   });
 
-  it('filters visitpad by capability and tenant module', () => {
+  it('filters visitpad by capability and visitpad-templates tenant module', () => {
+    const filtered = filterNavigationTree(
+      NAVIGATION_MANIFEST,
+      ctx({
+        hasCapability: (key) => key === MD_VISITPAD_VIEW,
+        enabledModuleSlugs: new Set(['visitpad-templates']),
+      }),
+    );
+    expect(filtered.map((n) => n.id)).toContain('visitpad');
+    expect(filtered.find((n) => n.id === 'visitpad')?.children?.length).toBeGreaterThan(0);
+  });
+
+  it('does not show visitpad when only master-data is enabled', () => {
     const filtered = filterNavigationTree(
       NAVIGATION_MANIFEST,
       ctx({
@@ -60,8 +76,19 @@ describe('filterNavigationTree', () => {
         enabledModuleSlugs: new Set(['master-data']),
       }),
     );
-    expect(filtered.map((n) => n.id)).toContain('visitpad');
-    expect(filtered.find((n) => n.id === 'visitpad')?.children?.length).toBeGreaterThan(0);
+    expect(filtered.map((n) => n.id)).not.toContain('visitpad');
+  });
+
+  it('hides tenant-gated modules while tenant_modules are unresolved', () => {
+    const filtered = filterNavigationTree(
+      NAVIGATION_MANIFEST,
+      ctx({
+        hasCapability: (key) => key === UM_USER_READ,
+        enabledModuleSlugs: null,
+      }),
+    );
+    expect(filtered.map((n) => n.id)).toContain('dashboard');
+    expect(filtered.map((n) => n.id)).not.toContain('user-management');
   });
 
   it('hides user-management when tenant module disabled', () => {
@@ -95,6 +122,30 @@ describe('filterNavigationTree', () => {
       }),
     );
     expect(filtered.map((n) => n.id)).toContain('configurator');
+  });
+
+  it('shows configurator for platform super-admin when tenant module is enabled (no shell cap on principal)', () => {
+    const filtered = filterNavigationTree(
+      NAVIGATION_MANIFEST,
+      ctx({
+        hasCapability: () => false,
+        enabledModuleSlugs: new Set(['configurator']),
+        bypassCapabilityGates: true,
+      }),
+    );
+    expect(filtered.map((n) => n.id)).toContain('configurator');
+  });
+
+  it('still hides configurator for super-admin when tenant module is disabled', () => {
+    const filtered = filterNavigationTree(
+      NAVIGATION_MANIFEST,
+      ctx({
+        hasCapability: () => true,
+        enabledModuleSlugs: new Set(['user-management']),
+        bypassCapabilityGates: true,
+      }),
+    );
+    expect(filtered.map((n) => n.id)).not.toContain('configurator');
   });
 });
 
@@ -136,6 +187,7 @@ describe('collectModuleDiscoveryEntries', () => {
         enabledModuleSlugs: new Set([
           'user-management',
           'master-data',
+          'visitpad-templates',
           'configurator',
           'frontdesk',
         ]),

@@ -135,6 +135,7 @@ async function main() {
   app.get('/healthz', async () => ({ status: 'ok' }));
 
   await app.listen({ port: PORT, host: '0.0.0.0' });
+  app.log.info(`BFF listening on http://localhost:${PORT}`);
 }
 
 main().catch((err) => {

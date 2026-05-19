@@ -5,7 +5,7 @@ Deterministic setup for the enterprise authorization demo stack. Authorization i
 ## Prerequisites
 
 - Node.js 24+, pnpm 10+, Docker
-- `make` (Git Bash / WSL on Windows)
+- `make` (Git Bash / WSL on Windows), **or** PowerShell: `.\scripts\bootstrap.ps1`
 
 ## 1. Environment
 
@@ -43,7 +43,7 @@ Runs in order:
 3. `make infra` — Postgres (5433), PgBouncer (6432), Cerbos (3592 HTTP / 3593 gRPC)  
 4. `make db-create-modules` — `hims-configurator`, `hims-user-management`, `hims-master`  
 5. `make db-migrate` — configurator → user-management → empi → registration → billing → master-data (Alembic)  
-6. `make seed` — `pnpm seed:user-management-dev`  
+6. `make seed` — `pnpm seed` (Configurator tenant, UM runtime data, Cerbos smoke check)  
 
 To reset everything:
 
@@ -102,15 +102,32 @@ curl -s -H "Authorization: Bearer TOKEN" \
 
 ## 6. Seed order (what `make seed` does)
 
-1. **Master Data** — supplemental `global_master` permissions + module links (modules from Alembic + frontdesk/visitpad)  
+1. **Master Data** — resolve module UUIDs from `global_master.modules` (catalog owned by Alembic, including `030_demo_authorization_catalog`)  
 2. **Configurator** — dev org/tenant + `tenant_modules` for demo slugs  
 3. **User Management** — runtime capabilities, roles, `user_capabilities`, better-auth users  
 4. **Cerbos** — smoke check for platform operator (`user.create`, `role.create`, `role.assign`)  
+
+Catalog is **not** inserted by the seed script. Do not run ad-hoc SQL against `public.modules`.
+
+## Windows (no `make`)
+
+```powershell
+.\scripts\bootstrap.ps1          # same as make setup (migrate + seed)
+.\scripts\bootstrap.ps1 -Reset   # docker down -v, recreate module DBs, migrate, seed
+pnpm dev:web-stack
+```
+
+Module databases use `infra/db/create-module-databases.sql` (Citus-safe `\gexec` pattern — not PL/pgSQL `DO` blocks).
 
 ## 7. Troubleshooting
 
 | Symptom | Fix |
 |---------|-----|
+| `EADDRINUSE` on 3000 / 3001 / 3005 / 5173 / 8010 | Re-run `pnpm dev:web-stack` (runs `tools/dev-stack-prep.mts` to free stale listeners first). Or kill manually: `netstat -ano \| findstr :3000` then `taskkill /PID <pid> /F` (Windows) |
+| Vite on 5174/5175 instead of 5173 | Stale Vite left 5173 busy; `dev-stack-prep` frees 5173–5175. Set `WEB_DEV_PORT=5173` in `.env` |
+| Nx output hard to read | `dev:web-stack` uses `--output-style=stream` — each line is prefixed with the project name (`bff:`, `web:`, …) |
+| `CREATE DATABASE cannot be executed from a function` | Re-pull `create-module-databases.sql` (uses `\gexec`, not `DO $$`) |
+| Orphaned `026_um_catalog_seed` on `hims-master` | `make db-drop-modules` then `make db-create-modules` + `make db-migrate`, or `.\scripts\bootstrap.ps1 -Reset` |
 | UM fails boot: `CONFIGURATOR_URL` / `MASTER_DATA_URL` | Set in root `.env` |
 | Seed: schema `global_master` not found | Run `make db-migrate` (master-data Alembic) |
 | Seed: module slug not found | Ensure `MASTER_DATA_DATABASE_URL` points at `hims-master` |
@@ -119,6 +136,8 @@ curl -s -H "Authorization: Bearer TOKEN" \
 | Empty nav | Re-run `make seed`; check `tenant_modules` and principal capabilities |
 | Cerbos unreachable | `docker compose -f infra/docker/docker-compose.yml ps` |
 | EMPI 401 with auth on | `JWKS_URL` must include `/api/auth/` path |
+| Master Data `/modules` 500 or 503 | Check logs for `SQLAlchemy engine bound to` (should be `.../hims-master`). Run `make db-migrate`. Restart `pnpm dev:web-stack` |
+| UM svc: `action segment "access" is not recognized` | Re-run `pnpm seed` after pulling latest UM capability-key validation |
 
 ## Related
 

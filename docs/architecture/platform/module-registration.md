@@ -51,11 +51,9 @@ enabledModuleSlugs: Set<slug>
 
 Implemented in `useEnabledTenantModuleSlugs()` (`platform/modules/use-enabled-tenant-modules.ts`).
 
-**Removed:** `KNOWN_MODULE_ID_TO_SLUG`, platform module allowlists, hardcoded navigation-only module assumptions.
+**Removed:** `KNOWN_MODULE_ID_TO_SLUG`, platform module allowlists, capability-prefix inference, hardcoded navigation-only module assumptions.
 
-### Dev / offline fallback
-
-When Configurator or Master Data is unavailable, capability key prefixes infer module slugs (`inferModuleSlugsFromCapabilityKeys`) — same as before, without UUID tables.
+When Configurator or Master Data cannot resolve `tenant_modules`, navigation treats **no modules as enabled** (empty set) after loading completes — do not infer slugs from capability keys.
 
 ## Caching and invalidation
 

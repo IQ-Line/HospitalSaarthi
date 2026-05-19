@@ -43,13 +43,7 @@ export const DEVELOPMENT_BOOTSTRAP_CREDENTIALS = {
   password: DEVELOPMENT_BOOTSTRAP_USER_PASSWORD,
 } as const;
 
-/** Master Data catalog module ids (`001_initial_schema` CORE_MODULES). */
-export const DEVELOPMENT_BOOTSTRAP_MODULE_IDS = {
-  userManagement: "11111111-1111-4111-8111-111111111111",
-  configurator: "22222222-2222-4222-8222-222222222222",
-} as const;
-
-/** Off by default; use `pnpm seed:user-management-dev` or set `PLATFORM_DEV_BOOTSTRAP=true`. */
+/** Off by default — use `make setup` / `make seed` (not service startup bootstrap). */
 export function shouldRunPlatformDevelopmentBootstrap(): boolean {
   const explicit =
     process.env.PLATFORM_DEV_BOOTSTRAP?.trim().toLowerCase() ??

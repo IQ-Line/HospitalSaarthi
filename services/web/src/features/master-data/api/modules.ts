@@ -13,12 +13,18 @@ const BASE = '/api/v1/master-data/modules';
 
 export function useModules(
   category?: ModuleCategory,
-  options?: { enabled?: boolean },
+  options?: { enabled?: boolean; /** Read `global_master.modules` (omit `iq_tenant_id`). */ globalCatalog?: boolean },
 ) {
   const params = category ? `?category=${category}` : '';
+  const globalCatalog = options?.globalCatalog === true;
   return useQuery({
-    queryKey: masterDataKeys.modules(category),
-    queryFn: () => apiClient<ModuleListResponse>(`${BASE}${params}`),
+    queryKey: globalCatalog ? masterDataKeys.globalModules() : masterDataKeys.modules(category),
+    queryFn: () =>
+      apiClient<ModuleListResponse>(
+        `${BASE}${params}`,
+        {},
+        globalCatalog ? { tenantIdOverride: null } : undefined,
+      ),
     enabled: options?.enabled ?? true,
   });
 }

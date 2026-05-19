@@ -13,6 +13,7 @@ export const RUNTIME_CAPABILITY_KEY_PATTERN =
 
 /** Canonical actions for the third segment of runtime capability keys. */
 export const RUNTIME_CAPABILITY_ACTIONS = [
+  "access",
   "assign",
   "compose",
   "create",
@@ -33,11 +34,14 @@ const RUNTIME_CAPABILITY_ACTION_SET = new Set<string>(RUNTIME_CAPABILITY_ACTIONS
  * All other catalog slugs default to using the slug itself as the runtime module key.
  */
 export const RUNTIME_MODULE_KEY_BY_CATALOG_SLUG: Readonly<Record<string, string>> = {
+  "configurator": "cfg",
+  "frontdesk": "fd",
+  "master-data": "md",
   "user-management": "um",
 };
 
 /** Reserved runtime module keys (documentation / collision avoidance). */
-export const RESERVED_RUNTIME_MODULE_KEYS = ["md", "um"] as const;
+export const RESERVED_RUNTIME_MODULE_KEYS = ["cfg", "fd", "md", "um"] as const;
 
 export type ParsedCapabilityKey = {
   readonly moduleKey: string;
@@ -55,10 +59,21 @@ export function runtimeModuleKeyForCatalogSlug(catalogModuleSlug: string): strin
   return RUNTIME_MODULE_KEY_BY_CATALOG_SLUG[slug] ?? slug;
 }
 
+/**
+ * Runtime module key segments accepted for a catalog `capabilities.module` slug.
+ * Includes the canonical short prefix (e.g. `md`) and the full slug (e.g. `master-data`)
+ * for backward compatibility with legacy or catalog-aligned capability_key rows.
+ */
+export function acceptedRuntimeModuleKeysForCatalogSlug(catalogModuleSlug: string): readonly string[] {
+  const slug = assertValidModuleSlug(catalogModuleSlug, "capabilities.module");
+  const runtimeKey = RUNTIME_MODULE_KEY_BY_CATALOG_SLUG[slug] ?? slug;
+  return runtimeKey === slug ? [slug] : [runtimeKey, slug];
+}
+
 export function catalogSlugForRuntimeModuleKey(moduleKey: string): string | null {
   const normalizedKey = normalizeModuleSlug(moduleKey);
   for (const [slug, key] of Object.entries(RUNTIME_MODULE_KEY_BY_CATALOG_SLUG)) {
-    if (key === normalizedKey) {
+    if (key === normalizedKey || slug === normalizedKey) {
       return slug;
     }
   }
@@ -114,10 +129,12 @@ export function assertCapabilityKeyMatchesCatalogModule(
   label = "capability",
 ): void {
   const parsed = parseCapabilityKey(capabilityKey);
-  const expectedModuleKey = runtimeModuleKeyForCatalogSlug(catalogModuleSlug);
-  if (parsed.moduleKey !== expectedModuleKey) {
+  const catalogSlug = normalizeModuleSlug(catalogModuleSlug);
+  const acceptedKeys = new Set(acceptedRuntimeModuleKeysForCatalogSlug(catalogSlug));
+  if (!acceptedKeys.has(parsed.moduleKey)) {
+    const expected = [...acceptedKeys].join('" or "');
     throw new InvalidCapabilityKeyError(
-      `${label}: capability_key module segment "${parsed.moduleKey}" does not match catalog module "${normalizeModuleSlug(catalogModuleSlug)}" (expected runtime key "${expectedModuleKey}")`,
+      `${label}: capability_key module segment "${parsed.moduleKey}" does not match catalog module "${catalogSlug}" (expected runtime key "${expected}")`,
     );
   }
 }

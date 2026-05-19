@@ -11,30 +11,48 @@ import {
   DialogTitle,
 } from '@pulse/ui/dialog';
 import { toast } from 'sonner';
-import type { OrganizationCreateInput, TenantWizardAdminSnapshot } from '@/features/configurator/types';
+import type {
+  OrganizationCreateInput,
+  TenantWizardAdminSnapshot,
+  TenantWizardRoleSnapshot,
+} from '@/features/configurator/types';
 import {
   createTenantStep1Schema,
   createTenantStep2Schema,
   createTenantStep3Schema,
+  createTenantStep4Schema,
   WIZARD_DEFAULT_VALUES,
   type WizardFormValues,
 } from '@/features/configurator/create-tenant-wizard-schema';
 import { useModules } from '@/features/master-data/api';
 import { WizardStep1OrgFields } from './wizard-step-1-org-fields';
 import { WizardStep2Modules } from './wizard-step-2-modules';
-import { WizardStep3Admin } from './wizard-step-3-admin';
+import { WizardStep3Role } from './wizard-step-3-role';
+import { WizardStep4Admin } from './wizard-step-4-admin';
 import {
   buildChildrenMap,
   buildCreatePayload,
+  defaultEnabledModuleIds,
   firstSlugSeedFromTenantName,
   firstZodMessage,
+  moduleSlugsForIds,
+  toRoleCode,
 } from './wizard-helpers';
+import {
+  defaultTenantAdminCapabilityIds,
+  filterCapabilitiesForEnabledModules,
+} from './wizard-capability-helpers';
+import { runtimeCapabilityCatalogOptions } from '@/features/user-management/api/queries';
+import { useQuery } from '@tanstack/react-query';
 
 const STEPS = [
   { step: 1 as const, label: 'Tenant' },
-  { step: 2 as const, label: 'Plan & modules' },
-  { step: 3 as const, label: 'Admin user' },
-];
+  { step: 2 as const, label: 'Modules' },
+  { step: 3 as const, label: 'Role & permissions' },
+  { step: 4 as const, label: 'Admin user' },
+] as const;
+
+const FINAL_STEP = 4;
 
 export interface CreateTenantWizardProps {
   open: boolean;
@@ -42,6 +60,7 @@ export interface CreateTenantWizardProps {
   isSubmitting: boolean;
   onComplete: (input: {
     payload: OrganizationCreateInput;
+    role: TenantWizardRoleSnapshot;
     admin: TenantWizardAdminSnapshot;
   }) => Promise<void>;
 }
@@ -53,11 +72,14 @@ export function CreateTenantWizard({
   onComplete,
 }: CreateTenantWizardProps) {
   const [activeStep, setActiveStep] = useState(1);
-  const [moduleOverrideIds, setModuleOverrideIds] = useState<Set<string>>(() => new Set());
+  const [enabledModuleIds, setEnabledModuleIds] = useState<Set<string>>(() => new Set());
+  const [selectedCapabilityIds, setSelectedCapabilityIds] = useState<string[]>([]);
   const slugUserEdited = useRef(false);
+  const roleCodeUserEdited = useRef(false);
 
   const { data: modulesRes, isLoading: modulesLoading } = useModules(undefined, {
     enabled: open,
+    globalCatalog: true,
   });
   const modules = useMemo(() => {
     const all = modulesRes?.data ?? [];
@@ -66,6 +88,12 @@ export function CreateTenantWizard({
 
   const childMap = useMemo(() => buildChildrenMap(modules), [modules]);
   const rootModules = useMemo(() => childMap.get(null) ?? [], [childMap]);
+
+  const capabilitiesQuery = useQuery({
+    ...runtimeCapabilityCatalogOptions(),
+    enabled: open,
+    staleTime: 60_000,
+  });
 
   const form = useForm<WizardFormValues>({
     defaultValues: WIZARD_DEFAULT_VALUES,
@@ -82,8 +110,7 @@ export function CreateTenantWizard({
   } = form;
 
   const watchedName = watch('tenantName');
-  const welcomeLen = watch('welcomeMessage')?.length ?? 0;
-  const sendInvitation = watch('sendInvitation');
+  const watchedSlug = watch('slug');
 
   const slugField = register('slug');
   const slugInputProps = {
@@ -94,16 +121,33 @@ export function CreateTenantWizard({
     },
   };
 
+  const roleCodeField = register('adminRoleCode');
+  const roleCodeInputProps = {
+    ...roleCodeField,
+    onChange: (e: ChangeEvent<HTMLInputElement>) => {
+      roleCodeUserEdited.current = true;
+      roleCodeField.onChange(e);
+    },
+  };
+
   useEffect(() => {
     if (!open) {
       slugUserEdited.current = false;
+      roleCodeUserEdited.current = false;
       return;
     }
     reset(WIZARD_DEFAULT_VALUES);
     setActiveStep(1);
-    setModuleOverrideIds(new Set());
+    setEnabledModuleIds(new Set());
+    setSelectedCapabilityIds([]);
     slugUserEdited.current = false;
+    roleCodeUserEdited.current = false;
   }, [open, reset]);
+
+  useEffect(() => {
+    if (!open || modules.length === 0 || enabledModuleIds.size > 0) return;
+    setEnabledModuleIds(defaultEnabledModuleIds(modules));
+  }, [open, modules, enabledModuleIds.size]);
 
   useEffect(() => {
     if (!open || slugUserEdited.current) return;
@@ -111,14 +155,35 @@ export function CreateTenantWizard({
     setValue('slug', seed, { shouldDirty: false, shouldValidate: false });
   }, [watchedName, open, setValue]);
 
+  useEffect(() => {
+    if (!open || roleCodeUserEdited.current) return;
+    const code = toRoleCode(watchedSlug || watchedName || 'tenant-admin');
+    if (code) {
+      setValue('adminRoleCode', code, { shouldDirty: false, shouldValidate: false });
+    }
+  }, [watchedSlug, watchedName, open, setValue]);
+
   const toggleModule = useCallback((id: string) => {
-    setModuleOverrideIds((prev) => {
+    setEnabledModuleIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
   }, []);
+
+  useEffect(() => {
+    const catalog = capabilitiesQuery.data ?? [];
+    if (catalog.length === 0) return;
+    const slugs = moduleSlugsForIds(enabledModuleIds, modules);
+    const scoped = filterCapabilitiesForEnabledModules(catalog, slugs);
+    const allowed = new Set(scoped.map((c) => c.id));
+    setSelectedCapabilityIds((current) => {
+      const pruned = current.filter((id) => allowed.has(id));
+      if (pruned.length > 0) return pruned;
+      return defaultTenantAdminCapabilityIds(scoped);
+    });
+  }, [enabledModuleIds, modules, capabilitiesQuery.data]);
 
   const goNext = () => {
     const values = form.getValues();
@@ -137,7 +202,24 @@ export function CreateTenantWizard({
         toast.error(firstZodMessage(parsed.error));
         return;
       }
+      if (enabledModuleIds.size === 0) {
+        toast.error('Enable at least one module for this tenant.');
+        return;
+      }
       setActiveStep(3);
+      return;
+    }
+    if (activeStep === 3) {
+      const parsed = createTenantStep3Schema.safeParse(values);
+      if (!parsed.success) {
+        toast.error(firstZodMessage(parsed.error));
+        return;
+      }
+      if (selectedCapabilityIds.length === 0) {
+        toast.error('Select at least one permission for the administrator role.');
+        return;
+      }
+      setActiveStep(4);
     }
   };
 
@@ -146,23 +228,31 @@ export function CreateTenantWizard({
   };
 
   const onSubmitFinal = handleSubmit(async (values) => {
-    const parsed = createTenantStep3Schema.safeParse(values);
+    const parsed = createTenantStep4Schema.safeParse(values);
     if (!parsed.success) {
       toast.error(firstZodMessage(parsed.error));
       return;
     }
+    if (selectedCapabilityIds.length === 0) {
+      toast.error('Select at least one permission for the administrator role.');
+      return;
+    }
+
     const admin: TenantWizardAdminSnapshot = {
       adminFirstName: values.adminFirstName.trim(),
       adminLastName: values.adminLastName.trim(),
       adminEmail: values.adminEmail.trim(),
-      adminMobile: values.adminMobile.trim(),
-      sendInvitation: values.sendInvitation,
-      password: values.password?.trim() || undefined,
-      confirmPassword: values.confirmPassword?.trim() || undefined,
-      welcomeMessage: values.welcomeMessage?.trim() || undefined,
+      adminUsername: values.adminUsername?.trim() || undefined,
+      adminMobile: values.adminMobile?.trim() || undefined,
+      password: values.password,
     };
-    const payload = buildCreatePayload(values, moduleOverrideIds);
-    await onComplete({ payload, admin });
+    const role: TenantWizardRoleSnapshot = {
+      code: values.adminRoleCode.trim(),
+      displayName: values.adminRoleDisplayName.trim(),
+      capabilityIds: [...selectedCapabilityIds],
+    };
+    const payload = buildCreatePayload(values, enabledModuleIds);
+    await onComplete({ payload, role, admin });
   });
 
   return (
@@ -175,7 +265,7 @@ export function CreateTenantWizard({
           <DialogHeader className="space-y-1.5 text-left">
             <DialogTitle className="text-base font-semibold tracking-tight">Create new tenant</DialogTitle>
             <DialogDescription className="text-xs leading-relaxed text-muted-foreground">
-              Provision a new tenant on the platform. Complete all 3 steps to create the tenant.
+              Provision a tenant, enable modules, define an admin role, and create the administrator account.
             </DialogDescription>
           </DialogHeader>
 
@@ -231,18 +321,21 @@ export function CreateTenantWizard({
                 modulesLoading={modulesLoading}
                 rootModules={rootModules}
                 childMap={childMap}
-                moduleOverrideIds={moduleOverrideIds}
+                moduleOverrideIds={enabledModuleIds}
                 onToggleModule={toggleModule}
               />
             )}
             {activeStep === 3 && (
-              <WizardStep3Admin
+              <WizardStep3Role
                 register={register}
-                control={control}
-                sendInvitation={sendInvitation}
-                welcomeLen={welcomeLen}
+                roleCodeInputProps={roleCodeInputProps}
+                enabledModuleIds={enabledModuleIds}
+                modules={modules}
+                selectedCapabilityIds={selectedCapabilityIds}
+                onSelectedCapabilityIdsChange={setSelectedCapabilityIds}
               />
             )}
+            {activeStep === 4 && <WizardStep4Admin register={register} />}
           </div>
         </div>
 
@@ -262,7 +355,7 @@ export function CreateTenantWizard({
               <Button type="button" variant="outline" className="px-4" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              {activeStep < 3 ? (
+              {activeStep < FINAL_STEP ? (
                 <Button
                   type="button"
                   onClick={goNext}

@@ -32,6 +32,16 @@ describe("mapMasterDataPermissionToRuntimeCapability", () => {
     expect(mapped.module).toBe("user-management");
   });
 
+  it("maps master-data permissions to md-prefixed runtime keys", () => {
+    const mapped = mapMasterDataPermissionToRuntimeCapability({
+      moduleSlug: "master-data",
+      permissionSlug: "shell.access",
+    });
+
+    expect(mapped.capability_key).toBe("md:shell:access");
+    expect(mapped.module).toBe("master-data");
+  });
+
   it("suggests MD permission slug from runtime key", () => {
     expect(suggestMasterDataPermissionSlug("um:role:assign")).toBe("user-management.role.assign");
     expect(suggestMasterDataPermissionSlug("visitpad:template:read")).toBe(

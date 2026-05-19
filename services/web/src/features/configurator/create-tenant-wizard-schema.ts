@@ -128,40 +128,46 @@ export const createTenantStep2Schema = z
     }
   });
 
-export const createTenantStep3Schema = z
+export const createTenantStep3Schema = z.object({
+  adminRoleCode: z
+    .string()
+    .min(1, 'Role code is required')
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Use lowercase letters, numbers, and hyphens only'),
+  adminRoleDisplayName: z.string().min(1, 'Role display name is required'),
+});
+
+export const createTenantStep4Schema = z
   .object({
     adminFirstName: z.string().min(1, 'First name is required'),
     adminLastName: z.string().min(1, 'Last name is required'),
     adminEmail: z.string().email('Valid admin email is required'),
-    adminMobile: z.string().min(10, 'Enter a valid mobile number'),
-    sendInvitation: z.boolean(),
-    password: z.string().optional(),
-    confirmPassword: z.string().optional(),
-    welcomeMessage: z.string().max(500).optional(),
+    adminUsername: z.string().optional(),
+    adminMobile: z.string().optional(),
+    password: z.string().min(8, 'Password must be at least 8 characters'),
+    confirmPassword: z.string().min(1, 'Confirm the password'),
   })
   .superRefine((d, ctx) => {
-    if (!d.sendInvitation) {
-      const pw = d.password ?? '';
-      if (pw.length < 8) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'Password must be at least 8 characters when not sending invite',
-          path: ['password'],
-        });
-      }
-      if (pw !== (d.confirmPassword ?? '')) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'Passwords do not match',
-          path: ['confirmPassword'],
-        });
-      }
+    if (d.password !== d.confirmPassword) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Passwords do not match',
+        path: ['confirmPassword'],
+      });
+    }
+    const mobile = d.adminMobile?.trim();
+    if (mobile && mobile.length < 10) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Enter a valid mobile number',
+        path: ['adminMobile'],
+      });
     }
   });
 
 export type WizardFormValues = z.infer<typeof createTenantStep1Schema> &
   z.infer<typeof createTenantStep2Schema> &
-  z.infer<typeof createTenantStep3Schema>;
+  z.infer<typeof createTenantStep3Schema> &
+  z.infer<typeof createTenantStep4Schema>;
 
 export const WIZARD_DEFAULT_VALUES: WizardFormValues = {
   tenantName: '',
@@ -180,12 +186,13 @@ export const WIZARD_DEFAULT_VALUES: WizardFormValues = {
   trialEndDate: '',
   maxUsersOverride: '',
   maxBranchesOverride: '',
+  adminRoleCode: 'tenant-admin',
+  adminRoleDisplayName: 'Tenant administrator',
   adminFirstName: '',
   adminLastName: '',
   adminEmail: '',
+  adminUsername: '',
   adminMobile: '',
-  sendInvitation: true,
   password: '',
   confirmPassword: '',
-  welcomeMessage: '',
 };

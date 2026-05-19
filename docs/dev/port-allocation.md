@@ -31,6 +31,12 @@ example file is a review smell.
 | 3592  | cerbos (admin)              | `infra/docker/docker-compose.yml`                        |
 | 4318  | otel collector (LGTM)       | (out-of-tree, optional)                                  |
 
+## Web stack port prep
+
+`pnpm dev:web-stack` runs `tools/dev-stack-prep.mts` first. It kills any process
+still listening on **3000, 3001, 3005, 5173, 5174, 5175, 8010** so a previous
+demo stack does not block the next start.
+
 ## Local port conflicts — what to do
 
 If a canonical port is already taken on your machine (Grafana on 3000,

@@ -32,17 +32,35 @@ describe("capability-key", () => {
     expect(() => assertValidCapabilityKey("um:user:invalid-action")).toThrow(InvalidCapabilityKeyError);
   });
 
-  it("maps user-management catalog slug to um runtime module key", () => {
+  it("maps platform catalog slugs to short runtime module keys", () => {
     expect(runtimeModuleKeyForCatalogSlug("user-management")).toBe("um");
+    expect(runtimeModuleKeyForCatalogSlug("master-data")).toBe("md");
+    expect(runtimeModuleKeyForCatalogSlug("configurator")).toBe("cfg");
+    expect(runtimeModuleKeyForCatalogSlug("frontdesk")).toBe("fd");
     expect(runtimeModuleKeyForCatalogSlug("billing")).toBe("billing");
   });
 
   it("asserts capability_key module segment matches catalog module slug", () => {
     expect(() =>
-      assertCapabilityKeyMatchesCatalogModule("user-management:user:read", "user-management"),
+      assertCapabilityKeyMatchesCatalogModule("billing:user:read", "user-management"),
     ).toThrow(InvalidCapabilityKeyError);
     expect(() =>
       assertCapabilityKeyMatchesCatalogModule("um:user:read", "user-management"),
+    ).not.toThrow();
+    expect(() =>
+      assertCapabilityKeyMatchesCatalogModule("user-management:user:read", "user-management"),
+    ).not.toThrow();
+    expect(() =>
+      assertCapabilityKeyMatchesCatalogModule("md:shell:access", "master-data"),
+    ).not.toThrow();
+    expect(() =>
+      assertCapabilityKeyMatchesCatalogModule("master-data:shell:access", "master-data"),
+    ).not.toThrow();
+    expect(() =>
+      assertCapabilityKeyMatchesCatalogModule("cfg:shell:access", "configurator"),
+    ).not.toThrow();
+    expect(() =>
+      assertCapabilityKeyMatchesCatalogModule("configurator:shell:access", "configurator"),
     ).not.toThrow();
   });
 
@@ -53,6 +71,33 @@ describe("capability-key", () => {
         module: "user-management",
         feature: "users",
         action: "create",
+      }),
+    ).not.toThrow();
+  });
+
+  it("validates demo shell capabilities with short runtime prefixes", () => {
+    expect(() =>
+      assertValidRuntimeCapabilityRow({
+        capability_key: "md:shell:access",
+        module: "master-data",
+        feature: "shell",
+        action: "access",
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertValidRuntimeCapabilityRow({
+        capability_key: "cfg:shell:access",
+        module: "configurator",
+        feature: "shell",
+        action: "access",
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertValidRuntimeCapabilityRow({
+        capability_key: "fd:shell:access",
+        module: "frontdesk",
+        feature: "shell",
+        action: "access",
       }),
     ).not.toThrow();
   });

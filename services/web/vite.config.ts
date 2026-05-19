@@ -7,6 +7,7 @@ import { resolve } from 'node:path';
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, resolve(__dirname, '../..'), '');
   const bffOrigin = (env.VITE_API_BASE_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
+  const webPort = Number(env.WEB_DEV_PORT ?? '5173');
 
   return {
   plugins: [tanstackRouter({ target: 'react' }), react(), tailwindcss()],
@@ -16,7 +17,11 @@ export default defineConfig(({ mode }) => {
     },
   },
   server: {
-    port: 5173,
+    fs: {
+      allow: [resolve(__dirname, '../..')],
+    },
+    port: webPort,
+    strictPort: true,
     proxy: {
       /**
        * Must use a RegExp context so this wins over the generic `/api` proxy (both match the same URL;

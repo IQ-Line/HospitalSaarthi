@@ -1,8 +1,7 @@
 import type { DbInstance } from "@hims/ts-sdk-db";
 import { eq } from "@hims/ts-sdk-db";
-import { organizations, tenantModules, tenants } from "@hims/configurator";
+import { organizations, tenants } from "@hims/configurator";
 import {
-  DEVELOPMENT_BOOTSTRAP_MODULE_IDS,
   DEVELOPMENT_BOOTSTRAP_ORG_ID,
   DEVELOPMENT_BOOTSTRAP_ORG_SLUG,
   DEVELOPMENT_BOOTSTRAP_TENANT_ID,
@@ -94,27 +93,9 @@ async function ensureBootstrapTenant(db: DbInstance): Promise<void> {
   });
 }
 
-async function ensureBootstrapTenantModules(db: DbInstance): Promise<string[]> {
-  const moduleIds = Object.values(DEVELOPMENT_BOOTSTRAP_MODULE_IDS);
-  for (const moduleId of moduleIds) {
-    await db
-      .insert(tenantModules)
-      .values({
-        iq_tenant_id: DEVELOPMENT_BOOTSTRAP_TENANT_ID,
-        module_id: moduleId,
-        is_active: true,
-        is_core_override: false,
-      })
-      .onConflictDoUpdate({
-        target: [tenantModules.iq_tenant_id, tenantModules.module_id],
-        set: {
-          is_active: true,
-          is_core_override: false,
-          updated_at: new Date(),
-        },
-      });
-  }
-  return moduleIds;
+async function ensureBootstrapTenantModules(_db: DbInstance): Promise<string[]> {
+  // Tenant module enablement is owned by `make seed` (Configurator seed), not service bootstrap.
+  return [];
 }
 
 export async function runConfiguratorDevelopmentBootstrap(

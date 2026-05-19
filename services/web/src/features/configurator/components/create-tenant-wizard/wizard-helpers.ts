@@ -3,6 +3,12 @@ import type { OrganizationCreateInput, OrganizationType } from '@/features/confi
 import type { WizardFormValues } from '@/features/configurator/create-tenant-wizard-schema';
 import type { Module } from '@/features/master-data/types';
 
+export {
+  defaultEnabledModuleIds,
+  moduleSlugsForIds,
+  toRoleCode,
+} from './wizard-capability-helpers';
+
 /** First alphanumeric character of the name, lowercased — used as the initial slug seed. */
 export function firstSlugSeedFromTenantName(name: string): string {
   const trimmed = name.trim();
@@ -91,6 +97,8 @@ export function buildCreatePayload(
     slug: values.slug.trim().toLowerCase(),
     type: values.tenantType as OrganizationType,
     status: 'active',
+    contact_email: values.adminEmail.trim(),
+    contact_phone: values.adminMobile?.trim() || null,
     address,
     metadata,
     tenant_modules: buildTenantModuleEnablements(moduleOverrideIds),

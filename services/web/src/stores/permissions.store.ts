@@ -6,9 +6,11 @@ export type CapabilityKey = string;
 
 export interface PermissionsState {
   capabilityKeys: ReadonlySet<CapabilityKey>;
+  /** Cerbos role codes from `GET /auth/principal` (e.g. `super-admin`). */
+  roles: readonly string[];
   isLoaded: boolean;
 
-  setCapabilityKeys: (keys: readonly CapabilityKey[]) => void;
+  setCapabilityKeys: (keys: readonly CapabilityKey[], roles?: readonly string[]) => void;
   clearPermissions: () => void;
   hasCapability: (capabilityKey: CapabilityKey) => boolean;
   hasAnyCapability: (capabilityKeys: readonly CapabilityKey[]) => boolean;
@@ -19,12 +21,14 @@ const emptyKeys = (): ReadonlySet<CapabilityKey> => new Set();
 
 const permissionsSlice: StateCreator<PermissionsState> = (set, get) => ({
   capabilityKeys: emptyKeys(),
+  roles: [],
   isLoaded: false,
 
-  setCapabilityKeys: (keys) =>
+  setCapabilityKeys: (keys, roles = []) =>
     set(
       {
         capabilityKeys: new Set(keys.map((k) => normalizeCapabilityKey(k))),
+        roles: [...roles],
         isLoaded: true,
       },
       false,
@@ -32,7 +36,7 @@ const permissionsSlice: StateCreator<PermissionsState> = (set, get) => ({
     ),
 
   clearPermissions: () => {
-    set({ capabilityKeys: emptyKeys(), isLoaded: false }, false, 'clearPermissions');
+    set({ capabilityKeys: emptyKeys(), roles: [], isLoaded: false }, false, 'clearPermissions');
   },
 
   hasCapability: (capabilityKey) => {

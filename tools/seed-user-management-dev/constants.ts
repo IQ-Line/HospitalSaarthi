@@ -31,101 +31,15 @@ export {
 export const DEV_TENANT_ID = DEVELOPMENT_BOOTSTRAP_TENANT_ID;
 export const DEV_ORG_ID = DEVELOPMENT_BOOTSTRAP_ORG_ID;
 
-export type SeedModuleDef = {
-  /** When set, upsert this id when the slug is missing (Alembic may already own the row). */
-  id?: string;
-  slug: string;
-  name: string;
-  description: string;
-  category: "core" | "clinical" | "administrative" | "support";
-  level: number;
-};
-
-/** Modules resolved from global_master after Alembic; supplemental rows use fixed ids. */
-export const SEED_MODULES: readonly SeedModuleDef[] = [
-  {
-    slug: "user-management",
-    name: "User Management",
-    description: "User Management — platform users, roles, and runtime capabilities.",
-    category: "core",
-    level: 1,
-  },
-  {
-    slug: "configurator",
-    name: "Configurator",
-    description: "Tenant configuration and module enablement.",
-    category: "core",
-    level: 1,
-  },
-  {
-    slug: "empi",
-    name: "EMPI",
-    description: "Enterprise master patient index.",
-    category: "core",
-    level: 1,
-  },
-  {
-    slug: "master-data",
-    name: "Master Data",
-    description: "Platform catalog and reference data.",
-    category: "core",
-    level: 1,
-  },
-  {
-    id: "55555555-5555-4555-8555-555555555501",
-    slug: "visitpad-templates",
-    name: "Visitpad Templates",
-    description: "Visitpad clinical templates (units, vitals, picklists).",
-    category: "clinical",
-    level: 1,
-  },
-  {
-    id: "66666666-6666-4666-8666-666666666601",
-    slug: "frontdesk",
-    name: "Frontdesk",
-    description: "Front desk registration and OPD workflows.",
-    category: "clinical",
-    level: 1,
-  },
-  {
-    id: "a1000001-0001-4001-8001-000000000001",
-    slug: "opd",
-    name: "opd",
-    description: "Outpatient department visits and patients.",
-    category: "clinical",
-    level: 1,
-  },
-] as const;
-
-export type SeedPermissionDef = {
-  id: string;
-  slug: string;
-  name: string;
-  action: "create" | "read" | "update" | "delete" | "manage";
-  moduleSlug: string;
-};
-
-export const SEED_PERMISSIONS: readonly SeedPermissionDef[] = [
-  { id: "b1000001-0001-4001-8001-000000000001", slug: "user.create", name: "Create user", action: "create", moduleSlug: "user-management" },
-  { id: "b1000001-0002-4001-8001-000000000002", slug: "user.read", name: "Read user", action: "read", moduleSlug: "user-management" },
-  { id: "b1000001-0003-4001-8001-000000000003", slug: "user.update", name: "Update user", action: "update", moduleSlug: "user-management" },
-  { id: "b1000001-0004-4001-8001-000000000004", slug: "user.delete", name: "Delete user", action: "delete", moduleSlug: "user-management" },
-  { id: "b1000002-0001-4001-8001-000000000001", slug: "role.create", name: "Create role", action: "create", moduleSlug: "user-management" },
-  { id: "b1000002-0002-4001-8001-000000000002", slug: "role.read", name: "Read role", action: "read", moduleSlug: "user-management" },
-  { id: "b1000002-0003-4001-8001-000000000003", slug: "role.update", name: "Update role", action: "update", moduleSlug: "user-management" },
-  { id: "b1000002-0004-4001-8001-000000000004", slug: "role.delete", name: "Delete role", action: "delete", moduleSlug: "user-management" },
-  { id: "b1000002-0005-4001-8001-000000000005", slug: "role.assign", name: "Assign role", action: "manage", moduleSlug: "user-management" },
-  { id: "b1000003-0001-4001-8001-000000000001", slug: "capability.read", name: "Read capability catalog", action: "read", moduleSlug: "user-management" },
-  { id: "c1000001-0001-4001-8001-000000000001", slug: "opd.visit.create", name: "Create OPD visit", action: "create", moduleSlug: "opd" },
-  { id: "c1000001-0002-4001-8001-000000000002", slug: "opd.visit.read", name: "Read OPD visit", action: "read", moduleSlug: "opd" },
-  { id: "c1000001-0003-4001-8001-000000000003", slug: "opd.patient.read", name: "Read OPD patient", action: "read", moduleSlug: "opd" },
-  { id: "f1000001-0001-4001-8001-000000000001", slug: "md.shell.access", name: "Master Data shell", action: "read", moduleSlug: "master-data" },
-  { id: "f1000001-0002-4001-8001-000000000002", slug: "md.visitpad.view", name: "Visitpad view", action: "read", moduleSlug: "master-data" },
-  { id: "f1000001-0003-4001-8001-000000000003", slug: "md.visitpad.create", name: "Visitpad create", action: "create", moduleSlug: "master-data" },
-  { id: "f1000002-0001-4001-8001-000000000001", slug: "cfg.shell.access", name: "Configurator shell", action: "read", moduleSlug: "configurator" },
-  { id: "f1000003-0001-4001-8001-000000000001", slug: "fd.shell.access", name: "Frontdesk shell", action: "read", moduleSlug: "frontdesk" },
-  { id: "f1000004-0001-4001-8001-000000000001", slug: "empi.patient.read", name: "Read patient", action: "read", moduleSlug: "empi" },
-  { id: "f1000004-0002-4001-8001-000000000002", slug: "empi.patient.create", name: "Register patient", action: "create", moduleSlug: "empi" },
+/** Module slugs required in `global_master.modules` (Alembic migrations + `make db-migrate`). */
+export const DEMO_CATALOG_MODULE_SLUGS = [
+  "user-management",
+  "configurator",
+  "empi",
+  "master-data",
+  "visitpad-templates",
+  "frontdesk",
+  "opd",
 ] as const;
 
 export type SeedCapabilityDef = {

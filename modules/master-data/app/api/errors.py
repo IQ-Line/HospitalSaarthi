@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.repositories.module_permission_repository import DuplicateModulePermissionKeyError
 from app.repositories.module_repository import DuplicateModuleKeyError
@@ -268,4 +268,15 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=400,
             content=error_payload("BAD_REQUEST", "Request violates database constraints."),
+        )
+
+    @app.exception_handler(SQLAlchemyError)
+    async def _sqlalchemy_error(_request: Request, exc: SQLAlchemyError) -> JSONResponse:
+        return JSONResponse(
+            status_code=503,
+            content=error_payload(
+                "SERVICE_UNAVAILABLE",
+                "Catalog database is unavailable. Check MASTER_DATA_DATABASE_URL and migrations.",
+                {"detail": exc.__class__.__name__},
+            ),
         )

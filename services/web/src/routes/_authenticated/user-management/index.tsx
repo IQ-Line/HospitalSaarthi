@@ -35,6 +35,7 @@ import { UserManagementPageShell } from '@/features/user-management/components/u
 import type { UmUser } from '@/features/user-management/types';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePermissionsStore } from '@/stores/permissions.store';
+import { useTenantStore } from '@/stores/tenant.store';
 
 export const Route = createFileRoute('/_authenticated/user-management/')({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -52,12 +53,13 @@ export const Route = createFileRoute('/_authenticated/user-management/')({
   },
   loader: async ({ context }) => {
     const p = usePermissionsStore.getState();
+    const tenantScope = useTenantStore.getState().tenantId;
     const loads: Array<Promise<unknown>> = [];
     if (p.hasCapability(UM_USER_READ)) {
-      loads.push(context.queryClient.ensureQueryData(userListOptions()));
+      loads.push(context.queryClient.ensureQueryData(userListOptions(tenantScope)));
     }
     if (p.hasCapability(UM_ROLE_READ)) {
-      loads.push(context.queryClient.ensureQueryData(roleListOptions()));
+      loads.push(context.queryClient.ensureQueryData(roleListOptions(tenantScope)));
     }
     if (p.hasCapability(UM_CAPABILITY_READ)) {
       loads.push(context.queryClient.ensureQueryData(capabilityListOptions()));

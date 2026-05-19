@@ -8,7 +8,6 @@ export const frontdeskModuleManifest: ModuleManifest = {
   routePrefix: '/frontdesk',
   sortOrder: 30,
   requiredCapabilities: [FD_SHELL_ACCESS],
-  requiredModulesAny: ['frontdesk', 'master-data', 'master_data'],
   navigation: [
     {
       id: 'frontdesk-visit-registration',

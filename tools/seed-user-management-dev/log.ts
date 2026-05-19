@@ -1,7 +1,5 @@
 export type SeedCounts = {
   modules: number;
-  permissions: number;
-  module_permissions: number;
   tenant_modules: number;
   capabilities: number;
   roles: number;
@@ -20,9 +18,7 @@ export function seedError(phase: string, message: string, detail?: Record<string
 }
 
 export function printSummary(counts: SeedCounts): void {
-  console.log(`[seed] modules: ${counts.modules}`);
-  console.log(`[seed] permissions: ${counts.permissions}`);
-  console.log(`[seed] module_permissions: ${counts.module_permissions}`);
+  console.log(`[seed] catalog modules resolved: ${counts.modules}`);
   console.log(`[seed] tenant_modules: ${counts.tenant_modules}`);
   console.log(`[seed] capabilities: ${counts.capabilities}`);
   console.log(`[seed] roles: ${counts.roles}`);

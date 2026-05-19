@@ -23,6 +23,10 @@ export type NavFilterContext = {
   hasCapability: (key: string) => boolean;
   hasAnyCapability: (keys: readonly string[]) => boolean;
   hasAllCapabilities: (keys: readonly string[]) => boolean;
-  /** `null` = tenant module list not loaded — skip tenant gates (dev / offline). */
+  /** `null` = tenant_modules not resolved yet — gated nodes are hidden. */
   enabledModuleSlugs: ReadonlySet<string> | null;
+  /**
+   * Platform super-admin: tenant_modules still apply; capability gates are not evaluated.
+   */
+  bypassCapabilityGates?: boolean;
 };

@@ -52,7 +52,11 @@ export function useTenantModules(tenantId: string, options?: { enabled?: boolean
   return useQuery({
     queryKey: configuratorKeys.tenantModules(tenantId),
     queryFn: () =>
-      apiClient<TenantModuleListResponse>(`${BASE}/${tenantId}/modules`),
+      apiClient<TenantModuleListResponse>(
+        `${BASE}/${tenantId}/modules`,
+        { method: 'GET' },
+        { tenantIdOverride: tenantId },
+      ),
     enabled: (options?.enabled ?? true) && !!tenantId,
   });
 }

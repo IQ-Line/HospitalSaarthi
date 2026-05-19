@@ -49,7 +49,10 @@ function extractRouteParams(path: string): Record<string, string> {
 }
 
 function resolveRouteAuthMode(config: unknown): RouteAuthMode {
-  return (config as { authMode: RouteAuthMode }).authMode;
+  if (config == null || typeof config !== "object") {
+    return "public";
+  }
+  return (config as { authMode?: RouteAuthMode }).authMode ?? "public";
 }
 
 function routeKeyFromRequest(request: FastifyRequest): string {

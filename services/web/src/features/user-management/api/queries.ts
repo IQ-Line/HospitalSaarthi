@@ -18,10 +18,15 @@ import { userManagementKeys } from './keys';
 
 const BASE = '/api/user-management';
 
-export function userListOptions() {
+export function userListOptions(tenantScope?: string | null) {
   return queryOptions({
-    queryKey: userManagementKeys.userList(),
-    queryFn: () => apiClient<UmUser[]>(`${BASE}/users`, { method: 'GET' }),
+    queryKey: [...userManagementKeys.userList(), tenantScope ?? 'active-tenant'] as const,
+    queryFn: () =>
+      apiClient<UmUser[]>(
+        `${BASE}/users`,
+        { method: 'GET' },
+        tenantScope ? { tenantIdOverride: tenantScope } : undefined,
+      ),
   });
 }
 
@@ -113,8 +118,10 @@ export function userRoleTemplatesOptions(userId: string) {
   });
 }
 
-export function useUserListSuspense() {
-  return useSuspenseQuery(userListOptions());
+export function useUserListSuspense(tenantScope?: string | null) {
+  const activeTenantId = useTenantStore((s) => s.tenantId);
+  const scope = tenantScope ?? activeTenantId;
+  return useSuspenseQuery(userListOptions(scope));
 }
 
 export function useUserDetailSuspense(userId: string) {

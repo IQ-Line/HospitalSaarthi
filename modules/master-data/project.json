@@ -21,7 +21,7 @@
       "cache": true
     },
     "serve": {
-      "command": "py -m uvicorn app.main:app --host 0.0.0.0 --port 8010 --reload",
+      "command": "py scripts/dev_serve.py",
       "options": {
         "cwd": "modules/master-data",
         "envFile": "{workspaceRoot}/.env"
@@ -55,9 +55,10 @@
       "dependsOn": ["setup"]
     },
     "db-migrate": {
-      "command": "uv run alembic upgrade head",
+      "command": "py -m alembic upgrade head",
       "options": {
-        "cwd": "modules/master-data"
+        "cwd": "modules/master-data",
+        "envFile": "{workspaceRoot}/.env"
       },
       "dependsOn": ["setup"]
     }

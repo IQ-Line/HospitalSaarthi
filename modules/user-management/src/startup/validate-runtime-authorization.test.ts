@@ -19,6 +19,41 @@ describe("validateRuntimeAuthorizationStartup", () => {
     );
   });
 
+  it("passes with demo shell capabilities using short runtime prefixes", async () => {
+    const result = await validateRuntimeAuthorizationStartup({
+      configuratorUrl: "http://localhost:3001",
+      masterDataUrl: "http://localhost:8010",
+      capabilityRepository: new InMemoryCapabilityRepository([
+        {
+          capability: {
+            id: "f47ac10b-58cc-4372-a567-0e02b2c3d611",
+            capability_key: "md:shell:access",
+            module: "master-data",
+            feature: "shell",
+            action: "access",
+            display_name: "Master Data shell",
+            description: null,
+            is_active: true,
+          },
+        },
+        {
+          capability: {
+            id: "f47ac10b-58cc-4372-a567-0e02b2c3d612",
+            capability_key: "cfg:shell:access",
+            module: "configurator",
+            feature: "shell",
+            action: "access",
+            display_name: "Configurator shell",
+            description: null,
+            is_active: true,
+          },
+        },
+      ]),
+    });
+
+    expect(result.ok).toBe(true);
+  });
+
   it("passes with valid platform slugs and capability catalog", async () => {
     const result = await validateRuntimeAuthorizationStartup({
       configuratorUrl: "http://localhost:3001",

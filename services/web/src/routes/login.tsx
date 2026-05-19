@@ -33,11 +33,8 @@ import { useTenantStore } from '@/stores/tenant.store';
 
 
 const signInSchema = z.object({
-
-  username: z.string().min(1, 'Username is required'),
-
+  email: z.string().min(1, 'Email is required').email('Enter a valid email'),
   password: z.string().min(1, 'Password is required'),
-
 });
 
 type SignInValues = z.infer<typeof signInSchema>;
@@ -96,7 +93,7 @@ function LoginPage() {
 
     resolver: zodResolver(signInSchema),
 
-    defaultValues: { username: '', password: '' },
+    defaultValues: { email: '', password: '' },
 
   });
 
@@ -135,11 +132,8 @@ function LoginPage() {
     try {
 
       const { data, error: authError } = await authClient.signIn.email({
-
-        email: values.username,
-
+        email: values.email.trim().toLowerCase(),
         password: values.password,
-
       });
 
       if (authError) {
@@ -186,7 +180,7 @@ function LoginPage() {
 
     try {
 
-      await handleSignIn({ username: email, password });
+      await handleSignIn({ email, password });
 
     } catch (err) {
 
@@ -308,7 +302,8 @@ function LoginPage() {
 
               <p className="text-xs font-medium text-muted-foreground">
 
-                Development users (run <code className="text-[0.7rem]">pnpm seed:user-management-dev</code>{' '}
+                Development users (run <code className="text-[0.7rem]">make seed</code> or{' '}
+                <code className="text-[0.7rem]">pnpm seed</code>{' '}
 
                 first)
 

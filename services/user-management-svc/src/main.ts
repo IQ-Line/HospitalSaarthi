@@ -206,6 +206,9 @@ async function createApp(): Promise<FastifyInstance> {
   const authAccountProvisioner = createPasswordAuthAccountProvisioner(pgDb, auth);
 
   if (shouldRunDevelopmentBootstrap()) {
+    app.log.warn(
+      "PLATFORM_DEV_BOOTSTRAP=true — prefer `make seed` for deterministic dev data",
+    );
     const bootstrap = await runDevelopmentBootstrap({
       auth,
       cerbosUrl,
@@ -274,12 +277,17 @@ async function createApp(): Promise<FastifyInstance> {
 }
 
 async function main(): Promise<void> {
-  const app = await createApp();
   const port = Number(
     process.env.USER_MANAGEMENT_SVC_PORT ?? process.env.PORT ?? 3005,
   );
-  await app.listen({ port, host: "0.0.0.0" });
-  console.log(`User Management service listening on http://localhost:${port}`);
+  try {
+    const app = await createApp();
+    await app.listen({ port, host: "0.0.0.0" });
+    app.log.info(`User Management service listening on http://localhost:${port}`);
+  } catch (err) {
+    console.error("Failed to start user-management-svc:", err);
+    process.exit(1);
+  }
 }
 
 await main();

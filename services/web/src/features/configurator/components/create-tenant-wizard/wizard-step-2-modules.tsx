@@ -67,10 +67,10 @@ export function WizardStep2Modules({
         </FieldContent>
       </Field>
       <Field>
-        <FieldTitle className="text-xs font-semibold">Module overrides (optional)</FieldTitle>
+        <FieldTitle className="text-xs font-semibold">Enabled modules</FieldTitle>
         <FieldDescription>
-          Enable modules outside the selected plan. These will be enabled as overrides for this
-          tenant.
+          Select modules for this tenant. Permissions in the next step are limited to these modules.
+          User-management and configurator are included by default.
         </FieldDescription>
         <FieldContent className="mt-2 min-w-0">
           {modulesLoading ? (

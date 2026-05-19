@@ -1,5 +1,5 @@
 import { GRPC } from "@cerbos/grpc";
-import { normalizeCerbosGrpcUrl } from "@hims/ts-sdk-authz";
+import { normalizeCerbosGrpcUrl } from "../../packages/ts-sdk-authz/src/client.ts";
 import { buildCerbosUserMgmtResourceAttr } from "../../modules/user-management/src/authz/cerbos-resource-attr.ts";
 import { DEV_TENANT_ID } from "./constants.ts";
 import { DEVELOPMENT_PLATFORM_OPERATOR } from "../../packages/dev-bootstrap/src/index.ts";

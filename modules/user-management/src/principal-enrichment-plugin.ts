@@ -1,25 +1,23 @@
 import type { Principal as IdentityPrincipal } from "@hims/ts-sdk-identity";
 import type { FastifyInstance, FastifyPluginAsync, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
-import { UserNotFoundError } from "./domain/errors.js";
+import { UserManagementError } from "./domain/errors.js";
 import type { Principal as CerbosPrincipalPayload } from "./domain/types.js";
 import { replyWithUserManagementError } from "./http/map-user-management-error.js";
+import { resolveEffectiveTenantId } from "./http/resolve-effective-tenant-id.js";
 import type { AuthContext, PrincipalService } from "./ports/index.js";
 import { getPrincipal } from "./use-cases/get-principal.js";
 
 type RequestWithOptionalUser = FastifyRequest & { user?: unknown };
 
+/** Identity plugin already verified the JWT; only require stable ids for enrichment. */
 function asIdentityPrincipal(user: unknown): IdentityPrincipal | null {
   if (user == null || typeof user !== "object") return null;
   const principal = user as Partial<IdentityPrincipal>;
-  if (typeof principal.userId !== "string") return null;
-  if (typeof principal.tenantId !== "string") return null;
-  if (typeof principal.orgId !== "string") return null;
-  if (typeof principal.sessionId !== "string") return null;
-  if (typeof principal.iat !== "number") return null;
-  if (typeof principal.exp !== "number") return null;
-  if (typeof principal.iss !== "string") return null;
-  return principal as IdentityPrincipal;
+  const userId = typeof principal.userId === "string" ? principal.userId.trim() : "";
+  const tenantId = typeof principal.tenantId === "string" ? principal.tenantId.trim() : "";
+  if (userId.length === 0 || tenantId.length === 0) return null;
+  return user as IdentityPrincipal;
 }
 
 function applyCerbosPayloadToIdentity(
@@ -59,7 +57,7 @@ const principalEnrichmentPluginImpl: FastifyPluginAsync<PrincipalEnricherPluginO
     if (identity === null) return;
 
     const context: AuthContext = {
-      tenantId: identity.tenantId,
+      tenantId: resolveEffectiveTenantId(request),
       userId: identity.userId,
       requestUser: identity,
     };
@@ -70,13 +68,15 @@ const principalEnrichmentPluginImpl: FastifyPluginAsync<PrincipalEnricherPluginO
       applyCerbosPayloadToIdentity(identity, payload);
       (request as RequestWithOptionalUser).user = identity;
     } catch (err) {
-      if (err instanceof UserNotFoundError) {
+      if (reply.sent) return;
+      if (err instanceof UserManagementError) {
         return replyWithUserManagementError(
           reply,
           err,
           request.correlationId ?? request.id,
         );
       }
+      request.log.error({ err }, "principal enrichment failed");
       throw err;
     }
   });

@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
- * One-time development seed for User Management E2E (manual invocation only).
+ * Development runtime seed (Configurator tenant, UM capabilities, users, better-auth).
  *
- * Usage: pnpm seed:user-management-dev
- * Prerequisites: migrations applied on hims-master, hims-configurator, hims-user-management
+ * Official entry: `make seed` (wraps this script).
+ * Prerequisites: `make setup` or `make db-migrate` on hims-master, hims-configurator, hims-user-management.
+ * Catalog data: Master Data Alembic only — not inserted here.
  */
 import {
   assertConfiguratorDatabaseIsolation,
@@ -16,7 +17,9 @@ const { printSummary, seedError, seedLog } = await import("./seed-user-managemen
 const { loadWorkspaceEnv, normalizePostgresUrl, requireEnv } = await import(
   "./seed-user-management-dev/load-env.ts"
 );
-const { seedMasterData } = await import("./seed-user-management-dev/seed-master-data.ts");
+const { resolveMasterDataModuleCatalog } = await import(
+  "./seed-user-management-dev/resolve-master-data-catalog.ts"
+);
 const { seedConfigurator } = await import("./seed-user-management-dev/seed-configurator.ts");
 const umSeed = await import("./seed-user-management-dev/seed-user-management.ts");
 const { validateCerbosForBootstrapUser } = await import(
@@ -79,8 +82,8 @@ async function main(): Promise<void> {
   const cfgDb = createDb(configuratorUrl);
   await assertConfiguratorDatabaseIsolation({ db: cfgDb, connectionString: configuratorUrl });
 
-  seedLog("master-data", "seeding catalog");
-  const md = await seedMasterData(masterDataUrl);
+  seedLog("master-data", "resolving catalog module ids (Alembic-owned)");
+  const md = await resolveMasterDataModuleCatalog(masterDataUrl);
 
   seedLog("configurator", "seeding tenant and modules");
   const cfg = await seedConfigurator(configuratorUrl, md.moduleIdsBySlug);
@@ -103,9 +106,7 @@ async function main(): Promise<void> {
   }
 
   printSummary({
-    modules: md.modules,
-    permissions: md.permissions,
-    module_permissions: md.module_permissions,
+    modules: md.moduleIdsBySlug.size,
     tenant_modules: cfg.tenant_modules,
     capabilities: um.capabilities,
     roles: um.roles,

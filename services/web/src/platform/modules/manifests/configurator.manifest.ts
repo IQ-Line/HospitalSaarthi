@@ -8,7 +8,6 @@ export const configuratorModuleManifest: ModuleManifest = {
   routePrefix: '/configurator',
   sortOrder: 50,
   requiredCapabilities: [CFG_SHELL_ACCESS],
-  requiredModulesAny: ['configurator'],
   navigation: [
     {
       id: 'configurator-tenant',
