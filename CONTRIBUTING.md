@@ -20,9 +20,32 @@ No Docker, no database, no backend needed. The mock login populates auth, tenant
 ## Full stack development
 
 ```bash
-make setup            # installs deps, starts Docker (Citus, PgBouncer, Cerbos), runs migrations
+make setup            # installs deps, copies all .env files, starts Docker, runs migrations
 make dev              # starts all services
 ```
+
+### Environment files
+
+The repo uses **per-service `.env` files** plus a workspace-root `.env` for
+cross-cutting infra (DB, Cerbos, JWT issuer). `make setup` runs `make env-init`
+which copies every `.env.example` (root and per-service) to a `.env` next to
+it; existing `.env` files are left alone.
+
+| Location | What lives here |
+|---|---|
+| `/.env`                              | DB URL, Cerbos, JWT, observability, NODE_ENV — shared by every process |
+| `/services/<svc>/.env`               | Service's port, service-specific secrets, upstream URLs that only this service calls |
+| `/services/<svc>/.env.local`         | Personal per-developer overrides — **gitignored** |
+| `/.env.local`                        | Personal workspace-wide override — **gitignored** |
+
+**Local port conflicts:** if a canonical port (e.g. BFF :3000) is already in
+use on your machine, put the override in a `.env.local` — never edit the
+committed `.env.example`. See [port allocation](docs/dev/port-allocation.md)
+for the full list and an override example.
+
+Backend `modules/*` are libraries (no process), so they don't have `.env`
+files. The sole exception is `modules/master-data` — it's also a Python
+FastAPI service.
 
 ## Key commands
 

@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "nx run-many -t serve --parallel=10",
-    "dev:web-stack": "nx run-many -t serve -p web,bff,master-data --parallel=5",
+    "dev:web-stack": "nx run-many -t serve -p web,bff,user-management-svc,configurator-svc,master-data --parallel=6",
     "lint": "nx affected -t lint",
     "test": "nx affected -t test",
     "build": "nx run-many -t build",

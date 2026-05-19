@@ -1,12 +1,15 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
+import { refreshAuthorizationContext } from '@/lib/authorization-context';
+import { useAuthStore } from '@/stores/auth.store';
 import type {
-  AssignRoleBody,
+  AppliedRoleTemplate,
+  ApplyRoleTemplateBody,
   Capability,
   CreateRoleBody,
   CreateUserBody,
   ReplaceRoleCapabilitiesBody,
-  RoleAssignment,
+  ReplaceUserCapabilitiesBody,
   UmRole,
   UmUser,
   UpdateRoleBody,
@@ -15,6 +18,28 @@ import type {
 import { userManagementKeys } from './keys';
 
 const BASE = '/api/user-management';
+
+function invalidateUserAccessQueries(qc: ReturnType<typeof useQueryClient>, userId: string) {
+  qc.invalidateQueries({ queryKey: userManagementKeys.userCapabilities(userId) }).catch(() => {
+    /* best-effort */
+  });
+  qc.invalidateQueries({ queryKey: userManagementKeys.userEffectiveCapabilities(userId) }).catch(() => {
+    /* best-effort */
+  });
+  qc.invalidateQueries({ queryKey: userManagementKeys.userRoleTemplates(userId) }).catch(() => {
+    /* best-effort */
+  });
+}
+
+async function refreshSelfAuthorizationContextIfNeeded(
+  qc: ReturnType<typeof useQueryClient>,
+  targetUserId: string,
+) {
+  if (useAuthStore.getState().userId !== targetUserId) {
+    return;
+  }
+  await refreshAuthorizationContext(qc);
+}
 
 export function useCreateUser() {
   const qc = useQueryClient();
@@ -65,41 +90,49 @@ export function useDeactivateUser(userId: string) {
   });
 }
 
-export function useAssignRole() {
+export function useReplaceUserCapabilities(userId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: AssignRoleBody) =>
-      apiClient<RoleAssignment>(`${BASE}/role-assignments`, {
-        method: 'POST',
+    mutationFn: (body: ReplaceUserCapabilitiesBody) =>
+      apiClient(`${BASE}/users/${encodeURIComponent(userId)}/capabilities`, {
+        method: 'PUT',
         body: JSON.stringify(body),
       }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: userManagementKeys.roleAssignments() }).catch(() => {
-        /* best-effort */
-      });
-      qc.invalidateQueries({ queryKey: userManagementKeys.authPrincipal() }).catch(() => {
-        /* best-effort */
-      });
+    onSuccess: async () => {
+      invalidateUserAccessQueries(qc, userId);
+      await refreshSelfAuthorizationContextIfNeeded(qc, userId);
     },
   });
 }
 
-export function useRevokeRole() {
+export function useApplyRoleTemplate(userId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ user_id, role_id }: AssignRoleBody) => {
-      const q = new URLSearchParams({ user_id, role_id });
-      return apiClient<RoleAssignment>(`${BASE}/role-assignments?${q.toString()}`, {
-        method: 'DELETE',
-      });
+    mutationFn: (body: ApplyRoleTemplateBody) =>
+      apiClient<AppliedRoleTemplate>(`${BASE}/users/${encodeURIComponent(userId)}/roles`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: async () => {
+      invalidateUserAccessQueries(qc, userId);
+      await refreshSelfAuthorizationContextIfNeeded(qc, userId);
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: userManagementKeys.roleAssignments() }).catch(() => {
-        /* best-effort */
-      });
-      qc.invalidateQueries({ queryKey: userManagementKeys.authPrincipal() }).catch(() => {
-        /* best-effort */
-      });
+  });
+}
+
+export function useDetachRoleTemplate(userId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (roleId: string) =>
+      apiClient<AppliedRoleTemplate>(
+        `${BASE}/users/${encodeURIComponent(userId)}/roles/${encodeURIComponent(roleId)}`,
+        {
+          method: 'DELETE',
+        },
+      ),
+    onSuccess: async () => {
+      invalidateUserAccessQueries(qc, userId);
+      await refreshSelfAuthorizationContextIfNeeded(qc, userId);
     },
   });
 }

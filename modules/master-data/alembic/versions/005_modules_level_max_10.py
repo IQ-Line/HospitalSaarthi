@@ -7,6 +7,7 @@ Revises: 004_partial_unique
 from collections.abc import Sequence
 
 from alembic import op
+from schema_names import GLOBAL_SCHEMA as _GM, TENANT_SCHEMA as _TM
 
 revision: str = "005_level_max_10"
 down_revision: str | Sequence[str] | None = "004_partial_unique"
@@ -20,6 +21,7 @@ def upgrade() -> None:
         "modules_level_check",
         "modules",
         "level >= 1 AND level <= 10",
+        schema=_GM,
     )
 
 
@@ -29,4 +31,5 @@ def downgrade() -> None:
         "modules_level_check",
         "modules",
         "level >= 1 AND level <= 4",
+        schema=_GM,
     )

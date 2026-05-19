@@ -6,6 +6,12 @@ node_modules/
 dist/
 *.tsbuildinfo
 
+# SDK packages emit to dist/; guard against accidental in-tree tsc output
+packages/ts-sdk-*/src/**/*.js
+packages/ts-sdk-*/src/**/*.js.map
+packages/ts-sdk-*/src/**/*.d.ts
+packages/ts-sdk-*/src/**/*.d.ts.map
+
 # Generated
 routeTree.gen.ts
 

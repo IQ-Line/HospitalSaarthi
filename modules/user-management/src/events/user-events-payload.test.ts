@@ -1,6 +1,7 @@
 import type { DomainEvent, EventBus, EventHandler, Subscription } from "@hims/ts-sdk-events";
 import { describe, expect, it } from "vitest";
 import { InMemoryUserRepository } from "../data-access/in-memory-user-repository.js";
+import { createUserTestDeps } from "../test-support/create-user-test-deps.js";
 import { createUser } from "../use-cases/create-user.js";
 import { updateUser } from "../use-cases/update-user.js";
 import {
@@ -31,6 +32,7 @@ class CapturingEventBus implements EventBus {
   }
 }
 
+
 function assertUserEventPayloadCore(payload: unknown): void {
   expect(payload).toEqual(expect.any(Object));
   expect(payload).not.toBeNull();
@@ -47,11 +49,12 @@ describe("user lifecycle event payloads", () => {
     const eventBus = new CapturingEventBus();
 
     await createUser(
-      { userRepository, eventBus },
+      createUserTestDeps({ userRepository, eventBus }),
       eventCtx,
       {
         full_name: "Created User",
         email: "created@example.com",
+        password: "password123",
         phone: "111",
         username: "created",
         org_id: "f47ac10b-58cc-4372-a567-0e02b2c3d470",
@@ -66,7 +69,7 @@ describe("user lifecycle event payloads", () => {
     const p = event.payload as Record<string, unknown>;
     expect(p.status).toBe("active");
     expect(p).toHaveProperty("auth_user_id");
-    expect(p.auth_user_id).toBeNull();
+    expect(p.auth_user_id).toBe(p.id);
     expect(p).toHaveProperty("org_id");
     expect(p).toHaveProperty("username");
     expect(p).toHaveProperty("email");

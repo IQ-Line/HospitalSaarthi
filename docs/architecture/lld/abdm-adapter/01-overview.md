@@ -93,4 +93,5 @@ Service entry (`services/abdm-adapter-svc/src/main.ts`) constructs the concretio
 ## Next docs in this folder
 
 - [`02-m1-flows.md`](./02-m1-flows.md) — endpoint surface for the first sprint.
+- [`03-phase-a-implementation-matrix.md`](./03-phase-a-implementation-matrix.md) — Postman ↔ NHA ↔ platform routes (Phase A vs later).
 - [`dev-guide.md`](./dev-guide.md) — step-by-step for the dev who's filling the stubs.

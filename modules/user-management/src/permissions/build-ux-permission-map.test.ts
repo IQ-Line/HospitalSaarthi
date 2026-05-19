@@ -3,7 +3,7 @@ import { InMemoryUserRepository } from "../data-access/in-memory-user-repository
 import { buildUxPermissionMap } from "./build-ux-permission-map.js";
 
 describe("buildUxPermissionMap", () => {
-  it("keeps role definition admin separate from role assignment admin", async () => {
+  it("keeps role-template administration separate from user-access administration", async () => {
     const userRepository = new InMemoryUserRepository();
     userRepository.insertUserWithId(
       "f47ac10b-58cc-4372-a567-0e02b2c3d480",
@@ -38,7 +38,7 @@ describe("buildUxPermissionMap", () => {
     expect(map["user-management"]?.roles?.read).toBe(true);
     expect(map["user-management"]?.roles?.write).toBe(false);
     expect(map["user-management"]?.capabilities?.read).toBe(false);
-    expect(map["user-management"]?.roleAssignments?.read).toBe(true);
-    expect(map["user-management"]?.roleAssignments?.write).toBe(true);
+    expect(map["user-management"]?.userAccess?.read).toBe(true);
+    expect(map["user-management"]?.userAccess?.write).toBe(true);
   });
 });

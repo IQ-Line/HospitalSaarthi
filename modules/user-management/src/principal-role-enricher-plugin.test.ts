@@ -33,6 +33,8 @@ const identityPluginStub = fp(
   { name: "@hims/ts-sdk-identity" },
 );
 
+const CERBOS_ROUTE_PROBE_USER_ID = "00000000-0000-0000-0000-000000000000";
+
 describe("principalRoleEnricherPlugin", () => {
   it("enriched principal roles reach authz resolver context", async () => {
     const app = Fastify();
@@ -53,6 +55,9 @@ describe("principalRoleEnricherPlugin", () => {
     await app.register(authzPlugin, {
       cerbosUrl: "127.0.0.1:3593",
       resolveTarget: (request) => {
+        if (request.user.userId === CERBOS_ROUTE_PROBE_USER_ID) {
+          return { kind: "user", id: "probe", action: "user.read" };
+        }
         if (request.user.userId === "probe-user") {
           return { kind: "user", id: "probe-user", action: "user.read" };
         }
@@ -102,6 +107,9 @@ describe("principalRoleEnricherPlugin", () => {
     await app.register(authzPlugin, {
       cerbosUrl: "127.0.0.1:3593",
       resolveTarget: (request) => {
+        if (request.user.userId === CERBOS_ROUTE_PROBE_USER_ID) {
+          return { kind: "user", id: "probe", action: "user.read" };
+        }
         if (request.user.userId === "probe-user") {
           return { kind: "user", id: "probe-user", action: "user.read" };
         }

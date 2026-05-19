@@ -14,7 +14,7 @@
  */
 
 import type {
-  M1AadhaarOtpState,
+  M1SessionState,
   M2UserLinkState,
   M3HipState,
   M3HiuState,
@@ -23,7 +23,6 @@ import type {
 /** Flow identifier — one per `(milestone, variant, version)` triple. */
 export type AbdmFlowKind =
   | "abdm.m1.aadhaar-otp.v1"
-  | "abdm.m1.mobile-otp.v1"
   | "abdm.m1.login.v1"
   | "abdm.m1.verify-existing.v1"
   | "abdm.m2.user-link.v1"
@@ -33,7 +32,7 @@ export type AbdmFlowKind =
 
 /** Aggregate state name — discriminated by `flowKind` at the call site. */
 export type AbdmSessionState =
-  | M1AadhaarOtpState
+  | M1SessionState
   | M2UserLinkState
   | M3HipState
   | M3HiuState;

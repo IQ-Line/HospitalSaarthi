@@ -41,6 +41,7 @@ export const abdmSessions = abdmAdapterSchema.table(
     state: text("state").notNull(),
     txn_id: text("txn_id"),
     request_id: text("request_id"),
+    /** Profile JWT from NHA — encrypt at rest in production (KMS / column crypto). */
     x_token: text("x_token"),
     t_token: text("t_token"),
     context: jsonb("context").$type<Record<string, unknown>>().notNull().default({}),

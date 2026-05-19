@@ -15,6 +15,7 @@ export {
   pgSchema,
   uuid,
   text,
+  varchar,
   jsonb,
   uniqueIndex,
   index,

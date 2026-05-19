@@ -1,21 +1,30 @@
 import type { DomainEvent, EventBus, EventHandler, Subscription } from "@hims/ts-sdk-events";
 import { describe, expect, it, vi } from "vitest";
+import { ModuleEntitlementLookupError, UnexpectedPersistenceError } from "../domain/errors.js";
+import { InMemoryCapabilityRepository } from "../data-access/in-memory-capability-repository.js";
+import { InMemoryUserProvisioningRepository } from "../data-access/in-memory-user-provisioning-repository.js";
+import { createUserTestDeps } from "../test-support/create-user-test-deps.js";
 import { InMemoryPrincipalRoleProjectionRepository } from "../data-access/in-memory-principal-role-projection-repository.js";
-import { InMemoryRoleAssignmentRepository } from "../data-access/in-memory-role-assignment-repository.js";
+import { InMemoryRoleCapabilityRepository } from "../data-access/in-memory-role-capability-repository.js";
 import { InMemoryRoleRepository } from "../data-access/in-memory-role-repository.js";
+import { InMemoryUserAccessRepository } from "../data-access/in-memory-user-access-repository.js";
 import { InMemoryUserRepository } from "../data-access/in-memory-user-repository.js";
 import type {
   AuthAccountProvisioner,
   CreatePasswordAuthAccountInput,
   CreatePasswordAuthAccountResult,
   CreateUserInput,
+  Capability,
 } from "../ports/index.js";
 import { createUser } from "./create-user.js";
 
 class TestEventBus implements EventBus {
+  readonly published: DomainEvent[] = [];
   async connect(): Promise<void> {}
   async disconnect(): Promise<void> {}
-  async publish(_event: DomainEvent): Promise<void> {}
+  async publish(event: DomainEvent): Promise<void> {
+    this.published.push(event);
+  }
   async subscribe(_eventType: string, _handler: EventHandler): Promise<Subscription> {
     return { async unsubscribe(): Promise<void> {} };
   }
@@ -31,21 +40,27 @@ class AuthAccountProvisionerStub implements AuthAccountProvisioner {
   );
 }
 
+const entitlementPorts = {
+  tenantModuleEntitlementPort: {
+    async listTenantEnabledModuleIds(): Promise<string[]> {
+      return [];
+    },
+  },
+  masterDataModuleCatalogPort: {
+    async resolveModuleSlugsByIds(): Promise<Map<string, string>> {
+      return new Map();
+    },
+  },
+} as const;
+
 describe("createUser", () => {
   it("rejects non-string full_name", async () => {
     await expect(
       createUser(
-        {
-          userRepository: new InMemoryUserRepository(),
-          roleRepository: new InMemoryRoleRepository(),
-          roleAssignmentRepository: new InMemoryRoleAssignmentRepository(),
-          principalRoleProjectionRepository: new InMemoryPrincipalRoleProjectionRepository(
-            new InMemoryRoleAssignmentRepository(),
-            new InMemoryRoleRepository(),
-          ),
-          authAccountProvisioner: new AuthAccountProvisionerStub(),
+        createUserTestDeps({
           eventBus: new TestEventBus(),
-        },
+          authAccountProvisioner: new AuthAccountProvisionerStub(),
+        }),
         {
           tenantId: "t1",
           actorId: "a1",
@@ -59,17 +74,10 @@ describe("createUser", () => {
   it("rejects blank full_name", async () => {
     await expect(
       createUser(
-        {
-          userRepository: new InMemoryUserRepository(),
-          roleRepository: new InMemoryRoleRepository(),
-          roleAssignmentRepository: new InMemoryRoleAssignmentRepository(),
-          principalRoleProjectionRepository: new InMemoryPrincipalRoleProjectionRepository(
-            new InMemoryRoleAssignmentRepository(),
-            new InMemoryRoleRepository(),
-          ),
-          authAccountProvisioner: new AuthAccountProvisionerStub(),
+        createUserTestDeps({
           eventBus: new TestEventBus(),
-        },
+          authAccountProvisioner: new AuthAccountProvisionerStub(),
+        }),
         {
           tenantId: "t1",
           actorId: "a1",
@@ -80,13 +88,51 @@ describe("createUser", () => {
     ).rejects.toMatchObject({ issue: "full_name_empty" });
   });
 
-  it("provisions the login account, links auth_user_id, and assigns selected roles", async () => {
+  it("provisions the login account, links auth_user_id, and applies selected access grants", async () => {
     const userRepository = new InMemoryUserRepository();
+    const capabilityRepository = new InMemoryCapabilityRepository([
+      {
+        capability: {
+          id: "f47ac10b-58cc-4372-a567-0e02b2c3d610",
+          capability_key: "um:user:create",
+          module: "user-management",
+          feature: "users",
+          action: "create",
+          display_name: "Create users",
+          description: null,
+          is_active: true,
+        },
+      },
+      {
+        capability: {
+          id: "f47ac10b-58cc-4372-a567-0e02b2c3d611",
+          capability_key: "um:user:read",
+          module: "user-management",
+          feature: "users",
+          action: "read",
+          display_name: "Read users",
+          description: null,
+          is_active: true,
+        },
+      },
+      {
+        capability: {
+          id: "f47ac10b-58cc-4372-a567-0e02b2c3d612",
+          capability_key: "um:role:assign",
+          module: "user-management",
+          feature: "roles",
+          action: "assign",
+          display_name: "Assign roles",
+          description: null,
+          is_active: true,
+        },
+      },
+    ]);
     const roleRepository = new InMemoryRoleRepository([
       {
         tenantId: "tenant-a",
         role: {
-          id: "f47ac10b-58cc-4372-a567-0e02b2c3d611",
+          id: "f47ac10b-58cc-4372-a567-0e02b2c3d621",
           code: "registrar",
           display_name: "Registrar",
           status: "active",
@@ -96,7 +142,7 @@ describe("createUser", () => {
       {
         tenantId: "tenant-a",
         role: {
-          id: "f47ac10b-58cc-4372-a567-0e02b2c3d612",
+          id: "f47ac10b-58cc-4372-a567-0e02b2c3d622",
           code: "auditor",
           display_name: "Auditor",
           status: "active",
@@ -104,9 +150,31 @@ describe("createUser", () => {
         },
       },
     ]);
-    const roleAssignmentRepository = new InMemoryRoleAssignmentRepository();
+    const userAccessRepository = new InMemoryUserAccessRepository((tenantId, roleId) =>
+      roleRepository.getRoleById(tenantId, roleId),
+    );
+    const userProvisioningRepository = new InMemoryUserProvisioningRepository(
+      userRepository,
+      userAccessRepository,
+    );
+    const roleCapabilityRepository = new InMemoryRoleCapabilityRepository([
+      {
+        tenantId: "tenant-a",
+        roleId: "f47ac10b-58cc-4372-a567-0e02b2c3d621",
+        capabilities: [
+          (await capabilityRepository.getCapabilityById("f47ac10b-58cc-4372-a567-0e02b2c3d611"))!,
+        ],
+      },
+      {
+        tenantId: "tenant-a",
+        roleId: "f47ac10b-58cc-4372-a567-0e02b2c3d622",
+        capabilities: [
+          (await capabilityRepository.getCapabilityById("f47ac10b-58cc-4372-a567-0e02b2c3d612"))!,
+        ],
+      },
+    ]);
     const principalRoleProjectionRepository = new InMemoryPrincipalRoleProjectionRepository(
-      roleAssignmentRepository,
+      userAccessRepository,
       roleRepository,
     );
     const authAccountProvisioner = new AuthAccountProvisionerStub();
@@ -114,11 +182,15 @@ describe("createUser", () => {
     const created = await createUser(
       {
         userRepository,
+        userProvisioningRepository,
+        capabilityRepository,
         roleRepository,
-        roleAssignmentRepository,
+        roleCapabilityRepository,
+        userAccessRepository,
         principalRoleProjectionRepository,
         authAccountProvisioner,
         eventBus: new TestEventBus(),
+        ...entitlementPorts,
       },
       {
         tenantId: "tenant-a",
@@ -129,9 +201,10 @@ describe("createUser", () => {
         full_name: "New User",
         email: "new.user@example.com",
         password: "password123",
-        role_ids: [
-          "f47ac10b-58cc-4372-a567-0e02b2c3d611",
-          "f47ac10b-58cc-4372-a567-0e02b2c3d612",
+        capability_ids: ["f47ac10b-58cc-4372-a567-0e02b2c3d610"],
+        role_template_ids: [
+          "f47ac10b-58cc-4372-a567-0e02b2c3d621",
+          "f47ac10b-58cc-4372-a567-0e02b2c3d622",
         ],
       },
     );
@@ -145,17 +218,263 @@ describe("createUser", () => {
       }),
     );
     expect(created.auth_user_id).toBe(created.id);
-    await expect(
-      roleAssignmentRepository.listAssignmentsByUser("tenant-a", created.id),
-    ).resolves.toEqual(
+    await expect(userAccessRepository.listRoleTemplatesByUser("tenant-a", created.id)).resolves.toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          role_id: "f47ac10b-58cc-4372-a567-0e02b2c3d611",
+          role_id: "f47ac10b-58cc-4372-a567-0e02b2c3d621",
         }),
         expect.objectContaining({
-          role_id: "f47ac10b-58cc-4372-a567-0e02b2c3d612",
+          role_id: "f47ac10b-58cc-4372-a567-0e02b2c3d622",
         }),
       ]),
     );
+    await expect(
+      userAccessRepository.listActiveCapabilityGrantsByUser("tenant-a", created.id),
+    ).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          capability_id: "f47ac10b-58cc-4372-a567-0e02b2c3d610",
+          grant_source: "manual",
+        }),
+        expect.objectContaining({
+          capability_id: "f47ac10b-58cc-4372-a567-0e02b2c3d611",
+          grant_source: "role_template",
+        }),
+        expect.objectContaining({
+          capability_id: "f47ac10b-58cc-4372-a567-0e02b2c3d612",
+          grant_source: "role_template",
+        }),
+      ]),
+    );
+  });
+
+  it("applies only selected role capabilities when role_template_capability_ids is set", async () => {
+    const capCreate: Capability = {
+      id: "f47ac10b-58cc-4372-a567-0e02b2c3d610",
+      capability_key: "um:user:create",
+      module: "user-management",
+      feature: "users",
+      action: "create",
+      display_name: "Create users",
+      description: null,
+      is_active: true,
+    };
+    const capRead: Capability = {
+      id: "f47ac10b-58cc-4372-a567-0e02b2c3d611",
+      capability_key: "um:user:read",
+      module: "user-management",
+      feature: "users",
+      action: "read",
+      display_name: "Read users",
+      description: null,
+      is_active: true,
+    };
+    const userRepository = new InMemoryUserRepository();
+    const capabilityRepository = new InMemoryCapabilityRepository([
+      { capability: capCreate },
+      { capability: capRead },
+    ]);
+    const roleRepository = new InMemoryRoleRepository([
+      {
+        tenantId: "tenant-a",
+        role: {
+          id: "f47ac10b-58cc-4372-a567-0e02b2c3d621",
+          code: "registrar",
+          display_name: "Registrar",
+          status: "active",
+          is_system: false,
+        },
+      },
+    ]);
+    const userAccessRepository = new InMemoryUserAccessRepository((tenantId, roleId) =>
+      roleRepository.getRoleById(tenantId, roleId),
+    );
+    const userProvisioningRepository = new InMemoryUserProvisioningRepository(
+      userRepository,
+      userAccessRepository,
+    );
+    const roleCapabilityRepository = new InMemoryRoleCapabilityRepository([
+      {
+        tenantId: "tenant-a",
+        roleId: "f47ac10b-58cc-4372-a567-0e02b2c3d621",
+        capabilities: [capCreate, capRead],
+      },
+    ]);
+    const principalRoleProjectionRepository = new InMemoryPrincipalRoleProjectionRepository(
+      userAccessRepository,
+      roleRepository,
+    );
+
+    const created = await createUser(
+      {
+        userRepository,
+        userProvisioningRepository,
+        capabilityRepository,
+        roleRepository,
+        roleCapabilityRepository,
+        userAccessRepository,
+        principalRoleProjectionRepository,
+        authAccountProvisioner: new AuthAccountProvisionerStub(),
+        eventBus: new TestEventBus(),
+        ...entitlementPorts,
+      },
+      {
+        tenantId: "tenant-a",
+        actorId: "f47ac10b-58cc-4372-a567-0e02b2c3d613",
+        correlationId: "f47ac10b-58cc-4372-a567-0e02b2c3d614",
+      },
+      {
+        full_name: "Subset User",
+        email: "subset.user@example.com",
+        password: "password123",
+        role_template_ids: ["f47ac10b-58cc-4372-a567-0e02b2c3d621"],
+        role_template_capability_ids: ["f47ac10b-58cc-4372-a567-0e02b2c3d611"],
+      },
+    );
+
+    const grants = await userAccessRepository.listActiveCapabilityGrantsByUser("tenant-a", created.id);
+    expect(grants).toHaveLength(1);
+    expect(grants[0]).toMatchObject({
+      capability_id: "f47ac10b-58cc-4372-a567-0e02b2c3d611",
+      grant_source: "role_template",
+    });
+  });
+
+  it("fails closed before user insert when direct capability entitlement lookup fails", async () => {
+    const capId = "f47ac10b-58cc-4372-a567-0e02b2c3d610";
+    const userRepository = new InMemoryUserRepository();
+    const capabilityRepository = new InMemoryCapabilityRepository([
+      {
+        capability: {
+          id: capId,
+          capability_key: "um:user:create",
+          module: "user-management",
+          feature: "users",
+          action: "create",
+          display_name: "Create users",
+          description: null,
+          is_active: true,
+        },
+      },
+    ]);
+
+    const eventBus = new TestEventBus();
+    const deps = createUserTestDeps({
+      userRepository,
+      eventBus,
+      authAccountProvisioner: new AuthAccountProvisionerStub(),
+      tenantModuleEntitlementPort: {
+            listTenantEnabledModuleIds: vi
+              .fn()
+              .mockRejectedValue(new ModuleEntitlementLookupError("configurator")),
+          },
+      masterDataModuleCatalogPort: {
+        resolveModuleSlugsByIds: vi.fn(),
+      },
+    });
+    deps.capabilityRepository = capabilityRepository;
+
+    await expect(
+      createUser(
+        deps,
+        { tenantId: "tenant-a", actorId: "a1", correlationId: "c1" },
+        {
+          full_name: "X",
+          email: "x@example.com",
+          password: "password123",
+          capability_ids: [capId],
+        },
+      ),
+    ).rejects.toBeInstanceOf(ModuleEntitlementLookupError);
+
+    await expect(userRepository.listUsers("tenant-a")).resolves.toHaveLength(0);
+    expect(eventBus.published).toHaveLength(0);
+  });
+
+  it("rolls back user and grants when transactional provisioning fails", async () => {
+    const userRepository = new InMemoryUserRepository();
+    const roleRepository = new InMemoryRoleRepository();
+    const userAccessRepository = new InMemoryUserAccessRepository((tenantId, roleId) =>
+      roleRepository.getRoleById(tenantId, roleId),
+    );
+    const eventBus = new TestEventBus();
+
+    const deps = createUserTestDeps({
+      userRepository,
+      eventBus,
+      authAccountProvisioner: new AuthAccountProvisionerStub(),
+    });
+    deps.userProvisioningRepository = {
+      async provisionUserWithAccess() {
+        throw new UnexpectedPersistenceError();
+      },
+    };
+
+    await expect(
+      createUser(deps, { tenantId: "tenant-a", actorId: "a1", correlationId: "c1" }, {
+        full_name: "Rollback User",
+        email: "rollback@example.com",
+        password: "password123",
+      }),
+    ).rejects.toBeInstanceOf(UnexpectedPersistenceError);
+
+    await expect(userRepository.listUsers("tenant-a")).resolves.toHaveLength(0);
+    expect(eventBus.published).toHaveLength(0);
+  });
+
+  it("rolls back user when role template entitlement validation fails", async () => {
+    const capBilling: Capability = {
+      id: "f47ac10b-58cc-4372-a567-0e02b2c3d630",
+      capability_key: "billing:invoice:read",
+      module: "billing",
+      feature: "invoice",
+      action: "read",
+      display_name: "Read invoices",
+      description: null,
+      is_active: true,
+    };
+    const userRepository = new InMemoryUserRepository();
+    const capabilityRepository = new InMemoryCapabilityRepository([{ capability: capBilling }]);
+    const roleRepository = new InMemoryRoleRepository([
+      {
+        tenantId: "tenant-a",
+        role: {
+          id: "f47ac10b-58cc-4372-a567-0e02b2c3d631",
+          code: "billing-clerk",
+          display_name: "Billing clerk",
+          status: "active",
+          is_system: false,
+        },
+      },
+    ]);
+    const roleCapabilityRepository = new InMemoryRoleCapabilityRepository([
+      {
+        tenantId: "tenant-a",
+        roleId: "f47ac10b-58cc-4372-a567-0e02b2c3d631",
+        capabilities: [capBilling],
+      },
+    ]);
+    const eventBus = new TestEventBus();
+
+    const deps = createUserTestDeps({
+      userRepository,
+      eventBus,
+      authAccountProvisioner: new AuthAccountProvisionerStub(),
+    });
+    deps.capabilityRepository = capabilityRepository;
+    deps.roleRepository = roleRepository;
+    deps.roleCapabilityRepository = roleCapabilityRepository;
+
+    await expect(
+      createUser(deps, { tenantId: "tenant-a", actorId: "a1", correlationId: "c1" }, {
+        full_name: "Role Fail",
+        email: "role.fail@example.com",
+        password: "password123",
+        role_template_ids: ["f47ac10b-58cc-4372-a567-0e02b2c3d631"],
+      }),
+    ).rejects.toMatchObject({ code: "CAPABILITY_NOT_ENTITLED_FOR_TENANT" });
+
+    await expect(userRepository.listUsers("tenant-a")).resolves.toHaveLength(0);
+    expect(eventBus.published).toHaveLength(0);
   });
 });

@@ -13,13 +13,12 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 
 from alembic import op
+from schema_names import GLOBAL_SCHEMA as _GM, TENANT_SCHEMA as _TM
 
 revision: str = "018_procedure_short_name"
 down_revision: str | Sequence[str] | None = "017_chronic_illness_prompt"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
-
-_TM = "tenant_master"
 
 
 def upgrade() -> None:
@@ -27,7 +26,7 @@ def upgrade() -> None:
     if bind.dialect.name != "postgresql":
         return
 
-    for schema in ("public", _TM):
+    for schema in (_GM, _TM):
         op.add_column(
             "procedures",
             sa.Column("short_name", sa.String(length=64), nullable=True),
@@ -40,5 +39,5 @@ def downgrade() -> None:
     if bind.dialect.name != "postgresql":
         return
 
-    for schema in ("public", _TM):
+    for schema in (_GM, _TM):
         op.drop_column("procedures", "short_name", schema=schema)

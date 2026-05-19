@@ -1,4 +1,4 @@
-"""SQLAlchemy models for the module registry: ``public`` (global) vs ``tenant_master``."""
+"""SQLAlchemy models for the module registry: ``global_master`` vs ``tenant_master``."""
 
 from __future__ import annotations
 
@@ -17,11 +17,12 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.catalog_schemas import GLOBAL_SCHEMA, TENANT_SCHEMA
 from app.models.base import Base, TimestampMixin
 
 
 class ModulePublicModel(TimestampMixin, Base):
-    """Platform-wide module tree in the default schema (``public``)."""
+    """Platform-wide module tree in ``global_master``."""
 
     __tablename__ = "modules"
     __table_args__ = (
@@ -44,13 +45,14 @@ class ModulePublicModel(TimestampMixin, Base):
             postgresql_where=text("NOT is_deleted"),
             sqlite_where=text("is_deleted = 0"),
         ),
+        {"schema": GLOBAL_SCHEMA},
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
     parent_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("modules.id", ondelete="RESTRICT"),
+        ForeignKey(f"{GLOBAL_SCHEMA}.modules.id", ondelete="RESTRICT"),
         nullable=True,
     )
 
@@ -95,7 +97,7 @@ class ModuleTenantModel(TimestampMixin, Base):
             postgresql_where=text("NOT is_deleted"),
             sqlite_where=text("is_deleted = 0"),
         ),
-        {"schema": "tenant_master"},
+        {"schema": TENANT_SCHEMA},
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -103,7 +105,7 @@ class ModuleTenantModel(TimestampMixin, Base):
 
     parent_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("tenant_master.modules.id", ondelete="RESTRICT"),
+        ForeignKey(f"{TENANT_SCHEMA}.modules.id", ondelete="RESTRICT"),
         nullable=True,
     )
 

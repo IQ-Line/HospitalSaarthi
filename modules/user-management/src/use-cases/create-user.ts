@@ -1,30 +1,51 @@
+import { randomUUID } from "node:crypto";
 import type { EventBus } from "@hims/ts-sdk-events";
-import { UnexpectedPersistenceError, RoleNotFoundError, ValidationError } from "../domain/errors.js";
+import {
+  CapabilityNotFoundError,
+  RoleNotFoundError,
+  ValidationError,
+} from "../domain/errors.js";
+import {
+  RUNTIME_AUTH_LIMITS,
+  assertWithinLimit,
+  dedupeTrimmedIds,
+} from "../domain/runtime-authorization-limits.js";
 import { USER_MANAGEMENT_EVENT_USER_CREATED } from "../events/constants.js";
 import { ensureUserEventPayload } from "../events/ensure-user-event-payload.js";
 import { publishUserManagementEvent } from "../events/publish-user-management-event.js";
-import { assignRole } from "./assign-role.js";
+import { assertRuntimeCapabilitiesEntitledForTenant } from "./assert-runtime-capabilities-entitled-for-tenant.js";
+import { resolveRoleTemplateGrantPlans } from "./resolve-role-template-grant-plans.js";
 import type {
   AuthAccountProvisioner,
+  CapabilityRepository,
   CreateUserInput,
+  MasterDataModuleCatalogPort,
   PrincipalRoleProjectionRepository,
-  RoleAssignmentRepository,
+  RoleCapabilityRepository,
   RoleRepository,
+  TenantModuleEntitlementPort,
   User,
   UserRepository,
 } from "../ports/index.js";
+import type { UserProvisioningRepository } from "../ports/user-provisioning-repository.js";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+const ENTITLEMENT_ASSERT_CONTEXT = { cachePolicy: "bypass-cache" as const };
+
 export type CreateUserDeps = {
   userRepository: UserRepository;
+  userProvisioningRepository: UserProvisioningRepository;
+  capabilityRepository: CapabilityRepository;
   roleRepository: RoleRepository;
-  roleAssignmentRepository: RoleAssignmentRepository;
+  roleCapabilityRepository: RoleCapabilityRepository;
   principalRoleProjectionRepository: PrincipalRoleProjectionRepository;
   authAccountProvisioner: AuthAccountProvisioner;
   eventBus: EventBus;
+  tenantModuleEntitlementPort: TenantModuleEntitlementPort;
+  masterDataModuleCatalogPort: MasterDataModuleCatalogPort;
 };
 
 export type CreateUserContext = {
@@ -35,6 +56,7 @@ export type CreateUserContext = {
 
 /**
  * Creates a tenant-scoped platform user and publishes `user-management.user.created`.
+ * User row and initial grants persist in one DB transaction; events publish only after commit.
  */
 export async function createUser(
   deps: CreateUserDeps,
@@ -70,14 +92,79 @@ export async function createUser(
   }
 
   if (
-    input.role_ids !== undefined &&
-    (!Array.isArray(input.role_ids) ||
-      input.role_ids.some((roleId) => typeof roleId !== "string" || !UUID_RE.test(roleId)))
+    input.capability_ids !== undefined &&
+    (!Array.isArray(input.capability_ids) ||
+      input.capability_ids.some(
+        (capabilityId) => typeof capabilityId !== "string" || !UUID_RE.test(capabilityId),
+      ))
   ) {
-    throw new ValidationError("create_user_role_ids_invalid");
+    throw new ValidationError("create_user_capability_ids_invalid");
   }
 
-  const roleIds = [...new Set((input.role_ids ?? []).map((roleId) => roleId.trim()))];
+  if (
+    input.role_template_ids !== undefined &&
+    (!Array.isArray(input.role_template_ids) ||
+      input.role_template_ids.some((roleId) => typeof roleId !== "string" || !UUID_RE.test(roleId)))
+  ) {
+    throw new ValidationError("create_user_role_template_ids_invalid");
+  }
+
+  if (
+    input.role_template_capability_ids !== undefined &&
+    (!Array.isArray(input.role_template_capability_ids) ||
+      input.role_template_capability_ids.some(
+        (capabilityId) => typeof capabilityId !== "string" || !UUID_RE.test(capabilityId),
+      ))
+  ) {
+    throw new ValidationError("create_user_role_template_capability_ids_invalid");
+  }
+
+  const roleIds = dedupeTrimmedIds(input.role_template_ids ?? []);
+  const roleTemplateCapabilityIds =
+    input.role_template_capability_ids !== undefined
+      ? dedupeTrimmedIds(input.role_template_capability_ids)
+      : undefined;
+
+  assertWithinLimit(
+    roleIds.length,
+    RUNTIME_AUTH_LIMITS.maxRoleTemplateIdsPerCreateUser,
+    "create_user_role_template_ids_limit_exceeded",
+  );
+
+  if (roleTemplateCapabilityIds !== undefined && roleIds.length !== 1) {
+    throw new ValidationError("create_user_role_template_capability_ids_requires_single_role");
+  }
+
+  const capabilityIds = dedupeTrimmedIds(input.capability_ids ?? []);
+  assertWithinLimit(
+    capabilityIds.length,
+    RUNTIME_AUTH_LIMITS.maxCapabilityIdsPerRequest,
+    "create_user_capability_ids_limit_exceeded",
+  );
+
+  const entitlementDeps = {
+    capabilityRepository: deps.capabilityRepository,
+    tenantModuleEntitlementPort: deps.tenantModuleEntitlementPort,
+    masterDataModuleCatalogPort: deps.masterDataModuleCatalogPort,
+  };
+
+  if (capabilityIds.length > 0) {
+    const capabilities = await deps.capabilityRepository.listCapabilitiesByIds(capabilityIds);
+    if (capabilities.length !== capabilityIds.length) {
+      const capabilityIdsFound = new Set(capabilities.map((capability) => capability.id));
+      const missingCapabilityId = capabilityIds.find(
+        (capabilityId) => !capabilityIdsFound.has(capabilityId),
+      );
+      throw new CapabilityNotFoundError(missingCapabilityId);
+    }
+    await assertRuntimeCapabilitiesEntitledForTenant(
+      entitlementDeps,
+      ctx.tenantId,
+      capabilityIds,
+      ENTITLEMENT_ASSERT_CONTEXT,
+    );
+  }
+
   if (roleIds.length > 0) {
     const roles = await deps.roleRepository.listRolesByIds(ctx.tenantId, roleIds);
     if (roles.length !== roleIds.length) {
@@ -87,38 +174,40 @@ export async function createUser(
     }
   }
 
-  const user = await deps.userRepository.createUser(ctx.tenantId, {
-    ...input,
-    email,
-  });
+  const roleTemplateGrants =
+    roleIds.length > 0
+      ? await resolveRoleTemplateGrantPlans(
+          { ...entitlementDeps, roleCapabilityRepository: deps.roleCapabilityRepository },
+          ctx.tenantId,
+          roleIds,
+          roleTemplateCapabilityIds,
+          ENTITLEMENT_ASSERT_CONTEXT,
+        )
+      : [];
+
+  const grantActorId =
+    (await deps.userRepository.getUserById(ctx.tenantId, ctx.actorId)) !== null
+      ? ctx.actorId
+      : null;
+
+  const userId = randomUUID();
 
   const authAccount = await deps.authAccountProvisioner.createPasswordAccount({
-    platformUserId: user.id,
+    platformUserId: userId,
     tenantId: ctx.tenantId,
-    fullName: user.full_name,
+    fullName: input.full_name,
     email,
     password: input.password,
   });
 
-  const linkedUser = await deps.userRepository.updateUser(ctx.tenantId, user.id, {
-    auth_user_id: authAccount.authUserId,
+  const linkedUser = await deps.userProvisioningRepository.provisionUserWithAccess(ctx.tenantId, {
+    userId,
+    user: { ...input, email },
+    authUserId: authAccount.authUserId,
+    manualCapabilityIds: capabilityIds,
+    roleTemplateGrants,
+    actorId: grantActorId,
   });
-  if (linkedUser === null) {
-    throw new UnexpectedPersistenceError();
-  }
-
-  for (const roleId of roleIds) {
-    await assignRole(
-      {
-        userRepository: deps.userRepository,
-        roleRepository: deps.roleRepository,
-        roleAssignmentRepository: deps.roleAssignmentRepository,
-        eventBus: deps.eventBus,
-      },
-      ctx,
-      { user_id: linkedUser.id, role_id: roleId },
-    );
-  }
 
   deps.principalRoleProjectionRepository.clearCache();
 

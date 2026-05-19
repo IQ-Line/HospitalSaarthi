@@ -1,5 +1,8 @@
 import type { DbInstance } from "@hims/ts-sdk-db";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
+import { assertValidRuntimeCapabilityRow } from "../domain/capability-key.js";
+import { normalizeCapabilityProvenance } from "../domain/capability-provenance.js";
+import { assertValidModuleSlug, normalizeModuleSlugSet } from "../domain/module-slug.js";
 import type { Capability, CapabilityRepository } from "../ports/index.js";
 import { capabilities } from "../schema/tables.js";
 
@@ -12,17 +15,29 @@ function rowToCapability(row: {
   display_name: string;
   description: string | null;
   is_active: boolean;
+  source_module_slug: string | null;
+  source_permission_slug: string | null;
+  source_catalog: string | null;
 }): Capability {
-  return {
+  const module = assertValidModuleSlug(row.module, "capabilities.module");
+  const provenance = normalizeCapabilityProvenance({
+    source_module_slug: row.source_module_slug,
+    source_permission_slug: row.source_permission_slug,
+    source_catalog: row.source_catalog,
+  });
+  const capability = {
     id: row.id,
     capability_key: row.capability_key,
-    module: row.module,
+    module,
     feature: row.feature,
     action: row.action,
     display_name: row.display_name,
     description: row.description,
     is_active: row.is_active,
+    ...provenance,
   };
+  assertValidRuntimeCapabilityRow(capability, `capabilities.id=${row.id}`);
+  return capability;
 }
 
 const capabilityColumns = {
@@ -34,6 +49,9 @@ const capabilityColumns = {
   display_name: capabilities.display_name,
   description: capabilities.description,
   is_active: capabilities.is_active,
+  source_module_slug: capabilities.source_module_slug,
+  source_permission_slug: capabilities.source_permission_slug,
+  source_catalog: capabilities.source_catalog,
 } as const;
 
 export class DrizzleCapabilityRepository implements CapabilityRepository {
@@ -72,6 +90,18 @@ export class DrizzleCapabilityRepository implements CapabilityRepository {
       .select(capabilityColumns)
       .from(capabilities)
       .where(inArray(capabilities.capability_key, capabilityKeys));
+    return rows.map(rowToCapability);
+  }
+
+  async listActiveRuntimeCapabilitiesByModuleSlugs(moduleSlugs: string[]): Promise<Capability[]> {
+    const normalized = normalizeModuleSlugSet(moduleSlugs);
+    if (normalized.length === 0) {
+      return [];
+    }
+    const rows = await this.db
+      .select(capabilityColumns)
+      .from(capabilities)
+      .where(and(inArray(capabilities.module, normalized), eq(capabilities.is_active, true)));
     return rows.map(rowToCapability);
   }
 }
