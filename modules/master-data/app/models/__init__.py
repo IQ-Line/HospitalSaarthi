@@ -3,6 +3,7 @@ from app.models.department import DepartmentModel, DepartmentPublicModel, Depart
 from app.models.module import ModuleModel
 from app.models.module_permission import ModulePermissionModel
 from app.models.permission import PermissionModel
+from app.models.picklist import PicklistModel, PicklistValueModel
 from app.models.system_role import SystemRoleModel
 from app.models.visitpad.allergen import VisitpadAllergenModel, VisitpadAllergenPublicModel
 from app.models.visitpad.allergy_reaction import (
@@ -38,6 +39,8 @@ __all__ = [
     "ModuleModel",
     "ModulePermissionModel",
     "PermissionModel",
+    "PicklistModel",
+    "PicklistValueModel",
     "SystemRoleModel",
     "VisitpadAllergenModel",
     "VisitpadAllergenPublicModel",
