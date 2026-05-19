@@ -30,11 +30,17 @@ const MD = '/api/v1/master-data/visitpad';
 
 export const VISITPAD_CATALOG_DEFAULT_PAGE_SIZE = 20;
 
-export const VISITPAD_CATALOG_PAGE_SIZES = [10, 20, 50] as const;
+export const VISITPAD_CATALOG_PAGE_SIZES = [10, 20, 50, 200] as const;
 
 export type VisitpadCatalogPageParams = {
   pageIndex: number;
   pageSize: number;
+};
+
+/** Full catalog page for forms (e.g. visit registration vitals grid). */
+export const VISITPAD_CATALOG_FORM_PAGE: VisitpadCatalogPageParams = {
+  pageIndex: 0,
+  pageSize: 200,
 };
 
 const DEFAULT_PAGE: VisitpadCatalogPageParams = {
@@ -162,6 +168,11 @@ export function useVisitpadVitals(search?: string, category?: string, page?: Vis
     queryFn: () =>
       apiClient<VisitpadListResponse<VisitpadVital>>(listUrl('/vitals', { search, category }, page)),
   });
+}
+
+/** Active vitals for tenant/global catalog scope — up to API max (200) for form dropdowns/grids. */
+export function useVisitpadVitalsCatalog() {
+  return useVisitpadVitals(undefined, undefined, VISITPAD_CATALOG_FORM_PAGE);
 }
 
 /** Global (`public`) vitals — omit `iq_tenant_id` even when a tenant UUID is active (import modal). */

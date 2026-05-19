@@ -168,3 +168,25 @@ export interface ModulePermissionUpdateInput {
   is_active?: boolean;
   is_deleted?: boolean;
 }
+
+export type DepartmentType = 'clinical' | 'diagnostic' | 'administrative' | 'support';
+
+export interface Department {
+  id: string;
+  iq_tenant_id: string | null;
+  name: string;
+  code: string;
+  type: DepartmentType;
+  description: string | null;
+  is_active: boolean;
+  is_deleted: boolean;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DepartmentListResponse {
+  data: Department[];
+  total: number;
+}

@@ -699,6 +699,70 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /departments:
+    get:
+      operationId: listDepartments
+      summary: List hospital departments
+      description: Returns active department rows (`is_deleted = false`). Optional `type` filter.
+      security: []
+      tags:
+        - Departments
+      parameters:
+        - name: type
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/DepartmentType'
+      responses:
+        '200':
+          description: Department catalog rows.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepartmentListResponse'
+        '500':
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      operationId: createDepartment
+      summary: Create a department
+      security: []
+      tags:
+        - Departments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DepartmentCreate'
+      responses:
+        '201':
+          description: Department created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepartmentSingleResponse'
+        '400':
+          description: Invalid payload or constraint.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Code conflict with another active department.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /modules:
     get:
       operationId: listModules
@@ -3892,6 +3956,103 @@ components:
         total:
           type: integer
           minimum: 0
+    DepartmentType:
+      type: string
+      enum:
+        - clinical
+        - diagnostic
+        - administrative
+        - support
+    Department:
+      type: object
+      required:
+        - id
+        - name
+        - code
+        - type
+        - is_active
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        iq_tenant_id:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+        code:
+          type: string
+        type:
+          $ref: '#/components/schemas/DepartmentType'
+        description:
+          type: string
+          nullable: true
+        is_active:
+          type: boolean
+        is_deleted:
+          type: boolean
+          default: false
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    DepartmentCreate:
+      type: object
+      required:
+        - name
+        - code
+        - type
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        code:
+          type: string
+          minLength: 1
+          maxLength: 64
+        type:
+          $ref: '#/components/schemas/DepartmentType'
+        description:
+          type: string
+          nullable: true
+        is_active:
+          type: boolean
+          default: true
+    DepartmentListResponse:
+      type: object
+      required:
+        - data
+        - total
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Department'
+        total:
+          type: integer
+          minimum: 0
+    DepartmentSingleResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Department'
     SystemRoleCreate:
       type: object
       required:
