@@ -1,8 +1,9 @@
 {
   "name": "cerbos-policies",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
-  "projectType": "library",
+  "projectType": "application",
   "sourceRoot": ".",
+  "tags": ["type:infra", "scope:cerbos", "deploy:aks"],
   "targets": {
     "compile": {
       "executor": "nx:run-commands",
@@ -14,6 +15,5 @@
         "parallel": false
       }
     }
-  },
-  "tags": ["type:infra", "scope:cerbos"]
+  }
 }
