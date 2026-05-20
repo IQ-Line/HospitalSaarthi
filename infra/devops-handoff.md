@@ -599,3 +599,128 @@ Replace these with your team's actual channel names once you're set up.
 - **AKS / cluster issues:** Your DevOps escalation path.
 
 For one-off questions on this document, ping the architect listed in the most recent commit to `infra/devops-handoff.md`.
+
+---
+
+## Appendix A — Local verification checklist (for devs)
+
+Use this when you're working in the monorepo and want to verify the deployment plumbing still works end-to-end on your machine. Useful before opening a PR that touches `infra/docker/**`, `tsup.config.shared.ts`, `pnpm-workspace.yaml`, `nx.json`, or any `packages/ts-sdk-*/package.json`. Full pass takes ~20 minutes the first time, ~5 minutes with BuildKit cache warm.
+
+### A.1 Fast structural spot-checks (~30 seconds, no Docker)
+
+```bash
+# bundle integrity (catches tsup / source-export regressions instantly)
+npx nx build billing-svc && node --check services/billing-svc/dist/main.js && echo OK
+
+# project-graph sanity in one assertion
+npx nx show projects --type=app --json | jq 'length == 11 and (index("@hims/tsconfig") | not) and (index("master-data") != null)'
+# expect: true
+```
+
+### A.2 Nx project graph + helper mapping
+
+```bash
+# 11 entries; NO @hims/tsconfig; master-data IS present
+npx nx show projects --type=app --json | jq -r '.[]' | sort
+
+# every project resolves to a real Dockerfile + context
+npx nx show projects --type=app --json | jq -r '.[]' | while read svc; do
+  echo "$svc -> $(./tools/dockerfile-for-svc.sh "$svc")"
+done
+```
+
+### A.3 Hermetic Nx build — proves no tsc cascade leaked back in
+
+```bash
+rm -rf packages/*/dist services/*/dist
+npx nx run-many -t build \
+  -p abdm-adapter-svc,billing-svc,configurator-svc,empi-svc,frontdesk-svc,registration-svc,user-management-svc,bff,web \
+  --skip-nx-cache
+```
+
+Expect 9 "Build success" messages. If you see `tsc` errors, either `nx.json`'s `targetDefaults.build.dependsOn` has had `^build` reintroduced, or a library re-added a `scripts.build` to its `package.json`.
+
+### A.4 Affected-detection — three synthetic diffs
+
+```bash
+# library change → consumer rebuilds:
+echo "// touch" >> modules/billing/src/index.ts
+npx nx show projects --affected --base=HEAD --head=. --type=app --json   # expect ["billing-svc"]
+git checkout modules/billing/src/index.ts
+
+# service-only change → only that service:
+echo "// touch" >> services/empi-svc/src/main.ts
+npx nx show projects --affected --base=HEAD --head=. --type=app --json   # expect ["empi-svc"]
+git checkout services/empi-svc/src/main.ts
+
+# docs-only change → nothing affected:
+echo "<!-- touch -->" >> docs/architecture/README.md
+npx nx show projects --affected --base=HEAD --head=. --type=app --json   # expect []
+git checkout docs/architecture/README.md
+```
+
+### A.5 Build one TS Docker image end-to-end
+
+```bash
+DOCKER_BUILDKIT=1 docker build \
+  -f infra/docker/node-svc.Dockerfile \
+  --build-arg SERVICE_NAME=billing-svc \
+  -t hims-billing-svc:local .
+docker image ls hims-billing-svc:local
+```
+
+Expect image around 380 MB. Common regressions:
+- `ERR_PNPM_DEPLOY_NONINJECTED_WORKSPACE` → `pnpm-workspace.yaml` lost `injectWorkspacePackages: true`.
+- `Could not resolve "@hims/..."` → the source-export migration regressed (a package re-added `files: ["dist"]` or pointed its `main` back at `dist/`).
+
+### A.6 Run the container — verify the bundle is loadable
+
+```bash
+docker run -d --rm --name billing-smoke -p 13000:3000 hims-billing-svc:local
+sleep 5
+docker logs billing-smoke | head -20
+docker kill billing-smoke 2>/dev/null
+```
+
+**Good outcomes** (either):
+- `Server listening at http://0.0.0.0:3003` — Fastify started, bundle fully loadable.
+- An error about a missing env var (`DATABASE_URL`, `CERBOS_URL`, etc.) — bundle loaded, hit config validation.
+
+**Bad outcome:** `Cannot find package '@fastify/swagger'` (or similar runtime npm dep error) — `--config.node-linker=hoisted` got dropped from `pnpm deploy` in the Dockerfile, or `files: ["dist"]` was reintroduced somewhere.
+
+### A.7 The other three Dockerfiles
+
+```bash
+# Web (Vite → Nginx)
+DOCKER_BUILDKIT=1 docker build -f infra/docker/web.Dockerfile -t hims-web:local .
+docker run -d --rm -p 18080:8080 --name web-smoke hims-web:local
+sleep 2
+curl -s http://localhost:18080/healthz       # → "ok"
+curl -s http://localhost:18080/ | head -2    # → "<!doctype html>" + "<html ...>"
+docker kill web-smoke
+
+# master-data (Python — note the context is modules/master-data, NOT .)
+docker build -f infra/docker/master-data.Dockerfile -t hims-master-data:local modules/master-data
+docker run -d --rm -p 18010:8010 --name md-smoke hims-master-data:local
+sleep 5
+docker logs md-smoke | tail -5               # expect "Uvicorn running on http://0.0.0.0:8010"
+docker kill md-smoke
+
+# Cerbos (policies baked into image)
+DOCKER_BUILDKIT=1 docker build -f infra/docker/cerbos.Dockerfile -t hims-cerbos:local .
+docker run -d --rm -p 13593:3593 -p 13592:3592 --name cerbos-smoke hims-cerbos:local
+sleep 3
+docker logs cerbos-smoke 2>&1 | grep "executable policies"   # expect "Found 6 executable policies"
+curl -s http://localhost:13592/_cerbos/health                # expect {"status":"SERVING"}
+docker kill cerbos-smoke
+```
+
+### A.8 What this proves about the DevOps pipeline
+
+If A.1 through A.7 all pass on your machine, the Jenkinsfile in §6 should behave identically — it runs the same `nx` / `docker` / `pnpm` commands. The only environmental differences:
+
+- **BuildKit must be enabled** on Jenkins agents (default on modern Docker; confirm via `docker version` showing BuildKit).
+- **ACR registry auth + push** instead of local `:local` image tags.
+- **Network access** to `ghcr.io/cerbos/cerbos:0.42.0` for the Cerbos base image pull.
+
+If verification passes locally and breaks in Jenkins, the difference is almost always one of those three.
