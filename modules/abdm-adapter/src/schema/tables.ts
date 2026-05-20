@@ -22,6 +22,7 @@ import {
   uuid,
   text,
   jsonb,
+  boolean,
   index,
   primaryKey,
   timestamp,
@@ -56,5 +57,56 @@ export const abdmSessions = abdmAdapterSchema.table(
     primaryKey({ columns: [t.iq_tenant_id, t.session_id] }),
     index("idx_abdm_sessions_txn").on(t.iq_tenant_id, t.txn_id),
     index("idx_abdm_sessions_flow_state").on(t.iq_tenant_id, t.flow_kind, t.state),
+  ],
+);
+
+export const abdmInboundMessages = abdmAdapterSchema.table(
+  "abdm_inbound_messages",
+  {
+    ...tenantColumn(),
+    request_id: text("request_id").notNull(),
+    flow_kind: text("flow_kind").notNull(),
+    received_at: timestamp("received_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.iq_tenant_id, t.request_id] })],
+);
+
+export const abdmLinkTokens = abdmAdapterSchema.table(
+  "abdm_link_tokens",
+  {
+    ...tenantColumn(),
+    abha_address: text("abha_address").notNull(),
+    link_token: text("link_token"),
+    expires_at: timestamp("expires_at", { withTimezone: true }),
+    obtained_at: timestamp("obtained_at", { withTimezone: true }),
+    pending_request_id: text("pending_request_id"),
+    pending_expires_at: timestamp("pending_expires_at", { withTimezone: true }),
+  },
+  (t) => [primaryKey({ columns: [t.iq_tenant_id, t.abha_address] })],
+);
+
+export const abdmConsentArtefacts = abdmAdapterSchema.table(
+  "abdm_consent_artefacts",
+  {
+    ...tenantColumn(),
+    consent_id: text("consent_id").notNull(),
+    patient_id: uuid("patient_id").notNull(),
+    hip_id: text("hip_id").notNull(),
+    hiu_id: text("hiu_id").notNull(),
+    status: text("status").notNull(),
+    data_erase_at: timestamp("data_erase_at", { withTimezone: true }).notNull(),
+    granted_at: timestamp("granted_at", { withTimezone: true }).notNull(),
+    artefact_json: jsonb("artefact_json").$type<Record<string, unknown>>().notNull(),
+    signature: text("signature").notNull(),
+    signature_valid: boolean("signature_valid").notNull().default(false),
+    received_at: timestamp("received_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.consent_id] }),
+    index("ix_abdm_consent_patient").on(t.iq_tenant_id, t.patient_id),
   ],
 );

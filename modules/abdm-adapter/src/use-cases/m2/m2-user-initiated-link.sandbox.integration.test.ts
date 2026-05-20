@@ -1,0 +1,112 @@
+import { randomUUID } from "node:crypto";
+import { describe, expect, it, vi } from "vitest";
+import { createDb } from "@hims/ts-sdk-db";
+import { DrizzleAbdmSessionsRepo } from "../../data-access/abdm-sessions.repo.js";
+import { DrizzleInboundMessagesRepo } from "../../data-access/abdm-inbound-messages.repo.js";
+import {
+  MockEmpiClient,
+  MockRecordFoundationClient,
+} from "../../data-access/mock-platform-clients.js";
+import { FideliusEncryptorStub } from "../../data-access/fidelius.js";
+import { EnvSecretsClient } from "../../data-access/env-secrets.client.js";
+import { HttpGatewayClient } from "../../data-access/gateway-client.http.js";
+import type { AbdmAdapterDeps } from "../../ports.js";
+import { handleDiscoverCallback } from "./user-initiated-link/handle-discover-callback.js";
+import { handleLinkInitCallback } from "./user-initiated-link/handle-link-init-callback.js";
+import { handleLinkConfirmCallback } from "./user-initiated-link/handle-link-confirm-callback.js";
+
+const RUN = process.env["RUN_ABDM_SANDBOX_TESTS"] === "1";
+
+function buildDeps(): AbdmAdapterDeps {
+  const databaseUrl = process.env["DATABASE_URL"];
+  if (!databaseUrl) {
+    throw new Error("DATABASE_URL required for sandbox integration test");
+  }
+  const db = createDb(databaseUrl);
+  const secrets = new EnvSecretsClient();
+  const gateway = new HttpGatewayClient({
+    gatewayBaseUrl:
+      process.env["ABDM_GATEWAY_BASE_URL"] ?? "https://dev.abdm.gov.in",
+    abhaApiBaseUrl:
+      process.env["ABDM_ABHA_API_BASE_URL"] ??
+      "https://abhasbx.abdm.gov.in/abha/api",
+    xCmId: process.env["ABDM_X_CM_ID"] ?? "sbx",
+    secrets,
+  });
+  return {
+    sessions: new DrizzleAbdmSessionsRepo(db),
+    gateway,
+    fidelius: new FideliusEncryptorStub(),
+    secrets,
+    inboundMessages: new DrizzleInboundMessagesRepo(db),
+    linkTokens: {
+      findFresh: async () => null,
+      claimAcquisition: async () => "claimed" as const,
+      completeAcquisition: async () => undefined,
+      invalidate: async () => undefined,
+    } as never,
+    consentArtefacts: { upsert: async () => true, findById: async () => null } as never,
+    empi: new MockEmpiClient(process.env["ABDM_MOCK_ABHA_ADDRESS"] ?? "test.user@sbx"),
+    recordFoundation: new MockRecordFoundationClient(),
+    payloadEncryptor: { encrypt: (s) => s, decrypt: (s) => s },
+    xHipId: process.env["ABDM_X_HIP_ID"] ?? "IN3610001625",
+    xCmId: process.env["ABDM_X_CM_ID"] ?? "sbx",
+  };
+}
+
+describe.skipIf(!RUN)("M2 user-initiated link — in-process chain", () => {
+  const tenantId =
+    process.env["ABDM_SANDBOX_TEST_TENANT_ID"] ??
+    process.env["ABDM_DEV_TENANT_ID"] ??
+    "00000000-0000-4000-8000-0000000000aa";
+  const abha = process.env["ABDM_MOCK_ABHA_ADDRESS"] ?? "test.user@sbx";
+
+  it("runs discover → init → confirm with mocked EMPI/RF", async () => {
+    const post = vi.fn().mockResolvedValue({});
+    const deps = buildDeps();
+    deps.gateway = { post } as never;
+
+    const txnId = randomUUID();
+    const linkRef = randomUUID();
+
+    await handleDiscoverCallback(
+      {
+        iqTenantId: tenantId,
+        inboundRequestId: randomUUID(),
+        transactionId: txnId,
+        patient: [{ id: abha }],
+      },
+      deps,
+    );
+
+    await handleLinkInitCallback(
+      {
+        iqTenantId: tenantId,
+        inboundRequestId: randomUUID(),
+        transactionId: txnId,
+        link: {
+          referenceNumber: linkRef,
+          authenticationType: "DIRECT",
+          meta: {
+            communicationMedium: "MOBILE",
+            communicationHint: "OTP",
+            communicationExpiry: new Date(Date.now() + 600_000).toISOString(),
+          },
+        },
+      },
+      deps,
+    );
+
+    await handleLinkConfirmCallback(
+      {
+        iqTenantId: tenantId,
+        inboundRequestId: randomUUID(),
+        transactionId: txnId,
+        confirmation: { token: "123456", linkRefNumber: linkRef },
+      },
+      deps,
+    );
+
+    expect(post.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+});

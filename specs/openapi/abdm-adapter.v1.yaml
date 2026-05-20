@@ -698,6 +698,86 @@ paths:
         "200":
           description: QR code payload
 
+  /m2/hip/initiated-link/start:
+    post:
+      operationId: abdmM2HipInitiatedLinkStart
+      summary: Staff-triggered HIP-initiated care context linking
+      tags: [M2-HIP-Linking]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HipInitiatedLinkStartRequest"
+      responses:
+        "202":
+          description: Link request accepted; session in CC_LINK_REQUESTED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HipInitiatedLinkStartResponse"
+        "503":
+          description: Link token acquisition failed
+
+  /m2/add-contexts/publish:
+    post:
+      operationId: abdmM2AddContextsPublish
+      summary: Notify gateway of new care context for linked patient
+      tags: [M2-HIP-Linking]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - abhaAddress
+                - patientReference
+                - careContextReference
+                - hiType
+              properties:
+                abhaAddress:
+                  type: string
+                patientReference:
+                  type: string
+                careContextReference:
+                  type: string
+                hiType:
+                  type: string
+                eventDate:
+                  type: string
+                  format: date-time
+      responses:
+        "202":
+          description: Context notify accepted
+
+  /m2/sms/notify:
+    post:
+      operationId: abdmM2SmsNotify
+      summary: HIP-initiated SMS deep link to patient
+      tags: [M2-HIP-Linking]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phoneNo]
+              properties:
+                phoneNo:
+                  type: string
+                hipName:
+                  type: string
+      responses:
+        "202":
+          description: SMS notify accepted
+
 components:
   parameters:
     XTenantId:
@@ -985,3 +1065,41 @@ components:
             code:
               type: string
               nullable: true
+
+    HipInitiatedLinkStartRequest:
+      type: object
+      required: [abhaAddress, patientName, gender, yearOfBirth, careContexts]
+      properties:
+        abhaAddress:
+          type: string
+        abhaNumber:
+          type: string
+        patientName:
+          type: string
+        gender:
+          type: string
+          enum: [M, F, O, D]
+        yearOfBirth:
+          type: integer
+        careContexts:
+          type: array
+          items:
+            type: object
+            required: [referenceNumber, display, hiType]
+            properties:
+              referenceNumber:
+                type: string
+              display:
+                type: string
+              hiType:
+                type: string
+
+    HipInitiatedLinkStartResponse:
+      type: object
+      required: [sessionId, state]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        state:
+          type: string

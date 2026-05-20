@@ -34,6 +34,39 @@ export const M1_SIMPLE_OTP_STATES = [
   'FAILED',
 ] as const;
 
+/** `abdm.m2.hip-initiated-link.v1` — staff links known ABHA + care contexts. */
+export const M2_HIP_INITIATED_LINK_STATES = [
+  'INIT',
+  'CC_LINK_REQUESTED',
+  'CC_LINK_CONFIRMED',
+  'LINKED',
+  'FAILED',
+] as const;
+
+/** `abdm.m2.consent-notify.v1` — HIP receives consent artefact from gateway. */
+export const M2_CONSENT_NOTIFY_STATES = [
+  'CONSENT_NOTIFIED',
+  'CONSENT_PERSISTED',
+  'ACKED',
+  'FAILED',
+] as const;
+
+/** `abdm.m2.add-contexts.v1` — notify gateway of new care context for linked patient. */
+export const M2_ADD_CONTEXTS_STATES = [
+  'INIT',
+  'NOTIFIED',
+  'COMPLETED',
+  'FAILED',
+] as const;
+
+/** `abdm.m2.sms-notify.v1` — optional SMS nudge via gateway. */
+export const M2_SMS_NOTIFY_STATES = [
+  'INIT',
+  'SMS_REQUESTED',
+  'SMS_ACKED',
+  'FAILED',
+] as const;
+
 /** `abdm.m2.user-initiated-link.v1` — patient links from PHR app. */
 export const M2_USER_LINK_STATES = [
   'DISCOVERY_RECEIVED',
@@ -91,6 +124,10 @@ export const CONSENT_LIFECYCLE_STATES = [
 export type M1AadhaarOtpState = (typeof M1_AADHAAR_OTP_STATES)[number];
 export type M1SimpleOtpState = (typeof M1_SIMPLE_OTP_STATES)[number];
 export type M1SessionState = M1AadhaarOtpState | M1SimpleOtpState;
+export type M2HipInitiatedLinkState = (typeof M2_HIP_INITIATED_LINK_STATES)[number];
+export type M2ConsentNotifyState = (typeof M2_CONSENT_NOTIFY_STATES)[number];
+export type M2AddContextsState = (typeof M2_ADD_CONTEXTS_STATES)[number];
+export type M2SmsNotifyState = (typeof M2_SMS_NOTIFY_STATES)[number];
 export type M2UserLinkState = (typeof M2_USER_LINK_STATES)[number];
 export type M3HipState = (typeof M3_HIP_STATES)[number];
 export type M3HiuState = (typeof M3_HIU_STATES)[number];

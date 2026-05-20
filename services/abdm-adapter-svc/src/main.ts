@@ -7,10 +7,23 @@ import { createDb, sql } from "@hims/ts-sdk-db";
 import { InProcessEventBus } from "@hims/ts-sdk-events";
 import {
   createRouter,
+  createPayloadEncryptorFromEnv,
   DrizzleAbdmSessionsRepo,
+  DrizzleConsentArtefactsRepo,
+  DrizzleInboundMessagesRepo,
+  DrizzleLinkTokensRepo,
   EnvSecretsClient,
   FideliusEncryptorStub,
+  HttpEmpiClient,
   HttpGatewayClient,
+  HttpRecordFoundationClient,
+  MockEmpiClient,
+  MockRecordFoundationClient,
+  NoOpEmpiClient,
+  NoOpRecordFoundationClient,
+  registerM2CallbackRoutes,
+  registerM2EventConsumers,
+  HttpHipDataPushClient,
 } from "@hims/abdm-adapter";
 import {
   normalizeAbdmEnvAliases,
@@ -35,6 +48,14 @@ const ABHA_API_BASE_URL =
   process.env["ABDM_ABHA_API_BASE_URL"] ??
   "https://abhasbx.abdm.gov.in/abha/api";
 const ABDM_X_CM_ID = process.env["ABDM_X_CM_ID"] ?? "sbx";
+const ABDM_X_HIP_ID = process.env["ABDM_X_HIP_ID"] ?? "";
+const EMPI_BASE_URL = process.env["EMPI_BASE_URL"] ?? "";
+const RECORD_FOUNDATION_BASE_URL = process.env["RECORD_FOUNDATION_BASE_URL"] ?? "";
+const ABDM_M2_MOCK_PLATFORM = process.env["ABDM_M2_MOCK_PLATFORM"] === "true";
+const ABDM_MOCK_ABHA_ADDRESS =
+  process.env["ABDM_MOCK_ABHA_ADDRESS"]?.trim() || "test.user@sbx";
+const ABDM_DEFAULT_SMS_PHONE = process.env["ABDM_DEFAULT_SMS_PHONE"]?.trim() ?? "";
+const ABDM_HIP_DISPLAY_NAME = process.env["ABDM_HIP_DISPLAY_NAME"]?.trim() ?? "Hospital";
 
 const repoRoot = path.resolve(serviceRoot, "../..");
 
@@ -107,13 +128,70 @@ async function main() {
     secrets,
   });
   const fidelius = new FideliusEncryptorStub();
+  const inboundMessages = new DrizzleInboundMessagesRepo(db);
+  const linkTokens = new DrizzleLinkTokensRepo(db);
+  const consentArtefacts = new DrizzleConsentArtefactsRepo(db);
+  const empi = ABDM_M2_MOCK_PLATFORM
+    ? new MockEmpiClient(ABDM_MOCK_ABHA_ADDRESS)
+    : EMPI_BASE_URL
+      ? new HttpEmpiClient(EMPI_BASE_URL)
+      : new NoOpEmpiClient();
+  const recordFoundation = ABDM_M2_MOCK_PLATFORM
+    ? new MockRecordFoundationClient()
+    : RECORD_FOUNDATION_BASE_URL
+      ? new HttpRecordFoundationClient(RECORD_FOUNDATION_BASE_URL)
+      : new NoOpRecordFoundationClient();
+  if (ABDM_M2_MOCK_PLATFORM) {
+    app.log.warn(
+      "ABDM_M2_MOCK_PLATFORM=true — EMPI/Record Foundation use in-memory mocks for user-initiated linking",
+    );
+  }
+  const payloadEncryptor = createPayloadEncryptorFromEnv();
+  const dataPush = new HttpHipDataPushClient();
 
-  const abdmRouter = createRouter({
+  await registerM2EventConsumers(eventBus, {
     sessions,
     gateway,
     fidelius,
     secrets,
+    inboundMessages,
+    linkTokens,
+    consentArtefacts,
+    empi,
+    recordFoundation,
+    dataPush,
+    payloadEncryptor,
+    eventBus,
+    xHipId: ABDM_X_HIP_ID,
+    xCmId: ABDM_X_CM_ID,
+    defaultSmsPhoneNo: ABDM_DEFAULT_SMS_PHONE || undefined,
+    hipDisplayName: ABDM_HIP_DISPLAY_NAME,
   });
+
+  const adapterDeps = {
+    sessions,
+    gateway,
+    fidelius,
+    secrets,
+    inboundMessages,
+    linkTokens,
+    consentArtefacts,
+    empi,
+    recordFoundation,
+    dataPush,
+    payloadEncryptor,
+    eventBus,
+    xHipId: ABDM_X_HIP_ID,
+    xCmId: ABDM_X_CM_ID,
+    defaultSmsPhoneNo: ABDM_DEFAULT_SMS_PHONE || undefined,
+    hipDisplayName: ABDM_HIP_DISPLAY_NAME,
+  };
+
+  await app.register(async (v3) => {
+    await registerM2CallbackRoutes(v3, adapterDeps);
+  }, { prefix: "/api/v3" });
+
+  const abdmRouter = createRouter(adapterDeps);
 
   await app.register(async (api) => {
     if (ENABLE_AUTH) {

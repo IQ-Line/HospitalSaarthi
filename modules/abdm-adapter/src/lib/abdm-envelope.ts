@@ -38,3 +38,43 @@ export function createSessionStateChangedEnvelope(
 ): DomainEvent<AbdmSessionStateChangedPayload> {
   return createAbdmEnvelope("abdm.session.state-changed", iqTenantId, payload);
 }
+
+export interface CareContextLinkedPayload {
+  sessionId: string;
+  patientId?: string;
+  abhaAddress?: string;
+  careContextReferences: string[];
+}
+
+export function createCareContextLinkedEnvelope(
+  iqTenantId: string,
+  payload: CareContextLinkedPayload,
+): DomainEvent<CareContextLinkedPayload> {
+  return createAbdmEnvelope("abdm.care-context.linked", iqTenantId, payload);
+}
+
+export interface ConsentGrantedPayload {
+  consentId: string;
+  patientId: string;
+  dataEraseAt: string;
+}
+
+export function createConsentGrantedEnvelope(
+  iqTenantId: string,
+  payload: ConsentGrantedPayload,
+): DomainEvent<ConsentGrantedPayload> {
+  return createAbdmEnvelope("abdm.consent.granted", iqTenantId, payload);
+}
+
+export interface CareContextPublishedPayload {
+  sessionId: string;
+  abhaAddress: string;
+  careContextReferences: string[];
+}
+
+export function createCareContextPublishedEnvelope(
+  iqTenantId: string,
+  payload: CareContextPublishedPayload,
+): DomainEvent<CareContextPublishedPayload> {
+  return createAbdmEnvelope("abdm.care-context.published", iqTenantId, payload);
+}

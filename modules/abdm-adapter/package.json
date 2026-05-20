@@ -4,7 +4,7 @@
   "type": "module",
   "main": "./src/index.ts",
   "scripts": {
-    "test:sandbox": "pnpm -F @hims/ts-sdk-db build && vitest run src/use-cases/m1/*.sandbox.integration.test.ts"
+    "test:sandbox": "pnpm -F @hims/ts-sdk-db build && vitest run --config vitest.sandbox.config.ts"
   },
   "dependencies": {
     "@hims/ts-sdk-abha": "workspace:*",
