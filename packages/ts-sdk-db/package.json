@@ -12,9 +12,7 @@
       "default": "./src/index.ts"
     }
   },
-  "scripts": {
-    "build": "tsc -b tsconfig.json"
-  },
+  "scripts": {},
   "dependencies": {
     "drizzle-orm": "^0.45.2",
     "pg": "^8.20.0"

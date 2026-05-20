@@ -33,7 +33,6 @@
       }
     },
     "validate-spec": {
-      "dependsOn": ["^build"],
       "command": "pnpm run validate-spec",
       "options": {
         "cwd": "services/user-management-svc"

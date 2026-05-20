@@ -51,9 +51,7 @@
       "import": "./src/protocol/common/index.ts"
     }
   },
-  "scripts": {
-    "build": "tsc -b tsconfig.json"
-  },
+  "scripts": {},
   "dependencies": {
     "@hims/ts-sdk-fhir": "workspace:*"
   },
