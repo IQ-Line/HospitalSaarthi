@@ -26,6 +26,7 @@ _PICKLIST_SEEDS: tuple[tuple[str, str], ...] = (
     ("Role Types", "role-types"),
     ("Nationality", "nationality"),
     ("Religion", "religion"),
+    ("Tariff-type", "tariff-type"),
 )
 
 
