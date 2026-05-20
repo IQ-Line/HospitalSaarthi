@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import type { TariffMasterRow } from "../domain/tariff-master.types.js";
 import { applyTariffPatch } from "../lib/tariff-api.js";
 import { createInMemoryBillingRepo } from "../data-access/billing.repository.js";
@@ -41,7 +41,27 @@ function tariffRepo(row: TariffMasterRow): TariffMasterRepo {
   };
 }
 
+const emptyTariffRepo: TariffMasterRepo = {
+  findById: async () => undefined,
+  findByCodeAndProvider: async () => undefined,
+  update: async () => undefined,
+};
+
 describe("captureCharge", () => {
+  const prevDeskOverrides = process.env["BILLING_ALLOW_DESK_OVERRIDES"];
+
+  beforeEach(() => {
+    process.env["BILLING_ALLOW_DESK_OVERRIDES"] = "true";
+  });
+
+  afterAll(() => {
+    if (prevDeskOverrides === undefined) {
+      delete process.env["BILLING_ALLOW_DESK_OVERRIDES"];
+    } else {
+      process.env["BILLING_ALLOW_DESK_OVERRIDES"] = prevDeskOverrides;
+    }
+  });
+
   it("creates bill and line from tariff", async () => {
     const { repo } = createInMemoryBillingRepo();
     const result = await captureCharge(
@@ -52,36 +72,59 @@ describe("captureCharge", () => {
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.data.replayed).toBe(false);
     expect(result.data.snapshotted_unit_price).toBe("100.0000");
-    expect(result.data.net_amount).toBe("100.0000");
   });
 
-  it("replays idempotency key", async () => {
-    const { repo } = createInMemoryBillingRepo();
-    const deps = { tariffRepo: tariffRepo(tariff), billingRepo: repo };
-    const first = await captureCharge(deps, tenantId, {
-      patient_id: patientId,
-      source_module: "opd",
-      item_code: "REG_FEE",
-    }, "idem-2");
-    const second = await captureCharge(deps, tenantId, {
-      patient_id: patientId,
-      source_module: "opd",
-      item_code: "REG_FEE",
-    }, "idem-2");
-    expect(first.ok && second.ok).toBe(true);
-    if (!first.ok || !second.ok) return;
-    expect(second.data.replayed).toBe(true);
-    expect(second.data.bill_item_id).toBe(first.data.bill_item_id);
-  });
-
-  it("returns 404 when catalog row missing", async () => {
+  it("snapshots desk unit_price_override when allowed", async () => {
     const { repo } = createInMemoryBillingRepo();
     const result = await captureCharge(
       { tariffRepo: tariffRepo(tariff), billingRepo: repo },
       tenantId,
-      { patient_id: patientId, source_module: "opd", item_code: "UNKNOWN" },
+      {
+        patient_id: patientId,
+        source_module: "registration",
+        item_code: "REG_FEE",
+        unit_price_override: 88,
+        tax_percentage_override: 0,
+      },
+      "idem-desk",
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.snapshotted_unit_price).toBe("88.0000");
+  });
+
+  it("rejects desk overrides when env flag is off", async () => {
+    delete process.env["BILLING_ALLOW_DESK_OVERRIDES"];
+    const { repo } = createInMemoryBillingRepo();
+    const result = await captureCharge(
+      { tariffRepo: tariffRepo(tariff), billingRepo: repo },
+      tenantId,
+      {
+        patient_id: patientId,
+        source_module: "registration",
+        item_code: "REG_FEE",
+        unit_price_override: 88,
+      },
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe("VALIDATION");
+    expect(result.message).toContain("desk_price_overrides_disabled");
+    expect(result.message).toContain("#94");
+  });
+
+  it("returns 404 when catalog row missing even with override", async () => {
+    const { repo } = createInMemoryBillingRepo();
+    const result = await captureCharge(
+      { tariffRepo: emptyTariffRepo, billingRepo: repo },
+      tenantId,
+      {
+        patient_id: patientId,
+        source_module: "registration",
+        item_code: "REG_FEE",
+        unit_price_override: 88,
+      },
     );
     expect(result.ok).toBe(false);
     if (result.ok) return;

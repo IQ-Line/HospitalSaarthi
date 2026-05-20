@@ -45,6 +45,9 @@ import type { CreateVisitRequestBody } from '@/features/frontdesk/types';
 import {
   ageYmdSinceBirth,
   computeBillingGrandTotal,
+  isVisitRegistrationFormComplete,
+  visitRegistrationBlockHint,
+  visitRegistrationFormBlockers,
   defaultVisitRegistrationAddress,
   EMPI_BLOOD_GROUP_OPTIONS,
   formatInr,
@@ -93,6 +96,7 @@ function VisitRegistrationRoute() {
   });
 
   const form = useForm<FormValues>({
+    mode: 'onChange',
     defaultValues: {
       branch_id: null,
       patient: {
@@ -161,25 +165,44 @@ function VisitRegistrationRoute() {
     },
   });
 
-  const billingRegistrationFee = useWatch({
+  const [
+    billingRegistrationFee,
+    billingConsultationFee,
+    billingInvoiceDiscount,
+    billingPaymentMode,
+    patientPhone,
+    patientFirstName,
+    appointmentProviderId,
+    dateOfBirth,
+  ] = useWatch({
     control: form.control,
-    name: 'billing.registration_fee',
+    name: [
+      'billing.registration_fee',
+      'billing.consultation_fee',
+      'billing.invoice_discount',
+      'billing.payment_mode',
+      'patient.phone',
+      'patient.first_name',
+      'appointment.provider_id',
+      'patient.date_of_birth',
+    ],
   });
-  const billingConsultationFee = useWatch({
-    control: form.control,
-    name: 'billing.consultation_fee',
-  });
-  const billingInvoiceDiscount = useWatch({
-    control: form.control,
-    name: 'billing.invoice_discount',
-  });
-  const footerGrandTotal = computeBillingGrandTotal(
-    billingRegistrationFee ?? { unit_price: 100, tax_percent: 0, discount: 0 },
-    billingConsultationFee ?? { unit_price: 0, tax_percent: 0, discount: 0 },
-    billingInvoiceDiscount ?? 0,
-  );
 
-  const dateOfBirth = useWatch({ control: form.control, name: 'patient.date_of_birth' });
+  const hasProvider = Boolean(appointmentProviderId?.trim());
+  const formGate = {
+    phone: patientPhone,
+    firstName: patientFirstName,
+    grandTotal: computeBillingGrandTotal(
+      billingRegistrationFee ?? { unit_price: 100, tax_percent: 0, discount: 0 },
+      billingConsultationFee ?? { unit_price: 0, tax_percent: 0, discount: 0 },
+      billingInvoiceDiscount ?? 0,
+    ),
+    paymentMode: billingPaymentMode,
+    hasProvider,
+    consultationUnitPrice: billingConsultationFee?.unit_price ?? 0,
+  };
+  const canCreateVisit = isVisitRegistrationFormComplete(formGate);
+  const createVisitBlockHint = visitRegistrationBlockHint(formGate);
 
   useEffect(() => {
     const raw = (dateOfBirth ?? '').trim();
@@ -250,6 +273,43 @@ function VisitRegistrationRoute() {
   });
 
   const onSubmit: SubmitHandler<FormValues> = (data) => {
+    const gate = {
+      phone: data.patient?.phone,
+      firstName: data.patient?.first_name,
+      grandTotal: computeBillingGrandTotal(
+        data.billing?.registration_fee ?? { unit_price: 0, tax_percent: 0, discount: 0 },
+        data.billing?.consultation_fee ?? { unit_price: 0, tax_percent: 0, discount: 0 },
+        data.billing?.invoice_discount ?? 0,
+      ),
+      paymentMode: data.billing?.payment_mode,
+      hasProvider: Boolean(data.appointment?.provider_id?.trim()),
+      consultationUnitPrice: data.billing?.consultation_fee?.unit_price ?? 0,
+    };
+    const blockers = visitRegistrationFormBlockers(gate);
+    if (blockers.length > 0) {
+      if (blockers.includes('10-digit phone')) {
+        form.setError('patient.phone', {
+          type: 'required',
+          message: 'Enter a 10-digit mobile number',
+        });
+      }
+      if (blockers.includes('first name')) {
+        form.setError('patient.first_name', {
+          type: 'required',
+          message: 'First name is required',
+        });
+      }
+      if (blockers.includes('payment mode')) {
+        form.setError('billing.payment_mode', {
+          type: 'required',
+          message: 'Payment mode is required',
+        });
+      }
+      toast.error(visitRegistrationBlockHint(gate) ?? 'Complete all required fields.');
+      return;
+    }
+    form.clearErrors(['patient.phone', 'patient.first_name', 'billing.payment_mode']);
+
     submitIdempotencyKeyRef.current = crypto.randomUUID();
     const payload: CreateVisitRequestBody = {
       ...data,
@@ -468,7 +528,17 @@ function VisitRegistrationRoute() {
                   <Label>
                     First name <span className="text-destructive">*</span>
                   </Label>
-                  <Input {...form.register('patient.first_name', { required: true })} />
+                  <Input
+                    {...form.register('patient.first_name', {
+                      required: 'First name is required',
+                      validate: (v) => Boolean(v?.trim()) || 'First name is required',
+                    })}
+                  />
+                  {form.formState.errors.patient?.first_name ? (
+                    <p className="text-sm text-destructive" role="alert">
+                      {form.formState.errors.patient.first_name.message}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="space-y-2">
                   <Label>Middle name</Label>
@@ -705,6 +775,7 @@ function VisitRegistrationRoute() {
                 register={form.register}
                 watch={form.watch}
                 setValue={form.setValue}
+                paymentModeError={form.formState.errors.billing?.payment_mode?.message}
               />
             ) : null}
 
@@ -745,14 +816,21 @@ function VisitRegistrationRoute() {
                   Print Visit Form
                 </Button>
                 <span className="text-sm text-muted-foreground ml-2">
-                  Total: {formatInr(footerGrandTotal)}
+                  Total: {formatInr(formGate.grandTotal)}
+                  {createVisitBlockHint ? (
+                    <span className="text-destructive"> — {createVisitBlockHint}</span>
+                  ) : null}
                 </span>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="outline" onClick={() => form.reset()} disabled={mutation.isPending}>
                   Clear
                 </Button>
-                <Button type="submit" disabled={mutation.isPending}>
+                <Button
+                  type="submit"
+                  disabled={mutation.isPending || !canCreateVisit}
+                  title={createVisitBlockHint}
+                >
                   {mutation.isPending ? 'Saving…' : 'Create Visit'}
                 </Button>
                 <Button type="button" variant="secondary" disabled>

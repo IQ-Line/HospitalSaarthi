@@ -7,15 +7,13 @@ import {
   type TariffServiceEditFormValues,
 } from '../validation';
 
-function sharedFormFields(service: TariffService) {
+function sharedEditFields(service: TariffService) {
   return {
     service_name: service.service_name,
     base_price: Number(service.base_price),
     tax_percentage: Number(service.tax_percentage),
     description: service.description,
     department: service.department,
-    category: service.category,
-    sub_category: service.sub_category,
     tax_type: service.tax_type,
     is_active: service.is_active,
     effective_from: toDatetimeLocalValue(service.effective_from),
@@ -23,30 +21,26 @@ function sharedFormFields(service: TariffService) {
   };
 }
 
-export function serviceToFormValues(service: TariffService): TariffServiceCreateFormValues {
-  return {
-    service_code: service.service_code,
-    provider_id: service.provider_id,
-    ...sharedFormFields(service),
-  };
-}
-
 export function serviceToEditFormValues(service: TariffService): TariffServiceEditFormValues {
-  return sharedFormFields(service);
+  return sharedEditFields(service);
 }
 
-export function formToCreatePayload(values: TariffServiceCreateFormValues): ServiceCreateInput {
+export function formToCreatePayload(
+  values: TariffServiceCreateFormValues,
+  departmentName: string | null,
+): ServiceCreateInput {
   const v = tariffServiceCreateSchema.parse(values);
+  const isReg = v.tariff_type === 'registration';
   return {
     service_code: v.service_code,
     service_name: v.service_name,
     base_price: v.base_price,
     tax_percentage: v.tax_percentage,
     description: v.description,
-    provider_id: v.provider_id,
-    department: v.department,
-    category: v.category,
-    sub_category: v.sub_category,
+    provider_id: isReg ? null : v.provider_id,
+    department: isReg ? 'frontdesk' : departmentName,
+    category: isReg ? 'registration' : 'consultation',
+    sub_category: null,
     tax_type: v.tax_type,
     is_active: v.is_active,
     effective_from: fromDatetimeLocalValue(v.effective_from),
@@ -62,11 +56,15 @@ export function formToUpdatePayload(values: TariffServiceEditFormValues): Servic
     tax_percentage: v.tax_percentage,
     description: v.description,
     department: v.department,
-    category: v.category,
-    sub_category: v.sub_category,
+    category: undefined,
+    sub_category: null,
     tax_type: v.tax_type,
     is_active: v.is_active,
     effective_from: fromDatetimeLocalValue(v.effective_from),
     effective_to: v.effective_to ? (fromDatetimeLocalValue(v.effective_to) ?? null) : null,
   };
+}
+
+export function tariffTypeLabel(category: string | null): string {
+  return category === 'registration' ? 'Registration' : 'OPD';
 }

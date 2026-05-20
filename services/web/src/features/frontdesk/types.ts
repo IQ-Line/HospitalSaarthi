@@ -4,7 +4,7 @@
  * **Submit flow (sequential, via `executeCreateVisitFlow`):**
  * 1. registration-svc — new-patient workflow (real)
  * 2. appointment-svc — stub (`createAppointmentStub`)
- * 3. billing-svc — stub (`createBillingStub`)
+ * 3. billing-svc — charges, finalize, payment (`executeVisitRegistrationBilling`)
  * 4. registration-svc — `POST .../complete` (real)
  *
  * Sections marked UI-only are kept on this object for the form; only phase-1 fields are

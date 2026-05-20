@@ -5,10 +5,12 @@ const HTTP: Record<UseCaseErrorCode, number> = {
   NOT_FOUND: 404,
   CONFLICT: 409,
   VALIDATION: 400,
+  FORBIDDEN: 403,
 };
 
 const LABEL: Record<number, string> = {
   400: "Bad Request",
+  403: "Forbidden",
   404: "Not Found",
   409: "Conflict",
 };
