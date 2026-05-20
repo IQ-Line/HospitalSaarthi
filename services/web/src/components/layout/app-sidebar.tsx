@@ -58,7 +58,8 @@ export function AppSidebar({
   const [isMasterDataOpen, setIsMasterDataOpen] = useState(true);
   const isInVisitpad = pathname.startsWith('/visitpad');
   const [isVisitpadOpen, setIsVisitpadOpen] = useState(true);
-  const isInBilling = pathname.startsWith('/billing');
+  const isInBilling =
+    pathname.startsWith('/billing') || pathname.startsWith('/billing-and-finance');
   const [isBillingOpen, setIsBillingOpen] = useState(true);
   const isInFrontdesk = pathname.startsWith('/frontdesk');
   const [isFrontdeskOpen, setIsFrontdeskOpen] = useState(true);
@@ -191,6 +192,13 @@ export function AppSidebar({
                   collapsed={sidebarCollapsed}
                   isOpen={isVisitpadOpen}
                   onToggleSection={() => setIsVisitpadOpen((prev) => !prev)}
+                />
+              )}
+              {hasBillingAccess && (
+                <BillingNavSection
+                  collapsed={sidebarCollapsed}
+                  isOpen={isBillingOpen}
+                  onToggleSection={() => setIsBillingOpen((prev) => !prev)}
                 />
               )}
             </>
