@@ -33,6 +33,19 @@ export async function apiClient<T>(
   return apiClientInternal<T>(path, options, true);
 }
 
+/** Master-data / UM / billing calls scoped to a specific tenant (configurator tenant detail). */
+export async function apiClientWithIqTenant<T>(
+  iqTenantId: string,
+  path: string,
+  options: RequestInit = {},
+): Promise<T> {
+  const headers = new Headers(options.headers);
+  const tid = iqTenantId.trim().toLowerCase();
+  headers.set('iq_tenant_id', tid);
+  headers.set('x-tenant-id', tid);
+  return apiClient<T>(path, { ...options, headers });
+}
+
 type ApiErrorBody = {
   code?: string;
   message?: string;
@@ -70,7 +83,7 @@ async function apiClientInternal<T>(
     headers.set('Authorization', `Bearer ${token}`);
   }
   const catalogTenant = catalogIqTenantHeaderValue(tenantId);
-  if (catalogTenant) {
+  if (catalogTenant && !headers.has('iq_tenant_id')) {
     headers.set('iq_tenant_id', catalogTenant);
   }
   /** EMPI and Registration require `iq_tenant_id` (or `x-tenant-id`). */
@@ -104,6 +117,7 @@ async function apiClientInternal<T>(
   const response = await fetch(resolveRequestUrl(path), {
     ...options,
     headers,
+    credentials: 'include',
   });
 
   if (!response.ok) {

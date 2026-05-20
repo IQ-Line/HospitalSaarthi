@@ -17,10 +17,11 @@ export const masterDataKeys = {
   permissionDetail: (id: string) => [...masterDataKeys.permissions(), id] as const,
 
   systemRolesRoot: () => [...masterDataKeys.all, 'system-roles'] as const,
-  systemRoles: (isTemplate?: boolean) =>
+  systemRoles: (isTemplate?: boolean, iqTenantId?: string) =>
     [
       ...masterDataKeys.systemRolesRoot(),
       isTemplate === undefined ? 'all' : isTemplate ? 'template' : 'non-template',
+      iqTenantId ?? 'global',
     ] as const,
   systemRoleDetail: (id: string) => [...masterDataKeys.systemRoles(), id] as const,
 
@@ -42,6 +43,6 @@ export const masterDataKeys = {
     [...masterDataKeys.modulePermissionsRoot(), id] as const,
 
   departmentsRoot: () => [...masterDataKeys.all, 'departments'] as const,
-  departments: (type?: string) =>
-    [...masterDataKeys.departmentsRoot(), type ?? 'all'] as const,
+  departments: (type?: string, iqTenantId?: string) =>
+    [...masterDataKeys.departmentsRoot(), type ?? 'all', iqTenantId ?? 'global'] as const,
 } as const;

@@ -1,11 +1,13 @@
 """HTTP routes for hospital department catalog (`/departments`)."""
 
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_department_repository, get_session
+from app.api.errors import ResourceNotFoundError
 from app.repositories.department_repository import DepartmentRepository
 from app.schemas.department import (
     DepartmentCreate,
@@ -13,8 +15,15 @@ from app.schemas.department import (
     DepartmentResponse,
     DepartmentSingleResponse,
     DepartmentType,
+    DepartmentUpdate,
 )
-from app.services.department_service import create_department, list_departments
+from app.services.department_service import (
+    create_department,
+    get_department_by_id,
+    list_departments,
+    soft_delete_department,
+    update_department,
+)
 
 router = APIRouter(prefix="/departments", tags=["Departments"])
 
@@ -41,5 +50,51 @@ def post_department(
     session: Annotated[Session, Depends(get_session)],
 ) -> DepartmentSingleResponse:
     row = create_department(repository, payload, actor_id=None)
+    session.commit()
+    return DepartmentSingleResponse(data=DepartmentResponse.model_validate(row))
+
+
+@router.get(
+    "/{department_id}",
+    response_model=DepartmentSingleResponse,
+    summary="Get one department by id",
+)
+def get_department_by_id_route(
+    department_id: UUID,
+    repository: Annotated[DepartmentRepository, Depends(get_department_repository)],
+) -> DepartmentSingleResponse:
+    row = get_department_by_id(repository, department_id)
+    if row is None:
+        raise ResourceNotFoundError("No department with this id.")
+    return DepartmentSingleResponse(data=DepartmentResponse.model_validate(row))
+
+
+@router.patch(
+    "/{department_id}",
+    response_model=DepartmentSingleResponse,
+    summary="Update a department",
+)
+def patch_department(
+    department_id: UUID,
+    payload: DepartmentUpdate,
+    repository: Annotated[DepartmentRepository, Depends(get_department_repository)],
+    session: Annotated[Session, Depends(get_session)],
+) -> DepartmentSingleResponse:
+    row = update_department(repository, department_id, payload, actor_id=None)
+    session.commit()
+    return DepartmentSingleResponse(data=DepartmentResponse.model_validate(row))
+
+
+@router.delete(
+    "/{department_id}",
+    response_model=DepartmentSingleResponse,
+    summary="Soft-delete a department",
+)
+def delete_department(
+    department_id: UUID,
+    repository: Annotated[DepartmentRepository, Depends(get_department_repository)],
+    session: Annotated[Session, Depends(get_session)],
+) -> DepartmentSingleResponse:
+    row = soft_delete_department(repository, department_id, actor_id=None)
     session.commit()
     return DepartmentSingleResponse(data=DepartmentResponse.model_validate(row))
