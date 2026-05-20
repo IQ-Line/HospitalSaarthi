@@ -2,14 +2,6 @@
   "name": "abdm-adapter",
   "tags": ["type:module", "scope:abdm-adapter", "language:typescript"],
   "targets": {
-    "build": {
-      "executor": "@nx/js:tsc",
-      "options": {
-        "outputPath": "dist/modules/abdm-adapter",
-        "main": "modules/abdm-adapter/src/index.ts",
-        "tsConfig": "modules/abdm-adapter/tsconfig.json"
-      }
-    },
     "test": {
       "executor": "nx:run-commands",
       "options": {

@@ -1,8 +1,0 @@
-{
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "outDir": "../../dist/services/frontdesk-svc",
-    "baseUrl": "../../"
-  },
-  "include": ["src/**/*.ts"]
-}

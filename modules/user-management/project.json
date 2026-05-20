@@ -2,14 +2,6 @@
   "name": "user-management",
   "tags": ["type:module", "scope:platform"],
   "targets": {
-    "build": {
-      "executor": "nx:run-commands",
-      "options": {
-        "command": "tsc -p tsconfig.lib.json",
-        "cwd": "modules/user-management"
-      },
-      "outputs": ["{projectRoot}/dist"]
-    },
     "db:migrate": {
       "command": "tsx scripts/apply-migration.ts",
       "options": {

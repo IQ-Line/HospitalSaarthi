@@ -54,16 +54,15 @@ hims-platform/
 │   ├── empi-svc/
 │   ├── master-data-svc/
 │   ├── bff/                                # Platform BFF: JWT verify, routing, response aggregation
-│   ├── web/                                # Frontend SPA — see Frontend Structure LLD
-│   │   └── src/
-│   │       ├── app/                        # Providers, layout
-│   │       ├── routes/                     # TanStack Router file-based routes
-│   │       ├── features/                   # Feature logic (api/, components/, store)
-│   │       ├── stores/                     # Global Zustand stores (auth, tenant, permissions, ui-prefs)
-│   │       ├── hooks/                      # Shared hooks
-│   │       ├── lib/                        # API client, query client, Cerbos client, permissions helpers
-│   │       └── styles/                     # Tailwind + Pulse CSS variables
-│   └── embedded-clinic/                    # Future: multi-module single-process deployment
+│   └── web/                                # Frontend SPA — see Frontend Structure LLD
+│       └── src/
+│           ├── app/                        # Providers, layout
+│           ├── routes/                     # TanStack Router file-based routes
+│           ├── features/                   # Feature logic (api/, components/, store)
+│           ├── stores/                     # Global Zustand stores (auth, tenant, permissions, ui-prefs)
+│           ├── hooks/                      # Shared hooks
+│           ├── lib/                        # API client, query client, Cerbos client, permissions helpers
+│           └── styles/                     # Tailwind + Pulse CSS variables
 │
 ├── infra/                                  # ⑤ Infrastructure-as-code
 │   ├── cerbos/
@@ -674,13 +673,12 @@ Key Fastify patterns:
 |---------|---------|-------|
 | `services/bff/` | Platform BFF | JWT verification (via `ts-sdk-identity`), request routing to modules (proxy or import), response aggregation for frontend, CORS, rate limiting |
 | `services/web/` | Frontend SPA | React app. Consumes generated typed clients from `packages/openapi-clients/`. Future: PWA shell for offline support. |
-| `services/embedded-clinic/` | Multi-module single process | Future: imports routers from multiple modules, shared DB connection, in-process event bus. For small clinic deployments. |
 
 ---
 
 ## 6. Deployment modes
 
-The same module code supports three deployment topologies. The choice is per-hospital, not per-module.
+The same module code supports two deployment topologies. The choice is per-hospital, not per-module.
 
 ### 6.1 Service mode (production default)
 
@@ -701,11 +699,7 @@ Each module runs as its own Kubernetes pod via its `services/*-svc/` wrapper. Th
                     └───────────┘              └───────────────┘
 ```
 
-### 6.2 Embedded mode (small clinic / lite deployment)
-
-A single host process in `services/embedded-clinic/` imports multiple module routers. Shared database connection, in-process event dispatcher (no external event bus), single Cerbos PDP.
-
-### 6.3 Offline mode (future — critical workflows only)
+### 6.2 Offline mode (future — critical workflows only)
 
 The frontend bundles use-case logic from selected modules. Data-access adapters target IndexedDB instead of PostgreSQL. A sync engine queues writes and reconciles with the server when connectivity returns.
 
