@@ -64,9 +64,11 @@ export function applyBillDiscount(
   billId: string,
   discount_amount: number,
   discount_reason?: string,
+  idempotencyKey?: string,
 ): Promise<unknown> {
   return apiClient(`${BASE}/bills/${billId}`, {
     method: 'PATCH',
+    headers: idempotencyKey ? idempotencyHeaders(idempotencyKey) : undefined,
     body: JSON.stringify({
       discount_amount,
       discount_reason: discount_reason ?? null,

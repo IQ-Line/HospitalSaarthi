@@ -1,3 +1,4 @@
+import { BILLING_SOURCE_MODULE } from '@/features/billing/constants';
 import {
   applyBillDiscount,
   billingPaymentMethod,
@@ -10,8 +11,6 @@ import type {
   CreateVisitRequestBody,
   VisitRegistrationBillingFeeLine,
 } from '@/features/frontdesk/types';
-
-const SOURCE_MODULE = 'registration' as const;
 
 function deskPricing(
   line: VisitRegistrationBillingFeeLine | undefined,
@@ -33,7 +32,7 @@ export interface VisitRegistrationBillingResult {
 
 /**
  * Registration desk billing: charges → optional discount → finalize → optional payment.
- * Rack `CONS_GENERAL` only until provider-specific tariffs exist (TODO).
+ * Rack `CONS_GENERAL` (`provider_id: null`) until provider-specific tariffs — TODO(HIMS): wire provider tariffs.
  */
 export async function executeVisitRegistrationBilling(
   form: CreateVisitRequestBody,
@@ -53,7 +52,7 @@ export async function executeVisitRegistrationBilling(
     patient_id: ctx.patient_id,
     visit_id: visitRef,
     visit_type: 'OPD' as const,
-    source_module: SOURCE_MODULE,
+    source_module: BILLING_SOURCE_MODULE.REGISTRATION,
     source_ref: ctx.registration_id,
     provider_id: null,
   };
@@ -80,7 +79,12 @@ export async function executeVisitRegistrationBilling(
 
   const invoiceDiscount = billing?.invoice_discount ?? 0;
   if (invoiceDiscount > 0) {
-    await applyBillDiscount(billId, invoiceDiscount, 'Visit registration invoice discount');
+    await applyBillDiscount(
+      billId,
+      invoiceDiscount,
+      'Visit registration invoice discount',
+      `${ctx.idempotencyKey}:discount`,
+    );
   }
 
   await finalizeBill(billId);
