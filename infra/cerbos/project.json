@@ -10,7 +10,7 @@
       "options": {
         "cwd": "{workspaceRoot}",
         "commands": [
-          "docker run --rm -v \"./infra/cerbos:/work\" ghcr.io/cerbos/cerbos:latest compile --tests=/work/tests /work/policies --verbose"
+          "docker run --rm -v \"./infra/cerbos:/work\" ghcr.io/cerbos/cerbos:0.42.0 compile --tests=/work/tests /work/policies --verbose"
         ],
         "parallel": false
       }

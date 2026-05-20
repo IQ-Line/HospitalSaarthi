@@ -95,7 +95,7 @@ Each project declares `projectType` (`application` for deployables, `library` fo
 npx nx show projects --type=app
 ```
 
-Output (sorted): `abdm-adapter-svc`, `bff`, `billing-svc`, `cerbos-policies`, `configurator-svc`, `empi-svc`, `frontdesk-svc`, `registration-svc`, `user-management-svc`, `web`. **Note:** `master-data` is the Python service; it does not appear in `--type=app` because it isn't an Nx project (it's a self-contained Python module with its own toolchain). The pipeline handles it via `tools/dockerfile-for-svc.sh` whenever Python files in `modules/master-data/` change — see §8 "Force rebuild" for how.
+Output (sorted): `abdm-adapter-svc`, `bff`, `billing-svc`, `cerbos-policies`, `configurator-svc`, `empi-svc`, `frontdesk-svc`, `master-data`, `registration-svc`, `user-management-svc`, `web` — exactly 11 entries. `master-data` (the Python service) is an Nx project with `projectType: application` and the `deploy:aks` tag, so it participates in affected detection like any other deployable: change a file under `modules/master-data/` and `--affected` returns `["master-data"]`. The Jenkinsfile loop in §6 then resolves it through `tools/dockerfile-for-svc.sh`, which knows to use the Python Dockerfile with `modules/master-data` as the build context (see §2 callout 1).
 
 ---
 
