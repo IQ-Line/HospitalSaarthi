@@ -58,6 +58,5 @@
   "peerDependencies": {
     "typescript": ">=5.6.0",
     "zod": ">=3.23.0"
-  },
-  "files": ["dist"]
+  }
 }

@@ -11,9 +11,6 @@
       "import": "./src/index.ts"
     }
   },
-  "files": [
-    "dist"
-  ],
   "peerDependencies": {
     "vitest": ">=3.0.0"
   },
