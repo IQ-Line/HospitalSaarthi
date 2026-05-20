@@ -4,6 +4,7 @@ import { useModuleCatalog } from '@/platform/modules/module-catalog';
 import { useEnabledTenantModuleSlugs } from '@/platform/modules/use-enabled-tenant-modules';
 import { applyCatalogNavigationLabels } from './apply-catalog-navigation-labels';
 import { normalizeCapabilityKey } from '@/lib/principal-capabilities';
+import { resolveNavigationCapabilityBypass } from '@/lib/resolve-nav-bypass';
 import { usePermissionsStore } from '@/stores/permissions.store';
 import { capabilityKeysGrantProductAccess } from './module-product-access';
 import { buildNavCapabilityAccessInput } from './nav-capability-access';
@@ -64,17 +65,28 @@ export function buildNavFilterContext(
 export function useFilteredNavigation() {
   const manifest = useComposedNavigationManifest();
   const capabilityKeys = usePermissionsStore((s) => s.capabilityKeys);
+  const principalRoles = usePermissionsStore((s) => s.roles);
   const permissionsLoaded = usePermissionsStore((s) => s.isLoaded);
   const enabledModuleSlugs = useEnabledTenantModuleSlugs();
   const { index: catalogIndex } = useModuleCatalog();
+  const bypassCapabilityGates = resolveNavigationCapabilityBypass();
 
   return useMemo(() => {
     const filtered = filterNavigationTree(
       manifest,
       buildNavFilterContext(capabilityKeys, enabledModuleSlugs, {
+        bypassCapabilityGates,
         catalogIndex: catalogIndex ?? null,
       }),
     );
     return applyCatalogNavigationLabels(filtered, catalogIndex);
-  }, [manifest, capabilityKeys, permissionsLoaded, enabledModuleSlugs, catalogIndex]);
+  }, [
+    manifest,
+    capabilityKeys,
+    principalRoles,
+    permissionsLoaded,
+    enabledModuleSlugs,
+    bypassCapabilityGates,
+    catalogIndex,
+  ]);
 }

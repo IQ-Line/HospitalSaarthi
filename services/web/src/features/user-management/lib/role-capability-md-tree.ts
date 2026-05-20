@@ -6,9 +6,68 @@ import {
   WIZARD_MODULE_TREE_MAX_LEVEL,
 } from '@/features/configurator/components/create-tenant-wizard/wizard-module-tree';
 import type { Module } from '@/features/master-data/types';
+import { canonicalizeRuntimeCapabilityKey } from '@/lib/legacy-capability-key-remap';
 import type { Capability } from '../types';
 
 export { WIZARD_MODULE_TREE_MAX_LEVEL as MASTER_DATA_PERMISSION_TREE_MAX_LEVEL };
+
+function indexModulesBySlug(modules: Module[]): Map<string, Module[]> {
+  const bySlug = new Map<string, Module[]>();
+  for (const module of modules) {
+    if (!module.is_active || module.is_deleted) continue;
+    const slug = normalizeSlug(module.slug);
+    const list = bySlug.get(slug) ?? [];
+    list.push(module);
+    bySlug.set(slug, list);
+  }
+  return bySlug;
+}
+
+/**
+ * Resolves the Master Data `modules.slug` for a runtime capability row.
+ * Role-capability API responses may omit provenance; legacy keys use `um:*` / `user-management:*`.
+ */
+export function resolveCapabilityCatalogModuleSlug(
+  capability: Capability,
+  modules: Module[],
+): string | null {
+  const bySlug = indexModulesBySlug(modules);
+  const candidates = [
+    capability.source_module_slug?.trim(),
+    canonicalizeRuntimeCapabilityKey(capability.capability_key).split(':')[0]?.trim(),
+    capability.module?.trim(),
+  ].filter((value): value is string => Boolean(value?.length));
+
+  for (const raw of candidates) {
+    const slug = normalizeSlug(raw);
+    const matches = bySlug.get(slug);
+    if (!matches?.length) continue;
+    const preferred =
+      matches
+        .filter((module) => module.level <= WIZARD_MODULE_TREE_MAX_LEVEL)
+        .sort((a, b) => b.level - a.level)[0] ?? matches[0];
+    return normalizeSlug(preferred.slug);
+  }
+
+  return null;
+}
+
+function findModuleForCapability(capability: Capability, modules: Module[]): Module | null {
+  const slug = resolveCapabilityCatalogModuleSlug(capability, modules);
+  if (!slug) return null;
+  const matches = modules.filter(
+    (module) =>
+      module.is_active &&
+      !module.is_deleted &&
+      normalizeSlug(module.slug) === slug,
+  );
+  if (matches.length === 0) return null;
+  return (
+    matches
+      .filter((module) => module.level <= WIZARD_MODULE_TREE_MAX_LEVEL)
+      .sort((a, b) => b.level - a.level)[0] ?? matches[0]
+  );
+}
 
 /** Maps role capabilities to the same option shape as the tenant wizard permission tree. */
 export function capabilitiesToMasterDataPermissionOptions(
@@ -20,9 +79,9 @@ export function capabilitiesToMasterDataPermissionOptions(
   );
 
   return capabilities.map((capability) => {
-    const moduleSlug = normalizeSlug(
-      capability.source_module_slug?.trim() || capability.module,
-    );
+    const moduleSlug =
+      resolveCapabilityCatalogModuleSlug(capability, modules) ??
+      normalizeSlug(capability.source_module_slug?.trim() || capability.module);
     const permissionSlug = (
       capability.source_permission_slug?.trim() || capability.feature || capability.action
     ).toLowerCase();
@@ -41,22 +100,17 @@ export function capabilitiesToMasterDataPermissionOptions(
   });
 }
 
-/** L1–L3 module ids that host at least one role capability (ancestors included). */
+/** Module ids on the catalog path for each role capability (includes L4+ leaves for rollup). */
 export function enabledModuleIdsForRoleCapabilities(
   modules: Module[],
   capabilities: Capability[],
 ): Set<string> {
-  const bySlug = new Map(modules.map((module) => [normalizeSlug(module.slug), module]));
   const byId = new Map(modules.map((module) => [module.id, module]));
   const enabled = new Set<string>();
 
   const addModuleAndAncestors = (module: Module) => {
     let current: Module | undefined = module;
     while (current) {
-      if (current.level > WIZARD_MODULE_TREE_MAX_LEVEL) {
-        current = current.parent_id ? byId.get(current.parent_id) : undefined;
-        continue;
-      }
       if (!current.is_active || current.is_deleted) {
         current = current.parent_id ? byId.get(current.parent_id) : undefined;
         continue;
@@ -67,8 +121,7 @@ export function enabledModuleIdsForRoleCapabilities(
   };
 
   for (const capability of capabilities) {
-    const slug = normalizeSlug(capability.source_module_slug?.trim() || capability.module);
-    const module = bySlug.get(slug);
+    const module = findModuleForCapability(capability, modules);
     if (module) {
       addModuleAndAncestors(module);
     }

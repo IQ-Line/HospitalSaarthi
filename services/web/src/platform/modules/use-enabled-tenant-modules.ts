@@ -12,6 +12,8 @@ import { getRegisteredModuleManifests } from './module-registry';
 
 import { useModuleCatalog } from './module-catalog';
 
+import { registerBuiltinModuleManifests } from './register-builtin-modules';
+
 import type { ModuleCatalogEntry, ModuleCatalogIndex, ModuleManifest } from './types';
 
 function catalogEnablesManifest(manifest: ModuleManifest, catalogSlugs: ReadonlySet<string>): boolean {
@@ -69,6 +71,25 @@ export function catalogSlugsFromTenantModules(
   return catalogSlugs;
 }
 
+/** Fallback when global_master.modules is unavailable — all tenant-gated SPA manifests. */
+export function allRegisteredManifestTenantGateSlugs(): ReadonlySet<string> {
+  const enabled = new Set<string>();
+  registerBuiltinModuleManifests();
+  for (const manifest of getRegisteredModuleManifests()) {
+    if (manifest.tenantScoped === false) {
+      continue;
+    }
+    addCatalogSlugToSet(enabled, manifest.slug);
+    for (const slug of manifest.requiredModulesAny ?? []) {
+      addCatalogSlugToSet(enabled, slug);
+    }
+    for (const slug of manifest.requiredModules ?? []) {
+      addCatalogSlugToSet(enabled, slug);
+    }
+  }
+  return enabled;
+}
+
 /** Manifest slugs enabled when the given catalog slug set includes their tenant gates. */
 export function buildEnabledModuleSlugsFromCatalog(
   catalogSlugs: ReadonlySet<string>,
@@ -123,12 +144,15 @@ export function useEnabledTenantModuleSlugs(): ReadonlySet<string> | null {
     }
 
     if (catalogError || !index) {
-      return new Set();
+      return isSuperAdmin ? allRegisteredManifestTenantGateSlugs() : new Set();
     }
 
     if (isSuperAdmin) {
-      // Catalog L1 slugs only — do not add SPA manifest slugs the catalog does not define.
-      return catalogSlugSetFromIndex(index);
+      const catalogSlugs = catalogSlugSetFromIndex(index);
+      if (catalogSlugs.size === 0) {
+        return allRegisteredManifestTenantGateSlugs();
+      }
+      return buildEnabledModuleSlugsFromCatalog(catalogSlugs);
     }
 
     if (tenantModulesQuery.isPending) {

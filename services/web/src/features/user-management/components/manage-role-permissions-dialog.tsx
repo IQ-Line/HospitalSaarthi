@@ -134,6 +134,7 @@ export function ManageRolePermissionsDialog({
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           <RoleTemplateCapabilityPicker
             roleId={applied.role_id}
+            tenantScope={tenantScope}
             selectedCapabilityIds={selectedCapabilityIds}
             onSelectedCapabilityIdsChange={setSelectedCapabilityIds}
             selectAllCapabilitiesOnLoad={false}

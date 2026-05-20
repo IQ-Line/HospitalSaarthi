@@ -3,20 +3,23 @@ import type { DbInstance } from "@hims/ts-sdk-db";
 import { DrizzleRoleCapabilityRepository } from "./role-capability-repository.js";
 
 describe("DrizzleRoleCapabilityRepository", () => {
-  it("maps flat joined capability rows for listCapabilitiesByRole", async () => {
+  it("maps joined capability rows with provenance and canonical projection", async () => {
     const chain = {
       from: () => chain,
       innerJoin: () => chain,
       where: async () => [
         {
           id: "cap-1",
-          capability_key: "users:users:read",
+          capability_key: "um:user:read",
           module: "user-management",
-          feature: "users",
+          feature: "user",
           action: "read",
           display_name: "Read users",
           description: "Read tenant-scoped platform users.",
           is_active: true,
+          source_module_slug: "users",
+          source_permission_slug: "read",
+          source_catalog: "master_data",
         },
       ],
     };
@@ -31,12 +34,15 @@ describe("DrizzleRoleCapabilityRepository", () => {
       {
         id: "cap-1",
         capability_key: "users:users:read",
-        module: "user-management",
+        module: "users",
         feature: "users",
         action: "read",
         display_name: "Read users",
         description: "Read tenant-scoped platform users.",
         is_active: true,
+        source_module_slug: "users",
+        source_permission_slug: "read",
+        source_catalog: "master_data",
       },
     ]);
   });

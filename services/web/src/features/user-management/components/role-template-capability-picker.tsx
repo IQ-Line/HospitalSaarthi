@@ -43,6 +43,8 @@ export function buildApplyRoleTemplateRequestBody(
 
 type RoleTemplateCapabilityPickerProps = {
   roleId: string;
+  /** Hospital tenant when managing users outside the signed-in tenant (platform operator). */
+  tenantScope?: string;
   selectedCapabilityIds: string[];
   onSelectedCapabilityIdsChange: (capabilityIds: string[]) => void;
   selectAllCapabilitiesOnLoad?: boolean;
@@ -52,6 +54,7 @@ type RoleTemplateCapabilityPickerProps = {
 
 export function RoleTemplateCapabilityPicker({
   roleId,
+  tenantScope,
   selectedCapabilityIds,
   onSelectedCapabilityIdsChange,
   selectAllCapabilitiesOnLoad = true,
@@ -63,7 +66,7 @@ export function RoleTemplateCapabilityPicker({
   const [expandedBranchIds, setExpandedBranchIds] = useState<Set<string>>(new Set());
 
   const roleCapabilitiesQuery = useQuery({
-    ...roleCapabilitiesOptions(roleId),
+    ...roleCapabilitiesOptions(roleId, tenantScope),
     enabled: Boolean(roleId) && umRoleRead,
     staleTime: 30_000,
   });

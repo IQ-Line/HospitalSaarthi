@@ -75,7 +75,7 @@ describe('catalog slug resolution for sidebar module gates', () => {
     expect(enabled.has('user-management')).toBe(false);
   });
 
-  it('super-admin enabled slugs are catalog L1 only (visitpad gates on visitpad-templates)', () => {
+  it('super-admin enabled slugs include manifest gates derived from L1 catalog', () => {
     const index = indexWith([
       { id: '1', slug: 'visitpad-templates', level: 1, parent_id: null },
       { id: '2', slug: 'user-management', level: 1, parent_id: null },
@@ -88,6 +88,7 @@ describe('catalog slug resolution for sidebar module gates', () => {
 
     const enabled = buildEnabledModuleSlugsFromCatalog(catalogSlugs);
     expect(enabled.has('visitpad')).toBe(true);
+    expect(enabled.has('visitpad-templates')).toBe(true);
     expect(enabled.has('user-management')).toBe(true);
     expect(enabled.has('master-data')).toBe(true);
   });
