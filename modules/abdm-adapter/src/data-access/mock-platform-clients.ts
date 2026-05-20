@@ -47,11 +47,13 @@ export class MockRecordFoundationClient implements RecordFoundationClient {
       id: "visit-mock-001",
       referenceNumber: "VISIT-MOCK-001",
       display: "OP consultation (mock)",
+      hiType: "OPCONSULTATION",
     },
     {
       id: "visit-mock-002",
       referenceNumber: "VISIT-MOCK-002",
       display: "Lab report (mock)",
+      hiType: "OPCONSULTATION",
     },
   ];
 

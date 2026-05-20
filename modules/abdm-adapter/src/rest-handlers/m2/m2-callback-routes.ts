@@ -10,6 +10,8 @@ import { handleConsentNotifyCallback } from "../../use-cases/m2/consent-notify/h
 import { handleAddContextsCallback } from "../../use-cases/m2/add-contexts/handle-callback.js";
 import { handleSmsNotifyCallback } from "../../use-cases/m2/sms-notify/handle-callback.js";
 import { handleHipHiRequestCallback } from "../../use-cases/m3/hip/handle-hi-request-callback.js";
+import { abdmWarn } from "../../lib/abdm-adapter-log.js";
+import { resolveAbhaAddressFromTokenCallback } from "../../lib/resolve-token-callback-abha.js";
 import type { OnGenerateTokenSuccessCallback } from "@hims/ts-sdk-abha/protocol/m2/index.js";
 import type { OnLinkCareContextCallback } from "@hims/ts-sdk-abha/protocol/m2/index.js";
 import type { DiscoveryRequest } from "@hims/ts-sdk-abha/protocol/m2/index.js";
@@ -35,9 +37,16 @@ export async function registerM2CallbackRoutes(
       handler: async ({ iqTenantId, body }) => {
         const payload = body as OnGenerateTokenSuccessCallback & {
           abhaAddress?: string;
+          abha_address?: string;
         };
-        const abhaAddress = payload.abhaAddress ?? "";
-        if (!abhaAddress) return;
+        const abhaAddress = resolveAbhaAddressFromTokenCallback(payload);
+        if (!abhaAddress) {
+          abdmWarn("abdm.m2.link_token.callback_skipped", {
+            reason: "missing_abha_address",
+            requestId: payload.response?.requestId,
+          });
+          return;
+        }
         await handleTokenCallback(
           { iqTenantId, abhaAddress, ...payload },
           deps,

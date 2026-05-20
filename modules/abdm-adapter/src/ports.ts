@@ -118,6 +118,8 @@ export interface CareContextRef {
   id: string;
   referenceNumber: string;
   display: string;
+  /** Record Foundation HI type (e.g. OPCONSULTATION) for discover/link mapping. */
+  hiType?: string;
 }
 
 export interface EmpiClient {

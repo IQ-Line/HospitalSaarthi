@@ -31,10 +31,14 @@ import {
   serviceRoot,
 } from "./load-env.js";
 import { registerHttpErrorHandler } from "./http-errors.js";
-import { requireSessionTokenCryptoInProd } from "@hims/abdm-adapter";
+import {
+  requireCallbackSecurityInProd,
+  requireSessionTokenCryptoInProd,
+} from "@hims/abdm-adapter";
 
 normalizeAbdmEnvAliases();
 requireSessionTokenCryptoInProd();
+requireCallbackSecurityInProd();
 
 const PORT = Number(process.env["ABDM_ADAPTER_SVC_PORT"] ?? 3007);
 const DATABASE_URL = resolveDatabaseUrlFromEnv();

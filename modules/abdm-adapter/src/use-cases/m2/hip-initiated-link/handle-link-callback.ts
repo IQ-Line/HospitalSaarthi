@@ -82,6 +82,17 @@ export async function handleHipLinkCallback(
     await smsNotifyRequest(
       { iqTenantId: input.iqTenantId, phoneNo: phone },
       deps,
-    ).catch(() => undefined);
+    ).catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(
+        JSON.stringify({
+          level: "warn",
+          event: "abdm.m2.hip_link.sms_notify_failed",
+          sessionId: session.sessionId,
+          phoneNo: phone,
+          message,
+        }),
+      );
+    });
   }
 }

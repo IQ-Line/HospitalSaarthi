@@ -62,14 +62,30 @@ export function createSessionTokenCryptoFromEnv(): SessionTokenCrypto | null {
   return new Aes256GcmSessionTokenCrypto(decodeKeyMaterial(raw));
 }
 
+import { isNonDevNodeEnv } from "./abdm-runtime-env.js";
+
 export function requireSessionTokenCryptoInProd(): void {
-  const nodeEnv = process.env["NODE_ENV"] ?? "development";
   if (
-    (nodeEnv === "production" || nodeEnv === "staging") &&
+    isNonDevNodeEnv() &&
     !process.env["ABDM_TOKEN_ENCRYPTION_KEY"]?.trim()
   ) {
     throw new Error(
       "ABDM_TOKEN_ENCRYPTION_KEY is required when NODE_ENV is production or staging",
     );
   }
+}
+
+/** Warn when staging/prod would accept unsigned callbacks without explicit opt-out. */
+export function requireCallbackSecurityInProd(): void {
+  if (!isNonDevNodeEnv()) return;
+  if (process.env["ABDM_ALLOW_INSECURE_CALLBACKS"] === "true") {
+    console.warn(
+      "[abdm] ABDM_ALLOW_INSECURE_CALLBACKS=true — inbound /api/v3 callbacks skip JWS verification",
+    );
+    return;
+  }
+  console.warn(
+    "[abdm] NODE_ENV is production/staging but callback JWS verification is not implemented; " +
+      "inbound callbacks will be rejected until JWKS verify ships or ABDM_ALLOW_INSECURE_CALLBACKS=true",
+  );
 }

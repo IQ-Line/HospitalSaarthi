@@ -50,15 +50,21 @@ export class DrizzleLinkTokensRepo implements LinkTokensPort {
             link_token = NULL,
             expires_at = NULL
         WHERE (
-          abdm_adapter.abdm_link_tokens.link_token IS NULL
-          AND (
-            abdm_adapter.abdm_link_tokens.pending_expires_at IS NULL
-            OR abdm_adapter.abdm_link_tokens.pending_expires_at < now()
+          (
+            abdm_adapter.abdm_link_tokens.link_token IS NULL
+            AND (
+              abdm_adapter.abdm_link_tokens.pending_expires_at IS NULL
+              OR abdm_adapter.abdm_link_tokens.pending_expires_at < now()
+            )
+          )
+          OR (
+            abdm_adapter.abdm_link_tokens.link_token IS NOT NULL
+            AND abdm_adapter.abdm_link_tokens.expires_at <= now() + interval '60 seconds'
           )
         )
-        OR (
+        AND NOT (
           abdm_adapter.abdm_link_tokens.link_token IS NOT NULL
-          AND abdm_adapter.abdm_link_tokens.expires_at <= now() + interval '60 seconds'
+          AND abdm_adapter.abdm_link_tokens.expires_at > now() + interval '60 seconds'
         )
       RETURNING pending_request_id
     `);

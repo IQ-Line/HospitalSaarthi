@@ -4,7 +4,7 @@ import type { LinkCareContextRequest } from "@hims/ts-sdk-abha/protocol/m2/index
 import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
 import { LinkTokenNotAvailable, getOrAcquireLinkToken } from "../../../lib/link-token-cache.js";
 import { M2_GATEWAY_PATHS } from "../../../lib/m2-gateway-paths.js";
-import { toLinkCareContextHiType } from "../../../lib/m2-hi-type-mapper.js";
+import { resolveUnifiedLinkHiType } from "../../../lib/m2-link-hi-type.js";
 import type { M2HipLinkContext } from "../../../domain/session.js";
 
 export interface HipInitiatedLinkStartInput {
@@ -71,8 +71,8 @@ export async function hipInitiatedLinkStart(
   }
 
   const requestId = randomUUID();
-  const hiType = toLinkCareContextHiType(
-    input.careContexts[0]?.hiType ?? "OPCONSULTATION",
+  const hiType = resolveUnifiedLinkHiType(
+    input.careContexts,
   ) as LinkCareContextRequest["patient"][0]["hiType"];
   const body: LinkCareContextRequest = {
     abhaAddress: input.abhaAddress,

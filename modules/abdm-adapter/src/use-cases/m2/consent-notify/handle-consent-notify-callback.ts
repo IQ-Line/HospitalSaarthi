@@ -1,5 +1,7 @@
-import { randomUUID } from "node:crypto";
 import { ABDM_ERROR_CODES } from "@hims/ts-sdk-abha";
+import { AbdmUseCaseError } from "../../../lib/m1-errors.js";
+import { resolveConsentPatientId } from "../../../lib/resolve-consent-patient-id.js";
+import { abdmWarn } from "../../../lib/abdm-adapter-log.js";
 import type {
   ConsentNotifyRequest,
   OnConsentNotifyRequest,
@@ -48,11 +50,38 @@ export async function handleConsentNotifyCallback(
   }
 
   const abhaAddress = notification.consentDetail.patient.id;
-  const empiPatient = await deps.empi.findPatientByAbhaAddress({
-    iqTenantId: input.iqTenantId,
-    abhaAddress,
-  });
-  const patientId = empiPatient?.patientId ?? randomUUID();
+  let patientId: string;
+  try {
+    patientId = await resolveConsentPatientId({
+      iqTenantId: input.iqTenantId,
+      abhaAddress,
+      empi: deps.empi,
+    });
+  } catch (e) {
+    const message =
+      e instanceof AbdmUseCaseError
+        ? e.message
+        : "EMPI patient resolution failed";
+    abdmWarn("abdm.m2.consent.patient_unresolved", {
+      abhaAddress,
+      consentId: notification.consentId,
+      requestId: input.inboundRequestId,
+      reason: message,
+    });
+    await deps.sessions.patch({
+      iqTenantId: input.iqTenantId,
+      sessionId: session.sessionId,
+      state: "FAILED",
+      contextMerge: {
+        error: {
+          code:
+            e instanceof AbdmUseCaseError ? e.clientCode : "PATIENT_NOT_FOUND",
+          message,
+        },
+      },
+    });
+    return;
+  }
 
   await deps.consentArtefacts.upsert({
     iqTenantId: input.iqTenantId,

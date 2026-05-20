@@ -1,6 +1,8 @@
 import { ABDM_ERROR_CODES } from "@hims/ts-sdk-abha";
 import type { DiscoveryRequest, OnDiscoverRequest } from "@hims/ts-sdk-abha/protocol/m2/index.js";
 import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
+import { M2_GATEWAY_PATHS } from "../../../lib/m2-gateway-paths.js";
+import { resolveUnifiedLinkHiType } from "../../../lib/m2-link-hi-type.js";
 
 export async function handleDiscoverCallback(
   input: AbdmTenantInput<DiscoveryRequest & { inboundRequestId: string }>,
@@ -47,7 +49,7 @@ export async function handleDiscoverCallback(
       response: { requestId: input.inboundRequestId },
     };
     await deps.gateway.post({
-      path: "/api/hiecm/user-initiated-linking/v3/patient/care-context/on-discover",
+      path: M2_GATEWAY_PATHS.onDiscover,
       body,
       target: "gateway",
       requestId: input.inboundRequestId,
@@ -83,7 +85,7 @@ export async function handleDiscoverCallback(
               referenceNumber: c.referenceNumber,
               display: c.display,
             })),
-            hiType: "OPCONSULTATION",
+            hiType: resolveUnifiedLinkHiType(contexts),
             count: contexts.length,
           },
         ]
@@ -96,7 +98,7 @@ export async function handleDiscoverCallback(
   };
 
   await deps.gateway.post({
-    path: "/api/hiecm/user-initiated-linking/v3/patient/care-context/on-discover",
+    path: M2_GATEWAY_PATHS.onDiscover,
     body,
     target: "gateway",
     requestId: input.inboundRequestId,

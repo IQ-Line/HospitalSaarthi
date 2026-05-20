@@ -7,6 +7,7 @@ import { assertFlowKind } from "../../../domain/session.js";
 import { pushHealthInformationForSession } from "./push-health-information.js";
 import { notifyHipDataTransfer } from "./notify-data-transfer.js";
 import { skipOutboundGatewayInDev } from "../../../lib/dev-inbound-simulation.js";
+import { abdmWarn } from "../../../lib/abdm-adapter-log.js";
 
 /** §6.3.3–6.3.6 — ack, encrypt/push bundles, notify CM. */
 export async function handleHipHiRequestCallback(
@@ -118,11 +119,22 @@ export async function handleHipHiRequestCallback(
       },
       deps,
     );
-  } catch {
+  } catch (err: unknown) {
+    const failureMessage = err instanceof Error ? err.message : String(err);
+    abdmWarn("abdm.m3.hip_hi.push_failed", {
+      sessionId: session.sessionId,
+      consentId: parsed.consentId,
+      transactionId: parsed.transactionId,
+      requestId: input.inboundRequestId,
+      message: failureMessage,
+    });
     await deps.sessions.patch({
       iqTenantId: input.iqTenantId,
       sessionId: session.sessionId,
       state: "FAILED",
+      contextMerge: {
+        error: { code: "HI_PUSH_FAILED", message: failureMessage },
+      },
     });
     await notifyHipDataTransfer(
       {

@@ -5,6 +5,22 @@ import { linkTokenExpiresAt } from "./decode-link-token-exp.js";
 import { M2_GATEWAY_PATHS } from "./m2-gateway-paths.js";
 import { sleep } from "./sleep.js";
 
+function linkTokenAcquireTimeoutMs(override?: number): number {
+  if (override !== undefined) return override;
+  const fromEnv = Number(process.env["ABDM_LINK_TOKEN_ACQUIRE_TIMEOUT_MS"]);
+  return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : 8_000;
+}
+
+function linkTokenPollInitialMs(): number {
+  const n = Number(process.env["ABDM_LINK_TOKEN_POLL_INTERVAL_MS"]);
+  return Number.isFinite(n) && n > 0 ? n : 200;
+}
+
+function linkTokenPollMaxMs(): number {
+  const n = Number(process.env["ABDM_LINK_TOKEN_POLL_MAX_INTERVAL_MS"]);
+  return Number.isFinite(n) && n > 0 ? n : 1_600;
+}
+
 export class LinkTokenNotAvailable extends Error {
   constructor(message = "Link token not available within timeout") {
     super(message);
@@ -62,9 +78,12 @@ export async function getOrAcquireLinkToken(
     });
   }
 
-  const deadline = Date.now() + (input.timeoutMs ?? 8_000);
+  const deadline = Date.now() + linkTokenAcquireTimeoutMs(input.timeoutMs);
+  let pollMs = linkTokenPollInitialMs();
+  const pollMaxMs = linkTokenPollMaxMs();
   while (Date.now() < deadline) {
-    await sleep(200);
+    await sleep(pollMs);
+    pollMs = Math.min(pollMs * 2, pollMaxMs);
     const row = await deps.linkTokens.findFresh(input.iqTenantId, input.abhaAddress);
     if (row) {
       const plain = deps.payloadEncryptor.decrypt(row.linkToken);

@@ -53,4 +53,7 @@ export { registerM2EventConsumers } from "./events/register-m2-consumers.js";
 export { HttpHipDataPushClient } from "./data-access/hip-data-push.client.js";
 export { AbdmGatewayError, parseNhaErrorBody } from "./lib/gateway-errors.js";
 export { AbdmUseCaseError } from "./lib/m1-errors.js";
-export { requireSessionTokenCryptoInProd } from "./lib/session-token-crypto.js";
+export {
+  requireCallbackSecurityInProd,
+  requireSessionTokenCryptoInProd,
+} from "./lib/session-token-crypto.js";
