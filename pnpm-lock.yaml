@@ -3,6 +3,7 @@ lockfileVersion: '9.0'
 settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
+  injectWorkspacePackages: true
 
 importers:
 
@@ -49,7 +50,7 @@ importers:
     dependencies:
       '@hims/ts-sdk-abha':
         specifier: workspace:*
-        version: link:../../packages/ts-sdk-abha
+        version: file:packages/ts-sdk-abha(typescript@6.0.3)(zod@4.4.3)
       '@hims/ts-sdk-db':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-db
@@ -810,22 +811,22 @@ importers:
         version: 5.2.2(react-hook-form@7.75.0(react@19.2.5))
       '@pulse/blocks':
         specifier: workspace:*
-        version: link:../../packages/pulse-blocks
+        version: file:packages/pulse-blocks(@date-fns/tz@1.4.1)(@tanstack/react-router@1.169.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(typescript@6.0.3)
       '@pulse/constants':
         specifier: workspace:*
-        version: link:../../packages/pulse-constants
+        version: file:packages/pulse-constants(typescript@6.0.3)
       '@pulse/layouts':
         specifier: workspace:*
-        version: link:../../packages/pulse-layouts
+        version: file:packages/pulse-layouts(@date-fns/tz@1.4.1)(@tanstack/react-router@1.169.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(typescript@6.0.3)
       '@pulse/patterns':
         specifier: workspace:*
-        version: link:../../packages/pulse-patterns
+        version: file:packages/pulse-patterns(@date-fns/tz@1.4.1)(@tanstack/react-router@1.169.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(typescript@6.0.3)
       '@pulse/ui':
         specifier: workspace:*
-        version: link:../../packages/pulse-ui
+        version: file:packages/pulse-ui(@date-fns/tz@1.4.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(typescript@6.0.3)
       '@pulse/utils':
         specifier: workspace:*
-        version: link:../../packages/pulse-utils
+        version: file:packages/pulse-utils(typescript@6.0.3)
       '@tanstack/react-query':
         specifier: ^5.75.5
         version: 5.100.9(react@19.2.5)
@@ -2192,6 +2193,17 @@ packages:
     engines: {node: '>=6'}
     hasBin: true
 
+  '@hims/ts-sdk-abha@file:packages/ts-sdk-abha':
+    resolution: {directory: packages/ts-sdk-abha, type: directory}
+    peerDependencies:
+      typescript: '>=5.6.0'
+      zod: '>=3.23.0'
+
+  '@hims/ts-sdk-fhir@file:packages/ts-sdk-fhir':
+    resolution: {directory: packages/ts-sdk-fhir, type: directory}
+    peerDependencies:
+      typescript: '>=5.6.0'
+
   '@hookform/resolvers@5.2.2':
     resolution: {integrity: sha512-A/IxlMLShx3KjV/HeTcTfaMxdwy690+L/ZADoeaTltLx+CVuzkeVIPuybK3jrRfw7YZnmdKsVVHAlEPIAEUNlA==}
     peerDependencies:
@@ -2400,6 +2412,42 @@ packages:
 
   '@protobufjs/utf8@1.1.1':
     resolution: {integrity: sha512-oOAWABowe8EAbMyWKM0tYDKi8Yaox52D+HWZhAIJqQXbqe0xI/GV7FhLWqlEKreMkfDjshR5FKgi3mnle0h6Eg==}
+
+  '@pulse/blocks@file:packages/pulse-blocks':
+    resolution: {directory: packages/pulse-blocks, type: directory}
+    peerDependencies:
+      '@tanstack/react-router': ^1.120.0
+      react: ^19.0.0
+      react-dom: ^19.0.0
+
+  '@pulse/constants@file:packages/pulse-constants':
+    resolution: {directory: packages/pulse-constants, type: directory}
+    peerDependencies:
+      typescript: ^5
+
+  '@pulse/layouts@file:packages/pulse-layouts':
+    resolution: {directory: packages/pulse-layouts, type: directory}
+    peerDependencies:
+      '@tanstack/react-router': ^1.120.0
+      react: ^19.0.0
+      react-dom: ^19.0.0
+
+  '@pulse/patterns@file:packages/pulse-patterns':
+    resolution: {directory: packages/pulse-patterns, type: directory}
+    peerDependencies:
+      react: ^19.0.0
+      react-dom: ^19.0.0
+
+  '@pulse/ui@file:packages/pulse-ui':
+    resolution: {directory: packages/pulse-ui, type: directory}
+    peerDependencies:
+      react: ^19.0.0
+      react-dom: ^19.0.0
+
+  '@pulse/utils@file:packages/pulse-utils':
+    resolution: {directory: packages/pulse-utils, type: directory}
+    peerDependencies:
+      typescript: ^5
 
   '@radix-ui/number@1.1.1':
     resolution: {integrity: sha512-MkKCwxlXTgz6CFoJx3pCwn07GKp36+aZyu/u2Ln2VrA5DcdyCZkASEDBTd8x5whTQQL5CiYf4prXKLcgQdv29g==}
@@ -7526,6 +7574,16 @@ snapshots:
       protobufjs: 7.5.6
       yargs: 17.7.2
 
+  '@hims/ts-sdk-abha@file:packages/ts-sdk-abha(typescript@6.0.3)(zod@4.4.3)':
+    dependencies:
+      '@hims/ts-sdk-fhir': file:packages/ts-sdk-fhir(typescript@6.0.3)
+      typescript: 6.0.3
+      zod: 4.4.3
+
+  '@hims/ts-sdk-fhir@file:packages/ts-sdk-fhir(typescript@6.0.3)':
+    dependencies:
+      typescript: 6.0.3
+
   '@hookform/resolvers@5.2.2(react-hook-form@7.75.0(react@19.2.5))':
     dependencies:
       '@standard-schema/utils': 0.3.0
@@ -7761,6 +7819,91 @@ snapshots:
   '@protobufjs/pool@1.1.0': {}
 
   '@protobufjs/utf8@1.1.1': {}
+
+  '@pulse/blocks@file:packages/pulse-blocks(@date-fns/tz@1.4.1)(@tanstack/react-router@1.169.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(typescript@6.0.3)':
+    dependencies:
+      '@pulse/constants': file:packages/pulse-constants(typescript@6.0.3)
+      '@pulse/ui': file:packages/pulse-ui(@date-fns/tz@1.4.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(typescript@6.0.3)
+      '@pulse/utils': file:packages/pulse-utils(typescript@6.0.3)
+      '@tanstack/react-router': 1.169.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      '@tanstack/react-table': 8.21.3(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      class-variance-authority: 0.7.1
+      date-fns: 4.1.0
+      lucide-react: 0.561.0(react@19.2.5)
+      next-themes: 0.4.6(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      react: 19.2.5
+      react-dom: 19.2.5(react@19.2.5)
+    transitivePeerDependencies:
+      - '@date-fns/tz'
+      - '@types/react'
+      - '@types/react-dom'
+      - typescript
+
+  '@pulse/constants@file:packages/pulse-constants(typescript@6.0.3)':
+    dependencies:
+      typescript: 6.0.3
+
+  '@pulse/layouts@file:packages/pulse-layouts(@date-fns/tz@1.4.1)(@tanstack/react-router@1.169.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(typescript@6.0.3)':
+    dependencies:
+      '@pulse/blocks': file:packages/pulse-blocks(@date-fns/tz@1.4.1)(@tanstack/react-router@1.169.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(typescript@6.0.3)
+      '@pulse/ui': file:packages/pulse-ui(@date-fns/tz@1.4.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(typescript@6.0.3)
+      '@pulse/utils': file:packages/pulse-utils(typescript@6.0.3)
+      '@tanstack/react-router': 1.169.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      react: 19.2.5
+      react-dom: 19.2.5(react@19.2.5)
+      react-resizable-panels: 4.11.0(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+    transitivePeerDependencies:
+      - '@date-fns/tz'
+      - '@types/react'
+      - '@types/react-dom'
+      - date-fns
+      - typescript
+
+  '@pulse/patterns@file:packages/pulse-patterns(@date-fns/tz@1.4.1)(@tanstack/react-router@1.169.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(typescript@6.0.3)':
+    dependencies:
+      '@pulse/blocks': file:packages/pulse-blocks(@date-fns/tz@1.4.1)(@tanstack/react-router@1.169.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(typescript@6.0.3)
+      '@pulse/ui': file:packages/pulse-ui(@date-fns/tz@1.4.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(typescript@6.0.3)
+      '@pulse/utils': file:packages/pulse-utils(typescript@6.0.3)
+      react: 19.2.5
+      react-dom: 19.2.5(react@19.2.5)
+    transitivePeerDependencies:
+      - '@date-fns/tz'
+      - '@tanstack/react-router'
+      - '@types/react'
+      - '@types/react-dom'
+      - date-fns
+      - typescript
+
+  '@pulse/ui@file:packages/pulse-ui(@date-fns/tz@1.4.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(typescript@6.0.3)':
+    dependencies:
+      '@base-ui/react': 1.4.1(@date-fns/tz@1.4.1)(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      '@pulse/utils': file:packages/pulse-utils(typescript@6.0.3)
+      class-variance-authority: 0.7.1
+      cmdk: 1.1.1(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      embla-carousel-react: 8.6.0(react@19.2.5)
+      input-otp: 1.4.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      lucide-react: 0.561.0(react@19.2.5)
+      next-themes: 0.4.6(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      radix-ui: 1.4.3(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      react: 19.2.5
+      react-day-picker: 9.14.0(react@19.2.5)
+      react-dom: 19.2.5(react@19.2.5)
+      react-resizable-panels: 4.11.0(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      recharts: 2.15.4(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      sonner: 2.0.7(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      vaul: 1.1.2(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+    transitivePeerDependencies:
+      - '@date-fns/tz'
+      - '@types/react'
+      - '@types/react-dom'
+      - date-fns
+      - typescript
+
+  '@pulse/utils@file:packages/pulse-utils(typescript@6.0.3)':
+    dependencies:
+      clsx: 2.1.1
+      tailwind-merge: 3.5.0
+      typescript: 6.0.3
 
   '@radix-ui/number@1.1.1': {}
 
