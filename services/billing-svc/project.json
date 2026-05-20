@@ -1,7 +1,17 @@
 {
   "name": "billing-svc",
-  "tags": ["type:service", "scope:billing", "language:typescript"],
+  "projectType": "application",
+  "tags": ["type:service", "scope:billing", "language:typescript", "deploy:aks"],
   "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsup --config tsup.config.ts",
+        "cwd": "services/billing-svc"
+      },
+      "outputs": ["{projectRoot}/dist"],
+      "cache": true
+    },
     "serve": {
       "command": "tsx watch --include '../../modules/billing/src' src/main.ts",
       "options": {
