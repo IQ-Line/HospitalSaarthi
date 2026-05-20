@@ -1,10 +1,20 @@
 import { computeDeskLineAmounts, computeLineAmounts } from "../lib/bill-math.js";
-import { validateDeskPricingPolicy } from "../lib/desk-pricing-policy.js";
 import { money } from "../lib/money.js";
 import { fail, ok, syncBillTotals } from "../lib/use-case.js";
 import type { CaptureChargeInput, ChargeIngestResponse, UseCaseResult } from "../domain/bill.types.js";
 import type { BillingDeps } from "../ports.js";
 import { newDraftBill } from "../data-access/billing.repository.js";
+
+const DESK_OVERRIDE_DISABLED_MSG =
+  "desk_price_overrides_disabled: set BILLING_ALLOW_DESK_OVERRIDES=true in dev; tracked in #94";
+
+function hasDeskPricingOverrides(input: CaptureChargeInput): boolean {
+  return (
+    input.unit_price_override != null ||
+    input.tax_percentage_override != null ||
+    (input.line_discount_amount != null && Number(input.line_discount_amount) > 0)
+  );
+}
 
 const toResponse = (
   item: {
@@ -60,8 +70,12 @@ export async function captureCharge(
   if (!input.item_code?.trim()) return fail("VALIDATION", "item_code is required");
   if (!input.source_module?.trim()) return fail("VALIDATION", "source_module is required");
 
-  const policy = validateDeskPricingPolicy(input, deps.allowDeskPriceOverride);
-  if (policy) return policy;
+  if (
+    hasDeskPricingOverrides(input) &&
+    process.env["BILLING_ALLOW_DESK_OVERRIDES"] !== "true"
+  ) {
+    return fail("VALIDATION", DESK_OVERRIDE_DISABLED_MSG);
+  }
 
   const qty = Number(input.quantity ?? 1);
   if (!Number.isFinite(qty) || qty <= 0) return fail("VALIDATION", "quantity must be > 0");
