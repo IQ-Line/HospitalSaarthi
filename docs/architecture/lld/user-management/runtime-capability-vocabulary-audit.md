@@ -6,7 +6,7 @@
 
 ## Executive summary
 
-User Management foundational runtime capabilities **already follow** the target canonical format `<moduleKey>:<resource>:<action>` with platform prefix `um` for `user-management`. Cerbos UM policies are **aligned** with seeded keys. Gaps are mainly **documentation**, **cross-column drift** (feature vs key resource segment), **visitpad legacy `md:` namespace** in Cerbos, and missing **programmatic validation** (now added).
+User Management foundational runtime capabilities **already follow** the target canonical format `<moduleKey>:<resource>:<action>` with platform prefix `um` for `user-management`. Cerbos UM policies are **aligned** with Master Data–synced keys. Gaps are mainly **documentation**, **cross-column drift** (feature vs key resource segment), **visitpad legacy `md:` namespace** in Cerbos, and missing **programmatic validation** (now added).
 
 **Recommendation:** No `capability_key` renames or Cerbos UM policy rewrites in this phase. Add validation + mapping helpers + docs; defer visitpad namespace alignment and optional `um:role:delete` capability.
 
@@ -14,14 +14,16 @@ User Management foundational runtime capabilities **already follow** the target 
 
 ## 1. Audit: existing `capability_key` values
 
-### User Management seeds (`0002_capability_catalog_seed.sql`)
+### User Management runtime catalog (Master Data sync)
+
+Populated by `syncCapabilitiesFromMasterDataCatalog()` from `global_master.module_permissions` (see `pnpm seed` / `tools/sync-capabilities-from-master-data.mts`). No SQL migration seeds `user_management.capabilities`.
 
 | capability_key | module | feature | action | Verdict |
 |----------------|--------|---------|--------|---------|
 | `um:user:create` | user-management | users | create | Canonical |
 | `um:user:read` | user-management | users | read | Canonical |
 | `um:user:update` | user-management | users | update | Canonical |
-| `um:user:deactivate` | user-management | users | deactivate | Canonical |
+| `um:user:delete` | user-management | user | delete | Canonical (MD `user.delete`; Cerbos action `user.deactivate`) |
 | `um:role:read` | user-management | roles | read | Canonical |
 | `um:role:create` | user-management | roles | create | Canonical |
 | `um:role:update` | user-management | roles | update | Canonical |
@@ -32,7 +34,7 @@ User Management foundational runtime capabilities **already follow** the target 
 
 ### TypeScript constants (`user-management-capabilities.ts`)
 
-Mirrors seeds exactly — single source of truth for code references.
+Mirrors Master Data–synced keys — single source of truth for code references.
 
 ### Tests & OpenAPI examples
 

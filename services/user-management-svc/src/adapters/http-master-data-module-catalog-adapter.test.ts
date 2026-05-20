@@ -98,6 +98,29 @@ describe("HttpMasterDataModuleCatalogAdapter", () => {
     expect(result.has("mod-b")).toBe(false);
   });
 
+  it("expandEnabledModuleSlugs walks the catalog tree from Master Data", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: [
+            { id: "l1-md", slug: "master-data", parent_id: null, level: 1 },
+            { id: "l2-dep", slug: "departments", parent_id: "l1-md", level: 2 },
+          ],
+        }),
+      }),
+    );
+
+    const adapter = new HttpMasterDataModuleCatalogAdapter({
+      baseUrl: "http://localhost:8010",
+    });
+
+    const expanded = await adapter.expandEnabledModuleSlugs(["master-data"]);
+    expect([...expanded].sort()).toEqual(["departments", "master-data"].sort());
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   it("throws MODULE_ENTITLEMENT_LOOKUP_FAILED when Master Data returns non-OK", async () => {
     vi.stubGlobal(
       "fetch",

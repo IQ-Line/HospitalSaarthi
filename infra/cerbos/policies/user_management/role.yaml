@@ -15,8 +15,8 @@ resourcePolicy:
           expr: >-
             request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
             (
-              "um:role:read" in request.principal.attr.capabilities ||
-              "um:role:read" in request.principal.attr.delegated_capabilities
+              "user-roles:user-roles:read" in request.principal.attr.capabilities ||
+              "user-roles:user-roles:read" in request.principal.attr.delegated_capabilities
             )
 
     - actions:
@@ -27,8 +27,8 @@ resourcePolicy:
         match:
           expr: >-
             (
-              "um:role:read" in request.principal.attr.capabilities ||
-              "um:role:read" in request.principal.attr.delegated_capabilities
+              "user-roles:user-roles:read" in request.principal.attr.capabilities ||
+              "user-roles:user-roles:read" in request.principal.attr.delegated_capabilities
             )
 
     - actions:
@@ -40,8 +40,8 @@ resourcePolicy:
           expr: >-
             request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
             (
-              "um:role:create" in request.principal.attr.capabilities ||
-              "um:role:create" in request.principal.attr.delegated_capabilities
+              "user-roles:user-roles:create" in request.principal.attr.capabilities ||
+              "user-roles:user-roles:create" in request.principal.attr.delegated_capabilities
             )
 
     - actions:
@@ -52,8 +52,8 @@ resourcePolicy:
         match:
           expr: >-
             (
-              "um:role:create" in request.principal.attr.capabilities ||
-              "um:role:create" in request.principal.attr.delegated_capabilities
+              "user-roles:user-roles:create" in request.principal.attr.capabilities ||
+              "user-roles:user-roles:create" in request.principal.attr.delegated_capabilities
             )
 
     # Cross-tenant provisioning (tenant wizard): super-admin in principal.attr.role_codes + capability.
@@ -68,8 +68,8 @@ resourcePolicy:
             has(request.principal.attr.role_codes) &&
             "super-admin" in request.principal.attr.role_codes &&
             (
-              "um:role:create" in request.principal.attr.capabilities ||
-              "um:role:create" in request.principal.attr.delegated_capabilities
+              "user-roles:user-roles:create" in request.principal.attr.capabilities ||
+              "user-roles:user-roles:create" in request.principal.attr.delegated_capabilities
             )
 
     - actions:
@@ -83,10 +83,10 @@ resourcePolicy:
           expr: >-
             request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
             (
-              "um:role:update" in request.principal.attr.capabilities ||
-              "um:role:update" in request.principal.attr.delegated_capabilities ||
-              "um:role:delete" in request.principal.attr.capabilities ||
-              "um:role:delete" in request.principal.attr.delegated_capabilities
+              "user-roles:user-roles:update" in request.principal.attr.capabilities ||
+              "user-roles:user-roles:update" in request.principal.attr.delegated_capabilities ||
+              "user-roles:user-roles:delete" in request.principal.attr.capabilities ||
+              "user-roles:user-roles:delete" in request.principal.attr.delegated_capabilities
             )
 
     - actions:
@@ -99,10 +99,10 @@ resourcePolicy:
         match:
           expr: >-
             (
-              "um:role:update" in request.principal.attr.capabilities ||
-              "um:role:update" in request.principal.attr.delegated_capabilities ||
-              "um:role:delete" in request.principal.attr.capabilities ||
-              "um:role:delete" in request.principal.attr.delegated_capabilities
+              "user-roles:user-roles:update" in request.principal.attr.capabilities ||
+              "user-roles:user-roles:update" in request.principal.attr.delegated_capabilities ||
+              "user-roles:user-roles:delete" in request.principal.attr.capabilities ||
+              "user-roles:user-roles:delete" in request.principal.attr.delegated_capabilities
             )
 
     - actions:
@@ -118,8 +118,8 @@ resourcePolicy:
             has(request.principal.attr.role_codes) &&
             "super-admin" in request.principal.attr.role_codes &&
             (
-              "um:role:update" in request.principal.attr.capabilities ||
-              "um:role:update" in request.principal.attr.delegated_capabilities ||
-              "um:role:delete" in request.principal.attr.capabilities ||
-              "um:role:delete" in request.principal.attr.delegated_capabilities
+              "user-roles:user-roles:update" in request.principal.attr.capabilities ||
+              "user-roles:user-roles:update" in request.principal.attr.delegated_capabilities ||
+              "user-roles:user-roles:delete" in request.principal.attr.capabilities ||
+              "user-roles:user-roles:delete" in request.principal.attr.delegated_capabilities
             )

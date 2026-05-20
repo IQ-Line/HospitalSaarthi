@@ -1,4 +1,4 @@
-import { parseAccessJwtClaims } from '@/lib/jwt-claims';
+import { getRolesFromAccessToken } from '@/lib/access-token';
 
 /** Canonical role code for platform operators (matches dev seed `super-admin`). */
 export const PLATFORM_SUPER_ADMIN_ROLE = 'super-admin';
@@ -15,6 +15,18 @@ export function isPlatformSuperAdmin(roles: readonly string[] | undefined): bool
 }
 
 export function isPlatformSuperAdminFromAccessToken(accessToken: string | null | undefined): boolean {
-  const claims = parseAccessJwtClaims(accessToken);
-  return isPlatformSuperAdmin(claims.roles);
+  return isPlatformSuperAdmin(getRolesFromAccessToken(accessToken));
+}
+
+/** UX-only: principal roles, persisted auth roles, and JWT role claims. */
+export function resolvePlatformSuperAdmin(input: {
+  principalRoles?: readonly string[];
+  authRoles?: readonly string[];
+  accessToken?: string | null;
+}): boolean {
+  return (
+    isPlatformSuperAdmin(input.principalRoles) ||
+    isPlatformSuperAdmin(input.authRoles) ||
+    isPlatformSuperAdminFromAccessToken(input.accessToken)
+  );
 }

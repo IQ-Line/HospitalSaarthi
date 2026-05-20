@@ -3,7 +3,7 @@
  * Development runtime seed (Configurator tenant, UM capabilities, users, better-auth).
  *
  * Official entry: `make seed` (wraps this script).
- * Prerequisites: `make setup` or `make db-migrate` on hims-master, hims-configurator, hims-user-management.
+ * Prerequisites: `make setup` or `make db-migrate` (hims_dev schemas + hims-master catalog).
  * Catalog data: Master Data Alembic only — not inserted here.
  */
 import {
@@ -61,8 +61,7 @@ async function main(): Promise<void> {
   loadWorkspaceEnv();
 
   const masterDataUrl = requireEnv("MASTER_DATA_DATABASE_URL");
-  const configuratorUrl = requireEnv("CONFIGURATOR_DATABASE_URL");
-  const userMgmtUrl = requireEnv("USER_MGMT_DATABASE_URL");
+  const databaseUrl = requireEnv("DATABASE_URL");
   const cerbosUrl = requireEnv("CERBOS_URL");
   const authBaseUrl = (process.env.AUTH_BASE_URL ?? "http://localhost:3000").replace(/\/+$/, "");
   const jwtIssuer = process.env.JWT_ISSUER?.trim() || authBaseUrl;
@@ -74,29 +73,29 @@ async function main(): Promise<void> {
 
   seedLog("preflight", "checking database schemas");
   await assertSchemaExists(masterDataUrl, "global_master");
-  await assertSchemaExists(configuratorUrl, "configurator");
-  await assertSchemaExists(userMgmtUrl, "user_management");
+  await assertSchemaExists(databaseUrl, "configurator");
+  await assertSchemaExists(databaseUrl, "user_management");
 
-  const umDb = createDb(userMgmtUrl);
-  await assertUserManagementDatabaseIsolation({ db: umDb, connectionString: userMgmtUrl });
-  const cfgDb = createDb(configuratorUrl);
-  await assertConfiguratorDatabaseIsolation({ db: cfgDb, connectionString: configuratorUrl });
+  const umDb = createDb(databaseUrl);
+  await assertUserManagementDatabaseIsolation({ db: umDb, connectionString: databaseUrl });
+  const cfgDb = createDb(databaseUrl);
+  await assertConfiguratorDatabaseIsolation({ db: cfgDb, connectionString: databaseUrl });
 
   seedLog("master-data", "resolving catalog module ids (Alembic-owned)");
   const md = await resolveMasterDataModuleCatalog(masterDataUrl);
 
   seedLog("configurator", "seeding tenant and modules");
-  const cfg = await seedConfigurator(configuratorUrl, md.moduleIdsBySlug);
+  const cfg = await seedConfigurator(databaseUrl, md.moduleIdsBySlug);
 
   seedLog("user-management", "seeding runtime data and auth");
-  const um = await umSeed.seedUserManagement(userMgmtUrl, {
+  const um = await umSeed.seedUserManagement(databaseUrl, masterDataUrl, {
     authBaseUrl,
     secret,
     jwtIssuer,
     jwtAudience,
   });
 
-  const umDbForPrincipal = createDb(normalizePostgresUrl(userMgmtUrl));
+  const umDbForPrincipal = createDb(normalizePostgresUrl(databaseUrl));
   const principalService = umSeed.buildPrincipalService(umDbForPrincipal);
 
   seedLog("cerbos", "validating authorization", { cerbosUrl });

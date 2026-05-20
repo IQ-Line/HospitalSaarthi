@@ -8,6 +8,7 @@ import type {
   UserRepository,
 } from "../ports/index.js";
 import { UserNotFoundError } from "../domain/errors.js";
+import { canonicalizeRuntimeCapabilityKeys } from "../domain/legacy-capability-key-remap.js";
 import { effectiveUmClearanceTierFromClearances } from "../domain/um-clearance-tier.js";
 import { projectPrincipalRoles } from "../use-cases/project-principal-roles.js";
 
@@ -61,15 +62,6 @@ function warnAbacAttrAbsentFromPersistence(payload: {
   );
 }
 
-function normalizeCapabilityList(caps: string[]): string[] {
-  const set = new Set<string>();
-  for (const c of caps) {
-    const t = c.trim();
-    if (t.length > 0) set.add(t);
-  }
-  return [...set].sort((a, b) => a.localeCompare(b));
-}
-
 function asIdentityPrincipal(requestUser: unknown): IdentityPrincipal | null {
   if (requestUser == null || typeof requestUser !== "object") return null;
   const u = requestUser as Partial<IdentityPrincipal>;
@@ -84,7 +76,7 @@ function asIdentityPrincipal(requestUser: unknown): IdentityPrincipal | null {
  *
  * ## Capability enrichment
  *
- * Capabilities (e.g. `"um:user:create"`) are immutable operational identifiers stored in
+ * Capabilities (e.g. `"users:users:create"`) are immutable operational identifiers stored in
  * canonical capability composition tables. User Management owns runtime authorization
  * assignments; Cerbos consumes the resolved capability keys as
  * `principal.attr.capabilities`.
@@ -169,8 +161,8 @@ export class DefaultPrincipalService implements PrincipalService {
       }
     }
 
-    const delegatedCapabilities = [...delegatedRaw].sort((a, b) => a.localeCompare(b));
-    const capabilities = normalizeCapabilityList(capabilityKeys);
+    const delegatedCapabilities = canonicalizeRuntimeCapabilityKeys(delegatedRaw);
+    const capabilities = canonicalizeRuntimeCapabilityKeys(capabilityKeys);
     const um_clearance_effective_tier = effectiveUmClearanceTierFromClearances(clearances);
 
     return {

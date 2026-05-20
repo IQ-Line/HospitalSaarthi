@@ -13,8 +13,8 @@ describe('hydrateCapabilitiesFromPrincipal', () => {
       id: 'user-1',
       roles: [],
       attributes: {
-        capabilities: ['um:user:read', 'md:shell:access'],
-        delegated_capabilities: ['md:visitpad:view'],
+        capabilities: ['users:users:read', 'master-data:shell:access'],
+        delegated_capabilities: ['visitpad-templates:visitpad:view'],
       },
     };
 
@@ -23,9 +23,9 @@ describe('hydrateCapabilitiesFromPrincipal', () => {
     const state = usePermissionsStore.getState();
     expect(state.isLoaded).toBe(true);
     expect([...state.capabilityKeys].sort()).toEqual([
-      'md:shell:access',
-      'md:visitpad:view',
-      'um:user:read',
+      'master-data:shell:access',
+      'visitpad-templates:visitpad:view',
+      'users:users:read',
     ]);
   });
 });

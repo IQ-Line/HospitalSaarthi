@@ -1,6 +1,10 @@
 import sensible from "@fastify/sensible";
 import { assertCerbosReachable, authzPlugin } from "@hims/ts-sdk-authz";
-import { assertUserManagementDatabaseIsolation, createDb } from "@hims/ts-sdk-db";
+import {
+  assertUserManagementDatabaseIsolation,
+  createDb,
+  resolveDatabaseUrl,
+} from "@hims/ts-sdk-db";
 import { createEventBus } from "@hims/ts-sdk-events";
 import { identityPlugin, validateAuthConfig } from "@hims/ts-sdk-identity";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
@@ -31,6 +35,7 @@ import {
   validateRuntimeAuthorizationStartup,
   principalRoleEnricherPlugin,
 } from "../../../modules/user-management/src/index.js";
+import { deactivateSupersededLegacyCapabilities } from "../../../modules/user-management/src/dev/deactivate-superseded-legacy-capabilities.js";
 import { HttpConfiguratorTenantModuleEntitlementAdapter } from "./adapters/http-configurator-tenant-module-entitlement-adapter.js";
 import { HttpMasterDataModuleCatalogAdapter } from "./adapters/http-master-data-module-catalog-adapter.js";
 import { registerUserManagementApi } from "./openapi/register-user-management-api.js";
@@ -103,17 +108,6 @@ function readTrustedOrigins(): string[] {
     .filter((o) => o.length > 0);
 }
 
-function requireDatabaseUrl(): string {
-  const databaseUrl = process.env.USER_MGMT_DATABASE_URL?.trim();
-  if (!databaseUrl || databaseUrl.length === 0) {
-    throw new Error(
-      "USER_MGMT_DATABASE_URL is required (PostgreSQL database hims-user-management). " +
-        "Do not use DATABASE_URL — Configurator uses a separate database (hims-configurator).",
-    );
-  }
-  return databaseUrl;
-}
-
 /**
  * Fastify wiring: event bus, better-auth, identity verification, Cerbos, user-management module.
  */
@@ -148,11 +142,11 @@ async function createApp(): Promise<FastifyInstance> {
   const authBaseUrl = readAuthBaseUrl();
   normalizeIdentityJwksUrl(authBaseUrl);
   const identityAuth = validateAuthConfig();
-  const userMgmtDatabaseUrl = requireDatabaseUrl();
-  const pgDb = createDb(userMgmtDatabaseUrl);
+  const databaseUrl = resolveDatabaseUrl();
+  const pgDb = createDb(databaseUrl);
   await assertUserManagementDatabaseIsolation({
     db: pgDb,
-    connectionString: userMgmtDatabaseUrl,
+    connectionString: databaseUrl,
   });
 
   const configuratorUrl = requireUpstreamBaseUrl("CONFIGURATOR_URL");
@@ -166,6 +160,14 @@ async function createApp(): Promise<FastifyInstance> {
   const userAccessRepository = new DrizzleUserAccessRepository(pgDb);
   const principalRoleProjectionRepository = new DrizzlePrincipalRoleProjectionRepository(pgDb);
   const principalAuthorizationRepository = new DrizzlePrincipalAuthorizationRepository(pgDb);
+
+  const legacyCleanup = await deactivateSupersededLegacyCapabilities(pgDb);
+  if (legacyCleanup.deactivated > 0) {
+    app.log.info(
+      { deactivatedKeys: legacyCleanup.deactivatedKeys },
+      "Deactivated superseded legacy capability catalog rows",
+    );
+  }
 
   const startupValidation = await validateRuntimeAuthorizationStartup({
     configuratorUrl,

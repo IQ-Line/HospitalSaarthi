@@ -4,7 +4,7 @@ name: user_role_template_permissions
 description: >-
   User Management applied role template mutations — POST /users/{id}/roles and
   PUT /users/{id}/capabilities map to role.assign; DELETE /users/{id}/roles/{roleId} maps to
-  role.revoke. All require tenant match and um:role:assign in capabilities or delegated_capabilities.
+  role.revoke. All require tenant match and user-roles:role:assign in capabilities or delegated_capabilities.
 
 principals:
   assigner:
@@ -16,7 +16,7 @@ principals:
       org_id: null
       department: null
       capabilities:
-        - "um:role:assign"
+        - "user-roles:role:assign"
       delegated_capabilities: []
       clearances: {}
       um_clearance_effective_tier: 0
@@ -30,7 +30,7 @@ principals:
       org_id: null
       department: null
       capabilities:
-        - "um:user:read"
+        - "users:users:read"
       delegated_capabilities: []
       clearances: {}
       um_clearance_effective_tier: 0
@@ -45,7 +45,7 @@ principals:
       department: null
       capabilities: []
       delegated_capabilities:
-        - "um:role:assign"
+        - "user-roles:role:assign"
       clearances: {}
       um_clearance_effective_tier: 0
 
@@ -67,7 +67,7 @@ resources:
       required_clearance: 0
 
 tests:
-  - name: role.assign — um:role:assign capability ALLOW
+  - name: role.assign — user-roles:role:assign capability ALLOW
     input:
       principals: [assigner]
       resources: [user_role_template_apply]
@@ -89,7 +89,7 @@ tests:
         actions:
           role.assign: EFFECT_ALLOW
 
-  - name: role.assign — missing um:role:assign DENY
+  - name: role.assign — missing user-roles:role:assign DENY
     input:
       principals: [not_assigner]
       resources: [user_role_template_apply]
@@ -100,7 +100,7 @@ tests:
         actions:
           role.assign: EFFECT_DENY
 
-  - name: role.assign — delegated um:role:assign ALLOW
+  - name: role.assign — delegated user-roles:role:assign ALLOW
     input:
       principals: [assigner_delegated_only]
       resources: [user_role_template_apply]
@@ -111,7 +111,7 @@ tests:
         actions:
           role.assign: EFFECT_ALLOW
 
-  - name: role.revoke — um:role:assign capability ALLOW
+  - name: role.revoke — user-roles:role:assign capability ALLOW
     input:
       principals: [assigner]
       resources: [user_role_template_detach]
@@ -122,7 +122,7 @@ tests:
         actions:
           role.revoke: EFFECT_ALLOW
 
-  - name: role.revoke — missing um:role:assign DENY
+  - name: role.revoke — missing user-roles:role:assign DENY
     input:
       principals: [not_assigner]
       resources: [user_role_template_detach]

@@ -28,8 +28,8 @@ describe('route authorization guards', () => {
     usePermissionsStore.getState().clearPermissions();
   });
 
-  it('user detail route requires um:user:read', () => {
-    usePermissionsStore.getState().setCapabilityKeys(['um:user:read']);
+  it('user detail route requires users:users:read', () => {
+    usePermissionsStore.getState().setCapabilityKeys(['users:users:read']);
     expect(() => userDetailBeforeLoad()).not.toThrow();
 
     usePermissionsStore.getState().setCapabilityKeys([]);
@@ -38,10 +38,10 @@ describe('route authorization guards', () => {
   });
 
   it('roles admin route requires any roles admin capability', () => {
-    usePermissionsStore.getState().setCapabilityKeys(['um:role:read']);
+    usePermissionsStore.getState().setCapabilityKeys(['user-roles:user-roles:read']);
     expect(() => rolesBeforeLoad()).not.toThrow();
 
-    usePermissionsStore.getState().setCapabilityKeys(['um:user:read']);
+    usePermissionsStore.getState().setCapabilityKeys(['users:users:read']);
     expect(() => rolesBeforeLoad()).toThrow();
   });
 });

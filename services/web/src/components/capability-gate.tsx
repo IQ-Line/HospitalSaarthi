@@ -3,7 +3,7 @@ import { useAllCapabilities, useAnyCapability, useCapability } from '@/hooks/use
 import type { CapabilityKey } from '@/lib/capabilities';
 
 export type CapabilityGateProps = {
-  /** Single runtime capability key (e.g. `um:user:create`). */
+  /** Single runtime capability key (e.g. `users:users:create`). */
   capability?: CapabilityKey;
   /** Grant when the principal holds any listed key (alias: `anyOf`). */
   any?: readonly CapabilityKey[];

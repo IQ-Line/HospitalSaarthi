@@ -9,7 +9,7 @@ import { roles, syncSuperAdminCapabilitySnapshots, user_roles, users } from "@hi
 
 /**
  * Refreshes platform super-admin `user_capabilities` snapshots from every active catalog row.
- * Safe to run on each non-production startup so Cerbos always sees `um:user:create` / `um:role:assign`.
+ * Safe to run on each non-production startup so Cerbos always sees `users:users:create` / `user-roles:role:assign`.
  */
 export async function repairPlatformSuperAdminCapabilitySnapshots(
   db: DbInstance,

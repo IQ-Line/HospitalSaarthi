@@ -1,26 +1,5 @@
 /**
- * Runtime capability keys granted to the platform super-admin (dev seed + bootstrap).
- * Cerbos reads snapshots from `user_capabilities`, not live `role_capabilities`.
+ * @deprecated Platform operator grants all active catalog rows via `syncSuperAdminCapabilitySnapshots`.
+ * Retained only for documentation / optional repair scripts that assert demo keys exist after sync.
  */
-export const PLATFORM_OPERATOR_CAPABILITY_KEYS = [
-  "um:user:create",
-  "um:user:read",
-  "um:user:update",
-  "um:user:delete",
-  "um:role:create",
-  "um:role:read",
-  "um:role:update",
-  "um:role:delete",
-  "um:role:assign",
-  "um:capability:read",
-  "opd:visit:create",
-  "opd:visit:read",
-  "opd:patient:read",
-  "md:shell:access",
-  "md:visitpad:view",
-  "md:visitpad:create",
-  "cfg:shell:access",
-  "fd:shell:access",
-  "empi:patient:read",
-  "empi:patient:create",
-] as const;
+export const PLATFORM_OPERATOR_CAPABILITY_KEYS = [] as const;

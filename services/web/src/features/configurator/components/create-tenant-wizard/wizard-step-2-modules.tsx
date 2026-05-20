@@ -69,8 +69,8 @@ export function WizardStep2Modules({
       <Field>
         <FieldTitle className="text-xs font-semibold">Enabled modules</FieldTitle>
         <FieldDescription>
-          Select modules for this tenant. Permissions in the next step are limited to these modules.
-          User-management and configurator are included by default.
+          Choose modules from the Master Data catalog (name and slug). Selecting a parent module
+          selects all of its children. Permissions in the next step follow your selection.
         </FieldDescription>
         <FieldContent className="mt-2 min-w-0">
           {modulesLoading ? (

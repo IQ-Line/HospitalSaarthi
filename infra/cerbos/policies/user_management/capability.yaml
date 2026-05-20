@@ -14,8 +14,8 @@ resourcePolicy:
           expr: >-
             request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
             (
-              "um:capability:read" in request.principal.attr.capabilities ||
-              "um:capability:read" in request.principal.attr.delegated_capabilities
+              "user-capabilities:user-capabilities:read" in request.principal.attr.capabilities ||
+              "user-capabilities:user-capabilities:read" in request.principal.attr.delegated_capabilities
             )
 
     - actions:
@@ -26,6 +26,6 @@ resourcePolicy:
         match:
           expr: >-
             (
-              "um:capability:read" in request.principal.attr.capabilities ||
-              "um:capability:read" in request.principal.attr.delegated_capabilities
+              "user-capabilities:user-capabilities:read" in request.principal.attr.capabilities ||
+              "user-capabilities:user-capabilities:read" in request.principal.attr.delegated_capabilities
             )

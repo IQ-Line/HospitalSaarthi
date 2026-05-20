@@ -26,8 +26,8 @@ resourcePolicy:
           expr: >-
             request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
             (
-              "um:user:create" in request.principal.attr.capabilities ||
-              "um:user:create" in request.principal.attr.delegated_capabilities
+              "users:users:create" in request.principal.attr.capabilities ||
+              "users:users:create" in request.principal.attr.delegated_capabilities
             )
 
   # Platform super-admin may provision users in a tenant selected in the shell (cross-tenant header).
@@ -39,8 +39,8 @@ resourcePolicy:
         match:
           expr: >-
             (
-              "um:user:create" in request.principal.attr.capabilities ||
-              "um:user:create" in request.principal.attr.delegated_capabilities
+              "users:users:create" in request.principal.attr.capabilities ||
+              "users:users:create" in request.principal.attr.delegated_capabilities
             )
 
     - actions:
@@ -54,8 +54,8 @@ resourcePolicy:
             has(request.principal.attr.role_codes) &&
             "super-admin" in request.principal.attr.role_codes &&
             (
-              "um:user:create" in request.principal.attr.capabilities ||
-              "um:user:create" in request.principal.attr.delegated_capabilities
+              "users:users:create" in request.principal.attr.capabilities ||
+              "users:users:create" in request.principal.attr.delegated_capabilities
             )
 
     - actions:
@@ -67,8 +67,8 @@ resourcePolicy:
           expr: >-
             request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
             (
-              "um:user:read" in request.principal.attr.capabilities ||
-              "um:user:read" in request.principal.attr.delegated_capabilities
+              "users:users:read" in request.principal.attr.capabilities ||
+              "users:users:read" in request.principal.attr.delegated_capabilities
             ) &&
             (
               !has(request.resource.attr.department) ||
@@ -97,8 +97,8 @@ resourcePolicy:
         match:
           expr: >-
             (
-              "um:user:read" in request.principal.attr.capabilities ||
-              "um:user:read" in request.principal.attr.delegated_capabilities
+              "users:users:read" in request.principal.attr.capabilities ||
+              "users:users:read" in request.principal.attr.delegated_capabilities
             )
 
     - actions:
@@ -110,8 +110,8 @@ resourcePolicy:
           expr: >-
             request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
             (
-              "um:user:update" in request.principal.attr.capabilities ||
-              "um:user:update" in request.principal.attr.delegated_capabilities
+              "users:users:update" in request.principal.attr.capabilities ||
+              "users:users:update" in request.principal.attr.delegated_capabilities
             ) &&
             (
               !has(request.resource.attr.department) ||
@@ -141,8 +141,8 @@ resourcePolicy:
           expr: >-
             request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
             (
-              "um:user:deactivate" in request.principal.attr.capabilities ||
-              "um:user:deactivate" in request.principal.attr.delegated_capabilities
+              "users:users:delete" in request.principal.attr.capabilities ||
+              "users:users:delete" in request.principal.attr.delegated_capabilities
             ) &&
             (
               !has(request.resource.attr.department) ||

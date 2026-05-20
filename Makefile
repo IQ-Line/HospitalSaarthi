@@ -87,12 +87,12 @@ db-create-modules: ## Create hims-configurator, hims-user-management, hims-maste
 
 .PHONY: db-migrate
 db-migrate: ## Run all pending migrations
+	$(NX) run master-data:migrate
 	$(NX) run configurator:db-migrate
 	$(NX) run user-management:db-migrate
 	$(NX) run empi:db-migrate
 	$(NX) run registration:db-migrate
 	$(NX) run billing:db-migrate
-	$(NX) run master-data:migrate
 	$(NX) run abdm-adapter-svc:db-migrate
 
 .PHONY: seed

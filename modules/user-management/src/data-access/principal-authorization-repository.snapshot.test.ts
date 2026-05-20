@@ -8,7 +8,7 @@ describe("DrizzlePrincipalAuthorizationRepository (snapshot-only)", () => {
     const chain = {
       from: () => chain,
       innerJoin: () => chain,
-      where: async () => [{ capability_key: "um:user:read" }],
+      where: async () => [{ capability_key: "users:users:read" }],
     };
 
     const db = {
@@ -20,7 +20,7 @@ describe("DrizzlePrincipalAuthorizationRepository (snapshot-only)", () => {
 
     const repo = new DrizzlePrincipalAuthorizationRepository(db);
     await expect(repo.listEffectiveCapabilityKeys("tenant-a", "user-1")).resolves.toEqual([
-      "um:user:read",
+      "users:users:read",
     ]);
     expect(selectCallCount).toBe(1);
   });

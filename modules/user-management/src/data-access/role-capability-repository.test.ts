@@ -10,7 +10,7 @@ describe("DrizzleRoleCapabilityRepository", () => {
       where: async () => [
         {
           id: "cap-1",
-          capability_key: "um:user:read",
+          capability_key: "users:users:read",
           module: "user-management",
           feature: "users",
           action: "read",
@@ -30,7 +30,7 @@ describe("DrizzleRoleCapabilityRepository", () => {
     await expect(repo.listCapabilitiesByRole("tenant-a", "role-a")).resolves.toEqual([
       {
         id: "cap-1",
-        capability_key: "um:user:read",
+        capability_key: "users:users:read",
         module: "user-management",
         feature: "users",
         action: "read",

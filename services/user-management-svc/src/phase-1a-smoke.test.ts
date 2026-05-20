@@ -187,6 +187,9 @@ describe("Phase 1A.12 smoke", () => {
             async resolveModuleSlugsByIds() {
               return new Map();
             },
+            async expandEnabledModuleSlugs(moduleSlugs: readonly string[]) {
+              return moduleSlugs;
+            },
           },
         });
       },

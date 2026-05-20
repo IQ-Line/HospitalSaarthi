@@ -22,29 +22,29 @@ function gateAllowed(input: {
 
 describe('CapabilityGate resolution', () => {
   it('single capability mode', () => {
-    usePermissionsStore.getState().setCapabilityKeys(['um:user:create']);
-    expect(gateAllowed({ capability: 'um:user:create' })).toBe(true);
-    expect(gateAllowed({ capability: 'um:user:read' })).toBe(false);
+    usePermissionsStore.getState().setCapabilityKeys(['users:users:create']);
+    expect(gateAllowed({ capability: 'users:users:create' })).toBe(true);
+    expect(gateAllowed({ capability: 'users:users:read' })).toBe(false);
   });
 
   it('any mode', () => {
-    usePermissionsStore.getState().setCapabilityKeys(['um:role:read']);
-    expect(gateAllowed({ any: ['um:role:read', 'um:user:create'] })).toBe(true);
-    expect(gateAllowed({ any: ['um:user:create', 'um:user:update'] })).toBe(false);
+    usePermissionsStore.getState().setCapabilityKeys(['user-roles:user-roles:read']);
+    expect(gateAllowed({ any: ['user-roles:user-roles:read', 'users:users:create'] })).toBe(true);
+    expect(gateAllowed({ any: ['users:users:create', 'users:users:update'] })).toBe(false);
   });
 
   it('all mode takes precedence over any', () => {
-    usePermissionsStore.getState().setCapabilityKeys(['um:role:read']);
+    usePermissionsStore.getState().setCapabilityKeys(['user-roles:user-roles:read']);
     expect(
       gateAllowed({
-        all: ['um:role:read', 'um:role:assign'],
-        any: ['um:role:read'],
+        all: ['user-roles:user-roles:read', 'user-roles:role:assign'],
+        any: ['user-roles:user-roles:read'],
       }),
     ).toBe(false);
   });
 
   it('denies when no keys configured', () => {
-    usePermissionsStore.getState().setCapabilityKeys(['um:user:read']);
+    usePermissionsStore.getState().setCapabilityKeys(['users:users:read']);
     expect(gateAllowed({})).toBe(false);
   });
 });

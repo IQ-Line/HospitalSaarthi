@@ -93,7 +93,7 @@ describe("createUserManagementAuthzTargetResolver", () => {
     expect(getUserProfile).toHaveBeenCalledWith("tenant-a", "f47ac10b-58cc-4372-a567-0e02b2c3d611");
   });
 
-  it("maps GET /auth/principal to auth.read (tenant-only; no um:user:read)", async () => {
+  it("maps GET /auth/principal to auth.read (tenant-only; no users:users:read)", async () => {
     const getUserProfile = vi.fn();
     const resolver = createUserManagementAuthzTargetResolver({ getUserProfile });
 

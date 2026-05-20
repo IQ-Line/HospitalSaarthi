@@ -257,7 +257,7 @@ export function createUserManagementAuthzTargetResolver(
     ) {
       return {
         // `/auth/*` endpoints are shell support: principal snapshot for SPA capability hydration.
-        // They must not require `um:user:read`, otherwise role admins without user.read
+        // They must not require `users:users:read`, otherwise role admins without user.read
         // could not load the principal used for navigation gating.
         kind: "auth",
         id: "self",

@@ -132,7 +132,7 @@ describe("refreshAuthorizationContext", () => {
       id: "user-1",
       roles: ["platform_operator"],
       attributes: {
-        capabilities: ["um:user:read"],
+        capabilities: ["users:users:read"],
         delegated_capabilities: [],
       },
     };

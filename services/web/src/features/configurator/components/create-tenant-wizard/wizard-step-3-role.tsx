@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState, type ComponentProps } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, type ComponentProps } from 'react';
 import type { UseFormRegister } from 'react-hook-form';
 import { Badge } from '@pulse/ui/badge';
 import { Button } from '@pulse/ui/button';
@@ -11,25 +10,32 @@ import {
   FieldLabel,
 } from '@pulse/ui/field';
 import { Input } from '@pulse/ui/input';
-import { runtimeCapabilityCatalogOptions } from '@/features/user-management/api/queries';
-import {
-  buildCapabilityTree,
-  CapabilityTreeNodeRow,
-  treeBranchIds,
-} from '@/features/user-management/components/role-management-sections';
 import type { WizardFormValues } from '@/features/configurator/create-tenant-wizard-schema';
-import type { Module } from '@/features/master-data/types';
+import type { Module, ModulePermission, Permission } from '@/features/master-data/types';
+import type { Capability } from '@/features/user-management/types';
+import { buildChildrenMap } from './wizard-helpers';
 import {
-  defaultTenantAdminCapabilityIds,
-  filterCapabilitiesForEnabledModules,
-  moduleSlugsForIds,
-} from './wizard-capability-helpers';
+  buildWizardRolePermissionCatalog,
+  countUnmappedMasterDataPermissions,
+  defaultSelectableCapabilityIds,
+} from './wizard-master-data-permissions';
+import {
+  filterRootModulesForEnabledSelection,
+  indexPermissionOptionsByModuleId,
+} from './wizard-module-tree';
+import { WizardPermissionModuleTree } from './wizard-permission-module-tree';
 
 export interface WizardStep3RoleProps {
   register: UseFormRegister<WizardFormValues>;
   roleCodeInputProps?: ComponentProps<'input'>;
   enabledModuleIds: Set<string>;
+  rootModules: Module[];
   modules: Module[];
+  permissions: Permission[];
+  modulePermissions: ModulePermission[];
+  catalogLoading: boolean;
+  catalogError: boolean;
+  runtimeCapabilities: Capability[];
   selectedCapabilityIds: string[];
   onSelectedCapabilityIdsChange: (ids: string[]) => void;
 }
@@ -38,59 +44,98 @@ export function WizardStep3Role({
   register,
   roleCodeInputProps,
   enabledModuleIds,
+  rootModules,
   modules,
+  permissions,
+  modulePermissions,
+  catalogLoading,
+  catalogError,
+  runtimeCapabilities,
   selectedCapabilityIds,
   onSelectedCapabilityIdsChange,
 }: WizardStep3RoleProps) {
-  const [expandedBranchIds, setExpandedBranchIds] = useState<Set<string>>(() => new Set());
+  const childMap = useMemo(() => buildChildrenMap(modules), [modules]);
 
-  const enabledSlugs = useMemo(
-    () => moduleSlugsForIds(enabledModuleIds, modules),
-    [enabledModuleIds, modules],
+  const { options: permissionOptions, selectableCapabilities } = useMemo(
+    () =>
+      buildWizardRolePermissionCatalog(
+        modules,
+        permissions,
+        modulePermissions,
+        enabledModuleIds,
+        runtimeCapabilities,
+      ),
+    [modules, permissions, modulePermissions, enabledModuleIds, runtimeCapabilities],
   );
 
-  const capabilitiesQuery = useQuery({
-    ...runtimeCapabilityCatalogOptions(),
-    staleTime: 60_000,
-  });
+  const optionsByModuleId = useMemo(
+    () => indexPermissionOptionsByModuleId(modules, permissionOptions),
+    [modules, permissionOptions],
+  );
 
-  const scopedCapabilities = useMemo(() => {
-    const all = capabilitiesQuery.data ?? [];
-    return filterCapabilitiesForEnabledModules(all, enabledSlugs);
-  }, [capabilitiesQuery.data, enabledSlugs]);
+  const filteredRoots = useMemo(
+    () => filterRootModulesForEnabledSelection(rootModules, childMap, enabledModuleIds),
+    [rootModules, childMap, enabledModuleIds],
+  );
 
-  const capabilityTree = useMemo(
-    () => buildCapabilityTree(scopedCapabilities),
-    [scopedCapabilities],
+  const unmappedCount = useMemo(
+    () => countUnmappedMasterDataPermissions(permissionOptions),
+    [permissionOptions],
+  );
+
+  const selectedSet = useMemo(() => new Set(selectedCapabilityIds), [selectedCapabilityIds]);
+
+  const allSelectableIds = useMemo(
+    () => selectableCapabilities.map((capability) => capability.id),
+    [selectableCapabilities],
   );
 
   useEffect(() => {
-    if (scopedCapabilities.length === 0 || selectedCapabilityIds.length > 0) {
+    if (selectableCapabilities.length === 0 || selectedCapabilityIds.length > 0) {
       return;
     }
-    onSelectedCapabilityIdsChange(defaultTenantAdminCapabilityIds(scopedCapabilities));
-  }, [scopedCapabilities, selectedCapabilityIds.length, onSelectedCapabilityIdsChange]);
+    onSelectedCapabilityIdsChange(
+      defaultSelectableCapabilityIds(permissionOptions, selectableCapabilities),
+    );
+  }, [
+    permissionOptions,
+    selectableCapabilities,
+    selectedCapabilityIds.length,
+    onSelectedCapabilityIdsChange,
+  ]);
 
-  useEffect(() => {
-    const branchIds = treeBranchIds(capabilityTree);
-    setExpandedBranchIds((current) => {
-      const next = new Set(current);
-      branchIds.forEach((branchId) => {
-        const depth = branchId.replace(/^branch:/, '').split('/').filter(Boolean).length;
-        if (depth <= 1) next.add(branchId);
-      });
-      return next;
-    });
-  }, [capabilityTree]);
+  const toggleCapability = useCallback(
+    (capabilityId: string) => {
+      const next = selectedCapabilityIds.includes(capabilityId)
+        ? selectedCapabilityIds.filter((id) => id !== capabilityId)
+        : [...selectedCapabilityIds, capabilityId];
+      onSelectedCapabilityIdsChange(next);
+    },
+    [selectedCapabilityIds, onSelectedCapabilityIdsChange],
+  );
 
-  const selectedSet = new Set(selectedCapabilityIds);
+  const toggleModuleCapabilities = useCallback(
+    (capabilityIds: string[], selected: boolean) => {
+      const idSet = new Set(selectedCapabilityIds);
+      for (const id of capabilityIds) {
+        if (selected) {
+          idSet.add(id);
+        } else {
+          idSet.delete(id);
+        }
+      }
+      onSelectedCapabilityIdsChange([...idSet]);
+    },
+    [selectedCapabilityIds, onSelectedCapabilityIdsChange],
+  );
 
   return (
     <FieldGroup className="mx-auto max-w-none gap-4">
       <Field>
         <FieldDescription>
-          Define the tenant administrator role and choose permissions for the modules enabled in the
-          previous step. Uncheck any permission the admin should not have.
+          Define the tenant administrator role and choose permissions for the modules you enabled in
+          step 2. The layout matches step 2: product module, feature module, then permission
+          checkboxes (level-4 catalog rows roll up under their level-3 parent).
         </FieldDescription>
       </Field>
       <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
@@ -122,18 +167,35 @@ export function WizardStep3Role({
         </Field>
       </div>
       <Field>
-        <FieldLabel>Permissions</FieldLabel>
+        <FieldLabel>Permissions (enabled modules only)</FieldLabel>
         <FieldContent className="mt-1 space-y-3">
-          {capabilitiesQuery.isPending ? (
-            <p className="text-xs text-muted-foreground">Loading permissions…</p>
-          ) : capabilitiesQuery.isError ? (
-            <p className="text-sm text-destructive">Could not load the capability catalog.</p>
-          ) : scopedCapabilities.length === 0 ? (
+          {catalogLoading ? (
+            <p className="text-xs text-muted-foreground">Loading Master Data permissions…</p>
+          ) : catalogError ? (
+            <p className="text-sm text-destructive">Could not load the Master Data permission catalog.</p>
+          ) : permissionOptions.length === 0 ? (
             <p className="text-xs text-muted-foreground">
-              No permissions match the selected modules. Enable at least user-management in step 2.
+              No module permissions in Master Data for the selected modules. Add links under Master
+              Data → Module permissions, then run <code className="text-xs">pnpm sync:capabilities</code>.
+            </p>
+          ) : selectableCapabilities.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              {permissionOptions.length} permission link(s) exist in Master Data but none are synced
+              to User Management yet. Run <code className="text-xs">pnpm sync:capabilities</code>{' '}
+              after migrations.
+            </p>
+          ) : filteredRoots.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              No enabled modules from step 2 match the catalog tree. Go back and select modules.
             </p>
           ) : (
             <>
+              {unmappedCount > 0 ? (
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  {unmappedCount} Master Data permission link(s) are not in the runtime catalog and
+                  are hidden. Run sync after updating the catalog.
+                </p>
+              ) : null}
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <Badge variant="secondary">{selectedCapabilityIds.length} selected</Badge>
                 <div className="flex flex-wrap gap-2">
@@ -141,9 +203,7 @@ export function WizardStep3Role({
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() =>
-                      onSelectedCapabilityIdsChange(scopedCapabilities.map((c) => c.id))
-                    }
+                    onClick={() => onSelectedCapabilityIdsChange(allSelectableIds)}
                   >
                     Select all
                   </Button>
@@ -157,35 +217,15 @@ export function WizardStep3Role({
                   </Button>
                 </div>
               </div>
-              <div className="max-h-[min(22rem,40vh)] space-y-4 overflow-y-auto rounded-lg border p-3">
-                {capabilityTree.map((node) => (
-                  <CapabilityTreeNodeRow
-                    key={node.id}
-                    node={node}
-                    depth={0}
-                    capabilitiesEditable
-                    selectedCapabilityIds={selectedSet}
-                    expandedBranchIds={expandedBranchIds}
-                    forceExpanded={false}
-                    onBranchToggle={(nodeId) => {
-                      setExpandedBranchIds((current) => {
-                        const next = new Set(current);
-                        if (next.has(nodeId)) next.delete(nodeId);
-                        else next.add(nodeId);
-                        return next;
-                      });
-                    }}
-                    onSetSelectedCapabilityIds={onSelectedCapabilityIdsChange}
-                    onToggleCapability={(capabilityId) => {
-                      const next = selectedCapabilityIds.includes(capabilityId)
-                        ? selectedCapabilityIds.filter((id) => id !== capabilityId)
-                        : [...selectedCapabilityIds, capabilityId];
-                      onSelectedCapabilityIdsChange(next);
-                    }}
-                    plainLanguage
-                  />
-                ))}
-              </div>
+              <WizardPermissionModuleTree
+                roots={filteredRoots}
+                childMap={childMap}
+                enabledModuleIds={enabledModuleIds}
+                optionsByModuleId={optionsByModuleId}
+                selectedCapabilityIds={selectedSet}
+                onToggleCapability={toggleCapability}
+                onToggleModuleCapabilities={toggleModuleCapabilities}
+              />
             </>
           )}
         </FieldContent>

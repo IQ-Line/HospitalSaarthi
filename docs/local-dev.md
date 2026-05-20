@@ -18,10 +18,8 @@ Edit `.env` only if ports clash. Required keys are documented in `.env.example`:
 
 | Variable | Purpose |
 |----------|---------|
-| `USER_MGMT_DATABASE_URL` | `hims-user-management` |
-| `CONFIGURATOR_DATABASE_URL` | `hims-configurator` |
+| `DATABASE_URL` | `hims_dev` — shared DB; modules use schemas (`configurator`, `user_management`, `empi`, …) |
 | `MASTER_DATA_DATABASE_URL` | `hims-master` (Alembic + catalog API) |
-| `DATABASE_URL` | `hims_dev` (EMPI, registration, billing) |
 | `CONFIGURATOR_URL` / `MASTER_DATA_URL` | UM entitlement lookups |
 | `BETTER_AUTH_SECRET` | ≥32 chars; better-auth + seed |
 | `CERBOS_URL` | gRPC PDP `localhost:3593` |
@@ -42,9 +40,9 @@ Runs in order:
 1. `env-init` — create `.env` if missing  
 2. `pnpm install`  
 3. `make infra` — Postgres (5433), PgBouncer (6432), Cerbos (3592 HTTP / 3593 gRPC)  
-4. `make db-create-modules` — `hims-configurator`, `hims-user-management`, `hims-master`  
-5. `make db-migrate` — configurator → user-management → empi → registration → billing → master-data (Alembic)  
-6. `make seed` — `pnpm seed` (Configurator tenant, UM runtime data, Cerbos smoke check)  
+4. `make db-create-modules` — creates `hims-master` (catalog DB) if using split DBs  
+5. `make db-migrate` — schemas on `hims_dev` + master-data (Alembic on `hims-master`)  
+6. `make seed` — `pnpm sync:capabilities` then `pnpm seed` (UM catalog sync, Configurator tenant, dev users, Cerbos smoke check)  
 
 To reset everything:
 
@@ -132,13 +130,15 @@ Module databases use `infra/db/create-module-databases.sql` (Citus-safe `\gexec`
 | UM fails boot: `CONFIGURATOR_URL` / `MASTER_DATA_URL` | Set in root `.env` |
 | Seed: schema `global_master` not found | Run `make db-migrate` (master-data Alembic) |
 | Seed: module slug not found | Ensure `MASTER_DATA_DATABASE_URL` points at `hims-master` |
-| Configurator data in wrong DB | Use `CONFIGURATOR_DATABASE_URL=hims-configurator`, re-run migrate |
+| Missing `configurator` / `user_management` schema | `npx nx run configurator:db-migrate` and `user-management:db-migrate` against `DATABASE_URL` |
+| `AUTH_INVALID_TOKEN` on `/auth/principal` | Align `JWT_ISSUER` / `AUTH_BASE_URL` / `BFF_PORT` / `VITE_API_BASE_URL` to the same BFF port; set `JWKS_URL` to `http://localhost:3005/api/auth/.well-known/jwks.json`; clear `sessionStorage` (`hims-dev-auth`) and sign in again |
 | Login 401 / JWKS | `JWT_ISSUER` and `VITE_API_BASE_URL` must match BFF port |
 | Empty nav | Re-run `make seed`; check `tenant_modules` and principal capabilities |
 | Cerbos unreachable | `docker compose -f infra/docker/docker-compose.yml ps` |
 | EMPI 401 with auth on | `JWKS_URL` must include `/api/auth/` path |
 | Master Data `/modules` 500 or 503 | Check logs for `SQLAlchemy engine bound to` (should be `.../hims-master`). Run `make db-migrate`. Restart `pnpm dev:web-stack` |
 | UM svc: `action segment "access" is not recognized` | Re-run `pnpm seed` after pulling latest UM capability-key validation |
+| API `AUTHZ_FORBIDDEN` on User Management after capability-key migration | `pnpm sync:capabilities`, `pnpm purge:legacy-capabilities`, `pnpm seed:user-management-dev`, then `docker compose -f infra/docker/docker-compose.yml restart cerbos`. Sign out and sign back in. |
 
 ## Related
 

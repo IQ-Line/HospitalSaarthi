@@ -16,6 +16,11 @@ export type NavigationNode = {
   requiredModules?: readonly string[];
   /** At least one listed tenant module slug must be enabled. */
   requiredModulesAny?: readonly string[];
+  /**
+   * Master Data `modules.slug` for route-based capability matching when the URL segment
+   * differs from the catalog slug (optional; usually inferred from `route`).
+   */
+  catalogModuleSlug?: string;
   children?: NavigationNode[];
 };
 
@@ -25,8 +30,12 @@ export type NavFilterContext = {
   hasAllCapabilities: (keys: readonly string[]) => boolean;
   /** `null` = tenant_modules not resolved yet — gated nodes are hidden. */
   enabledModuleSlugs: ReadonlySet<string> | null;
-  /**
-   * Platform super-admin: tenant_modules still apply; capability gates are not evaluated.
-   */
+  /** When true, capability gates are not evaluated (tests only). */
   bypassCapabilityGates?: boolean;
+  /**
+   * L1 catalog product access via any L2+ runtime key prefix (e.g. `users:users:read` for User Management).
+   */
+  hasAnyCapabilityForProduct?: (catalogProductSlugs: readonly string[]) => boolean;
+  /** Built by `buildNavFilterContext`; used for catalog-driven route ↔ capability matching. */
+  navAccess?: import('./nav-capability-access').NavCapabilityAccessInput;
 };

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { areCapabilityIdsEqual, capabilityIdsSignature } from '../lib/capability-id-set';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@pulse/ui/button';
 import {
@@ -65,11 +66,16 @@ export function ManageRolePermissionsDialog({
     [roleCapabilitiesQuery.data],
   );
 
+  const grantedIdsSignature = capabilityIdsSignature(grantedCapabilityIds);
+
   useEffect(() => {
-    if (open) {
-      setSelectedCapabilityIds(grantedCapabilityIds);
-    }
-  }, [open, grantedCapabilityIds]);
+    if (!open) return;
+    setSelectedCapabilityIds((current) =>
+      areCapabilityIdsEqual(current, grantedCapabilityIds)
+        ? current
+        : [...grantedCapabilityIds],
+    );
+  }, [open, grantedIdsSignature, grantedCapabilityIds]);
 
   const selectionDirty = useMemo(() => {
     const current = [...selectedCapabilityIds].sort();
@@ -114,13 +120,13 @@ export function ManageRolePermissionsDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : handleClose())}>
-      <DialogContent className="flex max-h-[min(88dvh,720px)] w-full max-w-lg flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
+      <DialogContent className="flex max-h-[min(92dvh,880px)] w-full max-w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl lg:max-w-5xl">
         <div className="shrink-0 border-b p-4 pb-3">
           <DialogHeader>
             <DialogTitle>{applied.role.display_name}</DialogTitle>
             <DialogDescription>
-              Tick what this person can do from the {applied.role.display_name} role. Unticked items
-              are not allowed.
+              Choose permissions by product module, feature, and action (three catalog layers).
+              Unticked items are not allowed for this person.
             </DialogDescription>
           </DialogHeader>
         </div>

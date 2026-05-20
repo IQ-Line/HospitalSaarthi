@@ -17,5 +17,9 @@ export {
   useModuleCatalog,
 } from './module-catalog';
 export { registerBuiltinModuleManifests } from './register-builtin-modules';
-export { useEnabledTenantModuleSlugs } from './use-enabled-tenant-modules';
+export {
+  catalogSlugSetFromIndex,
+  isCatalogL1Module,
+  useEnabledTenantModuleSlugs,
+} from './use-enabled-tenant-modules';
 export { useComposedNavigationManifest } from './use-composed-navigation';

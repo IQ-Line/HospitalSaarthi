@@ -1,8 +1,10 @@
 import { createFileRoute, Outlet } from '@tanstack/react-router';
-import { requireCapability } from '@/lib/require-capabilities';
-import { MD_SHELL_ACCESS } from '@/lib/runtime-capability-keys';
+import { requireCatalogRouteAccess } from '@/lib/require-catalog-route-access';
 
 export const Route = createFileRoute('/_authenticated/master-data')({
-  beforeLoad: requireCapability(MD_SHELL_ACCESS),
+  beforeLoad: requireCatalogRouteAccess('/master-data', {
+    catalogProductSlugs: ['master-data'],
+    routePrefix: '/master-data',
+  }),
   component: () => <Outlet />,
 });

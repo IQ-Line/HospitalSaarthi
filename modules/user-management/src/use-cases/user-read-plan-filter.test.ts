@@ -43,7 +43,7 @@ describe("filterUsersMatchingUserReadPlan", () => {
   const principalAttr = {
     iq_tenant_id: tenantId,
     department: "cardiology",
-    capabilities: ["um:user:read"],
+    capabilities: ["users:users:read"],
     delegated_capabilities: [] as string[],
     clearances: { L1: "1" },
     um_clearance_effective_tier: 2,

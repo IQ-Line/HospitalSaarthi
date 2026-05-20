@@ -6,7 +6,8 @@ import { DrizzleUserRepository } from "../../modules/user-management/src/data-ac
 import { DrizzlePrincipalAuthorizationRepository } from "../../modules/user-management/src/data-access/principal-authorization-repository.ts";
 import { DrizzlePrincipalRoleProjectionRepository } from "../../modules/user-management/src/data-access/drizzle-principal-role-projection-repository.ts";
 import { createDefaultPrincipalService } from "../../modules/user-management/src/services/default-principal-service.ts";
-import { SEED_CAPABILITIES } from "./constants.ts";
+import { remapLegacyCapabilityGrants } from "../../modules/user-management/src/dev/remap-legacy-capability-grants.ts";
+import { syncCapabilitiesFromMasterDataCatalog } from "../../modules/user-management/src/dev/sync-capabilities-from-master-data-catalog.ts";
 import { createDevSeedAuth, repairJwksForDevSeed } from "./create-dev-auth.ts";
 import { normalizePostgresUrl } from "./load-env.ts";
 import { seedLog } from "./log.ts";
@@ -32,62 +33,35 @@ type BetterAuthServerApi = {
   };
 };
 
-async function ensureCapabilities(db: DbInstance): Promise<Array<{ id: string; capability_key: string }>> {
-  await db
-    .update(capabilities)
-    .set({
-      capability_key: "billing:payment:manage",
-      module: "billing",
-      feature: "payment",
-      action: "manage",
-      display_name: "Collect payment",
-      description: "Dev seed capability (billing:payment:manage).",
-      source_module_slug: "billing",
-      source_permission_slug: "payment.collect",
-      source_catalog: "master_data",
-      is_active: true,
-      updated_at: new Date(),
-    })
-    .where(eq(capabilities.capability_key, "billing:payment:collect"));
+async function ensureCapabilities(
+  db: DbInstance,
+  masterDataDatabaseUrl: string,
+): Promise<Array<{ id: string; capability_key: string }>> {
+  const sync = await syncCapabilitiesFromMasterDataCatalog(db, masterDataDatabaseUrl);
+  seedLog("user-management", "synced capabilities from Master Data module_permissions", sync);
 
-  for (const cap of SEED_CAPABILITIES) {
-    await db
-      .insert(capabilities)
-      .values({
-        capability_key: cap.capability_key,
-        module: cap.module,
-        feature: cap.feature,
-        action: cap.action,
-        display_name: cap.display_name,
-        description: `Dev seed capability (${cap.capability_key}).`,
-        is_active: true,
-        source_module_slug: cap.module,
-        source_permission_slug: cap.source_permission_slug,
-        source_catalog: "master_data",
-      })
-      .onConflictDoUpdate({
-        target: [capabilities.capability_key],
-        set: {
-          module: cap.module,
-          feature: cap.feature,
-          action: cap.action,
-          display_name: cap.display_name,
-          description: `Dev seed capability (${cap.capability_key}).`,
-          is_active: true,
-          source_module_slug: cap.module,
-          source_permission_slug: cap.source_permission_slug,
-          source_catalog: "master_data",
-          updated_at: new Date(),
-        },
-      });
+  const remap = await remapLegacyCapabilityGrants(db);
+  if (remap.remappedUserGrants > 0 || remap.remappedRoleGrants > 0) {
+    seedLog("user-management", "remapped legacy capability grants to catalog slug keys", remap);
   }
 
-  const keys = SEED_CAPABILITIES.map((c) => c.capability_key);
-  return resolveCapabilityRows(db, keys);
+  if (sync.inserted + sync.updated === 0) {
+    throw new Error(
+      "No capabilities synced from Master Data — run master-data migrations (make db-migrate) first.",
+    );
+  }
+
+  const rows = await db
+    .select({ id: capabilities.id, capability_key: capabilities.capability_key })
+    .from(capabilities)
+    .where(eq(capabilities.is_active, true));
+
+  return rows;
 }
 
 export async function seedUserManagement(
   databaseUrl: string,
+  masterDataDatabaseUrl: string,
   authEnv: {
     authBaseUrl: string;
     secret: string;
@@ -107,7 +81,7 @@ export async function seedUserManagement(
     principalRoleProjectionRepository,
   }) as unknown as BetterAuthServerApi;
 
-  const capabilityRows = await ensureCapabilities(db);
+  const capabilityRows = await ensureCapabilities(db, masterDataDatabaseUrl);
 
   for (const seedUser of DEVELOPMENT_SEED_USERS) {
     await seedDevelopmentUser(db, auth, seedUser, capabilityRows);

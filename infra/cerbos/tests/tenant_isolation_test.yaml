@@ -15,11 +15,11 @@ principals:
       org_id: null
       department: null
       capabilities:
-        - "um:user:read"
-        - "um:user:create"
-        - "um:user:update"
-        - "um:user:deactivate"
-        - "um:role:assign"
+        - "users:users:read"
+        - "users:users:create"
+        - "users:users:update"
+        - "users:users:delete"
+        - "user-roles:role:assign"
       delegated_capabilities: []
       clearances: {}
       um_clearance_effective_tier: 0

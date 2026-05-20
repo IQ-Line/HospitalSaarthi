@@ -62,6 +62,13 @@ export async function listAssignableRuntimeCapabilities(
     assignableModuleSlugs.add(normalized);
   }
 
+  const expandedSlugs = await deps.masterDataModuleCatalogPort.expandEnabledModuleSlugs([
+    ...assignableModuleSlugs,
+  ]);
+  for (const slug of expandedSlugs) {
+    assignableModuleSlugs.add(normalizeModuleSlug(slug));
+  }
+
   return deps.capabilityRepository.listActiveRuntimeCapabilitiesByModuleSlugs([
     ...assignableModuleSlugs,
   ]);

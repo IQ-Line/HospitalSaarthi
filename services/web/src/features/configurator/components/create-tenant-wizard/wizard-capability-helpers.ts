@@ -1,62 +1,111 @@
 import type { Capability } from '@/features/user-management/types';
 import type { Module } from '@/features/master-data/types';
 
-const PLATFORM_MODULE_SLUGS = new Set(['user-management', 'configurator']);
-
-function normalizeSlug(slug: string): string {
+export function normalizeSlug(slug: string): string {
   return slug.trim().toLowerCase().replace(/_/g, '-');
 }
 
-export function moduleSlugsForIds(moduleIds: Set<string>, modules: Module[]): string[] {
+function buildChildrenByParentId(modules: Module[]): Map<string, Module[]> {
+  const byParent = new Map<string, Module[]>();
+  for (const module of modules) {
+    const parentKey = module.parent_id ?? '';
+    const list = byParent.get(parentKey) ?? [];
+    list.push(module);
+    byParent.set(parentKey, list);
+  }
+  return byParent;
+}
+
+/** Include every descendant module when a parent is enabled (L1 tenant_modules → L2+ permissions). */
+export function expandModuleIdsWithDescendants(
+  enabledModuleIds: ReadonlySet<string>,
+  modules: Module[],
+): Set<string> {
+  if (enabledModuleIds.size === 0 || modules.length === 0) {
+    return new Set(enabledModuleIds);
+  }
+
+  const byId = new Map(modules.map((module) => [module.id, module]));
+  const childrenByParentId = buildChildrenByParentId(modules);
+  const expanded = new Set<string>();
+
+  function walk(moduleId: string): void {
+    expanded.add(moduleId);
+    for (const child of childrenByParentId.get(moduleId) ?? []) {
+      if (!child.is_active || child.is_deleted) continue;
+      walk(child.id);
+    }
+  }
+
+  for (const id of enabledModuleIds) {
+    if (byId.has(id)) {
+      walk(id);
+    } else {
+      expanded.add(id);
+    }
+  }
+
+  return expanded;
+}
+
+export function expandModuleSlugsWithDescendants(
+  enabledSlugs: readonly string[],
+  modules: Module[],
+): Set<string> {
+  const slugToId = new Map(modules.map((module) => [normalizeSlug(module.slug), module.id]));
+  const rootIds = new Set<string>();
+  for (const slug of enabledSlugs) {
+    const id = slugToId.get(normalizeSlug(slug));
+    if (id !== undefined) {
+      rootIds.add(id);
+    }
+  }
+  const expandedIds = expandModuleIdsWithDescendants(rootIds, modules);
+  return new Set(moduleSlugsForIds(expandedIds, modules));
+}
+
+export function moduleSlugsForIds(moduleIds: ReadonlySet<string>, modules: Module[]): string[] {
   const byId = new Map(modules.map((m) => [m.id, m]));
   const slugs = new Set<string>();
   for (const id of moduleIds) {
     const slug = byId.get(id)?.slug;
     if (slug) slugs.add(normalizeSlug(slug));
   }
-  for (const platform of PLATFORM_MODULE_SLUGS) {
-    slugs.add(platform);
-  }
   return [...slugs];
 }
 
-/** Capabilities that can be granted for the modules selected in step 2. */
-export function filterCapabilitiesForEnabledModules(
+/**
+ * Limit the UM runtime catalog to rows synced from Master Data for enabled module slugs.
+ * Matching uses `source_module_slug` only (set by catalog sync).
+ */
+export function scopeRuntimeCapabilitiesToEnabledSlugs(
   capabilities: Capability[],
   enabledModuleSlugs: string[],
+  modules: Module[] = [],
 ): Capability[] {
-  const slugSet = new Set(enabledModuleSlugs.map(normalizeSlug));
-  for (const platform of PLATFORM_MODULE_SLUGS) {
-    slugSet.add(platform);
-  }
-  return capabilities.filter((c) => slugSet.has(normalizeSlug(c.module)));
+  const slugSet =
+    modules.length > 0
+      ? expandModuleSlugsWithDescendants(enabledModuleSlugs, modules)
+      : new Set(enabledModuleSlugs.map(normalizeSlug));
+
+  return capabilities.filter((capability) => {
+    if (!capability.is_active) return false;
+    const source = capability.source_module_slug?.trim();
+    if (!source) return false;
+    return slugSet.has(normalizeSlug(source));
+  });
 }
 
-/** Sensible defaults for a tenant administrator (UM + shell access for enabled modules). */
-export function defaultTenantAdminCapabilityIds(capabilities: Capability[]): string[] {
-  return capabilities
-    .filter(
-      (c) =>
-        c.is_active &&
-        (c.capability_key.startsWith('um:') ||
-          c.capability_key.includes(':shell:') ||
-          c.capability_key.startsWith('md:visitpad:')),
-    )
-    .map((c) => c.id);
-}
-
-export function findModuleIdBySlug(modules: Module[], slug: string): string | undefined {
-  const target = normalizeSlug(slug);
-  return modules.find((m) => normalizeSlug(m.slug) === target)?.id;
-}
-
-export function defaultEnabledModuleIds(modules: Module[]): Set<string> {
-  const ids = new Set<string>();
-  for (const slug of PLATFORM_MODULE_SLUGS) {
-    const id = findModuleIdBySlug(modules, slug);
-    if (id) ids.add(id);
-  }
-  return ids;
+/** Human-readable module names for modules enabled in step 2. */
+export function enabledModuleLabels(
+  enabledModuleIds: Set<string>,
+  modules: Module[],
+): string[] {
+  const byId = new Map(modules.map((m) => [m.id, m]));
+  return [...enabledModuleIds]
+    .map((id) => byId.get(id)?.name)
+    .filter((name): name is string => typeof name === 'string' && name.length > 0)
+    .sort((a, b) => a.localeCompare(b));
 }
 
 export function toRoleCode(value: string): string {

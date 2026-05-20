@@ -38,6 +38,9 @@ export type ModuleCatalogEntry = {
   icon: string | null;
   category: string;
   is_active: boolean;
+  /** Tree depth from Master Data (`1` = L1 product module). */
+  level: number;
+  parent_id: string | null;
 };
 
 export type ModuleCatalogIndex = {

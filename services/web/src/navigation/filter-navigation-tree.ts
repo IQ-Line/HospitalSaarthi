@@ -1,11 +1,18 @@
 import { catalogSlugVariants } from '@/platform/modules/catalog-slug-variants';
+import {
+  catalogProductSlugsForNode,
+  inferRoutePrefixFromRoute,
+  principalGrantsNavNodeAccess,
+  type NavCapabilityAccessInput,
+} from './nav-capability-access';
 import type { NavFilterContext, NavigationNode } from './types';
 
 function tenantHasModuleSlug(enabledModuleSlugs: ReadonlySet<string>, slug: string): boolean {
   return catalogSlugVariants(slug).some((variant) => enabledModuleSlugs.has(variant));
 }
 
-function hasTenantModuleGate(node: NavigationNode): boolean {  return Boolean(node.requiredModules?.length || node.requiredModulesAny?.length);
+function hasTenantModuleGate(node: NavigationNode): boolean {
+  return Boolean(node.requiredModules?.length || node.requiredModulesAny?.length);
 }
 
 function passesTenantModuleGate(
@@ -35,27 +42,49 @@ function passesTenantModuleGate(
   return true;
 }
 
-function passesCapabilityGate(node: NavigationNode, ctx: NavFilterContext): boolean {
-  if (ctx.bypassCapabilityGates) {
-    return true;
-  }
+type NavFilterParentContext = {
+  parentProductSlugs?: readonly string[];
+  routePrefix?: string;
+  /** Tenant module gates inherited from an ancestor group node. */
+  requiredModules?: readonly string[];
+  requiredModulesAny?: readonly string[];
+};
 
-  if (node.requiredCapabilitiesAll?.length) {
-    return ctx.hasAllCapabilities(node.requiredCapabilitiesAll);
+function nodeWithInheritedTenantGates(
+  node: NavigationNode,
+  parent?: NavFilterParentContext,
+): NavigationNode {
+  if (!parent?.requiredModules?.length && !parent?.requiredModulesAny?.length) {
+    return node;
   }
-
-  if (node.requiredCapabilities?.length) {
-    return ctx.hasAnyCapability(node.requiredCapabilities);
-  }
-
-  return true;
+  return {
+    ...node,
+    requiredModules: node.requiredModules ?? parent.requiredModules,
+    requiredModulesAny: node.requiredModulesAny ?? parent.requiredModulesAny,
+  };
 }
 
-export function isNavigationNodeVisible(node: NavigationNode, ctx: NavFilterContext): boolean {
-  if (!passesTenantModuleGate(node, ctx.enabledModuleSlugs)) {
+function passesCapabilityGate(
+  node: NavigationNode,
+  access: NavCapabilityAccessInput,
+  parent: NavFilterParentContext,
+): boolean {
+  return principalGrantsNavNodeAccess(access, node, parent);
+}
+
+export function isNavigationNodeVisible(
+  node: NavigationNode,
+  ctx: NavFilterContext,
+  parent?: NavFilterParentContext,
+): boolean {
+  const gatedNode = nodeWithInheritedTenantGates(node, parent);
+  if (!passesTenantModuleGate(gatedNode, ctx.enabledModuleSlugs)) {
     return false;
   }
-  return passesCapabilityGate(node, ctx);
+  if (!ctx.navAccess) {
+    return false;
+  }
+  return passesCapabilityGate(node, ctx.navAccess, parent ?? {});
 }
 
 /**
@@ -64,11 +93,12 @@ export function isNavigationNodeVisible(node: NavigationNode, ctx: NavFilterCont
 export function filterNavigationTree(
   nodes: readonly NavigationNode[],
   ctx: NavFilterContext,
+  parent?: NavFilterParentContext,
 ): NavigationNode[] {
   const result: NavigationNode[] = [];
 
   for (const node of nodes) {
-    const filtered = filterNavigationNode(node, ctx);
+    const filtered = filterNavigationNode(node, ctx, parent);
     if (filtered) {
       result.push(filtered);
     }
@@ -80,18 +110,39 @@ export function filterNavigationTree(
 function filterNavigationNode(
   node: NavigationNode,
   ctx: NavFilterContext,
+  parent: NavFilterParentContext = {},
 ): NavigationNode | null {
-  const filteredChildren = node.children
-    ? filterNavigationTree(node.children, ctx)
-    : undefined;
+  const productSlugs = catalogProductSlugsForNode(node);
+  const tenantGate =
+    node.requiredModules?.length || node.requiredModulesAny?.length
+      ? {
+          requiredModules: node.requiredModules,
+          requiredModulesAny: node.requiredModulesAny,
+        }
+      : {
+          requiredModules: parent.requiredModules,
+          requiredModulesAny: parent.requiredModulesAny,
+        };
+  const childParent: NavFilterParentContext = {
+    parentProductSlugs:
+      productSlugs.length > 0 ? productSlugs : parent.parentProductSlugs,
+    routePrefix: node.route
+      ? inferRoutePrefixFromRoute(node.route)
+      : parent.routePrefix,
+    ...tenantGate,
+  };
 
-  if (!isNavigationNodeVisible(node, ctx)) {
-    return null;
-  }
+  const filteredChildren = node.children
+    ? filterNavigationTree(node.children, ctx, childParent)
+    : undefined;
 
   const hasVisibleChildren = (filteredChildren?.length ?? 0) > 0;
 
-  if (!node.route && !hasVisibleChildren) {
+  if (!isNavigationNodeVisible(node, ctx, parent)) {
+    if (!hasVisibleChildren) {
+      return null;
+    }
+  } else if (!node.route && !hasVisibleChildren) {
     return null;
   }
 

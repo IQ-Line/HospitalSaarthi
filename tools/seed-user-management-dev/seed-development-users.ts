@@ -10,14 +10,7 @@ import {
 } from "../../modules/user-management/src/schema/tables.ts";
 import type { DbInstance } from "../../packages/ts-sdk-db/src/index.ts";
 import { authUser } from "../../services/user-management-svc/src/auth/auth-schema.ts";
-import {
-  CLINICAL_CAPABILITY_KEYS,
-  DEV_ORG_ID,
-  DEV_TENANT_ID,
-  PLATFORM_OPERATOR_CAPABILITY_KEYS,
-  READONLY_CAPABILITY_KEYS,
-  TENANT_ADMIN_CAPABILITY_KEYS,
-} from "./constants.ts";
+import { DEV_ORG_ID, DEV_TENANT_ID, filterCapabilityKeysForPersona } from "./constants.ts";
 import { syncSuperAdminCapabilitySnapshots } from "../../modules/user-management/src/dev/sync-super-admin-capability-snapshots.ts";
 import { seedLog } from "./log.ts";
 
@@ -34,21 +27,6 @@ type BetterAuthServerApi = {
     }): Promise<unknown>;
   };
 };
-
-function capabilityKeysForPersona(persona: DevelopmentSeedUser["persona"]): readonly string[] {
-  switch (persona) {
-    case "platformOperator":
-      return PLATFORM_OPERATOR_CAPABILITY_KEYS;
-    case "tenantAdmin":
-      return TENANT_ADMIN_CAPABILITY_KEYS;
-    case "readonlyUser":
-      return READONLY_CAPABILITY_KEYS;
-    case "clinicalUser":
-      return CLINICAL_CAPABILITY_KEYS;
-    default:
-      return PLATFORM_OPERATOR_CAPABILITY_KEYS;
-  }
-}
 
 async function ensureRole(
   db: DbInstance,
@@ -181,7 +159,10 @@ export async function seedDevelopmentUser(
       throw new Error("No active capabilities in catalog for platform super-admin.");
     }
   } else {
-    const keys = capabilityKeysForPersona(seedUser.persona);
+    const keys = filterCapabilityKeysForPersona(
+      seedUser.persona,
+      capabilityRows.map((row) => row.capability_key),
+    );
     const granted = capabilityRows.filter((row) => keys.includes(row.capability_key));
     if (granted.length === 0) {
       throw new Error(`No capabilities resolved for persona ${seedUser.persona}`);

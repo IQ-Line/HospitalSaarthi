@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
+import { requireCatalogRouteAccess } from '@/lib/require-catalog-route-access';
 import { useMemo, useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Eye, Pencil, Trash2 } from 'lucide-react';
@@ -33,8 +34,14 @@ import { organizationTypeOptions } from '@/features/configurator/validation';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { rowMatchesSearch } from '@/features/master-data/table-search';
+import { useCatalogModuleAction } from '@/hooks/use-catalog-module-action';
 
 export const Route = createFileRoute('/_authenticated/configurator/tenant/')({
+  beforeLoad: requireCatalogRouteAccess('/configurator/tenant', {
+    catalogModuleSlug: 'tenant-modules',
+    catalogProductSlugs: ['configurator'],
+    routePrefix: '/configurator',
+  }),
   component: ConfiguratorTenantListPage,
 });
 
@@ -70,6 +77,7 @@ function ConfiguratorTenantListPage() {
   const [statusFilter, setStatusFilter] = useState<OrganizationStatus | 'all'>('all');
   const [typeFilter, setTypeFilter] = useState<OrganizationType | 'all'>('all');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const canCreateTenant = useCatalogModuleAction('tenants', 'create');
 
   const listFilters = useMemo(
     () => ({
@@ -276,7 +284,9 @@ function ConfiguratorTenantListPage() {
               ))}
             </SelectContent>
           </Select>
-          <Button onClick={() => setIsCreateOpen(true)}>+ Create Tenant</Button>
+          {canCreateTenant ? (
+            <Button onClick={() => setIsCreateOpen(true)}>+ Create Tenant</Button>
+          ) : null}
         </div>
       }
     >

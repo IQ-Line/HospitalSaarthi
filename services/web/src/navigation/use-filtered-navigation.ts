@@ -1,10 +1,12 @@
 import { useMemo } from 'react';
 import { useComposedNavigationManifest } from '@/platform/modules/use-composed-navigation';
+import { useModuleCatalog } from '@/platform/modules/module-catalog';
 import { useEnabledTenantModuleSlugs } from '@/platform/modules/use-enabled-tenant-modules';
-import { isPlatformSuperAdmin, isPlatformSuperAdminFromAccessToken } from '@/lib/platform-admin';
+import { applyCatalogNavigationLabels } from './apply-catalog-navigation-labels';
 import { normalizeCapabilityKey } from '@/lib/principal-capabilities';
-import { useAuthStore } from '@/stores/auth.store';
 import { usePermissionsStore } from '@/stores/permissions.store';
+import { capabilityKeysGrantProductAccess } from './module-product-access';
+import { buildNavCapabilityAccessInput } from './nav-capability-access';
 import { filterNavigationTree } from './filter-navigation-tree';
 import type { NavFilterContext } from './types';
 
@@ -12,9 +14,24 @@ import type { NavFilterContext } from './types';
 export function buildNavFilterContext(
   capabilityKeys: ReadonlySet<string>,
   enabledModuleSlugs: ReadonlySet<string> | null,
-  options?: { bypassCapabilityGates?: boolean },
+  options?: {
+    bypassCapabilityGates?: boolean;
+    catalogIndex?: import('@/platform/modules/types').ModuleCatalogIndex | null;
+  },
 ): NavFilterContext {
   const bypassCapabilityGates = options?.bypassCapabilityGates === true;
+  const catalogIndex = options?.catalogIndex ?? null;
+
+  const hasAnyCapabilityForProduct = (catalogProductSlugs: readonly string[]) =>
+    bypassCapabilityGates ||
+    capabilityKeysGrantProductAccess(capabilityKeys, catalogProductSlugs, catalogIndex);
+
+  const navAccess = buildNavCapabilityAccessInput(
+    capabilityKeys,
+    catalogIndex,
+    bypassCapabilityGates,
+    hasAnyCapabilityForProduct,
+  );
 
   return {
     hasCapability: (key) =>
@@ -37,6 +54,8 @@ export function buildNavFilterContext(
       }
       return keys.every((key) => capabilityKeys.has(normalizeCapabilityKey(key)));
     },
+    hasAnyCapabilityForProduct,
+    navAccess,
     enabledModuleSlugs,
     bypassCapabilityGates,
   };
@@ -45,19 +64,17 @@ export function buildNavFilterContext(
 export function useFilteredNavigation() {
   const manifest = useComposedNavigationManifest();
   const capabilityKeys = usePermissionsStore((s) => s.capabilityKeys);
-  const principalRoles = usePermissionsStore((s) => s.roles);
   const permissionsLoaded = usePermissionsStore((s) => s.isLoaded);
-  const accessToken = useAuthStore((s) => s.accessToken);
   const enabledModuleSlugs = useEnabledTenantModuleSlugs();
-  const bypassCapabilityGates =
-    isPlatformSuperAdmin(principalRoles) || isPlatformSuperAdminFromAccessToken(accessToken);
+  const { index: catalogIndex } = useModuleCatalog();
 
-  return useMemo(
-    () =>
-      filterNavigationTree(
-        manifest,
-        buildNavFilterContext(capabilityKeys, enabledModuleSlugs, { bypassCapabilityGates }),
-      ),
-    [manifest, capabilityKeys, permissionsLoaded, enabledModuleSlugs, bypassCapabilityGates],
-  );
+  return useMemo(() => {
+    const filtered = filterNavigationTree(
+      manifest,
+      buildNavFilterContext(capabilityKeys, enabledModuleSlugs, {
+        catalogIndex: catalogIndex ?? null,
+      }),
+    );
+    return applyCatalogNavigationLabels(filtered, catalogIndex);
+  }, [manifest, capabilityKeys, permissionsLoaded, enabledModuleSlugs, catalogIndex]);
 }

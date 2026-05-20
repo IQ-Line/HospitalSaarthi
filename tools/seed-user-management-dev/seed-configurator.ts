@@ -1,6 +1,5 @@
 import { createDb, sql } from "../../packages/ts-sdk-db/src/index.ts";
 import {
-  CONFIGURATOR_ENABLED_MODULE_SLUGS,
   DEV_ORG_ID,
   DEV_TENANT_ID,
   DEVELOPMENT_BOOTSTRAP_ORG_SLUG,
@@ -65,11 +64,7 @@ export async function seedConfigurator(
       ON CONFLICT (iq_tenant_id) DO NOTHING
     `));
 
-    for (const slug of CONFIGURATOR_ENABLED_MODULE_SLUGS) {
-      const moduleId = moduleIdsBySlug.get(slug);
-      if (!moduleId) {
-        throw new Error(`Master Data module id not found for slug: ${slug}`);
-      }
+    for (const moduleId of moduleIdsBySlug.values()) {
 
       await tx.execute(sql.raw(`
         INSERT INTO configurator.tenant_modules (

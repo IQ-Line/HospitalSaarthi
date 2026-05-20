@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery, type QueryClient } from '@tanstack/react-query';
+import { queryClient } from '@/lib/query-client';
 import { apiClient } from '@/lib/api-client';
 import { masterDataKeys } from '@/features/master-data/api/query-keys';
 import type { Module, ModuleListResponse } from '@/features/master-data/types';
@@ -9,7 +10,7 @@ import type { ModuleCatalogEntry, ModuleCatalogIndex } from './types';
 
 const MODULE_CATALOG_STALE_MS = 5 * 60 * 1000;
 
-function buildCatalogIndex(modules: readonly Module[]): ModuleCatalogIndex | null {
+export function buildCatalogIndex(modules: readonly Module[]): ModuleCatalogIndex | null {
   const byId = new Map<string, ModuleCatalogEntry>();
   const bySlug = new Map<string, ModuleCatalogEntry>();
 
@@ -24,6 +25,8 @@ function buildCatalogIndex(modules: readonly Module[]): ModuleCatalogIndex | nul
       icon: module.icon,
       category: module.category,
       is_active: module.is_active,
+      level: module.level,
+      parent_id: module.parent_id,
     };
     byId.set(module.id, entry);
     byId.set(module.id.toLowerCase(), entry);
@@ -61,6 +64,14 @@ export function useModuleCatalog() {
     index,
     isReady: Boolean(index),
   };
+}
+
+/** Sync read of the platform module catalog from the React Query cache (for route guards). */
+export function getModuleCatalogIndexFromCache(
+  client: QueryClient = queryClient,
+): ModuleCatalogIndex | null {
+  const data = client.getQueryData<ModuleListResponse>(masterDataKeys.globalModules());
+  return data?.data ? buildCatalogIndex(data.data) : null;
 }
 
 export function moduleCatalogQueryOptions() {

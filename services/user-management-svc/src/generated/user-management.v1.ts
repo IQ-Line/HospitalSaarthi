@@ -1719,7 +1719,7 @@ export interface components {
         Capability: {
             /** Format: uuid */
             id: string;
-            /** @description Runtime Cerbos vocabulary key (e.g. `um:user:read`). Stable once granted; distinct from Master Data `permissions.slug`. */
+            /** @description Runtime Cerbos vocabulary key (e.g. `users:users:read`). Stable once granted; distinct from Master Data `permissions.slug`. */
             capability_key: string;
             /** @description Module slug — MUST equal `master_data.modules.slug` (kebab-case, e.g. `user-management`, `opd`, `billing`). */
             module: string;

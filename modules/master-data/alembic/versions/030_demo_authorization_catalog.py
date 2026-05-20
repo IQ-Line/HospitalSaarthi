@@ -39,25 +39,20 @@ _MODULE_SEEDS: tuple[tuple[str, str, str, str, str, int], ...] = (
     ),
 )
 
+# UM user/role/capability CRUD comes from ``028`` on L2 modules (``users:read``, …).
+# Demo-only product permissions (shell, visitpad, OPD, EMPI, role.assign).
+# ``permissions.action`` must satisfy ``permissions_action_check`` (create/read/update/delete/manage).
+# Runtime capability actions (assign, view, access) are derived from ``permission_slug`` on UM sync.
 _PERMISSION_SEEDS: tuple[tuple[str, str, str, str, str], ...] = (
-    ("b1000001-0001-4001-8001-000000000001", "user.create", "Create user", "create", "user-management"),
-    ("b1000001-0002-4001-8001-000000000002", "user.read", "Read user", "read", "user-management"),
-    ("b1000001-0003-4001-8001-000000000003", "user.update", "Update user", "update", "user-management"),
-    ("b1000001-0004-4001-8001-000000000004", "user.delete", "Delete user", "delete", "user-management"),
-    ("b1000002-0001-4001-8001-000000000001", "role.create", "Create role", "create", "user-management"),
-    ("b1000002-0002-4001-8001-000000000002", "role.read", "Read role", "read", "user-management"),
-    ("b1000002-0003-4001-8001-000000000003", "role.update", "Update role", "update", "user-management"),
-    ("b1000002-0004-4001-8001-000000000004", "role.delete", "Delete role", "delete", "user-management"),
-    ("b1000002-0005-4001-8001-000000000005", "role.assign", "Assign role", "manage", "user-management"),
-    ("b1000003-0001-4001-8001-000000000001", "capability.read", "Read capability catalog", "read", "user-management"),
+    ("b1000002-0005-4001-8001-000000000005", "role.assign", "Assign role", "manage", "user-roles"),
     ("c1000001-0001-4001-8001-000000000001", "opd.visit.create", "Create OPD visit", "create", "opd"),
     ("c1000001-0002-4001-8001-000000000002", "opd.visit.read", "Read OPD visit", "read", "opd"),
     ("c1000001-0003-4001-8001-000000000003", "opd.patient.read", "Read OPD patient", "read", "opd"),
-    ("f1000001-0001-4001-8001-000000000001", "md.shell.access", "Master Data shell", "read", "master-data"),
-    ("f1000001-0002-4001-8001-000000000002", "md.visitpad.view", "Visitpad view", "read", "master-data"),
-    ("f1000001-0003-4001-8001-000000000003", "md.visitpad.create", "Visitpad create", "create", "master-data"),
-    ("f1000002-0001-4001-8001-000000000001", "cfg.shell.access", "Configurator shell", "read", "configurator"),
-    ("f1000003-0001-4001-8001-000000000001", "fd.shell.access", "Frontdesk shell", "read", "frontdesk"),
+    ("f1000001-0001-4001-8001-000000000001", "shell.access", "Master Data shell", "read", "master-data"),
+    ("f1000001-0002-4001-8001-000000000002", "visitpad.view", "Visitpad view", "read", "visitpad-templates"),
+    ("f1000001-0003-4001-8001-000000000003", "visitpad.create", "Visitpad create", "create", "visitpad-templates"),
+    ("f1000002-0001-4001-8001-000000000001", "shell.access", "Configurator shell", "read", "configurator"),
+    ("f1000003-0001-4001-8001-000000000001", "shell.access", "Frontdesk shell", "read", "frontdesk"),
     ("f1000004-0001-4001-8001-000000000001", "empi.patient.read", "Read patient", "read", "empi"),
     ("f1000004-0002-4001-8001-000000000002", "empi.patient.create", "Register patient", "create", "empi"),
 )
@@ -122,6 +117,7 @@ def upgrade() -> None:
             """
         )
 
+        junction_slug = f"{module_slug}:{slug}"
         op.execute(
             f"""
             INSERT INTO global_master.module_permissions (
@@ -129,8 +125,8 @@ def upgrade() -> None:
                 created_at, updated_at
             )
             SELECT
-                '{perm_id}'::uuid,
-                '{slug}',
+                gen_random_uuid(),
+                '{_esc(junction_slug)}',
                 m.id,
                 p.id,
                 false,
@@ -144,8 +140,7 @@ def upgrade() -> None:
             WHERE m.slug = '{module_slug}' AND NOT m.is_deleted
               AND NOT EXISTS (
                 SELECT 1 FROM global_master.module_permissions mp
-                WHERE mp.module_id = m.id
-                  AND mp.permission_id = p.id
+                WHERE mp.slug = '{_esc(junction_slug)}'
                   AND NOT mp.is_deleted
               );
             """

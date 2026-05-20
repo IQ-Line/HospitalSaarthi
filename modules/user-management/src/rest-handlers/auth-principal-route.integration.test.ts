@@ -44,8 +44,8 @@ describe("GET /auth/principal", () => {
     userRepository.insertUserWithId("tenant-a", "user-1", { full_name: "One" });
 
     const authorization = new InMemoryPrincipalAuthorizationRepository();
-    authorization.seedCapability("tenant-a", "user-1", "um:user:read");
-    authorization.seedCapability("tenant-a", "user-1", "md:shell:access");
+    authorization.seedCapability("tenant-a", "user-1", "users:users:read");
+    authorization.seedCapability("tenant-a", "user-1", "master-data:shell:access");
 
     const principalService = createDefaultPrincipalService({
       userRepository,
@@ -82,7 +82,7 @@ describe("GET /auth/principal", () => {
     expect(body.roles).toEqual(["platform_operator"]);
     expect(body.attributes.role_codes).toEqual(["platform_operator"]);
     expect(body.attributes.iq_tenant_id).toBe("tenant-a");
-    expect(body.attributes.capabilities).toEqual(["md:shell:access", "um:user:read"]);
+    expect(body.attributes.capabilities).toEqual(["master-data:shell:access", "users:users:read"]);
     expect(body.attributes.delegated_capabilities).toEqual([]);
     expect(body).not.toHaveProperty("permissions");
     expect(body).not.toHaveProperty("capabilityKeys");

@@ -3,11 +3,7 @@ import type { OrganizationCreateInput, OrganizationType } from '@/features/confi
 import type { WizardFormValues } from '@/features/configurator/create-tenant-wizard-schema';
 import type { Module } from '@/features/master-data/types';
 
-export {
-  defaultEnabledModuleIds,
-  moduleSlugsForIds,
-  toRoleCode,
-} from './wizard-capability-helpers';
+export { moduleSlugsForIds, toRoleCode } from './wizard-capability-helpers';
 
 /** First alphanumeric character of the name, lowercased — used as the initial slug seed. */
 export function firstSlugSeedFromTenantName(name: string): string {
@@ -33,6 +29,64 @@ export function buildChildrenMap(modules: Module[]): Map<string | null, Module[]
     arr.sort((a, b) => a.name.localeCompare(b.name));
   }
   return map;
+}
+
+/** All active descendant module ids (depth-first, excludes `moduleId`). */
+export function collectDescendantModuleIds(
+  moduleId: string,
+  childMap: Map<string | null, Module[]>,
+): string[] {
+  const ids: string[] = [];
+  const walk = (parentId: string) => {
+    for (const child of childMap.get(parentId) ?? []) {
+      if (!child.is_active || child.is_deleted) continue;
+      ids.push(child.id);
+      walk(child.id);
+    }
+  };
+  walk(moduleId);
+  return ids;
+}
+
+function addModuleSubtreeToSet(
+  moduleId: string,
+  childMap: Map<string | null, Module[]>,
+  ids: Set<string>,
+): void {
+  ids.add(moduleId);
+  for (const childId of collectDescendantModuleIds(moduleId, childMap)) {
+    ids.add(childId);
+  }
+}
+
+/** Pre-select active root modules and their full subtrees from the catalog. */
+export function defaultEnabledModuleIds(
+  modules: Module[],
+  childMap: Map<string | null, Module[]>,
+): Set<string> {
+  const ids = new Set<string>();
+  for (const module of modules) {
+    if (!module.is_active || module.is_deleted) continue;
+    if (module.parent_id !== null) continue;
+    addModuleSubtreeToSet(module.id, childMap, ids);
+  }
+  return ids;
+}
+
+/** Toggle a module; selecting a parent selects all descendants, deselecting clears the subtree. */
+export function applyModuleToggle(
+  moduleId: string,
+  selected: Set<string>,
+  childMap: Map<string | null, Module[]>,
+): Set<string> {
+  const next = new Set(selected);
+  const subtreeIds = [moduleId, ...collectDescendantModuleIds(moduleId, childMap)];
+  if (next.has(moduleId)) {
+    for (const id of subtreeIds) next.delete(id);
+  } else {
+    for (const id of subtreeIds) next.add(id);
+  }
+  return next;
 }
 
 /** Hide placeholder-like descriptions from the API so the grid stays readable. */

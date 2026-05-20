@@ -95,6 +95,9 @@ const noopMasterDataModuleCatalogPort = {
   async resolveModuleSlugsByIds(): Promise<Map<string, string>> {
     return new Map();
   },
+  async expandEnabledModuleSlugs(moduleSlugs: readonly string[]): Promise<readonly string[]> {
+    return moduleSlugs;
+  },
 };
 
 class NoopRoleCapabilityRepository implements RoleCapabilityRepository {

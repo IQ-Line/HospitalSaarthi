@@ -15,7 +15,7 @@ principals:
       org_id: null
       department: null
       capabilities:
-        - "um:role:create"
+        - "user-roles:user-roles:create"
       delegated_capabilities: []
       clearances: {}
       um_clearance_effective_tier: 0
@@ -38,7 +38,7 @@ resources:
       required_clearance: 0
 
 tests:
-  - name: auth.read — allowed when tenant matches (even without um:user:read)
+  - name: auth.read — allowed when tenant matches (even without users:users:read)
     input:
       principals: [role_admin_only]
       resources: [auth_self_ok]

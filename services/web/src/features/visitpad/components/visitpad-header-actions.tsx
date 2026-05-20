@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { Button } from '@pulse/ui/button';
 import { CapabilityGate } from '@/components/capability-gate';
 import {
+  MD_VISITPAD_CATALOG_READ,
   MD_VISITPAD_CREATE,
   MD_VISITPAD_MUTATE_ANY,
   MD_VISITPAD_VIEW,
@@ -28,7 +29,7 @@ export function VisitpadHeaderActions({
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
       {onImportFromLibrary ? (
-        <CapabilityGate capability={MD_VISITPAD_VIEW}>
+        <CapabilityGate any={[MD_VISITPAD_VIEW, MD_VISITPAD_CATALOG_READ]}>
           <Button
             type="button"
             variant="outline"

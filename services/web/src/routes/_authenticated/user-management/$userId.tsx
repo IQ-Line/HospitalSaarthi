@@ -9,7 +9,7 @@ import { requireCapability } from '@/lib/require-capabilities';
 import {
   UM_ROLE_ASSIGN,
   UM_ROLE_READ,
-  UM_USER_DEACTIVATE,
+  UM_USER_DELETE,
   UM_USER_READ,
   UM_USER_UPDATE,
 } from '@/lib/runtime-capability-keys';
@@ -61,7 +61,7 @@ function UserDetailPage() {
   const [deactivateOpen, setDeactivateOpen] = useState(false);
 
   const umUserUpdate = useCapability(UM_USER_UPDATE);
-  const umUserDeactivate = useCapability(UM_USER_DEACTIVATE);
+  const umUserDelete = useCapability(UM_USER_DELETE);
   const deactivate = useDeactivateUser(userId, tenantScope);
 
   return (
@@ -90,8 +90,8 @@ function UserDetailPage() {
                 Edit profile
               </Button>
             </CapabilityGate>
-            {umUserDeactivate && user.status === 'active' ? (
-              <CapabilityGate capability={UM_USER_DEACTIVATE}>
+            {umUserDelete && user.status === 'active' ? (
+              <CapabilityGate capability={UM_USER_DELETE}>
                 <Button type="button" variant="destructive" onClick={() => setDeactivateOpen(true)}>
                   Deactivate
                 </Button>

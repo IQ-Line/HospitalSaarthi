@@ -11,7 +11,6 @@ import {
   DEVELOPMENT_BOOTSTRAP_USER_NAME,
   DEVELOPMENT_BOOTSTRAP_USER_PASSWORD,
   DEVELOPMENT_BOOTSTRAP_USER_USERNAME,
-  PLATFORM_OPERATOR_CAPABILITY_KEYS,
   shouldRunPlatformDevelopmentBootstrap,
 } from "@hims/dev-bootstrap";
 import { inArray } from "drizzle-orm";
@@ -29,13 +28,11 @@ import {
   UM_ROLE_READ,
   UM_ROLE_UPDATE,
   UM_USER_CREATE,
-  UM_USER_DEACTIVATE,
+  UM_USER_DELETE,
   UM_USER_READ,
   UM_USER_UPDATE,
   users,
   assertValidModuleSlug,
-  catalogSlugForRuntimeModuleKey,
-  parseCapabilityKey,
   syncSuperAdminCapabilitySnapshots,
 } from "@hims/user-management";
 import { authUser } from "../auth/auth-schema.js";
@@ -43,9 +40,9 @@ import type { HimsBetterAuthInstance } from "../auth/create-hims-better-auth.js"
 
 type FoundationCapabilitySeed = {
   capability_key: string;
-  module: "user-management";
-  feature: "users" | "roles" | "capabilities";
-  action: "create" | "read" | "update" | "deactivate" | "assign";
+  module: string;
+  feature: string;
+  action: string;
   display_name: string;
   description: string;
 };
@@ -97,7 +94,7 @@ export {
 const FOUNDATIONAL_CAPABILITIES: readonly FoundationCapabilitySeed[] = [
   {
     capability_key: UM_USER_CREATE,
-    module: "user-management",
+    module: "users",
     feature: "users",
     action: "create",
     display_name: "Create users",
@@ -105,7 +102,7 @@ const FOUNDATIONAL_CAPABILITIES: readonly FoundationCapabilitySeed[] = [
   },
   {
     capability_key: UM_USER_READ,
-    module: "user-management",
+    module: "users",
     feature: "users",
     action: "read",
     display_name: "Read users",
@@ -113,56 +110,56 @@ const FOUNDATIONAL_CAPABILITIES: readonly FoundationCapabilitySeed[] = [
   },
   {
     capability_key: UM_USER_UPDATE,
-    module: "user-management",
+    module: "users",
     feature: "users",
     action: "update",
     display_name: "Update users",
     description: "Update tenant-scoped platform users.",
   },
   {
-    capability_key: UM_USER_DEACTIVATE,
-    module: "user-management",
+    capability_key: UM_USER_DELETE,
+    module: "users",
     feature: "users",
-    action: "deactivate",
-    display_name: "Deactivate users",
+    action: "delete",
+    display_name: "Delete user",
     description: "Deactivate tenant-scoped platform users.",
   },
   {
     capability_key: UM_ROLE_CREATE,
-    module: "user-management",
-    feature: "roles",
+    module: "user-roles",
+    feature: "user-roles",
     action: "create",
     display_name: "Create roles",
     description: "Create tenant-scoped roles.",
   },
   {
     capability_key: UM_ROLE_READ,
-    module: "user-management",
-    feature: "roles",
+    module: "user-roles",
+    feature: "user-roles",
     action: "read",
     display_name: "Read roles",
     description: "Read tenant-scoped roles and role composition.",
   },
   {
     capability_key: UM_ROLE_UPDATE,
-    module: "user-management",
-    feature: "roles",
+    module: "user-roles",
+    feature: "user-roles",
     action: "update",
     display_name: "Update roles",
     description: "Update tenant-scoped roles and role composition.",
   },
   {
     capability_key: UM_ROLE_ASSIGN,
-    module: "user-management",
-    feature: "roles",
+    module: "user-roles",
+    feature: "role",
     action: "assign",
     display_name: "Assign roles",
     description: "Assign tenant-scoped roles to platform users.",
   },
   {
     capability_key: UM_CAPABILITY_READ,
-    module: "user-management",
-    feature: "capabilities",
+    module: "user-capabilities",
+    feature: "user-capabilities",
     action: "read",
     display_name: "Read capabilities",
     description: "Read the canonical capability catalog.",
@@ -215,46 +212,6 @@ async function ensureFoundationalCapabilities(
   }
 
   return rows.sort((a, b) => a.capability_key.localeCompare(b.capability_key));
-}
-
-async function ensurePlatformOperatorCatalogCapabilities(db: DbInstance): Promise<void> {
-  for (const capabilityKey of PLATFORM_OPERATOR_CAPABILITY_KEYS) {
-    const parsed = parseCapabilityKey(capabilityKey);
-    const catalogSlug = catalogSlugForRuntimeModuleKey(parsed.moduleKey);
-    if (catalogSlug === null) {
-      throw new Error(`Bootstrap cannot map capability module key: ${parsed.moduleKey}`);
-    }
-    const moduleSlug = assertValidModuleSlug(catalogSlug, "bootstrap capability module");
-    await db
-      .insert(capabilities)
-      .values({
-        capability_key: capabilityKey,
-        module: moduleSlug,
-        feature: parsed.resource,
-        action: parsed.action,
-        display_name: capabilityKey,
-        description: `Bootstrap platform operator capability (${capabilityKey}).`,
-        is_active: true,
-        source_module_slug: moduleSlug,
-        source_permission_slug: capabilityKey,
-        source_catalog: "master_data",
-      })
-      .onConflictDoUpdate({
-        target: [capabilities.capability_key],
-        set: {
-          module: moduleSlug,
-          feature: parsed.resource,
-          action: parsed.action,
-          display_name: capabilityKey,
-          description: `Bootstrap platform operator capability (${capabilityKey}).`,
-          is_active: true,
-          source_module_slug: moduleSlug,
-          source_permission_slug: capabilityKey,
-          source_catalog: "master_data",
-          updated_at: new Date(),
-        },
-      });
-  }
 }
 
 async function ensureBootstrapRole(db: DbInstance): Promise<string> {
@@ -546,7 +503,14 @@ async function verifyBootstrapPrincipal(
     userId,
   });
 
-  for (const capability of PLATFORM_OPERATOR_CAPABILITY_KEYS) {
+  const requiredKeys = [
+    UM_USER_CREATE,
+    UM_USER_READ,
+    UM_ROLE_CREATE,
+    UM_ROLE_ASSIGN,
+    UM_CAPABILITY_READ,
+  ] as const;
+  for (const capability of requiredKeys) {
     if (!principal.attributes.capabilities.includes(capability)) {
       throw new Error(`Bootstrap principal missing capability ${capability}.`);
     }
@@ -627,7 +591,6 @@ export async function runDevelopmentBootstrap(
   deps: BootstrapDeps,
 ): Promise<DevelopmentBootstrapResult> {
   await ensureFoundationalCapabilities(deps.db);
-  await ensurePlatformOperatorCatalogCapabilities(deps.db);
   const roleId = await ensureBootstrapRole(deps.db);
 
   const existingAuthUser = await readAuthUserByEmail(deps.db);

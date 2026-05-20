@@ -6,16 +6,16 @@ import {
 
 describe('principal-capabilities', () => {
   it('normalizes keys to lowercase trimmed', () => {
-    expect(normalizeCapabilityKey('  UM:User:Read ')).toBe('um:user:read');
+    expect(normalizeCapabilityKey('  UM:User:Read ')).toBe('users:users:read');
   });
 
   it('extracts capabilities and delegated_capabilities arrays', () => {
     const keys = capabilityKeysFromPrincipalAttributes({
-      capabilities: ['um:user:read', 'UM:ROLE:READ'],
-      delegated_capabilities: ['md:visitpad:view'],
+      capabilities: ['users:users:read', 'UM:ROLE:READ'],
+      delegated_capabilities: ['visitpad-templates:visitpad:view'],
       other: 'ignored',
     });
-    expect(keys).toEqual(['md:visitpad:view', 'um:role:read', 'um:user:read']);
+    expect(keys).toEqual(['user-roles:user-roles:read', 'users:users:read', 'visitpad-templates:visitpad:view']);
   });
 
   it('returns empty array when attributes missing', () => {

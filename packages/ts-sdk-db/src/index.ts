@@ -7,6 +7,7 @@ export {
 export { createDb, type DbInstance } from "./connection.js";
 export {
   parsePostgresDatabaseName,
+  resolveDatabaseUrl,
   assertUserManagementDatabaseIsolation,
   assertConfiguratorDatabaseIsolation,
 } from "./database-isolation.js";

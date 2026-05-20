@@ -24,24 +24,24 @@ import {
   WIZARD_DEFAULT_VALUES,
   type WizardFormValues,
 } from '@/features/configurator/create-tenant-wizard-schema';
-import { useModules } from '@/features/master-data/api';
+import { useModules, usePermissions } from '@/features/master-data/api';
+import { fetchAllModulePermissionsGlobal } from '@/features/master-data/api/fetch-all-module-permissions';
+import { masterDataKeys } from '@/features/master-data/api/query-keys';
 import { WizardStep1OrgFields } from './wizard-step-1-org-fields';
 import { WizardStep2Modules } from './wizard-step-2-modules';
 import { WizardStep3Role } from './wizard-step-3-role';
 import { WizardStep4Admin } from './wizard-step-4-admin';
 import {
+  applyModuleToggle,
   buildChildrenMap,
   buildCreatePayload,
   defaultEnabledModuleIds,
   firstSlugSeedFromTenantName,
   firstZodMessage,
-  moduleSlugsForIds,
   toRoleCode,
 } from './wizard-helpers';
-import {
-  defaultTenantAdminCapabilityIds,
-  filterCapabilitiesForEnabledModules,
-} from './wizard-capability-helpers';
+import { moduleSlugsForIds, scopeRuntimeCapabilitiesToEnabledSlugs } from './wizard-capability-helpers';
+import { buildWizardRolePermissionCatalog, defaultSelectableCapabilityIds } from './wizard-master-data-permissions';
 import { runtimeCapabilityCatalogOptions } from '@/features/user-management/api/queries';
 import { useQuery } from '@tanstack/react-query';
 
@@ -89,8 +89,32 @@ export function CreateTenantWizard({
   const childMap = useMemo(() => buildChildrenMap(modules), [modules]);
   const rootModules = useMemo(() => childMap.get(null) ?? [], [childMap]);
 
+  const enabledModuleSlugs = useMemo(
+    () => moduleSlugsForIds(enabledModuleIds, modules),
+    [enabledModuleIds, modules],
+  );
+
   const capabilitiesQuery = useQuery({
     ...runtimeCapabilityCatalogOptions(),
+    enabled: open,
+    staleTime: 60_000,
+  });
+
+  const scopedRuntimeCapabilities = useMemo(
+    () =>
+      scopeRuntimeCapabilitiesToEnabledSlugs(
+        capabilitiesQuery.data ?? [],
+        enabledModuleSlugs,
+        modules,
+      ),
+    [capabilitiesQuery.data, enabledModuleSlugs, modules],
+  );
+
+  const permissionsQuery = usePermissions(undefined, { enabled: open, globalCatalog: true });
+
+  const modulePermissionsQuery = useQuery({
+    queryKey: [...masterDataKeys.modulePermissionsRoot(), 'wizard-global-all'],
+    queryFn: fetchAllModulePermissionsGlobal,
     enabled: open,
     staleTime: 60_000,
   });
@@ -146,8 +170,8 @@ export function CreateTenantWizard({
 
   useEffect(() => {
     if (!open || modules.length === 0 || enabledModuleIds.size > 0) return;
-    setEnabledModuleIds(defaultEnabledModuleIds(modules));
-  }, [open, modules, enabledModuleIds.size]);
+    setEnabledModuleIds(defaultEnabledModuleIds(modules, childMap));
+  }, [open, modules, childMap, enabledModuleIds.size]);
 
   useEffect(() => {
     if (!open || slugUserEdited.current) return;
@@ -163,27 +187,63 @@ export function CreateTenantWizard({
     }
   }, [watchedSlug, watchedName, open, setValue]);
 
-  const toggleModule = useCallback((id: string) => {
-    setEnabledModuleIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
+  const toggleModule = useCallback(
+    (id: string) => {
+      setEnabledModuleIds((prev) => applyModuleToggle(id, prev, childMap));
+    },
+    [childMap],
+  );
+
+  const enabledModuleIdsKey = useMemo(
+    () => [...enabledModuleIds].sort().join(','),
+    [enabledModuleIds],
+  );
+  const prevEnabledModuleIdsKeyRef = useRef('');
 
   useEffect(() => {
-    const catalog = capabilitiesQuery.data ?? [];
-    if (catalog.length === 0) return;
-    const slugs = moduleSlugsForIds(enabledModuleIds, modules);
-    const scoped = filterCapabilitiesForEnabledModules(catalog, slugs);
-    const allowed = new Set(scoped.map((c) => c.id));
+    const permissions = permissionsQuery.data?.data ?? [];
+    const modulePermissions = modulePermissionsQuery.data ?? [];
+    if (
+      permissionsQuery.isPending ||
+      modulePermissionsQuery.isPending ||
+      capabilitiesQuery.isPending
+    ) {
+      return;
+    }
+
+    const { options, selectableCapabilities } = buildWizardRolePermissionCatalog(
+      modules,
+      permissions,
+      modulePermissions,
+      enabledModuleIds,
+      scopedRuntimeCapabilities,
+    );
+    const allowed = new Set(selectableCapabilities.map((c) => c.id));
+    const allSelectableIds = defaultSelectableCapabilityIds(options, selectableCapabilities);
+    const enabledModulesChanged = prevEnabledModuleIdsKeyRef.current !== enabledModuleIdsKey;
+    prevEnabledModuleIdsKeyRef.current = enabledModuleIdsKey;
+
     setSelectedCapabilityIds((current) => {
+      if (enabledModulesChanged) {
+        return allSelectableIds;
+      }
       const pruned = current.filter((id) => allowed.has(id));
-      if (pruned.length > 0) return pruned;
-      return defaultTenantAdminCapabilityIds(scoped);
+      if (pruned.length > 0) {
+        return pruned;
+      }
+      return allSelectableIds;
     });
-  }, [enabledModuleIds, modules, capabilitiesQuery.data]);
+  }, [
+    enabledModuleIds,
+    enabledModuleIdsKey,
+    modules,
+    scopedRuntimeCapabilities,
+    capabilitiesQuery.isPending,
+    permissionsQuery.data,
+    permissionsQuery.isPending,
+    modulePermissionsQuery.data,
+    modulePermissionsQuery.isPending,
+  ]);
 
   const goNext = () => {
     const values = form.getValues();
@@ -205,6 +265,24 @@ export function CreateTenantWizard({
       if (enabledModuleIds.size === 0) {
         toast.error('Enable at least one module for this tenant.');
         return;
+      }
+      const permissions = permissionsQuery.data?.data ?? [];
+      const modulePermissions = modulePermissionsQuery.data ?? [];
+      if (
+        !permissionsQuery.isPending &&
+        !modulePermissionsQuery.isPending &&
+        !capabilitiesQuery.isPending
+      ) {
+        const { options, selectableCapabilities } = buildWizardRolePermissionCatalog(
+          modules,
+          permissions,
+          modulePermissions,
+          enabledModuleIds,
+          scopedRuntimeCapabilities,
+        );
+        setSelectedCapabilityIds(
+          defaultSelectableCapabilityIds(options, selectableCapabilities),
+        );
       }
       setActiveStep(3);
       return;
@@ -259,7 +337,7 @@ export function CreateTenantWizard({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton
-        className="flex h-[min(92vh,900px)] w-[min(1200px,calc(100vw-1.5rem))] max-w-[min(1200px,calc(100vw-1.5rem))] flex-col gap-0 overflow-hidden border bg-background p-0 shadow-xl sm:rounded-xl"
+        className="flex h-[min(96vh,960px)] w-[min(1680px,calc(100vw-1.5rem))] max-w-[min(1680px,calc(100vw-1.5rem))] flex-col gap-0 overflow-hidden border bg-background p-0 shadow-xl sm:rounded-xl"
       >
         <div className="shrink-0 border-b bg-background px-6 pb-4 pt-5">
           <DialogHeader className="space-y-1.5 text-left">
@@ -330,7 +408,21 @@ export function CreateTenantWizard({
                 register={register}
                 roleCodeInputProps={roleCodeInputProps}
                 enabledModuleIds={enabledModuleIds}
+                rootModules={rootModules}
                 modules={modules}
+                permissions={permissionsQuery.data?.data ?? []}
+                modulePermissions={modulePermissionsQuery.data ?? []}
+                catalogLoading={
+                  permissionsQuery.isPending ||
+                  modulePermissionsQuery.isPending ||
+                  capabilitiesQuery.isPending
+                }
+                catalogError={
+                  permissionsQuery.isError ||
+                  modulePermissionsQuery.isError ||
+                  capabilitiesQuery.isError
+                }
+                runtimeCapabilities={scopedRuntimeCapabilities}
                 selectedCapabilityIds={selectedCapabilityIds}
                 onSelectedCapabilityIdsChange={setSelectedCapabilityIds}
               />

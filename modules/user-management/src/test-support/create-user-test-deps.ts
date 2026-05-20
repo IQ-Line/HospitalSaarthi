@@ -60,6 +60,9 @@ export function createUserTestDeps(options: CreateUserTestDepsOptions): CreateUs
         async resolveModuleSlugsByIds() {
           return new Map();
         },
+        async expandEnabledModuleSlugs(moduleSlugs: readonly string[]) {
+          return moduleSlugs;
+        },
       },
   };
 }

@@ -5,7 +5,7 @@ function normalizePostgresUrl(connectionString: string): string {
   return connectionString.replace(/^postgresql\+psycopg:\/\//, "postgresql://");
 }
 
-/** Database name from a Postgres connection URL (`hims-user-management`, etc.). */
+/** Database name from a Postgres connection URL (`hims_dev`, etc.). */
 export function parsePostgresDatabaseName(connectionString: string): string {
   const url = new URL(normalizePostgresUrl(connectionString));
   const name = decodeURIComponent(url.pathname.replace(/^\//, ""));
@@ -13,6 +13,17 @@ export function parsePostgresDatabaseName(connectionString: string): string {
     throw new Error("Postgres URL is missing database name in path");
   }
   return name;
+}
+
+/** Shared operational DB URL (hims_dev locally). */
+export function resolveDatabaseUrl(): string {
+  const databaseUrl = process.env["DATABASE_URL"]?.trim();
+  if (!databaseUrl || databaseUrl.length === 0) {
+    throw new Error(
+      "DATABASE_URL is required (e.g. postgresql://hims:hims@localhost:5433/hims_dev)",
+    );
+  }
+  return databaseUrl;
 }
 
 async function schemaExists(db: DbInstance, schemaName: string): Promise<boolean> {
@@ -46,32 +57,43 @@ async function currentDatabase(db: DbInstance): Promise<string> {
   return name;
 }
 
+export type AssertModuleSchemaInput = {
+  db: DbInstance;
+  connectionString: string;
+  schemaName: string;
+  migrateHint: string;
+};
+
+async function assertModuleSchema(input: AssertModuleSchemaInput): Promise<void> {
+  const dbName = await currentDatabase(input.db);
+  const expected = parsePostgresDatabaseName(input.connectionString);
+  if (dbName !== expected) {
+    throw new Error(
+      `DATABASE_URL points at database "${expected}" but connected to "${dbName}".`,
+    );
+  }
+
+  if (!(await schemaExists(input.db, input.schemaName))) {
+    throw new Error(
+      `Database "${dbName}" is missing schema "${input.schemaName}". ${input.migrateHint}`,
+    );
+  }
+}
+
 export type AssertUserManagementDatabaseInput = {
   db: DbInstance;
   connectionString: string;
 };
 
-/**
- * User Management must use `hims-user-management` only — never a DB that also hosts `configurator.*`.
- */
+/** User Management uses schema `user_management` on the shared operational database. */
 export async function assertUserManagementDatabaseIsolation(
   input: AssertUserManagementDatabaseInput,
 ): Promise<void> {
-  const dbName = await currentDatabase(input.db);
-  const expected = parsePostgresDatabaseName(input.connectionString);
-  if (dbName !== expected) {
-    throw new Error(
-      `USER_MGMT_DATABASE_URL points at database "${expected}" but connected to "${dbName}".`,
-    );
-  }
-
-  if (await schemaExists(input.db, "configurator")) {
-    throw new Error(
-      `Database "${dbName}" contains schema "configurator". ` +
-        "Configurator data belongs in hims-configurator (configurator-svc). " +
-        "Run: npx nx run user-management:db-migrate",
-    );
-  }
+  await assertModuleSchema({
+    ...input,
+    schemaName: "user_management",
+    migrateHint: "Run: npx nx run user-management:db-migrate",
+  });
 }
 
 export type AssertConfiguratorDatabaseInput = {
@@ -79,31 +101,13 @@ export type AssertConfiguratorDatabaseInput = {
   connectionString: string;
 };
 
-/**
- * Configurator service must use `hims-configurator` with `configurator` schema — not user-management DB.
- */
+/** Configurator uses schema `configurator` on the shared operational database. */
 export async function assertConfiguratorDatabaseIsolation(
   input: AssertConfiguratorDatabaseInput,
 ): Promise<void> {
-  const dbName = await currentDatabase(input.db);
-  const expected = parsePostgresDatabaseName(input.connectionString);
-  if (dbName !== expected) {
-    throw new Error(
-      `CONFIGURATOR_DATABASE_URL points at database "${expected}" but connected to "${dbName}".`,
-    );
-  }
-
-  if (!(await schemaExists(input.db, "configurator"))) {
-    throw new Error(
-      `Database "${dbName}" is missing schema "configurator". ` +
-        "Run: npx nx run configurator:db-migrate",
-    );
-  }
-
-  if (await schemaExists(input.db, "user_management")) {
-    throw new Error(
-      `Database "${dbName}" also contains schema "user_management". ` +
-        "Use a dedicated hims-configurator database — do not share hims-user-management.",
-    );
-  }
+  await assertModuleSchema({
+    ...input,
+    schemaName: "configurator",
+    migrateHint: "Run: npx nx run configurator:db-migrate",
+  });
 }

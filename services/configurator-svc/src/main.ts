@@ -4,6 +4,7 @@ import { tenantPlugin } from "@hims/ts-sdk-tenant";
 import {
   assertConfiguratorDatabaseIsolation,
   createDb,
+  resolveDatabaseUrl,
   type DbInstance,
 } from "@hims/ts-sdk-db";
 import {
@@ -24,17 +25,6 @@ const PORT = Number(
     3001,
 );
 
-function requireConfiguratorDatabaseUrl(): string {
-  const databaseUrl = process.env.CONFIGURATOR_DATABASE_URL?.trim();
-  if (!databaseUrl || databaseUrl.length === 0) {
-    throw new Error(
-      "CONFIGURATOR_DATABASE_URL is required (PostgreSQL database hims-configurator). " +
-        "Do not use DATABASE_URL or USER_MGMT_DATABASE_URL — modules use separate databases.",
-    );
-  }
-  return databaseUrl;
-}
-
 async function main() {
   const app = Fastify({ logger: true });
 
@@ -48,11 +38,11 @@ async function main() {
 
   app.get("/healthz", async () => ({ status: "ok" }));
 
-  const configuratorDatabaseUrl = requireConfiguratorDatabaseUrl();
-  const db = createDb(configuratorDatabaseUrl);
+  const databaseUrl = resolveDatabaseUrl();
+  const db = createDb(databaseUrl);
   await assertConfiguratorDatabaseIsolation({
     db,
-    connectionString: configuratorDatabaseUrl,
+    connectionString: databaseUrl,
   });
 
   if (shouldRunDevelopmentBootstrap()) {

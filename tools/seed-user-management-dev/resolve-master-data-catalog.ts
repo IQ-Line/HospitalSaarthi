@@ -1,5 +1,4 @@
 import { createDb, sql } from "../../packages/ts-sdk-db/src/index.ts";
-import { DEMO_CATALOG_MODULE_SLUGS } from "./constants.ts";
 import { seedLog } from "./log.ts";
 import { normalizePostgresUrl } from "./load-env.ts";
 
@@ -20,20 +19,22 @@ export type ResolvedMasterDataCatalog = {
 };
 
 /**
- * Resolves demo module UUIDs from `global_master.modules` after Alembic migrations.
- * Does not insert catalog rows — see `030_demo_authorization_catalog` migration.
+ * Resolves active L1 module UUIDs from `global_master.modules` (Master Data catalog).
+ * Used for Configurator `tenant_modules` seeding — no hardcoded slug list.
  */
 export async function resolveMasterDataModuleCatalog(
   databaseUrl: string,
 ): Promise<ResolvedMasterDataCatalog> {
   const db = createDb(normalizePostgresUrl(databaseUrl));
   const moduleIdsBySlug = new Map<string, string>();
-  const slugList = DEMO_CATALOG_MODULE_SLUGS.map((s) => `'${s}'`).join(", ");
 
   const result = await db.execute(sql.raw(`
     SELECT slug, id::text AS id
     FROM ${GLOBAL_MASTER}.modules
-    WHERE slug IN (${slugList}) AND NOT is_deleted
+    WHERE NOT is_deleted
+      AND is_active
+      AND level = 1
+    ORDER BY slug
   `));
 
   for (const row of readPgRows(result)) {
@@ -44,12 +45,10 @@ export async function resolveMasterDataModuleCatalog(
     }
   }
 
-  for (const slug of DEMO_CATALOG_MODULE_SLUGS) {
-    if (!moduleIdsBySlug.has(slug)) {
-      throw new Error(
-        `Module slug "${slug}" not found in ${GLOBAL_MASTER}.modules — run \`make db-migrate\` (master-data Alembic) first`,
-      );
-    }
+  if (moduleIdsBySlug.size === 0) {
+    throw new Error(
+      `No active L1 modules in ${GLOBAL_MASTER}.modules — run \`make db-migrate\` (master-data Alembic) first`,
+    );
   }
 
   seedLog("master-data", "resolved catalog module ids from global_master", {

@@ -154,8 +154,8 @@ describe("principalRoleEnricherPlugin", () => {
     userRepository.insertUserWithId("tenant-a", "user-1", { full_name: "One" });
 
     const authorization = new InMemoryPrincipalAuthorizationRepository();
-    authorization.seedCapability("tenant-a", "user-1", "um:user:create");
-    authorization.seedCapability("tenant-a", "user-1", "um:user:read");
+    authorization.seedCapability("tenant-a", "user-1", "users:users:create");
+    authorization.seedCapability("tenant-a", "user-1", "users:users:read");
 
     const principalService = createDefaultPrincipalService({
       userRepository,
@@ -188,8 +188,8 @@ describe("principalRoleEnricherPlugin", () => {
       headers: { authorization: "Bearer test-token" },
     });
 
-    expect(seenCapabilities).toEqual(["um:user:create", "um:user:read"]);
-    expect(seenCerbosCaps).toEqual(["um:user:create", "um:user:read"]);
+    expect(seenCapabilities).toEqual(["users:users:create", "users:users:read"]);
+    expect(seenCerbosCaps).toEqual(["users:users:create", "users:users:read"]);
 
     await app.close();
   });

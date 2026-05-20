@@ -1,9 +1,3 @@
-import {
-  UM_ROLE_READ,
-  UM_ROLES_ADMIN_ANY,
-  UM_USER_CREATE,
-  UM_USER_READ,
-} from '@/lib/runtime-capability-keys';
 import type { ModuleManifest } from '../types';
 
 export const userManagementModuleManifest: ModuleManifest = {
@@ -12,7 +6,7 @@ export const userManagementModuleManifest: ModuleManifest = {
   icon: 'users',
   routePrefix: '/user-management',
   sortOrder: 20,
-  requiredCapabilities: [UM_USER_READ, UM_USER_CREATE, UM_ROLE_READ],
+  requiredModulesAny: ['user-management'],
   navigation: [
     {
       id: 'user-management-users',
@@ -20,14 +14,14 @@ export const userManagementModuleManifest: ModuleManifest = {
       icon: 'users',
       route: '/user-management',
       search: { q: '' },
-      requiredCapabilities: [UM_USER_READ, UM_USER_CREATE],
+      catalogModuleSlug: 'users',
     },
     {
       id: 'user-management-roles',
       label: 'Roles',
       icon: 'shield-check',
       route: '/user-management/roles',
-      requiredCapabilities: [...UM_ROLES_ADMIN_ANY],
+      catalogModuleSlug: 'user-roles',
     },
   ],
 };

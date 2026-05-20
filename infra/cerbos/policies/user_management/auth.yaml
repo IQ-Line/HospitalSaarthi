@@ -4,7 +4,7 @@
 # PDP-enriched principal snapshot (including runtime capability keys).
 #
 # These endpoints do not expose other users' clinical/operational data; they only
-# support UX gating. They must therefore not depend on `um:user:read`.
+# support UX gating. They must therefore not depend on `users:users:read`.
 
 apiVersion: api.cerbos.dev/v1
 resourcePolicy:

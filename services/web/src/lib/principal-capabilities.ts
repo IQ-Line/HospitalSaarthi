@@ -1,8 +1,10 @@
+import { canonicalizeRuntimeCapabilityKey } from '@/lib/legacy-capability-key-remap';
+
 /**
  * Extracts runtime capability keys from `GET /auth/principal` attributes.
  */
 export function normalizeCapabilityKey(key: string): string {
-  return key.trim().toLowerCase();
+  return canonicalizeRuntimeCapabilityKey(key);
 }
 
 export function capabilityKeysFromPrincipalAttributes(

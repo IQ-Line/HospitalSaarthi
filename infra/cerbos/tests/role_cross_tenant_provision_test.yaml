@@ -17,9 +17,9 @@ principals:
       role_codes:
         - "super-admin"
       capabilities:
-        - "um:role:create"
-        - "um:user:create"
-        - "um:role:assign"
+        - "user-roles:user-roles:create"
+        - "users:users:create"
+        - "user-roles:role:assign"
       delegated_capabilities: []
       clearances: {}
       um_clearance_effective_tier: 0

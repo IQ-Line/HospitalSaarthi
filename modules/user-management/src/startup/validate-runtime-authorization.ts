@@ -2,6 +2,7 @@ import {
   assertValidRuntimeCapabilityRow,
   findDuplicateCapabilityKeys,
 } from "../domain/capability-key.js";
+import { projectCapabilityRowToCanonical } from "../domain/legacy-capability-key-remap.js";
 import { normalizeCapabilityProvenance } from "../domain/capability-provenance.js";
 import {
   assertValidModuleSlug,
@@ -104,8 +105,9 @@ export async function validateRuntimeAuthorizationStartup(
   }
 
   for (const capability of capabilities) {
+    const projected = projectCapabilityRowToCanonical(capability);
     try {
-      assertValidRuntimeCapabilityRow(capability, `capabilities.id=${capability.id}`);
+      assertValidRuntimeCapabilityRow(projected, `capabilities.id=${capability.id}`);
       normalizeCapabilityProvenance({
         source_module_slug: capability.source_module_slug,
         source_permission_slug: capability.source_permission_slug,
@@ -124,7 +126,7 @@ export async function validateRuntimeAuthorizationStartup(
       });
     }
 
-    const normalized = normalizeModuleSlug(capability.module);
+    const normalized = normalizeModuleSlug(projected.module);
     moduleSlugCounts.set(normalized, (moduleSlugCounts.get(normalized) ?? 0) + 1);
   }
 

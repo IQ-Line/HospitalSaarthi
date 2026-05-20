@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from 'vitest';
-import { MD_VISITPAD_VIEW, UM_USER_READ } from '@/lib/runtime-capability-keys';
+import { UM_USER_READ } from '@/lib/runtime-capability-keys';
 import { normalizeCapabilityKey } from '@/lib/principal-capabilities';
 import {
   composeNavigationManifest,
@@ -32,7 +32,7 @@ describe('buildNavFilterContext', () => {
     expect(afterUm.map((n) => n.id)).toContain('user-management');
     expect(afterUm.map((n) => n.id)).not.toContain('visitpad');
 
-    const visitpadKeys = new Set([normalizeCapabilityKey(MD_VISITPAD_VIEW)]);
+    const visitpadKeys = new Set([normalizeCapabilityKey('allergens:allergens:read')]);
     const afterVisitpad = filterNavigationTree(
       manifest,
       buildNavFilterContext(visitpadKeys, enabled),

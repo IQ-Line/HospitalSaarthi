@@ -8,7 +8,7 @@ describe("getCapabilityById", () => {
       {
         capability: {
           id: "f47ac10b-58cc-4372-a567-0e02b2c3d490",
-          capability_key: "um:role:read",
+          capability_key: "user-roles:user-roles:read",
           module: "user-management",
           feature: "roles",
           action: "read",
@@ -24,7 +24,7 @@ describe("getCapabilityById", () => {
     ).resolves.toEqual(
       expect.objectContaining({
         id: "f47ac10b-58cc-4372-a567-0e02b2c3d490",
-        capability_key: "um:role:read",
+        capability_key: "user-roles:user-roles:read",
       }),
     );
   });

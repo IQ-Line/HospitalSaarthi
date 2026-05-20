@@ -34,13 +34,13 @@ describe("principal authorization (integration)", () => {
     });
 
     const authorization = new InMemoryPrincipalAuthorizationRepository();
-    authorization.seedCapability(TENANT, USER, "um:user:read");
-    authorization.seedCapability(TENANT, USER, "um:user:create");
+    authorization.seedCapability(TENANT, USER, "users:users:read");
+    authorization.seedCapability(TENANT, USER, "users:users:create");
 
     const service = principalService(authorization, userRepository);
     const principal = await service.getPrincipal({ tenantId: TENANT, userId: USER });
 
-    expect(principal.attributes.capabilities).toEqual(["um:user:create", "um:user:read"]);
+    expect(principal.attributes.capabilities).toEqual(["users:users:create", "users:users:read"]);
   });
 
   it("proves role_capabilities are not merged when only user_capabilities are seeded", async () => {
@@ -48,13 +48,13 @@ describe("principal authorization (integration)", () => {
     userRepository.insertUserWithId(TENANT, USER, { full_name: "Readonly User" });
 
     const authorization = new InMemoryPrincipalAuthorizationRepository();
-    authorization.seedCapability(TENANT, USER, "um:user:read");
+    authorization.seedCapability(TENANT, USER, "users:users:read");
 
     const service = principalService(authorization, userRepository);
     const principal = await service.getPrincipal({ tenantId: TENANT, userId: USER });
 
-    expect(principal.attributes.capabilities).toEqual(["um:user:read"]);
-    expect(principal.attributes.capabilities).not.toContain("um:user:create");
+    expect(principal.attributes.capabilities).toEqual(["users:users:read"]);
+    expect(principal.attributes.capabilities).not.toContain("users:users:create");
   });
 
   it("does not attach legacy permissions-map shapes on the principal", async () => {
@@ -62,7 +62,7 @@ describe("principal authorization (integration)", () => {
     userRepository.insertUserWithId(TENANT, USER, { full_name: "Test" });
 
     const authorization = new InMemoryPrincipalAuthorizationRepository();
-    authorization.seedCapability(TENANT, USER, "um:role:read");
+    authorization.seedCapability(TENANT, USER, "user-roles:user-roles:read");
 
     const service = principalService(authorization, userRepository);
     const principal = await service.getPrincipal({ tenantId: TENANT, userId: USER });

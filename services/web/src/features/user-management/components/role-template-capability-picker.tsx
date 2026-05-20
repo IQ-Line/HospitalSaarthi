@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Badge } from '@pulse/ui/badge';
 import { Button } from '@pulse/ui/button';
@@ -7,11 +7,15 @@ import { useCapability } from '@/hooks/use-capability';
 import { UM_ROLE_ASSIGN, UM_ROLE_READ } from '@/lib/runtime-capability-keys';
 import { roleCapabilitiesOptions } from '../api/queries';
 import type { ApplyRoleTemplateBody } from '../types';
+import { capabilityIdsSignature } from '../lib/capability-id-set';
+import { MasterDataCapabilityPermissionTree } from './master-data-capability-permission-tree';
 import {
   buildCapabilityTree,
   CapabilityTreeNodeRow,
   treeBranchIds,
 } from './role-management-sections';
+
+const EMPTY_ROLE_CAPABILITIES: never[] = [];
 
 /** Maps picker state to `POST /users/{id}/roles` body. Exported for unit tests. */
 export function buildApplyRoleTemplateRequestBody(
@@ -64,8 +68,13 @@ export function RoleTemplateCapabilityPicker({
     staleTime: 30_000,
   });
 
-  const roleCapabilities = roleCapabilitiesQuery.data ?? [];
+  const roleCapabilities = roleCapabilitiesQuery.data ?? EMPTY_ROLE_CAPABILITIES;
   const capabilityTree = useMemo(() => buildCapabilityTree(roleCapabilities), [roleCapabilities]);
+  const initialSelectedSignature = capabilityIdsSignature(initialSelectedCapabilityIds ?? []);
+  const autoFillSignature = `${roleId}\0${initialSelectedSignature}\0${capabilityIdsSignature(
+    roleCapabilities.map((c) => c.id),
+  )}`;
+  const lastAutoFillSignature = useRef<string | null>(null);
 
   useEffect(() => {
     const branchIds = treeBranchIds(capabilityTree);
@@ -90,15 +99,24 @@ export function RoleTemplateCapabilityPicker({
   }, [capabilityTree]);
 
   useEffect(() => {
+    lastAutoFillSignature.current = null;
+  }, [roleId]);
+
+  useEffect(() => {
     if (!selectAllCapabilitiesOnLoad || roleCapabilities.length === 0) {
       return;
     }
-    if (initialSelectedCapabilityIds && initialSelectedCapabilityIds.length > 0) {
-      onSelectedCapabilityIdsChange(initialSelectedCapabilityIds);
+    if (lastAutoFillSignature.current === autoFillSignature) {
       return;
     }
-    onSelectedCapabilityIdsChange(roleCapabilities.map((c) => c.id));
+    lastAutoFillSignature.current = autoFillSignature;
+    const next =
+      initialSelectedCapabilityIds && initialSelectedCapabilityIds.length > 0
+        ? initialSelectedCapabilityIds
+        : roleCapabilities.map((c) => c.id);
+    onSelectedCapabilityIdsChange([...next]);
   }, [
+    autoFillSignature,
     roleCapabilities,
     selectAllCapabilitiesOnLoad,
     initialSelectedCapabilityIds,
@@ -135,7 +153,6 @@ export function RoleTemplateCapabilityPicker({
       </p>
     );
   } else {
-    const selectedSet = new Set(selectedCapabilityIds);
     body = (
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -156,28 +173,37 @@ export function RoleTemplateCapabilityPicker({
             </div>
           </CapabilityGate>
         </div>
-        <div className="space-y-4">
-          {capabilityTree.map((node) => (
-            <CapabilityTreeNodeRow
-              key={node.id}
-              node={node}
-              depth={0}
-              capabilitiesEditable={umRoleAssign}
-              selectedCapabilityIds={selectedSet}
-              expandedBranchIds={expandedBranchIds}
-              forceExpanded={false}
-              onBranchToggle={handleToggleBranch}
-              onSetSelectedCapabilityIds={onSelectedCapabilityIdsChange}
-              onToggleCapability={(capabilityId) => {
-                const next = selectedCapabilityIds.includes(capabilityId)
-                  ? selectedCapabilityIds.filter((id) => id !== capabilityId)
-                  : [...selectedCapabilityIds, capabilityId];
-                onSelectedCapabilityIdsChange(next);
-              }}
-              plainLanguage={plainLanguage}
-            />
-          ))}
-        </div>
+        {plainLanguage ? (
+          <MasterDataCapabilityPermissionTree
+            capabilities={roleCapabilities}
+            selectedCapabilityIds={selectedCapabilityIds}
+            onSelectedCapabilityIdsChange={onSelectedCapabilityIdsChange}
+            editable={umRoleAssign}
+          />
+        ) : (
+          <div className="space-y-4">
+            {capabilityTree.map((node) => (
+              <CapabilityTreeNodeRow
+                key={node.id}
+                node={node}
+                depth={0}
+                capabilitiesEditable={umRoleAssign}
+                selectedCapabilityIds={new Set(selectedCapabilityIds)}
+                expandedBranchIds={expandedBranchIds}
+                forceExpanded={false}
+                onBranchToggle={handleToggleBranch}
+                onSetSelectedCapabilityIds={onSelectedCapabilityIdsChange}
+                onToggleCapability={(capabilityId) => {
+                  const next = selectedCapabilityIds.includes(capabilityId)
+                    ? selectedCapabilityIds.filter((id) => id !== capabilityId)
+                    : [...selectedCapabilityIds, capabilityId];
+                  onSelectedCapabilityIdsChange(next);
+                }}
+                plainLanguage={plainLanguage}
+              />
+            ))}
+          </div>
+        )}
       </div>
     );
   }

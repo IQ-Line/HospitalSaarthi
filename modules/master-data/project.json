@@ -47,7 +47,7 @@
       "cache": true
     },
     "migrate": {
-      "command": "py -m alembic upgrade head",
+      "command": "py -m alembic upgrade heads",
       "options": {
         "cwd": "modules/master-data",
         "envFile": "{workspaceRoot}/.env"
@@ -55,7 +55,7 @@
       "dependsOn": ["setup"]
     },
     "db-migrate": {
-      "command": "py -m alembic upgrade head",
+      "command": "py -m alembic upgrade heads",
       "options": {
         "cwd": "modules/master-data",
         "envFile": "{workspaceRoot}/.env"

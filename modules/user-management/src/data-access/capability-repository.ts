@@ -1,6 +1,7 @@
 import type { DbInstance } from "@hims/ts-sdk-db";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, or } from "drizzle-orm";
 import { assertValidRuntimeCapabilityRow } from "../domain/capability-key.js";
+import { projectCapabilityRowToCanonical } from "../domain/legacy-capability-key-remap.js";
 import { normalizeCapabilityProvenance } from "../domain/capability-provenance.js";
 import { assertValidModuleSlug, normalizeModuleSlugSet } from "../domain/module-slug.js";
 import type { Capability, CapabilityRepository } from "../ports/index.js";
@@ -19,21 +20,22 @@ function rowToCapability(row: {
   source_permission_slug: string | null;
   source_catalog: string | null;
 }): Capability {
-  const module = assertValidModuleSlug(row.module, "capabilities.module");
+  const projected = projectCapabilityRowToCanonical(row);
+  const module = assertValidModuleSlug(projected.module, "capabilities.module");
   const provenance = normalizeCapabilityProvenance({
-    source_module_slug: row.source_module_slug,
-    source_permission_slug: row.source_permission_slug,
-    source_catalog: row.source_catalog,
+    source_module_slug: projected.source_module_slug,
+    source_permission_slug: projected.source_permission_slug,
+    source_catalog: projected.source_catalog,
   });
   const capability = {
-    id: row.id,
-    capability_key: row.capability_key,
+    id: projected.id,
+    capability_key: projected.capability_key,
     module,
-    feature: row.feature,
-    action: row.action,
-    display_name: row.display_name,
-    description: row.description,
-    is_active: row.is_active,
+    feature: projected.feature,
+    action: projected.action,
+    display_name: projected.display_name,
+    description: projected.description,
+    is_active: projected.is_active,
     ...provenance,
   };
   assertValidRuntimeCapabilityRow(capability, `capabilities.id=${row.id}`);
@@ -101,7 +103,15 @@ export class DrizzleCapabilityRepository implements CapabilityRepository {
     const rows = await this.db
       .select(capabilityColumns)
       .from(capabilities)
-      .where(and(inArray(capabilities.module, normalized), eq(capabilities.is_active, true)));
+      .where(
+        and(
+          or(
+            inArray(capabilities.module, normalized),
+            inArray(capabilities.source_module_slug, normalized),
+          ),
+          eq(capabilities.is_active, true),
+        ),
+      );
     return rows.map(rowToCapability);
   }
 }

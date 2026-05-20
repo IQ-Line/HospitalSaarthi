@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@pulse/ui/button';
 import { toast } from 'sonner';
@@ -64,6 +64,11 @@ export function UserAccessPanel({ userId, tenantScope }: UserAccessPanelProps) {
   const availableRoles = activeRoles.filter((role) => !appliedRoleIds.has(role.id));
   const copiedGrants = capabilitiesSnapshotQuery.data?.copied_grants ?? [];
   const appliedRoles = capabilitiesSnapshotQuery.data?.role_templates ?? [];
+
+  const editingRoleGrantedCapabilityIds = useMemo(() => {
+    if (!editingRole) return [];
+    return grantsForRole(copiedGrants, editingRole.role_id);
+  }, [copiedGrants, editingRole]);
 
   const handleDetachRole = () => {
     if (!detachCandidate) return;
@@ -165,9 +170,7 @@ export function UserAccessPanel({ userId, tenantScope }: UserAccessPanelProps) {
         userId={userId}
         tenantScope={tenantScope}
         applied={editingRole}
-        grantedCapabilityIds={
-          editingRole ? grantsForRole(copiedGrants, editingRole.role_id) : []
-        }
+        grantedCapabilityIds={editingRoleGrantedCapabilityIds}
       />
 
       <ConfirmDialog

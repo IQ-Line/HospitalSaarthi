@@ -43,6 +43,9 @@ export function ModuleOverrideTree({
               />
               <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">
                 <span className="block font-medium leading-snug">{m.name}</span>
+                <span className="mt-0.5 block font-mono text-[10px] leading-snug text-muted-foreground">
+                  {m.slug}
+                </span>
                 {descLine ? (
                   <span className="mt-1 block text-[11px] leading-snug text-muted-foreground">
                     {descLine}

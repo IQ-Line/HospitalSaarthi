@@ -11,12 +11,41 @@ import {
   filterNavigationTree,
   isNavigationNodeVisible,
 } from './filter-navigation-tree';
+import { buildNavCapabilityAccessInput } from './nav-capability-access';
 import { NAVIGATION_MANIFEST } from './navigation-manifest';
 import type { NavFilterContext } from './types';
 
-function ctx(partial: Partial<NavFilterContext>): NavFilterContext {
+function ctx(partial: Partial<NavFilterContext> & { capabilityKeys?: ReadonlySet<string> }): NavFilterContext {
   const hasCapability = partial.hasCapability ?? (() => false);
   const bypassCapabilityGates = partial.bypassCapabilityGates === true;
+  const capabilityKeys =
+    partial.capabilityKeys ??
+    new Set(
+      bypassCapabilityGates
+        ? []
+        : ['users:users:read', 'allergens:allergens:read', 'modules:modules:read'].filter((key) =>
+            hasCapability(key),
+          ),
+    );
+
+  const hasAnyCapabilityForProduct = partial.hasAnyCapabilityForProduct;
+
+  const navAccess =
+    partial.navAccess ??
+    buildNavCapabilityAccessInput(
+      capabilityKeys,
+      null,
+      bypassCapabilityGates,
+      hasAnyCapabilityForProduct,
+    );
+
+  if (partial.hasAllCapabilities && !partial.navAccess) {
+    navAccess.hasAllCapabilities = partial.hasAllCapabilities;
+  }
+  if (partial.hasAnyCapability && !partial.navAccess) {
+    navAccess.hasAnyCapability = partial.hasAnyCapability;
+  }
+
   return {
     hasCapability: (key) => bypassCapabilityGates || hasCapability(key),
     hasAnyCapability:
@@ -27,6 +56,8 @@ function ctx(partial: Partial<NavFilterContext>): NavFilterContext {
       ((keys) => bypassCapabilityGates || keys.every((key) => hasCapability(key))),
     enabledModuleSlugs: partial.enabledModuleSlugs ?? null,
     bypassCapabilityGates,
+    hasAnyCapabilityForProduct,
+    navAccess,
   };
 }
 
@@ -56,11 +87,47 @@ describe('filterNavigationTree', () => {
     expect(filtered.map((n) => n.id)).toContain('dashboard');
   });
 
-  it('filters visitpad by capability and visitpad-templates tenant module', () => {
+  it('shows user-management when principal has L2 users:* keys', () => {
+    const capabilityKeys = new Set(['users:users:read']);
+    const filtered = filterNavigationTree(
+      NAVIGATION_MANIFEST,
+      ctx({
+        capabilityKeys,
+        hasCapability: (key) => capabilityKeys.has(key),
+        hasAnyCapabilityForProduct: (slugs) => slugs.includes('user-management'),
+        enabledModuleSlugs: new Set(['user-management', 'users']),
+      }),
+    );
+    expect(filtered.map((n) => n.id)).toContain('user-management');
+    const umChildren = filtered.find((n) => n.id === 'user-management')?.children ?? [];
+    expect(umChildren.map((c) => c.id)).toContain('user-management-users');
+  });
+
+  it('filters visitpad by L2 catalog keys and visitpad-templates tenant module', () => {
+    const capabilityKeys = new Set(['allergens:allergens:read', 'vitals:vitals:read']);
+    const filtered = filterNavigationTree(
+      NAVIGATION_MANIFEST,
+      ctx({
+        capabilityKeys,
+        hasCapability: (key) => capabilityKeys.has(key),
+        hasAnyCapabilityForProduct: (slugs) => slugs.includes('visitpad-templates'),
+        enabledModuleSlugs: new Set(['visitpad-templates']),
+      }),
+    );
+    expect(filtered.map((n) => n.id)).toContain('visitpad');
+    const visitpadChildren = filtered.find((n) => n.id === 'visitpad')?.children ?? [];
+    expect(visitpadChildren.map((c) => c.id)).toContain('visitpad-allergens');
+    expect(visitpadChildren.map((c) => c.id)).toContain('visitpad-vitals');
+    expect(visitpadChildren.map((c) => c.id)).not.toContain('visitpad-conversions');
+  });
+
+  it('still shows visitpad when principal holds legacy visitpad view key', () => {
     const filtered = filterNavigationTree(
       NAVIGATION_MANIFEST,
       ctx({
         hasCapability: (key) => key === MD_VISITPAD_VIEW,
+        capabilityKeys: new Set([MD_VISITPAD_VIEW]),
+        hasAnyCapabilityForProduct: (slugs) => slugs.includes('visitpad-templates'),
         enabledModuleSlugs: new Set(['visitpad-templates']),
       }),
     );
@@ -106,6 +173,7 @@ describe('filterNavigationTree', () => {
     const filtered = filterNavigationTree(
       NAVIGATION_MANIFEST,
       ctx({
+        capabilityKeys: new Set(),
         hasCapability: () => false,
         enabledModuleSlugs: new Set(['configurator']),
       }),
@@ -113,18 +181,33 @@ describe('filterNavigationTree', () => {
     expect(filtered.map((n) => n.id)).not.toContain('configurator');
   });
 
-  it('shows configurator when shell capability is held', () => {
+  it('shows configurator when tenant-modules capability is held', () => {
+    const capabilityKeys = new Set(['tenant-modules:tenant-modules:read']);
     const filtered = filterNavigationTree(
       NAVIGATION_MANIFEST,
       ctx({
-        hasCapability: (key) => key === CFG_SHELL_ACCESS,
+        capabilityKeys,
+        hasCapability: (key) => capabilityKeys.has(key),
         enabledModuleSlugs: new Set(['configurator']),
       }),
     );
     expect(filtered.map((n) => n.id)).toContain('configurator');
   });
 
-  it('shows configurator for platform super-admin when tenant module is enabled (no shell cap on principal)', () => {
+  it('hides configurator when only shell capability is held (no L2 catalog key)', () => {
+    const capabilityKeys = new Set([CFG_SHELL_ACCESS]);
+    const filtered = filterNavigationTree(
+      NAVIGATION_MANIFEST,
+      ctx({
+        capabilityKeys,
+        hasCapability: (key) => capabilityKeys.has(key),
+        enabledModuleSlugs: new Set(['configurator']),
+      }),
+    );
+    expect(filtered.map((n) => n.id)).not.toContain('configurator');
+  });
+
+  it('shows configurator for platform super-admin when tenant module is enabled (test bypass only)', () => {
     const filtered = filterNavigationTree(
       NAVIGATION_MANIFEST,
       ctx({
@@ -136,7 +219,7 @@ describe('filterNavigationTree', () => {
     expect(filtered.map((n) => n.id)).toContain('configurator');
   });
 
-  it('still hides configurator for super-admin when tenant module is disabled', () => {
+  it('still hides configurator for super-admin when module slug is absent from catalog', () => {
     const filtered = filterNavigationTree(
       NAVIGATION_MANIFEST,
       ctx({
@@ -146,6 +229,28 @@ describe('filterNavigationTree', () => {
       }),
     );
     expect(filtered.map((n) => n.id)).not.toContain('configurator');
+  });
+
+  it('shows modules only when principal holds matching L2 keys (no role bypass)', () => {
+    const capabilityKeys = new Set([
+      'modules:modules:read',
+      'allergens:allergens:read',
+    ]);
+    const filtered = filterNavigationTree(
+      NAVIGATION_MANIFEST,
+      ctx({
+        capabilityKeys,
+        hasCapability: (key) => capabilityKeys.has(key),
+        enabledModuleSlugs: new Set(['master-data', 'visitpad-templates']),
+      }),
+    );
+    const ids = filtered.map((n) => n.id);
+    expect(ids).toContain('dashboard');
+    expect(ids).toContain('master-data');
+    expect(ids).toContain('visitpad');
+    expect(ids).not.toContain('user-management');
+    expect(ids).not.toContain('configurator');
+    expect(ids).not.toContain('frontdesk');
   });
 });
 
@@ -173,17 +278,41 @@ describe('isNavigationNodeVisible', () => {
       ),
     ).toBe(false);
   });
+
+  it('shows master-data modules route for modules:modules:read without shell key', () => {
+    const capabilityKeys = new Set(['modules:modules:read']);
+    expect(
+      isNavigationNodeVisible(
+        {
+          id: 'master-data-modules',
+          label: 'Modules',
+          route: '/master-data/modules',
+        },
+        ctx({
+          capabilityKeys,
+          hasCapability: (key) => capabilityKeys.has(key),
+          enabledModuleSlugs: new Set(['master-data']),
+        }),
+        { parentProductSlugs: ['master-data'] },
+      ),
+    ).toBe(true);
+  });
 });
 
 describe('collectModuleDiscoveryEntries', () => {
   it('returns one entry per top-level module with a route', () => {
+    const capabilityKeys = new Set([
+      UM_USER_READ,
+      'allergens:allergens:read',
+      'modules:modules:read',
+      'tenant-modules:tenant-modules:read',
+      'opd:patient:read',
+    ]);
     const filtered = filterNavigationTree(
       NAVIGATION_MANIFEST,
       ctx({
-        hasCapability: (key) =>
-          [UM_USER_READ, MD_VISITPAD_VIEW, MD_SHELL_ACCESS, CFG_SHELL_ACCESS, FD_SHELL_ACCESS].includes(
-            key,
-          ),
+        capabilityKeys,
+        hasCapability: (key) => capabilityKeys.has(key),
         enabledModuleSlugs: new Set([
           'user-management',
           'master-data',

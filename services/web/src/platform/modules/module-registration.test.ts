@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import { FD_SHELL_ACCESS, MD_VISITPAD_VIEW, UM_USER_READ } from '@/lib/runtime-capability-keys';
 import { filterNavigationTree } from '@/navigation/filter-navigation-tree';
+import { buildNavCapabilityAccessInput } from '@/navigation/nav-capability-access';
 import type { NavFilterContext } from '@/navigation/types';
 import {
   clearModuleRegistryForTests,
@@ -15,15 +16,34 @@ import { userManagementModuleManifest } from './manifests/user-management.manife
 import { visitpadModuleManifest } from './manifests/visitpad.manifest';
 import { registerBuiltinModuleManifests } from './register-builtin-modules';
 
-function ctx(partial: Partial<NavFilterContext>): NavFilterContext {
+function ctx(
+  partial: Partial<NavFilterContext> & { capabilityKeys?: ReadonlySet<string> },
+): NavFilterContext {
   const hasCapability = partial.hasCapability ?? (() => false);
+  const bypassCapabilityGates = partial.bypassCapabilityGates === true;
+  const capabilityKeys =
+    partial.capabilityKeys ??
+    new Set([UM_USER_READ, MD_VISITPAD_VIEW].filter((key) => hasCapability(key)));
+
+  const hasAnyCapabilityForProduct = partial.hasAnyCapabilityForProduct;
+
   return {
-    hasCapability,
+    hasCapability: (key) => bypassCapabilityGates || hasCapability(key),
     hasAnyCapability:
       partial.hasAnyCapability ?? ((keys) => keys.some((key) => hasCapability(key))),
     hasAllCapabilities:
       partial.hasAllCapabilities ?? ((keys) => keys.every((key) => hasCapability(key))),
     enabledModuleSlugs: partial.enabledModuleSlugs ?? null,
+    bypassCapabilityGates,
+    hasAnyCapabilityForProduct,
+    navAccess:
+      partial.navAccess ??
+      buildNavCapabilityAccessInput(
+        capabilityKeys,
+        null,
+        bypassCapabilityGates,
+        hasAnyCapabilityForProduct,
+      ),
   };
 }
 
@@ -62,17 +82,19 @@ describe('module registry', () => {
 
   it('manifestToNavigationNode applies tenant module gate', () => {
     const node = manifestToNavigationNode(userManagementModuleManifest);
-    expect(node.requiredModules).toEqual(['user-management']);
+    expect(node.requiredModulesAny).toEqual(['user-management']);
   });
 
   it('filters composed tree by catalog slug enablement (no static UUID map)', () => {
     registerBuiltinModuleManifests();
     const manifest = composeNavigationManifest(getRegisteredModuleManifests());
 
+    const capabilityKeys = new Set([UM_USER_READ]);
     const filtered = filterNavigationTree(
       manifest,
       ctx({
-        hasCapability: (key) => key === UM_USER_READ,
+        capabilityKeys,
+        hasCapability: (key) => capabilityKeys.has(key),
         enabledModuleSlugs: new Set(['user-management']),
       }),
     );
@@ -98,10 +120,13 @@ describe('module registry', () => {
     registerBuiltinModuleManifests();
     const manifest = composeNavigationManifest(getRegisteredModuleManifests());
 
+    const capabilityKeys = new Set([MD_VISITPAD_VIEW]);
     const filtered = filterNavigationTree(
       manifest,
       ctx({
-        hasCapability: (key) => key === MD_VISITPAD_VIEW,
+        capabilityKeys,
+        hasCapability: (key) => capabilityKeys.has(key),
+        hasAnyCapabilityForProduct: (slugs) => slugs.includes('visitpad-templates'),
         enabledModuleSlugs: new Set(['visitpad-templates']),
       }),
     );

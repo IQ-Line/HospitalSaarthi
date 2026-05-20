@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-import { useEffect, useMemo, useState } from 'react';
 import {
   Controller,
   type Control,
@@ -22,11 +21,7 @@ import { CapabilityGate } from '@/components/capability-gate';
 import { useCapability } from '@/hooks/use-capability';
 import { UM_ROLE_ASSIGN, UM_ROLE_READ } from '@/lib/runtime-capability-keys';
 import type { Capability, UmRole } from '../types';
-import {
-  buildCapabilityTree,
-  CapabilityTreeNodeRow,
-  treeBranchIds,
-} from './role-management-sections';
+import { MasterDataCapabilityPermissionTree } from './master-data-capability-permission-tree';
 import { UserManagementSectionCard } from './user-management-section-card';
 
 export type CreateUserAccessOptions = {
@@ -186,43 +181,6 @@ export function CreateUserAccessSection({
 }: CreateUserAccessSectionProps) {
   const umRoleRead = useCapability(UM_ROLE_READ);
   const umRoleAssign = useCapability(UM_ROLE_ASSIGN);
-  const [expandedBranchIds, setExpandedBranchIds] = useState<Set<string>>(new Set());
-
-  const capabilityTree = useMemo(() => buildCapabilityTree(roleCapabilities), [roleCapabilities]);
-
-  useEffect(() => {
-    const branchIds = treeBranchIds(capabilityTree);
-    setExpandedBranchIds((current) => {
-      const next = new Set(current);
-      if (next.size === 0) {
-        branchIds.forEach((branchId) => {
-          const depth = branchId.replace(/^branch:/, '').split('/').filter(Boolean).length;
-          if (depth <= 1) {
-            next.add(branchId);
-          }
-        });
-        return next;
-      }
-      branchIds.forEach((branchId) => {
-        if (!next.has(branchId) && branchId.replace(/^branch:/, '').split('/').filter(Boolean).length === 1) {
-          next.add(branchId);
-        }
-      });
-      return next;
-    });
-  }, [capabilityTree]);
-
-  const handleToggleBranch = (nodeId: string) => {
-    setExpandedBranchIds((current) => {
-      const next = new Set(current);
-      if (next.has(nodeId)) {
-        next.delete(nodeId);
-      } else {
-        next.add(nodeId);
-      }
-      return next;
-    });
-  };
 
   let roleBlock: ReactNode;
   if (!umRoleRead) {
@@ -335,30 +293,12 @@ export function CreateUserAccessSection({
                   </div>
                 </CapabilityGate>
               </div>
-              <div className="space-y-4">
-                {capabilityTree.map((node) => (
-                  <CapabilityTreeNodeRow
-                    key={node.id}
-                    node={node}
-                    depth={0}
-                    capabilitiesEditable={umRoleAssign}
-                    selectedCapabilityIds={selectedSet}
-                    expandedBranchIds={expandedBranchIds}
-                    forceExpanded={false}
-                    onBranchToggle={handleToggleBranch}
-                    onSetSelectedCapabilityIds={(ids) => {
-                      field.onChange(ids);
-                    }}
-                    onToggleCapability={(capabilityId) => {
-                      const next = field.value.includes(capabilityId)
-                        ? field.value.filter((id) => id !== capabilityId)
-                        : [...field.value, capabilityId];
-                      field.onChange(next);
-                    }}
-                    plainLanguage
-                  />
-                ))}
-              </div>
+              <MasterDataCapabilityPermissionTree
+                capabilities={roleCapabilities}
+                selectedCapabilityIds={field.value}
+                onSelectedCapabilityIdsChange={field.onChange}
+                editable={umRoleAssign}
+              />
             </div>
           );
         }}

@@ -29,7 +29,7 @@ export interface User {
 /** Canonical machine-readable authorization primitive managed as data and consumed by Cerbos. */
 export interface Capability {
   id: string;
-  /** Cerbos / PDP vocabulary (e.g. `um:user:read`). Stable once granted. */
+  /** Cerbos / PDP vocabulary (e.g. `users:users:read`). Stable once granted. */
   capability_key: string;
   /** Master Data `modules.slug` (kebab-case). */
   module: string;
