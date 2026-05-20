@@ -206,3 +206,24 @@ export interface DepartmentListResponse {
   data: Department[];
   total: number;
 }
+
+export interface DepartmentSingleResponse {
+  data: Department;
+}
+
+export interface DepartmentCreateInput {
+  name: string;
+  code: string;
+  type: DepartmentType;
+  description?: string | null;
+  is_active?: boolean;
+}
+
+export interface DepartmentUpdateInput {
+  name?: string;
+  code?: string;
+  type?: DepartmentType;
+  description?: string | null;
+  is_active?: boolean;
+  is_deleted?: boolean;
+}

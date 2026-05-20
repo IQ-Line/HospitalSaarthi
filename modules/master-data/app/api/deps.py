@@ -11,6 +11,7 @@ from app.repositories.department_repository import DepartmentRepository
 from app.repositories.module_permission_repository import ModulePermissionRepository
 from app.repositories.module_repository import ModuleRepository
 from app.repositories.permission_repository import PermissionRepository
+from app.repositories.picklist_repository import PicklistRepository
 from app.repositories.system_role_repository import SystemRoleRepository
 from app.repositories.visitpad.allergen import VisitpadAllergenRepository
 from app.repositories.visitpad.allergy_reaction import VisitpadAllergyReactionRepository
@@ -75,6 +76,13 @@ def get_permission_repository(
     scope: Annotated[CatalogScope, Depends(get_catalog_scope)],
 ) -> PermissionRepository:
     return PermissionRepository(session, scope)
+
+
+def get_picklist_repository(
+    session: Annotated[Session, Depends(get_session)],
+) -> PicklistRepository:
+    """Platform picklists live in ``global_master`` only; tenant header is ignored."""
+    return PicklistRepository(session)
 
 
 def get_system_role_repository(

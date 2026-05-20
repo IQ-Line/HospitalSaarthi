@@ -1,6 +1,5 @@
 import Fastify from "fastify";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
-import { tenantPlugin } from "@hims/ts-sdk-tenant";
 import {
   assertConfiguratorDatabaseIsolation,
   createDb,
@@ -73,21 +72,18 @@ async function main() {
       }),
     );
 
-  // `tenantPlugin` only under `/api`: org + tenant discovery are bootstrap/admin
-  // routes. EMPI and other patient-facing services keep stricter tenant headers.
-  await app.register(async (api) => {
-    await api.register(tenantPlugin);
-
-    await api.register(
-      createRouter({
-        organizationRepo,
-        tenantRepo,
-        tenantModuleRepo,
-        runConfiguratorTransaction,
-      }),
-      { prefix: "/configurator/v1" },
-    );
-  }, { prefix: "/api" });
+  // No tenantPlugin: organizations/tenants are platform bootstrap APIs (list all
+  // tenants for provisioning). Tenant scope is carried in path params where needed
+  // (e.g. GET /tenants/:tenantId/modules). EMPI/registration keep stricter headers.
+  await app.register(
+    createRouter({
+      organizationRepo,
+      tenantRepo,
+      tenantModuleRepo,
+      runConfiguratorTransaction,
+    }),
+    { prefix: "/api/configurator/v1" },
+  );
 
   await app.listen({ port: PORT, host: "0.0.0.0" });
   app.log.info(`Configurator service listening on http://localhost:${PORT}`);

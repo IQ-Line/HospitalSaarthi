@@ -1,6 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '@/lib/api-client';
+import { apiClient, apiClientWithIqTenant } from '@/lib/api-client';
 import { fetchTenants, tenantsQueryOptions } from './catalog';
+import { refreshAccessToken } from '@/lib/auth-session';
+import type { UmUser } from '@/features/user-management/types';
+import { useAuthStore } from '@/stores/auth.store';
 import { configuratorKeys } from './query-keys';
 import type { ConfiguratorTenant, CreateConfiguratorTenantInput } from '../types';
 
@@ -58,6 +61,23 @@ export function useTenantModules(tenantId: string, options?: { enabled?: boolean
         { tenantIdOverride: tenantId },
       ),
     enabled: (options?.enabled ?? true) && !!tenantId,
+  });
+}
+
+export function useTenantUsers(iqTenantId: string, options?: { enabled?: boolean }) {
+  const accessToken = useAuthStore((s) => s.accessToken);
+  return useQuery({
+    queryKey: configuratorKeys.tenantUsers(iqTenantId),
+    queryFn: async () => {
+      const token = (await refreshAccessToken()) ?? useAuthStore.getState().accessToken;
+      if (!token) {
+        throw new Error('Not authenticated');
+      }
+      return apiClientWithIqTenant<UmUser[]>(iqTenantId, '/api/user-management/users', {
+        method: 'GET',
+      });
+    },
+    enabled: (options?.enabled ?? true) && !!iqTenantId && !!accessToken,
   });
 }
 

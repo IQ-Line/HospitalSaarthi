@@ -99,6 +99,8 @@ Typical status mapping:
 | `GET` | `/api/v1/master-data/module-permissions/{modulePermissionId}` | `getModulePermissionById` | **404** if missing or soft-deleted. |
 | `PATCH` | `/api/v1/master-data/module-permissions/{modulePermissionId}` | `updateModulePermission` | Partial update (`slug` / flags only). To change `module_id` or `permission_id`, delete + create a new link. |
 | `DELETE` | `/api/v1/master-data/module-permissions/{modulePermissionId}` | `deleteModulePermission` | Soft-delete link; **200** returns updated row. |
+| `GET` | `/api/v1/master-data/picklists` | `listPicklists` | List active picklist domain headers (`global_master`); **`iq_tenant_id`** header ignored. |
+| `GET` | `/api/v1/master-data/picklists/{picklistId}/values` | `listPicklistValues` | List values for a picklist; **`limit`/`offset`**; **404** if picklist missing. |
 | `GET` | `/api/v1/master-data/visitpad/units` | `listVisitpadUnits` | List Visitpad units (`is_deleted = false`); **`limit`/`offset`**, optional **`search`**, **`dimension`**. |
 | `POST` | `/api/v1/master-data/visitpad/units` | `createVisitpadUnit` | Create unit; **201** + `VisitpadUnitSingleResponse`; **409** on duplicate active `code`. |
 | `GET` | `/api/v1/master-data/visitpad/units/{unitId}` | `getVisitpadUnitById` | **404** if missing or soft-deleted. |
@@ -180,8 +182,6 @@ These align with the MVP tables in [`schema-reference.json`](./schema-reference.
 
 | Method | Path (proposal) | Summary | Success response shape (proposal) |
 |--------|-----------------|--------|-------------------------------------|
-| `GET` | `/api/v1/master-data/picklists` | List picklist domains | `{ "data": Picklist[], "total": int }` |
-| `GET` | `/api/v1/master-data/picklists/{picklistId}/values` | List values for a picklist | `{ "data": PicklistValue[], "total": int }` |
 | `GET` | `/api/v1/master-data/module-config-schemas` | List declared config schemas | `{ "data": ModuleConfigSchema[], "total": int }` (optional `module_id`, `schema_version`) |
 | `GET` | `/api/v1/master-data/feature-flags` | List feature flag definitions | `{ "data": FeatureFlag[], "total": int }` |
 

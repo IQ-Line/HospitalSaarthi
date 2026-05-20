@@ -121,6 +121,19 @@ export async function apiClient<T>(
   );
 }
 
+/** Master-data / UM / billing calls scoped to a specific tenant (configurator tenant detail). */
+export async function apiClientWithIqTenant<T>(
+  iqTenantId: string,
+  path: string,
+  options: RequestInit = {},
+): Promise<T> {
+  const headers = new Headers(options.headers);
+  const tid = iqTenantId.trim().toLowerCase();
+  headers.set('iq_tenant_id', tid);
+  headers.set('x-tenant-id', tid);
+  return apiClient<T>(path, { ...options, headers });
+}
+
 type ApiErrorBody = {
   code?: string;
   message?: string;
@@ -150,10 +163,43 @@ async function fetchWithAuthRetry(
   canRetryWithFreshToken: boolean,
 ): Promise<Response> {
   const headers = buildRequestHeaders(path, options, context);
+  const tenantId = useTenantStore.getState().tenantId;
+  const catalogTenant = catalogIqTenantHeaderValue(tenantId);
+  if (catalogTenant && !headers.has('iq_tenant_id')) {
+    headers.set('iq_tenant_id', catalogTenant);
+  }
+  /** EMPI and Registration require `iq_tenant_id` (or `x-tenant-id`). */
+  if (
+    (path.startsWith(EMPI_API_PREFIX) || isRegistrationApiPath(path)) &&
+    !headers.has('iq_tenant_id')
+  ) {
+    headers.set('iq_tenant_id', serviceIqTenantHeaderValue(tenantId));
+  }
+  /** Configurator tenantPlugin (legacy) rejects requests without a tenant header. */
+  if (
+    path.startsWith(CONFIGURATOR_API_PREFIX) &&
+    !headers.has('iq_tenant_id') &&
+    !headers.has('x-tenant-id')
+  ) {
+    headers.set('x-tenant-id', serviceIqTenantHeaderValue(tenantId));
+  }
+
+  if (
+    isWriteHttpMethod(options.method) &&
+    path.startsWith(VISITPAD_CATALOG_API_PREFIX) &&
+    tenantId != null &&
+    tenantId.trim() !== '' &&
+    catalogTenant == null
+  ) {
+    throw new Error(
+      'Visitpad catalog write blocked: a tenant is selected but its id is not a canonical UUID, so iq_tenant_id would be omitted and the change would apply to the global (public) catalog. Use a UUID tenant id from the platform tenant registry or clear tenant selection before editing the platform catalog.',
+    );
+  }
 
   const response = await fetch(resolveRequestUrl(path), {
     ...options,
     headers,
+    credentials: 'include',
   });
 
   if (response.ok || !canRetryWithFreshToken) {

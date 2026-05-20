@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '@/lib/api-client';
+import { apiClient, apiClientWithIqTenant } from '@/lib/api-client';
 import { masterDataKeys } from './query-keys';
 import type {
   SystemRoleCreateInput,
@@ -10,14 +10,27 @@ import type {
 
 const BASE = '/api/v1/master-data/system-roles';
 
+function systemRoleClient<T>(
+  iqTenantId: string | undefined,
+  path: string,
+  options?: RequestInit,
+): Promise<T> {
+  if (iqTenantId) {
+    return apiClientWithIqTenant<T>(iqTenantId, path, options);
+  }
+  return apiClient<T>(path, options);
+}
+
 export function useSystemRoles(
   isTemplate?: boolean,
-  options?: { enabled?: boolean },
+  options?: { enabled?: boolean; iqTenantId?: string },
 ) {
   const params = isTemplate === undefined ? '' : `?is_template=${isTemplate}`;
+  const iqTenantId = options?.iqTenantId;
   return useQuery({
-    queryKey: masterDataKeys.systemRoles(isTemplate),
-    queryFn: () => apiClient<SystemRoleListResponse>(`${BASE}${params}`),
+    queryKey: masterDataKeys.systemRoles(isTemplate, iqTenantId),
+    queryFn: () =>
+      systemRoleClient<SystemRoleListResponse>(iqTenantId, `${BASE}${params}`),
     enabled: options?.enabled ?? true,
   });
 }
@@ -30,11 +43,11 @@ export function useSystemRole(id: string) {
   });
 }
 
-export function useCreateSystemRole() {
+export function useCreateSystemRole(iqTenantId?: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: SystemRoleCreateInput) =>
-      apiClient<SystemRoleSingleResponse>(BASE, {
+      systemRoleClient<SystemRoleSingleResponse>(iqTenantId, BASE, {
         method: 'POST',
         body: JSON.stringify(input),
       }),
@@ -45,11 +58,11 @@ export function useCreateSystemRole() {
 }
 
 /** PATCH — `{ id, input }` from dialogs and row toggles. */
-export function useUpdateSystemRole() {
+export function useUpdateSystemRole(iqTenantId?: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: SystemRoleUpdateInput }) =>
-      apiClient<SystemRoleSingleResponse>(`${BASE}/${id}`, {
+      systemRoleClient<SystemRoleSingleResponse>(iqTenantId, `${BASE}/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(input),
       }),
@@ -60,11 +73,11 @@ export function useUpdateSystemRole() {
   });
 }
 
-export function useDeleteSystemRole() {
+export function useDeleteSystemRole(iqTenantId?: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      apiClient<SystemRoleSingleResponse>(`${BASE}/${id}`, {
+      systemRoleClient<SystemRoleSingleResponse>(iqTenantId, `${BASE}/${id}`, {
         method: 'DELETE',
       }),
     onSuccess: (_data, id) => {

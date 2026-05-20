@@ -9,11 +9,8 @@ const DATABASE_URL = process.env["DATABASE_URL"] ?? "";
 /** Dev-only fallback when Swagger/curl omit tenant headers (matches web DEV_TENANT_IQ_CATALOG_UUID). */
 const DEV_MOCK_TENANT_ID =
   process.env["BILLING_DEV_TENANT_ID"] ?? "00000000-0000-0000-0000-000000000007";
-/** In-memory catalog rows — on in development until DB + migration are ready. */
-const USE_MOCK_DATA =
-  process.env["BILLING_USE_MOCK_DATA"] === "true" ||
-  (process.env["NODE_ENV"] === "development" &&
-    process.env["BILLING_USE_MOCK_DATA"] !== "false");
+/** In-memory catalog rows — opt-in only (set BILLING_USE_MOCK_DATA=true). */
+const USE_MOCK_DATA = process.env["BILLING_USE_MOCK_DATA"] === "true";
 
 async function main() {
   const app = Fastify({ logger: true });

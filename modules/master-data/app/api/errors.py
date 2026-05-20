@@ -28,6 +28,7 @@ from app.services.module_service import (
     ModuleNotFoundError,
     ParentModuleNotFoundError,
 )
+from app.services.department_service import DepartmentNotFoundError
 from app.services.permission_service import PermissionNotFoundError
 from app.services.system_role_service import SystemRoleNotFoundError
 from app.services.visitpad.units import (
@@ -176,6 +177,16 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=404,
             content=error_payload("NOT_FOUND", "No module with this id."),
+        )
+
+    @app.exception_handler(DepartmentNotFoundError)
+    async def _department_missing(
+        _request: Request,
+        _exc: DepartmentNotFoundError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=404,
+            content=error_payload("NOT_FOUND", "No department with this id."),
         )
 
     @app.exception_handler(PermissionNotFoundError)

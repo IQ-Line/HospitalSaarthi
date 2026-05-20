@@ -48,3 +48,14 @@ class DepartmentCreate(BaseModel):
     type: DepartmentType
     description: str | None = None
     is_active: bool = True
+
+
+class DepartmentUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    code: str | None = Field(default=None, min_length=1, max_length=64)
+    type: DepartmentType | None = None
+    description: str | None = None
+    is_active: bool | None = None
+    is_deleted: bool | None = None
