@@ -107,16 +107,21 @@ export function sharedConfig(opts: Pick<Options, "entry">): Options {
     splitting: false,
     sourcemap: true,
     platform: "node",
-    // Bundle workspace deps so we don't need a separate build step for each.
-    // Everything else (fastify, pg, drizzle-orm, etc.) stays external.
+    // Treat everything in node_modules as external by default. Without this,
+    // tsup only externalizes deps listed in the CWD's package.json, which
+    // misses transitively-imported deps (e.g., drizzle-orm pulled in via
+    // @hims/ts-sdk-db) and esbuild fails to resolve them.
+    skipNodeModulesBundle: true,
+    // Force-bundle workspace @hims/* packages from source so we don't need
+    // a separate build step for each module/package.
     noExternal: [/^@hims\//],
-    // tsup defaults to externalizing deps listed in package.json. That's what we want
-    // for npm deps; only the @hims/* override above changes behavior.
   };
 }
 
 export default defineConfig(sharedConfig({ entry: [] }));
 ```
+
+**Important:** `skipNodeModulesBundle: true` is critical for monorepo setups. Without it, tsup tries to bundle transitively-imported npm deps and fails with "Could not resolve …" errors. See https://tsup.egoist.dev/ docs for details.
 
 - [ ] **Step 3: Verify tsup is callable**
 
