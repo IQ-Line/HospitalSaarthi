@@ -20,10 +20,16 @@ import {
   useTenants,
 } from '@/features/configurator/api';
 import { AddBranchDialog } from '@/features/configurator/components/add-branch-dialog';
+import {
+  TenantBillingPanel,
+  TenantDepartmentsPanel,
+  TenantRoleTemplatesPanel,
+  TenantUsersPanel,
+} from '@/features/configurator/components/tenant-detail-panels';
 import type { ConfiguratorTenant } from '@/features/configurator/types';
-import { useModules, useSystemRoles } from '@/features/master-data/api';
+import { useModules } from '@/features/master-data/api';
 import { ReadOnlyRow } from '@/features/master-data/components/read-only-row';
-import type { Module, SystemRole } from '@/features/master-data/types';
+import type { Module } from '@/features/master-data/types';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@pulse/ui/empty';
 
 export const Route = createFileRoute('/_authenticated/configurator/tenant/$organizationId')({
@@ -95,10 +101,6 @@ function TenantOrganizationDetailPage() {
         (tab === 'overview' || tab === 'modules'),
     },
   );
-
-  const { data: roleTemplatesRes, isLoading: roleTemplatesLoading } = useSystemRoles(true, {
-    enabled: tab === 'role-templates',
-  });
 
   const moduleNameById = useMemo(() => {
     const m = new Map<string, string>();
@@ -255,51 +257,12 @@ function TenantOrganizationDetailPage() {
     [tenantModuleActiveById],
   );
 
-  const roleTemplateColumns = useMemo<ColumnDef<SystemRole, unknown>[]>(
-    () => [
-      {
-        accessorKey: 'name',
-        header: 'Name',
-        cell: ({ getValue }) => <span className="font-medium">{getValue<string>()}</span>,
-      },
-      {
-        accessorKey: 'slug',
-        header: 'Slug',
-        cell: ({ getValue }) => <code className="text-xs">{getValue<string>()}</code>,
-      },
-      {
-        accessorKey: 'description',
-        header: 'Description',
-        cell: ({ getValue }) => (
-          <span className="text-muted-foreground text-sm">{getValue<string | null>() ?? '—'}</span>
-        ),
-      },
-      {
-        accessorKey: 'is_active',
-        header: 'Status',
-        cell: ({ getValue }) => (
-          <Badge variant={getValue<boolean>() ? 'default' : 'secondary'}>
-            {getValue<boolean>() ? 'Active' : 'Inactive'}
-          </Badge>
-        ),
-      },
-      {
-        accessorKey: 'updated_at',
-        header: 'Updated',
-        cell: ({ getValue }) => formatShortDate(getValue<string>()),
-      },
-    ],
-    [],
-  );
-
   const branches = branchesRes?.data ?? [];
   /** Root tenant is created with the org; show it first so Branches is never empty for a healthy tenant. */
   const branchTableRows = useMemo(
     () => (rootTenant ? [rootTenant, ...branches] : branches),
     [rootTenant, branches],
   );
-  const roleTemplates = roleTemplatesRes?.data ?? [];
-
   if (orgError) {
     return (
       <div className="p-6 text-destructive">
@@ -411,9 +374,6 @@ function TenantOrganizationDetailPage() {
             <TabsTrigger value="billing" className="shrink-0 text-xs sm:text-sm">
               Billing
             </TabsTrigger>
-            <TabsTrigger value="usage" className="shrink-0 text-xs sm:text-sm">
-              Usage
-            </TabsTrigger>
             <TabsTrigger value="modules" className="shrink-0 text-xs sm:text-sm">
               Modules
             </TabsTrigger>
@@ -478,54 +438,22 @@ function TenantOrganizationDetailPage() {
         </TabsContent>
 
         <TabsContent value="users" className="mt-4">
-          <TenantTabComingSoon
-            title="Users"
-            body="Tenant-scoped users are not exposed on the master-data API yet. This tab will list directory users when the user-management module is integrated."
-          />
+          <TenantUsersPanel iqTenantId={rootTenant.iq_tenant_id} />
         </TabsContent>
 
         <TabsContent value="role-templates" className="mt-4">
-          <p className="text-sm text-muted-foreground mb-3">
-            Platform role templates from master data (<code className="text-xs">GET /system-roles?is_template=true</code>
-            ).
-          </p>
-          <div className="rounded-lg border">
-            <DataTable
-              columns={roleTemplateColumns}
-              data={roleTemplates}
-              isLoading={roleTemplatesLoading}
-              emptyTitle="No role templates"
-              emptyDescription="Seed or create system roles marked as templates in master data."
-            />
-          </div>
+          <TenantRoleTemplatesPanel iqTenantId={rootTenant.iq_tenant_id} />
         </TabsContent>
 
         <TabsContent value="department-templates" className="mt-4">
-          <TenantTabComingSoon
-            title="Department templates"
-            body="Department template catalog APIs are not part of master-data v1 yet. Check back after the catalog is added to the OpenAPI contract."
-          />
+          <TenantDepartmentsPanel iqTenantId={rootTenant.iq_tenant_id} />
         </TabsContent>
 
         <TabsContent value="billing" className="mt-4">
-          <TenantTabComingSoon
-            title="Billing"
-            body="Billing and subscription usage for this tenant are not wired to a public API in this phase."
-          />
+          <TenantBillingPanel iqTenantId={rootTenant.iq_tenant_id} />
         </TabsContent>
 
-        <TabsContent value="usage" className="mt-4">
-          <TenantTabComingSoon
-            title="Usage"
-            body="Usage metrics (tests, seats, API volume) will appear here when observability or billing upstreams are connected."
-          />
-        </TabsContent>
-
-        <TabsContent value="modules" className="mt-4 space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Platform module catalog from master data, with enablement for this tenant from the
-            configurator.
-          </p>
+        <TabsContent value="modules" className="mt-4">
           <div className="rounded-lg border">
             <DataTable
               columns={moduleColumns}
