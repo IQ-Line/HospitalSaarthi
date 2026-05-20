@@ -13,6 +13,8 @@ const item = (gross: string, tax: string): BillItemRow =>
     status: "ACTIVE",
     gross_amount: gross,
     tax_amount: tax,
+    net_amount: gross,
+    total_amount: tax === "0.0000" ? gross : `${Number(gross) + Number(tax)}.0000`,
   }) as BillItemRow;
 
 describe("bill-math", () => {

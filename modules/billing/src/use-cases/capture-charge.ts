@@ -1,8 +1,15 @@
-import { computeLineAmounts } from "../lib/bill-math.js";
+import { computeDeskLineAmounts, computeLineAmounts } from "../lib/bill-math.js";
+import { money } from "../lib/money.js";
 import { fail, ok, syncBillTotals } from "../lib/use-case.js";
 import type { CaptureChargeInput, ChargeIngestResponse, UseCaseResult } from "../domain/bill.types.js";
+import type { TariffMasterRow } from "../domain/tariff-master.types.js";
 import type { BillingDeps } from "../ports.js";
 import { newDraftBill } from "../data-access/billing.repository.js";
+
+const DESK_NAMES: Record<string, string> = {
+  REG_FEE: "Registration Fee",
+  CONS_GENERAL: "General Consultation",
+};
 
 const toResponse = (
   item: {
@@ -28,6 +35,56 @@ const toResponse = (
   replayed,
 });
 
+function deskTariff(tenantId: string, input: CaptureChargeInput): TariffMasterRow {
+  const code = input.item_code.trim();
+  const now = new Date().toISOString();
+  return {
+    id: "",
+    iq_tenant_id: tenantId,
+    service_code: code,
+    service_name: DESK_NAMES[code] ?? code,
+    description: null,
+    provider_id: input.provider_id ?? null,
+    department: code === "REG_FEE" ? "frontdesk" : "opd",
+    category: null,
+    sub_category: null,
+    tax_type: null,
+    base_price: money(input.unit_price_override!),
+    tax_percentage: money(input.tax_percentage_override ?? 0),
+    is_active: true,
+    effective_from: now,
+    effective_to: null,
+    created_at: now,
+    updated_at: now,
+    created_by: null,
+    updated_by: null,
+  };
+}
+
+function lineAmounts(input: CaptureChargeInput, tariff: TariffMasterRow, qty: number) {
+  const unitPrice =
+    input.unit_price_override != null && input.unit_price_override !== ""
+      ? money(input.unit_price_override)
+      : tariff.base_price;
+  const taxPct =
+    input.tax_percentage_override != null && input.tax_percentage_override !== ""
+      ? money(input.tax_percentage_override)
+      : tariff.tax_percentage;
+  const desk =
+    input.unit_price_override != null ||
+    input.tax_percentage_override != null ||
+    Number(input.line_discount_amount ?? 0) > 0;
+  const amounts = desk
+    ? computeDeskLineAmounts(unitPrice, qty, taxPct, input.line_discount_amount ?? 0)
+    : computeLineAmounts(unitPrice, qty, taxPct);
+  return {
+    unitPrice,
+    taxPct,
+    amounts,
+    discount_amount: amounts.discount_amount ?? "0.0000",
+  };
+}
+
 export async function captureCharge(
   deps: BillingDeps,
   tenantId: string,
@@ -47,32 +104,36 @@ export async function captureCharge(
   }
 
   const providerId = input.provider_id ?? null;
-  const tariff = await deps.tariffRepo.findByCodeAndProvider(tenantId, input.item_code, providerId);
+  let tariff = await deps.tariffRepo.findByCodeAndProvider(tenantId, input.item_code, providerId);
+  const hasDeskPrice =
+    input.unit_price_override != null && input.unit_price_override !== "";
+  if (!tariff && hasDeskPrice) tariff = deskTariff(tenantId, input);
   if (!tariff) {
     return fail("NOT_FOUND", "catalog_row_not_found: no active tariff for service_code and provider");
   }
 
   const visitId = input.visit_id ?? null;
-  let bill =
+  const bill =
     (await deps.billingRepo.findDraftBill(tenantId, input.patient_id, visitId)) ??
     (await deps.billingRepo.createBill(
       newDraftBill(tenantId, input.patient_id, visitId, input.visit_type ?? "OPD"),
     ));
 
-  const amounts = computeLineAmounts(tariff.base_price, qty, tariff.tax_percentage);
+  const { unitPrice, taxPct, amounts, discount_amount } = lineAmounts(input, tariff, qty);
+
   const item = await deps.billingRepo.insertItem({
     iq_tenant_id: tenantId,
     bill_id: bill.id,
-    service_id: tariff.id,
+    service_id: tariff.id || null,
     item_type: "SERVICE",
     item_code: tariff.service_code,
     description: tariff.service_name,
     quantity: qty.toFixed(2),
-    unit_price: tariff.base_price,
+    unit_price: unitPrice,
     discount_percentage: "0.0000",
-    discount_amount: "0.0000",
+    discount_amount,
     ...amounts,
-    tax_percentage: tariff.tax_percentage,
+    tax_percentage: taxPct,
     source_module: input.source_module,
     source_ref: input.source_ref ?? null,
     performed_date: input.performed_date ?? new Date().toISOString(),

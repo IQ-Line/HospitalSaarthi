@@ -5,17 +5,35 @@ import {
   finalizeBill,
   recordPayment,
 } from '@/features/billing/api/transactions';
-import type { CreateVisitRequestBody } from '@/features/frontdesk/types';
+import type { CaptureChargeInput } from '@/features/billing/api/transactions';
+import type {
+  CreateVisitRequestBody,
+  VisitRegistrationBillingFeeLine,
+} from '@/features/frontdesk/types';
 
-const SOURCE_MODULE = 'registration';
+const SOURCE_MODULE = 'registration' as const;
+
+function deskPricing(
+  line: VisitRegistrationBillingFeeLine | undefined,
+): Pick<
+  CaptureChargeInput,
+  'unit_price_override' | 'tax_percentage_override' | 'line_discount_amount'
+> {
+  const fee = line ?? { unit_price: 0, tax_percent: 0, discount: 0 };
+  return {
+    unit_price_override: fee.unit_price,
+    tax_percentage_override: fee.tax_percent,
+    line_discount_amount: fee.discount ?? 0,
+  };
+}
 
 export interface VisitRegistrationBillingResult {
   bill_id: string;
 }
 
 /**
- * OPD registration desk billing: charges → optional bill discount → finalize → optional payment.
- * Tariff codes: `REG_FEE`, `CONS_GENERAL` (when a provider is selected).
+ * Registration desk billing: charges → optional discount → finalize → optional payment.
+ * Rack `CONS_GENERAL` only until provider-specific tariffs exist (TODO).
  */
 export async function executeVisitRegistrationBilling(
   form: CreateVisitRequestBody,
@@ -28,38 +46,35 @@ export async function executeVisitRegistrationBilling(
 ): Promise<VisitRegistrationBillingResult> {
   const billing = form.billing;
   const hasProvider = Boolean(form.appointment?.provider_id?.trim());
-
+  // visits-svc not wired yet — group draft bill by registration id when visit_id is null
   const visitRef = ctx.visit_id ?? ctx.registration_id;
 
+  const chargeBase = {
+    patient_id: ctx.patient_id,
+    visit_id: visitRef,
+    visit_type: 'OPD' as const,
+    source_module: SOURCE_MODULE,
+    source_ref: ctx.registration_id,
+    provider_id: null,
+  };
+
   const regCharge = await captureCharge(
-    {
-      patient_id: ctx.patient_id,
-      visit_id: visitRef,
-      visit_type: 'OPD',
-      source_module: SOURCE_MODULE,
-      source_ref: ctx.registration_id,
-      item_code: 'REG_FEE',
-      notes: 'Registration fee',
-    },
+    { ...chargeBase, item_code: 'REG_FEE', ...deskPricing(billing?.registration_fee) },
     `${ctx.idempotencyKey}:reg-fee`,
   );
 
   let billId = regCharge.bill_id;
 
-  // Rack rate only (provider_id null) until provider-specific tariffs exist in tariff_master.
   if (hasProvider) {
     const consultCharge = await captureCharge(
-      {
-        patient_id: ctx.patient_id,
-        visit_id: visitRef,
-        visit_type: 'OPD',
-        source_module: SOURCE_MODULE,
-        source_ref: ctx.registration_id,
-        item_code: 'CONS_GENERAL',
-        notes: 'Consultation fee',
-      },
+      { ...chargeBase, item_code: 'CONS_GENERAL', ...deskPricing(billing?.consultation_fee) },
       `${ctx.idempotencyKey}:consult`,
     );
+    if (consultCharge.bill_id !== regCharge.bill_id) {
+      throw new Error(
+        `Registration billing: charges on different bills (${regCharge.bill_id} vs ${consultCharge.bill_id})`,
+      );
+    }
     billId = consultCharge.bill_id;
   }
 
@@ -74,15 +89,10 @@ export async function executeVisitRegistrationBilling(
   if (paid > 0) {
     const payment_method = billingPaymentMethod(billing?.payment_mode);
     if (!payment_method) {
-      throw new Error('Select a payment mode when recording an amount paid.');
+      throw new Error('Select cash, card, or UPI when recording an amount paid.');
     }
     await recordPayment(
-      {
-        bill_id: billId,
-        amount: paid,
-        payment_method,
-        notes: 'Visit registration payment',
-      },
+      { bill_id: billId, amount: paid, payment_method, notes: 'Visit registration payment' },
       `${ctx.idempotencyKey}:payment`,
     );
   }

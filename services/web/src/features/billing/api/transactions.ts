@@ -13,6 +13,10 @@ export interface CaptureChargeInput {
   item_code: string;
   provider_id?: string | null;
   quantity?: number;
+  /** Desk-entered unit price (overrides tariff catalog for this charge line). */
+  unit_price_override?: number;
+  tax_percentage_override?: number;
+  line_discount_amount?: number;
   notes?: string | null;
 }
 
@@ -71,7 +75,10 @@ export function applyBillDiscount(
 }
 
 export function finalizeBill(billId: string): Promise<unknown> {
-  return apiClient(`${BASE}/bills/${billId}/finalize`, { method: 'POST' });
+  return apiClient(`${BASE}/bills/${billId}/finalize`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
 }
 
 export function recordPayment(
@@ -96,8 +103,6 @@ export function billingPaymentMethod(
       return 'CARD';
     case 'upi':
       return 'UPI';
-    case 'insurance':
-      return 'BANK_TRANSFER';
     default:
       return null;
   }

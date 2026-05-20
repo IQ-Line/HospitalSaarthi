@@ -1,13 +1,24 @@
-import { canReadBillingServices } from '@/features/billing/lib/can-read-billing-services';
-import { usePermissionsStore, type PermissionsState } from '@/stores/permissions.store';
-
-const BILLING = 'billing';
-const SERVICES = 'services';
+import {
+  canReadBillingServices,
+  canWriteBillingServices,
+} from '@/features/billing/lib/billing-services-permissions';
+import { useAuthStore } from '@/stores/auth.store';
+import { usePermissionsStore } from '@/stores/permissions.store';
+import { useShallow } from 'zustand/react/shallow';
 
 export function useBillingServicesPermission() {
-  const canRead = usePermissionsStore(() => canReadBillingServices());
-  const canWrite = usePermissionsStore((s: PermissionsState) =>
-    s.hasFeaturePermission(BILLING, SERVICES, 'write'),
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const permissions = usePermissionsStore(
+    useShallow((s) => ({
+      hasFeaturePermission: s.hasFeaturePermission,
+      hasModuleAccess: s.hasModuleAccess,
+      map: s.map,
+    })),
   );
-  return { canRead, canWrite };
+  const args = { isAuthenticated, accessToken, permissions };
+  return {
+    canRead: canReadBillingServices(args),
+    canWrite: canWriteBillingServices(args),
+  };
 }

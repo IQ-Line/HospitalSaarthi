@@ -1,3 +1,4 @@
+import "./load-env.js";
 import Fastify from "fastify";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import { tenantPlugin } from "@hims/ts-sdk-tenant";
@@ -6,10 +7,9 @@ import { createRouter } from "@hims/billing";
 
 const PORT = Number(process.env["BILLING_SVC_PORT"] ?? 3003);
 const DATABASE_URL = process.env["DATABASE_URL"] ?? "";
-/** Dev-only fallback when Swagger/curl omit tenant headers (matches web DEV_TENANT_IQ_CATALOG_UUID). */
 const DEV_MOCK_TENANT_ID =
-  process.env["BILLING_DEV_TENANT_ID"] ?? "00000000-0000-0000-0000-000000000007";
-/** In-memory catalog rows — opt-in only (set BILLING_USE_MOCK_DATA=true). */
+  process.env["BILLING_DEV_TENANT_ID"] ?? "f47ac10b-58cc-4372-a567-0e02b2c3d480";
+/** Mock is opt-in only (`BILLING_USE_MOCK_DATA=true`). Default: PostgreSQL. */
 const USE_MOCK_DATA = process.env["BILLING_USE_MOCK_DATA"] === "true";
 
 async function main() {
@@ -27,7 +27,9 @@ async function main() {
 
   const db = USE_MOCK_DATA ? undefined : createDb(DATABASE_URL);
   if (USE_MOCK_DATA) {
-    app.log.warn("BILLING_USE_MOCK_DATA enabled — serving sample catalog rows (no database)");
+    app.log.warn("BILLING_USE_MOCK_DATA=true — charges are in-memory only");
+  } else if (!DATABASE_URL.trim()) {
+    throw new Error("DATABASE_URL is required when BILLING_USE_MOCK_DATA is not true");
   }
 
   await app.register(async (api) => {

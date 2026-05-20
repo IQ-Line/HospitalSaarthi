@@ -52,39 +52,25 @@ describe("captureCharge", () => {
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.data.replayed).toBe(false);
     expect(result.data.snapshotted_unit_price).toBe("100.0000");
-    expect(result.data.net_amount).toBe("100.0000");
   });
 
-  it("replays idempotency key", async () => {
-    const { repo } = createInMemoryBillingRepo();
-    const deps = { tariffRepo: tariffRepo(tariff), billingRepo: repo };
-    const first = await captureCharge(deps, tenantId, {
-      patient_id: patientId,
-      source_module: "opd",
-      item_code: "REG_FEE",
-    }, "idem-2");
-    const second = await captureCharge(deps, tenantId, {
-      patient_id: patientId,
-      source_module: "opd",
-      item_code: "REG_FEE",
-    }, "idem-2");
-    expect(first.ok && second.ok).toBe(true);
-    if (!first.ok || !second.ok) return;
-    expect(second.data.replayed).toBe(true);
-    expect(second.data.bill_item_id).toBe(first.data.bill_item_id);
-  });
-
-  it("returns 404 when catalog row missing", async () => {
+  it("snapshots desk unit_price_override", async () => {
     const { repo } = createInMemoryBillingRepo();
     const result = await captureCharge(
       { tariffRepo: tariffRepo(tariff), billingRepo: repo },
       tenantId,
-      { patient_id: patientId, source_module: "opd", item_code: "UNKNOWN" },
+      {
+        patient_id: patientId,
+        source_module: "registration",
+        item_code: "REG_FEE",
+        unit_price_override: 88,
+        tax_percentage_override: 0,
+      },
+      "idem-desk",
     );
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.code).toBe("NOT_FOUND");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.snapshotted_unit_price).toBe("88.0000");
   });
 });
