@@ -2,14 +2,6 @@
   "name": "frontdesk",
   "tags": ["type:module", "scope:frontdesk", "language:typescript"],
   "targets": {
-    "build": {
-      "executor": "@nx/js:tsc",
-      "options": {
-        "outputPath": "dist/modules/frontdesk",
-        "main": "modules/frontdesk/src/index.ts",
-        "tsConfig": "modules/frontdesk/tsconfig.json"
-      }
-    },
     "test": {
       "executor": "nx:run-commands",
       "options": {
