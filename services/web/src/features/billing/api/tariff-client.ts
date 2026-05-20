@@ -1,5 +1,6 @@
-import { catalogIqTenantHeaderValue, DEV_TENANT_IQ_CATALOG_UUID } from '@/lib/catalog-tenant';
-import { apiClient, apiClientWithIqTenant } from '@/lib/api-client';
+import { billingIqTenantHeaderValue } from '@/lib/catalog-tenant';
+import { apiClient } from '@/lib/api-client';
+import { useAuthStore } from '@/stores/auth.store';
 import { useTenantStore } from '@/stores/tenant.store';
 import { mockTariffStore } from './mock-tariff-store';
 import type {
@@ -19,23 +20,11 @@ export const billingUseMock =
   import.meta.env.VITE_BILLING_USE_MOCK === 'true' ||
   (import.meta.env.DEV && import.meta.env.VITE_BILLING_USE_MOCK !== 'false');
 
-function billingTenantId(override?: string): string {
-  if (override) {
-    return catalogIqTenantHeaderValue(override) ?? override.trim().toLowerCase();
-  }
-  return catalogIqTenantHeaderValue(useTenantStore.getState().tenantId) ?? DEV_TENANT_IQ_CATALOG_UUID;
-}
-
-function billingFetch<T>(
-  iqTenantId: string | undefined,
-  path: string,
-  options?: RequestInit,
-): Promise<T> {
-  const tid = billingTenantId(iqTenantId);
-  if (iqTenantId) {
-    return apiClientWithIqTenant<T>(tid, path, options);
-  }
-  return apiClient<T>(path, options);
+function billingTenantId(): string {
+  return billingIqTenantHeaderValue(
+    useTenantStore.getState().tenantId,
+    useAuthStore.getState().accessToken,
+  );
 }
 
 function clampLimit(raw: number | undefined): number {
@@ -55,31 +44,14 @@ function listQueryString(params: ServicesListParams): string {
   return qs ? `?${qs}` : '';
 }
 
-export function listTariffServices(
-  params: ServicesListParams,
-  iqTenantId?: string,
-  options?: { forceLive?: boolean },
-): Promise<ServicesListResponse> {
-  const useMock = billingUseMock && !options?.forceLive;
-  if (useMock) {
-    return Promise.resolve(mockTariffStore.list(params, billingTenantId(iqTenantId)));
-  }
-  return billingFetch<ServicesListResponse>(
-    iqTenantId,
-    `${BASE}${listQueryString(params)}`,
-  );
+export function listTariffServices(params: ServicesListParams): Promise<ServicesListResponse> {
+  if (billingUseMock) return Promise.resolve(mockTariffStore.list(params, billingTenantId()));
+  return apiClient<ServicesListResponse>(`${BASE}${listQueryString(params)}`);
 }
 
-export function createTariffService(
-  input: ServiceCreateInput,
-  iqTenantId?: string,
-  options?: { forceLive?: boolean },
-): Promise<ServiceSingleResponse> {
-  const useMock = billingUseMock && !options?.forceLive;
-  if (useMock) {
-    return Promise.resolve(mockTariffStore.create(input, billingTenantId(iqTenantId)));
-  }
-  return billingFetch<ServiceSingleResponse>(iqTenantId, BASE, {
+export function createTariffService(input: ServiceCreateInput): Promise<ServiceSingleResponse> {
+  if (billingUseMock) return Promise.resolve(mockTariffStore.create(input, billingTenantId()));
+  return apiClient<ServiceSingleResponse>(BASE, {
     method: 'POST',
     body: JSON.stringify(input),
   });
@@ -88,12 +60,9 @@ export function createTariffService(
 export function updateTariffService(
   id: string,
   input: ServiceUpdateInput,
-  iqTenantId?: string,
-  options?: { forceLive?: boolean },
 ): Promise<ServiceSingleResponse> {
-  const useMock = billingUseMock && !options?.forceLive;
-  if (useMock) return Promise.resolve(mockTariffStore.update(id, input));
-  return billingFetch<ServiceSingleResponse>(iqTenantId, `${BASE}/${id}`, {
+  if (billingUseMock) return Promise.resolve(mockTariffStore.update(id, input));
+  return apiClient<ServiceSingleResponse>(`${BASE}/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(input),
   });

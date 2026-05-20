@@ -1,3 +1,5 @@
+import { decodeAccessTokenPayload } from '@/lib/access-token';
+
 /**
  * Visitpad / master-data catalog sends `iq_tenant_id` when the active tenant id is a
  * **lexical UUID string** (8-4-4-4-12 hex), matching backend `UUID` parsing.
@@ -52,4 +54,25 @@ export function serviceIqTenantHeaderValue(tenantId: string | null | undefined):
   if (trimmed) return trimmed;
 
   return DEV_DEFAULT_IQ_TENANT_ID;
+}
+
+/** `iq_tenant_id` from the access JWT (`iq_tenant_id` claim), when present. */
+export function jwtIqTenantHeaderValue(accessToken: string | null | undefined): string | null {
+  const claim = decodeAccessTokenPayload(accessToken)?.iq_tenant_id;
+  return catalogIqTenantHeaderValue(typeof claim === 'string' ? claim : null);
+}
+
+/**
+ * Billing tariff lookup is per hospital tenant. Prefer JWT (session truth) over the
+ * tenant store so a stale dev placeholder (`550e8400-…`) does not cause catalog_row_not_found.
+ */
+export function billingIqTenantHeaderValue(
+  tenantId: string | null | undefined,
+  accessToken: string | null | undefined,
+): string {
+  return (
+    jwtIqTenantHeaderValue(accessToken) ??
+    catalogIqTenantHeaderValue(tenantId) ??
+    serviceIqTenantHeaderValue(tenantId)
+  );
 }

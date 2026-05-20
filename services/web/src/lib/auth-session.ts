@@ -1,5 +1,7 @@
 import { authClient } from '@/lib/auth-client';
+import { catalogIqTenantHeaderValue, jwtIqTenantHeaderValue } from '@/lib/catalog-tenant';
 import { useAuthStore } from '@/stores/auth.store';
+import { useTenantStore } from '@/stores/tenant.store';
 
 let authBootstrapComplete = false;
 let authBootstrapPromise: Promise<void> | null = null;
@@ -42,6 +44,26 @@ async function resolveAuthSessionFromBetterAuth(): Promise<ResolvedAuthSession |
   };
 }
 
+/** After reload, tenant store may be empty or hold an EMPI dev placeholder; align to JWT. */
+function syncTenantStoreFromAccessToken(accessToken: string): void {
+  const jwtTenant = jwtIqTenantHeaderValue(accessToken);
+  if (!jwtTenant) return;
+
+  const storeTenant = catalogIqTenantHeaderValue(useTenantStore.getState().tenantId);
+  if (storeTenant === jwtTenant) return;
+
+  const prev = useTenantStore.getState();
+  useTenantStore.getState().setTenant({
+    tenantId: jwtTenant,
+    tenantName: prev.tenantName ?? 'Dev Hospital',
+    branches:
+      prev.branches.length > 0
+        ? prev.branches
+        : [{ id: 'branch-001', name: 'Main Campus' }],
+    activeBranch: prev.activeBranch ?? 'branch-001',
+  });
+}
+
 function redirectToLoginIfBrowserSessionExpired(): void {
   if (typeof window === 'undefined') {
     return;
@@ -77,6 +99,7 @@ export async function ensureAuthSession(): Promise<void> {
       }
 
       useAuthStore.getState().setSession(resolvedSession);
+      syncTenantStoreFromAccessToken(resolvedSession.accessToken);
     } finally {
       authBootstrapComplete = true;
       authBootstrapPromise = null;
@@ -105,6 +128,7 @@ export async function refreshAccessToken(): Promise<string | null> {
       }
 
       useAuthStore.getState().setSession(resolvedSession);
+      syncTenantStoreFromAccessToken(resolvedSession.accessToken);
       return resolvedSession.accessToken;
     } catch {
       useAuthStore.getState().clearSession();
