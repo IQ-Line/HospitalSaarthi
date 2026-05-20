@@ -216,14 +216,17 @@ ls -lh services/billing-svc/dist/
 
 Expected: `main.js` and `main.js.map` exist. `main.js` should be in the range ~100KB–2MB (workspace code bundled in).
 
-- [ ] **Step 5: Verify the bundle is executable by Node**
+- [ ] **Step 5: Verify the bundle parses (lightweight check only)**
 
-Run:
 ```bash
-node --input-type=module -e "import('./services/billing-svc/dist/main.js').then(() => console.log('imported ok'))" || echo "(expected: it'll fail to start due to missing DB / env, but should reach the import step)"
+node --check services/billing-svc/dist/main.js && echo "(syntax OK)"
 ```
 
-Expected: either the process starts and fails on missing env (good — that means it loaded), OR it logs `imported ok` if main.ts side-effects don't include server start. **If it errors with "Cannot find module @hims/billing"**, the `noExternal` regex isn't matching — re-check `tsup.config.shared.ts`.
+Expected: `(syntax OK)`.
+
+**Do NOT run `node -e "import('./dist/main.js')"` on the host** — pnpm's strict resolution keeps transitive npm deps of workspace packages (e.g., `@fastify/swagger` imported via `@hims/ts-sdk-openapi`) inside the originating package's `node_modules`, not in the service's local layout. A host-side dynamic import will fail with "Cannot find package …" which is **not** a real bug — at runtime in the Docker image, `pnpm --filter @hims/<svc> deploy --prod /out` hoists every transitive dep into one flat `node_modules`. The real runtime smoke-test happens in Task 8 inside the built image.
+
+**The one error that WOULD indicate a tsup config bug:** if `nx build` itself emits "Could not resolve `@hims/...`" — that means workspace bundling broke. Anything about external npm deps is expected.
 
 - [ ] **Step 6: Commit**
 
