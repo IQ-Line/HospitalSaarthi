@@ -94,3 +94,14 @@ class DepartmentRepository:
             raise
         self._session.refresh(department)
         return department
+
+    def update_department(self, department: Any) -> Any:
+        try:
+            self._session.flush()
+        except IntegrityError as exc:
+            self._session.rollback()
+            if _is_unique_violation(exc):
+                raise DuplicateDepartmentKeyError from exc
+            raise
+        self._session.refresh(department)
+        return department

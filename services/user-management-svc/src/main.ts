@@ -65,6 +65,34 @@ function normalizeIdentityJwksUrl(authBaseUrl: string): string {
   return configured;
 }
 
+/** Keep JWT issuer/JWKS on the same public origin as better-auth (`AUTH_BASE_URL`). */
+function alignIdentityEnvWithAuthBaseUrl(
+  authBaseUrl: string,
+  log: { warn: (obj: object, msg: string) => void },
+): void {
+  const base = authBaseUrl.replace(/\/+$/, "");
+  const issuer = process.env.JWT_ISSUER?.trim();
+  if (issuer && issuer !== base) {
+    log.warn(
+      { configuredIssuer: issuer, authBaseUrl: base },
+      "JWT_ISSUER did not match AUTH_BASE_URL; using AUTH_BASE_URL",
+    );
+    process.env.JWT_ISSUER = base;
+  }
+
+  const expectedJwks = `${base}/api/auth/.well-known/jwks.json`;
+  const configuredJwks = process.env.JWKS_URL?.trim();
+  if (!configuredJwks || configuredJwks !== expectedJwks) {
+    if (configuredJwks && configuredJwks.length > 0) {
+      log.warn(
+        { configuredJwks, expectedJwks },
+        "JWKS_URL did not match AUTH_BASE_URL; using AUTH_BASE_URL",
+      );
+    }
+    process.env.JWKS_URL = expectedJwks;
+  }
+}
+
 function readAuthBaseUrl(): string {
   const raw = process.env.AUTH_BASE_URL?.trim();
   if (!raw || raw.length === 0) {
@@ -136,6 +164,7 @@ async function createApp(): Promise<FastifyInstance> {
   const cerbosUrl = process.env.CERBOS_URL.trim();
 
   const authBaseUrl = readAuthBaseUrl();
+  alignIdentityEnvWithAuthBaseUrl(authBaseUrl, app.log);
   normalizeIdentityJwksUrl(authBaseUrl);
   const identityAuth = validateAuthConfig();
   const pgDb = createDb(requireDatabaseUrl());
