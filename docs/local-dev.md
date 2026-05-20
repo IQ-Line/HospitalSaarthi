@@ -5,7 +5,7 @@ Deterministic setup for the enterprise authorization demo stack. Authorization i
 ## Prerequisites
 
 - Node.js 24+, pnpm 10+, Docker
-- `make` (Git Bash / WSL on Windows), **or** PowerShell: `.\scripts\bootstrap.ps1`
+- `make` (Git Bash / WSL on Windows; on Windows without `make`, run the same steps manually — see §2)
 
 ## 1. Environment
 
@@ -107,25 +107,16 @@ curl -s -H "Authorization: Bearer TOKEN" \
 
 Catalog is **not** inserted by the seed script. Do not run ad-hoc SQL against `public.modules`.
 
-## Windows (no `make`)
-
-```powershell
-.\scripts\bootstrap.ps1          # same as make setup (migrate + seed)
-.\scripts\bootstrap.ps1 -Reset   # docker down -v, recreate infra volume, migrate, seed
-pnpm dev:web-stack
-```
-
 Operational modules (Configurator, User Management, EMPI, …) use **schemas inside `hims_dev`**, not separate databases.
 
 ## 7. Troubleshooting
 
 | Symptom | Fix |
 |---------|-----|
-| `EADDRINUSE` on 3000 / 3001 / 3005 / 5173 / 8010 | Re-run `pnpm dev:web-stack` (runs `tools/dev-stack-prep.mts` to free stale listeners first). Or kill manually: `netstat -ano \| findstr :3000` then `taskkill /PID <pid> /F` (Windows) |
-| Vite on 5174/5175 instead of 5173 | Stale Vite left 5173 busy; `dev-stack-prep` frees 5173–5175. Set `WEB_DEV_PORT=5173` in `.env` |
-| Nx output hard to read | `dev:web-stack` uses `--output-style=stream` — each line is prefixed with the project name (`bff:`, `web:`, …) |
+| `EADDRINUSE` on 3000 / 3001 / 3005 / 5173 / 8010 | Free the port manually (`netstat -ano \| findstr :3000` then `taskkill /PID <pid> /F` on Windows; `lsof -i :3000` on macOS/Linux) |
+| Vite on 5174/5175 instead of 5173 | Port 5173 busy — stop the other process or set `WEB_DEV_PORT` in `.env.local` |
 | `schema "global_master" does not exist` on migrate | Run `make db-migrate` (includes `master-data:migrate` against `hims_dev`) |
-| Orphaned catalog rows after a bad reset | `make db-reset` or `.\scripts\bootstrap.ps1 -Reset`, then `make db-migrate` |
+| Orphaned catalog rows after a bad reset | `make db-reset`, then `make db-migrate` |
 | UM fails boot: `CONFIGURATOR_URL` / `MASTER_DATA_URL` | Set in root `.env` |
 | Seed: schema `global_master` not found | Run `make db-migrate` (master-data Alembic) |
 | Seed: module slug not found | Run `make db-migrate`; ensure `MASTER_DATA_DATABASE_URL` uses `/hims_dev` (same as `DATABASE_URL`) |
