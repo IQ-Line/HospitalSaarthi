@@ -26,7 +26,7 @@ The total set of images Jenkins ever needs to build is 11. They're enumerated in
 
 ## 2. The deployable services
 
-There are exactly **11** images the pipeline ever has to produce:
+There are exactly **10** images the pipeline ever has to produce:
 
 | Service (Nx project name) | Image name in ACR | Dockerfile | Build context | What it is |
 |---|---|---|---|---|
@@ -34,7 +34,6 @@ There are exactly **11** images the pipeline ever has to produce:
 | `billing-svc` | `hims.azurecr.io/billing-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `.` | TS Fastify |
 | `configurator-svc` | `hims.azurecr.io/configurator-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `.` | TS Fastify |
 | `empi-svc` | `hims.azurecr.io/empi-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `.` | TS Fastify |
-| `frontdesk-svc` | `hims.azurecr.io/frontdesk-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `.` | TS Fastify |
 | `registration-svc` | `hims.azurecr.io/registration-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `.` | TS Fastify |
 | `user-management-svc` | `hims.azurecr.io/user-management-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `.` | TS Fastify |
 | `bff` | `hims.azurecr.io/bff:<sha>` | `infra/docker/node-svc.Dockerfile` | `.` | TS Fastify; browser-facing proxy |
@@ -95,7 +94,7 @@ Each project declares `projectType` (`application` for deployables, `library` fo
 npx nx show projects --type=app
 ```
 
-Output (sorted): `abdm-adapter-svc`, `bff`, `billing-svc`, `cerbos-policies`, `configurator-svc`, `empi-svc`, `frontdesk-svc`, `master-data`, `registration-svc`, `user-management-svc`, `web` — exactly 11 entries. `master-data` (the Python service) is an Nx project with `projectType: application` and the `deploy:aks` tag, so it participates in affected detection like any other deployable: change a file under `modules/master-data/` and `--affected` returns `["master-data"]`. The Jenkinsfile loop in §6 then resolves it through `tools/dockerfile-for-svc.sh`, which knows to use the Python Dockerfile with `modules/master-data` as the build context (see §2 callout 1).
+Output (sorted): `abdm-adapter-svc`, `bff`, `billing-svc`, `cerbos-policies`, `configurator-svc`, `empi-svc`, `master-data`, `registration-svc`, `user-management-svc`, `web` — exactly 10 entries. `master-data` (the Python service) is an Nx project with `projectType: application` and the `deploy:aks` tag, so it participates in affected detection like any other deployable: change a file under `modules/master-data/` and `--affected` returns `["master-data"]`. The Jenkinsfile loop in §6 then resolves it through `tools/dockerfile-for-svc.sh`, which knows to use the Python Dockerfile with `modules/master-data` as the build context (see §2 callout 1).
 
 ---
 
@@ -404,7 +403,7 @@ spec:
   ports: [{ port: 3000, targetPort: http }]
 ```
 
-The same shape repeats for the other 7 backend services. Just swap the name, image, and any service-specific env. The three env-var patterns to reuse:
+The same shape repeats for the other 6 backend services. Just swap the name, image, and any service-specific env. The three env-var patterns to reuse:
 
 - `CERBOS_URL` — same value for every service (`cerbos.hims.svc.cluster.local:3593`), authz PDP location.
 - `DATABASE_URL` — `secretKeyRef` to a Key Vault-backed Secret (`pg`). Every service has its own schema in the shared Postgres; the URL points to that schema.
@@ -613,14 +612,14 @@ Use this when you're working in the monorepo and want to verify the deployment p
 npx nx build billing-svc && node --check services/billing-svc/dist/main.js && echo OK
 
 # project-graph sanity in one assertion
-npx nx show projects --type=app --json | jq 'length == 11 and (index("@hims/tsconfig") | not) and (index("master-data") != null)'
+npx nx show projects --type=app --json | jq 'length == 10 and (index("@hims/tsconfig") | not) and (index("master-data") != null)'
 # expect: true
 ```
 
 ### A.2 Nx project graph + helper mapping
 
 ```bash
-# 11 entries; NO @hims/tsconfig; master-data IS present
+# 10 entries; NO @hims/tsconfig; master-data IS present
 npx nx show projects --type=app --json | jq -r '.[]' | sort
 
 # every project resolves to a real Dockerfile + context
@@ -634,11 +633,11 @@ done
 ```bash
 rm -rf packages/*/dist services/*/dist
 npx nx run-many -t build \
-  -p abdm-adapter-svc,billing-svc,configurator-svc,empi-svc,frontdesk-svc,registration-svc,user-management-svc,bff,web \
+  -p abdm-adapter-svc,billing-svc,configurator-svc,empi-svc,registration-svc,user-management-svc,bff,web \
   --skip-nx-cache
 ```
 
-Expect 9 "Build success" messages. If you see `tsc` errors, either `nx.json`'s `targetDefaults.build.dependsOn` has had `^build` reintroduced, or a library re-added a `scripts.build` to its `package.json`.
+Expect 8 "Build success" messages. If you see `tsc` errors, either `nx.json`'s `targetDefaults.build.dependsOn` has had `^build` reintroduced, or a library re-added a `scripts.build` to its `package.json`.
 
 ### A.4 Affected-detection — three synthetic diffs
 
