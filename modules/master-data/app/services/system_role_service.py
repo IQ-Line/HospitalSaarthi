@@ -48,6 +48,8 @@ def create_system_role(
         slug=payload.slug,
         is_template=payload.is_template,
         description=payload.description,
+        role_type=payload.role_type,
+        module_permission_ids=payload.module_permission_ids,
         is_active=payload.is_active,
         created_by=actor_id,
         updated_by=actor_id,
@@ -76,6 +78,10 @@ def update_system_role(
         row.slug = data["slug"]
     if "description" in data:
         row.description = data["description"]
+    if "role_type" in data:
+        row.role_type = data["role_type"]
+    if "module_permission_ids" in data:
+        row.module_permission_ids = data["module_permission_ids"]
     if "is_template" in data:
         row.is_template = data["is_template"]
     if "is_active" in data:

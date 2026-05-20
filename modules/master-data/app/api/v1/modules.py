@@ -6,15 +6,26 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_module_repository, get_session
+from app.api.deps import (
+    get_global_module_permission_repository,
+    get_global_module_repository,
+    get_module_permission_repository,
+    get_module_repository,
+    get_session,
+)
 from app.api.errors import ResourceNotFoundError
+from app.services.module_service import ModuleNotFoundError
+from app.repositories.module_permission_repository import ModulePermissionRepository
 from app.repositories.module_repository import ModuleRepository
 from app.schemas.module import (
     ModuleCategory,
     ModuleCreate,
     ModuleListResponse,
     ModuleNavListResponse,
+    ModuleNavPermissionLinksListResponse,
+    ModuleNavPermissionsBatchListResponse,
     ModuleNavResponse,
+    ModuleNavTreeListResponse,
     ModuleResponse,
     ModuleSingleResponse,
     ModuleUpdate,
@@ -24,6 +35,9 @@ from app.services.module_service import (
     get_module_by_id,
     get_module_by_slug,
     list_modules,
+    build_module_nav_tree_with_permissions,
+    list_module_nav_permission_links,
+    list_module_nav_permissions_batch,
     list_modules_for_nav,
     list_submodules,
     soft_delete_module,
@@ -45,17 +59,33 @@ def get_modules(
 
 @router.get(
     "/nav",
-    response_model=ModuleNavListResponse,
     summary="List modules for shell navigation",
     description=(
-        "Returns every **active** catalog module (`is_active = true`, `is_deleted = false`) "
-        "with navigation fields only. **No pagination** — full list in one response."
+        "Returns every **active** catalog module (`is_active = true`, `is_deleted = false`). "
+        "**No pagination** — full list in one response. "
+        "Pass **`permissions=true`** for a tree of root modules with children and "
+        "``global_master.module_permissions`` links (for role-template editors)."
     ),
 )
 def get_modules_for_nav(
     repository: Annotated[ModuleRepository, Depends(get_module_repository)],
-) -> ModuleNavListResponse:
+    module_permission_repository: Annotated[
+        ModulePermissionRepository, Depends(get_module_permission_repository)
+    ],
+    permissions: Annotated[
+        bool,
+        Query(
+            description=(
+                "When true, returns a module tree with ``module_permissions`` per leaf/catalog row."
+            ),
+        ),
+    ] = False,
+) -> ModuleNavListResponse | ModuleNavTreeListResponse:
     modules = list_modules_for_nav(repository)
+    if permissions:
+        permission_rows = module_permission_repository.list_active_module_permissions_with_details()
+        data = build_module_nav_tree_with_permissions(modules, permission_rows)
+        return ModuleNavTreeListResponse(data=data)
     data = [ModuleNavResponse.model_validate(module) for module in modules]
     return ModuleNavListResponse(data=data)
 
@@ -94,6 +124,59 @@ def get_module_by_slug_route(
     if module is None:
         raise ResourceNotFoundError(f"No module with slug '{slug}'.")
     return ModuleSingleResponse(data=ModuleResponse.model_validate(module))
+
+
+@router.get(
+    "/permissions",
+    response_model=ModuleNavPermissionsBatchListResponse,
+    summary="List permission links for many modules",
+    description=(
+        "Active ``module_permissions`` rows for each requested module from the **platform** "
+        "catalog (``global_master``). Pass ``module_ids`` repeatedly. Unknown ids are skipped. "
+        "The ``iq_tenant_id`` header is ignored."
+    ),
+)
+def get_modules_nav_permissions_batch(
+    module_ids: Annotated[list[UUID], Query(min_length=1, max_length=200)],
+    mp_repository: Annotated[
+        ModulePermissionRepository,
+        Depends(get_global_module_permission_repository),
+    ],
+    module_repository: Annotated[ModuleRepository, Depends(get_global_module_repository)],
+) -> ModuleNavPermissionsBatchListResponse:
+    data = list_module_nav_permissions_batch(
+        mp_repository, module_repository, module_ids
+    )
+    return ModuleNavPermissionsBatchListResponse(data=data)
+
+
+@router.get(
+    "/{module_id}/permissions",
+    response_model=ModuleNavPermissionLinksListResponse,
+    summary="List permission links for one module",
+    description=(
+        "Active ``module_permissions`` rows for the module from the **platform** catalog "
+        "(``global_master``). The ``iq_tenant_id`` header is ignored."
+    ),
+)
+def get_module_nav_permissions(
+    module_id: UUID,
+    mp_repository: Annotated[
+        ModulePermissionRepository,
+        Depends(get_global_module_permission_repository),
+    ],
+    module_repository: Annotated[ModuleRepository, Depends(get_global_module_repository)],
+) -> ModuleNavPermissionLinksListResponse:
+    try:
+        module_row, links = list_module_nav_permission_links(
+            mp_repository, module_repository, module_id
+        )
+    except ModuleNotFoundError as exc:
+        raise ResourceNotFoundError("No module with this id.") from exc
+    return ModuleNavPermissionLinksListResponse(
+        module=ModuleNavResponse.model_validate(module_row),
+        data=links,
+    )
 
 
 @router.get(

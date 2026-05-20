@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import Boolean, Index, Integer, Text, Uuid, text
+from sqlalchemy import Boolean, Index, Text, Uuid, text
+from sqlalchemy.dialects.postgresql import ARRAY, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.catalog_schemas import GLOBAL_SCHEMA, TENANT_SCHEMA
@@ -31,6 +32,11 @@ class SystemRolePublicModel(TimestampMixin, Base):
     slug: Mapped[str] = mapped_column(Text(), nullable=False)
     is_template: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=True)
     description: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    role_type: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    module_permission_ids: Mapped[list[uuid.UUID] | None] = mapped_column(
+        ARRAY(PG_UUID(as_uuid=True)),
+        nullable=True,
+    )
     is_active: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=True)
     is_deleted: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
     created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
@@ -59,6 +65,11 @@ class SystemRoleTenantModel(TimestampMixin, Base):
     slug: Mapped[str] = mapped_column(Text(), nullable=False)
     is_template: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=True)
     description: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    role_type: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    module_permission_ids: Mapped[list[uuid.UUID] | None] = mapped_column(
+        ARRAY(PG_UUID(as_uuid=True)),
+        nullable=True,
+    )
     is_active: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=True)
     is_deleted: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
     created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)

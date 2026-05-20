@@ -99,6 +99,20 @@ def get_module_permission_repository(
     return ModulePermissionRepository(session, scope)
 
 
+def get_global_module_permission_repository(
+    session: Annotated[Session, Depends(get_session)],
+) -> ModulePermissionRepository:
+    """Platform catalog only — used when loading permission links by global module id."""
+    return ModulePermissionRepository(session, CatalogScope(iq_tenant_id=None))
+
+
+def get_global_module_repository(
+    session: Annotated[Session, Depends(get_session)],
+) -> ModuleRepository:
+    """Platform catalog only — validates module id for global permission lookups."""
+    return ModuleRepository(session, CatalogScope(iq_tenant_id=None))
+
+
 def get_visitpad_unit_repository(
     session: Annotated[Session, Depends(get_session)],
     scope: Annotated[CatalogScope, Depends(get_catalog_scope)],

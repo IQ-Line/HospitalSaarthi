@@ -705,17 +705,30 @@ paths:
       summary: List modules for shell navigation
       description: >-
         Returns every active catalog module (`is_active = true`, `is_deleted = false`) with
-        navigation fields only. Full list in one response (no pagination).
+        navigation fields only. Full list in one response (no pagination). Optional
+        `permissions=true` returns a nested tree with `module_permissions` links per module
+        (role-template editors). Send `iq_tenant_id` for tenant-scoped rows (`tenant_master`).
       security: []
       tags:
         - Modules
+      parameters:
+        - name: permissions
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: >-
+            When true, returns root modules with `children` and `permissions` arrays instead of a flat list.
       responses:
         '200':
-          description: Navigation module catalog.
+          description: Navigation module catalog (flat list or permission tree).
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ModuleNavListResponse'
+                oneOf:
+                  - $ref: '#/components/schemas/ModuleNavListResponse'
+                  - $ref: '#/components/schemas/ModuleNavTreeListResponse'
         '500':
           description: Unexpected server error.
           content:
@@ -1076,6 +1089,88 @@ paths:
                 $ref: '#/components/schemas/ModuleListResponse'
         '404':
           description: Parent module id not found or soft-deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /modules/permissions:
+    get:
+      operationId: listModuleNavPermissionsBatch
+      summary: List permission links for many modules
+      description: >-
+        Returns active `module_permissions` junction rows with module metadata for each
+        requested `module_id`. Platform catalog only (`global_master`); `iq_tenant_id` header
+        is ignored. Unknown module ids are omitted. Pass `module_ids` as a repeated query param.
+      security: []
+      tags:
+        - Modules
+      parameters:
+        - name: module_ids
+          in: query
+          required: true
+          schema:
+            type: array
+            items:
+              type: string
+              format: uuid
+            minItems: 1
+            maxItems: 200
+          style: form
+          explode: true
+          description: Module catalog ids (e.g. from configurator tenant_modules).
+      responses:
+        '200':
+          description: Permission bundles per module (modules with no links still included).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleNavPermissionsBatchListResponse'
+        '400':
+          description: Validation error (e.g. empty module_ids).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /modules/{moduleId}/permissions:
+    get:
+      operationId: listModuleNavPermissions
+      summary: List permission links for one module
+      description: >-
+        Returns active `module_permissions` junction rows for the given module joined to
+        permission definitions. Always reads the platform catalog (`global_master`); the
+        `iq_tenant_id` header is ignored. Use with tenant-scoped module ids from
+        `GET /modules/nav` when ids match the platform catalog (configurator entitlements).
+      security: []
+      tags:
+        - Modules
+      parameters:
+        - name: moduleId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Permission links for the module (possibly empty).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleNavPermissionLinksListResponse'
+        '404':
+          description: Module id not found or soft-deleted in the platform catalog.
           content:
             application/json:
               schema:
@@ -4368,6 +4463,7 @@ components:
       required:
       - name
       - slug
+      - role_type
       additionalProperties: false
       properties:
         name:
@@ -4390,6 +4486,16 @@ components:
         is_active:
           type: boolean
           default: true
+        role_type:
+          type: string
+          description: Picklist value from `role-types` (e.g. doctor, nurse).
+        module_permission_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          nullable: true
+          description: Module-permission catalog row ids granted by this template.
     SystemRoleUpdate:
       type: object
       additionalProperties: false
@@ -4408,6 +4514,15 @@ components:
         is_deleted:
           type: boolean
           description: Set false to restore a soft-deleted system role.
+        role_type:
+          type: string
+          nullable: true
+        module_permission_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          nullable: true
     SystemRole:
       type: object
       required:
@@ -4436,6 +4551,15 @@ components:
           type: boolean
         description:
           type: string
+          nullable: true
+        role_type:
+          type: string
+          nullable: true
+        module_permission_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
           nullable: true
         is_active:
           type: boolean
@@ -4763,6 +4887,113 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ModuleNav'
+    NavModulePermissionLink:
+      type: object
+      required:
+        - id
+        - permission_id
+        - permission_slug
+        - permission_name
+        - action
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: module_permissions.id — store on system role templates.
+        permission_id:
+          type: string
+          format: uuid
+        permission_slug:
+          type: string
+          description: Permission catalog slug (read, create, edit, delete).
+        permission_name:
+          type: string
+        action:
+          type: string
+          description: Permission action (read, create, update, delete, manage).
+    ModuleNavTreeNode:
+      type: object
+      required:
+        - id
+        - name
+        - slug
+        - category
+        - level
+      properties:
+        id:
+          type: string
+          format: uuid
+        iq_tenant_id:
+          type: string
+          format: uuid
+          nullable: true
+        parent_id:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+        slug:
+          type: string
+        category:
+          $ref: '#/components/schemas/ModuleCategory'
+        level:
+          type: integer
+          minimum: 1
+          maximum: 10
+        icon:
+          type: string
+          nullable: true
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/NavModulePermissionLink'
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModuleNavTreeNode'
+    ModuleNavTreeListResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModuleNavTreeNode'
+    ModuleNavPermissionLinksListResponse:
+      type: object
+      required:
+        - module
+        - data
+      properties:
+        module:
+          $ref: '#/components/schemas/ModuleNav'
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/NavModulePermissionLink'
+    ModuleNavPermissionBundle:
+      type: object
+      required:
+        - module
+        - permissions
+      properties:
+        module:
+          $ref: '#/components/schemas/ModuleNav'
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/NavModulePermissionLink'
+    ModuleNavPermissionsBatchListResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModuleNavPermissionBundle'
     ModuleListResponse:
       type: object
       required:

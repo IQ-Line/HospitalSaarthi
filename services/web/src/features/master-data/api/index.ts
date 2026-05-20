@@ -2,6 +2,9 @@ export { masterDataKeys } from './query-keys';
 export {
   useModules,
   useNavModules,
+  useNavModulesWithPermissions,
+  useModuleNavPermissions,
+  useModuleNavPermissionsBatch,
   useModule,
   useSubmodules,
   useCreateModule,
@@ -34,3 +37,4 @@ export {
   useUpdateDepartment,
   useDeleteDepartment,
 } from './departments';
+export { usePicklists, usePicklistValues, useRoleTypePicklistValues } from './picklists';

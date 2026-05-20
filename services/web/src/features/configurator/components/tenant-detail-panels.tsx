@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Controller, useForm, type UseFormReturn } from 'react-hook-form';
+import { useForm, type UseFormReturn } from 'react-hook-form';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
@@ -15,7 +15,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@pulse/ui/select';
-import { Switch } from '@pulse/ui/switch';
 import { Textarea } from '@pulse/ui/textarea';
 import { DataTable } from '@/components/data-table';
 import { ConfirmDialog } from '@/components/confirm-dialog';
@@ -57,17 +56,23 @@ import {
 } from '@/features/master-data/api';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { rowMatchesSearch } from '@/features/master-data/table-search';
-import type { Department, DepartmentType, SystemRole } from '@/features/master-data/types';
-import { toSlug } from '@/features/master-data/utils';
+import {
+  SystemRoleFormDialog,
+  systemRoleToFormValues,
+} from '@/features/master-data/components/system-role-form-dialog';
+import type {
+  Department,
+  DepartmentType,
+  SystemRole,
+  SystemRoleCreateInput,
+  SystemRoleUpdateInput,
+} from '@/features/master-data/types';
 import {
   EMPTY_DEPARTMENT_FORM_VALUES,
   EMPTY_SYSTEM_ROLE_FORM_VALUES,
   departmentFormSchema,
-  systemRoleFormSchema,
   type DepartmentFormInput,
   type DepartmentFormValues,
-  type SystemRoleFormInput,
-  type SystemRoleFormValues,
 } from '@/features/master-data/validation';
 import type { UmUser } from '@/features/user-management/types';
 import { mutationErrorMessage as billingMutationError } from '@/lib/mutation-error';
@@ -398,69 +403,6 @@ export function TenantDepartmentsPanel({ iqTenantId }: { iqTenantId: string }) {
   );
 }
 
-function TenantRoleFormFields({
-  form,
-}: {
-  form: UseFormReturn<SystemRoleFormInput, unknown, SystemRoleFormValues>;
-}) {
-  const { register, control, watch, formState: { errors } } = form;
-  const watchedName = watch('name');
-  const slugSuggestion = toSlug(watchedName);
-
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="tenant-role-name">Name</Label>
-          <Input id="tenant-role-name" placeholder="e.g. Ward Clerk" {...register('name')} />
-          {errors.name ? <p className="text-xs text-destructive">{errors.name.message}</p> : null}
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="tenant-role-slug">Slug</Label>
-          <Input
-            id="tenant-role-slug"
-            placeholder={slugSuggestion || 'ward-clerk'}
-            {...register('slug')}
-          />
-          {errors.slug ? <p className="text-xs text-destructive">{errors.slug.message}</p> : null}
-        </div>
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="tenant-role-description">Description (optional)</Label>
-        <Textarea id="tenant-role-description" rows={3} {...register('description')} />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="flex items-center justify-between rounded-md border px-3 py-2">
-          <div>
-            <p className="text-sm font-medium">Template role</p>
-            <p className="text-xs text-muted-foreground">Marks this as a platform template.</p>
-          </div>
-          <Controller
-            name="is_template"
-            control={control}
-            render={({ field }) => (
-              <Switch checked={field.value} onCheckedChange={field.onChange} />
-            )}
-          />
-        </div>
-        <div className="flex items-center justify-between rounded-md border px-3 py-2">
-          <div>
-            <p className="text-sm font-medium">Active</p>
-            <p className="text-xs text-muted-foreground">Inactive roles are hidden from active lists.</p>
-          </div>
-          <Controller
-            name="is_active"
-            control={control}
-            render={({ field }) => (
-              <Switch checked={field.value} onCheckedChange={field.onChange} />
-            )}
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string }) {
   const [search, setSearch] = useState('');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -472,14 +414,10 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
   const updateMutation = useUpdateSystemRole(iqTenantId);
   const deleteMutation = useDeleteSystemRole(iqTenantId);
 
-  const createForm = useForm<SystemRoleFormInput, unknown, SystemRoleFormValues>({
-    resolver: zodResolver(systemRoleFormSchema),
-    defaultValues: EMPTY_SYSTEM_ROLE_FORM_VALUES,
-  });
-  const editForm = useForm<SystemRoleFormInput, unknown, SystemRoleFormValues>({
-    resolver: zodResolver(systemRoleFormSchema),
-    defaultValues: EMPTY_SYSTEM_ROLE_FORM_VALUES,
-  });
+  const editDefaults = useMemo(
+    () => (editing ? systemRoleToFormValues(editing) : EMPTY_SYSTEM_ROLE_FORM_VALUES),
+    [editing],
+  );
 
   const rows = useMemo(() => {
     const list = data?.data ?? [];
@@ -492,6 +430,11 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
   const columns = useMemo<ColumnDef<SystemRole, unknown>[]>(
     () => [
       { accessorKey: 'name', header: 'Name' },
+      {
+        accessorKey: 'role_type',
+        header: 'Role type',
+        cell: ({ getValue }) => getValue<string | null>() ?? '—',
+      },
       {
         accessorKey: 'slug',
         header: 'Slug',
@@ -531,32 +474,14 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
         header: '',
         cell: ({ row }) => (
           <EntityRowActions
-            onView={() => {
-              setEditing(row.original);
-              editForm.reset({
-                name: row.original.name,
-                slug: row.original.slug,
-                description: row.original.description,
-                is_template: row.original.is_template,
-                is_active: row.original.is_active,
-              });
-            }}
-            onEdit={() => {
-              setEditing(row.original);
-              editForm.reset({
-                name: row.original.name,
-                slug: row.original.slug,
-                description: row.original.description,
-                is_template: row.original.is_template,
-                is_active: row.original.is_active,
-              });
-            }}
+            onView={() => setEditing(row.original)}
+            onEdit={() => setEditing(row.original)}
             onDelete={() => setDeleting(row.original)}
           />
         ),
       },
     ],
-    [editForm, updateMutation],
+    [updateMutation],
   );
 
   if (error) {
@@ -568,13 +493,7 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-end gap-2">
-        <Button
-          size="sm"
-          onClick={() => {
-            createForm.reset(EMPTY_SYSTEM_ROLE_FORM_VALUES);
-            setIsCreateOpen(true);
-          }}
-        >
+        <Button size="sm" onClick={() => setIsCreateOpen(true)}>
           <Plus className="size-4 mr-1" />
           Create role
         </Button>
@@ -590,38 +509,41 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
         />
       </div>
 
-      <EntityFormDialog
+      <SystemRoleFormDialog
         open={isCreateOpen}
         onOpenChange={setIsCreateOpen}
+        mode="create"
         title="Create role"
-        description="Create a role template in this tenant catalog."
+        description="Define role settings and catalog permissions for this tenant."
         submitLabel="Create"
         isSubmitting={createMutation.isPending}
-        onSubmit={createForm.handleSubmit((values) => {
-          createMutation.mutate(values, {
+        configuratorTenantId={iqTenantId}
+        defaultValues={EMPTY_SYSTEM_ROLE_FORM_VALUES}
+        onSubmit={(payload) => {
+          createMutation.mutate(payload as SystemRoleCreateInput, {
             onSuccess: () => {
               toast.success('Role created');
               setIsCreateOpen(false);
-              createForm.reset(EMPTY_SYSTEM_ROLE_FORM_VALUES);
             },
             onError: (err) => toast.error(mutationErrorMessage(err)),
           });
-        })}
-      >
-        <TenantRoleFormFields form={createForm} />
-      </EntityFormDialog>
+        }}
+      />
 
-      <EntityFormDialog
+      <SystemRoleFormDialog
         open={!!editing}
         onOpenChange={(open) => !open && setEditing(null)}
+        mode="edit"
         title="Edit role"
         description={editing ? `Update ${editing.name}.` : ''}
         submitLabel="Save"
         isSubmitting={updateMutation.isPending}
-        onSubmit={editForm.handleSubmit((values) => {
+        configuratorTenantId={iqTenantId}
+        defaultValues={editDefaults}
+        onSubmit={(payload) => {
           if (!editing) return;
           updateMutation.mutate(
-            { id: editing.id, input: values },
+            { id: editing.id, input: payload as SystemRoleUpdateInput },
             {
               onSuccess: () => {
                 toast.success('Role updated');
@@ -630,10 +552,8 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
               onError: (err) => toast.error(mutationErrorMessage(err)),
             },
           );
-        })}
-      >
-        <TenantRoleFormFields form={editForm} />
-      </EntityFormDialog>
+        }}
+      />
 
       <ConfirmDialog
         open={!!deleting}

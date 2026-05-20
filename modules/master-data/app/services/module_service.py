@@ -2,12 +2,22 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from typing import Any, Protocol
 from uuid import UUID
 
 from app.catalog.platform_table_models import module_model
+from app.repositories.module_permission_repository import ModulePermissionRepository
 from app.repositories.module_repository import ModuleRepository
-from app.schemas.module import ModuleCategory, ModuleCreate, ModuleUpdate
+from app.schemas.module import (
+    ModuleCategory,
+    ModuleCreate,
+    ModuleNavPermissionBundle,
+    ModuleNavTreeNode,
+    ModuleUpdate,
+    ModuleNavResponse,
+    NavModulePermissionLink,
+)
 
 # Deepest allowed stored ``level`` (root = 1). Raise migration + model check if this changes.
 MAX_MODULE_TREE_LEVEL = 10
@@ -53,6 +63,110 @@ def list_modules(
 def list_modules_for_nav(repository: ModuleRepository) -> list[Any]:
     """Return all active, non-deleted modules for shell navigation (no pagination)."""
     return repository.list_modules_for_nav()
+
+
+def build_module_nav_tree_with_permissions(
+    modules: list[Any],
+    permission_rows: list[tuple[Any, Any]],
+) -> list[ModuleNavTreeNode]:
+    """Build a parent/child tree; attach junction links to modules that have them."""
+    permissions_by_module: dict[UUID, list[NavModulePermissionLink]] = {}
+    for mp_row, perm_row in permission_rows:
+        link = NavModulePermissionLink(
+            id=mp_row.id,
+            permission_id=perm_row.id,
+            permission_slug=perm_row.slug,
+            permission_name=perm_row.name,
+            action=perm_row.action,
+        )
+        permissions_by_module.setdefault(mp_row.module_id, []).append(link)
+
+    for links in permissions_by_module.values():
+        links.sort(key=lambda row: row.permission_slug)
+
+    children_by_parent: dict[UUID | None, list[Any]] = {}
+    for module in modules:
+        children_by_parent.setdefault(module.parent_id, []).append(module)
+
+    def to_node(module: Any) -> ModuleNavTreeNode:
+        child_modules = children_by_parent.get(module.id, [])
+        return ModuleNavTreeNode(
+            id=module.id,
+            iq_tenant_id=getattr(module, "iq_tenant_id", None),
+            parent_id=module.parent_id,
+            name=module.name,
+            slug=module.slug,
+            category=ModuleCategory(module.category),
+            level=module.level,
+            icon=module.icon,
+            permissions=permissions_by_module.get(module.id, []),
+            children=[to_node(child) for child in child_modules],
+        )
+
+    roots = children_by_parent.get(None, [])
+    return [to_node(root) for root in roots]
+
+
+def list_module_nav_permission_links(
+    mp_repository: ModulePermissionRepository,
+    module_repository: ModuleRepository,
+    module_id: UUID,
+) -> tuple[Any, list[NavModulePermissionLink]]:
+    """Return module nav row and junction links; module must exist in the same catalog scope."""
+    module = module_repository.get_module_by_id(module_id)
+    if module is None:
+        raise ModuleNotFoundError
+    rows = mp_repository.list_active_permissions_for_module_with_details(module_id)
+    links = [
+        NavModulePermissionLink(
+            id=mp_row.id,
+            permission_id=perm_row.id,
+            permission_slug=perm_row.slug,
+            permission_name=perm_row.name,
+            action=perm_row.action,
+        )
+        for mp_row, perm_row in rows
+    ]
+    links.sort(key=lambda row: row.permission_slug)
+    return module, links
+
+
+def list_module_nav_permissions_batch(
+    mp_repository: ModulePermissionRepository,
+    module_repository: ModuleRepository,
+    module_ids: list[UUID],
+) -> list[ModuleNavPermissionBundle]:
+    """Return module nav rows and junction links for many modules (platform catalog)."""
+    if not module_ids:
+        return []
+
+    rows = mp_repository.list_active_permissions_for_modules_with_details(module_ids)
+    links_by_module: dict[UUID, list[NavModulePermissionLink]] = defaultdict(list)
+    for mp_row, perm_row in rows:
+        links_by_module[mp_row.module_id].append(
+            NavModulePermissionLink(
+                id=mp_row.id,
+                permission_id=perm_row.id,
+                permission_slug=perm_row.slug,
+                permission_name=perm_row.name,
+                action=perm_row.action,
+            )
+        )
+
+    bundles: list[ModuleNavPermissionBundle] = []
+    for module_id in module_ids:
+        module = module_repository.get_module_by_id(module_id)
+        if module is None:
+            continue
+        links = links_by_module.get(module_id, [])
+        links.sort(key=lambda row: row.permission_slug)
+        bundles.append(
+            ModuleNavPermissionBundle(
+                module=ModuleNavResponse.model_validate(module),
+                permissions=links,
+            )
+        )
+    return bundles
 
 
 def list_submodules(repository: ModuleRepository, parent_id: UUID) -> list[Any]:

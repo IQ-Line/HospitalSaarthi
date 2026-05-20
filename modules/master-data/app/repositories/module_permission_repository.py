@@ -9,7 +9,7 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.catalog.platform_table_models import module_permission_model
+from app.catalog.platform_table_models import module_permission_model, permission_model
 from app.core.catalog_scope import CatalogScope
 from app.repositories.paged_window import fetch_page_with_window_total
 
@@ -44,6 +44,82 @@ class ModulePermissionRepository:
 
     def _M(self) -> Any:
         return module_permission_model(self._scope)
+
+    def list_active_module_permissions_with_details(self) -> list[tuple[Any, Any]]:
+        """All active junction rows joined to active permission definitions (no pagination)."""
+        MP = self._M()
+        P = permission_model(self._scope)
+        filters = [
+            MP.is_deleted.is_(False),
+            MP.is_active.is_(True),
+            P.is_deleted.is_(False),
+            P.is_active.is_(True),
+        ]
+        if self._scope.is_tenant:
+            filters.append(MP.iq_tenant_id == self._scope.iq_tenant_id)
+            filters.append(P.iq_tenant_id == self._scope.iq_tenant_id)
+
+        statement: Select[tuple[Any, Any]] = (
+            select(MP, P)
+            .join(P, MP.permission_id == P.id)
+            .where(*filters)
+            .order_by(MP.slug)
+        )
+        return list(self._session.execute(statement).all())
+
+    def list_active_permissions_for_module_with_details(
+        self,
+        module_id: UUID,
+    ) -> list[tuple[Any, Any]]:
+        """Active junction rows for one module joined to active permission definitions."""
+        MP = self._M()
+        P = permission_model(self._scope)
+        filters = [
+            MP.is_deleted.is_(False),
+            MP.is_active.is_(True),
+            MP.module_id == module_id,
+            P.is_deleted.is_(False),
+            P.is_active.is_(True),
+        ]
+        if self._scope.is_tenant:
+            filters.append(MP.iq_tenant_id == self._scope.iq_tenant_id)
+            filters.append(P.iq_tenant_id == self._scope.iq_tenant_id)
+
+        statement: Select[tuple[Any, Any]] = (
+            select(MP, P)
+            .join(P, MP.permission_id == P.id)
+            .where(*filters)
+            .order_by(P.slug)
+        )
+        return list(self._session.execute(statement).all())
+
+    def list_active_permissions_for_modules_with_details(
+        self,
+        module_ids: list[UUID],
+    ) -> list[tuple[Any, Any]]:
+        """Active junction rows for many modules joined to active permission definitions."""
+        if not module_ids:
+            return []
+        MP = self._M()
+        P = permission_model(self._scope)
+        filters = [
+            MP.is_deleted.is_(False),
+            MP.is_active.is_(True),
+            MP.module_id.in_(module_ids),
+            P.is_deleted.is_(False),
+            P.is_active.is_(True),
+        ]
+        if self._scope.is_tenant:
+            filters.append(MP.iq_tenant_id == self._scope.iq_tenant_id)
+            filters.append(P.iq_tenant_id == self._scope.iq_tenant_id)
+
+        statement: Select[tuple[Any, Any]] = (
+            select(MP, P)
+            .join(P, MP.permission_id == P.id)
+            .where(*filters)
+            .order_by(MP.module_id, P.slug)
+        )
+        return list(self._session.execute(statement).all())
 
     def list_module_permissions(
         self,

@@ -1,7 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm, Controller } from 'react-hook-form';
 import { type ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
 import { Badge } from '@pulse/ui/badge';
@@ -13,10 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@pulse/ui/dialog';
-import { Input } from '@pulse/ui/input';
-import { Label } from '@pulse/ui/label';
-import { Switch } from '@pulse/ui/switch';
-import { Textarea } from '@pulse/ui/textarea';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import {
@@ -25,7 +19,10 @@ import {
   useSystemRoles,
   useUpdateSystemRole,
 } from '@/features/master-data/api';
-import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
+import {
+  SystemRoleFormDialog,
+  systemRoleToFormValues,
+} from '@/features/master-data/components/system-role-form-dialog';
 import { EntityRowActions } from '@/features/master-data/components/entity-row-actions';
 import { MasterDataPageShell } from '@/features/master-data/components/master-data-page-shell';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
@@ -33,13 +30,12 @@ import { ReadOnlyRow } from '@/features/master-data/components/read-only-row';
 import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { rowMatchesSearch } from '@/features/master-data/table-search';
-import { toSlug } from '@/features/master-data/utils';
-import {
-  EMPTY_SYSTEM_ROLE_FORM_VALUES,
-  systemRoleFormSchema,
-  type SystemRoleFormValues,
-} from '@/features/master-data/validation';
-import type { SystemRole } from '@/features/master-data/types';
+import { EMPTY_SYSTEM_ROLE_FORM_VALUES } from '@/features/master-data/validation';
+import type {
+  SystemRole,
+  SystemRoleCreateInput,
+  SystemRoleUpdateInput,
+} from '@/features/master-data/types';
 
 export const Route = createFileRoute('/_authenticated/master-data/system-roles')({
   component: SystemRolesPage,
@@ -63,15 +59,10 @@ function SystemRolesPage() {
   const updateMutation = useUpdateSystemRole();
   const deleteMutation = useDeleteSystemRole();
 
-  const createForm = useForm<SystemRoleFormValues>({
-    resolver: zodResolver(systemRoleFormSchema),
-    defaultValues: EMPTY_SYSTEM_ROLE_FORM_VALUES,
-  });
-
-  const editForm = useForm<SystemRoleFormValues>({
-    resolver: zodResolver(systemRoleFormSchema),
-    defaultValues: EMPTY_SYSTEM_ROLE_FORM_VALUES,
-  });
+  const editDefaults = useMemo(
+    () => (editingRole ? systemRoleToFormValues(editingRole) : EMPTY_SYSTEM_ROLE_FORM_VALUES),
+    [editingRole],
+  );
 
   const filteredRoles = useMemo(() => {
     return roles.filter((r) =>
@@ -129,49 +120,15 @@ function SystemRolesPage() {
         cell: ({ row }) => (
           <EntityRowActions
             onView={() => setViewingRole(row.original)}
-            onEdit={() => {
-              setEditingRole(row.original);
-              editForm.reset({
-                name: row.original.name,
-                slug: row.original.slug,
-                description: row.original.description,
-                is_template: row.original.is_template,
-                is_active: row.original.is_active,
-              });
-            }}
+            onEdit={() => setEditingRole(row.original)}
             onDelete={() => setDeletingRole(row.original)}
             disabled={deleteMutation.isPending}
           />
         ),
       },
     ],
-    [deleteMutation.isPending, editForm, updateMutation.isPending, updateMutation.variables],
+    [deleteMutation.isPending, updateMutation.isPending, updateMutation.variables],
   );
-
-  const onCreateSubmit = createForm.handleSubmit(async (values) => {
-    try {
-      await createMutation.mutateAsync(values);
-      toast.success('System role created');
-      setIsCreateOpen(false);
-      createForm.reset(EMPTY_SYSTEM_ROLE_FORM_VALUES);
-    } catch (err) {
-      toast.error(mutationErrorMessage(err));
-    }
-  });
-
-  const onEditSubmit = editForm.handleSubmit(async (values) => {
-    if (!editingRole) return;
-    try {
-      await updateMutation.mutateAsync({
-        id: editingRole.id,
-        input: values,
-      });
-      toast.success('System role updated');
-      setEditingRole(null);
-    } catch (err) {
-      toast.error(mutationErrorMessage(err));
-    }
-  });
 
   const onDeleteConfirm = async () => {
     if (!deletingRole) return;
@@ -242,38 +199,49 @@ function SystemRolesPage() {
         />
       </div>
 
-      <EntityFormDialog
+      <SystemRoleFormDialog
         open={isCreateOpen}
-        onOpenChange={(open) => {
-          setIsCreateOpen(open);
-          if (!open) {
-            createForm.reset(EMPTY_SYSTEM_ROLE_FORM_VALUES);
-          }
-        }}
+        onOpenChange={setIsCreateOpen}
+        mode="create"
         title="Create System Role"
-        description="Create a reusable role template."
+        description="Define role settings and catalog permissions."
         submitLabel="Create Role"
         isSubmitting={createMutation.isPending}
-        onSubmit={onCreateSubmit}
-      >
-        <SystemRoleFormFields form={createForm} />
-      </EntityFormDialog>
-
-      <EntityFormDialog
-        open={!!editingRole}
-        onOpenChange={(open) => {
-          if (!open) {
-            setEditingRole(null);
+        defaultValues={EMPTY_SYSTEM_ROLE_FORM_VALUES}
+        onSubmit={async (payload) => {
+          try {
+            await createMutation.mutateAsync(payload as SystemRoleCreateInput);
+            toast.success('System role created');
+            setIsCreateOpen(false);
+          } catch (err) {
+            toast.error(mutationErrorMessage(err));
           }
         }}
+      />
+
+      <SystemRoleFormDialog
+        open={!!editingRole}
+        onOpenChange={(open) => !open && setEditingRole(null)}
+        mode="edit"
         title="Update System Role"
-        description="Update role template metadata."
+        description="Update role template settings and permissions."
         submitLabel="Save Changes"
         isSubmitting={updateMutation.isPending}
-        onSubmit={onEditSubmit}
-      >
-        <SystemRoleFormFields form={editForm} />
-      </EntityFormDialog>
+        defaultValues={editDefaults}
+        onSubmit={async (payload) => {
+          if (!editingRole) return;
+          try {
+            await updateMutation.mutateAsync({
+              id: editingRole.id,
+              input: payload as SystemRoleUpdateInput,
+            });
+            toast.success('System role updated');
+            setEditingRole(null);
+          } catch (err) {
+            toast.error(mutationErrorMessage(err));
+          }
+        }}
+      />
 
       <Dialog open={!!viewingRole} onOpenChange={(open) => !open && setViewingRole(null)}>
         <DialogContent>
@@ -291,6 +259,11 @@ function SystemRolesPage() {
               />
               <ReadOnlyRow label="Status" value={viewingRole.is_active ? 'Active' : 'Inactive'} />
               <ReadOnlyRow label="Description" value={viewingRole.description ?? '-'} />
+              <ReadOnlyRow label="Role type" value={viewingRole.role_type ?? '—'} />
+              <ReadOnlyRow
+                label="Permissions"
+                value={String(viewingRole.module_permission_ids?.length ?? 0)}
+              />
             </div>
           )}
         </DialogContent>
@@ -306,83 +279,5 @@ function SystemRolesPage() {
         onConfirm={onDeleteConfirm}
       />
     </MasterDataPageShell>
-  );
-}
-
-interface SystemRoleFormFieldsProps {
-  form: ReturnType<typeof useForm<SystemRoleFormValues>>;
-}
-
-function SystemRoleFormFields({ form }: SystemRoleFormFieldsProps) {
-  const {
-    register,
-    control,
-    watch,
-    formState: { errors },
-  } = form;
-  const watchedName = watch('name');
-  const slugSuggestion = toSlug(watchedName);
-
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="role-name">Name</Label>
-          <Input id="role-name" placeholder="e.g. Ward Clerk" {...register('name')} />
-          {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="role-slug">Slug</Label>
-          <Input
-            id="role-slug"
-            placeholder={slugSuggestion || 'ward-clerk'}
-            {...register('slug')}
-          />
-          {errors.slug && <p className="text-xs text-destructive">{errors.slug.message}</p>}
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="role-description">Description (optional)</Label>
-        <Textarea
-          id="role-description"
-          rows={3}
-          placeholder={`Describe responsibilities for ${watchedName || 'this role'}`}
-          {...register('description')}
-        />
-        {errors.description && (
-          <p className="text-xs text-destructive">{errors.description.message}</p>
-        )}
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div className="flex items-center justify-between rounded-md border px-3 py-2">
-          <div>
-            <p className="text-sm font-medium">Template Role</p>
-            <p className="text-xs text-muted-foreground">Marks this as a platform template.</p>
-          </div>
-          <Controller
-            name="is_template"
-            control={control}
-            render={({ field }) => (
-              <Switch checked={field.value} onCheckedChange={field.onChange} />
-            )}
-          />
-        </div>
-        <div className="flex items-center justify-between rounded-md border px-3 py-2">
-          <div>
-            <p className="text-sm font-medium">Active</p>
-            <p className="text-xs text-muted-foreground">Inactive roles are hidden from active lists.</p>
-          </div>
-          <Controller
-            name="is_active"
-            control={control}
-            render={({ field }) => (
-              <Switch checked={field.value} onCheckedChange={field.onChange} />
-            )}
-          />
-        </div>
-      </div>
-    </div>
   );
 }

@@ -68,6 +68,67 @@ class ModuleNavListResponse(BaseModel):
     data: list[ModuleNavResponse]
 
 
+class NavModulePermissionLink(BaseModel):
+    """One junction row (``module_permissions``) with permission metadata for role editors."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID = Field(description="``module_permissions.id`` — store on system role templates.")
+    permission_id: UUID
+    permission_slug: str
+    permission_name: str
+    action: str = Field(description="Permission action from the catalog (read, create, update, delete, manage).")
+
+
+class ModuleNavTreeNode(BaseModel):
+    """Navigation module with optional child tree and permission links (``permissions=true``)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    iq_tenant_id: UUID | None = None
+    parent_id: UUID | None = None
+    name: str
+    slug: str
+    category: ModuleCategory
+    level: int = Field(ge=1, le=10)
+    icon: str | None = None
+    permissions: list[NavModulePermissionLink] = Field(
+        default_factory=list,
+        description="Active links for this module (typically ``level >= 2``). Empty for L1 parents.",
+    )
+    children: list["ModuleNavTreeNode"] = Field(
+        default_factory=list,
+        description="Direct child modules in tree order.",
+    )
+
+
+class ModuleNavTreeListResponse(BaseModel):
+    """Navigation catalog as a tree (root modules only in ``data``)."""
+
+    data: list[ModuleNavTreeNode]
+
+
+class ModuleNavPermissionLinksListResponse(BaseModel):
+    """Module metadata plus active junction links (platform catalog; role editors)."""
+
+    module: ModuleNavResponse
+    data: list[NavModulePermissionLink]
+
+
+class ModuleNavPermissionBundle(BaseModel):
+    """One module and its permission links (batch role-editor responses)."""
+
+    module: ModuleNavResponse
+    permissions: list[NavModulePermissionLink] = Field(default_factory=list)
+
+
+class ModuleNavPermissionsBatchListResponse(BaseModel):
+    """Permission links for many modules in one response (platform catalog)."""
+
+    data: list[ModuleNavPermissionBundle]
+
+
 class ModuleListResponse(BaseModel):
     data: list[ModuleResponse]
     total: int

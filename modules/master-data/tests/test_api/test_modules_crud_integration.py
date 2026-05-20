@@ -353,3 +353,85 @@ def test_list_modules_for_nav_active_only(module_client: TestClient) -> None:
     nav_after_delete = module_client.get("/api/v1/master-data/modules/nav")
     assert nav_after_delete.status_code == 200
     assert "nav-inactive" not in {row["slug"] for row in nav_after_delete.json()["data"]}
+
+
+def test_list_modules_for_nav_with_permissions_tree(module_client: TestClient) -> None:
+    nav = module_client.get("/api/v1/master-data/modules/nav?permissions=true")
+    assert nav.status_code == 200
+    body = nav.json()
+    assert "data" in body
+    assert len(body["data"]) > 0
+
+    root = body["data"][0]
+    assert "children" in root
+    assert "permissions" in root
+    assert isinstance(root["children"], list)
+    assert isinstance(root["permissions"], list)
+
+    um = next((row for row in body["data"] if row["slug"] == "user-management"), None)
+    if um is None:
+        return
+
+    assert um["level"] == 1
+    child_slugs = {child["slug"] for child in um["children"]}
+    assert "users" in child_slugs
+
+    users = next(child for child in um["children"] if child["slug"] == "users")
+    assert len(users["permissions"]) >= 1
+    perm = users["permissions"][0]
+    assert set(perm.keys()) == {
+        "id",
+        "permission_id",
+        "permission_slug",
+        "permission_name",
+        "action",
+    }
+
+
+def test_list_module_nav_permissions_by_module_id(module_client: TestClient) -> None:
+    nav = module_client.get("/api/v1/master-data/modules/nav?permissions=true")
+    assert nav.status_code == 200
+    um = next((row for row in nav.json()["data"] if row["slug"] == "user-management"), None)
+    if um is None:
+        return
+    users = next((child for child in um["children"] if child["slug"] == "users"), None)
+    if users is None or not users["permissions"]:
+        return
+
+    expected = users["permissions"]
+    by_module = module_client.get(
+        f"/api/v1/master-data/modules/{users['id']}/permissions",
+    )
+    assert by_module.status_code == 200
+    body = by_module.json()
+    assert body["data"] == expected
+    assert body["module"]["id"] == users["id"]
+    assert body["module"]["name"]
+
+    missing = module_client.get(f"/api/v1/master-data/modules/{uuid4()}/permissions")
+    assert missing.status_code == 404
+
+
+def test_list_module_nav_permissions_batch(module_client: TestClient) -> None:
+    nav = module_client.get("/api/v1/master-data/modules/nav?permissions=true")
+    assert nav.status_code == 200
+    um = next((row for row in nav.json()["data"] if row["slug"] == "user-management"), None)
+    if um is None:
+        return
+    users = next((child for child in um["children"] if child["slug"] == "users"), None)
+    if users is None:
+        return
+
+    batch = module_client.get(
+        "/api/v1/master-data/modules/permissions",
+        params={"module_ids": [users["id"], um["id"]]},
+    )
+    assert batch.status_code == 200
+    body = batch.json()
+    assert "data" in body
+    assert len(body["data"]) == 2
+    by_id = {row["module"]["id"]: row for row in body["data"]}
+    assert users["id"] in by_id
+    assert um["id"] in by_id
+    assert len(by_id[users["id"]]["permissions"]) >= 1
+    assert by_id[um["id"]]["permissions"] == []

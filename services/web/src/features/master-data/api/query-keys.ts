@@ -4,7 +4,21 @@ export const masterDataKeys = {
   all: ['master-data'] as const,
 
   modulesRoot: () => [...masterDataKeys.all, 'modules'] as const,
-  navModules: () => [...masterDataKeys.modulesRoot(), 'nav'] as const,
+  navModules: (withPermissions?: boolean, iqTenantId?: string) =>
+    [
+      ...masterDataKeys.modulesRoot(),
+      'nav',
+      withPermissions ? 'tree' : 'flat',
+      iqTenantId ?? 'global',
+    ] as const,
+  moduleNavPermissions: (moduleId: string) =>
+    [...masterDataKeys.modulesRoot(), 'nav-permissions', moduleId] as const,
+  moduleNavPermissionsBatch: (moduleIds: string[]) =>
+    [
+      ...masterDataKeys.modulesRoot(),
+      'nav-permissions-batch',
+      [...moduleIds].sort().join(','),
+    ] as const,
   modules: (category?: ModuleCategory) =>
     [...masterDataKeys.modulesRoot(), category ?? 'all'] as const,
   moduleDetail: (id: string) => [...masterDataKeys.modules(), id] as const,
@@ -45,4 +59,9 @@ export const masterDataKeys = {
   departmentsRoot: () => [...masterDataKeys.all, 'departments'] as const,
   departments: (type?: string, iqTenantId?: string) =>
     [...masterDataKeys.departmentsRoot(), type ?? 'all', iqTenantId ?? 'global'] as const,
+
+  picklistsRoot: () => [...masterDataKeys.all, 'picklists'] as const,
+  picklists: () => [...masterDataKeys.picklistsRoot()] as const,
+  picklistValues: (picklistId: string | undefined, limit: number) =>
+    [...masterDataKeys.picklistsRoot(), picklistId ?? 'none', limit] as const,
 } as const;

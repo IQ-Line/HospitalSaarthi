@@ -40,6 +40,38 @@ export interface NavModuleListResponse {
   data: NavModule[];
 }
 
+/** Junction row from `GET /modules/{moduleId}/permissions` or nav tree `permissions`. */
+export interface NavModulePermissionLink {
+  id: string;
+  permission_id: string;
+  permission_slug: string;
+  permission_name: string;
+  action: string;
+}
+
+export interface ModuleNavTreeNode extends NavModule {
+  permissions: NavModulePermissionLink[];
+  children: ModuleNavTreeNode[];
+}
+
+export interface ModuleNavTreeListResponse {
+  data: ModuleNavTreeNode[];
+}
+
+export interface ModuleNavPermissionLinksListResponse {
+  module: NavModule;
+  data: NavModulePermissionLink[];
+}
+
+export interface ModuleNavPermissionBundle {
+  module: NavModule;
+  permissions: NavModulePermissionLink[];
+}
+
+export interface ModuleNavPermissionsBatchListResponse {
+  data: ModuleNavPermissionBundle[];
+}
+
 export interface ModuleSingleResponse {
   data: Module;
 }
@@ -107,12 +139,49 @@ export interface PermissionUpdateInput {
   is_deleted?: boolean;
 }
 
+export interface Picklist {
+  id: string;
+  name: string;
+  slug: string;
+  is_active: boolean;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PicklistListResponse {
+  data: Picklist[];
+  total: number;
+}
+
+export interface PicklistValue {
+  id: string;
+  category_id: string;
+  value: string;
+  label: string;
+  description: string | null;
+  metadata: Record<string, unknown> | null;
+  is_active: boolean;
+  is_default: boolean;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PicklistValueListResponse {
+  data: PicklistValue[];
+  total: number;
+}
+
 export interface SystemRole {
   id: string;
   name: string;
   slug: string;
   is_template: boolean;
   description: string | null;
+  role_type: string | null;
+  module_permission_ids: string[] | null;
   is_active: boolean;
   is_deleted: boolean;
   created_by: string | null;
@@ -134,6 +203,8 @@ export interface SystemRoleCreateInput {
   name: string;
   slug: string;
   description?: string | null;
+  role_type: string;
+  module_permission_ids?: string[] | null;
   is_template?: boolean;
   is_active?: boolean;
 }
@@ -142,6 +213,8 @@ export interface SystemRoleUpdateInput {
   name?: string;
   slug?: string;
   description?: string | null;
+  role_type?: string;
+  module_permission_ids?: string[] | null;
   is_template?: boolean;
   is_active?: boolean;
   is_deleted?: boolean;

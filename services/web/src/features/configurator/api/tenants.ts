@@ -70,11 +70,16 @@ export interface TenantModuleListResponse {
   total: number;
 }
 
-export function useTenantModules(tenantId: string, options?: { enabled?: boolean }) {
+export function useTenantModules(
+  tenantId: string,
+  options?: { enabled?: boolean; isActive?: boolean },
+) {
+  const qs =
+    options?.isActive === undefined ? '' : `?is_active=${options.isActive ? 'true' : 'false'}`;
   return useQuery({
-    queryKey: configuratorKeys.tenantModules(tenantId),
+    queryKey: [...configuratorKeys.tenantModules(tenantId), options?.isActive ?? 'all'] as const,
     queryFn: () =>
-      apiClient<TenantModuleListResponse>(`${BASE}/${tenantId}/modules`),
+      apiClient<TenantModuleListResponse>(`${BASE}/${tenantId}/modules${qs}`),
     enabled: (options?.enabled ?? true) && !!tenantId,
   });
 }

@@ -1,10 +1,13 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '@/lib/api-client';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiClient, apiClientGlobalCatalogRead, apiClientWithIqTenant } from '@/lib/api-client';
 import { masterDataKeys } from './query-keys';
 import type {
   ModuleCategory,
   ModuleCreateInput,
   ModuleListResponse,
+  ModuleNavPermissionLinksListResponse,
+  ModuleNavPermissionsBatchListResponse,
+  ModuleNavTreeListResponse,
   ModuleSingleResponse,
   ModuleUpdateInput,
   NavModuleListResponse,
@@ -13,11 +16,75 @@ import type {
 const BASE = '/api/v1/master-data/modules';
 const NAV_MODULES_PATH = `${BASE}/nav`;
 
-export function useNavModules(options?: { enabled?: boolean }) {
+function navModulesClient<T>(
+  iqTenantId: string | undefined,
+  path: string,
+): Promise<T> {
+  if (iqTenantId) {
+    return apiClientWithIqTenant<T>(iqTenantId, path);
+  }
+  return apiClient<T>(path);
+}
+
+export function useNavModules(options?: { enabled?: boolean; iqTenantId?: string }) {
+  const iqTenantId = options?.iqTenantId;
   return useQuery({
-    queryKey: masterDataKeys.navModules(),
-    queryFn: () => apiClient<NavModuleListResponse>(NAV_MODULES_PATH),
+    queryKey: masterDataKeys.navModules(false, iqTenantId),
+    queryFn: () => navModulesClient<NavModuleListResponse>(iqTenantId, NAV_MODULES_PATH),
     enabled: options?.enabled ?? true,
+  });
+}
+
+export function useNavModulesWithPermissions(options?: { enabled?: boolean; iqTenantId?: string }) {
+  const iqTenantId = options?.iqTenantId;
+  return useQuery({
+    queryKey: masterDataKeys.navModules(true, iqTenantId),
+    queryFn: () =>
+      navModulesClient<ModuleNavTreeListResponse>(
+        iqTenantId,
+        `${NAV_MODULES_PATH}?permissions=true`,
+      ),
+    enabled: options?.enabled ?? true,
+  });
+}
+
+/** Platform-catalog permission links for one module (ignores tenant header). */
+export function useModuleNavPermissions(
+  moduleId: string,
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: masterDataKeys.moduleNavPermissions(moduleId),
+    queryFn: () =>
+      apiClientGlobalCatalogRead<ModuleNavPermissionLinksListResponse>(
+        `${BASE}/${moduleId}/permissions`,
+      ),
+    enabled: (options?.enabled ?? true) && !!moduleId,
+  });
+}
+
+function buildModulePermissionsBatchQuery(moduleIds: string[]) {
+  const params = new URLSearchParams();
+  for (const id of moduleIds) {
+    params.append('module_ids', id);
+  }
+  return `${BASE}/permissions?${params.toString()}`;
+}
+
+/** Platform-catalog permission links for many modules in one request. */
+export function useModuleNavPermissionsBatch(
+  moduleIds: string[],
+  options?: { enabled?: boolean },
+) {
+  const uniqueIds = [...new Set(moduleIds.filter(Boolean))];
+  return useQuery({
+    queryKey: masterDataKeys.moduleNavPermissionsBatch(uniqueIds),
+    queryFn: () =>
+      apiClientGlobalCatalogRead<ModuleNavPermissionsBatchListResponse>(
+        buildModulePermissionsBatchQuery(uniqueIds),
+      ),
+    enabled: (options?.enabled ?? true) && uniqueIds.length > 0,
+    staleTime: 60_000,
   });
 }
 

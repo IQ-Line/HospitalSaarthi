@@ -55,6 +55,24 @@ function provisioningLabel(status: string) {
   return status;
 }
 
+function OverviewField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid grid-cols-[minmax(10rem,14rem)_1fr] items-center gap-x-6 px-4 py-3">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="font-medium">{value}</dd>
+    </div>
+  );
+}
+
+function OverviewStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="space-y-1">
+      <p className="text-muted-foreground">{label}</p>
+      <p className="text-lg font-semibold tabular-nums">{value}</p>
+    </div>
+  );
+}
+
 function TenantTabComingSoon({ title, body }: { title: string; body: string }) {
   return (
     <Empty className="border border-dashed py-12">
@@ -350,69 +368,72 @@ function TenantOrganizationDetailPage() {
         </div>
       </div>
 
-      <Tabs value={tab} onValueChange={setTab} className="gap-4">
-        <div className="w-full overflow-x-auto pb-1">
-          <TabsList
-            variant="line"
-            className="inline-flex h-auto min-w-max flex-nowrap justify-start gap-1 bg-transparent p-0"
-          >
-            <TabsTrigger value="overview" className="shrink-0 text-xs sm:text-sm">
-              Overview
-            </TabsTrigger>
-            <TabsTrigger value="branches" className="shrink-0 text-xs sm:text-sm">
-              Branches
-            </TabsTrigger>
-            <TabsTrigger value="users" className="shrink-0 text-xs sm:text-sm">
-              Users
-            </TabsTrigger>
-            <TabsTrigger value="role-templates" className="shrink-0 text-xs sm:text-sm">
-              Role Templates
-            </TabsTrigger>
-            <TabsTrigger value="department-templates" className="shrink-0 text-xs sm:text-sm">
-              Department templates
-            </TabsTrigger>
-            <TabsTrigger value="billing" className="shrink-0 text-xs sm:text-sm">
-              Billing
-            </TabsTrigger>
-            <TabsTrigger value="modules" className="shrink-0 text-xs sm:text-sm">
-              Modules
-            </TabsTrigger>
-            <TabsTrigger value="audit-logs" className="shrink-0 text-xs sm:text-sm">
-              Audit logs
-            </TabsTrigger>
-          </TabsList>
-        </div>
+      <Tabs value={tab} onValueChange={setTab} className="gap-4 w-full">
+        <TabsList
+          variant="line"
+          className="flex h-auto w-full flex-nowrap justify-between gap-0 bg-transparent p-0"
+        >
+          <TabsTrigger value="overview" className="flex-1 px-2 text-xs sm:text-sm">
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="branches" className="flex-1 px-2 text-xs sm:text-sm">
+            Branches
+          </TabsTrigger>
+          <TabsTrigger value="users" className="flex-1 px-2 text-xs sm:text-sm">
+            Users
+          </TabsTrigger>
+          <TabsTrigger value="role-templates" className="flex-1 px-2 text-xs sm:text-sm">
+            Role Templates
+          </TabsTrigger>
+          <TabsTrigger value="department-templates" className="flex-1 px-2 text-xs sm:text-sm">
+            Department templates
+          </TabsTrigger>
+          <TabsTrigger value="billing" className="flex-1 px-2 text-xs sm:text-sm">
+            Billing
+          </TabsTrigger>
+          <TabsTrigger value="modules" className="flex-1 px-2 text-xs sm:text-sm">
+            Modules
+          </TabsTrigger>
+          <TabsTrigger value="audit-logs" className="flex-1 px-2 text-xs sm:text-sm">
+            Audit logs
+          </TabsTrigger>
+        </TabsList>
 
-        <TabsContent value="overview" className="mt-4 space-y-4">
-          <div className="max-w-2xl space-y-3 text-sm">
-            <ReadOnlyRow label="Organization" value={org.name} />
-            <ReadOnlyRow label="Slug" value={`${org.slug}.iqhealth.app`} />
-            <ReadOnlyRow label="Plan" value={planSlug} />
-            <ReadOnlyRow label="Status" value={provisioningLabel(rootTenant.provisioning_status)} />
-            <div className="space-y-1">
-              <div className="text-xs font-medium text-muted-foreground">Modules enabled</div>
-              <div className="flex flex-wrap gap-1">
-                {activeModuleNames.length === 0 ? (
-                  <span className="text-muted-foreground">None</span>
-                ) : (
-                  activeModuleNames.map((name) => (
-                    <Badge key={name} variant="outline" className="text-xs font-normal">
-                      {name}
-                    </Badge>
-                  ))
-                )}
-              </div>
-            </div>
-            <div className="grid gap-3 border-t pt-3 sm:grid-cols-3">
-              <ReadOnlyRow label="Total users" value="—" />
-              <ReadOnlyRow
-                label="Active branches"
-                value={branchesLoading ? '…' : String(branches.length)}
+        <TabsContent value="overview" className="mt-4 w-full">
+          <div className="w-full rounded-lg border text-sm">
+            <dl className="divide-y">
+              <OverviewField label="Organization" value={org.name} />
+              <OverviewField label="Slug" value={`${org.slug}.iqhealth.app`} />
+              <OverviewField label="Plan" value={planSlug} />
+              <OverviewField
+                label="Status"
+                value={provisioningLabel(rootTenant.provisioning_status)}
               />
-              <ReadOnlyRow label="Monthly test volume" value="—" />
-            </div>
-            <ReadOnlyRow label="Created" value={formatShortDate(org.created_at)} />
-            <ReadOnlyRow label="Updated" value={formatShortDate(org.updated_at)} />
+              <div className="grid grid-cols-[minmax(10rem,14rem)_1fr] items-start gap-x-6 gap-y-2 px-4 py-3">
+                <dt className="text-muted-foreground">Modules enabled</dt>
+                <dd className="flex flex-wrap gap-1.5">
+                  {activeModuleNames.length === 0 ? (
+                    <span className="text-muted-foreground">None</span>
+                  ) : (
+                    activeModuleNames.map((name) => (
+                      <Badge key={name} variant="outline" className="text-xs font-normal">
+                        {name}
+                      </Badge>
+                    ))
+                  )}
+                </dd>
+              </div>
+              <div className="grid gap-4 px-4 py-3 sm:grid-cols-3">
+                <OverviewStat label="Total users" value="—" />
+                <OverviewStat
+                  label="Active branches"
+                  value={branchesLoading ? '…' : String(branches.length)}
+                />
+                <OverviewStat label="Monthly test volume" value="—" />
+              </div>
+              <OverviewField label="Created" value={formatShortDate(org.created_at)} />
+              <OverviewField label="Updated" value={formatShortDate(org.updated_at)} />
+            </dl>
           </div>
         </TabsContent>
 

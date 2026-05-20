@@ -68,7 +68,9 @@ export const permissionFormSchema = z.object({
 export const systemRoleFormSchema = z.object({
   name: requiredString('Name', 120),
   slug: requiredString('Slug', 150),
-  description: nullableText,
+  description: z.string().max(1000, 'Description is too long.').nullable(),
+  role_type: requiredString('Role type', 64),
+  module_permission_ids: z.array(z.string().uuid()).default([]),
   is_template: z.boolean().default(true),
   is_active: z.boolean().default(true),
 });
@@ -118,6 +120,8 @@ export const EMPTY_SYSTEM_ROLE_FORM_VALUES: SystemRoleFormValues = {
   name: '',
   slug: '',
   description: null,
+  role_type: '',
+  module_permission_ids: [],
   is_template: true,
   is_active: true,
 };
