@@ -79,7 +79,7 @@ The connection string is standard SQLAlchemy/psycopg. Same migrations apply to *
 | Scenario | Typical URL shape |
 |----------|-------------------|
 | Docker Compose in this repo | `postgresql+psycopg://hims:hims@localhost:5433/hims_dev` |
-| Native Postgres / pgAdmin | `postgresql+psycopg://USER:PASSWORD@localhost:5432/DATABASE` — database name must match exactly (e.g. `hims-master` with a hyphen). |
+| Native Postgres / pgAdmin | `postgresql+psycopg://USER:PASSWORD@localhost:5432/DATABASE` — use `hims_dev` (same operational DB as other modules). |
 | Hosted / cloud | Same pattern; add `?sslmode=require` if the provider requires TLS. |
 
 **Ports:** Compose publishes Postgres on host **5433**; native Postgres can stay on **5432**. Point `MASTER_DATA_DATABASE_URL` at the port your database actually uses.
@@ -94,19 +94,14 @@ MASTER_DATA_DATABASE_URL=postgresql+psycopg://hims:hims@localhost:5433/hims_dev
 
 That Unix socket is created only when **PostgreSQL is installed and running on the OS** (package `postgresql`). If Alembic reports **No such file or directory** for `/var/run/postgresql`, there is **no local server** using that socket — often everything on your machine is **Docker-only** on TCP. Use a **`localhost:PORT`** URL (Docker), not a socket URL.
 
-### Database name `hims-master` on Docker
+### Schemas on `hims_dev` (not a separate database)
 
-Compose creates **`hims_dev`** by default. To use the name **`hims-master`** with the **same** Docker server as the repo (user **`hims`**), create the database once:
+Master Data uses the **same operational database** as every other module (`hims_dev` from Docker Compose). Catalog tables live in isolated schemas:
 
-```bash
-docker exec -it hims-postgres psql -U hims -d hims_dev -c 'CREATE DATABASE "hims-master";'
-```
+- **`global_master`** — platform catalog (modules, permissions, …)
+- **`tenant_master`** — tenant-scoped master rows
 
-If it already exists, PostgreSQL will error — that is safe to ignore. Then set:
-
-```text
-MASTER_DATA_DATABASE_URL=postgresql+psycopg://hims:hims@localhost:5433/hims-master
-```
+`MASTER_DATA_DATABASE_URL` must point at **`hims_dev`** (with the `postgresql+psycopg://` driver prefix). Alembic keeps `include_schemas=True` and `version_table_schema="public"`; do not rename or collapse those schemas.
 
 Use port **5432** instead of **5433** only if `docker ps` shows Postgres mapped to **5432** on the host.
 
@@ -246,7 +241,7 @@ docker compose -f infra/docker/docker-compose.yml ps
 
 **`password authentication failed for user "postgres"`** while using local credentials — traffic on `localhost:5432` is hitting the wrong server (often an old container still mapped to 5432). Run `docker compose -f infra/docker/docker-compose.yml up -d` after pulling changes so Postgres is on host port **5433**, or stop conflicting containers.
 
-**`database "hims_master" does not exist`** — the URL database segment must match the real name (`hims-master` uses a hyphen; `hims_master` does not).
+**`database "hims_dev" does not exist`** — start infra (`make infra`) so Compose creates `hims_dev`. **`database "hims-master" does not exist`** — update `.env`: catalog now lives on `hims_dev`, not a separate `hims-master` database.
 
 **Same `.env` works on another computer but not this one** — TCP `127.0.0.1:5432` here is almost certainly **not the same Postgres** as on the other machine: different install, different `postgres` password, or another program (e.g. Docker) still bound to `5432`. Confirm with `ss -tlnp | grep 5432` and test the password outside Alembic:
 

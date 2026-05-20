@@ -43,8 +43,11 @@ class Settings(BaseSettings):
     )
 
     database_url: str = Field(
-        default="postgresql+psycopg://hims:hims@localhost:5433/hims-master",
-        description="SQLAlchemy database URL for the Master Data module (`hims-master`).",
+        default="postgresql+psycopg://hims:hims@localhost:5433/hims_dev",
+        description=(
+            "SQLAlchemy database URL for the Master Data module. "
+            "Catalog lives in `global_master` and `tenant_master` schemas on `hims_dev`."
+        ),
     )
     api_prefix: str = "/api/v1/master-data"
     log_level: str = "INFO"

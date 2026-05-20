@@ -50,69 +50,20 @@ function requireUpstreamBaseUrl(envKey: string): string {
   return raw.replace(/\/+$/, "");
 }
 
-function normalizeIdentityJwksUrl(authBaseUrl: string): string {
-  const expected = `${authBaseUrl}/api/auth/.well-known/jwks.json`;
-  const configured = process.env.JWKS_URL?.trim();
-  if (!configured || configured.length === 0) {
-    process.env.JWKS_URL = expected;
-    return expected;
-  }
-
-  try {
-    const parsed = new URL(configured);
-    if (parsed.origin === authBaseUrl && parsed.pathname === "/.well-known/jwks.json") {
-      process.env.JWKS_URL = expected;
-      return expected;
-    }
-  } catch {
-    // Keep validation failure behavior below if the configured URL is not parseable.
-  }
-
-  return configured;
-}
-
-/** Keep JWT issuer/JWKS on the same public origin as better-auth (`AUTH_BASE_URL`). */
-function alignIdentityEnvWithAuthBaseUrl(
-  authBaseUrl: string,
-  log: { warn: (obj: object, msg: string) => void },
-): void {
-  const base = authBaseUrl.replace(/\/+$/, "");
-  const issuer = process.env.JWT_ISSUER?.trim();
-  if (issuer && issuer !== base) {
-    log.warn(
-      { configuredIssuer: issuer, authBaseUrl: base },
-      "JWT_ISSUER did not match AUTH_BASE_URL; using AUTH_BASE_URL",
-    );
-    process.env.JWT_ISSUER = base;
-  }
-
-  const expectedJwks = `${base}/api/auth/.well-known/jwks.json`;
-  const configuredJwks = process.env.JWKS_URL?.trim();
-  if (!configuredJwks || configuredJwks !== expectedJwks) {
-    if (configuredJwks && configuredJwks.length > 0) {
-      log.warn(
-        { configuredJwks, expectedJwks },
-        "JWKS_URL did not match AUTH_BASE_URL; using AUTH_BASE_URL",
-      );
-    }
-    process.env.JWKS_URL = expectedJwks;
-  }
-}
-
 function readAuthBaseUrl(): string {
-  /**
-   * Browser origin for better-auth cookies (Vite :5173). JWT issuer/JWKS stay on AUTH_BASE_URL / BFF.
-   */
-  const webPublic = process.env.WEB_PUBLIC_ORIGIN?.trim();
-  if (webPublic && process.env.NODE_ENV !== "production") {
-    return webPublic.replace(/\/+$/, "");
-  }
-
   const raw = process.env.AUTH_BASE_URL?.trim();
   if (!raw || raw.length === 0) {
     throw new Error(
-      "AUTH_BASE_URL is required (better-auth baseURL; JWT_ISSUER / JWKS_URL use the BFF origin)",
+      "AUTH_BASE_URL is required (backend API origin; equals JWT_ISSUER and JWKS_URL prefix)",
     );
+  }
+  return raw.replace(/\/+$/, "");
+}
+
+function readWebPublicOrigin(): string | undefined {
+  const raw = process.env.WEB_PUBLIC_ORIGIN?.trim();
+  if (!raw || raw.length === 0) {
+    return undefined;
   }
   return raw.replace(/\/+$/, "");
 }
@@ -167,10 +118,9 @@ async function createApp(): Promise<FastifyInstance> {
   }
   const cerbosUrl = process.env.CERBOS_URL.trim();
 
-  const authBaseUrl = readAuthBaseUrl();
-  alignIdentityEnvWithAuthBaseUrl(authBaseUrl, app.log);
-  normalizeIdentityJwksUrl(authBaseUrl);
   const identityAuth = validateAuthConfig();
+  const authBaseUrl = readAuthBaseUrl();
+  const webPublicOrigin = readWebPublicOrigin();
   const databaseUrl = resolveDatabaseUrl();
   const pgDb = createDb(databaseUrl);
   await assertUserManagementDatabaseIsolation({
@@ -227,9 +177,15 @@ async function createApp(): Promise<FastifyInstance> {
     principalAuthorizationRepository,
   });
 
-  const trustedOrigins = readTrustedOrigins();
+  const trustedOrigins = [
+    ...new Set([
+      ...readTrustedOrigins(),
+      ...(webPublicOrigin ? [webPublicOrigin] : []),
+    ]),
+  ];
   const authEnv = {
     authBaseUrl,
+    webPublicOrigin,
     secret: readBetterAuthSecret(),
     jwtIssuer: identityAuth.issuer,
     jwtAudience: identityAuth.audience,

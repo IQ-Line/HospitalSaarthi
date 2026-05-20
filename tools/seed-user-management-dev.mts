@@ -3,7 +3,7 @@
  * Development runtime seed (Configurator tenant, UM capabilities, users, better-auth).
  *
  * Official entry: `make seed` (wraps this script).
- * Prerequisites: `make setup` or `make db-migrate` (hims_dev schemas + hims-master catalog).
+ * Prerequisites: `make setup` or `make db-migrate` (hims_dev module schemas + global_master/tenant_master catalog).
  * Catalog data: Master Data Alembic only — not inserted here.
  */
 import {

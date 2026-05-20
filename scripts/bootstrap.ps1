@@ -32,16 +32,6 @@ function Wait-Postgres {
     Write-Host "PostgreSQL is ready."
 }
 
-function Reset-ModuleDatabases {
-    Write-Host "==> Dropping module databases..."
-    Get-Content infra/db/drop-module-databases.sql | Invoke-DockerCompose exec -T postgres psql -U hims -d hims_dev
-}
-
-function New-ModuleDatabases {
-    Write-Host "==> Creating module databases..."
-    Get-Content infra/db/create-module-databases.sql | Invoke-DockerCompose exec -T postgres psql -U hims -d hims_dev
-}
-
 if (-not $MigrateOnly -and -not $SeedOnly) {
     if (-not (Test-Path .env)) {
         Copy-Item .env.example .env
@@ -67,10 +57,6 @@ if (-not $MigrateOnly -and -not $SeedOnly) {
     Write-Host "==> Starting infrastructure..."
     Invoke-DockerCompose up -d
     Wait-Postgres
-    if ($Reset) {
-        Reset-ModuleDatabases
-    }
-    New-ModuleDatabases
 }
 
 if (-not $SeedOnly) {

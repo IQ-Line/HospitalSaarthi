@@ -29,9 +29,9 @@ def test_engine_rebinds_after_settings_cache_clear(monkeypatch) -> None:
 def test_get_settings_reads_master_data_database_url_from_env(monkeypatch) -> None:
     monkeypatch.setenv(
         "MASTER_DATA_DATABASE_URL",
-        "postgresql+psycopg://hims:hims@localhost:5433/hims-master",
+        "postgresql+psycopg://hims:hims@localhost:5433/hims_dev",
     )
     reset_settings_cache_for_tests()
     settings = get_settings()
-    assert settings.database_url.endswith("/hims-master")
+    assert settings.database_url.endswith("/hims_dev")
     reset_settings_cache_for_tests()

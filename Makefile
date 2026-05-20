@@ -11,7 +11,7 @@ SERVICE_ENVS := bff user-management-svc empi-svc configurator-svc billing-svc fr
 # --- Setup -------------------------------------------------------------------
 
 .PHONY: setup
-setup: ## Full bootstrap: env, deps, infra, module DBs, migrate, seed
+setup: ## Full bootstrap: env, deps, infra, migrate, seed
 	@echo "==> Checking prerequisites..."
 	@command -v node >/dev/null 2>&1 || { echo "node is required"; exit 1; }
 	@command -v pnpm >/dev/null 2>&1 || { echo "pnpm is required"; exit 1; }
@@ -23,8 +23,6 @@ setup: ## Full bootstrap: env, deps, infra, module DBs, migrate, seed
 	@$(MAKE) infra
 	@echo "==> Waiting for services to be healthy..."
 	@$(MAKE) _wait-healthy
-	@echo "==> Creating module databases..."
-	@$(MAKE) db-create-modules
 	@echo "==> Running migrations..."
 	@$(MAKE) db-migrate
 	@echo "==> Seeding development authorization data..."
@@ -80,11 +78,6 @@ infra-logs: ## Tail docker infrastructure logs
 
 # --- Database ----------------------------------------------------------------
 
-.PHONY: db-create-modules
-db-create-modules: ## Create hims-configurator, hims-user-management, hims-master databases
-	@echo "==> Applying infra/db/create-module-databases.sql..."
-	@$(DOCKER_COMPOSE) exec -T postgres psql -U hims -d hims_dev < infra/db/create-module-databases.sql
-
 .PHONY: db-migrate
 db-migrate: ## Run all pending migrations
 	$(NX) run master-data:migrate
@@ -99,17 +92,11 @@ db-migrate: ## Run all pending migrations
 seed: ## Seed Configurator tenant, UM runtime data, Cerbos smoke check (catalog = Alembic)
 	pnpm seed
 
-.PHONY: db-drop-modules
-db-drop-modules: ## Drop hims-configurator, hims-user-management, hims-master (sessions terminated)
-	@echo "==> Dropping module databases..."
-	@$(DOCKER_COMPOSE) exec -T postgres psql -U hims -d hims_dev < infra/db/drop-module-databases.sql
-
 .PHONY: db-reset
-db-reset: ## Drop volumes, recreate infra, module DBs, migrate, seed
+db-reset: ## Drop volumes, recreate infra, migrate, seed
 	$(DOCKER_COMPOSE) down -v
 	$(MAKE) infra
 	$(MAKE) _wait-healthy
-	$(MAKE) db-create-modules
 	$(MAKE) db-migrate
 	$(MAKE) seed
 	@echo "==> Database reset complete."

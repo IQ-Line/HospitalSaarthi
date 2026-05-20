@@ -435,7 +435,7 @@ describe("OpenAPI/runtime coherence", () => {
       headers: { iq_tenant_id: "tenant-b" },
     });
 
-    expect(response.statusCode).toBe(400);
+    expect(response.statusCode).toBe(403);
     expect(response.json()).toEqual(
       expect.objectContaining({
         code: "TENANT_CONTEXT_MISMATCH",
