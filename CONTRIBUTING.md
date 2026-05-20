@@ -17,15 +17,6 @@ Open http://localhost:5173. Click "Dev Login" to bypass auth with mock data.
 
 No Docker, no database, no backend needed. The mock login populates auth, tenant, and permission stores so all UI routes work.
 
-### Visit registration + billing (full stack)
-
-Before testing **Frontdesk → New visit registration** with real charges:
-
-1. Set `BILLING_USE_MOCK_DATA=false` and `BILLING_ALLOW_DESK_PRICE_OVERRIDE=true` in root `.env` (restart `billing-svc`; Nx `envFile` loads root `.env`).
-2. In **Billing & Finance → Tariff master**, create rack rows for your dev tenant (provider blank): `REG_FEE`, `CONS_GENERAL` (required — catalog is enforced; overrides adjust snapshot only).
-3. Set consultation fee on the registration form when a provider is selected (rack `CONS_GENERAL` is not auto-hydrated yet).
-4. Ensure `DATABASE_URL` points at local Postgres (`make setup` / `make infra`).
-
 ## Full stack development
 
 ```bash
