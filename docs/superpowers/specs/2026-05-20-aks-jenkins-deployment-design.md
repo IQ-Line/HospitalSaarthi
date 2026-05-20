@@ -73,9 +73,9 @@ Currently `services/*/project.json` declares only `serve` (tsx watch). Each serv
 
 Add a minimal `infra/cerbos/project.json` (or amend existing) declaring an Nx project of type `application` with tag `deploy:aks`. This way `nx affected --type=app` picks up policy changes automatically and Jenkins doesn't need a side path for "did Cerbos change?".
 
-### D9 — Delete `services/embedded-clinic/`
+### D9 — Genuinely remove `embedded-clinic`
 
-Currently an empty `.gitkeep` directory referenced only in `docs/architecture/lld/repo-structure/01-monorepo-setup.md` as a future concept. Deleted in this branch to remove confusion for the dev team. The architectural doc is left as-is (it describes a future possibility); whether to rewrite that reference is a separate doc-quality follow-up.
+Delete the empty `services/embedded-clinic/.gitkeep` directory AND remove all references from `docs/architecture/lld/repo-structure/01-monorepo-setup.md` (tree diagram, non-module services table, and the entire "6.2 Embedded mode" subsection — section 6 reduces from three deployment topologies to two; former 6.3 Offline mode becomes 6.2). Rationale: the directory was a placeholder for a topology that may never be built, and devs were finding it confusing. Better to delete now and re-add intentionally if/when the topology becomes real.
 
 ## Architecture
 
@@ -220,7 +220,7 @@ Today `billing-svc/project.json` doesn't declare a `projectType` field. Nx defau
 
 ## Migration / rollout plan
 
-1. **PR 1 (this branch):** add Dockerfiles, `.dockerignore`, `build` targets, helper script, handoff doc, delete `embedded-clinic`. CI runs as-is (lint + unit tests); no Docker builds in CI yet.
+1. **PR 1 (this branch):** add Dockerfiles, `.dockerignore`, `build` targets, helper script, handoff doc, delete `embedded-clinic` dir + all its doc references. CI runs as-is (lint + unit tests); no Docker builds in CI yet.
 2. **DevOps Phase A:** they write a Jenkinsfile against `dev`. We support, answer questions, iterate on the handoff doc as gaps surface.
 3. **DevOps Phase B:** AKS namespace stood up, first service deployed (recommend `user-management-svc` since it's the most-exercised), then the rest.
 4. **PR 2 (follow-up branch):** ADR-0004 amendment.
@@ -234,8 +234,7 @@ Today `billing-svc/project.json` doesn't declare a `projectType` field. Nx defau
 | F2 | Web → BFF proxy for Cerbos calls (eliminate public PDP exposure) | Code change in `services/bff` + `services/web`; separate concern |
 | F3 | K8s manifests / Helm chart in repo | DevOps owns externally for now; in-repo is a later step for reviewability |
 | F4 | Image vulnerability scanning in CI (Trivy) | Belongs in CI pipeline addition, not deployment-readiness |
-| F5 | Decide whether to rewrite `embedded-clinic` references in `docs/architecture/lld/repo-structure/01-monorepo-setup.md` | Doc quality question; not blocking deployment |
-| F6 | Pin Cerbos version (replace `:latest` in `infra/docker/docker-compose.yml`) | Same dependency hygiene as the new Cerbos image |
+| F5 | Pin Cerbos version (replace `:latest` in `infra/docker/docker-compose.yml`) | Same dependency hygiene as the new Cerbos image |
 
 ## Open questions to settle during implementation
 
