@@ -58,4 +58,9 @@ export type NewPaymentRow = Omit<PaymentRow, "id" | "created_at" | "updated_at">
 export interface BillingDeps {
   tariffRepo: TariffMasterRepo;
   billingRepo: BillingRepo;
+  /**
+   * Phase 0 dev gate for desk overrides until Cerbos `billing:bills:override-price` ships.
+   * Set `BILLING_ALLOW_DESK_PRICE_OVERRIDE=true` on billing-svc (never in production).
+   */
+  allowDeskPriceOverride: boolean;
 }

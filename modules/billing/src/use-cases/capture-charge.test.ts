@@ -41,11 +41,17 @@ function tariffRepo(row: TariffMasterRow): TariffMasterRepo {
   };
 }
 
+const emptyTariffRepo: TariffMasterRepo = {
+  findById: async () => undefined,
+  findByCodeAndProvider: async () => undefined,
+  update: async () => undefined,
+};
+
 describe("captureCharge", () => {
   it("creates bill and line from tariff", async () => {
     const { repo } = createInMemoryBillingRepo();
     const result = await captureCharge(
-      { tariffRepo: tariffRepo(tariff), billingRepo: repo },
+      { tariffRepo: tariffRepo(tariff), billingRepo: repo, allowDeskPriceOverride: false },
       tenantId,
       { patient_id: patientId, source_module: "opd", item_code: "REG_FEE" },
       "idem-1",
@@ -55,10 +61,10 @@ describe("captureCharge", () => {
     expect(result.data.snapshotted_unit_price).toBe("100.0000");
   });
 
-  it("snapshots desk unit_price_override", async () => {
+  it("snapshots desk unit_price_override when allowed", async () => {
     const { repo } = createInMemoryBillingRepo();
     const result = await captureCharge(
-      { tariffRepo: tariffRepo(tariff), billingRepo: repo },
+      { tariffRepo: tariffRepo(tariff), billingRepo: repo, allowDeskPriceOverride: true },
       tenantId,
       {
         patient_id: patientId,
@@ -72,5 +78,39 @@ describe("captureCharge", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.data.snapshotted_unit_price).toBe("88.0000");
+  });
+
+  it("rejects desk overrides when not allowed", async () => {
+    const { repo } = createInMemoryBillingRepo();
+    const result = await captureCharge(
+      { tariffRepo: tariffRepo(tariff), billingRepo: repo, allowDeskPriceOverride: false },
+      tenantId,
+      {
+        patient_id: patientId,
+        source_module: "registration",
+        item_code: "REG_FEE",
+        unit_price_override: 88,
+      },
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe("FORBIDDEN");
+  });
+
+  it("returns 404 when catalog row missing even with override", async () => {
+    const { repo } = createInMemoryBillingRepo();
+    const result = await captureCharge(
+      { tariffRepo: emptyTariffRepo, billingRepo: repo, allowDeskPriceOverride: true },
+      tenantId,
+      {
+        patient_id: patientId,
+        source_module: "registration",
+        item_code: "REG_FEE",
+        unit_price_override: 88,
+      },
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe("NOT_FOUND");
   });
 });

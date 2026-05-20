@@ -172,6 +172,7 @@ function VisitRegistrationRoute() {
     billingPaymentMode,
     patientPhone,
     patientFirstName,
+    appointmentProviderId,
     dateOfBirth,
   ] = useWatch({
     control: form.control,
@@ -182,10 +183,12 @@ function VisitRegistrationRoute() {
       'billing.payment_mode',
       'patient.phone',
       'patient.first_name',
+      'appointment.provider_id',
       'patient.date_of_birth',
     ],
   });
 
+  const hasProvider = Boolean(appointmentProviderId?.trim());
   const formGate = {
     phone: patientPhone,
     firstName: patientFirstName,
@@ -195,6 +198,8 @@ function VisitRegistrationRoute() {
       billingInvoiceDiscount ?? 0,
     ),
     paymentMode: billingPaymentMode,
+    hasProvider,
+    consultationUnitPrice: billingConsultationFee?.unit_price ?? 0,
   };
   const canCreateVisit = isVisitRegistrationFormComplete(formGate);
   const createVisitBlockHint = visitRegistrationBlockHint(formGate);
@@ -277,6 +282,8 @@ function VisitRegistrationRoute() {
         data.billing?.invoice_discount ?? 0,
       ),
       paymentMode: data.billing?.payment_mode,
+      hasProvider: Boolean(data.appointment?.provider_id?.trim()),
+      consultationUnitPrice: data.billing?.consultation_fee?.unit_price ?? 0,
     };
     const blockers = visitRegistrationFormBlockers(gate);
     if (blockers.length > 0) {

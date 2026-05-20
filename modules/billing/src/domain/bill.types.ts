@@ -9,7 +9,7 @@ export type BillStatus =
 
 export type PaymentMethod = "CASH" | "CARD" | "UPI" | "CHEQUE" | "BANK_TRANSFER";
 
-export type UseCaseErrorCode = "NOT_FOUND" | "CONFLICT" | "VALIDATION";
+export type UseCaseErrorCode = "NOT_FOUND" | "CONFLICT" | "VALIDATION" | "FORBIDDEN";
 
 export type UseCaseResult<T> =
   | { ok: true; data: T }
@@ -107,12 +107,10 @@ export interface CaptureChargeInput {
   item_code: string;
   provider_id?: string | null;
   quantity?: number | string;
-  /** Desk override — when set, used instead of tariff `base_price` for this line snapshot. */
-  unit_price_override?: number | string | null;
-  /** Desk override — tax % on unit (matches visit registration UI). */
-  tax_percentage_override?: number | string | null;
-  /** Desk line discount (₹) applied after tax on unit price. */
-  line_discount_amount?: number | string | null;
+  /** Desk override — requires catalog row + override permission; must be > 0 when set. */
+  unit_price_override?: number | null;
+  tax_percentage_override?: number | null;
+  line_discount_amount?: number | null;
   performed_by?: string | null;
   performed_date?: string | null;
   department?: string | null;

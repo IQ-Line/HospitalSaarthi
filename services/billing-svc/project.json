@@ -5,7 +5,8 @@
     "serve": {
       "command": "tsx watch --include '../../modules/billing/src' src/main.ts",
       "options": {
-        "cwd": "services/billing-svc"
+        "cwd": "services/billing-svc",
+        "envFile": "{workspaceRoot}/.env"
       }
     }
   }

@@ -28,7 +28,7 @@ export const captureChargeRouteSchema = {
       item_code: { type: "string" },
       provider_id: { ...uuid, nullable: true },
       quantity: { ...money, default: 1 },
-      unit_price_override: { ...money, nullable: true },
+      unit_price_override: { type: "number", exclusiveMinimum: 0, nullable: true },
       tax_percentage_override: { ...money, nullable: true },
       line_discount_amount: { ...money, nullable: true },
       performed_by: { ...uuid, nullable: true },

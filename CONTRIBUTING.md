@@ -21,9 +21,10 @@ No Docker, no database, no backend needed. The mock login populates auth, tenant
 
 Before testing **Frontdesk → New visit registration** with real charges:
 
-1. Set `BILLING_USE_MOCK_DATA=false` in root `.env` (and restart `billing-svc`).
-2. In **Billing & Finance → Tariff master**, create rack rows for your dev tenant (provider blank): `REG_FEE`, `CONS_GENERAL` — or rely on desk **unit price** overrides on the registration form (no SQL seed in repo).
-3. Ensure `DATABASE_URL` points at local Postgres (`make setup` / `make infra`).
+1. Set `BILLING_USE_MOCK_DATA=false` and `BILLING_ALLOW_DESK_PRICE_OVERRIDE=true` in root `.env` (restart `billing-svc`; Nx `envFile` loads root `.env`).
+2. In **Billing & Finance → Tariff master**, create rack rows for your dev tenant (provider blank): `REG_FEE`, `CONS_GENERAL` (required — catalog is enforced; overrides adjust snapshot only).
+3. Set consultation fee on the registration form when a provider is selected (rack `CONS_GENERAL` is not auto-hydrated yet).
+4. Ensure `DATABASE_URL` points at local Postgres (`make setup` / `make infra`).
 
 ## Full stack development
 

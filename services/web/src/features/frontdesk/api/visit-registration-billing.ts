@@ -32,7 +32,8 @@ export interface VisitRegistrationBillingResult {
 
 /**
  * Registration desk billing: charges → optional discount → finalize → optional payment.
- * Rack `CONS_GENERAL` (`provider_id: null`) until provider-specific tariffs — TODO(HIMS): wire provider tariffs.
+ * Rack `CONS_GENERAL` (`provider_id: null`) until provider-specific tariffs exist.
+ * TODO: hydrate consultation_fee from tariff_master when provider is selected (follow-up issue).
  */
 export async function executeVisitRegistrationBilling(
   form: CreateVisitRequestBody,

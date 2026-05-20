@@ -14,6 +14,8 @@ export interface BillingRouterOptions {
   db?: DbInstance;
   /** Return in-memory sample rows (no DB). Default off; set BILLING_USE_MOCK_DATA=true in billing-svc. */
   useMock?: boolean;
+  /** Phase 0 dev gate — see `BILLING_ALLOW_DESK_PRICE_OVERRIDE` on billing-svc. */
+  allowDeskPriceOverride?: boolean;
 }
 
 type ListQuery = {
@@ -326,7 +328,7 @@ function listMock(tenantId: string, q: ListQuery, limit: number) {
 
 async function billingRouter(
   app: FastifyInstance,
-  { db, useMock }: BillingRouterOptions,
+  { db, useMock, allowDeskPriceOverride = false }: BillingRouterOptions,
 ): Promise<void> {
   app.get<{ Querystring: ListQuery }>(
     "/services",
@@ -496,7 +498,11 @@ async function billingRouter(
 
   const billingRepo =
     useMock || !db ? createInMemoryBillingRepo().repo : createBillingRepo(db);
-  registerBillingHandlers(app, { tariffRepo, billingRepo });
+  registerBillingHandlers(app, {
+    tariffRepo,
+    billingRepo,
+    allowDeskPriceOverride,
+  });
 }
 
 export function createRouter(options: BillingRouterOptions) {

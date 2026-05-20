@@ -127,6 +127,8 @@ export type VisitRegistrationFormGateInput = {
   firstName: string | undefined;
   grandTotal: number;
   paymentMode: string | undefined;
+  hasProvider?: boolean;
+  consultationUnitPrice?: number;
 };
 
 export function visitRegistrationFormBlockers(
@@ -136,6 +138,9 @@ export function visitRegistrationFormBlockers(
   if (!VISIT_REG_PHONE_RE.test((args.phone ?? '').trim())) missing.push('10-digit phone');
   if (!args.firstName?.trim()) missing.push('first name');
   if (!isVisitRegistrationGrandTotalPositive(args.grandTotal)) missing.push('billing total above ₹0');
+  if (args.hasProvider && (args.consultationUnitPrice ?? 0) <= 0) {
+    missing.push('consultation fee above ₹0');
+  }
   if (!args.paymentMode?.trim()) missing.push('payment mode');
   return missing;
 }

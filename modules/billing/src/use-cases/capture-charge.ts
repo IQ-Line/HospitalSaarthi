@@ -1,15 +1,10 @@
 import { computeDeskLineAmounts, computeLineAmounts } from "../lib/bill-math.js";
+import { validateDeskPricingPolicy } from "../lib/desk-pricing-policy.js";
 import { money } from "../lib/money.js";
 import { fail, ok, syncBillTotals } from "../lib/use-case.js";
 import type { CaptureChargeInput, ChargeIngestResponse, UseCaseResult } from "../domain/bill.types.js";
-import type { TariffMasterRow } from "../domain/tariff-master.types.js";
 import type { BillingDeps } from "../ports.js";
 import { newDraftBill } from "../data-access/billing.repository.js";
-
-const DESK_NAMES: Record<string, string> = {
-  REG_FEE: "Registration Fee",
-  CONS_GENERAL: "General Consultation",
-};
 
 const toResponse = (
   item: {
@@ -35,41 +30,11 @@ const toResponse = (
   replayed,
 });
 
-function deskTariff(tenantId: string, input: CaptureChargeInput): TariffMasterRow {
-  const code = input.item_code.trim();
-  const now = new Date().toISOString();
-  return {
-    id: "",
-    iq_tenant_id: tenantId,
-    service_code: code,
-    service_name: DESK_NAMES[code] ?? code,
-    description: null,
-    provider_id: input.provider_id ?? null,
-    department: code === "REG_FEE" ? "frontdesk" : "opd",
-    category: null,
-    sub_category: null,
-    tax_type: null,
-    base_price: money(input.unit_price_override!),
-    tax_percentage: money(input.tax_percentage_override ?? 0),
-    is_active: true,
-    effective_from: now,
-    effective_to: null,
-    created_at: now,
-    updated_at: now,
-    created_by: null,
-    updated_by: null,
-  };
-}
-
-function lineAmounts(input: CaptureChargeInput, tariff: TariffMasterRow, qty: number) {
+function lineAmounts(input: CaptureChargeInput, tariff: { base_price: string; tax_percentage: string }, qty: number) {
   const unitPrice =
-    input.unit_price_override != null && input.unit_price_override !== ""
-      ? money(input.unit_price_override)
-      : tariff.base_price;
+    input.unit_price_override != null ? money(input.unit_price_override) : tariff.base_price;
   const taxPct =
-    input.tax_percentage_override != null && input.tax_percentage_override !== ""
-      ? money(input.tax_percentage_override)
-      : tariff.tax_percentage;
+    input.tax_percentage_override != null ? money(input.tax_percentage_override) : tariff.tax_percentage;
   const desk =
     input.unit_price_override != null ||
     input.tax_percentage_override != null ||
@@ -95,6 +60,9 @@ export async function captureCharge(
   if (!input.item_code?.trim()) return fail("VALIDATION", "item_code is required");
   if (!input.source_module?.trim()) return fail("VALIDATION", "source_module is required");
 
+  const policy = validateDeskPricingPolicy(input, deps.allowDeskPriceOverride);
+  if (policy) return policy;
+
   const qty = Number(input.quantity ?? 1);
   if (!Number.isFinite(qty) || qty <= 0) return fail("VALIDATION", "quantity must be > 0");
 
@@ -104,10 +72,7 @@ export async function captureCharge(
   }
 
   const providerId = input.provider_id ?? null;
-  let tariff = await deps.tariffRepo.findByCodeAndProvider(tenantId, input.item_code, providerId);
-  const hasDeskPrice =
-    input.unit_price_override != null && input.unit_price_override !== "";
-  if (!tariff && hasDeskPrice) tariff = deskTariff(tenantId, input);
+  const tariff = await deps.tariffRepo.findByCodeAndProvider(tenantId, input.item_code, providerId);
   if (!tariff) {
     return fail("NOT_FOUND", "catalog_row_not_found: no active tariff for service_code and provider");
   }
@@ -124,7 +89,7 @@ export async function captureCharge(
   const item = await deps.billingRepo.insertItem({
     iq_tenant_id: tenantId,
     bill_id: bill.id,
-    service_id: tariff.id || null,
+    service_id: tariff.id,
     item_type: "SERVICE",
     item_code: tariff.service_code,
     description: tariff.service_name,
