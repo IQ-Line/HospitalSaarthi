@@ -4,8 +4,7 @@ import { decodeAccessTokenPayload } from '@/lib/access-token';
  * Visitpad / master-data catalog sends `iq_tenant_id` when the active tenant id is a
  * **lexical UUID string** (8-4-4-4-12 hex), matching backend `UUID` parsing.
  *
- * Non-UUID tenant slugs (e.g. `tenant-001` from legacy dev login) omit the header so
- * requests hit the **global** `public` catalog.
+ * Non-UUID tenant slugs omit the header so requests hit the **global_master** catalog.
  */
 
 /** Stable demo tenant used for static “tenant catalog” dev login (matches integration tests). */

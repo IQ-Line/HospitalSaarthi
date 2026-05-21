@@ -1,19 +1,19 @@
 import { createFileRoute, redirect } from '@tanstack/react-router';
-import { usePermissionsStore } from '@/stores/permissions.store';
 import { roleListOptions } from '@/features/user-management/api/queries';
 import { UserManagementPageShell } from '@/features/user-management/components/user-management-page-shell';
 import { RoleManagementPanel } from '@/features/user-management/components/role-management-panel';
+import { requireAnyCapability } from '@/lib/require-capabilities';
 import {
-  canAccessUsersSection,
-  canReadRoles,
-  UM_MODULE,
-} from '@/features/user-management/lib/um-permissions';
+  UM_ROLES_ADMIN_ANY,
+  UM_USERS_SECTION_ANY,
+} from '@/lib/runtime-capability-keys';
+import { usePermissionsStore } from '@/stores/permissions.store';
 
 export const Route = createFileRoute('/_authenticated/user-management/roles')({
   beforeLoad: () => {
-    const permissions = usePermissionsStore.getState();
-    if (!canReadRoles(permissions)) {
-      if (canAccessUsersSection(permissions)) {
+    const p = usePermissionsStore.getState();
+    if (!p.hasAnyCapability(UM_ROLES_ADMIN_ANY)) {
+      if (p.hasAnyCapability(UM_USERS_SECTION_ANY)) {
         throw redirect({ to: '/user-management', search: { q: '' } });
       }
       throw redirect({ to: '/dashboard' });
@@ -24,21 +24,13 @@ export const Route = createFileRoute('/_authenticated/user-management/roles')({
 });
 
 function UserManagementRolesPage() {
-  const canReadCapabilities = usePermissionsStore((s) =>
-    s.hasFeaturePermission(UM_MODULE, 'capabilities', 'read'),
-  );
-  const canWriteRoles = usePermissionsStore((s) => s.hasFeaturePermission(UM_MODULE, 'roles', 'write'));
-
   return (
     <UserManagementPageShell
       section="roles"
-      title="Role templates"
-      description="Create, review, and update role templates that copy capabilities onto users when applied."
+      title="Roles"
+      description="Set up roles and choose what each role allows people to do."
     >
-      <RoleManagementPanel
-        canWriteRoles={canWriteRoles}
-        canReadCapabilities={canReadCapabilities}
-      />
+      <RoleManagementPanel />
     </UserManagementPageShell>
   );
 }

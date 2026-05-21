@@ -2,9 +2,9 @@ import { InvalidCapabilityKeyError } from "./errors.js";
 import { assertValidModuleSlug, normalizeModuleSlug } from "./module-slug.js";
 
 /**
- * Runtime capability key: `<moduleKey>:<resource>:<action>` (lowercase, colon-separated).
- * `moduleKey` is the Cerbos/PDP namespace prefix; it may differ from `capabilities.module`
- * (Master Data catalog slug) — see {@link runtimeModuleKeyForCatalogSlug}.
+ * Runtime capability key: `<moduleSlug>:<feature>:<action>` (lowercase, colon-separated).
+ * The first segment is the Master Data `modules.slug` for the junction row (e.g. `users`, `route`).
+ * Module-scoped catalog CRUD uses the same slug twice: `users:users:read`.
  */
 export const CAPABILITY_KEY_SEGMENT_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -13,6 +13,7 @@ export const RUNTIME_CAPABILITY_KEY_PATTERN =
 
 /** Canonical actions for the third segment of runtime capability keys. */
 export const RUNTIME_CAPABILITY_ACTIONS = [
+  "access",
   "assign",
   "compose",
   "create",
@@ -29,15 +30,13 @@ export type RuntimeCapabilityAction = (typeof RUNTIME_CAPABILITY_ACTIONS)[number
 const RUNTIME_CAPABILITY_ACTION_SET = new Set<string>(RUNTIME_CAPABILITY_ACTIONS);
 
 /**
- * Runtime module key prefix when it differs from the Master Data `modules.slug`.
- * All other catalog slugs default to using the slug itself as the runtime module key.
+ * @deprecated Abbreviated prefixes removed — runtime keys use catalog `modules.slug` verbatim.
+ * Kept empty for callers that still import the symbol during migration.
  */
-export const RUNTIME_MODULE_KEY_BY_CATALOG_SLUG: Readonly<Record<string, string>> = {
-  "user-management": "um",
-};
+export const RUNTIME_MODULE_KEY_BY_CATALOG_SLUG: Readonly<Record<string, string>> = {};
 
-/** Reserved runtime module keys (documentation / collision avoidance). */
-export const RESERVED_RUNTIME_MODULE_KEYS = ["md", "um"] as const;
+/** @deprecated See {@link RUNTIME_MODULE_KEY_BY_CATALOG_SLUG}. */
+export const RESERVED_RUNTIME_MODULE_KEYS = [] as const;
 
 export type ParsedCapabilityKey = {
   readonly moduleKey: string;
@@ -51,17 +50,16 @@ export function normalizeCapabilityKey(raw: string): string {
 }
 
 export function runtimeModuleKeyForCatalogSlug(catalogModuleSlug: string): string {
-  const slug = assertValidModuleSlug(catalogModuleSlug, "capabilities.module");
-  return RUNTIME_MODULE_KEY_BY_CATALOG_SLUG[slug] ?? slug;
+  return assertValidModuleSlug(catalogModuleSlug, "capabilities.module");
+}
+
+/** Runtime key prefix for a catalog module — always the catalog slug. */
+export function acceptedRuntimeModuleKeysForCatalogSlug(catalogModuleSlug: string): readonly string[] {
+  return [assertValidModuleSlug(catalogModuleSlug, "capabilities.module")];
 }
 
 export function catalogSlugForRuntimeModuleKey(moduleKey: string): string | null {
   const normalizedKey = normalizeModuleSlug(moduleKey);
-  for (const [slug, key] of Object.entries(RUNTIME_MODULE_KEY_BY_CATALOG_SLUG)) {
-    if (key === normalizedKey) {
-      return slug;
-    }
-  }
   return isValidRuntimeModuleKeyAsCatalogSlug(normalizedKey) ? normalizedKey : null;
 }
 
@@ -114,10 +112,12 @@ export function assertCapabilityKeyMatchesCatalogModule(
   label = "capability",
 ): void {
   const parsed = parseCapabilityKey(capabilityKey);
-  const expectedModuleKey = runtimeModuleKeyForCatalogSlug(catalogModuleSlug);
-  if (parsed.moduleKey !== expectedModuleKey) {
+  const catalogSlug = normalizeModuleSlug(catalogModuleSlug);
+  const acceptedKeys = new Set(acceptedRuntimeModuleKeysForCatalogSlug(catalogSlug));
+  if (!acceptedKeys.has(parsed.moduleKey)) {
+    const expected = [...acceptedKeys].join('" or "');
     throw new InvalidCapabilityKeyError(
-      `${label}: capability_key module segment "${parsed.moduleKey}" does not match catalog module "${normalizeModuleSlug(catalogModuleSlug)}" (expected runtime key "${expectedModuleKey}")`,
+      `${label}: capability_key module segment "${parsed.moduleKey}" does not match catalog module "${catalogSlug}" (expected runtime key "${expected}")`,
     );
   }
 }

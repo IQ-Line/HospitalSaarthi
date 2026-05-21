@@ -29,7 +29,7 @@ export interface User {
 /** Canonical machine-readable authorization primitive managed as data and consumed by Cerbos. */
 export interface Capability {
   id: string;
-  /** Cerbos / PDP vocabulary (e.g. `um:user:read`). Stable once granted. */
+  /** Cerbos / PDP vocabulary (e.g. `users:users:read`). Stable once granted. */
   capability_key: string;
   /** Master Data `modules.slug` (kebab-case). */
   module: string;
@@ -171,6 +171,11 @@ export interface PrincipalAttributes {
   iq_tenant_id: string;
   department: string | null;
   org_id: string | null;
+  /**
+   * Canonical role codes for ABAC (JWT ∪ DB projection). Cerbos policies must use this
+   * (not Cerbos `principal.roles`, which may be `__hims_authenticated__` only).
+   */
+  role_codes: string[];
   capabilities: string[];
   delegated_capabilities: string[];
   clearances: Record<string, string>;

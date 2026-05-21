@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-import { useEffect, useMemo, useState } from 'react';
 import {
   Controller,
   type Control,
@@ -18,16 +17,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@pulse/ui/select';
+import { CapabilityGate } from '@/components/capability-gate';
+import { useCapability } from '@/hooks/use-capability';
+import { UM_ROLE_ASSIGN, UM_ROLE_READ } from '@/lib/runtime-capability-keys';
 import type { Capability, UmRole } from '../types';
-import {
-  buildCapabilityTree,
-  CapabilityTreeNodeRow,
-  treeBranchIds,
-} from './role-management-sections';
+import { MasterDataCapabilityPermissionTree } from './master-data-capability-permission-tree';
 import { UserManagementSectionCard } from './user-management-section-card';
 
 export type CreateUserAccessOptions = {
-  /** When true, exactly one role template id is required to submit. */
+  /** When true, exactly one role id is required to submit. */
   requireRoleTemplate: boolean;
 };
 
@@ -38,11 +36,10 @@ export function buildCreateUserFormSchema(options: CreateUserAccessOptions) {
     password: z.string().min(8, 'Password must be at least 8 characters'),
     phone: z.string(),
     username: z.string(),
-    org_id: z.union([z.literal(''), z.string().uuid()]),
     department: z.string(),
     clearance_tier_required: z.coerce.number().int().min(0).max(3),
     role_template_ids: options.requireRoleTemplate
-      ? z.array(z.string().uuid()).length(1, 'Select a role template.')
+      ? z.array(z.string().uuid()).length(1, 'Select a role.')
       : z.array(z.string().uuid()).max(1).default([]),
     role_capability_selection_ids: z.array(z.string().uuid()).default([]),
   });
@@ -107,28 +104,23 @@ export function CreateUserIdentitySection({ register, errors }: SharedFormSectio
   );
 }
 
-type CreateUserOrganizationSectionProps = SharedFormSectionProps & {
+type CreateUserWorkplaceSectionProps = SharedFormSectionProps & {
   control: Control<CreateUserFormValues>;
 };
 
-export function CreateUserOrganizationSection({
+/** Department and clearance — org/tenant come from Configurator (super-admin) or session tenant. */
+export function CreateUserWorkplaceSection({
   register,
   errors,
   control,
-}: CreateUserOrganizationSectionProps) {
+}: CreateUserWorkplaceSectionProps) {
   return (
     <UserManagementSectionCard
-      title="Organization"
-      description="Add the organization and department details for this user."
+      title="Workplace details"
+      description="Department and access level for this user."
       contentClassName="space-y-4"
     >
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="c_org_id">Organization ID</Label>
-          <Input id="c_org_id" {...register('org_id')} />
-          <FieldError message={errors.org_id?.message?.toString()} />
-        </div>
-
         <div className="space-y-2">
           <Label htmlFor="c_department">Department</Label>
           <Input id="c_department" {...register('department')} />
@@ -167,9 +159,6 @@ export function CreateUserOrganizationSection({
 }
 
 type CreateUserAccessSectionProps = {
-  canReadRoleTemplates: boolean;
-  canReadCapabilities: boolean;
-  canManageAccess: boolean;
   roleTemplates: UmRole[];
   roleTemplatesPending: boolean;
   roleTemplatesError: boolean;
@@ -181,9 +170,6 @@ type CreateUserAccessSectionProps = {
 };
 
 export function CreateUserAccessSection({
-  canReadRoleTemplates,
-  canReadCapabilities,
-  canManageAccess,
   roleTemplates,
   roleTemplatesPending,
   roleTemplatesError,
@@ -193,64 +179,29 @@ export function CreateUserAccessSection({
   control,
   errors,
 }: CreateUserAccessSectionProps) {
-  const [expandedBranchIds, setExpandedBranchIds] = useState<Set<string>>(new Set());
-
-  const capabilityTree = useMemo(() => buildCapabilityTree(roleCapabilities), [roleCapabilities]);
-
-  useEffect(() => {
-    const branchIds = treeBranchIds(capabilityTree);
-    setExpandedBranchIds((current) => {
-      const next = new Set(current);
-      if (next.size === 0) {
-        branchIds.forEach((branchId) => {
-          const depth = branchId.replace(/^branch:/, '').split('/').filter(Boolean).length;
-          if (depth <= 1) {
-            next.add(branchId);
-          }
-        });
-        return next;
-      }
-      branchIds.forEach((branchId) => {
-        if (!next.has(branchId) && branchId.replace(/^branch:/, '').split('/').filter(Boolean).length === 1) {
-          next.add(branchId);
-        }
-      });
-      return next;
-    });
-  }, [capabilityTree]);
-
-  const handleToggleBranch = (nodeId: string) => {
-    setExpandedBranchIds((current) => {
-      const next = new Set(current);
-      if (next.has(nodeId)) {
-        next.delete(nodeId);
-      } else {
-        next.add(nodeId);
-      }
-      return next;
-    });
-  };
+  const umRoleRead = useCapability(UM_ROLE_READ);
+  const umRoleAssign = useCapability(UM_ROLE_ASSIGN);
 
   let roleBlock: ReactNode;
-  if (!canReadRoleTemplates) {
+  if (!umRoleRead) {
     roleBlock = (
       <p className="text-sm text-muted-foreground">
-        You can create the user, but you do not have permission to review role templates.
+        You can create the user, but you do not have permission to review roles.
       </p>
     );
   } else if (roleTemplatesPending) {
-    roleBlock = <p className="text-sm text-muted-foreground">Loading role templates...</p>;
+    roleBlock = <p className="text-sm text-muted-foreground">Loading roles...</p>;
   } else if (roleTemplatesError) {
-    roleBlock = <p className="text-sm text-destructive">Unable to load role templates right now.</p>;
+    roleBlock = <p className="text-sm text-destructive">Unable to load roles right now.</p>;
   } else if (roleTemplates.length === 0) {
     roleBlock = (
-      <p className="text-sm text-muted-foreground">No active role templates are available yet.</p>
+      <p className="text-sm text-muted-foreground">No active roles are available yet.</p>
     );
   } else {
     roleBlock = (
       <div className="space-y-2">
         <Label htmlFor="c_role_template">
-          {canManageAccess ? 'Role template (required)' : 'Role template'}
+          {umRoleAssign ? 'Role (required)' : 'Role'}
         </Label>
         <Controller
           control={control}
@@ -259,19 +210,19 @@ export function CreateUserAccessSection({
             const selectedId = field.value[0] ?? roleTemplates[0]?.id ?? '';
             return (
               <Select
-                disabled={!canManageAccess}
+                disabled={!umRoleAssign}
                 value={selectedId}
                 onValueChange={(value) => {
                   field.onChange([value]);
                 }}
               >
                 <SelectTrigger id="c_role_template">
-                  <SelectValue placeholder="Select a role template" />
+                  <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
                 <SelectContent>
                   {roleTemplates.map((role) => (
                     <SelectItem key={role.id} value={role.id}>
-                      {`${role.display_name} (${role.code})`}
+                      {role.display_name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -280,29 +231,29 @@ export function CreateUserAccessSection({
           }}
         />
         <p className="text-xs text-muted-foreground">
-          {canManageAccess
-            ? 'A role template is required. Then choose which of its capabilities this user receives; module rows support select-all for their subtree.'
-            : 'Role assignment is shown for your review only.'}
+          {umRoleAssign
+            ? 'Choose a role, then tick the permissions they should have.'
+            : 'You can review the role but cannot change it.'}
         </p>
       </div>
     );
   }
 
   let treeBlock: ReactNode;
-  if (!canReadCapabilities) {
+  if (!umRoleRead) {
     treeBlock = (
       <p className="text-sm text-muted-foreground">
-        Capability visibility is required to pick capabilities from a role template.
+        You do not have permission to view this role&apos;s permissions.
       </p>
     );
   } else if (roleCapabilitiesPending) {
-    treeBlock = <p className="text-sm text-muted-foreground">Loading role capabilities...</p>;
+    treeBlock = <p className="text-sm text-muted-foreground">Loading permissions...</p>;
   } else if (roleCapabilitiesError) {
-    treeBlock = <p className="text-sm text-destructive">Unable to load capabilities for this role.</p>;
+    treeBlock = <p className="text-sm text-destructive">Could not load permissions for this role.</p>;
   } else if (roleCapabilities.length === 0) {
     treeBlock = (
       <p className="text-sm text-muted-foreground">
-        This role has no capabilities yet, or no role is selected.
+        This role has no permissions set up yet, or no role is selected.
       </p>
     );
   } else {
@@ -316,7 +267,7 @@ export function CreateUserAccessSection({
             <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <Badge variant="secondary">{field.value.length} selected</Badge>
-                {canManageAccess ? (
+                <CapabilityGate capability={UM_ROLE_ASSIGN}>
                   <div className="flex flex-wrap gap-2">
                     <Button
                       type="button"
@@ -340,31 +291,14 @@ export function CreateUserAccessSection({
                       Clear all
                     </Button>
                   </div>
-                ) : null}
+                </CapabilityGate>
               </div>
-              <div className="space-y-4">
-                {capabilityTree.map((node) => (
-                  <CapabilityTreeNodeRow
-                    key={node.id}
-                    node={node}
-                    depth={0}
-                    canWriteRoles={canManageAccess}
-                    selectedCapabilityIds={selectedSet}
-                    expandedBranchIds={expandedBranchIds}
-                    forceExpanded={false}
-                    onBranchToggle={handleToggleBranch}
-                    onSetSelectedCapabilityIds={(ids) => {
-                      field.onChange(ids);
-                    }}
-                    onToggleCapability={(capabilityId) => {
-                      const next = field.value.includes(capabilityId)
-                        ? field.value.filter((id) => id !== capabilityId)
-                        : [...field.value, capabilityId];
-                      field.onChange(next);
-                    }}
-                  />
-                ))}
-              </div>
+              <MasterDataCapabilityPermissionTree
+                capabilities={roleCapabilities}
+                selectedCapabilityIds={field.value}
+                onSelectedCapabilityIdsChange={field.onChange}
+                editable={umRoleAssign}
+              />
             </div>
           );
         }}
@@ -374,8 +308,8 @@ export function CreateUserAccessSection({
 
   return (
     <UserManagementSectionCard
-      title="Access setup"
-      description="Assign a role template (required when you can manage access) and choose which of its capabilities the new user receives."
+      title="Role & permissions"
+      description="Pick a role and choose what this person is allowed to do."
       contentClassName="space-y-4"
     >
       {roleBlock}

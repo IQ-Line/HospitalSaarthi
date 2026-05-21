@@ -212,7 +212,7 @@ Each audit record captures who made the change, when, the old and new values (as
 
 | Table | Missing | Justification |
 |-------|---------|---------------|
-| `capabilities` | `created_by`, `updated_by` | Platform-seeded by migrations, not by users |
+| `capabilities` | `created_by`, `updated_by` | Synced from Master Data `module_permissions`, not by users |
 | `role_capabilities` | `updated_at`, `updated_by` | Insert/delete pattern — mappings are not updated, they are removed and re-created |
 | `role_assignments` | standard names | Uses semantic equivalents: `assigned_at`/`assigned_by` = created, `revoked_at`/`revoked_by` = soft-delete lifecycle |
 | `user_department_assignments` | `updated_at`, `updated_by` | Insert/expire pattern — assignments are not edited, they are closed (`effective_to`) and a new one created |

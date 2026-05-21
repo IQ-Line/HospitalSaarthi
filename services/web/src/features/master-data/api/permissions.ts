@@ -11,11 +11,20 @@ import type {
 
 const BASE = '/api/v1/master-data/permissions';
 
-export function usePermissions(action?: PermissionAction) {
+export function usePermissions(
+  action?: PermissionAction,
+  options?: { enabled?: boolean; globalCatalog?: boolean },
+) {
   const params = action ? `?action=${action}` : '';
   return useQuery({
-    queryKey: masterDataKeys.permissions(action),
-    queryFn: () => apiClient<PermissionListResponse>(`${BASE}${params}`),
+    queryKey: masterDataKeys.permissions(action, options?.globalCatalog),
+    queryFn: () =>
+      apiClient<PermissionListResponse>(
+        `${BASE}${params}`,
+        {},
+        options?.globalCatalog ? { tenantIdOverride: null } : undefined,
+      ),
+    enabled: options?.enabled ?? true,
   });
 }
 

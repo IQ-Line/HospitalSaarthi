@@ -25,7 +25,7 @@ const ACTOR_ID = "f47ac10b-58cc-4372-a567-0e02b2c3d580";
 
 const CAP_UM_ROW: Capability = {
   id: CAP_UM,
-  capability_key: "um:user:read",
+  capability_key: "users:users:read",
   module: "user-management",
   feature: "users",
   action: "read",
@@ -187,6 +187,9 @@ async function createTestApp() {
         masterDataModuleCatalogPort: {
           async resolveModuleSlugsByIds() {
             return new Map();
+          },
+          async expandEnabledModuleSlugs(moduleSlugs: readonly string[]) {
+            return moduleSlugs;
           },
         },
       });

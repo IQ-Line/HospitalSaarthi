@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { expandModuleSlugsWithDescendants } from "../domain/catalog-module-tree.js";
 import { runtimeModuleKeyForCatalogSlug } from "../domain/capability-key.js";
 import { ModuleEntitlementLookupError } from "../domain/errors.js";
 import { PLATFORM_RUNTIME_MODULE_SLUGS } from "../domain/platform-module-slugs.js";
@@ -43,6 +44,7 @@ describe("listAssignableRuntimeCapabilities", () => {
           resolveModuleSlugsByIds: vi
             .fn()
             .mockResolvedValue(new Map([[visitpadModuleId, "visitpad"]])),
+          expandEnabledModuleSlugs: vi.fn(async (slugs) => slugs),
         },
       },
       "tenant-a",
@@ -71,6 +73,7 @@ describe("listAssignableRuntimeCapabilities", () => {
         },
         masterDataModuleCatalogPort: {
           resolveModuleSlugsByIds: vi.fn().mockResolvedValue(new Map()),
+          expandEnabledModuleSlugs: vi.fn(async (slugs) => slugs),
         },
       },
       "tenant-a",
@@ -100,6 +103,7 @@ describe("listAssignableRuntimeCapabilities", () => {
         },
         masterDataModuleCatalogPort: {
           resolveModuleSlugsByIds: vi.fn().mockResolvedValue(new Map([[opdModuleId, "opd"]])),
+          expandEnabledModuleSlugs: vi.fn(async (slugs) => slugs),
         },
       },
       "tenant-a",
@@ -107,6 +111,40 @@ describe("listAssignableRuntimeCapabilities", () => {
 
     expect(result.map((c) => c.id).sort()).toEqual(["cap-opd", "cap-um"].sort());
     expect(result.some((c) => c.module === "billing")).toBe(false);
+  });
+
+  it("includes capabilities on descendant catalog modules when expansion is applied", async () => {
+    const catalogTree = [
+      { id: "l1-md", slug: "master-data", parent_id: null, level: 1 },
+      { id: "l2-dep", slug: "departments", parent_id: "l1-md", level: 2 },
+    ];
+    const masterDataModuleId = "l1-md";
+    const capabilityRepository = new InMemoryCapabilityRepository(
+      [
+        capability({ id: "cap-md", module: "master-data" }),
+        capability({ id: "cap-dep", module: "departments" }),
+      ].map((c) => ({ capability: c })),
+    );
+
+    const result = await listAssignableRuntimeCapabilities(
+      {
+        capabilityRepository,
+        tenantModuleEntitlementPort: {
+          listTenantEnabledModuleIds: vi.fn().mockResolvedValue([masterDataModuleId]),
+        },
+        masterDataModuleCatalogPort: {
+          resolveModuleSlugsByIds: vi
+            .fn()
+            .mockResolvedValue(new Map([[masterDataModuleId, "master-data"]])),
+          expandEnabledModuleSlugs: vi.fn(async (slugs) => [
+            ...expandModuleSlugsWithDescendants(slugs, catalogTree),
+          ]),
+        },
+      },
+      "tenant-a",
+    );
+
+    expect(result.map((c) => c.id).sort()).toEqual(["cap-dep", "cap-md"]);
   });
 
   it("fails closed when Master Data returns no slug for a tenant-enabled module id", async () => {
@@ -124,6 +162,7 @@ describe("listAssignableRuntimeCapabilities", () => {
           },
           masterDataModuleCatalogPort: {
             resolveModuleSlugsByIds: vi.fn().mockResolvedValue(new Map()),
+            expandEnabledModuleSlugs: vi.fn(async (slugs) => slugs),
           },
         },
         "tenant-a",
@@ -145,6 +184,7 @@ describe("listAssignableRuntimeCapabilities", () => {
           },
           masterDataModuleCatalogPort: {
             resolveModuleSlugsByIds: vi.fn().mockResolvedValue(new Map([["mod-bad", "Invalid_Slug"]])),
+            expandEnabledModuleSlugs: vi.fn(async (slugs) => slugs),
           },
         },
         "tenant-a",
@@ -168,6 +208,7 @@ describe("listAssignableRuntimeCapabilities", () => {
           },
           masterDataModuleCatalogPort: {
             resolveModuleSlugsByIds: vi.fn(),
+            expandEnabledModuleSlugs: vi.fn(async (slugs) => slugs),
           },
         },
         "tenant-a",

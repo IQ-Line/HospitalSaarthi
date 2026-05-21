@@ -30,7 +30,7 @@ export async function loadIdentityJwtClaims(
   const roles = await projectPrincipalRoles(
     { principalRoleProjectionRepository: deps.principalRoleProjectionRepository },
     row.iq_tenant_id,
-    platformUserId,
+    row.id,
   );
 
   return {

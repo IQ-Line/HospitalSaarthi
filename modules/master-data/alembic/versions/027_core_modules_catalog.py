@@ -15,7 +15,10 @@ from collections.abc import Sequence
 from alembic import op
 
 revision: str = "027_core_modules_catalog"
-down_revision: str | Sequence[str] | None = "026_master_data_catalog_permissions"
+down_revision: str | Sequence[str] | None = (
+    "026_master_data_catalog_permissions",
+    "026_um_catalog_seed",
+)
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

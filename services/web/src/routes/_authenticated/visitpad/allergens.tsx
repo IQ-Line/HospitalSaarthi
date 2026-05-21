@@ -47,7 +47,8 @@ import {
   type VisitpadAllergenCreateFormSchema,
   type VisitpadAllergenEditFormSchema,
 } from '@/features/visitpad/validation';
-import { useVisitpadCatalogPermission } from '@/features/visitpad/hooks/use-visitpad-catalog-permission';
+import { useAnyCapability, useCapability } from '@/hooks/use-capability';
+import { MD_VISITPAD_MUTATE_ANY } from '@/lib/runtime-capability-keys';
 import { useVisitpadImportLibrarySearch } from '@/features/visitpad/hooks/use-visitpad-import-library-search';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 
@@ -58,7 +59,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/allergens')({
 });
 
 function VisitpadAllergensPage() {
-  const { canWrite, canRead } = useVisitpadCatalogPermission();
+  const mdVisitpadMutateAny = useAnyCapability(MD_VISITPAD_MUTATE_ANY);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [allergenType, setAllergenType] = useState<string>('all');
@@ -176,7 +177,7 @@ function VisitpadAllergensPage() {
         cell: ({ row }) => (
           <TableActiveToggle
             active={row.original.is_active}
-            disabled={patch.isPending || !canWrite}
+            disabled={patch.isPending || !mdVisitpadMutateAny}
             onCheckedChange={async (next) => {
               try {
                 await patch.mutateAsync({ id: row.original.id, body: { is_active: next } });
@@ -191,10 +192,10 @@ function VisitpadAllergensPage() {
       visitpadActionsColumn<VisitpadAllergen>({
         onEdit: setEditing,
         onDelete: setDeleting,
-        disabled: busy || !canWrite,
+        disabled: busy || !mdVisitpadMutateAny,
       }),
     ],
-    [patch, busy, canWrite],
+    [patch, busy, mdVisitpadMutateAny],
   );
 
   return (
@@ -211,9 +212,7 @@ function VisitpadAllergensPage() {
       secondaryNav={<VisitpadAllergiesSecondaryNav />}
       actions={
         <VisitpadHeaderActions
-          canWrite={canWrite}
-          canRead={canRead}
-          addLabel={tenantCatalog ? 'Add local allergen' : 'Add allergen'}
+addLabel={tenantCatalog ? 'Add local allergen' : 'Add allergen'}
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
           importFromLibraryPending={platformImport.isPending}

@@ -8,7 +8,6 @@ const baseValues: CreateUserFormValues = {
   password: 'manish@123',
   phone: '',
   username: 'manishusername',
-  org_id: '',
   department: '',
   clearance_tier_required: 0,
   role_template_ids: ['a107b93a-c083-4a66-9c88-c6706d99a49d'],

@@ -67,10 +67,10 @@ export function WizardStep2Modules({
         </FieldContent>
       </Field>
       <Field>
-        <FieldTitle className="text-xs font-semibold">Module overrides (optional)</FieldTitle>
+        <FieldTitle className="text-xs font-semibold">Enabled modules</FieldTitle>
         <FieldDescription>
-          Enable modules outside the selected plan. These will be enabled as overrides for this
-          tenant.
+          Choose modules from the Master Data catalog (name and slug). Selecting a parent module
+          selects all of its children. Permissions in the next step follow your selection.
         </FieldDescription>
         <FieldContent className="mt-2 min-w-0">
           {modulesLoading ? (

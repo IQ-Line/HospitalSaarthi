@@ -75,6 +75,7 @@ async function main() {
     allowedHeaders: [
       'Content-Type',
       'Authorization',
+      'Cookie',
       'iq_tenant_id',
       'x-tenant-id',
       'Idempotency-Key',
@@ -123,8 +124,13 @@ async function main() {
       rewritePrefix: route.prefix,
       http2: false,
       preHandler(request, _reply, done) {
+        const forwardedHost = request.headers['x-forwarded-host'];
         const host = request.headers.host;
-        if (host) {
+        if (
+          (typeof forwardedHost !== 'string' || forwardedHost.trim().length === 0) &&
+          typeof host === 'string' &&
+          host.length > 0
+        ) {
           request.headers['x-forwarded-host'] = host;
         }
         const proto =
@@ -139,6 +145,7 @@ async function main() {
   app.get('/healthz', async () => ({ status: 'ok' }));
 
   await app.listen({ port: PORT, host: '0.0.0.0' });
+  app.log.info(`BFF listening on http://localhost:${PORT}`);
 }
 
 main().catch((err) => {

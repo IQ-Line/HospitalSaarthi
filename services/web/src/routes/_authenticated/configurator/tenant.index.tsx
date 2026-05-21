@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
+import { requireCatalogRouteAccess } from '@/lib/require-catalog-route-access';
 import { useMemo, useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Eye, Pencil, Trash2 } from 'lucide-react';
@@ -17,7 +18,8 @@ import {
   useCreateOrganization,
   useOrganizations,
 } from '@/features/configurator/api';
-import { setPendingAdminProvisioning } from '@/features/configurator/pending-admin-provisioning';
+import { provisionTenantAdmin } from '@/features/configurator/provision-tenant-admin';
+import { useCreateUser } from '@/features/user-management/api/mutations';
 import { CreateTenantWizard } from '@/features/configurator/components/create-tenant-wizard';
 import { ConfiguratorPageShell } from '@/features/configurator/components/configurator-page-shell';
 import type {
@@ -26,13 +28,20 @@ import type {
   OrganizationStatus,
   OrganizationType,
   TenantWizardAdminSnapshot,
+  TenantWizardRoleSnapshot,
 } from '@/features/configurator/types';
 import { organizationTypeOptions } from '@/features/configurator/validation';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { rowMatchesSearch } from '@/features/master-data/table-search';
+import { useCatalogModuleAction } from '@/hooks/use-catalog-module-action';
 
 export const Route = createFileRoute('/_authenticated/configurator/tenant/')({
+  beforeLoad: requireCatalogRouteAccess('/configurator/tenant', {
+    catalogModuleSlug: 'tenant-modules',
+    catalogProductSlugs: ['configurator'],
+    routePrefix: '/configurator',
+  }),
   component: ConfiguratorTenantListPage,
 });
 
@@ -68,6 +77,7 @@ function ConfiguratorTenantListPage() {
   const [statusFilter, setStatusFilter] = useState<OrganizationStatus | 'all'>('all');
   const [typeFilter, setTypeFilter] = useState<OrganizationType | 'all'>('all');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const canCreateTenant = useCatalogModuleAction('tenants', 'create');
 
   const listFilters = useMemo(
     () => ({
@@ -81,6 +91,7 @@ function ConfiguratorTenantListPage() {
   const organizations = data?.data ?? [];
 
   const createMutation = useCreateOrganization();
+  const createUserMutation = useCreateUser();
 
   const filteredOrgs = useMemo(() => {
     return organizations.filter((o) =>
@@ -195,15 +206,32 @@ function ConfiguratorTenantListPage() {
 
   const onCreateWizardComplete = async ({
     payload,
+    role,
     admin,
   }: {
     payload: OrganizationCreateInput;
+    role: TenantWizardRoleSnapshot;
     admin: TenantWizardAdminSnapshot;
   }) => {
     try {
-      await createMutation.mutateAsync(payload);
-      setPendingAdminProvisioning(admin);
-      toast.success('Tenant created with default environment');
+      const created = await createMutation.mutateAsync(payload);
+      const tenantId = created.default_tenant.iq_tenant_id;
+      const orgId = created.organization.id;
+
+      try {
+        await provisionTenantAdmin({
+          admin,
+          role,
+          tenantId,
+          orgId,
+          createUser: (input) => createUserMutation.mutateAsync(input),
+        });
+        toast.success('Tenant, admin role, and admin user created');
+      } catch (adminErr) {
+        toast.error(
+          `Tenant created, but admin user failed: ${mutationErrorMessage(adminErr)}`,
+        );
+      }
       setIsCreateOpen(false);
     } catch (err) {
       toast.error(mutationErrorMessage(err));
@@ -256,7 +284,9 @@ function ConfiguratorTenantListPage() {
               ))}
             </SelectContent>
           </Select>
-          <Button onClick={() => setIsCreateOpen(true)}>+ Create Tenant</Button>
+          {canCreateTenant ? (
+            <Button onClick={() => setIsCreateOpen(true)}>+ Create Tenant</Button>
+          ) : null}
         </div>
       }
     >
@@ -280,7 +310,7 @@ function ConfiguratorTenantListPage() {
       <CreateTenantWizard
         open={isCreateOpen}
         onOpenChange={setIsCreateOpen}
-        isSubmitting={createMutation.isPending}
+        isSubmitting={createMutation.isPending || createUserMutation.isPending}
         onComplete={onCreateWizardComplete}
       />
     </ConfiguratorPageShell>

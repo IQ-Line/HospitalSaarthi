@@ -155,6 +155,7 @@ describe("Phase 1A.12 smoke", () => {
 
     await app.register(principalRoleEnricherPlugin, {
       principalService,
+      userRepository,
     });
     await app.register(authzSmokeStub);
     await app.register(
@@ -185,6 +186,9 @@ describe("Phase 1A.12 smoke", () => {
           masterDataModuleCatalogPort: {
             async resolveModuleSlugsByIds() {
               return new Map();
+            },
+            async expandEnabledModuleSlugs(moduleSlugs: readonly string[]) {
+              return moduleSlugs;
             },
           },
         });

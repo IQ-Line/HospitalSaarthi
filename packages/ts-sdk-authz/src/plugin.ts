@@ -11,10 +11,9 @@ import type {
 } from "./types.js";
 import { closeCerbosClient, getCerbosClient } from "./client.js";
 import { DecisionCache } from "./decision-cache.js";
-import { principalAttrsForCerbos } from "./principal-attr.js";
+import { buildCerbosPrincipalWire } from "./principal-wire.js";
 
 const CACHE_KEY = Symbol("authzDecisionCache");
-const CERBOS_ROLELESS_FALLBACK_ROLE = "__hims_authenticated__";
 
 function normalizePath(path: string): string {
   if (path.length > 1 && path.endsWith("/")) {
@@ -49,7 +48,10 @@ function extractRouteParams(path: string): Record<string, string> {
 }
 
 function resolveRouteAuthMode(config: unknown): RouteAuthMode {
-  return (config as { authMode: RouteAuthMode }).authMode;
+  if (config == null || typeof config !== "object") {
+    return "public";
+  }
+  return (config as { authMode?: RouteAuthMode }).authMode ?? "public";
 }
 
 function routeKeyFromRequest(request: FastifyRequest): string {
@@ -65,10 +67,6 @@ function getCache(request: FastifyRequest): DecisionCache {
     cacheHolder[CACHE_KEY] = cache;
   }
   return cache;
-}
-
-function rolesForCerbos(principal: Principal): string[] {
-  return principal.roles.length > 0 ? principal.roles : [CERBOS_ROLELESS_FALLBACK_ROLE];
 }
 
 async function authzPluginFn(
@@ -137,19 +135,12 @@ async function authzPluginFn(
        * Read `request.user` at check time (not when this hook runs) so principal
        * enrichment plugins registered before this PEP see their DB-backed attrs.
        */
-      const principal: Principal = request.user;
-
       const cache = getCache(request);
       const cached = cache.getCheck(kind, id, action);
       if (cached) return cached;
 
       const result = await cerbos.checkResource({
-        principal: {
-          id: principal.userId,
-          /** Identity/context only — module policies should use `attr` (capabilities, tenant, etc.). */
-          roles: rolesForCerbos(principal),
-          attr: principalAttrsForCerbos(principal),
-        },
+        principal: buildCerbosPrincipalWire(request),
         resource: { kind, id, ...(attr && { attr }) },
         actions: [action],
       });
@@ -163,19 +154,12 @@ async function authzPluginFn(
       action: string,
       attr?: Record<string, Value>,
     ): Promise<PlanResult> => {
-      const principal: Principal = request.user;
-
       const cache = getCache(request);
       const cached = cache.getPlan(kind, action);
       if (cached) return cached;
 
       const result = await cerbos.planResources({
-        principal: {
-          id: principal.userId,
-          /** Identity/context only — module policies should use `attr` (capabilities, tenant, etc.). */
-          roles: rolesForCerbos(principal),
-          attr: principalAttrsForCerbos(principal),
-        },
+        principal: buildCerbosPrincipalWire(request),
         resource: { kind, ...(attr && { attr }) },
         action,
       });
@@ -227,5 +211,5 @@ async function authzPluginFn(
 export const authzPlugin = fp(authzPluginFn, {
   fastify: "5.x",
   name: "@hims/ts-sdk-authz",
-  dependencies: ["@hims/ts-sdk-identity"],
+  dependencies: ["@hims/ts-sdk-identity", "@hims/user-management-principal-enrichment"],
 });

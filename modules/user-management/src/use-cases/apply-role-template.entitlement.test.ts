@@ -17,7 +17,7 @@ const CAP_EMP = "f47ac10b-58cc-4372-a567-0e02b2c3d662";
 
 const CAP_UM_ROW: Capability = {
   id: CAP_UM,
-  capability_key: "um:user:read",
+  capability_key: "users:users:read",
   module: "user-management",
   feature: "users",
   action: "read",
@@ -83,6 +83,7 @@ function buildDeps(entitlement: { moduleIds?: string[]; slugs?: Map<string, stri
     },
     masterDataModuleCatalogPort: {
       resolveModuleSlugsByIds: vi.fn().mockResolvedValue(entitlement.slugs ?? new Map()),
+      expandEnabledModuleSlugs: vi.fn(async (slugs: readonly string[]) => slugs),
     },
   };
 }

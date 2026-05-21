@@ -1,7 +1,9 @@
 /**
  * Normalise a Postgres URL for Node `pg`.
- * - Prefers `ABDM_DATA_DATABASE_URL` (dedicated DB override) over `DATABASE_URL`,
- *   matching `scripts/migrate.mjs` and the `USER_MGMT_DATABASE_URL` convention
+ * - Prefers `ABDM_DATA_DATABASE_URL` when set — ABDM adapter may use a dedicated Postgres
+ *   database for adapter-specific data. That override is service-specific and is NOT the
+ *   platform convention (operational modules use `DATABASE_URL` → `hims_dev` + one schema each).
+ * - Falls back to `DATABASE_URL` (typically `hims_dev`).
  * - Strips SQLAlchemy `postgresql+psycopg://` prefix
  * - Adds `sslmode=require` for Azure Postgres hosts when omitted
  */

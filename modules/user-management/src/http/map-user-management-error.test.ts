@@ -64,9 +64,9 @@ describe("resolveUserManagementHttpError", () => {
     expect(missing.body.code).toBe("USER_ROLE_TEMPLATE_NOT_FOUND");
   });
 
-  it("maps TenantMismatchError to 400 TENANT_CONTEXT_MISMATCH", () => {
+  it("maps TenantMismatchError to 403 TENANT_CONTEXT_MISMATCH", () => {
     const r = resolveUserManagementHttpError(new TenantMismatchError(), cid);
-    expect(r.status).toBe(400);
+    expect(r.status).toBe(403);
     expect(r.body.code).toBe("TENANT_CONTEXT_MISMATCH");
   });
 

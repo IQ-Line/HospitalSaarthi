@@ -1,6 +1,18 @@
 import type { DbInstance } from "@hims/ts-sdk-db";
 import { and, eq } from "@hims/ts-sdk-db";
-import { organizations, tenants } from "@hims/configurator";
+import {
+  DEVELOPMENT_BOOTSTRAP_CREDENTIALS,
+  DEVELOPMENT_BOOTSTRAP_ORG_ID,
+  DEVELOPMENT_BOOTSTRAP_ROLE_CODE,
+  DEVELOPMENT_BOOTSTRAP_ROLE_ID,
+  DEVELOPMENT_BOOTSTRAP_TENANT_ID,
+  DEVELOPMENT_BOOTSTRAP_USER_ID,
+  DEVELOPMENT_BOOTSTRAP_USER_EMAIL,
+  DEVELOPMENT_BOOTSTRAP_USER_NAME,
+  DEVELOPMENT_BOOTSTRAP_USER_PASSWORD,
+  DEVELOPMENT_BOOTSTRAP_USER_USERNAME,
+  shouldRunPlatformDevelopmentBootstrap,
+} from "@hims/dev-bootstrap";
 import { inArray } from "drizzle-orm";
 import { getCerbosClient } from "@hims/ts-sdk-authz";
 import {
@@ -16,20 +28,21 @@ import {
   UM_ROLE_READ,
   UM_ROLE_UPDATE,
   UM_USER_CREATE,
-  UM_USER_DEACTIVATE,
+  UM_USER_DELETE,
   UM_USER_READ,
   UM_USER_UPDATE,
   users,
   assertValidModuleSlug,
+  syncSuperAdminCapabilitySnapshots,
 } from "@hims/user-management";
 import { authUser } from "../auth/auth-schema.js";
 import type { HimsBetterAuthInstance } from "../auth/create-hims-better-auth.js";
 
 type FoundationCapabilitySeed = {
   capability_key: string;
-  module: "user-management";
-  feature: "users" | "roles" | "capabilities";
-  action: "create" | "read" | "update" | "deactivate" | "assign";
+  module: string;
+  feature: string;
+  action: string;
   display_name: string;
   description: string;
 };
@@ -72,22 +85,16 @@ export type DevelopmentBootstrapResult = {
   verifiedActions: string[];
 };
 
-export const DEVELOPMENT_BOOTSTRAP_TENANT_ID = "f47ac10b-58cc-4372-a567-0e02b2c3d480";
-const DEVELOPMENT_BOOTSTRAP_ORG_ID = "f47ac10b-58cc-4372-a567-0e02b2c3d481";
-const DEVELOPMENT_BOOTSTRAP_USER_ID = "f47ac10b-58cc-4372-a567-0e02b2c3d482";
-const DEVELOPMENT_BOOTSTRAP_ROLE_ID = "f47ac10b-58cc-4372-a567-0e02b2c3d483";
-const DEVELOPMENT_BOOTSTRAP_ORG_SLUG = "hospital-saarthi-dev";
-const DEVELOPMENT_BOOTSTRAP_TENANT_SLUG = "dev-hospital";
-const DEVELOPMENT_BOOTSTRAP_USER_NAME = "Vishal";
-const DEVELOPMENT_BOOTSTRAP_USER_EMAIL = "vishal@hospitalsaarthi.dev";
-const DEVELOPMENT_BOOTSTRAP_USER_PASSWORD = "password";
-const DEVELOPMENT_BOOTSTRAP_USER_USERNAME = "vishal";
-const DEVELOPMENT_BOOTSTRAP_ROLE_CODE = "super-admin";
+export {
+  DEVELOPMENT_BOOTSTRAP_CREDENTIALS,
+  DEVELOPMENT_BOOTSTRAP_ORG_ID,
+  DEVELOPMENT_BOOTSTRAP_TENANT_ID,
+} from "@hims/dev-bootstrap";
 
 const FOUNDATIONAL_CAPABILITIES: readonly FoundationCapabilitySeed[] = [
   {
     capability_key: UM_USER_CREATE,
-    module: "user-management",
+    module: "users",
     feature: "users",
     action: "create",
     display_name: "Create users",
@@ -95,7 +102,7 @@ const FOUNDATIONAL_CAPABILITIES: readonly FoundationCapabilitySeed[] = [
   },
   {
     capability_key: UM_USER_READ,
-    module: "user-management",
+    module: "users",
     feature: "users",
     action: "read",
     display_name: "Read users",
@@ -103,153 +110,66 @@ const FOUNDATIONAL_CAPABILITIES: readonly FoundationCapabilitySeed[] = [
   },
   {
     capability_key: UM_USER_UPDATE,
-    module: "user-management",
+    module: "users",
     feature: "users",
     action: "update",
     display_name: "Update users",
     description: "Update tenant-scoped platform users.",
   },
   {
-    capability_key: UM_USER_DEACTIVATE,
-    module: "user-management",
+    capability_key: UM_USER_DELETE,
+    module: "users",
     feature: "users",
-    action: "deactivate",
-    display_name: "Deactivate users",
+    action: "delete",
+    display_name: "Delete user",
     description: "Deactivate tenant-scoped platform users.",
   },
   {
     capability_key: UM_ROLE_CREATE,
-    module: "user-management",
-    feature: "roles",
+    module: "user-roles",
+    feature: "user-roles",
     action: "create",
     display_name: "Create roles",
     description: "Create tenant-scoped roles.",
   },
   {
     capability_key: UM_ROLE_READ,
-    module: "user-management",
-    feature: "roles",
+    module: "user-roles",
+    feature: "user-roles",
     action: "read",
     display_name: "Read roles",
     description: "Read tenant-scoped roles and role composition.",
   },
   {
     capability_key: UM_ROLE_UPDATE,
-    module: "user-management",
-    feature: "roles",
+    module: "user-roles",
+    feature: "user-roles",
     action: "update",
     display_name: "Update roles",
     description: "Update tenant-scoped roles and role composition.",
   },
   {
     capability_key: UM_ROLE_ASSIGN,
-    module: "user-management",
-    feature: "roles",
+    module: "user-roles",
+    feature: "role",
     action: "assign",
     display_name: "Assign roles",
     description: "Assign tenant-scoped roles to platform users.",
   },
   {
     capability_key: UM_CAPABILITY_READ,
-    module: "user-management",
-    feature: "capabilities",
+    module: "user-capabilities",
+    feature: "user-capabilities",
     action: "read",
     display_name: "Read capabilities",
     description: "Read the canonical capability catalog.",
   },
 ] as const;
 
-export const DEVELOPMENT_BOOTSTRAP_CREDENTIALS = {
-  email: DEVELOPMENT_BOOTSTRAP_USER_EMAIL,
-  password: DEVELOPMENT_BOOTSTRAP_USER_PASSWORD,
-} as const;
-
 export const DEVELOPMENT_FOUNDATIONAL_CAPABILITIES = FOUNDATIONAL_CAPABILITIES;
 
-function shouldEnableByEnv(): boolean {
-  const explicit = process.env.USER_MGMT_DEV_BOOTSTRAP?.trim().toLowerCase();
-  if (explicit === "true") return true;
-  if (explicit === "false") return false;
-  return process.env.NODE_ENV !== "production";
-}
-
 export function shouldRunDevelopmentBootstrap(): boolean {
-  return shouldEnableByEnv();
-}
-
-async function ensureBootstrapOrganization(db: DbInstance): Promise<void> {
-  const [existing] = await db
-    .select({ id: organizations.id })
-    .from(organizations)
-    .where(eq(organizations.id, DEVELOPMENT_BOOTSTRAP_ORG_ID))
-    .limit(1);
-
-  if (existing) {
-    await db
-      .update(organizations)
-      .set({
-        name: "Hospital Saarthi Dev Org",
-        slug: DEVELOPMENT_BOOTSTRAP_ORG_SLUG,
-        type: "standalone_hospital",
-        status: "active",
-        contact_email: DEVELOPMENT_BOOTSTRAP_USER_EMAIL,
-        updated_at: new Date(),
-      })
-      .where(eq(organizations.id, DEVELOPMENT_BOOTSTRAP_ORG_ID));
-    return;
-  }
-
-  await db.insert(organizations).values({
-    id: DEVELOPMENT_BOOTSTRAP_ORG_ID,
-    name: "Hospital Saarthi Dev Org",
-    slug: DEVELOPMENT_BOOTSTRAP_ORG_SLUG,
-    type: "standalone_hospital",
-    status: "active",
-    contact_email: DEVELOPMENT_BOOTSTRAP_USER_EMAIL,
-    metadata: { seed: "development-bootstrap" },
-  });
-}
-
-async function ensureBootstrapTenant(db: DbInstance): Promise<void> {
-  const [existing] = await db
-    .select({ iq_tenant_id: tenants.iq_tenant_id })
-    .from(tenants)
-    .where(eq(tenants.iq_tenant_id, DEVELOPMENT_BOOTSTRAP_TENANT_ID))
-    .limit(1);
-
-  if (existing) {
-    await db
-      .update(tenants)
-      .set({
-        org_id: DEVELOPMENT_BOOTSTRAP_ORG_ID,
-        name: "Dev Hospital",
-        slug: DEVELOPMENT_BOOTSTRAP_TENANT_SLUG,
-        type: "full_platform",
-        provisioning_status: "active",
-        data_isolation_level: "shared",
-        cerbos_scope_key: DEVELOPMENT_BOOTSTRAP_TENANT_ID,
-        timezone: "Asia/Kolkata",
-        locale: "en-IN",
-        updated_at: new Date(),
-      })
-      .where(eq(tenants.iq_tenant_id, DEVELOPMENT_BOOTSTRAP_TENANT_ID));
-    return;
-  }
-
-  await db.insert(tenants).values({
-    iq_tenant_id: DEVELOPMENT_BOOTSTRAP_TENANT_ID,
-    org_id: DEVELOPMENT_BOOTSTRAP_ORG_ID,
-    parent_tenant_id: null,
-    name: "Dev Hospital",
-    slug: DEVELOPMENT_BOOTSTRAP_TENANT_SLUG,
-    type: "full_platform",
-    provisioning_status: "active",
-    data_isolation_level: "shared",
-    cerbos_scope_key: DEVELOPMENT_BOOTSTRAP_TENANT_ID,
-    timezone: "Asia/Kolkata",
-    locale: "en-IN",
-    metadata: { seed: "development-bootstrap" },
-  });
+  return shouldRunPlatformDevelopmentBootstrap();
 }
 
 async function ensureFoundationalCapabilities(
@@ -583,8 +503,14 @@ async function verifyBootstrapPrincipal(
     userId,
   });
 
-  const expectedCapabilities = new Set(FOUNDATIONAL_CAPABILITIES.map((item) => item.capability_key));
-  for (const capability of expectedCapabilities) {
+  const requiredKeys = [
+    UM_USER_CREATE,
+    UM_USER_READ,
+    UM_ROLE_CREATE,
+    UM_ROLE_ASSIGN,
+    UM_CAPABILITY_READ,
+  ] as const;
+  for (const capability of requiredKeys) {
     if (!principal.attributes.capabilities.includes(capability)) {
       throw new Error(`Bootstrap principal missing capability ${capability}.`);
     }
@@ -615,15 +541,24 @@ async function verifyBootstrapCerbos(
     org_id: DEVELOPMENT_BOOTSTRAP_ORG_ID,
   });
 
+  const crossTenantAttr = buildCerbosUserMgmtResourceAttr({
+    iq_tenant_id: "00000000-0000-4000-8000-000000000001",
+    department: null,
+    required_clearance: 0,
+  });
+
   const checks = [
     { kind: "user", id: "new", action: "user.create", attr: tenantOnlyAttr },
+    { kind: "user", id: "new", action: "user.create", attr: crossTenantAttr },
     { kind: "user", id: userId, action: "user.read", attr: selfAttr },
     { kind: "user", id: userId, action: "user.update", attr: selfAttr },
     { kind: "user", id: userId, action: "user.deactivate", attr: selfAttr },
     { kind: "role", id: "new", action: "role.create", attr: tenantOnlyAttr },
+    { kind: "role", id: "new", action: "role.create", attr: crossTenantAttr },
     { kind: "role", id: DEVELOPMENT_BOOTSTRAP_ROLE_CODE, action: "role.read", attr: tenantOnlyAttr },
     { kind: "role", id: DEVELOPMENT_BOOTSTRAP_ROLE_CODE, action: "role.update", attr: tenantOnlyAttr },
     { kind: "user_role_template", id: "new", action: "role.assign", attr: tenantOnlyAttr },
+    { kind: "user_role_template", id: "new", action: "role.assign", attr: crossTenantAttr },
     { kind: "capability", id: "list", action: "capability.read", attr: tenantOnlyAttr },
   ] as const;
 
@@ -655,16 +590,8 @@ async function verifyBootstrapCerbos(
 export async function runDevelopmentBootstrap(
   deps: BootstrapDeps,
 ): Promise<DevelopmentBootstrapResult> {
-  await ensureBootstrapOrganization(deps.db);
-  await ensureBootstrapTenant(deps.db);
-
-  const capabilityRows = await ensureFoundationalCapabilities(deps.db);
+  await ensureFoundationalCapabilities(deps.db);
   const roleId = await ensureBootstrapRole(deps.db);
-  await ensureBootstrapRoleCapabilities(
-    deps.db,
-    roleId,
-    capabilityRows.map((row) => row.id),
-  );
 
   const existingAuthUser = await readAuthUserByEmail(deps.db);
   const existingPlatformUser = await readPlatformUserByEmail(deps.db);
@@ -676,12 +603,14 @@ export async function runDevelopmentBootstrap(
   const authUserId = await ensureBootstrapAuthUser(deps.db, deps.auth, platformUserId);
   await ensurePlatformUserAuthLink(deps.db, platformUserId, authUserId);
   await ensureBootstrapUserRoleTemplate(deps.db, platformUserId, roleId);
-  await ensureBootstrapUserCapabilities(
-    deps.db,
-    platformUserId,
+  const synced = await syncSuperAdminCapabilitySnapshots(deps.db, {
+    tenantId: DEVELOPMENT_BOOTSTRAP_TENANT_ID,
+    userId: platformUserId,
     roleId,
-    capabilityRows.map((row) => row.id),
-  );
+  });
+  if (synced.capabilityCount === 0) {
+    throw new Error("Bootstrap super-admin sync found no active capabilities in catalog.");
+  }
 
   const principal = await verifyBootstrapPrincipal(deps.principalService, platformUserId);
   const verifiedActions = await verifyBootstrapCerbos(deps.cerbosUrl, principal, platformUserId);

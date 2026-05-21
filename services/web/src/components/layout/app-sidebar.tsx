@@ -1,52 +1,25 @@
-import { useEffect, useMemo, useState } from 'react';
-import { getRolesFromAccessToken, isSuperAdminRole } from '@/lib/access-token';
-import { useLocation, useNavigate } from '@tanstack/react-router';
-import { LayoutGrid, LogOut, Users } from 'lucide-react';
+import { useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
+import { LogOut } from 'lucide-react';
 import { Button } from '@pulse/ui/button';
 import { BrandMark } from '@/components/layout/brand-mark';
-import { DynamicModuleNav } from '@/components/layout/dynamic-module-nav';
-import { SidebarNavLink } from '@/components/layout/sidebar-nav-link';
-import { ConfiguratorNavSection } from '@/features/configurator/components/configurator-nav-section';
-import { MasterDataNavSection } from '@/features/master-data/components/master-data-nav-section';
-import { useNavModules } from '@/features/master-data/api';
-import { FrontdeskNavSection } from '@/features/frontdesk/components/frontdesk-nav-section';
-import { BillingNavSection } from '@/features/billing/components/billing-nav-section';
-import { VisitpadNavSection } from '@/features/visitpad/components/visitpad-nav-section';
+import { GenericSidebarRenderer } from '@/components/navigation/generic-sidebar-renderer';
+import { useFilteredNavigation } from '@/navigation/use-filtered-navigation';
 import { authClient } from '@/lib/auth-client';
-import { buildNavModuleTree } from '@/lib/nav-modules-tree';
-import {
-  canReadRoles,
-  canReadUsers,
-  canWriteUsers,
-} from '@/features/user-management/lib/um-permissions';
 import { useAuthStore } from '@/stores/auth.store';
-import { usePermissionsStore } from '@/stores/permissions.store';
 import { useTenantStore } from '@/stores/tenant.store';
 import { useUIPrefsStore } from '@/stores/ui-prefs.store';
 
 interface AppSidebarProps {
   displayName: string | null;
   tenantName: string | null;
-  hasMasterDataAccess: boolean;
-  hasConfiguratorAccess: boolean;
-  hasUserManagementAccess: boolean;
-  /** Catalog admins: same gate as Master Data until a dedicated Cerbos module exists. */
-  hasVisitpadAccess: boolean;
-  hasBillingAccess: boolean;
-  hasFrontdeskAccess: boolean;
 }
 
-export function AppSidebar({
-  displayName,
-  tenantName,
-  hasMasterDataAccess,
-  hasConfiguratorAccess,
-  hasUserManagementAccess,
-  hasVisitpadAccess,
-  hasBillingAccess,
-  hasFrontdeskAccess,
-}: AppSidebarProps) {
+export function AppSidebar({ displayName, tenantName }: AppSidebarProps) {
   const sidebarCollapsed = useUIPrefsStore((s) => s.sidebarCollapsed);
+<<<<<<< HEAD
+  const navNodes = useFilteredNavigation();
+=======
   const accessToken = useAuthStore((s) => s.accessToken);
   const isSuperAdmin = useMemo(
     () => isSuperAdminRole(getRolesFromAccessToken(accessToken)),
@@ -114,6 +87,7 @@ export function AppSidebar({
       setIsFrontdeskOpen(true);
     }
   }, [isInFrontdesk]);
+>>>>>>> cd2a605515ccd3d8bf769a14d4401c72b9752543
 
   return (
     <aside
@@ -121,24 +95,13 @@ export function AppSidebar({
         sidebarCollapsed ? 'w-16 p-2' : 'w-64 p-3'
       }`}
     >
-      <div
-          className={`mb-4 flex items-center ${
-            sidebarCollapsed ? 'justify-center' : 'gap-2'
-          }`}
-        >
-          <div className="flex items-center gap-2 min-w-0">
-            <BrandMark />
-            {!sidebarCollapsed && (
-              <div className="min-w-0">
-                <h1 className="text-sm font-semibold truncate">HIMS</h1>
-                {tenantName && (
-                  <p className="text-xs text-muted-foreground truncate">{tenantName}</p>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
+      <SidebarBrandHeader collapsed={sidebarCollapsed} tenantName={tenantName} />
 
+<<<<<<< HEAD
+      <nav className="space-y-1 flex-1 overflow-y-auto">
+        <GenericSidebarRenderer nodes={navNodes} collapsed={sidebarCollapsed} />
+      </nav>
+=======
         <nav className="space-y-1 flex-1 overflow-y-auto">
           <SidebarNavLink
             to="/dashboard"
@@ -204,9 +167,38 @@ export function AppSidebar({
             </>
           )}
         </nav>
+>>>>>>> cd2a605515ccd3d8bf769a14d4401c72b9752543
 
       <SidebarFooter displayName={displayName} collapsed={sidebarCollapsed} />
     </aside>
+  );
+}
+
+function SidebarBrandHeader({
+  collapsed,
+  tenantName,
+}: {
+  collapsed: boolean;
+  tenantName: string | null;
+}) {
+  return (
+    <div
+      className={`mb-4 flex items-center ${
+        collapsed ? 'justify-center' : 'gap-2'
+      }`}
+    >
+      <div className="flex items-center gap-2 min-w-0">
+        <BrandMark />
+        {!collapsed && (
+          <div className="min-w-0">
+            <h1 className="text-sm font-semibold truncate">HIMS</h1>
+            {tenantName ? (
+              <p className="text-xs text-muted-foreground truncate">{tenantName}</p>
+            ) : null}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 

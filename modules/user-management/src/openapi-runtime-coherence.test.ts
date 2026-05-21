@@ -95,6 +95,9 @@ const noopMasterDataModuleCatalogPort = {
   async resolveModuleSlugsByIds(): Promise<Map<string, string>> {
     return new Map();
   },
+  async expandEnabledModuleSlugs(moduleSlugs: readonly string[]): Promise<readonly string[]> {
+    return moduleSlugs;
+  },
 };
 
 class NoopRoleCapabilityRepository implements RoleCapabilityRepository {
@@ -432,7 +435,7 @@ describe("OpenAPI/runtime coherence", () => {
       headers: { iq_tenant_id: "tenant-b" },
     });
 
-    expect(response.statusCode).toBe(400);
+    expect(response.statusCode).toBe(403);
     expect(response.json()).toEqual(
       expect.objectContaining({
         code: "TENANT_CONTEXT_MISMATCH",
@@ -543,7 +546,6 @@ describe("OpenAPI/runtime coherence", () => {
       return [
         "/auth/me",
         "/auth/principal",
-        "/auth/permissions-map",
         "/capabilities",
         "/capabilities/assignable",
         "/capabilities/:id",

@@ -11,8 +11,10 @@ import {
 import { authJwks, authSchema } from "./auth-schema.js";
 
 export type HimsBetterAuthEnv = {
-  /** Public base URL of this service (e.g. `http://127.0.0.1:3000`). Used as better-auth `baseURL`. */
+  /** Backend/API origin (`AUTH_BASE_URL`). better-auth `baseURL` and JWT issuer — not the browser origin. */
   authBaseUrl: string;
+  /** Browser origin (`WEB_PUBLIC_ORIGIN`) for CORS/trustedOrigins only — never JWT issuer/JWKS. */
+  webPublicOrigin?: string;
   secret: string;
   jwtIssuer: string;
   jwtAudience: string;

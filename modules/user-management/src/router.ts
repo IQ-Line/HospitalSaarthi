@@ -16,6 +16,10 @@ import type {
 } from "./ports/index.js";
 import { TenantMismatchError } from "./domain/errors.js";
 import { replyWithUserManagementError } from "./http/map-user-management-error.js";
+import {
+  assertTenantHeaderAllowedForPrincipal,
+  resolveEffectiveTenantId,
+} from "./http/resolve-effective-tenant-id.js";
 import { registerAuthHandlers } from "./rest-handlers/auth-handlers.js";
 import { registerInternalDiagnosticsHandlers } from "./rest-handlers/internal-diagnostics-handlers.js";
 import { registerRoleHandlers } from "./rest-handlers/role-handlers.js";
@@ -89,18 +93,13 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
     masterDataModuleCatalogPort,
   } = options;
 
-  const getTenantId = options.getTenantId ?? defaultGetTenantId;
+  const getTenantId = options.getTenantId ?? ((request) => resolveEffectiveTenantId(request));
   const getUserId = options.getUserId ?? defaultGetUserId;
   const getActorId = getUserId;
 
   fastify.addHook("preHandler", async (request, reply) => {
-    const headerTenant = request.headers["iq_tenant_id"];
-    if (typeof headerTenant !== "string" || headerTenant.length === 0) {
-      return;
-    }
-
-    const tokenTenant = getTenantId(request);
-    if (headerTenant !== tokenTenant) {
+    const headerCheck = assertTenantHeaderAllowedForPrincipal(request);
+    if (!headerCheck.ok) {
       return replyWithUserManagementError(
         reply,
         new TenantMismatchError(),
@@ -185,11 +184,6 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
     getTenantId,
     getUserId,
     getUserDeps: { userRepository },
-    uxPermissionMapDeps: {
-      userRepository,
-      getTenantId,
-      getUserId,
-    },
   });
 
   registerInternalDiagnosticsHandlers(fastify, {

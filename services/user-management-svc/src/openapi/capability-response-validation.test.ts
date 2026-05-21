@@ -12,7 +12,7 @@ describe("Capability list response validation", () => {
     const payload = [
       {
         id: "f47ac10b-58cc-4372-a567-0e02b2c3d611",
-        capability_key: "um:user:read",
+        capability_key: "users:users:read",
         module: "user-management",
         feature: "users",
         action: "read",

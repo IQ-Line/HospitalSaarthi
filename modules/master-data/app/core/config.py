@@ -44,7 +44,10 @@ class Settings(BaseSettings):
 
     database_url: str = Field(
         default="postgresql+psycopg://hims:hims@localhost:5433/hims_dev",
-        description="SQLAlchemy database URL for the Master Data module.",
+        description=(
+            "SQLAlchemy database URL for the Master Data module. "
+            "Catalog lives in `global_master` and `tenant_master` schemas on `hims_dev`."
+        ),
     )
     api_prefix: str = "/api/v1/master-data"
     log_level: str = "INFO"
@@ -107,6 +110,38 @@ class Settings(BaseSettings):
         return value  # pragma: no cover
 
 
+def _resolve_database_url_from_env_files() -> str | None:
+    """Read MASTER_DATA_DATABASE_URL from workspace `.env` when pydantic env_prefix skips it."""
+    import os
+
+    explicit = os.environ.get("MASTER_DATA_DATABASE_URL", "").strip()
+    if explicit:
+        return explicit
+
+    try:
+        from dotenv import dotenv_values
+    except ImportError:
+        return None
+
+    for path in _master_data_env_files() or ():
+        values = dotenv_values(path)
+        url = (values.get("MASTER_DATA_DATABASE_URL") or "").strip()
+        if url:
+            return url
+    return None
+
+
 @lru_cache
 def get_settings() -> Settings:
+    url = _resolve_database_url_from_env_files()
+    if url:
+        return Settings(database_url=url)
     return Settings()
+
+
+def reset_settings_cache_for_tests() -> None:
+    """Clear cached settings (tests / after `.env` changes in long-lived shells)."""
+    get_settings.cache_clear()
+    from app.core.database import reset_database_engine
+
+    reset_database_engine()

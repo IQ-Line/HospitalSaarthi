@@ -4,6 +4,8 @@ export const masterDataKeys = {
   all: ['master-data'] as const,
 
   modulesRoot: () => [...masterDataKeys.all, 'modules'] as const,
+  /** Platform registry in `global_master` — omit `iq_tenant_id` when fetching. */
+  globalModules: () => [...masterDataKeys.modulesRoot(), 'global-platform'] as const,
   navModules: () => [...masterDataKeys.modulesRoot(), 'nav'] as const,
   modules: (category?: ModuleCategory) =>
     [...masterDataKeys.modulesRoot(), category ?? 'all'] as const,
@@ -12,8 +14,12 @@ export const masterDataKeys = {
   submodules: (parentId: string) => [...masterDataKeys.modules(), parentId, 'submodules'] as const,
 
   permissionsRoot: () => [...masterDataKeys.all, 'permissions'] as const,
-  permissions: (action?: PermissionAction) =>
-    [...masterDataKeys.permissionsRoot(), action ?? 'all'] as const,
+  permissions: (action?: PermissionAction, globalCatalog?: boolean) =>
+    [
+      ...masterDataKeys.permissionsRoot(),
+      action ?? 'all',
+      globalCatalog ? 'global' : 'tenant',
+    ] as const,
   permissionDetail: (id: string) => [...masterDataKeys.permissions(), id] as const,
 
   systemRolesRoot: () => [...masterDataKeys.all, 'system-roles'] as const,

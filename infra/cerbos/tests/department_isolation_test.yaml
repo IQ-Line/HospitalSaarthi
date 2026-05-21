@@ -15,8 +15,8 @@ principals:
       org_id: null
       department: "cardiology"
       capabilities:
-        - "um:user:read"
-        - "um:user:update"
+        - "users:users:read"
+        - "users:users:update"
       delegated_capabilities: []
       clearances: {}
       um_clearance_effective_tier: 0
@@ -30,8 +30,8 @@ principals:
       org_id: null
       department: "oncology"
       capabilities:
-        - "um:user:read"
-        - "um:user:update"
+        - "users:users:read"
+        - "users:users:update"
       delegated_capabilities: []
       clearances: {}
       um_clearance_effective_tier: 0

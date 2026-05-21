@@ -68,7 +68,7 @@ function ModulesPage() {
   const [deletingModule, setDeletingModule] = useState<Module | null>(null);
 
   const category = categoryFilter === 'all' ? undefined : categoryFilter;
-  const { data, isLoading, error } = useModules(category);
+  const { data, isLoading, error } = useModules(category, { globalCatalog: true });
   const modules = data?.data ?? [];
 
   const createMutation = useCreateModule();

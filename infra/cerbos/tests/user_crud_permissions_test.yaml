@@ -15,10 +15,10 @@ principals:
       org_id: null
       department: null
       capabilities:
-        - "um:user:create"
-        - "um:user:read"
-        - "um:user:update"
-        - "um:user:deactivate"
+        - "users:users:create"
+        - "users:users:read"
+        - "users:users:update"
+        - "users:users:delete"
       delegated_capabilities: []
       clearances: {}
       um_clearance_effective_tier: 0
@@ -32,7 +32,7 @@ principals:
       org_id: null
       department: null
       capabilities:
-        - "um:user:read"
+        - "users:users:read"
       delegated_capabilities: []
       clearances: {}
       um_clearance_effective_tier: 0
@@ -46,7 +46,7 @@ principals:
       org_id: null
       department: null
       capabilities:
-        - "um:user:update"
+        - "users:users:update"
       delegated_capabilities: []
       clearances: {}
       um_clearance_effective_tier: 0
@@ -88,7 +88,7 @@ tests:
         actions:
           user.read: EFFECT_ALLOW
 
-  - name: user.read(list) — missing um:user:read DENY
+  - name: user.read(list) — missing users:users:read DENY
     input:
       principals: [update_only]
       resources: [user_list]
@@ -110,7 +110,7 @@ tests:
         actions:
           user.create: EFFECT_ALLOW
 
-  - name: user.create — missing um:user:create DENY
+  - name: user.create — missing users:users:create DENY
     input:
       principals: [read_only]
       resources: [user_new]
@@ -132,7 +132,7 @@ tests:
         actions:
           user.read: EFFECT_ALLOW
 
-  - name: user.read — missing um:user:read DENY
+  - name: user.read — missing users:users:read DENY
     input:
       principals: [update_only]
       resources: [user_record]
@@ -154,7 +154,7 @@ tests:
         actions:
           user.update: EFFECT_ALLOW
 
-  - name: user.update — missing um:user:update DENY
+  - name: user.update — missing users:users:update DENY
     input:
       principals: [read_only]
       resources: [user_record]
@@ -176,7 +176,7 @@ tests:
         actions:
           user.deactivate: EFFECT_ALLOW
 
-  - name: user.deactivate — missing um:user:deactivate DENY
+  - name: user.deactivate — missing users:users:delete DENY
     input:
       principals: [read_only]
       resources: [user_record]
@@ -187,7 +187,7 @@ tests:
         actions:
           user.deactivate: EFFECT_DENY
 
-  - name: user.deactivate — editor without um:user:deactivate DENY
+  - name: user.deactivate — editor without users:users:delete DENY
     input:
       principals: [update_only]
       resources: [user_record]

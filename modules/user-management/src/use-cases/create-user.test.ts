@@ -50,6 +50,9 @@ const entitlementPorts = {
     async resolveModuleSlugsByIds(): Promise<Map<string, string>> {
       return new Map();
     },
+    async expandEnabledModuleSlugs(moduleSlugs: readonly string[]): Promise<readonly string[]> {
+      return moduleSlugs;
+    },
   },
 } as const;
 
@@ -94,7 +97,7 @@ describe("createUser", () => {
       {
         capability: {
           id: "f47ac10b-58cc-4372-a567-0e02b2c3d610",
-          capability_key: "um:user:create",
+          capability_key: "users:users:create",
           module: "user-management",
           feature: "users",
           action: "create",
@@ -106,7 +109,7 @@ describe("createUser", () => {
       {
         capability: {
           id: "f47ac10b-58cc-4372-a567-0e02b2c3d611",
-          capability_key: "um:user:read",
+          capability_key: "users:users:read",
           module: "user-management",
           feature: "users",
           action: "read",
@@ -118,7 +121,7 @@ describe("createUser", () => {
       {
         capability: {
           id: "f47ac10b-58cc-4372-a567-0e02b2c3d612",
-          capability_key: "um:role:assign",
+          capability_key: "user-roles:role:assign",
           module: "user-management",
           feature: "roles",
           action: "assign",
@@ -251,7 +254,7 @@ describe("createUser", () => {
   it("applies only selected role capabilities when role_template_capability_ids is set", async () => {
     const capCreate: Capability = {
       id: "f47ac10b-58cc-4372-a567-0e02b2c3d610",
-      capability_key: "um:user:create",
+      capability_key: "users:users:create",
       module: "user-management",
       feature: "users",
       action: "create",
@@ -261,7 +264,7 @@ describe("createUser", () => {
     };
     const capRead: Capability = {
       id: "f47ac10b-58cc-4372-a567-0e02b2c3d611",
-      capability_key: "um:user:read",
+      capability_key: "users:users:read",
       module: "user-management",
       feature: "users",
       action: "read",
@@ -347,7 +350,7 @@ describe("createUser", () => {
       {
         capability: {
           id: capId,
-          capability_key: "um:user:create",
+          capability_key: "users:users:create",
           module: "user-management",
           feature: "users",
           action: "create",
@@ -370,6 +373,7 @@ describe("createUser", () => {
           },
       masterDataModuleCatalogPort: {
         resolveModuleSlugsByIds: vi.fn(),
+        expandEnabledModuleSlugs: vi.fn(async (slugs: readonly string[]) => slugs),
       },
     });
     deps.capabilityRepository = capabilityRepository;

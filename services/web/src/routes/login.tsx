@@ -8,24 +8,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@pulse/ui/card';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
 import { authClient } from '@/lib/auth-client';
-import { getRolesFromAccessToken, isSuperAdminRole } from '@/lib/access-token';
-import { apiClient } from '@/lib/api-client';
-import { buildDevPermissionMap } from '@/lib/permissions-map';
-import { DEV_TENANT_IQ_CATALOG_UUID } from '@/lib/catalog-tenant';
-import { masterDataKeys } from '@/features/master-data/api/query-keys';
-import type { NavModuleListResponse } from '@/features/master-data/types';
+import { refreshAuthorizationContext } from '@/lib/authorization-context';
 import { queryClient } from '@/lib/query-client';
+import { applyTenantSessionFromAuth } from '@/lib/tenant-session';
 import { useAuthStore } from '@/stores/auth.store';
-import { useTenantStore } from '@/stores/tenant.store';
-
-const NAV_MODULES_PATH = '/api/v1/master-data/modules/nav';
-
-const DEV_TENANT_ID = 'f47ac10b-58cc-4372-a567-0e02b2c3d480';
 
 const signInSchema = z.object({
-  username: z.string().min(1, 'Username is required'),
+  email: z.string().min(1, 'Email is required').email('Enter a valid email'),
   password: z.string().min(1, 'Password is required'),
 });
+
 type SignInValues = z.infer<typeof signInSchema>;
 
 export const Route = createFileRoute('/login')({
@@ -39,61 +31,64 @@ export const Route = createFileRoute('/login')({
 
 async function fetchJwt(): Promise<string> {
   const { data, error } = await authClient.token();
+
   if (error || !data?.token) {
     throw new Error(`JWT fetch failed: ${error?.message ?? 'empty response'}`);
   }
+
   return data.token;
 }
 
 function LoginPage() {
   const navigate = useNavigate();
   const setSession = useAuthStore((s) => s.setSession);
-  const setTenant = useTenantStore((s) => s.setTenant);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const form = useForm<SignInValues>({
     resolver: zodResolver(signInSchema),
-    defaultValues: { username: '', password: '' },
+    defaultValues: { email: '', password: '' },
   });
+
+  async function completeSignIn(
+    sessionToken: string,
+    user: { id: string; name: string; iq_tenant_id?: string },
+  ) {
+    const jwt = await fetchJwt();
+    const authUser = user as { iq_tenant_id?: string };
+
+    setSession({ accessToken: jwt, sessionToken, userId: user.id, displayName: user.name });
+
+    await applyTenantSessionFromAuth({
+      accessToken: jwt,
+      authUserIqTenantId: authUser.iq_tenant_id ?? null,
+    });
+
+    await refreshAuthorizationContext(queryClient);
+    navigate({ to: '/dashboard' });
+  }
 
   async function handleSignIn(values: SignInValues) {
     setError(null);
     setLoading(true);
     try {
       const { data, error: authError } = await authClient.signIn.email({
-        email: values.username,
+        email: values.email.trim().toLowerCase(),
         password: values.password,
       });
+
       if (authError) {
         setError(authError.message ?? 'Sign-in failed');
         return;
       }
+
       const sessionToken = data?.token;
       if (!sessionToken || !data?.user) {
         setError('Unexpected response from server');
         return;
       }
-      const jwt = await fetchJwt();
-      setSession({
-        accessToken: jwt,
-        sessionToken,
-        userId: data.user.id,
-        displayName: data.user.name,
-      });
-      if (isSuperAdminRole(getRolesFromAccessToken(jwt))) {
-        void queryClient.prefetchQuery({
-          queryKey: masterDataKeys.navModules(),
-          queryFn: () => apiClient<NavModuleListResponse>(NAV_MODULES_PATH),
-        });
-      }
-      setTenant({
-        tenantId: DEV_TENANT_ID,
-        tenantName: 'Dev Hospital',
-        branches: [{ id: 'branch-001', name: 'Main Campus' }],
-        activeBranch: 'branch-001',
-      });
-      navigate({ to: '/dashboard' });
+
+      await completeSignIn(sessionToken, data.user);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign-in failed');
     } finally {
@@ -104,30 +99,28 @@ function LoginPage() {
   return (
     <div className="flex h-screen items-center justify-center bg-muted">
       <Card className="w-full max-w-sm">
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl">HIMS Platform</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {error && (
-              <p className="mb-4 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {error}
-              </p>
-            )}
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl">HIMS Platform</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {error && (
+            <p className="mb-4 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {error}
+            </p>
+          )}
 
           <form onSubmit={form.handleSubmit(handleSignIn)} className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
-                id="username"
-                type="text"
+                id="email"
+                type="email"
                 autoComplete="username"
-                placeholder="e.g. vishal@hospitalsaarthi.dev"
-                {...form.register('username')}
+                placeholder="you@hospital.org"
+                {...form.register('email')}
               />
-              {form.formState.errors.username && (
-                <p className="text-xs text-destructive">
-                  {form.formState.errors.username.message}
-                </p>
+              {form.formState.errors.email && (
+                <p className="text-xs text-destructive">{form.formState.errors.email.message}</p>
               )}
             </div>
             <div className="space-y-1.5">

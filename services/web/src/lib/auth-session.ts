@@ -1,4 +1,5 @@
 import { authClient } from '@/lib/auth-client';
+import { applyTenantSessionFromAuth } from '@/lib/tenant-session';
 import { catalogIqTenantHeaderValue, jwtIqTenantHeaderValue } from '@/lib/catalog-tenant';
 import { useAuthStore } from '@/stores/auth.store';
 import { useTenantStore } from '@/stores/tenant.store';
@@ -12,6 +13,7 @@ type ResolvedAuthSession = {
   sessionToken: string;
   userId: string;
   displayName: string;
+  authUserIqTenantId: string | null;
 };
 
 async function resolveAuthSessionFromBetterAuth(): Promise<ResolvedAuthSession | null> {
@@ -36,11 +38,18 @@ async function resolveAuthSessionFromBetterAuth(): Promise<ResolvedAuthSession |
     return null;
   }
 
+  const authUser = sessionData?.user as { iq_tenant_id?: string } | undefined;
+  const authUserIqTenantId =
+    typeof authUser?.iq_tenant_id === 'string' && authUser.iq_tenant_id.trim().length > 0
+      ? authUser.iq_tenant_id.trim()
+      : null;
+
   return {
     accessToken,
     sessionToken,
     userId,
     displayName: typeof displayName === 'string' ? displayName : '',
+    authUserIqTenantId,
   };
 }
 
@@ -86,6 +95,15 @@ function redirectToLoginIfBrowserSessionExpired(): void {
  * JWTs stay in memory; on reload we re-fetch them from the active better-auth session.
  */
 export async function ensureAuthSession(): Promise<void> {
+  const auth = useAuthStore.getState();
+  if (auth.isAuthenticated && auth.accessToken?.trim()) {
+    authBootstrapComplete = true;
+    return;
+  }
+  if (auth.isAuthenticated && !auth.accessToken?.trim()) {
+    useAuthStore.getState().clearSession();
+  }
+
   if (authBootstrapComplete) {
     return;
   }
@@ -104,7 +122,11 @@ export async function ensureAuthSession(): Promise<void> {
       }
 
       useAuthStore.getState().setSession(resolvedSession);
-      syncTenantStoreFromAccessToken(resolvedSession.accessToken);
+      await applyTenantSessionFromAuth({
+        accessToken: resolvedSession.accessToken,
+        authUserIqTenantId: resolvedSession.authUserIqTenantId,
+        preferredActiveTenantId: useTenantStore.getState().tenantId,
+      });
     } finally {
       authBootstrapComplete = true;
       authBootstrapPromise = null;
@@ -133,7 +155,11 @@ export async function refreshAccessToken(): Promise<string | null> {
       }
 
       useAuthStore.getState().setSession(resolvedSession);
-      syncTenantStoreFromAccessToken(resolvedSession.accessToken);
+      await applyTenantSessionFromAuth({
+        accessToken: resolvedSession.accessToken,
+        authUserIqTenantId: resolvedSession.authUserIqTenantId,
+        preferredActiveTenantId: useTenantStore.getState().tenantId,
+      });
       return resolvedSession.accessToken;
     } catch {
       useAuthStore.getState().clearSession();

@@ -15,8 +15,8 @@ principals:
       org_id: null
       department: null
       capabilities:
-        - "um:user:read"
-        - "um:user:update"
+        - "users:users:read"
+        - "users:users:update"
       delegated_capabilities: []
       clearances:
         um: "3"
@@ -31,8 +31,8 @@ principals:
       org_id: null
       department: null
       capabilities:
-        - "um:user:read"
-        - "um:user:update"
+        - "users:users:read"
+        - "users:users:update"
       delegated_capabilities: []
       clearances:
         um: "1"
@@ -47,7 +47,7 @@ principals:
       org_id: null
       department: null
       capabilities:
-        - "um:user:read"
+        - "users:users:read"
       delegated_capabilities: []
       clearances: {}
       um_clearance_effective_tier: 3

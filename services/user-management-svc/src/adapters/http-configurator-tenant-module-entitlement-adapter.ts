@@ -87,7 +87,10 @@ export class HttpConfiguratorTenantModuleEntitlementAdapter implements TenantMod
     }
 
     const url = `${this.baseUrl}/api/configurator/v1/tenants/${encodeURIComponent(tenantId)}/modules?is_active=true`;
-    const headers: Record<string, string> = { accept: "application/json" };
+    const headers: Record<string, string> = {
+      accept: "application/json",
+      "x-tenant-id": tenantId,
+    };
     if (context?.authorization) {
       headers.authorization = context.authorization;
     }

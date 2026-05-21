@@ -5,47 +5,18 @@ import type {
   ReplaceRoleCapabilitiesInput,
   RoleCapabilityRepository,
 } from "../ports/index.js";
+import {
+  capabilitySelectColumns,
+  mapCapabilityRowFromDb,
+} from "./capability-repository.js";
 import { capabilities, role_capabilities } from "../schema/tables.js";
-
-function rowToCapability(row: {
-  id: string;
-  capability_key: string;
-  module: string;
-  feature: string;
-  action: string;
-  display_name: string;
-  description: string | null;
-  is_active: boolean;
-}): Capability {
-  return {
-    id: row.id,
-    capability_key: row.capability_key,
-    module: row.module,
-    feature: row.feature,
-    action: row.action,
-    display_name: row.display_name,
-    description: row.description,
-    is_active: row.is_active,
-  };
-}
-
-const capabilityColumns = {
-  id: capabilities.id,
-  capability_key: capabilities.capability_key,
-  module: capabilities.module,
-  feature: capabilities.feature,
-  action: capabilities.action,
-  display_name: capabilities.display_name,
-  description: capabilities.description,
-  is_active: capabilities.is_active,
-} as const;
 
 export class DrizzleRoleCapabilityRepository implements RoleCapabilityRepository {
   constructor(private readonly db: DbInstance) {}
 
   async listCapabilitiesByRole(tenantId: string, roleId: string): Promise<Capability[]> {
     const rows = await this.db
-      .select(capabilityColumns)
+      .select(capabilitySelectColumns)
       .from(role_capabilities)
       .innerJoin(
         capabilities,
@@ -57,7 +28,7 @@ export class DrizzleRoleCapabilityRepository implements RoleCapabilityRepository
           eq(role_capabilities.role_id, roleId),
         ),
       );
-    return rows.map(rowToCapability);
+    return rows.map(mapCapabilityRowFromDb);
   }
 
   async replaceCapabilitiesForRole(
@@ -86,9 +57,9 @@ export class DrizzleRoleCapabilityRepository implements RoleCapabilityRepository
     }
 
     const rows = await this.db
-      .select(capabilityColumns)
+      .select(capabilitySelectColumns)
       .from(capabilities)
       .where(inArray(capabilities.id, capabilityIds));
-    return rows.map(rowToCapability);
+    return rows.map(mapCapabilityRowFromDb);
   }
 }

@@ -59,7 +59,7 @@ export {
   UM_ROLE_READ,
   UM_ROLE_UPDATE,
   UM_USER_CREATE,
-  UM_USER_DEACTIVATE,
+  UM_USER_DELETE,
   UM_USER_READ,
   UM_USER_UPDATE,
 } from "./domain/user-management-capabilities.js";
@@ -94,6 +94,18 @@ export {
   replyWithUserManagementError,
   resolveUserManagementHttpError,
 } from "./http/map-user-management-error.js";
+export {
+  assertTenantHeaderAllowedForPrincipal,
+  isPlatformSuperAdminPrincipal,
+  isPlatformSuperAdminRole,
+  resolveEffectiveTenantId,
+  resolveJwtTenantIdFromRequest,
+  PLATFORM_SUPER_ADMIN_ROLE,
+} from "./http/resolve-effective-tenant-id.js";
+export {
+  syncSuperAdminCapabilitySnapshots,
+  type SyncSuperAdminCapabilitySnapshotsInput,
+} from "./dev/sync-super-admin-capability-snapshots.js";
 export type {
   ResolvedUserManagementHttpError,
   UserManagementErrorBody,
@@ -174,6 +186,13 @@ export {
   normalizeModuleSlugSet,
 } from "./domain/module-slug.js";
 export {
+  expandModuleIdsWithDescendants,
+  expandModuleSlugsWithDescendants,
+  isCatalogL1Module,
+  moduleSlugsForIds as catalogModuleSlugsForIds,
+} from "./domain/catalog-module-tree.js";
+export type { CatalogModuleRef } from "./domain/catalog-module-tree.js";
+export {
   CAPABILITY_KEY_SEGMENT_PATTERN,
   RUNTIME_CAPABILITY_ACTIONS,
   RUNTIME_CAPABILITY_KEY_PATTERN,
@@ -197,6 +216,26 @@ export {
   mapMasterDataPermissionToRuntimeCapability,
   suggestMasterDataPermissionSlug,
 } from "./domain/map-master-data-permission.js";
+export {
+  loadMasterDataModulePermissions,
+  syncCapabilitiesFromMasterDataCatalog,
+} from "./dev/sync-capabilities-from-master-data-catalog.js";
+export {
+  LEGACY_CAPABILITY_KEY_PREFIXES,
+  isLegacyCapabilityKey,
+} from "./dev/legacy-capability-key-prefixes.js";
+export {
+  listLegacyCapabilityKeys,
+  removeLegacyCapabilitiesFromCatalog,
+} from "./dev/remove-legacy-capabilities.js";
+export type {
+  MasterDataModulePermissionRow,
+  SyncCapabilitiesFromMasterDataResult,
+} from "./dev/sync-capabilities-from-master-data-catalog.js";
+export type {
+  RemoveLegacyCapabilitiesOptions,
+  RemoveLegacyCapabilitiesResult,
+} from "./dev/remove-legacy-capabilities.js";
 export type {
   MappedRuntimeCapability,
   MasterDataPermissionRef,

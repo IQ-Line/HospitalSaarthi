@@ -30,6 +30,16 @@ function tenantPluginImpl(
       return;
     }
 
+    // Platform discovery: organization/tenant registry reads (Configurator admin catalog).
+    if (
+      /\/configurator\/v1\/organizations\/?$/.test(path) ||
+      /\/configurator\/v1\/organizations\/[^/]+\/?$/.test(path) ||
+      /\/configurator\/v1\/tenants\/?$/.test(path) ||
+      /\/configurator\/v1\/tenants\/[^/]+\/?$/.test(path)
+    ) {
+      return;
+    }
+
     const user = (request as unknown as Record<string, unknown>).user as
       | Record<string, unknown>
       | undefined;
