@@ -11,9 +11,25 @@ export default defineConfig(({ mode }) => {
   return {
   plugins: [tanstackRouter({ target: 'react' }), react(), tailwindcss()],
   resolve: {
-    alias: {
-      '@': resolve(__dirname, './src'),
-    },
+    alias: [
+      { find: '@', replacement: resolve(__dirname, './src') },
+      // Exact match only — do not prefix-match `.../shim/with-selector` (TanStack Store).
+      {
+        find: /^use-sync-external-store\/shim\/index\.js$/,
+        replacement: resolve(__dirname, './src/shims/use-sync-external-store-shim.ts'),
+      },
+      {
+        find: /^use-sync-external-store\/shim$/,
+        replacement: resolve(__dirname, './src/shims/use-sync-external-store-shim.ts'),
+      },
+    ],
+  },
+  optimizeDeps: {
+    include: ['use-sync-external-store/shim/with-selector.js'],
+    needsInterop: [
+      'use-sync-external-store',
+      'use-sync-external-store/shim/with-selector.js',
+    ],
   },
   server: {
     port: 5173,

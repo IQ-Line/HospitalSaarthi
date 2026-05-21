@@ -54,6 +54,10 @@ type FormProps = {
   setValue: UseFormSetValue<CreateVisitRequestBody>;
 };
 
+type BillingSectionProps = FormProps & {
+  paymentModeError?: string;
+};
+
 export function VisitRegistrationSectionMenu() {
   const visible = useVisitRegistrationSectionsStore((s) => s.visible);
   const setSectionVisible = useVisitRegistrationSectionsStore((s) => s.setSectionVisible);
@@ -199,7 +203,12 @@ export function VisitRegistrationAppointmentSection({ register, watch, setValue 
   );
 }
 
-export function VisitRegistrationBillingSection({ register, watch, setValue }: FormProps) {
+export function VisitRegistrationBillingSection({
+  register,
+  watch,
+  setValue,
+  paymentModeError,
+}: BillingSectionProps) {
   const registrationFee = watch('billing.registration_fee') ?? {
     unit_price: 100,
     tax_percent: 0,
@@ -309,15 +318,20 @@ export function VisitRegistrationBillingSection({ register, watch, setValue }: F
 
       <div className="flex flex-col sm:flex-row sm:justify-end gap-4 sm:gap-8 pt-2">
         <Field className="sm:w-48">
-          <Label>Payment mode</Label>
+          <Label>
+            Payment mode <span className="text-destructive">*</span>
+          </Label>
           <Select
             value={paymentMode || '__none__'}
             onValueChange={(v: string) =>
-              setValue('billing.payment_mode', v === '__none__' ? '' : v)
+              setValue('billing.payment_mode', v === '__none__' ? '' : v, {
+                shouldValidate: true,
+                shouldDirty: true,
+              })
             }
           >
-            <SelectTrigger>
-              <SelectValue placeholder="Select" />
+            <SelectTrigger aria-invalid={paymentModeError ? true : undefined}>
+              <SelectValue placeholder="Select payment mode" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__none__">Select</SelectItem>
@@ -328,6 +342,9 @@ export function VisitRegistrationBillingSection({ register, watch, setValue }: F
               ))}
             </SelectContent>
           </Select>
+          {paymentModeError ? (
+            <p className="text-xs text-destructive">{paymentModeError}</p>
+          ) : null}
         </Field>
         <Field className="sm:w-40">
           <Label htmlFor="visit-reg-amount-paid">Amount paid</Label>

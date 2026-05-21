@@ -1,5 +1,9 @@
 import { refreshAccessToken } from '@/lib/auth-session';
-import { catalogIqTenantHeaderValue, serviceIqTenantHeaderValue } from '@/lib/catalog-tenant';
+import {
+  billingIqTenantHeaderValue,
+  catalogIqTenantHeaderValue,
+  serviceIqTenantHeaderValue,
+} from '@/lib/catalog-tenant';
 import { useAuthStore } from '@/stores/auth.store';
 import { useTenantStore } from '@/stores/tenant.store';
 
@@ -9,6 +13,7 @@ const VISITPAD_CATALOG_API_PREFIX = '/api/v1/master-data/visitpad/';
 const EMPI_API_PREFIX = '/api/empi/v1/';
 const REGISTRATION_API_PREFIX = '/api/registration/v1/';
 const CONFIGURATOR_API_PREFIX = '/api/configurator/v1/';
+const BILLING_API_PREFIX = '/api/billing/v1/';
 
 function isRegistrationApiPath(path: string): boolean {
   return (
@@ -100,6 +105,10 @@ async function apiClientInternal<T>(
     !headers.has('x-tenant-id')
   ) {
     headers.set('x-tenant-id', serviceIqTenantHeaderValue(tenantId));
+  }
+  /** Billing resolves tariffs per tenant — JWT `iq_tenant_id` wins over stale store placeholders. */
+  if (path.startsWith(BILLING_API_PREFIX) && !headers.has('iq_tenant_id')) {
+    headers.set('iq_tenant_id', billingIqTenantHeaderValue(tenantId, token));
   }
 
   if (

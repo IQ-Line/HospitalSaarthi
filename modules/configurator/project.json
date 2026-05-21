@@ -2,14 +2,6 @@
   "name": "configurator",
   "tags": ["type:module", "scope:configurator", "language:typescript"],
   "targets": {
-    "build": {
-      "executor": "@nx/js:tsc",
-      "options": {
-        "outputPath": "dist/modules/configurator",
-        "main": "modules/configurator/src/index.ts",
-        "tsConfig": "modules/configurator/tsconfig.json"
-      }
-    },
     "db:migrate": {
       "command": "tsx scripts/apply-migration.ts",
       "options": {

@@ -1,6 +1,7 @@
 {
   "name": "master-data",
-  "tags": ["type:module", "scope:master-data", "language:python"],
+  "projectType": "application",
+  "tags": ["type:service", "scope:master-data", "language:python", "deploy:aks"],
   "namedInputs": {
     "default": ["{projectRoot}/**/*"],
     "production": [
