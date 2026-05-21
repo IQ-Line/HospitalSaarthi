@@ -7,7 +7,7 @@ info:
     (API keys / JWT) is expected before production; this spec does not model per-route security yet.
 
     **Catalog scope:** optional `iq_tenant_id` request header — a canonical UUID string (same type as platform ``ts-sdk-db`` ``tenantColumn()``)
-    routes catalog CRUD to schema `tenant_master` (responses include `iq_tenant_id` as a UUID string when the row is tenant-scoped). Omit the header for global rows in `public`.
+    routes catalog CRUD to schema `tenant_master` (responses include `iq_tenant_id` as a UUID string when the row is tenant-scoped). Omit the header for global rows in `global_master`.
 
     '
 servers:
@@ -695,6 +695,256 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /modules/nav:
+    get:
+      operationId: listModulesForNav
+      summary: List modules for shell navigation
+      description: >-
+        Returns every active catalog module (`is_active = true`, `is_deleted = false`) with
+        navigation fields only. Full list in one response (no pagination).
+      security: []
+      tags:
+        - Modules
+      responses:
+        '200':
+          description: Navigation module catalog.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleNavListResponse'
+        '500':
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /picklists:
+    get:
+      operationId: listPicklists
+      summary: List picklist domains
+      description: Returns active platform picklist domain headers (`is_deleted = false`). Platform catalog only (`global_master`); `iq_tenant_id` header is ignored.
+      security: []
+      tags:
+        - Picklists
+      responses:
+        '200':
+          description: Picklist domain rows.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PicklistListResponse'
+        '500':
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /picklists/{picklistId}/values:
+    get:
+      operationId: listPicklistValues
+      summary: List values for a picklist domain
+      description: Returns active values for the picklist (`category_id` = picklist id), ordered by `display_order` then `label`.
+      security: []
+      tags:
+        - Picklists
+      parameters:
+        - name: picklistId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Picklist value rows.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PicklistValueListResponse'
+        '404':
+          description: No picklist with this id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /departments:
+    get:
+      operationId: listDepartments
+      summary: List hospital departments
+      description: Returns active department rows (`is_deleted = false`). Optional `type` filter.
+      security: []
+      tags:
+        - Departments
+      parameters:
+        - name: type
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/DepartmentType'
+      responses:
+        '200':
+          description: Department catalog rows.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepartmentListResponse'
+        '500':
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      operationId: createDepartment
+      summary: Create a department
+      security: []
+      tags:
+        - Departments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DepartmentCreate'
+      responses:
+        '201':
+          description: Department created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepartmentSingleResponse'
+        '400':
+          description: Invalid payload or constraint.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Code conflict with another active department.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /departments/{departmentId}:
+    get:
+      operationId: getDepartmentById
+      summary: Get one department by id
+      security: []
+      tags:
+        - Departments
+      parameters:
+        - name: departmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Department row.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepartmentSingleResponse'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      operationId: updateDepartment
+      summary: Update a department
+      security: []
+      tags:
+        - Departments
+      parameters:
+        - name: departmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DepartmentUpdate'
+      responses:
+        '200':
+          description: Department updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepartmentSingleResponse'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Code conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      operationId: deleteDepartment
+      summary: Soft-delete a department
+      security: []
+      tags:
+        - Departments
+      parameters:
+        - name: departmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Department soft-deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepartmentSingleResponse'
+        '404':
+          description: Not found.
           content:
             application/json:
               schema:
@@ -3892,6 +4142,227 @@ components:
         total:
           type: integer
           minimum: 0
+    Picklist:
+      type: object
+      required:
+        - id
+        - name
+        - slug
+        - is_active
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        is_active:
+          type: boolean
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    PicklistListResponse:
+      type: object
+      required:
+        - data
+        - total
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Picklist'
+        total:
+          type: integer
+          minimum: 0
+    PicklistValue:
+      type: object
+      required:
+        - id
+        - category_id
+        - value
+        - label
+        - is_active
+        - is_default
+        - display_order
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        category_id:
+          type: string
+          format: uuid
+        value:
+          type: string
+          description: Stable stored key for clinical records.
+        label:
+          type: string
+          description: Default display label.
+        description:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+        is_active:
+          type: boolean
+        is_default:
+          type: boolean
+        display_order:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    PicklistValueListResponse:
+      type: object
+      required:
+        - data
+        - total
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PicklistValue'
+        total:
+          type: integer
+          minimum: 0
+    DepartmentType:
+      type: string
+      enum:
+        - clinical
+        - diagnostic
+        - administrative
+        - support
+    Department:
+      type: object
+      required:
+        - id
+        - name
+        - code
+        - type
+        - is_active
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        iq_tenant_id:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+        code:
+          type: string
+        type:
+          $ref: '#/components/schemas/DepartmentType'
+        description:
+          type: string
+          nullable: true
+        is_active:
+          type: boolean
+        is_deleted:
+          type: boolean
+          default: false
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    DepartmentCreate:
+      type: object
+      required:
+        - name
+        - code
+        - type
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        code:
+          type: string
+          minLength: 1
+          maxLength: 64
+        type:
+          $ref: '#/components/schemas/DepartmentType'
+        description:
+          type: string
+          nullable: true
+        is_active:
+          type: boolean
+          default: true
+    DepartmentUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        code:
+          type: string
+          minLength: 1
+          maxLength: 64
+        type:
+          $ref: '#/components/schemas/DepartmentType'
+        description:
+          type: string
+          nullable: true
+        is_active:
+          type: boolean
+        is_deleted:
+          type: boolean
+    DepartmentListResponse:
+      type: object
+      required:
+        - data
+        - total
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Department'
+        total:
+          type: integer
+          minimum: 0
+    DepartmentSingleResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Department'
     SystemRoleCreate:
       type: object
       required:
@@ -4250,6 +4721,48 @@ components:
       properties:
         data:
           $ref: '#/components/schemas/Module'
+    ModuleNav:
+      type: object
+      required:
+        - id
+        - name
+        - slug
+        - category
+        - level
+      properties:
+        id:
+          type: string
+          format: uuid
+        iq_tenant_id:
+          type: string
+          format: uuid
+          nullable: true
+        parent_id:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+        slug:
+          type: string
+        category:
+          $ref: '#/components/schemas/ModuleCategory'
+        level:
+          type: integer
+          minimum: 1
+          maximum: 10
+        icon:
+          type: string
+          nullable: true
+    ModuleNavListResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModuleNav'
     ModuleListResponse:
       type: object
       required:

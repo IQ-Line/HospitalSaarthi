@@ -4,36 +4,40 @@ import type { PrincipalAuthorizationRepository } from "../ports/index.js";
 import {
   capabilities,
   delegated_capability_grants,
-  role_assignments,
-  role_capabilities,
+  user_capabilities,
   user_clearances,
 } from "../schema/tables.js";
 
 export class DrizzlePrincipalAuthorizationRepository implements PrincipalAuthorizationRepository {
   constructor(private readonly db: DbInstance) {}
 
+  /**
+   * Snapshot-only effective capabilities (ADR-0031 / issue #60).
+   * `user_capabilities` is authoritative; `role_capabilities` is template-only and must not
+   * be unioned at read time or per-user subset changes never affect Cerbos.
+   */
   async listEffectiveCapabilityKeys(tenantId: string, userId: string): Promise<string[]> {
     const rows = await this.db
       .select({ capability_key: capabilities.capability_key })
-      .from(role_assignments)
-      .innerJoin(
-        role_capabilities,
-        and(
-          eq(role_capabilities.iq_tenant_id, role_assignments.iq_tenant_id),
-          eq(role_capabilities.role_id, role_assignments.role_id),
-        ),
-      )
-      .innerJoin(capabilities, eq(role_capabilities.capability_id, capabilities.id))
+      .from(user_capabilities)
+      .innerJoin(capabilities, eq(user_capabilities.capability_id, capabilities.id))
       .where(
         and(
-          eq(role_assignments.iq_tenant_id, tenantId),
-          eq(role_assignments.user_id, userId),
+          eq(user_capabilities.iq_tenant_id, tenantId),
+          eq(user_capabilities.user_id, userId),
+          isNull(user_capabilities.revoked_at),
         ),
       );
 
-    return [...new Set(rows.map((row) => row.capability_key.trim()).filter(Boolean))].sort(
-      (a, b) => a.localeCompare(b),
-    );
+    const keys = new Set<string>();
+    for (const row of rows) {
+      const key = row.capability_key.trim();
+      if (key.length > 0) {
+        keys.add(key);
+      }
+    }
+
+    return [...keys].sort((a, b) => a.localeCompare(b));
   }
 
   async getClearanceLevels(tenantId: string, userId: string): Promise<Record<string, string>> {

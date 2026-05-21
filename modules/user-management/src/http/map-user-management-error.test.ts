@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
-  DuplicateRoleAssignmentError,
+  DuplicateUserRoleTemplateError,
   InvalidRoleSeedError,
   RoleNotFoundError,
   TenantMismatchError,
   UnexpectedPersistenceError,
+  UserRoleTemplateNotFoundError,
   UserManagementError,
   UserNotFoundError,
   ValidationError,
@@ -44,21 +45,28 @@ describe("resolveUserManagementHttpError", () => {
     expect(r.body.correlation_id).toBe(cid);
   });
 
-  it("maps ValidationError assign_role_ids_invalid to 400 INVALID_INPUT", () => {
-    const r = resolveUserManagementHttpError(new ValidationError("assign_role_ids_invalid"), cid);
+  it("maps ValidationError apply_role_template_ids_invalid to 400 INVALID_INPUT", () => {
+    const r = resolveUserManagementHttpError(
+      new ValidationError("apply_role_template_ids_invalid"),
+      cid,
+    );
     expect(r.status).toBe(400);
     expect(r.body.code).toBe("INVALID_INPUT");
   });
 
-  it("maps DuplicateRoleAssignmentError to 409", () => {
-    const r = resolveUserManagementHttpError(new DuplicateRoleAssignmentError(), cid);
-    expect(r.status).toBe(409);
-    expect(r.body.code).toBe("ROLE_ASSIGNMENT_DUPLICATE");
+  it("maps user role-template errors to 404/409", () => {
+    const duplicate = resolveUserManagementHttpError(new DuplicateUserRoleTemplateError(), cid);
+    expect(duplicate.status).toBe(409);
+    expect(duplicate.body.code).toBe("USER_ROLE_TEMPLATE_DUPLICATE");
+
+    const missing = resolveUserManagementHttpError(new UserRoleTemplateNotFoundError(), cid);
+    expect(missing.status).toBe(404);
+    expect(missing.body.code).toBe("USER_ROLE_TEMPLATE_NOT_FOUND");
   });
 
-  it("maps TenantMismatchError to 400 TENANT_CONTEXT_MISMATCH", () => {
+  it("maps TenantMismatchError to 403 TENANT_CONTEXT_MISMATCH", () => {
     const r = resolveUserManagementHttpError(new TenantMismatchError(), cid);
-    expect(r.status).toBe(400);
+    expect(r.status).toBe(403);
     expect(r.body.code).toBe("TENANT_CONTEXT_MISMATCH");
   });
 
@@ -69,15 +77,15 @@ describe("resolveUserManagementHttpError", () => {
     expect(r.body.correlation_id).toBe(cid);
   });
 
-  it("masks persistence/seed domain codes as INTERNAL_ERROR for clients", () => {
+  it("returns stable internal/persistence domain codes for clients", () => {
     const p = resolveUserManagementHttpError(new UnexpectedPersistenceError(), cid);
     expect(p.body).toEqual({
-      code: "INTERNAL_ERROR",
-      message: "An unexpected error occurred.",
+      code: "UNEXPECTED_PERSISTENCE",
+      message: "Unexpected persistence failure.",
       correlation_id: cid,
     });
     const s = resolveUserManagementHttpError(new InvalidRoleSeedError(), cid);
-    expect(s.body.code).toBe("INTERNAL_ERROR");
+    expect(s.body.code).toBe("INVALID_ROLE_SEED");
   });
 
   it("falls back to 500 for unknown UserManagementError code", () => {

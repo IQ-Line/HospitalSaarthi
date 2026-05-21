@@ -1,7 +1,14 @@
 /**
- * Visit registration form payload (browser).
- * Submit maps this to EMPI create-patient via BFF `POST /api/empi/v1/patients`.
- * Optional / dummy sections are marked; future BFF orchestration may add OPD visit create.
+ * Visit registration form payload (browser) — full desk capture for **Create Visit**.
+ *
+ * **Submit flow (sequential, via `executeCreateVisitFlow`):**
+ * 1. registration-svc — new-patient workflow (real)
+ * 2. appointment-svc — stub (`createAppointmentStub`)
+ * 3. billing-svc — charges, finalize, payment (`executeVisitRegistrationBilling`)
+ * 4. registration-svc — `POST .../complete` (real)
+ *
+ * Sections marked UI-only are kept on this object for the form; only phase-1 fields are
+ * mapped to the registration API (see `mapVisitRegistrationToNewPatientIntakeBody`).
  */
 export interface VisitRegistrationAddressBlock {
   line1: string;
@@ -10,6 +17,52 @@ export interface VisitRegistrationAddressBlock {
   state: string;
   district: string;
   pincode: string;
+}
+
+/** Values keyed by master-data visitpad vital `code`. */
+export type VisitRegistrationVitalsBlock = Record<string, number | string | null | undefined>;
+
+export interface VisitRegistrationAppointmentBlock {
+  department_id?: string;
+  room_number?: string;
+  provider_id?: string;
+  visit_type_code?: string;
+  visit_reason?: string;
+}
+
+export interface VisitRegistrationLabTestsBlock {
+  search_query?: string;
+}
+
+export interface VisitRegistrationRisBlock {
+  modality?: string;
+  study_type?: string;
+  body_region?: string;
+  priority?: string;
+  booking_type?: string;
+  /** `datetime-local` value */
+  scheduled_at?: string;
+  referring_doctor?: string;
+  /** `yes` | `no` */
+  contrast_required?: string;
+  prep_instructions?: string;
+  notes?: string;
+  clinical_indication?: string;
+}
+
+export interface VisitRegistrationBillingFeeLine {
+  unit_price: number;
+  tax_percent: number;
+  discount: number;
+}
+
+export interface VisitRegistrationBillingBlock {
+  add_item_search?: string;
+  registration_fee: VisitRegistrationBillingFeeLine;
+  consultation_fee: VisitRegistrationBillingFeeLine;
+  invoice_discount: number;
+  payment_mode?: string;
+  amount_paid?: number | null;
 }
 
 export interface CreateVisitRequestBody {
@@ -49,6 +102,15 @@ export interface CreateVisitRequestBody {
     referral?: string | null;
     additional?: string | null;
   };
+  /** UI-only until vitals API is integrated */
+  vitals?: VisitRegistrationVitalsBlock;
+  appointment?: VisitRegistrationAppointmentBlock;
+  /** UI-only until LIS order API is integrated */
+  lab_tests?: VisitRegistrationLabTestsBlock;
+  /** UI-only until radiology / RIS module is integrated */
+  ris_appointment?: VisitRegistrationRisBlock;
+  /** UI-only until billing module is integrated */
+  billing?: VisitRegistrationBillingBlock;
 }
 
 /** `POST /api/empi/v1/patients` via BFF — subset of EMPI `Patient` used by the UI. */
@@ -58,3 +120,41 @@ export interface RegisterPatientResponse {
   full_name: string;
   status?: string;
 }
+
+/** `GET /api/registration/v1/registrations` — list item with frozen patient snapshot. */
+export interface RegistrationListItemResponse {
+  registration_id: string;
+  iq_tenant_id: string;
+  visit_id: string | null;
+  patient_id: string;
+  patient_uhid: string;
+  patient_abha_number?: string | null;
+  patient_abha_address?: string | null;
+  patient_full_name: string;
+  patient_phone_number: string;
+  patient_gender?: string | null;
+  patient_date_of_birth?: string | null;
+  patient_year_of_birth?: number | null;
+  patient_source_record_id: string;
+  facility_id: string | null;
+  visit_type: string | null;
+  department_id: string | null;
+  provider_id: string | null;
+  appointment_id: string | null;
+  registration_status: string;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RegistrationListPageResponse {
+  data: RegistrationListItemResponse[];
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+}
+
+/** `POST .../workflows/new-patient/registrations` — registration row with patient snapshot. */
+export type CreateNewPatientRegistrationResponse = RegistrationListItemResponse;

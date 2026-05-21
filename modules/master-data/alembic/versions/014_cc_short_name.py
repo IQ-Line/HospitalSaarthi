@@ -1,4 +1,4 @@
-"""Add optional ``short_name`` to Visitpad ``chief_complaints`` (public + tenant_master).
+"""Add optional ``short_name`` to Visitpad ``chief_complaints`` (``global_master`` + ``tenant_master``).
 
 Revision ID: 014_cc_short_name
 Revises: 013_tm_tenant_id_int
@@ -13,13 +13,12 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 
 from alembic import op
+from schema_names import GLOBAL_SCHEMA as _GM, TENANT_SCHEMA as _TM
 
 revision: str = "014_cc_short_name"
 down_revision: str | Sequence[str] | None = "013_tm_tenant_id_int"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
-
-_TM = "tenant_master"
 
 
 def upgrade() -> None:

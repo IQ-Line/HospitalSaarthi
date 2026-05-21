@@ -68,6 +68,9 @@ export const capabilities = userManagementSchema.table(
     display_name: text("display_name").notNull(),
     description: text("description"),
     is_active: boolean("is_active").notNull().default(true),
+    source_module_slug: text("source_module_slug"),
+    source_permission_slug: text("source_permission_slug"),
+    source_catalog: text("source_catalog"),
     created_at: createdAt(),
     updated_at: updatedAt(),
   },
@@ -82,6 +85,10 @@ export const capabilities = userManagementSchema.table(
     check("capabilities_feature_not_blank_chk", sql`length(btrim(${t.feature})) > 0`),
     check("capabilities_action_not_blank_chk", sql`length(btrim(${t.action})) > 0`),
     check("capabilities_display_name_not_blank_chk", sql`length(btrim(${t.display_name})) > 0`),
+    check(
+      "capabilities_source_catalog_chk",
+      sql`${t.source_catalog} is null or ${t.source_catalog} in ('master_data')`,
+    ),
     unique("uq_capabilities_key").on(t.capability_key),
     unique("uq_capabilities_module_feature_action").on(t.module, t.feature, t.action),
     index("idx_capabilities_module_feature").on(t.module, t.feature),
@@ -147,34 +154,112 @@ export const role_capabilities = userManagementSchema.table(
   ],
 );
 
-export const role_assignments = userManagementSchema.table(
-  "role_assignments",
+export const user_roles = userManagementSchema.table(
+  "user_roles",
   {
     ...tenantColumn(),
     id: uuid("id").notNull().defaultRandom(),
     user_id: uuid("user_id").notNull(),
     role_id: uuid("role_id").notNull(),
-    created_at: createdAt(),
+    assigned_by_user_id: uuid("assigned_by_user_id"),
+    assigned_at: timestamp("assigned_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     primaryKey({ columns: [t.iq_tenant_id, t.id] }),
     foreignKey({
-      name: "fk_role_assignments_tenant_user",
+      name: "fk_user_roles_tenant_user",
       columns: [t.iq_tenant_id, t.user_id],
       foreignColumns: [users.iq_tenant_id, users.id],
     })
       .onDelete("restrict")
       .onUpdate("restrict"),
     foreignKey({
-      name: "fk_role_assignments_tenant_role",
+      name: "fk_user_roles_tenant_role",
       columns: [t.iq_tenant_id, t.role_id],
       foreignColumns: [roles.iq_tenant_id, roles.id],
     })
       .onDelete("restrict")
       .onUpdate("restrict"),
-    unique("uq_role_assignments_tenant_user_role").on(t.iq_tenant_id, t.user_id, t.role_id),
-    index("idx_role_assignments_tenant_user").on(t.iq_tenant_id, t.user_id),
-    index("idx_role_assignments_tenant_role").on(t.iq_tenant_id, t.role_id),
+    foreignKey({
+      name: "fk_user_roles_tenant_assigned_by_user",
+      columns: [t.iq_tenant_id, t.assigned_by_user_id],
+      foreignColumns: [users.iq_tenant_id, users.id],
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    unique("uq_user_roles_tenant_user_role").on(t.iq_tenant_id, t.user_id, t.role_id),
+    index("idx_user_roles_tenant_user").on(t.iq_tenant_id, t.user_id),
+    index("idx_user_roles_tenant_role").on(t.iq_tenant_id, t.role_id),
+  ],
+);
+
+export const user_capabilities = userManagementSchema.table(
+  "user_capabilities",
+  {
+    ...tenantColumn(),
+    id: uuid("id").notNull().defaultRandom(),
+    user_id: uuid("user_id").notNull(),
+    capability_id: uuid("capability_id").notNull(),
+    grant_source: text("grant_source").notNull(),
+    source_role_id: uuid("source_role_id"),
+    granted_by_user_id: uuid("granted_by_user_id"),
+    granted_at: timestamp("granted_at", { withTimezone: true }).notNull().defaultNow(),
+    revoked_at: timestamp("revoked_at", { withTimezone: true }),
+    revoked_by_user_id: uuid("revoked_by_user_id"),
+  },
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
+    foreignKey({
+      name: "fk_user_capabilities_tenant_user",
+      columns: [t.iq_tenant_id, t.user_id],
+      foreignColumns: [users.iq_tenant_id, users.id],
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      name: "fk_user_capabilities_capability",
+      columns: [t.capability_id],
+      foreignColumns: [capabilities.id],
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      name: "fk_user_capabilities_tenant_source_role",
+      columns: [t.iq_tenant_id, t.source_role_id],
+      foreignColumns: [roles.iq_tenant_id, roles.id],
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      name: "fk_user_capabilities_tenant_granted_by_user",
+      columns: [t.iq_tenant_id, t.granted_by_user_id],
+      foreignColumns: [users.iq_tenant_id, users.id],
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    foreignKey({
+      name: "fk_user_capabilities_tenant_revoked_by_user",
+      columns: [t.iq_tenant_id, t.revoked_by_user_id],
+      foreignColumns: [users.iq_tenant_id, users.id],
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
+    check(
+      "user_capabilities_grant_source_chk",
+      sql`${t.grant_source} in ('manual', 'role_template', 'delegated', 'system')`,
+    ),
+    unique("uq_user_capabilities_tenant_user_capability").on(
+      t.iq_tenant_id,
+      t.user_id,
+      t.capability_id,
+    ),
+    index("idx_user_capabilities_tenant_user").on(t.iq_tenant_id, t.user_id),
+    index("idx_user_capabilities_tenant_user_revoked").on(
+      t.iq_tenant_id,
+      t.user_id,
+      t.revoked_at,
+    ),
+    index("idx_user_capabilities_tenant_capability").on(t.iq_tenant_id, t.capability_id),
   ],
 );
 

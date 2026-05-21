@@ -89,7 +89,8 @@ export const modulePermissionUpdateSchema = z.object({
 
 export type ModuleFormValues = z.infer<typeof moduleFormSchema>;
 export type PermissionFormValues = z.infer<typeof permissionFormSchema>;
-export type SystemRoleFormValues = z.infer<typeof systemRoleFormSchema>;
+export type SystemRoleFormValues = z.output<typeof systemRoleFormSchema>;
+export type SystemRoleFormInput = z.input<typeof systemRoleFormSchema>;
 export type ModulePermissionFormValues = z.infer<typeof modulePermissionFormSchema>;
 export type ModulePermissionUpdateValues = z.infer<typeof modulePermissionUpdateSchema>;
 
@@ -132,5 +133,34 @@ export const EMPTY_MODULE_PERMISSION_FORM_VALUES: ModulePermissionFormValues = {
   module_id: '',
   permission_id: '',
   is_default: false,
+  is_active: true,
+};
+
+export const departmentTypeSchema = z.enum([
+  'clinical',
+  'diagnostic',
+  'administrative',
+  'support',
+]);
+
+export const departmentFormSchema = z.object({
+  name: requiredString('Name', 200),
+  code: requiredString('Code', 64),
+  type: departmentTypeSchema,
+  description: z
+    .string()
+    .max(1000, 'Description is too long.')
+    .nullable(),
+  is_active: z.boolean(),
+});
+
+export type DepartmentFormValues = z.output<typeof departmentFormSchema>;
+export type DepartmentFormInput = z.input<typeof departmentFormSchema>;
+
+export const EMPTY_DEPARTMENT_FORM_VALUES: DepartmentFormValues = {
+  name: '',
+  code: '',
+  type: 'clinical',
+  description: null,
   is_active: true,
 };

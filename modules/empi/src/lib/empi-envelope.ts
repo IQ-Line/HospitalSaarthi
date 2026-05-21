@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { DomainEvent } from "@hims/ts-sdk-events";
 import { createEnvelope } from "@hims/ts-sdk-events";
 
-const SCHEMA_VERSION = "1.0.0";
+export const EMPI_EVENT_CONTRACT_VERSION = "1.0.0";
 
 /** Valid UUID when no actor id is provided (e.g. system or anonymous). */
 export const EMPI_SYSTEM_ACTOR_ID = "00000000-0000-0000-0000-000000000000";
@@ -17,9 +17,10 @@ export function createEmpiEnvelope<T extends Record<string, unknown>>(
     event_type: eventType,
     source_module: "empi",
     iq_tenant_id: iqTenantId,
+    occurred_at: new Date().toISOString(),
     correlation_id: randomUUID(),
     actor_id: actorId ?? EMPI_SYSTEM_ACTOR_ID,
-    schema_version: SCHEMA_VERSION,
+    event_contract_version: EMPI_EVENT_CONTRACT_VERSION,
     payload,
   });
 }

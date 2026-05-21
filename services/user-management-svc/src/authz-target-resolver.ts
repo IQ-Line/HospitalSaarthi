@@ -1,5 +1,9 @@
 import type { AuthzTargetResolver } from "@hims/ts-sdk-authz";
-import { buildCerbosUserMgmtResourceAttr } from "@hims/user-management";
+import {
+  buildCerbosUserMgmtResourceAttr,
+  resolveEffectiveTenantId,
+} from "@hims/user-management";
+import type { FastifyRequest } from "fastify";
 
 export type UserProfileForAuthz = {
   org_id: string | null;
@@ -28,16 +32,23 @@ function resolveRoutePattern(request: Parameters<AuthzTargetResolver>[0]): strin
   return raw.startsWith(ROUTE_PREFIX) ? raw.slice(ROUTE_PREFIX.length) || "/" : raw;
 }
 
-function resolveUserIdFromParams(request: Parameters<AuthzTargetResolver>[0]): string | null {
+function resolvePathParam(
+  request: Parameters<AuthzTargetResolver>[0],
+  name = "id",
+): string | null {
   const params = request.params;
   if (params == null || typeof params !== "object") return null;
-  const id = (params as Record<string, unknown>)["id"];
+  const id = (params as Record<string, unknown>)[name];
   return typeof id === "string" && id.length > 0 ? id : null;
+}
+
+function resolveResourceTenantId(request: Parameters<AuthzTargetResolver>[0]): string {
+  return resolveEffectiveTenantId(request as FastifyRequest);
 }
 
 function tenantAttr(request: Parameters<AuthzTargetResolver>[0]) {
   return buildCerbosUserMgmtResourceAttr({
-    iq_tenant_id: request.user.tenantId,
+    iq_tenant_id: resolveResourceTenantId(request),
     department: request.user.department ?? null,
     required_clearance: 0,
   });
@@ -48,9 +59,10 @@ async function userResourceAttr(
   request: Parameters<AuthzTargetResolver>[0],
   userId: string,
 ): Promise<ReturnType<typeof buildCerbosUserMgmtResourceAttr>> {
-  const profile = await deps.getUserProfile(request.user.tenantId, userId);
+  const tenantId = resolveResourceTenantId(request);
+  const profile = await deps.getUserProfile(tenantId, userId);
   return buildCerbosUserMgmtResourceAttr({
-    iq_tenant_id: request.user.tenantId,
+    iq_tenant_id: tenantId,
     department: profile?.department ?? null,
     required_clearance: profile?.clearance_tier_required ?? 0,
     org_id: profile?.org_id ?? null,
@@ -76,8 +88,39 @@ export function createUserManagementAuthzTargetResolver(
       return { kind: "capability", id: "list", action: "capability.read", attr: tenantAttr(request) };
     }
 
+    if (method === "GET" && path === "/capabilities/assignable") {
+      return { kind: "capability", id: "assignable", action: "capability.read", attr: tenantAttr(request) };
+    }
+
+    if (method === "GET" && path === "/internal/runtime-capability-catalog") {
+      return {
+        kind: "capability",
+        id: "internal-catalog",
+        action: "capability.read",
+        attr: tenantAttr(request),
+      };
+    }
+
+    if (method === "GET" && path === "/internal/runtime-capability-catalog/assignable") {
+      return {
+        kind: "capability",
+        id: "internal-assignable",
+        action: "capability.read",
+        attr: tenantAttr(request),
+      };
+    }
+
+    if (method === "GET" && path === "/internal/module-entitlements/:tenantId") {
+      return {
+        kind: "capability",
+        id: "internal-entitlements",
+        action: "capability.read",
+        attr: tenantAttr(request),
+      };
+    }
+
     if (method === "GET" && path === "/capabilities/:id") {
-      const id = resolveUserIdFromParams(request);
+      const id = resolvePathParam(request);
       if (id === null) return null;
       return { kind: "capability", id, action: "capability.read", attr: tenantAttr(request) };
     }
@@ -91,47 +134,83 @@ export function createUserManagementAuthzTargetResolver(
     }
 
     if (method === "GET" && path === "/roles/:id") {
-      const id = resolveUserIdFromParams(request);
+      const id = resolvePathParam(request);
       if (id === null) return null;
       return { kind: "role", id, action: "role.read", attr: tenantAttr(request) };
     }
 
     if (method === "PATCH" && path === "/roles/:id") {
-      const id = resolveUserIdFromParams(request);
+      const id = resolvePathParam(request);
       if (id === null) return null;
       return { kind: "role", id, action: "role.update", attr: tenantAttr(request) };
     }
 
     if (method === "DELETE" && path === "/roles/:id") {
-      const id = resolveUserIdFromParams(request);
+      const id = resolvePathParam(request);
       if (id === null) return null;
       return { kind: "role", id, action: "role.delete", attr: tenantAttr(request) };
     }
 
     if (method === "GET" && path === "/roles/:id/capabilities") {
-      const id = resolveUserIdFromParams(request);
+      const id = resolvePathParam(request);
       if (id === null) return null;
       return { kind: "role", id, action: "role.read", attr: tenantAttr(request) };
     }
 
     if (method === "PUT" && path === "/roles/:id/capabilities") {
-      const id = resolveUserIdFromParams(request);
+      const id = resolvePathParam(request);
       if (id === null) return null;
       return { kind: "role", id, action: "role.update", attr: tenantAttr(request) };
     }
 
-    if (method === "GET" && path === "/role-assignments") {
-      return { kind: "role", id: "assignments", action: "role.read", attr: tenantAttr(request) };
+    if (method === "GET" && path === "/users/:id/roles") {
+      const id = resolvePathParam(request);
+      if (id === null) return null;
+      return {
+        kind: "user",
+        id,
+        action: "user.read",
+        attr: await userResourceAttr(deps, request, id),
+      };
     }
 
-    if (method === "GET" && path === "/users/:id/roles") {
-      const id = resolveUserIdFromParams(request);
+    if (method === "POST" && path === "/users/:id/roles") {
+      return { kind: "user_role_template", id: "new", action: "role.assign", attr: tenantAttr(request) };
+    }
+
+    if (method === "DELETE" && path === "/users/:id/roles/:roleId") {
+      return {
+        kind: "user_role_template",
+        id: "revoke",
+        action: "role.revoke",
+        attr: tenantAttr(request),
+      };
+    }
+
+    if (method === "GET" && path === "/users/:id/capabilities") {
+      const id = resolvePathParam(request);
       if (id === null) return null;
-      return { kind: "role", id: `user-roles:${id}`, action: "role.read", attr: tenantAttr(request) };
+      return {
+        kind: "user",
+        id,
+        action: "user.read",
+        attr: await userResourceAttr(deps, request, id),
+      };
+    }
+
+    if (method === "GET" && path === "/users/:id/effective-capabilities") {
+      const id = resolvePathParam(request);
+      if (id === null) return null;
+      return {
+        kind: "user",
+        id,
+        action: "user.read",
+        attr: await userResourceAttr(deps, request, id),
+      };
     }
 
     if (method === "GET" && path === "/users/:id") {
-      const id = resolveUserIdFromParams(request);
+      const id = resolvePathParam(request);
       if (id === null) return null;
       return {
         kind: "user",
@@ -142,7 +221,7 @@ export function createUserManagementAuthzTargetResolver(
     }
 
     if (method === "PATCH" && path === "/users/:id") {
-      const id = resolveUserIdFromParams(request);
+      const id = resolvePathParam(request);
       if (id === null) return null;
       return {
         kind: "user",
@@ -152,16 +231,17 @@ export function createUserManagementAuthzTargetResolver(
       };
     }
 
-    if (method === "POST" && path === "/role-assignments") {
-      return { kind: "role_assignment", id: "new", action: "role.assign", attr: tenantAttr(request) };
-    }
-
-    if (method === "DELETE" && path === "/role-assignments") {
-      return { kind: "role_assignment", id: "revoke", action: "role.revoke", attr: tenantAttr(request) };
+    if (method === "PUT" && path === "/users/:id/capabilities") {
+      return {
+        kind: "user_role_template",
+        id: "new",
+        action: "role.assign",
+        attr: tenantAttr(request),
+      };
     }
 
     if (method === "POST" && path === "/users/:id/deactivate") {
-      const id = resolveUserIdFromParams(request);
+      const id = resolvePathParam(request);
       if (id === null) return null;
       return {
         kind: "user",
@@ -173,13 +253,16 @@ export function createUserManagementAuthzTargetResolver(
 
     if (
       method === "GET" &&
-      (path === "/auth/me" || path === "/auth/principal" || path === "/auth/permissions-map")
+      (path === "/auth/me" || path === "/auth/principal")
     ) {
       return {
-        kind: "user",
-        id: request.user.userId,
-        action: "user.read",
-        attr: await userResourceAttr(deps, request, request.user.userId),
+        // `/auth/*` endpoints are shell support: principal snapshot for SPA capability hydration.
+        // They must not require `users:users:read`, otherwise role admins without user.read
+        // could not load the principal used for navigation gating.
+        kind: "auth",
+        id: "self",
+        action: "auth.read",
+        attr: tenantAttr(request),
       };
     }
 

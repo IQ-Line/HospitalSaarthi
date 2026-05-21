@@ -12,8 +12,9 @@ import {
   InMemoryPrincipalAuthorizationRepository,
   InMemoryPrincipalRoleProjectionRepository,
   InMemoryRoleCapabilityRepository,
-  InMemoryRoleAssignmentRepository,
   InMemoryRoleRepository,
+  InMemoryUserAccessRepository,
+  InMemoryUserProvisioningRepository,
   InMemoryUserRepository,
   buildCerbosUserMgmtResourceAttr,
   createDefaultPrincipalService,
@@ -135,9 +136,11 @@ describe("Phase 1A.12 smoke", () => {
     const userRepository = new InMemoryUserRepository();
     userRepository.insertUserWithId(tenantId, actorId, { full_name: "Smoke Actor" });
     const roleRepository = new InMemoryRoleRepository();
-    const roleAssignmentRepository = new InMemoryRoleAssignmentRepository();
+    const userAccessRepository = new InMemoryUserAccessRepository((currentTenantId, roleId) =>
+      roleRepository.getRoleById(currentTenantId, roleId),
+    );
     const principalRoleProjectionRepository = new InMemoryPrincipalRoleProjectionRepository(
-      roleAssignmentRepository,
+      userAccessRepository,
       roleRepository,
     );
 
@@ -152,6 +155,7 @@ describe("Phase 1A.12 smoke", () => {
 
     await app.register(principalRoleEnricherPlugin, {
       principalService,
+      userRepository,
     });
     await app.register(authzSmokeStub);
     await app.register(
@@ -159,14 +163,32 @@ describe("Phase 1A.12 smoke", () => {
         await instance.register(userManagementPlugin, {
           eventBus,
           userRepository,
+          userProvisioningRepository: new InMemoryUserProvisioningRepository(
+            userRepository,
+            userAccessRepository,
+          ),
           capabilityRepository,
           roleRepository,
           roleCapabilityRepository,
-          roleAssignmentRepository,
+          userAccessRepository,
           principalRoleProjectionRepository,
+          principalAuthorizationRepository,
           authAccountProvisioner: {
             async createPasswordAccount(input) {
               return { authUserId: input.platformUserId };
+            },
+          },
+          tenantModuleEntitlementPort: {
+            async listTenantEnabledModuleIds() {
+              return [];
+            },
+          },
+          masterDataModuleCatalogPort: {
+            async resolveModuleSlugsByIds() {
+              return new Map();
+            },
+            async expandEnabledModuleSlugs(moduleSlugs: readonly string[]) {
+              return moduleSlugs;
             },
           },
         });

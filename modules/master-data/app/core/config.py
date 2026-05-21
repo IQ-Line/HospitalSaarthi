@@ -4,21 +4,50 @@ from pathlib import Path
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Load `.env` from this package root (works when CWD is not `modules/master-data`).
+# `modules/master-data` — stable regardless of CWD.
 _PACKAGE_ROOT = Path(__file__).resolve().parent.parent.parent
+
+
+def _find_workspace_root(package_root: Path) -> Path:
+    """Repo root (Nx monorepo). Matches Nx/Fastify: shared `.env` at workspace root."""
+    for parent in package_root.parents:
+        if (parent / "nx.json").is_file():
+            return parent
+    # Typical layout without `nx.json` (e.g. sparse tests): .../<repo>/modules/master-data
+    if package_root.name == "master-data" and package_root.parent.name == "modules":
+        return package_root.parent.parent
+    return package_root
+
+
+_WORKSPACE_ROOT = _find_workspace_root(_PACKAGE_ROOT)
+
+
+def _master_data_env_files() -> tuple[Path, ...] | None:
+    """Load workspace `.env` first, then optional package `.env` (local overrides)."""
+    paths: list[Path] = []
+    root_env = _WORKSPACE_ROOT / ".env"
+    pkg_env = _PACKAGE_ROOT / ".env"
+    if root_env.is_file():
+        paths.append(root_env)
+    if pkg_env.is_file() and pkg_env.resolve() != root_env.resolve():
+        paths.append(pkg_env)
+    return tuple(paths) if paths else None
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="MASTER_DATA_",
-        env_file=_PACKAGE_ROOT / ".env",
+        env_file=_master_data_env_files(),
         env_file_encoding="utf-8",
         extra="ignore",
     )
 
     database_url: str = Field(
         default="postgresql+psycopg://hims:hims@localhost:5433/hims_dev",
-        description="SQLAlchemy database URL for the Master Data module.",
+        description=(
+            "SQLAlchemy database URL for the Master Data module. "
+            "Catalog lives in `global_master` and `tenant_master` schemas on `hims_dev`."
+        ),
     )
     api_prefix: str = "/api/v1/master-data"
     log_level: str = "INFO"
@@ -81,6 +110,38 @@ class Settings(BaseSettings):
         return value  # pragma: no cover
 
 
+def _resolve_database_url_from_env_files() -> str | None:
+    """Read MASTER_DATA_DATABASE_URL from workspace `.env` when pydantic env_prefix skips it."""
+    import os
+
+    explicit = os.environ.get("MASTER_DATA_DATABASE_URL", "").strip()
+    if explicit:
+        return explicit
+
+    try:
+        from dotenv import dotenv_values
+    except ImportError:
+        return None
+
+    for path in _master_data_env_files() or ():
+        values = dotenv_values(path)
+        url = (values.get("MASTER_DATA_DATABASE_URL") or "").strip()
+        if url:
+            return url
+    return None
+
+
 @lru_cache
 def get_settings() -> Settings:
+    url = _resolve_database_url_from_env_files()
+    if url:
+        return Settings(database_url=url)
     return Settings()
+
+
+def reset_settings_cache_for_tests() -> None:
+    """Clear cached settings (tests / after `.env` changes in long-lived shells)."""
+    get_settings.cache_clear()
+    from app.core.database import reset_database_engine
+
+    reset_database_engine()

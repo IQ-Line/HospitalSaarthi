@@ -31,8 +31,10 @@ def module_sqlite_session() -> Iterator[Session]:
     def _sqlite_fk(dbapi_connection, _connection_record) -> None:
         dbapi_connection.execute("PRAGMA foreign_keys=ON")
         dbapi_connection.execute("ATTACH DATABASE ':memory:' AS tenant_master")
+        dbapi_connection.execute("ATTACH DATABASE ':memory:' AS global_master")
 
-    Base.metadata.create_all(engine)
+    with engine.begin() as conn:
+        Base.metadata.create_all(bind=conn)
     factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     session = factory()
     try:
@@ -308,3 +310,46 @@ def test_delete_unknown_module_404(module_client: TestClient) -> None:
 def test_patch_unknown_module_404(module_client: TestClient) -> None:
     r = module_client.patch(f"/api/v1/master-data/modules/{uuid4()}", json={"name": "x"})
     assert r.status_code == 404
+
+
+def test_list_modules_for_nav_active_only(module_client: TestClient) -> None:
+    active = module_client.post(
+        "/api/v1/master-data/modules",
+        json=_create_json("nav-active", "nav-active"),
+    )
+    assert active.status_code == 201
+    inactive = module_client.post(
+        "/api/v1/master-data/modules",
+        json=_create_json("nav-inactive", "nav-inactive", is_active=False),
+    )
+    assert inactive.status_code == 201
+    inactive_id = inactive.json()["data"]["id"]
+
+    nav = module_client.get("/api/v1/master-data/modules/nav")
+    assert nav.status_code == 200
+    body = nav.json()
+    assert "total" not in body
+    slugs = {row["slug"] for row in body["data"]}
+    assert "nav-active" in slugs
+    assert "nav-inactive" not in slugs
+
+    for row in body["data"]:
+        if row["slug"] == "nav-active":
+            assert set(row.keys()) == {
+                "id",
+                "iq_tenant_id",
+                "parent_id",
+                "name",
+                "slug",
+                "category",
+                "level",
+                "icon",
+            }
+            break
+    else:
+        raise AssertionError("nav-active row missing")
+
+    module_client.delete(f"/api/v1/master-data/modules/{inactive_id}")
+    nav_after_delete = module_client.get("/api/v1/master-data/modules/nav")
+    assert nav_after_delete.status_code == 200
+    assert "nav-inactive" not in {row["slug"] for row in nav_after_delete.json()["data"]}

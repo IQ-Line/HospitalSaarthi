@@ -6,13 +6,13 @@
  * the artefact and acknowledges via `consent/request/hip/on-notify`.
  *
  * Source spec:
- *   - `docs/external/abdm/v3-m2-health-records-hip-link-discovery-consent-transfer.md` §"Consent"
- *   - `docs/external/abdm-wrapper/docs/wrapperV3.yaml`
- *     (`/api/v3/consent/request/hip/notify`,
- *      `/api/v3/consent/request/hip/on-notify`)
+ *   - `docs/external/abdm/v3-m2-health-records-hip-link-discovery-consent-transfer.md`
+ *     §6.3.1-§6.3.2
  *
- * TODO: dev to populate `ConsentNotifyRequest` (inbound, carries
- * `consentArtefact` array per granted CCs) and `OnConsentNotifyAck`.
+ * TODO: dev to populate `ConsentNotifyRequest` (inbound wrapper:
+ * `notification.{status, consentId, consentDetail, signature,
+ * grantAcknowledgement}`) and `OnConsentNotifyRequest` (outbound ack:
+ * `acknowledgement.{status, consentId}` plus `response.requestId`).
  */
 
 export {};

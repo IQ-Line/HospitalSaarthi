@@ -5,7 +5,7 @@
  * validates today. The shape mirrors `hl7.fhir.r4.core` ImplementationGuide
  * but stripped of unused choice-types and extensions.
  *
- * TODO: when the surface stabilises (post-Phase-1), evaluate replacing this
+ * Future: when the surface stabilises (post-Phase-1), evaluate replacing this
  * with `@types/fhir` or `@medplum/fhirtypes`. Until then, hand-typing keeps
  * the dependency surface minimal and the polyglot mirror with
  * `@hims/py-sdk-fhir` straightforward.
@@ -86,7 +86,7 @@ export interface Patient extends FhirResourceBase {
   name?: FhirHumanName[];
   gender?: 'male' | 'female' | 'other' | 'unknown';
   birthDate?: FhirDate;
-  // TODO: address, telecom, deceased, contact when needed.
+  // Future: address, telecom, deceased, contact when needed.
   // @see docs/architecture/adr/0023-distributed-fhir-assembly.md
 }
 
@@ -98,7 +98,7 @@ export interface Encounter extends FhirResourceBase {
   type?: FhirCodeableConcept[];
   subject?: FhirReference;
   period?: FhirPeriod;
-  // TODO: participant, reasonCode, diagnosis, location, serviceProvider.
+  // Future: participant, reasonCode, diagnosis, location, serviceProvider.
   // @see docs/architecture/adr/0023-distributed-fhir-assembly.md
 }
 
@@ -113,7 +113,7 @@ export interface MedicationRequest extends FhirResourceBase {
   encounter?: FhirReference;
   authoredOn?: FhirDateTime;
   requester?: FhirReference;
-  // TODO: dosageInstruction, dispenseRequest, substitution.
+  // Future: dosageInstruction, dispenseRequest, substitution.
   // @see docs/architecture/adr/0023-distributed-fhir-assembly.md
 }
 
@@ -129,7 +129,7 @@ export interface DiagnosticReport extends FhirResourceBase {
   issued?: FhirInstant;
   performer?: FhirReference[];
   result?: FhirReference[];
-  // TODO: presentedForm (PDF), conclusion, conclusionCode, media.
+  // Future: presentedForm (PDF), conclusion, conclusionCode, media.
   // @see docs/architecture/adr/0023-distributed-fhir-assembly.md
 }
 
@@ -144,7 +144,7 @@ export interface Observation extends FhirResourceBase {
   valueQuantity?: { value: number; unit?: string; system?: FhirUri; code?: FhirCode };
   valueString?: string;
   valueCodeableConcept?: FhirCodeableConcept;
-  // TODO: referenceRange, component, interpretation.
+  // Future: referenceRange, component, interpretation.
   // @see docs/architecture/adr/0023-distributed-fhir-assembly.md
 }
 
@@ -180,7 +180,7 @@ export interface Composition extends FhirResourceBase {
 export interface BundleEntry {
   fullUrl?: FhirUri;
   resource?: FhirResourceBase;
-  // TODO: search, request, response when we use Bundle for transactions.
+  // Future: search, request, response when we use Bundle for transactions.
 }
 
 export interface Bundle extends FhirResourceBase {

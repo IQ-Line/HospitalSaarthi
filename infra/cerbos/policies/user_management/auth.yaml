@@ -1,0 +1,22 @@
+# User Management — Auth endpoints (UX/shell support)
+#
+# `/auth/me` and `/auth/principal` are used by the frontend to fetch the
+# PDP-enriched principal snapshot (including runtime capability keys).
+#
+# These endpoints do not expose other users' clinical/operational data; they only
+# support UX gating. They must therefore not depend on `users:users:read`.
+
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "auth"
+  version: default
+  rules:
+    - actions:
+        - "auth.read"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id
+

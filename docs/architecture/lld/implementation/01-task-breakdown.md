@@ -46,7 +46,7 @@ After Stream A completes, the following streams can run **in parallel**:
 | # | Task | Blocked by | Deliverable | Notes |
 |---|------|-----------|-------------|-------|
 | B1 | `docker-compose.yml` — PostgreSQL+Citus, PgBouncer, Cerbos PDP | A2 | `infra/docker/docker-compose.yml` | Health checks on all services. Citus single-node for dev. |
-| B2 | Citus init script | B1 | `infra/db/citus-init.sql` | `CREATE EXTENSION citus`, `pg_stat_statements`. Create schemas: `user_management`, `configurator`, `empi`, `master_data`. |
+| B2 | Citus init script | B1 | `infra/db/citus-init.sql` | `CREATE EXTENSION citus`, `pg_stat_statements`. Create schemas: `user_management`, `configurator`, `empi`. Master Data catalogs: `global_master` + `tenant_master` (Alembic only). |
 | B3 | PgBouncer config | B1 | `infra/db/pgbouncer.ini` | Transaction mode pooling. Points at Citus. |
 | B4 | Cerbos PDP configuration | B1 | `infra/cerbos/cerbos.yaml` | Disk policy store pointing at `infra/cerbos/policies/`. Schema enforcement enabled. |
 | B5 | Seed Cerbos policies — platform baseline | B4 | `infra/cerbos/policies/` with resource policies for `user`, `tenant`, `patient`, `config` | Enough for Phase 0 modules. Test fixtures in `infra/cerbos/tests/`. |

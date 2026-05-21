@@ -11,6 +11,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 from alembic import op
+from schema_names import GLOBAL_SCHEMA as _GM
 
 revision: str = "001_initial_schema"
 down_revision: str | Sequence[str] | None = None
@@ -18,35 +19,9 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
-CORE_MODULES = [
-    {
-        "id": "11111111-1111-4111-8111-111111111111",
-        "name": "user_management",
-        "category": "core",
-        "version": "1.0.0",
-    },
-    {
-        "id": "22222222-2222-4222-8222-222222222222",
-        "name": "configurator",
-        "category": "core",
-        "version": "1.0.0",
-    },
-    {
-        "id": "33333333-3333-4333-8333-333333333333",
-        "name": "empi",
-        "category": "core",
-        "version": "1.0.0",
-    },
-    {
-        "id": "44444444-4444-4444-8444-444444444444",
-        "name": "master_data",
-        "category": "core",
-        "version": "1.0.0",
-    },
-]
-
-
 def upgrade() -> None:
+    op.execute(sa.text(f"CREATE SCHEMA IF NOT EXISTS {_GM}"))
+
     op.create_table(
         "modules",
         sa.Column(
@@ -76,31 +51,12 @@ def upgrade() -> None:
             name="modules_category_check",
         ),
         sa.UniqueConstraint("name", name="modules_name_key"),
+        schema=_GM,
     )
 
-    modules_table = sa.table(
-        "modules",
-        sa.column("id", postgresql.UUID(as_uuid=True)),
-        sa.column("name", sa.String),
-        sa.column("category", sa.String),
-        sa.column("version", sa.String),
-    )
-    op.bulk_insert(modules_table, CORE_MODULES)
-
-    op.execute(
-        """
-        DO $$
-        BEGIN
-            IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'create_reference_table') THEN
-                PERFORM create_reference_table('public.modules');
-            END IF;
-        EXCEPTION
-            WHEN duplicate_object THEN
-                NULL;
-        END $$;
-        """
-    )
+    # Core module rows are seeded in ``027_core_modules_catalog`` (after catalog columns exist).
+    # Citus: create_reference_table runs in 002 after slug backfill (UPDATE before replicate).
 
 
 def downgrade() -> None:
-    op.drop_table("modules")
+    op.drop_table("modules", schema=_GM)

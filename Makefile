@@ -4,16 +4,19 @@
 DOCKER_COMPOSE := docker compose -f infra/docker/docker-compose.yml
 NX := npx nx
 
+# Services that ship a .env.example to seed a personal .env (kept in sync with
+# the actual services/ tree; see docs/dev/port-allocation.md for ports).
+SERVICE_ENVS := bff user-management-svc empi-svc configurator-svc billing-svc registration-svc abdm-adapter-svc web
+
 # --- Setup -------------------------------------------------------------------
 
 .PHONY: setup
-setup: ## Full bootstrap: check prereqs, copy .env, install deps, start infra, migrate, seed
+setup: ## Full bootstrap: env, deps, infra, migrate, seed
 	@echo "==> Checking prerequisites..."
 	@command -v node >/dev/null 2>&1 || { echo "node is required"; exit 1; }
 	@command -v pnpm >/dev/null 2>&1 || { echo "pnpm is required"; exit 1; }
 	@command -v docker >/dev/null 2>&1 || { echo "docker is required"; exit 1; }
-	@echo "==> Copying .env (if not exists)..."
-	@test -f .env || cp .env.example .env
+	@$(MAKE) env-init
 	@echo "==> Installing dependencies..."
 	@pnpm install
 	@echo "==> Starting infrastructure..."
@@ -22,7 +25,28 @@ setup: ## Full bootstrap: check prereqs, copy .env, install deps, start infra, m
 	@$(MAKE) _wait-healthy
 	@echo "==> Running migrations..."
 	@$(MAKE) db-migrate
-	@echo "==> Setup complete. Run 'make dev' to start all services."
+	@echo "==> Seeding development authorization data..."
+	@$(MAKE) seed
+	@echo "==> Setup complete. Run 'pnpm dev:web-stack' to start the demo stack."
+
+.PHONY: env-init
+env-init: ## Copy every .env.example to .env (skips files that already exist)
+	@if [ ! -f .env ]; then \
+		cp .env.example .env && echo "==> Created .env from .env.example"; \
+	else \
+		echo "==> .env exists; not overwriting"; \
+	fi
+	@for svc in $(SERVICE_ENVS); do \
+		if [ -f services/$$svc/.env.example ] && [ ! -f services/$$svc/.env ]; then \
+			cp services/$$svc/.env.example services/$$svc/.env && \
+			echo "==> Created services/$$svc/.env from .env.example"; \
+		fi; \
+	done
+	@if [ -f modules/master-data/.env.example ] && [ ! -f modules/master-data/.env ]; then \
+		cp modules/master-data/.env.example modules/master-data/.env && \
+		echo "==> Created modules/master-data/.env from .env.example"; \
+	fi
+	@echo "==> Env init complete. Personal overrides go in any .env.local (gitignored)."
 
 # --- Development -------------------------------------------------------------
 
@@ -56,15 +80,25 @@ infra-logs: ## Tail docker infrastructure logs
 
 .PHONY: db-migrate
 db-migrate: ## Run all pending migrations
+	$(NX) run master-data:migrate
 	$(NX) run configurator:db-migrate
 	$(NX) run user-management:db-migrate
+	$(NX) run empi:db-migrate
+	$(NX) run registration:db-migrate
+	$(NX) run billing:db-migrate
+	$(NX) run abdm-adapter-svc:db-migrate
+
+.PHONY: seed
+seed: ## Seed Configurator tenant, UM runtime data, Cerbos smoke check (catalog = Alembic)
+	pnpm seed
 
 .PHONY: db-reset
-db-reset: ## Drop, recreate, migrate, seed
+db-reset: ## Drop volumes, recreate infra, migrate, seed
 	$(DOCKER_COMPOSE) down -v
 	$(MAKE) infra
 	$(MAKE) _wait-healthy
 	$(MAKE) db-migrate
+	$(MAKE) seed
 	@echo "==> Database reset complete."
 
 .PHONY: db-studio

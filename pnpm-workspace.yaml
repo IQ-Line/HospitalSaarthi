@@ -4,3 +4,5 @@ packages:
   - 'services/*'
   - 'tools/*'
   - 'tests/load'
+
+injectWorkspacePackages: true

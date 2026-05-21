@@ -7,33 +7,36 @@ description: >-
 principals:
   delegated_only_list:
     id: svc-delegated-list
-    roles: []
+    roles:
+      - "_unresolved"
     attr:
       iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
       org_id: null
       department: null
       capabilities: []
       delegated_capabilities:
-        - "um:user:read"
+        - "users:users:read"
       clearances: {}
       um_clearance_effective_tier: 0
 
   delegated_only_create:
     id: svc-delegated-create
-    roles: []
+    roles:
+      - "_unresolved"
     attr:
       iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
       org_id: null
       department: null
       capabilities: []
       delegated_capabilities:
-        - "um:user:create"
+        - "users:users:create"
       clearances: {}
       um_clearance_effective_tier: 0
 
   no_caps:
     id: user-no-caps
-    roles: []
+    roles:
+      - "_unresolved"
     attr:
       iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
       org_id: null
@@ -61,7 +64,7 @@ resources:
       required_clearance: 0
 
 tests:
-  - name: user.read(list) — delegated um:user:read ALLOW
+  - name: user.read(list) — delegated users:users:read ALLOW
     input:
       principals: [delegated_only_list]
       resources: [user_list_aa]
@@ -83,7 +86,7 @@ tests:
         actions:
           user.read: EFFECT_DENY
 
-  - name: user.create — delegated um:user:create ALLOW
+  - name: user.create — delegated users:users:create ALLOW
     input:
       principals: [delegated_only_create]
       resources: [user_new_aa]

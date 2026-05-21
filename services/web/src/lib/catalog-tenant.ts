@@ -1,13 +1,20 @@
+import { decodeAccessTokenPayload } from '@/lib/access-token';
+
 /**
  * Visitpad / master-data catalog sends `iq_tenant_id` when the active tenant id is a
  * **lexical UUID string** (8-4-4-4-12 hex), matching backend `UUID` parsing.
  *
- * Non-UUID tenant slugs (e.g. `tenant-001` from legacy dev login) omit the header so
- * requests hit the **global** `public` catalog.
+ * Non-UUID tenant slugs omit the header so requests hit the **global_master** catalog.
  */
 
 /** Stable demo tenant used for static “tenant catalog” dev login (matches integration tests). */
 export const DEV_TENANT_IQ_CATALOG_UUID = '00000000-0000-0000-0000-000000000007';
+
+/**
+ * Default `iq_tenant_id` for EMPI / Registration when no tenant is selected in the UI
+ * (Phase 0 dev — replaced by session tenant from better-auth).
+ */
+export const DEV_DEFAULT_IQ_TENANT_ID = '550e8400-e29b-41d4-a716-446655440001';
 
 /**
  * Lexical UUID (8-4-4-4-12 hex). Matches Python/Postgres-style `UUID` acceptance, including
@@ -27,4 +34,44 @@ export function catalogIqTenantHeaderValue(tenantId: string | null | undefined):
 
 export function isVisitpadTenantCatalogScope(tenantId: string | null | undefined): boolean {
   return catalogIqTenantHeaderValue(tenantId) != null;
+}
+
+/**
+ * Tenant header for services that require `iq_tenant_id` (EMPI, Registration).
+ * Prefers a UUID from the tenant store; otherwise uses dev default (or `VITE_DEFAULT_IQ_TENANT_ID`).
+ */
+export function serviceIqTenantHeaderValue(tenantId: string | null | undefined): string {
+  const catalog = catalogIqTenantHeaderValue(tenantId);
+  if (catalog) return catalog;
+
+  const fromEnv = import.meta.env.VITE_DEFAULT_IQ_TENANT_ID?.trim();
+  if (fromEnv && CATALOG_IQ_TENANT_UUID_RE.test(fromEnv)) {
+    return fromEnv.toLowerCase();
+  }
+
+  const trimmed = tenantId?.trim();
+  if (trimmed) return trimmed;
+
+  return DEV_DEFAULT_IQ_TENANT_ID;
+}
+
+/** `iq_tenant_id` from the access JWT (`iq_tenant_id` claim), when present. */
+export function jwtIqTenantHeaderValue(accessToken: string | null | undefined): string | null {
+  const claim = decodeAccessTokenPayload(accessToken)?.iq_tenant_id;
+  return catalogIqTenantHeaderValue(typeof claim === 'string' ? claim : null);
+}
+
+/**
+ * Billing tariff lookup is per hospital tenant. Prefer JWT (session truth) over the
+ * tenant store so a stale dev placeholder (`550e8400-…`) does not cause catalog_row_not_found.
+ */
+export function billingIqTenantHeaderValue(
+  tenantId: string | null | undefined,
+  accessToken: string | null | undefined,
+): string {
+  return (
+    jwtIqTenantHeaderValue(accessToken) ??
+    catalogIqTenantHeaderValue(tenantId) ??
+    serviceIqTenantHeaderValue(tenantId)
+  );
 }

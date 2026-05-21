@@ -16,41 +16,39 @@ Each group corresponds to one file under `packages/ts-sdk-abha/src/protocol/m1/`
 
 | Step | Platform endpoint                            | Gateway endpoint                          | State transition                       |
 |------|----------------------------------------------|-------------------------------------------|----------------------------------------|
-| 1    | `POST /api/abdm/v1/m1/enrol/aadhaar/otp`     | `/api/v3/enrollment/request/otp`          | `INIT` → `OTP_REQUESTED`               |
-| 2    | `POST /api/abdm/v1/m1/enrol/aadhaar/verify`  | `/api/v3/enrollment/enrol/byAadhaar`      | `OTP_REQUESTED` → `OTP_VERIFIED` → `ABHA_CREATED` |
+| 1    | `POST /api/abdm/v1/m1/enrol/aadhaar/otp`     | `POST /v3/enrollment/request/otp`          | `INIT` → `AADHAAR_OTP_REQUESTED`       |
+| 1b   | `POST /api/abdm/v1/m1/enrol/aadhaar/otp/resend` | Same NHA path with **non-empty** `txnId` (Postman) | stays `AADHAAR_OTP_REQUESTED`, new `txn_id` |
+| 2    | `POST /api/abdm/v1/m1/enrol/aadhaar/verify`  | `POST /v3/enrollment/enrol/byAadhaar`      | `AADHAAR_OTP_REQUESTED` → `ABHA_CREATED` (tokens persisted) |
+| 2b   | `POST /api/abdm/v1/m1/enrol/mobile-verify/otp` | `POST /v3/enrollment/request/otp` (mobile) | `ABHA_CREATED` → `MOBILE_OTP_REQUESTED` |
+| 2c   | `POST /api/abdm/v1/m1/enrol/mobile-verify/verify` | `POST /v3/enrollment/auth/byAbdm`     | `MOBILE_OTP_REQUESTED` → `MOBILE_OTP_VERIFIED` |
 
-State written: `txn_id` (step 1 response), `x_token` + `t_token` (step 2 response), `context.identifiers` (step 2 response — abha_number, abha_address suggestions, demographics).
+State written: `txn_id` (step 1 / resend response), `x_token` + `t_token` + new `txn_id` (step 2 response), `context` snapshot (NHA profile fields).
 
-### 2. Enrol via Mobile OTP — `abdm.m1.mobile-otp.v1`
+### 2. ABHA Address suggestions + creation
 
-| Step | Platform endpoint                            | Gateway endpoint                          | State transition                       |
-|------|----------------------------------------------|-------------------------------------------|----------------------------------------|
-| 1    | `POST /api/abdm/v1/m1/enrol/mobile/otp`      | `/api/v3/enrollment/request/otp` (mobile) | `INIT` → `OTP_REQUESTED`               |
-| 2    | `POST /api/abdm/v1/m1/enrol/mobile/verify`   | `/api/v3/enrollment/enrol/byMobile`       | `OTP_REQUESTED` → `OTP_VERIFIED`       |
+| Platform endpoint                            | Gateway endpoint (NHA / Postman)                    |
+|----------------------------------------------|-----------------------------------------------------|
+| `GET /api/abdm/v1/m1/abha-address/suggestions?sessionId=…` | `GET /v3/enrollment/enrol/suggestion` + header **`Transaction_Id`** |
+| `POST /api/abdm/v1/m1/abha-address`          | `POST /v3/enrollment/enrol/abha-address`            |
 
-Note: mobile enrolment does **not** issue an ABHA Number — only a provisional account. ABHA Number requires the Aadhaar path.
+Suggestions use **gateway** `Authorization` and **`Transaction_Id`** (session `txn_id`). After **create**, session moves **`ABHA_CREATED` → `ADDRESS_CREATED`** and `context` is updated with NHA response fields.
 
-### 3. ABHA Address suggestions + creation
+**Out of M1 scope:** standalone mobile-only ABHA creation and DL enrolment (`dl-flow`); use the Aadhaar chain below for mobile verify during enrolment.
 
-| Platform endpoint                            | Gateway endpoint                                       |
-|----------------------------------------------|--------------------------------------------------------|
-| `GET /api/abdm/v1/m1/abha-address/suggestions?sessionId=…` | `/api/v3/enrollment/enrol/abha-address/suggestion` |
-| `POST /api/abdm/v1/m1/abha-address`          | `/api/v3/enrollment/enrol/abha-address`               |
+### 3. Profile fetch + cards
 
-Uses `x_token` from the session row. Writes `context.identifiers.abha_address` and transitions `ABHA_CREATED` → `ADDRESS_CREATED`.
-
-### 4. Profile fetch + cards
+Gateway calls: **`Authorization: Bearer <gateway access token>`** plus **`X-token: Bearer <session x_token>`** (values from `HttpGatewayClient` + session row).
 
 | Platform endpoint                            | Gateway endpoint                          | Notes                              |
 |----------------------------------------------|-------------------------------------------|------------------------------------|
-| `GET /api/abdm/v1/m1/profile`                | `/api/v3/profile/account`                 | Reads `x_token` from session.      |
-| `GET /api/abdm/v1/m1/profile/abha-card`      | `/api/v3/profile/account/abha-card`       | Returns base64 PDF.                |
-| `GET /api/abdm/v1/m1/profile/phr-card`       | `/api/v3/profile/account/phr-card`        | Returns base64 PDF.                |
-| `GET /api/abdm/v1/m1/profile/qr-code`        | `/api/v3/profile/account/qrCode`          | Returns base64 PNG.                |
+| `GET /api/abdm/v1/m1/profile`                | `GET /v3/profile/account`                 | Reads `x_token` from session.      |
+| `GET /api/abdm/v1/m1/profile/abha-card`      | `GET /v3/profile/account/abha-card`       | Returns base64 PDF.                |
+| `GET /api/abdm/v1/m1/profile/phr-card`       | `GET /v3/profile/account/phr-card`        | Returns base64 PDF.                |
+| `GET /api/abdm/v1/m1/profile/qr-code`        | `GET /v3/profile/account/qrCode`          | Returns base64 PNG.                |
 
 No state transition — these are read-only against an existing session.
 
-### 5. Profile update (mobile / email)
+### 4. Profile update (mobile / email)
 
 | Step | Platform endpoint                                  | Gateway endpoint                                                    |
 |------|----------------------------------------------------|---------------------------------------------------------------------|
@@ -59,31 +57,35 @@ No state transition — these are read-only against an existing session.
 
 Mirror flow for `email` swapping the path segment.
 
-### 6. Login (existing ABHA) — `abdm.m1.login.v1`
+### 5. Login (existing ABHA) — `abdm.m1.login.v1`
 
 | Step | Platform endpoint                            | Gateway endpoint                              |
 |------|----------------------------------------------|-----------------------------------------------|
-| 1    | `POST /api/abdm/v1/m1/login/otp`             | `/api/v3/profile/login/request/auth/init`     |
-| 2    | `POST /api/abdm/v1/m1/login/verify`          | `/api/v3/profile/login/verify`                |
+| 1    | `POST /api/abdm/v1/m1/login/otp`             | `POST /v3/profile/login/request/otp`          |
+| 1b   | `POST /api/abdm/v1/m1/login/aadhaar/otp`     | Same (Aadhaar `loginHint`)                    |
+| 1c   | `POST /api/abdm/v1/m1/login/mobile/otp`      | Same (mobile `loginHint`)                     |
+| 2    | `POST /api/abdm/v1/m1/login/verify`          | `POST /v3/profile/login/verify`               |
+| 2b   | `POST /api/abdm/v1/m1/login/verify/user`     | `POST /v3/profile/login/verify/user` + `T-token` |
 
-Step 2 stores `x_token` for subsequent profile/card calls.
+Step 2 stores `x_token` when NHA returns a single token. **Mobile login** may return `accounts[]` — then step 2b selects ABHA and stores `x_token`. See [04-phase-b-implementation-matrix.md](./04-phase-b-implementation-matrix.md).
 
-### 7. Verify existing ABHA — `abdm.m1.verify-existing.v1`
+### 6. Verify existing ABHA — `abdm.m1.verify-existing.v1`
 
-Used at frontdesk to confirm a patient's claimed ABHA before EMPI linkage.
+Used at frontdesk to confirm a patient's claimed ABHA before EMPI linkage. Uses the **same NHA login OTP paths** as §6 with `flowKind: abdm.m1.verify-existing.v1`.
 
-| Step | Platform endpoint                                 | Gateway endpoint                                  |
-|------|---------------------------------------------------|---------------------------------------------------|
-| 1    | `POST /api/abdm/v1/m1/verify/abha-number/otp`     | `/api/v3/abha/verify/v3/abhaNumber/send-otp`     |
-| 2    | `POST /api/abdm/v1/m1/verify/abha-number/verify`  | `/api/v3/abha/verify/v3/abhaNumber/verify-otp`   |
+| Step | Platform endpoint                                 | Gateway endpoint                    |
+|------|---------------------------------------------------|-------------------------------------|
+| 1    | `POST /api/abdm/v1/m1/verify/abha-number/otp`     | `POST /v3/profile/login/request/otp` |
+| 2    | `POST /api/abdm/v1/m1/verify/abha-number/verify`| `POST /v3/profile/login/verify`      |
+| 2b   | `POST /api/abdm/v1/m1/verify/abha-number/verify/user` | `POST /v3/profile/login/verify/user` |
 
-Identical mirror exists for `abha-address`.
+Identical mirror exists for `abha-address` (`abha-address-login` scopes).
 
 ---
 
 ## Acceptance for M1 sprint completion
 
-- All seven flow groups have populated DTO types in `@hims/ts-sdk-abha/protocol/m1/`.
+- All in-scope flow groups have populated DTO types in `@hims/ts-sdk-abha/protocol/m1/` — Phase A: [03-phase-a-implementation-matrix.md](./03-phase-a-implementation-matrix.md); Phase B verification: [04-phase-b-implementation-matrix.md](./04-phase-b-implementation-matrix.md).
 - Use-case functions in `modules/abdm-adapter/src/use-cases/m1/` orchestrate gateway calls + session updates with no `console.log`-driven side effects.
 - REST handlers wired in `rest-handlers/m1/` with request schema validation (Zod or AJV).
 - `0000_abdm_adapter_schema.sql` migration applied locally; integration test exercises an Aadhaar-OTP enrolment end-to-end against the sandbox.

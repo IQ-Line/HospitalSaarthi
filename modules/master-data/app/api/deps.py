@@ -7,9 +7,11 @@ from sqlalchemy.orm import Session
 from app.core.catalog_scope import CATALOG_TENANT_HEADER, CatalogScope
 from app.core.catalog_tenant_id import CatalogTenantIdError, try_parse_iq_tenant_id
 from app.core.database import get_db_session
+from app.repositories.department_repository import DepartmentRepository
 from app.repositories.module_permission_repository import ModulePermissionRepository
 from app.repositories.module_repository import ModuleRepository
 from app.repositories.permission_repository import PermissionRepository
+from app.repositories.picklist_repository import PicklistRepository
 from app.repositories.system_role_repository import SystemRoleRepository
 from app.repositories.visitpad.allergen import VisitpadAllergenRepository
 from app.repositories.visitpad.allergy_reaction import VisitpadAllergyReactionRepository
@@ -35,7 +37,7 @@ def get_catalog_scope(
 ) -> CatalogScope:
     """Resolve where catalog CRUD goes for this request.
 
-    - No / blank header → ``CatalogScope(iq_tenant_id=None)`` → ORM uses ``public`` models (**no** ``iq_tenant_id`` column).
+    - No / blank header → ``CatalogScope(iq_tenant_id=None)`` → ORM uses ``global_master`` models (**no** ``iq_tenant_id`` column).
     - Valid UUID string → ``CatalogScope(iq_tenant_id=…)`` → ORM uses ``tenant_master`` models (**every** row carries ``iq_tenant_id``).
     """
     try:
@@ -47,12 +49,19 @@ def get_catalog_scope(
             detail = (
                 "Invalid iq_tenant_id: expected a canonical UUID string "
                 "(e.g. 550e8400-e29b-41d4-a716-446655440000). "
-                "Numeric-only legacy keys are not accepted. Omit the header for schema public."
+                "Numeric-only legacy keys are not accepted. Omit the header for the global catalog (global_master schema)."
             )
         else:
             detail = "Invalid iq_tenant_id. Omit the header for the shared global catalog."
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail) from exc
     return CatalogScope(iq_tenant_id=tid)
+
+
+def get_department_repository(
+    session: Annotated[Session, Depends(get_session)],
+    scope: Annotated[CatalogScope, Depends(get_catalog_scope)],
+) -> DepartmentRepository:
+    return DepartmentRepository(session, scope)
 
 
 def get_module_repository(
@@ -67,6 +76,13 @@ def get_permission_repository(
     scope: Annotated[CatalogScope, Depends(get_catalog_scope)],
 ) -> PermissionRepository:
     return PermissionRepository(session, scope)
+
+
+def get_picklist_repository(
+    session: Annotated[Session, Depends(get_session)],
+) -> PicklistRepository:
+    """Platform picklists live in ``global_master`` only; tenant header is ignored."""
+    return PicklistRepository(session)
 
 
 def get_system_role_repository(

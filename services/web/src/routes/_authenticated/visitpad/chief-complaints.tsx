@@ -45,7 +45,8 @@ import {
   type VisitpadChiefComplaintCreateFormSchema,
   type VisitpadChiefComplaintEditFormSchema,
 } from '@/features/visitpad/validation';
-import { useVisitpadCatalogPermission } from '@/features/visitpad/hooks/use-visitpad-catalog-permission';
+import { useAnyCapability, useCapability } from '@/hooks/use-capability';
+import { MD_VISITPAD_MUTATE_ANY } from '@/lib/runtime-capability-keys';
 import { useVisitpadImportLibrarySearch } from '@/features/visitpad/hooks/use-visitpad-import-library-search';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 
@@ -56,7 +57,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/chief-complaints'
 });
 
 function VisitpadChiefComplaintsPage() {
-  const { canWrite, canRead } = useVisitpadCatalogPermission();
+  const mdVisitpadMutateAny = useAnyCapability(MD_VISITPAD_MUTATE_ANY);
   const [search, setSearch] = useState('');
   const [bodySystem, setBodySystem] = useState<string>('all');
   const [triage, setTriage] = useState<string>('all');
@@ -230,7 +231,7 @@ function VisitpadChiefComplaintsPage() {
         cell: ({ row }) => (
           <TableActiveToggle
             active={row.original.is_active}
-            disabled={patch.isPending || !canWrite}
+            disabled={patch.isPending || !mdVisitpadMutateAny}
             onCheckedChange={async (next) => {
               try {
                 await patch.mutateAsync({ id: row.original.id, body: { is_active: next } });
@@ -245,10 +246,10 @@ function VisitpadChiefComplaintsPage() {
       visitpadActionsColumn<VisitpadChiefComplaint>({
         onEdit: setEditing,
         onDelete: setDeleting,
-        disabled: busy || !canWrite,
+        disabled: busy || !mdVisitpadMutateAny,
       }),
     ],
-    [patch, busy, canWrite],
+    [patch, busy, mdVisitpadMutateAny],
   );
 
   return (
@@ -263,9 +264,7 @@ function VisitpadChiefComplaintsPage() {
       }
       actions={
         <VisitpadHeaderActions
-          canWrite={canWrite}
-          canRead={canRead}
-          addLabel={tenantCatalog ? 'Add local complaint' : 'Add complaint'}
+addLabel={tenantCatalog ? 'Add local complaint' : 'Add complaint'}
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
           importFromLibraryPending={platformImport.isPending}

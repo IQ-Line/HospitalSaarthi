@@ -1,0 +1,22 @@
+{
+  "name": "registration-svc",
+  "projectType": "application",
+  "tags": ["type:service", "scope:registration", "language:typescript", "deploy:aks"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsup --config tsup.config.ts",
+        "cwd": "services/registration-svc"
+      },
+      "outputs": ["{projectRoot}/dist"],
+      "cache": true
+    },
+    "serve": {
+      "command": "tsx watch src/main.ts",
+      "options": {
+        "cwd": "services/registration-svc"
+      }
+    }
+  }
+}

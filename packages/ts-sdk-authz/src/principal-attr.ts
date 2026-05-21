@@ -19,10 +19,14 @@ export function principalAttrsForCerbos(principal: Principal): Record<string, Va
     principal.department !== undefined && principal.department !== null
       ? String(principal.department).trim()
       : "";
+  const roleCodes = (principal.roles ?? [])
+    .map((r) => r.trim().toLowerCase())
+    .filter((r) => r.length > 0);
   return {
     iq_tenant_id: principal.tenantId,
     org_id: orgTrim.length > 0 ? orgTrim : null,
     department: deptTrim.length > 0 ? deptTrim : null,
+    role_codes: roleCodes,
     capabilities: principal.capabilities ?? [],
     delegated_capabilities: principal.delegatedCapabilities ?? [],
     clearances: principal.clearances ?? {},

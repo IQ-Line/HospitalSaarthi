@@ -1,7 +1,11 @@
 import Fastify from "fastify";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
-import { tenantPlugin } from "@hims/ts-sdk-tenant";
-import { createDb, type DbInstance } from "@hims/ts-sdk-db";
+import {
+  assertConfiguratorDatabaseIsolation,
+  createDb,
+  resolveDatabaseUrl,
+  type DbInstance,
+} from "@hims/ts-sdk-db";
 import {
   createRouter,
   DrizzleOrganizationRepo,
@@ -9,9 +13,16 @@ import {
   DrizzleTenantModuleRepo,
   type RunConfiguratorTransaction,
 } from "@hims/configurator";
+import {
+  runConfiguratorDevelopmentBootstrap,
+  shouldRunDevelopmentBootstrap,
+} from "./bootstrap/development-bootstrap.js";
 
-const PORT = Number(process.env["CONFIGURATOR_SVC_PORT"] ?? 3001);
-const DATABASE_URL = process.env["DATABASE_URL"] ?? "";
+const PORT = Number(
+  process.env["CONFIGURATOR_PORT"] ??
+    process.env["CONFIGURATOR_SVC_PORT"] ??
+    3001,
+);
 
 async function main() {
   const app = Fastify({ logger: true });
@@ -26,7 +37,27 @@ async function main() {
 
   app.get("/healthz", async () => ({ status: "ok" }));
 
-  const db = createDb(DATABASE_URL);
+  const databaseUrl = resolveDatabaseUrl();
+  const db = createDb(databaseUrl);
+  await assertConfiguratorDatabaseIsolation({
+    db,
+    connectionString: databaseUrl,
+  });
+
+  if (shouldRunDevelopmentBootstrap()) {
+    app.log.warn(
+      "PLATFORM_DEV_BOOTSTRAP=true — prefer `make seed` for deterministic dev data",
+    );
+    const bootstrap = await runConfiguratorDevelopmentBootstrap(db);
+    app.log.info(
+      {
+        orgId: bootstrap.orgId,
+        tenantId: bootstrap.tenantId,
+        tenantModuleIds: bootstrap.tenantModuleIds,
+      },
+      "Configurator development bootstrap ready",
+    );
+  }
 
   const organizationRepo = new DrizzleOrganizationRepo(db);
   const tenantRepo = new DrizzleTenantRepo(db);
@@ -37,24 +68,25 @@ async function main() {
       fn({
         organizationRepo: new DrizzleOrganizationRepo(tx as DbInstance),
         tenantRepo: new DrizzleTenantRepo(tx as DbInstance),
+        tenantModuleRepo: new DrizzleTenantModuleRepo(tx as DbInstance),
       }),
     );
 
-  await app.register(async (api) => {
-    await api.register(tenantPlugin);
-
-    await api.register(
-      createRouter({
-        organizationRepo,
-        tenantRepo,
-        tenantModuleRepo,
-        runConfiguratorTransaction,
-      }),
-      { prefix: "/configurator/v1" },
-    );
-  }, { prefix: "/api" });
+  // No tenantPlugin: organizations/tenants are platform bootstrap APIs (list all
+  // tenants for provisioning). Tenant scope is carried in path params where needed
+  // (e.g. GET /tenants/:tenantId/modules). EMPI/registration keep stricter headers.
+  await app.register(
+    createRouter({
+      organizationRepo,
+      tenantRepo,
+      tenantModuleRepo,
+      runConfiguratorTransaction,
+    }),
+    { prefix: "/api/configurator/v1" },
+  );
 
   await app.listen({ port: PORT, host: "0.0.0.0" });
+  app.log.info(`Configurator service listening on http://localhost:${PORT}`);
 }
 
 main().catch((err) => {

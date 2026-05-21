@@ -6,8 +6,11 @@ import { AppProviders } from '@/app/providers';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePermissionsStore } from '@/stores/permissions.store';
 import { useTenantStore } from '@/stores/tenant.store';
+import { registerBuiltinModuleManifests } from '@/platform/modules';
 import { routeTree } from './routeTree.gen';
 import '@/styles/index.css';
+
+registerBuiltinModuleManifests();
 
 const router = createRouter({
   routeTree,

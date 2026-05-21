@@ -13,13 +13,23 @@
  * @see docs/architecture/lld/integration-platform/02-fsm-specifications.md
  */
 
-/** `abdm.m1.aadhaar-otp.v1` — ABHA creation via Aadhaar OTP. */
+/** `abdm.m1.aadhaar-otp.v1` — ABHA creation via Aadhaar OTP (+ enrol-chain mobile verify). */
 export const M1_AADHAAR_OTP_STATES = [
+  'INIT',
+  'AADHAAR_OTP_REQUESTED',
+  'ABHA_CREATED',
+  'MOBILE_OTP_REQUESTED',
+  'MOBILE_OTP_VERIFIED',
+  'ADDRESS_CREATED',
+  'LINKED',
+  'FAILED',
+] as const;
+
+/** Shared OTP states for login and verify-existing flows. */
+export const M1_SIMPLE_OTP_STATES = [
   'INIT',
   'OTP_REQUESTED',
   'OTP_VERIFIED',
-  'ABHA_CREATED',
-  'ADDRESS_CREATED',
   'LINKED',
   'FAILED',
 ] as const;
@@ -79,6 +89,8 @@ export const CONSENT_LIFECYCLE_STATES = [
 ] as const;
 
 export type M1AadhaarOtpState = (typeof M1_AADHAAR_OTP_STATES)[number];
+export type M1SimpleOtpState = (typeof M1_SIMPLE_OTP_STATES)[number];
+export type M1SessionState = M1AadhaarOtpState | M1SimpleOtpState;
 export type M2UserLinkState = (typeof M2_USER_LINK_STATES)[number];
 export type M3HipState = (typeof M3_HIP_STATES)[number];
 export type M3HiuState = (typeof M3_HIU_STATES)[number];

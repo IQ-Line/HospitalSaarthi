@@ -6,8 +6,9 @@ from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
+from app.repositories.department_repository import DuplicateDepartmentKeyError
 from app.repositories.module_permission_repository import DuplicateModulePermissionKeyError
 from app.repositories.module_repository import DuplicateModuleKeyError
 from app.repositories.permission_repository import DuplicatePermissionKeyError
@@ -27,6 +28,7 @@ from app.services.module_service import (
     ModuleNotFoundError,
     ParentModuleNotFoundError,
 )
+from app.services.department_service import DepartmentNotFoundError
 from app.services.permission_service import PermissionNotFoundError
 from app.services.system_role_service import SystemRoleNotFoundError
 from app.services.visitpad.units import (
@@ -51,6 +53,19 @@ def error_payload(code: str, message: str, details: dict[str, Any] | None = None
 
 def register_exception_handlers(app: FastAPI) -> None:
     """Register API exception handlers once at app startup."""
+
+    @app.exception_handler(DuplicateDepartmentKeyError)
+    async def _duplicate_department_key(
+        _request: Request,
+        _exc: DuplicateDepartmentKeyError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content=error_payload(
+                "CONFLICT",
+                "Another active department already uses this code.",
+            ),
+        )
 
     @app.exception_handler(DuplicateModuleKeyError)
     async def _duplicate_key(_request: Request, _exc: DuplicateModuleKeyError) -> JSONResponse:
@@ -164,6 +179,16 @@ def register_exception_handlers(app: FastAPI) -> None:
             content=error_payload("NOT_FOUND", "No module with this id."),
         )
 
+    @app.exception_handler(DepartmentNotFoundError)
+    async def _department_missing(
+        _request: Request,
+        _exc: DepartmentNotFoundError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=404,
+            content=error_payload("NOT_FOUND", "No department with this id."),
+        )
+
     @app.exception_handler(PermissionNotFoundError)
     async def _permission_missing(_request: Request, _exc: PermissionNotFoundError) -> JSONResponse:
         return JSONResponse(
@@ -268,4 +293,15 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=400,
             content=error_payload("BAD_REQUEST", "Request violates database constraints."),
+        )
+
+    @app.exception_handler(SQLAlchemyError)
+    async def _sqlalchemy_error(_request: Request, exc: SQLAlchemyError) -> JSONResponse:
+        return JSONResponse(
+            status_code=503,
+            content=error_payload(
+                "SERVICE_UNAVAILABLE",
+                "Catalog database is unavailable. Check MASTER_DATA_DATABASE_URL and migrations.",
+                {"detail": exc.__class__.__name__},
+            ),
         )

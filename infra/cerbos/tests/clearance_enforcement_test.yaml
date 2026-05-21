@@ -8,14 +8,15 @@ description: >-
 principals:
   high_clearance_reader:
     id: security-officer
-    roles: []
+    roles:
+      - "_unresolved"
     attr:
       iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
       org_id: null
       department: null
       capabilities:
-        - "um:user:read"
-        - "um:user:update"
+        - "users:users:read"
+        - "users:users:update"
       delegated_capabilities: []
       clearances:
         um: "3"
@@ -23,14 +24,15 @@ principals:
 
   low_clearance_reader:
     id: junior-staff
-    roles: []
+    roles:
+      - "_unresolved"
     attr:
       iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
       org_id: null
       department: null
       capabilities:
-        - "um:user:read"
-        - "um:user:update"
+        - "users:users:read"
+        - "users:users:update"
       delegated_capabilities: []
       clearances:
         um: "1"
@@ -38,13 +40,14 @@ principals:
 
   tier_ok_empty_clearances:
     id: tier-without-map
-    roles: []
+    roles:
+      - "_unresolved"
     attr:
       iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
       org_id: null
       department: null
       capabilities:
-        - "um:user:read"
+        - "users:users:read"
       delegated_capabilities: []
       clearances: {}
       um_clearance_effective_tier: 3

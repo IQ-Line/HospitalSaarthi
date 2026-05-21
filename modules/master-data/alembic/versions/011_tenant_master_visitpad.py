@@ -1,14 +1,10 @@
-"""Create ``tenant_master`` with full Visitpad copies, then drop ``tenant_id`` from ``public`` catalog tables.
+"""Create ``tenant_master`` with full Visitpad copies, then drop ``tenant_id`` from ``global_master`` catalog tables.
 
 Revision ID: 011_tenant_master_visitpad
 Revises: 010_visitpad_catalog
 
-**Pre-production / empty DB only:** includes dedupe ``DELETE`` paths that pick arbitrary survivor rows by UUID
-order. Do **not** run against a production database that already holds tenant-specific catalog data you need
-to preserve — replace with a data-preserving strategy before any live tenant.
-
-Order: copy ``public`` → ``tenant_master`` (keeps ``tenant_id``), then reshape ``public`` for global rows
-(without ``tenant_id``) and new partial unique indexes.
+**Local / fresh DB only:** copies any existing ``global_master`` Visitpad rows into ``tenant_master``, then reshapes
+``global_master`` for global rows (no ``tenant_id``). Visitpad ``tenant_master`` columns are renamed to ``iq_tenant_id`` in this revision.
 
 SQLite / non-PostgreSQL: no-op (tests use ORM ``create_all`` only).
 """
@@ -21,6 +17,7 @@ import sqlalchemy as sa
 from sqlalchemy import text
 
 from alembic import op
+from schema_names import GLOBAL_SCHEMA as _GM, TENANT_SCHEMA as _TM
 
 revision: str = "011_tenant_master_visitpad"
 down_revision: str | Sequence[str] | None = "010_visitpad_catalog"
@@ -67,17 +64,22 @@ def upgrade() -> None:
 
     for table in _VISITPAD_TABLES:
         op.execute(
-            text(f'CREATE TABLE tenant_master."{table}" (LIKE public."{table}" INCLUDING ALL)')
+            text(f'CREATE TABLE tenant_master."{table}" (LIKE global_master."{table}" INCLUDING ALL)')
         )
-        op.execute(text(f'INSERT INTO tenant_master."{table}" SELECT * FROM public."{table}"'))
+        op.execute(text(f'INSERT INTO tenant_master."{table}" SELECT * FROM global_master."{table}"'))
+        op.execute(
+            text(
+                f'ALTER TABLE {_TM}."{table}" RENAME COLUMN tenant_id TO iq_tenant_id'
+            )
+        )
 
-    # Collapse duplicate natural keys in public before dropping tenant_id (keeps smallest id).
+    # Collapse duplicate natural keys in global_master before dropping tenant_id (keeps smallest id).
     op.execute(
         text(
             """
-            DELETE FROM public.units u
+            DELETE FROM global_master.units u
             WHERE EXISTS (
-              SELECT 1 FROM public.units u2
+              SELECT 1 FROM global_master.units u2
               WHERE lower(u2.code) = lower(u.code) AND u2.id < u.id
             )
             """
@@ -94,9 +96,9 @@ def upgrade() -> None:
         op.execute(
             text(
                 f"""
-                DELETE FROM public."{table}" u
+                DELETE FROM global_master."{table}" u
                 WHERE EXISTS (
-                  SELECT 1 FROM public."{table}" u2
+                  SELECT 1 FROM global_master."{table}" u2
                   WHERE lower(u2.{code_col}) = lower(u.{code_col}) AND u2.id < u.id
                 )
                 """
@@ -105,9 +107,9 @@ def upgrade() -> None:
     op.execute(
         text(
             """
-            DELETE FROM public.diagnoses u
+            DELETE FROM global_master.diagnoses u
             WHERE EXISTS (
-              SELECT 1 FROM public.diagnoses u2
+              SELECT 1 FROM global_master.diagnoses u2
               WHERE lower(u2.icd10_code) = lower(u.icd10_code)
                 AND u2.icd_version = u.icd_version
                 AND u2.id < u.id
@@ -118,9 +120,9 @@ def upgrade() -> None:
     op.execute(
         text(
             """
-            DELETE FROM public.chronic_illnesses u
+            DELETE FROM global_master.chronic_illnesses u
             WHERE EXISTS (
-              SELECT 1 FROM public.chronic_illnesses u2
+              SELECT 1 FROM global_master.chronic_illnesses u2
               WHERE lower(u2.icd10_code) = lower(u.icd10_code) AND u2.id < u.id
             )
             """
@@ -129,9 +131,9 @@ def upgrade() -> None:
     op.execute(
         text(
             """
-            DELETE FROM public.unit_conversions u
+            DELETE FROM global_master.unit_conversions u
             WHERE EXISTS (
-              SELECT 1 FROM public.unit_conversions u2
+              SELECT 1 FROM global_master.unit_conversions u2
               WHERE lower(u2.from_unit_code) = lower(u.from_unit_code)
                 AND lower(u2.to_unit_code) = lower(u.to_unit_code)
                 AND u2.id < u.id
@@ -142,9 +144,9 @@ def upgrade() -> None:
     op.execute(
         text(
             """
-            DELETE FROM public.rx_columns u
+            DELETE FROM global_master.rx_columns u
             WHERE EXISTS (
-              SELECT 1 FROM public.rx_columns u2
+              SELECT 1 FROM global_master.rx_columns u2
               WHERE lower(u2.section) = lower(u.section)
                 AND lower(u2.code) = lower(u.code)
                 AND u2.id < u.id
@@ -154,10 +156,10 @@ def upgrade() -> None:
     )
 
     for table, index_name in _PUBLIC_INDEX_DROPS:
-        op.drop_index(index_name, table_name=table, schema="public")
+        op.drop_index(index_name, table_name=table, schema=_GM)
 
     for table in _VISITPAD_TABLES:
-        with op.batch_alter_table(table, schema="public") as batch:
+        with op.batch_alter_table(table, schema=_GM) as batch:
             batch.drop_column("tenant_id")
 
     op.create_index(
@@ -165,7 +167,7 @@ def upgrade() -> None:
         "units",
         ["code"],
         unique=True,
-        schema="public",
+        schema=_GM,
         postgresql_where=sa.text("NOT is_deleted"),
     )
     op.create_index(
@@ -173,14 +175,14 @@ def upgrade() -> None:
         "units",
         ["display_order", "code"],
         unique=False,
-        schema="public",
+        schema=_GM,
     )
     op.create_index(
         "unit_conversions_global_from_to_active_key",
         "unit_conversions",
         ["from_unit_code", "to_unit_code"],
         unique=True,
-        schema="public",
+        schema=_GM,
         postgresql_where=sa.text("NOT is_deleted"),
     )
     op.create_index(
@@ -188,14 +190,14 @@ def upgrade() -> None:
         "unit_conversions",
         ["display_order", "from_unit_code"],
         unique=False,
-        schema="public",
+        schema=_GM,
     )
     op.create_index(
         "rx_columns_global_section_code_active_key",
         "rx_columns",
         ["section", "code"],
         unique=True,
-        schema="public",
+        schema=_GM,
         postgresql_where=sa.text("NOT is_deleted"),
     )
     op.create_index(
@@ -203,7 +205,7 @@ def upgrade() -> None:
         "allergens",
         ["code"],
         unique=True,
-        schema="public",
+        schema=_GM,
         postgresql_where=sa.text("NOT is_deleted"),
     )
     op.create_index(
@@ -211,7 +213,7 @@ def upgrade() -> None:
         "allergy_reactions",
         ["code"],
         unique=True,
-        schema="public",
+        schema=_GM,
         postgresql_where=sa.text("NOT is_deleted"),
     )
     op.create_index(
@@ -219,7 +221,7 @@ def upgrade() -> None:
         "chief_complaints",
         ["code"],
         unique=True,
-        schema="public",
+        schema=_GM,
         postgresql_where=sa.text("NOT is_deleted"),
     )
     op.create_index(
@@ -227,7 +229,7 @@ def upgrade() -> None:
         "diagnoses",
         ["icd10_code", "icd_version"],
         unique=True,
-        schema="public",
+        schema=_GM,
         postgresql_where=sa.text("NOT is_deleted"),
     )
     op.create_index(
@@ -235,7 +237,7 @@ def upgrade() -> None:
         "chronic_illnesses",
         ["icd10_code"],
         unique=True,
-        schema="public",
+        schema=_GM,
         postgresql_where=sa.text("NOT is_deleted"),
     )
     op.create_index(
@@ -243,7 +245,7 @@ def upgrade() -> None:
         "vitals",
         ["code"],
         unique=True,
-        schema="public",
+        schema=_GM,
         postgresql_where=sa.text("NOT is_deleted"),
     )
     op.create_index(
@@ -251,7 +253,7 @@ def upgrade() -> None:
         "medicines",
         ["code"],
         unique=True,
-        schema="public",
+        schema=_GM,
         postgresql_where=sa.text("NOT is_deleted"),
     )
     op.create_index(
@@ -259,7 +261,7 @@ def upgrade() -> None:
         "procedures",
         ["cpt_code"],
         unique=True,
-        schema="public",
+        schema=_GM,
         postgresql_where=sa.text("NOT is_deleted"),
     )
 

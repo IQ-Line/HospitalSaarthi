@@ -35,12 +35,12 @@ describe("DefaultPrincipalService — capability resolution", () => {
   it("returns capabilities directly as principal entitlements", async () => {
     const { authorization, service } = setup();
 
-    authorization.seedCapability(T, U, "um:user:create");
-    authorization.seedCapability(T, U, "um:user:read");
+    authorization.seedCapability(T, U, "users:users:create");
+    authorization.seedCapability(T, U, "users:users:read");
 
     const principal = await service.getPrincipal({ tenantId: T, userId: U });
 
-    expect(principal.attributes.capabilities).toEqual(["um:user:create", "um:user:read"]);
+    expect(principal.attributes.capabilities).toEqual(["users:users:create", "users:users:read"]);
   });
 
   it("returns empty capabilities when no capability grants exist", async () => {
@@ -54,22 +54,22 @@ describe("DefaultPrincipalService — capability resolution", () => {
   it("deduplicates identical capability grants", async () => {
     const { authorization, service } = setup();
 
-    authorization.seedCapability(T, U, "um:user:read");
-    authorization.seedCapability(T, U, "um:user:read");
+    authorization.seedCapability(T, U, "users:users:read");
+    authorization.seedCapability(T, U, "users:users:read");
 
     const principal = await service.getPrincipal({ tenantId: T, userId: U });
 
-    expect(principal.attributes.capabilities).toEqual(["um:user:read"]);
+    expect(principal.attributes.capabilities).toEqual(["users:users:read"]);
   });
 
   it("still includes delegated_capabilities from direct grants", async () => {
     const { authorization, service } = setup();
 
-    authorization.seedCapability(T, U, "um:user:create");
+    authorization.seedCapability(T, U, "users:users:create");
 
     const principal = await service.getPrincipal({ tenantId: T, userId: U });
 
     expect(principal.attributes.delegated_capabilities).toEqual([]);
-    expect(principal.attributes.capabilities).toEqual(["um:user:create"]);
+    expect(principal.attributes.capabilities).toEqual(["users:users:create"]);
   });
 });

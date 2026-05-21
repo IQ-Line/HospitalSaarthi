@@ -1,22 +1,48 @@
 /**
- * M1 — ABHA Address suggestions + creation.
+ * M1 — ABHA Address suggestions + creation during enrolment.
  *
- * Flow: after OTP verification the gateway returns suggested addresses; the
- * patient selects one (or proposes a custom) and the platform calls
- * `enrol/abha-address` to register it.
+ * NHA:
+ *   - `GET /v3/enrollment/enrol/suggestion` + header `Transaction_Id`
+ *   - `POST /v3/enrollment/enrol/abha-address`
  *
- * Source spec:
- *   - `docs/external/abdm/v3-m1-abha-v3-apis-creation-verification.md` §"ABHA Address"
- *   - `docs/external/abdm-wrapper/docs/wrapperV3.yaml`
- *     (`/api/v3/enrollment/enrol/abha-address/suggestion`,
- *      `/api/v3/enrollment/enrol/abha-address`)
- *
- * TODO: dev to populate:
- *   - `AbhaAddressSuggestionsRequest` / `Response`
- *   - `CreateAbhaAddressRequest` / `Response`
- *
- * Domain type for the address string itself lives at
- * `@hims/ts-sdk-abha/types/abha-address` — re-use, don't redefine.
+ * Source: `milestone1.md` §Step 6.
  */
 
-export {};
+export interface NhaAbhaAddressSuggestionResponse {
+  txnId: string;
+  abhaAddressList: string[];
+}
+
+export interface NhaCreateAbhaAddressBody {
+  txnId: string;
+  abhaAddress: string;
+  preferred: number;
+}
+
+export interface NhaCreateAbhaAddressResponse {
+  txnId?: string;
+  healthIdNumber?: string;
+  preferredAbhaAddress?: string;
+}
+
+export interface AbhaAddressSuggestionsHimsResponse {
+  sessionId: string;
+  txnId: string;
+  suggestions: string[];
+}
+
+export interface CreateAbhaAddressHimsRequest {
+  sessionId: string;
+  abhaAddress: string;
+  /**
+   * NHA only documents `1` for this field (omit to default to 1). Other values are rejected before calling NHA.
+   */
+  preferred?: number;
+}
+
+export interface CreateAbhaAddressHimsResponse {
+  sessionId: string;
+  txnId: string;
+  healthIdNumber?: string;
+  preferredAbhaAddress?: string;
+}

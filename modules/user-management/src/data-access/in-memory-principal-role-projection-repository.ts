@@ -1,7 +1,7 @@
 import type {
   PrincipalRoleProjectionRepository,
-  RoleAssignmentRepository,
   RoleRepository,
+  UserAccessRepository,
 } from "../ports/index.js";
 
 function projectionCacheKey(tenantId: string, userId: string): string {
@@ -9,13 +9,13 @@ function projectionCacheKey(tenantId: string, userId: string): string {
 }
 
 /**
- * Dev/test adapter: one assignment listing plus at most one {@link RoleRepository} lookup per distinct role_id.
+ * Dev/test adapter: one user-role listing plus at most one {@link RoleRepository} lookup per distinct role_id.
  */
 export class InMemoryPrincipalRoleProjectionRepository implements PrincipalRoleProjectionRepository {
   private readonly projectionCache = new Map<string, string[]>();
 
   constructor(
-    private readonly roleAssignmentRepository: RoleAssignmentRepository,
+    private readonly userAccessRepository: UserAccessRepository,
     private readonly roleRepository: RoleRepository,
   ) {}
 
@@ -30,14 +30,14 @@ export class InMemoryPrincipalRoleProjectionRepository implements PrincipalRoleP
       return [...cached];
     }
 
-    const refs = await this.roleAssignmentRepository.listAssignmentsByUser(tenantId, userId);
+    const refs = await this.userAccessRepository.listRoleTemplatesByUser(tenantId, userId);
     const roleCache = new Map<string, Awaited<ReturnType<RoleRepository["getRoleById"]>>>();
     const codes: string[] = [];
 
     for (const ref of refs) {
       let role = roleCache.get(ref.role_id);
       if (role === undefined) {
-        role = await this.roleRepository.getRoleById(ref.tenant_id, ref.role_id);
+        role = await this.roleRepository.getRoleById(tenantId, ref.role_id);
         roleCache.set(ref.role_id, role);
       }
       if (role !== null) {

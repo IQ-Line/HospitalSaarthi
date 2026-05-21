@@ -7,11 +7,12 @@ import uuid
 from sqlalchemy import Boolean, Index, Integer, String, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.catalog_schemas import GLOBAL_SCHEMA, TENANT_SCHEMA
 from app.models.base import AuditActorMixin, Base, TimestampMixin
 
 
 class VisitpadUnitPublicModel(TimestampMixin, AuditActorMixin, Base):
-    """Platform-wide unit definition in the default schema (``public`` on PostgreSQL)."""
+    """Platform-wide unit definition in the ``global_master`` schema."""
 
     __tablename__ = "units"
     __table_args__ = (
@@ -22,6 +23,7 @@ class VisitpadUnitPublicModel(TimestampMixin, AuditActorMixin, Base):
             postgresql_where=text("NOT is_deleted"),
             sqlite_where=text("is_deleted = 0"),
         ),
+        {"schema": GLOBAL_SCHEMA},
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -48,7 +50,7 @@ class VisitpadUnitTenantModel(TimestampMixin, AuditActorMixin, Base):
             postgresql_where=text("NOT is_deleted"),
             sqlite_where=text("is_deleted = 0"),
         ),
-        {"schema": "tenant_master"},
+        {"schema": TENANT_SCHEMA},
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -63,5 +65,4 @@ class VisitpadUnitTenantModel(TimestampMixin, AuditActorMixin, Base):
     is_deleted: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
 
 
-# Backward-compatible alias for type hints / imports during refactors
 VisitpadUnitModel = VisitpadUnitPublicModel

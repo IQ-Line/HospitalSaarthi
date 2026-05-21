@@ -8,18 +8,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@pulse/ui/card';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
 import { authClient } from '@/lib/auth-client';
-import { buildDevPermissionMap } from '@/lib/permissions-map';
-import { DEV_TENANT_IQ_CATALOG_UUID } from '@/lib/catalog-tenant';
+import { refreshAuthorizationContext } from '@/lib/authorization-context';
+import { queryClient } from '@/lib/query-client';
+import { applyTenantSessionFromAuth } from '@/lib/tenant-session';
 import { useAuthStore } from '@/stores/auth.store';
-import { usePermissionsStore } from '@/stores/permissions.store';
-import { useTenantStore } from '@/stores/tenant.store';
-
-const DEV_TENANT_ID = 'f47ac10b-58cc-4372-a567-0e02b2c3d480';
 
 const signInSchema = z.object({
-  email: z.string().email('Enter a valid email'),
+  email: z.string().min(1, 'Email is required').email('Enter a valid email'),
   password: z.string().min(1, 'Password is required'),
 });
+
 type SignInValues = z.infer<typeof signInSchema>;
 
 export const Route = createFileRoute('/login')({
@@ -33,17 +31,17 @@ export const Route = createFileRoute('/login')({
 
 async function fetchJwt(): Promise<string> {
   const { data, error } = await authClient.token();
+
   if (error || !data?.token) {
     throw new Error(`JWT fetch failed: ${error?.message ?? 'empty response'}`);
   }
+
   return data.token;
 }
 
 function LoginPage() {
   const navigate = useNavigate();
   const setSession = useAuthStore((s) => s.setSession);
-  const setTenant = useTenantStore((s) => s.setTenant);
-  const setPermissions = usePermissionsStore((s) => s.setPermissions);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -52,74 +50,51 @@ function LoginPage() {
     defaultValues: { email: '', password: '' },
   });
 
+  async function completeSignIn(
+    sessionToken: string,
+    user: { id: string; name: string; iq_tenant_id?: string },
+  ) {
+    const jwt = await fetchJwt();
+    const authUser = user as { iq_tenant_id?: string };
+
+    setSession({ accessToken: jwt, sessionToken, userId: user.id, displayName: user.name });
+
+    await applyTenantSessionFromAuth({
+      accessToken: jwt,
+      authUserIqTenantId: authUser.iq_tenant_id ?? null,
+    });
+
+    await refreshAuthorizationContext(queryClient);
+    navigate({ to: '/dashboard' });
+  }
+
   async function handleSignIn(values: SignInValues) {
     setError(null);
     setLoading(true);
     try {
       const { data, error: authError } = await authClient.signIn.email({
-        email: values.email,
+        email: values.email.trim().toLowerCase(),
         password: values.password,
       });
+
       if (authError) {
         setError(authError.message ?? 'Sign-in failed');
         return;
       }
+
       const sessionToken = data?.token;
       if (!sessionToken || !data?.user) {
         setError('Unexpected response from server');
         return;
       }
-      const jwt = await fetchJwt();
-      setSession({ accessToken: jwt, sessionToken, userId: data.user.id, displayName: data.user.name });
-      setTenant({
-        tenantId: DEV_TENANT_ID,
-        tenantName: 'Dev Hospital',
-        branches: [{ id: 'branch-001', name: 'Main Campus' }],
-        activeBranch: 'branch-001',
-      });
-      navigate({ to: '/dashboard' });
+
+      await completeSignIn(sessionToken, data.user);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign-in failed');
     } finally {
       setLoading(false);
     }
   }
-
-  const handleDevLogin = () => {
-    // Dev-only mock login — bypasses better-auth.
-    // `tenantId` null ⇒ `iq_tenant_id` omitted ⇒ Visitpad reads/writes the **global** catalog.
-    setSession({
-      accessToken: 'dev-token',
-      sessionToken: 'dev-session',
-      userId: 'dev-user-001',
-      displayName: 'Dev User',
-    });
-    setTenant({
-      tenantId: null,
-      tenantName: 'Dev Hospital (platform catalog)',
-      branches: [{ id: 'branch-001', name: 'Main Campus' }],
-      activeBranch: 'branch-001',
-    });
-    setPermissions(buildDevPermissionMap('superadmin'));
-    navigate({ to: '/dashboard' });
-  };
-
-  const handleTenantDevLogin = () => {
-    setSession({
-      accessToken: 'dev-token-tenant',
-      sessionToken: 'dev-session-tenant',
-      userId: 'dev-tenant-admin-001',
-      displayName: 'Tenant Admin',
-    });
-    setTenant({
-      tenantId: DEV_TENANT_IQ_CATALOG_UUID,
-      tenantName: 'Demo Tenant (catalog)',
-      branches: [{ id: 'branch-001', name: 'Main Campus' }],
-      activeBranch: 'branch-001',
-    });
-    setPermissions(buildDevPermissionMap('tenant-catalog-readonly'));
-    navigate({ to: '/dashboard' });
-  };
 
   return (
     <div className="flex h-screen items-center justify-center bg-muted">
@@ -133,19 +108,19 @@ function LoginPage() {
               {error}
             </p>
           )}
+
           <form onSubmit={form.handleSubmit(handleSignIn)} className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
-                autoComplete="email"
+                autoComplete="username"
+                placeholder="you@hospital.org"
                 {...form.register('email')}
               />
               {form.formState.errors.email && (
-                <p className="text-xs text-destructive">
-                  {form.formState.errors.email.message}
-                </p>
+                <p className="text-xs text-destructive">{form.formState.errors.email.message}</p>
               )}
             </div>
             <div className="space-y-1.5">
@@ -166,31 +141,6 @@ function LoginPage() {
               {loading ? 'Signing in...' : 'Sign In'}
             </Button>
           </form>
-
-          <div className="mt-6 space-y-2 border-t pt-4">
-            <p className="text-xs font-medium text-muted-foreground">Dev shortcuts</p>
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              onClick={handleDevLogin}
-            >
-              Dev Login (platform catalog)
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-full"
-              onClick={handleTenantDevLogin}
-            >
-              Tenant dev login (tenant catalog)
-            </Button>
-            <p className="pt-1 text-xs text-muted-foreground">
-              Tenant login uses a static UUID so `iq_tenant_id` is sent — Visitpad lists tenant scope.
-              Mock Visitpad catalog: read + import-from-library; Add / row edits / toggles hidden
-              without write.
-            </p>
-          </div>
         </CardContent>
       </Card>
     </div>

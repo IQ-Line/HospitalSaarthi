@@ -1,4 +1,5 @@
 import { GRPC } from "@cerbos/grpc";
+import { normalizeCerbosGrpcUrl } from "./client.js";
 
 function isCerbosTransportFailure(err: unknown): boolean {
   if (err == null || typeof err !== "object") return false;
@@ -15,7 +16,8 @@ function isCerbosTransportFailure(err: unknown): boolean {
  * Does not interpret policy — any successful RPC response means the PDP is reachable.
  */
 export async function assertCerbosReachable(cerbosUrl: string): Promise<void> {
-  const client = new GRPC(cerbosUrl, {
+  const hostPort = normalizeCerbosGrpcUrl(cerbosUrl);
+  const client = new GRPC(hostPort, {
     tls: false,
   });
   try {
@@ -34,7 +36,7 @@ export async function assertCerbosReachable(cerbosUrl: string): Promise<void> {
   } catch (err) {
     if (isCerbosTransportFailure(err)) {
       const detail = err instanceof Error ? err.message : String(err);
-      throw new Error(`Cerbos PDP unreachable at ${cerbosUrl}: ${detail}`);
+      throw new Error(`Cerbos PDP unreachable at ${hostPort}: ${detail}`);
     }
   } finally {
     client.close();

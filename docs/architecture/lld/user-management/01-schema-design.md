@@ -3,14 +3,15 @@
 **Module:** User Management  
 **Schema name:** `user_management`  
 **Related HLD:** [04-authn-authz-flow.md](../../hld/04-authn-authz-flow.md)  
-**Related ADRs:** [ADR-0003](../../adr/0003-authn-better-auth-identity-adapter.md), [ADR-0004](../../adr/0004-authz-cerbos-sidecar.md), [ADR-0005](../../adr/0005-policy-as-code-permission-data-as-config.md)
+**Related ADRs:** [ADR-0003](../../adr/0003-authn-better-auth-identity-adapter.md), [ADR-0004](../../adr/0004-authz-cerbos-sidecar.md), [ADR-0005](../../adr/0005-policy-as-code-permission-data-as-config.md), [ADR-0031](../../adr/0031-um-role-template-snapshot-semantics.md) (role-template snapshot semantics, PR #56)
 
 ## Canonical model
 User Management uses a single authorization vocabulary:
 
 - **Capability**: atomic machine-readable grant key such as `um:user:create`
-- **Role**: flat, tenant-scoped container of capabilities
-- **Role assignment**: tenant-scoped binding of a role to a user
+- **Role**: flat, tenant-scoped **template** container of capabilities (`role_capabilities`)
+- **Role template application**: `user_roles` association plus **materialized snapshot** rows in `user_capabilities` (see [ADR-0031](../../adr/0031-um-role-template-snapshot-semantics.md))
+- **Role assignment** (target-state): scoped binding in `role_assignments` — not exposed in Phase 1A admin API
 - **Delegation**: direct capability grant outside the base role composition
 - **Clearance**: ABAC attribute evaluated by Cerbos
 - **Principal enrichment**: runtime resolution of capabilities, delegations, clearances, tenant, department, and org context
@@ -26,8 +27,30 @@ Authorization is split across three layers:
 
 The database owns roles, capabilities, assignments, delegations, and clearances. Cerbos owns evaluation logic. JWTs carry lightweight identity context only.
 
-## Current tables
-The canonical schema is:
+## Phase 1A implemented tables (PR #56)
+
+These tables are implemented in `modules/user-management` and drive Phase 1A admin HTTP. Runtime authorization **snapshots** live in `user_capabilities`; `role_capabilities` is template source only.
+
+### `user_roles`
+
+Records which role templates are applied to a user (`POST/DELETE /users/{id}/roles`). Admin/reporting convenience; not the sole runtime grant source.
+
+### `user_capabilities`
+
+**Authoritative runtime snapshot** per user. One row per `(iq_tenant_id, user_id, capability_id)` with soft-revoke lifecycle.
+
+| `grant_source` | Meaning |
+|----------------|---------|
+| `manual` | Direct grant via `PUT /users/{id}/capabilities` |
+| `role_template` | Copied on apply/re-apply; `source_role_id` = role template id |
+| `delegated` | Delegation overlay |
+| `system` | Platform seed / break-glass |
+
+**Write semantics (ADR-0031):** apply copies (optional subset); re-apply synchronizes scoped snapshot; detach soft-revokes matching `role_template` rows; editing `role_capabilities` does **not** auto-update existing users.
+
+## Target-state tables (LLD / future phases)
+
+The following describe the full User Management schema target. Some tables are not yet implemented or not yet exposed on admin HTTP.
 
 ### `users`
 Tenant-scoped platform user profile and lightweight identity linkage.
@@ -81,13 +104,7 @@ Key fields:
 Each row means "this role includes this capability".
 
 ### `role_assignments`
-Bindings of users to roles within a tenant.
-
-Key fields:
-- `iq_tenant_id`
-- `id`
-- `user_id`
-- `role_id`
+Target-state scoped bindings of users to roles (ward/department scope). **Phase 1A uses `user_roles` instead**; there is no `POST /role-assignments` admin route. See [ADR-0031](../../adr/0031-um-role-template-snapshot-semantics.md).
 
 ### `delegated_capability_grants`
 Direct delegated capability grants.
@@ -108,6 +125,9 @@ Key fields:
 - `access_level`
 
 ## Runtime contract
+
+> **ADR-0031:** Persisted grants in `user_capabilities` are the write-path source of truth. Until issue #60, `listEffectiveCapabilityKeys` may also union live `user_roles ⨝ role_capabilities` — document as temporary hybrid, not the long-term model.
+
 JWTs remain lightweight and contain only identity and coarse context:
 
 - `sub`
@@ -126,11 +146,14 @@ JWTs do **not** contain:
 Those are resolved at request time by principal enrichment:
 
 1. verify JWT
-2. resolve assigned role codes
-3. resolve role-derived capabilities from `role_capabilities`
-4. resolve delegated capabilities
-5. resolve clearances and effective clearance tier
-6. build Cerbos principal
+2. resolve assigned role codes (from `user_roles` / projection)
+3. resolve **active** capability keys from `user_capabilities` (`revoked_at IS NULL`)
+4. *(temporary, pre-#60)* union live template capabilities from `user_roles ⨝ role_capabilities`
+5. resolve delegated capabilities
+6. resolve clearances and effective clearance tier
+7. build Cerbos principal
+
+Cerbos receives only UM-resolved attributes. Master Data and Configurator are consulted at **grant write** time (assignable filtering), not during PDP evaluation.
 
 Cerbos consumes:
 
@@ -189,7 +212,7 @@ Each audit record captures who made the change, when, the old and new values (as
 
 | Table | Missing | Justification |
 |-------|---------|---------------|
-| `capabilities` | `created_by`, `updated_by` | Platform-seeded by migrations, not by users |
+| `capabilities` | `created_by`, `updated_by` | Synced from Master Data `module_permissions`, not by users |
 | `role_capabilities` | `updated_at`, `updated_by` | Insert/delete pattern — mappings are not updated, they are removed and re-created |
 | `role_assignments` | standard names | Uses semantic equivalents: `assigned_at`/`assigned_by` = created, `revoked_at`/`revoked_by` = soft-delete lifecycle |
 | `user_department_assignments` | `updated_at`, `updated_by` | Insert/expire pattern — assignments are not edited, they are closed (`effective_to`) and a new one created |

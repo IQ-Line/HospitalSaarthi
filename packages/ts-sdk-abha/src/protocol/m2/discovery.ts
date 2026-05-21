@@ -7,13 +7,13 @@
  *
  * Source spec:
  *   - `docs/external/abdm/v3-m2-health-records-hip-link-discovery-consent-transfer.md`
- *   - `docs/external/abdm-wrapper/docs/wrapperV3.yaml`
- *     (`/api/v3/hip/patient/care-context/discover`,
- *      `/api/v3/hiu/patient/care-context/on-discover`)
+ *     §5.3.2-§5.3.3
  *
- * TODO: dev to populate `DiscoveryRequest` (inbound) and `OnDiscoverPayload`
- * (our reply pushed to gateway). Inbound matches the v3 spec's discovery
- * request; the reply lists `careContexts[]` with reference numbers.
+ * TODO: dev to populate `DiscoveryRequest` (inbound) and `OnDiscoverRequest`
+ * (our reply pushed to `/api/hiecm/user-initiated-linking/v3/patient/care-context/on-discover`).
+ * Inbound matches the v3 spec's discovery request; the reply lists
+ * `patient[].careContexts[]` with reference numbers, or `error` with no
+ * `patient` field on no-match.
  */
 
 export {};

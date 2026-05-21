@@ -104,9 +104,9 @@ export class InMemoryUserRepository implements UserRepository {
     return row ? this.toUser(row) : null;
   }
 
-  async findUserByGlobalId(userId: string): Promise<UserWithTenant | null> {
+  async findUserByGlobalId(identityUserId: string): Promise<UserWithTenant | null> {
     for (const [key, row] of this.users) {
-      if (row.id === userId) {
+      if (row.id === identityUserId || row.auth_user_id === identityUserId) {
         return { ...this.toUser(row), iq_tenant_id: tenantFromRowKey(key) };
       }
     }

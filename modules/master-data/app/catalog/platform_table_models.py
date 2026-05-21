@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 from app.core.catalog_scope import CatalogScope
+from app.models.department import DepartmentPublicModel, DepartmentTenantModel
 from app.models.module import ModulePublicModel, ModuleTenantModel
 from app.models.module_permission import ModulePermissionPublicModel, ModulePermissionTenantModel
 from app.models.permission import PermissionPublicModel, PermissionTenantModel
 from app.models.system_role import SystemRolePublicModel, SystemRoleTenantModel
+
+
+def department_model(scope: CatalogScope):
+    return DepartmentTenantModel if scope.is_tenant else DepartmentPublicModel
 
 
 def module_model(scope: CatalogScope):

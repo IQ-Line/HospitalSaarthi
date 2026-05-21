@@ -8,7 +8,11 @@
   },
   "scripts": {
     "dev": "nx run-many -t serve --parallel=10",
-    "dev:web-stack": "nx run-many -t serve -p web,bff,master-data --parallel=5",
+    "dev:web-stack": "nx run-many -t serve -p web,bff,user-management-svc,configurator-svc,master-data --parallel=6",
+    "dev:db-modules": "nx run configurator:db-migrate && nx run user-management:db-migrate",
+    "seed": "tsx tools/seed-user-management-dev.mts",
+    "seed:user-management-dev": "tsx tools/seed-user-management-dev.mts",
+    "sync:capabilities": "tsx tools/sync-capabilities-from-master-data.mts",
     "lint": "nx affected -t lint",
     "test": "nx affected -t test",
     "build": "nx run-many -t build",
@@ -29,6 +33,7 @@
     "nx": "^22.7.1",
     "openapi-typescript": "7.10.1",
     "prettier": "^3.8.3",
+    "tsup": "^8.5.1",
     "tsx": "^4.21.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.59.2"

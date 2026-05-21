@@ -1,0 +1,63 @@
+---
+# User Management applied role template mutations (tenant + capability ABAC).
+#
+# PEP uses this policy for POST /users/{id}/roles, DELETE /users/{id}/roles/{roleId},
+# and PUT /users/{id}/capabilities (manual grant replacement).
+# user-roles:role:assign may be granted via delegated_capabilities with the same effect as capabilities.
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "user_role_template"
+  version: default
+  rules:
+    - actions:
+        - "role.assign"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "user-roles:role:assign" in request.principal.attr.capabilities ||
+              "user-roles:role:assign" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "role.assign"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "user-roles:role:assign" in request.principal.attr.capabilities ||
+              "user-roles:role:assign" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "role.assign"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id != request.resource.attr.iq_tenant_id &&
+            has(request.principal.attr.role_codes) &&
+            "super-admin" in request.principal.attr.role_codes &&
+            (
+              "user-roles:role:assign" in request.principal.attr.capabilities ||
+              "user-roles:role:assign" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "role.revoke"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "user-roles:role:assign" in request.principal.attr.capabilities ||
+              "user-roles:role:assign" in request.principal.attr.delegated_capabilities
+            )

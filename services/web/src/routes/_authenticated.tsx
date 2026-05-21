@@ -5,11 +5,13 @@ import {
   redirect,
   useNavigate,
 } from '@tanstack/react-router';
-import { hydratePermissionsFromBackend } from '@/lib/permissions';
+import { refreshAuthorizationContext } from '@/lib/authorization-context';
+import { queryClient } from '@/lib/query-client';
 import { LogOut, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { Badge } from '@pulse/ui/badge';
 import { Button } from '@pulse/ui/button';
 import { AppSidebar } from '@/components/layout/app-sidebar';
+import { TenantSwitcher } from '@/features/auth/components/tenant-switcher';
 import { catalogIqTenantHeaderValue } from '@/lib/catalog-tenant';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePermissionsStore } from '@/stores/permissions.store';
@@ -22,17 +24,9 @@ export const Route = createFileRoute('/_authenticated')({
     if (!isAuthenticated) {
       throw redirect({ to: '/login' });
     }
-    const permissionsState = usePermissionsStore.getState();
-    const needsHydration =
-      !permissionsState.isLoaded || Object.keys(permissionsState.map).length === 0;
-    if (needsHydration) {
-      try {
-        await hydratePermissionsFromBackend();
-      } catch {
-        // UX-only: allow shell when PDP/API is down in dev; all APIs still enforce Cerbos.
-        usePermissionsStore.getState().setPermissions({});
-      }
-    }
+    await refreshAuthorizationContext(queryClient).catch(() => {
+      usePermissionsStore.getState().clearPermissions();
+    });
   },
   component: AuthenticatedLayout,
 });
@@ -45,21 +39,19 @@ function AuthenticatedLayout() {
   const tenantName = useTenantStore((s) => s.tenantName);
   const activeBranch = useTenantStore((s) => s.activeBranch);
   const isLoaded = usePermissionsStore((s) => s.isLoaded);
-  const permissionMap = usePermissionsStore((s) => s.map);
-  const hasModuleAccess = usePermissionsStore((s) => s.hasModuleAccess);
-  const hasEmptyFallback = isLoaded && Object.keys(permissionMap).length === 0;
+  const capabilityCount = usePermissionsStore((s) => s.capabilityKeys.size);
+  const hasEmptyFallback = isLoaded && capabilityCount === 0;
 
   useEffect(() => {
-    if (isLoaded && !hasEmptyFallback) return;
     let cancelled = false;
     let retryTimer: ReturnType<typeof setInterval> | undefined;
 
     const hydrate = async () => {
       try {
-        await hydratePermissionsFromBackend();
+        await refreshAuthorizationContext(queryClient);
       } catch {
         if (!cancelled) {
-          usePermissionsStore.getState().setPermissions({});
+          usePermissionsStore.getState().clearPermissions();
         }
       }
     };
@@ -78,7 +70,8 @@ function AuthenticatedLayout() {
         clearInterval(retryTimer);
       }
     };
-  }, [isLoaded, hasEmptyFallback, tenantId, activeBranch]);
+  }, [userId, tenantId, activeBranch, hasEmptyFallback]);
+
   const sidebarCollapsed = useUIPrefsStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUIPrefsStore((s) => s.toggleSidebar);
 
@@ -87,42 +80,28 @@ function AuthenticatedLayout() {
     catalogTenant != null
       ? `Tenant catalog · ${catalogTenant.slice(0, 8)}…`
       : 'Platform catalog';
-  const loginVariantLabel =
-    userId === 'dev-tenant-admin-001'
-      ? 'Tenant dev login'
-      : userId === 'dev-user-001'
-        ? 'Dev login'
-        : userId ?? '—';
+  const loginVariantLabel = userId ? `User ${userId.slice(0, 8)}…` : '—';
 
   const handleLogout = () => {
     useAuthStore.getState().clearSession();
     useTenantStore.getState().clearTenant();
     usePermissionsStore.getState().clearPermissions();
-    void navigate({ to: '/login' });
+    void refreshAuthorizationContext(queryClient).finally(() => {
+      void navigate({ to: '/login' });
+    });
   };
 
   if (!isLoaded) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <p className="text-muted-foreground">Loading permissions...</p>
+        <p className="text-muted-foreground">Loading capabilities...</p>
       </div>
     );
   }
 
   return (
     <div className="flex h-screen bg-background">
-      <AppSidebar
-        displayName={displayName}
-        tenantName={tenantName}
-        hasMasterDataAccess={hasModuleAccess('master-data')}
-        hasUserManagementAccess={hasModuleAccess('user-management')}
-        hasFrontdeskAccess={
-          hasModuleAccess('frontdesk') || hasModuleAccess('master-data')
-        }
-        hasVisitpadAccess={
-          hasModuleAccess('master-data') || hasModuleAccess('visitpad-templates')
-        }
-      />
+      <AppSidebar displayName={displayName} tenantName={tenantName} />
 
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
         <div className="h-10 border-b bg-background px-3 flex items-center justify-between gap-3 min-w-0">
@@ -154,6 +133,7 @@ function AuthenticatedLayout() {
               ) : null}
             </div>
           </div>
+          <TenantSwitcher />
           <Button type="button" variant="outline" size="sm" className="shrink-0 gap-1.5" onClick={handleLogout}>
             <LogOut className="size-3.5" aria-hidden />
             Log out

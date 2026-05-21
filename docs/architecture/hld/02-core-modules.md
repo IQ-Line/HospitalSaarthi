@@ -178,6 +178,8 @@ EMPI is the source of truth for:
 
 EMPI has no dependency on any feature module.
 
+**Encounter intake (registration desk row)** is owned by the separate **Registration** service (`registration-svc`), which stores `patient_id` as a logical reference to EMPI and optionally orchestrates `POST /patients` for new-patient intake. See [HLD 07 — Registration](./07-registration.md).
+
 ### 2.6 Failure-mode behavior
 
 The EMPI is on the critical path for any patient-facing operation. If it is completely unavailable:

@@ -8,28 +8,30 @@ description: >-
 principals:
   dept_cardiology:
     id: doc-cardio
-    roles: []
+    roles:
+      - "_unresolved"
     attr:
       iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
       org_id: null
       department: "cardiology"
       capabilities:
-        - "um:user:read"
-        - "um:user:update"
+        - "users:users:read"
+        - "users:users:update"
       delegated_capabilities: []
       clearances: {}
       um_clearance_effective_tier: 0
 
   dept_oncology:
     id: doc-oncology
-    roles: []
+    roles:
+      - "_unresolved"
     attr:
       iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
       org_id: null
       department: "oncology"
       capabilities:
-        - "um:user:read"
-        - "um:user:update"
+        - "users:users:read"
+        - "users:users:update"
       delegated_capabilities: []
       clearances: {}
       um_clearance_effective_tier: 0

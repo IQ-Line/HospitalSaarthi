@@ -11,7 +11,7 @@ from app.models import Base
 
 @pytest.fixture(autouse=True)
 def _api_prefix_for_tests() -> Iterator[None]:
-    """Force a stable API prefix for tests (overrides local `.env`)."""
+    """Force a stable API prefix for tests (overrides workspace or package `.env`)."""
     os.environ["MASTER_DATA_API_PREFIX"] = "/api/v1/master-data"
     os.environ["MASTER_DATA_AUTH_BYPASS"] = "false"
     os.environ.pop("MASTER_DATA_DEV_BEARER_TOKEN", None)
@@ -34,8 +34,10 @@ def sqlite_session() -> Iterator[Session]:
     def _sqlite_attach(dbapi_connection, _connection_record) -> None:
         dbapi_connection.execute("PRAGMA foreign_keys=ON")
         dbapi_connection.execute("ATTACH DATABASE ':memory:' AS tenant_master")
+        dbapi_connection.execute("ATTACH DATABASE ':memory:' AS global_master")
 
-    Base.metadata.create_all(engine)
+    with engine.begin() as conn:
+        Base.metadata.create_all(bind=conn)
 
     session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     session = session_factory()

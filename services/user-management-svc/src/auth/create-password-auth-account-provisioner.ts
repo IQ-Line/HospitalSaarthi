@@ -4,7 +4,11 @@ import type {
   CreatePasswordAuthAccountInput,
   CreatePasswordAuthAccountResult,
 } from "@hims/user-management";
-import { AuthEmailConflictError } from "@hims/user-management";
+import {
+  AuthAccountIdentityMismatchError,
+  AuthAccountProvisioningError,
+  AuthEmailConflictError,
+} from "@hims/user-management";
 import type { DbInstance } from "@hims/ts-sdk-db";
 import { authUser } from "./auth-schema.js";
 import type { HimsBetterAuthInstance } from "./create-hims-better-auth.js";
@@ -88,13 +92,13 @@ export function createPasswordAuthAccountProvisioner(
         throw error;
       }
 
-      const created = await readAuthUserById(db, input.platformUserId);
+      const byPlatformId = await readAuthUserById(db, input.platformUserId);
+      const created = byPlatformId ?? (await readAuthUserByEmail(db, input.email));
       if (created === null) {
-        const collision = await readAuthUserByEmail(db, input.email);
-        if (collision !== null) {
-          throw new AuthEmailConflictError(input.email);
-        }
-        throw new Error("AUTH_ACCOUNT_PROVISIONING_FAILED");
+        throw new AuthAccountProvisioningError();
+      }
+      if (created.id !== input.platformUserId) {
+        throw new AuthAccountIdentityMismatchError();
       }
 
       return { authUserId: created.id };

@@ -13,6 +13,8 @@ from app.schemas.module import (
     ModuleCategory,
     ModuleCreate,
     ModuleListResponse,
+    ModuleNavListResponse,
+    ModuleNavResponse,
     ModuleResponse,
     ModuleSingleResponse,
     ModuleUpdate,
@@ -22,6 +24,7 @@ from app.services.module_service import (
     get_module_by_id,
     get_module_by_slug,
     list_modules,
+    list_modules_for_nav,
     list_submodules,
     soft_delete_module,
     update_module,
@@ -38,6 +41,23 @@ def get_modules(
     modules = list_modules(repository, category=category)
     data = [ModuleResponse.model_validate(module) for module in modules]
     return ModuleListResponse(data=data, total=len(data))
+
+
+@router.get(
+    "/nav",
+    response_model=ModuleNavListResponse,
+    summary="List modules for shell navigation",
+    description=(
+        "Returns every **active** catalog module (`is_active = true`, `is_deleted = false`) "
+        "with navigation fields only. **No pagination** — full list in one response."
+    ),
+)
+def get_modules_for_nav(
+    repository: Annotated[ModuleRepository, Depends(get_module_repository)],
+) -> ModuleNavListResponse:
+    modules = list_modules_for_nav(repository)
+    data = [ModuleNavResponse.model_validate(module) for module in modules]
+    return ModuleNavListResponse(data=data)
 
 
 @router.post(

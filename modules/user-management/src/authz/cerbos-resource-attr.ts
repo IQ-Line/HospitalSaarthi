@@ -15,12 +15,12 @@ export type CerbosUserMgmtResourceAttrInput = {
    * Always set (use 0 when not applicable).
    */
   required_clearance: number;
-  /** Present on concrete `user` rows; omit on synthetic / `role_assignment` targets. */
+  /** Present on concrete `user` rows; omit on synthetic / `user_role_template` targets. */
   org_id?: string | null;
 };
 
 /**
- * Builds the attribute map sent to Cerbos `resource.attr` for `user` and `role_assignment` kinds.
+ * Builds the attribute map sent to Cerbos `resource.attr` for `user` and `user_role_template` kinds.
  */
 export function buildCerbosUserMgmtResourceAttr(
   input: CerbosUserMgmtResourceAttrInput,

@@ -13,10 +13,13 @@ import {
 } from "@hims/empi";
 import { createTenantNumericCodeLookup } from "./tenant-numeric-code.js";
 
-const PORT = Number(process.env["EMPI_SVC_PORT"] ?? 3002);
+const PORT = Number(
+  process.env["EMPI_PORT"] ?? process.env["EMPI_SVC_PORT"] ?? 3002,
+);
 const DATABASE_URL = process.env["DATABASE_URL"] ?? "";
 const JWKS_URL =
-  process.env["JWKS_URL"] ?? "http://localhost:3000/.well-known/jwks.json";
+  process.env["JWKS_URL"] ??
+  "http://localhost:3000/api/auth/.well-known/jwks.json";
 const ENABLE_AUTH = process.env["ENABLE_AUTH"] === "true";
 
 const fastifyAjv = {

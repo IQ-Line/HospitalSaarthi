@@ -25,6 +25,21 @@ function tenantPluginImpl(
   // enterWith() transitions the current async context into the store,
   // so all downstream hooks and the route handler inherit it automatically.
   app.addHook("onRequest", async (request, reply) => {
+    const path = request.url.split("?")[0] ?? "";
+    if (path === "/healthz" || path.endsWith("/healthz")) {
+      return;
+    }
+
+    // Platform discovery: organization/tenant registry reads (Configurator admin catalog).
+    if (
+      /\/configurator\/v1\/organizations\/?$/.test(path) ||
+      /\/configurator\/v1\/organizations\/[^/]+\/?$/.test(path) ||
+      /\/configurator\/v1\/tenants\/?$/.test(path) ||
+      /\/configurator\/v1\/tenants\/[^/]+\/?$/.test(path)
+    ) {
+      return;
+    }
+
     const user = (request as unknown as Record<string, unknown>).user as
       | Record<string, unknown>
       | undefined;

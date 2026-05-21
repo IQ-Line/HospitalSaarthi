@@ -1,4 +1,4 @@
-"""Database access for ``modules`` — ``public`` (global) vs ``tenant_master``."""
+"""Database access for ``modules`` — ``global_master`` (global) vs ``tenant_master``."""
 
 from __future__ import annotations
 
@@ -57,6 +57,21 @@ class ModuleRepository:
             filters.append(M.category == category.value)
 
         statement: Select[tuple[Any]] = select(M).where(*filters).order_by(M.name)
+        return list(self._session.scalars(statement).all())
+
+    def list_modules_for_nav(self) -> list[Any]:
+        """Active, non-deleted rows for shell navigation (full list; no pagination)."""
+        M = self._M()
+        filters = [
+            M.is_deleted.is_(False),
+            M.is_active.is_(True),
+        ]
+        if self._scope.is_tenant:
+            filters.append(M.iq_tenant_id == self._scope.iq_tenant_id)
+
+        statement: Select[tuple[Any]] = (
+            select(M).where(*filters).order_by(M.level, M.name)
+        )
         return list(self._session.scalars(statement).all())
 
     def list_modules_by_parent_id(self, parent_id: UUID) -> list[Any]:

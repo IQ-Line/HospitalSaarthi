@@ -2,14 +2,6 @@
   "name": "empi",
   "tags": ["type:module", "scope:empi", "language:typescript"],
   "targets": {
-    "build": {
-      "executor": "@nx/js:tsc",
-      "options": {
-        "outputPath": "dist/modules/empi",
-        "main": "modules/empi/src/index.ts",
-        "tsConfig": "modules/empi/tsconfig.json"
-      }
-    },
     "test": {
       "executor": "nx:run-commands",
       "options": {
@@ -27,6 +19,18 @@
       "executor": "nx:run-commands",
       "options": {
         "command": "pnpm exec drizzle-kit generate",
+        "cwd": "modules/empi"
+      }
+    },
+    "db:migrate": {
+      "command": "tsx scripts/apply-migration.ts",
+      "options": {
+        "cwd": "modules/empi"
+      }
+    },
+    "db-migrate": {
+      "command": "tsx scripts/apply-migration.ts",
+      "options": {
         "cwd": "modules/empi"
       }
     }

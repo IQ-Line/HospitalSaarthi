@@ -2,14 +2,6 @@
   "name": "billing",
   "tags": ["type:module", "scope:billing", "language:typescript"],
   "targets": {
-    "build": {
-      "executor": "@nx/js:tsc",
-      "options": {
-        "outputPath": "dist/modules/billing",
-        "main": "modules/billing/src/index.ts",
-        "tsConfig": "modules/billing/tsconfig.json"
-      }
-    },
     "test": {
       "executor": "nx:run-commands",
       "options": {
@@ -21,6 +13,20 @@
       "executor": "@nx/eslint:lint",
       "options": {
         "lintFilePatterns": ["modules/billing/src/**/*.ts"]
+      }
+    },
+    "db:migrate": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsx scripts/apply-migration.ts",
+        "cwd": "modules/billing"
+      }
+    },
+    "db-migrate": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsx scripts/apply-migration.ts",
+        "cwd": "modules/billing"
       }
     }
   }

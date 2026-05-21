@@ -1,144 +1,353 @@
-import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import type { ChangeEvent } from 'react';
-import { useMemo } from 'react';
-import { type ColumnDef } from '@tanstack/react-table';
-import { Badge } from '@pulse/ui/badge';
+import { useMemo, useState } from 'react';
+import { useSuspenseQuery } from '@tanstack/react-query';
+import { Alert, AlertDescription, AlertTitle } from '@pulse/ui/alert';
 import { Button } from '@pulse/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@pulse/ui/dialog';
 import { Input } from '@pulse/ui/input';
-import { DataTable } from '@/components/data-table';
-import { PageHeader } from '@/components/page-header';
+import { CapabilityGate } from '@/components/capability-gate';
+import { useCapability } from '@/hooks/use-capability';
+import { isPlatformSuperAdminFromAccessToken } from '@/lib/platform-admin';
+import {
+  UM_CAPABILITY_READ,
+  UM_ROLE_READ,
+  UM_ROLES_ADMIN_ANY,
+  UM_USER_CREATE,
+  UM_USER_READ,
+  UM_USERS_SECTION_ANY,
+} from '@/lib/runtime-capability-keys';
+import {
+  flattenPlatformDirectoryUsers,
+  platformDirectoryQueryOptions,
+  platformDirectoryTenantErrors,
+} from '@/features/user-management/api/platform-directory';
 import {
   capabilityListOptions,
   roleListOptions,
   userListOptions,
   useUserListSuspense,
 } from '@/features/user-management/api/queries';
-import { RoleManagementPanel } from '@/features/user-management/components/role-management-panel';
-import type { UmUser } from '@/features/user-management/types';
+import { CreateUserForm } from '@/features/user-management/components/create-user-form';
+import { UserListTable } from '@/features/user-management/components/user-list-table';
+import { UserManagementPageShell } from '@/features/user-management/components/user-management-page-shell';
+import { useAuthStore } from '@/stores/auth.store';
 import { usePermissionsStore } from '@/stores/permissions.store';
-
-const UM = 'user-management';
+import { useTenantStore } from '@/stores/tenant.store';
 
 export const Route = createFileRoute('/_authenticated/user-management/')({
   validateSearch: (search: Record<string, unknown>) => ({
     q: typeof search.q === 'string' ? search.q : '',
+    createUser: search.createUser === true || search.createUser === 'true',
   }),
   beforeLoad: () => {
-    if (!usePermissionsStore.getState().hasFeaturePermission(UM, 'users', 'read')) {
+    const p = usePermissionsStore.getState();
+    if (!p.hasAnyCapability(UM_USERS_SECTION_ANY)) {
+      if (p.hasAnyCapability(UM_ROLES_ADMIN_ANY)) {
+        throw redirect({ to: '/user-management/roles' });
+      }
       throw redirect({ to: '/dashboard' });
     }
   },
   loader: async ({ context }) => {
-    const permissions = usePermissionsStore.getState();
-    const loads: Array<Promise<unknown>> = [context.queryClient.ensureQueryData(userListOptions())];
-    if (permissions.hasFeaturePermission(UM, 'roles', 'read')) {
-      loads.push(context.queryClient.ensureQueryData(roleListOptions()));
+    const p = usePermissionsStore.getState();
+    const tenantScope = useTenantStore.getState().tenantId;
+    const isSuperAdmin = isPlatformSuperAdminFromAccessToken(
+      useAuthStore.getState().accessToken,
+    );
+    const loads: Array<Promise<unknown>> = [];
+    if (p.hasCapability(UM_USER_READ)) {
+      if (isSuperAdmin) {
+        loads.push(context.queryClient.ensureQueryData(platformDirectoryQueryOptions()));
+      } else {
+        loads.push(context.queryClient.ensureQueryData(userListOptions(tenantScope)));
+      }
     }
-    if (permissions.hasFeaturePermission(UM, 'capabilities', 'read')) {
+    if (p.hasCapability(UM_ROLE_READ)) {
+      loads.push(context.queryClient.ensureQueryData(roleListOptions(tenantScope)));
+    }
+    if (p.hasCapability(UM_CAPABILITY_READ)) {
       loads.push(context.queryClient.ensureQueryData(capabilityListOptions()));
     }
     await Promise.all(loads);
   },
-  component: UserManagementListPage,
+  component: UserManagementIndexPage,
 });
 
-function UserManagementListPage() {
-  const { q } = Route.useSearch();
-  const navigate = useNavigate();
-  const { data: users } = useUserListSuspense();
-  const canCreate = usePermissionsStore((s) => s.hasFeaturePermission(UM, 'users', 'write'));
-  const canReadRoles = usePermissionsStore((s) => s.hasFeaturePermission(UM, 'roles', 'read'));
-  const canReadCapabilities = usePermissionsStore((s) =>
-    s.hasFeaturePermission(UM, 'capabilities', 'read'),
-  );
-  const canWriteRoles = usePermissionsStore((s) => s.hasFeaturePermission(UM, 'roles', 'write'));
+function UserManagementIndexPage() {
+  const umUserRead = useCapability(UM_USER_READ);
+  if (!umUserRead) {
+    return <CreateUserOnlyPage />;
+  }
+  return <UserManagementListPage />;
+}
 
-  const filtered = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    if (!needle) return users;
-    return users.filter(
-      (u) =>
-        u.full_name.toLowerCase().includes(needle) ||
-        (u.email?.toLowerCase().includes(needle) ?? false) ||
-        (u.username?.toLowerCase().includes(needle) ?? false),
-    );
-  }, [users, q]);
-
-  const columns: ColumnDef<UmUser, unknown>[] = useMemo(
-    () => [
-      {
-        accessorKey: 'full_name',
-        header: 'Name',
-        cell: ({ row }) => (
-          <Link
-            to="/user-management/$userId"
-            params={{ userId: row.original.id }}
-            className="font-medium text-primary hover:underline"
-          >
-            {row.original.full_name}
-          </Link>
-        ),
-      },
-      { accessorKey: 'email', header: 'Email', cell: ({ getValue }) => getValue<string | null>() ?? '—' },
-      { accessorKey: 'username', header: 'Username', cell: ({ getValue }) => getValue<string | null>() ?? '—' },
-      {
-        accessorKey: 'status',
-        header: 'Status',
-        cell: ({ getValue }) => (
-          <Badge variant={getValue<string>() === 'active' ? 'default' : 'secondary'}>{getValue<string>()}</Badge>
-        ),
-      },
-      { accessorKey: 'department', header: 'Department', cell: ({ getValue }) => getValue<string | null>() ?? '—' },
-    ],
-    [],
+function CreateUserOnlyPage() {
+  const [createOpen, setCreateOpen] = useState(true);
+  const canSelectTargetTenant = isPlatformSuperAdminFromAccessToken(
+    useAuthStore.getState().accessToken,
   );
 
   return (
-    <div className="p-6 space-y-6">
-      <PageHeader
-        title="Users"
-        description="Tenant-scoped platform users (Cerbos-filtered list)."
+    <>
+      <UserManagementPageShell
+        section="users"
+        title="Add a user"
+        description="Create a new account for someone in your organization."
         actions={
-          canCreate ? (
-            <Button asChild>
-              <Link to="/user-management/create">Create user</Link>
+          <CapabilityGate capability={UM_USER_CREATE}>
+            <Button type="button" onClick={() => setCreateOpen(true)}>
+              Add user
             </Button>
-          ) : null
+          </CapabilityGate>
         }
+      >
+        <p className="text-sm text-muted-foreground">
+          You can add users but not browse the full list.
+        </p>
+      </UserManagementPageShell>
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="flex max-h-[min(88dvh,960px)] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-6xl">
+          <div className="shrink-0 border-b p-4 pb-3">
+            <DialogHeader>
+              <DialogTitle>Add user</DialogTitle>
+              <DialogDescription>
+                Enter their details and choose a role. You can pick which permissions they get.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <div className="flex min-h-0 flex-1 overflow-hidden p-4">
+            <CreateUserForm
+              canSelectTargetTenant={canSelectTargetTenant}
+              layout="dialog"
+              onCancel={() => setCreateOpen(false)}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function UserManagementListPage() {
+  const isPlatformSuperAdmin = isPlatformSuperAdminFromAccessToken(
+    useAuthStore((s) => s.accessToken),
+  );
+  if (isPlatformSuperAdmin) {
+    return <PlatformSuperAdminUserListPage />;
+  }
+  return <TenantScopedUserListPage />;
+}
+
+function filterUserRows<
+  T extends { full_name: string; email?: string | null; username?: string | null },
+>(rows: T[], q: string, extraFields?: (row: T) => (string | null | undefined)[]): T[] {
+  const needle = q.trim().toLowerCase();
+  if (!needle) return rows;
+  return rows.filter((row) => {
+    const values = [row.full_name, row.email, row.username, ...(extraFields?.(row) ?? [])];
+    return values.some((v) => (v ?? '').toLowerCase().includes(needle));
+  });
+}
+
+function TenantScopedUserListPage() {
+  const { q, createUser } = Route.useSearch();
+  const navigate = useNavigate();
+  const { data: users } = useUserListSuspense();
+  const umUserRead = useCapability(UM_USER_READ);
+  const filtered = useMemo(() => filterUserRows(users, q), [users, q]);
+
+  const setCreateUserOpen = (open: boolean) => {
+    void navigate({ to: '/user-management', search: { q, createUser: open }, replace: true });
+  };
+
+  return (
+    <>
+      <UserManagementPageShell
+        section="users"
+        title="People"
+        description="Find someone, open their profile, or add a new user."
+        actions={
+          <CapabilityGate capability={UM_USER_CREATE}>
+            <Button type="button" onClick={() => setCreateUserOpen(true)}>
+              Add user
+            </Button>
+          </CapabilityGate>
+        }
+      >
+        <UserListPageBody
+          crossTenant={false}
+          q={q}
+          filtered={filtered}
+          onSearchChange={(value) =>
+            void navigate({ to: '/user-management', search: { q: value, createUser } })
+          }
+        />
+      </UserManagementPageShell>
+      <CreateUserDialog
+        open={createUser}
+        onOpenChange={setCreateUserOpen}
+        canSelectTargetTenant={false}
+        navigateToProfileOnSuccess={umUserRead}
       />
+    </>
+  );
+}
 
-      <div className="flex max-w-md gap-2 items-center">
+function PlatformSuperAdminUserListPage() {
+  const { q, createUser } = Route.useSearch();
+  const navigate = useNavigate();
+  const { data: directorySnapshot } = useSuspenseQuery(platformDirectoryQueryOptions());
+  const umUserRead = useCapability(UM_USER_READ);
+  const users = flattenPlatformDirectoryUsers(directorySnapshot);
+  const tenantErrors = platformDirectoryTenantErrors(directorySnapshot);
+  const filtered = useMemo(
+    () =>
+      filterUserRows(users, q, (row) => [
+        row.tenant_name,
+        row.tenant_slug,
+        row.organization_name,
+      ]),
+    [users, q],
+  );
+
+  const setCreateUserOpen = (open: boolean) => {
+    void navigate({ to: '/user-management', search: { q, createUser: open }, replace: true });
+  };
+
+  return (
+    <>
+      <UserManagementPageShell
+        section="users"
+        title="People"
+        description="All users across hospital tenants. Open a profile or add someone to a tenant."
+        actions={
+          <CapabilityGate capability={UM_USER_CREATE}>
+            <Button type="button" onClick={() => setCreateUserOpen(true)}>
+              Add user
+            </Button>
+          </CapabilityGate>
+        }
+      >
+        <UserListPageBody
+          crossTenant
+          q={q}
+          filtered={filtered}
+          tenantCount={directorySnapshot.tenants.length}
+          totalUsers={users.length}
+          tenantErrors={tenantErrors}
+          onSearchChange={(value) =>
+            void navigate({ to: '/user-management', search: { q: value, createUser } })
+          }
+        />
+      </UserManagementPageShell>
+      <CreateUserDialog
+        open={createUser}
+        onOpenChange={setCreateUserOpen}
+        canSelectTargetTenant
+        navigateToProfileOnSuccess={umUserRead}
+      />
+    </>
+  );
+}
+
+function UserListPageBody({
+  crossTenant,
+  q,
+  filtered,
+  tenantCount,
+  totalUsers,
+  tenantErrors = [],
+  onSearchChange,
+}: {
+  crossTenant: boolean;
+  q: string;
+  filtered: Parameters<typeof UserListTable>[0]['data'];
+  tenantCount?: number;
+  totalUsers?: number;
+  tenantErrors?: string[];
+  onSearchChange: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="flex max-w-md items-center gap-2">
         <Input
-          placeholder="Search name, email, username…"
+          placeholder={
+            crossTenant
+              ? 'Search name, email, hospital, organization...'
+              : 'Search by name or email...'
+          }
           value={q}
-          onChange={(e: ChangeEvent<HTMLInputElement>) =>
-            void navigate({
-              to: '/user-management',
-              search: { q: e.target.value },
-            })
-          }
+          onChange={(e: ChangeEvent<HTMLInputElement>) => onSearchChange(e.target.value)}
         />
       </div>
-
-      <div className="rounded-lg border">
-        <DataTable
-          columns={columns}
-          data={filtered}
-          emptyTitle="No users"
-          emptyDescription={
-            q.trim()
-              ? 'No users match your search.'
-              : 'No users returned for this tenant, or you lack list visibility under ABAC.'
-          }
-        />
-      </div>
-
-      {canReadRoles ? (
-        <RoleManagementPanel
-          canWriteRoles={canWriteRoles}
-          canReadCapabilities={canReadCapabilities}
-        />
+      {crossTenant && tenantCount != null && totalUsers != null ? (
+        <p className="text-sm text-muted-foreground">
+          {tenantCount} hospital tenant{tenantCount === 1 ? '' : 's'} · {totalUsers} users
+        </p>
       ) : null}
+      {tenantErrors.length > 0 ? (
+        <Alert variant="destructive">
+          <AlertTitle>Some tenants could not be loaded</AlertTitle>
+          <AlertDescription>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+              {tenantErrors.map((msg) => (
+                <li key={msg}>{msg}</li>
+              ))}
+            </ul>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      <UserListTable
+        crossTenant={crossTenant}
+        data={filtered}
+        emptyTitle="No users"
+        emptyDescription={q.trim() ? 'No one matches your search.' : 'No users to show yet.'}
+      />
     </div>
+  );
+}
+
+function CreateUserDialog({
+  open,
+  onOpenChange,
+  canSelectTargetTenant,
+  navigateToProfileOnSuccess,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  canSelectTargetTenant: boolean;
+  navigateToProfileOnSuccess: boolean;
+}) {
+  return (
+    <CapabilityGate capability={UM_USER_CREATE}>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="flex max-h-[min(88dvh,960px)] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-6xl">
+          <div className="shrink-0 border-b p-4 pb-3">
+            <DialogHeader>
+              <DialogTitle>Add user</DialogTitle>
+              <DialogDescription>
+                Enter their details and choose a role. You can pick which permissions they get.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <div className="flex min-h-0 flex-1 overflow-hidden p-4">
+            <CreateUserForm
+              canSelectTargetTenant={canSelectTargetTenant}
+              layout="dialog"
+              navigateToProfileOnSuccess={navigateToProfileOnSuccess}
+              onCancel={() => onOpenChange(false)}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+    </CapabilityGate>
   );
 }

@@ -1,0 +1,62 @@
+# yaml-language-server: $schema=https://api.cerbos.dev/latest/cerbos/policy/v1/TestSuite.schema.json
+---
+name: auth_permissions_test
+description: >-
+  User Management — `/auth/*` endpoints are guarded by resource kind `auth`
+  and action `auth.read`. Access depends only on tenant alignment.
+
+principals:
+  role_admin_only:
+    id: um-role-admin
+    roles:
+      - "_unresolved"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: null
+      capabilities:
+        - "user-roles:user-roles:create"
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+resources:
+  auth_self_ok:
+    id: self
+    kind: auth
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      department: null
+      required_clearance: 0
+
+  auth_self_wrong_tenant:
+    id: self
+    kind: auth
+    attr:
+      iq_tenant_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+      department: null
+      required_clearance: 0
+
+tests:
+  - name: auth.read — allowed when tenant matches (even without users:users:read)
+    input:
+      principals: [role_admin_only]
+      resources: [auth_self_ok]
+      actions: [auth.read]
+    expected:
+      - principal: role_admin_only
+        resource: auth_self_ok
+        actions:
+          auth.read: EFFECT_ALLOW
+
+  - name: auth.read — denied when tenant mismatches
+    input:
+      principals: [role_admin_only]
+      resources: [auth_self_wrong_tenant]
+      actions: [auth.read]
+    expected:
+      - principal: role_admin_only
+        resource: auth_self_wrong_tenant
+        actions:
+          auth.read: EFFECT_DENY
+

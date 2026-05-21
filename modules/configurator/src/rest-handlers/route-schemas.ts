@@ -25,6 +25,11 @@ export const dataIsolationLevelSchema = {
   enum: ["shared", "isolated"],
 } as const;
 
+export const branchTypeSchema = {
+  type: "string",
+  enum: ["hub_lab", "hub", "satellite"],
+} as const;
+
 /** UUID string (avoids requiring ajv-formats for `format: uuid`). */
 const uuidString = {
   type: "string",
@@ -42,19 +47,34 @@ export const uuidParamSchema = {
   },
 } as const;
 
+const tenantModuleEnablementItemSchema = {
+  type: "object",
+  required: ["module_id", "is_active"],
+  additionalProperties: false,
+  properties: {
+    module_id: uuidString,
+    is_active: { type: "boolean" },
+  },
+} as const;
+
 export const postOrganizationBodySchema = {
   type: "object",
   required: ["name", "slug", "type"],
   additionalProperties: false,
   properties: {
     name: { type: "string", minLength: 1 },
-    slug: { type: "string", minLength: 1 },
+    slug: { type: "string", minLength: 3 },
     type: organizationTypeSchema,
     status: organizationStatusSchema,
     contact_email: { type: "string" },
     contact_phone: { type: "string" },
     address: { type: "string" },
     metadata: { type: "object" },
+    tenant_modules: {
+      type: "array",
+      maxItems: 2000,
+      items: tenantModuleEnablementItemSchema,
+    },
   },
 } as const;
 
@@ -63,7 +83,7 @@ export const patchOrganizationBodySchema = {
   additionalProperties: false,
   properties: {
     name: { type: "string", minLength: 1 },
-    slug: { type: "string", minLength: 1 },
+    slug: { type: "string", minLength: 3 },
     type: organizationTypeSchema,
     status: organizationStatusSchema,
     contact_email: { anyOf: [{ type: "string" }, { type: "null" }] },
@@ -89,6 +109,14 @@ export const postTenantBodySchema = {
     timezone: { type: "string" },
     locale: { type: "string" },
     metadata: { anyOf: [{ type: "object" }, { type: "null" }] },
+    branch_code: { type: "string", minLength: 2, maxLength: 10 },
+    branch_type: branchTypeSchema,
+    address_line1: { type: "string" },
+    city: { type: "string" },
+    state: { type: "string" },
+    pin_code: { type: "string" },
+    contact_phone: { type: "string" },
+    contact_email: { type: "string" },
   },
 } as const;
 
@@ -107,6 +135,13 @@ export const patchTenantBodySchema = {
     timezone: { type: "string" },
     locale: { type: "string" },
     metadata: { anyOf: [{ type: "object" }, { type: "null" }] },
+    branch_type: branchTypeSchema,
+    address_line1: { type: "string" },
+    city: { type: "string" },
+    state: { type: "string" },
+    pin_code: { type: "string" },
+    contact_phone: { type: "string" },
+    contact_email: { type: "string" },
   },
 } as const;
 

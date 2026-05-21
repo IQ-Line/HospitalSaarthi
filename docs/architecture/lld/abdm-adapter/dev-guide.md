@@ -4,9 +4,11 @@
 
 ## 0. Prerequisites
 
-- ABDM Sandbox account + client credentials (request from the project lead — credentials live in `env:ABDM_SANDBOX_CLIENT_ID` / `env:ABDM_SANDBOX_CLIENT_SECRET`).
+- ABDM Sandbox account + client credentials (request from the project lead — credentials live in `env:ABDM_SANDBOX_CLIENT_ID` / `env:ABDM_SANDBOX_CLIENT_SECRET` **or** literal `process.env` keys resolved by [`EnvSecretsClient`](../../../../modules/abdm-adapter/src/data-access/env-secrets.client.ts)).
+- **Postgres URL for `abdm-adapter-svc`:** root **`DATABASE_URL`** (local Citus) or service **`ABDM_DATA_DATABASE_URL`** (dedicated override; wins when set). Use **`postgresql://…`** URIs. If you only have SQLAlchemy’s `postgresql+psycopg://…`, the service normalises that at boot — still **never commit** the real URL.
 - The reference impl at `hims/abdi-lims-backed/` cloned somewhere local. You will reference, **not copy**, its `milestone1CreationService.ts` and `tokenService.ts`.
-- Read in order: [01-overview.md](./01-overview.md), [02-m1-flows.md](./02-m1-flows.md), then this file.
+- Read in order: [01-overview.md](./01-overview.md), [02-m1-flows.md](./02-m1-flows.md), [03-phase-a-implementation-matrix.md](./03-phase-a-implementation-matrix.md), then this file.
+- **Postman:** repo file [`Milestone_1_Postman_Collection_18_08_2025_postman_collection_d202ddf09a.json`](../../../../Milestone_1_Postman_Collection_18_08_2025_postman_collection_d202ddf09a.json) — default sandbox hosts match `ABDM_GATEWAY_BASE_URL` / `ABDM_ABHA_API_BASE_URL` in `services/abdm-adapter-svc/src/main.ts`.
 
 ## 1. Familiarise with the spec
 
@@ -26,8 +28,9 @@ Order:
 3. `profile.ts` — read-only against an existing session.
 4. `login.ts` — exercises the auth-method discriminated union.
 5. `verify-existing.ts` — the frontdesk-side check.
-6. `enrol-mobile-otp.ts` — provisional account path.
-7. `profile-update.ts` — last; consistent shape with #1.
+6. `profile-update.ts` — last; consistent shape with #1.
+
+Standalone mobile-only enrol and DL (`dl-flow`) are out of M1 scope — use `enrol-mobile-verify-enrolment.ts` for the Aadhaar-chain mobile-verify step only.
 
 Each file should export both the request and response types per step. Examples follow the structure:
 
@@ -102,7 +105,8 @@ Schemas: use Zod (cheaper) and adapt via `fastify-type-provider-zod` if it's alr
 ## 7. Local run
 
 ```bash
-# Apply migrations
+# Apply migrations (DATABASE_URL or ABDM_DATA_DATABASE_URL must be postgresql:// for psql;
+# the Node service also accepts ABDM_DATA_DATABASE_URL with +psycopg and normalises it.)
 psql "$DATABASE_URL" -f modules/abdm-adapter/migrations/0000_abdm_adapter_schema.sql
 
 # Start the service
@@ -114,6 +118,8 @@ curl -X POST http://localhost:3007/api/abdm/v1/m1/enrol/aadhaar/otp \
   -H 'Content-Type: application/json' -H 'x-tenant-id: <tenant-uuid>' \
   -d '{"aadhaarNumber": "<12-digit sandbox Aadhaar>"}'
 ```
+
+See also [`docs/guides/abdm-adapter-m1-runbook.md`](../../../guides/abdm-adapter-m1-runbook.md) for health checks, tenant headers, and Swagger URLs.
 
 ## 8. Commit checklist before opening the PR
 

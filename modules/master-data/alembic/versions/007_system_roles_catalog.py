@@ -1,4 +1,4 @@
-"""Add system role templates table (`public.system_roles`).
+"""Add system role templates table (`global_master.system_roles`).
 
 Revision ID: 007_system_roles_catalog
 Revises: 006_permissions_catalog
@@ -10,6 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 from alembic import op
+from schema_names import GLOBAL_SCHEMA as _GM, TENANT_SCHEMA as _TM
 
 revision: str = "007_system_roles_catalog"
 down_revision: str | Sequence[str] | None = "006_permissions_catalog"
@@ -61,12 +62,13 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.func.now(),
         ),
+        schema=_GM,
     )
 
     op.execute(
         """
         CREATE UNIQUE INDEX system_roles_slug_active_key
-        ON public.system_roles (slug)
+        ON global_master.system_roles (slug)
         WHERE NOT is_deleted
         """
     )
@@ -76,7 +78,7 @@ def upgrade() -> None:
         DO $$
         BEGIN
             IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'create_reference_table') THEN
-                PERFORM create_reference_table('public.system_roles');
+                PERFORM create_reference_table('global_master.system_roles');
             END IF;
         EXCEPTION
             WHEN duplicate_object THEN
@@ -90,5 +92,6 @@ def downgrade() -> None:
     op.drop_index(
         "system_roles_slug_active_key",
         table_name="system_roles",
+        schema=_GM,
     )
     op.drop_table("system_roles")
