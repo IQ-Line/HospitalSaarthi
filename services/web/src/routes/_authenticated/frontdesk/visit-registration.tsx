@@ -34,6 +34,8 @@ import {
   TableRow,
 } from '@pulse/ui/table';
 import { executeCreateVisitFlow, listRegistrations } from '@/features/frontdesk/api/registrations';
+import { CreateAbhaDialog } from '@/features/abha/components/create-abha-dialog';
+import type { AbhaCreatedPayload } from '@/features/abha/types';
 import {
   VisitRegistrationAppointmentSection,
   VisitRegistrationBillingSection,
@@ -73,6 +75,7 @@ function VisitRegistrationRoute() {
   const branchLabel = [tenantName, branchName].filter(Boolean).join(' — ') || 'Noida — Main Branch';
 
   const [showExtendedPatient, setShowExtendedPatient] = useState(false);
+  const [createAbhaOpen, setCreateAbhaOpen] = useState(false);
   const [phase, setPhase] = useState<'list' | 'form'>('list');
   const [listSearchDraft, setListSearchDraft] = useState('');
   const listSearch = useDebouncedValue(listSearchDraft.trim(), 300);
@@ -248,6 +251,37 @@ function VisitRegistrationRoute() {
   });
 
   const submitIdempotencyKeyRef = useRef<string | undefined>(undefined);
+
+  const handleAbhaCreated = (payload: AbhaCreatedPayload) => {
+    form.setValue('patient.abha_number', payload.abhaNumber, { shouldValidate: true });
+    setShowExtendedPatient(true);
+
+    const currentPhone = form.getValues('patient.phone')?.trim();
+    if (!currentPhone && payload.phone) {
+      form.setValue('patient.phone', payload.phone, { shouldValidate: true });
+    }
+
+    const currentFirst = form.getValues('patient.first_name')?.trim();
+    if (!currentFirst && payload.firstName) {
+      form.setValue('patient.first_name', payload.firstName, { shouldValidate: true });
+    }
+
+    const currentLast = form.getValues('patient.last_name')?.trim();
+    if (!currentLast && payload.lastName) {
+      form.setValue('patient.last_name', payload.lastName, { shouldValidate: true });
+    }
+
+    if (payload.gender) {
+      form.setValue('patient.gender', payload.gender, { shouldValidate: true });
+    }
+
+    const currentDob = form.getValues('patient.date_of_birth')?.trim();
+    if (!currentDob && payload.dateOfBirth) {
+      form.setValue('patient.date_of_birth', payload.dateOfBirth, { shouldValidate: true });
+    }
+
+    toast.success('ABHA details applied to registration form');
+  };
 
   const mutation = useMutation({
     mutationFn: (data: CreateVisitRequestBody) => {
@@ -510,7 +544,7 @@ function VisitRegistrationRoute() {
                       type="button"
                       variant="secondary"
                       className="h-10 shrink-0 px-3"
-                      disabled
+                      onClick={() => setCreateAbhaOpen(true)}
                     >
                       Create ABHA
                     </Button>
@@ -861,6 +895,13 @@ function VisitRegistrationRoute() {
           </Card>
         </aside>
       </div>
+
+      <CreateAbhaDialog
+        open={createAbhaOpen}
+        onOpenChange={setCreateAbhaOpen}
+        onSuccess={handleAbhaCreated}
+        defaultMobile={patientPhone ?? ''}
+      />
     </div>
   );
 }
