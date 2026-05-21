@@ -97,7 +97,7 @@ function buildRequestHeaders(
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  if (!shouldOmitTenantHeaders(context)) {
+  if (!shouldOmitTenantHeaders(context) && !path.startsWith(BILLING_API_PREFIX)) {
     applyTenantHeaders(headers, path, tenantId);
   }
 
@@ -174,7 +174,11 @@ async function fetchWithAuthRetry(
   const omitTenantHeaders = shouldOmitTenantHeaders(context);
 
   if (!omitTenantHeaders) {
-    if (catalogTenant && !headers.has('iq_tenant_id')) {
+    if (
+      !path.startsWith(BILLING_API_PREFIX) &&
+      catalogTenant &&
+      !headers.has('iq_tenant_id')
+    ) {
       headers.set('iq_tenant_id', catalogTenant);
       headers.set('x-tenant-id', catalogTenant);
     }
@@ -193,9 +197,11 @@ async function fetchWithAuthRetry(
     ) {
       headers.set('x-tenant-id', serviceIqTenantHeaderValue(tenantId));
     }
-    /** Billing resolves tariffs per tenant — JWT `iq_tenant_id` wins over stale store placeholders. */
-    if (path.startsWith(BILLING_API_PREFIX) && !headers.has('iq_tenant_id')) {
-      headers.set('iq_tenant_id', billingIqTenantHeaderValue(tenantId, accessToken));
+    /** Billing tariffs are tenant-scoped — JWT/home tenant; never stale EMPI placeholder. */
+    if (path.startsWith(BILLING_API_PREFIX)) {
+      const billingTenant = billingIqTenantHeaderValue(tenantId, accessToken);
+      headers.set('iq_tenant_id', billingTenant);
+      headers.set('x-tenant-id', billingTenant);
     }
   }
 

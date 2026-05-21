@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BILLING_TARIFF_DEV_TENANT_ID,
+  billingIqTenantHeaderValue,
   catalogIqTenantHeaderValue,
   DEV_DEFAULT_IQ_TENANT_ID,
   DEV_TENANT_IQ_CATALOG_UUID,
@@ -53,5 +55,23 @@ describe('serviceIqTenantHeaderValue', () => {
 
   it('passes through non-UUID slug when no catalog UUID applies', () => {
     expect(serviceIqTenantHeaderValue('tenant-001')).toBe('tenant-001');
+  });
+});
+
+describe('billingIqTenantHeaderValue', () => {
+  it('maps EMPI dev placeholder to tariff seed tenant in dev', () => {
+    expect(billingIqTenantHeaderValue(DEV_DEFAULT_IQ_TENANT_ID, null)).toBe(
+      BILLING_TARIFF_DEV_TENANT_ID,
+    );
+  });
+
+  it('prefers JWT over store when both are real tenants', () => {
+    const otherTenant = '87c948d3-8a25-4c87-9345-81d6e82e1bcd';
+    const payload = btoa(JSON.stringify({ iq_tenant_id: BILLING_TARIFF_DEV_TENANT_ID }))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    const token = `hdr.${payload}.sig`;
+    expect(billingIqTenantHeaderValue(otherTenant, token)).toBe(BILLING_TARIFF_DEV_TENANT_ID);
   });
 });
