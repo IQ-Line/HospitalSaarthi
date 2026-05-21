@@ -5,12 +5,26 @@ import {
   encryptBundlesForPeer,
   encryptForPeerMaterial,
 } from "../lib/fidelius-crypto.js";
+import { generateEphemeralBcKeyPair } from "../lib/fidelius-curve25519-bc.js";
 
 /**
  * ABDM Fidelius encryptor (BC Weierstrass curve25519 ECDH + HKDF-SHA256 + AES-256-GCM).
  * @see https://kiranma72.github.io/abdm-docs/3-milestone2/encryption-decryption/implementation-guidelines/
  */
 export class FideliusEncryptor implements FideliusEncryptor {
+  async generateOurKeyMaterial(): Promise<{
+    ourPublicKey: string;
+    ourPrivateKey: string;
+    ourNonce: string;
+  }> {
+    const kp = generateEphemeralBcKeyPair();
+    return {
+      ourPublicKey: kp.ourPublicKeyB64,
+      ourPrivateKey: kp.ourPrivateKeyB64,
+      ourNonce: randomBytes(32).toString("base64"),
+    };
+  }
+
   async encryptForPeer(input: {
     payloadJson: string;
     peerPublicKey: string;
@@ -49,6 +63,18 @@ export class FideliusEncryptor implements FideliusEncryptor {
 
 /** Legacy base64 stub — only when `ABDM_FIDELIUS_USE_STUB=true` (local webhook tests). */
 class FideliusEncryptorLegacyStub implements FideliusEncryptor {
+  async generateOurKeyMaterial(): Promise<{
+    ourPublicKey: string;
+    ourPrivateKey: string;
+    ourNonce: string;
+  }> {
+    return {
+      ourPublicKey: randomBytes(65).toString("base64"),
+      ourPrivateKey: randomBytes(32).toString("base64"),
+      ourNonce: randomBytes(32).toString("base64"),
+    };
+  }
+
   async encryptBundlesForPeer(input: {
     payloadJsons: string[];
     peerPublicKey: string;
