@@ -168,36 +168,42 @@ async function fetchWithAuthRetry(
   canRetryWithFreshToken: boolean,
 ): Promise<Response> {
   const headers = buildRequestHeaders(path, options, context);
-  const omitTenantHeaders = shouldOmitTenantHeaders(context);
-  const tenantId = useTenantStore.getState().tenantId;
+  const tenantId = resolveEffectiveTenantId(context);
   const accessToken = useAuthStore.getState().accessToken;
   const catalogTenant = catalogIqTenantHeaderValue(tenantId);
+  const omitTenantHeaders = shouldOmitTenantHeaders(context);
 
-  /** Respect `tenantIdOverride: null` (platform `global_master` catalog reads/writes). */
-  if (!omitTenantHeaders && catalogTenant && !headers.has('iq_tenant_id')) {
-    headers.set('iq_tenant_id', catalogTenant);
-    headers.set('x-tenant-id', catalogTenant);
-  }
-  /** EMPI and Registration require `iq_tenant_id` (or `x-tenant-id`). */
-  if (
-    !omitTenantHeaders &&
-    (path.startsWith(EMPI_API_PREFIX) || isRegistrationApiPath(path)) &&
-    !headers.has('iq_tenant_id')
-  ) {
-    headers.set('iq_tenant_id', serviceIqTenantHeaderValue(tenantId));
-  }
-  /** Configurator tenantPlugin (legacy) rejects requests without a tenant header. */
-  if (
-    !omitTenantHeaders &&
-    path.startsWith(CONFIGURATOR_API_PREFIX) &&
-    !headers.has('iq_tenant_id') &&
-    !headers.has('x-tenant-id')
-  ) {
-    headers.set('x-tenant-id', serviceIqTenantHeaderValue(tenantId));
-  }
-  /** Billing resolves tariffs per tenant — JWT `iq_tenant_id` wins over stale store placeholders. */
-  if (!omitTenantHeaders && path.startsWith(BILLING_API_PREFIX) && !headers.has('iq_tenant_id')) {
-    headers.set('iq_tenant_id', billingIqTenantHeaderValue(tenantId, accessToken));
+  if (!omitTenantHeaders) {
+    if (
+      !path.startsWith(BILLING_API_PREFIX) &&
+      catalogTenant &&
+      !headers.has('iq_tenant_id')
+    ) {
+      headers.set('iq_tenant_id', catalogTenant);
+      headers.set('x-tenant-id', catalogTenant);
+    }
+    /** EMPI and Registration require `iq_tenant_id` (or `x-tenant-id`). */
+    if (
+      (path.startsWith(EMPI_API_PREFIX) || isRegistrationApiPath(path)) &&
+      !headers.has('iq_tenant_id')
+    ) {
+      headers.set('iq_tenant_id', serviceIqTenantHeaderValue(tenantId));
+      headers.set('x-tenant-id', serviceIqTenantHeaderValue(tenantId));
+    }
+    /** Configurator tenantPlugin (legacy) rejects requests without a tenant header. */
+    if (
+      path.startsWith(CONFIGURATOR_API_PREFIX) &&
+      !headers.has('iq_tenant_id') &&
+      !headers.has('x-tenant-id')
+    ) {
+      headers.set('x-tenant-id', serviceIqTenantHeaderValue(tenantId));
+    }
+    /** Billing tariffs are tenant-scoped — JWT/home tenant; never stale EMPI placeholder. */
+    if (path.startsWith(BILLING_API_PREFIX)) {
+      const billingTenant = billingIqTenantHeaderValue(tenantId, accessToken);
+      headers.set('iq_tenant_id', billingTenant);
+      headers.set('x-tenant-id', billingTenant);
+    }
   }
 
   if (

@@ -21,6 +21,16 @@ describe('principalGrantsCatalogRouteAccess', () => {
     ).toBe(true);
   });
 
+  it('allows visitpad child routes for visitpad-templates:visitpad:view only', () => {
+    const shellViewOnly = new Set(['visitpad-templates:visitpad:view']);
+    expect(
+      principalGrantsCatalogRouteAccess(shellViewOnly, '/visitpad/vitals', {
+        catalogProductSlugs: ['visitpad-templates'],
+        routePrefix: '/visitpad',
+      }),
+    ).toBe(true);
+  });
+
   it('allows visitpad layout for L2-only principal (no visitpad-templates shell keys)', () => {
     const keys = new Set(['allergens:allergens:read', 'units:units:update']);
     expect(

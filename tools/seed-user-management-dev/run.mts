@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
- * Optional dev seed — same bootstrap as `user-management:db-migrate` (capabilities + super-admin).
- * Prefer: `npx nx run master-data:db-migrate` then `npx nx run user-management:db-migrate`.
+ * Optional dev seed — platform bootstrap (capabilities + super-admin) + Cerbos checks.
+ * Prefer: `npx nx run master-data:db-migrate` → `npx nx run user-management:db-migrate` → `pnpm seed`.
+ * Schema-only migrate: `npx nx run user-management:db-migrate`. Bootstrap only: `npx nx run user-management:seed-platform`.
  */
 const { loadWorkspaceEnv, normalizePostgresUrl, requireEnv } = await import("./load-env.ts");
 

@@ -1,4 +1,9 @@
 import { decodeAccessTokenPayload } from '@/lib/access-token';
+import {
+  DEVELOPMENT_BOOTSTRAP_TENANT_ID,
+  DEVELOPMENT_EMPI_PLACEHOLDER_TENANT_ID,
+  DEVELOPMENT_VISITPAD_CATALOG_TENANT_UUID,
+} from '../../../../packages/dev-bootstrap/src/dev-tenant-ids.ts';
 
 /**
  * Visitpad / master-data catalog sends `iq_tenant_id` when the active tenant id is a
@@ -7,17 +12,14 @@ import { decodeAccessTokenPayload } from '@/lib/access-token';
  * Non-UUID tenant slugs omit the header so requests hit the **global_master** catalog.
  */
 
-/** Stable demo tenant used for static “tenant catalog” dev login (matches integration tests). */
-export const DEV_TENANT_IQ_CATALOG_UUID = '00000000-0000-0000-0000-000000000007';
+/** @deprecated Import {@link DEVELOPMENT_VISITPAD_CATALOG_TENANT_UUID} from dev-bootstrap. */
+export const DEV_TENANT_IQ_CATALOG_UUID = DEVELOPMENT_VISITPAD_CATALOG_TENANT_UUID;
 
-/**
- * Default `iq_tenant_id` for EMPI / Registration when no tenant is selected in the UI
- * (Phase 0 dev — replaced by session tenant from better-auth).
- */
-export const DEV_DEFAULT_IQ_TENANT_ID = '550e8400-e29b-41d4-a716-446655440001';
+/** @deprecated Import {@link DEVELOPMENT_EMPI_PLACEHOLDER_TENANT_ID} from dev-bootstrap. */
+export const DEV_DEFAULT_IQ_TENANT_ID = DEVELOPMENT_EMPI_PLACEHOLDER_TENANT_ID;
 
-/** `make seed` hospital tenant — owns `billing.tariff_master` rows in dev. */
-export const BILLING_TARIFF_DEV_TENANT_ID = 'f47ac10b-58cc-4372-a567-0e02b2c3d480';
+/** @deprecated Import {@link DEVELOPMENT_BOOTSTRAP_TENANT_ID} from dev-bootstrap. */
+export const BILLING_TARIFF_DEV_TENANT_ID = DEVELOPMENT_BOOTSTRAP_TENANT_ID;
 
 /**
  * Lexical UUID (8-4-4-4-12 hex). Matches Python/Postgres-style `UUID` acceptance, including

@@ -163,6 +163,9 @@ importers:
       '@cerbos/core':
         specifier: 0.21.1
         version: 0.21.1
+      '@hims/dev-bootstrap':
+        specifier: workspace:*
+        version: link:../../packages/dev-bootstrap
       '@hims/ts-sdk-authz':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-authz
@@ -586,6 +589,9 @@ importers:
       '@hims/billing':
         specifier: workspace:*
         version: link:../../modules/billing
+      '@hims/dev-bootstrap':
+        specifier: workspace:*
+        version: link:../../packages/dev-bootstrap
       '@hims/ts-sdk-db':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-db

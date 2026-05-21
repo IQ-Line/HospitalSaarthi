@@ -1,6 +1,7 @@
 import {
   expandModuleSlugsWithDescendants,
   masterDataSourcePairKey,
+  parseMasterDataSourcePairKey,
   ModuleEntitlementLookupError,
   RUNTIME_AUTH_LIMITS,
   assertWithinLimit,
@@ -16,7 +17,8 @@ import {
 
 const DEFAULT_TIMEOUT_MS = 5_000;
 const DEFAULT_MAX_ATTEMPTS = 3;
-const DEFAULT_CACHE_TTL_MS = 60_000;
+/** Align with web `MODULE_CATALOG_STALE_MS` — long enough for steady dev; use `invalidateModuleSlugMapCache()` after MD edits. */
+const DEFAULT_CACHE_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_MAX_CACHE_ENTRIES = 8;
 const MODULE_SLUG_MAP_CACHE_KEY = "master-data-module-slug-map";
 const MODULE_TREE_CACHE_KEY = "master-data-module-tree";
@@ -127,12 +129,8 @@ export class HttpMasterDataModuleCatalogAdapter implements MasterDataModuleCatal
     const filtered = new Set<string>();
 
     for (const pairKey of allPairs) {
-      const separator = pairKey.indexOf("\0");
-      if (separator <= 0) {
-        continue;
-      }
-      const moduleSlug = pairKey.slice(0, separator);
-      if (allowedModuleSlugs.has(moduleSlug)) {
+      const parsed = parseMasterDataSourcePairKey(pairKey);
+      if (parsed && allowedModuleSlugs.has(parsed.moduleSlug)) {
         filtered.add(pairKey);
       }
     }

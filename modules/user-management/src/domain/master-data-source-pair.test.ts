@@ -3,6 +3,8 @@ import type { Capability } from "./types.js";
 import {
   filterRuntimeCapabilitiesByMasterDataLinks,
   masterDataSourcePairKey,
+  MODULE_PERMISSION_PAIR_SEPARATOR,
+  parseMasterDataSourcePairKey,
 } from "./master-data-source-pair.js";
 
 function capability(partial: Partial<Capability> & Pick<Capability, "id" | "module">): Capability {
@@ -15,6 +17,17 @@ function capability(partial: Partial<Capability> & Pick<Capability, "id" | "modu
     ...partial,
   };
 }
+
+describe("masterDataSourcePairKey", () => {
+  it("round-trips module and permission slugs", () => {
+    const key = masterDataSourcePairKey("tariff-master", "read");
+    expect(key).toContain(MODULE_PERMISSION_PAIR_SEPARATOR);
+    expect(parseMasterDataSourcePairKey(key)).toEqual({
+      moduleSlug: "tariff-master",
+      permissionSlug: "read",
+    });
+  });
+});
 
 describe("filterRuntimeCapabilitiesByMasterDataLinks", () => {
   const assignableSlugs = new Set(["tariff-master", "billing-and-finance"]);
@@ -65,6 +78,25 @@ describe("filterRuntimeCapabilitiesByMasterDataLinks", () => {
         (row) => row.id,
       ),
     ).toEqual(["cap-tariff-read"]);
+  });
+
+  it("keeps LOB capabilities when MD link is active for normalized module slug", () => {
+    const caps = [
+      capability({
+        id: "cap-tariff-update",
+        module: "tariff-master",
+        capability_key: "tariff-master:tariff-master:update",
+        source_catalog: "master_data",
+        source_module_slug: "Tariff-Master",
+        source_permission_slug: "update",
+      }),
+    ];
+
+    expect(
+      filterRuntimeCapabilitiesByMasterDataLinks(caps, assignableSlugs, activePairs).map(
+        (row) => row.id,
+      ),
+    ).toEqual(["cap-tariff-update"]);
   });
 
   it("fails closed for LOB capabilities without MD provenance", () => {

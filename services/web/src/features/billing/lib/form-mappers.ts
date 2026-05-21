@@ -25,12 +25,10 @@ export function serviceToEditFormValues(service: TariffService): TariffServiceEd
   return sharedEditFields(service);
 }
 
-export function formToCreatePayload(
-  values: TariffServiceCreateFormValues,
-  departmentName: string | null,
-): ServiceCreateInput {
+export function formToCreatePayload(values: TariffServiceCreateFormValues): ServiceCreateInput {
   const v = tariffServiceCreateSchema.parse(values);
-  const isReg = v.tariff_type === 'registration';
+  const category = v.category?.trim() || null;
+  const isReg = category === 'registration';
   return {
     service_code: v.service_code,
     service_name: v.service_name,
@@ -38,9 +36,9 @@ export function formToCreatePayload(
     tax_percentage: v.tax_percentage,
     description: v.description,
     provider_id: isReg ? null : v.provider_id,
-    department: isReg ? 'frontdesk' : departmentName,
-    category: isReg ? 'registration' : 'consultation',
-    sub_category: null,
+    department: isReg ? 'frontdesk' : (v.department ?? null),
+    category: isReg ? 'registration' : category,
+    sub_category: v.sub_category ?? null,
     tax_type: v.tax_type,
     is_active: v.is_active,
     effective_from: fromDatetimeLocalValue(v.effective_from),

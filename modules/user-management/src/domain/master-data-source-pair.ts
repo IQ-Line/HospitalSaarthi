@@ -2,9 +2,25 @@ import { normalizeModuleSlug } from "./module-slug.js";
 import { isPlatformRuntimeModuleSlug } from "./platform-module-slugs.js";
 import type { Capability } from "./types.js";
 
+/** Separates module slug from permission slug in {@link masterDataSourcePairKey} (ASCII unit separator). */
+export const MODULE_PERMISSION_PAIR_SEPARATOR = "\u001f";
+
 /** Stable key for `(module_slug, permission_slug)` from Master Data `module_permissions`. */
 export function masterDataSourcePairKey(moduleSlug: string, permissionSlug: string): string {
-  return `${normalizeModuleSlug(moduleSlug)}\0${permissionSlug.trim().toLowerCase()}`;
+  return `${normalizeModuleSlug(moduleSlug)}${MODULE_PERMISSION_PAIR_SEPARATOR}${permissionSlug.trim().toLowerCase()}`;
+}
+
+export function parseMasterDataSourcePairKey(
+  pairKey: string,
+): { moduleSlug: string; permissionSlug: string } | null {
+  const separator = pairKey.indexOf(MODULE_PERMISSION_PAIR_SEPARATOR);
+  if (separator <= 0) {
+    return null;
+  }
+  return {
+    moduleSlug: pairKey.slice(0, separator),
+    permissionSlug: pairKey.slice(separator + MODULE_PERMISSION_PAIR_SEPARATOR.length),
+  };
 }
 
 /**

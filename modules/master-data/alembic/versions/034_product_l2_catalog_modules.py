@@ -3,6 +3,11 @@
 Revision ID: 034_product_l2_catalog_modules
 Revises: 033_picklist_values_seed, 030_demo_authorization_catalog
 
+Merge head after the picklist branch (``033``) and demo authorization branch (``030``).
+This revision **supersedes** the retired ``035_product_l2_catalog_modules`` id (renumbered to
+``034`` to avoid colliding with parallel PRs). DBs stamped with ``035`` should run
+``modules/master-data/scripts/fix_alembic_035_stamp.py`` once, then ``alembic upgrade heads``.
+
 Follows ``027_core_modules_catalog`` (L1/L2 tree) and ``028_core_module_permissions_catalog``
 (CRUD on L2). L1 shell junctions use the shared ``shell.access`` permission from ``026``.
 

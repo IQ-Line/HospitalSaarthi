@@ -35,7 +35,7 @@ export interface MasterDataModuleCatalogPort {
   expandEnabledModuleSlugs(moduleSlugs: readonly string[]): Promise<readonly string[]>;
   /**
    * Active Master Data `module_permissions` source pairs for the given module slugs.
-   * Keys use `masterDataSourcePairKey` (`moduleSlug` + NUL + `permissionSlug`).
+   * Keys use `masterDataSourcePairKey` (`moduleSlug` + unit separator + `permissionSlug`).
    */
   listActiveModulePermissionSourcePairs(
     moduleSlugs: readonly string[],

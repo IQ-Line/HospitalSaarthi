@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@hims/dev-bootstrap": "workspace:*",
     "@hims/billing": "workspace:*",
     "@hims/ts-sdk-db": "workspace:*",
     "@hims/ts-sdk-openapi": "workspace:*",

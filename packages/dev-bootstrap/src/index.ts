@@ -11,9 +11,14 @@ import {
   DEVELOPMENT_SEED_USERS,
 } from "./development-seed-users.js";
 
-/** Stable dev tenant/org ids shared across Configurator and User Management. */
-export const DEVELOPMENT_BOOTSTRAP_TENANT_ID = DEVELOPMENT_SEED_TENANT_ID;
-export const DEVELOPMENT_BOOTSTRAP_ORG_ID = "f47ac10b-58cc-4372-a567-0e02b2c3d481";
+export {
+  DEVELOPMENT_BOOTSTRAP_ORG_ID,
+  DEVELOPMENT_BOOTSTRAP_TENANT_ID,
+  DEVELOPMENT_EMPI_PLACEHOLDER_TENANT_ID,
+  DEVELOPMENT_ENVELOPE_ACTOR_NAMESPACE,
+  DEVELOPMENT_ENVELOPE_TENANT_NAMESPACE,
+  DEVELOPMENT_VISITPAD_CATALOG_TENANT_UUID,
+} from "./dev-tenant-ids.js";
 
 export const DEVELOPMENT_BOOTSTRAP_ORG_SLUG = "hospital-saarthi-dev";
 export const DEVELOPMENT_BOOTSTRAP_TENANT_SLUG = "dev-hospital";

@@ -189,6 +189,8 @@ export {
   filterRuntimeCapabilitiesByMasterDataLinks,
   isRuntimeCapabilityAssignableForTenant,
   masterDataSourcePairKey,
+  MODULE_PERMISSION_PAIR_SEPARATOR,
+  parseMasterDataSourcePairKey,
 } from "./domain/master-data-source-pair.js";
 export {
   expandModuleIdsWithDescendants,

@@ -9,7 +9,6 @@ const MIGRATION_FILES = [
   "0000_user_management_schema.sql",
   "0001_better_auth_auth_schema.sql",
   "0001_capability_catalog_provenance.sql",
-  "0004_dev_platform_bootstrap.sql",
 ] as const;
 
 /**

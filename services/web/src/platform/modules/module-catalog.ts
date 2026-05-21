@@ -8,7 +8,8 @@ import { configuratorKeys } from '@/features/configurator/api/query-keys';
 import { invalidateComposedNavigationCache } from './module-manifest-loader';
 import type { ModuleCatalogEntry, ModuleCatalogIndex } from './types';
 
-const MODULE_CATALOG_STALE_MS = 5 * 60 * 1000;
+/** Platform `global_master.modules` React Query stale window (use {@link invalidateModuleRegistration} after edits). */
+export const MODULE_CATALOG_STALE_MS = 5 * 60 * 1000;
 
 export function buildCatalogIndex(modules: readonly Module[]): ModuleCatalogIndex | null {
   const byId = new Map<string, ModuleCatalogEntry>();

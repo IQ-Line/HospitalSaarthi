@@ -1,11 +1,13 @@
-/**
- * EMPI module dev default — not where Phase 0 tariffs are stored.
- * Tariffs for visit registration live on the seed/configurator tenant (`f47ac10b-…`).
- */
-export const EMPI_DEV_PLACEHOLDER_TENANT_ID = "550e8400-e29b-41d4-a716-446655440001";
+import {
+  DEVELOPMENT_BOOTSTRAP_TENANT_ID,
+  DEVELOPMENT_EMPI_PLACEHOLDER_TENANT_ID,
+} from "@hims/dev-bootstrap";
 
-/** Configurator + `make seed` dev hospital tenant (see `packages/dev-bootstrap`). */
-export const BILLING_TARIFF_DEV_TENANT_ID = "f47ac10b-58cc-4372-a567-0e02b2c3d480";
+/** @deprecated Use {@link DEVELOPMENT_EMPI_PLACEHOLDER_TENANT_ID}. */
+export const EMPI_DEV_PLACEHOLDER_TENANT_ID = DEVELOPMENT_EMPI_PLACEHOLDER_TENANT_ID;
+
+/** @deprecated Use {@link DEVELOPMENT_BOOTSTRAP_TENANT_ID}. */
+export const BILLING_TARIFF_DEV_TENANT_ID = DEVELOPMENT_BOOTSTRAP_TENANT_ID;
 
 function normalizeTenantHeader(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
@@ -29,11 +31,11 @@ export function resolveBillingRequestTenantId(
 
   if (
     process.env["NODE_ENV"] !== "production" &&
-    candidate === EMPI_DEV_PLACEHOLDER_TENANT_ID
+    candidate === DEVELOPMENT_EMPI_PLACEHOLDER_TENANT_ID
   ) {
     const remap =
       normalizeTenantHeader(process.env["BILLING_DEV_TENANT_ID"]) ??
-      BILLING_TARIFF_DEV_TENANT_ID;
+      DEVELOPMENT_BOOTSTRAP_TENANT_ID;
     return remap;
   }
 

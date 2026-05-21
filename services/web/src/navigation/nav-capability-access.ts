@@ -55,8 +55,9 @@ export function catalogSlugMatchesRouteSegment(catalogSlug: string, routeSegment
     return true;
   }
 
-  const slugStem = slug.replace(/s$/, '');
-  const segStem = seg.replace(/s$/, '');
+  const stem = (value: string) => (value.endsWith('es') ? value.slice(0, -2) : value.replace(/s$/, ''));
+  const slugStem = stem(slug);
+  const segStem = stem(seg);
   return slugStem === segStem || slugStem === seg || segStem === slug;
 }
 
@@ -125,6 +126,43 @@ export function resolveCatalogModuleSlugsForNavRoute(
   }
 
   return [...candidates];
+}
+
+/** L1 product keys whose resource segment grants all L2 nav under that product (e.g. `visitpad-templates:visitpad:view`). */
+const PRODUCT_WIDE_NAV_RESOURCES = new Set(['visitpad']);
+
+/**
+ * True when the principal holds an L1 product shell key (`<product>:visitpad:view|create`)
+ * that should authorize every child route under that product manifest.
+ */
+export function principalHasProductWideNavCapability(
+  capabilityKeys: ReadonlySet<string>,
+  catalogProductSlugs: readonly string[],
+): boolean {
+  if (catalogProductSlugs.length === 0) {
+    return false;
+  }
+
+  for (const rawKey of capabilityKeys) {
+    const parts = canonicalizeRuntimeCapabilityKey(normalizeCapabilityKey(rawKey)).split(':');
+    if (parts.length < 3) {
+      continue;
+    }
+    const [l1, resource, action] = parts;
+    if (!l1 || !resource || !action) {
+      continue;
+    }
+    if (action !== 'view' && action !== 'create') {
+      continue;
+    }
+    if (!PRODUCT_WIDE_NAV_RESOURCES.has(resource)) {
+      continue;
+    }
+    if (catalogProductSlugs.some((productSlug) => catalogSlugMatchesRouteSegment(productSlug, l1))) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export function capabilityKeysGrantModuleSlugAccess(
@@ -207,6 +245,13 @@ export function principalGrantsNavNodeAccess(
       catalogIndex: input.catalogIndex,
     });
     if (capabilityKeysGrantModuleSlugAccess(input.capabilityModuleSegments, moduleSlugs)) {
+      return true;
+    }
+    if (
+      pathSegment &&
+      productSlugs.length &&
+      principalHasProductWideNavCapability(input.capabilityKeys, productSlugs)
+    ) {
       return true;
     }
     // Module index routes (no L2 path segment): any L2+ key under the L1 product, or route prefix slug.
