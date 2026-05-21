@@ -28,15 +28,20 @@ import {
   useTariffServices,
   useUpdateTariffService,
 } from '@/features/billing/api';
+import { useDepartments } from '@/features/master-data/api';
 import { BillingMockNotice } from '@/features/billing/components/billing-mock-notice';
 import { BillingPageShell } from '@/features/billing/components/billing-page-shell';
-import { TariffServiceFormFields } from '@/features/billing/components/tariff-service-form-fields';
+import {
+  TariffServiceCreateFormFields,
+  TariffServiceEditFormFields,
+} from '@/features/billing/components/tariff-service-form-fields';
 import { useBillingServicesPermission } from '@/features/billing/hooks/use-billing-services-permission';
 import { formatDateTime, formatMoneyDisplay } from '@/features/billing/lib/format';
 import {
   formToCreatePayload,
   formToUpdatePayload,
   serviceToEditFormValues,
+  tariffTypeLabel,
 } from '@/features/billing/lib/form-mappers';
 import type { TariffService } from '@/features/billing/types';
 import {
@@ -84,6 +89,7 @@ function BillingServicesPage() {
 
   const createMutation = useCreateTariffService();
   const updateMutation = useUpdateTariffService();
+  const departmentsQuery = useDepartments(undefined, { enabled: isCreateOpen });
 
   const createForm = useForm<TariffServiceCreateFormValues>({
     resolver: zodResolver(tariffServiceCreateSchema),
@@ -275,14 +281,17 @@ function BillingServicesPage() {
           <EntityFormDialog
             open={isCreateOpen}
             onOpenChange={setIsCreateOpen}
-            title="Add service"
-            description="Create a new tariff row. Rack-rate rows leave provider empty."
+            title="Add tariff"
+            description="Registration fees use frontdesk rack rates. OPD tariffs require a department and doctor."
             submitLabel="Create"
             isSubmitting={createMutation.isPending}
             onSubmit={createForm.handleSubmit((values) => {
-              createMutation.mutate(formToCreatePayload(values), {
+              const departmentName =
+                departmentsQuery.data?.data.find((d) => d.id === values.department_id)?.name ??
+                null;
+              createMutation.mutate(formToCreatePayload(values, departmentName), {
                 onSuccess: () => {
-                  toast.success('Service created');
+                  toast.success('Tariff created');
                   setIsCreateOpen(false);
                   createForm.reset(EMPTY_TARIFF_CREATE_VALUES);
                 },
@@ -290,7 +299,11 @@ function BillingServicesPage() {
               });
             })}
           >
-            <TariffServiceFormFields control={createForm.control} mode="create" />
+            <TariffServiceCreateFormFields
+              control={createForm.control}
+              setValue={createForm.setValue}
+              lookupsEnabled={isCreateOpen}
+            />
           </EntityFormDialog>
 
           <EntityFormDialog
@@ -314,7 +327,7 @@ function BillingServicesPage() {
               );
             })}
           >
-            <TariffServiceFormFields control={editForm.control} mode="edit" />
+            <TariffServiceEditFormFields control={editForm.control} />
           </EntityFormDialog>
 
           <ConfirmDialog
@@ -343,8 +356,8 @@ function BillingServicesPage() {
               <dd>
                 {formatMoneyDisplay(viewing.tax_percentage)}% · {viewing.tax_type ?? '—'}
               </dd>
-              <dt className="text-muted-foreground">Category</dt>
-              <dd>{viewing.category ?? '—'}</dd>
+              <dt className="text-muted-foreground">Tariff type</dt>
+              <dd>{tariffTypeLabel(viewing.category)}</dd>
               <dt className="text-muted-foreground">Department</dt>
               <dd>{viewing.department ?? '—'}</dd>
               <dt className="text-muted-foreground">Effective</dt>
