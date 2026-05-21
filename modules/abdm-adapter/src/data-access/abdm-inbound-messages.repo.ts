@@ -1,5 +1,5 @@
 import type { DbInstance } from "@hims/ts-sdk-db";
-import { and, eq } from "drizzle-orm";
+import { and, eq } from "@hims/ts-sdk-db";
 import { abdmInboundMessages } from "../schema/tables.js";
 import type { InboundMessagesPort } from "../ports.js";
 
