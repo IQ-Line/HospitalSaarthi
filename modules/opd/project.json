@@ -1,0 +1,57 @@
+{
+  "name": "opd",
+  "projectType": "library",
+  "tags": ["type:module", "scope:opd", "language:python"],
+  "namedInputs": {
+    "default": ["{projectRoot}/**/*"],
+    "production": [
+      "default",
+      "!{projectRoot}/tests/**/*",
+      "!{projectRoot}/.env*",
+      "!{projectRoot}/README.md"
+    ]
+  },
+  "targets": {
+    "setup": {
+      "command": "uv sync",
+      "options": {
+        "cwd": "modules/opd"
+      },
+      "inputs": ["default"],
+      "cache": true,
+      "outputs": ["{projectRoot}/.venv"]
+    },
+    "lint": {
+      "command": "uv run ruff check .",
+      "options": {
+        "cwd": "modules/opd"
+      },
+      "dependsOn": ["setup"],
+      "inputs": ["default", "{projectRoot}/pyproject.toml"],
+      "cache": true
+    },
+    "test": {
+      "command": "uv run pytest",
+      "options": {
+        "cwd": "modules/opd"
+      },
+      "dependsOn": ["setup"],
+      "inputs": ["default"],
+      "cache": true
+    },
+    "migrate": {
+      "command": "uv run alembic upgrade heads",
+      "options": {
+        "cwd": "modules/opd"
+      },
+      "dependsOn": ["setup"]
+    },
+    "db-migrate": {
+      "command": "uv run alembic upgrade heads",
+      "options": {
+        "cwd": "modules/opd"
+      },
+      "dependsOn": ["setup"]
+    }
+  }
+}
