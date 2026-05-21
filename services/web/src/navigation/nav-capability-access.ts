@@ -50,12 +50,14 @@ export function catalogSlugMatchesRouteSegment(catalogSlug: string, routeSegment
   if (slug.endsWith(`-${seg}`) || slug.endsWith(seg)) {
     return true;
   }
-  if (slug.startsWith(`${seg}-`) || slug.startsWith(seg)) {
+  // Hyphen-boundary prefix only (`unit` must not match `conversions` via bare startsWith).
+  if (slug.startsWith(`${seg}-`)) {
     return true;
   }
 
-  const slugStem = slug.replace(/s$/, '');
-  const segStem = seg.replace(/s$/, '');
+  const stem = (value: string) => (value.endsWith('es') ? value.slice(0, -2) : value.replace(/s$/, ''));
+  const slugStem = stem(slug);
+  const segStem = stem(seg);
   return slugStem === segStem || slugStem === seg || segStem === slug;
 }
 
@@ -129,6 +131,10 @@ export function resolveCatalogModuleSlugsForNavRoute(
 /** L1 product keys whose resource segment grants all L2 nav under that product (e.g. `visitpad-templates:visitpad:view`). */
 const PRODUCT_WIDE_NAV_RESOURCES = new Set(['visitpad']);
 
+/**
+ * True when the principal holds an L1 product shell key (`<product>:visitpad:view|create`)
+ * that should authorize every child route under that product manifest.
+ */
 export function principalHasProductWideNavCapability(
   capabilityKeys: ReadonlySet<string>,
   catalogProductSlugs: readonly string[],

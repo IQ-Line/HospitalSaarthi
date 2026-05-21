@@ -2,9 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import { expandModuleSlugsWithDescendants } from "../domain/catalog-module-tree.js";
 import { runtimeModuleKeyForCatalogSlug } from "../domain/capability-key.js";
 import { ModuleEntitlementLookupError } from "../domain/errors.js";
+import { masterDataSourcePairKey } from "../domain/master-data-source-pair.js";
 import { PLATFORM_RUNTIME_MODULE_SLUGS } from "../domain/platform-module-slugs.js";
 import type { Capability } from "../ports/index.js";
 import { InMemoryCapabilityRepository } from "../data-access/in-memory-capability-repository.js";
+import { createMasterDataModuleCatalogPortStub } from "../test-support/master-data-catalog-port-stub.js";
 import { listAssignableRuntimeCapabilities } from "./list-assignable-runtime-capabilities.js";
 
 function capability(partial: Partial<Capability> & Pick<Capability, "id" | "module">): Capability {
@@ -28,7 +30,13 @@ describe("listAssignableRuntimeCapabilities", () => {
       [
         capability({ id: "cap-um", module: "user-management" }),
         capability({ id: "cap-cfg", module: "configurator" }),
-        capability({ id: "cap-vp", module: "visitpad" }),
+        capability({
+          id: "cap-vp",
+          module: "visitpad",
+          source_catalog: "master_data",
+          source_module_slug: "visitpad",
+          source_permission_slug: "read",
+        }),
         capability({ id: "cap-billing", module: "billing", is_active: false }),
         capability({ id: "cap-other", module: "empi" }),
       ].map((c) => ({ capability: c })),
@@ -40,12 +48,11 @@ describe("listAssignableRuntimeCapabilities", () => {
         tenantModuleEntitlementPort: {
           listTenantEnabledModuleIds: vi.fn().mockResolvedValue([visitpadModuleId]),
         },
-        masterDataModuleCatalogPort: {
+        masterDataModuleCatalogPort: createMasterDataModuleCatalogPortStub({
           resolveModuleSlugsByIds: vi
             .fn()
             .mockResolvedValue(new Map([[visitpadModuleId, "visitpad"]])),
-          expandEnabledModuleSlugs: vi.fn(async (slugs) => slugs),
-        },
+        }),
       },
       "tenant-a",
     );
@@ -61,7 +68,13 @@ describe("listAssignableRuntimeCapabilities", () => {
       [
         capability({ id: "cap-um", module: "user-management" }),
         capability({ id: "cap-cfg", module: "configurator" }),
-        capability({ id: "cap-vp", module: "visitpad" }),
+        capability({
+          id: "cap-vp",
+          module: "visitpad",
+          source_catalog: "master_data",
+          source_module_slug: "visitpad",
+          source_permission_slug: "read",
+        }),
       ].map((c) => ({ capability: c })),
     );
 
@@ -71,10 +84,7 @@ describe("listAssignableRuntimeCapabilities", () => {
         tenantModuleEntitlementPort: {
           listTenantEnabledModuleIds: vi.fn().mockResolvedValue([]),
         },
-        masterDataModuleCatalogPort: {
-          resolveModuleSlugsByIds: vi.fn().mockResolvedValue(new Map()),
-          expandEnabledModuleSlugs: vi.fn(async (slugs) => slugs),
-        },
+        masterDataModuleCatalogPort: createMasterDataModuleCatalogPortStub(),
       },
       "tenant-a",
     );
@@ -90,7 +100,13 @@ describe("listAssignableRuntimeCapabilities", () => {
     const capabilityRepository = new InMemoryCapabilityRepository(
       [
         capability({ id: "cap-um", module: "user-management" }),
-        capability({ id: "cap-opd", module: "opd" }),
+        capability({
+          id: "cap-opd",
+          module: "opd",
+          source_catalog: "master_data",
+          source_module_slug: "opd",
+          source_permission_slug: "visit.read",
+        }),
         capability({ id: "cap-billing", module: "billing" }),
       ].map((c) => ({ capability: c })),
     );
@@ -101,10 +117,9 @@ describe("listAssignableRuntimeCapabilities", () => {
         tenantModuleEntitlementPort: {
           listTenantEnabledModuleIds: vi.fn().mockResolvedValue([opdModuleId]),
         },
-        masterDataModuleCatalogPort: {
+        masterDataModuleCatalogPort: createMasterDataModuleCatalogPortStub({
           resolveModuleSlugsByIds: vi.fn().mockResolvedValue(new Map([[opdModuleId, "opd"]])),
-          expandEnabledModuleSlugs: vi.fn(async (slugs) => slugs),
-        },
+        }),
       },
       "tenant-a",
     );
@@ -121,8 +136,20 @@ describe("listAssignableRuntimeCapabilities", () => {
     const masterDataModuleId = "l1-md";
     const capabilityRepository = new InMemoryCapabilityRepository(
       [
-        capability({ id: "cap-md", module: "master-data" }),
-        capability({ id: "cap-dep", module: "departments" }),
+        capability({
+          id: "cap-md",
+          module: "master-data",
+          source_catalog: "master_data",
+          source_module_slug: "master-data",
+          source_permission_slug: "read",
+        }),
+        capability({
+          id: "cap-dep",
+          module: "departments",
+          source_catalog: "master_data",
+          source_module_slug: "departments",
+          source_permission_slug: "read",
+        }),
       ].map((c) => ({ capability: c })),
     );
 
@@ -132,14 +159,14 @@ describe("listAssignableRuntimeCapabilities", () => {
         tenantModuleEntitlementPort: {
           listTenantEnabledModuleIds: vi.fn().mockResolvedValue([masterDataModuleId]),
         },
-        masterDataModuleCatalogPort: {
+        masterDataModuleCatalogPort: createMasterDataModuleCatalogPortStub({
           resolveModuleSlugsByIds: vi
             .fn()
             .mockResolvedValue(new Map([[masterDataModuleId, "master-data"]])),
           expandEnabledModuleSlugs: vi.fn(async (slugs) => [
             ...expandModuleSlugsWithDescendants(slugs, catalogTree),
           ]),
-        },
+        }),
       },
       "tenant-a",
     );
@@ -160,10 +187,7 @@ describe("listAssignableRuntimeCapabilities", () => {
           tenantModuleEntitlementPort: {
             listTenantEnabledModuleIds: vi.fn().mockResolvedValue([visitpadModuleId]),
           },
-          masterDataModuleCatalogPort: {
-            resolveModuleSlugsByIds: vi.fn().mockResolvedValue(new Map()),
-            expandEnabledModuleSlugs: vi.fn(async (slugs) => slugs),
-          },
+          masterDataModuleCatalogPort: createMasterDataModuleCatalogPortStub(),
         },
         "tenant-a",
       ),
@@ -182,14 +206,60 @@ describe("listAssignableRuntimeCapabilities", () => {
           tenantModuleEntitlementPort: {
             listTenantEnabledModuleIds: vi.fn().mockResolvedValue(["mod-bad"]),
           },
-          masterDataModuleCatalogPort: {
+          masterDataModuleCatalogPort: createMasterDataModuleCatalogPortStub({
             resolveModuleSlugsByIds: vi.fn().mockResolvedValue(new Map([["mod-bad", "Invalid_Slug"]])),
-            expandEnabledModuleSlugs: vi.fn(async (slugs) => slugs),
-          },
+          }),
         },
         "tenant-a",
       ),
     ).rejects.toBeInstanceOf(ModuleEntitlementLookupError);
+  });
+
+  it("omits LOB capabilities when the Master Data module-permission link was removed", async () => {
+    const billingModuleId = "33333333-3333-4333-8333-333333333333";
+    const capabilityRepository = new InMemoryCapabilityRepository(
+      [
+        capability({
+          id: "cap-tariff-create",
+          module: "tariff-master",
+          capability_key: "tariff-master:tariff-master:create",
+          action: "create",
+          source_catalog: "master_data",
+          source_module_slug: "tariff-master",
+          source_permission_slug: "create",
+        }),
+        capability({
+          id: "cap-tariff-read",
+          module: "tariff-master",
+          capability_key: "tariff-master:tariff-master:read",
+          source_catalog: "master_data",
+          source_module_slug: "tariff-master",
+          source_permission_slug: "read",
+        }),
+      ].map((c) => ({ capability: c })),
+    );
+
+    const result = await listAssignableRuntimeCapabilities(
+      {
+        capabilityRepository,
+        tenantModuleEntitlementPort: {
+          listTenantEnabledModuleIds: vi.fn().mockResolvedValue([billingModuleId]),
+        },
+        masterDataModuleCatalogPort: createMasterDataModuleCatalogPortStub({
+          resolveModuleSlugsByIds: vi
+            .fn()
+            .mockResolvedValue(new Map([[billingModuleId, "billing-and-finance"]])),
+          expandEnabledModuleSlugs: vi.fn(async (slugs) => [...slugs, "tariff-master"]),
+          listActiveModulePermissionSourcePairs: vi.fn(
+            async () =>
+              new Set([masterDataSourcePairKey("tariff-master", "read")]),
+          ),
+        }),
+      },
+      "tenant-a",
+    );
+
+    expect(result.map((capability) => capability.id)).toEqual(["cap-tariff-read"]);
   });
 
   it("propagates configurator lookup failures (fail closed)", async () => {
@@ -206,10 +276,9 @@ describe("listAssignableRuntimeCapabilities", () => {
               .fn()
               .mockRejectedValue(new ModuleEntitlementLookupError("configurator")),
           },
-          masterDataModuleCatalogPort: {
+          masterDataModuleCatalogPort: createMasterDataModuleCatalogPortStub({
             resolveModuleSlugsByIds: vi.fn(),
-            expandEnabledModuleSlugs: vi.fn(async (slugs) => slugs),
-          },
+          }),
         },
         "tenant-a",
       ),

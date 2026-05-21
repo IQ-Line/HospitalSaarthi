@@ -35,7 +35,7 @@ import {
   TariffServiceCreateFormFields,
   TariffServiceEditFormFields,
 } from '@/features/billing/components/tariff-service-form-fields';
-import { useBillingServicesPermission } from '@/features/billing/hooks/use-billing-services-permission';
+import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
 import { formatDateTime, formatMoneyDisplay } from '@/features/billing/lib/format';
 import {
   formToCreatePayload,
@@ -65,7 +65,9 @@ export const Route = createFileRoute('/_authenticated/billing-and-finance/tariff
 });
 
 function BillingServicesPage() {
-  const { canWrite } = useBillingServicesPermission();
+  const { canCreate, canUpdate, canDelete } = useCatalogModuleCrud('tariff-master', {
+    productModuleSlug: 'billing-and-finance',
+  });
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string>('all');
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all');
@@ -103,7 +105,7 @@ function BillingServicesPage() {
 
   const handleActiveChange = useCallback(
     async (service: TariffService, next: boolean) => {
-      if (!canWrite || next === service.is_active) return;
+      if (!canUpdate || next === service.is_active) return;
       try {
         await updateMutation.mutateAsync({ id: service.id, input: { is_active: next } });
         toast.success(next ? 'Service activated' : 'Service deactivated');
@@ -111,11 +113,11 @@ function BillingServicesPage() {
         toast.error(mutationErrorMessage(err));
       }
     },
-    [canWrite, updateMutation],
+    [canUpdate, updateMutation],
   );
 
   const handleDeactivate = useCallback(async () => {
-    if (!deactivating || !canWrite) return;
+    if (!deactivating || !canDelete) return;
     try {
       await updateMutation.mutateAsync({
         id: deactivating.id,
@@ -126,7 +128,7 @@ function BillingServicesPage() {
     } catch (err) {
       toast.error(mutationErrorMessage(err));
     }
-  }, [canWrite, deactivating, updateMutation]);
+  }, [canDelete, deactivating, updateMutation]);
 
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -173,7 +175,7 @@ function BillingServicesPage() {
         cell: ({ row }) => (
           <TableActiveToggle
             active={row.original.is_active}
-            disabled={updateMutation.isPending || !canWrite}
+            disabled={updateMutation.isPending || !canUpdate}
             onCheckedChange={(next) => void handleActiveChange(row.original, next)}
           />
         ),
@@ -189,12 +191,13 @@ function BillingServicesPage() {
               editForm.reset(serviceToEditFormValues(row.original));
             }}
             onDelete={() => setDeactivating(row.original)}
-            readOnly={!canWrite}
+            canEdit={canUpdate}
+            canDelete={canDelete}
           />
         ),
       },
     ],
-    [canWrite, editForm, handleActiveChange, updateMutation.isPending],
+    [canDelete, canUpdate, editForm, handleActiveChange, updateMutation.isPending],
   );
 
   return (
@@ -202,7 +205,7 @@ function BillingServicesPage() {
       title="Tariff catalog"
       description="Tenant chargeable services (tariff master). Price changes apply from the effective date; historical bills keep snapshotted prices."
       actions={
-        canWrite ? (
+        canCreate ? (
           <Button
             onClick={() => {
               createForm.reset(EMPTY_TARIFF_CREATE_VALUES);
@@ -269,17 +272,16 @@ function BillingServicesPage() {
           isLoading={isLoading}
           emptyTitle="No tariff services yet"
           emptyDescription={
-            canWrite
+            canCreate
               ? 'Add service to create your first chargeable tariff row.'
               : 'No services match your filters.'
           }
         />
       )}
 
-      {canWrite ? (
-        <>
-          <EntityFormDialog
-            open={isCreateOpen}
+      {canCreate ? (
+        <EntityFormDialog
+          open={isCreateOpen}
             onOpenChange={setIsCreateOpen}
             title="Add tariff"
             description="Registration fees use frontdesk rack rates. OPD tariffs require a department and doctor."
@@ -304,10 +306,12 @@ function BillingServicesPage() {
               setValue={createForm.setValue}
               lookupsEnabled={isCreateOpen}
             />
-          </EntityFormDialog>
+        </EntityFormDialog>
+      ) : null}
 
-          <EntityFormDialog
-            open={editing !== null}
+      {canUpdate ? (
+        <EntityFormDialog
+          open={editing !== null}
             onOpenChange={(open) => !open && setEditing(null)}
             title="Edit service"
             description={`Update ${editing?.service_code ?? 'service'}. Code and provider cannot change.`}
@@ -328,18 +332,19 @@ function BillingServicesPage() {
             })}
           >
             <TariffServiceEditFormFields control={editForm.control} />
-          </EntityFormDialog>
+        </EntityFormDialog>
+      ) : null}
 
-          <ConfirmDialog
-            open={deactivating !== null}
-            onOpenChange={(open) => !open && setDeactivating(null)}
-            title="Deactivate service?"
-            description="Inactive services cannot be charged. You can re-activate from the table."
-            confirmLabel="Deactivate"
-            destructive
-            onConfirm={() => void handleDeactivate()}
-          />
-        </>
+      {canDelete ? (
+        <ConfirmDialog
+          open={deactivating !== null}
+          onOpenChange={(open) => !open && setDeactivating(null)}
+          title="Deactivate service?"
+          description="Inactive services cannot be charged. You can re-activate from the table."
+          confirmLabel="Deactivate"
+          destructive
+          onConfirm={() => void handleDeactivate()}
+        />
       ) : null}
 
       <Dialog open={viewing !== null} onOpenChange={(open) => !open && setViewing(null)}>

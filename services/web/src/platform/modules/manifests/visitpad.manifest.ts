@@ -10,7 +10,13 @@ export const visitpadModuleManifest: ModuleManifest = {
   requiredModulesAny: ['visitpad-templates'],
   navigation: [
     { id: 'visitpad-units', label: 'Units', icon: 'ruler', route: '/visitpad/units' },
-    { id: 'visitpad-conversions', label: 'Conversions', icon: 'arrow-right-left', route: '/visitpad/conversions' },
+    {
+      id: 'visitpad-conversions',
+      label: 'Conversions',
+      icon: 'arrow-right-left',
+      route: '/visitpad/conversions',
+      catalogModuleSlug: 'unit-conversions',
+    },
     { id: 'visitpad-vitals', label: 'Vitals', icon: 'heart-pulse', route: '/visitpad/vitals' },
     { id: 'visitpad-chief-complaints', label: 'Chief complaints', icon: 'book-open', route: '/visitpad/chief-complaints' },
     { id: 'visitpad-diagnoses', label: 'Diagnosis', icon: 'stethoscope', route: '/visitpad/diagnoses' },

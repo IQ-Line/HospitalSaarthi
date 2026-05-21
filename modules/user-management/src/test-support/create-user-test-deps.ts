@@ -7,6 +7,7 @@ import { InMemoryUserAccessRepository } from "../data-access/in-memory-user-acce
 import { InMemoryUserProvisioningRepository } from "../data-access/in-memory-user-provisioning-repository.js";
 import { InMemoryUserRepository } from "../data-access/in-memory-user-repository.js";
 import type { CreateUserDeps } from "../use-cases/create-user.js";
+import { createMasterDataModuleCatalogPortStub } from "./master-data-catalog-port-stub.js";
 import type {
   AuthAccountProvisioner,
   MasterDataModuleCatalogPort,
@@ -56,13 +57,7 @@ export function createUserTestDeps(options: CreateUserTestDepsOptions): CreateUs
         },
       },
     masterDataModuleCatalogPort:
-      options.masterDataModuleCatalogPort ?? {
-        async resolveModuleSlugsByIds() {
-          return new Map();
-        },
-        async expandEnabledModuleSlugs(moduleSlugs: readonly string[]) {
-          return moduleSlugs;
-        },
-      },
+      options.masterDataModuleCatalogPort ??
+      createMasterDataModuleCatalogPortStub(),
   };
 }

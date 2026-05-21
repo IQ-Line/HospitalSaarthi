@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
+import { platformCatalogClient } from './platform-catalog-client';
 import { masterDataKeys } from './query-keys';
 import type {
   PermissionAction,
@@ -13,17 +14,20 @@ const BASE = '/api/v1/master-data/permissions';
 
 export function usePermissions(
   action?: PermissionAction,
-  options?: { enabled?: boolean; globalCatalog?: boolean },
+  options?: {
+    enabled?: boolean;
+    /** Defaults to true — platform permissions live in `global_master`. */
+    globalCatalog?: boolean;
+  },
 ) {
   const params = action ? `?action=${action}` : '';
+  const globalCatalog = options?.globalCatalog !== false;
   return useQuery({
-    queryKey: masterDataKeys.permissions(action, options?.globalCatalog),
+    queryKey: masterDataKeys.permissions(action, globalCatalog),
     queryFn: () =>
-      apiClient<PermissionListResponse>(
-        `${BASE}${params}`,
-        {},
-        options?.globalCatalog ? { tenantIdOverride: null } : undefined,
-      ),
+      globalCatalog
+        ? platformCatalogClient<PermissionListResponse>(`${BASE}${params}`)
+        : apiClient<PermissionListResponse>(`${BASE}${params}`),
     enabled: options?.enabled ?? true,
   });
 }
@@ -31,7 +35,7 @@ export function usePermissions(
 export function usePermission(id: string) {
   return useQuery({
     queryKey: masterDataKeys.permissionDetail(id),
-    queryFn: () => apiClient<PermissionSingleResponse>(`${BASE}/${id}`),
+    queryFn: () => platformCatalogClient<PermissionSingleResponse>(`${BASE}/${id}`),
     enabled: !!id,
   });
 }
@@ -40,7 +44,7 @@ export function useCreatePermission() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: PermissionCreateInput) =>
-      apiClient<PermissionSingleResponse>(BASE, {
+      platformCatalogClient<PermissionSingleResponse>(BASE, {
         method: 'POST',
         body: JSON.stringify(input),
       }),
@@ -55,7 +59,7 @@ export function useUpdatePermission() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: PermissionUpdateInput }) =>
-      apiClient<PermissionSingleResponse>(`${BASE}/${id}`, {
+      platformCatalogClient<PermissionSingleResponse>(`${BASE}/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(input),
       }),
@@ -70,7 +74,7 @@ export function useDeletePermission() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      apiClient<PermissionSingleResponse>(`${BASE}/${id}`, {
+      platformCatalogClient<PermissionSingleResponse>(`${BASE}/${id}`, {
         method: 'DELETE',
       }),
     onSuccess: (_data, id) => {

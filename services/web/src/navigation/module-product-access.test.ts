@@ -66,4 +66,11 @@ describe('capabilityKeysGrantProductAccess', () => {
       capabilityKeysGrantProductAccess(keys, ['user-management'], catalogIndex),
     ).toBe(true);
   });
+
+  it('grants visitpad-templates for visitpad:view shell key without L2 keys', () => {
+    const keys = new Set(['visitpad-templates:visitpad:view']);
+    expect(
+      capabilityKeysGrantProductAccess(keys, ['visitpad-templates'], catalogIndex),
+    ).toBe(true);
+  });
 });

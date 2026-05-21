@@ -4,6 +4,7 @@ import { ModuleEntitlementLookupError, UnexpectedPersistenceError } from "../dom
 import { InMemoryCapabilityRepository } from "../data-access/in-memory-capability-repository.js";
 import { InMemoryUserProvisioningRepository } from "../data-access/in-memory-user-provisioning-repository.js";
 import { createUserTestDeps } from "../test-support/create-user-test-deps.js";
+import { createMasterDataModuleCatalogPortStub } from "../test-support/master-data-catalog-port-stub.js";
 import { InMemoryPrincipalRoleProjectionRepository } from "../data-access/in-memory-principal-role-projection-repository.js";
 import { InMemoryRoleCapabilityRepository } from "../data-access/in-memory-role-capability-repository.js";
 import { InMemoryRoleRepository } from "../data-access/in-memory-role-repository.js";
@@ -46,14 +47,7 @@ const entitlementPorts = {
       return [];
     },
   },
-  masterDataModuleCatalogPort: {
-    async resolveModuleSlugsByIds(): Promise<Map<string, string>> {
-      return new Map();
-    },
-    async expandEnabledModuleSlugs(moduleSlugs: readonly string[]): Promise<readonly string[]> {
-      return moduleSlugs;
-    },
-  },
+  masterDataModuleCatalogPort: createMasterDataModuleCatalogPortStub(),
 } as const;
 
 describe("createUser", () => {
@@ -371,10 +365,9 @@ describe("createUser", () => {
               .fn()
               .mockRejectedValue(new ModuleEntitlementLookupError("configurator")),
           },
-      masterDataModuleCatalogPort: {
+      masterDataModuleCatalogPort: createMasterDataModuleCatalogPortStub({
         resolveModuleSlugsByIds: vi.fn(),
-        expandEnabledModuleSlugs: vi.fn(async (slugs: readonly string[]) => slugs),
-      },
+      }),
     });
     deps.capabilityRepository = capabilityRepository;
 

@@ -48,12 +48,16 @@ import {
   type PermissionFormValues,
 } from '@/features/master-data/validation';
 import type { Permission, PermissionAction } from '@/features/master-data/types';
+import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
 
 export const Route = createFileRoute('/_authenticated/master-data/permissions')({
   component: PermissionsPage,
 });
 
 function PermissionsPage() {
+  const { canCreate, canUpdate, canDelete } = useCatalogModuleCrud('permissions', {
+    productModuleSlug: 'master-data',
+  });
   const [tableSearch, setTableSearch] = useState('');
   const [actionFilter, setActionFilter] = useState<PermissionAction | 'all'>('all');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -112,8 +116,9 @@ function PermissionsPage() {
           <TableActiveToggle
             active={row.original.is_active}
             disabled={
-              updateMutation.isPending &&
-              updateMutation.variables?.id === row.original.id
+              !canUpdate ||
+              (updateMutation.isPending &&
+                updateMutation.variables?.id === row.original.id)
             }
             onCheckedChange={(next) => {
               if (next === row.original.is_active) return;
@@ -150,11 +155,20 @@ function PermissionsPage() {
             }}
             onDelete={() => setDeletingPermission(row.original)}
             disabled={deleteMutation.isPending}
+            canEdit={canUpdate}
+            canDelete={canDelete}
           />
         ),
       },
     ],
-    [deleteMutation.isPending, editForm, updateMutation.isPending, updateMutation.variables],
+    [
+      canDelete,
+      canUpdate,
+      deleteMutation.isPending,
+      editForm,
+      updateMutation.isPending,
+      updateMutation.variables,
+    ],
   );
 
   const onCreateSubmit = createForm.handleSubmit(async (values) => {
@@ -224,7 +238,9 @@ function PermissionsPage() {
               ))}
             </SelectContent>
           </Select>
-          <Button onClick={() => setIsCreateOpen(true)}>Create Permission</Button>
+          {canCreate ? (
+            <Button onClick={() => setIsCreateOpen(true)}>Create Permission</Button>
+          ) : null}
         </div>
       }
     >

@@ -47,8 +47,10 @@ import {
   type VisitpadUnitConversionCreateSchema,
   type VisitpadUnitConversionEditFormSchema,
 } from '@/features/visitpad/validation';
-import { useAnyCapability, useCapability } from '@/hooks/use-capability';
-import { MD_VISITPAD_MUTATE_ANY } from '@/lib/runtime-capability-keys';
+import { useCapability } from '@/hooks/use-capability';
+import { catalogModuleSlugForVisitpadManifestNode } from '@/features/visitpad/lib/visitpad-access';
+import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
+import { requireVisitpadLeafRouteAccess } from '@/lib/visitpad-route-access';
 import { useVisitpadImportLibrarySearch } from '@/features/visitpad/hooks/use-visitpad-import-library-search';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 
@@ -60,11 +62,13 @@ function formatUnitCodeWithLabel(code: string, labelByCode: Map<string, string>)
 }
 
 export const Route = createFileRoute('/_authenticated/visitpad/conversions')({
+  beforeLoad: requireVisitpadLeafRouteAccess('/visitpad/conversions'),
   component: VisitpadConversionsPage,
 });
 
 function VisitpadConversionsPage() {
-  const mdVisitpadMutateAny = useAnyCapability(MD_VISITPAD_MUTATE_ANY);
+  const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-conversions');
+  const { canUpdate, canDelete, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
@@ -195,10 +199,12 @@ function VisitpadConversionsPage() {
       visitpadActionsColumn<VisitpadUnitConversion>({
         onEdit: setEditing,
         onDelete: setDeleting,
-        disabled: busy || !mdVisitpadMutateAny,
+        disabled: busy,
+        canEdit: canUpdate,
+        canDelete,
       }),
     ],
-    [busy, unitLabelByCode, mdVisitpadMutateAny],
+    [busy, unitLabelByCode, canUpdate, canDelete],
   );
 
   return (
@@ -215,7 +221,8 @@ function VisitpadConversionsPage() {
       secondaryNav={<VisitpadUnitsSecondaryNav />}
       actions={
         <VisitpadHeaderActions
-addLabel={tenantCatalog ? 'Add local conversion' : 'Add conversion'}
+          catalogModuleSlug={catalogModuleSlug}
+          addLabel={tenantCatalog ? 'Add local conversion' : 'Add conversion'}
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
           importFromLibraryPending={platformImport.isPending}

@@ -1,12 +1,13 @@
 import {
   buildNavCapabilityAccessInput,
-  catalogSlugMatchesRouteSegment,
+  capabilityKeysGrantModuleSlugAccess,
   principalGrantsNavNodeAccess,
 } from '@/navigation/nav-capability-access';
 import { capabilityKeysGrantProductAccess } from '@/navigation/module-product-access';
 import { getModuleCatalogIndexFromCache } from '@/platform/modules/module-catalog';
 import { canonicalizeRuntimeCapabilityKey } from '@/lib/legacy-capability-key-remap';
 import { normalizeCapabilityKey } from '@/lib/principal-capabilities';
+import { catalogSlugVariants } from '@/platform/modules/catalog-slug-variants';
 import type { NavigationNode } from '@/navigation/types';
 
 export type CatalogRouteAccessOptions = {
@@ -56,6 +57,8 @@ export function principalHasCatalogModuleAction(
   action: string,
 ): boolean {
   const normalizedAction = action.trim().toLowerCase();
+  const segments = new Set<string>();
+
   for (const rawKey of capabilityKeys) {
     const parts = canonicalizeRuntimeCapabilityKey(normalizeCapabilityKey(rawKey)).split(':');
     if (parts.length < 3) {
@@ -65,12 +68,13 @@ export function principalHasCatalogModuleAction(
     if (!l1 || !resource || !act || act !== normalizedAction) {
       continue;
     }
-    if (
-      catalogSlugMatchesRouteSegment(moduleSlug, l1) ||
-      catalogSlugMatchesRouteSegment(moduleSlug, resource)
-    ) {
-      return true;
+    for (const segment of [l1, resource]) {
+      segments.add(segment);
+      for (const variant of catalogSlugVariants(segment)) {
+        segments.add(variant);
+      }
     }
   }
-  return false;
+
+  return capabilityKeysGrantModuleSlugAccess(segments, [moduleSlug]);
 }

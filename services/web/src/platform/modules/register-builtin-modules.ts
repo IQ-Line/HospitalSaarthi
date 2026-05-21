@@ -1,5 +1,6 @@
 import { registerModuleManifest } from './module-registry';
 import { invalidateComposedNavigationCache } from './module-manifest-loader';
+import { billingAndFinanceModuleManifest } from './manifests/billing-and-finance.manifest';
 import { configuratorModuleManifest } from './manifests/configurator.manifest';
 import { dashboardModuleManifest } from './manifests/dashboard.manifest';
 import { frontdeskModuleManifest } from './manifests/frontdesk.manifest';
@@ -12,6 +13,7 @@ const BUILTIN_MODULE_MANIFESTS = [
   masterDataModuleManifest,
   userManagementModuleManifest,
   frontdeskModuleManifest,
+  billingAndFinanceModuleManifest,
   visitpadModuleManifest,
   configuratorModuleManifest,
 ] as const;
