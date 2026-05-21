@@ -1,0 +1,41 @@
+[project]
+name = "hims-opd"
+version = "0.1.0"
+description = "OPD module for the HIMS platform."
+requires-python = ">=3.12"
+dependencies = [
+    "alembic",
+    "fastapi",
+    "pydantic",
+    "pydantic-settings",
+    "psycopg[binary]",
+    "pyjwt",
+    "sqlalchemy",
+]
+
+[dependency-groups]
+dev = [
+    "httpx",
+    "pytest",
+    "pytest-asyncio",
+    "ruff",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/opd"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"
