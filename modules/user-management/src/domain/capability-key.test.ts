@@ -12,47 +12,76 @@ import {
 
 describe("capability-key", () => {
   it("parses canonical three-segment keys", () => {
-    expect(parseCapabilityKey("um:user:create")).toEqual({
-      moduleKey: "um",
-      resource: "user",
+    expect(parseCapabilityKey("users:users:create")).toEqual({
+      moduleKey: "users",
+      resource: "users",
       action: "create",
-      raw: "um:user:create",
+      raw: "users:users:create",
     });
   });
 
   it("normalizes to lowercase", () => {
-    expect(normalizeCapabilityKey("  UM:User:READ  ")).toBe("um:user:read");
+    expect(normalizeCapabilityKey("  Users:Users:READ  ")).toBe("users:users:read");
   });
 
   it("rejects malformed keys", () => {
-    expect(() => assertValidCapabilityKey("um:user")).toThrow(InvalidCapabilityKeyError);
-    expect(() => assertValidCapabilityKey("um:user:create:extra")).toThrow(InvalidCapabilityKeyError);
-    expect(() => assertValidCapabilityKey("um:us er:read")).toThrow(InvalidCapabilityKeyError);
-    expect(() => assertValidCapabilityKey("bad segment:user:read")).toThrow(InvalidCapabilityKeyError);
-    expect(() => assertValidCapabilityKey("um:user:invalid-action")).toThrow(InvalidCapabilityKeyError);
+    expect(() => assertValidCapabilityKey("users:users")).toThrow(InvalidCapabilityKeyError);
+    expect(() => assertValidCapabilityKey("users:users:create:extra")).toThrow(
+      InvalidCapabilityKeyError,
+    );
+    expect(() => assertValidCapabilityKey("users:us er:read")).toThrow(InvalidCapabilityKeyError);
+    expect(() => assertValidCapabilityKey("bad segment:users:read")).toThrow(
+      InvalidCapabilityKeyError,
+    );
+    expect(() => assertValidCapabilityKey("users:users:invalid-action")).toThrow(
+      InvalidCapabilityKeyError,
+    );
   });
 
-  it("maps user-management catalog slug to um runtime module key", () => {
-    expect(runtimeModuleKeyForCatalogSlug("user-management")).toBe("um");
-    expect(runtimeModuleKeyForCatalogSlug("billing")).toBe("billing");
+  it("uses catalog module slug as runtime module key", () => {
+    expect(runtimeModuleKeyForCatalogSlug("user-management")).toBe("user-management");
+    expect(runtimeModuleKeyForCatalogSlug("users")).toBe("users");
+    expect(runtimeModuleKeyForCatalogSlug("visitpad-templates")).toBe("visitpad-templates");
   });
 
   it("asserts capability_key module segment matches catalog module slug", () => {
     expect(() =>
-      assertCapabilityKeyMatchesCatalogModule("user-management:user:read", "user-management"),
+      assertCapabilityKeyMatchesCatalogModule("billing:user:read", "users"),
     ).toThrow(InvalidCapabilityKeyError);
     expect(() =>
-      assertCapabilityKeyMatchesCatalogModule("um:user:read", "user-management"),
+      assertCapabilityKeyMatchesCatalogModule("users:users:read", "users"),
+    ).not.toThrow();
+    expect(() =>
+      assertCapabilityKeyMatchesCatalogModule("master-data:shell:access", "master-data"),
     ).not.toThrow();
   });
 
-  it("validates foundational UM seed rows", () => {
+  it("validates synced catalog rows", () => {
     expect(() =>
       assertValidRuntimeCapabilityRow({
-        capability_key: "um:user:create",
-        module: "user-management",
+        capability_key: "users:users:create",
+        module: "users",
         feature: "users",
         action: "create",
+      }),
+    ).not.toThrow();
+  });
+
+  it("validates demo shell capabilities", () => {
+    expect(() =>
+      assertValidRuntimeCapabilityRow({
+        capability_key: "master-data:shell:access",
+        module: "master-data",
+        feature: "shell",
+        action: "access",
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertValidRuntimeCapabilityRow({
+        capability_key: "configurator:shell:access",
+        module: "configurator",
+        feature: "shell",
+        action: "access",
       }),
     ).not.toThrow();
   });
@@ -60,9 +89,9 @@ describe("capability-key", () => {
   it("detects duplicate normalized capability keys", () => {
     expect(
       findDuplicateCapabilityKeys([
-        { capability_key: "um:user:read" },
-        { capability_key: "UM:user:read" },
+        { capability_key: "users:users:read" },
+        { capability_key: "Users:users:read" },
       ]),
-    ).toEqual(["um:user:read"]);
+    ).toEqual(["users:users:read"]);
   });
 });

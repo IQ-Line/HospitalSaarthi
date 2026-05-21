@@ -4,13 +4,13 @@ import { refreshAuthorizationContext } from "./authorization-context";
 import { authPrincipalQueryKeys } from "./auth-principal-query";
 
 const {
-  hydratePermissionsFromBackend,
+  hydrateCapabilitiesFromPrincipal,
   clearPermissions,
   authGetState,
   tenantGetState,
   permissionsGetState,
 } = vi.hoisted(() => ({
-  hydratePermissionsFromBackend: vi.fn(),
+  hydrateCapabilitiesFromPrincipal: vi.fn(),
   clearPermissions: vi.fn(),
   authGetState: vi.fn(),
   tenantGetState: vi.fn(),
@@ -18,7 +18,7 @@ const {
 }));
 
 vi.mock("@/lib/permissions", () => ({
-  hydratePermissionsFromBackend,
+  hydrateCapabilitiesFromPrincipal,
 }));
 
 vi.mock("@/stores/auth.store", () => ({
@@ -69,13 +69,14 @@ describe("refreshAuthorizationContext", () => {
       queryKey: authPrincipalQueryKeys.all,
     });
     expect(queryClient.fetchQuery).not.toHaveBeenCalled();
-    expect(hydratePermissionsFromBackend).not.toHaveBeenCalled();
+    expect(hydrateCapabilitiesFromPrincipal).not.toHaveBeenCalled();
   });
 
-  it("refreshes principal query and permission map for an authenticated self-access update", async () => {
+  it("clears permissions when authenticated but access token is missing", async () => {
     authGetState.mockReturnValue({
       isAuthenticated: true,
       userId: "user-1",
+      accessToken: null,
     });
     tenantGetState.mockReturnValue({
       tenantId: "tenant-a",
@@ -85,6 +86,59 @@ describe("refreshAuthorizationContext", () => {
     const queryClient = {
       invalidateQueries: vi.fn().mockResolvedValue(undefined),
       fetchQuery: vi.fn().mockResolvedValue(undefined),
+    } as unknown as QueryClient;
+
+    await refreshAuthorizationContext(queryClient);
+
+    expect(clearPermissions).toHaveBeenCalledTimes(1);
+    expect(queryClient.fetchQuery).not.toHaveBeenCalled();
+  });
+
+  it("clears permissions when authenticated but tenant scope is missing", async () => {
+    authGetState.mockReturnValue({
+      isAuthenticated: true,
+      userId: "user-1",
+      accessToken: "jwt-token",
+    });
+    tenantGetState.mockReturnValue({
+      tenantId: "  ",
+      activeBranch: "main",
+    });
+
+    const queryClient = {
+      invalidateQueries: vi.fn().mockResolvedValue(undefined),
+      fetchQuery: vi.fn().mockResolvedValue(undefined),
+    } as unknown as QueryClient;
+
+    await refreshAuthorizationContext(queryClient);
+
+    expect(clearPermissions).toHaveBeenCalledTimes(1);
+    expect(queryClient.fetchQuery).not.toHaveBeenCalled();
+    expect(hydrateCapabilitiesFromPrincipal).not.toHaveBeenCalled();
+  });
+
+  it("refreshes principal query and hydrates capabilities for an authenticated session", async () => {
+    authGetState.mockReturnValue({
+      isAuthenticated: true,
+      userId: "user-1",
+      accessToken: "jwt-token",
+    });
+    tenantGetState.mockReturnValue({
+      tenantId: "tenant-a",
+      activeBranch: "main",
+    });
+
+    const principal = {
+      id: "user-1",
+      roles: ["platform_operator"],
+      attributes: {
+        capabilities: ["users:users:read"],
+        delegated_capabilities: [],
+      },
+    };
+    const queryClient = {
+      invalidateQueries: vi.fn().mockResolvedValue(undefined),
+      fetchQuery: vi.fn().mockResolvedValue(principal),
     } as unknown as QueryClient;
 
     await refreshAuthorizationContext(queryClient);
@@ -101,7 +155,7 @@ describe("refreshAuthorizationContext", () => {
         }),
       }),
     );
-    expect(hydratePermissionsFromBackend).toHaveBeenCalledTimes(1);
+    expect(hydrateCapabilitiesFromPrincipal).toHaveBeenCalledWith(principal);
     expect(clearPermissions).not.toHaveBeenCalled();
   });
 });

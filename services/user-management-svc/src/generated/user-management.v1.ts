@@ -160,71 +160,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/auth/permissions-map": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Cerbos-backed SPA permission map (UX only)
-         * @description Returns a nested map (module → feature → action → boolean) derived from the same Cerbos PDP checks as User Management APIs. Intended for frontend navigation and control visibility only; every protected API must still enforce authorization server-side.
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: {
-                    /**
-                     * @deprecated
-                     * @description Optional diagnostic header. Canonical tenant scope is JWT `iq_tenant_id`. If this header is supplied, runtime requires exact match with JWT tenant scope.
-                     */
-                    iq_tenant_id?: components["parameters"]["IqTenantIdHeader"];
-                };
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Permission map for the authenticated principal in the active tenant. */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["PermissionsUxMapResponse"];
-                    };
-                };
-                /** @description Request validation error (including tenant header/JWT mismatch when header is provided). */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorMessage"];
-                    };
-                };
-                /** @description Missing or invalid bearer token. */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorMessage"];
-                    };
-                };
-                403: components["responses"]["Forbidden"];
-                500: components["responses"]["InternalError"];
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/capabilities": {
         parameters: {
             query?: never;
@@ -1784,7 +1719,7 @@ export interface components {
         Capability: {
             /** Format: uuid */
             id: string;
-            /** @description Runtime Cerbos vocabulary key (e.g. `um:user:read`). Stable once granted; distinct from Master Data `permissions.slug`. */
+            /** @description Runtime Cerbos vocabulary key (e.g. `users:users:read`). Stable once granted; distinct from Master Data `permissions.slug`. */
             capability_key: string;
             /** @description Module slug — MUST equal `master_data.modules.slug` (kebab-case, e.g. `user-management`, `opd`, `billing`). */
             module: string;
@@ -1797,10 +1732,7 @@ export interface components {
             source_module_slug?: string | null;
             /** @description Future catalog sync — originating Master Data `permissions.slug` (nullable until sync exists). */
             source_permission_slug?: string | null;
-            /**
-             * @description Future catalog sync — system of record for provenance metadata.
-             * @enum {string|null}
-             */
+            /** @description Future catalog sync — system of record for provenance metadata. */
             source_catalog?: "master_data" | null;
         };
         Role: {
@@ -1864,17 +1796,6 @@ export interface components {
                 [key: string]: string;
             };
             um_clearance_effective_tier: number;
-        };
-        /** @description Nested map keyed by module id (e.g. user-management), then feature id (e.g. users), then action id (e.g. read). Values are Cerbos-backed UX hints from GET /auth/permissions-map. */
-        PermissionsUxMap: {
-            [key: string]: {
-                [key: string]: {
-                    [key: string]: boolean;
-                };
-            };
-        };
-        PermissionsUxMapResponse: {
-            map: components["schemas"]["PermissionsUxMap"];
         };
         ErrorMessage: {
             /** @description Machine-readable error code. */

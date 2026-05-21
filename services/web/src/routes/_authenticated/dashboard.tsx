@@ -2,7 +2,10 @@ import { useState } from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { LogOut } from 'lucide-react';
 import { Button } from '@pulse/ui/button';
+import { useCapability } from '@/hooks/use-capability';
 import { authClient } from '@/lib/auth-client';
+import { NavigationModuleDiscovery } from '@/features/dashboard/components/navigation-module-discovery';
+import { UM_USER_READ } from '@/lib/runtime-capability-keys';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePermissionsStore } from '@/stores/permissions.store';
 import { useTenantStore } from '@/stores/tenant.store';
@@ -13,11 +16,9 @@ export const Route = createFileRoute('/_authenticated/dashboard')({
 
 function DashboardPage() {
   const displayName = useAuthStore((s) => s.displayName);
-  const permissionMap = usePermissionsStore((s) => s.map);
-  const canReadUsers = usePermissionsStore((s) =>
-    s.hasFeaturePermission('user-management', 'users', 'read'),
-  );
-  const permissionsUnavailable = Object.keys(permissionMap).length === 0;
+  const capabilityCount = usePermissionsStore((s) => s.capabilityKeys.size);
+  const isLoaded = usePermissionsStore((s) => s.isLoaded);
+  const capabilitiesUnavailable = isLoaded && capabilityCount === 0;
 
   return (
     <div className="p-6">
@@ -31,12 +32,11 @@ function DashboardPage() {
         </div>
       </div>
       <p className="text-gray-600">
-        HIMS Platform is running. Module pages will appear in the sidebar as they are built.
+        HIMS Platform is running. Module pages appear in the sidebar when your principal holds the
+        required capability keys.
       </p>
-      <UserListPermissionHint
-        canReadUsers={canReadUsers}
-        permissionsUnavailable={permissionsUnavailable}
-      />
+      <UserListCapabilityHint capabilitiesUnavailable={capabilitiesUnavailable} />
+      <NavigationModuleDiscovery />
     </div>
   );
 }
@@ -45,6 +45,7 @@ function LogoutButton() {
   const navigate = useNavigate();
   const clearSession = useAuthStore((s) => s.clearSession);
   const clearTenant = useTenantStore((s) => s.clearTenant);
+  const clearPermissions = usePermissionsStore((s) => s.clearPermissions);
   const [loggingOut, setLoggingOut] = useState(false);
 
   async function handleLogout() {
@@ -56,6 +57,7 @@ function LogoutButton() {
     }
     clearSession();
     clearTenant();
+    clearPermissions();
     navigate({ to: '/login' });
   }
 
@@ -67,27 +69,26 @@ function LogoutButton() {
   );
 }
 
-function UserListPermissionHint({
-  canReadUsers,
-  permissionsUnavailable,
+function UserListCapabilityHint({
+  capabilitiesUnavailable,
 }: {
-  canReadUsers: boolean;
-  permissionsUnavailable: boolean;
+  capabilitiesUnavailable: boolean;
 }) {
-  if (permissionsUnavailable) {
+  const umUserRead = useCapability(UM_USER_READ);
+  if (capabilitiesUnavailable) {
     return (
-      <p className="mt-4 text-sm text-muted-foreground" data-testid="cerbos-user-list-unavailable">
-        Backend permission map is being retried. APIs still enforce authz while the shell refreshes
-        UX permissions.
+      <p className="mt-4 text-sm text-muted-foreground" data-testid="capabilities-unavailable">
+        Principal capabilities are being retried. APIs still enforce Cerbos while the shell
+        refreshes.
       </p>
     );
   }
 
   return (
-    <p className="mt-4 text-sm text-muted-foreground" data-testid="cerbos-user-list-result">
-      Backend permission map: <span className="font-medium">{canReadUsers ? 'user list allowed' : 'user list denied'}</span>
-      {' — '}
-      shell UX stays aligned with the same authz decisions enforced by the APIs.
+    <p className="mt-4 text-sm text-muted-foreground" data-testid="um-user-read-result">
+      Shell capability <span className="font-medium">{UM_USER_READ}</span>:{' '}
+      <span className="font-medium">{umUserRead ? 'granted' : 'denied'}</span>
+      {' — '}APIs remain authoritative via Cerbos PDP.
     </p>
   );
 }

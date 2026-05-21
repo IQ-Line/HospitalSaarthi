@@ -3,6 +3,9 @@ import { createJSONStorage, devtools, persist } from 'zustand/middleware';
 import { usePermissionsStore } from '@/stores/permissions.store';
 
 interface TenantState {
+  /** Tenant where the signed-in user row lives (JWT `iq_tenant_id`). */
+  homeTenantId: string | null;
+  /** Active working tenant (API `iq_tenant_id` header). Same as home for normal users. */
   tenantId: string | null;
   tenantName: string | null;
   activeBranch: string | null;
@@ -14,11 +17,20 @@ interface TenantState {
     branches: Array<{ id: string; name: string }>;
     activeBranch: string;
   }) => void;
+  setTenantContext: (tenant: {
+    homeTenantId: string;
+    tenantId: string;
+    tenantName: string;
+    branches: Array<{ id: string; name: string }>;
+    activeBranch: string;
+  }) => void;
+  switchActiveTenant: (tenant: { tenantId: string; tenantName: string }) => void;
   switchBranch: (branchId: string) => void;
   clearTenant: () => void;
 }
 
 const tenantSlice: StateCreator<TenantState> = (set) => ({
+  homeTenantId: null,
   tenantId: null,
   tenantName: null,
   activeBranch: null,
@@ -28,6 +40,7 @@ const tenantSlice: StateCreator<TenantState> = (set) => ({
     usePermissionsStore.getState().clearPermissions();
     set(
       {
+        homeTenantId: tenant.tenantId,
         tenantId: tenant.tenantId,
         tenantName: tenant.tenantName,
         branches: tenant.branches,
@@ -35,6 +48,34 @@ const tenantSlice: StateCreator<TenantState> = (set) => ({
       },
       false,
       'setTenant',
+    );
+  },
+
+  setTenantContext: (tenant) => {
+    usePermissionsStore.getState().clearPermissions();
+    set(
+      {
+        homeTenantId: tenant.homeTenantId,
+        tenantId: tenant.tenantId,
+        tenantName: tenant.tenantName,
+        branches: tenant.branches,
+        activeBranch: tenant.activeBranch,
+      },
+      false,
+      'setTenantContext',
+    );
+  },
+
+  switchActiveTenant: (tenant) => {
+    usePermissionsStore.getState().clearPermissions();
+    set(
+      (state) => ({
+        tenantId: tenant.tenantId,
+        tenantName: tenant.tenantName,
+        activeBranch: state.activeBranch ?? state.branches[0]?.id ?? null,
+      }),
+      false,
+      'switchActiveTenant',
     );
   },
 
@@ -46,7 +87,13 @@ const tenantSlice: StateCreator<TenantState> = (set) => ({
   clearTenant: () => {
     usePermissionsStore.getState().clearPermissions();
     set(
-      { tenantId: null, tenantName: null, activeBranch: null, branches: [] },
+      {
+        homeTenantId: null,
+        tenantId: null,
+        tenantName: null,
+        activeBranch: null,
+        branches: [],
+      },
       false,
       'clearTenant',
     );
@@ -58,6 +105,7 @@ const tenantStoreCreator = import.meta.env.DEV
       name: 'hims-dev-tenant',
       storage: createJSONStorage(() => sessionStorage),
       partialize: (s) => ({
+        homeTenantId: s.homeTenantId,
         tenantId: s.tenantId,
         tenantName: s.tenantName,
         activeBranch: s.activeBranch,

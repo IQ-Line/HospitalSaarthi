@@ -44,7 +44,7 @@ function CerbosPrincipalBridge({ children }: { children: ReactNode }): ReactElem
 
   const principalQuery = useQuery({
     ...authPrincipalQueryOptions({ userId, tenantId, activeBranch }),
-    enabled: Boolean(isAuthenticated && userId && tenantId),
+    enabled: Boolean(isAuthenticated && userId && tenantId && accessToken?.trim()),
     select: authPrincipalToCerbosPrincipal,
   });
 

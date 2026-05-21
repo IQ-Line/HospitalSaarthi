@@ -6,7 +6,8 @@
     "serve": {
       "command": "vite",
       "options": {
-        "cwd": "services/web"
+        "cwd": "services/web",
+        "envFile": "{workspaceRoot}/.env"
       }
     },
     "build": {

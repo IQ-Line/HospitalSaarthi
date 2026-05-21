@@ -14,7 +14,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ../db/citus-init.sql:/docker-entrypoint-initdb.d/01-citus-init.sql
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U hims']
+      test: ['CMD-SHELL', 'pg_isready -U hims -d hims_dev']
       interval: 5s
       timeout: 3s
       retries: 5

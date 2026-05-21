@@ -17,6 +17,7 @@ export function authPrincipalQueryOptions(scope: AuthPrincipalQueryScope) {
   return queryOptions({
     queryKey: authPrincipalQueryKeys.detail(scope),
     queryFn: fetchAuthPrincipal,
-    staleTime: 30_000,
+    // Principal carries PDP capability keys; must refetch after login or access changes.
+    staleTime: 0,
   });
 }

@@ -87,7 +87,7 @@ async function createTestApp() {
     {
       capability: {
         id: "f47ac10b-58cc-4372-a567-0e02b2c3d591",
-        capability_key: "um:role:read",
+        capability_key: "user-roles:user-roles:read",
         module: "user-management",
         feature: "roles",
         action: "read",
@@ -171,6 +171,9 @@ async function createTestApp() {
           async resolveModuleSlugsByIds() {
             return new Map();
           },
+          async expandEnabledModuleSlugs(moduleSlugs: readonly string[]) {
+            return moduleSlugs;
+          },
         },
       });
     },
@@ -193,7 +196,7 @@ describe("User Management admin surface routes", () => {
     expect(response.json()).toEqual(
       expect.objectContaining({
         id: "f47ac10b-58cc-4372-a567-0e02b2c3d591",
-        capability_key: "um:role:read",
+        capability_key: "user-roles:user-roles:read",
       }),
     );
   });

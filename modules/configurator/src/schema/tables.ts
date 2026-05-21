@@ -118,7 +118,7 @@ export const tenantModules = configuratorSchema.table(
 
 // ---------------------------------------------------------------------------
 // Next: Projection tables (synced from Master Data events) — see LLD §1, §10
-//   module_projection, config_schema_projection, feature_flag_projection
+//   config_schema_projection, feature_flag_projection
 //
 // Next: Distributed tables (by iq_tenant_id) — see LLD §3–§9
 //   tenant_feature_flags, tenant_module_configs,

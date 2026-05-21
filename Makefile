@@ -11,7 +11,7 @@ SERVICE_ENVS := bff user-management-svc empi-svc configurator-svc billing-svc re
 # --- Setup -------------------------------------------------------------------
 
 .PHONY: setup
-setup: ## Full bootstrap: check prereqs, copy all .env files, install deps, start infra, migrate
+setup: ## Full bootstrap: env, deps, infra, migrate, seed
 	@echo "==> Checking prerequisites..."
 	@command -v node >/dev/null 2>&1 || { echo "node is required"; exit 1; }
 	@command -v pnpm >/dev/null 2>&1 || { echo "pnpm is required"; exit 1; }
@@ -25,7 +25,9 @@ setup: ## Full bootstrap: check prereqs, copy all .env files, install deps, star
 	@$(MAKE) _wait-healthy
 	@echo "==> Running migrations..."
 	@$(MAKE) db-migrate
-	@echo "==> Setup complete. Run 'make dev' to start all services."
+	@echo "==> Seeding development authorization data..."
+	@$(MAKE) seed
+	@echo "==> Setup complete. Run 'pnpm dev:web-stack' to start the demo stack."
 
 .PHONY: env-init
 env-init: ## Copy every .env.example to .env (skips files that already exist)
@@ -78,20 +80,25 @@ infra-logs: ## Tail docker infrastructure logs
 
 .PHONY: db-migrate
 db-migrate: ## Run all pending migrations
+	$(NX) run master-data:migrate
 	$(NX) run configurator:db-migrate
 	$(NX) run user-management:db-migrate
 	$(NX) run empi:db-migrate
 	$(NX) run registration:db-migrate
 	$(NX) run billing:db-migrate
-	$(NX) run master-data:migrate
 	$(NX) run abdm-adapter-svc:db-migrate
 
+.PHONY: seed
+seed: ## Seed Configurator tenant, UM runtime data, Cerbos smoke check (catalog = Alembic)
+	pnpm seed
+
 .PHONY: db-reset
-db-reset: ## Drop, recreate, migrate, seed
+db-reset: ## Drop volumes, recreate infra, migrate, seed
 	$(DOCKER_COMPOSE) down -v
 	$(MAKE) infra
 	$(MAKE) _wait-healthy
 	$(MAKE) db-migrate
+	$(MAKE) seed
 	@echo "==> Database reset complete."
 
 .PHONY: db-studio

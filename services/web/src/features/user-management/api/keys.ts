@@ -10,9 +10,13 @@ export const userManagementKeys = {
   userAccessRoot: () => [...userManagementKeys.all, 'user-access'] as const,
   users: () => [...userManagementKeys.all, 'users'] as const,
   userList: () => [...userManagementKeys.users(), 'list'] as const,
-  userDetail: (id: string) => [...userManagementKeys.users(), 'detail', id] as const,
-  userCapabilities: (id: string) => [...userManagementKeys.userAccessRoot(), 'capabilities', id] as const,
-  userEffectiveCapabilities: (id: string) =>
-    [...userManagementKeys.userAccessRoot(), 'effective-capabilities', id] as const,
-  userRoleTemplates: (id: string) => [...userManagementKeys.userAccessRoot(), 'role-templates', id] as const,
+  userDetail: (id: string, tenantScopeKey = 'active-tenant') =>
+    [...userManagementKeys.users(), 'detail', id, tenantScopeKey] as const,
+  userCapabilities: (id: string, tenantScopeKey = 'active-tenant') =>
+    [...userManagementKeys.userAccessRoot(), 'capabilities', id, tenantScopeKey] as const,
+  userEffectiveCapabilities: (id: string, tenantScopeKey = 'active-tenant') =>
+    [...userManagementKeys.userAccessRoot(), 'effective-capabilities', id, tenantScopeKey] as const,
+  userRoleTemplates: (id: string, tenantScopeKey = 'active-tenant') =>
+    [...userManagementKeys.userAccessRoot(), 'role-templates', id, tenantScopeKey] as const,
+  platformDirectory: () => [...userManagementKeys.all, 'platform-directory'] as const,
 };

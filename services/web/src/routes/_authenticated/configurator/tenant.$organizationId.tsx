@@ -110,6 +110,7 @@ function TenantOrganizationDetailPage() {
 
   const { data: modulesRes, isLoading: modulesCatalogLoading } = useModules(undefined, {
     enabled: !!rootTenant?.iq_tenant_id,
+    globalCatalog: true,
   });
   const { data: tenantModsRes, isLoading: tenantModsLoading } = useTenantModules(
     rootTenant?.iq_tenant_id ?? '',

@@ -28,6 +28,11 @@ export interface TenantModuleEntitlementPort {
 /** Master Data authority: module catalog (`module_id` → `slug`). */
 export interface MasterDataModuleCatalogPort {
   resolveModuleSlugsByIds(moduleIds: string[]): Promise<Map<string, string>>;
+  /**
+   * Expands enabled catalog slugs to include every descendant module slug in the tree.
+   * L1 `tenant_modules` rows imply L2+ permissions linked on child modules.
+   */
+  expandEnabledModuleSlugs(moduleSlugs: readonly string[]): Promise<readonly string[]>;
 }
 
 /** @deprecated Use {@link ModuleEntitlementRequestContext}. */

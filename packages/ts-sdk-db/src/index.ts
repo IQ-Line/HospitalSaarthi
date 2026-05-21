@@ -6,6 +6,16 @@ export {
 } from "./tenant-scope.js";
 export { createDb, type DbInstance } from "./connection.js";
 export {
+  parsePostgresDatabaseName,
+  resolveDatabaseUrl,
+  assertUserManagementDatabaseIsolation,
+  assertConfiguratorDatabaseIsolation,
+} from "./database-isolation.js";
+export type {
+  AssertUserManagementDatabaseInput,
+  AssertConfiguratorDatabaseInput,
+} from "./database-isolation.js";
+export {
   eq,
   and,
   ilike,

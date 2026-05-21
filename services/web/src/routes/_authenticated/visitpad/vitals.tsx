@@ -40,7 +40,8 @@ import {
 } from '@/features/visitpad/openapi-constants';
 import { visitpadActiveTotal } from '@/features/visitpad/tab-count';
 import type { VisitpadUnit, VisitpadVital } from '@/features/visitpad/types';
-import { useVisitpadCatalogPermission } from '@/features/visitpad/hooks/use-visitpad-catalog-permission';
+import { useAnyCapability, useCapability } from '@/hooks/use-capability';
+import { MD_VISITPAD_MUTATE_ANY } from '@/lib/runtime-capability-keys';
 import { useVisitpadImportLibrarySearch } from '@/features/visitpad/hooks/use-visitpad-import-library-search';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 import { visitpadActiveUnitRows } from '@/features/visitpad/unit-catalog';
@@ -135,7 +136,7 @@ function VisitpadVitalsPage() {
   const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadVital | null>(null);
   const [deleting, setDeleting] = useState<VisitpadVital | null>(null);
-  const { canWrite, canRead } = useVisitpadCatalogPermission();
+  const mdVisitpadMutateAny = useAnyCapability(MD_VISITPAD_MUTATE_ANY);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const cat = category === 'all' ? undefined : category;
   const listPage = useMemo(() => ({ pageIndex, pageSize }), [pageIndex, pageSize]);
@@ -277,7 +278,7 @@ function VisitpadVitalsPage() {
         cell: ({ row }) => (
           <TableActiveToggle
             active={row.original.is_active}
-            disabled={patch.isPending || !canWrite}
+            disabled={patch.isPending || !mdVisitpadMutateAny}
             onCheckedChange={async (next) => {
               try {
                 await patch.mutateAsync({ id: row.original.id, body: { is_active: next } });
@@ -292,10 +293,10 @@ function VisitpadVitalsPage() {
       visitpadActionsColumn<VisitpadVital>({
         onEdit: setEditing,
         onDelete: setDeleting,
-        disabled: busy || !canWrite,
+        disabled: busy || !mdVisitpadMutateAny,
       }),
     ],
-    [patch, busy, canWrite],
+    [patch, busy, mdVisitpadMutateAny],
   );
 
   return (
@@ -310,9 +311,7 @@ function VisitpadVitalsPage() {
       }
       actions={
         <VisitpadHeaderActions
-          canWrite={canWrite}
-          canRead={canRead}
-          addLabel={tenantCatalog ? 'Add local vital' : 'Add vital'}
+addLabel={tenantCatalog ? 'Add local vital' : 'Add vital'}
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
           importFromLibraryPending={platformImport.isPending}

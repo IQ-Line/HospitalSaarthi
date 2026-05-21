@@ -1,15 +1,7 @@
 import { applyUserManagementSchemaMigration } from "../src/schema/apply-migration.js";
+import { resolveDatabaseUrl } from "@hims/ts-sdk-db";
 
-const url =
-  process.env["USER_MGMT_DATABASE_URL"]?.trim() ||
-  process.env["DATABASE_URL"]?.trim();
-
-if (!url) {
-  console.error(
-    "USER_MGMT_DATABASE_URL or DATABASE_URL is required (e.g. from repo root .env)",
-  );
-  process.exit(1);
-}
+const url = resolveDatabaseUrl();
 
 await applyUserManagementSchemaMigration(url);
 console.log("User-management schema migration applied.");

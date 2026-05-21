@@ -1,0 +1,43 @@
+import { afterEach, describe, expect, it } from "vitest";
+import { validateAuthConfig } from "@hims/ts-sdk-identity";
+
+const ENV_KEYS = ["JWKS_URL", "JWT_ISSUER", "JWT_AUDIENCE"] as const;
+
+function expectedJwksForIssuer(issuer: string): string {
+  return `${issuer.replace(/\/+$/, "")}/api/auth/.well-known/jwks.json`;
+}
+
+function setAuthEnv(issuer: string, jwksUrl?: string): void {
+  process.env.JWT_ISSUER = issuer;
+  process.env.JWT_AUDIENCE = "hims-platform";
+  process.env.JWKS_URL = jwksUrl ?? expectedJwksForIssuer(issuer);
+}
+
+describe("validateAuthConfig", () => {
+  afterEach(() => {
+    for (const key of ENV_KEYS) {
+      delete process.env[key];
+    }
+  });
+
+  it("accepts JWKS_URL derived from JWT_ISSUER", () => {
+    setAuthEnv("http://localhost:3000");
+    expect(validateAuthConfig()).toEqual({
+      issuer: "http://localhost:3000",
+      jwksUrl: "http://localhost:3000/api/auth/.well-known/jwks.json",
+      audience: "hims-platform",
+    });
+  });
+
+  it("strips trailing slashes from issuer when building expected JWKS", () => {
+    setAuthEnv("http://localhost:3000/");
+    expect(validateAuthConfig().jwksUrl).toBe(
+      "http://localhost:3000/api/auth/.well-known/jwks.json",
+    );
+  });
+
+  it("fails fast when JWKS_URL does not match issuer", () => {
+    setAuthEnv("http://localhost:3000", "http://localhost:3005/api/auth/.well-known/jwks.json");
+    expect(() => validateAuthConfig()).toThrow(/JWKS_URL must equal/);
+  });
+});

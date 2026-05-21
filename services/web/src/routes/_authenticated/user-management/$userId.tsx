@@ -1,48 +1,52 @@
-import { createFileRoute, Link, redirect } from '@tanstack/react-router';
-import { useShallow } from 'zustand/react/shallow';
+import { useState } from 'react';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import { Badge } from '@pulse/ui/badge';
 import { Button } from '@pulse/ui/button';
+import { ConfirmDialog } from '@/components/confirm-dialog';
+import { CapabilityGate } from '@/components/capability-gate';
+import { useCapability } from '@/hooks/use-capability';
+import { requireCapability } from '@/lib/require-capabilities';
+import {
+  UM_ROLE_ASSIGN,
+  UM_ROLE_READ,
+  UM_USER_DELETE,
+  UM_USER_READ,
+  UM_USER_UPDATE,
+} from '@/lib/runtime-capability-keys';
 import { useDeactivateUser } from '@/features/user-management/api/mutations';
 import {
-  capabilityListOptions,
   roleListOptions,
   userCapabilitiesOptions,
   userDetailOptions,
-  userEffectiveCapabilitiesOptions,
   useUserDetailSuspense,
 } from '@/features/user-management/api/queries';
+import { EditUserDialog } from '@/features/user-management/components/edit-user-dialog';
 import { UserManagementPageShell } from '@/features/user-management/components/user-management-page-shell';
 import { UserAccessPanel } from '@/features/user-management/components/user-access-panel';
-import { UserManagementSectionCard } from '@/features/user-management/components/user-management-section-card';
-import { UserEditForm } from '@/features/user-management/components/user-edit-form';
-import { useAuthStore } from '@/stores/auth.store';
 import { usePermissionsStore } from '@/stores/permissions.store';
 
-const UM = 'user-management';
-
 export const Route = createFileRoute('/_authenticated/user-management/$userId')({
-  beforeLoad: () => {
-    if (!usePermissionsStore.getState().hasFeaturePermission(UM, 'users', 'read')) {
-      throw redirect({ to: '/dashboard' });
-    }
-  },
-  loader: async ({ context, params }) => {
-    const permissions = usePermissionsStore.getState();
-    const canViewUserAccess = permissions.hasFeaturePermission(UM, 'users', 'read');
+  validateSearch: (search: Record<string, unknown>) => ({
+    tenant:
+      typeof search.tenant === 'string' && search.tenant.trim().length > 0
+        ? search.tenant.trim()
+        : undefined,
+  }),
+  beforeLoad: requireCapability(UM_USER_READ),
+  loaderDeps: ({ search }) => ({ tenant: search.tenant }),
+  loader: async ({ context, params, deps }) => {
+    const p = usePermissionsStore.getState();
+    const tenantScope = deps.tenant;
     const loads: Array<Promise<unknown>> = [
-      context.queryClient.ensureQueryData(userDetailOptions(params.userId)),
+      context.queryClient.ensureQueryData(userDetailOptions(params.userId, tenantScope)),
     ];
-    if (canViewUserAccess) {
+    if (p.hasCapability(UM_ROLE_ASSIGN) || p.hasCapability(UM_ROLE_READ)) {
       loads.push(
-        context.queryClient.ensureQueryData(userCapabilitiesOptions(params.userId)),
-        context.queryClient.ensureQueryData(userEffectiveCapabilitiesOptions(params.userId)),
+        context.queryClient.ensureQueryData(userCapabilitiesOptions(params.userId, tenantScope)),
       );
     }
-    if (permissions.hasFeaturePermission(UM, 'roles', 'read')) {
-      loads.push(context.queryClient.ensureQueryData(roleListOptions()));
-    }
-    if (permissions.hasFeaturePermission(UM, 'capabilities', 'read')) {
-      loads.push(context.queryClient.ensureQueryData(capabilityListOptions()));
+    if (p.hasCapability(UM_ROLE_READ)) {
+      loads.push(context.queryClient.ensureQueryData(roleListOptions(tenantScope)));
     }
     await Promise.all(loads);
   },
@@ -51,88 +55,76 @@ export const Route = createFileRoute('/_authenticated/user-management/$userId')(
 
 function UserDetailPage() {
   const { userId } = Route.useParams();
-  const { data: user } = useUserDetailSuspense(userId);
-  const sessionUserId = useAuthStore((s) => s.userId);
-  const { canWriteProfile, canViewUserAccess, canReadRoleTemplates, canReadCapabilities, canManageAccess } =
-    usePermissionsStore(
-    useShallow((s) => ({
-      canWriteProfile: s.hasFeaturePermission(UM, 'users', 'write'),
-      canViewUserAccess: s.hasFeaturePermission(UM, 'users', 'read'),
-      canReadRoleTemplates: s.hasFeaturePermission(UM, 'roles', 'read'),
-      canReadCapabilities: s.hasFeaturePermission(UM, 'capabilities', 'read'),
-      canManageAccess: s.hasFeaturePermission(UM, 'userAccess', 'write'),
-    })),
-  );
-  const deactivate = useDeactivateUser(userId);
+  const { tenant: tenantScope } = Route.useSearch();
+  const { data: user } = useUserDetailSuspense(userId, tenantScope);
+  const [editOpen, setEditOpen] = useState(false);
+  const [deactivateOpen, setDeactivateOpen] = useState(false);
+
+  const umUserUpdate = useCapability(UM_USER_UPDATE);
+  const umUserDelete = useCapability(UM_USER_DELETE);
+  const deactivate = useDeactivateUser(userId, tenantScope);
 
   return (
-    <UserManagementPageShell
-      section="users"
-      breadcrumbLabel={user.full_name}
-      title={user.full_name}
-      description={`User id ${user.id}`}
-      pageContext={
-        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          <Badge variant={user.status === 'active' ? 'default' : 'secondary'}>{user.status}</Badge>
-          {user.email ? <span>{user.email}</span> : null}
-          {user.username ? <span>@{user.username}</span> : null}
-        </div>
-      }
-      actions={
-        <div className="flex gap-2">
-          <Button variant="outline" asChild>
-            <Link to="/user-management" search={{ q: '', createUser: false }}>
-              Back to list
-            </Link>
-          </Button>
-          {canWriteProfile && user.status === 'active' ? (
-            <Button
-              variant="destructive"
-              type="button"
-              disabled={deactivate.isPending}
-              onClick={() => deactivate.mutate()}
-            >
-              Deactivate
+    <>
+      <UserManagementPageShell
+        section="users"
+        breadcrumbLabel={user.full_name}
+        title={user.full_name}
+        description={[user.email, user.username ? `@${user.username}` : null]
+          .filter(Boolean)
+          .join(' · ')}
+        pageContext={
+          <Badge variant={user.status === 'active' ? 'default' : 'secondary'}>
+            {user.status === 'active' ? 'Active' : 'Inactive'}
+          </Badge>
+        }
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" asChild>
+              <Link to="/user-management" search={{ q: '', createUser: false }}>
+                Back
+              </Link>
             </Button>
-          ) : null}
-        </div>
-      }
-    >
-      <UserManagementSectionCard
-        title="Identity and tenancy snapshot"
-        description="Quick profile facts for support, access reviews, and tenant-scoped troubleshooting."
-        contentClassName="pt-0"
+            <CapabilityGate capability={UM_USER_UPDATE}>
+              <Button type="button" variant="outline" onClick={() => setEditOpen(true)}>
+                Edit profile
+              </Button>
+            </CapabilityGate>
+            {umUserDelete && user.status === 'active' ? (
+              <CapabilityGate capability={UM_USER_DELETE}>
+                <Button type="button" variant="destructive" onClick={() => setDeactivateOpen(true)}>
+                  Deactivate
+                </Button>
+              </CapabilityGate>
+            ) : null}
+          </div>
+        }
       >
-        <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-          <div>
-            <dt className="text-muted-foreground">Department</dt>
-            <dd>{user.department ?? '—'}</dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground">Clearance tier</dt>
-            <dd>{user.clearance_tier_required ?? 0}</dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground">Organization id</dt>
-            <dd className="break-all font-mono text-xs">{user.org_id ?? '—'}</dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground">Auth user id</dt>
-            <dd className="break-all font-mono text-xs">{user.auth_user_id ?? '—'}</dd>
-          </div>
-        </dl>
-      </UserManagementSectionCard>
+        <UserAccessPanel userId={user.id} tenantScope={tenantScope} />
+      </UserManagementPageShell>
 
-      {canWriteProfile ? <UserEditForm user={user} /> : null}
+      {umUserUpdate ? (
+        <EditUserDialog
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          user={user}
+          tenantScope={tenantScope}
+        />
+      ) : null}
 
-      <UserAccessPanel
-        userId={user.id}
-        sessionUserId={sessionUserId}
-        canViewUserAccess={canViewUserAccess}
-        canReadRoleTemplates={canReadRoleTemplates}
-        canReadCapabilities={canReadCapabilities}
-        canManageAccess={canManageAccess}
+      <ConfirmDialog
+        open={deactivateOpen}
+        onOpenChange={setDeactivateOpen}
+        title="Deactivate this user?"
+        description={`${user.full_name} will no longer be able to sign in.`}
+        confirmLabel={deactivate.isPending ? 'Deactivating...' : 'Deactivate'}
+        destructive
+        onConfirm={() => {
+          deactivate.mutate(undefined, {
+            onSuccess: () => setDeactivateOpen(false),
+          });
+        }}
       />
-    </UserManagementPageShell>
+    </>
   );
 }

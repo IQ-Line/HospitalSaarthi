@@ -22,7 +22,7 @@ interface AuthState {
   clearSession: () => void;
 }
 
-const authSlice: StateCreator<AuthState> = (set) => ({
+const authSlice: StateCreator<AuthState> = (set, get) => ({
   isAuthenticated: false,
   accessToken: null,
   sessionToken: null,
@@ -31,7 +31,9 @@ const authSlice: StateCreator<AuthState> = (set) => ({
   roles: [],
 
   setSession: (session) => {
-    // Always decode from JWT — never trust a separately persisted `roles` array.
+    if (get().userId !== session.userId) {
+      usePermissionsStore.getState().clearPermissions();
+    }
     const roles = getRolesFromAccessToken(session.accessToken);
     set({
       isAuthenticated: true,

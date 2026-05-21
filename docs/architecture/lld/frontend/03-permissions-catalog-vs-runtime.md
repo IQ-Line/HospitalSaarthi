@@ -29,17 +29,14 @@ Migration `024_visitpad_templates_module_catalog` (and optional `025_visitpad_te
 
 ---
 
-## 3. Frontend map shape (phase 0)
+## 3. Frontend capability keys (current)
 
-The store uses nested keys: `map[moduleKey][featureKey][actionKey] → boolean`.
+The SPA hydrates **`usePermissionsStore.capabilityKeys`** from `GET /auth/principal` → `attributes.capabilities` after login (see [`authorization-context.ts`](../../../services/web/src/lib/authorization-context.ts) and [development-authentication.md](../../auth/development-authentication.md)).
 
-- **Module key** for Visitpad templates UI: `visitpad-templates` (matches sidebar [`_authenticated.tsx`](../../../services/web/src/routes/_authenticated.tsx)).
-- **Feature key (coarse):** `catalog` — covers list + all Visitpad template sections until finer keys are added.
-- **Action keys:** `read`, `write` (UI shorthand). **`write`** is the projection used for create/update/delete in the UI; it should align with Cerbos `update` / `create` / `delete` / `manage` when the real API is wired.
+- Shell nav and routes use **`hasCapability` / `requireCapabilities`** with runtime keys (e.g. `md:visitpad:mutate:any`, `um:user:read`).
+- Visitpad pages use capability keys via hooks such as [`useVisitpadCatalogPermission`](../../../services/web/src/features/visitpad/hooks/use-visitpad-catalog-permission.ts) for mutating controls.
 
-Helper: [`services/web/src/lib/permissions-map.ts`](../../../services/web/src/lib/permissions-map.ts) — `projectCerbosActionsToWrite`, `buildDevPermissionMap`.
-
-Visitpad pages use [`useVisitpadCatalogPermission`](../../../services/web/src/features/visitpad/hooks/use-visitpad-catalog-permission.ts) to gate **mutating** controls (Add, bulk CSV, row edit/delete, toggles use `write`). **Import from library** (tenant overlay only) is shown when the user has **catalog `read`** so tenant demos can pull platform rows while Add stays hidden if `write` is false.
+There is no nested UX permission map or dev-only permission injection in the login path.
 
 ---
 
@@ -82,41 +79,14 @@ WHERE m.slug = 'visitpad-templates' AND NOT m.is_deleted
 
 ---
 
-## 5. Future User Management API (hydrate layer C)
+## 5. Hydrating layer C (implemented)
 
-**Goal:** After better-auth (or BFF) login, call User Management (or BFF aggregate) to obtain **effective permissions** for the current user and tenant, then `usePermissionsStore.getState().setPermissions(map)`.
-
-**Illustrative response shape** (normative contract TBD in OpenAPI):
-
-```json
-{
-  "version": 1,
-  "modules": [
-    {
-      "module": "visitpad-templates",
-      "features": [
-        {
-          "feature": "catalog",
-          "actions": ["read", "update"]
-        }
-      ]
-    }
-  ]
-}
-```
-
-**Client mapping steps:**
-
-1. For each module, for each feature, normalize Cerbos/API actions with [`projectCerbosActionsToWrite`](../../../services/web/src/lib/permissions-map.ts) into `{ read: boolean, write: boolean }`.
-2. Build nested `PermissionMap` and call `setPermissions(map)`.
-3. Call from a single place (e.g. post-login callback, session refresh) so dev mock and production paths stay parallel.
-
-Until that API exists, [`buildDevPermissionMap`](../../../services/web/src/lib/permissions-map.ts) + [`login.tsx`](../../../services/web/src/routes/login.tsx) supply layer C for local development.
+After better-auth login, the SPA calls **`GET /auth/principal`** and sets capability keys via `hydrateCapabilitiesFromPrincipal()` (see [`permissions.ts`](../../../services/web/src/lib/permissions.ts)). Development uses the same path with seeded users (`pnpm seed:user-management-dev`); see [development-authentication.md](../../auth/development-authentication.md).
 
 ---
 
 ## 6. Verification checklist
 
-- Catalog rows exist in DB (layer A) but **do not** automatically populate the SPA; login mock or UM API does (layer C).
-- Tenant dev login with read-only Visitpad: lists still load if backend allows; **mutating** UI is disabled when `write` is false.
-- Superadmin dev login: `write` true for `visitpad-templates.catalog`; full Visitpad editing in the UI (subject to catalog scope / `iq_tenant_id` rules in [02](./02-visitpad-catalog-global-vs-tenant.md)).
+- Catalog rows exist in DB (layer A) but **do not** automatically populate the SPA; principal hydration does (layer C).
+- Readonly seed user (`readonly@hospitalsaarthi.dev`): UM read keys present; mutating UM UI hidden when keys are absent.
+- Platform operator seed user: broad capability set from `user_capabilities`; same principal path as production.
