@@ -51,4 +51,8 @@ export const masterDataKeys = {
   departmentsRoot: () => [...masterDataKeys.all, 'departments'] as const,
   departments: (type?: string, iqTenantId?: string) =>
     [...masterDataKeys.departmentsRoot(), type ?? 'all', iqTenantId ?? 'global'] as const,
+
+  picklistsRoot: () => [...masterDataKeys.all, 'picklists'] as const,
+  picklistValues: (picklistId: string) =>
+    [...masterDataKeys.picklistsRoot(), picklistId, 'values'] as const,
 } as const;
