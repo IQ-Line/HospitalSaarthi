@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useQuery, type QueryClient } from '@tanstack/react-query';
 import { queryClient } from '@/lib/query-client';
-import { apiClient } from '@/lib/api-client';
+import { platformCatalogClient } from '@/features/master-data/api/platform-catalog-client';
 import { masterDataKeys } from '@/features/master-data/api/query-keys';
 import type { Module, ModuleListResponse } from '@/features/master-data/types';
 import { configuratorKeys } from '@/features/configurator/api/query-keys';
@@ -44,11 +44,9 @@ export function useModuleCatalog() {
   const query = useQuery({
     queryKey: masterDataKeys.globalModules(),
     queryFn: () =>
-      apiClient<ModuleListResponse>(
-        '/api/v1/master-data/modules',
-        { method: 'GET' },
-        { tenantIdOverride: null },
-      ),
+      platformCatalogClient<ModuleListResponse>('/api/v1/master-data/modules', {
+        method: 'GET',
+      }),
     staleTime: MODULE_CATALOG_STALE_MS,
     gcTime: MODULE_CATALOG_STALE_MS * 2,
     retry: 1,

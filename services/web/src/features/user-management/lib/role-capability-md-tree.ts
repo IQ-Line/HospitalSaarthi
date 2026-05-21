@@ -130,6 +130,38 @@ export function enabledModuleIdsForRoleCapabilities(
   return enabled;
 }
 
+/** Enables every catalog module on the path for a permission option (by `moduleSlug`). */
+export function enabledModuleIdsForPermissionOptions(
+  modules: Module[],
+  permissionOptions: MasterDataPermissionOption[],
+): Set<string> {
+  const byId = new Map(modules.map((module) => [module.id, module]));
+  const bySlug = indexModulesBySlug(modules);
+  const enabled = new Set<string>();
+
+  const addModuleAndAncestors = (module: Module) => {
+    let current: Module | undefined = module;
+    while (current) {
+      if (!current.is_active || current.is_deleted) {
+        current = current.parent_id ? byId.get(current.parent_id) : undefined;
+        continue;
+      }
+      enabled.add(current.id);
+      current = current.parent_id ? byId.get(current.parent_id) : undefined;
+    }
+  };
+
+  for (const option of permissionOptions) {
+    const slug = normalizeSlug(option.moduleSlug);
+    const matches = bySlug.get(slug) ?? [];
+    for (const module of matches) {
+      addModuleAndAncestors(module);
+    }
+  }
+
+  return enabled;
+}
+
 export function buildMasterDataPermissionTreeContext(
   modules: Module[],
   capabilities: Capability[],
@@ -144,7 +176,12 @@ export function buildMasterDataPermissionTreeContext(
   const childMap = buildChildrenMap(activeModules);
   const rootModules = childMap.get(null) ?? [];
   const permissionOptions = capabilitiesToMasterDataPermissionOptions(capabilities, activeModules);
-  const enabledModuleIds = enabledModuleIdsForRoleCapabilities(activeModules, capabilities);
+  const enabledFromCapabilities = enabledModuleIdsForRoleCapabilities(activeModules, capabilities);
+  const enabledFromOptions = enabledModuleIdsForPermissionOptions(activeModules, permissionOptions);
+  const enabledModuleIds = new Set<string>([
+    ...enabledFromCapabilities,
+    ...enabledFromOptions,
+  ]);
 
   return {
     childMap,

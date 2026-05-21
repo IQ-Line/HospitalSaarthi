@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Badge } from '@pulse/ui/badge';
 import { Button } from '@pulse/ui/button';
@@ -9,11 +9,7 @@ import { roleCapabilitiesOptions } from '../api/queries';
 import type { ApplyRoleTemplateBody } from '../types';
 import { capabilityIdsSignature } from '../lib/capability-id-set';
 import { MasterDataCapabilityPermissionTree } from './master-data-capability-permission-tree';
-import {
-  buildCapabilityTree,
-  CapabilityTreeNodeRow,
-  treeBranchIds,
-} from './role-management-sections';
+import { PermissionSelectionScrollRegion } from './permission-selection-scroll-region';
 
 const EMPTY_ROLE_CAPABILITIES: never[] = [];
 
@@ -49,6 +45,7 @@ type RoleTemplateCapabilityPickerProps = {
   onSelectedCapabilityIdsChange: (capabilityIds: string[]) => void;
   selectAllCapabilitiesOnLoad?: boolean;
   initialSelectedCapabilityIds?: string[];
+  /** @deprecated Accordion catalog tree is always used; kept for call-site compatibility. */
   plainLanguage?: boolean;
 };
 
@@ -59,11 +56,9 @@ export function RoleTemplateCapabilityPicker({
   onSelectedCapabilityIdsChange,
   selectAllCapabilitiesOnLoad = true,
   initialSelectedCapabilityIds,
-  plainLanguage = false,
 }: RoleTemplateCapabilityPickerProps) {
   const umRoleRead = useCapability(UM_ROLE_READ);
   const umRoleAssign = useCapability(UM_ROLE_ASSIGN);
-  const [expandedBranchIds, setExpandedBranchIds] = useState<Set<string>>(new Set());
 
   const roleCapabilitiesQuery = useQuery({
     ...roleCapabilitiesOptions(roleId, tenantScope),
@@ -72,34 +67,11 @@ export function RoleTemplateCapabilityPicker({
   });
 
   const roleCapabilities = roleCapabilitiesQuery.data ?? EMPTY_ROLE_CAPABILITIES;
-  const capabilityTree = useMemo(() => buildCapabilityTree(roleCapabilities), [roleCapabilities]);
   const initialSelectedSignature = capabilityIdsSignature(initialSelectedCapabilityIds ?? []);
   const autoFillSignature = `${roleId}\0${initialSelectedSignature}\0${capabilityIdsSignature(
     roleCapabilities.map((c) => c.id),
   )}`;
   const lastAutoFillSignature = useRef<string | null>(null);
-
-  useEffect(() => {
-    const branchIds = treeBranchIds(capabilityTree);
-    setExpandedBranchIds((current) => {
-      const next = new Set(current);
-      if (next.size === 0) {
-        branchIds.forEach((branchId) => {
-          const depth = branchId.replace(/^branch:/, '').split('/').filter(Boolean).length;
-          if (depth <= 1) {
-            next.add(branchId);
-          }
-        });
-        return next;
-      }
-      branchIds.forEach((branchId) => {
-        if (!next.has(branchId) && branchId.replace(/^branch:/, '').split('/').filter(Boolean).length === 1) {
-          next.add(branchId);
-        }
-      });
-      return next;
-    });
-  }, [capabilityTree]);
 
   useEffect(() => {
     lastAutoFillSignature.current = null;
@@ -126,18 +98,6 @@ export function RoleTemplateCapabilityPicker({
     onSelectedCapabilityIdsChange,
   ]);
 
-  const handleToggleBranch = (nodeId: string) => {
-    setExpandedBranchIds((current) => {
-      const next = new Set(current);
-      if (next.has(nodeId)) {
-        next.delete(nodeId);
-      } else {
-        next.add(nodeId);
-      }
-      return next;
-    });
-  };
-
   let body: ReactNode;
   if (!umRoleRead) {
     body = (
@@ -157,8 +117,8 @@ export function RoleTemplateCapabilityPicker({
     );
   } else {
     body = (
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-3">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
           <Badge variant="secondary">{selectedCapabilityIds.length} selected</Badge>
           <CapabilityGate capability={UM_ROLE_ASSIGN}>
             <div className="flex flex-wrap gap-2">
@@ -176,40 +136,27 @@ export function RoleTemplateCapabilityPicker({
             </div>
           </CapabilityGate>
         </div>
-        {plainLanguage ? (
+        <PermissionSelectionScrollRegion>
           <MasterDataCapabilityPermissionTree
             capabilities={roleCapabilities}
             selectedCapabilityIds={selectedCapabilityIds}
             onSelectedCapabilityIdsChange={onSelectedCapabilityIdsChange}
             editable={umRoleAssign}
           />
-        ) : (
-          <div className="space-y-4">
-            {capabilityTree.map((node) => (
-              <CapabilityTreeNodeRow
-                key={node.id}
-                node={node}
-                depth={0}
-                capabilitiesEditable={umRoleAssign}
-                selectedCapabilityIds={new Set(selectedCapabilityIds)}
-                expandedBranchIds={expandedBranchIds}
-                forceExpanded={false}
-                onBranchToggle={handleToggleBranch}
-                onSetSelectedCapabilityIds={onSelectedCapabilityIdsChange}
-                onToggleCapability={(capabilityId) => {
-                  const next = selectedCapabilityIds.includes(capabilityId)
-                    ? selectedCapabilityIds.filter((id) => id !== capabilityId)
-                    : [...selectedCapabilityIds, capabilityId];
-                  onSelectedCapabilityIdsChange(next);
-                }}
-                plainLanguage={plainLanguage}
-              />
-            ))}
-          </div>
-        )}
+        </PermissionSelectionScrollRegion>
       </div>
     );
   }
 
-  return <>{body}</>;
+  const fillsPanel =
+    umRoleRead &&
+    !roleCapabilitiesQuery.isPending &&
+    !roleCapabilitiesQuery.isError &&
+    roleCapabilities.length > 0;
+
+  return (
+    <div className={fillsPanel ? 'flex min-h-0 w-full min-w-0 flex-1 flex-col' : 'w-full min-w-0'}>
+      {body}
+    </div>
+  );
 }

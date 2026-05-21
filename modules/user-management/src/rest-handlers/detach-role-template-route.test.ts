@@ -13,6 +13,7 @@ import { InMemoryUserRepository } from "../data-access/in-memory-user-repository
 import { InMemoryUserProvisioningRepository } from "../data-access/in-memory-user-provisioning-repository.js";
 import type { Capability, Role } from "../ports/index.js";
 import { userManagementPlugin } from "../router.js";
+import { createMasterDataModuleCatalogPortStub } from "../test-support/master-data-catalog-port-stub.js";
 
 const apps: Array<ReturnType<typeof Fastify>> = [];
 
@@ -184,14 +185,7 @@ async function createTestApp() {
             return [];
           },
         },
-        masterDataModuleCatalogPort: {
-          async resolveModuleSlugsByIds() {
-            return new Map();
-          },
-          async expandEnabledModuleSlugs(moduleSlugs: readonly string[]) {
-            return moduleSlugs;
-          },
-        },
+        masterDataModuleCatalogPort: createMasterDataModuleCatalogPortStub(),
       });
     },
     { prefix: "/api/user-management" },

@@ -16,6 +16,7 @@ import { InMemoryRoleRepository } from "../data-access/in-memory-role-repository
 
 import type { Capability, Role } from "../ports/index.js";
 
+import { createMasterDataModuleCatalogPortStub } from "../test-support/master-data-catalog-port-stub.js";
 import { replaceRoleCapabilities } from "./replace-role-capabilities.js";
 
 
@@ -65,6 +66,12 @@ const CAP_OPD_ROW: Capability = {
   display_name: "Read visits",
 
   is_active: true,
+
+  source_catalog: "master_data",
+
+  source_module_slug: "opd",
+
+  source_permission_slug: "visit.read",
 
 };
 
@@ -138,10 +145,9 @@ function buildDeps(
 
     },
 
-    masterDataModuleCatalogPort: {
+    masterDataModuleCatalogPort: createMasterDataModuleCatalogPortStub({
       resolveModuleSlugsByIds: vi.fn().mockResolvedValue(entitlement.slugs ?? new Map()),
-      expandEnabledModuleSlugs: vi.fn(async (slugs: readonly string[]) => slugs),
-    },
+    }),
 
   };
 

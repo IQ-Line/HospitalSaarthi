@@ -7,6 +7,7 @@ import { InMemoryRoleRepository } from "../data-access/in-memory-role-repository
 import { InMemoryUserAccessRepository } from "../data-access/in-memory-user-access-repository.js";
 import { InMemoryUserRepository } from "../data-access/in-memory-user-repository.js";
 import type { Capability, Role } from "../ports/index.js";
+import { createMasterDataModuleCatalogPortStub } from "../test-support/master-data-catalog-port-stub.js";
 import { applyRoleTemplate } from "./apply-role-template.js";
 
 const TENANT = "tenant-a";
@@ -81,10 +82,9 @@ function buildDeps(entitlement: { moduleIds?: string[]; slugs?: Map<string, stri
     tenantModuleEntitlementPort: {
       listTenantEnabledModuleIds: vi.fn().mockResolvedValue(entitlement.moduleIds ?? []),
     },
-    masterDataModuleCatalogPort: {
+    masterDataModuleCatalogPort: createMasterDataModuleCatalogPortStub({
       resolveModuleSlugsByIds: vi.fn().mockResolvedValue(entitlement.slugs ?? new Map()),
-      expandEnabledModuleSlugs: vi.fn(async (slugs: readonly string[]) => slugs),
-    },
+    }),
   };
 }
 

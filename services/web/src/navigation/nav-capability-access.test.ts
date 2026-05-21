@@ -52,6 +52,11 @@ describe('catalogSlugMatchesRouteSegment', () => {
   it('matches tenant-modules from tenant route segment', () => {
     expect(catalogSlugMatchesRouteSegment('tenant-modules', 'tenant')).toBe(true);
   });
+
+  it('does not treat unit capability segment as conversions module slug', () => {
+    expect(catalogSlugMatchesRouteSegment('conversions', 'unit')).toBe(false);
+    expect(catalogSlugMatchesRouteSegment('unit-conversions', 'unit')).toBe(true);
+  });
 });
 
 describe('resolveCatalogModuleSlugsForNavRoute', () => {

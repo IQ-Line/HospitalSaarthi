@@ -15,13 +15,13 @@ import { DrizzlePrincipalAuthorizationRepository } from "../modules/user-managem
 import { createDefaultPrincipalService } from "../modules/user-management/src/services/default-principal-service.ts";
 import { normalizePostgresUrl } from "./seed-user-management-dev/load-env.ts";
 
-loadWorkspaceEnv();
+  loadWorkspaceEnv();
 
-const databaseUrl = requireEnv("DATABASE_URL");
+  const databaseUrl = requireEnv("DATABASE_URL");
 const masterDataDatabaseUrl = requireEnv("MASTER_DATA_DATABASE_URL");
-const cerbosUrl = requireEnv("CERBOS_URL");
-const secret = requireEnv("BETTER_AUTH_SECRET");
-if (secret.length < 32) {
+  const cerbosUrl = requireEnv("CERBOS_URL");
+  const secret = requireEnv("BETTER_AUTH_SECRET");
+  if (secret.length < 32) {
   throw new Error("BETTER_AUTH_SECRET must be at least 32 characters");
 }
 
@@ -45,8 +45,8 @@ const principalService = createDefaultPrincipalService({
   principalAuthorizationRepository: new DrizzlePrincipalAuthorizationRepository(db),
 });
 
-const cerbos = await validateCerbosForBootstrapUser(cerbosUrl, principalService);
-if (!cerbos.ok) {
+  const cerbos = await validateCerbosForBootstrapUser(cerbosUrl, principalService);
+  if (!cerbos.ok) {
   console.error(JSON.stringify({ level: "error", phase: "cerbos", checks: cerbos.checks }));
   process.exit(1);
 }

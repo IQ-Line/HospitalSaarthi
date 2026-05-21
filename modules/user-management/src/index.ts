@@ -186,6 +186,11 @@ export {
   normalizeModuleSlugSet,
 } from "./domain/module-slug.js";
 export {
+  filterRuntimeCapabilitiesByMasterDataLinks,
+  isRuntimeCapabilityAssignableForTenant,
+  masterDataSourcePairKey,
+} from "./domain/master-data-source-pair.js";
+export {
   expandModuleIdsWithDescendants,
   expandModuleSlugsWithDescendants,
   isCatalogL1Module,

@@ -50,12 +50,16 @@ import {
   type ModulePermissionUpdateValues,
 } from '@/features/master-data/validation';
 import type { ModulePermission } from '@/features/master-data/types';
+import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
 
 export const Route = createFileRoute('/_authenticated/master-data/module-permissions')({
   component: ModulePermissionsPage,
 });
 
 function ModulePermissionsPage() {
+  const { canCreate, canUpdate, canDelete } = useCatalogModuleCrud('permissions', {
+    productModuleSlug: 'master-data',
+  });
   const [tableSearch, setTableSearch] = useState('');
   const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -149,8 +153,9 @@ function ModulePermissionsPage() {
           <TableActiveToggle
             active={row.original.is_active}
             disabled={
-              updateMutation.isPending &&
-              updateMutation.variables?.id === row.original.id
+              !canUpdate ||
+              (updateMutation.isPending &&
+                updateMutation.variables?.id === row.original.id)
             }
             onCheckedChange={(next) => {
               if (next === row.original.is_active) return;
@@ -185,11 +190,15 @@ function ModulePermissionsPage() {
             }}
             onDelete={() => setDeletingLink(row.original)}
             disabled={deleteMutation.isPending}
+            canEdit={canUpdate}
+            canDelete={canDelete}
           />
         ),
       },
     ],
     [
+      canDelete,
+      canUpdate,
       deleteMutation.isPending,
       editForm,
       moduleNameById,
@@ -275,7 +284,9 @@ function ModulePermissionsPage() {
               ))}
             </SelectContent>
           </Select>
-          <Button onClick={() => setIsCreateOpen(true)}>Add Assignment</Button>
+          {canCreate ? (
+            <Button onClick={() => setIsCreateOpen(true)}>Add Assignment</Button>
+          ) : null}
         </div>
       }
     >

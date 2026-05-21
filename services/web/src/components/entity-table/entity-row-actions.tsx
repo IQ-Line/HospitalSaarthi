@@ -6,8 +6,10 @@ interface EntityRowActionsProps {
   onEdit: () => void;
   onDelete: () => void;
   disabled?: boolean;
-  /** Disables edit/delete only (view stays enabled). */
+  /** Disables edit/delete when true (view stays enabled). Prefer `canEdit` / `canDelete` for per-action gates. */
   readOnly?: boolean;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
 export function EntityRowActions({
@@ -16,8 +18,11 @@ export function EntityRowActions({
   onDelete,
   disabled = false,
   readOnly = false,
+  canEdit,
+  canDelete,
 }: EntityRowActionsProps) {
-  const mutateDisabled = disabled || readOnly;
+  const allowEdit = !readOnly && (canEdit ?? true);
+  const allowDelete = !readOnly && (canDelete ?? true);
   return (
     <div className="flex items-center justify-end gap-1">
       <Button
@@ -33,7 +38,7 @@ export function EntityRowActions({
         variant="ghost"
         size="icon-sm"
         onClick={onEdit}
-        disabled={mutateDisabled}
+        disabled={disabled || !allowEdit}
         aria-label="Edit record"
       >
         <Pencil className="size-4" />
@@ -42,7 +47,7 @@ export function EntityRowActions({
         variant="ghost"
         size="icon-sm"
         onClick={onDelete}
-        disabled={mutateDisabled}
+        disabled={disabled || !allowDelete}
         className="text-destructive hover:text-destructive"
         aria-label="Delete record"
       >

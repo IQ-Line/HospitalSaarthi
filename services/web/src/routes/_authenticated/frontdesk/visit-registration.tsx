@@ -56,6 +56,7 @@ import {
 } from '@/features/frontdesk/utils/visit-registration-helpers';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
+import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
 import { useTenantStore } from '@/stores/tenant.store';
 
 export const Route = createFileRoute('/_authenticated/frontdesk/visit-registration')({
@@ -65,6 +66,9 @@ export const Route = createFileRoute('/_authenticated/frontdesk/visit-registrati
 type FormValues = CreateVisitRequestBody;
 
 function VisitRegistrationRoute() {
+  const { canCreate } = useCatalogModuleCrud('registration', {
+    productModuleSlug: 'frontdesk',
+  });
   const tenantName = useTenantStore((s) => s.tenantName);
   const branches = useTenantStore((s) => s.branches);
   const activeBranch = useTenantStore((s) => s.activeBranch);
@@ -348,7 +352,7 @@ function VisitRegistrationRoute() {
                 </Button>
               ) : null}
               {phase === 'form' ? <VisitRegistrationSectionMenu /> : null}
-              {phase === 'list' ? (
+              {phase === 'list' && canCreate ? (
                 <Button type="button" size="sm" onClick={() => setPhase('form')}>
                   + New registration
                 </Button>

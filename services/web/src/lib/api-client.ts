@@ -168,13 +168,19 @@ async function fetchWithAuthRetry(
   canRetryWithFreshToken: boolean,
 ): Promise<Response> {
   const headers = buildRequestHeaders(path, options, context);
+  const omitTenantHeaders = shouldOmitTenantHeaders(context);
   const tenantId = useTenantStore.getState().tenantId;
   const catalogTenant = catalogIqTenantHeaderValue(tenantId);
-  if (catalogTenant && !headers.has('iq_tenant_id')) {
+  const accessToken = useAuthStore.getState().accessToken;
+
+  /** Respect `tenantIdOverride: null` (platform `global_master` catalog reads/writes). */
+  if (!omitTenantHeaders && catalogTenant && !headers.has('iq_tenant_id')) {
     headers.set('iq_tenant_id', catalogTenant);
+    headers.set('x-tenant-id', catalogTenant);
   }
   /** EMPI and Registration require `iq_tenant_id` (or `x-tenant-id`). */
   if (
+    !omitTenantHeaders &&
     (path.startsWith(EMPI_API_PREFIX) || isRegistrationApiPath(path)) &&
     !headers.has('iq_tenant_id')
   ) {
@@ -182,6 +188,7 @@ async function fetchWithAuthRetry(
   }
   /** Configurator tenantPlugin (legacy) rejects requests without a tenant header. */
   if (
+    !omitTenantHeaders &&
     path.startsWith(CONFIGURATOR_API_PREFIX) &&
     !headers.has('iq_tenant_id') &&
     !headers.has('x-tenant-id')
@@ -189,8 +196,8 @@ async function fetchWithAuthRetry(
     headers.set('x-tenant-id', serviceIqTenantHeaderValue(tenantId));
   }
   /** Billing resolves tariffs per tenant — JWT `iq_tenant_id` wins over stale store placeholders. */
-  if (path.startsWith(BILLING_API_PREFIX) && !headers.has('iq_tenant_id')) {
-    headers.set('iq_tenant_id', billingIqTenantHeaderValue(tenantId, token));
+  if (!omitTenantHeaders && path.startsWith(BILLING_API_PREFIX) && !headers.has('iq_tenant_id')) {
+    headers.set('iq_tenant_id', billingIqTenantHeaderValue(tenantId, accessToken));
   }
 
   if (

@@ -37,6 +37,7 @@ import {
   serviceToEditFormValues,
 } from '@/features/billing/lib/form-mappers';
 import type { TariffService } from '@/features/billing/types';
+import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
 import {
   EMPTY_TARIFF_CREATE_VALUES,
   EMPTY_TARIFF_EDIT_VALUES,
@@ -658,6 +659,9 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
 }
 
 export function TenantBillingPanel({ iqTenantId }: { iqTenantId: string }) {
+  const { canCreate, canUpdate } = useCatalogModuleCrud('tariff-master', {
+    productModuleSlug: 'billing-and-finance',
+  });
   const [search, setSearch] = useState('');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editing, setEditing] = useState<TariffService | null>(null);
@@ -707,7 +711,7 @@ export function TenantBillingPanel({ iqTenantId }: { iqTenantId: string }) {
         cell: ({ row }) => (
           <TableActiveToggle
             active={row.original.is_active}
-            disabled={updateMutation.isPending}
+            disabled={updateMutation.isPending || !canUpdate}
             onCheckedChange={(next) => {
               if (next === row.original.is_active) return;
               updateMutation.mutate(
@@ -735,12 +739,13 @@ export function TenantBillingPanel({ iqTenantId }: { iqTenantId: string }) {
               editForm.reset(serviceToEditFormValues(row.original));
             }}
             onDelete={() => {}}
-            readOnly
+            canEdit={canUpdate}
+            canDelete={false}
           />
         ),
       },
     ],
-    [editForm, updateMutation],
+    [canUpdate, editForm, updateMutation],
   );
 
   if (error) {
@@ -750,16 +755,18 @@ export function TenantBillingPanel({ iqTenantId }: { iqTenantId: string }) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-end gap-2">
-        <Button
-          size="sm"
-          onClick={() => {
-            createForm.reset(EMPTY_TARIFF_CREATE_VALUES);
-            setIsCreateOpen(true);
-          }}
-        >
-          <Plus className="size-4 mr-1" />
-          Add service
-        </Button>
+        {canCreate ? (
+          <Button
+            size="sm"
+            onClick={() => {
+              createForm.reset(EMPTY_TARIFF_CREATE_VALUES);
+              setIsCreateOpen(true);
+            }}
+          >
+            <Plus className="size-4 mr-1" />
+            Add service
+          </Button>
+        ) : null}
       </div>
       <EntityTableToolbar value={search} onChange={setSearch} placeholder="Search services…" />
       <div className="rounded-lg border">

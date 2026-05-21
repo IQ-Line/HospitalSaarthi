@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
+import { platformCatalogClient } from './platform-catalog-client';
 import { masterDataKeys } from './query-keys';
 import type {
   ModulePermissionCreateInput,
@@ -30,8 +31,12 @@ function toQueryString(params: ModulePermissionListParams) {
   return searchParams.toString();
 }
 
-export function useModulePermissions(params: ModulePermissionListParams = {}) {
+export function useModulePermissions(
+  params: ModulePermissionListParams = {},
+  options?: { enabled?: boolean; globalCatalog?: boolean },
+) {
   const queryString = toQueryString(params);
+  const globalCatalog = options?.globalCatalog !== false;
   return useQuery({
     queryKey: masterDataKeys.modulePermissions(
       params.module_id,
@@ -39,7 +44,11 @@ export function useModulePermissions(params: ModulePermissionListParams = {}) {
       params.limit,
       params.offset,
     ),
-    queryFn: () => apiClient<ModulePermissionListResponse>(`${BASE}?${queryString}`),
+    queryFn: () =>
+      globalCatalog
+        ? platformCatalogClient<ModulePermissionListResponse>(`${BASE}?${queryString}`)
+        : apiClient<ModulePermissionListResponse>(`${BASE}?${queryString}`),
+    enabled: options?.enabled ?? true,
   });
 }
 
@@ -47,7 +56,7 @@ export function useCreateModulePermission() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: ModulePermissionCreateInput) =>
-      apiClient<ModulePermissionSingleResponse>(BASE, {
+      platformCatalogClient<ModulePermissionSingleResponse>(BASE, {
         method: 'POST',
         body: JSON.stringify(input),
       }),
@@ -62,7 +71,7 @@ export function useUpdateModulePermission() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: ModulePermissionUpdateInput }) =>
-      apiClient<ModulePermissionSingleResponse>(`${BASE}/${id}`, {
+      platformCatalogClient<ModulePermissionSingleResponse>(`${BASE}/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(input),
       }),
@@ -77,7 +86,7 @@ export function useDeleteModulePermission() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      apiClient<ModulePermissionSingleResponse>(`${BASE}/${id}`, {
+      platformCatalogClient<ModulePermissionSingleResponse>(`${BASE}/${id}`, {
         method: 'DELETE',
       }),
     onSuccess: (_result, id) => {

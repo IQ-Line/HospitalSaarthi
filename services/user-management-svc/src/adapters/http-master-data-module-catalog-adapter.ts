@@ -1,5 +1,6 @@
 import {
   expandModuleSlugsWithDescendants,
+  masterDataSourcePairKey,
   ModuleEntitlementLookupError,
   RUNTIME_AUTH_LIMITS,
   assertWithinLimit,
@@ -19,6 +20,9 @@ const DEFAULT_CACHE_TTL_MS = 60_000;
 const DEFAULT_MAX_CACHE_ENTRIES = 8;
 const MODULE_SLUG_MAP_CACHE_KEY = "master-data-module-slug-map";
 const MODULE_TREE_CACHE_KEY = "master-data-module-tree";
+const PERMISSION_SLUG_MAP_CACHE_KEY = "master-data-permission-slug-map";
+const MODULE_PERMISSION_SOURCE_PAIRS_CACHE_KEY = "master-data-module-permission-source-pairs";
+const MODULE_PERMISSION_PAGE_LIMIT = 200;
 
 type ModuleRow = {
   id: string;
@@ -29,6 +33,28 @@ type ModuleRow = {
 
 type ModuleListResponse = {
   data?: ModuleRow[];
+};
+
+type PermissionRow = {
+  id: string;
+  slug: string;
+};
+
+type PermissionListResponse = {
+  data?: PermissionRow[];
+  total?: number;
+};
+
+type ModulePermissionRow = {
+  module_id: string;
+  permission_id: string;
+  is_active?: boolean;
+  is_deleted?: boolean;
+};
+
+type ModulePermissionListResponse = {
+  data?: ModulePermissionRow[];
+  total?: number;
 };
 
 export type HttpMasterDataModuleCatalogAdapterOptions = {
@@ -50,6 +76,8 @@ export class HttpMasterDataModuleCatalogAdapter implements MasterDataModuleCatal
   private readonly maxAttempts: number;
   private readonly moduleSlugByIdCache: BoundedTtlCache<Map<string, string>>;
   private readonly moduleTreeCache: BoundedTtlCache<ModuleRow[]>;
+  private readonly permissionSlugByIdCache: BoundedTtlCache<Map<string, string>>;
+  private readonly modulePermissionSourcePairsCache: BoundedTtlCache<Set<string>>;
   private readonly log?: HttpMasterDataModuleCatalogAdapterOptions["log"];
 
   constructor(options: HttpMasterDataModuleCatalogAdapterOptions) {
@@ -64,12 +92,16 @@ export class HttpMasterDataModuleCatalogAdapter implements MasterDataModuleCatal
     };
     this.moduleSlugByIdCache = new BoundedTtlCache<Map<string, string>>(cacheOpts);
     this.moduleTreeCache = new BoundedTtlCache<ModuleRow[]>(cacheOpts);
+    this.permissionSlugByIdCache = new BoundedTtlCache<Map<string, string>>(cacheOpts);
+    this.modulePermissionSourcePairsCache = new BoundedTtlCache<Set<string>>(cacheOpts);
     this.log = options.log;
   }
 
   invalidateModuleSlugMapCache(): void {
     this.moduleSlugByIdCache.invalidate(MODULE_SLUG_MAP_CACHE_KEY);
     this.moduleTreeCache.invalidate(MODULE_TREE_CACHE_KEY);
+    this.permissionSlugByIdCache.invalidate(PERMISSION_SLUG_MAP_CACHE_KEY);
+    this.modulePermissionSourcePairsCache.invalidate(MODULE_PERMISSION_SOURCE_PAIRS_CACHE_KEY);
   }
 
   async expandEnabledModuleSlugs(moduleSlugs: readonly string[]): Promise<readonly string[]> {
@@ -79,6 +111,33 @@ export class HttpMasterDataModuleCatalogAdapter implements MasterDataModuleCatal
     }
     const tree = await this.loadModuleTree();
     return [...expandModuleSlugsWithDescendants(roots, tree)];
+  }
+
+  async listActiveModulePermissionSourcePairs(
+    moduleSlugs: readonly string[],
+  ): Promise<ReadonlySet<string>> {
+    const normalizedRoots = dedupeTrimmedIds([...moduleSlugs]).map((slug) => normalizeModuleSlug(slug));
+    if (normalizedRoots.length === 0) {
+      return new Set();
+    }
+
+    const expanded = await this.expandEnabledModuleSlugs(normalizedRoots);
+    const allowedModuleSlugs = new Set(expanded.map((slug) => normalizeModuleSlug(slug)));
+    const allPairs = await this.loadModulePermissionSourcePairs();
+    const filtered = new Set<string>();
+
+    for (const pairKey of allPairs) {
+      const separator = pairKey.indexOf("\0");
+      if (separator <= 0) {
+        continue;
+      }
+      const moduleSlug = pairKey.slice(0, separator);
+      if (allowedModuleSlugs.has(moduleSlug)) {
+        filtered.add(pairKey);
+      }
+    }
+
+    return filtered;
   }
 
   async resolveModuleSlugsByIds(moduleIds: string[]): Promise<Map<string, string>> {
@@ -147,6 +206,103 @@ export class HttpMasterDataModuleCatalogAdapter implements MasterDataModuleCatal
       { source: "master_data", cache: "miss", moduleCount: slugByModuleId.size },
       "Master Data module slug map loaded",
     );
+  }
+
+  private async loadModulePermissionSourcePairs(): Promise<Set<string>> {
+    const cached = this.modulePermissionSourcePairsCache.get(
+      MODULE_PERMISSION_SOURCE_PAIRS_CACHE_KEY,
+    );
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const [moduleSlugById, permissionSlugById, links] = await Promise.all([
+      this.loadModuleSlugMap(),
+      this.loadPermissionSlugMap(),
+      this.fetchModulePermissionRows(),
+    ]);
+
+    const pairs = new Set<string>();
+    for (const link of links) {
+      if (link.is_deleted || link.is_active === false) {
+        continue;
+      }
+      const moduleSlug = moduleSlugById.get(link.module_id);
+      const permissionSlug = permissionSlugById.get(link.permission_id);
+      if (moduleSlug === undefined || permissionSlug === undefined) {
+        continue;
+      }
+      pairs.add(masterDataSourcePairKey(moduleSlug, permissionSlug));
+    }
+
+    this.modulePermissionSourcePairsCache.set(MODULE_PERMISSION_SOURCE_PAIRS_CACHE_KEY, pairs);
+    return pairs;
+  }
+
+  private async loadPermissionSlugMap(): Promise<Map<string, string>> {
+    const cached = this.permissionSlugByIdCache.get(PERMISSION_SLUG_MAP_CACHE_KEY);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const rows = await this.fetchPermissionRows();
+    const slugByPermissionId = new Map<string, string>();
+    for (const row of rows) {
+      if (typeof row.id !== "string" || typeof row.slug !== "string" || row.slug.length === 0) {
+        continue;
+      }
+      slugByPermissionId.set(row.id, row.slug.trim().toLowerCase());
+    }
+
+    this.permissionSlugByIdCache.set(PERMISSION_SLUG_MAP_CACHE_KEY, slugByPermissionId);
+    return slugByPermissionId;
+  }
+
+  private async fetchPermissionRows(): Promise<PermissionRow[]> {
+    return this.fetchPaginatedRows<PermissionRow>("/api/v1/master-data/permissions");
+  }
+
+  private async fetchModulePermissionRows(): Promise<ModulePermissionRow[]> {
+    return this.fetchPaginatedRows<ModulePermissionRow>(
+      "/api/v1/master-data/module-permissions",
+    );
+  }
+
+  private async fetchPaginatedRows<T extends Record<string, unknown>>(
+    path: string,
+  ): Promise<T[]> {
+    const rows: T[] = [];
+    let offset = 0;
+    let total: number | undefined;
+
+    while (true) {
+      const url = `${this.baseUrl}${path}?limit=${MODULE_PERMISSION_PAGE_LIMIT}&offset=${offset}`;
+      const body = await fetchJsonWithResilience<{ data?: T[]; total?: number }>({
+        url,
+        headers: { accept: "application/json" },
+        timeoutMs: this.timeoutMs,
+        maxAttempts: this.maxAttempts,
+        source: "master_data",
+        log: this.log,
+      });
+
+      const page = Array.isArray(body.data) ? body.data : [];
+      rows.push(...page);
+      total = typeof body.total === "number" ? body.total : undefined;
+
+      offset += page.length;
+      if (page.length === 0) {
+        break;
+      }
+      if (total !== undefined && offset >= total) {
+        break;
+      }
+      if (page.length < MODULE_PERMISSION_PAGE_LIMIT) {
+        break;
+      }
+    }
+
+    return rows;
   }
 
   private async fetchModuleRows(): Promise<ModuleRow[]> {

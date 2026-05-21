@@ -45,19 +45,23 @@ import {
   type VisitpadChiefComplaintCreateFormSchema,
   type VisitpadChiefComplaintEditFormSchema,
 } from '@/features/visitpad/validation';
-import { useAnyCapability, useCapability } from '@/hooks/use-capability';
-import { MD_VISITPAD_MUTATE_ANY } from '@/lib/runtime-capability-keys';
+import { useCapability } from '@/hooks/use-capability';
+import { catalogModuleSlugForVisitpadManifestNode } from '@/features/visitpad/lib/visitpad-access';
+import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
+import { requireVisitpadLeafRouteAccess } from '@/lib/visitpad-route-access';
 import { useVisitpadImportLibrarySearch } from '@/features/visitpad/hooks/use-visitpad-import-library-search';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 
 const CC_BASE = '/api/v1/master-data/visitpad/chief-complaints';
 
 export const Route = createFileRoute('/_authenticated/visitpad/chief-complaints')({
+  beforeLoad: requireVisitpadLeafRouteAccess('/visitpad/chief-complaints'),
   component: VisitpadChiefComplaintsPage,
 });
 
 function VisitpadChiefComplaintsPage() {
-  const mdVisitpadMutateAny = useAnyCapability(MD_VISITPAD_MUTATE_ANY);
+  const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-chief-complaints');
+  const { canUpdate, canDelete, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
   const [search, setSearch] = useState('');
   const [bodySystem, setBodySystem] = useState<string>('all');
   const [triage, setTriage] = useState<string>('all');
@@ -231,7 +235,7 @@ function VisitpadChiefComplaintsPage() {
         cell: ({ row }) => (
           <TableActiveToggle
             active={row.original.is_active}
-            disabled={patch.isPending || !mdVisitpadMutateAny}
+            disabled={patch.isPending || !canUpdate}
             onCheckedChange={async (next) => {
               try {
                 await patch.mutateAsync({ id: row.original.id, body: { is_active: next } });
@@ -246,10 +250,12 @@ function VisitpadChiefComplaintsPage() {
       visitpadActionsColumn<VisitpadChiefComplaint>({
         onEdit: setEditing,
         onDelete: setDeleting,
-        disabled: busy || !mdVisitpadMutateAny,
+        disabled: busy,
+        canEdit: canUpdate,
+        canDelete,
       }),
     ],
-    [patch, busy, mdVisitpadMutateAny],
+    [patch, busy, canUpdate, canDelete],
   );
 
   return (
@@ -264,7 +270,8 @@ function VisitpadChiefComplaintsPage() {
       }
       actions={
         <VisitpadHeaderActions
-addLabel={tenantCatalog ? 'Add local complaint' : 'Add complaint'}
+          catalogModuleSlug={catalogModuleSlug}
+          addLabel={tenantCatalog ? 'Add local complaint' : 'Add complaint'}
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
           importFromLibraryPending={platformImport.isPending}

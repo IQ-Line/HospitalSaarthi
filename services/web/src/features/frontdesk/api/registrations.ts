@@ -11,8 +11,8 @@ import type {
 } from '@/features/frontdesk/types';
 
 /**
- * Browser → registration-svc directly (default dev: `http://localhost:3006`).
- * Override with `VITE_REGISTRATION_SERVICE_ORIGIN` (no trailing slash), e.g. production URL.
+ * Registration API base path. In dev, use same-origin `/api/registration/v1` (Vite → :3006).
+ * Set `VITE_REGISTRATION_SERVICE_ORIGIN` to call registration-svc directly (no trailing slash).
  */
 const REGISTRATION_V1_PATH = '/api/registration/v1';
 
@@ -21,9 +21,7 @@ const STUB_PHASE_DELAY_MS = 200;
 
 function registrationServiceOrigin(): string {
   const fromEnv = import.meta.env.VITE_REGISTRATION_SERVICE_ORIGIN?.trim().replace(/\/$/, '');
-  if (fromEnv) return fromEnv;
-  if (import.meta.env.DEV) return 'http://localhost:3006';
-  return '';
+  return fromEnv ?? '';
 }
 
 /** Full base including path, e.g. `http://localhost:3006/api/registration/v1` */

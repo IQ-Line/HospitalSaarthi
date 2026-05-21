@@ -33,6 +33,13 @@ export interface MasterDataModuleCatalogPort {
    * L1 `tenant_modules` rows imply L2+ permissions linked on child modules.
    */
   expandEnabledModuleSlugs(moduleSlugs: readonly string[]): Promise<readonly string[]>;
+  /**
+   * Active Master Data `module_permissions` source pairs for the given module slugs.
+   * Keys use `masterDataSourcePairKey` (`moduleSlug` + NUL + `permissionSlug`).
+   */
+  listActiveModulePermissionSourcePairs(
+    moduleSlugs: readonly string[],
+  ): Promise<ReadonlySet<string>>;
 }
 
 /** @deprecated Use {@link ModuleEntitlementRequestContext}. */
