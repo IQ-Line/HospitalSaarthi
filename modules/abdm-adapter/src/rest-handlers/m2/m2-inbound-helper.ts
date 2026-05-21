@@ -1,5 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { AbdmAdapterDeps } from "../../ports.js";
+import { EmpiClientError } from "../../lib/empi-client-error.js";
 import { verifyAbdmSignature } from "../../lib/abdm-signature-verifier.js";
 import {
   resolveCallbackTenantId,
@@ -58,12 +59,24 @@ export async function runInboundCallback(input: {
     return input.reply.code(input.httpStatus).send();
   }
 
-  await input.handler({
-    iqTenantId,
-    requestId,
-    body,
-    headers,
-  });
+  try {
+    await input.handler({
+      iqTenantId,
+      requestId,
+      body,
+      headers,
+    });
+  } catch (e) {
+    if (e instanceof EmpiClientError) {
+      return input.reply.code(502).send({
+        error: {
+          code: "UPSTREAM_UNAVAILABLE",
+          message: e.message,
+        },
+      });
+    }
+    throw e;
+  }
 
   return input.reply.code(input.httpStatus).send();
 }

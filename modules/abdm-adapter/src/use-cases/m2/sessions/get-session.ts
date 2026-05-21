@@ -11,6 +11,30 @@ export interface AbdmSessionStatusView {
   updatedAt: string;
 }
 
+const RAW_CONTEXT_KEYS = new Set([
+  "gatewayResponse",
+  "upstreamResponse",
+  "rawError",
+  "nhaResponse",
+]);
+
+function summarizeContext(ctx: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(ctx)) {
+    if (RAW_CONTEXT_KEYS.has(key)) continue;
+    if (key === "error" && value && typeof value === "object") {
+      const err = value as Record<string, unknown>;
+      out[key] = {
+        code: err.code,
+        message: err.message,
+      };
+      continue;
+    }
+    out[key] = value;
+  }
+  return out;
+}
+
 /** Poll HIP/M2/M3 flow progress by platform-issued session id. */
 export async function getAbdmSession(
   input: AbdmTenantInput<{ sessionId: string }>,
@@ -21,7 +45,7 @@ export async function getAbdmSession(
     sessionId: input.sessionId,
   });
   if (!row) return null;
-  const ctx = { ...(row.context as Record<string, unknown>) };
+  const ctx = summarizeContext({ ...(row.context as Record<string, unknown>) });
   delete ctx.expiresAt;
   return {
     sessionId: row.sessionId,

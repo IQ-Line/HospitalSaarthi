@@ -411,15 +411,25 @@ RUN_ABDM_SANDBOX_TESTS=1 \
 | `ENABLE_AUTH` | `false` locally | **`true`** + `JWKS_URL` |
 | `ABDM_TOKEN_ENCRYPTION_KEY` | Optional in dev | **Required** — session token encryption at rest |
 | `NODE_ENV` | `development` | `production` / `staging` |
+| `ABDM_CM_CONSENT_VERIFY_CERT_PEM` | Optional | **Required** for real consent notify |
+| `ABDM_GATEWAY_JWKS_URL` | Dev default | **Production** gateway JWKS |
+| `ABDM_SMS_PROVIDER` | `logging` | **`twilio`** or **`http`** for real OTP SMS |
+| `ABDM_HIP_TENANT_MAP` | Optional JSON | **Required** multi-facility: `{"<HIP_ID>":"<tenant-uuid>"}` |
+| `ABDM_ALLOW_INSECURE_CALLBACKS` | `true` in dev | **Unset** |
+| `ABDM_FIDELIUS_USE_STUB` | Optional dev | **Unset** |
 
-### 10.2 Code / components to replace before live HI transfer
+### 10.2 Code / components (Round 2 — current vs production config)
 
-| Component | Today (sandbox-safe) | Production requirement |
-|-----------|----------------------|-------------------------|
-| `FideliusEncryptorStub` | Base64 dev wrapper | **Real Fidelius** (Curve25519 + ChaCha20-Poly1305) per NHA |
-| `verifyAbdmSignature` | Always `true` in sandbox | **JWS verification** against gateway JWKS (see dev guide § staging) |
+| Component | Implementation | Production requirement |
+|-----------|----------------|-------------------------|
+| Fidelius | `FideliusEncryptor` — BC Weierstrass curve25519 (`@noble/curves`), Java interop test | **Unset** `ABDM_FIDELIUS_USE_STUB`; do not use legacy stub |
+| Gateway JWS | `verifyAbdmSignature` — RS256 + JWKS (`ABDM_GATEWAY_JWKS_URL`) | **Unset** `ABDM_ALLOW_INSECURE_CALLBACKS`; set production JWKS |
+| Consent signature | JCS (`canonicalize`) + `ABDM_CM_CONSENT_VERIFY_CERT_PEM` | CM signing cert from NHA |
+| Link OTP | `DrizzleLinkOtpsRepo` — `abdm_link_otps` table (SHA-256 hash) | Apply migration `0002_abdm_link_otps.sql`; multi-pod safe |
+| User-initiated SMS | `createSmsClientFromEnv()` — `http` / `twilio` / `logging` | `ABDM_SMS_PROVIDER=twilio` or `http` with credentials |
+| EMPI discover | `EmpiClientError` → **502** on upstream failure (not “patient not found”) | `EMPI_BASE_URL` required |
 | In-process `InProcessEventBus` | OK for single instance | **Durable bus** (NATS/Kafka) when multiple replicas |
-| OTP rate limit | In-process map | **Redis** (or equivalent) when horizontally scaled |
+| M1 OTP rate limit | In-process map | **Redis** when horizontally scaled (separate from link OTP table) |
 | Callback URL | ngrok | **Stable HTTPS ingress** (LB + TLS), registered in HFR |
 
 ### 10.3 High-traffic checklist (nothing breaks under load)
@@ -438,8 +448,10 @@ RUN_ABDM_SANDBOX_TESTS=1 \
 
 - [ ] Callback URL registered in **production** HFR for production HIP
 - [ ] `ABDM_M2_MOCK_PLATFORM=false`, EMPI + RF URLs verified
-- [ ] End-to-end on **staging** NHA: HIP link → consent → HI push with **real Fidelius**
-- [ ] Signature verification enabled and tested
+- [ ] Migration `0002_abdm_link_otps.sql` applied (multi-pod OTP)
+- [ ] End-to-end on **staging** NHA: HIP link → consent → HI push with **real Fidelius** (Java interop vector passes in CI)
+- [ ] Gateway JWS + consent CM cert configured; `ABDM_ALLOW_INSECURE_CALLBACKS` unset
+- [ ] `ABDM_SMS_PROVIDER` delivers OTP to test handset
 - [ ] `ENABLE_AUTH=true` on platform routes
 - [ ] Load test: duplicate `REQUEST-ID` returns idempotent 200/202 without double side effects
 - [ ] Multi-tenant callback routing tested if more than one facility

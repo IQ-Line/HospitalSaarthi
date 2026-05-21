@@ -123,7 +123,8 @@ Optional manual NHA step (debug only):
 | ngrok | Receive callbacks on laptop |
 | Postman generate-token (manual) | Debug only — prefer `link-token/acquire` |
 | webhook.site | See HI push payload |
-| `FideliusEncryptorStub` | Dev encryption wrapper (code default in Phase 0) |
+| `ABDM_FIDELIUS_USE_STUB=true` | Legacy base64 stub only — real crypto is default |
+| `ABDM_ALLOW_INSECURE_CALLBACKS=true` | Skip JWS + consent signature verify |
 
 ---
 
@@ -165,8 +166,15 @@ Full template: [`services/abdm-adapter-svc/.env.example`](../../services/abdm-ad
 | `ENABLE_AUTH` | `false` | **`true`** + `JWKS_URL` |
 | `ABDM_TOKEN_ENCRYPTION_KEY` | Optional | **Required** (`openssl rand -base64 32`) |
 | `ABDM_DEV_INBOUND_SIMULATION` | `true` in dev | **Unset / false** |
-| `ABDM_DEV_TENANT_ID` | Single UUID | Multi-tenant mapping (future) |
+| `ABDM_DEV_TENANT_ID` | Single UUID | `ABDM_HIP_TENANT_MAP` per HIP |
+| `ABDM_CM_CONSENT_VERIFY_CERT_PEM` | Optional | **CM cert from NHA** |
+| `ABDM_GATEWAY_JWKS_URL` | Dev default | Production JWKS |
+| `ABDM_SMS_PROVIDER` | `logging` | `twilio` or `http` |
+| `ABDM_ALLOW_INSECURE_CALLBACKS` | `true` in dev | **Unset** |
+| `ABDM_FIDELIUS_USE_STUB` | Optional | **Unset** |
 | Callback URL | ngrok | **Stable URL** in HFR |
+
+**DB:** apply `migrations/0002_abdm_link_otps.sql` before multi-replica deploy (OTP persistence).
 
 ---
 

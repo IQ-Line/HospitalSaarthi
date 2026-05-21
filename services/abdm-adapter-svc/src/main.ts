@@ -24,9 +24,8 @@ import {
   registerM2CallbackRoutes,
   registerM2EventConsumers,
   HttpHipDataPushClient,
-  LinkOtpStore,
-  LoggingSmsClient,
-  NoOpSmsClient,
+  DrizzleLinkOtpsRepo,
+  createSmsClientFromEnv,
 } from "@hims/abdm-adapter";
 import {
   normalizeAbdmEnvAliases,
@@ -155,10 +154,8 @@ async function main() {
   }
   const payloadEncryptor = createPayloadEncryptorFromEnv();
   const dataPush = new HttpHipDataPushClient();
-  const linkOtpStore = new LinkOtpStore();
-  const sms = ABDM_DEFAULT_SMS_PHONE
-    ? new LoggingSmsClient()
-    : new NoOpSmsClient();
+  const linkOtpStore = new DrizzleLinkOtpsRepo(db);
+  const sms = createSmsClientFromEnv();
 
   await registerM2EventConsumers(eventBus, {
     sessions,

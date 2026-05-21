@@ -23,6 +23,7 @@ import {
   text,
   jsonb,
   boolean,
+  smallint,
   index,
   primaryKey,
   timestamp,
@@ -85,6 +86,24 @@ export const abdmLinkTokens = abdmAdapterSchema.table(
     pending_expires_at: timestamp("pending_expires_at", { withTimezone: true }),
   },
   (t) => [primaryKey({ columns: [t.iq_tenant_id, t.abha_address] })],
+);
+
+export const abdmLinkOtps = abdmAdapterSchema.table(
+  "abdm_link_otps",
+  {
+    ...tenantColumn(),
+    link_ref_number: text("link_ref_number").notNull(),
+    otp_hash: text("otp_hash").notNull(),
+    expires_at: timestamp("expires_at", { withTimezone: true }).notNull(),
+    attempts: smallint("attempts").notNull().default(0),
+    created_at: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.link_ref_number] }),
+    index("ix_abdm_link_otps_expires").on(t.expires_at),
+  ],
 );
 
 export const abdmConsentArtefacts = abdmAdapterSchema.table(

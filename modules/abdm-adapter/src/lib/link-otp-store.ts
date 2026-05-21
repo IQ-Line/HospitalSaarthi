@@ -1,32 +1,47 @@
 import { randomInt } from "node:crypto";
+import type { LinkOtpStorePort } from "../ports.js";
 
 export interface StoredLinkOtp {
   otp: string;
   expiresAtMs: number;
 }
 
-/** In-process TTL store for user-initiated link OTP (single-use). */
-export class LinkOtpStore {
+/** In-process OTP store for unit/sandbox tests only (not multi-pod safe). */
+export class InMemoryLinkOtpStore implements LinkOtpStorePort {
   private readonly entries = new Map<string, StoredLinkOtp>();
 
-  put(input: { linkRefNumber: string; otp: string; expiresAt: Date }): void {
-    this.entries.set(input.linkRefNumber, {
+  private key(iqTenantId: string, linkRefNumber: string): string {
+    return `${iqTenantId}:${linkRefNumber}`;
+  }
+
+  async put(input: {
+    iqTenantId: string;
+    linkRefNumber: string;
+    otp: string;
+    expiresAt: Date;
+  }): Promise<void> {
+    this.entries.set(this.key(input.iqTenantId, input.linkRefNumber), {
       otp: input.otp,
       expiresAtMs: input.expiresAt.getTime(),
     });
   }
 
-  /** @internal vitest only */
-  peekOtp(linkRefNumber: string): string | undefined {
-    const row = this.entries.get(linkRefNumber);
+  /** @internal vitest / sandbox only */
+  peekOtp(iqTenantId: string, linkRefNumber: string): string | undefined {
+    const row = this.entries.get(this.key(iqTenantId, linkRefNumber));
     if (!row || Date.now() > row.expiresAtMs) return undefined;
     return row.otp;
   }
 
-  consume(input: { linkRefNumber: string; token: string }): boolean {
-    const row = this.entries.get(input.linkRefNumber);
+  async consume(input: {
+    iqTenantId: string;
+    linkRefNumber: string;
+    token: string;
+  }): Promise<boolean> {
+    const k = this.key(input.iqTenantId, input.linkRefNumber);
+    const row = this.entries.get(k);
     if (!row) return false;
-    this.entries.delete(input.linkRefNumber);
+    this.entries.delete(k);
     if (Date.now() > row.expiresAtMs) return false;
     return row.otp === input.token.trim();
   }

@@ -7,7 +7,7 @@ import {
 } from "../lib/fidelius-crypto.js";
 
 /**
- * ABDM Fidelius encryptor (X25519 ECDH + HKDF-SHA256 + AES-256-GCM).
+ * ABDM Fidelius encryptor (BC Weierstrass curve25519 ECDH + HKDF-SHA256 + AES-256-GCM).
  * @see https://kiranma72.github.io/abdm-docs/3-milestone2/encryption-decryption/implementation-guidelines/
  */
 export class FideliusEncryptor implements FideliusEncryptor {
@@ -46,9 +46,6 @@ export class FideliusEncryptor implements FideliusEncryptor {
     return decryptFromPeerMaterial(input);
   }
 }
-
-/** @deprecated Use {@link FideliusEncryptor}. Kept for test imports. */
-export const FideliusEncryptorStub = FideliusEncryptor;
 
 /** Legacy base64 stub — only when `ABDM_FIDELIUS_USE_STUB=true` (local webhook tests). */
 class FideliusEncryptorLegacyStub implements FideliusEncryptor {

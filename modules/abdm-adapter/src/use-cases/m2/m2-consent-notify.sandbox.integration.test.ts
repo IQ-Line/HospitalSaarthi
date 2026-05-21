@@ -5,10 +5,10 @@ import { DrizzleAbdmSessionsRepo } from "../../data-access/abdm-sessions.repo.js
 import { DrizzleInboundMessagesRepo } from "../../data-access/abdm-inbound-messages.repo.js";
 import { DrizzleConsentArtefactsRepo } from "../../data-access/abdm-consent-artefacts.repo.js";
 import { MockEmpiClient } from "../../data-access/mock-platform-clients.js";
-import { FideliusEncryptorStub } from "../../data-access/fidelius.js";
+import { FideliusEncryptor } from "../../data-access/fidelius.js";
 import { LoggingSmsClient } from "../../data-access/sms-client.js";
 import { EnvSecretsClient } from "../../data-access/env-secrets.client.js";
-import { LinkOtpStore } from "../../lib/link-otp-store.js";
+import { InMemoryLinkOtpStore } from "../../lib/link-otp-store.js";
 import { HttpGatewayClient } from "../../data-access/gateway-client.http.js";
 import type { AbdmAdapterDeps } from "../../ports.js";
 import { handleConsentNotifyCallback } from "./consent-notify/handle-consent-notify-callback.js";
@@ -23,7 +23,7 @@ function buildDeps(post: ReturnType<typeof vi.fn>): AbdmAdapterDeps {
   return {
     sessions: new DrizzleAbdmSessionsRepo(db),
     gateway: { post } as never,
-    fidelius: new FideliusEncryptorStub(),
+    fidelius: new FideliusEncryptor(),
     secrets,
     inboundMessages: new DrizzleInboundMessagesRepo(db),
     linkTokens: {} as never,
@@ -35,7 +35,7 @@ function buildDeps(post: ReturnType<typeof vi.fn>): AbdmAdapterDeps {
       fetchBundlesForConsent: async () => [],
     },
     payloadEncryptor: { encrypt: (s) => s, decrypt: (s) => s },
-    linkOtpStore: new LinkOtpStore(),
+    linkOtpStore: new InMemoryLinkOtpStore(),
     sms: new LoggingSmsClient(),
     xHipId: process.env["ABDM_X_HIP_ID"] ?? "IN3610001625",
     xCmId: "sbx",

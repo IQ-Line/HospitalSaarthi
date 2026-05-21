@@ -52,8 +52,15 @@ export async function verifyAbdmSignature(
     return false;
   }
 
+  const issuer = process.env["ABDM_GATEWAY_JWT_ISSUER"]?.trim();
+  const audience = process.env["ABDM_GATEWAY_JWT_AUDIENCE"]?.trim();
+
   try {
-    await jwtVerify(token, getGatewayJwks());
+    await jwtVerify(token, getGatewayJwks(), {
+      algorithms: ["RS256"],
+      ...(issuer ? { issuer } : {}),
+      ...(audience ? { audience } : {}),
+    });
     return true;
   } catch (e) {
     abdmWarn("abdm.callback.jws_verify_failed", {

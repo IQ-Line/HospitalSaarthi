@@ -132,8 +132,17 @@ export interface SmsClient {
 }
 
 export interface LinkOtpStorePort {
-  put(input: { linkRefNumber: string; otp: string; expiresAt: Date }): void;
-  consume(input: { linkRefNumber: string; token: string }): boolean;
+  put(input: {
+    iqTenantId: string;
+    linkRefNumber: string;
+    otp: string;
+    expiresAt: Date;
+  }): Promise<void>;
+  consume(input: {
+    iqTenantId: string;
+    linkRefNumber: string;
+    token: string;
+  }): Promise<boolean>;
 }
 
 export interface EmpiClient {

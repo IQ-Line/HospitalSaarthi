@@ -14,7 +14,8 @@ export async function handleLinkConfirmCallback(
   });
   if (!session) return;
 
-  const otpValid = deps.linkOtpStore.consume({
+  const otpValid = await deps.linkOtpStore.consume({
+    iqTenantId: input.iqTenantId,
     linkRefNumber: input.confirmation.linkRefNumber,
     token: input.confirmation.token,
   });

@@ -21,7 +21,12 @@ export async function handleLinkInitCallback(
   const otp = generateLinkOtp6();
   const expiresAt = parseCommunicationExpiry(input.link.meta?.communicationExpiry);
 
-  deps.linkOtpStore.put({ linkRefNumber, otp, expiresAt });
+  await deps.linkOtpStore.put({
+    iqTenantId: input.iqTenantId,
+    linkRefNumber,
+    otp,
+    expiresAt,
+  });
 
   const ctx = session.context as {
     phoneNo?: string;

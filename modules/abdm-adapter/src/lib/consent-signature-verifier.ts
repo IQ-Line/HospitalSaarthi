@@ -1,11 +1,20 @@
-import { createVerify, X509Certificate } from "node:crypto";
+import { createPublicKey, createVerify, X509Certificate, type KeyObject } from "node:crypto";
+import canonicalize from "canonicalize";
 import { abdmWarn } from "./abdm-adapter-log.js";
 import { allowInsecureAbdmCallbacks } from "./abdm-runtime-env.js";
 import type { ConsentNotifyRequest } from "@hims/ts-sdk-abha/protocol/m2/index.js";
 
+function loadCmVerifyPublicKey(certPem: string): KeyObject {
+  try {
+    return new X509Certificate(certPem).publicKey;
+  } catch {
+    return createPublicKey(certPem);
+  }
+}
+
 /**
  * Verifies consent artefact `notification.signature` (CM X.509 + RS256 over consentDetail).
- * Set `ABDM_CM_CONSENT_VERIFY_CERT_PEM` to the consent manager signing certificate PEM.
+ * Payload bytes use RFC 8785 JCS (same canonical form CM signing expects).
  */
 export async function verifyConsentNotificationSignature(
   notification: ConsentNotifyRequest["notification"],
@@ -30,12 +39,15 @@ export async function verifyConsentNotificationSignature(
   }
 
   try {
-    const cert = new X509Certificate(certPem);
-    const publicKey = cert.publicKey;
-    const payload = Buffer.from(
-      JSON.stringify(notification.consentDetail),
-      "utf8",
-    );
+    const publicKey = loadCmVerifyPublicKey(certPem);
+    const canonical = canonicalize(notification.consentDetail);
+    if (canonical === undefined) {
+      abdmWarn("abdm.m2.consent.signature_canonicalize_failed", {
+        consentId: notification.consentId,
+      });
+      return false;
+    }
+    const payload = Buffer.from(canonical, "utf8");
     const signature = Buffer.from(signatureB64, "base64");
     const verifier = createVerify("RSA-SHA256");
     verifier.update(payload);

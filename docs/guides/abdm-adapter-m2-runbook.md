@@ -136,7 +136,7 @@ Use `transactionId` consistently across discover → init → confirm. Discovery
 | Consent | `POST /api/v3/consent/request/hip/notify` | Row in `abdm_consent_artefacts`, ack to `…/consent/v3/request/hip/on-notify`, event `abdm.consent.granted` |
 | HI request | `POST /api/v3/hip/health-information/request` | Session `abdm.m3.hip.v1`, ack to `…/data-flow/v3/health-information/hip/on-request` |
 
-**M3 push** uses `FideliusEncryptorStub` (base64 dev wrapper) until production Fidelius is wired. HIU `dataPushUrl` must be reachable from the adapter host.
+**M3 push** uses `FideliusEncryptor` (BC Weierstrass curve25519). Do not set `ABDM_FIDELIUS_USE_STUB` in staging/production. HIU `dataPushUrl` must be reachable from the adapter host.
 
 ---
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createDb } from "@hims/ts-sdk-db";
 import { DrizzleAbdmSessionsRepo } from "../../data-access/abdm-sessions.repo.js";
 import { EnvSecretsClient } from "../../data-access/env-secrets.client.js";
-import { FideliusEncryptorStub } from "../../data-access/fidelius.js";
+import { FideliusEncryptor } from "../../data-access/fidelius.js";
 import { HttpGatewayClient } from "../../data-access/gateway-client.http.js";
 import { enrolAadhaarOtpRequest } from "./enrol-aadhaar-otp-request.js";
 
@@ -32,7 +32,7 @@ describe.skipIf(!RUN)("enrolAadhaarOtpRequest — ABDM sandbox (RUN_ABDM_SANDBOX
     });
     const db = createDb(databaseUrl);
     const sessions = new DrizzleAbdmSessionsRepo(db);
-    const fidelius = new FideliusEncryptorStub();
+    const fidelius = new FideliusEncryptor();
     const deps = { sessions, gateway, secrets, fidelius };
 
     const aadhaar = process.env["ABDM_SANDBOX_TEST_AADHAAR"] ?? "";

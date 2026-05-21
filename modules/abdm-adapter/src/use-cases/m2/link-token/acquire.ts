@@ -41,7 +41,6 @@ export async function linkTokenAcquire(
       abhaNumber: input.abhaNumber,
       patientName: input.demographics.name,
       careContexts: [],
-      linkTokenAcquireOnly: true,
     },
   });
 
