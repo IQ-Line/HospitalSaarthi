@@ -1,5 +1,9 @@
-import { catalogIqTenantHeaderValue, DEV_TENANT_IQ_CATALOG_UUID } from '@/lib/catalog-tenant';
+import {
+  billingIqTenantHeaderValue,
+  catalogIqTenantHeaderValue,
+} from '@/lib/catalog-tenant';
 import { apiClient, apiClientWithIqTenant } from '@/lib/api-client';
+import { useAuthStore } from '@/stores/auth.store';
 import { useTenantStore } from '@/stores/tenant.store';
 import { mockTariffStore } from './mock-tariff-store';
 import type {
@@ -19,11 +23,16 @@ export const billingUseMock =
   import.meta.env.VITE_BILLING_USE_MOCK === 'true' ||
   (import.meta.env.DEV && import.meta.env.VITE_BILLING_USE_MOCK !== 'false');
 
-function billingTenantId(override?: string): string {
-  if (override) {
-    return catalogIqTenantHeaderValue(override) ?? override.trim().toLowerCase();
+/** Explicit per-call tenant wins; else JWT, then session store (see billingIqTenantHeaderValue). */
+function resolveBillingTenantId(explicit?: string): string {
+  if (explicit) {
+    const fromExplicit = catalogIqTenantHeaderValue(explicit);
+    if (fromExplicit) return fromExplicit;
   }
-  return catalogIqTenantHeaderValue(useTenantStore.getState().tenantId) ?? DEV_TENANT_IQ_CATALOG_UUID;
+  return billingIqTenantHeaderValue(
+    useTenantStore.getState().tenantId,
+    useAuthStore.getState().accessToken,
+  );
 }
 
 function billingFetch<T>(
@@ -31,7 +40,7 @@ function billingFetch<T>(
   path: string,
   options?: RequestInit,
 ): Promise<T> {
-  const tid = billingTenantId(iqTenantId);
+  const tid = resolveBillingTenantId(iqTenantId);
   if (iqTenantId) {
     return apiClientWithIqTenant<T>(tid, path, options);
   }
@@ -62,7 +71,7 @@ export function listTariffServices(
 ): Promise<ServicesListResponse> {
   const useMock = billingUseMock && !options?.forceLive;
   if (useMock) {
-    return Promise.resolve(mockTariffStore.list(params, billingTenantId(iqTenantId)));
+    return Promise.resolve(mockTariffStore.list(params, resolveBillingTenantId(iqTenantId)));
   }
   return billingFetch<ServicesListResponse>(
     iqTenantId,
@@ -77,7 +86,7 @@ export function createTariffService(
 ): Promise<ServiceSingleResponse> {
   const useMock = billingUseMock && !options?.forceLive;
   if (useMock) {
-    return Promise.resolve(mockTariffStore.create(input, billingTenantId(iqTenantId)));
+    return Promise.resolve(mockTariffStore.create(input, resolveBillingTenantId(iqTenantId)));
   }
   return billingFetch<ServiceSingleResponse>(iqTenantId, BASE, {
     method: 'POST',

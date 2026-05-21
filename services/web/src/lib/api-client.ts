@@ -1,7 +1,11 @@
 import type { ApiClientContext } from '@/lib/api-client-context';
 import { resolveBrowserApiBaseUrl } from '@/lib/api-base-url';
 import { refreshAccessToken } from '@/lib/auth-session';
-import { catalogIqTenantHeaderValue, serviceIqTenantHeaderValue } from '@/lib/catalog-tenant';
+import {
+  billingIqTenantHeaderValue,
+  catalogIqTenantHeaderValue,
+  serviceIqTenantHeaderValue,
+} from '@/lib/catalog-tenant';
 import { useAuthStore } from '@/stores/auth.store';
 import { useTenantStore } from '@/stores/tenant.store';
 
@@ -188,10 +192,9 @@ async function fetchWithAuthRetry(
   ) {
     headers.set('x-tenant-id', serviceIqTenantHeaderValue(tenantId));
   }
-  /** Billing resolves tariffs per tenant — always send `iq_tenant_id` when we have a UUID tenant. */
+  /** Billing resolves tariffs per tenant — JWT `iq_tenant_id` wins over stale store placeholders. */
   if (path.startsWith(BILLING_API_PREFIX) && !headers.has('iq_tenant_id')) {
-    const billingTenant = catalogIqTenantHeaderValue(tenantId) ?? serviceIqTenantHeaderValue(tenantId);
-    headers.set('iq_tenant_id', billingTenant);
+    headers.set('iq_tenant_id', billingIqTenantHeaderValue(tenantId, token));
   }
 
   if (

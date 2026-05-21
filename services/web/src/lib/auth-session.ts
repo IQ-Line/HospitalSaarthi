@@ -1,5 +1,6 @@
 import { authClient } from '@/lib/auth-client';
 import { applyTenantSessionFromAuth } from '@/lib/tenant-session';
+import { catalogIqTenantHeaderValue, jwtIqTenantHeaderValue } from '@/lib/catalog-tenant';
 import { useAuthStore } from '@/stores/auth.store';
 import { useTenantStore } from '@/stores/tenant.store';
 
@@ -50,6 +51,31 @@ async function resolveAuthSessionFromBetterAuth(): Promise<ResolvedAuthSession |
     displayName: typeof displayName === 'string' ? displayName : '',
     authUserIqTenantId,
   };
+}
+
+/**
+ * After reload, align tenant store to JWT (dev only).
+ * Prod cookie-bootstrap UX is tracked in #90 — do not inject dev placeholders there.
+ */
+function syncTenantStoreFromAccessToken(accessToken: string): void {
+  if (!import.meta.env.DEV) return;
+
+  const jwtTenant = jwtIqTenantHeaderValue(accessToken);
+  if (!jwtTenant) return;
+
+  const storeTenant = catalogIqTenantHeaderValue(useTenantStore.getState().tenantId);
+  if (storeTenant === jwtTenant) return;
+
+  const prev = useTenantStore.getState();
+  useTenantStore.getState().setTenant({
+    tenantId: jwtTenant,
+    tenantName: prev.tenantName ?? 'Dev Hospital',
+    branches:
+      prev.branches.length > 0
+        ? prev.branches
+        : [{ id: 'branch-001', name: 'Main Campus' }],
+    activeBranch: prev.activeBranch ?? 'branch-001',
+  });
 }
 
 function redirectToLoginIfBrowserSessionExpired(): void {
