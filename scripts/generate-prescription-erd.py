@@ -24,17 +24,7 @@ def T(
     TABLES.append((key, name, comment, x, y, columns, color))
 
 
-# --- Stubs (out of scope; FK targets only) ---
-T(
-    "visits",
-    "visits",
-    "TRANSACTIONAL (OPD stub). Parent encounter; full visit LLD elsewhere.",
-    1200,
-    2200,
-    [pk_id("Visit PK"), tenant_col(), ("patient_id", "UUID", "empi.patients", True), ("status", "TEXT", "Visit lifecycle", True)]
-    + audit,
-    "#bbdefb",
-)
+# --- Master stub (catalog owned elsewhere) ---
 T(
     "vaccines",
     "vaccines",
@@ -62,7 +52,15 @@ T(
     [
         pk_id("Prescription PK"),
         tenant_col(),
-        ("visit_id", "UUID", "FK visits — UNIQUE (1:1 visit ↔ prescription)", True, False, "", True),
+        (
+            "visit_id",
+            "UUID",
+            "Logical ref registration.registration.visit_id (registration module); UNIQUE 1:1",
+            True,
+            False,
+            "",
+            True,
+        ),
         ("patient_id", "UUID", "empi.patients", True),
         ("doctor_id", "UUID", "user_management.users", True),
         ("vitals_schema_version", "SMALLINT", "Mongo vitalsSchemaVersion (default 1)", True, False, "1"),
@@ -245,59 +243,6 @@ T(
     ]
     + audit,
 )
-T(
-    "prescription_medical_history_surgeries",
-    "prescription_medical_history_surgeries",
-    "CHILD 1:N. medicalHistory pastSurgeries[].",
-    2650,
-    3400,
-    [
-        pk_id(),
-        tenant_col(),
-        ("prescription_id", "UUID", "FK prescriptions", True),
-        ("line_no", "SMALLINT", "Display order", True),
-        ("surgery_text", "VARCHAR(256)", "procedure name", True),
-        ("surgery_date_text", "VARCHAR(64)", "date (legacy free-text)", False),
-        ("notes", "TEXT", "notes", False),
-    ]
-    + audit,
-)
-T(
-    "prescription_medical_history_family",
-    "prescription_medical_history_family",
-    "CHILD 1:N. medicalHistory familyHistory[].",
-    3400,
-    3400,
-    [
-        pk_id(),
-        tenant_col(),
-        ("prescription_id", "UUID", "FK prescriptions", True),
-        ("line_no", "SMALLINT", "Display order", True),
-        ("relation_text", "VARCHAR(64)", "relation", False),
-        ("condition_text", "VARCHAR(256)", "condition", True),
-        ("notes", "TEXT", "notes", False),
-    ]
-    + audit,
-)
-T(
-    "prescription_medical_history_current_meds",
-    "prescription_medical_history_current_meds",
-    "CHILD 1:N. medicalHistory currentMedications[].",
-    4150,
-    3400,
-    [
-        pk_id(),
-        tenant_col(),
-        ("prescription_id", "UUID", "FK prescriptions", True),
-        ("line_no", "SMALLINT", "Display order", True),
-        ("medicine_text", "VARCHAR(256)", "name", True),
-        ("dose_text", "VARCHAR(128)", "dose", False),
-        ("frequency_text", "VARCHAR(128)", "frequency", False),
-        ("notes", "TEXT", "notes", False),
-    ]
-    + audit,
-)
-
 # --- medicines[], orders ---
 T(
     "prescription_medicines",
@@ -455,23 +400,6 @@ T(
     ],
 )
 T(
-    "prescription_womens_health",
-    "prescription_womens_health",
-    "CHILD 1:0..1. womensHealth embed.",
-    2900,
-    4200,
-    [
-        ("prescription_id", "UUID", "FK prescriptions; PK", True, True),
-        tenant_col(),
-        ("last_menstrual_period", "DATE", "lmp", False),
-        ("menarche_age_years", "SMALLINT", "menarche", False),
-        ("menopause_status", "VARCHAR(64)", "menopause (free-text)", False),
-        ("pregnancy_status_codes", "TEXT[]", "pregnancyStatus[]", False),
-        ("number_of_living_children", "SMALLINT", "numberOfLivingChildren", False),
-    ]
-    + audit,
-)
-T(
     "prescription_care_plans",
     "prescription_care_plans",
     "CHILD 1:0..1. carePlan embed.",
@@ -489,7 +417,6 @@ T(
 )
 
 RELS: list[tuple] = [
-    ("rx_visit", "prescriptions", "visit_id", "visits", "id", {"relationshipType": 8, "startRelationshipType": 8, "identification": True}),
     ("st_rx", "prescription_status_history", "prescription_id", "prescriptions", "id", {}),
     ("lv_rx", "prescription_legacy_vitals", "prescription_id", "prescriptions", "id", {}),
     ("vit_obs_rx", "prescription_vital_observations", "prescription_id", "prescriptions", "id", {}),
@@ -499,9 +426,6 @@ RELS: list[tuple] = [
     ("mh_rx", "prescription_medical_histories", "prescription_id", "prescriptions", "id", {}),
     ("mha_rx", "prescription_medical_history_allergies", "prescription_id", "prescriptions", "id", {}),
     ("mhci_rx", "prescription_medical_history_chronic_illnesses", "prescription_id", "prescriptions", "id", {}),
-    ("mhs_rx", "prescription_medical_history_surgeries", "prescription_id", "prescriptions", "id", {}),
-    ("mhf_rx", "prescription_medical_history_family", "prescription_id", "prescriptions", "id", {}),
-    ("mhcm_rx", "prescription_medical_history_current_meds", "prescription_id", "prescriptions", "id", {}),
     ("med_rx", "prescription_medicines", "prescription_id", "prescriptions", "id", {}),
     ("subst_med", "prescription_medicine_substitutions", "prescription_medicine_id", "prescription_medicines", "id", {}),
     ("subst_rx", "prescription_medicine_substitutions", "prescription_id", "prescriptions", "id", {}),
@@ -512,23 +436,23 @@ RELS: list[tuple] = [
     ("proc_rx", "prescription_advised_procedures", "prescription_id", "prescriptions", "id", {}),
     ("pa_rx", "prescription_physical_activity", "prescription_id", "prescriptions", "id", {}),
     ("pa_et", "prescription_physical_activity_exercise_types", "physical_activity_id", "prescription_physical_activity", "id", {}),
-    ("wh_rx", "prescription_womens_health", "prescription_id", "prescriptions", "id", {}),
     ("cp_rx", "prescription_care_plans", "prescription_id", "prescriptions", "id", {}),
 ]
 
 MEMO = """=== OPD Prescription (MongoDB → PostgreSQL) ===
-Schema: opd | 24 tables
+Schema: opd | 19 transactional tables (+ 1 master stub in diagram)
 
-VISIT ↔ PRESCRIPTION: 1:1 (prescriptions.visit_id UNIQUE FK)
+VISIT: owned by registration module (modules/registration/src/schema/tables.ts).
+  prescriptions.visit_id = registration.registration.visit_id (logical ref, no cross-schema FK).
+  UNIQUE 1:1 visit ↔ prescription.
+
 IMMUNISATION: vaccinesRequired → prescription_vaccines_required ONLY.
-  NOT administration history (see visits.fhir_immunization_record, HealthDocument hi_type=ImmunizationRecord).
 
-TRANSACTIONAL: visits (stub), prescriptions
-CHILD 1:N: vitals_v2, complaints, diagnoses, medicines, orders, vaccines_required, …
-CHILD 1:0..1: legacy_vitals, medical_histories, womens_health, care_plans
+TRANSACTIONAL: prescriptions + child tables (surgeries/family/current_meds/womens_health deferred)
+CHILD 1:0..1: legacy_vitals, medical_histories, care_plans
 AUDIT: prescription_status_history
 
-Cross-schema UUID refs (no FK): patient_id, doctor_id, catalog IDs."""
+Cross-schema UUID refs (no FK): patient_id, doctor_id, visit_id, catalog IDs."""
 
 
 def main() -> None:
