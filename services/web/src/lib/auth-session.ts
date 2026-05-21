@@ -44,8 +44,13 @@ async function resolveAuthSessionFromBetterAuth(): Promise<ResolvedAuthSession |
   };
 }
 
-/** After reload, tenant store may be empty or hold an EMPI dev placeholder; align to JWT. */
+/**
+ * After reload, align tenant store to JWT (dev only).
+ * Prod cookie-bootstrap UX is tracked in #90 — do not inject dev placeholders there.
+ */
 function syncTenantStoreFromAccessToken(accessToken: string): void {
+  if (!import.meta.env.DEV) return;
+
   const jwtTenant = jwtIqTenantHeaderValue(accessToken);
   if (!jwtTenant) return;
 
