@@ -64,6 +64,11 @@ export function filterCapabilityKeysForPersona(
           normalized.startsWith("master-data:") ||
           normalized.startsWith("configurator:") ||
           normalized.startsWith("frontdesk:") ||
+          normalized.startsWith("billing-and-finance:") ||
+          normalized.startsWith("invoice:") ||
+          normalized.startsWith("billing-account:") ||
+          normalized.startsWith("tariff-master:") ||
+          normalized.startsWith("registration:") ||
           normalized.startsWith("opd:") ||
           normalized.startsWith("empi:")
         );

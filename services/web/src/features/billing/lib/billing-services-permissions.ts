@@ -1,14 +1,14 @@
 import { getRolesFromAccessToken, isSuperAdminRole } from '@/lib/access-token';
+import {
+  BILLING_SHELL_ACCESS,
+  BILLING_TARIFF_READ,
+} from '@/lib/runtime-capability-keys';
 import type { PermissionsState } from '@/stores/permissions.store';
-
-const BILLING = 'billing';
-const MASTER_DATA = 'master-data';
-const SERVICES = 'services';
 
 type Args = {
   isAuthenticated: boolean;
   accessToken: string | null;
-  permissions: Pick<PermissionsState, 'hasFeaturePermission' | 'hasModuleAccess' | 'map'>;
+  permissions: Pick<PermissionsState, 'hasCapability' | 'hasAnyCapability'>;
 };
 
 function shellAllowed({ isAuthenticated, accessToken }: Args): boolean {
@@ -16,17 +16,27 @@ function shellAllowed({ isAuthenticated, accessToken }: Args): boolean {
 }
 
 export function canReadBillingServices(args: Args): boolean {
-  if (shellAllowed(args)) return true;
+  if (shellAllowed(args)) {
+    return true;
+  }
   const s = args.permissions;
-  if (s.hasFeaturePermission(BILLING, SERVICES, 'read')) return true;
-  if (s.hasModuleAccess(BILLING) || s.hasModuleAccess(MASTER_DATA)) return true;
-  return !(BILLING in s.map || MASTER_DATA in s.map);
+  return s.hasAnyCapability([
+    BILLING_TARIFF_READ,
+    BILLING_SHELL_ACCESS,
+    'tariff-master:tariff-master:create',
+    'tariff-master:tariff-master:update',
+  ]);
 }
 
 export function canWriteBillingServices(args: Args): boolean {
-  if (shellAllowed(args)) return true;
+  if (shellAllowed(args)) {
+    return true;
+  }
   const s = args.permissions;
-  if (s.hasFeaturePermission(BILLING, SERVICES, 'write')) return true;
-  if (s.hasModuleAccess(BILLING) || s.hasModuleAccess(MASTER_DATA)) return true;
-  return !(BILLING in s.map || MASTER_DATA in s.map);
+  return s.hasAnyCapability([
+    'tariff-master:tariff-master:create',
+    'tariff-master:tariff-master:update',
+    'tariff-master:tariff-master:delete',
+    BILLING_SHELL_ACCESS,
+  ]);
 }

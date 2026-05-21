@@ -35,6 +35,19 @@ export const MD_VISITPAD_MUTATE_ANY = [
 export const MD_SHELL_ACCESS = 'master-data:shell:access' as const;
 export const CFG_SHELL_ACCESS = 'configurator:shell:access' as const;
 export const FD_SHELL_ACCESS = 'frontdesk:shell:access' as const;
+export const FD_REGISTRATION_READ = 'registration:registration:read' as const;
+
+export const BILLING_SHELL_ACCESS = 'billing-and-finance:shell:access' as const;
+export const BILLING_INVOICE_READ = 'invoice:invoice:read' as const;
+export const BILLING_ACCOUNT_READ = 'billing-account:billing-account:read' as const;
+export const BILLING_TARIFF_READ = 'tariff-master:tariff-master:read' as const;
+
+export const BILLING_PRODUCT_ANY = [
+  BILLING_SHELL_ACCESS,
+  BILLING_INVOICE_READ,
+  BILLING_ACCOUNT_READ,
+  BILLING_TARIFF_READ,
+] as const;
 
 export const UM_USER_WRITE_ANY = [
   UM_USER_CREATE,

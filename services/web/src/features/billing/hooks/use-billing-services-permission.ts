@@ -11,9 +11,8 @@ export function useBillingServicesPermission() {
   const accessToken = useAuthStore((s) => s.accessToken);
   const permissions = usePermissionsStore(
     useShallow((s) => ({
-      hasFeaturePermission: s.hasFeaturePermission,
-      hasModuleAccess: s.hasModuleAccess,
-      map: s.map,
+      hasCapability: s.hasCapability,
+      hasAnyCapability: s.hasAnyCapability,
     })),
   );
   const args = { isAuthenticated, accessToken, permissions };
