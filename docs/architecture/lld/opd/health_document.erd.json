@@ -1,0 +1,1264 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dineug/erd-editor/main/json-schema/schema.json",
+  "version": "3.0.0",
+  "settings": {
+    "width": 5200,
+    "height": 3200,
+    "scrollTop": 1800,
+    "scrollLeft": 2000,
+    "zoomLevel": 0.5,
+    "show": 431,
+    "database": 4,
+    "databaseName": "opd",
+    "canvasType": "ERD",
+    "language": 4,
+    "tableNameCase": 2,
+    "columnNameCase": 2,
+    "bracketType": 1,
+    "relationshipDataTypeSync": true,
+    "relationshipOptimization": false,
+    "columnOrder": [
+      1,
+      2,
+      4,
+      8,
+      16,
+      32,
+      64
+    ],
+    "maxWidthComment": 80,
+    "ignoreSaveSettings": 0
+  },
+  "doc": {
+    "tableIds": [
+      "814e188a-ec9c-5caf-a079-4302ca11415c",
+      "d80fa674-48ca-56e8-aa9e-b8507e87577c",
+      "c1a87408-4b67-59c9-a869-26e8f91329a3",
+      "13e41354-08d9-5e64-af14-87c22ce2c5c8",
+      "c2bccae9-50c1-56cb-a3d6-f2af003b32ad"
+    ],
+    "relationshipIds": [
+      "68a37b82-91b8-55bd-b336-a8e21996b988",
+      "a0c9099b-24c5-5484-bf91-ec3afe164e12",
+      "269b6c72-2e07-50de-bb65-2ae2b7ee1a83",
+      "60eb658b-06e4-53cc-a325-a73fae197067"
+    ],
+    "indexIds": [],
+    "memoIds": [
+      "3f419c13-7955-5091-9f67-894d317b40bf"
+    ]
+  },
+  "collections": {
+    "tableEntities": {
+      "814e188a-ec9c-5caf-a079-4302ca11415c": {
+        "id": "814e188a-ec9c-5caf-a079-4302ca11415c",
+        "name": "patients",
+        "comment": "MASTER/TRANSACTIONAL stub. empi.patients \u2014 patient identity anchor.",
+        "columnIds": [
+          "8dd93062-1ac6-5953-8882-a93353a50d98",
+          "d1dca5c4-98a3-5980-8e73-8f90a745f02b",
+          "bd22d8f2-9c0d-5c8f-8bb5-b56ca68ca597",
+          "e0908fe1-785c-5746-9618-c7896792bb1f",
+          "33d7edac-bd75-5755-b4c0-f5732a1e69b4"
+        ],
+        "seqColumnIds": [
+          "8dd93062-1ac6-5953-8882-a93353a50d98",
+          "d1dca5c4-98a3-5980-8e73-8f90a745f02b",
+          "bd22d8f2-9c0d-5c8f-8bb5-b56ca68ca597",
+          "e0908fe1-785c-5746-9618-c7896792bb1f",
+          "33d7edac-bd75-5755-b4c0-f5732a1e69b4"
+        ],
+        "ui": {
+          "x": 400,
+          "y": 1600,
+          "zIndex": 2,
+          "widthName": 120,
+          "widthComment": 100,
+          "color": "#bbdefb"
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "d80fa674-48ca-56e8-aa9e-b8507e87577c": {
+        "id": "d80fa674-48ca-56e8-aa9e-b8507e87577c",
+        "name": "visits",
+        "comment": "TRANSACTIONAL stub. opd.visits \u2014 optional link (Mongo visitId was String).",
+        "columnIds": [
+          "b53b2d0d-b672-57bb-8097-91d04daebd2d",
+          "4499dd7b-c4c4-5b5a-a441-a427817800f6",
+          "2bb926a1-868c-5319-b7bf-98e1159969eb",
+          "3437aba6-889d-5c2f-b29f-6f4fca5b9643",
+          "ee2311d9-5ec7-5b2f-ace5-884a5ac10699",
+          "cedd007f-7c31-59f2-bc02-b24691e90fc2"
+        ],
+        "seqColumnIds": [
+          "b53b2d0d-b672-57bb-8097-91d04daebd2d",
+          "4499dd7b-c4c4-5b5a-a441-a427817800f6",
+          "2bb926a1-868c-5319-b7bf-98e1159969eb",
+          "3437aba6-889d-5c2f-b29f-6f4fca5b9643",
+          "ee2311d9-5ec7-5b2f-ace5-884a5ac10699",
+          "cedd007f-7c31-59f2-bc02-b24691e90fc2"
+        ],
+        "ui": {
+          "x": 1200,
+          "y": 1600,
+          "zIndex": 2,
+          "widthName": 120,
+          "widthComment": 100,
+          "color": "#bbdefb"
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "c1a87408-4b67-59c9-a869-26e8f91329a3": {
+        "id": "c1a87408-4b67-59c9-a869-26e8f91329a3",
+        "name": "health_documents",
+        "comment": "TRANSACTIONAL. Mongo HealthDocument \u2014 uploaded clinical files + ABDM HI metadata.",
+        "columnIds": [
+          "6680e623-fdc6-5fd5-9665-db447f4970cd",
+          "dcf2a9bb-3d8d-589a-a029-92d1a17b1e03",
+          "36815518-f813-5718-9f6c-0ef373e46116",
+          "d7c5dd41-5449-5be1-9ca2-911cedde0982",
+          "5740373b-70d7-5e28-ae0c-fff626b18d17",
+          "70596724-5c62-5c41-b4f0-124423fdd938",
+          "c97fe330-d4f4-53df-bcf1-53f54ef06da2",
+          "7c135ca1-47db-52e1-88cf-d2af9425f96f",
+          "b2d66a99-16be-5418-be3c-d319ffacb1a6",
+          "370657c4-8a2a-5c22-bc7c-587a8ce66750",
+          "de1f921a-066e-5086-a555-5534eb934336",
+          "f5131cbf-618e-5eb3-b240-fb74a562e6de",
+          "3334cffc-f516-56ce-a416-d1b085fa3cd4",
+          "0319756f-c6b2-5ac8-a38e-7c815cad4c6b",
+          "73f75db3-6379-5aa0-a470-405816b82f49",
+          "3d646d52-7d8a-5f0c-b92e-632918a0a2b6",
+          "5c367e7b-ffb1-5d78-b42c-650c7d7eca56",
+          "68a98a45-8ddc-52ca-99ee-b36b3fa987ad",
+          "5e8b6b8d-275f-5e22-b5f2-e6f4b26fbad3",
+          "fb0ca550-eee6-51de-9d2b-3070d4340194",
+          "d6f96e15-88b6-50be-8a74-50700aa275bb",
+          "316cfe51-9a30-5103-9144-5d386428419b",
+          "86967376-bf98-5b2d-9f2e-fe722c3c0724"
+        ],
+        "seqColumnIds": [
+          "6680e623-fdc6-5fd5-9665-db447f4970cd",
+          "dcf2a9bb-3d8d-589a-a029-92d1a17b1e03",
+          "36815518-f813-5718-9f6c-0ef373e46116",
+          "d7c5dd41-5449-5be1-9ca2-911cedde0982",
+          "5740373b-70d7-5e28-ae0c-fff626b18d17",
+          "70596724-5c62-5c41-b4f0-124423fdd938",
+          "c97fe330-d4f4-53df-bcf1-53f54ef06da2",
+          "7c135ca1-47db-52e1-88cf-d2af9425f96f",
+          "b2d66a99-16be-5418-be3c-d319ffacb1a6",
+          "370657c4-8a2a-5c22-bc7c-587a8ce66750",
+          "de1f921a-066e-5086-a555-5534eb934336",
+          "f5131cbf-618e-5eb3-b240-fb74a562e6de",
+          "3334cffc-f516-56ce-a416-d1b085fa3cd4",
+          "0319756f-c6b2-5ac8-a38e-7c815cad4c6b",
+          "73f75db3-6379-5aa0-a470-405816b82f49",
+          "3d646d52-7d8a-5f0c-b92e-632918a0a2b6",
+          "5c367e7b-ffb1-5d78-b42c-650c7d7eca56",
+          "68a98a45-8ddc-52ca-99ee-b36b3fa987ad",
+          "5e8b6b8d-275f-5e22-b5f2-e6f4b26fbad3",
+          "fb0ca550-eee6-51de-9d2b-3070d4340194",
+          "d6f96e15-88b6-50be-8a74-50700aa275bb",
+          "316cfe51-9a30-5103-9144-5d386428419b",
+          "86967376-bf98-5b2d-9f2e-fe722c3c0724"
+        ],
+        "ui": {
+          "x": 2200,
+          "y": 1600,
+          "zIndex": 2,
+          "widthName": 128,
+          "widthComment": 100,
+          "color": "#a5d6a7"
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "13e41354-08d9-5e64-af14-87c22ce2c5c8": {
+        "id": "13e41354-08d9-5e64-af14-87c22ce2c5c8",
+        "name": "health_document_tags",
+        "comment": "JUNCTION 1:N. Normalized tags[] from Mongo (composite PK).",
+        "columnIds": [
+          "26d3aea2-9360-53cf-8b16-581b8bbaac30",
+          "b313c041-1614-54a6-908c-4606ce01be54",
+          "a09af711-ccbe-52db-b32f-98cf026ffd37"
+        ],
+        "seqColumnIds": [
+          "26d3aea2-9360-53cf-8b16-581b8bbaac30",
+          "b313c041-1614-54a6-908c-4606ce01be54",
+          "a09af711-ccbe-52db-b32f-98cf026ffd37"
+        ],
+        "ui": {
+          "x": 3200,
+          "y": 1600,
+          "zIndex": 2,
+          "widthName": 160,
+          "widthComment": 100,
+          "color": "#c8e6c9"
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "c2bccae9-50c1-56cb-a3d6-f2af003b32ad": {
+        "id": "c2bccae9-50c1-56cb-a3d6-f2af003b32ad",
+        "name": "health_document_abdm_link_events",
+        "comment": "CHILD 1:N audit. ABDM link/discovery lifecycle events per document.",
+        "columnIds": [
+          "5de76bd4-a838-5741-9bdd-670b5306594f",
+          "df7f5f8d-1fab-5ed1-b9db-c7911a523416",
+          "95fd48d3-78ee-5a6a-a92a-feb95fc2a7b0",
+          "60ebd4cc-24de-5b82-9d00-088f01d6d25d",
+          "8e1dad25-1acc-5a2e-b30a-76f974ed4e4b",
+          "2968fb87-9ea4-55ca-b96d-51449d7cb328",
+          "bf69917d-206e-577b-8544-0a987ccacbfd"
+        ],
+        "seqColumnIds": [
+          "5de76bd4-a838-5741-9bdd-670b5306594f",
+          "df7f5f8d-1fab-5ed1-b9db-c7911a523416",
+          "95fd48d3-78ee-5a6a-a92a-feb95fc2a7b0",
+          "60ebd4cc-24de-5b82-9d00-088f01d6d25d",
+          "8e1dad25-1acc-5a2e-b30a-76f974ed4e4b",
+          "2968fb87-9ea4-55ca-b96d-51449d7cb328",
+          "bf69917d-206e-577b-8544-0a987ccacbfd"
+        ],
+        "ui": {
+          "x": 2200,
+          "y": 800,
+          "zIndex": 2,
+          "widthName": 256,
+          "widthComment": 100,
+          "color": "#c8e6c9"
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      }
+    },
+    "tableColumnEntities": {
+      "8dd93062-1ac6-5953-8882-a93353a50d98": {
+        "id": "8dd93062-1ac6-5953-8882-a93353a50d98",
+        "tableId": "814e188a-ec9c-5caf-a079-4302ca11415c",
+        "name": "id",
+        "comment": "Primary key",
+        "dataType": "UUID",
+        "default": "gen_random_uuid()",
+        "options": 6,
+        "ui": {
+          "keys": 3,
+          "widthName": 60,
+          "widthComment": 66,
+          "widthDataType": 60,
+          "widthDefault": 119
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "d1dca5c4-98a3-5980-8e73-8f90a745f02b": {
+        "id": "d1dca5c4-98a3-5980-8e73-8f90a745f02b",
+        "tableId": "814e188a-ec9c-5caf-a079-4302ca11415c",
+        "name": "tenant_id",
+        "comment": "Tenant isolation (Citus distribution key)",
+        "dataType": "UUID",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 63,
+          "widthComment": 246,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "bd22d8f2-9c0d-5c8f-8bb5-b56ca68ca597": {
+        "id": "bd22d8f2-9c0d-5c8f-8bb5-b56ca68ca597",
+        "tableId": "814e188a-ec9c-5caf-a079-4302ca11415c",
+        "name": "mrn",
+        "comment": "Medical record number",
+        "dataType": "VARCHAR(64)",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 126,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "e0908fe1-785c-5746-9618-c7896792bb1f": {
+        "id": "e0908fe1-785c-5746-9618-c7896792bb1f",
+        "tableId": "814e188a-ec9c-5caf-a079-4302ca11415c",
+        "name": "created_at",
+        "comment": "Row creation time",
+        "dataType": "TIMESTAMPTZ",
+        "default": "now()",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 70,
+          "widthComment": 102,
+          "widthDataType": 60,
+          "widthDefault": 35
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "33d7edac-bd75-5755-b4c0-f5732a1e69b4": {
+        "id": "33d7edac-bd75-5755-b4c0-f5732a1e69b4",
+        "tableId": "814e188a-ec9c-5caf-a079-4302ca11415c",
+        "name": "updated_at",
+        "comment": "Last update time",
+        "dataType": "TIMESTAMPTZ",
+        "default": "now()",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 70,
+          "widthComment": 96,
+          "widthDataType": 60,
+          "widthDefault": 35
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "b53b2d0d-b672-57bb-8097-91d04daebd2d": {
+        "id": "b53b2d0d-b672-57bb-8097-91d04daebd2d",
+        "tableId": "d80fa674-48ca-56e8-aa9e-b8507e87577c",
+        "name": "id",
+        "comment": "Primary key",
+        "dataType": "UUID",
+        "default": "gen_random_uuid()",
+        "options": 6,
+        "ui": {
+          "keys": 3,
+          "widthName": 60,
+          "widthComment": 66,
+          "widthDataType": 60,
+          "widthDefault": 119
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "4499dd7b-c4c4-5b5a-a441-a427817800f6": {
+        "id": "4499dd7b-c4c4-5b5a-a441-a427817800f6",
+        "tableId": "d80fa674-48ca-56e8-aa9e-b8507e87577c",
+        "name": "tenant_id",
+        "comment": "Tenant isolation (Citus distribution key)",
+        "dataType": "UUID",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 63,
+          "widthComment": 246,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "2bb926a1-868c-5319-b7bf-98e1159969eb": {
+        "id": "2bb926a1-868c-5319-b7bf-98e1159969eb",
+        "tableId": "d80fa674-48ca-56e8-aa9e-b8507e87577c",
+        "name": "patient_id",
+        "comment": "empi.patients",
+        "dataType": "UUID",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 70,
+          "widthComment": 78,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "3437aba6-889d-5c2f-b29f-6f4fca5b9643": {
+        "id": "3437aba6-889d-5c2f-b29f-6f4fca5b9643",
+        "tableId": "d80fa674-48ca-56e8-aa9e-b8507e87577c",
+        "name": "status",
+        "comment": "Visit status",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 72,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "ee2311d9-5ec7-5b2f-ace5-884a5ac10699": {
+        "id": "ee2311d9-5ec7-5b2f-ace5-884a5ac10699",
+        "tableId": "d80fa674-48ca-56e8-aa9e-b8507e87577c",
+        "name": "created_at",
+        "comment": "Row creation time",
+        "dataType": "TIMESTAMPTZ",
+        "default": "now()",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 70,
+          "widthComment": 102,
+          "widthDataType": 60,
+          "widthDefault": 35
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "cedd007f-7c31-59f2-bc02-b24691e90fc2": {
+        "id": "cedd007f-7c31-59f2-bc02-b24691e90fc2",
+        "tableId": "d80fa674-48ca-56e8-aa9e-b8507e87577c",
+        "name": "updated_at",
+        "comment": "Last update time",
+        "dataType": "TIMESTAMPTZ",
+        "default": "now()",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 70,
+          "widthComment": 96,
+          "widthDataType": 60,
+          "widthDefault": 35
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "6680e623-fdc6-5fd5-9665-db447f4970cd": {
+        "id": "6680e623-fdc6-5fd5-9665-db447f4970cd",
+        "tableId": "c1a87408-4b67-59c9-a869-26e8f91329a3",
+        "name": "id",
+        "comment": "Primary key",
+        "dataType": "UUID",
+        "default": "gen_random_uuid()",
+        "options": 6,
+        "ui": {
+          "keys": 3,
+          "widthName": 60,
+          "widthComment": 66,
+          "widthDataType": 60,
+          "widthDefault": 119
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "dcf2a9bb-3d8d-589a-a029-92d1a17b1e03": {
+        "id": "dcf2a9bb-3d8d-589a-a029-92d1a17b1e03",
+        "tableId": "c1a87408-4b67-59c9-a869-26e8f91329a3",
+        "name": "tenant_id",
+        "comment": "Tenant isolation (Citus distribution key)",
+        "dataType": "UUID",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 63,
+          "widthComment": 246,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "36815518-f813-5718-9f6c-0ef373e46116": {
+        "id": "36815518-f813-5718-9f6c-0ef373e46116",
+        "tableId": "c1a87408-4b67-59c9-a869-26e8f91329a3",
+        "name": "patient_id",
+        "comment": "empi.patients \u2014 required",
+        "dataType": "UUID",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 70,
+          "widthComment": 144,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "d7c5dd41-5449-5be1-9ca2-911cedde0982": {
+        "id": "d7c5dd41-5449-5be1-9ca2-911cedde0982",
+        "tableId": "c1a87408-4b67-59c9-a869-26e8f91329a3",
+        "name": "visit_id",
+        "comment": "opd.visits \u2014 optional; normalize Mongo string/ObjectId \u2192 UUID",
+        "dataType": "UUID",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 366,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "5740373b-70d7-5e28-ae0c-fff626b18d17": {
+        "id": "5740373b-70d7-5e28-ae0c-fff626b18d17",
+        "tableId": "c1a87408-4b67-59c9-a869-26e8f91329a3",
+        "name": "doctor_id",
+        "comment": "user_management.users \u2014 authoring clinician",
+        "dataType": "UUID",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 63,
+          "widthComment": 258,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "70596724-5c62-5c41-b4f0-124423fdd938": {
+        "id": "70596724-5c62-5c41-b4f0-124423fdd938",
+        "tableId": "c1a87408-4b67-59c9-a869-26e8f91329a3",
+        "name": "hi_type",
+        "comment": "ABDM HI type e.g. ImmunizationRecord, HealthDocumentRecord",
+        "dataType": "VARCHAR(64)",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 348,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "c97fe330-d4f4-53df-bcf1-53f54ef06da2": {
+        "id": "c97fe330-d4f4-53df-bcf1-53f54ef06da2",
+        "tableId": "c1a87408-4b67-59c9-a869-26e8f91329a3",
+        "name": "document_title",
+        "comment": "display name / title",
+        "dataType": "VARCHAR(512)",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 98,
+          "widthComment": 120,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "7c135ca1-47db-52e1-88cf-d2af9425f96f": {
+        "id": "7c135ca1-47db-52e1-88cf-d2af9425f96f",
+        "tableId": "c1a87408-4b67-59c9-a869-26e8f91329a3",
+        "name": "original_file_name",
+        "comment": "uploaded file name",
+        "dataType": "VARCHAR(512)",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 126,
+          "widthComment": 108,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "b2d66a99-16be-5418-be3c-d319ffacb1a6": {
+        "id": "b2d66a99-16be-5418-be3c-d319ffacb1a6",
+        "tableId": "c1a87408-4b67-59c9-a869-26e8f91329a3",
+        "name": "storage_key",
+        "comment": "Object storage path or blob key",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 77,
+          "widthComment": 186,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "370657c4-8a2a-5c22-bc7c-587a8ce66750": {
+        "id": "370657c4-8a2a-5c22-bc7c-587a8ce66750",
+        "tableId": "c1a87408-4b67-59c9-a869-26e8f91329a3",
+        "name": "mime_type",
+        "comment": "MIME type",
+        "dataType": "VARCHAR(128)",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 63,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "de1f921a-066e-5086-a555-5534eb934336": {
+        "id": "de1f921a-066e-5086-a555-5534eb934336",
+        "tableId": "c1a87408-4b67-59c9-a869-26e8f91329a3",
+        "name": "file_size_bytes",
+        "comment": "File size",
+        "dataType": "BIGINT",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 105,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "f5131cbf-618e-5eb3-b240-fb74a562e6de": {
+        "id": "f5131cbf-618e-5eb3-b240-fb74a562e6de",
+        "tableId": "c1a87408-4b67-59c9-a869-26e8f91329a3",
+        "name": "checksum_sha256",
+        "comment": "Integrity hash of file bytes",
+        "dataType": "CHAR(64)",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 105,
+          "widthComment": 168,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "3334cffc-f516-56ce-a416-d1b085fa3cd4": {
+        "id": "3334cffc-f516-56ce-a416-d1b085fa3cd4",
+        "tableId": "c1a87408-4b67-59c9-a869-26e8f91329a3",
+        "name": "description",
+        "comment": "Clinical description",
+        "dataType": "TEXT",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 77,
+          "widthComment": 120,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "0319756f-c6b2-5ac8-a38e-7c815cad4c6b": {
+        "id": "0319756f-c6b2-5ac8-a38e-7c815cad4c6b",
+        "tableId": "c1a87408-4b67-59c9-a869-26e8f91329a3",
+        "name": "uploaded_at",
+        "comment": "Mongo uploadedAt \u2014 business upload time",
+        "dataType": "TIMESTAMPTZ",
+        "default": "now()",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 77,
+          "widthComment": 234,
+          "widthDataType": 60,
+          "widthDefault": 35
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "73f75db3-6379-5aa0-a470-405816b82f49": {
+        "id": "73f75db3-6379-5aa0-a470-405816b82f49",
+        "tableId": "c1a87408-4b67-59c9-a869-26e8f91329a3",
+        "name": "uploaded_by",
+        "comment": "user_management.users",
+        "dataType": "UUID",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 77,
+          "widthComment": 126,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "3d646d52-7d8a-5f0c-b92e-632918a0a2b6": {
+        "id": "3d646d52-7d8a-5f0c-b92e-632918a0a2b6",
+        "tableId": "c1a87408-4b67-59c9-a869-26e8f91329a3",
+        "name": "status",
+        "comment": "active | archived | deleted",
+        "dataType": "health_document_status",
+        "default": "active",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 162,
+          "widthDataType": 60,
+          "widthDefault": 42
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "5c367e7b-ffb1-5d78-b42c-650c7d7eca56": {
+        "id": "5c367e7b-ffb1-5d78-b42c-650c7d7eca56",
+        "tableId": "c1a87408-4b67-59c9-a869-26e8f91329a3",
+        "name": "abdm_care_context_ref",
+        "comment": "ABDM care-context reference after link",
+        "dataType": "VARCHAR(128)",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 147,
+          "widthComment": 228,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "68a98a45-8ddc-52ca-99ee-b36b3fa987ad": {
+        "id": "68a98a45-8ddc-52ca-99ee-b36b3fa987ad",
+        "tableId": "c1a87408-4b67-59c9-a869-26e8f91329a3",
+        "name": "abdm_link_status",
+        "comment": "not_linked | linkable | linked | revoked",
+        "dataType": "VARCHAR(32)",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 112,
+          "widthComment": 240,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "5e8b6b8d-275f-5e22-b5f2-e6f4b26fbad3": {
+        "id": "5e8b6b8d-275f-5e22-b5f2-e6f4b26fbad3",
+        "tableId": "c1a87408-4b67-59c9-a869-26e8f91329a3",
+        "name": "abdm_linked_at",
+        "comment": "When linked to ABHA",
+        "dataType": "TIMESTAMPTZ",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 98,
+          "widthComment": 114,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "fb0ca550-eee6-51de-9d2b-3070d4340194": {
+        "id": "fb0ca550-eee6-51de-9d2b-3070d4340194",
+        "tableId": "c1a87408-4b67-59c9-a869-26e8f91329a3",
+        "name": "record_foundation_care_context_id",
+        "comment": "record_foundation.care_contexts \u2014 optional",
+        "dataType": "UUID",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 231,
+          "widthComment": 252,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "d6f96e15-88b6-50be-8a74-50700aa275bb": {
+        "id": "d6f96e15-88b6-50be-8a74-50700aa275bb",
+        "tableId": "c1a87408-4b67-59c9-a869-26e8f91329a3",
+        "name": "deleted_at",
+        "comment": "Soft delete",
+        "dataType": "TIMESTAMPTZ",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 70,
+          "widthComment": 66,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "316cfe51-9a30-5103-9144-5d386428419b": {
+        "id": "316cfe51-9a30-5103-9144-5d386428419b",
+        "tableId": "c1a87408-4b67-59c9-a869-26e8f91329a3",
+        "name": "created_at",
+        "comment": "Row creation time",
+        "dataType": "TIMESTAMPTZ",
+        "default": "now()",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 70,
+          "widthComment": 102,
+          "widthDataType": 60,
+          "widthDefault": 35
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "86967376-bf98-5b2d-9f2e-fe722c3c0724": {
+        "id": "86967376-bf98-5b2d-9f2e-fe722c3c0724",
+        "tableId": "c1a87408-4b67-59c9-a869-26e8f91329a3",
+        "name": "updated_at",
+        "comment": "Last update time",
+        "dataType": "TIMESTAMPTZ",
+        "default": "now()",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 70,
+          "widthComment": 96,
+          "widthDataType": 60,
+          "widthDefault": 35
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "26d3aea2-9360-53cf-8b16-581b8bbaac30": {
+        "id": "26d3aea2-9360-53cf-8b16-581b8bbaac30",
+        "tableId": "13e41354-08d9-5e64-af14-87c22ce2c5c8",
+        "name": "health_document_id",
+        "comment": "FK health_documents; PK part",
+        "dataType": "UUID",
+        "default": "",
+        "options": 6,
+        "ui": {
+          "keys": 3,
+          "widthName": 126,
+          "widthComment": 168,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "b313c041-1614-54a6-908c-4606ce01be54": {
+        "id": "b313c041-1614-54a6-908c-4606ce01be54",
+        "tableId": "13e41354-08d9-5e64-af14-87c22ce2c5c8",
+        "name": "tenant_id",
+        "comment": "Tenant isolation (Citus distribution key)",
+        "dataType": "UUID",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 63,
+          "widthComment": 246,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "a09af711-ccbe-52db-b32f-98cf026ffd37": {
+        "id": "a09af711-ccbe-52db-b32f-98cf026ffd37",
+        "tableId": "13e41354-08d9-5e64-af14-87c22ce2c5c8",
+        "name": "tag",
+        "comment": "Tag label; PK part",
+        "dataType": "VARCHAR(64)",
+        "default": "",
+        "options": 6,
+        "ui": {
+          "keys": 3,
+          "widthName": 60,
+          "widthComment": 108,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "5de76bd4-a838-5741-9bdd-670b5306594f": {
+        "id": "5de76bd4-a838-5741-9bdd-670b5306594f",
+        "tableId": "c2bccae9-50c1-56cb-a3d6-f2af003b32ad",
+        "name": "id",
+        "comment": "Primary key",
+        "dataType": "UUID",
+        "default": "gen_random_uuid()",
+        "options": 6,
+        "ui": {
+          "keys": 3,
+          "widthName": 60,
+          "widthComment": 66,
+          "widthDataType": 60,
+          "widthDefault": 119
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "df7f5f8d-1fab-5ed1-b9db-c7911a523416": {
+        "id": "df7f5f8d-1fab-5ed1-b9db-c7911a523416",
+        "tableId": "c2bccae9-50c1-56cb-a3d6-f2af003b32ad",
+        "name": "tenant_id",
+        "comment": "Tenant isolation (Citus distribution key)",
+        "dataType": "UUID",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 63,
+          "widthComment": 246,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "95fd48d3-78ee-5a6a-a92a-feb95fc2a7b0": {
+        "id": "95fd48d3-78ee-5a6a-a92a-feb95fc2a7b0",
+        "tableId": "c2bccae9-50c1-56cb-a3d6-f2af003b32ad",
+        "name": "health_document_id",
+        "comment": "FK health_documents",
+        "dataType": "UUID",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 126,
+          "widthComment": 114,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "60ebd4cc-24de-5b82-9d00-088f01d6d25d": {
+        "id": "60ebd4cc-24de-5b82-9d00-088f01d6d25d",
+        "tableId": "c2bccae9-50c1-56cb-a3d6-f2af003b32ad",
+        "name": "event_type",
+        "comment": "e.g. link_requested, linked, revoked",
+        "dataType": "VARCHAR(64)",
+        "default": "",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 70,
+          "widthComment": 216,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "8e1dad25-1acc-5a2e-b30a-76f974ed4e4b": {
+        "id": "8e1dad25-1acc-5a2e-b30a-76f974ed4e4b",
+        "tableId": "c2bccae9-50c1-56cb-a3d6-f2af003b32ad",
+        "name": "event_at",
+        "comment": "Event timestamp",
+        "dataType": "TIMESTAMPTZ",
+        "default": "now()",
+        "options": 4,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 90,
+          "widthDataType": 60,
+          "widthDefault": 35
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "2968fb87-9ea4-55ca-b96d-51449d7cb328": {
+        "id": "2968fb87-9ea4-55ca-b96d-51449d7cb328",
+        "tableId": "c2bccae9-50c1-56cb-a3d6-f2af003b32ad",
+        "name": "actor_id",
+        "comment": "user or system actor",
+        "dataType": "UUID",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 120,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "bf69917d-206e-577b-8544-0a987ccacbfd": {
+        "id": "bf69917d-206e-577b-8544-0a987ccacbfd",
+        "tableId": "c2bccae9-50c1-56cb-a3d6-f2af003b32ad",
+        "name": "payload",
+        "comment": "Gateway response metadata \u2014 rare extensibility",
+        "dataType": "JSONB",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 60,
+          "widthComment": 276,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      }
+    },
+    "relationshipEntities": {
+      "68a37b82-91b8-55bd-b336-a8e21996b988": {
+        "id": "68a37b82-91b8-55bd-b336-a8e21996b988",
+        "identification": false,
+        "relationshipType": 16,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "c1a87408-4b67-59c9-a869-26e8f91329a3",
+          "columnIds": [
+            "36815518-f813-5718-9f6c-0ef373e46116"
+          ],
+          "x": 0,
+          "y": 0,
+          "direction": 2
+        },
+        "end": {
+          "tableId": "814e188a-ec9c-5caf-a079-4302ca11415c",
+          "columnIds": [
+            "8dd93062-1ac6-5953-8882-a93353a50d98"
+          ],
+          "x": 0,
+          "y": 0,
+          "direction": 1
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "a0c9099b-24c5-5484-bf91-ec3afe164e12": {
+        "id": "a0c9099b-24c5-5484-bf91-ec3afe164e12",
+        "identification": false,
+        "relationshipType": 16,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "c1a87408-4b67-59c9-a869-26e8f91329a3",
+          "columnIds": [
+            "d7c5dd41-5449-5be1-9ca2-911cedde0982"
+          ],
+          "x": 0,
+          "y": 0,
+          "direction": 2
+        },
+        "end": {
+          "tableId": "d80fa674-48ca-56e8-aa9e-b8507e87577c",
+          "columnIds": [
+            "b53b2d0d-b672-57bb-8097-91d04daebd2d"
+          ],
+          "x": 0,
+          "y": 0,
+          "direction": 1
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "269b6c72-2e07-50de-bb65-2ae2b7ee1a83": {
+        "id": "269b6c72-2e07-50de-bb65-2ae2b7ee1a83",
+        "identification": false,
+        "relationshipType": 16,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "13e41354-08d9-5e64-af14-87c22ce2c5c8",
+          "columnIds": [
+            "26d3aea2-9360-53cf-8b16-581b8bbaac30"
+          ],
+          "x": 0,
+          "y": 0,
+          "direction": 2
+        },
+        "end": {
+          "tableId": "c1a87408-4b67-59c9-a869-26e8f91329a3",
+          "columnIds": [
+            "6680e623-fdc6-5fd5-9665-db447f4970cd"
+          ],
+          "x": 0,
+          "y": 0,
+          "direction": 1
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      },
+      "60eb658b-06e4-53cc-a325-a73fae197067": {
+        "id": "60eb658b-06e4-53cc-a325-a73fae197067",
+        "identification": false,
+        "relationshipType": 16,
+        "startRelationshipType": 1,
+        "start": {
+          "tableId": "c2bccae9-50c1-56cb-a3d6-f2af003b32ad",
+          "columnIds": [
+            "95fd48d3-78ee-5a6a-a92a-feb95fc2a7b0"
+          ],
+          "x": 0,
+          "y": 0,
+          "direction": 2
+        },
+        "end": {
+          "tableId": "c1a87408-4b67-59c9-a869-26e8f91329a3",
+          "columnIds": [
+            "6680e623-fdc6-5fd5-9665-db447f4970cd"
+          ],
+          "x": 0,
+          "y": 0,
+          "direction": 1
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      }
+    },
+    "indexEntities": {},
+    "indexColumnEntities": {},
+    "memoEntities": {
+      "3f419c13-7955-5091-9f67-894d317b40bf": {
+        "id": "3f419c13-7955-5091-9f67-894d317b40bf",
+        "value": "=== OPD HealthDocument (MongoDB \u2192 PostgreSQL) ===\nSchema: opd | 5 tables\n\nPATIENT 1:N HEALTH_DOCUMENTS\nVISIT 1:N HEALTH_DOCUMENTS (optional visit_id)\nIMMUNISATION FILE: row with hi_type = ImmunizationRecord (NOT prescription_vaccines_required)\n\nMongo visitId was String \u2014 map to UUID via legacy ObjectId lookup table.\nMongo has no createdAt \u2014 use uploaded_at + standard created_at/updated_at.\n\nLinks record_foundation.care_contexts when ABDM care context is registered.",
+        "ui": {
+          "x": 4680,
+          "y": 80,
+          "zIndex": 1,
+          "width": 500,
+          "height": 320,
+          "color": "#1e293b"
+        },
+        "meta": {
+          "updateAt": 1778800000000,
+          "createAt": 1778800000000
+        }
+      }
+    }
+  }
+}

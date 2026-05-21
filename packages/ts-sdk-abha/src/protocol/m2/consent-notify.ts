@@ -1,18 +1,39 @@
-/**
- * M2 — Consent notification (HIP side).
- *
- * After the patient grants consent via the consent manager, gateway →
- * HIP `consent/request/hip/notify` with the consent artefact. HIP persists
- * the artefact and acknowledges via `consent/request/hip/on-notify`.
- *
- * Source spec:
- *   - `docs/external/abdm/v3-m2-health-records-hip-link-discovery-consent-transfer.md`
- *     §6.3.1-§6.3.2
- *
- * TODO: dev to populate `ConsentNotifyRequest` (inbound wrapper:
- * `notification.{status, consentId, consentDetail, signature,
- * grantAcknowledgement}`) and `OnConsentNotifyRequest` (outbound ack:
- * `acknowledgement.{status, consentId}` plus `response.requestId`).
- */
+import type { AbdmGatewayResponseRef } from './common.js';
 
-export {};
+export interface ConsentArtefactPermission {
+  accessMode: string;
+  dateRange: { from: string; to: string };
+  dataEraseAt: string;
+  frequency?: { unit: string; value: number; repeats: number };
+}
+
+export interface ConsentArtefact {
+  schemaVersion: string;
+  consentId: string;
+  createdAt: string;
+  patient: { id: string };
+  hip: { id: string };
+  hiu: { id: string };
+  purpose: { text: string; code: string; refUri?: string };
+  hiTypes: string[];
+  permission: ConsentArtefactPermission;
+  consentManager?: { id: string };
+  requester?: Record<string, unknown>;
+}
+
+/** §6.3.1 — wrapped notification body. */
+export interface ConsentNotifyRequest {
+  notification: {
+    status: 'GRANTED' | 'REVOKED';
+    consentId: string;
+    consentDetail: ConsentArtefact;
+    signature: string;
+    grantAcknowledgement: boolean;
+  };
+}
+
+/** §6.3.2 — HIP ack. */
+export interface OnConsentNotifyRequest {
+  acknowledgement: { status: 'OK'; consentId: string };
+  response: AbdmGatewayResponseRef;
+}

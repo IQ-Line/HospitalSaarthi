@@ -97,7 +97,7 @@ function buildRequestHeaders(
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  if (!shouldOmitTenantHeaders(context)) {
+  if (!shouldOmitTenantHeaders(context) && !path.startsWith(BILLING_API_PREFIX)) {
     applyTenantHeaders(headers, path, tenantId);
   }
 
@@ -170,8 +170,8 @@ async function fetchWithAuthRetry(
   const headers = buildRequestHeaders(path, options, context);
   const omitTenantHeaders = shouldOmitTenantHeaders(context);
   const tenantId = useTenantStore.getState().tenantId;
-  const catalogTenant = catalogIqTenantHeaderValue(tenantId);
   const accessToken = useAuthStore.getState().accessToken;
+  const catalogTenant = catalogIqTenantHeaderValue(tenantId);
 
   /** Respect `tenantIdOverride: null` (platform `global_master` catalog reads/writes). */
   if (!omitTenantHeaders && catalogTenant && !headers.has('iq_tenant_id')) {
