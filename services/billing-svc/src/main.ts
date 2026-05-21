@@ -3,6 +3,7 @@ import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import { tenantPlugin } from "@hims/ts-sdk-tenant";
 import { createDb } from "@hims/ts-sdk-db";
 import { createRouter } from "@hims/billing";
+import { resolveBillingRequestTenantId } from "./resolve-billing-tenant-id.js";
 
 const PORT = Number(process.env["BILLING_SVC_PORT"] ?? 3003);
 const DATABASE_URL = process.env["DATABASE_URL"] ?? "";
@@ -33,9 +34,9 @@ async function main() {
 
   await app.register(async (api) => {
     api.addHook("onRequest", async (request) => {
-      if (!request.headers["x-tenant-id"] && !request.headers["iq_tenant_id"]) {
-        request.headers["x-tenant-id"] = BILLING_DEV_TENANT_ID;
-      }
+      const tenant = resolveBillingRequestTenantId(request.headers, BILLING_DEV_TENANT_ID);
+      request.headers["iq_tenant_id"] = tenant;
+      request.headers["x-tenant-id"] = tenant;
     });
     await api.register(tenantPlugin);
     await api.register(createRouter({ db, useMock: USE_MOCK_DATA }));
