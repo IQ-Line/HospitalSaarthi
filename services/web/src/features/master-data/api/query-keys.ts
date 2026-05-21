@@ -4,6 +4,7 @@ export const masterDataKeys = {
   all: ['master-data'] as const,
 
   modulesRoot: () => [...masterDataKeys.all, 'modules'] as const,
+  globalModules: () => [...masterDataKeys.modulesRoot(), 'global-platform'] as const,
   navModules: (withPermissions?: boolean, iqTenantId?: string) =>
     [
       ...masterDataKeys.modulesRoot(),
@@ -19,6 +20,7 @@ export const masterDataKeys = {
       'nav-permissions-batch',
       [...moduleIds].sort().join(','),
     ] as const,
+  /** Platform `global_master.modules` list (no tenant header). */
   modules: (category?: ModuleCategory) =>
     [...masterDataKeys.modulesRoot(), category ?? 'all'] as const,
   moduleDetail: (id: string) => [...masterDataKeys.modules(), id] as const,
