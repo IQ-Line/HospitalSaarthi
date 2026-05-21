@@ -206,18 +206,6 @@ async function fetchWithAuthRetry(
     }
   }
 
-  if (
-    isWriteHttpMethod(options.method) &&
-    path.startsWith(VISITPAD_CATALOG_API_PREFIX) &&
-    tenantId != null &&
-    tenantId.trim() !== '' &&
-    catalogTenant == null
-  ) {
-    throw new Error(
-      'Visitpad catalog write blocked: a tenant is selected but its id is not a canonical UUID, so iq_tenant_id would be omitted and the change would apply to the global (public) catalog. Use a UUID tenant id from the platform tenant registry or clear tenant selection before editing the platform catalog.',
-    );
-  }
-
   const response = await fetch(resolveRequestUrl(path), {
     ...options,
     headers,

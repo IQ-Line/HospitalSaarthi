@@ -28,7 +28,7 @@ Unifies frontend authorization on **runtime capability keys** and Master Data ca
 
 ### Migrations & seed
 
-- **Master Data**: `034_product_l2_catalog_modules` (merge of `033` + `030`; replaces retired `035` — see `fix_alembic_035_stamp.py`).
+- **Master Data**: `034_product_l2_catalog_modules` (merge of `033` + `030`).
 - **User Management**: `db-migrate` is **schema-only**; platform bootstrap moved to `user-management:seed-platform` / `pnpm seed`.
 - Removed comment-only `0004_dev_platform_bootstrap.sql`.
 
@@ -51,8 +51,6 @@ This branch includes PR #101 scope:
 
 ## Merge notes (PR #84 / #103)
 
-If another branch adds `034_*` or `035_product_l2_catalog_modules`:
-
-1. Keep **this** `034_product_l2_catalog_modules` revision id (canonical billing/frontdesk L2 tree).
-2. Re-stamp DBs that applied `035` using `modules/master-data/scripts/fix_alembic_035_stamp.py`.
-3. Resolve Alembic graph so `down_revision` remains `(033_picklist_values_seed, 030_demo_authorization_catalog)`.
+If another branch adds `034_*` or `035_product_l2_catalog_modules`, bump this PR's revision
+to the next free number and re-point `down_revision` to keep the merge of
+`033_picklist_values_seed` + `030_demo_authorization_catalog` intact.

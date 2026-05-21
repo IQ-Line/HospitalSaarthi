@@ -2,6 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 import type { DbInstance } from "@hims/ts-sdk-db";
 import { createDb } from "@hims/ts-sdk-db";
 import {
+  DEVELOPMENT_BOOTSTRAP_ORG_ID,
   DEVELOPMENT_PLATFORM_OPERATOR,
   DEVELOPMENT_SEED_TENANT_ID,
 } from "../../../../packages/dev-bootstrap/src/index.js";
@@ -13,7 +14,7 @@ import { syncCapabilitiesFromMasterDataCatalog } from "./sync-capabilities-from-
 import { syncSuperAdminCapabilitySnapshots } from "./sync-super-admin-capability-snapshots.js";
 
 const DEV_TENANT_ID = DEVELOPMENT_SEED_TENANT_ID;
-const DEV_ORG_ID = "f47ac10b-58cc-4372-a567-0e02b2c3d481";
+const DEV_ORG_ID = DEVELOPMENT_BOOTSTRAP_ORG_ID;
 
 export type PlatformDataBootstrapAuthEnv = {
   authBaseUrl: string;

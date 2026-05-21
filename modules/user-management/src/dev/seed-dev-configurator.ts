@@ -1,12 +1,13 @@
 import { createDb, sql } from "@hims/ts-sdk-db";
 import {
+  DEVELOPMENT_BOOTSTRAP_ORG_ID,
   DEVELOPMENT_BOOTSTRAP_ORG_SLUG,
   DEVELOPMENT_BOOTSTRAP_TENANT_SLUG,
   DEVELOPMENT_BOOTSTRAP_USER_EMAIL,
   DEVELOPMENT_SEED_TENANT_ID,
 } from "../../../../packages/dev-bootstrap/src/index.js";
 
-const DEV_ORG_ID = "f47ac10b-58cc-4372-a567-0e02b2c3d481";
+const DEV_ORG_ID = DEVELOPMENT_BOOTSTRAP_ORG_ID;
 const DEV_TENANT_ID = DEVELOPMENT_SEED_TENANT_ID;
 
 function normalizePostgresUrl(url: string): string {
