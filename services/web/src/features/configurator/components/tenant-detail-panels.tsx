@@ -29,7 +29,10 @@ import {
   useTariffServices,
   useUpdateTariffService,
 } from '@/features/billing/api';
-import { TariffServiceFormFields } from '@/features/billing/components/tariff-service-form-fields';
+import {
+  TariffServiceCreateFormFields,
+  TariffServiceEditFormFields,
+} from '@/features/billing/components/tariff-service-form-fields';
 import { formatMoneyDisplay } from '@/features/billing/lib/format';
 import {
   formToCreatePayload,
@@ -677,6 +680,7 @@ export function TenantBillingPanel({ iqTenantId }: { iqTenantId: string }) {
   const services = data?.data ?? [];
   const createMutation = useCreateTariffService(iqTenantId, BILLING_FORCE_LIVE);
   const updateMutation = useUpdateTariffService(iqTenantId, BILLING_FORCE_LIVE);
+  const departmentsQuery = useDepartments(undefined, { enabled: isCreateOpen, iqTenantId });
 
   const createForm = useForm<TariffServiceCreateFormValues>({
     resolver: zodResolver(tariffServiceCreateSchema),
@@ -787,7 +791,9 @@ export function TenantBillingPanel({ iqTenantId }: { iqTenantId: string }) {
         submitLabel="Create"
         isSubmitting={createMutation.isPending}
         onSubmit={createForm.handleSubmit((values) => {
-          createMutation.mutate(formToCreatePayload(values), {
+          const departmentName =
+            departmentsQuery.data?.data.find((d) => d.id === values.department_id)?.name ?? null;
+          createMutation.mutate(formToCreatePayload(values, departmentName), {
             onSuccess: () => {
               toast.success('Service created');
               setIsCreateOpen(false);
@@ -797,7 +803,12 @@ export function TenantBillingPanel({ iqTenantId }: { iqTenantId: string }) {
           });
         })}
       >
-        <TariffServiceFormFields control={createForm.control} mode="create" />
+        <TariffServiceCreateFormFields
+          control={createForm.control}
+          setValue={createForm.setValue}
+          iqTenantId={iqTenantId}
+          lookupsEnabled={isCreateOpen}
+        />
       </EntityFormDialog>
 
       <EntityFormDialog
@@ -821,7 +832,7 @@ export function TenantBillingPanel({ iqTenantId }: { iqTenantId: string }) {
           );
         })}
       >
-        <TariffServiceFormFields control={editForm.control} mode="edit" />
+        <TariffServiceEditFormFields control={editForm.control} />
       </EntityFormDialog>
     </div>
   );
