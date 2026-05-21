@@ -43,6 +43,7 @@ try {
 const migrations = [
   "0000_abdm_adapter_schema.sql",
   "0001_abdm_adapter_m2_schema.sql",
+  "0002_abdm_link_otps.sql",
 ].map((name) =>
   path.resolve(serviceRoot, "../../modules/abdm-adapter/migrations", name),
 );
