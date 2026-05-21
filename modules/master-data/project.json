@@ -14,7 +14,7 @@
   },
   "targets": {
     "setup": {
-      "command": "py scripts/ensure_deps.py",
+      "command": "uv sync",
       "options": {
         "cwd": "modules/master-data"
       },
@@ -23,7 +23,7 @@
       "outputs": ["{projectRoot}/.venv"]
     },
     "serve": {
-      "command": "py scripts/run_uv.py uvicorn app.main:app --host 0.0.0.0 --port 8010 --reload",
+      "command": "uv run uvicorn app.main:app --host 0.0.0.0 --port 8010 --reload",
       "options": {
         "cwd": "modules/master-data",
         "envFile": "{workspaceRoot}/.env"
@@ -31,7 +31,7 @@
       "dependsOn": ["setup"]
     },
     "lint": {
-      "command": "py scripts/run_uv.py ruff check .",
+      "command": "uv run ruff check .",
       "options": {
         "cwd": "modules/master-data"
       },
@@ -40,7 +40,7 @@
       "cache": true
     },
     "test": {
-      "command": "py scripts/run_uv.py pytest",
+      "command": "uv run pytest",
       "options": {
         "cwd": "modules/master-data"
       },
@@ -49,7 +49,7 @@
       "cache": true
     },
     "migrate": {
-      "command": "py scripts/run_uv.py alembic upgrade heads",
+      "command": "uv run alembic upgrade heads",
       "options": {
         "cwd": "modules/master-data",
         "envFile": "{workspaceRoot}/.env"
@@ -57,7 +57,7 @@
       "dependsOn": ["setup"]
     },
     "db-migrate": {
-      "command": "py scripts/run_uv.py alembic upgrade heads",
+      "command": "uv run alembic upgrade heads",
       "options": {
         "cwd": "modules/master-data",
         "envFile": "{workspaceRoot}/.env"
