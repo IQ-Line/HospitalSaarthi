@@ -156,4 +156,73 @@ export class DrizzleAbdmSessionsRepo implements AbdmSessionsPort {
     }
     return session;
   }
+
+  async findUserLinkByTransactionId(input: {
+    iqTenantId: string;
+    transactionId: string;
+  }): Promise<AbdmSession | null> {
+    const rows = await this.db
+      .select()
+      .from(abdmSessions)
+      .where(
+        and(
+          eq(abdmSessions.iq_tenant_id, input.iqTenantId),
+          eq(abdmSessions.flow_kind, "abdm.m2.user-initiated-link.v1"),
+          eq(abdmSessions.txn_id, input.transactionId),
+        ),
+      )
+      .limit(1);
+    const row = rows[0];
+    return row ? rowToSession(row, this.tokenCrypto) : null;
+  }
+
+  async findUserLinkByLinkRefNumber(input: {
+    iqTenantId: string;
+    linkRefNumber: string;
+  }): Promise<AbdmSession | null> {
+    const rows = await this.db
+      .select()
+      .from(abdmSessions)
+      .where(
+        and(
+          eq(abdmSessions.iq_tenant_id, input.iqTenantId),
+          eq(abdmSessions.flow_kind, "abdm.m2.user-initiated-link.v1"),
+          sql`${abdmSessions.context}->>'linkRefNumber' = ${input.linkRefNumber}`,
+        ),
+      )
+      .limit(1);
+    const row = rows[0];
+    return row ? rowToSession(row, this.tokenCrypto) : null;
+  }
+
+  async findHipLinkByRequestId(input: {
+    iqTenantId: string;
+    requestId: string;
+  }): Promise<AbdmSession | null> {
+    return this.findByFlowAndRequestId({
+      iqTenantId: input.iqTenantId,
+      flowKind: "abdm.m2.hip-initiated-link.v1",
+      requestId: input.requestId,
+    });
+  }
+
+  async findByFlowAndRequestId(input: {
+    iqTenantId: string;
+    flowKind: AbdmSession["flowKind"];
+    requestId: string;
+  }): Promise<AbdmSession | null> {
+    const rows = await this.db
+      .select()
+      .from(abdmSessions)
+      .where(
+        and(
+          eq(abdmSessions.iq_tenant_id, input.iqTenantId),
+          eq(abdmSessions.flow_kind, input.flowKind),
+          eq(abdmSessions.request_id, input.requestId),
+        ),
+      )
+      .limit(1);
+    const row = rows[0];
+    return row ? rowToSession(row, this.tokenCrypto) : null;
+  }
 }

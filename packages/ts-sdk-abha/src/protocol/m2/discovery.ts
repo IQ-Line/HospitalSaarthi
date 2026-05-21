@@ -1,19 +1,33 @@
-/**
- * M2 — Care-context discovery (HIP side).
- *
- * Inbound callback: ABDM gateway → platform asking "do you hold records for
- * this patient?". Platform matches against EMPI and replies via the gateway's
- * `on-discover` endpoint.
- *
- * Source spec:
- *   - `docs/external/abdm/v3-m2-health-records-hip-link-discovery-consent-transfer.md`
- *     §5.3.2-§5.3.3
- *
- * TODO: dev to populate `DiscoveryRequest` (inbound) and `OnDiscoverRequest`
- * (our reply pushed to `/api/hiecm/user-initiated-linking/v3/patient/care-context/on-discover`).
- * Inbound matches the v3 spec's discovery request; the reply lists
- * `patient[].careContexts[]` with reference numbers, or `error` with no
- * `patient` field on no-match.
- */
+import type {
+  AbdmGatewayErrorBody,
+  AbdmGatewayResponseRef,
+  AbdmPatientCareContexts,
+} from './common.js';
 
-export {};
+export interface DiscoveryPatientIdentifier {
+  type: string;
+  value: string;
+}
+
+export interface DiscoveryPatientRequest {
+  id?: string;
+  verifiedIdentifiers?: DiscoveryPatientIdentifier[];
+  unverifiedIdentifiers?: DiscoveryPatientIdentifier[];
+  name?: string;
+  gender?: string;
+  yearOfBirth?: number;
+}
+
+/** §5.3.2 — inbound discover. */
+export interface DiscoveryRequest {
+  transactionId: string;
+  patient: DiscoveryPatientRequest[];
+}
+
+/** §5.3.3 — outbound on-discover. */
+export interface OnDiscoverRequest {
+  transactionId: string;
+  patient?: AbdmPatientCareContexts[];
+  error?: AbdmGatewayErrorBody;
+  response: AbdmGatewayResponseRef;
+}
