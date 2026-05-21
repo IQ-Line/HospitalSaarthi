@@ -1,5 +1,5 @@
 {
-  "description": "RSA-SHA256 over JCS(RFC 8785) consentDetail",
+  "description": "RSA-SHA256 over JCS(RFC 8785) consentDetail — self-signed test key only; replace with a real CM sandbox artefact when available for production interop proof",
   "consentDetail": {
     "schemaVersion": "v3",
     "consentId": "11111111-1111-1111-1111-111111111111",

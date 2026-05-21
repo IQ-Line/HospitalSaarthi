@@ -67,6 +67,7 @@ export async function runInboundCallback(input: {
       headers,
     });
   } catch (e) {
+    await input.deps.inboundMessages.release({ iqTenantId, requestId });
     if (e instanceof EmpiClientError) {
       return input.reply.code(502).send({
         error: {

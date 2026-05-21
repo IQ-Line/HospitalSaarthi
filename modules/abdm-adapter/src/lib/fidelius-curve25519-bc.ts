@@ -12,7 +12,7 @@ const P = BigInt(
   "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffed",
 );
 const CURVE_ORDER = BigInt(
-  "0x1000000000000000000000000000000000014def9dea2f79cd65812631a5cf5d3ed",
+  "0x1000000000000000000000000000000014def9dea2f79cd65812631a5cf5d3ed",
 );
 
 const Fp = Field(P);

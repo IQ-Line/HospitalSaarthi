@@ -1,6 +1,6 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { abdmWarn } from "./abdm-adapter-log.js";
-import { allowInsecureAbdmCallbacks } from "./abdm-runtime-env.js";
+import { allowInsecureAbdmCallbacks, isNonDevNodeEnv } from "./abdm-runtime-env.js";
 
 const DEFAULT_GATEWAY_JWKS_URL =
   "https://dev.abdm.gov.in/api/hiecm/gateway/v3/certs";
@@ -54,6 +54,13 @@ export async function verifyAbdmSignature(
 
   const issuer = process.env["ABDM_GATEWAY_JWT_ISSUER"]?.trim();
   const audience = process.env["ABDM_GATEWAY_JWT_AUDIENCE"]?.trim();
+
+  if (isNonDevNodeEnv() && (!issuer || !audience)) {
+    abdmWarn("abdm.callback.jws_issuer_audience_required", {
+      hint: "Set ABDM_GATEWAY_JWT_ISSUER and ABDM_GATEWAY_JWT_AUDIENCE in production/staging",
+    });
+    return false;
+  }
 
   try {
     await jwtVerify(token, getGatewayJwks(), {

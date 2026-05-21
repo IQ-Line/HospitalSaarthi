@@ -11,26 +11,51 @@ export interface AbdmSessionStatusView {
   updatedAt: string;
 }
 
-const RAW_CONTEXT_KEYS = new Set([
-  "gatewayResponse",
-  "upstreamResponse",
-  "rawError",
-  "nhaResponse",
+/** Keys safe to expose on GET /m2/sessions/:id (allowlist — no tokens or raw NHA bodies). */
+const PUBLISHABLE_CONTEXT_KEYS = new Set([
+  "abhaAddress",
+  "abhaNumber",
+  "patientId",
+  "patientName",
+  "phoneNo",
+  "careContexts",
+  "consentId",
+  "transactionId",
+  "dataPushUrl",
+  "requestId",
+  "linkRefNumber",
+  "ccLinkRequestId",
+  "tokenReady",
+  "patientReference",
+  "careContextReferences",
+  "hiType",
+  "notifyRequestId",
+  "abhaAddressSuggestions",
+  "aadhaarMasked",
+  "abhaNumberMasked",
+  "mobileMasked",
+  "verifyChannel",
+  "loginScopes",
+  "loginApiVariant",
+  "needsUserSelection",
+  "accounts",
+  "nhaOtpMessage",
+  "identifiers",
 ]);
 
 function summarizeContext(ctx: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(ctx)) {
-    if (RAW_CONTEXT_KEYS.has(key)) continue;
-    if (key === "error" && value && typeof value === "object") {
-      const err = value as Record<string, unknown>;
-      out[key] = {
-        code: err.code,
-        message: err.message,
-      };
-      continue;
+  for (const key of PUBLISHABLE_CONTEXT_KEYS) {
+    if (key in ctx) {
+      out[key] = ctx[key];
     }
-    out[key] = value;
+  }
+  if (ctx.error && typeof ctx.error === "object") {
+    const err = ctx.error as Record<string, unknown>;
+    out.error = {
+      code: err.code,
+      message: err.message,
+    };
   }
   return out;
 }

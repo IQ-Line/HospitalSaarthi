@@ -1,5 +1,6 @@
 import { randomInt } from "node:crypto";
 import type { LinkOtpStorePort } from "../ports.js";
+import { isNonDevNodeEnv } from "./abdm-runtime-env.js";
 
 export interface StoredLinkOtp {
   otp: string;
@@ -8,6 +9,14 @@ export interface StoredLinkOtp {
 
 /** In-process OTP store for unit/sandbox tests only (not multi-pod safe). */
 export class InMemoryLinkOtpStore implements LinkOtpStorePort {
+  constructor() {
+    if (isNonDevNodeEnv()) {
+      throw new Error(
+        "InMemoryLinkOtpStore is not allowed when NODE_ENV is production or staging",
+      );
+    }
+  }
+
   private readonly entries = new Map<string, StoredLinkOtp>();
 
   private key(iqTenantId: string, linkRefNumber: string): string {

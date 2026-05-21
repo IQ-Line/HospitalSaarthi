@@ -12,7 +12,10 @@ export function buildMockAbdmDeps(
     secrets: overrides.secrets ?? ({} as AbdmAdapterDeps["secrets"]),
     inboundMessages:
       overrides.inboundMessages ??
-      ({ insertIfNew: async () => true } as AbdmAdapterDeps["inboundMessages"]),
+      ({
+        insertIfNew: async () => true,
+        release: async () => undefined,
+      } as AbdmAdapterDeps["inboundMessages"]),
     linkTokens: overrides.linkTokens ?? ({} as AbdmAdapterDeps["linkTokens"]),
     consentArtefacts:
       overrides.consentArtefacts ?? ({} as AbdmAdapterDeps["consentArtefacts"]),

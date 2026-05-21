@@ -71,6 +71,8 @@ export interface InboundMessagesPort {
     requestId: string;
     flowKind: string;
   }): Promise<boolean>;
+  /** Drop dedupe row so gateway retries can re-run the handler after a failed attempt. */
+  release(input: { iqTenantId: string; requestId: string }): Promise<void>;
 }
 
 export type LinkTokenClaimResult = "claimed" | "fresh-exists" | "another-in-flight";
