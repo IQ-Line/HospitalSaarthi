@@ -62,14 +62,65 @@ export function createSessionTokenCryptoFromEnv(): SessionTokenCrypto | null {
   return new Aes256GcmSessionTokenCrypto(decodeKeyMaterial(raw));
 }
 
+import { isNonDevNodeEnv } from "./abdm-runtime-env.js";
+
 export function requireSessionTokenCryptoInProd(): void {
-  const nodeEnv = process.env["NODE_ENV"] ?? "development";
   if (
-    (nodeEnv === "production" || nodeEnv === "staging") &&
+    isNonDevNodeEnv() &&
     !process.env["ABDM_TOKEN_ENCRYPTION_KEY"]?.trim()
   ) {
     throw new Error(
       "ABDM_TOKEN_ENCRYPTION_KEY is required when NODE_ENV is production or staging",
+    );
+  }
+}
+
+/** Production startup checks for callback security and upstream dependencies. */
+export function requireCallbackSecurityInProd(): void {
+  if (!isNonDevNodeEnv()) return;
+
+  const insecure = [
+    "ABDM_ALLOW_INSECURE_CALLBACKS",
+    "ABDM_M2_MOCK_PLATFORM",
+    "ABDM_FIDELIUS_USE_STUB",
+    "ABDM_DEV_INBOUND_SIMULATION",
+  ] as const;
+  for (const key of insecure) {
+    if (process.env[key] === "true") {
+      throw new Error(`${key} must not be true when NODE_ENV is production or staging`);
+    }
+  }
+
+  if (!process.env["EMPI_BASE_URL"]?.trim()) {
+    throw new Error("EMPI_BASE_URL is required when NODE_ENV is production or staging");
+  }
+  if (!process.env["RECORD_FOUNDATION_BASE_URL"]?.trim()) {
+    throw new Error(
+      "RECORD_FOUNDATION_BASE_URL is required when NODE_ENV is production or staging",
+    );
+  }
+
+  if (process.env["ABDM_ALLOW_INSECURE_CALLBACKS"] === "true") {
+    console.warn(
+      "[abdm] ABDM_ALLOW_INSECURE_CALLBACKS=true — gateway JWS and consent signature verify SKIPPED",
+    );
+    return;
+  }
+
+  if (!process.env["ABDM_CM_CONSENT_VERIFY_CERT_PEM"]?.trim()) {
+    console.warn(
+      "[abdm] ABDM_CM_CONSENT_VERIFY_CERT_PEM unset — consent notify signatures will be rejected",
+    );
+  }
+  if (!process.env["ABDM_GATEWAY_JWKS_URL"]?.trim()) {
+    console.warn(
+      "[abdm] ABDM_GATEWAY_JWKS_URL unset — using default dev gateway JWKS URL; set production JWKS before go-live",
+    );
+  }
+  const smsProvider = (process.env["ABDM_SMS_PROVIDER"] ?? "logging").toLowerCase();
+  if (smsProvider === "logging" || smsProvider === "noop") {
+    console.warn(
+      "[abdm] ABDM_SMS_PROVIDER is logging/noop — user-initiated link OTP SMS will not reach patients",
     );
   }
 }

@@ -229,13 +229,18 @@ export class HttpGatewayClient implements GatewayClient {
     headers?: Record<string, string>;
     target?: AbdmGatewayRouteTarget;
     withBearer?: boolean;
+    requestId?: string;
+    linkToken?: string;
+    xHipId?: string;
   }): Promise<TRes> {
     const target = input.target ?? "abha";
-    const withBearer = input.withBearer ?? target !== "gateway";
+    // HIE-CM v3 APIs (generate-token, link/carecontext, …) require gateway bearer.
+    // Session acquisition uses fetchBearerToken() directly (no Authorization on that POST).
+    const withBearer = input.withBearer ?? true;
     const url = joinUrl(this.resolveBase(target), input.path);
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
-      "REQUEST-ID": randomUUID(),
+      "REQUEST-ID": input.requestId ?? randomUUID(),
       TIMESTAMP: isoTimestamp(),
       ...input.headers,
     };
@@ -245,6 +250,12 @@ export class HttpGatewayClient implements GatewayClient {
     }
     if (target === "gateway") {
       headers["X-CM-ID"] = headers["X-CM-ID"] ?? this.xCmId;
+    }
+    if (input.linkToken) {
+      headers["X-LINK-TOKEN"] = input.linkToken;
+    }
+    if (input.xHipId) {
+      headers["X-HIP-ID"] = input.xHipId;
     }
     const res = await fetchWithTimeout(url, {
       method: "POST",

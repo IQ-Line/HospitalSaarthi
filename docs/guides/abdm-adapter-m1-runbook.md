@@ -4,6 +4,8 @@ This document describes **Milestone 1 (M1)** behaviour implemented in the `abdm-
 
 **Authoritative API contract (spec-first):** [`specs/openapi/abdm-adapter.v1.yaml`](../../specs/openapi/abdm-adapter.v1.yaml).
 
+**Full sandbox E2E (M1 → M2 link → consent → records) and production cutover:** [`abdm-adapter-e2e-and-production.md`](./abdm-adapter-e2e-and-production.md).
+
 **Architecture context:** [`docs/architecture/lld/abdm-adapter/02-m1-flows.md`](../architecture/lld/abdm-adapter/02-m1-flows.md) and [**Phase A matrix**](../architecture/lld/abdm-adapter/03-phase-a-implementation-matrix.md) (Postman ↔ NHA ↔ code).
 
 ---
