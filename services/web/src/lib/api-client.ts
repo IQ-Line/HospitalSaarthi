@@ -14,13 +14,9 @@ const BASE_URL = resolveBrowserApiBaseUrl();
 const VISITPAD_CATALOG_API_PREFIX = '/api/v1/master-data/visitpad/';
 const EMPI_API_PREFIX = '/api/empi/v1/';
 const REGISTRATION_API_PREFIX = '/api/registration/v1/';
-<<<<<<< HEAD
-const USER_MANAGEMENT_API_PREFIX = '/api/user-management/';
-const CONFIGURATOR_API_PREFIX = '/api/configurator/';
-=======
-const CONFIGURATOR_API_PREFIX = '/api/configurator/v1/';
+const USER_MANAGEMENT_API_PREFIX = '/api/user-management/v1';
+const CONFIGURATOR_API_PREFIX = '/api/configurator/v1';
 const BILLING_API_PREFIX = '/api/billing/v1/';
->>>>>>> cd2a605515ccd3d8bf769a14d4401c72b9752543
 
 function isRegistrationApiPath(path: string): boolean {
   return (
