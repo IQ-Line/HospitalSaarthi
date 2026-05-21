@@ -1,126 +1,56 @@
 #!/usr/bin/env node
 /**
- * Development runtime seed (Configurator tenant, UM capabilities, users, better-auth).
- *
- * Official entry: `make seed` (wraps this script).
- * Prerequisites: `make setup` or `make db-migrate` (hims_dev module schemas + global_master/tenant_master catalog).
- * Catalog data: Master Data Alembic only — not inserted here.
+ * Optional dev seed — same bootstrap as `user-management:db-migrate` (capabilities + super-admin).
+ * Prefer: `npx nx run master-data:db-migrate` then `npx nx run user-management:db-migrate`.
  */
-import {
-  assertConfiguratorDatabaseIsolation,
-  assertUserManagementDatabaseIsolation,
-  createDb,
-  sql,
-} from "../packages/ts-sdk-db/src/index.ts";
+import { resolveDatabaseUrl } from "../packages/ts-sdk-db/src/index.ts";
+import { applyPlatformDataBootstrap } from "../modules/user-management/src/dev/platform-data-bootstrap.ts";
+import { loadWorkspaceEnv, requireEnv } from "./seed-user-management-dev/load-env.ts";
+import { DEVELOPMENT_PLATFORM_OPERATOR } from "../packages/dev-bootstrap/src/index.ts";
+import { validateCerbosForBootstrapUser } from "./seed-user-management-dev/validate-cerbos.ts";
+import { createDb } from "../packages/ts-sdk-db/src/index.ts";
+import { DrizzleUserRepository } from "../modules/user-management/src/data-access/user-repository.ts";
+import { DrizzlePrincipalRoleProjectionRepository } from "../modules/user-management/src/data-access/drizzle-principal-role-projection-repository.ts";
+import { DrizzlePrincipalAuthorizationRepository } from "../modules/user-management/src/data-access/principal-authorization-repository.ts";
+import { createDefaultPrincipalService } from "../modules/user-management/src/services/default-principal-service.ts";
+import { normalizePostgresUrl } from "./seed-user-management-dev/load-env.ts";
 
-const { printSummary, seedError, seedLog } = await import("./seed-user-management-dev/log.ts");
-const { loadWorkspaceEnv, normalizePostgresUrl, requireEnv } = await import(
-  "./seed-user-management-dev/load-env.ts"
-);
-const { resolveMasterDataModuleCatalog } = await import(
-  "./seed-user-management-dev/resolve-master-data-catalog.ts"
-);
-const { seedConfigurator } = await import("./seed-user-management-dev/seed-configurator.ts");
-const umSeed = await import("./seed-user-management-dev/seed-user-management.ts");
-const { validateCerbosForBootstrapUser } = await import(
-  "./seed-user-management-dev/validate-cerbos.ts"
-);
-const { DEVELOPMENT_SEED_USERS } = await import("../packages/dev-bootstrap/src/index.ts");
+loadWorkspaceEnv();
 
-function readPgRows(result: unknown): Array<Record<string, unknown>> {
-  if (Array.isArray(result)) {
-    return result as Array<Record<string, unknown>>;
-  }
-  if (result && typeof result === "object" && "rows" in result) {
-    return (result as { rows: Array<Record<string, unknown>> }).rows;
-  }
-  return [];
+const databaseUrl = requireEnv("DATABASE_URL");
+const masterDataDatabaseUrl = requireEnv("MASTER_DATA_DATABASE_URL");
+const cerbosUrl = requireEnv("CERBOS_URL");
+const secret = requireEnv("BETTER_AUTH_SECRET");
+if (secret.length < 32) {
+  throw new Error("BETTER_AUTH_SECRET must be at least 32 characters");
 }
 
-async function assertSchemaExists(databaseUrl: string, schema: string): Promise<void> {
-  const db = createDb(normalizePostgresUrl(databaseUrl));
-  const result = await db.execute(
-    sql.raw(`
-      SELECT EXISTS (
-        SELECT 1 FROM information_schema.schemata WHERE schema_name = '${schema}'
-      ) AS exists
-    `),
-  );
-  const rows = readPgRows(result);
-  const exists = rows[0]?.exists === true || rows[0]?.exists === "t";
-  if (!exists) {
-    seedError(
-      "preflight",
-      `Schema "${schema}" not found — run module migrations first`,
-      { databaseUrl: databaseUrl.replace(/:[^:@/]+@/, ":***@") },
-    );
-  }
-}
+const authBaseUrl = (process.env.AUTH_BASE_URL ?? "http://localhost:3000").replace(/\/+$/, "");
 
-async function main(): Promise<void> {
-  loadWorkspaceEnv();
-
-  const masterDataUrl = requireEnv("MASTER_DATA_DATABASE_URL");
-  const databaseUrl = requireEnv("DATABASE_URL");
-  const cerbosUrl = requireEnv("CERBOS_URL");
-  const authBaseUrl = (process.env.AUTH_BASE_URL ?? "http://localhost:3000").replace(/\/+$/, "");
-  const jwtIssuer = process.env.JWT_ISSUER?.trim() || authBaseUrl;
-  const jwtAudience = process.env.JWT_AUDIENCE?.trim() || "hims-platform";
-  const secret = requireEnv("BETTER_AUTH_SECRET");
-  if (secret.length < 32) {
-    seedError("preflight", "BETTER_AUTH_SECRET must be at least 32 characters");
-  }
-
-  seedLog("preflight", "checking database schemas");
-  await assertSchemaExists(masterDataUrl, "global_master");
-  await assertSchemaExists(databaseUrl, "configurator");
-  await assertSchemaExists(databaseUrl, "user_management");
-
-  const umDb = createDb(databaseUrl);
-  await assertUserManagementDatabaseIsolation({ db: umDb, connectionString: databaseUrl });
-  const cfgDb = createDb(databaseUrl);
-  await assertConfiguratorDatabaseIsolation({ db: cfgDb, connectionString: databaseUrl });
-
-  seedLog("master-data", "resolving catalog module ids (Alembic-owned)");
-  const md = await resolveMasterDataModuleCatalog(masterDataUrl);
-
-  seedLog("configurator", "seeding tenant and modules");
-  const cfg = await seedConfigurator(databaseUrl, md.moduleIdsBySlug);
-
-  seedLog("user-management", "seeding runtime data and auth");
-  const um = await umSeed.seedUserManagement(databaseUrl, masterDataUrl, {
+const bootstrap = await applyPlatformDataBootstrap({
+  databaseUrl,
+  masterDataDatabaseUrl,
+  auth: {
     authBaseUrl,
     secret,
-    jwtIssuer,
-    jwtAudience,
-  });
+    jwtIssuer: process.env.JWT_ISSUER?.trim() || authBaseUrl,
+    jwtAudience: process.env.JWT_AUDIENCE?.trim() || "hims-platform",
+  },
+});
 
-  const umDbForPrincipal = createDb(normalizePostgresUrl(databaseUrl));
-  const principalService = umSeed.buildPrincipalService(umDbForPrincipal);
+const db = createDb(normalizePostgresUrl(databaseUrl));
+const principalService = createDefaultPrincipalService({
+  userRepository: new DrizzleUserRepository(db),
+  principalRoleProjectionRepository: new DrizzlePrincipalRoleProjectionRepository(db),
+  principalAuthorizationRepository: new DrizzlePrincipalAuthorizationRepository(db),
+});
 
-  seedLog("cerbos", "validating authorization", { cerbosUrl });
-  const cerbos = await validateCerbosForBootstrapUser(cerbosUrl, principalService);
-  if (!cerbos.ok) {
-    seedError("cerbos", "bootstrap user failed Cerbos checks", { checks: cerbos.checks });
-  }
-
-  printSummary({
-    modules: md.moduleIdsBySlug.size,
-    tenant_modules: cfg.tenant_modules,
-    capabilities: um.capabilities,
-    roles: um.roles,
-    users: um.users,
-  });
-  console.log("[seed] development sign-in (better-auth — capabilities from GET /auth/principal):");
-  for (const user of DEVELOPMENT_SEED_USERS) {
-    console.log(`  - ${user.description}`);
-    console.log(`    ${user.email} / ${user.password}`);
-  }
-  console.log("[seed] cerbos: user.create, role.create, role.assign — OK");
+const cerbos = await validateCerbosForBootstrapUser(cerbosUrl, principalService);
+if (!cerbos.ok) {
+  console.error(JSON.stringify({ level: "error", phase: "cerbos", checks: cerbos.checks }));
+  process.exit(1);
 }
 
-main().catch((err: unknown) => {
-  const message = err instanceof Error ? err.message : String(err);
-  console.error(JSON.stringify({ level: "error", phase: "fatal", message }));
-  process.exit(1);
-});
+console.log("[seed] platform bootstrap:", bootstrap);
+console.log(`[seed] sign-in: ${DEVELOPMENT_PLATFORM_OPERATOR.email} / ${DEVELOPMENT_PLATFORM_OPERATOR.password}`);
+console.log("[seed] cerbos: user.create, role.create, role.assign — OK");

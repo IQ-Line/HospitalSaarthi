@@ -14,23 +14,24 @@
   },
   "targets": {
     "setup": {
-      "command": "uv sync",
+      "command": "py scripts/ensure_deps.py",
       "options": {
         "cwd": "modules/master-data"
       },
-      "inputs": ["default"],
+      "inputs": ["default", "{projectRoot}/pyproject.toml", "{projectRoot}/uv.lock"],
       "cache": true,
       "outputs": ["{projectRoot}/.venv"]
     },
     "serve": {
-      "command": "uv run uvicorn app.main:app --host 0.0.0.0 --port 8010 --reload",
+      "command": "py scripts/run_uv.py uvicorn app.main:app --host 0.0.0.0 --port 8010 --reload",
       "options": {
-        "cwd": "modules/master-data"
+        "cwd": "modules/master-data",
+        "envFile": "{workspaceRoot}/.env"
       },
       "dependsOn": ["setup"]
     },
     "lint": {
-      "command": "uv run ruff check .",
+      "command": "py scripts/run_uv.py ruff check .",
       "options": {
         "cwd": "modules/master-data"
       },
@@ -39,7 +40,7 @@
       "cache": true
     },
     "test": {
-      "command": "uv run pytest",
+      "command": "py scripts/run_uv.py pytest",
       "options": {
         "cwd": "modules/master-data"
       },
@@ -48,16 +49,18 @@
       "cache": true
     },
     "migrate": {
-      "command": "uv run alembic upgrade heads",
+      "command": "py scripts/run_uv.py alembic upgrade heads",
       "options": {
-        "cwd": "modules/master-data"
+        "cwd": "modules/master-data",
+        "envFile": "{workspaceRoot}/.env"
       },
       "dependsOn": ["setup"]
     },
     "db-migrate": {
-      "command": "uv run alembic upgrade heads",
+      "command": "py scripts/run_uv.py alembic upgrade heads",
       "options": {
-        "cwd": "modules/master-data"
+        "cwd": "modules/master-data",
+        "envFile": "{workspaceRoot}/.env"
       },
       "dependsOn": ["setup"]
     }
