@@ -1,4 +1,4 @@
-import { money, moneyAdd, moneyMul, moneySub, moneyTax } from "./money.js";
+import { money, moneyAdd, moneyGte, moneyMul, moneySub, moneyTax } from "./money.js";
 import type { BillItemRow, BillRow } from "../domain/bill.types.js";
 
 export function computeLineAmounts(
@@ -17,6 +17,32 @@ export function computeLineAmounts(
   };
 }
 
+/** Matches frontdesk desk line: (unit × qty + tax) − line discount (same as billingLineTotal in web). */
+export function computeDeskLineAmounts(
+  unitPrice: string,
+  quantity: number,
+  taxPct: string,
+  lineDiscount: string | number,
+): Pick<
+  BillItemRow,
+  "gross_amount" | "net_amount" | "tax_amount" | "total_amount" | "discount_amount"
+> {
+  const gross = moneyMul(unitPrice, quantity);
+  const tax = moneyTax(gross, taxPct);
+  const beforeDiscount = moneyAdd(gross, tax);
+  const discount = money(lineDiscount);
+  const net = moneyGte(beforeDiscount, discount)
+    ? moneySub(beforeDiscount, discount)
+    : "0.0000";
+  return {
+    gross_amount: gross,
+    tax_amount: tax,
+    net_amount: net,
+    total_amount: net,
+    discount_amount: discount,
+  };
+}
+
 export function rollupBillTotals(
   bill: Pick<BillRow, "discount_amount" | "round_off_amount" | "paid_amount">,
   items: BillItemRow[],
@@ -28,10 +54,10 @@ export function rollupBillTotals(
   let subtotal = "0.0000";
   let tax = "0.0000";
   for (const i of active) {
-    subtotal = moneyAdd(subtotal, i.gross_amount);
+    subtotal = moneyAdd(subtotal, i.total_amount);
     tax = moneyAdd(tax, i.tax_amount);
   }
-  const total = moneyAdd(subtotal, tax);
+  const total = subtotal;
   const net = moneyAdd(moneySub(total, bill.discount_amount), bill.round_off_amount);
   return {
     subtotal,

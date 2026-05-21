@@ -2,14 +2,6 @@
   "name": "billing",
   "tags": ["type:module", "scope:billing", "language:typescript"],
   "targets": {
-    "build": {
-      "executor": "@nx/js:tsc",
-      "options": {
-        "outputPath": "dist/modules/billing",
-        "main": "modules/billing/src/index.ts",
-        "tsConfig": "modules/billing/tsconfig.json"
-      }
-    },
     "test": {
       "executor": "nx:run-commands",
       "options": {

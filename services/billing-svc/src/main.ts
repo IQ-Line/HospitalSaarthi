@@ -6,10 +6,9 @@ import { createRouter } from "@hims/billing";
 
 const PORT = Number(process.env["BILLING_SVC_PORT"] ?? 3003);
 const DATABASE_URL = process.env["DATABASE_URL"] ?? "";
-/** Dev-only fallback when Swagger/curl omit tenant headers (matches web DEV_TENANT_IQ_CATALOG_UUID). */
-const DEV_MOCK_TENANT_ID =
+/** Dev-only fallback when Swagger/curl omit tenant headers (not the live dev-bootstrap UUID). */
+const BILLING_DEV_TENANT_ID =
   process.env["BILLING_DEV_TENANT_ID"] ?? "00000000-0000-0000-0000-000000000007";
-/** In-memory catalog rows — opt-in only (set BILLING_USE_MOCK_DATA=true). */
 const USE_MOCK_DATA = process.env["BILLING_USE_MOCK_DATA"] === "true";
 
 async function main() {
@@ -27,13 +26,15 @@ async function main() {
 
   const db = USE_MOCK_DATA ? undefined : createDb(DATABASE_URL);
   if (USE_MOCK_DATA) {
-    app.log.warn("BILLING_USE_MOCK_DATA enabled — serving sample catalog rows (no database)");
+    app.log.warn("BILLING_USE_MOCK_DATA=true — charges are in-memory only");
+  } else if (!DATABASE_URL.trim()) {
+    throw new Error("DATABASE_URL is required when BILLING_USE_MOCK_DATA is not true");
   }
 
   await app.register(async (api) => {
     api.addHook("onRequest", async (request) => {
       if (!request.headers["x-tenant-id"] && !request.headers["iq_tenant_id"]) {
-        request.headers["x-tenant-id"] = DEV_MOCK_TENANT_ID;
+        request.headers["x-tenant-id"] = BILLING_DEV_TENANT_ID;
       }
     });
     await api.register(tenantPlugin);

@@ -1,6 +1,7 @@
 {
   "name": "web",
-  "tags": ["type:app", "scope:frontend"],
+  "projectType": "application",
+  "tags": ["type:app", "scope:frontend", "language:typescript", "deploy:aks"],
   "targets": {
     "serve": {
       "command": "vite",
@@ -13,7 +14,9 @@
       "command": "vite build",
       "options": {
         "cwd": "services/web"
-      }
+      },
+      "outputs": ["{projectRoot}/dist"],
+      "cache": true
     },
     "preview": {
       "command": "vite preview",

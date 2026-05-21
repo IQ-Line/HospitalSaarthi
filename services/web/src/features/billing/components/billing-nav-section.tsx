@@ -46,8 +46,8 @@ export function BillingNavSection({
 
       {isOpen && (
         <SidebarNavLink
-          to="/billing/services"
-          label="Tariff catalog"
+          to="/billing-and-finance/tariff-master"
+          label="Tariff master"
           icon={Receipt}
           collapsed={collapsed}
           nested

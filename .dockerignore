@@ -1,0 +1,51 @@
+# Version control
+.git
+.github
+
+# Dependencies (will be reinstalled in builder stage)
+node_modules
+**/node_modules
+.pnpm-store
+
+# Build outputs (always rebuilt)
+**/dist
+**/build
+**/.cache
+**/coverage
+
+# Nx cache
+.nx
+
+# Docs & non-source artifacts
+docs
+agent-reviews
+specs
+tests/load
+
+# Local environment files (must be injected via k8s secrets at runtime)
+.env
+.env.*
+
+# Editor/IDE
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+
+# Claude / tooling state
+.claude
+.cursorrules
+.agents
+related-projects.json
+skills-lock.json
+
+# Logs
+*.log
+npm-debug.log*
+
+# Python (master-data has its own image with smaller context, but defense in depth)
+**/__pycache__
+**/*.pyc
+**/.venv
+**/.pytest_cache

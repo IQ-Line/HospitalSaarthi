@@ -1,7 +1,7 @@
 import { apiClient } from '@/lib/api-client';
+import { executeVisitRegistrationBilling } from '@/features/frontdesk/api/visit-registration-billing';
 import {
   mapVisitRegistrationToAppointmentBody,
-  mapVisitRegistrationToBillingBody,
   mapVisitRegistrationToNewPatientIntakeBody,
 } from '@/features/frontdesk/utils/visit-registration-helpers';
 import type {
@@ -79,12 +79,8 @@ export interface StubAppointmentResponse {
   stub: true;
 }
 
-export interface StubBillingResponse {
-  billing_id: string;
-  registration_id: string;
-  appointment_id: string;
-  patient_id: string;
-  stub: true;
+export interface VisitRegistrationBillingFlowResult {
+  bill_id: string;
 }
 
 function stubDelay(): Promise<void> {
@@ -115,37 +111,11 @@ export async function createAppointmentStub(
 }
 
 /**
- * Phase 3 stub — replace with `POST` to billing-svc when available.
- */
-export async function createBillingStub(
-  form: CreateVisitRequestBody,
-  registration: CreateNewPatientRegistrationResponse,
-  appointment: StubAppointmentResponse,
-): Promise<StubBillingResponse> {
-  const body = mapVisitRegistrationToBillingBody(form, {
-    registration_id: registration.registration_id,
-    appointment_id: appointment.appointment_id,
-    patient_id: registration.patient_id,
-  });
-  if (import.meta.env.DEV) {
-    console.info('[visit-registration] stub POST billing-svc', body);
-  }
-  await stubDelay();
-  return {
-    billing_id: crypto.randomUUID(),
-    registration_id: registration.registration_id,
-    appointment_id: appointment.appointment_id,
-    patient_id: registration.patient_id,
-    stub: true,
-  };
-}
-
-/**
  * Desk **Create Visit** orchestration (sequential).
  *
  * 1. registration-svc — `POST .../workflows/new-patient/registrations` (real)
  * 2. appointment-svc — stub
- * 3. billing-svc — stub
+ * 3. billing-svc — charges, discount, finalize, payment (real)
  * 4. registration-svc — `POST .../registrations/:id/complete` (real)
  */
 export async function executeCreateVisitFlow(
@@ -157,8 +127,13 @@ export async function executeCreateVisitFlow(
     { idempotencyKey: options.idempotencyKey },
   );
 
-  const appointment = await createAppointmentStub(form, registration);
-  await createBillingStub(form, registration, appointment);
+  await createAppointmentStub(form, registration);
+  await executeVisitRegistrationBilling(form, {
+    patient_id: registration.patient_id,
+    registration_id: registration.registration_id,
+    visit_id: registration.visit_id,
+    idempotencyKey: options.idempotencyKey,
+  });
 
   return completeRegistrationIntake(registration.registration_id);
 }
@@ -169,6 +144,6 @@ export async function completeRegistrationIntake(
 ): Promise<CreateNewPatientRegistrationResponse> {
   return apiClient<CreateNewPatientRegistrationResponse>(
     `${registrationApiBase()}/registrations/${registrationId}/complete`,
-    { method: 'POST' },
+    { method: 'POST', body: JSON.stringify({}) },
   );
 }

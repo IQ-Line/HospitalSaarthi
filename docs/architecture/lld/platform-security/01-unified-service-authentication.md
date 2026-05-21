@@ -335,7 +335,6 @@ Extract shared JWKS URL / issuer / audience docs; consider `py-sdk-identity` onl
 | abdm-adapter-svc | If `ENABLE_AUTH` | **No** | No | High | Same as EMPI |
 | billing-svc | **No** | — | **No PEP on svc** — module routes set `authMode: "protected"` | **Critical** — `main.ts` injects `DEV_MOCK_TENANT_ID` when header missing | Priority 1; recent billing PRs did not wire identity/Cerbos on the service |
 | configurator-svc | **No** | — | No | High | See route notes below |
-| frontdesk-svc | **No** | — | No | High | |
 | master-data (Python) | Partial | Divergent | N/A | Dev bypass flags | Align JWKS path |
 
 **Configurator — routes to mark `authMode: "public"` explicitly** (everything else `protected` once PEP exists):
@@ -373,7 +372,6 @@ Until the facade lands, configurator remains header-tenant-only like billing —
 |---------|------|
 | billing-svc | Remove mock tenant hook; register security; add Cerbos policies |
 | configurator-svc | Register security; mark org/tenant bootstrap routes `public` explicitly |
-| frontdesk-svc | Register security |
 | empi-svc, abdm-adapter-svc, registration-svc | Replace manual `ENABLE_AUTH` block with facade; full `validateAuthConfig` |
 | user-management-svc | Use facade for consistency (keep better-auth registration separate) |
 

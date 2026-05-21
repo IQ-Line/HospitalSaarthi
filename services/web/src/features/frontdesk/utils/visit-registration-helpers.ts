@@ -77,7 +77,6 @@ export const VISIT_REGISTRATION_PAYMENT_MODES = [
   { value: 'cash', label: 'Cash' },
   { value: 'card', label: 'Card' },
   { value: 'upi', label: 'UPI' },
-  { value: 'insurance', label: 'Insurance' },
 ] as const;
 
 export const VISIT_REGISTRATION_LAB_TEST_CATALOG = [
@@ -111,6 +110,48 @@ export function computeBillingGrandTotal(
 ): number {
   const subtotal = billingLineTotal(registrationFee) + billingLineTotal(consultationFee);
   return Math.max(0, subtotal - (invoiceDiscount ?? 0));
+}
+
+export function isVisitRegistrationGrandTotalPositive(grandTotal: number): boolean {
+  return Number.isFinite(grandTotal) && grandTotal > 0;
+}
+
+export function isVisitRegistrationPaymentModeSelected(paymentMode: string | undefined): boolean {
+  return Boolean(paymentMode?.trim());
+}
+
+const VISIT_REG_PHONE_RE = /^\d{10}$/;
+
+export type VisitRegistrationFormGateInput = {
+  phone: string | undefined;
+  firstName: string | undefined;
+  grandTotal: number;
+  paymentMode: string | undefined;
+  hasProvider?: boolean;
+  consultationUnitPrice?: number;
+};
+
+export function visitRegistrationFormBlockers(
+  args: VisitRegistrationFormGateInput,
+): string[] {
+  const missing: string[] = [];
+  if (!VISIT_REG_PHONE_RE.test((args.phone ?? '').trim())) missing.push('10-digit phone');
+  if (!args.firstName?.trim()) missing.push('first name');
+  if (!isVisitRegistrationGrandTotalPositive(args.grandTotal)) missing.push('billing total above ₹0');
+  if (args.hasProvider && (args.consultationUnitPrice ?? 0) <= 0) {
+    missing.push('consultation fee above ₹0');
+  }
+  if (!args.paymentMode?.trim()) missing.push('payment mode');
+  return missing;
+}
+
+export function isVisitRegistrationFormComplete(args: VisitRegistrationFormGateInput): boolean {
+  return visitRegistrationFormBlockers(args).length === 0;
+}
+
+export function visitRegistrationBlockHint(args: VisitRegistrationFormGateInput): string | undefined {
+  const missing = visitRegistrationFormBlockers(args);
+  return missing.length ? `Required: ${missing.join(', ')}` : undefined;
 }
 
 export function formatInr(amount: number): string {

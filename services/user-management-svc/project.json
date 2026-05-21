@@ -1,6 +1,7 @@
 {
   "name": "user-management-svc",
-  "tags": ["type:app", "scope:platform"],
+  "projectType": "application",
+  "tags": ["type:service", "scope:platform", "language:typescript", "deploy:aks"],
   "targets": {
     "serve": {
       "dependsOn": ["user-management:db-migrate", "ts-sdk-authz:build"],
@@ -17,11 +18,13 @@
       }
     },
     "build": {
-      "dependsOn": [],
-      "command": "tsc -p tsconfig.json --noEmit",
+      "executor": "nx:run-commands",
       "options": {
+        "command": "tsup --config tsup.config.ts",
         "cwd": "services/user-management-svc"
-      }
+      },
+      "outputs": ["{projectRoot}/dist"],
+      "cache": true
     },
     "test": {
       "command": "vitest run",
@@ -30,7 +33,6 @@
       }
     },
     "validate-spec": {
-      "dependsOn": ["^build"],
       "command": "pnpm run validate-spec",
       "options": {
         "cwd": "services/user-management-svc"

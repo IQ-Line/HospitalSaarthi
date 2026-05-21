@@ -45,6 +45,9 @@ _PICKLIST_VALUE_SEEDS: tuple[tuple[str, str, str, int, bool], ...] = (
     ("role-types", "receptionist", "Receptionist", 6, False),
     ("role-types", "radiologist", "Radiologist", 7, False),
     ("role-types", "superadmin", "Super Admin", 8, False),
+    # tariff-type — frontdesk / tariff catalog service categories
+    ("tariff-type", "consultation-fee", "Consultation fee", 1, False),
+    ("tariff-type", "registration-fee", "Registration fee", 2, False),
 )
 
 
