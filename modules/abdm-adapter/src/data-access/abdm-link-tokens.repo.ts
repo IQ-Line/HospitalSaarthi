@@ -106,6 +106,23 @@ export class DrizzleLinkTokensRepo implements LinkTokensPort {
       });
   }
 
+  async findAbhaAddressByPendingRequestId(
+    iqTenantId: string,
+    requestId: string,
+  ): Promise<string | null> {
+    const rows = await this.db
+      .select({ abha_address: abdmLinkTokens.abha_address })
+      .from(abdmLinkTokens)
+      .where(
+        and(
+          eq(abdmLinkTokens.iq_tenant_id, iqTenantId),
+          eq(abdmLinkTokens.pending_request_id, requestId),
+        ),
+      )
+      .limit(1);
+    return rows[0]?.abha_address?.trim() ?? null;
+  }
+
   async invalidate(iqTenantId: string, abhaAddress: string): Promise<void> {
     await this.db
       .delete(abdmLinkTokens)

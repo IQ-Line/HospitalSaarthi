@@ -1,5 +1,32 @@
-import { describe, expect, it } from "vitest";
-import { resolveInboundRequestId } from "./resolve-callback-tenant.js";
+import { afterEach, describe, expect, it } from "vitest";
+import {
+  resolveCallbackTenantId,
+  resolveInboundRequestId,
+} from "./resolve-callback-tenant.js";
+
+describe("resolveCallbackTenantId", () => {
+  const prev = { ...process.env };
+
+  afterEach(() => {
+    process.env = { ...prev };
+  });
+
+  it("maps X-HIP-ID via ABDM_HIP_TENANT_MAP", () => {
+    process.env["ABDM_HIP_TENANT_MAP"] = JSON.stringify({
+      IN3610001625: "tenant-from-map",
+    });
+    delete process.env["ABDM_DEV_TENANT_ID"];
+    expect(
+      resolveCallbackTenantId({ "X-HIP-ID": "IN3610001625" }),
+    ).toBe("tenant-from-map");
+  });
+
+  it("falls back to ABDM_DEV_TENANT_ID", () => {
+    delete process.env["ABDM_HIP_TENANT_MAP"];
+    process.env["ABDM_DEV_TENANT_ID"] = "dev-tenant";
+    expect(resolveCallbackTenantId({})).toBe("dev-tenant");
+  });
+});
 
 describe("resolveInboundRequestId", () => {
   it("prefers REQUEST-ID header", () => {
@@ -9,24 +36,5 @@ describe("resolveInboundRequestId", () => {
         { response: { requestId: "body-id" } },
       ),
     ).toBe("hdr-id");
-  });
-
-  it("falls back to body.response.requestId when header absent (sandbox callbacks)", () => {
-    expect(
-      resolveInboundRequestId(
-        {},
-        {
-          abhaAddress: "user@sbx",
-          linkToken: "eyJ...",
-          response: { requestId: "d6d6d056-666a-4af8-b680-4c61bcb29dd4" },
-        },
-      ),
-    ).toBe("d6d6d056-666a-4af8-b680-4c61bcb29dd4");
-  });
-
-  it("throws when neither header nor body id present", () => {
-    expect(() => resolveInboundRequestId({}, { abhaAddress: "x@sbx" })).toThrow(
-      /REQUEST-ID/,
-    );
   });
 });

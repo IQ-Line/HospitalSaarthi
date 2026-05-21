@@ -43,7 +43,11 @@ export {
   MockRecordFoundationClient,
 } from "./data-access/mock-platform-clients.js";
 export { EnvSecretsClient } from "./data-access/env-secrets.client.js";
-export { FideliusEncryptorStub } from "./data-access/fidelius.js";
+export {
+  FideliusEncryptor,
+  FideliusEncryptorStub,
+  createFideliusEncryptorFromEnv,
+} from "./data-access/fidelius.js";
 export { createPayloadEncryptorFromEnv } from "./lib/payload-encryptor.js";
 export {
   registerM2CallbackRoutes,
@@ -51,6 +55,8 @@ export {
 } from "./rest-handlers/m2/index.js";
 export { registerM2EventConsumers } from "./events/register-m2-consumers.js";
 export { HttpHipDataPushClient } from "./data-access/hip-data-push.client.js";
+export { LinkOtpStore } from "./lib/link-otp-store.js";
+export { LoggingSmsClient, NoOpSmsClient } from "./data-access/sms-client.js";
 export { AbdmGatewayError, parseNhaErrorBody } from "./lib/gateway-errors.js";
 export { AbdmUseCaseError } from "./lib/m1-errors.js";
 export {

@@ -7,7 +7,7 @@ import type {
   OnConsentNotifyRequest,
 } from "@hims/ts-sdk-abha/protocol/m2/index.js";
 import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
-import { verifyAbdmSignature } from "../../../lib/abdm-signature-verifier.js";
+import { verifyConsentNotificationSignature } from "../../../lib/consent-signature-verifier.js";
 import { M2_GATEWAY_PATHS } from "../../../lib/m2-gateway-paths.js";
 import { createConsentGrantedEnvelope } from "../../../lib/abdm-envelope.js";
 import { skipOutboundGatewayInDev } from "../../../lib/dev-inbound-simulation.js";
@@ -17,7 +17,7 @@ export async function handleConsentNotifyCallback(
   deps: AbdmAdapterDeps,
 ): Promise<void> {
   const { notification } = input;
-  const signatureValid = await verifyAbdmSignature({}, notification);
+  const signatureValid = await verifyConsentNotificationSignature(notification);
 
   const session = await deps.sessions.create({
     iqTenantId: input.iqTenantId,
@@ -94,7 +94,7 @@ export async function handleConsentNotifyCallback(
     grantedAt: new Date(notification.consentDetail.createdAt),
     artefactJson: notification as unknown as Record<string, unknown>,
     signature: notification.signature,
-    signatureValid: true,
+    signatureValid,
   });
 
   await deps.sessions.patch({

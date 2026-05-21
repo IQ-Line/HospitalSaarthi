@@ -86,6 +86,18 @@ export function registerHttpErrorHandler(app: {
       });
     }
 
+    if (
+      err.code === "FST_ERR_CTP_INVALID_JSON_BODY" ||
+      err.code === "FST_ERR_CTP_EMPTY_JSON_BODY"
+    ) {
+      return reply.status(400).send({
+        error: "Bad Request",
+        message:
+          "Request body is not valid JSON. In Swagger, re-paste the body and remove trailing commas or smart quotes.",
+        details: err.message,
+      });
+    }
+
     if (isFastifyValidationError(err)) {
       return reply.status(400).send({
         error: "Bad Request",

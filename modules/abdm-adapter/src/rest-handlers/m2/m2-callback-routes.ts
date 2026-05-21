@@ -11,7 +11,7 @@ import { handleAddContextsCallback } from "../../use-cases/m2/add-contexts/handl
 import { handleSmsNotifyCallback } from "../../use-cases/m2/sms-notify/handle-callback.js";
 import { handleHipHiRequestCallback } from "../../use-cases/m3/hip/handle-hi-request-callback.js";
 import { abdmWarn } from "../../lib/abdm-adapter-log.js";
-import { resolveAbhaAddressFromTokenCallback } from "../../lib/resolve-token-callback-abha.js";
+import { resolveAbhaAddressForTokenCallback } from "../../lib/resolve-token-callback-abha.js";
 import type { OnGenerateTokenSuccessCallback } from "@hims/ts-sdk-abha/protocol/m2/index.js";
 import type { OnLinkCareContextCallback } from "@hims/ts-sdk-abha/protocol/m2/index.js";
 import type { DiscoveryRequest } from "@hims/ts-sdk-abha/protocol/m2/index.js";
@@ -39,7 +39,11 @@ export async function registerM2CallbackRoutes(
           abhaAddress?: string;
           abha_address?: string;
         };
-        const abhaAddress = resolveAbhaAddressFromTokenCallback(payload);
+        const abhaAddress = await resolveAbhaAddressForTokenCallback({
+          iqTenantId,
+          body: payload,
+          linkTokens: deps.linkTokens,
+        });
         if (!abhaAddress) {
           abdmWarn("abdm.m2.link_token.callback_skipped", {
             reason: "missing_abha_address",

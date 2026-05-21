@@ -1,18 +1,29 @@
+import { parseHipTenantMap } from "./hip-tenant-map.js";
+
 /**
  * Maps inbound gateway callbacks to `iq_tenant_id`.
- * Phase 1: single-tenant dev — `ABDM_DEV_TENANT_ID` + optional `ABDM_X_HIP_ID` check.
+ * Production: `ABDM_HIP_TENANT_MAP` (HIP id → tenant). Dev fallback: `ABDM_DEV_TENANT_ID`.
  */
 export function resolveCallbackTenantId(headers: Record<string, unknown>): string {
-  const devTenant = process.env["ABDM_DEV_TENANT_ID"]?.trim();
-  if (!devTenant) {
-    throw new Error("ABDM_DEV_TENANT_ID is required for M2 gateway callbacks");
-  }
-  const expectedHip = process.env["ABDM_X_HIP_ID"]?.trim();
   const hipId = String(headers["x-hip-id"] ?? headers["X-HIP-ID"] ?? "").trim();
+  const expectedHip = process.env["ABDM_X_HIP_ID"]?.trim();
+
   if (expectedHip && hipId && hipId.toLowerCase() !== expectedHip.toLowerCase()) {
     throw new Error(`X-HIP-ID mismatch: expected ${expectedHip}, got ${hipId}`);
   }
-  return devTenant;
+
+  if (hipId) {
+    const map = parseHipTenantMap();
+    const mapped = map[hipId.toUpperCase()];
+    if (mapped) return mapped;
+  }
+
+  const devTenant = process.env["ABDM_DEV_TENANT_ID"]?.trim();
+  if (devTenant) return devTenant;
+
+  throw new Error(
+    "Cannot resolve callback tenant: set ABDM_HIP_TENANT_MAP or ABDM_DEV_TENANT_ID",
+  );
 }
 
 /** Correlation id for inbound dedupe — header first, then gateway body echo. */

@@ -13,7 +13,7 @@ import {
   DrizzleInboundMessagesRepo,
   DrizzleLinkTokensRepo,
   EnvSecretsClient,
-  FideliusEncryptorStub,
+  createFideliusEncryptorFromEnv,
   HttpEmpiClient,
   HttpGatewayClient,
   HttpRecordFoundationClient,
@@ -24,6 +24,9 @@ import {
   registerM2CallbackRoutes,
   registerM2EventConsumers,
   HttpHipDataPushClient,
+  LinkOtpStore,
+  LoggingSmsClient,
+  NoOpSmsClient,
 } from "@hims/abdm-adapter";
 import {
   normalizeAbdmEnvAliases,
@@ -131,7 +134,7 @@ async function main() {
     xCmId: ABDM_X_CM_ID,
     secrets,
   });
-  const fidelius = new FideliusEncryptorStub();
+  const fidelius = createFideliusEncryptorFromEnv();
   const inboundMessages = new DrizzleInboundMessagesRepo(db);
   const linkTokens = new DrizzleLinkTokensRepo(db);
   const consentArtefacts = new DrizzleConsentArtefactsRepo(db);
@@ -152,6 +155,10 @@ async function main() {
   }
   const payloadEncryptor = createPayloadEncryptorFromEnv();
   const dataPush = new HttpHipDataPushClient();
+  const linkOtpStore = new LinkOtpStore();
+  const sms = ABDM_DEFAULT_SMS_PHONE
+    ? new LoggingSmsClient()
+    : new NoOpSmsClient();
 
   await registerM2EventConsumers(eventBus, {
     sessions,
@@ -170,6 +177,8 @@ async function main() {
     xCmId: ABDM_X_CM_ID,
     defaultSmsPhoneNo: ABDM_DEFAULT_SMS_PHONE || undefined,
     hipDisplayName: ABDM_HIP_DISPLAY_NAME,
+    linkOtpStore,
+    sms,
   });
 
   const adapterDeps = {
@@ -189,6 +198,8 @@ async function main() {
     xCmId: ABDM_X_CM_ID,
     defaultSmsPhoneNo: ABDM_DEFAULT_SMS_PHONE || undefined,
     hipDisplayName: ABDM_HIP_DISPLAY_NAME,
+    linkOtpStore,
+    sms,
   };
 
   await app.register(async (v3) => {

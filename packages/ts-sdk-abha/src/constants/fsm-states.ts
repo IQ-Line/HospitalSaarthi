@@ -37,6 +37,8 @@ export const M1_SIMPLE_OTP_STATES = [
 /** `abdm.m2.hip-initiated-link.v1` — staff links known ABHA + care contexts. */
 export const M2_HIP_INITIATED_LINK_STATES = [
   'INIT',
+  'TOKEN_REQUESTED',
+  'TOKEN_AVAILABLE',
   'CC_LINK_REQUESTED',
   'CC_LINK_CONFIRMED',
   'LINKED',

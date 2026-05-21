@@ -53,6 +53,9 @@ importers:
       '@hims/ts-sdk-events':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-events
+      jose:
+        specifier: ^6.2.3
+        version: 6.2.3
     devDependencies:
       drizzle-kit:
         specifier: ^0.31.4

@@ -3,6 +3,7 @@ import type { OnLinkCareContextCallback } from "@hims/ts-sdk-abha/protocol/m2/in
 import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
 import { assertFlowKind } from "../../../domain/session.js";
 import { createCareContextLinkedEnvelope } from "../../../lib/abdm-envelope.js";
+import { abdmWarn } from "../../../lib/abdm-adapter-log.js";
 import { smsNotifyRequest } from "../sms-notify/request.js";
 
 export async function handleHipLinkCallback(
@@ -83,16 +84,11 @@ export async function handleHipLinkCallback(
       { iqTenantId: input.iqTenantId, phoneNo: phone },
       deps,
     ).catch((err: unknown) => {
-      const message = err instanceof Error ? err.message : String(err);
-      console.warn(
-        JSON.stringify({
-          level: "warn",
-          event: "abdm.m2.hip_link.sms_notify_failed",
-          sessionId: session.sessionId,
-          phoneNo: phone,
-          message,
-        }),
-      );
+      abdmWarn("abdm.m2.hip_link.sms_notify_failed", {
+        sessionId: session.sessionId,
+        phoneNo: phone,
+        message: err instanceof Error ? err.message : String(err),
+      });
     });
   }
 }

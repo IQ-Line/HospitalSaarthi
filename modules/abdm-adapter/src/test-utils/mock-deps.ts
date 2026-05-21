@@ -1,4 +1,5 @@
 import type { AbdmAdapterDeps } from "../ports.js";
+import { LinkOtpStore } from "../lib/link-otp-store.js";
 
 /** Minimal `AbdmAdapterDeps` for unit tests (M1 + M2). */
 export function buildMockAbdmDeps(
@@ -36,6 +37,8 @@ export function buildMockAbdmDeps(
         encrypt: (s: string) => s,
         decrypt: (s: string | null) => s,
       } as AbdmAdapterDeps["payloadEncryptor"]),
+    linkOtpStore: overrides.linkOtpStore ?? new LinkOtpStore(),
+    sms: overrides.sms ?? ({ sendOtp: async () => undefined } as AbdmAdapterDeps["sms"]),
     xHipId: overrides.xHipId ?? "test-hip",
     xCmId: overrides.xCmId ?? "sbx",
     ...overrides,

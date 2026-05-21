@@ -9,7 +9,8 @@
   "dependencies": {
     "@hims/ts-sdk-abha": "workspace:*",
     "@hims/ts-sdk-db": "workspace:*",
-    "@hims/ts-sdk-events": "workspace:*"
+    "@hims/ts-sdk-events": "workspace:*",
+    "jose": "^6.2.3"
   },
   "peerDependencies": {
     "fastify": "^5.3.3",

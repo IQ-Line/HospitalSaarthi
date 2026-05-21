@@ -4,11 +4,69 @@ import { hipInitiatedLinkStart } from "../../use-cases/m2/hip-initiated-link/sta
 import { addContextsPublish } from "../../use-cases/m2/add-contexts/publish.js";
 import { smsNotifyRequest } from "../../use-cases/m2/sms-notify/request.js";
 import { LinkTokenNotAvailable } from "../../lib/link-token-cache.js";
+import { linkTokenAcquire } from "../../use-cases/m2/link-token/acquire.js";
+import { getLinkTokenStatus } from "../../use-cases/m2/link-token/status.js";
+import { getAbdmSession } from "../../use-cases/m2/sessions/get-session.js";
 
 export async function registerM2PlatformRoutes(
   app: FastifyInstance,
   deps: AbdmAdapterDeps,
 ): Promise<void> {
+  app.post("/m2/link-token/acquire", async (req, reply) => {
+    const iqTenantId = String(req.headers["x-tenant-id"] ?? "").trim();
+    if (!iqTenantId) {
+      return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
+    }
+    const body = req.body as {
+      abhaAddress: string;
+      abhaNumber?: string;
+      demographics: {
+        name: string;
+        gender: "M" | "F" | "O" | "D";
+        yearOfBirth: number;
+      };
+      timeoutMs?: number;
+      wait?: boolean;
+    };
+    const result = await linkTokenAcquire({ iqTenantId, ...body }, deps);
+    const status =
+      result.state === "FAILED" ? 503 : result.state === "TOKEN_AVAILABLE" ? 200 : 202;
+    return reply.status(status).send(result);
+  });
+
+  app.get("/m2/link-token/status", async (req, reply) => {
+    const iqTenantId = String(req.headers["x-tenant-id"] ?? "").trim();
+    if (!iqTenantId) {
+      return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
+    }
+    const q = req.query as { sessionId?: string; abhaAddress?: string };
+    const result = await getLinkTokenStatus(
+      {
+        iqTenantId,
+        sessionId: q.sessionId?.trim(),
+        abhaAddress: q.abhaAddress?.trim(),
+      },
+      deps,
+    );
+    if (result.state === "NOT_FOUND" && !result.tokenReady) {
+      return reply.status(404).send(result);
+    }
+    return reply.status(200).send(result);
+  });
+
+  app.get("/m2/sessions/:sessionId", async (req, reply) => {
+    const iqTenantId = String(req.headers["x-tenant-id"] ?? "").trim();
+    if (!iqTenantId) {
+      return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
+    }
+    const sessionId = String((req.params as { sessionId: string }).sessionId ?? "").trim();
+    const session = await getAbdmSession({ iqTenantId, sessionId }, deps);
+    if (!session) {
+      return reply.status(404).send({ error: "NotFound", message: "session not found" });
+    }
+    return reply.status(200).send(session);
+  });
+
   app.post("/m2/hip/initiated-link/start", async (req, reply) => {
     const iqTenantId = String(req.headers["x-tenant-id"] ?? "").trim();
     if (!iqTenantId) {

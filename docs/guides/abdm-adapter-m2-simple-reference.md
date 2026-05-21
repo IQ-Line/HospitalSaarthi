@@ -70,11 +70,16 @@ So in LIMS: **token generation and linking are chained in one user action**, but
 **Difference from LIMS:** token is **not** a visible “step” in the UI state machine; it lives in a **cache table**, not in the link session. Sandbox testing **splits** Postman (token) and Swagger (link) so you can see each hop — production can be **one button** (`initiated-link/start` only).
 
 ```text
-Sandbox (how you tested):
-  Postman generate-token  →  callback saves token  →  Swagger link start
+Sandbox / production (recommended):
+  POST /m2/link-token/acquire  →  202 TOKEN_REQUESTED
+  GET  /m2/link-token/status   →  TOKEN_AVAILABLE when cache ready
+  POST /m2/hip/initiated-link/start  →  cache hit, fast link
 
-Production (target):
-  HIMS "Link to ABHA" once  →  adapter getOrAcquire token  →  link  →  LINKED
+Fallback (adapter still works):
+  initiated-link/start alone  →  getOrAcquire (may wait ~8s on cache miss)
+
+Optional manual NHA step (debug only):
+  Postman generate-token  →  same callback as adapter acquire
 ```
 
 ---
@@ -87,6 +92,8 @@ Production (target):
 |------|--------|
 | Platform API prefix | `/api/abdm/v1` |
 | Gateway callback prefix | `/api/v3` |
+| Pre-mint link token | `POST /api/abdm/v1/m2/link-token/acquire` |
+| Poll token status | `GET /api/abdm/v1/m2/link-token/status?sessionId=…` |
 | HIP link start | `POST /api/abdm/v1/m2/hip/initiated-link/start` |
 | Token callback path | `POST /api/v3/hip/token/on-generate-token` |
 | Link result callback | `POST /api/v3/link/on_carecontext` |
@@ -114,7 +121,7 @@ Production (target):
 | `ABDM_M2_MOCK_PLATFORM=true` | Fake EMPI + Record Foundation |
 | `ABDM_DEV_INBOUND_SIMULATION=true` | curl consent/HI without NHA rejecting fake consent ids |
 | ngrok | Receive callbacks on laptop |
-| Postman generate-token (manual) | Optional; only to see token step separately |
+| Postman generate-token (manual) | Debug only — prefer `link-token/acquire` |
 | webhook.site | See HI push payload |
 | `FideliusEncryptorStub` | Dev encryption wrapper (code default in Phase 0) |
 

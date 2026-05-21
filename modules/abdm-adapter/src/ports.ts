@@ -92,6 +92,11 @@ export interface LinkTokensPort {
     expiresAt: Date,
   ): Promise<void>;
   invalidate(iqTenantId: string, abhaAddress: string): Promise<void>;
+  /** When NHA omits `abhaAddress` on `on-generate-token`, match outbound REQUEST-ID. */
+  findAbhaAddressByPendingRequestId(
+    iqTenantId: string,
+    requestId: string,
+  ): Promise<string | null>;
   janitor(): Promise<number>;
 }
 
@@ -120,6 +125,15 @@ export interface CareContextRef {
   display: string;
   /** Record Foundation HI type (e.g. OPCONSULTATION) for discover/link mapping. */
   hiType?: string;
+}
+
+export interface SmsClient {
+  sendOtp(input: { phoneNo: string; message: string }): Promise<void>;
+}
+
+export interface LinkOtpStorePort {
+  put(input: { linkRefNumber: string; otp: string; expiresAt: Date }): void;
+  consume(input: { linkRefNumber: string; token: string }): boolean;
 }
 
 export interface EmpiClient {
@@ -237,6 +251,17 @@ export interface FideliusEncryptor {
     peerNonce: string;
   }): Promise<{ encryptedPayload: string; ourPublicKey: string; ourNonce: string }>;
 
+  /** One HIP key pair per push transaction (all care-context entries). */
+  encryptBundlesForPeer(input: {
+    payloadJsons: string[];
+    peerPublicKey: string;
+    peerNonce: string;
+  }): Promise<{
+    encryptedPayloads: string[];
+    ourPublicKey: string;
+    ourNonce: string;
+  }>;
+
   /** Decrypt an inbound payload from an external HIP using our key material. M3 HIU receive. */
   decryptFromPeer(input: {
     encryptedPayload: string;
@@ -266,6 +291,8 @@ export interface AbdmAdapterDeps {
   dataPush?: HipDataPushClient;
   payloadEncryptor: PayloadEncryptor;
   eventBus?: EventBus;
+  linkOtpStore: LinkOtpStorePort;
+  sms: SmsClient;
   /** Default SMS phone when hip-initiated-link completes (E.164). */
   defaultSmsPhoneNo?: string;
   hipDisplayName?: string;

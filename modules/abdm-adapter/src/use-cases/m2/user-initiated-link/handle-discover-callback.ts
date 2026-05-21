@@ -32,12 +32,28 @@ export async function handleDiscoverCallback(
     });
   }
 
-  const patient = abhaAddress
+  let patient = abhaAddress
     ? await deps.empi.findPatientByAbhaAddress({
         iqTenantId: input.iqTenantId,
         abhaAddress,
       })
     : null;
+
+  if (!patient && input.patient[0]?.verifiedIdentifiers?.length) {
+    const match = await deps.empi.findPatientByDemographics({
+      iqTenantId: input.iqTenantId,
+      identifiers: input.patient[0].verifiedIdentifiers.map((i) => ({
+        type: i.type,
+        value: i.value,
+      })),
+    });
+    if (match) {
+      patient = {
+        patientId: match.patientId,
+        demographics: {},
+      };
+    }
+  }
 
   if (!patient) {
     const body: OnDiscoverRequest = {

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Simulate NHA consent notify → your ngrok / local adapter.
+# DEV-ONLY: Simulate NHA consent notify → ngrok / local adapter.
+# Uses a fake signature — will fail once consent artefact JWS verification is enforced (issue #3).
 # Requires: abdm-adapter-svc running, ngrok http 3007, ABDM_DEV_INBOUND_SIMULATION=true in .env
 set -euo pipefail
 

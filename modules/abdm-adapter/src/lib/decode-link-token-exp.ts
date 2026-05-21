@@ -3,6 +3,8 @@ type LinkTokenJwtPayload = {
   sub?: string;
   abhaAddress?: string;
   abha_address?: string;
+  preferred_username?: string;
+  abha?: string;
 };
 
 function decodeLinkTokenJwtPayload(linkToken: string): LinkTokenJwtPayload | null {

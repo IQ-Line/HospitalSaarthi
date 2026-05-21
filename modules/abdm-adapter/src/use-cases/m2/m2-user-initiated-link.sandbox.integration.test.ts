@@ -8,7 +8,9 @@ import {
   MockRecordFoundationClient,
 } from "../../data-access/mock-platform-clients.js";
 import { FideliusEncryptorStub } from "../../data-access/fidelius.js";
+import { LoggingSmsClient } from "../../data-access/sms-client.js";
 import { EnvSecretsClient } from "../../data-access/env-secrets.client.js";
+import { LinkOtpStore } from "../../lib/link-otp-store.js";
 import { HttpGatewayClient } from "../../data-access/gateway-client.http.js";
 import type { AbdmAdapterDeps } from "../../ports.js";
 import { handleDiscoverCallback } from "./user-initiated-link/handle-discover-callback.js";
@@ -49,6 +51,8 @@ function buildDeps(): AbdmAdapterDeps {
     empi: new MockEmpiClient(process.env["ABDM_MOCK_ABHA_ADDRESS"] ?? "test.user@sbx"),
     recordFoundation: new MockRecordFoundationClient(),
     payloadEncryptor: { encrypt: (s) => s, decrypt: (s) => s },
+    linkOtpStore: new LinkOtpStore(),
+    sms: new LoggingSmsClient(),
     xHipId: process.env["ABDM_X_HIP_ID"] ?? "IN3610001625",
     xCmId: process.env["ABDM_X_CM_ID"] ?? "sbx",
   };
@@ -67,8 +71,6 @@ describe.skipIf(!RUN)("M2 user-initiated link — in-process chain", () => {
     deps.gateway = { post } as never;
 
     const txnId = randomUUID();
-    const linkRef = randomUUID();
-
     await handleDiscoverCallback(
       {
         iqTenantId: tenantId,
@@ -85,7 +87,7 @@ describe.skipIf(!RUN)("M2 user-initiated link — in-process chain", () => {
         inboundRequestId: randomUUID(),
         transactionId: txnId,
         link: {
-          referenceNumber: linkRef,
+          referenceNumber: randomUUID(),
           authenticationType: "DIRECT",
           meta: {
             communicationMedium: "MOBILE",
@@ -97,12 +99,20 @@ describe.skipIf(!RUN)("M2 user-initiated link — in-process chain", () => {
       deps,
     );
 
+    const afterInit = await deps.sessions.findUserLinkByTransactionId({
+      iqTenantId: tenantId,
+      transactionId: txnId,
+    });
+    const linkRefNumber = String(afterInit?.context.linkRefNumber ?? "");
+    const otp = (deps.linkOtpStore as LinkOtpStore).peekOtp(linkRefNumber);
+    expect(otp).toBeTruthy();
+
     await handleLinkConfirmCallback(
       {
         iqTenantId: tenantId,
         inboundRequestId: randomUUID(),
         transactionId: txnId,
-        confirmation: { token: "123456", linkRefNumber: linkRef },
+        confirmation: { token: otp!, linkRefNumber },
       },
       deps,
     );

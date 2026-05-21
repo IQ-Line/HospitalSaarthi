@@ -100,13 +100,15 @@ export async function hipInitiatedLinkStart(
     xHipId: deps.xHipId,
   });
 
+  const linkRequestedState = "CC_LINK_REQUESTED" satisfies (typeof M2_HIP_INITIATED_LINK_STATES)[number];
+
   await deps.sessions.patch({
     iqTenantId: input.iqTenantId,
     sessionId: session.sessionId,
-    state: M2_HIP_INITIATED_LINK_STATES[1],
+    state: linkRequestedState,
     requestId,
     contextMerge: { ccLinkRequestId: requestId },
   });
 
-  return { sessionId: session.sessionId, state: M2_HIP_INITIATED_LINK_STATES[1] };
+  return { sessionId: session.sessionId, state: linkRequestedState };
 }

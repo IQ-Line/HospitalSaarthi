@@ -162,8 +162,8 @@ Matches Postman folder **HIP Initiated Linking**.
 
 | Step | Caller | Target | Our handler |
 |------|--------|--------|-------------|
-| 1 | Postman | NHA `POST /api/hiecm/v3/token/generate-token` | — |
-| 2 | NHA | `POST {callback}/api/v3/hip/token/on-generate-token` | Link token cache |
+| 1 | HIMS | `POST /api/abdm/v1/m2/link-token/acquire` | Session `TOKEN_REQUESTED` |
+| 2 | NHA | `POST {callback}/api/v3/hip/token/on-generate-token` | Link token cache; poll `GET /m2/link-token/status` |
 | 3 | You / HIMS | `POST /api/abdm/v1/m2/hip/initiated-link/start` | Outbound `link/carecontext` |
 | 4 | NHA | `POST {callback}/api/v3/link/on_carecontext` | Session → `LINKED` |
 | 5 | Adapter (auto) | NHA `…/sms/notify2` | If `phoneNo` or `ABDM_DEFAULT_SMS_PHONE` set |

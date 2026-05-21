@@ -89,8 +89,8 @@ Matches Postman folder **HIP Initiated Linking**.
 | Step | Who | Action |
 |------|-----|--------|
 | 0 | You | Postman **Registration and Auth** → gateway session (same as M1 M0) |
-| 1 | Postman → NHA | **Generate link token** (`/api/hiecm/v3/token/generate-token`) with patient demographics + `X-HIP-ID: IN3610001625` |
-| 2 | NHA → your ngrok | `POST /api/v3/hip/token/on-generate-token` — adapter UPSERTs `abdm_link_tokens` |
+| 1 | HIMS → adapter | **Pre-mint** `POST /api/abdm/v1/m2/link-token/acquire` (adapter calls NHA generate-token) |
+| 2 | NHA → your ngrok | `POST /api/v3/hip/token/on-generate-token` — adapter UPSERTs `abdm_link_tokens`; poll `GET /m2/link-token/status` |
 | 3 | Platform | `POST /api/abdm/v1/m2/hip/initiated-link/start` with `x-tenant-id: <ABDM_DEV_TENANT_ID>` and body `{ abhaAddress, careContexts[], hiType, count }` |
 | 4 | Adapter → NHA | `POST …/hip/v3/link/carecontext` with `X-LINK-TOKEN` from cache |
 | 5 | NHA → your ngrok | `POST /api/v3/link/on_carecontext` — session → `LINKED`, event `abdm.care-context.linked` |

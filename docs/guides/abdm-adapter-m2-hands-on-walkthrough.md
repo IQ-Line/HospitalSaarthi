@@ -206,30 +206,32 @@ Postman variable **`ABHA Address`** = same value.
 [Adapter] optional SMS via NHA
 ```
 
-### D.2 Step 1 — Link token (Postman, Door 2)
+### D.2 Step 1 — Pre-mint link token (adapter platform API)
 
-Folder: **HIP Initiated Linking** → **Link Token Generation**
+**Preferred:** call the adapter (not Postman directly). The adapter calls NHA `generate-token` and waits for `on-generate-token` in the background.
 
-- `POST https://dev.abdm.gov.in/api/hiecm/v3/token/generate-token`
-- Headers: `REQUEST-ID`, `TIMESTAMP`, `X-HIP-ID: IN3610001625`, `X-CM-ID: sbx`, **Authorization: Bearer {{accessToken}}**
-- Body:
-
-```json
-{
-  "abhaAddress": "your-abha@sbx",
-  "name": "Test Patient",
-  "gender": "M",
-  "yearOfBirth": 1990
-}
+```bash
+curl -sS -X POST "http://localhost:3007/api/abdm/v1/m2/link-token/acquire" \
+  -H "Content-Type: application/json" \
+  -H "x-tenant-id: 00000000-0000-4000-8000-0000000000aa" \
+  -d '{
+    "abhaAddress": "your-abha@sbx",
+    "demographics": { "name": "Test Patient", "gender": "M", "yearOfBirth": 1990 }
+  }'
 ```
 
-Expected: HTTP **202** empty body.
+Expected: **202** with `{ "sessionId": "…", "state": "TOKEN_REQUESTED", "tokenReady": false }`.
 
-Within a few seconds, **ngrok** should show:
+Poll until ready:
 
-```text
-POST /api/v3/hip/token/on-generate-token
+```bash
+curl -sS "http://localhost:3007/api/abdm/v1/m2/link-token/status?sessionId=PASTE_SESSION_ID" \
+  -H "x-tenant-id: 00000000-0000-4000-8000-0000000000aa"
 ```
+
+Expected: `state: TOKEN_AVAILABLE`, `tokenReady: true`.
+
+Within a few seconds, **ngrok** should show `POST /api/v3/hip/token/on-generate-token`.
 
 **Verify in DB:**
 
@@ -238,7 +240,7 @@ psql "postgresql://hims:hims@localhost:5433/hims_dev" -c \
   "SELECT abha_address, expires_at IS NOT NULL AS has_token FROM abdm_adapter.abdm_link_tokens WHERE abha_address = 'your-abha@sbx';"
 ```
 
-If no callback: bridge URL wrong, ngrok stopped, or `X-HIP-ID` mismatch.
+**Debug only:** Postman **HIP Initiated Linking → Link Token Generation** hits NHA directly (same callback path).
 
 ### D.3 Step 2 — Link care contexts (Door 1 — Swagger)
 
@@ -290,7 +292,7 @@ curl -sS -X POST "http://localhost:3007/api/abdm/v1/m2/hip/initiated-link/start"
 
 Expected: **202** with `sessionId` and state `CC_LINK_REQUESTED` (or similar).
 
-If **503 link token**: run Postman generate-token again and wait for callback.
+If **503 link token**: call `link-token/acquire` again and poll status until `TOKEN_AVAILABLE`.
 
 ### D.4 Step 3 — Link result callback (automatic, Door 3)
 

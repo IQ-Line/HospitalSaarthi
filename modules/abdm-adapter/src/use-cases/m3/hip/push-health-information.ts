@@ -35,20 +35,18 @@ export async function pushHealthInformationForSession(
     state: "BUNDLES_FETCHED",
   });
 
-  const entries: HipDataPushRequest["entries"] = [];
-  for (const bundle of bundles) {
-    const encrypted = await deps.fidelius.encryptForPeer({
-      payloadJson: bundle.contentJson,
-      peerPublicKey: input.parsed.peerPublicKey,
-      peerNonce: input.parsed.peerNonce,
-    });
-    entries.push({
-      content: encrypted.encryptedPayload,
-      media: bundle.media,
-      checksum: checksumForContent(encrypted.encryptedPayload),
-      careContextReference: bundle.careContextReference,
-    });
-  }
+  const batch = await deps.fidelius.encryptBundlesForPeer({
+    payloadJsons: bundles.map((b) => b.contentJson),
+    peerPublicKey: input.parsed.peerPublicKey,
+    peerNonce: input.parsed.peerNonce,
+  });
+
+  const entries: HipDataPushRequest["entries"] = bundles.map((bundle, i) => ({
+    content: batch.encryptedPayloads[i]!,
+    media: bundle.media,
+    checksum: checksumForContent(batch.encryptedPayloads[i]!),
+    careContextReference: bundle.careContextReference,
+  }));
 
   await deps.sessions.patch({
     iqTenantId: input.iqTenantId,
@@ -66,9 +64,9 @@ export async function pushHealthInformationForSession(
     dhPublicKey: {
       expiry: input.parsed.keyExpiry ?? new Date(Date.now() + 86400000).toISOString(),
       parameters: "Curve25519/32byte random key",
-      keyValue: input.parsed.peerPublicKey,
+      keyValue: batch.ourPublicKey,
     },
-    nonce: input.parsed.peerNonce,
+    nonce: batch.ourNonce,
   };
 
   const pushBody: HipDataPushRequest = {

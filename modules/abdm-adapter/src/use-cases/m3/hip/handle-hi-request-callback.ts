@@ -8,6 +8,7 @@ import { pushHealthInformationForSession } from "./push-health-information.js";
 import { notifyHipDataTransfer } from "./notify-data-transfer.js";
 import { skipOutboundGatewayInDev } from "../../../lib/dev-inbound-simulation.js";
 import { abdmWarn } from "../../../lib/abdm-adapter-log.js";
+import { retryWithBackoff } from "../../../lib/retry-with-backoff.js";
 
 /** §6.3.3–6.3.6 — ack, encrypt/push bundles, notify CM. */
 export async function handleHipHiRequestCallback(
@@ -99,25 +100,33 @@ export async function handleHipHiRequestCallback(
   assertFlowKind(refreshed, "abdm.m3.hip.v1");
 
   try {
-    const careRefs = await pushHealthInformationForSession(
-      {
-        iqTenantId: input.iqTenantId,
-        session: refreshed,
-        parsed,
-        patientId,
-      },
-      deps,
+    const careRefs = await retryWithBackoff(
+      () =>
+        pushHealthInformationForSession(
+          {
+            iqTenantId: input.iqTenantId,
+            session: refreshed,
+            parsed,
+            patientId,
+          },
+          deps,
+        ),
+      { maxAttempts: 3, initialMs: 500, maxMs: 4000 },
     );
 
-    await notifyHipDataTransfer(
-      {
-        iqTenantId: input.iqTenantId,
-        consentId: parsed.consentId,
-        transactionId: parsed.transactionId,
-        careContextReferences: careRefs,
-        inboundRequestId: input.inboundRequestId,
-      },
-      deps,
+    await retryWithBackoff(
+      () =>
+        notifyHipDataTransfer(
+          {
+            iqTenantId: input.iqTenantId,
+            consentId: parsed.consentId,
+            transactionId: parsed.transactionId,
+            careContextReferences: careRefs,
+            inboundRequestId: input.inboundRequestId,
+          },
+          deps,
+        ),
+      { maxAttempts: 3, initialMs: 500, maxMs: 4000 },
     );
   } catch (err: unknown) {
     const failureMessage = err instanceof Error ? err.message : String(err);

@@ -6,7 +6,9 @@ import { DrizzleInboundMessagesRepo } from "../../data-access/abdm-inbound-messa
 import { DrizzleConsentArtefactsRepo } from "../../data-access/abdm-consent-artefacts.repo.js";
 import { MockEmpiClient } from "../../data-access/mock-platform-clients.js";
 import { FideliusEncryptorStub } from "../../data-access/fidelius.js";
+import { LoggingSmsClient } from "../../data-access/sms-client.js";
 import { EnvSecretsClient } from "../../data-access/env-secrets.client.js";
+import { LinkOtpStore } from "../../lib/link-otp-store.js";
 import { HttpGatewayClient } from "../../data-access/gateway-client.http.js";
 import type { AbdmAdapterDeps } from "../../ports.js";
 import { handleConsentNotifyCallback } from "./consent-notify/handle-consent-notify-callback.js";
@@ -33,6 +35,8 @@ function buildDeps(post: ReturnType<typeof vi.fn>): AbdmAdapterDeps {
       fetchBundlesForConsent: async () => [],
     },
     payloadEncryptor: { encrypt: (s) => s, decrypt: (s) => s },
+    linkOtpStore: new LinkOtpStore(),
+    sms: new LoggingSmsClient(),
     xHipId: process.env["ABDM_X_HIP_ID"] ?? "IN3610001625",
     xCmId: "sbx",
   };
