@@ -114,6 +114,26 @@ describe('apiClient', () => {
     expect(headers.has('x-tenant-id')).toBe(false);
   });
 
+  it('omits iq_tenant_id for global_master catalog reads while a tenant is selected', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ data: [], total: 0 }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    await apiClient(
+      '/api/v1/master-data/modules',
+      { method: 'GET' },
+      { tenantIdOverride: null },
+    );
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = new Headers(init.headers);
+    expect(headers.has('iq_tenant_id')).toBe(false);
+    expect(headers.has('x-tenant-id')).toBe(false);
+  });
+
   it('retries once with refreshed token and preserves tenant override on retry', async () => {
     refreshAccessTokenMock.mockImplementation(async () => {
       useAuthStore.getState().setSession({

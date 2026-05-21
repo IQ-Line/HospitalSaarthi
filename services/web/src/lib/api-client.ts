@@ -169,28 +169,34 @@ async function fetchWithAuthRetry(
 ): Promise<Response> {
   const headers = buildRequestHeaders(path, options, context);
   const tenantId = useTenantStore.getState().tenantId;
+  const accessToken = useAuthStore.getState().accessToken;
   const catalogTenant = catalogIqTenantHeaderValue(tenantId);
-  if (catalogTenant && !headers.has('iq_tenant_id')) {
-    headers.set('iq_tenant_id', catalogTenant);
-  }
-  /** EMPI and Registration require `iq_tenant_id` (or `x-tenant-id`). */
-  if (
-    (path.startsWith(EMPI_API_PREFIX) || isRegistrationApiPath(path)) &&
-    !headers.has('iq_tenant_id')
-  ) {
-    headers.set('iq_tenant_id', serviceIqTenantHeaderValue(tenantId));
-  }
-  /** Configurator tenantPlugin (legacy) rejects requests without a tenant header. */
-  if (
-    path.startsWith(CONFIGURATOR_API_PREFIX) &&
-    !headers.has('iq_tenant_id') &&
-    !headers.has('x-tenant-id')
-  ) {
-    headers.set('x-tenant-id', serviceIqTenantHeaderValue(tenantId));
-  }
-  /** Billing resolves tariffs per tenant — JWT `iq_tenant_id` wins over stale store placeholders. */
-  if (path.startsWith(BILLING_API_PREFIX) && !headers.has('iq_tenant_id')) {
-    headers.set('iq_tenant_id', billingIqTenantHeaderValue(tenantId, token));
+  const omitTenantHeaders = shouldOmitTenantHeaders(context);
+
+  if (!omitTenantHeaders) {
+    if (catalogTenant && !headers.has('iq_tenant_id')) {
+      headers.set('iq_tenant_id', catalogTenant);
+      headers.set('x-tenant-id', catalogTenant);
+    }
+    /** EMPI and Registration require `iq_tenant_id` (or `x-tenant-id`). */
+    if (
+      (path.startsWith(EMPI_API_PREFIX) || isRegistrationApiPath(path)) &&
+      !headers.has('iq_tenant_id')
+    ) {
+      headers.set('iq_tenant_id', serviceIqTenantHeaderValue(tenantId));
+    }
+    /** Configurator tenantPlugin (legacy) rejects requests without a tenant header. */
+    if (
+      path.startsWith(CONFIGURATOR_API_PREFIX) &&
+      !headers.has('iq_tenant_id') &&
+      !headers.has('x-tenant-id')
+    ) {
+      headers.set('x-tenant-id', serviceIqTenantHeaderValue(tenantId));
+    }
+    /** Billing resolves tariffs per tenant — JWT `iq_tenant_id` wins over stale store placeholders. */
+    if (path.startsWith(BILLING_API_PREFIX) && !headers.has('iq_tenant_id')) {
+      headers.set('iq_tenant_id', billingIqTenantHeaderValue(tenantId, accessToken));
+    }
   }
 
   if (
