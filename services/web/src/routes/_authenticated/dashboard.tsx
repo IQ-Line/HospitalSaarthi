@@ -19,7 +19,15 @@ function DashboardPage() {
           <code className="text-xs">VITE_DASHBOARD_USE_MOCK=false</code> when analytics APIs are
           available.
         </p>
-      ) : null}
+      ) : (
+        <p
+          className="border-b bg-amber-50 px-4 py-1.5 text-center text-xs text-muted-foreground"
+          data-testid="dashboard-live-notice"
+        >
+          Live dashboard mode: metrics load from backend APIs only (mock disabled). Facilities load
+          from Configurator tenants.
+        </p>
+      )}
       <AdminDashboard />
       <div className="border-t bg-background px-4 pb-6 md:px-6">
         <NavigationModuleDiscovery />

@@ -1,5 +1,6 @@
 import { fetchTenants } from '@/features/configurator/api/catalog';
 import type { ConfiguratorTenant } from '@/features/configurator/types';
+import { DashboardDataUnavailableError } from './errors';
 import { MOCK_DASHBOARD_FACILITIES } from '../mock/facilities.mock';
 import type { DashboardFacility } from '../types';
 
@@ -42,16 +43,21 @@ export async function fetchDashboardFacilities(): Promise<DashboardFacility[]> {
 
   try {
     const response = await fetchTenants({ provisioning_status: 'active' });
-    const mapped = response.data.map(tenantToFacility);
-    const deduped = dedupeFacilitiesByTenant(mapped);
-    if (deduped.length > 0) {
-      return deduped;
+    const deduped = dedupeFacilitiesByTenant(response.data.map(tenantToFacility));
+    if (deduped.length === 0) {
+      throw new DashboardDataUnavailableError(
+        'No active tenant facilities returned from Configurator.',
+      );
     }
-  } catch {
-    // Fall through to mock when Configurator is unavailable in dev.
+    return deduped;
+  } catch (error) {
+    if (error instanceof DashboardDataUnavailableError) {
+      throw error;
+    }
+    throw new DashboardDataUnavailableError('Failed to load facilities from Configurator.', {
+      cause: error,
+    });
   }
-
-  return [...MOCK_DASHBOARD_FACILITIES];
 }
 
 /** Prefer home tenant when it appears in the list; otherwise first facility (sorted). */
