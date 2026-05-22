@@ -23,9 +23,14 @@ export const VISIT_REGISTRATION_SECTION_LABELS: Record<VisitRegistrationSectionI
 };
 
 const defaultVisibility = (): Record<VisitRegistrationSectionId, boolean> =>
-  Object.fromEntries(
-    VISIT_REGISTRATION_SECTION_IDS.map((id) => [id, true]),
-  ) as Record<VisitRegistrationSectionId, boolean>;
+  ({
+    patientDetails: true,
+    appointmentDetails: true,
+    billing: true,
+    vitals: false,
+    labTests: false,
+    risAppointment: false,
+  }) satisfies Record<VisitRegistrationSectionId, boolean>;
 
 interface VisitRegistrationSectionsState {
   visible: Record<VisitRegistrationSectionId, boolean>;

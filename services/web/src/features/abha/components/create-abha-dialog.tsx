@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@pulse/ui/button';
@@ -10,8 +10,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@pulse/ui/dialog';
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from '@pulse/ui/field';
 import { Input } from '@pulse/ui/input';
-import { Label } from '@pulse/ui/label';
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from '@pulse/ui/input-otp';
+import { Separator } from '@pulse/ui/separator';
+import { AadhaarSegmentInput } from '@/features/abha/components/aadhaar-segment-input';
 import {
   getAbhaProfile,
   resendAadhaarOtp,
@@ -45,17 +57,11 @@ export interface CreateAbhaDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: (payload: AbhaCreatedPayload) => void;
-  /** Prefill mobile on OTP step from registration form phone. */
   defaultMobile?: string;
 }
 
 function digitsOnly(value: string, maxLen: number): string {
   return value.replace(/\D/g, '').slice(0, maxLen);
-}
-
-function maskSegment(value: string): string {
-  if (!value) return '';
-  return '•'.repeat(value.length);
 }
 
 function initialConsentState(): Record<number, boolean> {
@@ -113,9 +119,7 @@ export function CreateAbhaDialog({
   }, []);
 
   useEffect(() => {
-    if (!open) {
-      resetWizard();
-    }
+    if (!open) resetWizard();
   }, [open, resetWizard]);
 
   useEffect(() => {
@@ -148,13 +152,10 @@ export function CreateAbhaDialog({
   const consentStepValid =
     /^\d{12}$/.test(fullAadhaar) &&
     allConsentsChecked &&
-    hwAcknowledged &&
-    beneficiaryAcknowledged &&
     healthcareWorkerName.trim().length > 0 &&
     beneficiaryName.trim().length > 0;
 
   const otpStepValid = /^\d{6}$/.test(otp) && /^\d{10}$/.test(mobile);
-
   const canResendOtp = resendCooldown === 0 && otpSendCount < MAX_OTP_SENDS && !isSubmitting;
 
   const handleOpenChange = (next: boolean) => {
@@ -168,9 +169,7 @@ export function CreateAbhaDialog({
     setBeneficiaryAcknowledged(checked);
   };
 
-  const startResendCooldown = () => {
-    setResendCooldown(RESEND_COOLDOWN_SEC);
-  };
+  const startResendCooldown = () => setResendCooldown(RESEND_COOLDOWN_SEC);
 
   const handleConsentNext = async () => {
     if (!consentStepValid || isSubmitting) return;
@@ -212,10 +211,8 @@ export function CreateAbhaDialog({
       const verifyRes = await verifyAadhaarOtp({ sessionId, otp, mobile });
       toast.success(verifyRes.message || 'Aadhaar verified');
       const profileRes = await getAbhaProfile(sessionId);
-      const display = mapAbhaProfileDisplay(profileRes.profile, verifyRes);
-      const prefill = mapAbhaProfileToFormPrefill(profileRes.profile, verifyRes);
-      setProfileDisplay(display);
-      setFormPrefill(prefill);
+      setProfileDisplay(mapAbhaProfileDisplay(profileRes.profile, verifyRes));
+      setFormPrefill(mapAbhaProfileToFormPrefill(profileRes.profile, verifyRes));
       setStep('profile');
     } catch (err) {
       toast.error(mutationErrorMessage(err));
@@ -232,44 +229,38 @@ export function CreateAbhaDialog({
 
   const handleBack = () => {
     if (isSubmitting) return;
-    switch (step) {
-      case 'login-soon':
-        setStep('method');
-        break;
-      case 'consent':
-        setStep('method');
-        break;
-      case 'otp':
-        setStep('consent');
-        break;
-      case 'profile':
-        setStep('otp');
-        break;
-      default:
-        break;
-    }
+    if (step === 'login-soon' || step === 'consent') setStep('method');
+    else if (step === 'otp') setStep('consent');
+    else if (step === 'profile') setStep('otp');
   };
 
-  const showBack =
-    step === 'login-soon' || step === 'consent' || step === 'otp' || step === 'profile';
+  const showFooter = step !== 'method';
+  const showBack = step !== 'method';
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="flex max-h-[min(90dvh,720px)] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
-        <DialogHeader className="shrink-0 border-b border-border px-6 py-4">
-          <DialogTitle>Create ABHA</DialogTitle>
+      <DialogContent
+        className={`flex max-h-[min(92dvh,780px)] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 ${
+          step === 'consent' || step === 'otp' ? 'sm:max-w-2xl' : 'sm:max-w-lg'
+        }`}
+        showCloseButton
+      >
+        <DialogHeader className="shrink-0 space-y-0 px-6 pb-4 pt-5">
+          <DialogTitle className="text-base font-semibold text-foreground">Create ABHA</DialogTitle>
         </DialogHeader>
+
+        <Separator />
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-6 py-5">
           {step === 'method' && (
-            <div className="flex flex-col items-center gap-6 py-8 text-center">
-              <p className="max-w-sm text-sm text-muted-foreground">
+            <div className="flex min-h-[280px] flex-col items-center justify-center gap-8 py-6 text-center">
+              <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
                 Please choose below option to start with the creation of your ABHA
               </p>
               <Button
                 type="button"
                 variant="outline"
-                className="h-11 min-w-[12rem] border-primary text-primary hover:bg-primary/5"
+                className="h-12 min-w-[14rem] rounded-md border-2 border-primary/50 bg-background px-8 text-base font-medium text-primary shadow-none hover:border-primary hover:bg-primary/5"
                 onClick={() => setStep('consent')}
               >
                 Aadhaar Number
@@ -278,7 +269,7 @@ export function CreateAbhaDialog({
                 Already have an ABHA?{' '}
                 <button
                   type="button"
-                  className="font-medium text-primary underline-offset-4 hover:underline"
+                  className="font-semibold text-primary underline-offset-4 hover:underline"
                   onClick={() => setStep('login-soon')}
                 >
                   Login
@@ -288,7 +279,7 @@ export function CreateAbhaDialog({
           )}
 
           {step === 'login-soon' && (
-            <div className="flex flex-col items-center gap-4 py-12 text-center">
+            <div className="flex min-h-[200px] flex-col items-center justify-center py-10 text-center">
               <p className="text-sm text-muted-foreground">
                 Login to an existing ABHA will be added soon.
               </p>
@@ -296,148 +287,104 @@ export function CreateAbhaDialog({
           )}
 
           {step === 'consent' && (
-            <div className="space-y-5">
-              <div className="space-y-2">
-                <Label htmlFor="abha-aadhaar-seg1">Enter Patient Aadhaar Number</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="abha-aadhaar-seg1"
-                    inputMode="numeric"
-                    autoComplete="off"
-                    maxLength={4}
-                    value={maskSeg1 ? maskSegment(aadhaarSeg1) : aadhaarSeg1}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                      setMaskSeg1(false);
-                      setAadhaarSeg1(digitsOnly(e.target.value, 4));
-                    }}
-                    onBlur={() => setMaskSeg1(aadhaarSeg1.length > 0)}
-                    className="text-center tabular-nums"
-                    placeholder="••••"
-                  />
-                  <span className="text-muted-foreground">-</span>
-                  <Input
-                    inputMode="numeric"
-                    autoComplete="off"
-                    maxLength={4}
-                    value={maskSeg2 ? maskSegment(aadhaarSeg2) : aadhaarSeg2}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                      setMaskSeg2(false);
-                      setAadhaarSeg2(digitsOnly(e.target.value, 4));
-                    }}
-                    onBlur={() => setMaskSeg2(aadhaarSeg2.length > 0)}
-                    className="text-center tabular-nums"
-                    placeholder="••••"
-                  />
-                  <span className="text-muted-foreground">-</span>
-                  <Input
-                    inputMode="numeric"
-                    autoComplete="off"
-                    maxLength={4}
-                    value={aadhaarSeg3}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                      setAadhaarSeg3(digitsOnly(e.target.value, 4));
-                    }}
-                    className="text-center tabular-nums"
-                    placeholder="••••"
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
+            <FieldGroup className="gap-5">
+              <Field className="gap-2.5">
+                <FieldLabel className="text-sm font-semibold text-foreground">
+                  Enter Patient Aadhaar Number
+                </FieldLabel>
+                <AadhaarSegmentInput
+                  seg1={aadhaarSeg1}
+                  seg2={aadhaarSeg2}
+                  seg3={aadhaarSeg3}
+                  maskSeg1={maskSeg1}
+                  maskSeg2={maskSeg2}
+                  onSeg1Change={setAadhaarSeg1}
+                  onSeg2Change={setAadhaarSeg2}
+                  onSeg3Change={setAadhaarSeg3}
+                  onMaskSeg1={setMaskSeg1}
+                  onMaskSeg2={setMaskSeg2}
+                />
+                <p className="text-xs leading-relaxed text-primary">
                   Please ensure that mobile number is linked with Aadhaar as it will be required for
-                  OTP authentication. If you do not have a mobile number linked, visit the nearest
-                  Aadhaar Enrollment center and seek assistance.
+                  OTP authentication. If you do not have a mobile number linked, visit the{' '}
+                  <a
+                    href="https://uidai.gov.in/en/contact-support/have-any-question/284-faqs/aadhaar-online-services/aadhaar-enrolment.html"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium underline underline-offset-2"
+                  >
+                    nearest Aadhaar Enrollment
+                  </a>{' '}
+                  center and seek assistance.
                 </p>
-              </div>
+              </Field>
 
-              <div className="space-y-3 rounded-md border border-border p-4">
-                <p className="text-sm font-medium">I hereby declare that:</p>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="abha-consent-all"
-                    checked={allConsentsChecked}
-                    onCheckedChange={(v) => handleSelectAllConsent(v === true)}
-                  />
-                  <Label htmlFor="abha-consent-all" className="cursor-pointer font-normal">
-                    Select all
-                  </Label>
-                </div>
+              <div className="space-y-3 rounded-md border border-border/80 bg-muted/20 p-4">
+                <p className="text-sm font-semibold text-foreground">I hereby declare that:</p>
+                <ConsentCheckboxRow
+                  id="abha-consent-all"
+                  checked={allConsentsChecked}
+                  onCheckedChange={handleSelectAllConsent}
+                  label="Select all"
+                  labelClassName="text-sm font-medium"
+                />
                 {CONSENT_ITEMS.map((text, i) => (
-                  <div key={text} className="flex items-start gap-2">
-                    <Checkbox
-                      id={`abha-consent-${i}`}
-                      checked={consentChecked[i] === true}
-                      onCheckedChange={(v) =>
-                        setConsentChecked((prev) => ({ ...prev, [i]: v === true }))
-                      }
-                      className="mt-0.5"
-                    />
-                    <Label htmlFor={`abha-consent-${i}`} className="cursor-pointer text-xs font-normal leading-snug">
-                      {text}
-                    </Label>
-                  </div>
+                  <ConsentCheckboxRow
+                    key={text}
+                    id={`abha-consent-${i}`}
+                    checked={consentChecked[i] === true}
+                    onCheckedChange={(checked) =>
+                      setConsentChecked((prev) => ({ ...prev, [i]: checked }))
+                    }
+                    label={text}
+                  />
                 ))}
 
-                <div className="space-y-2 border-t border-border pt-3">
-                  <div className="flex items-start gap-2">
-                    <Checkbox
-                      id="abha-consent-hw"
-                      checked={hwAcknowledged}
-                      onCheckedChange={(v) => setHwAcknowledged(v === true)}
-                      className="mt-0.5"
-                    />
-                    <Label htmlFor="abha-consent-hw" className="cursor-pointer text-xs font-normal leading-snug">
-                      I, <span className="font-medium">{healthcareWorkerName || '—'}</span>, confirm
-                      that I have duly informed and explained the beneficiary of the contents of
-                      consent for aforementioned purposes.
-                    </Label>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <Checkbox
-                      id="abha-consent-ben"
-                      checked={beneficiaryAcknowledged}
-                      onCheckedChange={(v) => setBeneficiaryAcknowledged(v === true)}
-                      className="mt-0.5"
-                    />
-                    <div className="flex-1 space-y-1">
-                      <Label htmlFor="abha-beneficiary-name" className="sr-only">
-                        Beneficiary name
-                      </Label>
-                      <p className="text-xs leading-snug">
-                        I,{' '}
-                        <Input
-                          id="abha-beneficiary-name"
-                          value={beneficiaryName}
-                          onChange={(e) => setBeneficiaryName(e.target.value)}
-                          placeholder="Beneficiary name"
-                          className="mx-1 inline-flex h-7 w-40 align-middle text-xs"
-                        />
-                        , have been explained about the consent as stated above and hereby provide
-                        my consent for the aforementioned purposes.
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                <ConsentInlineNameRow
+                  checkboxId="abha-consent-hw"
+                  checked={hwAcknowledged}
+                  onCheckedChange={setHwAcknowledged}
+                  nameValue={healthcareWorkerName}
+                  namePlaceholder="Healthcare worker name"
+                  readOnly
+                  trailingText=", confirm that I have duly informed and explained the beneficiary of the contents of consent for aforementioned purposes."
+                />
+
+                <ConsentInlineNameRow
+                  checkboxId="abha-consent-ben"
+                  checked={beneficiaryAcknowledged}
+                  onCheckedChange={setBeneficiaryAcknowledged}
+                  nameValue={beneficiaryName}
+                  onNameChange={setBeneficiaryName}
+                  namePlaceholder="Beneficiary name"
+                  trailingText=", have been explained about the consent as stated above and hereby provide my consent for the aforementioned purposes."
+                />
               </div>
-            </div>
+            </FieldGroup>
           )}
 
           {step === 'otp' && (
-            <div className="space-y-5">
-              <div className="space-y-2">
-                <Label htmlFor="abha-otp">Enter OTP</Label>
-                <Input
-                  id="abha-otp"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
+            <FieldGroup className="gap-6">
+              <Field>
+                <FieldLabel className="text-sm font-medium">Enter OTP</FieldLabel>
+                <InputOTP
                   maxLength={6}
                   value={otp}
-                  onChange={(e) => setOtp(digitsOnly(e.target.value, 6))}
-                  placeholder="6-digit OTP"
-                  className="tabular-nums"
-                />
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">
-                    OTP sent to Aadhaar-linked mobile
-                  </span>
+                  onChange={(v) => setOtp(digitsOnly(v, 6))}
+                  containerClassName="justify-start gap-2"
+                >
+                  <InputOTPGroup className="gap-2">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <InputOTPSlot
+                        key={i}
+                        index={i}
+                        className="size-11 rounded-md border text-base first:rounded-md last:rounded-md"
+                      />
+                    ))}
+                  </InputOTPGroup>
+                </InputOTP>
+                <div className="flex items-center justify-between pt-1 text-xs">
+                  <span className="text-muted-foreground">OTP sent to Aadhaar-linked mobile</span>
                   {otpSendCount < MAX_OTP_SENDS ? (
                     <button
                       type="button"
@@ -457,49 +404,57 @@ export function CreateAbhaDialog({
                     <span className="text-muted-foreground">Maximum resend attempts reached</span>
                   )}
                 </div>
-              </div>
+              </Field>
 
-              <div className="space-y-2">
-                <Label htmlFor="abha-mobile">Enter mobile number</Label>
-                <Input
-                  id="abha-mobile"
-                  inputMode="numeric"
-                  autoComplete="tel-national"
-                  maxLength={10}
-                  value={mobile}
-                  onChange={(e) => setMobile(digitsOnly(e.target.value, 10))}
-                  placeholder="10-digit mobile"
-                  className="tabular-nums"
-                />
-                <p className="text-xs text-muted-foreground">
+              <Field>
+                <FieldLabel className="text-sm font-medium">Enter mobile number</FieldLabel>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex h-11 shrink-0 items-center rounded-md border border-input bg-muted px-3 text-sm tabular-nums">
+                    +91
+                  </span>
+                  <Input
+                    id="abha-mobile"
+                    inputMode="numeric"
+                    autoComplete="tel-national"
+                    maxLength={10}
+                    value={mobile}
+                    onChange={(e) => setMobile(digitsOnly(e.target.value, 10))}
+                    placeholder="10-digit mobile"
+                    className="h-11 tabular-nums"
+                  />
+                </div>
+                <FieldDescription className="text-xs">
                   Primary mobile for ABHA — use the number linked with Aadhaar or where you received
                   the OTP.
-                </p>
-              </div>
-            </div>
+                </FieldDescription>
+              </Field>
+            </FieldGroup>
           )}
 
           {step === 'profile' && profileDisplay && (
-            <div className="space-y-4">
-              <p className="text-sm font-medium">Patient Details</p>
+            <div className="space-y-5">
+              <p className="text-sm font-semibold text-foreground">Patient Details</p>
 
-              <div className="space-y-2 text-sm">
+              <div className="space-y-3 text-sm">
                 <div>
-                  <span className="text-muted-foreground">ABHA Number/ आभा संख्या</span>
-                  <p className="font-medium tabular-nums">{profileDisplay.abhaNumber || '—'}</p>
+                  <p className="text-muted-foreground">ABHA Number/ आभा संख्या</p>
+                  <p className="mt-0.5 text-base font-semibold tabular-nums text-foreground">
+                    {profileDisplay.abhaNumber || '—'}
+                  </p>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <span className="text-muted-foreground">ABHA Address/ आभा पता</span>
-                    <p className="break-all font-medium">{profileDisplay.abhaAddress || '—'}</p>
+                    <p className="text-muted-foreground">ABHA Address/ आभा पता</p>
+                    <p className="mt-0.5 break-all text-base font-semibold text-foreground">
+                      {profileDisplay.abhaAddress || '—'}
+                    </p>
                   </div>
                   <Button
                     type="button"
-                    variant="outline"
                     size="sm"
                     disabled
                     title="Coming soon"
-                    className="shrink-0 gap-1"
+                    className="shrink-0 gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
                   >
                     <Pencil className="size-3.5" />
                     Edit
@@ -507,64 +462,174 @@ export function CreateAbhaDialog({
                 </div>
               </div>
 
-              <div className="space-y-2 rounded-md bg-muted/50 p-4 text-sm">
-                <ProfileRow label="Patient Name" value={profileDisplay.patientName} />
-                <ProfileRow label="Gender" value={profileDisplay.gender} />
-                <ProfileRow label="Date of Birth" value={profileDisplay.dateOfBirth} />
-                <ProfileRow label="Mobile Number" value={profileDisplay.mobile} />
-                <ProfileRow label="Address" value={profileDisplay.address} />
+              <div className="space-y-2.5 rounded-lg bg-muted/60 p-4 text-sm">
+                <ProfileDetailRow label="Patient Name" value={profileDisplay.patientName} />
+                <ProfileDetailRow label="Gender" value={profileDisplay.gender} />
+                <ProfileDetailRow label="Date of Birth" value={profileDisplay.dateOfBirth} />
+                <ProfileDetailRow label="Mobile Number" value={profileDisplay.mobile} />
+                <ProfileDetailRow label="Address" value={profileDisplay.address} />
               </div>
             </div>
           )}
         </div>
 
-        <DialogFooter className="shrink-0 gap-2 border-t border-border px-6 py-4 sm:justify-between">
-          {showBack ? (
-            <Button type="button" variant="outline" disabled={isSubmitting} onClick={handleBack}>
-              Go Back
-            </Button>
-          ) : (
-            <span />
-          )}
+        {showFooter && (
+          <>
+            <Separator />
+            <DialogFooter className="shrink-0 flex-row items-center justify-between gap-3 border-0 bg-background px-6 py-4 sm:justify-between">
+              {showBack ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isSubmitting}
+                  className="min-w-[6rem]"
+                  onClick={handleBack}
+                >
+                  Go Back
+                </Button>
+              ) : (
+                <span />
+              )}
 
-          {step === 'consent' && (
-            <Button
-              type="button"
-              disabled={!consentStepValid || isSubmitting}
-              onClick={() => void handleConsentNext()}
-            >
-              {isSubmitting ? 'Sending OTP…' : 'Next'}
-            </Button>
-          )}
+              {step === 'login-soon' && <span />}
 
-          {step === 'otp' && (
-            <Button
-              type="button"
-              disabled={!otpStepValid || isSubmitting}
-              onClick={() => void handleOtpNext()}
-            >
-              {isSubmitting ? 'Verifying…' : 'Next'}
-            </Button>
-          )}
+              {step === 'consent' && (
+                <Button
+                  type="button"
+                  disabled={!consentStepValid || isSubmitting}
+                  className="min-w-[6rem] bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/40 disabled:text-primary-foreground/90"
+                  onClick={() => void handleConsentNext()}
+                >
+                  {isSubmitting ? 'Sending OTP…' : 'Next'}
+                </Button>
+              )}
 
-          {step === 'profile' && (
-            <Button type="button" onClick={handleDone}>
-              Done
-            </Button>
-          )}
+              {step === 'otp' && (
+                <Button
+                  type="button"
+                  disabled={!otpStepValid || isSubmitting}
+                  className="min-w-[6rem] bg-primary text-primary-foreground hover:bg-primary/90"
+                  onClick={() => void handleOtpNext()}
+                >
+                  {isSubmitting ? 'Verifying…' : 'Next'}
+                </Button>
+              )}
 
-          {(step === 'method' || step === 'login-soon') && <span />}
-        </DialogFooter>
+              {step === 'profile' && (
+                <Button
+                  type="button"
+                  className="min-w-[6rem] bg-primary text-primary-foreground hover:bg-primary/90"
+                  onClick={handleDone}
+                >
+                  Done
+                </Button>
+              )}
+            </DialogFooter>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );
 }
 
-function ProfileRow({ label, value }: { label: string; value: string }) {
+function ConsentCheckboxRow({
+  id,
+  checked,
+  onCheckedChange,
+  label,
+  labelClassName,
+}: {
+  id: string;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  label: string;
+  labelClassName?: string;
+}) {
   return (
-    <div className="grid grid-cols-[8rem_1fr] gap-2">
+    <div className="flex items-start gap-2.5">
+      <Checkbox
+        id={id}
+        checked={checked}
+        onCheckedChange={(v) => onCheckedChange(v === true)}
+        className="mt-0.5 shrink-0"
+      />
+      <label
+        htmlFor={id}
+        className={`min-w-0 flex-1 cursor-pointer text-xs font-normal leading-relaxed text-foreground/90 ${labelClassName ?? ''}`}
+      >
+        {label}
+      </label>
+    </div>
+  );
+}
+
+const inlineNameInputClass =
+  'inline-block h-6 w-[10.5rem] max-w-[45%] align-baseline rounded-none border-0 border-b border-input bg-transparent px-1 py-0 text-xs font-normal shadow-none focus-visible:ring-0';
+
+function ConsentInlineNameRow({
+  checkboxId,
+  checked,
+  onCheckedChange,
+  nameValue,
+  onNameChange,
+  namePlaceholder,
+  readOnly = false,
+  trailingText,
+}: {
+  checkboxId: string;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  nameValue: string;
+  onNameChange?: (value: string) => void;
+  namePlaceholder: string;
+  readOnly?: boolean;
+  trailingText: string;
+}) {
+  return (
+    <div className="flex items-start gap-2.5">
+      <Checkbox
+        id={checkboxId}
+        checked={checked}
+        onCheckedChange={(v) => onCheckedChange(v === true)}
+        className="mt-0.5 shrink-0"
+      />
+      <p className="min-w-0 flex-1 text-xs font-normal leading-relaxed text-foreground/90">
+        <label htmlFor={checkboxId} className="cursor-pointer">
+          I,&nbsp;
+        </label>
+        <Input
+          value={nameValue}
+          readOnly={readOnly}
+          placeholder={namePlaceholder}
+          onChange={
+            readOnly || !onNameChange
+              ? undefined
+              : (e) => {
+                  e.stopPropagation();
+                  onNameChange(e.target.value);
+                }
+          }
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+          className={inlineNameInputClass}
+          aria-label={namePlaceholder}
+        />
+        <label htmlFor={checkboxId} className="cursor-pointer">
+          {trailingText}
+        </label>
+      </p>
+    </div>
+  );
+}
+
+function ProfileDetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid grid-cols-[9.5rem_1fr] items-start gap-x-2 gap-y-0.5">
       <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium">{value || '—'}</span>
+      <span className="font-medium text-foreground">
+        <span className="text-muted-foreground">: </span>
+        {value || '—'}
+      </span>
     </div>
   );
 }
