@@ -225,6 +225,8 @@ export function WizardStep3Role({
                 selectedCapabilityIds={selectedSet}
                 onToggleCapability={toggleCapability}
                 onToggleModuleCapabilities={toggleModuleCapabilities}
+                moduleCheckboxes
+                multiColumn
               />
             </>
           )}

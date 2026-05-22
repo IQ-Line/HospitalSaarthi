@@ -1,0 +1,8 @@
+{
+  "notification": {
+    "consentRequestId": "REQ-TEST-00000000-0000-0000-0000-000000000001",
+    "status": "DENIED",
+    "reason": "Patient declined consent",
+    "consentArtefacts": []
+  }
+}

@@ -13,6 +13,7 @@ import { InMemoryUserRepository } from "../data-access/in-memory-user-repository
 import { InMemoryUserProvisioningRepository } from "../data-access/in-memory-user-provisioning-repository.js";
 import type { Capability, Role } from "../ports/index.js";
 import { userManagementPlugin } from "../router.js";
+import { createMasterDataModuleCatalogPortStub } from "../test-support/master-data-catalog-port-stub.js";
 
 const apps: Array<ReturnType<typeof Fastify>> = [];
 
@@ -192,10 +193,9 @@ async function createTestApp(entitlement: {
         tenantModuleEntitlementPort: {
           listTenantEnabledModuleIds: vi.fn().mockResolvedValue(entitlement.moduleIds ?? []),
         },
-        masterDataModuleCatalogPort: {
+        masterDataModuleCatalogPort: createMasterDataModuleCatalogPortStub({
           resolveModuleSlugsByIds: vi.fn().mockResolvedValue(entitlement.slugs ?? new Map()),
-          expandEnabledModuleSlugs: vi.fn(async (slugs: readonly string[]) => slugs),
-        },
+        }),
       });
     },
     { prefix: "/api/user-management" },

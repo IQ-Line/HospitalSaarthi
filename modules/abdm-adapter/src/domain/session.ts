@@ -1,61 +1,127 @@
 /**
- * `AbdmSession` — the per-flow state row that survives between gateway hops.
- *
- * Maps 1:1 to a row in `abdm_adapter.abdm_sessions`. Scalar fields are
- * promoted out of the prod-HIMS Mongo `Session` document into typed columns
- * for indexed lookups; everything else (identifiers snapshot, careContext
- * snapshot, consent artefact, HI request metadata) lives in `context` JSONB.
- *
- * The `state` field carries an FSM state name from
- * `@hims/ts-sdk-abha/constants/fsm-states`. Even though Phase-0 has no FSM
- * engine driving transitions, naming the state with the same constants is
- * what makes the eventual port-to-`integration_workflows` a column rename
- * rather than a schema redesign.
+ * `AbdmSession` — per-flow state row (`abdm_adapter.abdm_sessions`).
  */
 
 import type {
   M1SessionState,
+  M2AddContextsState,
+  M2ConsentNotifyState,
+  M2HipInitiatedLinkState,
+  M2SmsNotifyState,
   M2UserLinkState,
   M3HipState,
   M3HiuState,
 } from "@hims/ts-sdk-abha";
 
-/** Flow identifier — one per `(milestone, variant, version)` triple. */
 export type AbdmFlowKind =
   | "abdm.m1.aadhaar-otp.v1"
   | "abdm.m1.login.v1"
   | "abdm.m1.verify-existing.v1"
-  | "abdm.m2.user-link.v1"
+  | "abdm.m2.user-initiated-link.v1"
+  | "abdm.m2.hip-initiated-link.v1"
+  | "abdm.m2.consent-notify.v1"
   | "abdm.m2.add-contexts.v1"
+  | "abdm.m2.sms-notify.v1"
   | "abdm.m3.hip.v1"
   | "abdm.m3.hiu.v1";
 
-/** Aggregate state name — discriminated by `flowKind` at the call site. */
-export type AbdmSessionState =
-  | M1SessionState
-  | M2UserLinkState
-  | M3HipState
-  | M3HiuState;
+export interface M2UserLinkContext {
+  transactionId?: string;
+  abhaAddress?: string;
+  linkRefNumber?: string;
+  patientId?: string;
+  careContexts?: Array<{ referenceNumber: string; display: string }>;
+  otpToken?: string;
+  error?: { code: string; message: string };
+}
 
-export interface AbdmSession {
+export interface M2HipLinkContext {
+  abhaAddress: string;
+  abhaNumber?: string;
+  patientName: string;
+  phoneNo?: string;
+  careContexts: Array<{
+    referenceNumber: string;
+    display: string;
+    hiType: string;
+  }>;
+  ccLinkRequestId?: string;
+  error?: { code: string; message: string };
+}
+
+export interface M2ConsentNotifyContext {
+  consentId: string;
+  requestId: string;
+  notification?: Record<string, unknown>;
+  error?: { code: string; message: string };
+}
+
+export interface M2AddContextsContext {
+  abhaAddress: string;
+  patientReference: string;
+  careContextReferences: string[];
+  hiType: string;
+  notifyRequestId?: string;
+  error?: { code: string; message: string };
+}
+
+export interface M2SmsNotifyContext {
+  phoneNo: string;
+  requestId: string;
+}
+
+export interface M3HipContext {
+  consentId?: string;
+  transactionId?: string;
+  dataPushUrl?: string;
+  requestId?: string;
+}
+
+export interface FlowContextMap {
+  "abdm.m1.aadhaar-otp.v1": Record<string, unknown>;
+  "abdm.m1.login.v1": Record<string, unknown>;
+  "abdm.m1.verify-existing.v1": Record<string, unknown>;
+  "abdm.m2.user-initiated-link.v1": M2UserLinkContext;
+  "abdm.m2.hip-initiated-link.v1": M2HipLinkContext;
+  "abdm.m2.consent-notify.v1": M2ConsentNotifyContext;
+  "abdm.m2.add-contexts.v1": M2AddContextsContext;
+  "abdm.m2.sms-notify.v1": M2SmsNotifyContext;
+  "abdm.m3.hip.v1": M3HipContext;
+  "abdm.m3.hiu.v1": Record<string, unknown>;
+}
+
+export interface FlowStateMap {
+  "abdm.m1.aadhaar-otp.v1": M1SessionState;
+  "abdm.m1.login.v1": M1SessionState;
+  "abdm.m1.verify-existing.v1": M1SessionState;
+  "abdm.m2.user-initiated-link.v1": M2UserLinkState;
+  "abdm.m2.hip-initiated-link.v1": M2HipInitiatedLinkState;
+  "abdm.m2.consent-notify.v1": M2ConsentNotifyState;
+  "abdm.m2.add-contexts.v1": M2AddContextsState;
+  "abdm.m2.sms-notify.v1": M2SmsNotifyState;
+  "abdm.m3.hip.v1": M3HipState;
+  "abdm.m3.hiu.v1": M3HiuState;
+}
+
+export interface AbdmSession<F extends AbdmFlowKind = AbdmFlowKind> {
   iqTenantId: string;
   sessionId: string;
-  flowKind: AbdmFlowKind;
-  state: AbdmSessionState;
+  flowKind: F;
+  state: FlowStateMap[F];
   txnId: string | null;
   requestId: string | null;
   xToken: string | null;
   tToken: string | null;
-  /**
-   * Bag of fields the FSM context will eventually own verbatim:
-   *   - `identifiers` snapshot (abha_address, abha_number, name, dob, ...)
-   *   - `careContexts` (M2/M3)
-   *   - `consentArtefact` (M2 inbound / M3 stored)
-   *   - `linkBody`, `linkToken` (M2)
-   *   - `keyMaterial` (M3 Fidelius exchange)
-   *   - `dataPushUrl`, `transferDetails`, `hiuRequestMetaData` (M3)
-   */
-  context: Record<string, unknown>;
+  context: FlowContextMap[F];
   createdAt: Date;
   updatedAt: Date;
+}
+
+export function assertFlowKind<F extends AbdmFlowKind>(
+  session: AbdmSession,
+  expected: F,
+): asserts session is AbdmSession<F> {
+  if (session.flowKind !== expected) {
+    throw new Error(`Expected flow ${expected}, got ${session.flowKind}`);
+  }
 }

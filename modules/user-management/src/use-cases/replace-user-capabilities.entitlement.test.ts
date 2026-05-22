@@ -4,6 +4,7 @@ import { InMemoryCapabilityRepository } from "../data-access/in-memory-capabilit
 import { InMemoryUserAccessRepository } from "../data-access/in-memory-user-access-repository.js";
 import { InMemoryUserRepository } from "../data-access/in-memory-user-repository.js";
 import type { Capability } from "../ports/index.js";
+import { createMasterDataModuleCatalogPortStub } from "../test-support/master-data-catalog-port-stub.js";
 import { replaceUserCapabilities } from "./replace-user-capabilities.js";
 
 const TENANT = "tenant-a";
@@ -51,10 +52,9 @@ function buildDeps(entitlement: {
         ? vi.fn().mockRejectedValue(entitlement.configuratorError)
         : vi.fn().mockResolvedValue(entitlement.moduleIds ?? []),
     },
-    masterDataModuleCatalogPort: {
+    masterDataModuleCatalogPort: createMasterDataModuleCatalogPortStub({
       resolveModuleSlugsByIds: vi.fn().mockResolvedValue(entitlement.slugs ?? new Map()),
-      expandEnabledModuleSlugs: vi.fn(async (slugs: readonly string[]) => slugs),
-    },
+    }),
   };
 }
 

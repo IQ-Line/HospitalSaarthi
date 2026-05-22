@@ -18,8 +18,12 @@ export type {
 export {
   eq,
   and,
+  or,
   ilike,
   isNull,
+  isNotNull,
+  gt,
+  lt,
   sql,
   type SQL,
   pgSchema,

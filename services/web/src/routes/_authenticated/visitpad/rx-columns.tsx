@@ -37,8 +37,10 @@ import {
   type VisitpadRxColumnCreateFormSchema,
   type VisitpadRxColumnEditFormSchema,
 } from '@/features/visitpad/validation';
-import { useAnyCapability, useCapability } from '@/hooks/use-capability';
-import { MD_VISITPAD_MUTATE_ANY } from '@/lib/runtime-capability-keys';
+import { useCapability } from '@/hooks/use-capability';
+import { catalogModuleSlugForVisitpadManifestNode } from '@/features/visitpad/lib/visitpad-access';
+import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
+import { requireVisitpadLeafRouteAccess } from '@/lib/visitpad-route-access';
 import { useVisitpadImportLibrarySearch } from '@/features/visitpad/hooks/use-visitpad-import-library-search';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 
@@ -59,11 +61,13 @@ function sectionLabelFor(value: string) {
 const RX_BASE = '/api/v1/master-data/visitpad/rx-columns';
 
 export const Route = createFileRoute('/_authenticated/visitpad/rx-columns')({
+  beforeLoad: requireVisitpadLeafRouteAccess('/visitpad/rx-columns'),
   component: VisitpadRxColumnsPage,
 });
 
 function VisitpadRxColumnsPage() {
-  const mdVisitpadMutateAny = useAnyCapability(MD_VISITPAD_MUTATE_ANY);
+  const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-rx-columns');
+  const { canUpdate, canDelete, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [section, setSection] = useState<string>(RX_SECTIONS[0].value);
@@ -155,7 +159,7 @@ function VisitpadRxColumnsPage() {
         cell: ({ row }) => (
           <TableActiveToggle
             active={row.original.is_active}
-            disabled={patch.isPending || !mdVisitpadMutateAny}
+            disabled={patch.isPending || !canUpdate}
             onCheckedChange={async (next) => {
               try {
                 await patch.mutateAsync({ id: row.original.id, body: { is_active: next } });
@@ -170,10 +174,12 @@ function VisitpadRxColumnsPage() {
       visitpadActionsColumn<VisitpadRxColumn>({
         onEdit: setEditing,
         onDelete: setDeleting,
-        disabled: busy || !mdVisitpadMutateAny,
+        disabled: busy,
+        canEdit: canUpdate,
+        canDelete,
       }),
     ],
-    [patch, busy, mdVisitpadMutateAny],
+    [patch, busy, canUpdate, canDelete],
   );
 
   return (
@@ -188,7 +194,8 @@ function VisitpadRxColumnsPage() {
       }
       actions={
         <VisitpadHeaderActions
-addLabel={tenantCatalog ? `Add local ${sectionLabel}` : `Add ${sectionLabel}`}
+          catalogModuleSlug={catalogModuleSlug}
+          addLabel={tenantCatalog ? `Add local ${sectionLabel}` : `Add ${sectionLabel}`}
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
           importFromLibraryPending={platformImport.isPending}

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  principalGrantsCatalogModuleSlugRouteAccess,
   principalGrantsCatalogRouteAccess,
   principalHasCatalogModuleAction,
 } from './catalog-route-access';
@@ -19,6 +20,16 @@ describe('principalGrantsCatalogRouteAccess', () => {
         routePrefix: '/visitpad',
       }),
     ).toBe(true);
+  });
+
+  it('denies visitpad child routes for visitpad-templates:visitpad:view only', () => {
+    const shellViewOnly = new Set(['visitpad-templates:visitpad:view']);
+    expect(
+      principalGrantsCatalogRouteAccess(shellViewOnly, '/visitpad/vitals', {
+        catalogProductSlugs: ['visitpad-templates'],
+        routePrefix: '/visitpad',
+      }),
+    ).toBe(false);
   });
 
   it('allows visitpad layout for L2-only principal (no visitpad-templates shell keys)', () => {
@@ -49,6 +60,31 @@ describe('principalGrantsCatalogRouteAccess', () => {
         catalogProductSlugs: ['configurator'],
         routePrefix: '/configurator',
       }),
+    ).toBe(true);
+  });
+});
+
+describe('principalGrantsCatalogModuleSlugRouteAccess', () => {
+  it('grants when principal has module read', () => {
+    expect(
+      principalGrantsCatalogModuleSlugRouteAccess(
+        new Set(['chief-complaints:chief-complaints:read']),
+        ['chief-complaints'],
+      ),
+    ).toBe(true);
+  });
+
+  it('denies when principal lacks any L2 action on the module', () => {
+    expect(
+      principalGrantsCatalogModuleSlugRouteAccess(new Set(['visitpad-templates:visitpad:view']), [
+        'chief-complaints',
+      ]),
+    ).toBe(false);
+  });
+
+  it('grants when principal has create without read', () => {
+    expect(
+      principalGrantsCatalogModuleSlugRouteAccess(new Set(['vitals:vitals:create']), ['vitals']),
     ).toBe(true);
   });
 });

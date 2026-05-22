@@ -40,15 +40,24 @@ try {
   /* keep urlString */
 }
 
-const migration = path.resolve(
-  serviceRoot,
-  "../../modules/abdm-adapter/migrations/0000_abdm_adapter_schema.sql",
+const migrations = [
+  "0000_abdm_adapter_schema.sql",
+  "0001_abdm_adapter_m2_schema.sql",
+  "0002_abdm_link_otps.sql",
+].map((name) =>
+  path.resolve(serviceRoot, "../../modules/abdm-adapter/migrations", name),
 );
 
-console.log("Applying abdm_adapter migration…");
-const result = spawnSync("psql", [urlString, "-f", migration], {
-  stdio: "inherit",
-  env: process.env,
-});
+for (const migration of migrations) {
+  console.log(`Applying ${path.basename(migration)}…`);
+  const result = spawnSync("psql", [urlString, "-f", migration], {
+    stdio: "inherit",
+    env: process.env,
+  });
+  if ((result.status ?? 1) !== 0) {
+    process.exit(result.status ?? 1);
+  }
+}
 
-process.exit(result.status ?? 1);
+console.log("abdm_adapter migrations applied.");
+process.exit(0);

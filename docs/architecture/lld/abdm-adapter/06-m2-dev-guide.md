@@ -511,7 +511,9 @@ For outbound posts that fail mid-flight (e.g., gateway is briefly unreachable), 
   - `m2-user-initiated-link.sandbox.integration.test.ts` — simulate three inbound callbacks via local POST; assert state arrives at `LINKED`.
   - `m2-hip-initiated-link.sandbox.integration.test.ts` — drive outbound + inbound chain via the sandbox.
   - `m2-consent-notify.sandbox.integration.test.ts` — POST a synthetic consent notify; assert artefact persisted + ack posted.
-- **Signature verification test** — gated test that exercises the staging path against the sandbox JWKS endpoint. Add a `RUN_ABDM_SIGNATURE_TESTS=1` env gate; ship the sandbox-only path for now and mark the staging code path with `// TODO(staging)`.
+- **Fidelius interop** — `fidelius-java-vector.test.ts` (ciphertext matches ABDM-wrapper `EncryptionService.java`); regen: `modules/abdm-adapter/scripts/regenerate-fidelius-java-vector.sh`.
+- **Consent signature** — `consent-signature-verifier.test.ts` + fixture `test-fixtures/consent-signature-vector.json` (JCS + RS256).
+- **Signature verification** — `abdm-signature-verifier.ts` verifies gateway JWS (RS256 + JWKS) when `ABDM_ALLOW_INSECURE_CALLBACKS` is unset and `NODE_ENV` is production/staging.
 - **Schema integrity** — snapshot test against `drizzle-kit generate` for the new tables, same as M1.
 
 ## 9. Local run
@@ -519,6 +521,7 @@ For outbound posts that fail mid-flight (e.g., gateway is briefly unreachable), 
 ```bash
 # Apply migrations
 psql "$DATABASE_URL" -f modules/abdm-adapter/migrations/0001_abdm_adapter_m2_schema.sql
+psql "$DATABASE_URL" -f modules/abdm-adapter/migrations/0002_abdm_link_otps.sql
 
 # Start the service
 npx nx run abdm-adapter-svc:serve

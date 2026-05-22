@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient, apiClientWithIqTenant } from '@/lib/api-client';
+import { apiClientWithIqTenant } from '@/lib/api-client';
+import { platformCatalogClient } from './platform-catalog-client';
 import { masterDataKeys } from './query-keys';
 import type {
   SystemRoleCreateInput,
@@ -18,7 +19,7 @@ function systemRoleClient<T>(
   if (iqTenantId) {
     return apiClientWithIqTenant<T>(iqTenantId, path, options);
   }
-  return apiClient<T>(path, options);
+  return platformCatalogClient<T>(path, options);
 }
 
 export function useSystemRoles(
@@ -38,7 +39,7 @@ export function useSystemRoles(
 export function useSystemRole(id: string) {
   return useQuery({
     queryKey: masterDataKeys.systemRoleDetail(id),
-    queryFn: () => apiClient<SystemRoleSingleResponse>(`${BASE}/${id}`),
+    queryFn: () => platformCatalogClient<SystemRoleSingleResponse>(`${BASE}/${id}`),
     enabled: !!id,
   });
 }

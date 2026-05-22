@@ -3,6 +3,11 @@ import { and, eq, isNull, type DbInstance } from "@hims/ts-sdk-db";
 import { billItems, bills, payments } from "../schema/tables.js";
 import type { BillItemRow, BillRow, BillWithItems, PaymentRow } from "../domain/bill.types.js";
 import type { BillingRepo, NewBillItemRow, NewBillRow, NewPaymentRow } from "../ports.js";
+import {
+  allocateBillNumber,
+  allocatePaymentNumber,
+  allocateReceiptNumber,
+} from "../lib/allocate-sequence-number.js";
 import { toBillItemRow, toBillRow, toPaymentRow } from "../lib/bill-mappers.js";
 import { nextBillNumber } from "../lib/bill-numbers.js";
 
@@ -52,7 +57,8 @@ class DrizzleBillingRepo implements BillingRepo {
   }
 
   async createBill(input: NewBillRow) {
-    const [row] = await this.db.insert(bills).values(input).returning();
+    const bill_number = await allocateBillNumber(this.db, input.iq_tenant_id);
+    const [row] = await this.db.insert(bills).values({ ...input, bill_number }).returning();
     if (!row) throw new Error("createBill insert failed");
     return toBillRow(row);
   }
@@ -96,9 +102,17 @@ class DrizzleBillingRepo implements BillingRepo {
   }
 
   async insertPayment(input: NewPaymentRow) {
+    const payment_number = await allocatePaymentNumber(this.db, input.iq_tenant_id);
+    const receipt_number =
+      input.receipt_number ?? (await allocateReceiptNumber(this.db, input.iq_tenant_id));
     const [row] = await this.db
       .insert(payments)
-      .values({ ...input, payment_date: new Date(input.payment_date) })
+      .values({
+        ...input,
+        payment_number,
+        receipt_number,
+        payment_date: new Date(input.payment_date),
+      })
       .returning();
     if (!row) throw new Error("insertPayment insert failed");
     return toPaymentRow(row);

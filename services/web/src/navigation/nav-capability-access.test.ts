@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildNavCapabilityAccessInput,
   buildPrincipalCapabilityModuleSegments,
   capabilityKeysGrantModuleSlugAccess,
   catalogSlugMatchesRouteSegment,
   principalGrantsNavNodeAccess,
+  principalHasProductWideNavCapability,
   resolveCatalogModuleSlugsForNavRoute,
 } from './nav-capability-access';
+import { capabilityKeysGrantProductAccess } from './module-product-access';
 import type { ModuleCatalogIndex } from '@/platform/modules/types';
 
 const catalogIndex: ModuleCatalogIndex = {
@@ -52,6 +55,11 @@ describe('catalogSlugMatchesRouteSegment', () => {
   it('matches tenant-modules from tenant route segment', () => {
     expect(catalogSlugMatchesRouteSegment('tenant-modules', 'tenant')).toBe(true);
   });
+
+  it('does not treat unit capability segment as conversions module slug', () => {
+    expect(catalogSlugMatchesRouteSegment('conversions', 'unit')).toBe(false);
+    expect(catalogSlugMatchesRouteSegment('unit-conversions', 'unit')).toBe(true);
+  });
 });
 
 describe('resolveCatalogModuleSlugsForNavRoute', () => {
@@ -72,6 +80,18 @@ describe('resolveCatalogModuleSlugsForNavRoute', () => {
   });
 });
 
+describe('principalHasProductWideNavCapability', () => {
+  it('grants visitpad-templates for visitpad:view shell key', () => {
+    const keys = new Set(['visitpad-templates:visitpad:view']);
+    expect(principalHasProductWideNavCapability(keys, ['visitpad-templates'])).toBe(true);
+  });
+
+  it('denies when resource segment is not product-wide', () => {
+    const keys = new Set(['visitpad-templates:catalog:read']);
+    expect(principalHasProductWideNavCapability(keys, ['visitpad-templates'])).toBe(false);
+  });
+});
+
 describe('principalGrantsNavNodeAccess', () => {
   const ndwadPrincipal = new Set([
     'allergens:allergens:read',
@@ -85,18 +105,12 @@ describe('principalGrantsNavNodeAccess', () => {
   const segments = buildPrincipalCapabilityModuleSegments(ndwadPrincipal);
 
   function accessInput(keys: ReadonlySet<string>) {
-    const capabilityModuleSegments = buildPrincipalCapabilityModuleSegments(keys);
-    return {
-      bypassCapabilityGates: false,
-      capabilityKeys: keys,
-      capabilityModuleSegments,
+    return buildNavCapabilityAccessInput(
+      keys,
       catalogIndex,
-      hasAnyCapability: (required: readonly string[]) =>
-        required.some((key) => keys.has(key)),
-      hasAllCapabilities: (required: readonly string[]) =>
-        required.every((key) => keys.has(key)),
-      hasAnyCapabilityForProduct: () => false,
-    };
+      false,
+      (productSlugs) => capabilityKeysGrantProductAccess(keys, productSlugs, catalogIndex),
+    );
   }
 
   it('shows visitpad allergens without visitpad:view shell key', () => {
@@ -117,6 +131,24 @@ describe('principalGrantsNavNodeAccess', () => {
         { parentProductSlugs: ['visitpad-templates'], routePrefix: '/visitpad' },
       ),
     ).toBe(false);
+  });
+
+  it('allows visitpad layout but not L2 leaves for visitpad-templates:visitpad:view only', () => {
+    const shellViewOnly = new Set(['visitpad-templates:visitpad:view']);
+    expect(
+      principalGrantsNavNodeAccess(
+        accessInput(shellViewOnly),
+        { id: 'visitpad-vitals', label: 'Vitals', route: '/visitpad/vitals' },
+        { parentProductSlugs: ['visitpad-templates'], routePrefix: '/visitpad' },
+      ),
+    ).toBe(false);
+    expect(
+      principalGrantsNavNodeAccess(
+        accessInput(shellViewOnly),
+        { id: 'visitpad', label: 'Visitpad', route: '/visitpad' },
+        { parentProductSlugs: ['visitpad-templates'], routePrefix: '/visitpad' },
+      ),
+    ).toBe(true);
   });
 
   it('shows master-data modules page for modules:modules:read', () => {

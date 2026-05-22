@@ -37,19 +37,23 @@ import {
   type VisitpadVaccineCreateFormSchema,
   type VisitpadVaccineEditFormSchema,
 } from '@/features/visitpad/validation';
-import { useAnyCapability, useCapability } from '@/hooks/use-capability';
-import { MD_VISITPAD_MUTATE_ANY } from '@/lib/runtime-capability-keys';
+import { useCapability } from '@/hooks/use-capability';
+import { catalogModuleSlugForVisitpadManifestNode } from '@/features/visitpad/lib/visitpad-access';
+import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
+import { requireVisitpadLeafRouteAccess } from '@/lib/visitpad-route-access';
 import { useVisitpadImportLibrarySearch } from '@/features/visitpad/hooks/use-visitpad-import-library-search';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 
 const VA_BASE = '/api/v1/master-data/visitpad/vaccines';
 
 export const Route = createFileRoute('/_authenticated/visitpad/vaccines')({
+  beforeLoad: requireVisitpadLeafRouteAccess('/visitpad/vaccines'),
   component: VisitpadVaccinesPage,
 });
 
 function VisitpadVaccinesPage() {
-  const mdVisitpadMutateAny = useAnyCapability(MD_VISITPAD_MUTATE_ANY);
+  const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-vaccines');
+  const { canUpdate, canDelete, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
@@ -136,7 +140,7 @@ function VisitpadVaccinesPage() {
         cell: ({ row }) => (
           <TableActiveToggle
             active={row.original.is_active}
-            disabled={patch.isPending || !mdVisitpadMutateAny}
+            disabled={patch.isPending || !canUpdate}
             onCheckedChange={async (next) => {
               try {
                 await patch.mutateAsync({ id: row.original.id, body: { is_active: next } });
@@ -151,10 +155,12 @@ function VisitpadVaccinesPage() {
       visitpadActionsColumn<VisitpadVaccine>({
         onEdit: setEditing,
         onDelete: setDeleting,
-        disabled: busy || !mdVisitpadMutateAny,
+        disabled: busy,
+        canEdit: canUpdate,
+        canDelete,
       }),
     ],
-    [patch, busy, mdVisitpadMutateAny],
+    [patch, busy, canUpdate, canDelete],
   );
 
   return (
@@ -169,7 +175,8 @@ function VisitpadVaccinesPage() {
       }
       actions={
         <VisitpadHeaderActions
-addLabel={tenantCatalog ? 'Add local vaccine' : 'Add vaccine'}
+          catalogModuleSlug={catalogModuleSlug}
+          addLabel={tenantCatalog ? 'Add local vaccine' : 'Add vaccine'}
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
           importFromLibraryPending={platformImport.isPending}

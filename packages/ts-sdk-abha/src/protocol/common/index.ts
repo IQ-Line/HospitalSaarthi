@@ -9,5 +9,6 @@
 
 export * from './fidelius.js';
 export * from './gateway-headers.js';
+export * from './inbound-gateway-headers.js';
 export * from './nha-public-certificate.js';
 export { ABDM_ERROR_CODES, type AbdmErrorCode } from '../../constants/error-codes.js';

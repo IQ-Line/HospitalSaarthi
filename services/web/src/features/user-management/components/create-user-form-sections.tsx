@@ -261,38 +261,37 @@ export function CreateUserAccessSection({
       <Controller
         control={control}
         name="role_capability_selection_ids"
-        render={({ field }) => {
-          const selectedSet = new Set(field.value);
-          return (
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <Badge variant="secondary">{field.value.length} selected</Badge>
-                <CapabilityGate capability={UM_ROLE_ASSIGN}>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const all = roleCapabilities.map((c) => c.id);
-                        field.onChange(all);
-                      }}
-                    >
-                      Select all
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        field.onChange([]);
-                      }}
-                    >
-                      Clear all
-                    </Button>
-                  </div>
-                </CapabilityGate>
-              </div>
+        render={({ field }) => (
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Badge variant="secondary">{field.value.length} selected</Badge>
+              <CapabilityGate capability={UM_ROLE_ASSIGN}>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const all = roleCapabilities.map((c) => c.id);
+                      field.onChange(all);
+                    }}
+                  >
+                    Select all
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      field.onChange([]);
+                    }}
+                  >
+                    Clear all
+                  </Button>
+                </div>
+              </CapabilityGate>
+            </div>
+            <div className="w-full min-w-0 rounded-md border border-border/60 bg-muted/10 p-2">
               <MasterDataCapabilityPermissionTree
                 capabilities={roleCapabilities}
                 selectedCapabilityIds={field.value}
@@ -300,8 +299,8 @@ export function CreateUserAccessSection({
                 editable={umRoleAssign}
               />
             </div>
-          );
-        }}
+          </div>
+        )}
       />
     );
   }

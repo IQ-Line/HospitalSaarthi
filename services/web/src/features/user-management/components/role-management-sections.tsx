@@ -23,6 +23,8 @@ import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
 import { Textarea } from '@pulse/ui/textarea';
 import type { Capability, UmRole } from '../types';
+import { MasterDataCapabilityPermissionTree } from './master-data-capability-permission-tree';
+import { PermissionSelectionScrollRegion } from './permission-selection-scroll-region';
 import { UserManagementSectionCard } from './user-management-section-card';
 
 export function groupCapabilitiesByModule(capabilities: Capability[]): Record<string, Capability[]> {
@@ -509,7 +511,8 @@ export function RoleEditorDialog({
     () => new Set(assignedCapabilityIds),
     [assignedCapabilityIds],
   );
-  const showFullCatalog = umCapabilityRead;
+  /** Create-role uses the assignable catalog + accordion tree whenever capabilities can be loaded. */
+  const showFullCatalog = umCapabilityRead || isCreate;
   const permissionsPending = showFullCatalog
     ? isCreate
       ? assignableCatalogPending
@@ -580,9 +583,8 @@ export function RoleEditorDialog({
           </DialogHeader>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 py-4">
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,22rem),minmax(0,1fr)]">
-            <section className="space-y-4 rounded-md border p-4">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden px-4 py-4 lg:flex-row lg:overflow-hidden lg:items-stretch">
+            <section className="shrink-0 space-y-4 rounded-md border p-4 lg:w-[22rem] lg:max-h-full lg:shrink-0 lg:overflow-y-auto lg:overscroll-contain">
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   {!isCreate && role ? (
@@ -642,15 +644,15 @@ export function RoleEditorDialog({
               ) : null}
             </section>
 
-            <section className="space-y-4 rounded-md border p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
+            <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden rounded-md border p-4">
+              <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
                 <div>
                   <h4 className="font-medium">Permissions</h4>
                   <p className="text-sm text-muted-foreground">
                     {showFullCatalog
                       ? isCreate
-                        ? 'All permissions your organization can assign. Tick what this role includes.'
-                        : 'All module permissions below. Highlighted items are already on this role.'
+                        ? 'Expand a product and feature, then tick individual permissions for this role.'
+                        : 'Expand modules to review permissions. Selected items are what this role will include.'
                       : 'Permissions saved on this role.'}
                   </p>
                 </div>
@@ -665,7 +667,7 @@ export function RoleEditorDialog({
                 </div>
               </div>
 
-              {!showFullCatalog && (isView || !umCapabilityRead) ? (
+              {!showFullCatalog && !isCreate && (isView || !umCapabilityRead) ? (
                 assignedCapabilitiesPending ? (
                   <p className="text-sm text-muted-foreground">Loading permissions for this role...</p>
                 ) : assignedCapabilitiesError ? (
@@ -713,8 +715,8 @@ export function RoleEditorDialog({
                   No permissions are available to assign for this organization yet.
                 </p>
               ) : (
-                <>
-                  <div className="space-y-3 rounded-md border bg-muted/30 p-3">
+                <div className="flex min-h-0 flex-1 flex-col gap-3">
+                  <div className="shrink-0 space-y-3 rounded-md border bg-muted/30 p-3">
                     <div className="space-y-2">
                       <Label htmlFor="role-editor-capability-search">Search permissions</Label>
                       <Input
@@ -729,43 +731,48 @@ export function RoleEditorDialog({
                       <p className="text-sm text-muted-foreground">
                         {visibleCount} permission{visibleCount === 1 ? '' : 's'} shown.
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        Tick a group to select everything under it.
-                      </p>
+                      {roleFormEditable ? (
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              onSetSelectedCapabilityIds(capabilities.map((capability) => capability.id))
+                            }
+                          >
+                            Select all shown
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onSetSelectedCapabilityIds([])}
+                          >
+                            Clear all
+                          </Button>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
 
-                  {capabilityTree.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
+                  {visibleCount === 0 ? (
+                    <p className="shrink-0 text-sm text-muted-foreground">
                       No permissions match your search.
                     </p>
                   ) : (
-                    <div className="space-y-5">
-                      {capabilityTree.map((node) => (
-                        <CapabilityTreeNodeRow
-                          key={node.id}
-                          node={node}
-                          depth={0}
-                          capabilitiesEditable={roleFormEditable}
-                          selectedCapabilityIds={selectedCapabilityIdSet}
-                          assignedCapabilityIds={
-                            !isCreate ? assignedCapabilityIdSet : undefined
-                          }
-                          expandedBranchIds={expandedBranchIds}
-                          forceExpanded={forceExpanded}
-                          onBranchToggle={handleToggleBranch}
-                          onSetSelectedCapabilityIds={onSetSelectedCapabilityIds}
-                          onToggleCapability={onToggleCapability}
-                          showCapabilityProvenance={showCapabilityProvenance}
-                          plainLanguage
-                        />
-                      ))}
-                    </div>
+                    <PermissionSelectionScrollRegion>
+                      <MasterDataCapabilityPermissionTree
+                        capabilities={capabilities}
+                        selectedCapabilityIds={selectedCapabilityIds}
+                        onSelectedCapabilityIdsChange={onSetSelectedCapabilityIds}
+                        editable={roleFormEditable}
+                      />
+                    </PermissionSelectionScrollRegion>
                   )}
-                </>
+                </div>
               )}
             </section>
-          </div>
         </div>
 
         <DialogFooter className="mx-0 mb-0 flex w-full shrink-0 items-center justify-between border-t px-4 py-3">

@@ -27,6 +27,8 @@ const BANNED: Array<{ label: string; re: RegExp }> = [
   { label: 'canReadRoles', re: /\bcanReadRoles\b/ },
   { label: 'canWriteRoles', re: /\bcanWriteRoles\b/ },
   { label: 'canReadRoleCapabilities', re: /\bcanReadRoleCapabilities\b/ },
+  { label: 'canWriteBillingServices', re: /\bcanWriteBillingServices\b/ },
+  { label: 'feature *-permissions.ts', re: /features\/[^/]+\/lib\/[^/]+-permissions\.ts/ },
 ];
 
 function walk(dir: string, out: string[] = []): string[] {

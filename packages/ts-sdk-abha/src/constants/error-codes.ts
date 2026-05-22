@@ -21,6 +21,20 @@ export const ABDM_ERROR_CODES = {
   ABHA_ADDRESS_ALREADY_EXISTS: 'ABDM-1101',
   /** Patient denied consent in M2 link confirm. */
   LINK_CONSENT_DENIED: 'ABDM-2001',
+  /** User-initiated discover: no EMPI match. */
+  PATIENT_NOT_FOUND: 'ABDM-1010',
+  /** Link token / ABHA address mismatch. */
+  LINK_TOKEN_ABHA_MISMATCH: 'ABDM-1038',
+  /** Care contexts already linked (soft success). */
+  CARE_CONTEXTS_ALREADY_LINKED: 'ABDM-1056',
+  /** ABHA number mismatch with link token. */
+  LINK_TOKEN_ABHA_NUMBER_MISMATCH: 'ABDM-1062',
+  /** HIP ID mismatch with link token. */
+  LINK_TOKEN_HIP_MISMATCH: 'ABDM-1063',
+  /** Invalid link JWT. */
+  LINK_TOKEN_INVALID_JWT: 'ABDM-1066',
+  /** Consent signature verification failed. */
+  INVALID_SIGNATURE: 'ABDM-1411',
   /** Gateway upstream timeout/5xx. */
   GATEWAY_UNAVAILABLE: 'ABDM-9001',
 } as const;

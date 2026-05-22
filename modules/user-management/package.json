@@ -15,6 +15,7 @@
   "scripts": {},
   "dependencies": {
     "@cerbos/core": "0.21.1",
+    "@hims/dev-bootstrap": "workspace:*",
     "@hims/ts-sdk-authz": "workspace:*",
     "@hims/ts-sdk-db": "workspace:*",
     "@hims/ts-sdk-events": "workspace:*",
