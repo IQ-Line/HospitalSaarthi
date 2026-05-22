@@ -24,7 +24,12 @@ describe('super-admin navigation (production bypass)', () => {
     expect(ids).toContain('dashboard');
     expect(ids).toContain('master-data');
     expect(ids).toContain('user-management');
-    expect(ids).toContain('visitpad');
+    expect(ids).not.toContain('visitpad');
+    expect(
+      filtered
+        .find((n) => n.id === 'master-data')
+        ?.children?.some((c) => c.id === 'visitpad-master'),
+    ).toBe(true);
     expect(ids).toContain('configurator');
   });
 });

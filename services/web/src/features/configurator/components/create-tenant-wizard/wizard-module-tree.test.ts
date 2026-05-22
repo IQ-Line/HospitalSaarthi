@@ -5,6 +5,8 @@ import {
   filterChildModulesForWizardTree,
   filterRootModulesForEnabledSelection,
   indexPermissionOptionsByModuleId,
+  permissionOptionsForModuleNode,
+  permissionOptionsForModuleSubtree,
   WIZARD_MODULE_TREE_MAX_LEVEL,
 } from './wizard-module-tree';
 
@@ -81,5 +83,38 @@ describe('wizard-module-tree', () => {
     const byId = indexPermissionOptionsByModuleId(modules, options);
     expect(byId.get('m1')).toHaveLength(1);
     expect(byId.get('m1')![0].runtimeCapabilityId).toBe('cap-1');
+  });
+
+  it('permissionOptionsForModuleSubtree rolls up descendants for L1 select-all', () => {
+    const l1 = module('l1', null, 1, 'master-data');
+    const l2 = module('l2', 'l1', 2, 'modules');
+    const l3 = module('l3', 'l2', 3, 'modules-leaf');
+    const modules = [l1, l2, l3];
+    const childMap = new Map<string | null, Module[]>([
+      [null, [l1]],
+      ['l1', [l2]],
+      ['l2', [l3]],
+      ['l3', []],
+    ]);
+    const options: MasterDataPermissionOption[] = [
+      {
+        linkId: 'mp1',
+        moduleSlug: 'modules-leaf',
+        permissionSlug: 'read',
+        permissionName: 'Read',
+        runtimeCapabilityId: 'cap-read',
+        capabilityKey: 'modules:modules:read',
+      },
+    ];
+    const optionsByModuleId = indexPermissionOptionsByModuleId(modules, options);
+    const enabled = new Set(['l1', 'l2', 'l3']);
+
+    expect(permissionOptionsForModuleNode(l1, childMap, enabled, optionsByModuleId)).toHaveLength(0);
+    expect(permissionOptionsForModuleSubtree(l1, childMap, enabled, optionsByModuleId)).toHaveLength(
+      1,
+    );
+    expect(
+      permissionOptionsForModuleSubtree(l1, childMap, enabled, optionsByModuleId)[0].runtimeCapabilityId,
+    ).toBe('cap-read');
   });
 });

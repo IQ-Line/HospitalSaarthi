@@ -32,10 +32,10 @@ const catalogIndex: ModuleCatalogIndex = {
       },
     ],
     [
-      'visitpad-templates',
+      'visitpad-master',
       {
         id: 'l1-vp',
-        slug: 'visitpad-templates',
+        slug: 'visitpad-master',
         name: 'Visitpad',
         icon: null,
         category: 'clinical',
@@ -67,10 +67,10 @@ describe('capabilityKeysGrantProductAccess', () => {
     ).toBe(true);
   });
 
-  it('grants visitpad-templates for visitpad:view shell key without L2 keys', () => {
-    const keys = new Set(['visitpad-templates:visitpad:view']);
+  it('grants visitpad-master for visitpad:view shell key without L2 keys', () => {
+    const keys = new Set(['visitpad-master:visitpad:view']);
     expect(
-      capabilityKeysGrantProductAccess(keys, ['visitpad-templates'], catalogIndex),
+      capabilityKeysGrantProductAccess(keys, ['visitpad-master'], catalogIndex),
     ).toBe(true);
   });
 });

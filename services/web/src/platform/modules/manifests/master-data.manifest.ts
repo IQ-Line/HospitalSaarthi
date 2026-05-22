@@ -21,13 +21,6 @@ export const masterDataModuleManifest: ModuleManifest = {
       route: '/master-data/permissions',
     },
     {
-      id: 'master-data-system-roles',
-      label: 'System Roles',
-      icon: 'users',
-      route: '/master-data/system-roles',
-      catalogModuleSlug: 'role-capabilities',
-    },
-    {
       id: 'master-data-module-permissions',
       label: 'Module Permissions',
       icon: 'link',

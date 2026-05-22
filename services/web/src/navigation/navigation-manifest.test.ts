@@ -61,12 +61,18 @@ function ctx(partial: Partial<NavFilterContext> & { capabilityKeys?: ReadonlySet
   };
 }
 
+function visitpadMasterGroup(nodes: readonly { id: string; children?: readonly { id: string }[] }[]) {
+  const masterData = nodes.find((n) => n.id === 'master-data');
+  return masterData?.children?.find((c) => c.id === 'visitpad-master');
+}
+
 describe('NAVIGATION_MANIFEST', () => {
-  it('is a tree of NavigationNode metadata', () => {
+  it('nests visitpad catalog leaves under master-data → visitpad-master', () => {
     expect(NAVIGATION_MANIFEST.length).toBeGreaterThan(0);
-    const visitpad = NAVIGATION_MANIFEST.find((n) => n.id === 'visitpad');
-    expect(visitpad?.children?.length).toBeGreaterThan(5);
-    expect(visitpad?.children?.[0]?.route).toMatch(/^\/visitpad\//);
+    expect(NAVIGATION_MANIFEST.find((n) => n.id === 'visitpad')).toBeUndefined();
+    const visitpadMaster = visitpadMasterGroup(NAVIGATION_MANIFEST);
+    expect(visitpadMaster?.children?.length).toBeGreaterThan(5);
+    expect(visitpadMaster?.children?.[0]?.route).toMatch(/^\/visitpad\//);
   });
 
   it('every node has id and label', () => {
@@ -103,35 +109,38 @@ describe('filterNavigationTree', () => {
     expect(umChildren.map((c) => c.id)).toContain('user-management-users');
   });
 
-  it('filters visitpad by L2 catalog keys and visitpad-templates tenant module', () => {
+  it('filters visitpad by L2 catalog keys and visitpad-master tenant module', () => {
     const capabilityKeys = new Set(['allergens:allergens:read', 'vitals:vitals:read']);
     const filtered = filterNavigationTree(
       NAVIGATION_MANIFEST,
       ctx({
         capabilityKeys,
         hasCapability: (key) => capabilityKeys.has(key),
-        hasAnyCapabilityForProduct: (slugs) => slugs.includes('visitpad-templates'),
-        enabledModuleSlugs: new Set(['visitpad-templates']),
+        hasAnyCapabilityForProduct: (slugs) =>
+          slugs.includes('master-data') || slugs.includes('visitpad-master'),
+        enabledModuleSlugs: new Set(['master-data']),
       }),
     );
-    expect(filtered.map((n) => n.id)).toContain('visitpad');
-    const visitpadChildren = filtered.find((n) => n.id === 'visitpad')?.children ?? [];
+    expect(filtered.map((n) => n.id)).toContain('master-data');
+    const visitpadChildren = visitpadMasterGroup(filtered)?.children ?? [];
     expect(visitpadChildren.map((c) => c.id)).toContain('visitpad-allergens');
     expect(visitpadChildren.map((c) => c.id)).toContain('visitpad-vitals');
     expect(visitpadChildren.map((c) => c.id)).not.toContain('visitpad-conversions');
   });
 
-  it('hides visitpad when principal holds only visitpad:view shell (no L2 catalog keys)', () => {
+  it('hides visitpad catalog leaves when principal holds only visitpad:view shell (no L2 keys)', () => {
     const filtered = filterNavigationTree(
       NAVIGATION_MANIFEST,
       ctx({
         hasCapability: (key) => key === MD_VISITPAD_VIEW,
         capabilityKeys: new Set([MD_VISITPAD_VIEW]),
-        hasAnyCapabilityForProduct: (slugs) => slugs.includes('visitpad-templates'),
-        enabledModuleSlugs: new Set(['visitpad-templates']),
+        hasAnyCapabilityForProduct: (slugs) =>
+          slugs.includes('master-data') || slugs.includes('visitpad-master'),
+        enabledModuleSlugs: new Set(['master-data']),
       }),
     );
-    expect(filtered.map((n) => n.id)).not.toContain('visitpad');
+    const visitpadChildren = visitpadMasterGroup(filtered)?.children ?? [];
+    expect(visitpadChildren).toHaveLength(0);
   });
 
   it('does not show visitpad when only master-data is enabled', () => {
@@ -240,13 +249,14 @@ describe('filterNavigationTree', () => {
       ctx({
         capabilityKeys,
         hasCapability: (key) => capabilityKeys.has(key),
-        enabledModuleSlugs: new Set(['master-data', 'visitpad-templates']),
+        enabledModuleSlugs: new Set(['master-data', 'visitpad-master']),
       }),
     );
     const ids = filtered.map((n) => n.id);
     expect(ids).toContain('dashboard');
     expect(ids).toContain('master-data');
-    expect(ids).toContain('visitpad');
+    expect(ids).not.toContain('visitpad');
+    expect(visitpadMasterGroup(filtered)?.children?.map((c) => c.id)).toContain('visitpad-allergens');
     expect(ids).not.toContain('user-management');
     expect(ids).not.toContain('configurator');
     expect(ids).not.toContain('frontdesk');
@@ -315,7 +325,7 @@ describe('collectModuleDiscoveryEntries', () => {
         enabledModuleSlugs: new Set([
           'user-management',
           'master-data',
-          'visitpad-templates',
+          'visitpad-master',
           'configurator',
           'frontdesk',
         ]),
@@ -323,7 +333,8 @@ describe('collectModuleDiscoveryEntries', () => {
     );
     const discovery = collectModuleDiscoveryEntries(filtered);
     expect(discovery.map((d) => d.id)).toContain('user-management');
-    expect(discovery.map((d) => d.id)).toContain('visitpad');
+    expect(discovery.map((d) => d.id)).toContain('master-data');
+    expect(discovery.map((d) => d.id)).not.toContain('visitpad');
     expect(discovery.every((d) => d.route?.startsWith('/'))).toBe(true);
     expect(discovery.find((d) => d.id === 'dashboard')).toBeUndefined();
   });

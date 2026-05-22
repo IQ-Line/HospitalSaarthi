@@ -5,6 +5,8 @@ import {
   buildChildrenMap,
   collectDescendantModuleIds,
   defaultEnabledModuleIds,
+  moduleSubtreeSelectionState,
+  setModuleSubtreeSelection,
 } from './wizard-helpers';
 
 const modules: Module[] = [
@@ -103,5 +105,16 @@ describe('wizard module tree selection', () => {
       'm-um',
       'm-users',
     ]);
+  });
+
+  it('setModuleSubtreeSelection selects every descendant for accordion select-all', () => {
+    const next = setModuleSubtreeSelection('m-um', new Set(['m-md']), childMap, true);
+    expect([...next].sort()).toEqual(['m-md', 'm-roles', 'm-um', 'm-users']);
+  });
+
+  it('moduleSubtreeSelectionState reports partial selection', () => {
+    const state = moduleSubtreeSelectionState('m-um', new Set(['m-users']), childMap);
+    expect(state.someSelected).toBe(true);
+    expect(state.allSelected).toBe(false);
   });
 });

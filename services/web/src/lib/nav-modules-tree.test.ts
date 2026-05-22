@@ -39,15 +39,16 @@ describe('buildNavModuleTree', () => {
         level: 3,
       }),
       module({
-        id: 'vp-root',
-        slug: 'visitpad-templates',
-        name: 'visitpad_templates',
-        level: 1,
+        id: 'conversions',
+        slug: 'unit-conversions',
+        name: 'Unit conversions',
+        parent_id: 'vp-master',
+        level: 3,
       }),
     ];
 
     const tree = buildNavModuleTree(flat);
-    expect(tree).toHaveLength(2);
+    expect(tree).toHaveLength(1);
 
     const master = tree.find((n) => n.module.slug === 'master-data');
     expect(master?.children.find((c) => c.module.slug === 'modules')?.path).toBe(
@@ -56,10 +57,12 @@ describe('buildNavModuleTree', () => {
 
     const visitpadMaster = master?.children.find((c) => c.module.slug === 'visitpad-master');
     expect(visitpadMaster?.path).toBe('/visitpad');
-    expect(visitpadMaster?.children[0]?.path).toBe('/visitpad/units');
-
-    const visitpadRoot = tree.find((n) => n.module.slug === 'visitpad-templates');
-    expect(visitpadRoot?.path).toBe('/visitpad');
+    expect(visitpadMaster?.children.find((c) => c.module.slug === 'units')?.path).toBe(
+      '/visitpad/units',
+    );
+    expect(visitpadMaster?.children.find((c) => c.module.slug === 'unit-conversions')?.path).toBe(
+      '/visitpad/unit-conversions',
+    );
   });
 
   it('formatModuleNavLabel title-cases underscored names', () => {

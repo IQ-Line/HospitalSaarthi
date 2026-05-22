@@ -38,6 +38,7 @@ import {
   defaultEnabledModuleIds,
   firstSlugSeedFromTenantName,
   firstZodMessage,
+  setModuleSubtreeSelection,
   toRoleCode,
 } from './wizard-helpers';
 import { moduleSlugsForIds, scopeRuntimeCapabilitiesToEnabledSlugs } from './wizard-capability-helpers';
@@ -193,6 +194,21 @@ export function CreateTenantWizard({
     },
     [childMap],
   );
+
+  const selectModuleSubtree = useCallback(
+    (moduleId: string, select: boolean) => {
+      setEnabledModuleIds((prev) => setModuleSubtreeSelection(moduleId, prev, childMap, select));
+    },
+    [childMap],
+  );
+
+  const selectAllModules = useCallback(() => {
+    setEnabledModuleIds(new Set(modules.map((module) => module.id)));
+  }, [modules]);
+
+  const clearAllModules = useCallback(() => {
+    setEnabledModuleIds(new Set());
+  }, []);
 
   const enabledModuleIdsKey = useMemo(
     () => [...enabledModuleIds].sort().join(','),
@@ -400,7 +416,11 @@ export function CreateTenantWizard({
                 rootModules={rootModules}
                 childMap={childMap}
                 moduleOverrideIds={enabledModuleIds}
+                totalModuleCount={modules.length}
                 onToggleModule={toggleModule}
+                onSelectModuleSubtree={selectModuleSubtree}
+                onSelectAllModules={selectAllModules}
+                onClearAllModules={clearAllModules}
               />
             )}
             {activeStep === 3 && (

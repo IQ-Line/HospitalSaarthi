@@ -12,6 +12,7 @@ import {
   registerModuleManifest,
 } from './index';
 import { dashboardModuleManifest } from './manifests/dashboard.manifest';
+import { masterDataModuleManifest } from './manifests/master-data.manifest';
 import { userManagementModuleManifest } from './manifests/user-management.manifest';
 import { visitpadModuleManifest } from './manifests/visitpad.manifest';
 import { registerBuiltinModuleManifests } from './register-builtin-modules';
@@ -65,19 +66,23 @@ describe('module registry', () => {
     expect(slugs.has('frontdesk')).toBe(true);
   });
 
-  it('maps visitpad nav to visitpad-templates catalog slug (not visitpad)', () => {
+  it('maps visitpad nav to visitpad-master catalog slug (not visitpad)', () => {
     registerBuiltinModuleManifests();
     const visitpad = getRegisteredModuleManifests().find((m) => m.slug === 'visitpad');
-    expect(visitpad?.requiredModulesAny).toEqual(['visitpad-templates']);
+    expect(visitpad?.requiredModulesAny).toEqual(['master-data', 'visitpad-master']);
   });
 
-  it('composes dashboard leaf and grouped visitpad module', () => {
-    const tree = composeNavigationManifest([dashboardModuleManifest, visitpadModuleManifest]);
-    expect(tree).toHaveLength(2);
-    expect(tree[0].id).toBe('dashboard');
-    expect(tree[0].route).toBe('/dashboard');
-    expect(tree[1].id).toBe('visitpad');
-    expect(tree[1].children?.length).toBeGreaterThan(5);
+  it('nests visitpad catalog under master-data when both manifests are composed', () => {
+    const tree = composeNavigationManifest([
+      dashboardModuleManifest,
+      masterDataModuleManifest,
+      visitpadModuleManifest,
+    ]);
+    expect(tree.map((n) => n.id)).not.toContain('visitpad');
+    const visitpadMaster = tree
+      .find((n) => n.id === 'master-data')
+      ?.children?.find((c) => c.id === 'visitpad-master');
+    expect(visitpadMaster?.children?.length).toBeGreaterThan(5);
   });
 
   it('manifestToNavigationNode applies tenant module gate', () => {
@@ -116,21 +121,27 @@ describe('module registry', () => {
     expect(filtered.map((n) => n.id)).not.toContain('frontdesk');
   });
 
-  it('visitpad visible when visitpad-templates slug enabled', () => {
+  it('visitpad catalog visible under master-data when principal has L2 keys', () => {
     registerBuiltinModuleManifests();
     const manifest = composeNavigationManifest(getRegisteredModuleManifests());
 
-    const capabilityKeys = new Set([MD_VISITPAD_VIEW]);
+    const capabilityKeys = new Set([MD_VISITPAD_VIEW, 'allergens:allergens:read']);
     const filtered = filterNavigationTree(
       manifest,
       ctx({
         capabilityKeys,
         hasCapability: (key) => capabilityKeys.has(key),
-        hasAnyCapabilityForProduct: (slugs) => slugs.includes('visitpad-templates'),
-        enabledModuleSlugs: new Set(['visitpad-templates']),
+        hasAnyCapabilityForProduct: (slugs) =>
+          slugs.includes('master-data') || slugs.includes('visitpad-master'),
+        enabledModuleSlugs: new Set(['master-data']),
       }),
     );
-    expect(filtered.map((n) => n.id)).toContain('visitpad');
+    expect(filtered.map((n) => n.id)).toContain('master-data');
+    const visitpadChildren =
+      filtered
+        .find((n) => n.id === 'master-data')
+        ?.children?.find((c) => c.id === 'visitpad-master')?.children ?? [];
+    expect(visitpadChildren.map((c) => c.id)).toContain('visitpad-allergens');
   });
 
   it('plugin module can register without editing navigation-manifest.ts', () => {

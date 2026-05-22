@@ -73,6 +73,46 @@ export function defaultEnabledModuleIds(
   return ids;
 }
 
+/** Module id plus every active descendant (for per-level select-all in the wizard tree). */
+export function subtreeModuleIds(
+  moduleId: string,
+  childMap: Map<string | null, Module[]>,
+): string[] {
+  return [moduleId, ...collectDescendantModuleIds(moduleId, childMap)];
+}
+
+/** Select or clear every module in a catalog subtree. */
+export function setModuleSubtreeSelection(
+  moduleId: string,
+  selected: Set<string>,
+  childMap: Map<string | null, Module[]>,
+  select: boolean,
+): Set<string> {
+  const next = new Set(selected);
+  for (const id of subtreeModuleIds(moduleId, childMap)) {
+    if (select) {
+      next.add(id);
+    } else {
+      next.delete(id);
+    }
+  }
+  return next;
+}
+
+export function moduleSubtreeSelectionState(
+  moduleId: string,
+  selected: Set<string>,
+  childMap: Map<string | null, Module[]>,
+): { ids: string[]; allSelected: boolean; someSelected: boolean } {
+  const ids = subtreeModuleIds(moduleId, childMap);
+  const selectedCount = ids.filter((id) => selected.has(id)).length;
+  return {
+    ids,
+    allSelected: ids.length > 0 && selectedCount === ids.length,
+    someSelected: selectedCount > 0 && selectedCount < ids.length,
+  };
+}
+
 /** Toggle a module; selecting a parent selects all descendants, deselecting clears the subtree. */
 export function applyModuleToggle(
   moduleId: string,
@@ -80,7 +120,7 @@ export function applyModuleToggle(
   childMap: Map<string | null, Module[]>,
 ): Set<string> {
   const next = new Set(selected);
-  const subtreeIds = [moduleId, ...collectDescendantModuleIds(moduleId, childMap)];
+  const subtreeIds = subtreeModuleIds(moduleId, childMap);
   if (next.has(moduleId)) {
     for (const id of subtreeIds) next.delete(id);
   } else {
