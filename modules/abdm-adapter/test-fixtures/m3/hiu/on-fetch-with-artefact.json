@@ -1,0 +1,57 @@
+{
+  "consent": {
+    "status": "GRANTED",
+    "consentDetail": {
+      "consentId": "CON-TEST-00000000-0000-0000-0000-000000000001",
+      "createdAt": "2026-05-21T05:00:00.000Z",
+      "lastUpdated": "2026-05-21T05:00:00.000Z",
+      "schemaVersion": "v3",
+      "patient": { "id": "test.user@sbx" },
+      "hip": { "id": "SBX_TEST_HIP_001" },
+      "hiu": { "id": "SBX_TEST_HIU_001" },
+      "consentManager": { "id": "sbx" },
+      "purpose": {
+        "text": "Care Management",
+        "code": "CAREMGT",
+        "refUri": "www.abdm.gov.in"
+      },
+      "requester": {
+        "name": "Dr. Test User",
+        "identifier": {
+          "type": "REGNO",
+          "value": "MH1001",
+          "system": "https://www.mciindia.org"
+        }
+      },
+      "hiTypes": [
+        "OPConsultation",
+        "Prescription",
+        "DiagnosticReport",
+        "HealthDocumentRecord"
+      ],
+      "careContexts": [
+        {
+          "patientReference": "MRN-TEST-2026-0001",
+          "careContextReference": "CC-TEST-00000000-0000-0000-0000-000000000001"
+        }
+      ],
+      "permission": {
+        "accessMode": "VIEW",
+        "dateRange": {
+          "from": "2025-01-01T00:00:00.000Z",
+          "to": "2026-05-21T00:00:00.000Z"
+        },
+        "dataEraseAt": "2026-08-21T00:00:00.000Z",
+        "frequency": {
+          "unit": "DAY",
+          "value": 1,
+          "repeats": 0
+        }
+      }
+    },
+    "signature": "PLACEHOLDER_BASE64_JWS_SIGNATURE_NOT_VALID_IN_MOCK_MODE"
+  },
+  "response": {
+    "requestId": "PLACEHOLDER_REQUEST_ID_OVERRIDE_VIA_HEADER"
+  }
+}

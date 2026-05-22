@@ -1,0 +1,10 @@
+{
+  "consentRequest": null,
+  "error": {
+    "code": "ABDM-1030",
+    "message": "Invalid request ID"
+  },
+  "response": {
+    "requestId": "PLACEHOLDER_REQUEST_ID_OVERRIDE_VIA_HEADER"
+  }
+}
