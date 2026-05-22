@@ -62,6 +62,7 @@ export type UmRole = {
   code: string;
   display_name: string;
   description?: string | null;
+  role_type?: string | null;
   is_system: boolean;
   status: RoleStatus;
 };
@@ -70,6 +71,7 @@ export type CreateRoleBody = {
   code: string;
   display_name: string;
   description?: string | null;
+  role_type?: string | null;
   is_system?: boolean;
   status?: RoleStatus;
 };
@@ -78,6 +80,7 @@ export type UpdateRoleBody = {
   code?: string;
   display_name?: string;
   description?: string | null;
+  role_type?: string | null;
   is_system?: boolean;
   status?: RoleStatus;
 };

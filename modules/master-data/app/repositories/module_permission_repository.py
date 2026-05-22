@@ -165,6 +165,24 @@ class ModulePermissionRepository:
             return None
         return row
 
+    def list_module_permissions_by_ids(
+        self,
+        row_ids: list[UUID],
+        *,
+        include_deleted: bool = False,
+    ) -> list[Any]:
+        if not row_ids:
+            return []
+        M = self._M()
+        filters = [M.id.in_(row_ids)]
+        if not include_deleted:
+            filters.append(M.is_deleted.is_(False))
+            filters.append(M.is_active.is_(True))
+        if self._scope.is_tenant:
+            filters.append(M.iq_tenant_id == self._scope.iq_tenant_id)
+        statement = select(M).where(*filters)
+        return list(self._session.scalars(statement).all())
+
     def get_module_permission_by_slug(self, slug: str) -> Any | None:
         M = self._M()
         filters = [M.slug == slug, M.is_deleted.is_(False)]

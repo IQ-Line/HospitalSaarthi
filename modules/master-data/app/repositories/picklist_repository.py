@@ -40,6 +40,32 @@ class PicklistRepository:
             return None
         return row
 
+    def get_picklist_by_slug(self, slug: str) -> Any | None:
+        statement = (
+            select(PicklistModel)
+            .where(
+                PicklistModel.slug == slug,
+                PicklistModel.is_deleted.is_(False),
+                PicklistModel.is_active.is_(True),
+            )
+            .limit(1)
+        )
+        return self._session.scalars(statement).first()
+
+    def list_active_values_for_picklist_slug(self, slug: str) -> list[Any]:
+        picklist = self.get_picklist_by_slug(slug)
+        if picklist is None:
+            return []
+        statement = (
+            select(PicklistValueModel)
+            .where(
+                PicklistValueModel.category_id == picklist.id,
+                PicklistValueModel.is_active.is_(True),
+            )
+            .order_by(PicklistValueModel.display_order, PicklistValueModel.label)
+        )
+        return list(self._session.scalars(statement).all())
+
     def list_values_for_picklist(
         self,
         picklist_id: UUID,

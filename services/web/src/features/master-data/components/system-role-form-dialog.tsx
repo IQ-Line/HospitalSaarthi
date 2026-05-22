@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm, type UseFormReturn } from 'react-hook-form';
 import { Button } from '@pulse/ui/button';
@@ -22,7 +22,6 @@ import {
 import { Switch } from '@pulse/ui/switch';
 import { Textarea } from '@pulse/ui/textarea';
 import { useRoleTypePicklistValues } from '@/features/master-data/api';
-import { RolePermissionsPanel } from '@/features/master-data/components/role-permissions-panel';
 import { toSlug } from '@/features/master-data/utils';
 import {
   EMPTY_SYSTEM_ROLE_FORM_VALUES,
@@ -32,16 +31,12 @@ import {
 } from '@/features/master-data/validation';
 import type { SystemRole, SystemRoleCreateInput, SystemRoleUpdateInput } from '../types';
 
-type EditorTab = 'details' | 'permissions';
-
 function formValuesToCreatePayload(values: SystemRoleFormValues): SystemRoleCreateInput {
   return {
     name: values.name,
     slug: values.slug,
     description: values.description,
     role_type: values.role_type,
-    module_permission_ids:
-      values.module_permission_ids.length > 0 ? values.module_permission_ids : null,
     is_template: values.is_template,
     is_active: values.is_active,
   };
@@ -53,8 +48,6 @@ function formValuesToUpdatePayload(values: SystemRoleFormValues): SystemRoleUpda
     slug: values.slug,
     description: values.description,
     role_type: values.role_type,
-    module_permission_ids:
-      values.module_permission_ids.length > 0 ? values.module_permission_ids : null,
     is_template: values.is_template,
     is_active: values.is_active,
   };
@@ -66,41 +59,9 @@ export function systemRoleToFormValues(role: SystemRole): SystemRoleFormValues {
     slug: role.slug,
     description: role.description,
     role_type: role.role_type ?? '',
-    module_permission_ids: role.module_permission_ids ?? [],
     is_template: role.is_template,
     is_active: role.is_active,
   };
-}
-
-function RoleEditorTabBar({
-  tab,
-  onTabChange,
-}: {
-  tab: EditorTab;
-  onTabChange: (tab: EditorTab) => void;
-}) {
-  const tabs: { id: EditorTab; label: string }[] = [
-    { id: 'details', label: 'Role Settings' },
-    { id: 'permissions', label: 'Permissions' },
-  ];
-  return (
-    <div className="inline-flex rounded-full bg-muted p-1">
-      {tabs.map((t) => (
-        <button
-          key={t.id}
-          type="button"
-          className={
-            tab === t.id
-              ? 'rounded-full bg-background px-4 py-1.5 text-sm font-semibold text-foreground shadow-sm transition-colors'
-              : 'rounded-full px-4 py-1.5 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground'
-          }
-          onClick={() => onTabChange(t.id)}
-        >
-          {t.label}
-        </button>
-      ))}
-    </div>
-  );
 }
 
 function RoleDetailsFields({
@@ -232,33 +193,39 @@ function RoleDetailsFields({
   );
 }
 
-export interface SystemRoleFormDialogProps {
+type SystemRoleFormDialogBaseProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  mode: 'create' | 'edit';
   title: string;
   description: string;
   submitLabel: string;
   isSubmitting?: boolean;
   defaultValues?: SystemRoleFormValues;
-  /** Configurator tenant id — permissions tab lists modules from ``tenant_modules`` entitlements. */
-  configuratorTenantId?: string;
-  onSubmit: (payload: SystemRoleCreateInput | SystemRoleUpdateInput) => void;
-}
+};
 
-export function SystemRoleFormDialog({
-  open,
-  onOpenChange,
-  mode,
-  title,
-  description,
-  submitLabel,
-  isSubmitting = false,
-  defaultValues = EMPTY_SYSTEM_ROLE_FORM_VALUES,
-  configuratorTenantId,
-  onSubmit,
-}: SystemRoleFormDialogProps) {
-  const [tab, setTab] = useState<EditorTab>('details');
+export type SystemRoleFormDialogProps =
+  | (SystemRoleFormDialogBaseProps & {
+      mode: 'create';
+      onSubmit: (details: SystemRoleCreateInput) => void | Promise<void>;
+    })
+  | (SystemRoleFormDialogBaseProps & {
+      mode: 'edit';
+      onSubmit: (details: SystemRoleUpdateInput) => void | Promise<void>;
+    });
+
+export function SystemRoleFormDialog(props: SystemRoleFormDialogProps) {
+  const {
+    open,
+    onOpenChange,
+    mode,
+    title,
+    description,
+    submitLabel,
+    isSubmitting = false,
+    defaultValues = EMPTY_SYSTEM_ROLE_FORM_VALUES,
+    onSubmit,
+  } = props;
+
   const {
     options: roleTypePicklistOptions,
     isLoading: roleTypeLoading,
@@ -282,14 +249,12 @@ export function SystemRoleFormDialog({
   useEffect(() => {
     if (open) {
       form.reset(defaultValues);
-      setTab('details');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reset when dialog opens with new defaults
   }, [open, defaultValues]);
 
   const handleOpenChange = (next: boolean) => {
     if (!next) {
-      setTab('details');
       form.reset(defaultValues);
     }
     onOpenChange(next);
@@ -297,37 +262,32 @@ export function SystemRoleFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="flex max-h-[min(88dvh,960px)] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
+      <DialogContent className="flex max-h-[min(88dvh,960px)] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
         <div className="shrink-0 space-y-3 border-b p-4 pb-3">
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
             <DialogDescription>{description}</DialogDescription>
           </DialogHeader>
-          <RoleEditorTabBar tab={tab} onTabChange={setTab} />
         </div>
 
         <form
           className="flex min-h-0 flex-1 flex-col"
           onSubmit={form.handleSubmit((values) => {
-            onSubmit(mode === 'create' ? formValuesToCreatePayload(values) : formValuesToUpdatePayload(values));
+            if (mode === 'create') {
+              void onSubmit(formValuesToCreatePayload(values));
+              return;
+            }
+            void onSubmit(formValuesToUpdatePayload(values));
           })}
         >
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-            {tab === 'details' ? (
-              <RoleDetailsFields
-                form={form}
-                dialogOpen={open}
-                roleTypeLoading={roleTypeLoading}
-                roleTypeError={roleTypeError}
-                roleTypeOptions={roleTypeOptions}
-              />
-            ) : (
-              <RolePermissionsPanel
-                form={form}
-                enabled={open && tab === 'permissions'}
-                configuratorTenantId={configuratorTenantId}
-              />
-            )}
+            <RoleDetailsFields
+              form={form}
+              dialogOpen={open}
+              roleTypeLoading={roleTypeLoading}
+              roleTypeError={roleTypeError}
+              roleTypeOptions={roleTypeOptions}
+            />
           </div>
 
           <DialogFooter className="mx-0 mb-0 shrink-0 border-t px-4 py-3">

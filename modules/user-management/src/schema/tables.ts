@@ -105,6 +105,7 @@ export const roles = userManagementSchema.table(
     description: text("description"),
     is_system: boolean("is_system").notNull().default(false),
     status: text("status").notNull().default("active"),
+    role_type: text("role_type"),
     created_at: createdAt(),
     updated_at: updatedAt(),
   },

@@ -30,7 +30,10 @@ from app.services.module_service import (
 )
 from app.services.department_service import DepartmentNotFoundError
 from app.services.permission_service import PermissionNotFoundError
-from app.services.system_role_service import SystemRoleNotFoundError
+from app.services.system_role_service import (
+    InvalidRoleTypeError,
+    SystemRoleNotFoundError,
+)
 from app.services.visitpad.units import (
     InvalidVisitpadUnitConversionError,
     VisitpadUnitBlockedByActiveConversionsError,
@@ -194,6 +197,13 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=404,
             content=error_payload("NOT_FOUND", "No permission with this id."),
+        )
+
+    @app.exception_handler(InvalidRoleTypeError)
+    async def _invalid_role_type(_request: Request, exc: InvalidRoleTypeError) -> JSONResponse:
+        return JSONResponse(
+            status_code=400,
+            content=error_payload("BAD_REQUEST", exc.message),
         )
 
     @app.exception_handler(SystemRoleNotFoundError)

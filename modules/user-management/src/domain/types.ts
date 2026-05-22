@@ -52,6 +52,7 @@ export interface Role {
   code: string;
   display_name: string;
   description?: string | null;
+  role_type?: string | null;
   is_system: boolean;
   status: RoleStatus;
 }
@@ -95,6 +96,7 @@ export interface CreateRoleInput {
   code: string;
   display_name: string;
   description?: string | null;
+  role_type?: string | null;
   is_system?: boolean;
   status?: RoleStatus;
 }
@@ -103,6 +105,7 @@ export interface UpdateRoleInput {
   code?: string;
   display_name?: string;
   description?: string | null;
+  role_type?: string | null;
   is_system?: boolean;
   status?: RoleStatus;
 }

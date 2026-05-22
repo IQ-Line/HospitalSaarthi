@@ -38,11 +38,13 @@ type RoleManagementState = {
     code: string;
     displayName: string;
     description: string;
+    roleType: string;
   };
   editRoleForm: {
     code: string;
     displayName: string;
     description: string;
+    roleType: string;
   };
   selectedCapabilityIds: string[];
 };
@@ -63,11 +65,13 @@ const initialState: RoleManagementState = {
     code: '',
     displayName: '',
     description: '',
+    roleType: '',
   },
   editRoleForm: {
     code: '',
     displayName: '',
     description: '',
+    roleType: '',
   },
   selectedCapabilityIds: [],
 };
@@ -102,15 +106,18 @@ function normalizeRoleDraft(role: {
   code: string;
   displayName: string;
   description: string;
+  roleType: string;
 }): {
   code: string;
   display_name: string;
   description: string | null;
+  role_type: string | null;
 } {
   return {
     code: role.code.trim(),
     display_name: role.displayName.trim(),
     description: role.description.trim() === '' ? null : role.description.trim(),
+    role_type: role.roleType.trim() === '' ? null : role.roleType.trim(),
   };
 }
 
@@ -118,11 +125,13 @@ function normalizeExistingRole(role: UmRole): {
   code: string;
   display_name: string;
   description: string | null;
+  role_type: string | null;
 } {
   return {
     code: role.code,
     display_name: role.display_name,
     description: role.description ?? null,
+    role_type: role.role_type ?? null,
   };
 }
 
@@ -211,6 +220,7 @@ function roleManagementReducer(
               code: action.role.code,
               displayName: action.role.display_name,
               description: action.role.description ?? '',
+              roleType: action.role.role_type ?? '',
             }
           : initialState.editRoleForm,
       };
@@ -318,6 +328,7 @@ export function RoleManagementPanel() {
     state.createRoleForm.code !== '' ||
     state.createRoleForm.displayName !== '' ||
     state.createRoleForm.description !== '' ||
+    state.createRoleForm.roleType !== '' ||
     state.selectedCapabilityIds.length > 0;
   const createRoleDraft = normalizeRoleDraft(state.createRoleForm);
   const editRoleDraft = normalizeRoleDraft(state.editRoleForm);
@@ -328,10 +339,12 @@ export function RoleManagementPanel() {
     selectedRole !== null && !sameCapabilitySet(assignedCapabilityIds, state.selectedCapabilityIds);
   const editorDirty = isCreateMode ? createHasDraft : editRoleDirty || capabilitiesDirty;
   const savePending = dialogSavePending || createRole.isPending || updateRole.isPending;
-  const saveDisabled =
+  const formValid =
     canModifyActiveEditor &&
     activeDraft.code.length > 0 &&
-    activeDraft.display_name.length > 0;
+    activeDraft.display_name.length > 0 &&
+    (activeDraft.role_type?.length ?? 0) > 0 &&
+    (editorMode !== 'create' || state.selectedCapabilityIds.length > 0);
 
   const assignableCatalogBlocking =
     umCapabilityRead &&
@@ -345,8 +358,8 @@ export function RoleManagementPanel() {
 
   const canSaveDialog =
     editorMode === 'create'
-      ? saveDisabled && !savePending && !assignableCatalogBlocking
-      : saveDisabled &&
+      ? formValid && !savePending && !assignableCatalogBlocking
+      : formValid &&
         selectedRole !== null &&
         editorDirty &&
         !savePending &&
@@ -470,6 +483,11 @@ export function RoleManagementPanel() {
       return;
     }
 
+    if (editorMode === 'create' && state.selectedCapabilityIds.length === 0) {
+      toast.error('Select at least one permission before creating the role.');
+      return;
+    }
+
     setDialogSavePending(true);
     try {
       let savedRole: UmRole;
@@ -522,6 +540,7 @@ export function RoleManagementPanel() {
           code={activeForm.code}
           displayName={activeForm.displayName}
           description={activeForm.description}
+          roleType={activeForm.roleType}
           selectedCapabilityIds={state.selectedCapabilityIds}
           assignedCapabilityIds={assignedCapabilityIds}
           assignedCount={isCreateMode ? 0 : assignedCapabilityIds.length}
@@ -568,6 +587,13 @@ export function RoleManagementPanel() {
             dispatch({
               type: isCreateMode ? 'updateCreateField' : 'updateEditField',
               field: 'description',
+              value,
+            })
+          }
+          onRoleTypeChange={(value) =>
+            dispatch({
+              type: isCreateMode ? 'updateCreateField' : 'updateEditField',
+              field: 'roleType',
               value,
             })
           }

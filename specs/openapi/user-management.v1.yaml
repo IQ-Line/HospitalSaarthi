@@ -307,6 +307,10 @@ paths:
                 description:
                   type: string
                   nullable: true
+                role_type:
+                  type: string
+                  nullable: true
+                  description: Picklist value from master-data `role-types`.
                 is_system:
                   type: boolean
                   description: System-managed role flag.
@@ -402,6 +406,10 @@ paths:
                 description:
                   type: string
                   nullable: true
+                role_type:
+                  type: string
+                  nullable: true
+                  description: Picklist value from master-data `role-types`.
                 is_system:
                   type: boolean
                 status:
@@ -1323,6 +1331,9 @@ components:
         display_name:
           type: string
         description:
+          type: string
+          nullable: true
+        role_type:
           type: string
           nullable: true
         is_system:

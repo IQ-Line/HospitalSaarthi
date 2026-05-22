@@ -24,6 +24,10 @@ export {
   useCreateSystemRole,
   useUpdateSystemRole,
   useDeleteSystemRole,
+  useTenantSystemRoles,
+  useCreateTenantSystemRole,
+  useUpdateTenantSystemRole,
+  useDeleteTenantSystemRole,
 } from './system-roles';
 export {
   useModulePermissions,

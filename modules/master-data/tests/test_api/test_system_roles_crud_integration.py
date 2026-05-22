@@ -11,11 +11,19 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.api.deps import get_session, get_system_role_repository
+from app.api.deps import (
+    get_picklist_repository,
+    get_session,
+    get_system_role_repository,
+)
 from app.core.catalog_scope import CatalogScope
 from app.main import create_app
 from app.models import Base
+from app.models.picklist import PicklistModel, PicklistValueModel
+from app.repositories.picklist_repository import PicklistRepository
 from app.repositories.system_role_repository import SystemRoleRepository
+
+TENANT_ID = "550e8400-e29b-41d4-a716-446655440099"
 
 
 @pytest.fixture()
@@ -43,21 +51,79 @@ def system_role_sqlite_session() -> Iterator[Session]:
         engine.dispose()
 
 
+def _override_catalog_deps(
+    app,
+    session: Session,
+    *,
+    iq_tenant_id: UUID | None = None,
+) -> None:
+    scope = CatalogScope(iq_tenant_id=iq_tenant_id)
+
+    def _session() -> Iterator[Session]:
+        yield session
+
+    app.dependency_overrides[get_session] = _session
+    app.dependency_overrides[get_picklist_repository] = lambda: PicklistRepository(session)
+    app.dependency_overrides[get_system_role_repository] = lambda: SystemRoleRepository(
+        session,
+        scope,
+    )
+
+
 @pytest.fixture()
 def system_role_client(system_role_sqlite_session: Session) -> Iterator[TestClient]:
     app = create_app()
-
-    def _repo() -> SystemRoleRepository:
-        return SystemRoleRepository(system_role_sqlite_session, CatalogScope(iq_tenant_id=None))
-
-    def _session() -> Iterator[Session]:
-        yield system_role_sqlite_session
-
-    app.dependency_overrides[get_system_role_repository] = _repo
-    app.dependency_overrides[get_session] = _session
+    _override_catalog_deps(app, system_role_sqlite_session)
+    _seed_role_types_picklist(system_role_sqlite_session)
     with TestClient(app) as client:
         yield client
     app.dependency_overrides.clear()
+
+
+@pytest.fixture()
+def tenant_system_role_client(system_role_sqlite_session: Session) -> Iterator[TestClient]:
+    app = create_app()
+    _override_catalog_deps(
+        app,
+        system_role_sqlite_session,
+        iq_tenant_id=UUID(TENANT_ID),
+    )
+    _seed_role_types_picklist(system_role_sqlite_session)
+    with TestClient(app) as client:
+        yield client
+    app.dependency_overrides.clear()
+
+
+def _seed_role_types_picklist(session: Session) -> None:
+    picklist = PicklistModel(
+        name="Role Types",
+        slug="role-types",
+        is_active=True,
+        is_deleted=False,
+    )
+    session.add(picklist)
+    session.flush()
+    session.add_all(
+        [
+            PicklistValueModel(
+                category_id=picklist.id,
+                value="nurse",
+                label="Nurse",
+                display_order=1,
+                is_active=True,
+                is_default=False,
+            ),
+            PicklistValueModel(
+                category_id=picklist.id,
+                value="doctor",
+                label="Doctor",
+                display_order=2,
+                is_active=True,
+                is_default=False,
+            ),
+        ],
+    )
+    session.commit()
 
 
 def _create_body(name: str, slug: str, **extra: object) -> dict:
@@ -65,6 +131,7 @@ def _create_body(name: str, slug: str, **extra: object) -> dict:
         "name": name,
         "slug": slug,
         "description": "d",
+        "role_type": "nurse",
         "is_template": True,
         "is_active": True,
     }
@@ -79,6 +146,7 @@ def test_system_role_crud_lifecycle(system_role_client: TestClient) -> None:
     )
     assert created.status_code == 201
     rid = UUID(created.json()["data"]["id"])
+    assert created.json()["data"]["role_type"] == "nurse"
 
     listed = system_role_client.get("/api/v1/master-data/system-roles")
     assert listed.status_code == 200
@@ -106,6 +174,37 @@ def test_system_role_crud_lifecycle(system_role_client: TestClient) -> None:
     assert missing_slug.status_code == 404
 
 
+def test_system_role_rejects_invalid_role_type(system_role_client: TestClient) -> None:
+    created = system_role_client.post(
+        "/api/v1/master-data/system-roles",
+        json=_create_body("Bad Role", "bad-role", role_type="whatever"),
+    )
+    assert created.status_code == 400
+
+    role = system_role_client.post(
+        "/api/v1/master-data/system-roles",
+        json=_create_body("Valid Role", "valid-role"),
+    )
+    assert role.status_code == 201
+    role_id = role.json()["data"]["id"]
+
+    patched = system_role_client.patch(
+        f"/api/v1/master-data/system-roles/{role_id}",
+        json={"role_type": "not-a-picklist-value"},
+    )
+    assert patched.status_code == 400
+
+
+def test_tenant_scoped_system_role_create(tenant_system_role_client: TestClient) -> None:
+    created = tenant_system_role_client.post(
+        "/api/v1/master-data/system-roles",
+        json=_create_body("Tenant Nurse", "tenant-nurse"),
+    )
+    assert created.status_code == 201
+    assert created.json()["data"]["iq_tenant_id"] == TENANT_ID
+    assert created.json()["data"]["role_type"] == "nurse"
+
+
 def test_system_role_slug_conflict_and_filter(system_role_client: TestClient) -> None:
     a = system_role_client.post(
         "/api/v1/master-data/system-roles",
@@ -118,9 +217,9 @@ def test_system_role_slug_conflict_and_filter(system_role_client: TestClient) ->
     )
     assert b.status_code == 409
 
-    f = system_role_client.get("/api/v1/master-data/system-roles?is_template=true")
-    assert f.status_code == 200
-    assert f.json()["total"] == 1
+    filtered = system_role_client.get("/api/v1/master-data/system-roles?is_template=true")
+    assert filtered.status_code == 200
+    assert filtered.json()["total"] == 1
 
 
 def test_system_role_not_found_routes(system_role_client: TestClient) -> None:

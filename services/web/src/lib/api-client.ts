@@ -132,11 +132,14 @@ export async function apiClientWithIqTenant<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const headers = new Headers(options.headers);
   const tid = iqTenantId.trim().toLowerCase();
+  if (!tid) {
+    throw new Error('iq_tenant_id is required for tenant-scoped catalog requests.');
+  }
+  const headers = new Headers(options.headers);
   headers.set('iq_tenant_id', tid);
   headers.set('x-tenant-id', tid);
-  return apiClient<T>(path, { ...options, headers });
+  return apiClient<T>(path, { ...options, headers }, { tenantIdOverride: tid });
 }
 
 type ApiErrorBody = {

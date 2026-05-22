@@ -57,11 +57,15 @@ export function runtimeCapabilityCatalogOptions() {
 }
 
 /** Tenant-enabled module slugs → assignable runtime capabilities for role editors. */
-export function assignableCapabilityCatalogOptions() {
+export function assignableCapabilityCatalogOptions(tenantScope?: string | null) {
   return queryOptions({
-    queryKey: userManagementKeys.assignableCapabilities(),
+    queryKey: [...userManagementKeys.assignableCapabilities(), tenantScope ?? 'active-tenant'] as const,
     queryFn: () =>
-      apiClient<Capability[]>(`${BASE}/capabilities/assignable`, { method: 'GET' }),
+      apiClient<Capability[]>(
+        `${BASE}/capabilities/assignable`,
+        { method: 'GET' },
+        userTenantApiContext(tenantScope),
+      ),
   });
 }
 
@@ -152,13 +156,23 @@ export function useAssignableCapabilityCatalogSuspense() {
 /** @deprecated Use {@link useRuntimeCapabilityCatalogSuspense}. */
 export const useCapabilitiesSuspense = useRuntimeCapabilityCatalogSuspense;
 
-export function useRolesSuspense() {
-  return useSuspenseQuery(roleListOptions());
+export function useRoles(tenantScope?: string | null) {
+  return useQuery({
+    ...roleListOptions(tenantScope),
+  });
 }
 
-export function useRoleCapabilities(roleId: string, enabled: boolean) {
+export function useRolesSuspense(tenantScope?: string | null) {
+  return useSuspenseQuery(roleListOptions(tenantScope));
+}
+
+export function useRoleCapabilities(
+  roleId: string,
+  enabled: boolean,
+  tenantScope?: string | null,
+) {
   return useQuery({
-    ...roleCapabilitiesOptions(roleId),
+    ...roleCapabilitiesOptions(roleId, tenantScope),
     enabled: enabled && roleId.length > 0,
   });
 }

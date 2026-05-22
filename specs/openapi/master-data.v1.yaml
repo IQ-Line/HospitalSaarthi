@@ -4489,13 +4489,6 @@ components:
         role_type:
           type: string
           description: Picklist value from `role-types` (e.g. doctor, nurse).
-        module_permission_ids:
-          type: array
-          items:
-            type: string
-            format: uuid
-          nullable: true
-          description: Module-permission catalog row ids granted by this template.
     SystemRoleUpdate:
       type: object
       additionalProperties: false
@@ -4516,12 +4509,6 @@ components:
           description: Set false to restore a soft-deleted system role.
         role_type:
           type: string
-          nullable: true
-        module_permission_ids:
-          type: array
-          items:
-            type: string
-            format: uuid
           nullable: true
     SystemRole:
       type: object
@@ -4554,12 +4541,6 @@ components:
           nullable: true
         role_type:
           type: string
-          nullable: true
-        module_permission_ids:
-          type: array
-          items:
-            type: string
-            format: uuid
           nullable: true
         is_active:
           type: boolean

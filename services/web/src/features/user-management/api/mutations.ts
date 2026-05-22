@@ -170,14 +170,18 @@ export function useDetachRoleTemplate(userId: string, tenantScope?: string | nul
   });
 }
 
-export function useCreateRole() {
+export function useCreateRole(tenantScope?: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: CreateRoleBody) =>
-      apiClient<UmRole>(`${BASE}/roles`, {
-        method: 'POST',
-        body: JSON.stringify(body),
-      }),
+      apiClient<UmRole>(
+        `${BASE}/roles`,
+        {
+          method: 'POST',
+          body: JSON.stringify(body),
+        },
+        userTenantApiContext(tenantScope),
+      ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: userManagementKeys.roleList() }).catch(() => {
         /* best-effort */
@@ -186,14 +190,18 @@ export function useCreateRole() {
   });
 }
 
-export function useUpdateRole(roleId: string) {
+export function useUpdateRole(roleId: string, tenantScope?: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: UpdateRoleBody) =>
-      apiClient<UmRole>(`${BASE}/roles/${encodeURIComponent(roleId)}`, {
-        method: 'PATCH',
-        body: JSON.stringify(body),
-      }),
+      apiClient<UmRole>(
+        `${BASE}/roles/${encodeURIComponent(roleId)}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify(body),
+        },
+        userTenantApiContext(tenantScope),
+      ),
     onSuccess: (role) => {
       qc.setQueryData(userManagementKeys.roleDetail(roleId), role);
       qc.invalidateQueries({ queryKey: userManagementKeys.roleList() }).catch(() => {
@@ -203,13 +211,17 @@ export function useUpdateRole(roleId: string) {
   });
 }
 
-export function useDeleteRole() {
+export function useDeleteRole(tenantScope?: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (roleId: string) =>
-      apiClient<UmRole>(`${BASE}/roles/${encodeURIComponent(roleId)}`, {
-        method: 'DELETE',
-      }),
+      apiClient<UmRole>(
+        `${BASE}/roles/${encodeURIComponent(roleId)}`,
+        {
+          method: 'DELETE',
+        },
+        userTenantApiContext(tenantScope),
+      ),
     onSuccess: (_, roleId) => {
       qc.removeQueries({ queryKey: userManagementKeys.roleDetail(roleId) });
       qc.invalidateQueries({ queryKey: userManagementKeys.roleList() }).catch(() => {
@@ -222,16 +234,23 @@ export function useDeleteRole() {
   });
 }
 
-export function useReplaceRoleCapabilities(roleId: string) {
+export function useReplaceRoleCapabilities(roleId: string, tenantScope?: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: ReplaceRoleCapabilitiesBody) =>
-      apiClient<Capability[]>(`${BASE}/roles/${encodeURIComponent(roleId)}/capabilities`, {
-        method: 'PUT',
-        body: JSON.stringify(body),
-      }),
+      apiClient<Capability[]>(
+        `${BASE}/roles/${encodeURIComponent(roleId)}/capabilities`,
+        {
+          method: 'PUT',
+          body: JSON.stringify(body),
+        },
+        userTenantApiContext(tenantScope),
+      ),
     onSuccess: (capabilities) => {
-      qc.setQueryData(userManagementKeys.roleCapabilities(roleId), capabilities);
+      qc.setQueryData(
+        [...userManagementKeys.roleCapabilities(roleId), tenantScope ?? 'active-tenant'],
+        capabilities,
+      );
     },
   });
 }

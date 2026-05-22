@@ -16,7 +16,6 @@ class SystemRoleResponse(BaseModel):
     is_template: bool
     description: str | None = None
     role_type: str | None = None
-    module_permission_ids: list[UUID] | None = None
     is_active: bool
     is_deleted: bool = False
     created_by: UUID | None = None
@@ -41,7 +40,6 @@ class SystemRoleCreate(BaseModel):
     slug: str = Field(min_length=1)
     description: str | None = None
     role_type: str = Field(min_length=1)
-    module_permission_ids: list[UUID] | None = None
     is_template: bool = True
     is_active: bool = True
 
@@ -53,7 +51,6 @@ class SystemRoleUpdate(BaseModel):
     slug: str | None = Field(default=None, min_length=1)
     description: str | None = None
     role_type: str | None = Field(default=None, min_length=1)
-    module_permission_ids: list[UUID] | None = None
     is_template: bool | None = None
     is_active: bool | None = None
     is_deleted: bool | None = None

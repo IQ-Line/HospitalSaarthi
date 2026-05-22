@@ -44,32 +44,18 @@ import {
   type TariffServiceCreateFormValues,
   type TariffServiceEditFormValues,
 } from '@/features/billing/validation';
+export { TenantRoleTemplatesPanel } from '@/features/configurator/components/tenant-role-templates-panel';
 import {
   useCreateDepartment,
-  useCreateSystemRole,
   useDeleteDepartment,
-  useDeleteSystemRole,
   useDepartments,
-  useSystemRoles,
   useUpdateDepartment,
-  useUpdateSystemRole,
 } from '@/features/master-data/api';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { rowMatchesSearch } from '@/features/master-data/table-search';
-import {
-  SystemRoleFormDialog,
-  systemRoleToFormValues,
-} from '@/features/master-data/components/system-role-form-dialog';
-import type {
-  Department,
-  DepartmentType,
-  SystemRole,
-  SystemRoleCreateInput,
-  SystemRoleUpdateInput,
-} from '@/features/master-data/types';
+import type { Department, DepartmentType } from '@/features/master-data/types';
 import {
   EMPTY_DEPARTMENT_FORM_VALUES,
-  EMPTY_SYSTEM_ROLE_FORM_VALUES,
   departmentFormSchema,
   type DepartmentFormInput,
   type DepartmentFormValues,
@@ -393,180 +379,6 @@ export function TenantDepartmentsPanel({ iqTenantId }: { iqTenantId: string }) {
           try {
             await deleteMutation.mutateAsync(deleting.id);
             toast.success('Department deleted');
-            setDeleting(null);
-          } catch (err) {
-            toast.error(mutationErrorMessage(err));
-          }
-        }}
-      />
-    </div>
-  );
-}
-
-export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string }) {
-  const [search, setSearch] = useState('');
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [editing, setEditing] = useState<SystemRole | null>(null);
-  const [deleting, setDeleting] = useState<SystemRole | null>(null);
-
-  const { data, isLoading, error } = useSystemRoles(true, { iqTenantId });
-  const createMutation = useCreateSystemRole(iqTenantId);
-  const updateMutation = useUpdateSystemRole(iqTenantId);
-  const deleteMutation = useDeleteSystemRole(iqTenantId);
-
-  const editDefaults = useMemo(
-    () => (editing ? systemRoleToFormValues(editing) : EMPTY_SYSTEM_ROLE_FORM_VALUES),
-    [editing],
-  );
-
-  const rows = useMemo(() => {
-    const list = data?.data ?? [];
-    if (!search.trim()) return list;
-    return list.filter((r) =>
-      rowMatchesSearch(search, r.name, r.slug, r.description ?? '', String(r.is_template)),
-    );
-  }, [data?.data, search]);
-
-  const columns = useMemo<ColumnDef<SystemRole, unknown>[]>(
-    () => [
-      { accessorKey: 'name', header: 'Name' },
-      {
-        accessorKey: 'role_type',
-        header: 'Role type',
-        cell: ({ getValue }) => getValue<string | null>() ?? '—',
-      },
-      {
-        accessorKey: 'slug',
-        header: 'Slug',
-        cell: ({ getValue }) => <code className="text-xs">{getValue<string>()}</code>,
-      },
-      {
-        accessorKey: 'is_template',
-        header: 'Template',
-        cell: ({ getValue }) => (
-          <Badge variant={getValue<boolean>() ? 'secondary' : 'outline'}>
-            {getValue<boolean>() ? 'Yes' : 'No'}
-          </Badge>
-        ),
-      },
-      {
-        accessorKey: 'is_active',
-        header: 'Active',
-        cell: ({ row }) => (
-          <TableActiveToggle
-            active={row.original.is_active}
-            disabled={updateMutation.isPending}
-            onCheckedChange={(next) => {
-              if (next === row.original.is_active) return;
-              updateMutation.mutate(
-                { id: row.original.id, input: { is_active: next } },
-                {
-                  onSuccess: () => toast.success(next ? 'Activated' : 'Deactivated'),
-                  onError: (err) => toast.error(mutationErrorMessage(err)),
-                },
-              );
-            }}
-          />
-        ),
-      },
-      {
-        id: 'actions',
-        header: '',
-        cell: ({ row }) => (
-          <EntityRowActions
-            onView={() => setEditing(row.original)}
-            onEdit={() => setEditing(row.original)}
-            onDelete={() => setDeleting(row.original)}
-          />
-        ),
-      },
-    ],
-    [updateMutation],
-  );
-
-  if (error) {
-    return (
-      <p className="text-sm text-destructive">Failed to load role templates: {error.message}</p>
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <Button size="sm" onClick={() => setIsCreateOpen(true)}>
-          <Plus className="size-4 mr-1" />
-          Create role
-        </Button>
-      </div>
-      <EntityTableToolbar value={search} onChange={setSearch} placeholder="Search roles…" />
-      <div className="rounded-lg border">
-        <DataTable
-          columns={columns}
-          data={rows}
-          isLoading={isLoading}
-          emptyTitle="No role templates"
-          emptyDescription="Create system roles marked as templates for this tenant."
-        />
-      </div>
-
-      <SystemRoleFormDialog
-        open={isCreateOpen}
-        onOpenChange={setIsCreateOpen}
-        mode="create"
-        title="Create role"
-        description="Define role settings and catalog permissions for this tenant."
-        submitLabel="Create"
-        isSubmitting={createMutation.isPending}
-        configuratorTenantId={iqTenantId}
-        defaultValues={EMPTY_SYSTEM_ROLE_FORM_VALUES}
-        onSubmit={(payload) => {
-          createMutation.mutate(payload as SystemRoleCreateInput, {
-            onSuccess: () => {
-              toast.success('Role created');
-              setIsCreateOpen(false);
-            },
-            onError: (err) => toast.error(mutationErrorMessage(err)),
-          });
-        }}
-      />
-
-      <SystemRoleFormDialog
-        open={!!editing}
-        onOpenChange={(open) => !open && setEditing(null)}
-        mode="edit"
-        title="Edit role"
-        description={editing ? `Update ${editing.name}.` : ''}
-        submitLabel="Save"
-        isSubmitting={updateMutation.isPending}
-        configuratorTenantId={iqTenantId}
-        defaultValues={editDefaults}
-        onSubmit={(payload) => {
-          if (!editing) return;
-          updateMutation.mutate(
-            { id: editing.id, input: payload as SystemRoleUpdateInput },
-            {
-              onSuccess: () => {
-                toast.success('Role updated');
-                setEditing(null);
-              },
-              onError: (err) => toast.error(mutationErrorMessage(err)),
-            },
-          );
-        }}
-      />
-
-      <ConfirmDialog
-        open={!!deleting}
-        onOpenChange={(open) => !open && setDeleting(null)}
-        title="Delete role?"
-        description={`Remove "${deleting?.name}" from the tenant catalog.`}
-        confirmLabel="Delete"
-        destructive
-        onConfirm={async () => {
-          if (!deleting) return;
-          try {
-            await deleteMutation.mutateAsync(deleting.id);
-            toast.success('Role deleted');
             setDeleting(null);
           } catch (err) {
             toast.error(mutationErrorMessage(err));

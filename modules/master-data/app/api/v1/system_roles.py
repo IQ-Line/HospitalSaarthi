@@ -6,17 +6,22 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_session, get_system_role_repository
+from app.api.deps import (
+    get_picklist_repository,
+    get_session,
+    get_system_role_repository,
+)
 from app.api.errors import ResourceNotFoundError
+from app.repositories.picklist_repository import PicklistRepository
 from app.repositories.system_role_repository import SystemRoleRepository
 from app.schemas.system_role import (
     SystemRoleCreate,
     SystemRoleListResponse,
-    SystemRoleResponse,
     SystemRoleSingleResponse,
     SystemRoleUpdate,
 )
 from app.services.system_role_service import (
+    SystemRoleNotFoundError,
     create_system_role,
     get_system_role_by_id,
     get_system_role_by_slug,
@@ -33,8 +38,7 @@ def get_system_roles(
     repository: Annotated[SystemRoleRepository, Depends(get_system_role_repository)],
     is_template: Annotated[bool | None, Query()] = None,
 ) -> SystemRoleListResponse:
-    rows = list_system_roles(repository, is_template=is_template)
-    data = [SystemRoleResponse.model_validate(r) for r in rows]
+    data = list_system_roles(repository, is_template=is_template)
     return SystemRoleListResponse(data=data, total=len(data))
 
 
@@ -47,11 +51,17 @@ def get_system_roles(
 def post_system_role(
     payload: SystemRoleCreate,
     repository: Annotated[SystemRoleRepository, Depends(get_system_role_repository)],
+    picklist_repository: Annotated[PicklistRepository, Depends(get_picklist_repository)],
     session: Annotated[Session, Depends(get_session)],
 ) -> SystemRoleSingleResponse:
-    row = create_system_role(repository, payload, actor_id=None)
+    row = create_system_role(
+        repository,
+        picklist_repository,
+        payload,
+        actor_id=None,
+    )
     session.commit()
-    return SystemRoleSingleResponse(data=SystemRoleResponse.model_validate(row))
+    return SystemRoleSingleResponse(data=row)
 
 
 @router.get(
@@ -66,7 +76,7 @@ def get_system_role_by_slug_route(
     row = get_system_role_by_slug(repository, slug)
     if row is None:
         raise ResourceNotFoundError(f"No system role with slug '{slug}'.")
-    return SystemRoleSingleResponse(data=SystemRoleResponse.model_validate(row))
+    return SystemRoleSingleResponse(data=row)
 
 
 @router.get(
@@ -81,7 +91,7 @@ def get_system_role_by_id_route(
     row = get_system_role_by_id(repository, system_role_id)
     if row is None:
         raise ResourceNotFoundError("No system role with this id.")
-    return SystemRoleSingleResponse(data=SystemRoleResponse.model_validate(row))
+    return SystemRoleSingleResponse(data=row)
 
 
 @router.patch(
@@ -93,11 +103,18 @@ def patch_system_role(
     system_role_id: UUID,
     payload: SystemRoleUpdate,
     repository: Annotated[SystemRoleRepository, Depends(get_system_role_repository)],
+    picklist_repository: Annotated[PicklistRepository, Depends(get_picklist_repository)],
     session: Annotated[Session, Depends(get_session)],
 ) -> SystemRoleSingleResponse:
-    row = update_system_role(repository, system_role_id, payload, actor_id=None)
+    row = update_system_role(
+        repository,
+        picklist_repository,
+        system_role_id,
+        payload,
+        actor_id=None,
+    )
     session.commit()
-    return SystemRoleSingleResponse(data=SystemRoleResponse.model_validate(row))
+    return SystemRoleSingleResponse(data=row)
 
 
 @router.delete(
@@ -110,6 +127,10 @@ def delete_system_role(
     repository: Annotated[SystemRoleRepository, Depends(get_system_role_repository)],
     session: Annotated[Session, Depends(get_session)],
 ) -> SystemRoleSingleResponse:
-    row = soft_delete_system_role(repository, system_role_id, actor_id=None)
+    row = soft_delete_system_role(
+        repository,
+        system_role_id,
+        actor_id=None,
+    )
     session.commit()
-    return SystemRoleSingleResponse(data=SystemRoleResponse.model_validate(row))
+    return SystemRoleSingleResponse(data=row)

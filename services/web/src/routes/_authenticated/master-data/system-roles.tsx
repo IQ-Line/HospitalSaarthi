@@ -31,11 +31,7 @@ import { TableActiveToggle } from '@/features/master-data/components/table-activ
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { rowMatchesSearch } from '@/features/master-data/table-search';
 import { EMPTY_SYSTEM_ROLE_FORM_VALUES } from '@/features/master-data/validation';
-import type {
-  SystemRole,
-  SystemRoleCreateInput,
-  SystemRoleUpdateInput,
-} from '@/features/master-data/types';
+import type { SystemRole } from '@/features/master-data/types';
 
 export const Route = createFileRoute('/_authenticated/master-data/system-roles')({
   component: SystemRolesPage,
@@ -58,6 +54,7 @@ function SystemRolesPage() {
   const createMutation = useCreateSystemRole();
   const updateMutation = useUpdateSystemRole();
   const deleteMutation = useDeleteSystemRole();
+  const [dialogSubmitting, setDialogSubmitting] = useState(false);
 
   const editDefaults = useMemo(
     () => (editingRole ? systemRoleToFormValues(editingRole) : EMPTY_SYSTEM_ROLE_FORM_VALUES),
@@ -204,17 +201,20 @@ function SystemRolesPage() {
         onOpenChange={setIsCreateOpen}
         mode="create"
         title="Create System Role"
-        description="Define role settings and catalog permissions."
+        description="Define role template metadata."
         submitLabel="Create Role"
-        isSubmitting={createMutation.isPending}
+        isSubmitting={dialogSubmitting}
         defaultValues={EMPTY_SYSTEM_ROLE_FORM_VALUES}
-        onSubmit={async (payload) => {
+        onSubmit={async (details) => {
+          setDialogSubmitting(true);
           try {
-            await createMutation.mutateAsync(payload as SystemRoleCreateInput);
+            await createMutation.mutateAsync(details);
             toast.success('System role created');
             setIsCreateOpen(false);
           } catch (err) {
             toast.error(mutationErrorMessage(err));
+          } finally {
+            setDialogSubmitting(false);
           }
         }}
       />
@@ -224,21 +224,21 @@ function SystemRolesPage() {
         onOpenChange={(open) => !open && setEditingRole(null)}
         mode="edit"
         title="Update System Role"
-        description="Update role template settings and permissions."
+        description="Update role template metadata."
         submitLabel="Save Changes"
-        isSubmitting={updateMutation.isPending}
+        isSubmitting={dialogSubmitting}
         defaultValues={editDefaults}
-        onSubmit={async (payload) => {
+        onSubmit={async (details) => {
           if (!editingRole) return;
+          setDialogSubmitting(true);
           try {
-            await updateMutation.mutateAsync({
-              id: editingRole.id,
-              input: payload as SystemRoleUpdateInput,
-            });
+            await updateMutation.mutateAsync({ id: editingRole.id, input: details });
             toast.success('System role updated');
             setEditingRole(null);
           } catch (err) {
             toast.error(mutationErrorMessage(err));
+          } finally {
+            setDialogSubmitting(false);
           }
         }}
       />
@@ -260,10 +260,6 @@ function SystemRolesPage() {
               <ReadOnlyRow label="Status" value={viewingRole.is_active ? 'Active' : 'Inactive'} />
               <ReadOnlyRow label="Description" value={viewingRole.description ?? '-'} />
               <ReadOnlyRow label="Role type" value={viewingRole.role_type ?? '—'} />
-              <ReadOnlyRow
-                label="Permissions"
-                value={String(viewingRole.module_permission_ids?.length ?? 0)}
-              />
             </div>
           )}
         </DialogContent>

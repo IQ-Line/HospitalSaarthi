@@ -13,6 +13,7 @@ function rowToRole(row: {
   code: string;
   display_name: string;
   description: string | null;
+  role_type: string | null;
   is_system: boolean;
   status: string;
 }): Role {
@@ -21,6 +22,7 @@ function rowToRole(row: {
     code: row.code,
     display_name: row.display_name,
     description: row.description,
+    role_type: row.role_type,
     is_system: row.is_system,
     status: row.status as Role["status"],
   };
@@ -49,6 +51,7 @@ const roleColumns = {
   code: roles.code,
   display_name: roles.display_name,
   description: roles.description,
+  role_type: roles.role_type,
   is_system: roles.is_system,
   status: roles.status,
 } as const;
@@ -100,6 +103,7 @@ export class DrizzleRoleRepository implements RoleRepository {
           code: input.code,
           display_name: input.display_name,
           description: input.description ?? null,
+          role_type: input.role_type ?? null,
           is_system: input.is_system ?? false,
           status: input.status ?? "active",
         })
@@ -122,6 +126,7 @@ export class DrizzleRoleRepository implements RoleRepository {
       code: string;
       display_name: string;
       description: string | null;
+      role_type: string | null;
       is_system: boolean;
       status: Role["status"];
       updated_at: Date;
@@ -130,6 +135,7 @@ export class DrizzleRoleRepository implements RoleRepository {
     if (input.code !== undefined) patch.code = input.code;
     if (input.display_name !== undefined) patch.display_name = input.display_name;
     if (input.description !== undefined) patch.description = input.description;
+    if (input.role_type !== undefined) patch.role_type = input.role_type;
     if (input.is_system !== undefined) patch.is_system = input.is_system;
     if (input.status !== undefined) patch.status = input.status;
 

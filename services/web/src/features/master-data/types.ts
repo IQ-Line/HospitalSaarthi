@@ -181,7 +181,6 @@ export interface SystemRole {
   is_template: boolean;
   description: string | null;
   role_type: string | null;
-  module_permission_ids: string[] | null;
   is_active: boolean;
   is_deleted: boolean;
   created_by: string | null;
@@ -204,7 +203,6 @@ export interface SystemRoleCreateInput {
   slug: string;
   description?: string | null;
   role_type: string;
-  module_permission_ids?: string[] | null;
   is_template?: boolean;
   is_active?: boolean;
 }
@@ -214,7 +212,6 @@ export interface SystemRoleUpdateInput {
   slug?: string;
   description?: string | null;
   role_type?: string;
-  module_permission_ids?: string[] | null;
   is_template?: boolean;
   is_active?: boolean;
   is_deleted?: boolean;

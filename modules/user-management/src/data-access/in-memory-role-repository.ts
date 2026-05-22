@@ -54,6 +54,7 @@ export class InMemoryRoleRepository implements RoleRepository {
       code: normalizeRoleCode(input.code),
       display_name: input.display_name,
       description: input.description ?? null,
+      role_type: input.role_type ?? null,
       is_system: input.is_system ?? false,
       status: input.status ?? "active",
     };
@@ -69,6 +70,7 @@ export class InMemoryRoleRepository implements RoleRepository {
       ...(input.code !== undefined ? { code: normalizeRoleCode(input.code) } : {}),
       ...(input.display_name !== undefined ? { display_name: input.display_name } : {}),
       ...(input.description !== undefined ? { description: input.description } : {}),
+      ...(input.role_type !== undefined ? { role_type: input.role_type } : {}),
       ...(input.is_system !== undefined ? { is_system: input.is_system } : {}),
       ...(input.status !== undefined ? { status: input.status } : {}),
     };
