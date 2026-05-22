@@ -121,7 +121,7 @@ describe('filterNavigationTree', () => {
     expect(visitpadChildren.map((c) => c.id)).not.toContain('visitpad-conversions');
   });
 
-  it('still shows visitpad when principal holds legacy visitpad view key', () => {
+  it('hides visitpad when principal holds only visitpad:view shell (no L2 catalog keys)', () => {
     const filtered = filterNavigationTree(
       NAVIGATION_MANIFEST,
       ctx({
@@ -131,8 +131,7 @@ describe('filterNavigationTree', () => {
         enabledModuleSlugs: new Set(['visitpad-templates']),
       }),
     );
-    expect(filtered.map((n) => n.id)).toContain('visitpad');
-    expect(filtered.find((n) => n.id === 'visitpad')?.children?.length).toBeGreaterThan(0);
+    expect(filtered.map((n) => n.id)).not.toContain('visitpad');
   });
 
   it('does not show visitpad when only master-data is enabled', () => {

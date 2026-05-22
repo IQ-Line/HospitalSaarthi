@@ -3,6 +3,7 @@ import { normalizeCapabilityKey } from '@/lib/principal-capabilities';
 import type { ModuleCatalogIndex } from '@/platform/modules/types';
 import { catalogSlugVariants } from '@/platform/modules/catalog-slug-variants';
 import type { NavigationNode } from './types';
+import { principalGrantsCatalogModuleSlugRouteAccess } from '@/lib/catalog-route-access';
 import { capabilityKeysGrantProductAccess } from './module-product-access';
 
 /** First segment of a runtime capability key (catalog L2+ module slug). */
@@ -244,14 +245,7 @@ export function principalGrantsNavNodeAccess(
       catalogModuleSlug: node.catalogModuleSlug,
       catalogIndex: input.catalogIndex,
     });
-    if (capabilityKeysGrantModuleSlugAccess(input.capabilityModuleSegments, moduleSlugs)) {
-      return true;
-    }
-    if (
-      pathSegment &&
-      productSlugs.length &&
-      principalHasProductWideNavCapability(input.capabilityKeys, productSlugs)
-    ) {
+    if (principalGrantsCatalogModuleSlugRouteAccess(input.capabilityKeys, moduleSlugs)) {
       return true;
     }
     // Module index routes (no L2 path segment): any L2+ key under the L1 product, or route prefix slug.
