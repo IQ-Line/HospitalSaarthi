@@ -133,7 +133,7 @@ describe('principalGrantsNavNodeAccess', () => {
     ).toBe(false);
   });
 
-  it('grants all visitpad child routes for visitpad-templates:visitpad:view only', () => {
+  it('allows visitpad layout but not L2 leaves for visitpad-templates:visitpad:view only', () => {
     const shellViewOnly = new Set(['visitpad-templates:visitpad:view']);
     expect(
       principalGrantsNavNodeAccess(
@@ -141,7 +141,7 @@ describe('principalGrantsNavNodeAccess', () => {
         { id: 'visitpad-vitals', label: 'Vitals', route: '/visitpad/vitals' },
         { parentProductSlugs: ['visitpad-templates'], routePrefix: '/visitpad' },
       ),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       principalGrantsNavNodeAccess(
         accessInput(shellViewOnly),
