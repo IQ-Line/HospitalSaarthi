@@ -92,6 +92,10 @@ def _should_skip(path: str, skip_paths: tuple[str, ...]) -> bool:
     return any(path == p or path.startswith(p + "/") for p in skip_paths)
 
 
+def _should_log_response_body(status: int) -> bool:
+    return status < 200 or status > 300
+
+
 async def _drain_request_body(
     receive: Receive, max_bytes: int
 ) -> tuple[bytes, bool, list[Message]]:
@@ -197,7 +201,11 @@ class RequestLoggingMiddleware:
             if message["type"] == "http.response.start":
                 response_status = int(message.get("status", 0))
                 response_headers_raw = list(message.get("headers", []))
-            elif message["type"] == "http.response.body" and capture_response:
+            elif (
+                message["type"] == "http.response.body"
+                and capture_response
+                and _should_log_response_body(response_status)
+            ):
                 chunk = message.get("body", b"")
                 if chunk:
                     remaining = self._max_body_bytes - len(response_body)
@@ -223,7 +231,7 @@ class RequestLoggingMiddleware:
         duration_ms = round((time.perf_counter() - started) * 1000, 2)
         response_headers = _decode_headers(response_headers_raw)
         response_body_text = ""
-        if capture_response:
+        if capture_response and _should_log_response_body(response_status):
             response_body_text = _format_body(
                 bytes(response_body),
                 response_headers.get("content-type"),

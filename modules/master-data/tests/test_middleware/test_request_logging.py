@@ -66,6 +66,10 @@ def _build_app() -> FastAPI:
             media_type="application/octet-stream",
         )
 
+    @app.get("/bad-request")
+    def bad_request() -> JSONResponse:
+        return JSONResponse(content={"error": "bad input"}, status_code=400)
+
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(RequestContextMiddleware)
     return app
@@ -109,7 +113,7 @@ def test_logs_request_and_response_with_redacted_headers(
     assert outgoing.message.startswith("<-- 200 POST /echo")
     assert outgoing.status == 200
     assert outgoing.duration_ms >= 0
-    assert "\"received\":" in outgoing.body
+    assert outgoing.body == ""
     assert outgoing.request_id == "req-123"
 
 
@@ -157,3 +161,18 @@ def test_disable_request_body_logging(caplog: pytest.LogCaptureFixture) -> None:
         os.environ.pop("MASTER_DATA_LOG_REQUEST_BODY", None)
         os.environ.pop("MASTER_DATA_LOG_RESPONSE_BODY", None)
         get_settings.cache_clear()
+
+
+def test_logs_error_response_body(
+    configured_settings: None, caplog: pytest.LogCaptureFixture
+) -> None:
+    app = _build_app()
+
+    with caplog.at_level(logging.INFO, logger="app.requests"):
+        with TestClient(app) as tc:
+            r = tc.get("/bad-request")
+
+    assert r.status_code == 400
+    outgoing = _records(caplog)[1]
+    assert outgoing.status == 400
+    assert "bad input" in outgoing.body
