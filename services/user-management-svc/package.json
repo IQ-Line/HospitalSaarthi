@@ -17,6 +17,7 @@
     "@hims/ts-sdk-authz": "workspace:*",
     "@hims/ts-sdk-db": "workspace:*",
     "@hims/ts-sdk-events": "workspace:*",
+    "@hims/ts-sdk-http": "workspace:*",
     "@hims/ts-sdk-identity": "workspace:*",
     "@hims/ts-sdk-openapi": "workspace:*",
     "@hims/user-management": "workspace:*",
@@ -31,7 +32,6 @@
   },
   "devDependencies": {
     "@cerbos/core": "0.21.1",
-    "@hims/ts-sdk-http": "workspace:*",
     "@types/node": "^22.19.18",
     "fastify-plugin": "^5.1.0",
     "tsx": "^4.21.0",

@@ -7,6 +7,7 @@ import {
 } from "@hims/ts-sdk-db";
 import { createEventBus } from "@hims/ts-sdk-events";
 import { identityPlugin, validateAuthConfig } from "@hims/ts-sdk-identity";
+import { requestLoggingPlugin } from "@hims/ts-sdk-http";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import Fastify, { type FastifyInstance } from "fastify";
 import { createUserManagementAuthzTargetResolver } from "./authz-target-resolver.js";
@@ -91,7 +92,11 @@ function readTrustedOrigins(): string[] {
  * Fastify wiring: event bus, better-auth, identity verification, Cerbos, user-management module.
  */
 async function createApp(): Promise<FastifyInstance> {
-  const app = Fastify();
+  const app = Fastify({
+    disableRequestLogging: true,
+  });
+
+  await app.register(requestLoggingPlugin);
 
   const eventBus = createEventBus({ type: "in-process" });
   await eventBus.connect();
