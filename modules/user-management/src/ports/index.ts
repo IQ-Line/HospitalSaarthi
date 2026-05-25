@@ -52,6 +52,8 @@ export type { UserReadListResourceAbac };
 export type ListUsersOptions = {
   /** When set, repository applies SQL/in-memory resource ABAC aligned with `user.read` (department + clearance). */
   userReadResourceAbac?: UserReadListResourceAbac;
+  /** When set, filters to users whose `department` column matches exactly. */
+  department?: string;
 };
 
 /** Platform user plus owning tenant (for JWT `iq_tenant_id` resolution by global user id). */

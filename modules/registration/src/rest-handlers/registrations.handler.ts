@@ -52,7 +52,7 @@ export function registerRegistrationsHandler(
 ): void {
   app.get<{ Querystring: ListQuery }>(
     "/registrations",
-    { schema: { querystring: listRegistrationsQuerySchema } },
+    { config: { authMode: "protected" as const }, schema: { querystring: listRegistrationsQuerySchema } },
     async (request, reply) => {
       const q = request.query;
       const page = Math.max(1, q.page ? Number(q.page) : 1);
@@ -105,7 +105,7 @@ export function registerRegistrationsHandler(
 
   app.get<{ Params: { registrationId: string } }>(
     "/registrations/:registrationId",
-    { schema: { params: paramsRegistrationIdSchema } },
+    { config: { authMode: "protected" as const }, schema: { params: paramsRegistrationIdSchema } },
     async (request, reply) => {
       const row = await getRegistration(
         { registrationRepo: deps.registrationRepo },
@@ -119,7 +119,7 @@ export function registerRegistrationsHandler(
 
   app.post<{ Body: CreateRegistrationInput }>(
     "/workflows/existing-patient/registrations",
-    { schema: { body: existingPatientRegistrationBodySchema } },
+    { config: { authMode: "protected" as const }, schema: { body: existingPatientRegistrationBodySchema } },
     async (request, reply) => {
       const idempotencyKey = readIdempotencyKey(request);
       if (!idempotencyKey) {
@@ -148,7 +148,7 @@ export function registerRegistrationsHandler(
 
   app.post<{ Body: NewPatientIntakeInput }>(
     "/workflows/new-patient/registrations",
-    { schema: { body: newPatientIntakeBodySchema } },
+    { config: { authMode: "protected" as const }, schema: { body: newPatientIntakeBodySchema } },
     async (request, reply) => {
       const idempotencyKey = readIdempotencyKey(request);
       if (!idempotencyKey) {
@@ -164,6 +164,9 @@ export function registerRegistrationsHandler(
         });
       }
 
+      const authHeader = request.headers.authorization;
+      const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
+
       const intake = await createIntakeForNewPatient(
         {
           registrationRepo: deps.registrationRepo,
@@ -178,6 +181,7 @@ export function registerRegistrationsHandler(
           initialStatus: registrationStatusFromIntakeCompletion(
             request.body.intake_completion ?? "partial",
           ),
+          bearerToken,
         },
       );
 
@@ -207,7 +211,7 @@ export function registerRegistrationsHandler(
 
   app.post<{ Params: { registrationId: string } }>(
     "/registrations/:registrationId/complete",
-    { schema: { params: paramsRegistrationIdSchema } },
+    { config: { authMode: "protected" as const }, schema: { params: paramsRegistrationIdSchema } },
     async (request, reply) => {
       const updated = await completeRegistrationIntake(
         { registrationRepo: deps.registrationRepo },

@@ -47,12 +47,35 @@ describe('super-admin sidebar vs global_master.modules L1 catalog', () => {
     expect(ids).toContain('master-data');
     expect(ids).toContain('user-management');
     expect(ids).toContain('frontdesk');
-    expect(ids).toContain('master-data');
     expect(ids).not.toContain('visitpad');
     expect(ids).toContain('configurator');
     expect(ids).not.toContain('empi');
     expect(ids).not.toContain('opd');
     expect(ids).not.toContain('vaccines');
+  });
+
+  it('hides product modules from super-admin navigation', () => {
+    const manifest = composeNavigationManifest(getRegisteredModuleManifests());
+    const filtered = filterNavigationTree(
+      manifest,
+      buildNavFilterContext(
+        new Set(),
+        catalogSlugSetFromIndex(DEV_CATALOG_L1_FIXTURE, { excludeProductModules: true }),
+        {
+          bypassCapabilityGates: true,
+          isSuperAdmin: true,
+          catalogIndex: DEV_CATALOG_L1_FIXTURE,
+        },
+      ),
+    );
+
+    const ids = filtered.map((n) => n.id);
+    expect(ids).toContain('dashboard');
+    expect(ids).toContain('master-data');
+    expect(ids).toContain('user-management');
+    expect(ids).toContain('configurator');
+    expect(ids).not.toContain('frontdesk');
+    expect(ids).not.toContain('opd');
   });
 
   it('uses Master Data display name Onboarding for configurator slug', () => {

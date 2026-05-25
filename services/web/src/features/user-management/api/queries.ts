@@ -19,12 +19,20 @@ import { userManagementKeys } from './keys';
 
 const BASE = '/api/user-management';
 
-export function userListOptions(tenantScope?: string | null) {
+export function userListOptions(tenantScope?: string | null, filter?: { department?: string }) {
+  const params = new URLSearchParams();
+  if (filter?.department) params.set('department', filter.department);
+  const qs = params.toString();
+  const url = qs ? `${BASE}/users?${qs}` : `${BASE}/users`;
   return queryOptions({
-    queryKey: [...userManagementKeys.userList(), tenantScope ?? 'active-tenant'] as const,
+    queryKey: [
+      ...userManagementKeys.userList(),
+      tenantScope ?? 'active-tenant',
+      filter?.department ?? null,
+    ] as const,
     queryFn: () =>
       apiClient<UmUser[]>(
-        `${BASE}/users`,
+        url,
         { method: 'GET' },
         tenantScope ? { tenantIdOverride: tenantScope } : undefined,
       ),
@@ -131,14 +139,58 @@ export function userRoleTemplatesOptions(userId: string, tenantScope?: string | 
   });
 }
 
-export function useUserList(
+export type Provider = {
+  id: string;
+  full_name: string;
+  department: string | null;
+  status: string;
+};
+
+export function providerListOptions(
   tenantScope?: string | null,
-  options?: { enabled?: boolean },
+  filter?: { department?: string },
+) {
+  const params = new URLSearchParams();
+  if (filter?.department) params.set('department', filter.department);
+  const qs = params.toString();
+  const url = qs ? `${BASE}/providers?${qs}` : `${BASE}/providers`;
+  return queryOptions({
+    queryKey: [
+      ...userManagementKeys.providerList(),
+      tenantScope ?? 'active-tenant',
+      filter?.department ?? null,
+    ] as const,
+    queryFn: () =>
+      apiClient<Provider[]>(
+        url,
+        { method: 'GET' },
+        tenantScope ? { tenantIdOverride: tenantScope } : undefined,
+      ),
+  });
+}
+
+export function useProviderList(
+  tenantScope?: string | null,
+  options?: { enabled?: boolean; department?: string },
 ) {
   const activeTenantId = useTenantStore((s) => s.tenantId);
   const scope = tenantScope ?? activeTenantId;
+  const filter = options?.department ? { department: options.department } : undefined;
   return useQuery({
-    ...userListOptions(scope),
+    ...providerListOptions(scope, filter),
+    enabled: options?.enabled ?? true,
+  });
+}
+
+export function useUserList(
+  tenantScope?: string | null,
+  options?: { enabled?: boolean; department?: string },
+) {
+  const activeTenantId = useTenantStore((s) => s.tenantId);
+  const scope = tenantScope ?? activeTenantId;
+  const filter = options?.department ? { department: options.department } : undefined;
+  return useQuery({
+    ...userListOptions(scope, filter),
     enabled: options?.enabled ?? true,
   });
 }

@@ -1,5 +1,6 @@
 export type ModuleCategory = 'core' | 'clinical' | 'administrative' | 'support';
 export type ModuleKind = 'platform' | 'foundation' | 'product';
+export type VisibilityScope = 'superadmin' | 'tenant';
 export type PermissionAction = 'create' | 'read' | 'update' | 'delete' | 'manage';
 
 export interface Module {
@@ -13,6 +14,7 @@ export interface Module {
   level: number;
   module_kind?: ModuleKind;
   display_order?: number;
+  visibility_scope?: VisibilityScope;
   icon: string | null;
   is_active: boolean;
   is_deleted: boolean;
@@ -38,6 +40,7 @@ export interface NavModule {
   level: number;
   module_kind?: ModuleKind;
   display_order?: number;
+  visibility_scope?: VisibilityScope;
   icon: string | null;
 }
 

@@ -3,11 +3,10 @@ import {
   createFileRoute,
   Outlet,
   redirect,
-  useNavigate,
 } from '@tanstack/react-router';
 import { refreshAuthorizationContext } from '@/lib/authorization-context';
 import { queryClient } from '@/lib/query-client';
-import { LogOut, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { Badge } from '@pulse/ui/badge';
 import { Button } from '@pulse/ui/button';
 import { AppSidebar } from '@/components/layout/app-sidebar';
@@ -32,7 +31,6 @@ export const Route = createFileRoute('/_authenticated')({
 });
 
 function AuthenticatedLayout() {
-  const navigate = useNavigate();
   const displayName = useAuthStore((s) => s.displayName);
   const userId = useAuthStore((s) => s.userId);
   const tenantId = useTenantStore((s) => s.tenantId);
@@ -82,15 +80,6 @@ function AuthenticatedLayout() {
       : 'Platform catalog';
   const loginVariantLabel = userId ? `User ${userId.slice(0, 8)}…` : '—';
 
-  const handleLogout = () => {
-    useAuthStore.getState().clearSession();
-    useTenantStore.getState().clearTenant();
-    usePermissionsStore.getState().clearPermissions();
-    void refreshAuthorizationContext(queryClient).finally(() => {
-      void navigate({ to: '/login' });
-    });
-  };
-
   if (!isLoaded) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -134,10 +123,6 @@ function AuthenticatedLayout() {
             </div>
           </div>
           <TenantSwitcher />
-          <Button type="button" variant="outline" size="sm" className="shrink-0 gap-1.5" onClick={handleLogout}>
-            <LogOut className="size-3.5" aria-hidden />
-            Log out
-          </Button>
         </div>
         <div className="flex-1 overflow-auto">
           <Outlet />

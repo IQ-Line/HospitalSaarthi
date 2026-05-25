@@ -20,6 +20,7 @@ import {
 import { CapabilityGate } from '@/components/capability-gate';
 import { useCapability } from '@/hooks/use-capability';
 import { UM_ROLE_ASSIGN, UM_ROLE_READ } from '@/lib/runtime-capability-keys';
+import { useDepartments } from '@/features/master-data/api';
 import type { Capability, UmRole } from '../types';
 import { MasterDataCapabilityPermissionTree } from './master-data-capability-permission-tree';
 import { UserManagementSectionCard } from './user-management-section-card';
@@ -114,6 +115,9 @@ export function CreateUserWorkplaceSection({
   errors,
   control,
 }: CreateUserWorkplaceSectionProps) {
+  const { data: deptData, isLoading: deptLoading } = useDepartments();
+  const departments = (deptData?.data ?? []).filter((d) => d.is_active);
+
   return (
     <UserManagementSectionCard
       title="Workplace details"
@@ -123,7 +127,31 @@ export function CreateUserWorkplaceSection({
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="c_department">Department</Label>
-          <Input id="c_department" {...register('department')} />
+          <Controller
+            control={control}
+            name="department"
+            render={({ field }) => (
+              <Select
+                value={field.value || undefined}
+                onValueChange={field.onChange}
+                disabled={deptLoading}
+              >
+                <SelectTrigger id="c_department">
+                  <SelectValue
+                    placeholder={deptLoading ? 'Loading…' : 'Select department'}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {departments.map((dept) => (
+                    <SelectItem key={dept.id} value={dept.name}>
+                      {dept.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+          <FieldError message={errors.department?.message?.toString()} />
         </div>
 
         <div className="space-y-2">

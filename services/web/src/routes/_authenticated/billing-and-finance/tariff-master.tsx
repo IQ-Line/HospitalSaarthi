@@ -56,6 +56,7 @@ import { EntityFormDialog } from '@/components/entity-table/entity-form-dialog';
 import { EntityRowActions } from '@/components/entity-table/entity-row-actions';
 import { EntityTableToolbar } from '@/components/entity-table/entity-table-toolbar';
 import { TableActiveToggle } from '@/components/entity-table/table-active-toggle';
+import { ApiError } from '@/lib/api-client';
 import { mutationErrorMessage } from '@/lib/mutation-error';
 
 const EMPTY_SERVICES: TariffService[] = [];
@@ -65,7 +66,7 @@ export const Route = createFileRoute('/_authenticated/billing-and-finance/tariff
 });
 
 function BillingServicesPage() {
-  const { canCreate, canUpdate, canDelete } = useCatalogModuleCrud('tariff-master', {
+  const { canCreate, canRead, canUpdate, canDelete } = useCatalogModuleCrud('tariff-master', {
     productModuleSlug: 'billing-and-finance',
   });
   const [search, setSearch] = useState('');
@@ -86,7 +87,7 @@ function BillingServicesPage() {
     [search, category, activeFilter],
   );
 
-  const { data, isLoading, isFetching, error, refetch } = useTariffServices(listParams);
+  const { data, isLoading, isFetching, error, refetch } = useTariffServices(listParams, { enabled: canRead });
   const services = data?.data ?? EMPTY_SERVICES;
 
   const createMutation = useCreateTariffService();
@@ -218,6 +219,8 @@ function BillingServicesPage() {
         ) : undefined
       }
     >
+      {canRead ? (
+      <>
       <BillingMockNotice />
 
       <div className="flex flex-wrap items-center gap-3">
@@ -263,9 +266,9 @@ function BillingServicesPage() {
         </Button>
       </div>
 
-      {error ? (
+      {error && !(error instanceof ApiError && error.status === 403) ? (
         <p className="text-sm text-destructive">{mutationErrorMessage(error)}</p>
-      ) : (
+      ) : error ? null : (
         <DataTable
           columns={columns}
           data={services}
@@ -376,6 +379,8 @@ function BillingServicesPage() {
           )}
         </DialogContent>
       </Dialog>
+      </>
+      ) : null}
     </BillingPageShell>
   );
 }

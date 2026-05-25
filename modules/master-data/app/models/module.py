@@ -35,6 +35,10 @@ class ModulePublicModel(TimestampMixin, Base):
             "module_kind IN ('platform', 'foundation', 'product')",
             name="modules_module_kind_check",
         ),
+        CheckConstraint(
+            "visibility_scope IN ('superadmin', 'tenant')",
+            name="modules_visibility_scope_check",
+        ),
         Index(
             "modules_name_active_key",
             "name",
@@ -70,6 +74,7 @@ class ModulePublicModel(TimestampMixin, Base):
     level: Mapped[int] = mapped_column(Integer(), nullable=False, default=1)
     module_kind: Mapped[str] = mapped_column(String(16), nullable=False, default="product")
     display_order: Mapped[int] = mapped_column(Integer(), nullable=False, default=0)
+    visibility_scope: Mapped[str] = mapped_column(String(16), nullable=False, default="tenant")
     icon: Mapped[str | None] = mapped_column(Text(), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=True)
     is_deleted: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
@@ -90,6 +95,10 @@ class ModuleTenantModel(TimestampMixin, Base):
         CheckConstraint(
             "module_kind IN ('platform', 'foundation', 'product')",
             name="tm_modules_module_kind_check",
+        ),
+        CheckConstraint(
+            "visibility_scope IN ('superadmin', 'tenant')",
+            name="tm_modules_visibility_scope_check",
         ),
         Index(
             "tm_modules_name_active_key",
@@ -129,6 +138,7 @@ class ModuleTenantModel(TimestampMixin, Base):
     level: Mapped[int] = mapped_column(Integer(), nullable=False, default=1)
     module_kind: Mapped[str] = mapped_column(String(16), nullable=False, default="product")
     display_order: Mapped[int] = mapped_column(Integer(), nullable=False, default=0)
+    visibility_scope: Mapped[str] = mapped_column(String(16), nullable=False, default="tenant")
     icon: Mapped[str | None] = mapped_column(Text(), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=True)
     is_deleted: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)

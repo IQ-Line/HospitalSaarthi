@@ -55,6 +55,7 @@ export function CreateTenantWizard({
 }: CreateTenantWizardProps) {
   const [activeStep, setActiveStep] = useState(1);
   const [enabledModuleIds, setEnabledModuleIds] = useState<Set<string>>(() => new Set());
+  const modulesUserEdited = useRef(false);
   const slugUserEdited = useRef(false);
 
   const { data: modulesRes, isLoading: modulesLoading } = useModules(undefined, {
@@ -103,13 +104,14 @@ export function CreateTenantWizard({
     reset(WIZARD_DEFAULT_VALUES);
     setActiveStep(1);
     setEnabledModuleIds(new Set());
+    modulesUserEdited.current = false;
     slugUserEdited.current = false;
   }, [open, reset]);
 
   useEffect(() => {
-    if (!open || productModules.length === 0 || enabledModuleIds.size > 0) return;
+    if (!open || productModules.length === 0 || modulesUserEdited.current) return;
     setEnabledModuleIds(defaultEnabledModuleIds(productModules, childMap));
-  }, [open, productModules, childMap, enabledModuleIds.size]);
+  }, [open, productModules, childMap]);
 
   useEffect(() => {
     if (!open || slugUserEdited.current) return;
@@ -119,6 +121,7 @@ export function CreateTenantWizard({
 
   const toggleModule = useCallback(
     (id: string) => {
+      modulesUserEdited.current = true;
       setEnabledModuleIds((prev) => applyModuleToggle(id, prev, childMap));
     },
     [childMap],
@@ -126,16 +129,19 @@ export function CreateTenantWizard({
 
   const selectModuleSubtree = useCallback(
     (moduleId: string, select: boolean) => {
+      modulesUserEdited.current = true;
       setEnabledModuleIds((prev) => setModuleSubtreeSelection(moduleId, prev, childMap, select));
     },
     [childMap],
   );
 
   const selectAllModules = useCallback(() => {
+    modulesUserEdited.current = true;
     setEnabledModuleIds(new Set(productModules.map((module) => module.id)));
   }, [productModules]);
 
   const clearAllModules = useCallback(() => {
+    modulesUserEdited.current = true;
     setEnabledModuleIds(new Set());
   }, []);
 

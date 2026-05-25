@@ -244,14 +244,43 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
     },
   );
 
-  fastify.get(
+  fastify.get<{ Querystring: { department?: string } }>(
+    "/providers",
+    { config: { authMode: "protected" } },
+    async (request, reply) => {
+      const tenantId = deps.getTenantId(request);
+      const department = request.query.department?.trim() || undefined;
+      const users = await deps.listUsersAuthzDeps.userRepository.listUsers(
+        tenantId,
+        department ? { department } : undefined,
+      );
+      return reply.send(
+        users
+          .filter((u) => u.status === "active")
+          .map((u) => ({
+            id: u.id,
+            full_name: u.full_name,
+            department: u.department ?? null,
+            status: u.status,
+          })),
+      );
+    },
+  );
+
+  fastify.get<{ Querystring: { department?: string } }>(
     "/users",
     { config: { authMode: "protected" } },
     async (request, reply) => {
       const tenantId = deps.getTenantId(request);
       const cid = request.correlationId ?? request.id;
+      const department = request.query.department?.trim() || undefined;
       try {
-        const users = await listUsersWithAuthz(request, deps.listUsersAuthzDeps, tenantId);
+        const users = await listUsersWithAuthz(
+          request,
+          deps.listUsersAuthzDeps,
+          tenantId,
+          department ? { department } : undefined,
+        );
         return reply.send(users);
       } catch (err) {
         return replyWithUserManagementError(reply, err, cid);

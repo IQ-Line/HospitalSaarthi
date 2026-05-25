@@ -1,7 +1,16 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
-import { ArrowLeft } from 'lucide-react';
+import {
+  ArrowLeft,
+  Building2,
+  Calendar,
+  GitBranch,
+  Globe,
+  Layers,
+  Shield,
+  Users,
+} from 'lucide-react';
 import { Badge } from '@pulse/ui/badge';
 import { Button } from '@pulse/ui/button';
 import {
@@ -12,6 +21,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@pulse/ui/breadcrumb';
+import { Card, CardContent, CardHeader, CardTitle } from '@pulse/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@pulse/ui/tabs';
 import { DataTable } from '@/components/data-table';
 import {
@@ -111,12 +121,22 @@ function TenantOrganizationDetailPage() {
     return m;
   }, [modulesRes?.data]);
 
+  const productModuleIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const mod of modulesRes?.data ?? []) {
+      if (mod.module_kind === 'product') {
+        ids.add(mod.id);
+      }
+    }
+    return ids;
+  }, [modulesRes?.data]);
+
   const activeModuleNames = useMemo(() => {
     const rows = tenantModsRes?.data ?? [];
     return rows
-      .filter((r) => r.is_active)
+      .filter((r) => r.is_active && productModuleIds.has(r.module_id))
       .map((r) => moduleNameById.get(r.module_id) ?? r.module_id.slice(0, 8));
-  }, [tenantModsRes?.data, moduleNameById]);
+  }, [tenantModsRes?.data, moduleNameById, productModuleIds]);
 
   const planSlug = useMemo(() => {
     const meta = org?.metadata as Record<string, unknown> | null | undefined;
@@ -384,37 +404,169 @@ function TenantOrganizationDetailPage() {
           </TabsList>
         </div>
 
-        <TabsContent value="overview" className="mt-4 space-y-4">
-          <div className="max-w-2xl space-y-3 text-sm">
-            <ReadOnlyRow label="Organization" value={org.name} />
-            <ReadOnlyRow label="Slug" value={`${org.slug}.iqhealth.app`} />
-            <ReadOnlyRow label="Plan" value={planSlug} />
-            <ReadOnlyRow label="Status" value={provisioningLabel(rootTenant.provisioning_status)} />
-            <div className="space-y-1">
-              <div className="text-xs font-medium text-muted-foreground">Modules enabled</div>
-              <div className="flex flex-wrap gap-1">
-                {activeModuleNames.length === 0 ? (
-                  <span className="text-muted-foreground">None</span>
-                ) : (
-                  activeModuleNames.map((name) => (
-                    <Badge key={name} variant="outline" className="text-xs font-normal">
+        <TabsContent value="overview" className="mt-4 space-y-6">
+          {/* Status banner */}
+          <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-card px-5 py-4 shadow-sm">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+              <Building2 className="size-5 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-base font-semibold truncate">{org.name}</h2>
+              <p className="text-sm text-muted-foreground truncate">
+                {org.slug}.iqhealth.app
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge
+                variant={rootTenant.provisioning_status === 'active' ? 'default' : 'secondary'}
+                className="text-xs"
+              >
+                {provisioningLabel(rootTenant.provisioning_status)}
+              </Badge>
+              <Badge variant="outline" className="text-xs">
+                {planSlug}
+              </Badge>
+            </div>
+          </div>
+
+          {/* Stats grid */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Card className="shadow-sm">
+              <CardContent className="flex items-center gap-3 p-4">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/10">
+                  <GitBranch className="size-4 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold tabular-nums leading-none">
+                    {branchesLoading ? '…' : branches.length}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Active branches</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="shadow-sm">
+              <CardContent className="flex items-center gap-3 p-4">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10">
+                  <Layers className="size-4 text-emerald-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold tabular-nums leading-none">
+                    {tenantModsLoading ? '…' : activeModuleNames.length}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Modules enabled</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="shadow-sm">
+              <CardContent className="flex items-center gap-3 p-4">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-violet-500/10">
+                  <Users className="size-4 text-violet-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold tabular-nums leading-none">—</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Total users</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="shadow-sm">
+              <CardContent className="flex items-center gap-3 p-4">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-amber-500/10">
+                  <Shield className="size-4 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold tabular-nums leading-none">—</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Monthly volume</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Details cards */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            {/* Organization details */}
+            <Card className="shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                  <Globe className="size-4 text-muted-foreground" />
+                  Organization details
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Organization ID</span>
+                  <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{org.id.slice(0, 8)}…</code>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Tenant ID</span>
+                  <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{rootTenant.iq_tenant_id.slice(0, 8)}…</code>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Slug</span>
+                  <span className="font-medium">{org.slug}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Plan</span>
+                  <span className="font-medium">{planSlug}</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Timeline */}
+            <Card className="shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                  <Calendar className="size-4 text-muted-foreground" />
+                  Timeline
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Created</span>
+                  <span className="font-medium tabular-nums">{formatShortDate(org.created_at)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Last updated</span>
+                  <span className="font-medium tabular-nums">{formatShortDate(org.updated_at)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Provisioning status</span>
+                  <Badge
+                    variant={rootTenant.provisioning_status === 'active' ? 'default' : 'secondary'}
+                    className="text-xs"
+                  >
+                    {provisioningLabel(rootTenant.provisioning_status)}
+                  </Badge>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Modules enabled */}
+          <Card className="shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                <Layers className="size-4 text-muted-foreground" />
+                Enabled modules
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {activeModuleNames.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No modules enabled yet.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {activeModuleNames.map((name) => (
+                    <Badge
+                      key={name}
+                      variant="secondary"
+                      className="px-2.5 py-1 text-xs font-normal"
+                    >
                       {name}
                     </Badge>
-                  ))
-                )}
-              </div>
-            </div>
-            <div className="grid gap-3 border-t pt-3 sm:grid-cols-3">
-              <ReadOnlyRow label="Total users" value="—" />
-              <ReadOnlyRow
-                label="Active branches"
-                value={branchesLoading ? '…' : String(branches.length)}
-              />
-              <ReadOnlyRow label="Monthly test volume" value="—" />
-            </div>
-            <ReadOnlyRow label="Created" value={formatShortDate(org.created_at)} />
-            <ReadOnlyRow label="Updated" value={formatShortDate(org.updated_at)} />
-          </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="branches" className="mt-4 space-y-4">

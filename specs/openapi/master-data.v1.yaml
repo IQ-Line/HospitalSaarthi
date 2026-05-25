@@ -974,6 +974,14 @@ paths:
           schema:
             type: string
           example: product,foundation
+        - name: visibility
+          in: query
+          required: false
+          description: >-
+            Filter by visibility scope. Pass `tenant` for tenant-admin views
+            (hides superadmin-only modules). Omit to return all (superadmin default).
+          schema:
+            $ref: '#/components/schemas/VisibilityScope'
       responses:
         '200':
           description: Registered modules.
@@ -4045,6 +4053,11 @@ components:
         - platform
         - foundation
         - product
+    VisibilityScope:
+      type: string
+      enum:
+        - superadmin
+        - tenant
     PermissionAction:
       type: string
       enum:
@@ -4722,6 +4735,10 @@ components:
           type: integer
           default: 0
           description: Stable sort weight within the same level.
+        visibility_scope:
+          $ref: '#/components/schemas/VisibilityScope'
+          default: tenant
+          description: "'tenant' = visible to all admins; 'superadmin' = hidden from tenant admins."
         icon:
           type: string
           nullable: true
@@ -4789,6 +4806,9 @@ components:
         display_order:
           type: integer
           default: 0
+        visibility_scope:
+          $ref: '#/components/schemas/VisibilityScope'
+          default: tenant
         icon:
           type: string
           nullable: true

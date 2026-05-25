@@ -20,6 +20,11 @@ class ModuleKind(StrEnum):
     product = "product"
 
 
+class VisibilityScope(StrEnum):
+    superadmin = "superadmin"
+    tenant = "tenant"
+
+
 class ModuleResponse(BaseModel):
     """Single module row returned by list/detail endpoints."""
 
@@ -45,6 +50,10 @@ class ModuleResponse(BaseModel):
     display_order: int = Field(
         default=0,
         description="Stable sort weight within the same level. Lower values appear first.",
+    )
+    visibility_scope: VisibilityScope = Field(
+        default=VisibilityScope.tenant,
+        description="'tenant' = visible to all admins; 'superadmin' = hidden from tenant admins.",
     )
     icon: str | None = Field(default=None, description="Optional UI icon token.")
     is_active: bool = Field(description="False hides the module from default admin navigation.")
@@ -75,6 +84,7 @@ class ModuleNavResponse(BaseModel):
     level: int = Field(ge=1, le=10)
     module_kind: ModuleKind = Field(default=ModuleKind.product)
     display_order: int = Field(default=0)
+    visibility_scope: VisibilityScope = Field(default=VisibilityScope.tenant)
     icon: str | None = None
 
 

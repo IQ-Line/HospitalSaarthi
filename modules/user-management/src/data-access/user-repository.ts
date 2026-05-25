@@ -142,13 +142,16 @@ export class DrizzleUserRepository implements UserRepository {
   }
 
   async listUsers(tenantId: string, options?: ListUsersOptions): Promise<User[]> {
-    const tenantEq = eq(users.iq_tenant_id, tenantId);
-    const where =
-      options?.userReadResourceAbac !== undefined
-        ? and(tenantEq, drizzleUserReadResourceAbacWhere(options.userReadResourceAbac))
-        : tenantEq;
+    const conditions: SQL[] = [eq(users.iq_tenant_id, tenantId)];
 
-    const rows = await this.db.select(userColumns).from(users).where(where);
+    if (options?.userReadResourceAbac !== undefined) {
+      conditions.push(drizzleUserReadResourceAbacWhere(options.userReadResourceAbac));
+    }
+    if (options?.department !== undefined) {
+      conditions.push(eq(users.department, options.department));
+    }
+
+    const rows = await this.db.select(userColumns).from(users).where(and(...conditions));
 
     return rows.map((row) => rowToUser(row));
   }

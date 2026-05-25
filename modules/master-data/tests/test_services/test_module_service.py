@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 from uuid import UUID, uuid4
 
-from app.schemas.module import ModuleCategory, ModuleKind
+from app.schemas.module import ModuleCategory, ModuleKind, VisibilityScope
 from app.services.module_service import get_module_by_id, get_module_by_slug, list_modules
 
 
@@ -22,6 +22,7 @@ def _row():
         is_deleted=False,
         module_kind="product",
         display_order=0,
+        visibility_scope="tenant",
         created_by=None,
         updated_by=None,
         created_at=now,
@@ -33,7 +34,7 @@ class FakeModuleRepository:
     def __init__(self) -> None:
         self.last_category: ModuleCategory | None = None
 
-    def list_modules(self, *, category: ModuleCategory | None = None, module_kinds: list[ModuleKind] | None = None):
+    def list_modules(self, *, category: ModuleCategory | None = None, module_kinds: list[ModuleKind] | None = None, visibility: VisibilityScope | None = None):
         self.last_category = category
         return [_row()]
 

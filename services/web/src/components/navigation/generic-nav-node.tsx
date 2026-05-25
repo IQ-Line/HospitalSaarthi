@@ -66,8 +66,9 @@ export function GenericNavNode({ node, collapsed, depth = 0 }: GenericNavNodePro
   }
 
   if (hasChildren) {
+    const nestedGroup = !collapsed && depth > 0;
     return (
-      <div className="space-y-1">
+      <div className={`space-y-1${nestedGroup ? ' ml-6' : ''}`}>
         <button
           type="button"
           onClick={() => {

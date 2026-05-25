@@ -7,7 +7,7 @@ from uuid import UUID
 
 from app.catalog.platform_table_models import module_model
 from app.repositories.module_repository import ModuleRepository
-from app.schemas.module import ModuleCategory, ModuleCreate, ModuleKind, ModuleUpdate
+from app.schemas.module import ModuleCategory, ModuleCreate, ModuleKind, ModuleUpdate, VisibilityScope
 
 # Deepest allowed stored ``level`` (root = 1). Raise migration + model check if this changes.
 MAX_MODULE_TREE_LEVEL = 10
@@ -19,6 +19,7 @@ class ModuleReader(Protocol):
         *,
         category: ModuleCategory | None = None,
         module_kinds: list[ModuleKind] | None = None,
+        visibility: VisibilityScope | None = None,
     ) -> list[Any]: ...
 
     def get_module_by_id(
@@ -52,13 +53,18 @@ def list_modules(
     *,
     category: ModuleCategory | None = None,
     module_kinds: list[ModuleKind] | None = None,
+    visibility: VisibilityScope | None = None,
 ) -> list[Any]:
-    return repository.list_modules(category=category, module_kinds=module_kinds)
+    return repository.list_modules(category=category, module_kinds=module_kinds, visibility=visibility)
 
 
-def list_modules_for_nav(repository: ModuleRepository) -> list[Any]:
+def list_modules_for_nav(
+    repository: ModuleRepository,
+    *,
+    visibility: VisibilityScope | None = None,
+) -> list[Any]:
     """Return all active, non-deleted modules for shell navigation (no pagination)."""
-    return repository.list_modules_for_nav()
+    return repository.list_modules_for_nav(visibility=visibility)
 
 
 def list_submodules(repository: ModuleRepository, parent_id: UUID) -> list[Any]:

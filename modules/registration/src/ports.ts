@@ -59,6 +59,7 @@ export interface EmpiHttpPort {
     tenantId: string,
     idempotencyKey: string,
     body: Record<string, unknown>,
+    bearerToken?: string,
   ): Promise<EmpiRegisterPatientResult>;
 }
 

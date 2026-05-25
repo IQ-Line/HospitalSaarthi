@@ -54,6 +54,7 @@ import {
   parseDateOnly,
   startOfLocalDay,
 } from '@/features/frontdesk/utils/visit-registration-helpers';
+import { ApiError } from '@/lib/api-client';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
 import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
@@ -66,7 +67,7 @@ export const Route = createFileRoute('/_authenticated/frontdesk/visit-registrati
 type FormValues = CreateVisitRequestBody;
 
 function VisitRegistrationRoute() {
-  const { canCreate } = useCatalogModuleCrud('registration', {
+  const { canCreate, canRead } = useCatalogModuleCrud('registration', {
     productModuleSlug: 'frontdesk',
   });
   const tenantName = useTenantStore((s) => s.tenantName);
@@ -360,7 +361,7 @@ function VisitRegistrationRoute() {
             </div>
           </header>
 
-          {phase === 'list' ? (
+          {phase === 'list' && canRead ? (
             <div className="space-y-4 rounded-lg border border-border bg-card p-4 md:p-5 shadow-sm">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                 Registrations
@@ -383,7 +384,7 @@ function VisitRegistrationRoute() {
                 Results update as you type. Newest registrations first.
               </p>
 
-              {listQuery.isError ? (
+              {listQuery.isError && !(listQuery.error instanceof ApiError && listQuery.error.status === 403) ? (
                 <p className="text-sm text-destructive" role="alert">
                   {mutationErrorMessage(listQuery.error)}
                 </p>

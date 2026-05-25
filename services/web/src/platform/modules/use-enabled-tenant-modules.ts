@@ -34,10 +34,16 @@ export function isCatalogL1Module(entry: ModuleCatalogEntry): boolean {
 }
 
 /** Active L1 slugs from Master Data `global_master.modules` (platform catalog roots only). */
-export function catalogSlugSetFromIndex(index: ModuleCatalogIndex): ReadonlySet<string> {
+export function catalogSlugSetFromIndex(
+  index: ModuleCatalogIndex,
+  options?: { excludeProductModules?: boolean },
+): ReadonlySet<string> {
   const catalogSlugs = new Set<string>();
   for (const entry of index.bySlug.values()) {
     if (!isCatalogL1Module(entry)) {
+      continue;
+    }
+    if (options?.excludeProductModules && entry.module_kind === 'product') {
       continue;
     }
     addCatalogSlugToSet(catalogSlugs, entry.slug);
@@ -145,7 +151,7 @@ export function useEnabledTenantModuleSlugs(): ReadonlySet<string> | null {
     }
 
     if (isSuperAdmin) {
-      const catalogSlugs = catalogSlugSetFromIndex(index);
+      const catalogSlugs = catalogSlugSetFromIndex(index, { excludeProductModules: true });
       if (catalogSlugs.size === 0) {
         return allRegisteredManifestTenantGateSlugs();
       }
