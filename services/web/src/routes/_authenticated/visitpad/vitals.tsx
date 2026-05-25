@@ -40,8 +40,10 @@ import {
 } from '@/features/visitpad/openapi-constants';
 import { visitpadActiveTotal } from '@/features/visitpad/tab-count';
 import type { VisitpadUnit, VisitpadVital } from '@/features/visitpad/types';
-import { useAnyCapability, useCapability } from '@/hooks/use-capability';
-import { MD_VISITPAD_MUTATE_ANY } from '@/lib/runtime-capability-keys';
+import { useCapability } from '@/hooks/use-capability';
+import { catalogModuleSlugForVisitpadManifestNode } from '@/features/visitpad/lib/visitpad-access';
+import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
+import { requireVisitpadLeafRouteAccess } from '@/lib/visitpad-route-access';
 import { useVisitpadImportLibrarySearch } from '@/features/visitpad/hooks/use-visitpad-import-library-search';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 import { visitpadActiveUnitRows } from '@/features/visitpad/unit-catalog';
@@ -118,6 +120,7 @@ function criticalCell(low: number | null | undefined, high: number | null | unde
 }
 
 export const Route = createFileRoute('/_authenticated/visitpad/vitals')({
+  beforeLoad: requireVisitpadLeafRouteAccess('/visitpad/vitals'),
   component: VisitpadVitalsPage,
 });
 
@@ -136,7 +139,8 @@ function VisitpadVitalsPage() {
   const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadVital | null>(null);
   const [deleting, setDeleting] = useState<VisitpadVital | null>(null);
-  const mdVisitpadMutateAny = useAnyCapability(MD_VISITPAD_MUTATE_ANY);
+  const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-vitals');
+  const { canUpdate, canDelete, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const cat = category === 'all' ? undefined : category;
   const listPage = useMemo(() => ({ pageIndex, pageSize }), [pageIndex, pageSize]);
@@ -278,7 +282,7 @@ function VisitpadVitalsPage() {
         cell: ({ row }) => (
           <TableActiveToggle
             active={row.original.is_active}
-            disabled={patch.isPending || !mdVisitpadMutateAny}
+            disabled={patch.isPending || !canUpdate}
             onCheckedChange={async (next) => {
               try {
                 await patch.mutateAsync({ id: row.original.id, body: { is_active: next } });
@@ -293,10 +297,12 @@ function VisitpadVitalsPage() {
       visitpadActionsColumn<VisitpadVital>({
         onEdit: setEditing,
         onDelete: setDeleting,
-        disabled: busy || !mdVisitpadMutateAny,
+        disabled: busy,
+        canEdit: canUpdate,
+        canDelete,
       }),
     ],
-    [patch, busy, mdVisitpadMutateAny],
+    [patch, busy, canUpdate, canDelete],
   );
 
   return (
@@ -311,7 +317,8 @@ function VisitpadVitalsPage() {
       }
       actions={
         <VisitpadHeaderActions
-addLabel={tenantCatalog ? 'Add local vital' : 'Add vital'}
+          catalogModuleSlug={catalogModuleSlug}
+          addLabel={tenantCatalog ? 'Add local vital' : 'Add vital'}
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
           importFromLibraryPending={platformImport.isPending}

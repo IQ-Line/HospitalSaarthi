@@ -49,3 +49,21 @@ export function useRoleTypePicklistValues(options?: { enabled?: boolean }) {
     error: picklistsQuery.error ?? valuesQuery.error,
   };
 }
+import { apiClientGlobalCatalogRead } from '@/lib/api-client';
+
+export function usePicklistValuesBySlug(picklistSlug: string, enabled = true) {
+  return useQuery({
+    queryKey: [...masterDataKeys.picklistsRoot(), picklistSlug] as const,
+    enabled: enabled && picklistSlug.length > 0,
+    queryFn: async () => {
+      const { data: picklists } =
+        await apiClientGlobalCatalogRead<PicklistListResponse>(BASE);
+      const picklist = picklists.find((p) => p.slug === picklistSlug);
+      if (!picklist) return [];
+      const { data: values } = await apiClientGlobalCatalogRead<PicklistValueListResponse>(
+        `${BASE}/${picklist.id}/values`,
+      );
+      return values.filter((v) => v.is_active);
+    },
+  });
+}

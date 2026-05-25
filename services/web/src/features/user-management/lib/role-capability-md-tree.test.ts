@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Module } from '@/features/master-data/types';
 import type { Capability } from '../types';
 import {
+  buildMasterDataPermissionTreeContext,
   capabilitiesToMasterDataPermissionOptions,
   enabledModuleIdsForRoleCapabilities,
   resolveCapabilityCatalogModuleSlug,
@@ -97,5 +98,18 @@ describe('role-capability-md-tree', () => {
     expect(options).toHaveLength(1);
     expect(options[0]?.runtimeCapabilityId).toBe('cap-1');
     expect(options[0]?.moduleSlug).toBe('users');
+  });
+
+  it('buildMasterDataPermissionTreeContext enables L1 roots from permission option slugs', () => {
+    const modules = [
+      module('l1', null, 1, 'user-management', 'User Management'),
+      module('l2', 'l1', 2, 'users', 'Users'),
+      module('l3', 'l2', 3, 'users', 'Users'),
+    ];
+    const caps = [capability('cap-1', 'users', 'users:users:read')];
+    const ctx = buildMasterDataPermissionTreeContext(modules, caps);
+    expect(ctx.enabledModuleIds.has('l1')).toBe(true);
+    expect(ctx.enabledModuleIds.has('l2')).toBe(true);
+    expect(ctx.enabledModuleIds.has('l3')).toBe(true);
   });
 });

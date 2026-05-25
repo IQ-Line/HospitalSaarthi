@@ -135,6 +135,18 @@ export function userRoleTemplatesOptions(userId: string, tenantScope?: string | 
   });
 }
 
+export function useUserList(
+  tenantScope?: string | null,
+  options?: { enabled?: boolean },
+) {
+  const activeTenantId = useTenantStore((s) => s.tenantId);
+  const scope = tenantScope ?? activeTenantId;
+  return useQuery({
+    ...userListOptions(scope),
+    enabled: options?.enabled ?? true,
+  });
+}
+
 export function useUserListSuspense(tenantScope?: string | null) {
   const activeTenantId = useTenantStore((s) => s.tenantId);
   const scope = tenantScope ?? activeTenantId;

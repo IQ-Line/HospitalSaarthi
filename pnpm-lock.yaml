@@ -163,6 +163,9 @@ importers:
       '@cerbos/core':
         specifier: 0.21.1
         version: 0.21.1
+      '@hims/dev-bootstrap':
+        specifier: workspace:*
+        version: link:../../packages/dev-bootstrap
       '@hims/ts-sdk-authz':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-authz
@@ -586,6 +589,9 @@ importers:
       '@hims/billing':
         specifier: workspace:*
         version: link:../../modules/billing
+      '@hims/dev-bootstrap':
+        specifier: workspace:*
+        version: link:../../packages/dev-bootstrap
       '@hims/ts-sdk-db':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-db
@@ -849,6 +855,9 @@ importers:
       react-hook-form:
         specifier: ^7.56.4
         version: 7.75.0(react@19.2.5)
+      recharts:
+        specifier: ^2.15.4
+        version: 2.15.4(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       sonner:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.2.5(react@19.2.5))(react@19.2.5)

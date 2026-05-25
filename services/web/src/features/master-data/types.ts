@@ -255,6 +255,38 @@ export interface ModulePermissionUpdateInput {
   is_deleted?: boolean;
 }
 
+export interface Picklist {
+  id: string;
+  name: string;
+  slug: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PicklistValue {
+  id: string;
+  category_id: string;
+  value: string;
+  label: string;
+  description: string | null;
+  is_active: boolean;
+  is_default: boolean;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PicklistListResponse {
+  data: Picklist[];
+  total: number;
+}
+
+export interface PicklistValueListResponse {
+  data: PicklistValue[];
+  total: number;
+}
+
 export type DepartmentType = 'clinical' | 'diagnostic' | 'administrative' | 'support';
 
 export interface Department {

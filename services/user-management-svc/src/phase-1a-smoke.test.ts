@@ -21,6 +21,7 @@ import {
   principalRoleEnricherPlugin,
   userManagementPlugin,
 } from "../../../modules/user-management/src/index.js";
+import { createMasterDataModuleCatalogPortStub } from "../../../modules/user-management/src/test-support/master-data-catalog-port-stub.js";
 import type { CheckResult } from "@hims/ts-sdk-authz";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
@@ -183,14 +184,7 @@ describe("Phase 1A.12 smoke", () => {
               return [];
             },
           },
-          masterDataModuleCatalogPort: {
-            async resolveModuleSlugsByIds() {
-              return new Map();
-            },
-            async expandEnabledModuleSlugs(moduleSlugs: readonly string[]) {
-              return moduleSlugs;
-            },
-          },
+          masterDataModuleCatalogPort: createMasterDataModuleCatalogPortStub(),
         });
       },
       { prefix: "/api/user-management" },

@@ -10,8 +10,13 @@ const ENVELOPE_UUID_RE =
  * Fixed namespaces (RFC 4122 UUID) so the same non-UUID identity string always maps to the same envelope id.
  * Distinct namespaces prevent tenant vs actor slug collisions.
  */
-const ENVELOPE_TENANT_NAMESPACE = "f47ac10b-58cc-4372-a567-0e02b2c3d480";
-const ENVELOPE_ACTOR_NAMESPACE = "f47ac10b-58cc-4372-a567-0e02b2c3d481";
+import {
+  DEVELOPMENT_ENVELOPE_ACTOR_NAMESPACE,
+  DEVELOPMENT_ENVELOPE_TENANT_NAMESPACE,
+} from "@hims/dev-bootstrap";
+
+const ENVELOPE_TENANT_NAMESPACE = DEVELOPMENT_ENVELOPE_TENANT_NAMESPACE;
+const ENVELOPE_ACTOR_NAMESPACE = DEVELOPMENT_ENVELOPE_ACTOR_NAMESPACE;
 
 function parseUuidToBytes(uuid: string): Buffer {
   return Buffer.from(uuid.replace(/-/g, ""), "hex");

@@ -2,7 +2,13 @@ import type { QueryClient } from '@tanstack/react-query';
 
 import { authPrincipalQueryKeys, authPrincipalQueryOptions } from '@/lib/auth-principal-query';
 
-import { invalidateModuleRegistration } from '@/platform/modules/module-catalog';
+import {
+  invalidateModuleRegistration,
+  moduleCatalogQueryOptions,
+} from '@/platform/modules/module-catalog';
+import { platformCatalogClient } from '@/features/master-data/api/platform-catalog-client';
+import { masterDataKeys } from '@/features/master-data/api/query-keys';
+import type { ModuleListResponse } from '@/features/master-data/types';
 
 import { hydrateCapabilitiesFromPrincipal } from '@/lib/permissions';
 
@@ -43,4 +49,16 @@ export async function refreshAuthorizationContext(queryClient: QueryClient): Pro
   await hydrateCapabilitiesFromPrincipal(principal);
 
   invalidateModuleRegistration(queryClient, tenant.tenantId);
+
+  await queryClient
+    .fetchQuery({
+      ...moduleCatalogQueryOptions(),
+      queryFn: () =>
+        platformCatalogClient<ModuleListResponse>('/api/v1/master-data/modules', {
+          method: 'GET',
+        }),
+    })
+    .catch(() => {
+      queryClient.removeQueries({ queryKey: masterDataKeys.globalModules() });
+    });
 }

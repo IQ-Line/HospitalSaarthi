@@ -31,6 +31,8 @@ import {
 import { Textarea } from '@pulse/ui/textarea';
 import { useRoleTypePicklistValues } from '@/features/master-data/api';
 import type { Capability, UmRole } from '../types';
+import { MasterDataCapabilityPermissionTree } from './master-data-capability-permission-tree';
+import { PermissionSelectionScrollRegion } from './permission-selection-scroll-region';
 import { UserManagementSectionCard } from './user-management-section-card';
 
 export function groupCapabilitiesByModule(capabilities: Capability[]): Record<string, Capability[]> {
@@ -571,7 +573,8 @@ export function RoleEditorDialog({
     () => new Set(assignedCapabilityIds),
     [assignedCapabilityIds],
   );
-  const showFullCatalog = umCapabilityRead;
+  /** Create-role uses the assignable catalog + accordion tree whenever capabilities can be loaded. */
+  const showFullCatalog = umCapabilityRead || isCreate;
   const permissionsPending = showFullCatalog
     ? isCreate
       ? assignableCatalogPending
@@ -940,19 +943,196 @@ export function RoleEditorDialog({
           {isTabbed ? <RoleEditorTabBar tab={editorTab} onTabChange={setEditorTab} /> : null}
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 py-4">
-          {isTabbed ? (
-            editorTab === 'details' ? (
-              detailsFields
-            ) : (
-              <section className="space-y-4">{permissionsBody}</section>
-            )
-          ) : (
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,22rem),minmax(0,1fr)]">
-              <section className="space-y-4 rounded-md border p-4">{detailsFields}</section>
-              <section className="space-y-4 rounded-md border p-4">{permissionsBody}</section>
-            </div>
-          )}
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden px-4 py-4 lg:flex-row lg:overflow-hidden lg:items-stretch">
+            <section className="shrink-0 space-y-4 rounded-md border p-4 lg:w-[22rem] lg:max-h-full lg:shrink-0 lg:overflow-y-auto lg:overscroll-contain">
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {!isCreate && role ? (
+                    <>
+                      <Badge variant={role.status === 'active' ? 'default' : 'secondary'}>
+                        {role.status}
+                      </Badge>
+                      {role.is_system ? <Badge variant="secondary">System role</Badge> : null}
+                    </>
+                  ) : (
+                    <Badge variant="secondary">New role</Badge>
+                  )}
+                  {isDirty ? <Badge variant="outline">Unsaved changes</Badge> : null}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Give the role a name, then choose what it allows on the right.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="role-editor-code">Short ID</Label>
+                <Input
+                  id="role-editor-code"
+                  placeholder="e.g. clinical-admin"
+                  value={code}
+                  disabled={!roleFormEditable}
+                  onChange={(event) => onCodeChange(event.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="role-editor-name">Role name</Label>
+                <Input
+                  id="role-editor-name"
+                  placeholder="Clinical administrator"
+                  value={displayName}
+                  disabled={!roleFormEditable}
+                  onChange={(event) => onDisplayNameChange(event.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="role-editor-description">Description</Label>
+                <Textarea
+                  id="role-editor-description"
+                  placeholder="Summarize who should receive this role."
+                  value={description}
+                  disabled={!roleFormEditable}
+                  onChange={(event) => onDescriptionChange(event.target.value)}
+                />
+              </div>
+
+              {!roleFormEditable ? (
+                <p className="text-sm text-muted-foreground">
+                  This editor is read-only for your account.
+                </p>
+              ) : null}
+            </section>
+
+            <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden rounded-md border p-4">
+              <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h4 className="font-medium">Permissions</h4>
+                  <p className="text-sm text-muted-foreground">
+                    {showFullCatalog
+                      ? isCreate
+                        ? 'Expand a product and feature, then tick individual permissions for this role.'
+                        : 'Expand modules to review permissions. Selected items are what this role will include.'
+                      : 'Permissions saved on this role.'}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="secondary">{selectedCapabilityIds.length} selected</Badge>
+                  {!isCreate ? (
+                    <Badge variant="outline">{assignedCount} on this role</Badge>
+                  ) : null}
+                  {showFullCatalog ? (
+                    <Badge variant="outline">{totalCapabilityCount} available</Badge>
+                  ) : null}
+                </div>
+              </div>
+
+              {!showFullCatalog && !isCreate && (isView || !umCapabilityRead) ? (
+                assignedCapabilitiesPending ? (
+                  <p className="text-sm text-muted-foreground">Loading permissions for this role...</p>
+                ) : assignedCapabilitiesError ? (
+                  <p className="text-sm text-destructive">
+                    Could not load permissions for this role. Try again.
+                  </p>
+                ) : totalCapabilityCount === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    This role has no permissions set up yet.
+                  </p>
+                ) : (
+                  <div className="space-y-5">
+                    {capabilityTree.map((node) => (
+                      <CapabilityTreeNodeRow
+                        key={node.id}
+                        node={node}
+                        depth={0}
+                        capabilitiesEditable={roleFormEditable}
+                        selectedCapabilityIds={selectedCapabilityIdSet}
+                        expandedBranchIds={expandedBranchIds}
+                        forceExpanded={forceExpanded}
+                        onBranchToggle={handleToggleBranch}
+                        onSetSelectedCapabilityIds={onSetSelectedCapabilityIds}
+                        onToggleCapability={onToggleCapability}
+                        showCapabilityProvenance={showCapabilityProvenance}
+                        plainLanguage
+                        assignedCapabilityIds={undefined}
+                      />
+                    ))}
+                  </div>
+                )
+              ) : permissionsPending ? (
+                <p className="text-sm text-muted-foreground">Loading permissions...</p>
+              ) : permissionsError ? (
+                <div className="space-y-3 rounded-md border border-destructive/35 bg-destructive/5 p-3">
+                  <p className="text-sm text-destructive">
+                    Could not load the permission list. Check your connection and try again.
+                  </p>
+                  <Button type="button" size="sm" variant="outline" onClick={onRetryAssignableCatalog}>
+                    Try again
+                  </Button>
+                </div>
+              ) : totalCapabilityCount === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No permissions are available to assign for this organization yet.
+                </p>
+              ) : (
+                <div className="flex min-h-0 flex-1 flex-col gap-3">
+                  <div className="shrink-0 space-y-3 rounded-md border bg-muted/30 p-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="role-editor-capability-search">Search permissions</Label>
+                      <Input
+                        id="role-editor-capability-search"
+                        placeholder="Search by name or area"
+                        value={capabilitySearch}
+                        onChange={(event) => onCapabilitySearchChange(event.target.value)}
+                      />
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm text-muted-foreground">
+                        {visibleCount} permission{visibleCount === 1 ? '' : 's'} shown.
+                      </p>
+                      {roleFormEditable ? (
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              onSetSelectedCapabilityIds(capabilities.map((capability) => capability.id))
+                            }
+                          >
+                            Select all shown
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onSetSelectedCapabilityIds([])}
+                          >
+                            Clear all
+                          </Button>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {visibleCount === 0 ? (
+                    <p className="shrink-0 text-sm text-muted-foreground">
+                      No permissions match your search.
+                    </p>
+                  ) : (
+                    <PermissionSelectionScrollRegion>
+                      <MasterDataCapabilityPermissionTree
+                        capabilities={capabilities}
+                        selectedCapabilityIds={selectedCapabilityIds}
+                        onSelectedCapabilityIdsChange={onSetSelectedCapabilityIds}
+                        editable={roleFormEditable}
+                      />
+                    </PermissionSelectionScrollRegion>
+                  )}
+                </div>
+              )}
+            </section>
         </div>
 
         <DialogFooter className="mx-0 mb-0 flex w-full shrink-0 items-center justify-between border-t px-4 py-3">

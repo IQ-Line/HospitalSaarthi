@@ -1,4 +1,9 @@
 import { decodeAccessTokenPayload } from '@/lib/access-token';
+import {
+  DEVELOPMENT_BOOTSTRAP_TENANT_ID,
+  DEVELOPMENT_EMPI_PLACEHOLDER_TENANT_ID,
+  DEVELOPMENT_VISITPAD_CATALOG_TENANT_UUID,
+} from '../../../../packages/dev-bootstrap/src/dev-tenant-ids.ts';
 
 /**
  * Visitpad / master-data catalog sends `iq_tenant_id` when the active tenant id is a
@@ -7,14 +12,14 @@ import { decodeAccessTokenPayload } from '@/lib/access-token';
  * Non-UUID tenant slugs omit the header so requests hit the **global_master** catalog.
  */
 
-/** Stable demo tenant used for static “tenant catalog” dev login (matches integration tests). */
-export const DEV_TENANT_IQ_CATALOG_UUID = '00000000-0000-0000-0000-000000000007';
+/** @deprecated Import {@link DEVELOPMENT_VISITPAD_CATALOG_TENANT_UUID} from dev-bootstrap. */
+export const DEV_TENANT_IQ_CATALOG_UUID = DEVELOPMENT_VISITPAD_CATALOG_TENANT_UUID;
 
-/**
- * Default `iq_tenant_id` for EMPI / Registration when no tenant is selected in the UI
- * (Phase 0 dev — replaced by session tenant from better-auth).
- */
-export const DEV_DEFAULT_IQ_TENANT_ID = '550e8400-e29b-41d4-a716-446655440001';
+/** @deprecated Import {@link DEVELOPMENT_EMPI_PLACEHOLDER_TENANT_ID} from dev-bootstrap. */
+export const DEV_DEFAULT_IQ_TENANT_ID = DEVELOPMENT_EMPI_PLACEHOLDER_TENANT_ID;
+
+/** @deprecated Import {@link DEVELOPMENT_BOOTSTRAP_TENANT_ID} from dev-bootstrap. */
+export const BILLING_TARIFF_DEV_TENANT_ID = DEVELOPMENT_BOOTSTRAP_TENANT_ID;
 
 /**
  * Lexical UUID (8-4-4-4-12 hex). Matches Python/Postgres-style `UUID` acceptance, including
@@ -61,17 +66,21 @@ export function jwtIqTenantHeaderValue(accessToken: string | null | undefined): 
   return catalogIqTenantHeaderValue(typeof claim === 'string' ? claim : null);
 }
 
+const skipEmpiPlaceholder = (id: string | null | undefined) =>
+  id && id !== DEV_DEFAULT_IQ_TENANT_ID ? id : null;
+
 /**
- * Billing tariff lookup is per hospital tenant. Prefer JWT (session truth) over the
- * tenant store so a stale dev placeholder (`550e8400-…`) does not cause catalog_row_not_found.
+ * Billing tariff lookup is per hospital tenant. Skips the EMPI dev placeholder so
+ * `captureCharge` finds `tariff_master` rows (avoids `catalog_row_not_found`).
  */
 export function billingIqTenantHeaderValue(
   tenantId: string | null | undefined,
   accessToken: string | null | undefined,
 ): string {
-  return (
-    jwtIqTenantHeaderValue(accessToken) ??
-    catalogIqTenantHeaderValue(tenantId) ??
-    serviceIqTenantHeaderValue(tenantId)
-  );
+  const fromJwt = skipEmpiPlaceholder(jwtIqTenantHeaderValue(accessToken));
+  const fromStore = skipEmpiPlaceholder(catalogIqTenantHeaderValue(tenantId));
+  if (fromJwt) return fromJwt;
+  if (fromStore) return fromStore;
+  if (import.meta.env.DEV) return BILLING_TARIFF_DEV_TENANT_ID;
+  return serviceIqTenantHeaderValue(tenantId);
 }

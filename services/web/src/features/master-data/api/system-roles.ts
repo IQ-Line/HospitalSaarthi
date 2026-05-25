@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient, apiClientWithIqTenant } from '@/lib/api-client';
+import { apiClientWithIqTenant } from '@/lib/api-client';
+import { platformCatalogClient } from './platform-catalog-client';
 import { masterDataKeys } from './query-keys';
 import type {
   SystemRoleCreateInput,
@@ -28,7 +29,7 @@ function systemRoleClient<T>(
   if (iqTenantId?.trim()) {
     return apiClientWithIqTenant<T>(requireTenantIqId(iqTenantId), path, options);
   }
-  return apiClient<T>(path, options);
+  return platformCatalogClient<T>(path, options);
 }
 
 /** Tenant-scoped system role API — always targets ``tenant_master`` via ``iq_tenant_id``. */

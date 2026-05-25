@@ -56,8 +56,6 @@ export function formToUpdatePayload(values: TariffServiceEditFormValues): Servic
     tax_percentage: v.tax_percentage,
     description: v.description,
     department: v.department,
-    category: undefined,
-    sub_category: null,
     tax_type: v.tax_type,
     is_active: v.is_active,
     effective_from: fromDatetimeLocalValue(v.effective_from),

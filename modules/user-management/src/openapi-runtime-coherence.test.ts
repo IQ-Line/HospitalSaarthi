@@ -25,6 +25,7 @@ import type {
 } from "./ports/index.js";
 import { userManagementPlugin } from "./router.js";
 import { NoopUserProvisioningRepository } from "./test-support/noop-user-provisioning-repository.js";
+import { createMasterDataModuleCatalogPortStub } from "./test-support/master-data-catalog-port-stub.js";
 import { publishUserManagementEvent } from "./events/publish-user-management-event.js";
 import { USER_MANAGEMENT_EVENT_ROLE_ASSIGNED } from "./events/constants.js";
 
@@ -91,14 +92,7 @@ const noopTenantModuleEntitlementPort = {
   },
 };
 
-const noopMasterDataModuleCatalogPort = {
-  async resolveModuleSlugsByIds(): Promise<Map<string, string>> {
-    return new Map();
-  },
-  async expandEnabledModuleSlugs(moduleSlugs: readonly string[]): Promise<readonly string[]> {
-    return moduleSlugs;
-  },
-};
+const noopMasterDataModuleCatalogPort = createMasterDataModuleCatalogPortStub();
 
 class NoopRoleCapabilityRepository implements RoleCapabilityRepository {
   async listCapabilitiesByRole(): Promise<Capability[]> {

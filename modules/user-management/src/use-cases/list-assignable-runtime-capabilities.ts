@@ -1,4 +1,5 @@
 import { ModuleEntitlementLookupError } from "../domain/errors.js";
+import { filterRuntimeCapabilitiesByMasterDataLinks } from "../domain/master-data-source-pair.js";
 import { isValidModuleSlug, normalizeModuleSlug } from "../domain/module-slug.js";
 import {
   PLATFORM_RUNTIME_MODULE_SLUGS,
@@ -69,7 +70,15 @@ export async function listAssignableRuntimeCapabilities(
     assignableModuleSlugs.add(normalizeModuleSlug(slug));
   }
 
-  return deps.capabilityRepository.listActiveRuntimeCapabilitiesByModuleSlugs([
-    ...assignableModuleSlugs,
+  const moduleSlugList = [...assignableModuleSlugs];
+  const [runtimeCapabilities, activeMasterDataSourcePairs] = await Promise.all([
+    deps.capabilityRepository.listActiveRuntimeCapabilitiesByModuleSlugs(moduleSlugList),
+    deps.masterDataModuleCatalogPort.listActiveModulePermissionSourcePairs(moduleSlugList),
   ]);
+
+  return filterRuntimeCapabilitiesByMasterDataLinks(
+    runtimeCapabilities,
+    assignableModuleSlugs,
+    activeMasterDataSourcePairs,
+  );
 }

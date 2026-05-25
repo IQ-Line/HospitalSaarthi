@@ -1,0 +1,26 @@
+{
+  "transactionId": "TXN-TEST-00000000-0000-0000-0000-000000000001",
+  "hiRequest": {
+    "consent": {
+      "id": "CON-TEST-00000000-0000-0000-0000-000000000001"
+    },
+    "dateRange": {
+      "from": "2025-01-01T00:00:00.000Z",
+      "to": "2026-05-21T00:00:00.000Z"
+    },
+    "dataPushUrl": "http://localhost:3007/api/v3/hiu/health-information/transfer/TRX-TEST-LOOPBACK-PLACEHOLDER",
+    "keyMaterial": {
+      "cryptoAlg": "ECDH",
+      "curve": "Curve25519",
+      "dhPublicKey": {
+        "expiry": "2026-05-22T00:00:00.000Z",
+        "parameters": "Curve25519/32byte random key",
+        "keyValue": "PLACEHOLDER_HIU_PUBKEY_BASE64_65_BYTES_UNCOMPRESSED_EC_POINT_REPLACED_AT_RUNTIME_BY_SCRIPT"
+      },
+      "nonce": "PLACEHOLDER_HIU_NONCE_BASE64_32_BYTES_REPLACED_AT_RUNTIME_BY_SCRIPT"
+    }
+  },
+  "response": {
+    "requestId": "PLACEHOLDER_REQUEST_ID_OVERRIDE_VIA_HEADER"
+  }
+}

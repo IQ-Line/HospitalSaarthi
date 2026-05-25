@@ -1,13 +1,23 @@
 import {
   buildNavCapabilityAccessInput,
-  catalogSlugMatchesRouteSegment,
+  capabilityKeysGrantModuleSlugAccess,
   principalGrantsNavNodeAccess,
 } from '@/navigation/nav-capability-access';
 import { capabilityKeysGrantProductAccess } from '@/navigation/module-product-access';
 import { getModuleCatalogIndexFromCache } from '@/platform/modules/module-catalog';
 import { canonicalizeRuntimeCapabilityKey } from '@/lib/legacy-capability-key-remap';
 import { normalizeCapabilityKey } from '@/lib/principal-capabilities';
+import { catalogSlugVariants } from '@/platform/modules/catalog-slug-variants';
 import type { NavigationNode } from '@/navigation/types';
+
+/** Actions that authorize opening a catalog L2+ leaf route or list page (UX gate). */
+export const CATALOG_MODULE_ROUTE_ACCESS_ACTIONS = [
+  'read',
+  'create',
+  'update',
+  'delete',
+  'manage',
+] as const;
 
 export type CatalogRouteAccessOptions = {
   catalogModuleSlug?: string;
@@ -56,6 +66,8 @@ export function principalHasCatalogModuleAction(
   action: string,
 ): boolean {
   const normalizedAction = action.trim().toLowerCase();
+  const segments = new Set<string>();
+
   for (const rawKey of capabilityKeys) {
     const parts = canonicalizeRuntimeCapabilityKey(normalizeCapabilityKey(rawKey)).split(':');
     if (parts.length < 3) {
@@ -65,12 +77,36 @@ export function principalHasCatalogModuleAction(
     if (!l1 || !resource || !act || act !== normalizedAction) {
       continue;
     }
-    if (
-      catalogSlugMatchesRouteSegment(moduleSlug, l1) ||
-      catalogSlugMatchesRouteSegment(moduleSlug, resource)
-    ) {
-      return true;
+    for (const segment of [l1, resource]) {
+      segments.add(segment);
+      for (const variant of catalogSlugVariants(segment)) {
+        segments.add(variant);
+      }
     }
   }
+
+  return capabilityKeysGrantModuleSlugAccess(segments, [moduleSlug]);
+}
+
+/**
+ * Leaf catalog routes require an explicit L2+ action on the resolved module slug(s).
+ * Module segment presence alone (e.g. from unrelated actions) is not sufficient.
+ */
+export function principalGrantsCatalogModuleSlugRouteAccess(
+  capabilityKeys: ReadonlySet<string>,
+  moduleSlugs: readonly string[],
+): boolean {
+  if (moduleSlugs.length === 0) {
+    return false;
+  }
+
+  for (const slug of moduleSlugs) {
+    for (const action of CATALOG_MODULE_ROUTE_ACCESS_ACTIONS) {
+      if (principalHasCatalogModuleAction(capabilityKeys, slug, action)) {
+        return true;
+      }
+    }
+  }
+
   return false;
 }

@@ -68,6 +68,8 @@ export const masterDataKeys = {
 
   picklistsRoot: () => [...masterDataKeys.all, 'picklists'] as const,
   picklists: () => [...masterDataKeys.picklistsRoot()] as const,
-  picklistValues: (picklistId: string | undefined, limit: number) =>
-    [...masterDataKeys.picklistsRoot(), picklistId ?? 'none', limit] as const,
+  picklistValues: (picklistId: string | undefined) =>
+    [...masterDataKeys.picklistsRoot(), picklistId ?? 'none'] as const,
+  picklistValues1: (picklistId: string) =>
+    [...masterDataKeys.picklistsRoot(), picklistId, 'values'] as const,
 } as const;
