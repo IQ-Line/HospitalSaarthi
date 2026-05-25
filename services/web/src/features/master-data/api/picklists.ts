@@ -21,10 +21,10 @@ export function usePicklistValues(
 ) {
   const limit = options?.limit ?? 50;
   return useQuery({
-    queryKey: masterDataKeys.picklistValues(picklistId, limit),
+    queryKey: masterDataKeys.picklistValues(picklistId),
     queryFn: () =>
       apiClient<PicklistValueListResponse>(
-        `${BASE}/${picklistId}/values?limit=${limit}&offset=0`,
+        `${BASE}/${picklistId}/values`,
       ),
     enabled: (options?.enabled ?? true) && !!picklistId,
   });

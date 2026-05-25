@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useDepartments, usePicklistValues } from '@/features/master-data/api';
+import { useDepartments, usePicklistValuesBySlug } from '@/features/master-data/api';
 import { useUserList } from '@/features/user-management/api/queries';
 import {
   picklistValueToTariffType,
@@ -14,7 +14,7 @@ export function useTariffCreateLookups(
   departmentId: string | null,
   iqTenantId?: string,
 ) {
-  const picklists = usePicklistValues(TARIFF_TYPE_PICKLIST_SLUG, enabled);
+  const picklists = usePicklistValuesBySlug(TARIFF_TYPE_PICKLIST_SLUG, enabled);
   const departments = useDepartments(undefined, {
     enabled: enabled && tariffType === 'opd',
     iqTenantId,
