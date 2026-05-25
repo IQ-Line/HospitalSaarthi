@@ -337,7 +337,7 @@ export function CreateTenantWizard({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton
-        className="flex h-[min(96vh,960px)] w-[min(1680px,calc(100vw-1.5rem))] max-w-[min(1680px,calc(100vw-1.5rem))] flex-col gap-0 overflow-hidden border bg-background p-0 shadow-xl sm:rounded-xl"
+        className="flex h-[min(98dvh,1100px)] max-h-[min(98dvh,1100px)] w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:max-w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden border bg-background p-0 shadow-xl sm:rounded-xl"
       >
         <div className="shrink-0 border-b bg-background px-6 pb-4 pt-5">
           <DialogHeader className="space-y-1.5 text-left">

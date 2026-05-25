@@ -1,15 +1,11 @@
 import { FileSpreadsheet, Plus, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@pulse/ui/button';
-import { CapabilityGate } from '@/components/capability-gate';
-import {
-  MD_VISITPAD_CATALOG_READ,
-  MD_VISITPAD_CREATE,
-  MD_VISITPAD_MUTATE_ANY,
-  MD_VISITPAD_VIEW,
-} from '@/lib/runtime-capability-keys';
+import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
 
 interface VisitpadHeaderActionsProps {
+  /** Master Data L2 module slug (e.g. `chief-complaints`, `allergens`, `rxcolumns`). */
+  catalogModuleSlug: string;
   addLabel: string;
   onAddClick: () => void;
   onImportFromLibrary?: () => void;
@@ -19,6 +15,7 @@ interface VisitpadHeaderActionsProps {
 }
 
 export function VisitpadHeaderActions({
+  catalogModuleSlug,
   addLabel,
   onAddClick,
   onImportFromLibrary,
@@ -26,24 +23,25 @@ export function VisitpadHeaderActions({
   onBulkCsvClick,
   bulkCsvLabel = 'Import from CSV',
 }: VisitpadHeaderActionsProps) {
+  const { canCreate, canMutate, canRead } = useCatalogModuleCrud(catalogModuleSlug);
+  const showImport = Boolean(onImportFromLibrary && canRead);
+
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
-      {onImportFromLibrary ? (
-        <CapabilityGate any={[MD_VISITPAD_VIEW, MD_VISITPAD_CATALOG_READ]}>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            disabled={importFromLibraryPending}
-            onClick={onImportFromLibrary}
-          >
-            <Upload className="size-4" aria-hidden />
-            Import from library
-          </Button>
-        </CapabilityGate>
+      {showImport ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          disabled={importFromLibraryPending}
+          onClick={onImportFromLibrary}
+        >
+          <Upload className="size-4" aria-hidden />
+          Import from library
+        </Button>
       ) : null}
-      <CapabilityGate any={MD_VISITPAD_MUTATE_ANY}>
+      {canMutate ? (
         <Button
           type="button"
           variant="outline"
@@ -60,13 +58,13 @@ export function VisitpadHeaderActions({
           <FileSpreadsheet className="size-4" aria-hidden />
           {bulkCsvLabel}
         </Button>
-      </CapabilityGate>
-      <CapabilityGate capability={MD_VISITPAD_CREATE}>
+      ) : null}
+      {canCreate ? (
         <Button type="button" size="sm" className="gap-1.5" onClick={onAddClick}>
           <Plus className="size-4" aria-hidden />
           {addLabel}
         </Button>
-      </CapabilityGate>
+      ) : null}
     </div>
   );
 }

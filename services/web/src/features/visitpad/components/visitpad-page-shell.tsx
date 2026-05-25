@@ -9,10 +9,10 @@ import {
   BreadcrumbSeparator,
 } from '@pulse/ui/breadcrumb';
 import { PageHeader } from '@/components/page-header';
-import {
-  visitpadPrimaryTabs,
-  type VisitpadPrimaryTab,
-} from '@/features/visitpad/visitpad-nav-model';
+import { useFilteredVisitpadPrimaryTabs } from '@/features/visitpad/hooks/use-filtered-visitpad-primary-tabs';
+import { resolveVisitpadPrimaryTabLandingRoute } from '@/features/visitpad/lib/visitpad-access';
+import type { VisitpadPrimaryTab } from '@/features/visitpad/visitpad-nav-model';
+import { usePermissionsStore } from '@/stores/permissions.store';
 
 interface VisitpadPageShellProps {
   primary: VisitpadPrimaryTab;
@@ -49,7 +49,9 @@ export function VisitpadPageShell({
   children,
 }: VisitpadPageShellProps) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const primaryLabel = visitpadPrimaryTabs.find((t) => t.id === primary)?.label ?? 'Visitpad';
+  const capabilityKeys = usePermissionsStore((s) => s.capabilityKeys);
+  const visibleTabs = useFilteredVisitpadPrimaryTabs();
+  const primaryLabel = visibleTabs.find((t) => t.id === primary)?.label ?? 'Visitpad';
   const breadcrumbLabel = breadcrumbLabelProp ?? primaryLabel;
 
   return (
@@ -74,8 +76,9 @@ export function VisitpadPageShell({
 
       <div className="border-b">
         <nav className="flex items-center gap-1 -mb-px overflow-x-auto">
-          {visitpadPrimaryTabs.map((tab) => {
-            const active = isPrimaryTabActive(pathname, tab.id, tab.to as string);
+          {visibleTabs.map((tab) => {
+            const tabTo = resolveVisitpadPrimaryTabLandingRoute(capabilityKeys, tab.id);
+            const active = isPrimaryTabActive(pathname, tab.id, tabTo);
             const label =
               tabCount && tab.id === primary
                 ? `${tab.label} (${tabCount.active}/${tabCount.total})`
@@ -83,7 +86,7 @@ export function VisitpadPageShell({
             return (
               <Link
                 key={tab.id}
-                to={tab.to}
+                to={tabTo}
                 className={
                   active
                     ? 'inline-flex h-9 items-center border-b-2 border-foreground px-3 text-sm font-semibold text-foreground whitespace-nowrap'

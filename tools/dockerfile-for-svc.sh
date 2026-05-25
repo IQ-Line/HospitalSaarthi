@@ -28,8 +28,8 @@ case "$svc" in
     echo "infra/docker/cerbos.Dockerfile ."
     ;;
   master-data|master-data-svc)
-    # Python service — context is its own directory, NOT repo root
-    echo "infra/docker/master-data.Dockerfile modules/master-data"
+    # Python service — repo-root context, same as TS services.
+    echo "infra/docker/master-data.Dockerfile ."
     ;;
   *)
     echo "ERROR: no Dockerfile mapping for service '$svc'" >&2

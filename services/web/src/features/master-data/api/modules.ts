@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
+import { platformCatalogClient } from './platform-catalog-client';
 import { masterDataKeys } from './query-keys';
 import type {
   ModuleCategory,
@@ -16,25 +17,30 @@ const NAV_MODULES_PATH = `${BASE}/nav`;
 export function useNavModules(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: masterDataKeys.navModules(),
-    queryFn: () => apiClient<NavModuleListResponse>(NAV_MODULES_PATH),
+    queryFn: () => platformCatalogClient<NavModuleListResponse>(NAV_MODULES_PATH),
     enabled: options?.enabled ?? true,
   });
 }
 
 export function useModules(
   category?: ModuleCategory,
-  options?: { enabled?: boolean; /** Read `global_master.modules` (omit `iq_tenant_id`). */ globalCatalog?: boolean },
+  options?: {
+    enabled?: boolean;
+    /**
+     * Read `global_master.modules` (omit `iq_tenant_id`). Defaults to true — platform catalog
+     * rows are not stored per tenant. Pass `false` only for intentional tenant_master reads.
+     */
+    globalCatalog?: boolean;
+  },
 ) {
   const params = category ? `?category=${category}` : '';
-  const globalCatalog = options?.globalCatalog === true;
+  const globalCatalog = options?.globalCatalog !== false;
   return useQuery({
     queryKey: globalCatalog ? masterDataKeys.globalModules() : masterDataKeys.modules(category),
     queryFn: () =>
-      apiClient<ModuleListResponse>(
-        `${BASE}${params}`,
-        {},
-        globalCatalog ? { tenantIdOverride: null } : undefined,
-      ),
+      globalCatalog
+        ? platformCatalogClient<ModuleListResponse>(`${BASE}${params}`)
+        : apiClient<ModuleListResponse>(`${BASE}${params}`),
     enabled: options?.enabled ?? true,
   });
 }
@@ -42,7 +48,7 @@ export function useModules(
 export function useModule(id: string) {
   return useQuery({
     queryKey: masterDataKeys.moduleDetail(id),
-    queryFn: () => apiClient<ModuleSingleResponse>(`${BASE}/${id}`),
+    queryFn: () => platformCatalogClient<ModuleSingleResponse>(`${BASE}/${id}`),
     enabled: !!id,
   });
 }
@@ -50,7 +56,8 @@ export function useModule(id: string) {
 export function useSubmodules(parentId: string) {
   return useQuery({
     queryKey: masterDataKeys.submodules(parentId),
-    queryFn: () => apiClient<ModuleListResponse>(`${BASE}/${parentId}/submodules`),
+    queryFn: () =>
+      platformCatalogClient<ModuleListResponse>(`${BASE}/${parentId}/submodules`),
     enabled: !!parentId,
   });
 }
@@ -59,7 +66,7 @@ export function useCreateModule() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: ModuleCreateInput) =>
-      apiClient<ModuleSingleResponse>(BASE, {
+      platformCatalogClient<ModuleSingleResponse>(BASE, {
         method: 'POST',
         body: JSON.stringify(input),
       }),
@@ -78,7 +85,7 @@ export function useUpdateModule() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: ModuleUpdateInput }) =>
-      apiClient<ModuleSingleResponse>(`${BASE}/${id}`, {
+      platformCatalogClient<ModuleSingleResponse>(`${BASE}/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(input),
       }),
@@ -93,7 +100,7 @@ export function useDeleteModule() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      apiClient<ModuleSingleResponse>(`${BASE}/${id}`, {
+      platformCatalogClient<ModuleSingleResponse>(`${BASE}/${id}`, {
         method: 'DELETE',
       }),
     onSuccess: (_data, id) => {

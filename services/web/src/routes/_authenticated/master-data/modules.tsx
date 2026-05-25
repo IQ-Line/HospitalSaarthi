@@ -47,6 +47,7 @@ import {
   type ModuleFormValues,
 } from '@/features/master-data/validation';
 import type { Module, ModuleCategory } from '@/features/master-data/types';
+import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
 
 export const Route = createFileRoute('/_authenticated/master-data/modules')({
   component: ModulesPage,
@@ -60,6 +61,9 @@ const moduleCategoryOptions: Array<{ value: ModuleCategory; label: string }> = [
 ];
 
 function ModulesPage() {
+  const { canCreate, canUpdate, canDelete } = useCatalogModuleCrud('modules', {
+    productModuleSlug: 'master-data',
+  });
   const [tableSearch, setTableSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<ModuleCategory | 'all'>('all');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -133,8 +137,9 @@ function ModulesPage() {
           <TableActiveToggle
             active={row.original.is_active}
             disabled={
-              updateMutation.isPending &&
-              updateMutation.variables?.id === row.original.id
+              !canUpdate ||
+              (updateMutation.isPending &&
+                updateMutation.variables?.id === row.original.id)
             }
             onCheckedChange={(next) => {
               if (next === row.original.is_active) return;
@@ -174,11 +179,20 @@ function ModulesPage() {
             }}
             onDelete={() => setDeletingModule(row.original)}
             disabled={deleteMutation.isPending}
+            canEdit={canUpdate}
+            canDelete={canDelete}
           />
         ),
       },
     ],
-    [deleteMutation.isPending, editForm, updateMutation.isPending, updateMutation.variables],
+    [
+      canDelete,
+      canUpdate,
+      deleteMutation.isPending,
+      editForm,
+      updateMutation.isPending,
+      updateMutation.variables,
+    ],
   );
 
   const onCreateSubmit = createForm.handleSubmit(async (values) => {
@@ -248,7 +262,9 @@ function ModulesPage() {
               ))}
             </SelectContent>
           </Select>
-          <Button onClick={() => setIsCreateOpen(true)}>Create Module</Button>
+          {canCreate ? (
+            <Button onClick={() => setIsCreateOpen(true)}>Create Module</Button>
+          ) : null}
         </div>
       }
     >

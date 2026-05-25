@@ -40,6 +40,8 @@ import {
 } from '@/features/frontdesk/utils/visit-registration-helpers';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
+import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
+import { useTenantStore } from '@/stores/tenant.store';
 
 export const Route = createFileRoute('/_authenticated/frontdesk/visit-registration')({
   component: VisitRegistrationRoute,
@@ -50,6 +52,17 @@ type FormValues = CreateVisitRequestBody;
 function VisitRegistrationRoute() {
   const [createAbhaOpen, setCreateAbhaOpen] = useState(false);
   const [formSearchDraft, setFormSearchDraft] = useState('');
+  const { canCreate } = useCatalogModuleCrud('registration', {
+    productModuleSlug: 'frontdesk',
+  });
+  const tenantName = useTenantStore((s) => s.tenantName);
+  const branches = useTenantStore((s) => s.branches);
+  const activeBranch = useTenantStore((s) => s.activeBranch);
+  const branchName =
+    branches.find((b) => b.id === activeBranch)?.name ?? 'Main branch';
+  const branchLabel = [tenantName, branchName].filter(Boolean).join(' — ') || 'Noida — Main Branch';
+
+  const [showExtendedPatient, setShowExtendedPatient] = useState(false);
   const [phase, setPhase] = useState<'list' | 'form'>('list');
   const [listSearchDraft, setListSearchDraft] = useState('');
   const listSearch = useDebouncedValue(listSearchDraft.trim(), 300);

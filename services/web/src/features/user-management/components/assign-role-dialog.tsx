@@ -112,8 +112,8 @@ export function AssignRoleDialog({
           </DialogHeader>
         </div>
 
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
-          <div className="space-y-2">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4">
+          <div className="shrink-0 space-y-2">
             <Label htmlFor="assign-role-select">Role</Label>
             <Select
               value={roleId}
@@ -140,13 +140,15 @@ export function AssignRoleDialog({
           </div>
 
           {roleId ? (
-            <RoleTemplateCapabilityPicker
-              roleId={roleId}
-              tenantScope={tenantScope}
-              selectedCapabilityIds={selectedCapabilityIds}
-              onSelectedCapabilityIdsChange={setSelectedCapabilityIds}
-              plainLanguage
-            />
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+              <RoleTemplateCapabilityPicker
+                roleId={roleId}
+                tenantScope={tenantScope}
+                selectedCapabilityIds={selectedCapabilityIds}
+                onSelectedCapabilityIdsChange={setSelectedCapabilityIds}
+                plainLanguage
+              />
+            </div>
           ) : null}
         </div>
 

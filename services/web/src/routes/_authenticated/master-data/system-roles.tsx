@@ -40,12 +40,16 @@ import {
   type SystemRoleFormValues,
 } from '@/features/master-data/validation';
 import type { SystemRole } from '@/features/master-data/types';
+import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
 
 export const Route = createFileRoute('/_authenticated/master-data/system-roles')({
   component: SystemRolesPage,
 });
 
 function SystemRolesPage() {
+  const { canCreate, canUpdate, canDelete } = useCatalogModuleCrud('role-capabilities', {
+    productModuleSlug: 'master-data',
+  });
   const [tableSearch, setTableSearch] = useState('');
   const [templateFilter, setTemplateFilter] = useState<'all' | 'template' | 'non-template'>('all');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -103,8 +107,9 @@ function SystemRolesPage() {
           <TableActiveToggle
             active={row.original.is_active}
             disabled={
-              updateMutation.isPending &&
-              updateMutation.variables?.id === row.original.id
+              !canUpdate ||
+              (updateMutation.isPending &&
+                updateMutation.variables?.id === row.original.id)
             }
             onCheckedChange={(next) => {
               if (next === row.original.is_active) return;
@@ -141,11 +146,20 @@ function SystemRolesPage() {
             }}
             onDelete={() => setDeletingRole(row.original)}
             disabled={deleteMutation.isPending}
+            canEdit={canUpdate}
+            canDelete={canDelete}
           />
         ),
       },
     ],
-    [deleteMutation.isPending, editForm, updateMutation.isPending, updateMutation.variables],
+    [
+      canDelete,
+      canUpdate,
+      deleteMutation.isPending,
+      editForm,
+      updateMutation.isPending,
+      updateMutation.variables,
+    ],
   );
 
   const onCreateSubmit = createForm.handleSubmit(async (values) => {
@@ -220,7 +234,9 @@ function SystemRolesPage() {
           >
             Non-template
           </Button>
-          <Button onClick={() => setIsCreateOpen(true)}>Create System Role</Button>
+          {canCreate ? (
+            <Button onClick={() => setIsCreateOpen(true)}>Create System Role</Button>
+          ) : null}
         </div>
       }
     >

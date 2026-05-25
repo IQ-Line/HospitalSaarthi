@@ -255,6 +255,24 @@ export interface GatewayClient {
 }
 
 export interface FideliusEncryptor {
+  /**
+   * Generate an ephemeral BC Weierstrass curve25519 keypair + 32-byte transfer nonce.
+   * HIU uses this when initiating a data request — the keypair must outlive the
+   * encrypt call by minutes-to-hours (we send `ourPublicKey` + `ourNonce` in the
+   * data-flow request body, wait for the HIP to push the encrypted bundle, then
+   * derive the shared secret with `ourPrivateKey` to decrypt). The caller is
+   * responsible for persisting `ourPrivateKey` encrypted-at-rest (via
+   * `PayloadEncryptor`) on the M3 transfer row.
+   *
+   * Not used by HIP-side flows — they have a peer key from the inbound request and
+   * generate-and-encrypt in one call via `encryptBundlesForPeer`.
+   */
+  generateOurKeyMaterial(): Promise<{
+    ourPublicKey: string;   // base64, 65-byte uncompressed EC point
+    ourPrivateKey: string;  // base64, 32 bytes — caller MUST encrypt at rest before persisting
+    ourNonce: string;       // base64, 32 bytes
+  }>;
+
   /** Encrypt a payload for an external HIU under their public key. M3 HIP transfer. */
   encryptForPeer(input: {
     payloadJson: string;

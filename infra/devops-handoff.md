@@ -38,14 +38,14 @@ There are exactly **10** images the pipeline ever has to produce:
 | `user-management-svc` | `hims.azurecr.io/user-management-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `.` | TS Fastify |
 | `bff` | `hims.azurecr.io/bff:<sha>` | `infra/docker/node-svc.Dockerfile` | `.` | TS Fastify; browser-facing proxy |
 | `web` | `hims.azurecr.io/web:<sha>` | `infra/docker/web.Dockerfile` | `.` | React SPA built by Vite, served by Nginx |
-| `master-data` *(also called `master-data-svc`)* | `hims.azurecr.io/master-data:<sha>` | `infra/docker/master-data.Dockerfile` | **`modules/master-data`** | Python FastAPI / uvicorn |
+| `master-data` *(also called `master-data-svc`)* | `hims.azurecr.io/master-data:<sha>` | `infra/docker/master-data.Dockerfile` | `.` | Python FastAPI / uvicorn |
 | `cerbos-policies` *(image name: `cerbos`)* | `hims.azurecr.io/cerbos:<sha>` | `infra/docker/cerbos.Dockerfile` | `.` | Cerbos PDP with HIMS policies baked in |
 
-### Two callouts you must not miss
+### One callout you must not miss
 
-1. **`master-data` has a different build context.** Every TS-based image is built with the **repo root** as context (the final positional arg to `docker build`). The Python `master-data` image is built with **`modules/master-data`** as context. Hardcoding `.` for every service will break this one. **Always source the (Dockerfile, context) pair from `tools/dockerfile-for-svc.sh`** — it returns the right pair, and the §6 Jenkinsfile loop does exactly that.
+**`cerbos-policies` is the Nx project name; `cerbos` is the image name.** When Nx tells you "cerbos-policies is affected", the corresponding image is `hims.azurecr.io/cerbos:<sha>` (and the k8s Deployment is named `cerbos`). The §6 skeleton handles this rewrite explicitly.
 
-2. **`cerbos-policies` is the Nx project name; `cerbos` is the image name.** When Nx tells you "cerbos-policies is affected", the corresponding image is `hims.azurecr.io/cerbos:<sha>` (and the k8s Deployment is named `cerbos`). The §6 skeleton handles this rewrite explicitly.
+All images build with **repo root** as context (the final positional arg to `docker build`). `tools/dockerfile-for-svc.sh` returns the (Dockerfile, context) pair for each service — use it rather than hardcoding paths, so new services can be added without changing the Jenkinsfile loop.
 
 ---
 
@@ -94,7 +94,7 @@ Each project declares `projectType` (`application` for deployables, `library` fo
 npx nx show projects --type=app
 ```
 
-Output (sorted): `abdm-adapter-svc`, `bff`, `billing-svc`, `cerbos-policies`, `configurator-svc`, `empi-svc`, `master-data`, `registration-svc`, `user-management-svc`, `web` — exactly 10 entries. `master-data` (the Python service) is an Nx project with `projectType: application` and the `deploy:aks` tag, so it participates in affected detection like any other deployable: change a file under `modules/master-data/` and `--affected` returns `["master-data"]`. The Jenkinsfile loop in §6 then resolves it through `tools/dockerfile-for-svc.sh`, which knows to use the Python Dockerfile with `modules/master-data` as the build context (see §2 callout 1).
+Output (sorted): `abdm-adapter-svc`, `bff`, `billing-svc`, `cerbos-policies`, `configurator-svc`, `empi-svc`, `master-data`, `registration-svc`, `user-management-svc`, `web` — exactly 10 entries. `master-data` (the Python service) is an Nx project with `projectType: application` and the `deploy:aks` tag, so it participates in affected detection like any other deployable: change a file under `modules/master-data/` and `--affected` returns `["master-data"]`.
 
 ---
 
@@ -698,8 +698,8 @@ curl -s http://localhost:18080/healthz       # → "ok"
 curl -s http://localhost:18080/ | head -2    # → "<!doctype html>" + "<html ...>"
 docker kill web-smoke
 
-# master-data (Python — note the context is modules/master-data, NOT .)
-docker build -f infra/docker/master-data.Dockerfile -t hims-master-data:local modules/master-data
+# master-data (Python — same repo-root context as the TS services)
+DOCKER_BUILDKIT=1 docker build -f infra/docker/master-data.Dockerfile -t hims-master-data:local .
 docker run -d --rm -p 18010:8010 --name md-smoke hims-master-data:local
 sleep 5
 docker logs md-smoke | tail -5               # expect "Uvicorn running on http://0.0.0.0:8010"

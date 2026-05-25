@@ -114,6 +114,67 @@ describe('apiClient', () => {
     expect(headers.has('x-tenant-id')).toBe(false);
   });
 
+  it('uses seed tenant for billing when store holds EMPI dev placeholder and JWT lacks claim', async () => {
+    const SEED_TENANT = 'f47ac10b-58cc-4372-a567-0e02b2c3d480';
+    const EMPI_PLACEHOLDER = '550e8400-e29b-41d4-a716-446655440001';
+    useTenantStore.getState().setTenantContext({
+      homeTenantId: EMPI_PLACEHOLDER,
+      tenantId: EMPI_PLACEHOLDER,
+      tenantName: 'Stale',
+      branches: [{ id: 'b1', name: 'Main' }],
+      activeBranch: 'b1',
+    });
+    useAuthStore.getState().setSession({
+      accessToken: 'not-a-jwt',
+      sessionToken: 'session-1',
+      userId: 'user-1',
+      displayName: 'Test',
+    });
+
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ bill_id: 'b1' }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    await apiClient('/api/billing/v1/charges', {
+      method: 'POST',
+      body: JSON.stringify({ item_code: 'REG_FEE' }),
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = new Headers(init.headers);
+    expect(headers.get('iq_tenant_id')).toBe(SEED_TENANT);
+    expect(headers.get('x-tenant-id')).toBe(SEED_TENANT);
+  });
+
+  it('overrides stale catalog tenant header on billing routes', async () => {
+    const SEED_TENANT = 'f47ac10b-58cc-4372-a567-0e02b2c3d480';
+    const EMPI_PLACEHOLDER = '550e8400-e29b-41d4-a716-446655440001';
+
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    await apiClient(
+      '/api/billing/v1/tariff-master',
+      {
+        method: 'GET',
+        headers: { iq_tenant_id: EMPI_PLACEHOLDER, 'x-tenant-id': EMPI_PLACEHOLDER },
+      },
+      { tenantIdOverride: EMPI_PLACEHOLDER },
+    );
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = new Headers(init.headers);
+    expect(headers.get('iq_tenant_id')).toBe(SEED_TENANT);
+    expect(headers.get('x-tenant-id')).toBe(SEED_TENANT);
+  });
+
   it('omits iq_tenant_id for global_master catalog reads while a tenant is selected', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(JSON.stringify({ data: [], total: 0 }), {
@@ -122,11 +183,7 @@ describe('apiClient', () => {
       }),
     );
 
-    await apiClient(
-      '/api/v1/master-data/modules',
-      { method: 'GET' },
-      { tenantIdOverride: null },
-    );
+    await apiClient('/api/v1/master-data/modules', { method: 'GET' }, { tenantIdOverride: null });
 
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     const headers = new Headers(init.headers);

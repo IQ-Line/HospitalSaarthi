@@ -12,20 +12,11 @@ export type VisitpadPrimaryTab =
   | 'vaccines'
   | 'manufacturers';
 
-export const visitpadPrimaryTabs: Array<{
-  id: VisitpadPrimaryTab;
-  label: string;
-  to: string;
-}> = [
-  { id: 'units', label: 'Units', to: '/visitpad/units' },
-  { id: 'vitals', label: 'Vitals', to: '/visitpad/vitals' },
-  { id: 'chief-complaints', label: 'Chief complaints', to: '/visitpad/chief-complaints' },
-  { id: 'diagnoses', label: 'Diagnosis', to: '/visitpad/diagnoses' },
-  { id: 'allergies', label: 'Allergies', to: '/visitpad/allergens' },
-  { id: 'rx-columns', label: 'Rx columns', to: '/visitpad/rx-columns' },
-  { id: 'medicines', label: 'Medicines', to: '/visitpad/medicines' },
-  { id: 'chronic-illness', label: 'Chronic illness', to: '/visitpad/chronic-illness' },
-  { id: 'procedures', label: 'Procedures', to: '/visitpad/procedures' },
-  { id: 'vaccines', label: 'Vaccines', to: '/visitpad/vaccines' },
-  { id: 'manufacturers', label: 'Manufacturers', to: '/visitpad/manufacturers' },
-];
+import { visitpadPrimaryTabGroups } from '@/features/visitpad/lib/visitpad-access';
+
+/** @deprecated Prefer `visitpadPrimaryTabGroups` + capability filtering. */
+export const visitpadPrimaryTabs = visitpadPrimaryTabGroups.map(({ id, label, to }) => ({
+  id,
+  label,
+  to,
+}));

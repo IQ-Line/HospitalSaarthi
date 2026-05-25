@@ -47,19 +47,23 @@ import {
   type VisitpadAllergenCreateFormSchema,
   type VisitpadAllergenEditFormSchema,
 } from '@/features/visitpad/validation';
-import { useAnyCapability, useCapability } from '@/hooks/use-capability';
-import { MD_VISITPAD_MUTATE_ANY } from '@/lib/runtime-capability-keys';
+import { useCapability } from '@/hooks/use-capability';
+import { catalogModuleSlugForVisitpadManifestNode } from '@/features/visitpad/lib/visitpad-access';
+import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
+import { requireVisitpadLeafRouteAccess } from '@/lib/visitpad-route-access';
 import { useVisitpadImportLibrarySearch } from '@/features/visitpad/hooks/use-visitpad-import-library-search';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 
 const AG_BASE = '/api/v1/master-data/visitpad/allergens';
 
 export const Route = createFileRoute('/_authenticated/visitpad/allergens')({
+  beforeLoad: requireVisitpadLeafRouteAccess('/visitpad/allergens'),
   component: VisitpadAllergensPage,
 });
 
 function VisitpadAllergensPage() {
-  const mdVisitpadMutateAny = useAnyCapability(MD_VISITPAD_MUTATE_ANY);
+  const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-allergens');
+  const { canUpdate, canDelete, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [allergenType, setAllergenType] = useState<string>('all');
@@ -177,7 +181,7 @@ function VisitpadAllergensPage() {
         cell: ({ row }) => (
           <TableActiveToggle
             active={row.original.is_active}
-            disabled={patch.isPending || !mdVisitpadMutateAny}
+            disabled={patch.isPending || !canUpdate}
             onCheckedChange={async (next) => {
               try {
                 await patch.mutateAsync({ id: row.original.id, body: { is_active: next } });
@@ -192,10 +196,12 @@ function VisitpadAllergensPage() {
       visitpadActionsColumn<VisitpadAllergen>({
         onEdit: setEditing,
         onDelete: setDeleting,
-        disabled: busy || !mdVisitpadMutateAny,
+        disabled: busy,
+        canEdit: canUpdate,
+        canDelete,
       }),
     ],
-    [patch, busy, mdVisitpadMutateAny],
+    [patch, busy, canUpdate, canDelete],
   );
 
   return (
@@ -212,7 +218,8 @@ function VisitpadAllergensPage() {
       secondaryNav={<VisitpadAllergiesSecondaryNav />}
       actions={
         <VisitpadHeaderActions
-addLabel={tenantCatalog ? 'Add local allergen' : 'Add allergen'}
+          catalogModuleSlug={catalogModuleSlug}
+          addLabel={tenantCatalog ? 'Add local allergen' : 'Add allergen'}
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
           importFromLibraryPending={platformImport.isPending}

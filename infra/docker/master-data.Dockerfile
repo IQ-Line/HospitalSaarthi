@@ -1,15 +1,18 @@
+# Build context: repo root (same as all other HIMS Dockerfiles).
+# COPY paths are repo-relative.
+
 FROM python:3.12-slim
 
 WORKDIR /app
 
 RUN pip install --no-cache-dir uv
 
-COPY pyproject.toml uv.lock ./
+COPY modules/master-data/pyproject.toml modules/master-data/uv.lock ./
 RUN uv sync --frozen --no-dev
 
-COPY app ./app
-COPY alembic ./alembic
-COPY alembic.ini .
+COPY modules/master-data/app ./app
+COPY modules/master-data/alembic ./alembic
+COPY modules/master-data/alembic.ini .
 
 EXPOSE 8010
 

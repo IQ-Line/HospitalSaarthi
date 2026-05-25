@@ -34,3 +34,4 @@ export {
   useUpdateDepartment,
   useDeleteDepartment,
 } from './departments';
+export { usePicklistValues } from './picklists';

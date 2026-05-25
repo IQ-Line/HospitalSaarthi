@@ -1,7 +1,13 @@
-import { applyUserManagementSchemaMigration } from "../src/schema/apply-migration.js";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { resolveDatabaseUrl } from "@hims/ts-sdk-db";
+import { applyUserManagementSchemaMigration } from "../src/schema/apply-migration.js";
+import { loadWorkspaceEnv } from "./load-workspace-env.js";
 
-const url = resolveDatabaseUrl();
+const workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+loadWorkspaceEnv(workspaceRoot);
 
-await applyUserManagementSchemaMigration(url);
-console.log("User-management schema migration applied.");
+const databaseUrl = resolveDatabaseUrl();
+
+await applyUserManagementSchemaMigration(databaseUrl);
+console.log("[user-management] schema migration applied.");
