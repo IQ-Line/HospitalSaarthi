@@ -149,3 +149,19 @@ export interface CancelBillInput {
   reason: string;
   notes?: string | null;
 }
+
+export interface ListBillsQuery {
+  patient_id?: string;
+  visit_id?: string;
+  status?: BillStatus;
+  bill_type?: string;
+  from_date?: string;
+  to_date?: string;
+  limit?: number;
+  cursor?: string;
+}
+
+export interface ListBillsResult {
+  data: BillRow[];
+  page: { limit: number; next_cursor: string | null };
+}

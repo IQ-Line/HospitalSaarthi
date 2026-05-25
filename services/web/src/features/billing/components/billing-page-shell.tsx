@@ -13,6 +13,8 @@ import { PageHeader } from '@/components/page-header';
 interface BillingPageShellProps {
   title: string;
   description: string;
+  /** Breadcrumb tail label; defaults to `title`. */
+  breadcrumbLabel?: string;
   actions?: ReactNode;
   children: ReactNode;
 }
@@ -20,9 +22,11 @@ interface BillingPageShellProps {
 export function BillingPageShell({
   title,
   description,
+  breadcrumbLabel,
   actions,
   children,
 }: BillingPageShellProps) {
+  const breadcrumb = breadcrumbLabel ?? title;
   return (
     <div className="p-6 space-y-4">
       <Breadcrumb>
@@ -38,7 +42,7 @@ export function BillingPageShell({
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
-            <BreadcrumbPage>Tariff catalog</BreadcrumbPage>
+            <BreadcrumbPage>{breadcrumb}</BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
