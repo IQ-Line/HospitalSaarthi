@@ -39,6 +39,31 @@ export interface ProfileAccountResponse {
   profile: NhaAbhaProfile;
 }
 
+export interface AbhaAddressSuggestionsResponse {
+  sessionId: string;
+  txnId: string;
+  suggestions: string[];
+}
+
+export interface CreateAbhaAddressResponse {
+  sessionId: string;
+  txnId: string;
+  healthIdNumber?: string;
+  preferredAbhaAddress?: string;
+}
+
+export interface EnrolMobileVerifySendOtpResponse {
+  sessionId: string;
+  txnId: string;
+  message: string;
+}
+
+export interface EnrolMobileVerifyConfirmResponse {
+  sessionId: string;
+  txnId: string;
+  message: string;
+}
+
 export interface AbhaProfileDisplay {
   abhaNumber: string;
   abhaAddress: string;

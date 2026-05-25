@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pencil } from 'lucide-react';
+import { InfoIcon, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
+import { Alert, AlertDescription } from '@pulse/ui/alert';
 import { Button } from '@pulse/ui/button';
 import { Checkbox } from '@pulse/ui/checkbox';
 import {
@@ -12,7 +13,6 @@ import {
 } from '@pulse/ui/dialog';
 import {
   Field,
-  FieldDescription,
   FieldGroup,
   FieldLabel,
 } from '@pulse/ui/field';
@@ -25,20 +25,30 @@ import {
 import { Separator } from '@pulse/ui/separator';
 import { AadhaarSegmentInput } from '@/features/abha/components/aadhaar-segment-input';
 import {
+  confirmMobileVerifyOtp,
+  createAbhaAddress,
+  getAbhaAddressSuggestions,
   getAbhaProfile,
   resendAadhaarOtp,
   sendAadhaarOtp,
+  sendMobileVerifyOtp,
   verifyAadhaarOtp,
 } from '@/features/abha/api/m1-enrolment';
-import type { AbhaCreatedPayload, AbhaProfileDisplay } from '@/features/abha/types';
+import type { AbhaCreatedPayload, AbhaProfileDisplay, EnrolAadhaarVerifyResponse } from '@/features/abha/types';
+import {
+  extractMobileLast4FromMessage,
+  formatMaskedMobileLast4,
+  validateAbhaAddressLocal,
+} from '@/features/abha/utils/abha-address-validation';
 import {
   mapAbhaProfileDisplay,
   mapAbhaProfileToFormPrefill,
 } from '@/features/abha/utils/map-abha-profile';
+import { ApiError } from '@/lib/api-client';
 import { mutationErrorMessage } from '@/lib/mutation-error';
 import { useAuthStore } from '@/stores/auth.store';
 
-type WizardStep = 'method' | 'login-soon' | 'consent' | 'otp' | 'profile';
+type WizardStep = 'method' | 'login-soon' | 'consent' | 'otp' | 'profile' | 'address-edit';
 
 const CONSENT_ITEMS = [
   'I am voluntarily sharing my Aadhaar / identity information with the National Health Authority (NHA) for the sole purpose of creation of ABHA number.',
@@ -51,12 +61,16 @@ const CONSENT_ITEMS = [
 ] as const;
 
 const MAX_OTP_SENDS = 3;
-const RESEND_COOLDOWN_SEC = 30;
+const RESEND_COOLDOWN_SEC = 60;
+const ABHA_ADDRESS_SUFFIX = '@sbx';
+
+const WIDE_STEPS = new Set<WizardStep>(['consent', 'otp', 'profile', 'address-edit']);
 
 export interface CreateAbhaDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: (payload: AbhaCreatedPayload) => void;
+  /** @deprecated Mobile is not prefilled in the OTP step. */
   defaultMobile?: string;
 }
 
@@ -68,13 +82,21 @@ function initialConsentState(): Record<number, boolean> {
   return Object.fromEntries(CONSENT_ITEMS.map((_, i) => [i, false]));
 }
 
+function isConflictError(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 409;
+}
+
+function stripAbhaSuffix(address: string): string {
+  const at = address.lastIndexOf('@');
+  return at > 0 ? address.slice(0, at) : address;
+}
+
 export function CreateAbhaDialog({
   open,
   onOpenChange,
   onSuccess,
-  defaultMobile = '',
 }: CreateAbhaDialogProps) {
-  const healthcareWorkerName = useAuthStore((s) => s.displayName) ?? '';
+  const authDisplayName = useAuthStore((s) => s.displayName) ?? '';
 
   const [step, setStep] = useState<WizardStep>('method');
   const [aadhaarSeg1, setAadhaarSeg1] = useState('');
@@ -85,16 +107,24 @@ export function CreateAbhaDialog({
   const [consentChecked, setConsentChecked] = useState<Record<number, boolean>>(initialConsentState);
   const [hwAcknowledged, setHwAcknowledged] = useState(false);
   const [beneficiaryAcknowledged, setBeneficiaryAcknowledged] = useState(false);
+  const [healthcareWorkerName, setHealthcareWorkerName] = useState('');
   const [beneficiaryName, setBeneficiaryName] = useState('');
   const [sessionId, setSessionId] = useState('');
   const [aadhaarNumber, setAadhaarNumber] = useState('');
   const [otp, setOtp] = useState('');
   const [mobile, setMobile] = useState('');
+  const [otpMobileLast4, setOtpMobileLast4] = useState('');
   const [otpSendCount, setOtpSendCount] = useState(0);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [profileDisplay, setProfileDisplay] = useState<AbhaProfileDisplay | null>(null);
-  const [formPrefill, setFormPrefill] = useState<AbhaCreatedPayload | null>(null);
+  const [verifySnapshot, setVerifySnapshot] = useState<EnrolAadhaarVerifyResponse | null>(null);
+
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [addressLocal, setAddressLocal] = useState('');
+  const [addressError, setAddressError] = useState<string | null>(null);
+  const [needsMobileVerifyOtp, setNeedsMobileVerifyOtp] = useState(false);
+  const [mobileVerifyOtp, setMobileVerifyOtp] = useState('');
 
   const resetWizard = useCallback(() => {
     setStep('method');
@@ -106,27 +136,32 @@ export function CreateAbhaDialog({
     setConsentChecked(initialConsentState());
     setHwAcknowledged(false);
     setBeneficiaryAcknowledged(false);
+    setHealthcareWorkerName('');
     setBeneficiaryName('');
     setSessionId('');
     setAadhaarNumber('');
     setOtp('');
     setMobile('');
+    setOtpMobileLast4('');
     setOtpSendCount(0);
     setResendCooldown(0);
     setIsSubmitting(false);
     setProfileDisplay(null);
-    setFormPrefill(null);
+    setVerifySnapshot(null);
+    setSuggestions([]);
+    setAddressLocal('');
+    setAddressError(null);
+    setNeedsMobileVerifyOtp(false);
+    setMobileVerifyOtp('');
   }, []);
 
   useEffect(() => {
-    if (!open) resetWizard();
-  }, [open, resetWizard]);
-
-  useEffect(() => {
-    if (step === 'otp' && defaultMobile && !mobile) {
-      setMobile(digitsOnly(defaultMobile, 10));
+    if (open) {
+      setHealthcareWorkerName(authDisplayName);
+    } else {
+      resetWizard();
     }
-  }, [step, defaultMobile, mobile]);
+  }, [open, authDisplayName, resetWizard]);
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -156,7 +191,14 @@ export function CreateAbhaDialog({
     beneficiaryName.trim().length > 0;
 
   const otpStepValid = /^\d{6}$/.test(otp) && /^\d{10}$/.test(mobile);
-  const canResendOtp = resendCooldown === 0 && otpSendCount < MAX_OTP_SENDS && !isSubmitting;
+  const resendAttemptsLeft = MAX_OTP_SENDS - otpSendCount;
+  const canResendOtp = resendCooldown === 0 && resendAttemptsLeft > 0 && !isSubmitting;
+
+  const otpMaskedLabel = otpMobileLast4
+    ? formatMaskedMobileLast4(otpMobileLast4)
+    : formatMaskedMobileLast4(fullAadhaar.slice(-4));
+
+  const addressLocalValid = validateAbhaAddressLocal(addressLocal) === null;
 
   const handleOpenChange = (next: boolean) => {
     if (!next && isSubmitting) return;
@@ -171,6 +213,61 @@ export function CreateAbhaDialog({
 
   const startResendCooldown = () => setResendCooldown(RESEND_COOLDOWN_SEC);
 
+  const showOtpSentToast = (message: string, fallbackLast4: string) => {
+    const last4 = extractMobileLast4FromMessage(message) ?? fallbackLast4;
+    setOtpMobileLast4(last4);
+    toast.success('OTP Sent', {
+      description: `OTP sent to Aadhaar registered mobile number ending with ******${last4}`,
+    });
+  };
+
+  const refreshProfileState = async (sid: string, verify?: EnrolAadhaarVerifyResponse) => {
+    const profileRes = await getAbhaProfile(sid);
+    setProfileDisplay(mapAbhaProfileDisplay(profileRes.profile, verify));
+    return profileRes;
+  };
+
+  const applySuccessAndClose = async () => {
+    if (!sessionId) return;
+    const profileRes = await getAbhaProfile(sessionId);
+    const prefill = mapAbhaProfileToFormPrefill(profileRes.profile, verifySnapshot ?? undefined);
+    onSuccess(prefill);
+    onOpenChange(false);
+  };
+
+  const finishWithPrefill = async () => {
+    setIsSubmitting(true);
+    try {
+      await applySuccessAndClose();
+    } catch (err) {
+      toast.error(mutationErrorMessage(err));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const loadAddressSuggestions = async (sid: string) => {
+    const res = await getAbhaAddressSuggestions(sid);
+    setSuggestions(res.suggestions);
+    return res;
+  };
+
+  const ensureMobileVerifiedForAddress = async (
+    sid: string,
+    mobileDigits: string,
+  ): Promise<boolean> => {
+    try {
+      await loadAddressSuggestions(sid);
+      return false;
+    } catch (err) {
+      if (!isConflictError(err)) throw err;
+    }
+
+    await sendMobileVerifyOtp({ sessionId: sid, mobile: mobileDigits });
+    toast.info('Enter the OTP sent to your mobile to continue with ABHA address setup.');
+    return true;
+  };
+
   const handleConsentNext = async () => {
     if (!consentStepValid || isSubmitting) return;
     setIsSubmitting(true);
@@ -181,7 +278,7 @@ export function CreateAbhaDialog({
       setOtpSendCount(1);
       startResendCooldown();
       setStep('otp');
-      toast.success(res.message || 'OTP sent to Aadhaar-linked mobile');
+      showOtpSentToast(res.message, fullAadhaar.slice(-4));
     } catch (err) {
       toast.error(mutationErrorMessage(err));
     } finally {
@@ -196,7 +293,7 @@ export function CreateAbhaDialog({
       const res = await resendAadhaarOtp(sessionId, aadhaarNumber);
       setOtpSendCount((c) => c + 1);
       startResendCooldown();
-      toast.success(res.message || 'OTP resent');
+      showOtpSentToast(res.message, aadhaarNumber.slice(-4));
     } catch (err) {
       toast.error(mutationErrorMessage(err));
     } finally {
@@ -209,10 +306,8 @@ export function CreateAbhaDialog({
     setIsSubmitting(true);
     try {
       const verifyRes = await verifyAadhaarOtp({ sessionId, otp, mobile });
-      toast.success(verifyRes.message || 'Aadhaar verified');
-      const profileRes = await getAbhaProfile(sessionId);
-      setProfileDisplay(mapAbhaProfileDisplay(profileRes.profile, verifyRes));
-      setFormPrefill(mapAbhaProfileToFormPrefill(profileRes.profile, verifyRes));
+      setVerifySnapshot(verifyRes);
+      await refreshProfileState(sessionId, verifyRes);
       setStep('profile');
     } catch (err) {
       toast.error(mutationErrorMessage(err));
@@ -221,27 +316,85 @@ export function CreateAbhaDialog({
     }
   };
 
+  const handleEditAddress = async () => {
+    if (!sessionId || !mobile || isSubmitting) return;
+    setIsSubmitting(true);
+    setAddressError(null);
+    try {
+      const needsVerify = await ensureMobileVerifiedForAddress(sessionId, mobile);
+      setNeedsMobileVerifyOtp(needsVerify);
+      setStep('address-edit');
+    } catch (err) {
+      toast.error(mutationErrorMessage(err));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleMobileVerifyForAddress = async () => {
+    if (!/^\d{6}$/.test(mobileVerifyOtp) || !sessionId || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await confirmMobileVerifyOtp({ sessionId, otp: mobileVerifyOtp });
+      setNeedsMobileVerifyOtp(false);
+      setMobileVerifyOtp('');
+      await loadAddressSuggestions(sessionId);
+      toast.success('Mobile verified. Choose or create your ABHA address.');
+    } catch (err) {
+      toast.error(mutationErrorMessage(err));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCreateAddress = async () => {
+    const validationError = validateAbhaAddressLocal(addressLocal);
+    if (validationError) {
+      setAddressError(validationError);
+      return;
+    }
+    if (!sessionId || isSubmitting) return;
+
+    setAddressError(null);
+    setIsSubmitting(true);
+    try {
+      const fullAddress = `${addressLocal.trim()}${ABHA_ADDRESS_SUFFIX}`;
+      await createAbhaAddress({ sessionId, abhaAddress: fullAddress });
+      await refreshProfileState(sessionId, verifySnapshot ?? undefined);
+      toast.success('ABHA address created');
+      await applySuccessAndClose();
+    } catch (err) {
+      toast.error(mutationErrorMessage(err));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleDone = () => {
-    if (!formPrefill) return;
-    onSuccess(formPrefill);
-    onOpenChange(false);
+    void finishWithPrefill();
   };
 
   const handleBack = () => {
     if (isSubmitting) return;
     if (step === 'login-soon' || step === 'consent') setStep('method');
     else if (step === 'otp') setStep('consent');
-    else if (step === 'profile') setStep('otp');
+    else if (step === 'address-edit') {
+      setNeedsMobileVerifyOtp(false);
+      setMobileVerifyOtp('');
+      setAddressLocal('');
+      setAddressError(null);
+      setStep('profile');
+    }
   };
 
   const showFooter = step !== 'method';
-  const showBack = step !== 'method';
+  const showBack = step === 'login-soon' || step === 'consent' || step === 'otp' || step === 'address-edit';
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         className={`flex max-h-[min(92dvh,780px)] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 ${
-          step === 'consent' || step === 'otp' ? 'sm:max-w-2xl' : 'sm:max-w-lg'
+          WIDE_STEPS.has(step) ? 'sm:max-w-5xl' : 'sm:max-w-lg'
         }`}
         showCloseButton
       >
@@ -304,14 +457,14 @@ export function CreateAbhaDialog({
                   onMaskSeg1={setMaskSeg1}
                   onMaskSeg2={setMaskSeg2}
                 />
-                <p className="text-xs leading-relaxed text-primary">
+                <p className="text-xs leading-relaxed text-muted-foreground">
                   Please ensure that mobile number is linked with Aadhaar as it will be required for
                   OTP authentication. If you do not have a mobile number linked, visit the{' '}
                   <a
                     href="https://uidai.gov.in/en/contact-support/have-any-question/284-faqs/aadhaar-online-services/aadhaar-enrolment.html"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-medium underline underline-offset-2"
+                    className="font-medium text-primary underline underline-offset-2 hover:text-primary/90"
                   >
                     nearest Aadhaar Enrollment
                   </a>{' '}
@@ -345,8 +498,8 @@ export function CreateAbhaDialog({
                   checked={hwAcknowledged}
                   onCheckedChange={setHwAcknowledged}
                   nameValue={healthcareWorkerName}
+                  onNameChange={setHealthcareWorkerName}
                   namePlaceholder="Healthcare worker name"
-                  readOnly
                   trailingText=", confirm that I have duly informed and explained the beneficiary of the contents of consent for aforementioned purposes."
                 />
 
@@ -364,9 +517,11 @@ export function CreateAbhaDialog({
           )}
 
           {step === 'otp' && (
-            <FieldGroup className="gap-6">
-              <Field>
-                <FieldLabel className="text-sm font-medium">Enter OTP</FieldLabel>
+            <FieldGroup className="gap-8">
+              <Field className="gap-3">
+                <FieldLabel className="text-sm font-semibold text-foreground">
+                  Enter the OTP received on {otpMaskedLabel}
+                </FieldLabel>
                 <InputOTP
                   maxLength={6}
                   value={otp}
@@ -383,31 +538,34 @@ export function CreateAbhaDialog({
                     ))}
                   </InputOTPGroup>
                 </InputOTP>
-                <div className="flex items-center justify-between pt-1 text-xs">
-                  <span className="text-muted-foreground">OTP sent to Aadhaar-linked mobile</span>
-                  {otpSendCount < MAX_OTP_SENDS ? (
-                    <button
-                      type="button"
-                      className={
-                        canResendOtp
-                          ? 'font-medium text-primary underline-offset-4 hover:underline'
-                          : 'cursor-not-allowed text-muted-foreground'
-                      }
-                      disabled={!canResendOtp}
-                      onClick={() => void handleResendOtp()}
-                    >
-                      {resendCooldown > 0
-                        ? `Resend OTP in ${resendCooldown}s`
-                        : `Resend OTP (${MAX_OTP_SENDS - otpSendCount} left)`}
-                    </button>
+                <p className="text-xs text-muted-foreground">
+                  {resendAttemptsLeft > 0 ? (
+                    <>
+                      {resendCooldown > 0 ? (
+                        <>Resend OTP in {resendCooldown} sec.</>
+                      ) : (
+                        <button
+                          type="button"
+                          className="font-medium text-primary underline-offset-4 hover:underline"
+                          disabled={!canResendOtp}
+                          onClick={() => void handleResendOtp()}
+                        >
+                          Resend OTP
+                        </button>
+                      )}
+                      {'. '}
+                      Attempts remaining: {resendAttemptsLeft}
+                    </>
                   ) : (
-                    <span className="text-muted-foreground">Maximum resend attempts reached</span>
+                    'Maximum resend attempts reached'
                   )}
-                </div>
+                </p>
               </Field>
 
-              <Field>
-                <FieldLabel className="text-sm font-medium">Enter mobile number</FieldLabel>
+              <Field className="gap-3">
+                <FieldLabel className="text-sm font-semibold text-foreground">
+                  Enter mobile number to authenticate ABHA Number
+                </FieldLabel>
                 <div className="flex items-center gap-2">
                   <span className="inline-flex h-11 shrink-0 items-center rounded-md border border-input bg-muted px-3 text-sm tabular-nums">
                     +91
@@ -415,18 +573,22 @@ export function CreateAbhaDialog({
                   <Input
                     id="abha-mobile"
                     inputMode="numeric"
-                    autoComplete="tel-national"
+                    autoComplete="off"
                     maxLength={10}
                     value={mobile}
                     onChange={(e) => setMobile(digitsOnly(e.target.value, 10))}
-                    placeholder="10-digit mobile"
+                    placeholder="Enter mobile number"
                     className="h-11 tabular-nums"
                   />
                 </div>
-                <FieldDescription className="text-xs">
-                  Primary mobile for ABHA — use the number linked with Aadhaar or where you received
-                  the OTP.
-                </FieldDescription>
+                <Alert className="border-sky-200 bg-sky-50 text-sky-950">
+                  <InfoIcon className="text-sky-600" />
+                  <AlertDescription className="text-xs leading-relaxed text-sky-900/90">
+                    It is preferable to use your Aadhaar-linked mobile number. If you choose to use
+                    a different mobile number, it will need to be validated again and will be used
+                    for all communication related to ABHA.
+                  </AlertDescription>
+                </Alert>
               </Field>
             </FieldGroup>
           )}
@@ -435,26 +597,30 @@ export function CreateAbhaDialog({
             <div className="space-y-5">
               <p className="text-sm font-semibold text-foreground">Patient Details</p>
 
-              <div className="space-y-3 text-sm">
+              <div className="space-y-4">
                 <div>
-                  <p className="text-muted-foreground">ABHA Number/ आभा संख्या</p>
-                  <p className="mt-0.5 text-base font-semibold tabular-nums text-foreground">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    ABHA Number/ आभा संख्या
+                  </p>
+                  <p className="mt-1 text-lg font-semibold tabular-nums tracking-tight text-foreground">
                     {profileDisplay.abhaNumber || '—'}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="text-muted-foreground">ABHA Address/ आभा पता</p>
-                    <p className="mt-0.5 break-all text-base font-semibold text-foreground">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      ABHA Address/ आभा पता
+                    </p>
+                    <p className="mt-1 break-all text-lg font-semibold tracking-tight text-foreground">
                       {profileDisplay.abhaAddress || '—'}
                     </p>
                   </div>
                   <Button
                     type="button"
                     size="sm"
-                    disabled
-                    title="Coming soon"
-                    className="shrink-0 gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+                    disabled={isSubmitting}
+                    className="shrink-0 gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90"
+                    onClick={() => void handleEditAddress()}
                   >
                     <Pencil className="size-3.5" />
                     Edit
@@ -462,7 +628,126 @@ export function CreateAbhaDialog({
                 </div>
               </div>
 
-              <div className="space-y-2.5 rounded-lg bg-muted/60 p-4 text-sm">
+              <div className="space-y-2.5 rounded-lg bg-sky-50/80 p-4 text-sm">
+                <ProfileDetailRow label="Patient Name" value={profileDisplay.patientName} />
+                <ProfileDetailRow label="Gender" value={profileDisplay.gender} />
+                <ProfileDetailRow label="Date of Birth" value={profileDisplay.dateOfBirth} />
+                <ProfileDetailRow label="Mobile Number" value={profileDisplay.mobile} />
+                <ProfileDetailRow label="Address" value={profileDisplay.address} />
+              </div>
+            </div>
+          )}
+
+          {step === 'address-edit' && profileDisplay && (
+            <div className="space-y-6">
+              <div className="space-y-1 text-sm">
+                <p className="text-muted-foreground">
+                  ABHA Number/ आभा संख्या:{' '}
+                  <span className="font-medium text-foreground">{profileDisplay.abhaNumber || '—'}</span>
+                </p>
+                <p className="text-muted-foreground">
+                  ABHA Address/ आभा पता:{' '}
+                  <span className="font-medium text-foreground">
+                    {profileDisplay.abhaAddress || '—'}
+                  </span>
+                </p>
+              </div>
+
+              {needsMobileVerifyOtp ? (
+                <Field className="gap-3 rounded-lg border border-border/80 bg-muted/20 p-4">
+                  <FieldLabel className="text-sm font-semibold">
+                    Enter OTP sent to mobile ending {mobile.slice(-4)}
+                  </FieldLabel>
+                  <InputOTP
+                    maxLength={6}
+                    value={mobileVerifyOtp}
+                    onChange={(v) => setMobileVerifyOtp(digitsOnly(v, 6))}
+                    containerClassName="justify-start gap-2"
+                  >
+                    <InputOTPGroup className="gap-2">
+                      {Array.from({ length: 6 }).map((_, i) => (
+                        <InputOTPSlot key={i} index={i} className="size-10 rounded-md border" />
+                      ))}
+                    </InputOTPGroup>
+                  </InputOTP>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={!/^\d{6}$/.test(mobileVerifyOtp) || isSubmitting}
+                    className="w-fit bg-primary text-primary-foreground hover:bg-primary/90"
+                    onClick={() => void handleMobileVerifyForAddress()}
+                  >
+                    {isSubmitting ? 'Verifying…' : 'Verify mobile OTP'}
+                  </Button>
+                </Field>
+              ) : (
+                <>
+                  <div className="space-y-3">
+                    <FieldLabel className="text-sm font-semibold text-foreground">
+                      Create Patient ABHA Address
+                    </FieldLabel>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Input
+                        value={addressLocal}
+                        onChange={(e) => {
+                          setAddressLocal(e.target.value.replace(/[^a-zA-Z0-9._]/g, ''));
+                          setAddressError(null);
+                        }}
+                        placeholder="Enter custom Address"
+                        className="h-11 min-w-[12rem] flex-1"
+                        maxLength={18}
+                      />
+                      <span className="inline-flex h-11 items-center rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground">
+                        {ABHA_ADDRESS_SUFFIX}
+                      </span>
+                      <Button
+                        type="button"
+                        disabled={!addressLocalValid || isSubmitting}
+                        className="h-11 bg-primary text-primary-foreground hover:bg-primary/90"
+                        onClick={() => void handleCreateAddress()}
+                      >
+                        {isSubmitting ? 'Creating…' : 'Create ABHA Address'}
+                      </Button>
+                    </div>
+                    {addressError ? (
+                      <p className="text-xs text-destructive">{addressError}</p>
+                    ) : null}
+                    <ol className="list-decimal space-y-0.5 pl-4 text-xs text-muted-foreground">
+                      <li>Minimum length - 8 characters</li>
+                      <li>Maximum length - 18 characters</li>
+                      <li>Special characters allowed - 1 dot (.) and/or 1 underscore (_)</li>
+                      <li>Dot/underscore must be in between (not at start or end)</li>
+                      <li>Only letters and numbers are allowed</li>
+                    </ol>
+                  </div>
+
+                  {suggestions.length > 0 ? (
+                    <div className="space-y-2">
+                      <p className="text-sm font-semibold text-foreground">Suggestions:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {suggestions.map((suggestion) => {
+                          const local = stripAbhaSuffix(suggestion);
+                          return (
+                            <button
+                              key={suggestion}
+                              type="button"
+                              className="rounded-md border border-primary/40 bg-primary/5 px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+                              onClick={() => {
+                                setAddressLocal(local);
+                                setAddressError(null);
+                              }}
+                            >
+                              {local}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
+                </>
+              )}
+
+              <div className="space-y-2.5 rounded-lg bg-sky-50/80 p-4 text-sm">
                 <ProfileDetailRow label="Patient Name" value={profileDisplay.patientName} />
                 <ProfileDetailRow label="Gender" value={profileDisplay.gender} />
                 <ProfileDetailRow label="Date of Birth" value={profileDisplay.dateOfBirth} />
@@ -476,7 +761,7 @@ export function CreateAbhaDialog({
         {showFooter && (
           <>
             <Separator />
-            <DialogFooter className="shrink-0 flex-row items-center justify-between gap-3 border-0 bg-background px-6 py-4 sm:justify-between">
+            <DialogFooter className="mb-0 shrink-0 flex-row items-center justify-between gap-3 rounded-b-xl border-0 border-t bg-background px-6 pt-4 pb-6 sm:justify-between">
               {showBack ? (
                 <Button
                   type="button"
@@ -515,13 +800,14 @@ export function CreateAbhaDialog({
                 </Button>
               )}
 
-              {step === 'profile' && (
+              {(step === 'profile' || step === 'address-edit') && (
                 <Button
                   type="button"
+                  disabled={isSubmitting || (step === 'address-edit' && needsMobileVerifyOtp)}
                   className="min-w-[6rem] bg-primary text-primary-foreground hover:bg-primary/90"
                   onClick={handleDone}
                 >
-                  Done
+                  {isSubmitting ? 'Saving…' : 'Done'}
                 </Button>
               )}
             </DialogFooter>

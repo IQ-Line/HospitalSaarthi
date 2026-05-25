@@ -549,7 +549,6 @@ function VisitRegistrationRoute() {
         open={createAbhaOpen}
         onOpenChange={setCreateAbhaOpen}
         onSuccess={handleAbhaCreated}
-        defaultMobile={patientPhone ?? ''}
       />
     </div>
   );
