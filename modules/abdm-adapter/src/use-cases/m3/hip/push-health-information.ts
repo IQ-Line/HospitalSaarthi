@@ -7,6 +7,7 @@ import {
 } from "../../../data-access/hip-data-push.client.js";
 import type { AbdmSession } from "../../../domain/session.js";
 import { assertFlowKind } from "../../../domain/session.js";
+import { resolveHipDataPushUrl } from "../../../lib/resolve-hip-data-push-url.js";
 
 export async function pushHealthInformationForSession(
   input: {
@@ -48,12 +49,21 @@ export async function pushHealthInformationForSession(
     careContextReference: bundle.careContextReference,
   }));
 
+  const dataPushUrl = await resolveHipDataPushUrl(
+    {
+      iqTenantId: input.iqTenantId,
+      consentId: input.parsed.consentId,
+      cmDataPushUrl: input.parsed.dataPushUrl,
+    },
+    deps,
+  );
+
   await deps.sessions.patch({
     iqTenantId: input.iqTenantId,
     sessionId: input.session.sessionId,
     state: "BUNDLES_ENCRYPTED",
     contextMerge: {
-      dataPushUrl: input.parsed.dataPushUrl,
+      dataPushUrl,
       transactionId: input.parsed.transactionId,
     },
   });
@@ -78,9 +88,10 @@ export async function pushHealthInformationForSession(
   };
 
   await deps.dataPush.push({
-    dataPushUrl: input.parsed.dataPushUrl,
+    dataPushUrl,
     body: pushBody as unknown as Record<string, unknown>,
     requestId: newPushRequestId(),
+    iqTenantId: input.iqTenantId,
   });
 
   await deps.sessions.patch({

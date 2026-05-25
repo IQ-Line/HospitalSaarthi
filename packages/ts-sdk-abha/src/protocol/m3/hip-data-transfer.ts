@@ -31,7 +31,7 @@ export interface HipHealthInformationAckRequest {
     sessionStatus: 'ACKNOWLEDGED' | 'FAILED';
   };
   response: AbdmGatewayResponseRef;
-  error?: { code: string; message: string };
+  error?: { code: string; message: string } | null;
 }
 
 /** §6.3.5 — HIP push to HIU dataPushUrl. */
@@ -55,6 +55,8 @@ export interface HipDataFlowNotifyRequest {
   notification: {
     consentId?: string;
     transactionId?: string;
+    doneAt?: string;
+    notifier?: { type: 'HIP'; id: string };
     statusNotification: {
       sessionStatus: 'TRANSFERRED' | 'FAILED';
       hipId?: string;

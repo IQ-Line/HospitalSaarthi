@@ -78,3 +78,16 @@ export function createCareContextPublishedEnvelope(
 ): DomainEvent<CareContextPublishedPayload> {
   return createAbdmEnvelope("abdm.care-context.published", iqTenantId, payload);
 }
+
+export interface HealthRecordReceivedPayload {
+  transferId: string;
+  consentId: string;
+  transactionId: string;
+}
+
+export function createHealthRecordReceivedEnvelope(
+  iqTenantId: string,
+  payload: HealthRecordReceivedPayload,
+): DomainEvent<HealthRecordReceivedPayload> {
+  return createAbdmEnvelope("abdm.health-record.received", iqTenantId, payload);
+}

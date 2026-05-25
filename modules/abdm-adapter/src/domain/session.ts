@@ -12,6 +12,7 @@ import type {
   M3HipState,
   M3HiuState,
 } from "@hims/ts-sdk-abha";
+import type { M3HiuContext } from "../use-cases/m3/hiu/context.js";
 
 export type AbdmFlowKind =
   | "abdm.m1.aadhaar-otp.v1"
@@ -75,7 +76,10 @@ export interface M3HipContext {
   transactionId?: string;
   dataPushUrl?: string;
   requestId?: string;
+  error?: { code: string; message: string };
 }
+
+export type { M3HiuContext };
 
 export interface FlowContextMap {
   "abdm.m1.aadhaar-otp.v1": Record<string, unknown>;
@@ -87,7 +91,7 @@ export interface FlowContextMap {
   "abdm.m2.add-contexts.v1": M2AddContextsContext;
   "abdm.m2.sms-notify.v1": M2SmsNotifyContext;
   "abdm.m3.hip.v1": M3HipContext;
-  "abdm.m3.hiu.v1": Record<string, unknown>;
+  "abdm.m3.hiu.v1": M3HiuContext;
 }
 
 export interface FlowStateMap {

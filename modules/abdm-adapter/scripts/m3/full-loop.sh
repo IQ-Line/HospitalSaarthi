@@ -14,8 +14,12 @@
 set -euo pipefail
 
 BASE_URL="${ABDM_ADAPTER_BASE_URL:-http://localhost:3007}"
-TENANT_ID="${ABDM_TEST_TENANT_ID:-00000000-0000-0000-0000-000000000001}"
+# Match services/abdm-adapter-svc/.env → ABDM_DEV_TENANT_ID (export before run if needed).
+TENANT_ID="${ABDM_TEST_TENANT_ID:-${ABDM_DEV_TENANT_ID:-00000000-0000-4000-8000-0000000000aa}}"
+export ABDM_TEST_TENANT_ID="$TENANT_ID"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Every platform GET/POST must send x-tenant-id (inject scripts read ABDM_TEST_TENANT_ID).
+TENANT_HDR=(-H "x-tenant-id: $TENANT_ID")
 
 step() {
   echo
@@ -45,7 +49,8 @@ SESSION=$(curl -sSfX POST "$BASE_URL/api/abdm/v1/m3/hiu/consent/request" \
     "dateRange": { "from": "2025-01-01T00:00:00Z", "to": "2026-05-21T00:00:00Z" }
   }' | jq -r '.sessionId')
 
-CONSENT_REQUEST_ID=$(curl -sSf "$BASE_URL/api/abdm/v1/m3/hiu/consent/request/$SESSION" \
+CONSENT_REQUEST_ID=$(curl -sSf "${TENANT_HDR[@]}" \
+  "$BASE_URL/api/abdm/v1/m3/hiu/consent/request/$SESSION" \
   | jq -r '.consentRequestId')
 echo "SESSION=$SESSION"
 echo "CONSENT_REQUEST_ID=$CONSENT_REQUEST_ID"
@@ -54,7 +59,8 @@ echo "CONSENT_REQUEST_ID=$CONSENT_REQUEST_ID"
 step 2 "Inject on-init (CM acks)"
 bash "$SCRIPT_DIR/inject-on-init.sh" "$CONSENT_REQUEST_ID"
 sleep 0.5
-STATE=$(curl -sSf "$BASE_URL/api/abdm/v1/m3/hiu/consent/request/$SESSION" | jq -r '.state')
+STATE=$(curl -sSf "${TENANT_HDR[@]}" \
+  "$BASE_URL/api/abdm/v1/m3/hiu/consent/request/$SESSION" | jq -r '.state')
 require_state "AWAITING_PATIENT_APPROVAL" "$STATE" "step 2"
 
 # -----------------------------------------------------------------------------
@@ -68,7 +74,8 @@ echo "CONSENT_ID=$CONSENT_ID"
 step 4 "Inject on-fetch (CM returns signed artefact)"
 bash "$SCRIPT_DIR/inject-on-fetch.sh" "$CONSENT_ID"
 sleep 0.5
-STATE=$(curl -sSf "$BASE_URL/api/abdm/v1/m3/hiu/consent/request/$SESSION" | jq -r '.state')
+STATE=$(curl -sSf "${TENANT_HDR[@]}" \
+  "$BASE_URL/api/abdm/v1/m3/hiu/consent/request/$SESSION" | jq -r '.state')
 require_state "CONSENT_GRANTED" "$STATE" "step 4"
 
 # -----------------------------------------------------------------------------
@@ -84,17 +91,19 @@ echo "TRANSFER_ID=$TRANSFER_ID"
 step 6 "Inject on-request (CM acks data request)"
 bash "$SCRIPT_DIR/inject-on-data-request.sh" "$TRANSFER_ID"
 sleep 0.5
-STATE=$(curl -sSf "$BASE_URL/api/abdm/v1/m3/hiu/transfers/$TRANSFER_ID" | jq -r '.state')
+STATE=$(curl -sSf "${TENANT_HDR[@]}" \
+  "$BASE_URL/api/abdm/v1/m3/hiu/transfers/$TRANSFER_ID" | jq -r '.state')
 require_state "AWAITING_PUSH" "$STATE" "step 6"
 
 # -----------------------------------------------------------------------------
 step 7 "Trigger HIP data flow (loopback to our own HIU receiver)"
 bash "$SCRIPT_DIR/trigger-hip-data-flow.sh" "$CONSENT_ID" "$TRANSFER_ID"
-sleep 2   # HIP side runs assemble → encrypt → POST → notify, then HIU runs receive → decrypt → store
+sleep 4   # HIP side runs assemble → encrypt → POST → notify, then HIU runs receive → decrypt → store
 
 # -----------------------------------------------------------------------------
 step 8 "Verify HIU transfer completed and bundle stored"
-RESULT=$(curl -sSf "$BASE_URL/api/abdm/v1/m3/hiu/transfers/$TRANSFER_ID")
+RESULT=$(curl -sSf "${TENANT_HDR[@]}" \
+  "$BASE_URL/api/abdm/v1/m3/hiu/transfers/$TRANSFER_ID")
 STATE=$(echo "$RESULT" | jq -r '.state')
 echo "Final state: $STATE"
 if [[ "$STATE" != "ACKNOWLEDGED" ]]; then

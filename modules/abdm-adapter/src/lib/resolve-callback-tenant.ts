@@ -1,15 +1,30 @@
+import { abdmWarn } from "./abdm-adapter-log.js";
 import { parseHipTenantMap } from "./hip-tenant-map.js";
 
 /**
  * Maps inbound gateway callbacks to `iq_tenant_id`.
- * Production: `ABDM_HIP_TENANT_MAP` (HIP id → tenant). Dev fallback: `ABDM_DEV_TENANT_ID`.
+ * Mock/local inject scripts may send `x-tenant-id` (same as platform Door 1 APIs).
+ * Production HIP: `ABDM_HIP_TENANT_MAP` (HIP id → tenant). Dev fallback: `ABDM_DEV_TENANT_ID`.
  */
 export function resolveCallbackTenantId(headers: Record<string, unknown>): string {
+  const fromTenantHeader = String(
+    headers["x-tenant-id"] ??
+      headers["X-Tenant-Id"] ??
+      headers["iq_tenant_id"] ??
+      headers["IQ-Tenant-Id"] ??
+      "",
+  ).trim();
+  if (fromTenantHeader) return fromTenantHeader;
+
   const hipId = String(headers["x-hip-id"] ?? headers["X-HIP-ID"] ?? "").trim();
   const expectedHip = process.env["ABDM_X_HIP_ID"]?.trim();
 
   if (expectedHip && hipId && hipId.toLowerCase() !== expectedHip.toLowerCase()) {
-    throw new Error(`X-HIP-ID mismatch: expected ${expectedHip}, got ${hipId}`);
+    // Patient may grant consent for a linked HIP other than ABDM_X_HIP_ID (e.g. CHC vs hospital HIP).
+    abdmWarn("abdm.callback.hip_id_env_mismatch", {
+      expectedHip,
+      headerHipId: hipId,
+    });
   }
 
   if (hipId) {

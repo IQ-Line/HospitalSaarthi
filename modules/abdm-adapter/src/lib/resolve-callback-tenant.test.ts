@@ -21,6 +21,13 @@ describe("resolveCallbackTenantId", () => {
     ).toBe("tenant-from-map");
   });
 
+  it("prefers x-tenant-id over ABDM_DEV_TENANT_ID (mock inject scripts)", () => {
+    process.env["ABDM_DEV_TENANT_ID"] = "dev-tenant";
+    expect(
+      resolveCallbackTenantId({ "x-tenant-id": "header-tenant" }),
+    ).toBe("header-tenant");
+  });
+
   it("falls back to ABDM_DEV_TENANT_ID", () => {
     delete process.env["ABDM_HIP_TENANT_MAP"];
     process.env["ABDM_DEV_TENANT_ID"] = "dev-tenant";

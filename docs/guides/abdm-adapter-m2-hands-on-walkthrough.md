@@ -3,7 +3,8 @@
 Use this doc when you want **every click and curl** for sandbox M2.
 
 > **Easy overview first:** [abdm-adapter-m2-simple-reference.md](./abdm-adapter-m2-simple-reference.md)  
-> **Production env matrix:** [abdm-adapter-e2e-and-production.md](./abdm-adapter-e2e-and-production.md) §10
+> **Production env matrix:** [abdm-adapter-e2e-and-production.md](./abdm-adapter-e2e-and-production.md) §10  
+> **Live M3 E2E (Path A + env + fresh run):** same doc §0.1.1, §6A, §12
 
 ---
 

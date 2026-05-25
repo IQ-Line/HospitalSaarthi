@@ -3,6 +3,11 @@ import type { AbdmAdapterDeps } from "../../ports.js";
 import { EmpiClientError } from "../../lib/empi-client-error.js";
 import { verifyAbdmSignature } from "../../lib/abdm-signature-verifier.js";
 import {
+  allowInsecureAbdmCallbacks,
+  nodeEnv,
+} from "../../lib/abdm-runtime-env.js";
+import { abdmWarn } from "../../lib/abdm-adapter-log.js";
+import {
   resolveCallbackTenantId,
   resolveInboundRequestId,
 } from "../../lib/resolve-callback-tenant.js";
@@ -25,8 +30,23 @@ export async function runInboundCallback(input: {
 
   const signatureValid = await verifyAbdmSignature(headers, body);
   if (!signatureValid) {
+    abdmWarn("abdm.callback.signature_rejected", {
+      flowKind: input.flowKind,
+      nodeEnv: nodeEnv(),
+      allowInsecureCallbacks: allowInsecureAbdmCallbacks(),
+      hasAuthorization: Boolean(
+        headers.authorization ?? headers.Authorization,
+      ),
+    });
     return input.reply.code(401).send({
-      error: { code: "ABDM-1411", message: "invalid-signature" },
+      error: {
+        code: "ABDM-1411",
+        message: "invalid-signature",
+        hint:
+          nodeEnv() === "development"
+            ? "Unexpected in NODE_ENV=development (JWS should be skipped). Restart abdm-adapter-svc after .env changes."
+            : "Set ABDM_ALLOW_INSECURE_CALLBACKS=true for sandbox only, or configure ABDM_GATEWAY_JWKS_URL + JWT issuer/audience.",
+      },
     });
   }
 
