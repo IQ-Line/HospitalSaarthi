@@ -3,7 +3,6 @@ import { Search } from 'lucide-react';
 import { Button } from '@pulse/ui/button';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
-import { Tabs, TabsList, TabsTrigger } from '@pulse/ui/tabs';
 import { cn } from '@pulse/utils';
 
 /** Section shell matching registration mock — cyan header band + white body. */
@@ -18,7 +17,7 @@ export function RegistrationSection({
 }) {
   return (
     <section className={cn('overflow-hidden rounded-md border border-border bg-card', className)}>
-      <div className="border-b border-[#c5e4f5] bg-[#eaf6fc] px-4 py-2.5 text-sm font-medium text-foreground">
+      <div className="border-b border-border bg-muted/40 px-4 py-2.5 text-sm font-medium text-foreground">
         {title}
       </div>
       <div className="space-y-4 p-4">{children}</div>
@@ -26,9 +25,14 @@ export function RegistrationSection({
   );
 }
 
-/** Small gray subsection label inside a section (e.g. "Patient Details", "Address"). */
+/** Subsection label with trailing rule (e.g. "Patient Details", "Address"). */
 export function RegistrationSubsectionLabel({ children }: { children: ReactNode }) {
-  return <p className="text-xs text-muted-foreground">{children}</p>;
+  return (
+    <div className="flex items-center gap-3 pt-1">
+      <span className="shrink-0 text-xs text-muted-foreground">{children}</span>
+      <div className="h-px flex-1 bg-border" aria-hidden />
+    </div>
+  );
 }
 
 /** Field label with optional required asterisk. */
@@ -60,23 +64,50 @@ export function RegistrationField({
   return <div className={cn('space-y-1.5', className)}>{children}</div>;
 }
 
+/** Right-rail counters — presentation-only until frontdesk stats API is wired. */
+export function RegistrationTodayStatsSidebar() {
+  const stats = [
+    { label: 'Total Visits', value: 0 },
+    { label: 'New Patient Registrations', value: 0 },
+    { label: 'Follow Up Patient Registrations', value: 0 },
+    { label: 'Doctor Pending Consultations', value: 0 },
+  ] as const;
+
+  return (
+    <aside className="space-y-3 lg:sticky lg:top-4 lg:self-start">
+      <h2 className="text-base font-semibold text-foreground">Today&apos;s Statistics</h2>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+        {stats.map((stat) => (
+          <div
+            key={stat.label}
+            className="flex items-center justify-between gap-3 rounded-md border border-border bg-card px-4 py-3 shadow-sm"
+          >
+            <span className="text-sm leading-snug text-muted-foreground">{stat.label}</span>
+            <span className="shrink-0 text-2xl font-semibold tabular-nums text-foreground">
+              {stat.value}
+            </span>
+          </div>
+        ))}
+      </div>
+    </aside>
+  );
+}
+
 type RegistrationFormHeaderProps = {
   searchValue: string;
   onSearchChange: (value: string) => void;
   onPatientQueue: () => void;
-  activeTab?: string;
   actions?: ReactNode;
 };
 
 /**
  * Top chrome: title, queue/token chips, search, OPD Visit tab.
- * Uses @pulse/ui Button, Input, Tabs.
+ * Uses @pulse/ui Button and Input.
  */
 export function RegistrationFormHeader({
   searchValue,
   onSearchChange,
   onPatientQueue,
-  activeTab = 'opd-visit',
   actions,
 }: RegistrationFormHeaderProps) {
   return (
@@ -128,19 +159,11 @@ export function RegistrationFormHeader({
           {actions}
         </div>
       </div>
-      <Tabs value={activeTab}>
-        <TabsList
-          variant="line"
-          className="h-auto w-full justify-start rounded-none border-b border-border bg-transparent p-0"
-        >
-          <TabsTrigger
-            value="opd-visit"
-            className="rounded-none border-0 border-b-2 border-transparent bg-transparent px-0 pb-2 pt-0 text-sm font-medium text-muted-foreground shadow-none data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:shadow-none"
-          >
-            OPD Visit
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <div>
+        <span className="inline-block border-b-2 border-primary pb-1.5 text-sm font-medium text-primary">
+          OPD Visit
+        </span>
+      </div>
     </div>
   );
 }

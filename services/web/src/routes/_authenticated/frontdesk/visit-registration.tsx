@@ -18,7 +18,7 @@ import {
 import { executeCreateVisitFlow, listRegistrations } from '@/features/frontdesk/api/registrations';
 import { CreateAbhaDialog } from '@/features/abha/components/create-abha-dialog';
 import type { AbhaCreatedPayload } from '@/features/abha/types';
-import { RegistrationFormHeader } from '@/features/frontdesk/components/registration-form-chrome';
+import { RegistrationFormHeader, RegistrationTodayStatsSidebar } from '@/features/frontdesk/components/registration-form-chrome';
 import { RegistrationPatientSection } from '@/features/frontdesk/components/registration-patient-section';
 import {
   VisitRegistrationAppointmentSection,
@@ -338,11 +338,11 @@ function VisitRegistrationRoute() {
   };
 
   return (
-    <div className="min-h-full bg-background">
-      <div className="mx-auto max-w-6xl p-6">
+    <div className="bg-background">
+      <div className="mx-auto w-full max-w-[1600px] p-4 md:p-6">
           {phase === 'list' ? (
           <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <h1 className="text-2xl font-semibold tracking-tight">Visit registrations</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">Registration</h1>
             <Button type="button" size="sm" onClick={() => setPhase('form')}>
               + New registration
             </Button>
@@ -469,73 +469,78 @@ function VisitRegistrationRoute() {
           ) : null}
 
           {phase === 'form' ? (
-          <form onSubmit={form.handleSubmit(onSubmit)} className="mt-6 space-y-4">
-            {sectionVisible.patientDetails ? (
-              <RegistrationPatientSection
-                form={form}
-                onCreateAbha={() => setCreateAbhaOpen(true)}
-                patientPhoneRef={patientPhoneRef}
-                patientPhoneName={patientPhoneName}
-                patientPhoneOnBlur={patientPhoneOnBlur}
-                patientPhoneRhfOnChange={patientPhoneRhfOnChange}
-              />
-            ) : null}
+          <form onSubmit={form.handleSubmit(onSubmit)} className="mt-4 lg:mt-6">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_17.5rem] lg:items-start">
+              <div className="min-w-0 space-y-4">
+                {sectionVisible.patientDetails ? (
+                  <RegistrationPatientSection
+                    form={form}
+                    onCreateAbha={() => setCreateAbhaOpen(true)}
+                    patientPhoneRef={patientPhoneRef}
+                    patientPhoneName={patientPhoneName}
+                    patientPhoneOnBlur={patientPhoneOnBlur}
+                    patientPhoneRhfOnChange={patientPhoneRhfOnChange}
+                  />
+                ) : null}
 
-            <VisitRegistrationClinicalSections
-              register={form.register}
-              watch={form.watch}
-              setValue={form.setValue}
-              visible={{
-                vitals: sectionVisible.vitals,
-                labTests: sectionVisible.labTests,
-                risAppointment: sectionVisible.risAppointment,
-              }}
-            />
+                <VisitRegistrationClinicalSections
+                  register={form.register}
+                  watch={form.watch}
+                  setValue={form.setValue}
+                  visible={{
+                    labTests: sectionVisible.labTests,
+                    risAppointment: sectionVisible.risAppointment,
+                  }}
+                />
 
-            {sectionVisible.appointmentDetails ? (
-              <VisitRegistrationAppointmentSection
-                register={form.register}
-                watch={form.watch}
-                setValue={form.setValue}
-              />
-            ) : null}
+                {sectionVisible.appointmentDetails ? (
+                  <VisitRegistrationAppointmentSection
+                    register={form.register}
+                    watch={form.watch}
+                    setValue={form.setValue}
+                  />
+                ) : null}
 
-            {sectionVisible.billing ? (
-              <VisitRegistrationBillingSection
-                register={form.register}
-                watch={form.watch}
-                setValue={form.setValue}
-                paymentModeError={form.formState.errors.billing?.payment_mode?.message}
-                variant="compact"
-              />
-            ) : null}
+                {sectionVisible.billing ? (
+                  <VisitRegistrationBillingSection
+                    register={form.register}
+                    watch={form.watch}
+                    setValue={form.setValue}
+                    paymentModeError={form.formState.errors.billing?.payment_mode?.message}
+                    variant="compact"
+                  />
+                ) : null}
 
-            <footer className="flex flex-wrap items-center justify-end gap-3 pt-4">
-              <Button
-                type="submit"
-                disabled={mutation.isPending || !canCreateVisit}
-                title={createVisitBlockHint ?? undefined}
-                className="h-10 gap-2 bg-primary px-6 text-primary-foreground hover:bg-primary/90"
-              >
-                <Save className="size-4" />
-                {mutation.isPending ? 'Saving…' : 'Create Visit'}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-10 gap-2 px-6"
-                onClick={() => form.reset()}
-                disabled={mutation.isPending}
-              >
-                <RotateCcw className="size-4" />
-                Clear
-              </Button>
-            </footer>
-            {createVisitBlockHint ? (
-              <p className="text-right text-xs text-destructive" role="status">
-                {createVisitBlockHint}
-              </p>
-            ) : null}
+                <footer className="flex flex-wrap items-center justify-end gap-3 pt-2">
+                  <Button
+                    type="submit"
+                    disabled={mutation.isPending || !canCreateVisit}
+                    title={createVisitBlockHint ?? undefined}
+                    className="h-10 gap-2 bg-primary px-6 text-primary-foreground hover:bg-primary/90"
+                  >
+                    <Save className="size-4" />
+                    {mutation.isPending ? 'Saving…' : 'Create Visit'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10 gap-2 px-6"
+                    onClick={() => form.reset()}
+                    disabled={mutation.isPending}
+                  >
+                    <RotateCcw className="size-4" />
+                    Clear
+                  </Button>
+                </footer>
+                {createVisitBlockHint ? (
+                  <p className="text-right text-xs text-destructive" role="status">
+                    {createVisitBlockHint}
+                  </p>
+                ) : null}
+              </div>
+
+              <RegistrationTodayStatsSidebar />
+            </div>
           </form>
           ) : null}
       </div>

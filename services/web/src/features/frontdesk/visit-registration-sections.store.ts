@@ -4,7 +4,6 @@ import { devtools, persist } from 'zustand/middleware';
 /** Section ids shown in the “Customise sections” menu (matches production visit registration). */
 export const VISIT_REGISTRATION_SECTION_IDS = [
   'patientDetails',
-  'vitals',
   'appointmentDetails',
   'risAppointment',
   'labTests',
@@ -15,7 +14,6 @@ export type VisitRegistrationSectionId = (typeof VISIT_REGISTRATION_SECTION_IDS)
 
 export const VISIT_REGISTRATION_SECTION_LABELS: Record<VisitRegistrationSectionId, string> = {
   patientDetails: 'Patient Details',
-  vitals: 'Vitals',
   appointmentDetails: 'Appointment Details',
   risAppointment: 'RIS Appointment',
   labTests: 'Lab Tests',
@@ -27,10 +25,26 @@ const defaultVisibility = (): Record<VisitRegistrationSectionId, boolean> =>
     patientDetails: true,
     appointmentDetails: true,
     billing: true,
-    vitals: false,
     labTests: false,
     risAppointment: false,
   }) satisfies Record<VisitRegistrationSectionId, boolean>;
+
+function migrateVisitRegistrationSections(persisted: unknown): Pick<
+  VisitRegistrationSectionsState,
+  'visible'
+> {
+  if (!persisted || typeof persisted !== 'object') {
+    return { visible: defaultVisibility() };
+  }
+  const state = persisted as { visible?: Partial<Record<string, boolean>> };
+  const visible = defaultVisibility();
+  for (const id of VISIT_REGISTRATION_SECTION_IDS) {
+    if (state.visible?.[id] !== undefined) {
+      visible[id] = state.visible[id]!;
+    }
+  }
+  return { visible };
+}
 
 interface VisitRegistrationSectionsState {
   visible: Record<VisitRegistrationSectionId, boolean>;
@@ -53,7 +67,7 @@ export const useVisitRegistrationSectionsStore = create<VisitRegistrationSection
           ),
         isSectionVisible: (id) => get().visible[id] ?? true,
       }),
-      { name: 'hims-visit-reg-sections' },
+      { name: 'hims-visit-reg-sections', version: 1, migrate: migrateVisitRegistrationSections },
     ),
     { name: 'visit-reg-sections' },
   ),

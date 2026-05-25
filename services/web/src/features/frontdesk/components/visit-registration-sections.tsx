@@ -33,8 +33,6 @@ import {
   type VisitRegistrationSectionId,
 } from '@/features/frontdesk/visit-registration-sections.store';
 import { useDepartments } from '@/features/master-data/api';
-import { useVisitpadVitalsCatalog } from '@/features/visitpad/api';
-import type { VisitpadVital } from '@/features/visitpad/types';
 import {
   VISIT_REGISTRATION_LAB_TEST_CATALOG,
   VISIT_REGISTRATION_PAYMENT_MODES,
@@ -100,21 +98,17 @@ export function VisitRegistrationSectionMenu() {
   );
 }
 
-/** Vitals + lab tests + RIS (each toggled in section menu). */
+/** Lab tests + RIS (each toggled in section menu). */
 export function VisitRegistrationClinicalSections({
   register,
   watch,
   setValue,
   visible,
 }: FormProps & {
-  visible: Pick<
-    Record<VisitRegistrationSectionId, boolean>,
-    'vitals' | 'labTests' | 'risAppointment'
-  >;
+  visible: Pick<Record<VisitRegistrationSectionId, boolean>, 'labTests' | 'risAppointment'>;
 }) {
   return (
     <>
-      {visible.vitals ? <VitalsPanel register={register} /> : null}
       {visible.labTests ? <LabTestsPanel register={register} watch={watch} /> : null}
       {visible.risAppointment ? (
         <RisPanel register={register} watch={watch} setValue={setValue} />
@@ -150,7 +144,10 @@ export function VisitRegistrationAppointmentSection({ register, watch, setValue 
     tax_percent: 0,
     discount: 0,
   };
-  const consultationChargeDisplay = formatInr(consultationFee.unit_price ?? 0);
+  const consultationChargeDisplay =
+    consultationFee.unit_price > 0
+      ? formatInr(consultationFee.unit_price ?? 0)
+      : 'Select department & doctor';
 
   return (
     <RegistrationSection title="Visit Details">
@@ -182,7 +179,7 @@ export function VisitRegistrationAppointmentSection({ register, watch, setValue 
           required
           value={providerId || '__none__'}
           onValueChange={(v) => setValue('appointment.provider_id', v === '__none__' ? '' : v)}
-          placeholder={hasProviders ? 'Select doctor' : 'No doctors in this tenant'}
+          placeholder={hasProviders ? 'Select Doctor' : 'No doctors in this tenant'}
           disabled={!hasProviders}
           options={VISIT_REGISTRATION_PROVIDERS.map((p) => ({ value: p.id, label: p.name }))}
         />
@@ -438,79 +435,7 @@ function resolveDepartmentPlaceholder(
   if (isPending) return 'Loading departments…';
   if (isError) return 'Failed to load departments';
   if (!hasOptions) return 'No departments configured';
-  return 'Select Department';
-}
-
-function visitpadVitalLabel(vital: VisitpadVital): string {
-  const unit = vital.unit?.trim();
-  if (unit) return `${vital.name} (${unit})`;
-  return vital.name;
-}
-
-function visitpadVitalStep(vital: VisitpadVital): string {
-  if (vital.data_type !== 'numeric') return '1';
-  const unit = vital.unit?.toLowerCase() ?? '';
-  if (unit.includes('kg') || unit.includes('°c') || unit.includes('celsius')) return '0.1';
-  return '1';
-}
-
-function VitalsPanel({ register }: { register: UseFormRegister<CreateVisitRequestBody> }) {
-  const vitalsQuery = useVisitpadVitalsCatalog();
-
-  const vitals = useMemo(() => {
-    const rows = vitalsQuery.data?.data ?? [];
-    return rows
-      .filter((v) => v.is_active && !v.is_deleted)
-      .slice()
-      .sort((a, b) => a.display_order - b.display_order || a.name.localeCompare(b.name));
-  }, [vitalsQuery.data?.data]);
-
-  let vitalsBody: ReactNode;
-  if (vitalsQuery.isPending) {
-    vitalsBody = <p className="text-sm text-muted-foreground">Loading vitals catalog…</p>;
-  } else if (vitalsQuery.isError) {
-    vitalsBody = <p className="text-sm text-destructive">Could not load vitals catalog.</p>;
-  } else if (vitals.length === 0) {
-    vitalsBody = (
-      <p className="text-sm text-muted-foreground">
-        No vitals configured for this catalog scope. Add vitals under Visitpad or select a tenant
-        with a UUID.
-      </p>
-    );
-  } else {
-    vitalsBody = (
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4 xl:grid-cols-8">
-        {vitals.map((vital) => {
-          const fieldName = `vitals.${vital.code}` as const;
-          const isNumeric = vital.data_type === 'numeric';
-          return (
-            <Field key={vital.id} className="min-w-0">
-              <Label htmlFor={`visit-reg-vital-${vital.code}`}>{visitpadVitalLabel(vital)}</Label>
-              <Input
-                id={`visit-reg-vital-${vital.code}`}
-                type={isNumeric ? 'number' : 'text'}
-                step={isNumeric ? visitpadVitalStep(vital) : undefined}
-                min={isNumeric ? 0 : undefined}
-                placeholder={vital.short_name || vital.name}
-                className="h-10"
-                {...(isNumeric ? register(fieldName, { valueAsNumber: true }) : register(fieldName))}
-              />
-            </Field>
-          );
-        })}
-      </div>
-    );
-  }
-
-  return (
-    <section className="rounded-lg border border-border bg-card p-4 md:p-5 space-y-4 shadow-sm">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Vitals</h2>
-      {vitalsBody}
-      <p className="text-xs text-muted-foreground">
-        Vitals are captured for this visit; persistence to clinical vitals API is not wired yet.
-      </p>
-    </section>
-  );
+  return 'Select department';
 }
 
 function LabTestsPanel({

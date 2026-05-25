@@ -1,5 +1,5 @@
 import { Calendar } from 'lucide-react';
-import type { ChangeEvent, Ref } from 'react';
+import { useMemo, type ChangeEvent, type Ref } from 'react';
 import type { ChangeHandler, UseFormReturn } from 'react-hook-form';
 import { Button } from '@pulse/ui/button';
 import { Input } from '@pulse/ui/input';
@@ -18,6 +18,10 @@ import {
   RegistrationSubsectionLabel,
 } from '@/features/frontdesk/components/registration-form-chrome';
 import type { CreateVisitRequestBody } from '@/features/frontdesk/types';
+import {
+  listDistrictsForStateCode,
+  listStateDistrictCatalog,
+} from '@/features/frontdesk/utils/state-district-catalog';
 
 type PatientSectionProps = {
   form: UseFormReturn<CreateVisitRequestBody>;
@@ -43,7 +47,16 @@ export function RegistrationPatientSection({
   patientPhoneRhfOnChange,
 }: PatientSectionProps) {
   const gender = form.watch('patient.gender') ?? 'male';
+  const stateCode = form.watch('permanent_address.state') ?? '';
+  const districtCode = form.watch('permanent_address.district') ?? '';
   const register = form.register;
+
+  const stateOptions = useMemo(() => listStateDistrictCatalog(), []);
+  const districtOptions = useMemo(
+    () => listDistrictsForStateCode(stateCode),
+    [stateCode],
+  );
+  const districtSelectDisabled = !stateCode;
 
   return (
     <RegistrationSection title="Patient Details">
@@ -51,7 +64,7 @@ export function RegistrationPatientSection({
         <RegistrationFieldLabel htmlFor="visit-reg-phone" required>
           Phone Number
         </RegistrationFieldLabel>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
           <Input
             id="visit-reg-phone"
             name={patientPhoneName}
@@ -62,7 +75,7 @@ export function RegistrationPatientSection({
               el.value = el.value.replace(/\D/g, '').slice(0, 10);
               void patientPhoneRhfOnChange(e);
             }}
-            className="h-10 min-w-[12rem] flex-1 sm:max-w-md"
+            className="h-10 min-w-0 sm:max-w-[14rem] sm:shrink-0"
             inputMode="numeric"
             autoComplete="tel-national"
             maxLength={10}
@@ -71,12 +84,12 @@ export function RegistrationPatientSection({
           <Button
             type="button"
             variant="outline"
-            className="h-10 shrink-0 px-4"
+            className="h-10 flex-1 px-4"
             onClick={onCreateAbha}
           >
             Create ABHA
           </Button>
-          <Button type="button" variant="outline" className="h-10 shrink-0 px-4" disabled>
+          <Button type="button" variant="outline" className="h-10 flex-1 px-4" disabled>
             Verify ABHA
           </Button>
         </div>
@@ -93,6 +106,7 @@ export function RegistrationPatientSection({
           <RegistrationFieldLabel required>First Name</RegistrationFieldLabel>
           <Input
             className="h-10"
+            placeholder="Enter First Name"
             {...register('patient.first_name', {
               required: 'First name is required',
               validate: (v) => Boolean(v?.trim()) || 'First name is required',
@@ -110,7 +124,7 @@ export function RegistrationPatientSection({
         </RegistrationField>
         <RegistrationField>
           <RegistrationFieldLabel>Last Name</RegistrationFieldLabel>
-          <Input className="h-10" {...register('patient.last_name')} />
+          <Input className="h-10" placeholder="Enter Last Name" {...register('patient.last_name')} />
         </RegistrationField>
       </div>
 
@@ -204,32 +218,45 @@ export function RegistrationPatientSection({
         <RegistrationField>
           <RegistrationFieldLabel required>State</RegistrationFieldLabel>
           <Select
-            value={form.watch('permanent_address.state') || '__none__'}
-            onValueChange={(v) =>
-              form.setValue('permanent_address.state', v === '__none__' ? '' : v)
-            }
+            value={stateCode || '__none__'}
+            onValueChange={(v) => {
+              const nextState = v === '__none__' ? '' : v;
+              form.setValue('permanent_address.state', nextState);
+              form.setValue('permanent_address.district', '');
+            }}
           >
             <SelectTrigger className="h-10">
-              <SelectValue placeholder="Select" />
+              <SelectValue placeholder="Select State" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__none__">Select</SelectItem>
+              <SelectItem value="__none__">Select State</SelectItem>
+              {stateOptions.map((state) => (
+                <SelectItem key={state.state_code} value={String(state.state_code)}>
+                  {state.state}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </RegistrationField>
         <RegistrationField>
           <RegistrationFieldLabel required>District</RegistrationFieldLabel>
           <Select
-            value={form.watch('permanent_address.district') || '__none__'}
+            value={districtCode || '__none__'}
+            disabled={districtSelectDisabled}
             onValueChange={(v) =>
               form.setValue('permanent_address.district', v === '__none__' ? '' : v)
             }
           >
             <SelectTrigger className="h-10">
-              <SelectValue placeholder="Select" />
+              <SelectValue placeholder="Select District" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__none__">Select</SelectItem>
+              <SelectItem value="__none__">Select District</SelectItem>
+              {districtOptions.map((district) => (
+                <SelectItem key={district.code} value={String(district.code)}>
+                  {district.name}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </RegistrationField>
