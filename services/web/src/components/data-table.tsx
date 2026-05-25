@@ -53,6 +53,8 @@ interface DataTableProps<TData> {
     onPageChange: (pageIndex: number) => void;
     onPageSizeChange: (pageSize: number) => void;
   };
+  /** Fired when a data row is clicked (e.g. OPD patient details modal). */
+  onRowClick?: (row: TData) => void;
 }
 
 export function DataTable<TData>({
@@ -63,6 +65,7 @@ export function DataTable<TData>({
   emptyDescription = 'No records found.',
   showColumnMenu = false,
   manualPagination,
+  onRowClick,
 }: DataTableProps<TData>) {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const paginationState: PaginationState | undefined = manualPagination
@@ -182,7 +185,11 @@ export function DataTable<TData>({
         </TableHeader>
         <TableBody>
           {table.getRowModel().rows.map((row) => (
-            <TableRow key={row.id}>
+            <TableRow
+              key={row.id}
+              className={onRowClick ? 'cursor-pointer hover:bg-muted/40' : undefined}
+              onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+            >
               {row.getVisibleCells().map((cell) => (
                 <TableCell key={cell.id}>
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}

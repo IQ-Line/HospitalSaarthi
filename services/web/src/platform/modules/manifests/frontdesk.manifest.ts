@@ -16,13 +16,6 @@ export const frontdeskModuleManifest: ModuleManifest = {
       catalogModuleSlug: 'registration',
     },
     {
-      id: 'frontdesk-opd-patients',
-      label: 'OPD Patients',
-      icon: 'users',
-      route: '/frontdesk/opd-patients',
-      catalogModuleSlug: 'opd',
-    },
-    {
       id: 'frontdesk-past-visits',
       label: 'Past Visits',
       icon: 'calendar-days',

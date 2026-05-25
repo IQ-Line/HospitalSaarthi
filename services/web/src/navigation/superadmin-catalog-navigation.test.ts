@@ -49,6 +49,7 @@ describe('super-admin sidebar vs global_master.modules L1 catalog', () => {
     expect(ids).toContain('master-data');
     expect(ids).toContain('user-management');
     expect(ids).toContain('frontdesk');
+    expect(ids).toContain('patients');
     expect(ids).toContain('visitpad');
     expect(ids).toContain('configurator');
     expect(ids).not.toContain('empi');
@@ -69,6 +70,10 @@ describe('super-admin sidebar vs global_master.modules L1 catalog', () => {
 
     const configurator = filtered.find((n) => n.id === 'configurator');
     expect(configurator?.label).toBe('Onboarding');
+
+    const patients = filtered.find((n) => n.id === 'patients');
+    expect(patients?.label).toBe('Patients');
+    expect(patients?.route).toBe('/patients');
   });
 
   it('Visitpad child Vaccines is a route under visitpad, not a catalog L1 module', () => {

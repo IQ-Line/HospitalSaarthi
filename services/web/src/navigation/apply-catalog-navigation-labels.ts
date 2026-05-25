@@ -18,8 +18,8 @@ function buildL1CatalogNameBySlug(index: ModuleCatalogIndex): Map<string, string
   return names;
 }
 
-/** Resolves Master Data L1 display name for a composed module root (sidebar group). */
-export function catalogDisplayNameForModuleRoot(
+/** L1 catalog display name when the nav node id matches a catalog slug (e.g. configurator → Onboarding). */
+export function catalogDisplayNameForNodeId(
   node: NavigationNode,
   l1NamesBySlug: ReadonlyMap<string, string>,
 ): string | undefined {
@@ -29,7 +29,13 @@ export function catalogDisplayNameForModuleRoot(
       return name;
     }
   }
+  return undefined;
+}
 
+function catalogDisplayNameFromModuleGates(
+  node: NavigationNode,
+  l1NamesBySlug: ReadonlyMap<string, string>,
+): string | undefined {
   for (const gateSlug of node.requiredModulesAny ?? []) {
     for (const variant of catalogSlugVariants(gateSlug)) {
       const name = l1NamesBySlug.get(variant);
@@ -51,6 +57,17 @@ export function catalogDisplayNameForModuleRoot(
   return undefined;
 }
 
+/** Resolves Master Data L1 display name for a composed module root (sidebar group). */
+export function catalogDisplayNameForModuleRoot(
+  node: NavigationNode,
+  l1NamesBySlug: ReadonlyMap<string, string>,
+): string | undefined {
+  return (
+    catalogDisplayNameForNodeId(node, l1NamesBySlug) ??
+    catalogDisplayNameFromModuleGates(node, l1NamesBySlug)
+  );
+}
+
 /**
  * Overrides top-level module group labels from `global_master.modules` (e.g. Onboarding for `configurator`).
  * Child route labels (Visitpad → Vaccines) stay from the SPA manifest.
@@ -66,7 +83,10 @@ export function applyCatalogNavigationLabels(
   const l1NamesBySlug = buildL1CatalogNameBySlug(index);
 
   return nodes.map((node) => {
-    const catalogName = catalogDisplayNameForModuleRoot(node, l1NamesBySlug);
+    const isSingleLeaf = Boolean(node.route) && !(node.children?.length ?? 0);
+    const catalogName = isSingleLeaf
+      ? catalogDisplayNameForNodeId(node, l1NamesBySlug)
+      : catalogDisplayNameForModuleRoot(node, l1NamesBySlug);
     if (!catalogName) {
       return node;
     }
