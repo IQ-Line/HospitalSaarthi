@@ -81,14 +81,14 @@ describe('resolveCatalogModuleSlugsForNavRoute', () => {
 });
 
 describe('principalHasProductWideNavCapability', () => {
-  it('grants visitpad-templates for visitpad:view shell key', () => {
-    const keys = new Set(['visitpad-templates:visitpad:view']);
-    expect(principalHasProductWideNavCapability(keys, ['visitpad-templates'])).toBe(true);
+  it('grants visitpad-master for visitpad:view shell key', () => {
+    const keys = new Set(['visitpad-master:visitpad:view']);
+    expect(principalHasProductWideNavCapability(keys, ['visitpad-master'])).toBe(true);
   });
 
   it('denies when resource segment is not product-wide', () => {
-    const keys = new Set(['visitpad-templates:catalog:read']);
-    expect(principalHasProductWideNavCapability(keys, ['visitpad-templates'])).toBe(false);
+    const keys = new Set(['visitpad-master:catalog:read']);
+    expect(principalHasProductWideNavCapability(keys, ['visitpad-master'])).toBe(false);
   });
 });
 
@@ -99,7 +99,7 @@ describe('principalGrantsNavNodeAccess', () => {
     'modules:modules:read',
     'tenant-modules:tenant-modules:read',
     'users:users:read',
-    'visitpad-templates:catalog:read',
+    'visitpad-master:catalog:read',
   ]);
 
   const segments = buildPrincipalCapabilityModuleSegments(ndwadPrincipal);
@@ -118,7 +118,7 @@ describe('principalGrantsNavNodeAccess', () => {
       principalGrantsNavNodeAccess(
         accessInput(ndwadPrincipal),
         { id: 'visitpad-allergens', label: 'Allergens', route: '/visitpad/allergens' },
-        { parentProductSlugs: ['visitpad-templates'], routePrefix: '/visitpad' },
+        { parentProductSlugs: ['visitpad-master'], routePrefix: '/visitpad' },
       ),
     ).toBe(true);
   });
@@ -128,25 +128,25 @@ describe('principalGrantsNavNodeAccess', () => {
       principalGrantsNavNodeAccess(
         accessInput(ndwadPrincipal),
         { id: 'visitpad-conversions', label: 'Conversions', route: '/visitpad/conversions' },
-        { parentProductSlugs: ['visitpad-templates'], routePrefix: '/visitpad' },
+        { parentProductSlugs: ['visitpad-master'], routePrefix: '/visitpad' },
       ),
     ).toBe(false);
   });
 
-  it('allows visitpad layout but not L2 leaves for visitpad-templates:visitpad:view only', () => {
-    const shellViewOnly = new Set(['visitpad-templates:visitpad:view']);
+  it('allows visitpad layout but not L2 leaves for visitpad-master:visitpad:view only', () => {
+    const shellViewOnly = new Set(['visitpad-master:visitpad:view']);
     expect(
       principalGrantsNavNodeAccess(
         accessInput(shellViewOnly),
         { id: 'visitpad-vitals', label: 'Vitals', route: '/visitpad/vitals' },
-        { parentProductSlugs: ['visitpad-templates'], routePrefix: '/visitpad' },
+        { parentProductSlugs: ['visitpad-master'], routePrefix: '/visitpad' },
       ),
     ).toBe(false);
     expect(
       principalGrantsNavNodeAccess(
         accessInput(shellViewOnly),
         { id: 'visitpad', label: 'Visitpad', route: '/visitpad' },
-        { parentProductSlugs: ['visitpad-templates'], routePrefix: '/visitpad' },
+        { parentProductSlugs: ['visitpad-master'], routePrefix: '/visitpad' },
       ),
     ).toBe(true);
   });

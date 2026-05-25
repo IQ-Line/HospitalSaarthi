@@ -14,7 +14,7 @@ describe('hydrateCapabilitiesFromPrincipal', () => {
       roles: [],
       attributes: {
         capabilities: ['users:users:read', 'master-data:shell:access'],
-        delegated_capabilities: ['visitpad-templates:visitpad:view'],
+        delegated_capabilities: ['visitpad-master:visitpad:view'],
       },
     };
 
@@ -24,7 +24,7 @@ describe('hydrateCapabilitiesFromPrincipal', () => {
     expect(state.isLoaded).toBe(true);
     expect([...state.capabilityKeys].sort()).toEqual([
       'master-data:shell:access',
-      'visitpad-templates:visitpad:view',
+      'visitpad-master:visitpad:view',
       'users:users:read',
     ]);
   });

@@ -15,20 +15,16 @@ import {
 } from '@pulse/ui/select';
 import { DataTable } from '@/components/data-table';
 import {
-  useCreateOrganization,
   useOrganizations,
+  useProvisionTenant,
 } from '@/features/configurator/api';
-import { provisionTenantAdmin } from '@/features/configurator/provision-tenant-admin';
-import { useCreateUser } from '@/features/user-management/api/mutations';
+import type { TenantOnboardingInput } from '@/features/configurator/api/tenant-onboarding';
 import { CreateTenantWizard } from '@/features/configurator/components/create-tenant-wizard';
 import { ConfiguratorPageShell } from '@/features/configurator/components/configurator-page-shell';
 import type {
   Organization,
-  OrganizationCreateInput,
   OrganizationStatus,
   OrganizationType,
-  TenantWizardAdminSnapshot,
-  TenantWizardRoleSnapshot,
 } from '@/features/configurator/types';
 import { organizationTypeOptions } from '@/features/configurator/validation';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
@@ -90,8 +86,7 @@ function ConfiguratorTenantListPage() {
   const { data, isLoading, error } = useOrganizations(listFilters);
   const organizations = data?.data ?? [];
 
-  const createMutation = useCreateOrganization();
-  const createUserMutation = useCreateUser();
+  const provisionMutation = useProvisionTenant();
 
   const filteredOrgs = useMemo(() => {
     return organizations.filter((o) =>
@@ -204,34 +199,10 @@ function ConfiguratorTenantListPage() {
     [],
   );
 
-  const onCreateWizardComplete = async ({
-    payload,
-    role,
-    admin,
-  }: {
-    payload: OrganizationCreateInput;
-    role: TenantWizardRoleSnapshot;
-    admin: TenantWizardAdminSnapshot;
-  }) => {
+  const onCreateWizardComplete = async (input: TenantOnboardingInput) => {
     try {
-      const created = await createMutation.mutateAsync(payload);
-      const tenantId = created.default_tenant.iq_tenant_id;
-      const orgId = created.organization.id;
-
-      try {
-        await provisionTenantAdmin({
-          admin,
-          role,
-          tenantId,
-          orgId,
-          createUser: (input) => createUserMutation.mutateAsync(input),
-        });
-        toast.success('Tenant, admin role, and admin user created');
-      } catch (adminErr) {
-        toast.error(
-          `Tenant created, but admin user failed: ${mutationErrorMessage(adminErr)}`,
-        );
-      }
+      await provisionMutation.mutateAsync(input);
+      toast.success('Tenant and administrator created successfully');
       setIsCreateOpen(false);
     } catch (err) {
       toast.error(mutationErrorMessage(err));
@@ -310,7 +281,7 @@ function ConfiguratorTenantListPage() {
       <CreateTenantWizard
         open={isCreateOpen}
         onOpenChange={setIsCreateOpen}
-        isSubmitting={createMutation.isPending || createUserMutation.isPending}
+        isSubmitting={provisionMutation.isPending}
         onComplete={onCreateWizardComplete}
       />
     </ConfiguratorPageShell>

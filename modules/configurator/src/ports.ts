@@ -60,3 +60,58 @@ export type ConfiguratorTransactionRepos = {
 export type RunConfiguratorTransaction = <T>(
   fn: (repos: ConfiguratorTransactionRepos) => Promise<T>,
 ) => Promise<T>;
+
+// ---------------------------------------------------------------------------
+// Tenant onboarding cross-module ports
+// ---------------------------------------------------------------------------
+
+/**
+ * Cross-module port for resolving capabilities from the module catalog.
+ * Implemented at the service layer where user-management + master-data are available.
+ */
+export interface ModuleCapabilityResolverPort {
+  resolveCapabilityIdsForModules(moduleIds: string[], tenantId?: string): Promise<string[]>;
+}
+
+/**
+ * Cross-module port for provisioning the admin role, user, and auth account.
+ * Implemented at the service layer where user-management + better-auth are available.
+ */
+export interface TenantAdminProvisioningPort {
+  checkEmailAvailability(email: string): Promise<void>;
+
+  createAuthAccount(input: {
+    platformUserId: string;
+    tenantId: string;
+    fullName: string;
+    email: string;
+    password: string;
+  }): Promise<{ authUserId: string }>;
+
+  createSystemRole(
+    tenantId: string,
+    input: { code: string; display_name: string; is_system: boolean },
+  ): Promise<{ id: string; code: string; display_name: string; is_system: boolean }>;
+
+  replaceRoleCapabilities(
+    tenantId: string,
+    roleId: string,
+    capabilityIds: string[],
+  ): Promise<void>;
+
+  provisionUser(
+    tenantId: string,
+    input: {
+      userId: string;
+      fullName: string;
+      email: string;
+      phone?: string | null;
+      username?: string | null;
+      orgId?: string | null;
+      authUserId: string;
+      roleId: string;
+      roleCapabilityIds: string[];
+      actorId: string | null;
+    },
+  ): Promise<{ id: string; email: string; full_name: string }>;
+}

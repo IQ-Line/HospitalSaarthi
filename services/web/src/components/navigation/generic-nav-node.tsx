@@ -19,7 +19,14 @@ function routePrefixFromNode(node: NavigationNode): string | undefined {
   }
   for (const child of node.children ?? []) {
     const prefix = routePrefixFromNode(child);
-    if (prefix) return prefix;
+    if (!prefix) {
+      continue;
+    }
+    // Visitpad catalog leaves share `/visitpad/*` — use product prefix for active/open state.
+    if (prefix === '/visitpad' || prefix.startsWith('/visitpad/')) {
+      return '/visitpad';
+    }
+    return prefix;
   }
   return undefined;
 }

@@ -12,10 +12,10 @@ describe('principal-capabilities', () => {
   it('extracts capabilities and delegated_capabilities arrays', () => {
     const keys = capabilityKeysFromPrincipalAttributes({
       capabilities: ['users:users:read', 'UM:ROLE:READ'],
-      delegated_capabilities: ['visitpad-templates:visitpad:view'],
+      delegated_capabilities: ['visitpad-master:visitpad:view'],
       other: 'ignored',
     });
-    expect(keys).toEqual(['user-roles:user-roles:read', 'users:users:read', 'visitpad-templates:visitpad:view']);
+    expect(keys).toEqual(['user-roles:user-roles:read', 'users:users:read', 'visitpad-master:visitpad:view']);
   });
 
   it('returns empty array when attributes missing', () => {

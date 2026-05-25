@@ -15,16 +15,16 @@ describe('capabilityKeysGrantProductAccessFromManifest', () => {
     registerBuiltinModuleManifests();
   });
 
-  it('grants visitpad-templates when principal has L2 catalog keys only', () => {
+  it('grants visitpad-master when principal has L2 catalog keys only', () => {
     expect(
-      capabilityKeysGrantProductAccessFromManifest(nhmVisitpadKeys, ['visitpad-templates']),
+      capabilityKeysGrantProductAccessFromManifest(nhmVisitpadKeys, ['visitpad-master']),
     ).toBe(true);
   });
 
-  it('denies visitpad-templates when principal has no matching L2 keys', () => {
+  it('denies visitpad-master when principal has no matching L2 keys', () => {
     expect(
       capabilityKeysGrantProductAccessFromManifest(new Set(['configurator:shell:access']), [
-        'visitpad-templates',
+        'visitpad-master',
       ]),
     ).toBe(false);
   });
@@ -36,16 +36,16 @@ describe('visitpad layout route for NHM principal', () => {
     registerBuiltinModuleManifests();
   });
 
-  it('allows /visitpad layout and child routes without visitpad-templates:* keys', () => {
+  it('allows /visitpad layout and child routes without visitpad-master:* keys', () => {
     expect(
       principalGrantsCatalogRouteAccess(nhmVisitpadKeys, '/visitpad', {
-        catalogProductSlugs: ['visitpad-templates'],
+        catalogProductSlugs: ['visitpad-master'],
         routePrefix: '/visitpad',
       }),
     ).toBe(true);
     expect(
       principalGrantsCatalogRouteAccess(nhmVisitpadKeys, '/visitpad/allergens', {
-        catalogProductSlugs: ['visitpad-templates'],
+        catalogProductSlugs: ['visitpad-master'],
         routePrefix: '/visitpad',
       }),
     ).toBe(true);
