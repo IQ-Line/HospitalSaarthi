@@ -6,6 +6,7 @@ import { createTariffMasterRepo } from "./data-access/tariff-master.repository.j
 import type { TariffMasterRow } from "./domain/tariff-master.types.js";
 import { formatMoney, parseEffectiveWindow, toTariffRow } from "./lib/tariff-api.js";
 import { createBillingRepo, createInMemoryBillingRepo } from "./data-access/billing.repository.js";
+import { seedMockBills } from "./lib/mock-bills.js";
 import { registerBillingHandlers } from "./rest-handlers/billing.handlers.js";
 import { registerUpdateServiceHandler } from "./rest-handlers/update-service.handler.js";
 import { billingMaster } from "./schema/tables.js";
@@ -494,8 +495,9 @@ async function billingRouter(
   const tariffRepo = createTariffMasterRepo(useMock || !db ? MOCK_ROWS : db);
   registerUpdateServiceHandler(app, tariffRepo);
 
-  const billingRepo =
-    useMock || !db ? createInMemoryBillingRepo().repo : createBillingRepo(db);
+  const memoryBilling = useMock || !db ? createInMemoryBillingRepo() : null;
+  if (memoryBilling && useMock) seedMockBills(memoryBilling.bills);
+  const billingRepo = memoryBilling?.repo ?? createBillingRepo(db!);
   registerBillingHandlers(app, { tariffRepo, billingRepo });
 }
 

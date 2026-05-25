@@ -8,18 +8,46 @@ import { cancelBill } from "../use-cases/cancel-bill.js";
 import { captureCharge } from "../use-cases/capture-charge.js";
 import { finalizeBill } from "../use-cases/finalize-bill.js";
 import { getBill } from "../use-cases/get-bill.js";
+import { listBills } from "../use-cases/list-bills.js";
 import { recordPayment } from "../use-cases/record-payment.js";
+import type { BillStatus, ListBillsQuery } from "../domain/bill.types.js";
 import {
   applyBillDiscountRouteSchema,
   cancelBillRouteSchema,
   captureChargeRouteSchema,
   finalizeBillRouteSchema,
   getBillRouteSchema,
+  listBillsRouteSchema,
   receiptRouteSchema,
   recordPaymentRouteSchema,
 } from "./billing-schemas.js";
 
 type BillParams = { bill_id: string };
+
+type ListBillsQuerystring = {
+  patient_id?: string;
+  visit_id?: string;
+  status?: BillStatus;
+  bill_type?: string;
+  from_date?: string;
+  to_date?: string;
+  limit?: string;
+  cursor?: string;
+};
+
+function parseListBillsQuery(q: ListBillsQuerystring): ListBillsQuery {
+  const limit = q.limit === undefined ? undefined : Number.parseInt(q.limit, 10);
+  return {
+    patient_id: q.patient_id,
+    visit_id: q.visit_id,
+    status: q.status,
+    bill_type: q.bill_type,
+    from_date: q.from_date,
+    to_date: q.to_date,
+    limit: Number.isFinite(limit) ? limit : undefined,
+    cursor: q.cursor,
+  };
+}
 
 export function registerBillingHandlers(app: FastifyInstance, deps: BillingDeps): void {
   app.post(
@@ -28,6 +56,15 @@ export function registerBillingHandlers(app: FastifyInstance, deps: BillingDeps)
     async (req, reply) => {
       const result = await captureCharge(deps, req.tenantId, req.body, parseIdempotencyKey(req.headers));
       return sendUseCaseResult(reply, result, { successCode: 201, wrapData: false });
+    },
+  );
+
+  app.get<{ Querystring: ListBillsQuerystring }>(
+    "/bills",
+    { ...protectedRoute, schema: listBillsRouteSchema },
+    async (req, reply) => {
+      const result = await listBills(deps, req.tenantId, parseListBillsQuery(req.query));
+      return reply.send(result);
     },
   );
 
