@@ -6,6 +6,7 @@ import type {
   TenantRepo,
   TenantModuleRepo,
   RunConfiguratorTransaction,
+  InfrastructureModuleCatalogPort,
   ModuleCapabilityResolverPort,
   TenantAdminProvisioningPort,
 } from "./ports.js";
@@ -20,6 +21,9 @@ export interface ConfiguratorRouterOptions {
   tenantRepo: TenantRepo;
   tenantModuleRepo: TenantModuleRepo;
   runConfiguratorTransaction: RunConfiguratorTransaction;
+  createInfrastructureCatalog?: (
+    authorization?: string,
+  ) => InfrastructureModuleCatalogPort;
   createModuleCapabilityResolver?: (
     authorization?: string,
   ) => ModuleCapabilityResolverPort;
@@ -57,12 +61,14 @@ async function configuratorRouter(
   });
 
   if (
+    options.createInfrastructureCatalog &&
     options.createModuleCapabilityResolver &&
     options.createAdminProvisioner &&
     options.eventBus
   ) {
     registerTenantOnboardingHandler(app, {
       runConfiguratorTransaction: options.runConfiguratorTransaction,
+      createInfrastructureCatalog: options.createInfrastructureCatalog,
       createModuleCapabilityResolver: options.createModuleCapabilityResolver,
       createAdminProvisioner: options.createAdminProvisioner,
       eventBus: options.eventBus,

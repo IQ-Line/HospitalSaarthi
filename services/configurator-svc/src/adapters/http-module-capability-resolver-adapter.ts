@@ -1,4 +1,7 @@
-import type { ModuleCapabilityResolverPort } from "@hims/configurator";
+import type {
+  ModuleCapabilityResolverPort,
+  InfrastructureModuleCatalogPort,
+} from "@hims/configurator";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
@@ -11,6 +14,9 @@ type CapabilityRow = {
 type ModuleRow = {
   id: string;
   slug: string;
+  module_kind?: string;
+  is_active?: boolean;
+  is_deleted?: boolean;
 };
 
 export type HttpModuleCapabilityResolverAdapterOptions = {
@@ -22,7 +28,7 @@ export type HttpModuleCapabilityResolverAdapterOptions = {
 };
 
 export class HttpModuleCapabilityResolverAdapter
-  implements ModuleCapabilityResolverPort
+  implements ModuleCapabilityResolverPort, InfrastructureModuleCatalogPort
 {
   private readonly umBaseUrl: string;
   private readonly mdBaseUrl: string;
@@ -36,6 +42,54 @@ export class HttpModuleCapabilityResolverAdapter
     this.authorization = options.authorization;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.log = options.log;
+  }
+
+  async fetchInfrastructureModuleIds(): Promise<string[]> {
+    const url = `${this.mdBaseUrl}/api/v1/master-data/modules?module_kind=platform,foundation`;
+    const res = await fetch(url, {
+      headers: this.buildHeaders(),
+      signal: AbortSignal.timeout(this.timeoutMs),
+    });
+
+    if (!res.ok) {
+      this.log?.(
+        { status: res.status, source: "master_data" },
+        "Failed to fetch modules for infrastructure catalog",
+      );
+      throw new Error(
+        `Master Data modules fetch failed: HTTP ${res.status}`,
+      );
+    }
+
+    const body = (await res.json()) as { data?: ModuleRow[] };
+    const rows = Array.isArray(body.data) ? body.data : [];
+
+    const UUID_RE =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    const infraIds = rows
+      .filter(
+        (r) =>
+          r.id &&
+          UUID_RE.test(r.id) &&
+          r.is_active !== false &&
+          r.is_deleted !== true,
+      )
+      .map((r) => r.id);
+
+    if (infraIds.length === 0) {
+      this.log?.(
+        { totalModules: rows.length },
+        "WARNING: Zero infrastructure modules resolved from Master Data catalog",
+      );
+    } else {
+      this.log?.(
+        { totalModules: rows.length, infrastructureCount: infraIds.length },
+        "Resolved infrastructure module IDs from Master Data catalog",
+      );
+    }
+
+    return infraIds;
   }
 
   async resolveCapabilityIdsForModules(

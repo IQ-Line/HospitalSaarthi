@@ -5,7 +5,7 @@ export const masterDataModuleManifest: ModuleManifest = {
   name: 'Master Data',
   icon: 'database',
   routePrefix: '/master-data',
-  sortOrder: 10,
+  sortOrder: 30,
   requiredModulesAny: ['master-data'],
   navigation: [
     {

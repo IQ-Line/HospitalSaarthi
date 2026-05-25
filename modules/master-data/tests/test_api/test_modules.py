@@ -21,6 +21,8 @@ def _sample_module_row(**overrides):
         category="core",
         version="1.0.0",
         level=1,
+        module_kind="product",
+        display_order=0,
         icon=None,
         is_active=True,
         is_deleted=False,
@@ -36,8 +38,11 @@ def _sample_module_row(**overrides):
 class FakeModuleRepository:
     scope = CatalogScope(iq_tenant_id=None)
 
-    def list_modules(self, *, category=None):
-        return [_sample_module_row()]
+    def list_modules(self, *, category=None, module_kinds=None):
+        rows = [_sample_module_row()]
+        if module_kinds:
+            rows = [r for r in rows if r.module_kind in [k.value if hasattr(k, 'value') else k for k in module_kinds]]
+        return rows
 
     def get_module_by_id(self, module_id: UUID, *, include_deleted: bool = False):
         row = _sample_module_row()
