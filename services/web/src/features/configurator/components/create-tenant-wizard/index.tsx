@@ -60,13 +60,14 @@ export function CreateTenantWizard({
   const { data: modulesRes, isLoading: modulesLoading } = useModules(undefined, {
     enabled: open,
     globalCatalog: true,
+    moduleKinds: ['product'],
   });
-  const modules = useMemo(() => {
+  const productModules = useMemo(() => {
     const all = modulesRes?.data ?? [];
     return all.filter((m) => m.is_active && !m.is_deleted);
   }, [modulesRes?.data]);
 
-  const childMap = useMemo(() => buildChildrenMap(modules), [modules]);
+  const childMap = useMemo(() => buildChildrenMap(productModules), [productModules]);
   const rootModules = useMemo(() => childMap.get(null) ?? [], [childMap]);
 
   const form = useForm<WizardFormValues>({
@@ -106,9 +107,9 @@ export function CreateTenantWizard({
   }, [open, reset]);
 
   useEffect(() => {
-    if (!open || modules.length === 0 || enabledModuleIds.size > 0) return;
-    setEnabledModuleIds(defaultEnabledModuleIds(modules, childMap));
-  }, [open, modules, childMap, enabledModuleIds.size]);
+    if (!open || productModules.length === 0 || enabledModuleIds.size > 0) return;
+    setEnabledModuleIds(defaultEnabledModuleIds(productModules, childMap));
+  }, [open, productModules, childMap, enabledModuleIds.size]);
 
   useEffect(() => {
     if (!open || slugUserEdited.current) return;
@@ -131,8 +132,8 @@ export function CreateTenantWizard({
   );
 
   const selectAllModules = useCallback(() => {
-    setEnabledModuleIds(new Set(modules.map((module) => module.id)));
-  }, [modules]);
+    setEnabledModuleIds(new Set(productModules.map((module) => module.id)));
+  }, [productModules]);
 
   const clearAllModules = useCallback(() => {
     setEnabledModuleIds(new Set());
@@ -153,10 +154,6 @@ export function CreateTenantWizard({
       const parsed = createTenantStep2Schema.safeParse(values);
       if (!parsed.success) {
         toast.error(firstZodMessage(parsed.error));
-        return;
-      }
-      if (enabledModuleIds.size === 0) {
-        toast.error('Enable at least one module for this tenant.');
         return;
       }
       setActiveStep(3);
@@ -298,7 +295,7 @@ export function CreateTenantWizard({
                 rootModules={rootModules}
                 childMap={childMap}
                 moduleOverrideIds={enabledModuleIds}
-                totalModuleCount={modules.length}
+                totalModuleCount={productModules.length}
                 onToggleModule={toggleModule}
                 onSelectModuleSubtree={selectModuleSubtree}
                 onSelectAllModules={selectAllModules}

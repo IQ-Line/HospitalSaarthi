@@ -5,7 +5,7 @@ export const visitpadModuleManifest: ModuleManifest = {
   name: 'Visitpad',
   icon: 'layers',
   routePrefix: '/visitpad',
-  sortOrder: 40,
+  sortOrder: 120,
   /** Tenant gate: Master Data L1 and/or ``visitpad-master`` L2 catalog row. */
   requiredModulesAny: ['master-data', 'visitpad-master'],
   navigation: [

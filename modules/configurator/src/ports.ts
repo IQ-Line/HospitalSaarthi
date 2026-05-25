@@ -74,6 +74,14 @@ export interface ModuleCapabilityResolverPort {
 }
 
 /**
+ * Cross-module port for fetching infrastructure module IDs from Master Data.
+ * Returns all active, non-deleted module IDs where module_kind is 'platform' or 'foundation'.
+ */
+export interface InfrastructureModuleCatalogPort {
+  fetchInfrastructureModuleIds(): Promise<string[]>;
+}
+
+/**
  * Cross-module port for provisioning the admin role, user, and auth account.
  * Implemented at the service layer where user-management + better-auth are available.
  */
