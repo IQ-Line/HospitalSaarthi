@@ -63,28 +63,28 @@ describe("mapMasterDataPermissionToRuntimeCapability", () => {
 
     expect(
       mapMasterDataPermissionToRuntimeCapability({
-        moduleSlug: "visitpad-templates",
+        moduleSlug: "visitpad-master",
         permissionSlug: "visitpad.view",
       }).capability_key,
-    ).toBe("visitpad-templates:visitpad:view");
+    ).toBe("visitpad-master:visitpad:view");
   });
 
-  it("maps visitpad-templates hyphenated catalog permissions", () => {
+  it("maps visitpad-master L3 module CRUD permissions", () => {
     const read = mapMasterDataPermissionToRuntimeCapability({
-      moduleSlug: "visitpad-templates",
-      permissionSlug: "visitpad-templates-catalog-read",
+      moduleSlug: "units",
+      permissionSlug: "read",
       catalogAction: "read",
-      displayName: "Visitpad catalog read",
+      displayName: "Units read",
     });
-    expect(read.capability_key).toBe("visitpad-templates:catalog:read");
+    expect(read.capability_key).toBe("units:units:read");
 
     const write = mapMasterDataPermissionToRuntimeCapability({
-      moduleSlug: "visitpad-templates",
-      permissionSlug: "visitpad-templates-catalog-write",
-      catalogAction: "update",
-      displayName: "Visitpad catalog write",
+      moduleSlug: "chief-complaints",
+      permissionSlug: "create",
+      catalogAction: "create",
+      displayName: "Chief complaints create",
     });
-    expect(write.capability_key).toBe("visitpad-templates:catalog:update");
+    expect(write.capability_key).toBe("chief-complaints:chief-complaints:create");
   });
 
   it("maps role.assign on user-roles module", () => {
@@ -100,8 +100,8 @@ describe("mapMasterDataPermissionToRuntimeCapability", () => {
     expect(suggestMasterDataPermissionSlug("user-roles:role:assign")).toBe(
       "user-roles.role.assign",
     );
-    expect(suggestMasterDataPermissionSlug("visitpad-templates:catalog:read")).toBe(
-      "visitpad-templates.catalog.read",
+    expect(suggestMasterDataPermissionSlug("visitpad-master:visitpad:view")).toBe(
+      "visitpad-master.visitpad.view",
     );
   });
 });

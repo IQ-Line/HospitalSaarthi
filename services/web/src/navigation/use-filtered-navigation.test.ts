@@ -18,7 +18,7 @@ describe('buildNavFilterContext', () => {
 
   it('reflects capabilityKeys changes (principal hydration)', () => {
     const manifest = composeNavigationManifest(getRegisteredModuleManifests());
-    const enabled = new Set(['user-management', 'visitpad-templates']);
+    const enabled = new Set(['user-management', 'master-data']);
 
     const beforeHydration = filterNavigationTree(
       manifest,
@@ -37,7 +37,13 @@ describe('buildNavFilterContext', () => {
       manifest,
       buildNavFilterContext(visitpadKeys, enabled),
     );
-    expect(afterVisitpad.map((n) => n.id)).toContain('visitpad');
+    expect(afterVisitpad.map((n) => n.id)).toContain('master-data');
+    expect(
+      afterVisitpad
+        .find((n) => n.id === 'master-data')
+        ?.children?.find((c) => c.id === 'visitpad-master')
+        ?.children?.map((c) => c.id),
+    ).toContain('visitpad-allergens');
     expect(afterVisitpad.map((n) => n.id)).not.toContain('user-management');
   });
 

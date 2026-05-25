@@ -129,7 +129,7 @@ export function resolveCatalogModuleSlugsForNavRoute(
   return [...candidates];
 }
 
-/** L1 product keys whose resource segment grants all L2 nav under that product (e.g. `visitpad-templates:visitpad:view`). */
+/** L2 product keys whose resource segment grants shell nav (e.g. `visitpad-master:visitpad:view`). */
 const PRODUCT_WIDE_NAV_RESOURCES = new Set(['visitpad']);
 
 /**

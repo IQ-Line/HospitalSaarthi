@@ -63,23 +63,6 @@ export interface OrganizationCreateResponse {
   tenant_modules: TenantModule[];
 }
 
-/** Step 3 role fields provisioned via user-management after org create. */
-export interface TenantWizardRoleSnapshot {
-  code: string;
-  displayName: string;
-  capabilityIds: string[];
-}
-
-/** Step 4 admin fields provisioned via user-management after org create. */
-export interface TenantWizardAdminSnapshot {
-  adminFirstName: string;
-  adminLastName: string;
-  adminEmail: string;
-  adminUsername?: string;
-  adminMobile?: string;
-  password: string;
-}
-
 export type OrganizationUpdateInput = Partial<
   Pick<
     OrganizationCreateInput,

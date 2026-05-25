@@ -29,7 +29,7 @@ interface TenantState {
   clearTenant: () => void;
 }
 
-const tenantSlice: StateCreator<TenantState> = (set) => ({
+const tenantSlice: StateCreator<TenantState> = (set, get) => ({
   homeTenantId: null,
   tenantId: null,
   tenantName: null,
@@ -37,7 +37,12 @@ const tenantSlice: StateCreator<TenantState> = (set) => ({
   branches: [],
 
   setTenant: (tenant) => {
-    usePermissionsStore.getState().clearPermissions();
+    const prev = get();
+    const tenantChanged =
+      prev.tenantId !== tenant.tenantId || prev.activeBranch !== tenant.activeBranch;
+    if (tenantChanged) {
+      usePermissionsStore.getState().clearPermissions();
+    }
     set(
       {
         homeTenantId: tenant.tenantId,
@@ -52,7 +57,14 @@ const tenantSlice: StateCreator<TenantState> = (set) => ({
   },
 
   setTenantContext: (tenant) => {
-    usePermissionsStore.getState().clearPermissions();
+    const prev = get();
+    const tenantChanged =
+      prev.tenantId !== tenant.tenantId ||
+      prev.homeTenantId !== tenant.homeTenantId ||
+      prev.activeBranch !== tenant.activeBranch;
+    if (tenantChanged) {
+      usePermissionsStore.getState().clearPermissions();
+    }
     set(
       {
         homeTenantId: tenant.homeTenantId,

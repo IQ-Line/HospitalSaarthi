@@ -15,7 +15,6 @@ const testRoleKeys = new Set([
   'allergens:allergens:read',
   'allergy-reactions:allergy-reactions:read',
   'units:units:read',
-  'visitpad-templates:catalog:read',
 ]);
 
 describe('visitpad-access for test-role principal', () => {
@@ -25,7 +24,7 @@ describe('visitpad-access for test-role principal', () => {
   });
 
   it('denies manifest leaves when principal has only visitpad:view shell (L2 keys required)', () => {
-    const shellViewOnly = new Set(['visitpad-templates:visitpad:view']);
+    const shellViewOnly = new Set(['visitpad-master:visitpad:view']);
     expect(principalGrantsVisitpadManifestNodeAccess(shellViewOnly, 'visitpad-vitals')).toBe(
       false,
     );

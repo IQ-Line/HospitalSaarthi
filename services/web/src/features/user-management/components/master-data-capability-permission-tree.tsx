@@ -155,7 +155,7 @@ export function MasterDataCapabilityPermissionTree({
       selectedCapabilityIds={selectedSet}
       onToggleCapability={toggleCapability}
       onToggleModuleCapabilities={toggleModuleCapabilities}
-      moduleCheckboxes={false}
+      moduleCheckboxes={editable}
       defaultExpandedModuleIds={[]}
     />
   );

@@ -12,8 +12,6 @@ import { getRegisteredModuleManifests } from './module-registry';
 
 import { useModuleCatalog } from './module-catalog';
 
-import { registerBuiltinModuleManifests } from './register-builtin-modules';
-
 import type { ModuleCatalogEntry, ModuleCatalogIndex, ModuleManifest } from './types';
 
 function catalogEnablesManifest(manifest: ModuleManifest, catalogSlugs: ReadonlySet<string>): boolean {
@@ -74,7 +72,6 @@ export function catalogSlugsFromTenantModules(
 /** Fallback when global_master.modules is unavailable — all tenant-gated SPA manifests. */
 export function allRegisteredManifestTenantGateSlugs(): ReadonlySet<string> {
   const enabled = new Set<string>();
-  registerBuiltinModuleManifests();
   for (const manifest of getRegisteredModuleManifests()) {
     if (manifest.tenantScoped === false) {
       continue;
