@@ -1,0 +1,10 @@
+{
+  "hiRequest": {
+    "transactionId": "TXN-TEST-00000000-0000-0000-0000-000000000001",
+    "sessionStatus": "REQUESTED"
+  },
+  "error": null,
+  "response": {
+    "requestId": "PLACEHOLDER_REQUEST_ID_OVERRIDE_VIA_HEADER"
+  }
+}

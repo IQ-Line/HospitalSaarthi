@@ -1,13 +1,17 @@
 openapi: 3.1.0
 info:
   title: ABDM Adapter API
-  version: 1.0.0
+  version: 1.1.0
   description: |
-    Hospital platform adapter for NHA ABDM gateway access and Milestone 1 (M1)
-    ABHA enrolment: Aadhaar OTP, verification, mobile confirmation, ABHA address,
-    and profile reads.
+    Hospital platform adapter for NHA ABDM gateway access — Milestones M1 (ABHA),
+    M2 (HIP-side care-context linking + consent receipt), and M3 (HIU consent
+    request + data fetch, HIP data response).
 
     Authenticated routes require header `x-tenant-id` (hospital tenant UUID) on each operation below.
+
+    Gateway callback paths (e.g. `/api/v3/hiu/consent/request/on-init`) are not
+    documented here; see `docs/architecture/lld/abdm-adapter/08-m3-flows.md` for
+    inbound body shapes.
 
 servers:
   - url: http://localhost:3007/api/abdm/v1
@@ -24,6 +28,10 @@ tags:
     description: Login to existing ABHA
   - name: M1-Verify
     description: Frontdesk verification of existing ABHA
+  - name: M3-HIU-Consent
+    description: HIU-side consent request, notify, fetch (doctor requesting records from another HIP)
+  - name: M3-HIU-Data
+    description: HIU-side data fetch (requesting and receiving encrypted bundles)
 
 security:
   - TenantHeader: []
@@ -846,6 +854,100 @@ paths:
         "202":
           description: SMS notify accepted
 
+  /m3/hiu/consent/request:
+    post:
+      operationId: abdmM3HiuConsentRequestStart
+      summary: Staff-triggered HIU consent request (doctor asks for records from another HIP)
+      tags: [M3-HIU-Consent]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/M3HiuConsentRequestStartBody"
+      responses:
+        "202":
+          description: Consent request accepted; session in CONSENT_INIT_REQUESTED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/M3HiuConsentRequestStartResponse"
+        "400":
+          description: Invalid request body (e.g. dataEraseAt not in future)
+
+  /m3/hiu/consent/request/{sessionId}:
+    get:
+      operationId: abdmM3HiuConsentRequestGet
+      summary: Poll HIU consent-request flow state
+      tags: [M3-HIU-Consent]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Session state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/M3HiuConsentRequestState"
+        "404":
+          description: Session not found
+
+  /m3/hiu/data-request:
+    post:
+      operationId: abdmM3HiuDataRequestStart
+      summary: Staff-triggered HIU data request (fetch records on a granted consent)
+      tags: [M3-HIU-Data]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/M3HiuDataRequestStartBody"
+      responses:
+        "202":
+          description: Data request accepted; transfer in DATA_REQUESTED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/M3HiuDataRequestStartResponse"
+        "400":
+          description: Invalid consentId or consent not in GRANTED state
+        "404":
+          description: Consent artefact not found for this tenant
+
+  /m3/hiu/transfers/{transferId}:
+    get:
+      operationId: abdmM3HiuTransferGet
+      summary: Poll HIU data-fetch transfer state and read decrypted bundle once stored
+      tags: [M3-HIU-Data]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+        - name: transferId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Transfer state (and bundle if state = COMPLETED)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/M3HiuTransferState"
+        "404":
+          description: Transfer not found
+
 components:
   parameters:
     XTenantId:
@@ -1233,3 +1335,110 @@ components:
           format: uuid
         state:
           type: string
+
+    M3HiuConsentRequestStartBody:
+      type: object
+      required: [patientAbhaAddress, purpose, hiTypes, dateRange]
+      properties:
+        patientAbhaAddress:
+          type: string
+          description: ABHA address of the patient whose records we want
+          example: "test.user@sbx"
+        hipId:
+          type: string
+          description: Optional — pin request to a specific HIP. Omit for any HIP holding the records.
+        purpose:
+          type: string
+          enum: [CAREMGT, BTG, PUBHLTH, HPAYMT, DSRCH, PATRQT]
+        hiTypes:
+          type: array
+          items:
+            type: string
+            enum: [OPConsultation, Prescription, DiagnosticReport, DischargeSummary, ImmunizationRecord, HealthDocumentRecord, WellnessRecord]
+        dateRange:
+          type: object
+          required: [from, to]
+          properties:
+            from: { type: string, format: date-time }
+            to:   { type: string, format: date-time }
+        dataEraseAt:
+          type: string
+          format: date-time
+          description: Optional — when CM should erase the artefact. Defaults to dateRange.to + 90 days.
+
+    M3HiuConsentRequestStartResponse:
+      type: object
+      required: [sessionId, state]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        state:
+          type: string
+          enum: [CONSENT_INIT_REQUESTED]
+
+    M3HiuConsentRequestState:
+      type: object
+      required: [sessionId, state]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        consentRequestId:
+          type: string
+          description: CM-issued ID; populated after the on-init callback flips state to AWAITING_PATIENT_APPROVAL
+        state:
+          type: string
+          description: Member of M3_HIU_STATES (consent-request sub-flow subset)
+          enum: [CONSENT_INIT_REQUESTED, AWAITING_PATIENT_APPROVAL, CONSENT_GRANTED, CONSENT_DENIED, EXPIRED]
+        consentArtefactIds:
+          type: array
+          items: { type: string }
+          description: Populated when state becomes CONSENT_GRANTED; one per HIP holding records
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+
+    M3HiuDataRequestStartBody:
+      type: object
+      required: [consentId]
+      properties:
+        consentId:
+          type: string
+          description: Consent artefact ID from a granted consent request (state must be CONSENT_GRANTED)
+
+    M3HiuDataRequestStartResponse:
+      type: object
+      required: [transferId, state]
+      properties:
+        transferId:
+          type: string
+          format: uuid
+        state:
+          type: string
+          enum: [DATA_REQUESTED]
+
+    M3HiuTransferState:
+      type: object
+      required: [transferId, state]
+      properties:
+        transferId:
+          type: string
+          format: uuid
+        state:
+          type: string
+          description: Member of M3_HIU_STATES (data-fetch sub-flow subset). EXPIRED is the catch-all non-success terminal (decryption fail / push timeout / etc.)
+          enum: [DATA_REQUESTED, AWAITING_PUSH, BUNDLES_RECEIVED, BUNDLES_DECRYPTED, RECORDS_INGESTED, ACKNOWLEDGED, EXPIRED]
+        consentId:
+          type: string
+        bundle:
+          type: object
+          description: Decrypted FHIR bundle; present only when state = ACKNOWLEDGED
+          additionalProperties: true
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }

@@ -1,0 +1,23 @@
+{
+  "pageNumber": 1,
+  "pageCount": 1,
+  "transactionId": "TXN-TEST-00000000-0000-0000-0000-000000000001",
+  "entries": [
+    {
+      "content": "PLACEHOLDER_BASE64_ENCRYPTED_FHIR_BUNDLE_PLUS_GCM_AUTH_TAG",
+      "media": "application/fhir+json",
+      "checksum": "PLACEHOLDER_SHA256_HEX_OF_PLAINTEXT_BUNDLE",
+      "careContextReference": "CC-TEST-00000000-0000-0000-0000-000000000001"
+    }
+  ],
+  "keyMaterial": {
+    "cryptoAlg": "ECDH",
+    "curve": "Curve25519",
+    "dhPublicKey": {
+      "expiry": "2026-05-22T00:00:00.000Z",
+      "parameters": "Curve25519/32byte random key",
+      "keyValue": "PLACEHOLDER_HIP_PUBKEY_BASE64_65_BYTES_UNCOMPRESSED_EC_POINT"
+    },
+    "nonce": "PLACEHOLDER_HIP_NONCE_BASE64_32_BYTES"
+  }
+}
