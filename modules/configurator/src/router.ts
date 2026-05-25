@@ -1,21 +1,32 @@
 import type { FastifyInstance } from "fastify";
+import type { EventBus } from "@hims/ts-sdk-events";
 import fp from "fastify-plugin";
 import type {
   OrganizationRepo,
   TenantRepo,
   TenantModuleRepo,
   RunConfiguratorTransaction,
+  ModuleCapabilityResolverPort,
+  TenantAdminProvisioningPort,
 } from "./ports.js";
 import { ConfiguratorError } from "./errors.js";
 import { registerOrganizationsHandler } from "./rest-handlers/organizations.handler.js";
 import { registerTenantsHandler } from "./rest-handlers/tenants.handler.js";
 import { registerTenantModulesHandler } from "./rest-handlers/tenant-modules.handler.js";
+import { registerTenantOnboardingHandler } from "./rest-handlers/tenant-onboarding.handler.js";
 
 export interface ConfiguratorRouterOptions {
   organizationRepo: OrganizationRepo;
   tenantRepo: TenantRepo;
   tenantModuleRepo: TenantModuleRepo;
   runConfiguratorTransaction: RunConfiguratorTransaction;
+  createModuleCapabilityResolver?: (
+    authorization?: string,
+  ) => ModuleCapabilityResolverPort;
+  createAdminProvisioner?: (
+    authorization?: string,
+  ) => TenantAdminProvisioningPort;
+  eventBus?: EventBus;
 }
 
 async function configuratorRouter(
@@ -44,6 +55,19 @@ async function configuratorRouter(
     tenantModuleRepo: options.tenantModuleRepo,
     tenantRepo: options.tenantRepo,
   });
+
+  if (
+    options.createModuleCapabilityResolver &&
+    options.createAdminProvisioner &&
+    options.eventBus
+  ) {
+    registerTenantOnboardingHandler(app, {
+      runConfiguratorTransaction: options.runConfiguratorTransaction,
+      createModuleCapabilityResolver: options.createModuleCapabilityResolver,
+      createAdminProvisioner: options.createAdminProvisioner,
+      eventBus: options.eventBus,
+    });
+  }
 }
 
 export function createRouter(options: ConfiguratorRouterOptions) {

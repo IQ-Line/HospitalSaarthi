@@ -22,3 +22,5 @@ export {
   useCreateTenant,
 } from './tenants';
 export type { TenantModuleRow, TenantModuleListResponse } from './tenants';
+export { useProvisionTenant } from './tenant-onboarding';
+export type { TenantOnboardingInput, TenantOnboardingResult } from './tenant-onboarding';

@@ -6,6 +6,7 @@ import {
   resolveDatabaseUrl,
   type DbInstance,
 } from "@hims/ts-sdk-db";
+import { createEventBus } from "@hims/ts-sdk-events";
 import {
   createRouter,
   DrizzleOrganizationRepo,
@@ -17,12 +18,20 @@ import {
   runConfiguratorDevelopmentBootstrap,
   shouldRunDevelopmentBootstrap,
 } from "./bootstrap/development-bootstrap.js";
+import { HttpModuleCapabilityResolverAdapter } from "./adapters/http-module-capability-resolver-adapter.js";
+import { HttpTenantAdminProvisioningAdapter } from "./adapters/http-tenant-admin-provisioning-adapter.js";
 
 const PORT = Number(
   process.env["CONFIGURATOR_PORT"] ??
     process.env["CONFIGURATOR_SVC_PORT"] ??
     3001,
 );
+
+function requireUpstreamBaseUrl(envKey: string, fallback: string): string {
+  const raw = process.env[envKey]?.trim();
+  if (raw && raw.length > 0) return raw.replace(/\/+$/, "");
+  return fallback;
+}
 
 async function main() {
   const app = Fastify({ logger: true });
@@ -72,15 +81,45 @@ async function main() {
       }),
     );
 
-  // No tenantPlugin: organizations/tenants are platform bootstrap APIs (list all
-  // tenants for provisioning). Tenant scope is carried in path params where needed
-  // (e.g. GET /tenants/:tenantId/modules). EMPI/registration keep stricter headers.
+  const eventBus = createEventBus({ type: "in-process" });
+  await eventBus.connect();
+
+  app.addHook("onClose", async () => {
+    await eventBus.disconnect();
+  });
+
+  const userManagementBaseUrl = requireUpstreamBaseUrl(
+    "USER_MANAGEMENT_URL",
+    "http://localhost:3005",
+  );
+  const masterDataBaseUrl = requireUpstreamBaseUrl(
+    "MASTER_DATA_URL",
+    "http://localhost:8010",
+  );
+
+  const logFn = (event: Record<string, unknown>, message: string) =>
+    app.log.info(event, message);
+
   await app.register(
     createRouter({
       organizationRepo,
       tenantRepo,
       tenantModuleRepo,
       runConfiguratorTransaction,
+      eventBus,
+      createModuleCapabilityResolver: (authorization) =>
+        new HttpModuleCapabilityResolverAdapter({
+          userManagementBaseUrl,
+          masterDataBaseUrl,
+          authorization,
+          log: logFn,
+        }),
+      createAdminProvisioner: (authorization) =>
+        new HttpTenantAdminProvisioningAdapter({
+          userManagementBaseUrl,
+          authorization,
+          log: logFn,
+        }),
     }),
     { prefix: "/api/configurator/v1" },
   );

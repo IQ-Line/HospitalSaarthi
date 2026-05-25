@@ -7,6 +7,8 @@
   },
   "references": [
     { "path": "../../packages/ts-sdk-db" },
+    { "path": "../../packages/ts-sdk-events" },
+    { "path": "../../packages/ts-sdk-openapi" },
     { "path": "../../modules/configurator" }
   ],
   "include": ["src/**/*.ts"]
