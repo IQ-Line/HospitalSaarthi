@@ -6,8 +6,8 @@ export const visitpadModuleManifest: ModuleManifest = {
   icon: 'layers',
   routePrefix: '/visitpad',
   sortOrder: 40,
-  /** Catalog L1 slug tenants enable (see master-data `visitpad-templates`). */
-  requiredModulesAny: ['visitpad-templates'],
+  /** Tenant gate: Master Data L1 and/or ``visitpad-master`` L2 catalog row. */
+  requiredModulesAny: ['master-data', 'visitpad-master'],
   navigation: [
     { id: 'visitpad-units', label: 'Units', icon: 'ruler', route: '/visitpad/units' },
     {
