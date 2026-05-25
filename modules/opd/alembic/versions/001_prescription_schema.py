@@ -56,19 +56,27 @@ def _tenant_column() -> sa.Column:
     return sa.Column("tenant_id", postgresql.UUID(as_uuid=True), nullable=False)
 
 
+def _prescription_fk() -> sa.ForeignKeyConstraint:
+    return sa.ForeignKeyConstraint(
+        ["tenant_id", "prescription_id"],
+        [f"{SCHEMA}.prescriptions.tenant_id", f"{SCHEMA}.prescriptions.id"],
+        ondelete="CASCADE",
+    )
+
+
 def upgrade() -> None:
     _PRESCRIPTION_STATUS.create(op.get_bind(), checkfirst=True)
     _ORDER_ITEM_STATUS.create(op.get_bind(), checkfirst=True)
 
     op.create_table(
         "prescriptions",
+        _tenant_column(),
         sa.Column(
             "id",
             postgresql.UUID(as_uuid=True),
-            primary_key=True,
+            nullable=False,
             server_default=sa.text("gen_random_uuid()"),
         ),
-        _tenant_column(),
         sa.Column(
             "visit_id",
             postgresql.UUID(as_uuid=True),
@@ -90,7 +98,15 @@ def upgrade() -> None:
         *_audit_columns(),
         sa.Column("created_by", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("updated_by", postgresql.UUID(as_uuid=True), nullable=True),
-        sa.UniqueConstraint("visit_id", name="prescriptions_visit_id_key"),
+        sa.PrimaryKeyConstraint("tenant_id", "id"),
+        schema=SCHEMA,
+    )
+    op.create_index(
+        "prescriptions_tenant_visit_active_uq",
+        "prescriptions",
+        ["tenant_id", "visit_id"],
+        unique=True,
+        postgresql_where=sa.text("deleted_at IS NULL"),
         schema=SCHEMA,
     )
     op.create_index(
@@ -109,13 +125,13 @@ def upgrade() -> None:
 
     op.create_table(
         "prescription_status_history",
+        _tenant_column(),
         sa.Column(
             "id",
             postgresql.UUID(as_uuid=True),
-            primary_key=True,
+            nullable=False,
             server_default=sa.text("gen_random_uuid()"),
         ),
-        _tenant_column(),
         sa.Column("prescription_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("from_status", _PRESCRIPTION_STATUS, nullable=True),
         sa.Column("to_status", _PRESCRIPTION_STATUS, nullable=False),
@@ -127,11 +143,8 @@ def upgrade() -> None:
         ),
         sa.Column("changed_by", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("reason", sa.Text(), nullable=True),
-        sa.ForeignKeyConstraint(
-            ["prescription_id"],
-            [f"{SCHEMA}.prescriptions.id"],
-            ondelete="CASCADE",
-        ),
+        sa.PrimaryKeyConstraint("tenant_id", "id"),
+        _prescription_fk(),
         schema=SCHEMA,
     )
     op.create_index(
@@ -143,8 +156,8 @@ def upgrade() -> None:
 
     op.create_table(
         "prescription_legacy_vitals",
-        sa.Column("prescription_id", postgresql.UUID(as_uuid=True), primary_key=True),
         _tenant_column(),
+        sa.Column("prescription_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("height_cm", sa.Numeric(6, 2), nullable=True),
         sa.Column("weight_kg", sa.Numeric(6, 2), nullable=True),
         sa.Column("bmi", sa.Numeric(5, 2), nullable=True),
@@ -157,11 +170,8 @@ def upgrade() -> None:
         sa.Column("blood_sugar_mg_dl", sa.Numeric(6, 1), nullable=True),
         sa.Column("notes", sa.Text(), nullable=True),
         *_audit_columns(),
-        sa.ForeignKeyConstraint(
-            ["prescription_id"],
-            [f"{SCHEMA}.prescriptions.id"],
-            ondelete="CASCADE",
-        ),
+        sa.PrimaryKeyConstraint("tenant_id", "prescription_id"),
+        _prescription_fk(),
         schema=SCHEMA,
     )
 
@@ -257,8 +267,8 @@ def upgrade() -> None:
     )
     op.create_table(
         "prescription_medicine_substitutions",
-        sa.Column("prescription_medicine_id", postgresql.UUID(as_uuid=True), primary_key=True),
         _tenant_column(),
+        sa.Column("prescription_medicine_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("prescription_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("issued_medicine_id", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("issued_name", sa.String(512), nullable=False),
@@ -269,16 +279,13 @@ def upgrade() -> None:
         sa.Column("category", sa.String(128), nullable=True),
         sa.Column("reason", sa.Text(), nullable=True),
         *_audit_columns(),
+        sa.PrimaryKeyConstraint("tenant_id", "prescription_medicine_id"),
         sa.ForeignKeyConstraint(
-            ["prescription_medicine_id"],
-            [f"{SCHEMA}.prescription_medicines.id"],
+            ["tenant_id", "prescription_medicine_id"],
+            [f"{SCHEMA}.prescription_medicines.tenant_id", f"{SCHEMA}.prescription_medicines.id"],
             ondelete="CASCADE",
         ),
-        sa.ForeignKeyConstraint(
-            ["prescription_id"],
-            [f"{SCHEMA}.prescriptions.id"],
-            ondelete="CASCADE",
-        ),
+        _prescription_fk(),
         schema=SCHEMA,
     )
     _line_child(
@@ -351,20 +358,20 @@ def upgrade() -> None:
     )
     op.create_table(
         "prescription_physical_activity_exercise_types",
-        sa.Column("physical_activity_id", postgresql.UUID(as_uuid=True), primary_key=True),
         _tenant_column(),
+        sa.Column("physical_activity_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("prescription_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("exercise_type", sa.String(128), primary_key=True),
+        sa.Column("exercise_type", sa.String(128), nullable=False),
+        sa.PrimaryKeyConstraint("tenant_id", "physical_activity_id", "exercise_type"),
         sa.ForeignKeyConstraint(
-            ["physical_activity_id"],
-            [f"{SCHEMA}.prescription_physical_activity.id"],
+            ["tenant_id", "physical_activity_id"],
+            [
+                f"{SCHEMA}.prescription_physical_activity.tenant_id",
+                f"{SCHEMA}.prescription_physical_activity.id",
+            ],
             ondelete="CASCADE",
         ),
-        sa.ForeignKeyConstraint(
-            ["prescription_id"],
-            [f"{SCHEMA}.prescriptions.id"],
-            ondelete="CASCADE",
-        ),
+        _prescription_fk(),
         schema=SCHEMA,
     )
     _embed_child(
@@ -386,13 +393,13 @@ def _line_child(
     with_audit: bool = True,
 ) -> None:
     cols = [
+        _tenant_column(),
         sa.Column(
             "id",
             postgresql.UUID(as_uuid=True),
-            primary_key=True,
+            nullable=False,
             server_default=sa.text("gen_random_uuid()"),
         ),
-        _tenant_column(),
         sa.Column("prescription_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("line_no", sa.SmallInteger(), nullable=False),
         *extra_columns,
@@ -402,12 +409,9 @@ def _line_child(
     op.create_table(
         name,
         *cols,
-        sa.ForeignKeyConstraint(
-            ["prescription_id"],
-            [f"{SCHEMA}.prescriptions.id"],
-            ondelete="CASCADE",
-        ),
-        sa.UniqueConstraint("prescription_id", "line_no", name=unique_name),
+        sa.PrimaryKeyConstraint("tenant_id", "id"),
+        _prescription_fk(),
+        sa.UniqueConstraint("tenant_id", "prescription_id", "line_no", name=unique_name),
         schema=SCHEMA,
     )
 
@@ -415,15 +419,12 @@ def _line_child(
 def _embed_child(name: str, extra_columns: list[sa.Column]) -> None:
     op.create_table(
         name,
-        sa.Column("prescription_id", postgresql.UUID(as_uuid=True), primary_key=True),
         _tenant_column(),
+        sa.Column("prescription_id", postgresql.UUID(as_uuid=True), nullable=False),
         *extra_columns,
         *_audit_columns(),
-        sa.ForeignKeyConstraint(
-            ["prescription_id"],
-            [f"{SCHEMA}.prescriptions.id"],
-            ondelete="CASCADE",
-        ),
+        sa.PrimaryKeyConstraint("tenant_id", "prescription_id"),
+        _prescription_fk(),
         schema=SCHEMA,
     )
 

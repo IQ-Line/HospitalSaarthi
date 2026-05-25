@@ -1,7 +1,15 @@
 -- User Management authorization baseline.
 -- Development-stage reset: capability-first schema with no backward compatibility.
 
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+-- Azure managed PG may block CREATE EXTENSION; gen_random_uuid() still works when pgcrypto is allow-listed in portal.
+DO $do$
+BEGIN
+  CREATE EXTENSION IF NOT EXISTS pgcrypto;
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE NOTICE 'pgcrypto extension skipped: %', SQLERRM;
+END
+$do$;
 
 CREATE SCHEMA IF NOT EXISTS user_management;
 

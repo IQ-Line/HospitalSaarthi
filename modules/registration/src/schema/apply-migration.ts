@@ -11,7 +11,6 @@ const MIGRATION_FILES = [
   "0002_registration_patient_snapshot.sql",
   "0003_registration_status_simplify.sql",
 ] as const;
-
 /**
  * Applies `registration` schema DDL (idempotent — safe to run on every dev boot).
  */

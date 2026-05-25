@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import (
     Date,
     DateTime,
-    ForeignKey,
+    ForeignKeyConstraint,
     Integer,
     Numeric,
     SmallInteger,
@@ -23,21 +23,47 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from opd.core.schemas import SCHEMA
 from opd.models.base import Base, TimestampMixin
 from opd.models.prescription.enums import OrderItemStatus, order_item_status_column
-from opd.models.prescription.mixins import LineItemMixin, TenantScopedMixin
+from opd.models.prescription.mixins import LineItemMixin, TenantPrimaryKeyMixin
 
 if TYPE_CHECKING:
     from opd.models.prescription.prescription import PrescriptionModel
 
 _SCHEMA = {"schema": SCHEMA}
-_RX_FK = f"{SCHEMA}.prescriptions.id"
 
 
-class PrescriptionLegacyVitalsModel(TimestampMixin, TenantScopedMixin, Base):
+def _rx_fk() -> ForeignKeyConstraint:
+    return ForeignKeyConstraint(
+        ["tenant_id", "prescription_id"],
+        [f"{SCHEMA}.prescriptions.tenant_id", f"{SCHEMA}.prescriptions.id"],
+        ondelete="CASCADE",
+    )
+
+
+def _med_fk() -> ForeignKeyConstraint:
+    return ForeignKeyConstraint(
+        ["tenant_id", "prescription_medicine_id"],
+        [f"{SCHEMA}.prescription_medicines.tenant_id", f"{SCHEMA}.prescription_medicines.id"],
+        ondelete="CASCADE",
+    )
+
+
+def _pa_fk() -> ForeignKeyConstraint:
+    return ForeignKeyConstraint(
+        ["tenant_id", "physical_activity_id"],
+        [
+            f"{SCHEMA}.prescription_physical_activity.tenant_id",
+            f"{SCHEMA}.prescription_physical_activity.id",
+        ],
+        ondelete="CASCADE",
+    )
+
+
+class PrescriptionLegacyVitalsModel(TimestampMixin, TenantPrimaryKeyMixin, Base):
     __tablename__ = "prescription_legacy_vitals"
-    __table_args__ = (_SCHEMA,)
+    __table_args__ = (_rx_fk(), _SCHEMA)
 
     prescription_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey(_RX_FK, ondelete="CASCADE"), primary_key=True
+        Uuid(as_uuid=True), primary_key=True, nullable=False
     )
     height_cm: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)
     weight_kg: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)
@@ -57,16 +83,17 @@ class PrescriptionLegacyVitalsModel(TimestampMixin, TenantScopedMixin, Base):
 class PrescriptionVitalObservationModel(TimestampMixin, LineItemMixin, Base):
     __tablename__ = "prescription_vital_observations"
     __table_args__ = (
-        UniqueConstraint("prescription_id", "line_no", name="prescription_vital_obs_line_key"),
+        _rx_fk(),
+        UniqueConstraint(
+            "tenant_id", "prescription_id", "line_no", name="prescription_vital_obs_line_key"
+        ),
         _SCHEMA,
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    prescription_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey(_RX_FK, ondelete="CASCADE"), nullable=False
-    )
+    prescription_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
     vital_code: Mapped[str] = mapped_column(String(64), nullable=False)
     vital_global_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     value_text: Mapped[str] = mapped_column(String(512), nullable=False)
@@ -79,16 +106,15 @@ class PrescriptionVitalObservationModel(TimestampMixin, LineItemMixin, Base):
 class PrescriptionChiefComplaintModel(TimestampMixin, LineItemMixin, Base):
     __tablename__ = "prescription_chief_complaints"
     __table_args__ = (
-        UniqueConstraint("prescription_id", "line_no", name="prescription_cc_line_key"),
+        _rx_fk(),
+        UniqueConstraint("tenant_id", "prescription_id", "line_no", name="prescription_cc_line_key"),
         _SCHEMA,
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    prescription_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey(_RX_FK, ondelete="CASCADE"), nullable=False
-    )
+    prescription_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
     complaint_text: Mapped[str] = mapped_column(Text, nullable=False)
     duration_value: Mapped[str | None] = mapped_column(String(32), nullable=True)
     duration_unit: Mapped[str | None] = mapped_column(String(16), nullable=True)
@@ -101,16 +127,15 @@ class PrescriptionChiefComplaintModel(TimestampMixin, LineItemMixin, Base):
 class PrescriptionDiagnosisModel(TimestampMixin, LineItemMixin, Base):
     __tablename__ = "prescription_diagnoses"
     __table_args__ = (
-        UniqueConstraint("prescription_id", "line_no", name="prescription_dx_line_key"),
+        _rx_fk(),
+        UniqueConstraint("tenant_id", "prescription_id", "line_no", name="prescription_dx_line_key"),
         _SCHEMA,
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    prescription_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey(_RX_FK, ondelete="CASCADE"), nullable=False
-    )
+    prescription_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     certainty: Mapped[str | None] = mapped_column(String(32), nullable=True)
     diagnosis_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
@@ -121,16 +146,17 @@ class PrescriptionDiagnosisModel(TimestampMixin, LineItemMixin, Base):
 class PrescriptionSymptomModel(LineItemMixin, Base):
     __tablename__ = "prescription_symptoms"
     __table_args__ = (
-        UniqueConstraint("prescription_id", "line_no", name="prescription_symptoms_line_key"),
+        _rx_fk(),
+        UniqueConstraint(
+            "tenant_id", "prescription_id", "line_no", name="prescription_symptoms_line_key"
+        ),
         _SCHEMA,
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    prescription_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey(_RX_FK, ondelete="CASCADE"), nullable=False
-    )
+    prescription_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
     symptom_text: Mapped[str] = mapped_column(String(256), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -141,12 +167,12 @@ class PrescriptionSymptomModel(LineItemMixin, Base):
     prescription: Mapped[PrescriptionModel] = relationship(back_populates="symptoms")
 
 
-class PrescriptionMedicalHistoryModel(TimestampMixin, TenantScopedMixin, Base):
+class PrescriptionMedicalHistoryModel(TimestampMixin, TenantPrimaryKeyMixin, Base):
     __tablename__ = "prescription_medical_histories"
-    __table_args__ = (_SCHEMA,)
+    __table_args__ = (_rx_fk(), _SCHEMA)
 
     prescription_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey(_RX_FK, ondelete="CASCADE"), primary_key=True
+        Uuid(as_uuid=True), primary_key=True, nullable=False
     )
     smoking_status: Mapped[str | None] = mapped_column(String(64), nullable=True)
     alcohol_status: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -158,16 +184,17 @@ class PrescriptionMedicalHistoryModel(TimestampMixin, TenantScopedMixin, Base):
 class PrescriptionMedicalHistoryAllergyModel(TimestampMixin, LineItemMixin, Base):
     __tablename__ = "prescription_medical_history_allergies"
     __table_args__ = (
-        UniqueConstraint("prescription_id", "line_no", name="prescription_mh_allergy_line_key"),
+        _rx_fk(),
+        UniqueConstraint(
+            "tenant_id", "prescription_id", "line_no", name="prescription_mh_allergy_line_key"
+        ),
         _SCHEMA,
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    prescription_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey(_RX_FK, ondelete="CASCADE"), nullable=False
-    )
+    prescription_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
     allergen_text: Mapped[str] = mapped_column(String(256), nullable=False)
     reaction_text: Mapped[str | None] = mapped_column(String(256), nullable=True)
     severity: Mapped[str | None] = mapped_column(String(32), nullable=True)
@@ -181,8 +208,9 @@ class PrescriptionMedicalHistoryAllergyModel(TimestampMixin, LineItemMixin, Base
 class PrescriptionMedicalHistoryChronicIllnessModel(TimestampMixin, LineItemMixin, Base):
     __tablename__ = "prescription_medical_history_chronic_illnesses"
     __table_args__ = (
+        _rx_fk(),
         UniqueConstraint(
-            "prescription_id", "line_no", name="prescription_mh_chronic_line_key"
+            "tenant_id", "prescription_id", "line_no", name="prescription_mh_chronic_line_key"
         ),
         _SCHEMA,
     )
@@ -190,9 +218,7 @@ class PrescriptionMedicalHistoryChronicIllnessModel(TimestampMixin, LineItemMixi
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    prescription_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey(_RX_FK, ondelete="CASCADE"), nullable=False
-    )
+    prescription_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
     illness_text: Mapped[str] = mapped_column(String(256), nullable=False)
     since_text: Mapped[str | None] = mapped_column(String(64), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -205,16 +231,17 @@ class PrescriptionMedicalHistoryChronicIllnessModel(TimestampMixin, LineItemMixi
 class PrescriptionMedicineModel(TimestampMixin, LineItemMixin, Base):
     __tablename__ = "prescription_medicines"
     __table_args__ = (
-        UniqueConstraint("prescription_id", "line_no", name="prescription_medicines_line_key"),
+        _rx_fk(),
+        UniqueConstraint(
+            "tenant_id", "prescription_id", "line_no", name="prescription_medicines_line_key"
+        ),
         _SCHEMA,
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    prescription_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey(_RX_FK, ondelete="CASCADE"), nullable=False
-    )
+    prescription_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
     medicine_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     name: Mapped[str] = mapped_column(String(512), nullable=False)
     medicine_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -236,18 +263,14 @@ class PrescriptionMedicineModel(TimestampMixin, LineItemMixin, Base):
     )
 
 
-class PrescriptionMedicineSubstitutionModel(TimestampMixin, TenantScopedMixin, Base):
+class PrescriptionMedicineSubstitutionModel(TimestampMixin, TenantPrimaryKeyMixin, Base):
     __tablename__ = "prescription_medicine_substitutions"
-    __table_args__ = (_SCHEMA,)
+    __table_args__ = (_med_fk(), _rx_fk(), _SCHEMA)
 
     prescription_medicine_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True),
-        ForeignKey(f"{SCHEMA}.prescription_medicines.id", ondelete="CASCADE"),
-        primary_key=True,
+        Uuid(as_uuid=True), primary_key=True, nullable=False
     )
-    prescription_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey(_RX_FK, ondelete="CASCADE"), nullable=False
-    )
+    prescription_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
     issued_medicine_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     issued_name: Mapped[str] = mapped_column(String(512), nullable=False)
     item_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -263,16 +286,17 @@ class PrescriptionMedicineSubstitutionModel(TimestampMixin, TenantScopedMixin, B
 class PrescriptionOrderedTestModel(TimestampMixin, LineItemMixin, Base):
     __tablename__ = "prescription_ordered_tests"
     __table_args__ = (
-        UniqueConstraint("prescription_id", "line_no", name="prescription_ordered_tests_line_key"),
+        _rx_fk(),
+        UniqueConstraint(
+            "tenant_id", "prescription_id", "line_no", name="prescription_ordered_tests_line_key"
+        ),
         _SCHEMA,
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    prescription_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey(_RX_FK, ondelete="CASCADE"), nullable=False
-    )
+    prescription_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
     test_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     external_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     name: Mapped[str] = mapped_column(String(512), nullable=False)
@@ -290,8 +314,9 @@ class PrescriptionOrderedTestModel(TimestampMixin, LineItemMixin, Base):
 class PrescriptionOrderedImagingModel(TimestampMixin, LineItemMixin, Base):
     __tablename__ = "prescription_ordered_imaging"
     __table_args__ = (
+        _rx_fk(),
         UniqueConstraint(
-            "prescription_id", "line_no", name="prescription_ordered_imaging_line_key"
+            "tenant_id", "prescription_id", "line_no", name="prescription_ordered_imaging_line_key"
         ),
         _SCHEMA,
     )
@@ -299,9 +324,7 @@ class PrescriptionOrderedImagingModel(TimestampMixin, LineItemMixin, Base):
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    prescription_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey(_RX_FK, ondelete="CASCADE"), nullable=False
-    )
+    prescription_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
     external_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     name: Mapped[str] = mapped_column(String(512), nullable=False)
     due_by: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -318,8 +341,9 @@ class PrescriptionOrderedImagingModel(TimestampMixin, LineItemMixin, Base):
 class PrescriptionVaccineRequiredModel(TimestampMixin, LineItemMixin, Base):
     __tablename__ = "prescription_vaccines_required"
     __table_args__ = (
+        _rx_fk(),
         UniqueConstraint(
-            "prescription_id", "line_no", name="prescription_vaccines_required_line_key"
+            "tenant_id", "prescription_id", "line_no", name="prescription_vaccines_required_line_key"
         ),
         _SCHEMA,
     )
@@ -327,9 +351,7 @@ class PrescriptionVaccineRequiredModel(TimestampMixin, LineItemMixin, Base):
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    prescription_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey(_RX_FK, ondelete="CASCADE"), nullable=False
-    )
+    prescription_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
     vaccine_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     vaccine_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     name: Mapped[str] = mapped_column(String(512), nullable=False)
@@ -347,8 +369,12 @@ class PrescriptionVaccineRequiredModel(TimestampMixin, LineItemMixin, Base):
 class PrescriptionAdvisedProcedureModel(TimestampMixin, LineItemMixin, Base):
     __tablename__ = "prescription_advised_procedures"
     __table_args__ = (
+        _rx_fk(),
         UniqueConstraint(
-            "prescription_id", "line_no", name="prescription_advised_procedures_line_key"
+            "tenant_id",
+            "prescription_id",
+            "line_no",
+            name="prescription_advised_procedures_line_key",
         ),
         _SCHEMA,
     )
@@ -356,9 +382,7 @@ class PrescriptionAdvisedProcedureModel(TimestampMixin, LineItemMixin, Base):
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    prescription_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey(_RX_FK, ondelete="CASCADE"), nullable=False
-    )
+    prescription_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
     procedure_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     procedure_name: Mapped[str] = mapped_column(String(512), nullable=False)
     advised_date: Mapped[date | None] = mapped_column(Date, nullable=True)
@@ -369,8 +393,12 @@ class PrescriptionAdvisedProcedureModel(TimestampMixin, LineItemMixin, Base):
 class PrescriptionPhysicalActivityModel(TimestampMixin, LineItemMixin, Base):
     __tablename__ = "prescription_physical_activity"
     __table_args__ = (
+        _rx_fk(),
         UniqueConstraint(
-            "prescription_id", "line_no", name="prescription_physical_activity_line_key"
+            "tenant_id",
+            "prescription_id",
+            "line_no",
+            name="prescription_physical_activity_line_key",
         ),
         _SCHEMA,
     )
@@ -378,9 +406,7 @@ class PrescriptionPhysicalActivityModel(TimestampMixin, LineItemMixin, Base):
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    prescription_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey(_RX_FK, ondelete="CASCADE"), nullable=False
-    )
+    prescription_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
     steps_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     sleep_duration_min: Mapped[int | None] = mapped_column(Integer, nullable=True)
     calories_burned: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -392,18 +418,14 @@ class PrescriptionPhysicalActivityModel(TimestampMixin, LineItemMixin, Base):
     )
 
 
-class PrescriptionPhysicalActivityExerciseTypeModel(TenantScopedMixin, Base):
+class PrescriptionPhysicalActivityExerciseTypeModel(TenantPrimaryKeyMixin, Base):
     __tablename__ = "prescription_physical_activity_exercise_types"
-    __table_args__ = (_SCHEMA,)
+    __table_args__ = (_pa_fk(), _rx_fk(), _SCHEMA)
 
     physical_activity_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True),
-        ForeignKey(f"{SCHEMA}.prescription_physical_activity.id", ondelete="CASCADE"),
-        primary_key=True,
+        Uuid(as_uuid=True), primary_key=True, nullable=False
     )
-    prescription_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey(_RX_FK, ondelete="CASCADE"), nullable=False
-    )
+    prescription_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
     exercise_type: Mapped[str] = mapped_column(String(128), primary_key=True)
 
     physical_activity: Mapped[PrescriptionPhysicalActivityModel] = relationship(
@@ -411,12 +433,12 @@ class PrescriptionPhysicalActivityExerciseTypeModel(TenantScopedMixin, Base):
     )
 
 
-class PrescriptionCarePlanModel(TimestampMixin, TenantScopedMixin, Base):
+class PrescriptionCarePlanModel(TimestampMixin, TenantPrimaryKeyMixin, Base):
     __tablename__ = "prescription_care_plans"
-    __table_args__ = (_SCHEMA,)
+    __table_args__ = (_rx_fk(), _SCHEMA)
 
     prescription_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey(_RX_FK, ondelete="CASCADE"), primary_key=True
+        Uuid(as_uuid=True), primary_key=True, nullable=False
     )
     advice: Mapped[str | None] = mapped_column(Text, nullable=True)
     next_visit_value: Mapped[int | None] = mapped_column(Integer, nullable=True)

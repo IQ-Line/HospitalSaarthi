@@ -25,27 +25,35 @@ if TYPE_CHECKING:
         PrescriptionVitalObservationModel,
     )
 
-from sqlalchemy import DateTime, ForeignKey, Index, SmallInteger, Text, UniqueConstraint, Uuid
+from sqlalchemy import DateTime, ForeignKeyConstraint, Index, SmallInteger, Text, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from opd.core.cross_refs import REGISTRATION_SCHEMA, REGISTRATION_VISIT_ID_COLUMN
 from opd.core.schemas import SCHEMA
 from opd.models.base import AuditActorMixin, Base, TimestampMixin
 from opd.models.prescription.enums import PrescriptionStatus, prescription_status_column
-from opd.models.prescription.mixins import TenantScopedMixin
+from opd.models.prescription.mixins import TenantPrimaryKeyMixin
 
 _SCHEMA = {"schema": SCHEMA}
 
 
-class PrescriptionModel(TimestampMixin, AuditActorMixin, TenantScopedMixin, Base):
+class PrescriptionModel(TimestampMixin, AuditActorMixin, TenantPrimaryKeyMixin, Base):
     __tablename__ = "prescriptions"
     __table_args__ = (
-        UniqueConstraint("visit_id", name="prescriptions_visit_id_key"),
         Index("prescriptions_tenant_patient_idx", "tenant_id", "patient_id"),
         Index(
             "prescriptions_tenant_active_idx",
             "tenant_id",
-            postgresql_where="deleted_at IS NULL",
+            postgresql_where=text("deleted_at IS NULL"),
+            sqlite_where=text("deleted_at IS NULL"),
+        ),
+        Index(
+            "prescriptions_tenant_visit_active_uq",
+            "tenant_id",
+            "visit_id",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL"),
+            sqlite_where=text("deleted_at IS NULL"),
         ),
         _SCHEMA,
     )
@@ -174,21 +182,22 @@ class PrescriptionModel(TimestampMixin, AuditActorMixin, TenantScopedMixin, Base
     )
 
 
-class PrescriptionStatusHistoryModel(TenantScopedMixin, Base):
+class PrescriptionStatusHistoryModel(TenantPrimaryKeyMixin, Base):
     __tablename__ = "prescription_status_history"
     __table_args__ = (
-        Index("prescription_status_history_rx_idx", "prescription_id"),
+        ForeignKeyConstraint(
+            ["tenant_id", "prescription_id"],
+            [f"{SCHEMA}.prescriptions.tenant_id", f"{SCHEMA}.prescriptions.id"],
+            ondelete="CASCADE",
+        ),
+        Index("prescription_status_history_rx_idx", "tenant_id", "prescription_id"),
         _SCHEMA,
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    prescription_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True),
-        ForeignKey(f"{SCHEMA}.prescriptions.id", ondelete="CASCADE"),
-        nullable=False,
-    )
+    prescription_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
     from_status: Mapped[PrescriptionStatus | None] = mapped_column(
         prescription_status_column(), nullable=True
     )

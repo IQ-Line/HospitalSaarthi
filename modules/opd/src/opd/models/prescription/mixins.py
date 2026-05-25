@@ -12,5 +12,11 @@ class TenantScopedMixin:
     tenant_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False, index=True)
 
 
-class LineItemMixin(TenantScopedMixin):
+class TenantPrimaryKeyMixin:
+    """Citus distribution key is part of the primary key."""
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, nullable=False)
+
+
+class LineItemMixin(TenantPrimaryKeyMixin):
     line_no: Mapped[int] = mapped_column(nullable=False)

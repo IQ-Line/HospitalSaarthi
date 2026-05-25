@@ -2,6 +2,7 @@ import type { AuthzTargetResolver } from "@hims/ts-sdk-authz";
 import {
   buildCerbosUserMgmtResourceAttr,
   resolveEffectiveTenantId,
+  resolveJwtTenantIdFromRequest,
 } from "@hims/user-management";
 import type { FastifyRequest } from "fastify";
 
@@ -49,6 +50,15 @@ function resolveResourceTenantId(request: Parameters<AuthzTargetResolver>[0]): s
 function tenantAttr(request: Parameters<AuthzTargetResolver>[0]) {
   return buildCerbosUserMgmtResourceAttr({
     iq_tenant_id: resolveResourceTenantId(request),
+    department: request.user.department ?? null,
+    required_clearance: 0,
+  });
+}
+
+/** Auth shell routes always scope Cerbos to the signed-in user's JWT home tenant. */
+function authSelfTenantAttr(request: Parameters<AuthzTargetResolver>[0]) {
+  return buildCerbosUserMgmtResourceAttr({
+    iq_tenant_id: resolveJwtTenantIdFromRequest(request as FastifyRequest),
     department: request.user.department ?? null,
     required_clearance: 0,
   });
@@ -259,10 +269,12 @@ export function createUserManagementAuthzTargetResolver(
         // `/auth/*` endpoints are shell support: principal snapshot for SPA capability hydration.
         // They must not require `users:users:read`, otherwise role admins without user.read
         // could not load the principal used for navigation gating.
+        // Cerbos `auth` policy matches principal/resource `iq_tenant_id`; never use cross-tenant
+        // header scope here (super-admin `iq_tenant_id` is for operational APIs only).
         kind: "auth",
         id: "self",
         action: "auth.read",
-        attr: tenantAttr(request),
+        attr: authSelfTenantAttr(request),
       };
     }
 

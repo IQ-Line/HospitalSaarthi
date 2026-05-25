@@ -1,0 +1,532 @@
+openapi: 3.1.0
+info:
+  title: OPD — Outpatient prescriptions
+  version: 1.0.0
+  description: |
+    OPD module API. Prescriptions are tenant-scoped, 1:1 with a registration `visit_id`
+    (logical ref to `registration.registration.visit_id`; no cross-schema FK).
+
+    **Distribution:** All prescription tables use `tenant_id` in primary/unique keys for Citus.
+
+    **Visit uniqueness:** At most one *active* prescription per `(tenant_id, visit_id)`;
+    soft-deleted rows do not block a new prescription for the same visit.
+
+tags:
+  - name: Prescriptions
+    description: Draft/final/cancel lifecycle and clinical aggregate for an OPD visit.
+
+servers:
+  - url: http://localhost:8020/api/v1/opd
+    description: Local opd-svc (OPD_SVC_PORT; default 8020)
+
+paths:
+  /prescriptions:
+    get:
+      operationId: listPrescriptions
+      summary: List prescriptions for a patient
+      tags: [Prescriptions]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdQuery"
+        - name: patient_id
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: Paginated prescription list
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PrescriptionListResponse" }
+
+    post:
+      operationId: createPrescription
+      summary: Create a draft prescription for a registration visit_id
+      tags: [Prescriptions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PrescriptionCreate" }
+      responses:
+        "201":
+          description: Prescription created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PrescriptionSingleResponse" }
+        "409":
+          description: Active prescription already exists for visit_id
+
+  /prescriptions/by-visit/{visit_id}:
+    get:
+      operationId: getPrescriptionByVisit
+      summary: Get prescription by registration visit_id (1:1)
+      tags: [Prescriptions]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdQuery"
+        - name: visit_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Prescription detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PrescriptionSingleResponse" }
+        "404":
+          description: Not found
+
+  /prescriptions/{prescription_id}:
+    get:
+      operationId: getPrescription
+      summary: Get prescription by id
+      tags: [Prescriptions]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdQuery"
+        - $ref: "#/components/parameters/PrescriptionId"
+      responses:
+        "200":
+          description: Prescription detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PrescriptionSingleResponse" }
+        "404":
+          description: Not found
+
+    put:
+      operationId: updatePrescription
+      summary: Replace draft prescription clinical content
+      tags: [Prescriptions]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdQuery"
+        - $ref: "#/components/parameters/PrescriptionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PrescriptionUpdate" }
+      responses:
+        "200":
+          description: Updated prescription
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PrescriptionSingleResponse" }
+        "404":
+          description: Not found
+        "409":
+          description: Not draft or conflict
+
+    delete:
+      operationId: deletePrescription
+      summary: Soft-delete a prescription
+      tags: [Prescriptions]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdQuery"
+        - $ref: "#/components/parameters/PrescriptionId"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+
+  /prescriptions/{prescription_id}/finalize:
+    post:
+      operationId: finalizePrescription
+      summary: Finalize a draft prescription
+      tags: [Prescriptions]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdQuery"
+        - $ref: "#/components/parameters/PrescriptionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PrescriptionFinalizeRequest" }
+      responses:
+        "200":
+          description: Finalized prescription
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PrescriptionSingleResponse" }
+        "404":
+          description: Not found
+        "409":
+          description: Not draft
+
+  /prescriptions/{prescription_id}/cancel:
+    post:
+      operationId: cancelPrescription
+      summary: Cancel a draft prescription
+      tags: [Prescriptions]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdQuery"
+        - $ref: "#/components/parameters/PrescriptionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PrescriptionCancelRequest" }
+      responses:
+        "200":
+          description: Cancelled prescription
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PrescriptionSingleResponse" }
+        "404":
+          description: Not found
+        "409":
+          description: Already cancelled or finalized
+
+components:
+  parameters:
+    TenantIdQuery:
+      name: tenant_id
+      in: query
+      required: true
+      description: Tenant isolation key (Citus distribution column).
+      schema: { type: string, format: uuid }
+    PrescriptionId:
+      name: prescription_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  schemas:
+    PrescriptionStatus:
+      type: string
+      enum: [draft, final, cancelled]
+
+    OrderItemStatus:
+      type: string
+      enum: [pending, completed, cancelled]
+
+    PrescriptionLegacyVitals:
+      type: object
+      properties:
+        height_cm: { type: number, nullable: true }
+        weight_kg: { type: number, nullable: true }
+        bmi: { type: number, nullable: true }
+        temperature_c: { type: number, nullable: true }
+        pulse_bpm: { type: integer, nullable: true }
+        bp_systolic: { type: integer, nullable: true }
+        bp_diastolic: { type: integer, nullable: true }
+        respiratory_rate: { type: integer, nullable: true }
+        spo2_percent: { type: integer, nullable: true }
+        blood_sugar_mg_dl: { type: number, nullable: true }
+        notes: { type: string, nullable: true }
+
+    PrescriptionVitalObservation:
+      type: object
+      required: [line_no, vital_code, value_text, recorded_at]
+      properties:
+        line_no: { type: integer }
+        vital_code: { type: string }
+        vital_global_id: { type: string, format: uuid, nullable: true }
+        value_text: { type: string }
+        unit_code: { type: string, nullable: true }
+        recorded_at: { type: string, format: date-time }
+
+    PrescriptionChiefComplaint:
+      type: object
+      required: [line_no, complaint_text]
+      properties:
+        line_no: { type: integer }
+        complaint_text: { type: string }
+        duration_value: { type: string, nullable: true }
+        duration_unit: { type: string, nullable: true }
+        severity: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+
+    PrescriptionDiagnosis:
+      type: object
+      required: [line_no]
+      properties:
+        line_no: { type: integer }
+        notes: { type: string, nullable: true }
+        certainty: { type: string, nullable: true }
+        diagnosis_id: { type: string, format: uuid, nullable: true }
+
+    PrescriptionSymptom:
+      type: object
+      required: [line_no, symptom_text]
+      properties:
+        line_no: { type: integer }
+        symptom_text: { type: string }
+
+    PrescriptionMedicalHistory:
+      type: object
+      properties:
+        smoking_status: { type: string, nullable: true }
+        alcohol_status: { type: string, nullable: true }
+        other_notes: { type: string, nullable: true }
+
+    PrescriptionMedicineSubstitution:
+      type: object
+      required: [issued_name]
+      properties:
+        issued_medicine_id: { type: string, format: uuid, nullable: true }
+        issued_name: { type: string }
+        item_code: { type: string, nullable: true }
+        quantity: { type: number, nullable: true }
+        form: { type: string, nullable: true }
+        volume: { type: string, nullable: true }
+        category: { type: string, nullable: true }
+        reason: { type: string, nullable: true }
+
+    PrescriptionMedicine:
+      type: object
+      required: [line_no, name]
+      properties:
+        line_no: { type: integer }
+        medicine_id: { type: string, format: uuid, nullable: true }
+        name: { type: string }
+        medicine_type: { type: string, nullable: true }
+        strength: { type: string, nullable: true }
+        sos: { type: string, nullable: true }
+        dosage: { type: string, nullable: true }
+        duration: { type: string, nullable: true }
+        frequency: { type: string, nullable: true }
+        quantity: { type: number, nullable: true }
+        route: { type: string, nullable: true }
+        method: { type: string, nullable: true }
+        status: { type: string, nullable: true }
+        substitution: { $ref: "#/components/schemas/PrescriptionMedicineSubstitution" }
+
+    PrescriptionOrderedTest:
+      type: object
+      required: [line_no, name]
+      properties:
+        line_no: { type: integer }
+        test_id: { type: string, format: uuid, nullable: true }
+        external_id: { type: string, nullable: true }
+        name: { type: string }
+        due_by: { type: string, format: date-time, nullable: true }
+        instructions: { type: string, nullable: true }
+        status: { $ref: "#/components/schemas/OrderItemStatus" }
+
+    PrescriptionOrderedImaging:
+      type: object
+      required: [line_no, name]
+      properties:
+        line_no: { type: integer }
+        external_id: { type: string, nullable: true }
+        name: { type: string }
+        due_by: { type: string, format: date-time, nullable: true }
+        instructions: { type: string, nullable: true }
+        status: { $ref: "#/components/schemas/OrderItemStatus" }
+
+    PrescriptionVaccineRequired:
+      type: object
+      required: [line_no, name]
+      properties:
+        line_no: { type: integer }
+        vaccine_id: { type: string, format: uuid, nullable: true }
+        vaccine_code: { type: string, nullable: true }
+        name: { type: string }
+        due_by: { type: string, format: date-time, nullable: true }
+        instructions: { type: string, nullable: true }
+        status: { $ref: "#/components/schemas/OrderItemStatus" }
+
+    PrescriptionAdvisedProcedure:
+      type: object
+      required: [line_no, procedure_name]
+      properties:
+        line_no: { type: integer }
+        procedure_id: { type: string, format: uuid, nullable: true }
+        procedure_name: { type: string }
+        advised_date: { type: string, format: date, nullable: true }
+
+    PrescriptionPhysicalActivity:
+      type: object
+      required: [line_no]
+      properties:
+        line_no: { type: integer }
+        steps_count: { type: integer, nullable: true }
+        sleep_duration_min: { type: integer, nullable: true }
+        calories_burned: { type: integer, nullable: true }
+        exercise_types:
+          type: array
+          items: { type: string }
+
+    PrescriptionCarePlan:
+      type: object
+      properties:
+        advice: { type: string, nullable: true }
+        next_visit_value: { type: integer, nullable: true }
+        next_visit_unit: { type: string, nullable: true }
+        refer_to: { type: string, nullable: true }
+
+    PrescriptionClinical:
+      type: object
+      properties:
+        legacy_vitals: { $ref: "#/components/schemas/PrescriptionLegacyVitals" }
+        vital_observations:
+          type: array
+          items: { $ref: "#/components/schemas/PrescriptionVitalObservation" }
+        chief_complaints:
+          type: array
+          items: { $ref: "#/components/schemas/PrescriptionChiefComplaint" }
+        diagnoses:
+          type: array
+          items: { $ref: "#/components/schemas/PrescriptionDiagnosis" }
+        symptoms:
+          type: array
+          items: { $ref: "#/components/schemas/PrescriptionSymptom" }
+        medical_history: { $ref: "#/components/schemas/PrescriptionMedicalHistory" }
+        medical_history_allergies:
+          type: array
+          items:
+            type: object
+            required: [line_no, allergen_text]
+            properties:
+              line_no: { type: integer }
+              allergen_text: { type: string }
+              reaction_text: { type: string, nullable: true }
+              severity: { type: string, nullable: true }
+              notes: { type: string, nullable: true }
+        medical_history_chronic_illnesses:
+          type: array
+          items:
+            type: object
+            required: [line_no, illness_text]
+            properties:
+              line_no: { type: integer }
+              illness_text: { type: string }
+              since_text: { type: string, nullable: true }
+              notes: { type: string, nullable: true }
+        medicines:
+          type: array
+          items: { $ref: "#/components/schemas/PrescriptionMedicine" }
+        ordered_tests:
+          type: array
+          items: { $ref: "#/components/schemas/PrescriptionOrderedTest" }
+        ordered_imaging:
+          type: array
+          items: { $ref: "#/components/schemas/PrescriptionOrderedImaging" }
+        vaccines_required:
+          type: array
+          items: { $ref: "#/components/schemas/PrescriptionVaccineRequired" }
+        advised_procedures:
+          type: array
+          items: { $ref: "#/components/schemas/PrescriptionAdvisedProcedure" }
+        physical_activities:
+          type: array
+          items: { $ref: "#/components/schemas/PrescriptionPhysicalActivity" }
+        care_plan: { $ref: "#/components/schemas/PrescriptionCarePlan" }
+
+    PrescriptionCreate:
+      type: object
+      required: [tenant_id, visit_id, patient_id, doctor_id]
+      properties:
+        tenant_id: { type: string, format: uuid }
+        visit_id: { type: string, format: uuid }
+        patient_id: { type: string, format: uuid }
+        doctor_id: { type: string, format: uuid }
+        vitals_schema_version: { type: integer, default: 1 }
+        created_by: { type: string, format: uuid, nullable: true }
+        clinical: { $ref: "#/components/schemas/PrescriptionClinical" }
+
+    PrescriptionUpdate:
+      type: object
+      properties:
+        doctor_id: { type: string, format: uuid, nullable: true }
+        vitals_schema_version: { type: integer, nullable: true }
+        updated_by: { type: string, format: uuid, nullable: true }
+        clinical: { $ref: "#/components/schemas/PrescriptionClinical" }
+
+    PrescriptionFinalizeRequest:
+      type: object
+      properties:
+        changed_by: { type: string, format: uuid, nullable: true }
+
+    PrescriptionCancelRequest:
+      type: object
+      properties:
+        changed_by: { type: string, format: uuid, nullable: true }
+        reason: { type: string, nullable: true }
+
+    PrescriptionStatusHistory:
+      type: object
+      required: [id, to_status, changed_at]
+      properties:
+        id: { type: string, format: uuid }
+        from_status: { $ref: "#/components/schemas/PrescriptionStatus" }
+        to_status: { $ref: "#/components/schemas/PrescriptionStatus" }
+        changed_at: { type: string, format: date-time }
+        changed_by: { type: string, format: uuid, nullable: true }
+        reason: { type: string, nullable: true }
+
+    PrescriptionDetail:
+      type: object
+      required:
+        - id
+        - tenant_id
+        - visit_id
+        - patient_id
+        - doctor_id
+        - vitals_schema_version
+        - status
+        - created_at
+        - updated_at
+      properties:
+        id: { type: string, format: uuid }
+        tenant_id: { type: string, format: uuid }
+        visit_id: { type: string, format: uuid }
+        patient_id: { type: string, format: uuid }
+        doctor_id: { type: string, format: uuid }
+        vitals_schema_version: { type: integer }
+        status: { $ref: "#/components/schemas/PrescriptionStatus" }
+        finalized_at: { type: string, format: date-time, nullable: true }
+        cancelled_at: { type: string, format: date-time, nullable: true }
+        deleted_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        created_by: { type: string, format: uuid, nullable: true }
+        updated_by: { type: string, format: uuid, nullable: true }
+        status_history:
+          type: array
+          items: { $ref: "#/components/schemas/PrescriptionStatusHistory" }
+        clinical: { $ref: "#/components/schemas/PrescriptionClinical" }
+
+    PrescriptionListItem:
+      type: object
+      required:
+        - id
+        - tenant_id
+        - visit_id
+        - patient_id
+        - doctor_id
+        - status
+        - created_at
+        - updated_at
+      properties:
+        id: { type: string, format: uuid }
+        tenant_id: { type: string, format: uuid }
+        visit_id: { type: string, format: uuid }
+        patient_id: { type: string, format: uuid }
+        doctor_id: { type: string, format: uuid }
+        status: { $ref: "#/components/schemas/PrescriptionStatus" }
+        finalized_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    PrescriptionListResponse:
+      type: object
+      required: [data, total]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/PrescriptionListItem" }
+        total: { type: integer }
+
+    PrescriptionSingleResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/PrescriptionDetail" }

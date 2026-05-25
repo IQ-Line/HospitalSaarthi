@@ -121,6 +121,35 @@ describe("createUserManagementAuthzTargetResolver", () => {
     expect(getUserProfile).not.toHaveBeenCalled();
   });
 
+  it("maps GET /auth/principal to JWT home tenant even when super-admin sends iq_tenant_id header", async () => {
+    const getUserProfile = vi.fn();
+    const resolver = createUserManagementAuthzTargetResolver({ getUserProfile });
+
+    const target = await resolver({
+      method: "GET",
+      url: "/api/user-management/auth/principal",
+      routeOptions: { url: "/api/user-management/auth/principal" },
+      headers: { iq_tenant_id: "tenant-other" },
+      user: {
+        userId: "c26740ca-acb9-49be-aeb3-81812f80252d",
+        tenantId: "f47ac10b-58cc-4372-a567-0e02b2c3d480",
+        roles: ["super-admin"],
+        department: null,
+      },
+    } as never);
+
+    expect(target).toEqual({
+      kind: "auth",
+      id: "self",
+      action: "auth.read",
+      attr: {
+        iq_tenant_id: "f47ac10b-58cc-4372-a567-0e02b2c3d480",
+        department: null,
+        required_clearance: 0,
+      },
+    });
+  });
+
   it("maps POST /users resource tenant from iq_tenant_id header for super-admin", async () => {
     const getUserProfile = vi.fn();
     const resolver = createUserManagementAuthzTargetResolver({ getUserProfile });

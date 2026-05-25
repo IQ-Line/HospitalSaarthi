@@ -49,10 +49,13 @@ class PrescriptionRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def _base_query(self) -> Select[tuple[PrescriptionModel]]:
+    def _root_query(self) -> Select[tuple[PrescriptionModel]]:
+        """Lean lookup for state transitions and soft delete (no child eager loads)."""
+        return select(PrescriptionModel).where(PrescriptionModel.deleted_at.is_(None))
+
+    def _detail_query(self) -> Select[tuple[PrescriptionModel]]:
         return (
-            select(PrescriptionModel)
-            .where(PrescriptionModel.deleted_at.is_(None))
+            self._root_query()
             .options(
                 selectinload(PrescriptionModel.status_history),
                 selectinload(PrescriptionModel.legacy_vitals),
@@ -77,9 +80,20 @@ class PrescriptionRepository:
             )
         )
 
+    def _get_root_by_id(self, tenant_id: UUID, prescription_id: UUID) -> PrescriptionModel:
+        row = self._session.scalar(
+            self._root_query().where(
+                PrescriptionModel.tenant_id == tenant_id,
+                PrescriptionModel.id == prescription_id,
+            )
+        )
+        if row is None:
+            raise PrescriptionNotFoundError(f"Prescription {prescription_id} not found")
+        return row
+
     def get_by_id(self, tenant_id: UUID, prescription_id: UUID) -> PrescriptionModel:
         row = self._session.scalar(
-            self._base_query().where(
+            self._detail_query().where(
                 PrescriptionModel.tenant_id == tenant_id,
                 PrescriptionModel.id == prescription_id,
             )
@@ -90,7 +104,7 @@ class PrescriptionRepository:
 
     def get_by_visit_id(self, tenant_id: UUID, visit_id: UUID) -> PrescriptionModel:
         row = self._session.scalar(
-            self._base_query().where(
+            self._detail_query().where(
                 PrescriptionModel.tenant_id == tenant_id,
                 PrescriptionModel.visit_id == visit_id,
             )
@@ -155,7 +169,7 @@ class PrescriptionRepository:
         self._session.add(rx)
         self._session.flush()
 
-        self._session.add(
+        rx.status_history.append(
             PrescriptionStatusHistoryModel(
                 tenant_id=payload.tenant_id,
                 prescription_id=rx.id,
@@ -165,7 +179,8 @@ class PrescriptionRepository:
             )
         )
         self._apply_clinical(rx, payload.clinical)
-        return rx
+        self._session.flush()
+        return self.get_by_id(payload.tenant_id, rx.id)
 
     def update(
         self, tenant_id: UUID, prescription_id: UUID, payload: PrescriptionUpdate
@@ -185,12 +200,13 @@ class PrescriptionRepository:
             self._clear_clinical_children(rx)
             self._apply_clinical(rx, payload.clinical)
 
-        return rx
+        self._session.flush()
+        return self.get_by_id(tenant_id, prescription_id)
 
     def finalize(
         self, tenant_id: UUID, prescription_id: UUID, *, changed_by: UUID | None
     ) -> PrescriptionModel:
-        rx = self.get_by_id(tenant_id, prescription_id)
+        rx = self._get_root_by_id(tenant_id, prescription_id)
         if rx.status != PrescriptionStatus.DRAFT:
             raise PrescriptionConflictError("Only draft prescriptions can be finalized")
 
@@ -199,7 +215,7 @@ class PrescriptionRepository:
         rx.status = PrescriptionStatus.FINAL
         rx.finalized_at = now
         rx.updated_by = changed_by
-        self._session.add(
+        rx.status_history.append(
             PrescriptionStatusHistoryModel(
                 tenant_id=tenant_id,
                 prescription_id=rx.id,
@@ -208,7 +224,8 @@ class PrescriptionRepository:
                 changed_by=changed_by,
             )
         )
-        return rx
+        self._session.flush()
+        return self.get_by_id(tenant_id, prescription_id)
 
     def cancel(
         self,
@@ -218,7 +235,7 @@ class PrescriptionRepository:
         changed_by: UUID | None,
         reason: str | None,
     ) -> PrescriptionModel:
-        rx = self.get_by_id(tenant_id, prescription_id)
+        rx = self._get_root_by_id(tenant_id, prescription_id)
         if rx.status == PrescriptionStatus.CANCELLED:
             raise PrescriptionConflictError("Prescription is already cancelled")
         if rx.status == PrescriptionStatus.FINAL:
@@ -229,7 +246,7 @@ class PrescriptionRepository:
         rx.status = PrescriptionStatus.CANCELLED
         rx.cancelled_at = now
         rx.updated_by = changed_by
-        self._session.add(
+        rx.status_history.append(
             PrescriptionStatusHistoryModel(
                 tenant_id=tenant_id,
                 prescription_id=rx.id,
@@ -239,11 +256,13 @@ class PrescriptionRepository:
                 reason=reason,
             )
         )
-        return rx
+        self._session.flush()
+        return self.get_by_id(tenant_id, prescription_id)
 
     def soft_delete(self, tenant_id: UUID, prescription_id: UUID) -> PrescriptionModel:
-        rx = self.get_by_id(tenant_id, prescription_id)
+        rx = self._get_root_by_id(tenant_id, prescription_id)
         rx.deleted_at = datetime.now(UTC)
+        self._session.flush()
         return rx
 
     def _clear_clinical_children(self, rx: PrescriptionModel) -> None:
