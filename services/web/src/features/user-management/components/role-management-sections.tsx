@@ -943,6 +943,11 @@ export function RoleEditorDialog({
           {isTabbed ? <RoleEditorTabBar tab={editorTab} onTabChange={setEditorTab} /> : null}
         </div>
 
+        {isTabbed ? (
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+            {editorTab === 'details' ? detailsFields : permissionsBody}
+          </div>
+        ) : (
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden px-4 py-4 lg:flex-row lg:overflow-hidden lg:items-stretch">
             <section className="shrink-0 space-y-4 rounded-md border p-4 lg:w-[22rem] lg:max-h-full lg:shrink-0 lg:overflow-y-auto lg:overscroll-contain">
               <div className="space-y-2">
@@ -984,6 +989,34 @@ export function RoleEditorDialog({
                   disabled={!roleFormEditable}
                   onChange={(event) => onDisplayNameChange(event.target.value)}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Role type</Label>
+                <Select
+                  value={roleType || undefined}
+                  onValueChange={onRoleTypeChange}
+                  disabled={!roleFormEditable || roleTypeLoading || !!roleTypeError}
+                >
+                  <SelectTrigger id="role-editor-type">
+                    <SelectValue
+                      placeholder={
+                        roleTypeLoading
+                          ? 'Loading role types…'
+                          : roleTypeError
+                            ? 'Failed to load role types'
+                            : 'Select role type'
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roleTypeOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
@@ -1134,6 +1167,7 @@ export function RoleEditorDialog({
               )}
             </section>
         </div>
+        )}
 
         <DialogFooter className="mx-0 mb-0 flex w-full shrink-0 items-center justify-between border-t px-4 py-3">
           <div>

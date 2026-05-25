@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { apiClient } from '@/lib/api-client';
+import { apiClient, apiClientGlobalCatalogRead } from '@/lib/api-client';
 import { masterDataKeys } from './query-keys';
 import type { PicklistListResponse, PicklistValueListResponse } from '../types';
 
@@ -17,39 +17,15 @@ export function usePicklists(options?: { enabled?: boolean }) {
 
 export function usePicklistValues(
   picklistId: string | undefined,
-  options?: { enabled?: boolean; limit?: number },
+  options?: { enabled?: boolean },
 ) {
-  const limit = options?.limit ?? 50;
   return useQuery({
     queryKey: masterDataKeys.picklistValues(picklistId),
     queryFn: () =>
-      apiClient<PicklistValueListResponse>(
-        `${BASE}/${picklistId}/values`,
-      ),
+      apiClient<PicklistValueListResponse>(`${BASE}/${picklistId}/values`),
     enabled: (options?.enabled ?? true) && !!picklistId,
   });
 }
-
-/** Resolves `role-types` picklist id, then loads its values for role-type dropdowns. */
-export function useRoleTypePicklistValues(options?: { enabled?: boolean }) {
-  const picklistsQuery = usePicklists(options);
-  const roleTypesPicklist = picklistsQuery.data?.data.find(
-    (p) => p.slug === ROLE_TYPES_SLUG,
-  );
-  const valuesQuery = usePicklistValues(roleTypesPicklist?.id, {
-    enabled: (options?.enabled ?? true) && !!roleTypesPicklist?.id,
-  });
-
-  return {
-    picklistsQuery,
-    valuesQuery,
-    roleTypesPicklistId: roleTypesPicklist?.id,
-    options: valuesQuery.data?.data ?? [],
-    isLoading: picklistsQuery.isLoading || valuesQuery.isLoading,
-    error: picklistsQuery.error ?? valuesQuery.error,
-  };
-}
-import { apiClientGlobalCatalogRead } from '@/lib/api-client';
 
 export function usePicklistValuesBySlug(picklistSlug: string, enabled = true) {
   return useQuery({
@@ -66,4 +42,16 @@ export function usePicklistValuesBySlug(picklistSlug: string, enabled = true) {
       return values.filter((v) => v.is_active);
     },
   });
+}
+
+/** Loads active values from the platform `role-types` picklist for role editor dropdowns. */
+export function useRoleTypePicklistValues(options?: { enabled?: boolean }) {
+  const enabled = options?.enabled ?? true;
+  const valuesQuery = usePicklistValuesBySlug(ROLE_TYPES_SLUG, enabled);
+
+  return {
+    options: valuesQuery.data ?? [],
+    isLoading: valuesQuery.isLoading,
+    error: valuesQuery.error,
+  };
 }
