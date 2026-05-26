@@ -24,11 +24,19 @@ export type ListAssignableRuntimeCapabilitiesDeps = {
   masterDataModuleCatalogPort: MasterDataModuleCatalogPort;
 };
 
+export type ListAssignableRuntimeCapabilitiesOptions = {
+  /** When true, only includes capabilities from modules with `module_kind === 'product'`. */
+  productOnly?: boolean;
+};
+
 export async function listAssignableRuntimeCapabilities(
   deps: ListAssignableRuntimeCapabilitiesDeps,
   tenantId: string,
   context?: ModuleEntitlementRequestContext,
+  options?: ListAssignableRuntimeCapabilitiesOptions,
 ): Promise<Capability[]> {
+  const productOnly = options?.productOnly === true;
+
   const tenantEnabledModuleIds = dedupeTrimmedIds(
     await deps.tenantModuleEntitlementPort.listTenantEnabledModuleIds(tenantId, context),
   );
@@ -49,9 +57,11 @@ export async function listAssignableRuntimeCapabilities(
   }
 
   const assignableModuleSlugs = new Set<string>();
-  for (const platformSlug of PLATFORM_RUNTIME_MODULE_SLUGS) {
-    if (isPlatformRuntimeModuleSlug(platformSlug)) {
-      assignableModuleSlugs.add(normalizeModuleSlug(platformSlug));
+  if (!productOnly) {
+    for (const platformSlug of PLATFORM_RUNTIME_MODULE_SLUGS) {
+      if (isPlatformRuntimeModuleSlug(platformSlug)) {
+        assignableModuleSlugs.add(normalizeModuleSlug(platformSlug));
+      }
     }
   }
 
@@ -60,7 +70,23 @@ export async function listAssignableRuntimeCapabilities(
     if (!isValidModuleSlug(normalized)) {
       throw new ModuleEntitlementLookupError("master_data");
     }
+    if (productOnly && isPlatformRuntimeModuleSlug(normalized)) {
+      continue;
+    }
     assignableModuleSlugs.add(normalized);
+  }
+
+  // When productOnly, filter out non-product module slugs (e.g. foundation modules like EMPI)
+  if (productOnly && assignableModuleSlugs.size > 0) {
+    const kindBySlug = await deps.masterDataModuleCatalogPort.resolveModuleKindBySlugs(
+      [...assignableModuleSlugs],
+    );
+    for (const slug of [...assignableModuleSlugs]) {
+      const kind = kindBySlug.get(slug);
+      if (kind !== undefined && kind !== "product") {
+        assignableModuleSlugs.delete(slug);
+      }
+    }
   }
 
   const expandedSlugs = await deps.masterDataModuleCatalogPort.expandEnabledModuleSlugs([

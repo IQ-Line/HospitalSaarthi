@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 
 import { useTenantModules } from '@/features/configurator/api/tenants';
-import { resolvePlatformSuperAdmin } from '@/lib/platform-admin';
+import { resolvePlatformSuperAdmin, resolveTenantAdmin } from '@/lib/platform-admin';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePermissionsStore } from '@/stores/permissions.store';
 import { useTenantStore } from '@/stores/tenant.store';
@@ -130,6 +130,11 @@ export function useEnabledTenantModuleSlugs(): ReadonlySet<string> | null {
     authRoles,
     accessToken,
   });
+  const isTenantAdminRole = resolveTenantAdmin({
+    principalRoles,
+    authRoles,
+    accessToken,
+  });
 
   const { index, isPending: catalogPending, isError: catalogError } = useModuleCatalog();
 
@@ -166,12 +171,22 @@ export function useEnabledTenantModuleSlugs(): ReadonlySet<string> | null {
       return new Set();
     }
 
-    return buildEnabledModuleSlugsFromCatalog(
-      catalogSlugsFromTenantModules(index, tenantModulesQuery.data?.data ?? []),
+    const tenantCatalogSlugs = catalogSlugsFromTenantModules(
+      index,
+      tenantModulesQuery.data?.data ?? [],
     );
+
+    if (isTenantAdminRole) {
+      const enriched = new Set(tenantCatalogSlugs);
+      addCatalogSlugToSet(enriched, 'configurator');
+      return buildEnabledModuleSlugsFromCatalog(enriched);
+    }
+
+    return buildEnabledModuleSlugsFromCatalog(tenantCatalogSlugs);
   }, [
     tenantId,
     isSuperAdmin,
+    isTenantAdminRole,
     tenantModulesQuery.data,
     tenantModulesQuery.isPending,
     tenantModulesQuery.isError,

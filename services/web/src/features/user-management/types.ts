@@ -14,6 +14,7 @@ export type UmUser = {
   department?: string | null;
   clearance_tier_required?: number;
   status: UserStatus;
+  role_display_names?: string[];
 };
 
 export type CreateUserBody = {
