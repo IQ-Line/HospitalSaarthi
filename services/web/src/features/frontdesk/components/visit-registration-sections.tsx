@@ -4,6 +4,10 @@ import type { UseFormRegister, UseFormSetValue, UseFormWatch } from 'react-hook-
 import { Button } from '@pulse/ui/button';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
+import {
+  RegistrationFieldLabel,
+  RegistrationSection,
+} from '@/features/frontdesk/components/registration-form-chrome';
 import { Popover, PopoverContent, PopoverTrigger } from '@pulse/ui/popover';
 import {
   Select,
@@ -96,21 +100,17 @@ export function VisitRegistrationSectionMenu() {
   );
 }
 
-/** Vitals + lab tests + RIS (each toggled in section menu). */
+/** Lab tests + RIS (each toggled in section menu). */
 export function VisitRegistrationClinicalSections({
   register,
   watch,
   setValue,
   visible,
 }: FormProps & {
-  visible: Pick<
-    Record<VisitRegistrationSectionId, boolean>,
-    'vitals' | 'labTests' | 'risAppointment'
-  >;
+  visible: Pick<Record<VisitRegistrationSectionId, boolean>, 'labTests' | 'risAppointment'>;
 }) {
   return (
     <>
-      {visible.vitals ? <VitalsPanel register={register} /> : null}
       {visible.labTests ? <LabTestsPanel register={register} watch={watch} /> : null}
       {visible.risAppointment ? (
         <RisPanel register={register} watch={watch} setValue={setValue} />
@@ -163,12 +163,19 @@ export function VisitRegistrationAppointmentSection({ register, watch, setValue 
     departmentOptions.length > 0,
   );
 
+  const consultationFee = watch('billing.consultation_fee') ?? {
+    unit_price: 0,
+    tax_percent: 0,
+    discount: 0,
+  };
+  const consultationChargeDisplay =
+    consultationFee.unit_price > 0
+      ? formatInr(consultationFee.unit_price ?? 0)
+      : 'Select department & doctor';
+
   return (
-    <section className="rounded-lg border border-border bg-card p-4 md:p-5 space-y-4 shadow-sm">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-        Appointment details
-      </h2>
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
+    <RegistrationSection title="Visit Details">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <SelectField
           label="Department"
           required
@@ -186,10 +193,10 @@ export function VisitRegistrationAppointmentSection({ register, watch, setValue 
           options={departmentOptions}
         />
         <Field>
-          <Label htmlFor="visit-reg-room">Room number</Label>
+          <RegistrationFieldLabel htmlFor="visit-reg-room">Room Number</RegistrationFieldLabel>
           <Input
             id="visit-reg-room"
-            placeholder="e.g. OPD-12"
+            placeholder=""
             className="h-10"
             {...register('appointment.room_number')}
           />
@@ -203,8 +210,20 @@ export function VisitRegistrationAppointmentSection({ register, watch, setValue 
           disabled={!selectedDepartmentName || providersQuery.isPending || doctorOptions.length === 0}
           options={doctorOptions}
         />
+        <Field>
+          <RegistrationFieldLabel htmlFor="visit-reg-consultation-charge">
+            Consultation charge
+          </RegistrationFieldLabel>
+          <Input
+            id="visit-reg-consultation-charge"
+            readOnly
+            value={consultationChargeDisplay}
+            className="h-10 bg-muted/50"
+            tabIndex={-1}
+          />
+        </Field>
         <SelectField
-          label="Visit type"
+          label="Visit Type"
           required
           value={visitTypeCode || '__none__'}
           onValueChange={(v) => setValue('appointment.visit_type_code', v === '__none__' ? '' : v)}
@@ -214,17 +233,8 @@ export function VisitRegistrationAppointmentSection({ register, watch, setValue 
             label: vt.label,
           }))}
         />
-        <Field className="sm:col-span-2 lg:col-span-1">
-          <Label htmlFor="visit-reg-visit-reason">Visit reason</Label>
-          <Input
-            id="visit-reg-visit-reason"
-            placeholder="Enter reason for visit"
-            className="h-10"
-            {...register('appointment.visit_reason')}
-          />
-        </Field>
       </div>
-    </section>
+    </RegistrationSection>
   );
 }
 
@@ -233,7 +243,70 @@ export function VisitRegistrationBillingSection({
   watch,
   setValue,
   paymentModeError,
-}: BillingSectionProps) {
+  variant = 'compact',
+}: BillingSectionProps & { variant?: 'compact' | 'detailed' }) {
+  const paymentMode = watch('billing.payment_mode') ?? '';
+
+  if (variant === 'compact') {
+    return (
+      <RegistrationSection title="Billing">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <Field>
+            <RegistrationFieldLabel htmlFor="visit-reg-discount-pct">
+              Discount (%)
+            </RegistrationFieldLabel>
+            <Input
+              id="visit-reg-discount-pct"
+              type="number"
+              min={0}
+              max={100}
+              className="h-10 tabular-nums"
+              {...register('billing.invoice_discount', { valueAsNumber: true })}
+            />
+          </Field>
+          <Field>
+            <RegistrationFieldLabel required>Payment Mode</RegistrationFieldLabel>
+            <Select
+              value={paymentMode || 'cash'}
+              onValueChange={(v: string) =>
+                setValue('billing.payment_mode', v, {
+                  shouldValidate: true,
+                  shouldDirty: true,
+                })
+              }
+            >
+              <SelectTrigger className="h-10" aria-invalid={paymentModeError ? true : undefined}>
+                <SelectValue placeholder="Cash" />
+              </SelectTrigger>
+              <SelectContent>
+                {VISIT_REGISTRATION_PAYMENT_MODES.map((m) => (
+                  <SelectItem key={m.value} value={m.value}>
+                    {m.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {paymentModeError ? (
+              <p className="text-xs text-destructive">{paymentModeError}</p>
+            ) : null}
+          </Field>
+          <Field>
+            <RegistrationFieldLabel htmlFor="visit-reg-amount-paid">
+              Amount paid
+            </RegistrationFieldLabel>
+            <Input
+              id="visit-reg-amount-paid"
+              type="number"
+              min={0}
+              className="h-10 tabular-nums"
+              {...register('billing.amount_paid', { valueAsNumber: true })}
+            />
+          </Field>
+        </div>
+      </RegistrationSection>
+    );
+  }
+
   const registrationFee = watch('billing.registration_fee') ?? {
     unit_price: 100,
     tax_percent: 0,
@@ -245,7 +318,6 @@ export function VisitRegistrationBillingSection({
     discount: 0,
   };
   const invoiceDiscount = watch('billing.invoice_discount') ?? 0;
-  const paymentMode = watch('billing.payment_mode') ?? '';
 
   const regNet = billingLineNetPrice(registrationFee);
   const regTotal = billingLineTotal(registrationFee);
@@ -259,11 +331,7 @@ export function VisitRegistrationBillingSection({
   );
 
   return (
-    <section className="rounded-lg border border-border bg-card p-4 md:p-5 space-y-4 shadow-sm">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-        Billing
-      </h2>
-
+    <RegistrationSection title="Billing">
       <div className="relative">
         <Label htmlFor="visit-reg-billing-search" className="sr-only">
           Add billing item
@@ -278,16 +346,16 @@ export function VisitRegistrationBillingSection({
         />
       </div>
 
-      <div className="rounded-md border border-border overflow-x-auto">
+      <div className="overflow-x-auto rounded-md border border-border">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Item</TableHead>
-              <TableHead className="text-right w-28">Unit price</TableHead>
-              <TableHead className="text-right w-24">Tax (%)</TableHead>
-              <TableHead className="text-right w-28">Net price</TableHead>
-              <TableHead className="text-right w-28">Discount (₹)</TableHead>
-              <TableHead className="text-right w-28">Total</TableHead>
+              <TableHead className="w-28 text-right">Unit price</TableHead>
+              <TableHead className="w-24 text-right">Tax (%)</TableHead>
+              <TableHead className="w-28 text-right">Net price</TableHead>
+              <TableHead className="w-28 text-right">Discount (₹)</TableHead>
+              <TableHead className="w-28 text-right">Total</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -325,7 +393,7 @@ export function VisitRegistrationBillingSection({
                 <Input
                   type="number"
                   min={0}
-                  className="h-9 w-24 ml-auto text-right tabular-nums"
+                  className="ml-auto h-9 w-24 text-right tabular-nums"
                   {...register('billing.invoice_discount', { valueAsNumber: true })}
                 />
               </TableCell>
@@ -335,17 +403,15 @@ export function VisitRegistrationBillingSection({
             </TableRow>
             <TableRow className="bg-muted/60 font-semibold">
               <TableCell colSpan={5}>Grand total</TableCell>
-              <TableCell className="text-right tabular-nums text-base">{formatInr(grandTotal)}</TableCell>
+              <TableCell className="text-right text-base tabular-nums">{formatInr(grandTotal)}</TableCell>
             </TableRow>
           </TableBody>
         </Table>
       </div>
 
-      <div className="flex flex-col sm:flex-row sm:justify-end gap-4 sm:gap-8 pt-2">
+      <div className="flex flex-col gap-4 pt-2 sm:flex-row sm:justify-end sm:gap-8">
         <Field className="sm:w-48">
-          <Label>
-            Payment mode <span className="text-destructive">*</span>
-          </Label>
+          <RegistrationFieldLabel required>Payment mode</RegistrationFieldLabel>
           <Select
             value={paymentMode || '__none__'}
             onValueChange={(v: string) =>
@@ -355,7 +421,7 @@ export function VisitRegistrationBillingSection({
               })
             }
           >
-            <SelectTrigger aria-invalid={paymentModeError ? true : undefined}>
+            <SelectTrigger className="h-10" aria-invalid={paymentModeError ? true : undefined}>
               <SelectValue placeholder="Select payment mode" />
             </SelectTrigger>
             <SelectContent>
@@ -372,9 +438,11 @@ export function VisitRegistrationBillingSection({
           ) : null}
         </Field>
         <Field className="sm:w-40">
-          <Label htmlFor="visit-reg-amount-paid">Amount paid</Label>
+          <RegistrationFieldLabel htmlFor="visit-reg-amount-paid-detailed">
+            Amount paid
+          </RegistrationFieldLabel>
           <Input
-            id="visit-reg-amount-paid"
+            id="visit-reg-amount-paid-detailed"
             type="number"
             min={0}
             className="h-10 tabular-nums"
@@ -382,7 +450,7 @@ export function VisitRegistrationBillingSection({
           />
         </Field>
       </div>
-    </section>
+    </RegistrationSection>
   );
 }
 
@@ -394,79 +462,7 @@ function resolveDepartmentPlaceholder(
   if (isPending) return 'Loading departments…';
   if (isError) return 'Failed to load departments';
   if (!hasOptions) return 'No departments configured';
-  return 'Select Department';
-}
-
-function visitpadVitalLabel(vital: VisitpadVital): string {
-  const unit = vital.unit?.trim();
-  if (unit) return `${vital.name} (${unit})`;
-  return vital.name;
-}
-
-function visitpadVitalStep(vital: VisitpadVital): string {
-  if (vital.data_type !== 'numeric') return '1';
-  const unit = vital.unit?.toLowerCase() ?? '';
-  if (unit.includes('kg') || unit.includes('°c') || unit.includes('celsius')) return '0.1';
-  return '1';
-}
-
-function VitalsPanel({ register }: { register: UseFormRegister<CreateVisitRequestBody> }) {
-  const vitalsQuery = useVisitpadVitalsCatalog();
-
-  const vitals = useMemo(() => {
-    const rows = vitalsQuery.data?.data ?? [];
-    return rows
-      .filter((v) => v.is_active && !v.is_deleted)
-      .slice()
-      .sort((a, b) => a.display_order - b.display_order || a.name.localeCompare(b.name));
-  }, [vitalsQuery.data?.data]);
-
-  let vitalsBody: ReactNode;
-  if (vitalsQuery.isPending) {
-    vitalsBody = <p className="text-sm text-muted-foreground">Loading vitals catalog…</p>;
-  } else if (vitalsQuery.isError) {
-    vitalsBody = <p className="text-sm text-destructive">Could not load vitals catalog.</p>;
-  } else if (vitals.length === 0) {
-    vitalsBody = (
-      <p className="text-sm text-muted-foreground">
-        No vitals configured for this catalog scope. Add vitals under Visitpad or select a tenant
-        with a UUID.
-      </p>
-    );
-  } else {
-    vitalsBody = (
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4 xl:grid-cols-8">
-        {vitals.map((vital) => {
-          const fieldName = `vitals.${vital.code}` as const;
-          const isNumeric = vital.data_type === 'numeric';
-          return (
-            <Field key={vital.id} className="min-w-0">
-              <Label htmlFor={`visit-reg-vital-${vital.code}`}>{visitpadVitalLabel(vital)}</Label>
-              <Input
-                id={`visit-reg-vital-${vital.code}`}
-                type={isNumeric ? 'number' : 'text'}
-                step={isNumeric ? visitpadVitalStep(vital) : undefined}
-                min={isNumeric ? 0 : undefined}
-                placeholder={vital.short_name || vital.name}
-                className="h-10"
-                {...(isNumeric ? register(fieldName, { valueAsNumber: true }) : register(fieldName))}
-              />
-            </Field>
-          );
-        })}
-      </div>
-    );
-  }
-
-  return (
-    <section className="rounded-lg border border-border bg-card p-4 md:p-5 space-y-4 shadow-sm">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Vitals</h2>
-      {vitalsBody}
-      <p className="text-xs text-muted-foreground">
-        Vitals are captured for this visit; persistence to clinical vitals API is not wired yet.
-      </p>
-    </section>
-  );
+  return 'Select department';
 }
 
 function LabTestsPanel({
@@ -693,7 +689,7 @@ function SelectField({
         {required ? <span className="text-destructive"> *</span> : null}
       </Label>
       <Select value={value} onValueChange={onValueChange} disabled={disabled}>
-        <SelectTrigger>
+        <SelectTrigger className="h-10">
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
         <SelectContent>
