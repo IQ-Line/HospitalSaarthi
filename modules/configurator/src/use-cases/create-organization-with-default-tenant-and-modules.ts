@@ -17,8 +17,9 @@ export interface OrganizationProvisionWithModulesResult {
 }
 
 /**
- * Creates organization + default tenant (see {@link createOrganizationWithDefaultTenant}),
- * then one `tenant_modules` row per enablement inside the same DB transaction.
+ * @deprecated Use {@link createOrganization} plus {@link provisionTenant} (tenant-onboarding) instead.
+ *
+ * Legacy: organization + default tenant + tenant_modules in one transaction.
  */
 export async function createOrganizationWithDefaultTenantAndTenantModules(
   organizationRepo: OrganizationRepo,

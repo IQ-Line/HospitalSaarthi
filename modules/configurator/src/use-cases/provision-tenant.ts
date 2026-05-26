@@ -18,6 +18,7 @@ import {
   TENANT_ADMIN_ROLE_CODE,
   TENANT_ADMIN_ROLE_DISPLAY_NAME,
 } from "../domain/onboarding.types.js";
+import { buildTenantCerbosScopeKey } from "../domain/tenant-cerbos-scope.js";
 import { createOrganization } from "./create-organization.js";
 import { createTenant } from "./create-tenant.js";
 import { createTenantModule } from "./create-tenant-module.js";
@@ -237,27 +238,48 @@ async function createCoreEntities(
   moduleIds: string[],
   adminEmail: string,
 ): Promise<CoreProvisioningData> {
-  const organization = await createOrganization(repos.organizationRepo, {
-    name: input.organization.name,
-    slug: input.organization.slug,
-    type: input.organization.type,
-    status: "active",
-    contact_email: adminEmail,
-    metadata: buildOrganizationMetadata(input),
-    created_by: ctx.actorId,
-  });
+  const existingOrgId = input.organization.id?.trim();
+  let organization;
+
+  if (existingOrgId) {
+    const existing = await repos.organizationRepo.findById(existingOrgId);
+    if (!existing) {
+      throw new ConfiguratorError(400, "organization not found", "VALIDATION_ERROR");
+    }
+    organization = existing;
+  } else {
+    const orgContactEmail = input.organization.contact_email?.trim() || null;
+    const orgWebsite = input.organization.website?.trim() || null;
+    organization = await createOrganization(repos.organizationRepo, {
+      name: input.organization.name,
+      slug: input.organization.slug,
+      type: input.organization.type,
+      status: "active",
+      contact_email: orgContactEmail,
+      website: orgWebsite,
+      metadata: buildOrganizationMetadata(input),
+      created_by: ctx.actorId,
+    });
+  }
+
+  const tenantMetadata = {
+    ...(organization.metadata ?? {}),
+    ...(input.tenant.metadata ?? {}),
+  };
+
+  const tenantSlug = input.tenant.slug.trim().toLowerCase();
 
   const tenant = await createTenant(repos.tenantRepo, repos.organizationRepo, {
     org_id: organization.id,
     parent_tenant_id: null,
-    name: organization.name,
-    slug: organization.slug,
+    name: input.tenant.name.trim(),
+    slug: tenantSlug,
     type: "full_platform",
     data_isolation_level: "shared",
-    cerbos_scope_key: `tenant:${organization.id}`,
+    cerbos_scope_key: buildTenantCerbosScopeKey(organization.id, tenantSlug),
     timezone: "Asia/Kolkata",
     locale: "en-IN",
-    metadata: organization.metadata,
+    metadata: tenantMetadata,
     created_by: ctx.actorId,
   });
 
@@ -304,24 +326,46 @@ async function createCoreEntities(
 // ---------------------------------------------------------------------------
 
 function validateInput(input: ProvisionTenantInput): void {
+  const existingOrgId = input.organization.id?.trim();
   const orgName = input.organization.name?.trim();
   const orgSlug = input.organization.slug?.trim();
-  if (!orgName) {
-    throw new ConfiguratorError(400, "organization.name is required", "VALIDATION_ERROR");
+  if (!existingOrgId) {
+    if (!orgName) {
+      throw new ConfiguratorError(400, "organization.name is required", "VALIDATION_ERROR");
+    }
+    if (!orgSlug || orgSlug.length < 3) {
+      throw new ConfiguratorError(
+        400,
+        "organization.slug must be at least 3 characters",
+        "VALIDATION_ERROR",
+      );
+    }
+    if (!input.organization.type) {
+      throw new ConfiguratorError(400, "organization.type is required", "VALIDATION_ERROR");
+    }
   }
-  if (!orgSlug || orgSlug.length < 3) {
+  const tenantName = input.tenant?.name?.trim();
+  const tenantSlug = input.tenant?.slug?.trim();
+  if (!tenantName) {
+    throw new ConfiguratorError(400, "tenant.name is required", "VALIDATION_ERROR");
+  }
+  if (!tenantSlug || tenantSlug.length < 3) {
     throw new ConfiguratorError(
       400,
-      "organization.slug must be at least 3 characters",
+      "tenant.slug must be at least 3 characters",
       "VALIDATION_ERROR",
     );
   }
-  if (!input.organization.type) {
-    throw new ConfiguratorError(400, "organization.type is required", "VALIDATION_ERROR");
+  const orgContactEmail = input.organization.contact_email?.trim();
+  if (orgContactEmail && !EMAIL_RE.test(orgContactEmail)) {
+    throw new ConfiguratorError(
+      400,
+      "organization.contact_email must be a valid email",
+      "VALIDATION_ERROR",
+    );
   }
-  if (!input.plan?.slug) {
-    throw new ConfiguratorError(400, "plan.slug is required", "VALIDATION_ERROR");
-  }
+  const planSlug = input.plan?.slug?.trim() || "starter";
+  input.plan = { ...input.plan, slug: planSlug };
   if (!input.modules || input.modules.length === 0) {
     throw new ConfiguratorError(
       422,
@@ -367,14 +411,16 @@ function deduplicateModuleIds(
 function buildOrganizationMetadata(
   input: ProvisionTenantInput,
 ): Record<string, unknown> {
+  const planSlug = input.plan?.slug?.trim() || "starter";
+  const { website: _website, ...restMetadata } = input.organization.metadata ?? {};
   return {
-    ...(input.organization.metadata ?? {}),
+    ...restMetadata,
     provisioning: {
-      plan_slug: input.plan.slug,
+      plan_slug: planSlug,
       module_override_ids: input.modules.map((m) => m.module_id),
-      trial_end_date: input.plan.trial_end_date ?? null,
-      max_users_override: input.plan.max_users_override ?? null,
-      max_branches_override: input.plan.max_branches_override ?? null,
+      trial_end_date: input.plan?.trial_end_date ?? null,
+      max_users_override: input.plan?.max_users_override ?? null,
+      max_branches_override: input.plan?.max_branches_override ?? null,
     },
   };
 }

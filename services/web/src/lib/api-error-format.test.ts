@@ -14,4 +14,13 @@ describe('formatApiErrorBody', () => {
   it('uses string detail when present', () => {
     expect(formatApiErrorBody(400, JSON.stringify({ detail: 'Bad request' }))).toBe('Bad request');
   });
+
+  it('uses error field from Fastify-style bodies', () => {
+    expect(
+      formatApiErrorBody(
+        409,
+        JSON.stringify({ error: 'tenant slug already exists', code: 'CONFLICT' }),
+      ),
+    ).toBe('tenant slug already exists');
+  });
 });

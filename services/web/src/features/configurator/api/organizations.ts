@@ -5,7 +5,6 @@ import { configuratorKeys } from './query-keys';
 import type {
   Organization,
   OrganizationCreateInput,
-  OrganizationCreateResponse,
   OrganizationStatus,
   OrganizationType,
   OrganizationUpdateInput,
@@ -34,7 +33,7 @@ export function useCreateOrganization() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: OrganizationCreateInput) =>
-      apiClient<OrganizationCreateResponse>(BASE, {
+      apiClient<Organization>(BASE, {
         method: 'POST',
         body: JSON.stringify(input),
       }),

@@ -7,6 +7,7 @@ import type {
   TenantAdminProvisioningPort,
 } from "../ports.js";
 import type { ProvisionTenantInput } from "../domain/onboarding.types.js";
+import { assertTenantOnboardingAllowed } from "../http/tenant-onboarding-access.js";
 import { provisionTenant } from "../use-cases/provision-tenant.js";
 import { tenantOnboardingBodySchema } from "./tenant-onboarding.schemas.js";
 
@@ -33,6 +34,7 @@ export function registerTenantOnboardingHandler(
       },
     },
     async (request, reply) => {
+      assertTenantOnboardingAllowed(request, request.body);
       const correlationId = randomUUID();
       const actorId = resolveActorId(request) ?? correlationId;
       const authorization =

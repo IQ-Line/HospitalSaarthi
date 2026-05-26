@@ -22,7 +22,7 @@ const tenantModuleEnablementItemSchema = {
 
 export const tenantOnboardingBodySchema = {
   type: "object",
-  required: ["organization", "plan", "modules", "admin"],
+  required: ["organization", "tenant", "plan", "modules", "admin"],
   additionalProperties: false,
   properties: {
     organization: {
@@ -30,9 +30,22 @@ export const tenantOnboardingBodySchema = {
       required: ["name", "slug", "type"],
       additionalProperties: false,
       properties: {
+        id: uuidString,
         name: { type: "string", minLength: 1 },
         slug: { type: "string", minLength: 3 },
         type: organizationTypeSchema,
+        contact_email: { anyOf: [{ type: "string", format: "email" }, { type: "null" }] },
+        website: { anyOf: [{ type: "string" }, { type: "null" }] },
+        metadata: { anyOf: [{ type: "object" }, { type: "null" }] },
+      },
+    },
+    tenant: {
+      type: "object",
+      required: ["name", "slug"],
+      additionalProperties: false,
+      properties: {
+        name: { type: "string", minLength: 1 },
+        slug: { type: "string", minLength: 3 },
         metadata: { anyOf: [{ type: "object" }, { type: "null" }] },
       },
     },

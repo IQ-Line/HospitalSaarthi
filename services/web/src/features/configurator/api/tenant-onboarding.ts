@@ -7,9 +7,17 @@ const ENDPOINT = '/api/configurator/v1/tenant-onboarding';
 
 export interface TenantOnboardingInput {
   organization: {
+    id?: string;
     name: string;
     slug: string;
     type: string;
+    contact_email?: string | null;
+    website?: string | null;
+    metadata?: Record<string, unknown> | null;
+  };
+  tenant: {
+    name: string;
+    slug: string;
     metadata?: Record<string, unknown> | null;
   };
   plan: {

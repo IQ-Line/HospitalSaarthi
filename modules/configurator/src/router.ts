@@ -40,12 +40,24 @@ async function configuratorRouter(
         ...(error.code ? { code: error.code } : {}),
       });
     }
+    const pgCode =
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      typeof (error as { code: unknown }).code === "string"
+        ? (error as { code: string }).code
+        : undefined;
+    if (pgCode === "23505") {
+      return reply.status(409).send({
+        error: "A record with the same unique key already exists",
+        code: "CONFLICT",
+      });
+    }
     throw error;
   });
 
   registerOrganizationsHandler(app, {
     organizationRepo: options.organizationRepo,
-    runConfiguratorTransaction: options.runConfiguratorTransaction,
   });
   registerTenantsHandler(app, {
     tenantRepo: options.tenantRepo,
