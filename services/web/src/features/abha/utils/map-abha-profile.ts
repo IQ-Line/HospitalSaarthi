@@ -1,9 +1,14 @@
 import type {
+  AbhaAddressPrefill,
   AbhaCreatedPayload,
   AbhaProfileDisplay,
   EnrolAadhaarVerifyResponse,
   NhaAbhaProfile,
 } from '@/features/abha/types';
+import {
+  findDistrictCodeByName,
+  findStateCodeByName,
+} from '@/features/frontdesk/utils/state-district-catalog';
 
 function pickString(obj: Record<string, unknown>, key: string): string {
   const v = obj[key];
@@ -89,6 +94,40 @@ export function mapAbhaProfileDisplay(
   };
 }
 
+function profileField(profile: NhaAbhaProfile, ...keys: string[]): string {
+  for (const key of keys) {
+    const v = profile[key];
+    if (typeof v === 'string' && v.trim()) return v.trim();
+    if (typeof v === 'number' && Number.isFinite(v)) return String(v);
+  }
+  return '';
+}
+
+export function mapAbhaProfileAddressPrefill(profile: NhaAbhaProfile): AbhaAddressPrefill | undefined {
+  const line1 = profileField(profile, 'address');
+  const pincode = profileField(profile, 'pinCode', 'pincode').replace(/\D/g, '').slice(0, 6);
+
+  let state = profileField(profile, 'stateCode', 'state_code');
+  let district = profileField(profile, 'districtCode', 'district_code');
+
+  const stateName = profileField(profile, 'stateName');
+  const districtName = profileField(profile, 'districtName');
+
+  if (!state && stateName) {
+    state = findStateCodeByName(stateName) ?? '';
+  }
+  if (!district && districtName && state) {
+    district = findDistrictCodeByName(state, districtName) ?? '';
+  }
+
+  const out: AbhaAddressPrefill = {};
+  if (line1) out.line1 = line1;
+  if (state) out.state = state;
+  if (district) out.district = district;
+  if (pincode) out.pincode = pincode;
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 export function mapAbhaProfileToFormPrefill(
   profile: NhaAbhaProfile,
   verify?: EnrolAadhaarVerifyResponse,
@@ -116,5 +155,6 @@ export function mapAbhaProfileToFormPrefill(
     lastName: lastName || undefined,
     gender: mapGenderToForm(profile.gender ?? ''),
     dateOfBirth: dobIso,
+    address: mapAbhaProfileAddressPrefill(profile),
   };
 }

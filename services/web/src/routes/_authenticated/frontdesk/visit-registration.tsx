@@ -50,7 +50,8 @@ export const Route = createFileRoute('/_authenticated/frontdesk/visit-registrati
 type FormValues = CreateVisitRequestBody;
 
 function VisitRegistrationRoute() {
-  const [createAbhaOpen, setCreateAbhaOpen] = useState(false);
+  const [abhaDialogOpen, setAbhaDialogOpen] = useState(false);
+  const [abhaDialogFlow, setAbhaDialogFlow] = useState<'create' | 'verify'>('create');
   /** Header search UI; patient/registration lookup from form phase is not wired yet. */
   const [formSearchDraft, setFormSearchDraft] = useState('');
   const { canCreate } = useCatalogModuleCrud('registration', {
@@ -262,6 +263,24 @@ function VisitRegistrationRoute() {
     const currentDob = form.getValues('patient.date_of_birth')?.trim();
     if (!currentDob && payload.dateOfBirth) {
       form.setValue('patient.date_of_birth', payload.dateOfBirth, { shouldValidate: true });
+    }
+
+    if (payload.address) {
+      const { line1, state, district, pincode } = payload.address;
+      const permanent = form.getValues('permanent_address');
+
+      if (line1 && !permanent.line1?.trim()) {
+        form.setValue('permanent_address.line1', line1, { shouldValidate: true });
+      }
+      if (state && !permanent.state?.trim()) {
+        form.setValue('permanent_address.state', state, { shouldValidate: true });
+      }
+      if (district && !permanent.district?.trim()) {
+        form.setValue('permanent_address.district', district, { shouldValidate: true });
+      }
+      if (pincode && !permanent.pincode?.trim()) {
+        form.setValue('permanent_address.pincode', pincode, { shouldValidate: true });
+      }
     }
 
     toast.success('ABHA details applied to registration form');
@@ -476,7 +495,14 @@ function VisitRegistrationRoute() {
                 {sectionVisible.patientDetails ? (
                   <RegistrationPatientSection
                     form={form}
-                    onCreateAbha={() => setCreateAbhaOpen(true)}
+                    onCreateAbha={() => {
+                      setAbhaDialogFlow('create');
+                      setAbhaDialogOpen(true);
+                    }}
+                    onVerifyAbha={() => {
+                      setAbhaDialogFlow('verify');
+                      setAbhaDialogOpen(true);
+                    }}
                     patientPhoneRef={patientPhoneRef}
                     patientPhoneName={patientPhoneName}
                     patientPhoneOnBlur={patientPhoneOnBlur}
@@ -547,8 +573,9 @@ function VisitRegistrationRoute() {
       </div>
 
       <CreateAbhaDialog
-        open={createAbhaOpen}
-        onOpenChange={setCreateAbhaOpen}
+        open={abhaDialogOpen}
+        onOpenChange={setAbhaDialogOpen}
+        flow={abhaDialogFlow}
         onSuccess={handleAbhaCreated}
       />
     </div>

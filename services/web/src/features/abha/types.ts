@@ -17,7 +17,16 @@ export interface NhaAbhaProfile {
   stateName?: string;
   districtName?: string;
   pinCode?: string;
+  stateCode?: string;
+  districtCode?: string;
   [key: string]: unknown;
+}
+
+export interface AbhaAddressPrefill {
+  line1?: string;
+  state?: string;
+  district?: string;
+  pincode?: string;
 }
 
 export interface EnrolAadhaarOtpResponse {
@@ -64,6 +73,39 @@ export interface EnrolMobileVerifyConfirmResponse {
   message: string;
 }
 
+export type LoginOtpChannel = 'aadhaar' | 'abha-otp';
+
+export type VerifyAbhaAddressChannel = 'mobile' | 'aadhaar';
+
+export interface LoginAbhaNumberOtpResponse {
+  sessionId: string;
+  txnId: string;
+  message: string;
+}
+
+export interface LoginAccountSummary {
+  abhaNumber: string;
+  preferredAbhaAddress?: string;
+  name?: string;
+  gender?: string;
+  dob?: string;
+}
+
+export interface LoginVerifyResponse {
+  sessionId: string;
+  txnId: string;
+  message: string;
+  authResult?: string;
+  needsUserSelection?: boolean;
+  accounts?: LoginAccountSummary[];
+}
+
+export interface LoginVerifyUserResponse {
+  sessionId: string;
+  txnId: string;
+  message: string;
+}
+
 export interface AbhaProfileDisplay {
   abhaNumber: string;
   abhaAddress: string;
@@ -83,4 +125,5 @@ export interface AbhaCreatedPayload {
   lastName?: string;
   gender?: 'male' | 'female' | 'other';
   dateOfBirth?: string;
+  address?: AbhaAddressPrefill;
 }

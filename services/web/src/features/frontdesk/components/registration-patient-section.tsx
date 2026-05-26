@@ -26,6 +26,7 @@ import {
 type PatientSectionProps = {
   form: UseFormReturn<CreateVisitRequestBody>;
   onCreateAbha: () => void;
+  onVerifyAbha: () => void;
   patientPhoneRef: Ref<HTMLInputElement>;
   patientPhoneName: string;
   patientPhoneOnBlur: ChangeHandler;
@@ -41,6 +42,7 @@ const GENDER_OPTIONS = [
 export function RegistrationPatientSection({
   form,
   onCreateAbha,
+  onVerifyAbha,
   patientPhoneRef,
   patientPhoneName,
   patientPhoneOnBlur,
@@ -89,7 +91,7 @@ export function RegistrationPatientSection({
           >
             Create ABHA
           </Button>
-          <Button type="button" variant="outline" className="h-10 flex-1 px-4" disabled>
+          <Button type="button" variant="outline" className="h-10 flex-1 px-4" onClick={onVerifyAbha}>
             Verify ABHA
           </Button>
         </div>

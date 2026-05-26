@@ -28,3 +28,14 @@ export function extractMobileLast4FromMessage(message: string): string | null {
   const ending = message.match(/ending\s+(?:with\s+)?\*{0,6}(\d{4})/i);
   return ending?.[1] ?? null;
 }
+
+/** Full ABHA address (local@domain) for frontdesk verify. */
+export function validateFullAbhaAddress(value: string): string | null {
+  const v = value.trim();
+  if (!v) return 'Enter your ABHA address';
+  const at = v.indexOf('@');
+  if (at <= 0 || at >= v.length - 1) {
+    return 'Enter a valid ABHA address (e.g. username@sbx)';
+  }
+  return validateAbhaAddressLocal(v.slice(0, at));
+}
