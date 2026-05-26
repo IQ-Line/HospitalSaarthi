@@ -13,41 +13,23 @@ type GenericNavNodeProps = {
   depth?: number;
 };
 
-function collectRoutePrefixes(node: NavigationNode): string[] {
+function collectAllRoutes(node: NavigationNode): string[] {
   if (node.route) return [node.route];
   const result: string[] = [];
   for (const child of node.children ?? []) {
-    result.push(...collectRoutePrefixes(child));
+    result.push(...collectAllRoutes(child));
   }
   return result;
 }
 
-function commonPrefix(paths: string[]): string | undefined {
-  if (paths.length === 0) return undefined;
-  if (paths.length === 1) return paths[0];
-  const sorted = paths.slice().sort();
-  const first = sorted[0]!;
-  const last = sorted[sorted.length - 1]!;
-  let i = 0;
-  while (i < first.length && i < last.length && first[i] === last[i]) i++;
-  const prefix = first.slice(0, i);
-  const lastSlash = prefix.lastIndexOf('/');
-  return lastSlash > 0 ? prefix.slice(0, lastSlash) : prefix || undefined;
-}
-
-function routePrefixFromNode(node: NavigationNode): string | undefined {
-  if (node.route) return node.route;
-  const allRoutes = collectRoutePrefixes(node);
-  return commonPrefix(allRoutes);
-}
-
-function useNavGroupState(routePrefix: string | undefined): {
+function useNavGroupState(node: NavigationNode, enabled: boolean): {
   isActive: boolean;
   isOpen: boolean;
   toggle: () => void;
 } {
   const { pathname } = useLocation();
-  const isActive = routePrefix ? pathname.startsWith(routePrefix) : false;
+  const routes = useMemo(() => (enabled ? collectAllRoutes(node) : []), [node, enabled]);
+  const isActive = routes.some((r) => pathname.startsWith(r));
   const [isOpen, setIsOpen] = useState(true);
 
   useEffect(() => {
@@ -62,8 +44,7 @@ function useNavGroupState(routePrefix: string | undefined): {
 export function GenericNavNode({ node, collapsed, depth = 0 }: GenericNavNodeProps) {
   const Icon = resolveNavigationIcon(node.icon);
   const hasChildren = (node.children?.length ?? 0) > 0;
-  const routePrefix = useMemo(() => routePrefixFromNode(node), [node]);
-  const { isActive, isOpen, toggle: toggleOpen } = useNavGroupState(hasChildren ? routePrefix : undefined);
+  const { isActive, isOpen, toggle: toggleOpen } = useNavGroupState(node, hasChildren);
   const expandSidebar = () => useUIPrefsStore.setState({ sidebarCollapsed: false });
 
   if (!hasChildren && node.route) {
