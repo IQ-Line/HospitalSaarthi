@@ -1,4 +1,5 @@
 import { fromDatetimeLocalValue, toDatetimeLocalValue } from './format';
+import { TARIFF_PICKLIST_REGISTRATION_FEE } from './tariff-type';
 import type { ServiceCreateInput, ServiceUpdateInput, TariffService } from '../types';
 import {
   tariffServiceCreateSchema,
@@ -30,16 +31,16 @@ export function formToCreatePayload(
   departmentName: string | null,
 ): ServiceCreateInput {
   const v = tariffServiceCreateSchema.parse(values);
-  const isReg = v.tariff_type === 'registration';
+  const isRegistrationFee = v.tariff_type === TARIFF_PICKLIST_REGISTRATION_FEE;
   return {
     service_code: v.service_code,
     service_name: v.service_name,
     base_price: v.base_price,
     tax_percentage: v.tax_percentage,
     description: v.description,
-    provider_id: isReg ? null : v.provider_id,
-    department: isReg ? 'frontdesk' : departmentName,
-    category: isReg ? 'registration' : 'consultation',
+    provider_id: isRegistrationFee ? null : v.provider_id,
+    department: isRegistrationFee ? 'frontdesk' : departmentName,
+    category: v.tariff_type,
     sub_category: null,
     tax_type: v.tax_type,
     is_active: v.is_active,
@@ -63,6 +64,3 @@ export function formToUpdatePayload(values: TariffServiceEditFormValues): Servic
   };
 }
 
-export function tariffTypeLabel(category: string | null): string {
-  return category === 'registration' ? 'Registration' : 'OPD';
-}

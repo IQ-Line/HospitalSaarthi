@@ -40,7 +40,6 @@ import {
   formToCreatePayload,
   formToUpdatePayload,
   serviceToEditFormValues,
-  tariffTypeLabel,
 } from '@/features/billing/lib/form-mappers';
 import type { TariffService } from '@/features/billing/types';
 import {
@@ -362,7 +361,7 @@ function BillingServicesPage() {
                 {formatMoneyDisplay(viewing.tax_percentage)}% · {viewing.tax_type ?? '—'}
               </dd>
               <dt className="text-muted-foreground">Tariff type</dt>
-              <dd>{tariffTypeLabel(viewing.category)}</dd>
+              <dd>{viewing.category ?? '—'}</dd>
               <dt className="text-muted-foreground">Department</dt>
               <dd>{viewing.department ?? '—'}</dd>
               <dt className="text-muted-foreground">Effective</dt>
