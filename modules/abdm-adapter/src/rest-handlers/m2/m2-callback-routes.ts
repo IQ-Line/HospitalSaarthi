@@ -7,6 +7,7 @@ import { handleDiscoverCallback } from "../../use-cases/m2/user-initiated-link/h
 import { handleLinkInitCallback } from "../../use-cases/m2/user-initiated-link/handle-link-init-callback.js";
 import { handleLinkConfirmCallback } from "../../use-cases/m2/user-initiated-link/handle-link-confirm-callback.js";
 import { handleConsentNotifyCallback } from "../../use-cases/m2/consent-notify/handle-consent-notify-callback.js";
+import { handleM3HipConsentNotifyBridge } from "../../use-cases/m3/hiu/handle-m3-hip-consent-notify-bridge.js";
 import { handleAddContextsCallback } from "../../use-cases/m2/add-contexts/handle-callback.js";
 import { handleSmsNotifyCallback } from "../../use-cases/m2/sms-notify/handle-callback.js";
 import { handleHipHiRequestCallback } from "../../use-cases/m3/hip/handle-hi-request-callback.js";
@@ -187,14 +188,15 @@ export async function registerM2CallbackRoutes(
       httpStatus: 202,
       deps,
       handler: async ({ iqTenantId, requestId, body }) => {
-        await handleConsentNotifyCallback(
-          {
-            iqTenantId,
-            inboundRequestId: requestId,
-            ...(body as ConsentNotifyRequest),
-          },
-          deps,
-        );
+        const payload = {
+          iqTenantId,
+          inboundRequestId: requestId,
+          ...(body as ConsentNotifyRequest),
+        };
+        const handledAsM3 = await handleM3HipConsentNotifyBridge(payload, deps);
+        if (!handledAsM3) {
+          await handleConsentNotifyCallback(payload, deps);
+        }
       },
     });
   });

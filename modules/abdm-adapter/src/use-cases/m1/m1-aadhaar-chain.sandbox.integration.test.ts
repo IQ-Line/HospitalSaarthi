@@ -24,13 +24,13 @@ import { enrolMobileVerifyConfirmOtpRequest } from "./enrol-mobile-verify-confir
  *   pnpm -F @hims/abdm-adapter test:sandbox
  */
 
+import { resolveSandboxDatabaseUrl, hasSandboxAadhaarEnv } from "../../test-utils/sandbox-env.js";
+
 const RUN = process.env["RUN_ABDM_SANDBOX_TESTS"] === "1";
+const DB_URL = resolveSandboxDatabaseUrl();
 
 function buildDeps() {
-  const databaseUrl = process.env["DATABASE_URL"];
-  if (!databaseUrl) {
-    throw new Error("DATABASE_URL required for sandbox integration test");
-  }
+  const databaseUrl = DB_URL!;
   const secrets = new EnvSecretsClient();
   const gateway = new HttpGatewayClient({
     gatewayBaseUrl:
@@ -47,7 +47,7 @@ function buildDeps() {
   return { sessions, gateway, secrets, fidelius };
 }
 
-describe.skipIf(!RUN)("M1 Aadhaar chain — ABDM sandbox", () => {
+describe.skipIf(!RUN || !DB_URL || !hasSandboxAadhaarEnv())("M1 Aadhaar chain — ABDM sandbox", () => {
   const tenantId =
     process.env["ABDM_SANDBOX_TEST_TENANT_ID"] ??
     "00000000-0000-4000-8000-0000000000aa";

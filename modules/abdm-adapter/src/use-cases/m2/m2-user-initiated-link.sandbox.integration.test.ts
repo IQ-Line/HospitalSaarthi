@@ -17,14 +17,13 @@ import { handleDiscoverCallback } from "./user-initiated-link/handle-discover-ca
 import { handleLinkInitCallback } from "./user-initiated-link/handle-link-init-callback.js";
 import { handleLinkConfirmCallback } from "./user-initiated-link/handle-link-confirm-callback.js";
 
+import { resolveSandboxDatabaseUrl } from "../../test-utils/sandbox-env.js";
+
 const RUN = process.env["RUN_ABDM_SANDBOX_TESTS"] === "1";
+const DB_URL = resolveSandboxDatabaseUrl();
 
 function buildDeps(): AbdmAdapterDeps {
-  const databaseUrl = process.env["DATABASE_URL"];
-  if (!databaseUrl) {
-    throw new Error("DATABASE_URL required for sandbox integration test");
-  }
-  const db = createDb(databaseUrl);
+  const db = createDb(DB_URL!);
   const secrets = new EnvSecretsClient();
   const gateway = new HttpGatewayClient({
     gatewayBaseUrl:
@@ -58,7 +57,7 @@ function buildDeps(): AbdmAdapterDeps {
   };
 }
 
-describe.skipIf(!RUN)("M2 user-initiated link — in-process chain", () => {
+describe.skipIf(!RUN || !DB_URL)("M2 user-initiated link — in-process chain", () => {
   const tenantId =
     process.env["ABDM_SANDBOX_TEST_TENANT_ID"] ??
     process.env["ABDM_DEV_TENANT_ID"] ??

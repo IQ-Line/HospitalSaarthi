@@ -11,6 +11,7 @@
  * lands (per ADR-0027). The port signatures themselves do not change.
  */
 
+import type { M3HipState, M3HiuState } from "@hims/ts-sdk-abha";
 import type { EventBus } from "@hims/ts-sdk-events";
 import type { AbdmSession } from "./domain/session.js";
 
@@ -193,6 +194,8 @@ export interface HipDataPushClient {
     dataPushUrl: string;
     body: Record<string, unknown>;
     requestId: string;
+    /** Required for M3 loopback push to this adapter's HIU receiver (`x-tenant-id`). */
+    iqTenantId?: string;
   }): Promise<void>;
 }
 
@@ -307,6 +310,145 @@ export interface SecretsClient {
 }
 
 /** Aggregate dependency object every use-case receives. */
+export interface M3ConsentRequestRow {
+  iqTenantId: string;
+  consentRequestId: string;
+  sessionId: string;
+  patientAbhaAddress: string;
+  hipId: string | null;
+  purposeCode: string;
+  hiTypes: string[];
+  permissionDateFrom: Date;
+  permissionDateTo: Date;
+  dataEraseAt: Date;
+  state: M3HiuState;
+  consentArtefactIds: string[];
+  context: Record<string, unknown>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface M3ConsentRequestsPort {
+  insert(input: Omit<M3ConsentRequestRow, "createdAt" | "updatedAt">): Promise<void>;
+  findByConsentRequestId(input: {
+    iqTenantId: string;
+    consentRequestId: string;
+  }): Promise<M3ConsentRequestRow | null>;
+  findBySessionId(input: {
+    iqTenantId: string;
+    sessionId: string;
+  }): Promise<M3ConsentRequestRow | null>;
+  patch(input: {
+    iqTenantId: string;
+    consentRequestId: string;
+    state?: M3HiuState;
+    consentArtefactIds?: string[];
+    contextMerge?: Record<string, unknown>;
+  }): Promise<void>;
+  listActive(iqTenantId: string): Promise<M3ConsentRequestRow[]>;
+  /** Expire stale `AWAITING_PATIENT_APPROVAL` rows past consent TTL. */
+  janitor(): Promise<number>;
+}
+
+export interface M3ConsentArtefactHiuRow {
+  iqTenantId: string;
+  consentId: string;
+  consentRequestId: string;
+  patientAbhaAddress: string;
+  hipId: string;
+  status: string;
+  dataEraseAt: Date;
+  grantedAt: Date;
+  hiTypes: string[];
+  careContexts: Array<{
+    patientReference: string;
+    careContextReference: string;
+  }>;
+  artefactJson: Record<string, unknown>;
+  signature: string;
+  signatureValid: boolean;
+  receivedAt: Date;
+}
+
+export interface M3ConsentArtefactsHiuPort {
+  upsert(input: M3ConsentArtefactHiuRow): Promise<void>;
+  findById(iqTenantId: string, consentId: string): Promise<M3ConsentArtefactHiuRow | null>;
+  listForRequest(
+    iqTenantId: string,
+    consentRequestId: string,
+  ): Promise<M3ConsentArtefactHiuRow[]>;
+}
+
+export interface M3DataTransferRow {
+  iqTenantId: string;
+  transferId: string;
+  sessionId: string | null;
+  flowKind: string;
+  state: M3HiuState;
+  consentId: string;
+  outboundRequestId: string | null;
+  cmTransactionId: string | null;
+  hiuPrivateKeyJwk: string;
+  hiuPublicKeyB64: string;
+  hiuNonceB64: string;
+  hipPublicKeyB64: string | null;
+  hipNonceB64: string | null;
+  dataPushUrl: string;
+  bundleJson: Record<string, unknown> | null;
+  error: { code: string; message: string } | null;
+  createdAt: Date;
+  updatedAt: Date;
+  awaitingPushUntil: Date | null;
+}
+
+export interface M3DataTransfersPort {
+  insert(input: Omit<M3DataTransferRow, "createdAt" | "updatedAt">): Promise<void>;
+  findById(iqTenantId: string, transferId: string): Promise<M3DataTransferRow | null>;
+  /** Inbound HIP push: `transferId` is globally unique; tenant may be unknown until lookup. */
+  findByTransferId(transferId: string): Promise<M3DataTransferRow | null>;
+  findByOutboundRequestId(input: {
+    iqTenantId: string;
+    outboundRequestId: string;
+  }): Promise<M3DataTransferRow | null>;
+  /** HIP push: HIU transfer row created by `start-data-request` for the same consent artefact. */
+  findLatestActiveByConsentId(
+    iqTenantId: string,
+    consentId: string,
+  ): Promise<M3DataTransferRow | null>;
+  patch(input: {
+    iqTenantId: string;
+    transferId: string;
+    state?: M3HiuState;
+    cmTransactionId?: string;
+    hipPublicKeyB64?: string;
+    hipNonceB64?: string;
+    bundleJson?: Record<string, unknown> | null;
+    error?: { code: string; message: string } | null;
+    awaitingPushUntil?: Date | null;
+  }): Promise<void>;
+  /** Atomically patch transfer row and optional HIU session row. */
+  patchWithSession(input: {
+    iqTenantId: string;
+    transferId: string;
+    transfer: {
+      state?: M3HiuState;
+      cmTransactionId?: string | null;
+      hipPublicKeyB64?: string;
+      hipNonceB64?: string;
+      bundleJson?: Record<string, unknown> | null;
+      error?: { code: string; message: string } | null;
+      awaitingPushUntil?: Date | null;
+    };
+    session?: {
+      sessionId: string;
+      state?: M3HiuState;
+      contextMerge?: Record<string, unknown>;
+    };
+  }): Promise<void>;
+  /** Expire stale `AWAITING_PUSH` rows past `awaiting_push_until`. */
+  janitor(): Promise<number>;
+}
+
 export interface AbdmAdapterDeps {
   sessions: AbdmSessionsPort;
   gateway: GatewayClient;
@@ -315,6 +457,9 @@ export interface AbdmAdapterDeps {
   inboundMessages: InboundMessagesPort;
   linkTokens: LinkTokensPort;
   consentArtefacts: ConsentArtefactsPort;
+  m3ConsentRequests: M3ConsentRequestsPort;
+  m3ConsentArtefactsHiu: M3ConsentArtefactsHiuPort;
+  m3DataTransfers: M3DataTransfersPort;
   empi: EmpiClient;
   recordFoundation: RecordFoundationClient;
   dataPush?: HipDataPushClient;
@@ -326,5 +471,6 @@ export interface AbdmAdapterDeps {
   defaultSmsPhoneNo?: string;
   hipDisplayName?: string;
   xHipId: string;
+  xHiuId: string;
   xCmId: string;
 }

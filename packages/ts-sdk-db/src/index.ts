@@ -24,6 +24,8 @@ export {
   isNotNull,
   gt,
   lt,
+  desc,
+  inArray,
   sql,
   type SQL,
   pgSchema,

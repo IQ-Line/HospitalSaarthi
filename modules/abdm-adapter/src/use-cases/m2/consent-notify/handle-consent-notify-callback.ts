@@ -49,6 +49,29 @@ export async function handleConsentNotifyCallback(
     return;
   }
 
+  if (!notification.consentDetail) {
+    await deps.sessions.patch({
+      iqTenantId: input.iqTenantId,
+      sessionId: session.sessionId,
+      state: "ACKED",
+      contextMerge: { consentId: notification.consentId, status: notification.status },
+    });
+    const ackBody: OnConsentNotifyRequest = {
+      acknowledgement: { status: "OK", consentId: notification.consentId },
+      response: { requestId: input.inboundRequestId },
+    };
+    if (!skipOutboundGatewayInDev()) {
+      await deps.gateway.post({
+        path: M2_GATEWAY_PATHS.consentOnNotify,
+        body: ackBody,
+        target: "gateway",
+        requestId: input.inboundRequestId,
+        xHipId: deps.xHipId,
+      });
+    }
+    return;
+  }
+
   const abhaAddress = notification.consentDetail.patient.id;
   let patientId: string;
   try {
@@ -88,7 +111,7 @@ export async function handleConsentNotifyCallback(
     consentId: notification.consentId,
     patientId,
     hipId: notification.consentDetail.hip.id,
-    hiuId: notification.consentDetail.hiu.id,
+    hiuId: notification.consentDetail.hiu?.id ?? deps.xHiuId,
     status: notification.status,
     dataEraseAt: new Date(notification.consentDetail.permission.dataEraseAt),
     grantedAt: new Date(notification.consentDetail.createdAt),

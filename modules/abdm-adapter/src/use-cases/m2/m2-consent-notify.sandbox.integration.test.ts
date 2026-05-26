@@ -13,12 +13,13 @@ import { HttpGatewayClient } from "../../data-access/gateway-client.http.js";
 import type { AbdmAdapterDeps } from "../../ports.js";
 import { handleConsentNotifyCallback } from "./consent-notify/handle-consent-notify-callback.js";
 
+import { resolveSandboxDatabaseUrl } from "../../test-utils/sandbox-env.js";
+
 const RUN = process.env["RUN_ABDM_SANDBOX_TESTS"] === "1";
+const DB_URL = resolveSandboxDatabaseUrl();
 
 function buildDeps(post: ReturnType<typeof vi.fn>): AbdmAdapterDeps {
-  const databaseUrl = process.env["DATABASE_URL"];
-  if (!databaseUrl) throw new Error("DATABASE_URL required");
-  const db = createDb(databaseUrl);
+  const db = createDb(DB_URL!);
   const secrets = new EnvSecretsClient();
   return {
     sessions: new DrizzleAbdmSessionsRepo(db),
@@ -42,11 +43,13 @@ function buildDeps(post: ReturnType<typeof vi.fn>): AbdmAdapterDeps {
   };
 }
 
-describe.skipIf(!RUN)("M2 consent notify", () => {
+describe.skipIf(!RUN || !DB_URL)("M2 consent notify", () => {
   const tenantId =
     process.env["ABDM_DEV_TENANT_ID"] ?? "00000000-0000-4000-8000-0000000000aa";
 
   it("persists consent artefact and posts on-notify ack", async () => {
+    vi.stubEnv("ABDM_DEV_INBOUND_SIMULATION", "false");
+
     const post = vi.fn().mockResolvedValue({});
     const deps = buildDeps(post);
     const consentId = randomUUID();
