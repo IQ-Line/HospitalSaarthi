@@ -11,19 +11,17 @@ import {
   DialogTitle,
 } from '@pulse/ui/dialog';
 import { toast } from 'sonner';
-import { useCreateTenant, useTenantModules } from '@/features/configurator/api';
-import { provisionTenantAdministrator } from '@/features/configurator/api/provision-tenant-admin';
-import { apiClient } from '@/lib/api-client';
-import { branchTenantSlug, buildTenantCerbosScopeKey } from '@/features/configurator/branch-helpers';
+import { useTenantModules } from '@/features/configurator/api';
+import { useProvisionTenant } from '@/features/configurator/api/tenant-onboarding';
+import { branchTenantSlug } from '@/features/configurator/branch-helpers';
 import {
   BRANCH_WIZARD_DEFAULT_VALUES,
   createBranchStep1Schema,
-  createBranchStep2Schema,
   createBranchStep3Schema,
   DEFAULT_BRANCH_TYPE,
   type BranchWizardFormValues,
 } from '@/features/configurator/create-branch-wizard-schema';
-import type { ConfiguratorTenant, CreateConfiguratorTenantInput } from '@/features/configurator/types';
+import type { TenantOnboardingInput } from '@/features/configurator/api/tenant-onboarding';
 import { useModules } from '@/features/master-data/api';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { WizardStep2Modules } from '../create-tenant-wizard/wizard-step-2-modules';
@@ -43,8 +41,6 @@ const STEPS = [
 ] as const;
 
 const FINAL_STEP = 3;
-
-const TENANTS_BASE = '/api/configurator/v1/tenants';
 
 export interface CreateBranchWizardProps {
   open: boolean;
@@ -67,7 +63,7 @@ export function CreateBranchWizard({
   const [enabledModuleIds, setEnabledModuleIds] = useState<Set<string>>(() => new Set());
   const modulesDefaultsApplied = useRef(false);
 
-  const createTenant = useCreateTenant();
+  const provisionTenant = useProvisionTenant();
 
   const { data: parentModulesRes } = useTenantModules(parentTenantId, {
     enabled: open && !!parentTenantId,
@@ -182,15 +178,6 @@ export function CreateBranchWizard({
     if (activeStep > 1) setActiveStep((s) => s - 1);
   };
 
-  const enableModulesForTenant = async (tenantId: string, moduleIds: string[]) => {
-    for (const module_id of moduleIds) {
-      await apiClient(`${TENANTS_BASE}/${tenantId}/modules`, {
-        method: 'POST',
-        body: JSON.stringify({ module_id, is_active: true }),
-      });
-    }
-  };
-
   const onSubmitFinal = handleSubmit(async (values) => {
     const parsedAdmin = createBranchStep3Schema.safeParse(values);
     if (!parsedAdmin.success) {
@@ -219,45 +206,40 @@ export function CreateBranchWizard({
         pin_code: values.pinCode.trim(),
       },
       address: parts.join(', '),
+      branch_code: code,
+      branch_type: DEFAULT_BRANCH_TYPE,
     };
     if (values.gstin?.trim()) meta.gstin = values.gstin.trim();
     if (values.pan?.trim()) meta.pan = values.pan.trim().toUpperCase();
 
-    const payload: CreateConfiguratorTenantInput = {
-      org_id: organizationId,
-      parent_tenant_id: parentTenantId,
-      name: values.branchName.trim(),
-      slug,
-      type: 'lite',
-      cerbos_scope_key: buildTenantCerbosScopeKey(organizationId, slug),
-      branch_code: code,
-      branch_type: DEFAULT_BRANCH_TYPE,
-      address_line1: values.hqAddressLine1.trim(),
-      city: values.locality?.trim() || null,
-      state: values.state.trim(),
-      pin_code: values.pinCode.trim(),
-      contact_phone: null,
-      contact_email: null,
-      metadata: meta,
-    };
-
-    try {
-      const created = await createTenant.mutateAsync(payload);
-      await enableModulesForTenant(created.iq_tenant_id, [...enabledModuleIds]);
-      await provisionTenantAdministrator({
-        iqTenantId: created.iq_tenant_id,
-        organizationId,
-        firstName: values.adminFirstName.trim(),
-        lastName: values.adminLastName.trim(),
+    const payload: TenantOnboardingInput = {
+      organization: { id: organizationId },
+      tenant: {
+        name: values.branchName.trim(),
+        slug,
+        parent_tenant_id: parentTenantId,
+        type: 'lite',
+        branch_code: code,
+        branch_type: DEFAULT_BRANCH_TYPE,
+        address_line1: values.hqAddressLine1.trim(),
+        city: values.locality?.trim() || null,
+        state: values.state.trim(),
+        pin_code: values.pinCode.trim(),
+        metadata: meta,
+      },
+      modules: [...enabledModuleIds].map((id) => ({ module_id: id, is_active: true })),
+      admin: {
+        first_name: values.adminFirstName.trim(),
+        last_name: values.adminLastName.trim(),
         email: values.adminEmail.trim(),
         password: values.password,
         phone: values.adminMobile?.trim() || null,
         username: values.adminUsername?.trim() || null,
-      });
-      await apiClient<ConfiguratorTenant>(`${TENANTS_BASE}/${created.iq_tenant_id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ provisioning_status: 'active' }),
-      });
+      },
+    };
+
+    try {
+      await provisionTenant.mutateAsync(payload);
       toast.success('Branch and administrator created successfully');
       onOpenChange(false);
     } catch (err) {
@@ -339,7 +321,7 @@ export function CreateBranchWizard({
                 onClearAllModules={clearAllModules}
               />
             )}
-            {activeStep === 3 && <WizardStep4Admin register={register} />}
+            {activeStep === 3 && <WizardStep4Admin register={register as any} />}
           </div>
         </div>
 
@@ -371,11 +353,11 @@ export function CreateBranchWizard({
               ) : (
                 <Button
                   type="button"
-                  disabled={createTenant.isPending}
+                  disabled={provisionTenant.isPending}
                   onClick={() => void onSubmitFinal()}
                   className="gap-1.5 bg-[#008C9E] px-5 text-white hover:bg-[#00798a] disabled:opacity-60"
                 >
-                  {createTenant.isPending ? 'Creating branch…' : 'Create branch'}
+                  {provisionTenant.isPending ? 'Creating branch…' : 'Create branch'}
                   <Check className="size-3.5" aria-hidden />
                 </Button>
               )}

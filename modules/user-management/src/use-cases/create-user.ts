@@ -27,13 +27,12 @@ import type {
   User,
   UserRepository,
 } from "../ports/index.js";
+import type { ModuleEntitlementRequestContext } from "../ports/module-integration-ports.js";
 import type { UserProvisioningRepository } from "../ports/user-provisioning-repository.js";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-const ENTITLEMENT_ASSERT_CONTEXT = { cachePolicy: "bypass-cache" as const };
 
 export type CreateUserDeps = {
   userRepository: UserRepository;
@@ -62,6 +61,7 @@ export async function createUser(
   deps: CreateUserDeps,
   ctx: CreateUserContext,
   input: CreateUserInput,
+  entitlementContext?: ModuleEntitlementRequestContext,
 ): Promise<User> {
   if (typeof input.full_name !== "string") {
     throw new ValidationError("full_name_invalid_type");
@@ -161,7 +161,7 @@ export async function createUser(
       entitlementDeps,
       ctx.tenantId,
       capabilityIds,
-      ENTITLEMENT_ASSERT_CONTEXT,
+      { cachePolicy: "bypass-cache", authorization: entitlementContext?.authorization },
     );
   }
 
@@ -181,7 +181,7 @@ export async function createUser(
           ctx.tenantId,
           roleIds,
           roleTemplateCapabilityIds,
-          ENTITLEMENT_ASSERT_CONTEXT,
+          { cachePolicy: "bypass-cache", authorization: entitlementContext?.authorization },
         )
       : [];
 

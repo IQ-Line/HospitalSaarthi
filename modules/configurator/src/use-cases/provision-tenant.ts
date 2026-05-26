@@ -203,7 +203,7 @@ export async function provisionTenant(
       ctx,
       result,
       moduleIds,
-      input.plan.slug,
+      input.plan?.slug ?? "branch",
     );
   } catch {
     // eslint-disable-next-line no-console
@@ -269,9 +269,9 @@ async function createCoreEntities(
     const orgContactEmail = input.organization.contact_email?.trim() || null;
     const orgWebsite = input.organization.website?.trim() || null;
     organization = await createOrganization(repos.organizationRepo, {
-      name: input.organization.name,
-      slug: input.organization.slug,
-      type: input.organization.type,
+      name: input.organization.name!,
+      slug: input.organization.slug!,
+      type: input.organization.type!,
       status: "active",
       contact_email: orgContactEmail,
       website: orgWebsite,
@@ -289,15 +289,23 @@ async function createCoreEntities(
 
   const tenant = await createTenant(repos.tenantRepo, repos.organizationRepo, {
     org_id: organization.id,
-    parent_tenant_id: null,
+    parent_tenant_id: input.tenant.parent_tenant_id?.trim() || null,
     name: input.tenant.name.trim(),
     slug: tenantSlug,
-    type: "full_platform",
+    type: (input.tenant.type?.trim() || "full_platform") as import("../domain/tenant.types.js").TenantType,
     data_isolation_level: "shared",
     cerbos_scope_key: buildTenantCerbosScopeKey(organization.id, tenantSlug),
     timezone: "Asia/Kolkata",
     locale: "en-IN",
     metadata: tenantMetadata,
+    branch_code: input.tenant.branch_code?.trim() || null,
+    branch_type: (input.tenant.branch_type?.trim() || null) as import("../domain/tenant.types.js").BranchType | null,
+    address_line1: input.tenant.address_line1?.trim() || null,
+    city: input.tenant.city?.trim() || null,
+    state: input.tenant.state?.trim() || null,
+    pin_code: input.tenant.pin_code?.trim() || null,
+    contact_phone: input.tenant.contact_phone?.trim() || null,
+    contact_email: input.tenant.contact_email?.trim() || null,
     created_by: ctx.actorId,
   });
 
@@ -383,15 +391,18 @@ function validateInput(input: ProvisionTenantInput): void {
       "VALIDATION_ERROR",
     );
   }
+  const isBranch = !!input.tenant.parent_tenant_id?.trim();
   const planSlug = input.plan?.slug?.trim();
-  if (!planSlug) {
+  if (!isBranch && !planSlug) {
     throw new ConfiguratorError(
       400,
       "plan.slug is required — pass an explicit plan identifier (e.g. \"starter\")",
       "VALIDATION_ERROR",
     );
   }
-  input.plan = { ...input.plan, slug: planSlug };
+  if (input.plan) {
+    input.plan = { ...input.plan, slug: planSlug ?? "" };
+  }
   if (!input.modules || input.modules.length === 0) {
     throw new ConfiguratorError(
       400,
@@ -457,7 +468,7 @@ function buildOrganizationMetadata(
   return {
     ...restMetadata,
     provisioning: {
-      plan_slug: input.plan.slug,
+      plan_slug: input.plan?.slug ?? null,
       module_override_ids: input.modules.map((m) => m.module_id),
       trial_end_date: input.plan?.trial_end_date ?? null,
       max_users_override: input.plan?.max_users_override ?? null,

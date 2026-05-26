@@ -8,9 +8,9 @@ const ENDPOINT = '/api/configurator/v1/tenant-onboarding';
 export interface TenantOnboardingInput {
   organization: {
     id?: string;
-    name: string;
-    slug: string;
-    type: string;
+    name?: string;
+    slug?: string;
+    type?: string;
     contact_email?: string | null;
     website?: string | null;
     metadata?: Record<string, unknown> | null;
@@ -18,9 +18,19 @@ export interface TenantOnboardingInput {
   tenant: {
     name: string;
     slug: string;
+    parent_tenant_id?: string | null;
+    type?: string;
+    branch_code?: string | null;
+    branch_type?: string | null;
+    address_line1?: string | null;
+    city?: string | null;
+    state?: string | null;
+    pin_code?: string | null;
+    contact_phone?: string | null;
+    contact_email?: string | null;
     metadata?: Record<string, unknown> | null;
   };
-  plan: {
+  plan?: {
     slug: string;
     trial_end_date?: string | null;
     max_users_override?: number | null;
