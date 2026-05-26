@@ -107,6 +107,9 @@ importers:
       '@hims/ts-sdk-db':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-db
+      '@hims/ts-sdk-identity':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-identity
       fastify:
         specifier: ^5.3.3
         version: 5.8.5
@@ -647,6 +650,9 @@ importers:
       '@hims/ts-sdk-events':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-events
+      '@hims/ts-sdk-identity':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-identity
       '@hims/ts-sdk-openapi':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-openapi

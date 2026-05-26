@@ -30,7 +30,7 @@ Order:
 5. `verify-existing.ts` — the frontdesk-side check.
 6. `profile-update.ts` — last; consistent shape with #1.
 
-Standalone mobile-only enrol and DL (`dl-flow`) are out of M1 scope — use `enrol-mobile-verify-enrolment.ts` for the Aadhaar-chain mobile-verify step only.
+Standalone mobile-only enrol and DL (`dl-flow`) are out of M1 scope — use `enrol-mobile-verify-enrolment.ts` for the Aadhaar-chain mobile-verify step only (**different primary mobile**). When the user keeps the Aadhaar-linked mobile, pass **`useAadhaarLinkedMobile: true`** on `enrol/aadhaar/verify` to skip those two calls (see [02-m1-flows.md](./02-m1-flows.md) §1).
 
 Each file should export both the request and response types per step. Examples follow the structure:
 

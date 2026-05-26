@@ -17,6 +17,7 @@ export const organizationFormSchema = z
     type: organizationTypeEnum,
     status: organizationStatusEnum.optional(),
     contact_email: z.string().optional(),
+    website: z.string().optional(),
     contact_phone: z.string().optional(),
     address: z.string().optional(),
   })
@@ -29,6 +30,14 @@ export const organizationFormSchema = z
         path: ['contact_email'],
       });
     }
+    const website = data.website?.trim();
+    if (website && !/^https?:\/\//i.test(website)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Website must start with http:// or https://',
+        path: ['website'],
+      });
+    }
   });
 
 export type OrganizationFormValues = z.infer<typeof organizationFormSchema>;
@@ -39,6 +48,7 @@ export const EMPTY_ORGANIZATION_FORM_VALUES: OrganizationFormValues = {
   type: 'standalone_hospital',
   status: 'active',
   contact_email: '',
+  website: '',
   contact_phone: '',
   address: '',
 };

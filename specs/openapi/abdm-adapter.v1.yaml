@@ -1015,10 +1015,16 @@ components:
           type: string
           pattern: "^\\d{10}$"
           description: Primary 10-digit mobile for ABHA (where Aadhaar OTP was received, or chosen primary number).
+        useAadhaarLinkedMobile:
+          type: boolean
+          description: >
+            When true, skip enrol mobile-verify after byAadhaar (user chose Aadhaar-linked primary mobile).
+            When false, require mobile-verify OTP before ABHA address. When omitted, inferred from NHA ABHAProfile.mobile.
       example:
         sessionId: "402851e2-9949-4371-9902-1e2954c3c412"
         otp: "123456"
         mobile: "6789789089"
+        useAadhaarLinkedMobile: true
 
     EnrolAadhaarVerifyResponse:
       type: object
@@ -1033,6 +1039,9 @@ components:
           type: string
         isNew:
           type: boolean
+        mobileVerifySkipped:
+          type: boolean
+          description: True when mobile-verify OTP was bypassed (Aadhaar-linked primary mobile).
         message:
           type: string
 

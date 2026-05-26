@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiClient, apiClientWithIqTenant } from '@/lib/api-client';
+import { apiClient, apiClientWithIqTenant, ApiError } from '@/lib/api-client';
+import { invalidateModuleRegistration } from '@/platform/modules/module-catalog';
 import { fetchTenants, tenantsQueryOptions } from './catalog';
 import { refreshAccessToken } from '@/lib/auth-session';
 import type { UmUser } from '@/features/user-management/types';
@@ -91,6 +92,58 @@ export function useCreateTenant() {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: configuratorKeys.all });
+    },
+  });
+}
+
+export type SetTenantModuleActiveInput = {
+  tenantId: string;
+  moduleId: string;
+  isActive: boolean;
+  /** When present, PATCH; otherwise POST to create enablement row. */
+  existingRow?: TenantModuleRow;
+};
+
+export function useSetTenantModuleActive() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ tenantId, moduleId, isActive, existingRow }: SetTenantModuleActiveInput) => {
+      const ctx = { tenantIdOverride: tenantId };
+      if (existingRow) {
+        return apiClient<TenantModuleRow>(
+          `${BASE}/${tenantId}/modules/${moduleId}`,
+          {
+            method: 'PATCH',
+            body: JSON.stringify({ is_active: isActive }),
+          },
+          ctx,
+        );
+      }
+      try {
+        return await apiClient<TenantModuleRow>(
+          `${BASE}/${tenantId}/modules`,
+          {
+            method: 'POST',
+            body: JSON.stringify({ module_id: moduleId, is_active: isActive }),
+          },
+          ctx,
+        );
+      } catch (err) {
+        if (!(err instanceof ApiError) || err.status !== 409) {
+          throw err;
+        }
+        return apiClient<TenantModuleRow>(
+          `${BASE}/${tenantId}/modules/${moduleId}`,
+          {
+            method: 'PATCH',
+            body: JSON.stringify({ is_active: isActive }),
+          },
+          ctx,
+        );
+      }
+    },
+    onSuccess: (_row, { tenantId }) => {
+      invalidateModuleRegistration(qc, tenantId);
     },
   });
 }

@@ -18,8 +18,8 @@ export function WizardStep4Admin({ register }: WizardStep4AdminProps) {
     <FieldGroup className="mx-auto max-w-none gap-4">
       <Field>
         <FieldDescription>
-          Creates the tenant administrator account (email + password). The user is assigned the role
-          and permissions configured in the previous step.
+          Creates the tenant administrator account (email + password). Module permissions are
+          assigned automatically from your module selection.
         </FieldDescription>
       </Field>
       <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">

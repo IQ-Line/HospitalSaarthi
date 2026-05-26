@@ -7,6 +7,13 @@ import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@pulse/ui/badge';
 import { Button } from '@pulse/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@pulse/ui/dialog';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
 import {
@@ -24,7 +31,12 @@ import { EntityFormDialog } from '@/components/entity-table/entity-form-dialog';
 import { EntityRowActions } from '@/components/entity-table/entity-row-actions';
 import { EntityTableToolbar } from '@/components/entity-table/entity-table-toolbar';
 import { TableActiveToggle } from '@/components/entity-table/table-active-toggle';
-import { useTenantUsers } from '@/features/configurator/api';
+import { configuratorKeys, useTenantUsers } from '@/features/configurator/api';
+import { CapabilityGate } from '@/components/capability-gate';
+import { useCapability } from '@/hooks/use-capability';
+import { UM_USER_CREATE, UM_USER_READ } from '@/lib/runtime-capability-keys';
+import { CreateUserForm } from '@/features/user-management/components/create-user-form';
+import type { UmUser } from '@/features/user-management/types';
 import {
   useCreateTariffService,
   useTariffServices,
@@ -68,7 +80,7 @@ import {
 import { useCreateRole, useDeleteRole } from '@/features/user-management/api/mutations';
 import { roleListOptions } from '@/features/user-management/api/queries';
 import { userManagementKeys } from '@/features/user-management/api/keys';
-import type { UmRole, UmUser, UpdateRoleBody } from '@/features/user-management/types';
+import type { UmRole, UpdateRoleBody } from '@/features/user-management/types';
 import { apiClient } from '@/lib/api-client';
 import { mutationErrorMessage as billingMutationError } from '@/lib/mutation-error';
 
@@ -81,8 +93,17 @@ const DEPARTMENT_TYPES: DepartmentType[] = [
 
 const BILLING_FORCE_LIVE = { forceLive: true as const };
 
-export function TenantUsersPanel({ iqTenantId }: { iqTenantId: string }) {
+export function TenantUsersPanel({
+  iqTenantId,
+  organizationId,
+}: {
+  iqTenantId: string;
+  organizationId: string;
+}) {
   const [search, setSearch] = useState('');
+  const [createOpen, setCreateOpen] = useState(false);
+  const qc = useQueryClient();
+  const umUserRead = useCapability(UM_USER_READ);
   const { data, isLoading, error } = useTenantUsers(iqTenantId);
 
   const columns = useMemo<ColumnDef<UmUser, unknown>[]>(
@@ -134,7 +155,18 @@ export function TenantUsersPanel({ iqTenantId }: { iqTenantId: string }) {
 
   return (
     <div className="space-y-3">
-      <EntityTableToolbar value={search} onChange={setSearch} placeholder="Search users…" />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <EntityTableToolbar value={search} onChange={setSearch} placeholder="Search users…" />
+        <CapabilityGate capability={UM_USER_CREATE}>
+          <Button
+            type="button"
+            className="shrink-0 bg-[#008C9E] text-white hover:bg-[#00798a]"
+            onClick={() => setCreateOpen(true)}
+          >
+            Add user
+          </Button>
+        </CapabilityGate>
+      </div>
       <div className="rounded-lg border">
         <DataTable
           columns={columns}
@@ -144,6 +176,37 @@ export function TenantUsersPanel({ iqTenantId }: { iqTenantId: string }) {
           emptyDescription="No directory users for this tenant yet."
         />
       </div>
+      <CapabilityGate capability={UM_USER_CREATE}>
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <DialogContent className="flex max-h-[min(88dvh,960px)] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-6xl">
+            <div className="shrink-0 border-b p-4 pb-3">
+              <DialogHeader>
+                <DialogTitle>Add user</DialogTitle>
+                <DialogDescription>
+                  Create a user in this tenant. They will be able to sign in after you share their
+                  credentials.
+                </DialogDescription>
+              </DialogHeader>
+            </div>
+            <div className="flex min-h-0 flex-1 overflow-hidden p-4">
+              <CreateUserForm
+                fixedTargetTenantId={iqTenantId}
+                fixedConfiguratorOrgId={organizationId}
+                layout="dialog"
+                navigateToProfileOnSuccess={umUserRead}
+                onCancel={() => setCreateOpen(false)}
+                onCreated={(user) => {
+                  void qc.invalidateQueries({
+                    queryKey: configuratorKeys.tenantUsers(iqTenantId),
+                  });
+                  toast.success(`User ${user.full_name} created`);
+                  setCreateOpen(false);
+                }}
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
+      </CapabilityGate>
     </div>
   );
 }

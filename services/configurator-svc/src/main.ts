@@ -1,4 +1,5 @@
-import Fastify from "fastify";
+import Fastify, { type FastifyInstance } from "fastify";
+import { validateAuthConfig } from "@hims/ts-sdk-identity";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import {
   assertConfiguratorDatabaseIsolation,
@@ -88,6 +89,13 @@ async function main() {
     await eventBus.disconnect();
   });
 
+  const isProduction = process.env["NODE_ENV"] === "production";
+  const enableAuth = process.env["ENABLE_AUTH"] === "true";
+  if (isProduction && !enableAuth) {
+    throw new Error("ENABLE_AUTH=true is required when NODE_ENV=production");
+  }
+  const identityAuth = enableAuth ? validateAuthConfig() : undefined;
+
   const userManagementBaseUrl = requireUpstreamBaseUrl(
     "USER_MANAGEMENT_URL",
     "http://localhost:3005",
@@ -100,36 +108,43 @@ async function main() {
   const logFn = (event: Record<string, unknown>, message: string) =>
     app.log.info(event, message);
 
-  await app.register(
-    createRouter({
-      organizationRepo,
-      tenantRepo,
-      tenantModuleRepo,
-      runConfiguratorTransaction,
-      eventBus,
-      createInfrastructureCatalog: (authorization) =>
-        new HttpModuleCapabilityResolverAdapter({
-          userManagementBaseUrl,
-          masterDataBaseUrl,
-          authorization,
-          log: logFn,
-        }),
-      createModuleCapabilityResolver: (authorization) =>
-        new HttpModuleCapabilityResolverAdapter({
-          userManagementBaseUrl,
-          masterDataBaseUrl,
-          authorization,
-          log: logFn,
-        }),
-      createAdminProvisioner: (authorization) =>
-        new HttpTenantAdminProvisioningAdapter({
-          userManagementBaseUrl,
-          authorization,
-          log: logFn,
-        }),
-    }),
-    { prefix: "/api/configurator/v1" },
-  );
+  async function registerConfiguratorApi(api: FastifyInstance): Promise<void> {
+    if (identityAuth) {
+      const { identityPlugin } = await import("@hims/ts-sdk-identity");
+      await api.register(identityPlugin, identityAuth);
+    }
+    await api.register(
+      createRouter({
+        organizationRepo,
+        tenantRepo,
+        tenantModuleRepo,
+        runConfiguratorTransaction,
+        eventBus,
+        createInfrastructureCatalog: (authorization) =>
+          new HttpModuleCapabilityResolverAdapter({
+            userManagementBaseUrl,
+            masterDataBaseUrl,
+            authorization,
+            log: logFn,
+          }),
+        createModuleCapabilityResolver: (authorization) =>
+          new HttpModuleCapabilityResolverAdapter({
+            userManagementBaseUrl,
+            masterDataBaseUrl,
+            authorization,
+            log: logFn,
+          }),
+        createAdminProvisioner: (authorization) =>
+          new HttpTenantAdminProvisioningAdapter({
+            userManagementBaseUrl,
+            authorization,
+            log: logFn,
+          }),
+      }),
+    );
+  }
+
+  await app.register(registerConfiguratorApi, { prefix: "/api/configurator/v1" });
 
   await app.listen({ port: PORT, host: "0.0.0.0" });
   app.log.info(`Configurator service listening on http://localhost:${PORT}`);

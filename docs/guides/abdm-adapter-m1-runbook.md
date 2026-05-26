@@ -20,12 +20,40 @@ The following platform → NHA flow is implemented for **`abdm.m1.aadhaar-otp.v1
 | 1 | `POST /api/abdm/v1/m1/enrol/aadhaar/otp` | `POST /v3/enrollment/request/otp` (Aadhaar) |
 | 2 | `POST /api/abdm/v1/m1/enrol/aadhaar/otp/resend` | Same OTP API with **non-empty** `txnId` |
 | 3 | `POST /api/abdm/v1/m1/enrol/aadhaar/verify` | `POST /v3/enrollment/enrol/byAadhaar` |
-| 4 | `POST /api/abdm/v1/m1/enrol/mobile-verify/otp` | `POST /v3/enrollment/request/otp` (mobile scope) |
-| 5 | `POST /api/abdm/v1/m1/enrol/mobile-verify/verify` | `POST /v3/enrollment/auth/byAbdm` |
+| 4–5 | `POST …/mobile-verify/otp` + `POST …/mobile-verify/verify` | **Only when primary mobile ≠ Aadhaar-linked** — see below |
 | 6 | `GET /api/abdm/v1/m1/abha-address/suggestions?sessionId=…` | `GET /v3/enrollment/enrol/suggestion` + header `Transaction_Id` |
 | 7 | `POST /api/abdm/v1/m1/abha-address` | `POST /v3/enrollment/enrol/abha-address` |
 | 8 | `GET /api/abdm/v1/m1/profile?sessionId=…` | `GET /v3/profile/account` + `X-token: Bearer <profile JWT>` |
 | 9 | `GET /api/abdm/v1/m1/profile/abha-card?sessionId=…` | `GET /v3/profile/account/abha-card` + same `X-token` |
+
+### Linked mobile vs different mobile (NHA-aligned)
+
+Per NHA enrolment spec, after `byAadhaar`:
+
+- If **primary mobile = Aadhaar-linked mobile** → NHA saves mobile on the ABHA profile; **Step 4 (ABHA Mobile Verification) is not required**.
+- If **primary mobile is different** → NHA returns `ABHAProfile.mobile: null`; you **must** call mobile-verify OTP + verify before ABHA address.
+
+The adapter exposes this via optional **`useAadhaarLinkedMobile`** on `POST …/enrol/aadhaar/verify`:
+
+| User choice | Request on verify | Platform calls after verify | Session state before address |
+|-------------|-------------------|----------------------------|------------------------------|
+| Use Aadhaar-linked mobile | `{ …, "useAadhaarLinkedMobile": true }` | suggestions → abha-address (**4 calls** total) | `MOBILE_OTP_VERIFIED` (bypass) |
+| Different primary mobile | `{ …, "useAadhaarLinkedMobile": false }` | mobile-verify otp + verify → suggestions → abha-address (**6 calls**) | `MOBILE_OTP_VERIFIED` after mobile verify |
+| Flag omitted | — | Inferred from NHA `ABHAProfile.mobile` (non-null → skip) | Same as above |
+
+Verify response includes **`mobileVerifySkipped: true`** when steps 4–5 were bypassed. Use **`GET /api/abdm/v1/m1/sessions/{sessionId}`** if `nextStep` is unclear.
+
+**Frontend mapping (same as other platforms):**
+
+| UI step | API |
+|---------|-----|
+| 1 | `POST …/enrol/aadhaar/otp` |
+| 2 | `POST …/enrol/aadhaar/verify` `{ sessionId, otp, mobile, useAadhaarLinkedMobile }` |
+| 3 | *(none if linked)* **or** `mobile-verify/otp` + `mobile-verify/verify` if different mobile |
+| 4 | `GET …/abha-address/suggestions?sessionId=…` |
+| Done | `POST …/abha-address` |
+
+Always keep **`sessionId`** from step 1 across the chain.
 
 Session state is stored in **`abdm_adapter.abdm_sessions`** (`state`, `txn_id`, `x_token`, `t_token`, `context` JSON). Profile calls use the **per-session** `x_token` via merged headers (not a global adapter header).
 
@@ -178,9 +206,10 @@ Base URL (default): **`http://localhost:3007`**
 | `GET` | `/api/abdm/v1/m0/gateway/session` | Gateway + cert smoke — **requires** `x-tenant-id` or `iq_tenant_id` |
 | `POST` | `/api/abdm/v1/m1/enrol/aadhaar/otp` | Body: `{ "aadhaarNumber": "12 digits" }` |
 | `POST` | `/api/abdm/v1/m1/enrol/aadhaar/otp/resend` | Body: `{ "sessionId", "aadhaarNumber" }` |
-| `POST` | `/api/abdm/v1/m1/enrol/aadhaar/verify` | Body: `{ "sessionId", "otp", "mobile?" }` |
-| `POST` | `/api/abdm/v1/m1/enrol/mobile-verify/otp` | Body: `{ "sessionId", "mobile" }` |
-| `POST` | `/api/abdm/v1/m1/enrol/mobile-verify/verify` | Body: `{ "sessionId", "otp" }` |
+| `POST` | `/api/abdm/v1/m1/enrol/aadhaar/verify` | Body: `{ "sessionId", "otp", "mobile", "useAadhaarLinkedMobile?" }` — see linked-mobile section above |
+| `POST` | `/api/abdm/v1/m1/enrol/mobile-verify/otp` | Body: `{ "sessionId", "mobile" }` — **different mobile only** |
+| `POST` | `/api/abdm/v1/m1/enrol/mobile-verify/verify` | Body: `{ "sessionId", "otp" }` — **different mobile only** |
+| `GET` | `/api/abdm/v1/m1/sessions/{sessionId}` | Session state + `nextStep` hint |
 | `GET` | `/api/abdm/v1/m1/abha-address/suggestions?sessionId=<uuid>` | |
 | `POST` | `/api/abdm/v1/m1/abha-address` | Body: `{ "sessionId", "abhaAddress", "preferred?" }` |
 | `GET` | `/api/abdm/v1/m1/profile?sessionId=<uuid>` | Needs session `x_token` |

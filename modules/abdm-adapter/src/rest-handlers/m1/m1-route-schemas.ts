@@ -100,6 +100,7 @@ export const enrolAadhaarVerifyBodySchema = {
     sessionId: uuidParam,
     otp: { type: "string", pattern: "^\\d{6}$" },
     mobile: { type: "string", pattern: "^\\d{10}$" },
+    useAadhaarLinkedMobile: { type: "boolean" },
   },
 };
 

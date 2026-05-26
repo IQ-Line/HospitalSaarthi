@@ -137,16 +137,30 @@ Use **your** service base: `http://localhost:3007/api/abdm/v1`.
 
 All steps need `x-tenant-id: <ABDM_DEV_TENANT_ID>`.
 
+### 2.1 Linked mobile (4 platform calls — recommended when Aadhaar OTP mobile = primary)
+
 | Step | Method | Path | Body / query | Saves |
 |------|--------|------|--------------|-------|
 | 0 Smoke | `GET` | `/m0/gateway/session` | — | Gateway token works |
 | 1 OTP | `POST` | `/m1/enrol/aadhaar/otp` | `{ "aadhaarNumber": "12 digits" }` | `sessionId`, `txnId` |
-| 2 Verify | `POST` | `/m1/enrol/aadhaar/verify` | `{ "sessionId", "otp", "mobile" }` | ABHA profile tokens in session |
-| 3 Mobile OTP | `POST` | `/m1/enrol/mobile-verify/otp` | `{ "sessionId" }` | — |
-| 4 Mobile verify | `POST` | `/m1/enrol/mobile-verify/verify` | `{ "sessionId", "otp" }` | — |
-| 5 Suggestions | `GET` | `/m1/abha-address/suggestions?sessionId=` | — | ABHA address options |
-| 6 Create address | `POST` | `/m1/abha-address` | `{ "sessionId", "abhaAddress" }` | **`abhaAddress`** for M2 |
-| 7 Profile | `GET` | `/m1/profile?sessionId=` | — | Confirm ABHA created |
+| 2 Verify | `POST` | `/m1/enrol/aadhaar/verify` | `{ "sessionId", "otp", "mobile", "useAadhaarLinkedMobile": true }` | Tokens; `mobileVerifySkipped: true` → session `MOBILE_OTP_VERIFIED` |
+| 3 Suggestions | `GET` | `/m1/abha-address/suggestions?sessionId=` | — | ABHA address options |
+| 4 Create address | `POST` | `/m1/abha-address` | `{ "sessionId", "abhaAddress" }` | **`abhaAddress`** for M2 |
+| 5 Profile | `GET` | `/m1/profile?sessionId=` | — | Confirm ABHA created |
+
+### 2.2 Different primary mobile (6 platform calls — NHA Step 4 required)
+
+Same as §2.1 through step 2, but set **`useAadhaarLinkedMobile: false`** on verify. Then:
+
+| Step | Method | Path | Body / query |
+|------|--------|------|--------------|
+| 3 Mobile OTP | `POST` | `/m1/enrol/mobile-verify/otp` | `{ "sessionId", "mobile" }` |
+| 4 Mobile verify | `POST` | `/m1/enrol/mobile-verify/verify` | `{ "sessionId", "otp" }` |
+| 5–7 | — | suggestions → abha-address → profile | Same as §2.1 steps 3–5 |
+
+If **`useAadhaarLinkedMobile`** is omitted on verify, the adapter infers skip from NHA **`ABHAProfile.mobile`** (non-null = linked mobile saved).
+
+Use **`GET /m1/sessions/{sessionId}`** when the UI needs `nextStep` after verify.
 
 **After M1:** Note the **`abhaAddress`** (e.g. `yourname@sbx`). Use it in M2 generate-token and `initiated-link/start`. Set `ABDM_MOCK_ABHA_ADDRESS` to the same value if using mock EMPI.
 
@@ -321,8 +335,12 @@ ORDER BY granted_at DESC LIMIT 5;
 |------|--------|------|
 | `/m0/gateway/session` | GET | Smoke test |
 | `/m1/enrol/aadhaar/otp` | POST | M1 start |
-| `/m1/enrol/aadhaar/verify` | POST | M1 |
+| `/m1/enrol/aadhaar/verify` | POST | M1 — optional `useAadhaarLinkedMobile` skips mobile-verify when linked |
+| `/m1/enrol/mobile-verify/otp` | POST | M1 — **different primary mobile only** |
+| `/m1/enrol/mobile-verify/verify` | POST | M1 — **different primary mobile only** |
+| `/m1/abha-address/suggestions` | GET | M1 — after `MOBILE_OTP_VERIFIED` |
 | `/m1/abha-address` | POST | M1 — get ABHA address |
+| `/m1/sessions/{sessionId}` | GET | M1 — state + `nextStep` |
 | `/m1/profile` | GET | M1 — verify profile |
 | `/m2/hip/initiated-link/start` | POST | **Link care contexts** |
 | `/m2/add-contexts/publish` | POST | Publish new visit |

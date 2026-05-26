@@ -138,12 +138,18 @@ export async function registerM1Routes(
     "/m1/enrol/aadhaar/verify",
     { schema: { body: enrolAadhaarVerifyBodySchema } },
     async (req, reply) => {
-    const raw = req.body as { sessionId: string; otp: string; mobile: string };
+    const raw = req.body as {
+      sessionId: string;
+      otp: string;
+      mobile: string;
+      useAadhaarLinkedMobile?: boolean;
+    };
     try {
       const out = await enrolAadhaarVerifyRequest({
         sessionId: raw.sessionId,
         otp: raw.otp,
         mobile: raw.mobile,
+        useAadhaarLinkedMobile: raw.useAadhaarLinkedMobile,
         iqTenantId: req.tenantId,
       }, deps);
       return reply.status(200).send(out);
