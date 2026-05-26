@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+export const NEW_ORGANISATION_VALUE = '__new__';
+
 export const PLAN_OPTIONS = [
   { value: 'starter', label: 'Starter Plan' },
   { value: 'professional', label: 'Professional Plan' },
@@ -45,21 +47,66 @@ export const INDIAN_STATE_OPTIONS: Array<{ value: string; label: string }> = [
   { value: 'Puducherry', label: 'Puducherry' },
 ];
 
-const tenantTypeEnum = z.enum([
+const organizationTypeEnum = z.enum([
   'hospital_chain',
   'medical_college',
   'standalone_hospital',
   'government_network',
 ]);
 
+const optionalWebsiteRefine = (
+  website: string | undefined,
+  ctx: z.RefinementCtx,
+  path: string,
+) => {
+  const w = website?.trim();
+  if (w && !/^https?:\/\//i.test(w)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Website must start with http:// or https://',
+      path: [path],
+    });
+  }
+};
+
+export const createTenantStep0Schema = z
+  .object({
+    organisationSelectionId: z.string().min(1, 'Select an organisation'),
+    organisationId: z.string().optional(),
+    organisationName: z.string().optional(),
+    organisationSlug: z.string().trim().min(3, 'Slug must be at least 3 characters'),
+    organisationType: organizationTypeEnum,
+    organisationWebsite: z.string().optional(),
+    organisationEmail: z.string().optional(),
+  })
+  .superRefine((d, ctx) => {
+    optionalWebsiteRefine(d.organisationWebsite, ctx, 'organisationWebsite');
+    const email = d.organisationEmail?.trim();
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Enter a valid email address',
+        path: ['organisationEmail'],
+      });
+    }
+    if (d.organisationSelectionId === NEW_ORGANISATION_VALUE) {
+      const name = d.organisationName?.trim();
+      if (!name) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Organisation name is required',
+          path: ['organisationName'],
+        });
+      }
+    }
+  });
+
 export const createTenantStep1Schema = z
   .object({
     tenantName: z.string().min(1, 'Tenant name is required'),
-    slug: z.string().trim().min(3, 'Slug must be at least 3 characters'),
-    tenantType: tenantTypeEnum,
+    tenantSlug: z.string().trim().min(3, 'Slug must be at least 3 characters'),
     gstin: z.string().optional(),
     pan: z.string().optional(),
-    website: z.string().optional(),
     hqAddressLine1: z.string().min(1, 'HQ address line 1 is required'),
     locality: z.string().optional(),
     block: z.string().optional(),
@@ -84,59 +131,12 @@ export const createTenantStep1Schema = z
         path: ['pan'],
       });
     }
-    const w = d.website?.trim();
-    if (w && !/^https?:\/\//i.test(w)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Website must start with http:// or https://',
-        path: ['website'],
-      });
-    }
   });
 
-export const createTenantStep2Schema = z
-  .object({
-    planSlug: z.enum(['starter', 'professional']),
-    trialEndDate: z.string().optional(),
-    maxUsersOverride: z.string().optional(),
-    maxBranchesOverride: z.string().optional(),
-  })
-  .superRefine((d, ctx) => {
-    const t = d.trialEndDate?.trim();
-    if (t && Number.isNaN(Date.parse(t))) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Invalid trial end date',
-        path: ['trialEndDate'],
-      });
-    }
-    const mu = d.maxUsersOverride?.trim();
-    if (mu && (Number.isNaN(Number(mu)) || Number(mu) < 1)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Max users must be a positive number',
-        path: ['maxUsersOverride'],
-      });
-    }
-    const mb = d.maxBranchesOverride?.trim();
-    if (mb && (Number.isNaN(Number(mb)) || Number(mb) < 1)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Max branches must be a positive number',
-        path: ['maxBranchesOverride'],
-      });
-    }
-  });
+/** Modules step has no form fields; module selection is validated in the wizard shell. */
+export const createTenantStep2Schema = z.object({});
 
-export const createTenantStep3Schema = z.object({
-  adminRoleCode: z
-    .string()
-    .min(1, 'Role code is required')
-    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Use lowercase letters, numbers, and hyphens only'),
-  adminRoleDisplayName: z.string().min(1, 'Role display name is required'),
-});
-
-export const createTenantStep4Schema = z
+export const createTenantStep3Schema = z
   .object({
     adminFirstName: z.string().min(1, 'First name is required'),
     adminLastName: z.string().min(1, 'Last name is required'),
@@ -164,30 +164,29 @@ export const createTenantStep4Schema = z
     }
   });
 
-export type WizardFormValues = z.infer<typeof createTenantStep1Schema> &
+export type WizardFormValues = z.infer<typeof createTenantStep0Schema> &
+  z.infer<typeof createTenantStep1Schema> &
   z.infer<typeof createTenantStep2Schema> &
-  z.infer<typeof createTenantStep3Schema> &
-  z.infer<typeof createTenantStep4Schema>;
+  z.infer<typeof createTenantStep3Schema>;
 
 export const WIZARD_DEFAULT_VALUES: WizardFormValues = {
+  organisationSelectionId: '',
+  organisationId: '',
+  organisationName: '',
+  organisationSlug: '',
+  organisationType: 'standalone_hospital',
+  organisationWebsite: '',
+  organisationEmail: '',
   tenantName: '',
-  slug: '',
-  tenantType: 'standalone_hospital',
+  tenantSlug: '',
   gstin: '',
   pan: '',
-  website: '',
   hqAddressLine1: '',
   locality: '',
   block: '',
   district: '',
   state: '',
   pinCode: '',
-  planSlug: 'starter',
-  trialEndDate: '',
-  maxUsersOverride: '',
-  maxBranchesOverride: '',
-  adminRoleCode: 'tenant-admin',
-  adminRoleDisplayName: 'Tenant administrator',
   adminFirstName: '',
   adminLastName: '',
   adminEmail: '',

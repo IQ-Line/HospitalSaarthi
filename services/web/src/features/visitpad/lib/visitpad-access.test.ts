@@ -9,13 +9,12 @@ import {
   resolveVisitpadPrimaryTabLandingRoute,
 } from './visitpad-access';
 
-/** L2-scoped keys only — no `visitpad:view` shell (that grants all manifest leaves). */
+/** L2-scoped keys only — `visitpad:view` shell does not substitute for per-module L2 actions. */
 const testRoleKeys = new Set([
   'allergens:allergens:create',
   'allergens:allergens:read',
   'allergy-reactions:allergy-reactions:read',
   'units:units:read',
-  'visitpad-templates:catalog:read',
 ]);
 
 describe('visitpad-access for test-role principal', () => {
@@ -24,15 +23,15 @@ describe('visitpad-access for test-role principal', () => {
     registerBuiltinModuleManifests();
   });
 
-  it('grants every manifest leaf when principal has visitpad:view shell only', () => {
-    const shellViewOnly = new Set(['visitpad-templates:visitpad:view']);
+  it('denies manifest leaves when principal has only visitpad:view shell (L2 keys required)', () => {
+    const shellViewOnly = new Set(['visitpad-master:visitpad:view']);
     expect(principalGrantsVisitpadManifestNodeAccess(shellViewOnly, 'visitpad-vitals')).toBe(
-      true,
+      false,
     );
     expect(
       principalGrantsVisitpadManifestNodeAccess(shellViewOnly, 'visitpad-chief-complaints'),
-    ).toBe(true);
-    expect(filterVisitpadPrimaryTabGroups(shellViewOnly).length).toBeGreaterThan(0);
+    ).toBe(false);
+    expect(filterVisitpadPrimaryTabGroups(shellViewOnly)).toHaveLength(0);
   });
 
   it('allows allergens and units, denies chief complaints', () => {

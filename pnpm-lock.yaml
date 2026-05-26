@@ -104,6 +104,9 @@ importers:
       '@hims/ts-sdk-db':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-db
+      '@hims/ts-sdk-identity':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-identity
       fastify:
         specifier: ^5.3.3
         version: 5.8.5
@@ -629,6 +632,12 @@ importers:
       '@hims/ts-sdk-db':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-db
+      '@hims/ts-sdk-events':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-events
+      '@hims/ts-sdk-identity':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-identity
       '@hims/ts-sdk-openapi':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-openapi
@@ -855,6 +864,9 @@ importers:
       react-hook-form:
         specifier: ^7.56.4
         version: 7.75.0(react@19.2.5)
+      recharts:
+        specifier: ^2.15.4
+        version: 2.15.4(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       sonner:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.2.5(react@19.2.5))(react@19.2.5)

@@ -12,12 +12,10 @@ resourcePolicy:
         match:
           expr: >-
             (
+              "visitpad-master:visitpad:create" in request.principal.attr.capabilities ||
               "visitpad-templates:visitpad:create" in request.principal.attr.capabilities ||
-              "visitpad-templates:catalog:update" in request.principal.attr.capabilities ||
-              "visitpad-templates:catalog:delete" in request.principal.attr.capabilities ||
-              "visitpad-templates:visitpad:create" in request.principal.attr.delegated_capabilities ||
-              "visitpad-templates:catalog:update" in request.principal.attr.delegated_capabilities ||
-              "visitpad-templates:catalog:delete" in request.principal.attr.delegated_capabilities
+              "visitpad-master:visitpad:create" in request.principal.attr.delegated_capabilities ||
+              "visitpad-templates:visitpad:create" in request.principal.attr.delegated_capabilities
             )
     - actions: ["view"]
       roles: ["*"]
@@ -27,6 +25,8 @@ resourcePolicy:
         match:
           expr: >-
             (
+              "visitpad-master:visitpad:view" in request.principal.attr.capabilities ||
               "visitpad-templates:visitpad:view" in request.principal.attr.capabilities ||
+              "visitpad-master:visitpad:view" in request.principal.attr.delegated_capabilities ||
               "visitpad-templates:visitpad:view" in request.principal.attr.delegated_capabilities
             )

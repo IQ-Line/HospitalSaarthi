@@ -1,9 +1,5 @@
 import { z } from 'zod';
-import type { OrganizationCreateInput, OrganizationType } from '@/features/configurator/types';
-import type { WizardFormValues } from '@/features/configurator/create-tenant-wizard-schema';
 import type { Module } from '@/features/master-data/types';
-
-export { moduleSlugsForIds, toRoleCode } from './wizard-capability-helpers';
 
 /** First alphanumeric character of the name, lowercased — used as the initial slug seed. */
 export function firstSlugSeedFromTenantName(name: string): string {
@@ -26,7 +22,7 @@ export function buildChildrenMap(modules: Module[]): Map<string | null, Module[]
     map.get(p)!.push(m);
   }
   for (const arr of map.values()) {
-    arr.sort((a, b) => a.name.localeCompare(b.name));
+    arr.sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0) || a.name.localeCompare(b.name));
   }
   return map;
 }
@@ -73,6 +69,46 @@ export function defaultEnabledModuleIds(
   return ids;
 }
 
+/** Module id plus every active descendant (for per-level select-all in the wizard tree). */
+export function subtreeModuleIds(
+  moduleId: string,
+  childMap: Map<string | null, Module[]>,
+): string[] {
+  return [moduleId, ...collectDescendantModuleIds(moduleId, childMap)];
+}
+
+/** Select or clear every module in a catalog subtree. */
+export function setModuleSubtreeSelection(
+  moduleId: string,
+  selected: Set<string>,
+  childMap: Map<string | null, Module[]>,
+  select: boolean,
+): Set<string> {
+  const next = new Set(selected);
+  for (const id of subtreeModuleIds(moduleId, childMap)) {
+    if (select) {
+      next.add(id);
+    } else {
+      next.delete(id);
+    }
+  }
+  return next;
+}
+
+export function moduleSubtreeSelectionState(
+  moduleId: string,
+  selected: Set<string>,
+  childMap: Map<string | null, Module[]>,
+): { ids: string[]; allSelected: boolean; someSelected: boolean } {
+  const ids = subtreeModuleIds(moduleId, childMap);
+  const selectedCount = ids.filter((id) => selected.has(id)).length;
+  return {
+    ids,
+    allSelected: ids.length > 0 && selectedCount === ids.length,
+    someSelected: selectedCount > 0 && selectedCount < ids.length,
+  };
+}
+
 /** Toggle a module; selecting a parent selects all descendants, deselecting clears the subtree. */
 export function applyModuleToggle(
   moduleId: string,
@@ -80,7 +116,7 @@ export function applyModuleToggle(
   childMap: Map<string | null, Module[]>,
 ): Set<string> {
   const next = new Set(selected);
-  const subtreeIds = [moduleId, ...collectDescendantModuleIds(moduleId, childMap)];
+  const subtreeIds = subtreeModuleIds(moduleId, childMap);
   if (next.has(moduleId)) {
     for (const id of subtreeIds) next.delete(id);
   } else {
@@ -97,64 +133,3 @@ export function moduleDescriptionLine(description: string | null | undefined): s
   return d;
 }
 
-export function buildTenantModuleEnablements(
-  selected: Set<string>,
-): Array<{ module_id: string; is_active: boolean }> {
-  return [...selected].map((module_id) => ({
-    module_id,
-    is_active: true,
-  }));
-}
-
-export function buildCreatePayload(
-  values: WizardFormValues,
-  moduleOverrideIds: Set<string>,
-): OrganizationCreateInput {
-  const parts = [
-    values.hqAddressLine1.trim(),
-    values.locality?.trim(),
-    values.block?.trim(),
-    values.district.trim(),
-    values.state.trim(),
-    values.pinCode.trim(),
-  ].filter(Boolean);
-  const address = parts.join(', ');
-
-  const trialRaw = values.trialEndDate?.trim();
-  const trialEndDate = trialRaw ? trialRaw : null;
-  const maxUsersRaw = values.maxUsersOverride?.trim();
-  const maxBranchesRaw = values.maxBranchesOverride?.trim();
-
-  const metadata: Record<string, unknown> = {
-    gstin: values.gstin?.trim() || null,
-    pan: values.pan?.trim()?.toUpperCase() || null,
-    website: values.website?.trim() || null,
-    address_detail: {
-      hq_line1: values.hqAddressLine1.trim(),
-      locality: values.locality?.trim() || null,
-      block: values.block?.trim() || null,
-      district: values.district.trim(),
-      state: values.state.trim(),
-      pin_code: values.pinCode.trim(),
-    },
-    provisioning: {
-      plan_slug: values.planSlug,
-      module_override_ids: [...moduleOverrideIds],
-      trial_end_date: trialEndDate,
-      max_users_override: maxUsersRaw ? Number(maxUsersRaw) : null,
-      max_branches_override: maxBranchesRaw ? Number(maxBranchesRaw) : null,
-    },
-  };
-
-  return {
-    name: values.tenantName.trim(),
-    slug: values.slug.trim().toLowerCase(),
-    type: values.tenantType as OrganizationType,
-    status: 'active',
-    contact_email: values.adminEmail.trim(),
-    contact_phone: values.adminMobile?.trim() || null,
-    address,
-    metadata,
-    tenant_modules: buildTenantModuleEnablements(moduleOverrideIds),
-  };
-}

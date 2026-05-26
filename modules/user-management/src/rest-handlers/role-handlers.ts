@@ -211,8 +211,8 @@ export function registerRoleHandlers(fastify: FastifyInstance, deps: RoleHandler
     { config: { authMode: "protected" } },
     async (request, reply) => {
       const cid = request.correlationId ?? request.id;
+      const tenantId = deps.getTenantId(request);
       try {
-        const tenantId = deps.getTenantId(request);
         const roleId = requireUuidRouteId(request.params.id);
         return reply.send(
           await replaceRoleCapabilities(

@@ -13,6 +13,7 @@ export function TenantSwitcher() {
   const homeTenantId = useTenantStore((s) => s.homeTenantId);
   const activeTenantId = useTenantStore((s) => s.tenantId);
   const switchActiveTenant = useTenantStore((s) => s.switchActiveTenant);
+  const setOrganizationScope = useTenantStore((s) => s.setOrganizationScope);
   const qc = useQueryClient();
 
   const isSuperAdmin = isPlatformSuperAdminFromAccessToken(accessToken);
@@ -38,8 +39,24 @@ export function TenantSwitcher() {
     return null;
   }
 
+  const handleOrganizationChange = (orgId: string) => {
+    setOrganizationId(orgId);
+    const org = catalogQuery.data?.organizations.find((o) => o.id === orgId);
+    setOrganizationScope({
+      organizationId: orgId,
+      organizationName: org?.name ?? null,
+    });
+  };
+
   const handleTenantChange = (tenantId: string, tenantName: string) => {
-    switchActiveTenant({ tenantId, tenantName });
+    const row = tenants.find((t) => t.iq_tenant_id === tenantId);
+    switchActiveTenant({
+      tenantId,
+      tenantName,
+      organizationId: row?.org_id ?? organizationId,
+      organizationName:
+        catalogQuery.data?.organizations.find((o) => o.id === row?.org_id)?.name ?? null,
+    });
     void refreshAuthorizationContext(qc);
   };
 
@@ -50,7 +67,7 @@ export function TenantSwitcher() {
         <OrgTenantPicker
           organizationId={organizationId || initialOrgId}
           tenantId={activeTenantId}
-          onOrganizationChange={setOrganizationId}
+          onOrganizationChange={handleOrganizationChange}
           onTenantChange={handleTenantChange}
           organizationLabel="Organization"
           tenantLabel="Tenant"

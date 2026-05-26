@@ -5,7 +5,7 @@ export const masterDataModuleManifest: ModuleManifest = {
   name: 'Master Data',
   icon: 'database',
   routePrefix: '/master-data',
-  sortOrder: 10,
+  sortOrder: 30,
   requiredModulesAny: ['master-data'],
   navigation: [
     {
@@ -19,13 +19,6 @@ export const masterDataModuleManifest: ModuleManifest = {
       label: 'Permissions',
       icon: 'shield-check',
       route: '/master-data/permissions',
-    },
-    {
-      id: 'master-data-system-roles',
-      label: 'System Roles',
-      icon: 'users',
-      route: '/master-data/system-roles',
-      catalogModuleSlug: 'role-capabilities',
     },
     {
       id: 'master-data-module-permissions',

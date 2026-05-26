@@ -38,7 +38,7 @@ function suggestNextStep(session: AbdmSession): string {
     case "AADHAAR_OTP_REQUESTED":
       return "POST /m1/enrol/aadhaar/verify (or POST /m1/enrol/aadhaar/otp/resend if OTP expired)";
     case "ABHA_CREATED":
-      return "POST /m1/enrol/mobile-verify/otp then POST /m1/enrol/mobile-verify/verify (required before ABHA address)";
+      return "POST /m1/enrol/mobile-verify/otp then POST /m1/enrol/mobile-verify/verify (different primary mobile — required before ABHA address)";
     case "MOBILE_OTP_REQUESTED":
       return "POST /m1/enrol/mobile-verify/verify";
     case "MOBILE_OTP_VERIFIED":

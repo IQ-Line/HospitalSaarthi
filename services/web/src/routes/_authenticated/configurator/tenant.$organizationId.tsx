@@ -19,20 +19,32 @@ import {
   useTenantModules,
   useTenants,
 } from '@/features/configurator/api';
-import { AddBranchDialog } from '@/features/configurator/components/add-branch-dialog';
+import { CreateBranchWizard } from '@/features/configurator/components/create-branch-wizard';
+import { TenantModulesPanel } from '@/features/configurator/components/tenant-modules-panel';
 import {
   TenantBillingPanel,
   TenantDepartmentsPanel,
   TenantRoleTemplatesPanel,
   TenantUsersPanel,
 } from '@/features/configurator/components/tenant-detail-panels';
+import { isPlatformSuperAdminFromAccessToken } from '@/lib/platform-admin';
+import { useAuthStore } from '@/stores/auth.store';
+import {
+  buildDescendantBranchTreeRows,
+  type TenantTreeRow,
+} from '@/features/configurator/tenant-tree';
 import type { ConfiguratorTenant } from '@/features/configurator/types';
 import { useModules } from '@/features/master-data/api';
 import { ReadOnlyRow } from '@/features/master-data/components/read-only-row';
-import type { Module } from '@/features/master-data/types';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@pulse/ui/empty';
 
 export const Route = createFileRoute('/_authenticated/configurator/tenant/$organizationId')({
+  validateSearch: (search: Record<string, unknown>) => ({
+    tenantId:
+      typeof search.tenantId === 'string' && search.tenantId.trim().length > 0
+        ? search.tenantId.trim()
+        : undefined,
+  }),
   component: TenantOrganizationDetailPage,
 });
 
@@ -68,37 +80,45 @@ function TenantTabComingSoon({ title, body }: { title: string; body: string }) {
 
 function TenantOrganizationDetailPage() {
   const { organizationId } = Route.useParams();
+  const { tenantId: tenantIdFromSearch } = Route.useSearch();
   const [tab, setTab] = useState('overview');
   const [addBranchOpen, setAddBranchOpen] = useState(false);
 
   const { data: org, isLoading: orgLoading, error: orgError } = useOrganization(organizationId);
-  /** List all tenants for the org, then pick root client-side (avoids brittle is_root-only queries). */
+  /** List all tenants for the org; detail view is scoped to one tenant (from list eye link or org root). */
   const { data: orgTenantsRes, isLoading: orgTenantsLoading } = useTenants(
     { org_id: organizationId },
     { enabled: !!organizationId },
   );
-  const rootTenant = useMemo(() => {
-    const rows = orgTenantsRes?.data ?? [];
-    return rows.find((t) => t.parent_tenant_id == null) ?? null;
-  }, [orgTenantsRes?.data]);
+  const orgTenants = orgTenantsRes?.data ?? [];
 
-  const { data: branchesRes, isLoading: branchesLoading } = useTenants(
-    {
-      org_id: organizationId,
-      parent_tenant_id: rootTenant?.iq_tenant_id,
-    },
-    { enabled: !!organizationId && !!rootTenant?.iq_tenant_id },
+  const rootTenant = useMemo(
+    () => orgTenants.find((t) => t.parent_tenant_id == null) ?? null,
+    [orgTenants],
   );
 
+  const contextTenant = useMemo(() => {
+    if (tenantIdFromSearch) {
+      const selected = orgTenants.find((t) => t.iq_tenant_id === tenantIdFromSearch);
+      if (selected) return selected;
+    }
+    return rootTenant;
+  }, [orgTenants, tenantIdFromSearch, rootTenant]);
+
+  const branchTreeRows = useMemo(() => {
+    if (!contextTenant) return [];
+    return buildDescendantBranchTreeRows(orgTenants, contextTenant.iq_tenant_id);
+  }, [orgTenants, contextTenant]);
+
   const { data: modulesRes, isLoading: modulesCatalogLoading } = useModules(undefined, {
-    enabled: !!rootTenant?.iq_tenant_id,
+    enabled: !!contextTenant?.iq_tenant_id,
     globalCatalog: true,
   });
   const { data: tenantModsRes, isLoading: tenantModsLoading } = useTenantModules(
-    rootTenant?.iq_tenant_id ?? '',
+    contextTenant?.iq_tenant_id ?? '',
     {
       enabled:
-        !!rootTenant?.iq_tenant_id &&
+        !!contextTenant?.iq_tenant_id &&
         (tab === 'overview' || tab === 'modules'),
     },
   );
@@ -127,36 +147,35 @@ function TenantOrganizationDetailPage() {
     return typeof slug === 'string' ? slug : '—';
   }, [org?.metadata]);
 
-  const branchColumns = useMemo<ColumnDef<ConfiguratorTenant, unknown>[]>(
+  const branchColumns = useMemo<ColumnDef<TenantTreeRow, unknown>[]>(
     () => [
       {
         accessorKey: 'name',
         header: 'Name',
-        cell: ({ getValue }) => <span className="font-medium">{getValue<string>()}</span>,
+        cell: ({ row }) => {
+          const depth = row.original.depth ?? 0;
+          return (
+            <div style={{ paddingLeft: `${depth * 1.25}rem` }} className="min-w-0">
+              <span className="font-medium">{row.original.name}</span>
+            </div>
+          );
+        },
       },
       {
         id: 'record_kind',
         header: 'Record',
-        cell: ({ row }) =>
-          row.original.parent_tenant_id == null ? (
-            <Badge variant="default" className="text-xs font-normal">
-              Default environment
-            </Badge>
-          ) : (
-            <Badge variant="secondary" className="text-xs font-normal">
-              Branch
-            </Badge>
-          ),
+        cell: () => (
+          <Badge variant="secondary" className="text-xs font-normal">
+            Branch
+          </Badge>
+        ),
       },
       {
         accessorKey: 'branch_code',
         header: 'Code',
-        cell: ({ row, getValue }) => {
+        cell: ({ getValue }) => {
           const v = getValue<string | null>();
           if (v) return <code className="text-xs">{v}</code>;
-          if (row.original.parent_tenant_id == null) {
-            return <span className="text-muted-foreground text-xs">— (org root)</span>;
-          }
           return <span className="text-muted-foreground">—</span>;
         },
       },
@@ -167,10 +186,6 @@ function TenantOrganizationDetailPage() {
           const v = row.original.branch_type;
           if (v) {
             return <Badge variant="secondary">{branchTypeLabels[v] ?? v}</Badge>;
-          }
-          if (row.original.parent_tenant_id == null) {
-            const t = row.original.type.replace(/_/g, ' ');
-            return <Badge variant="outline" className="text-xs font-normal capitalize">{t}</Badge>;
           }
           return <span className="text-muted-foreground">—</span>;
         },
@@ -212,58 +227,14 @@ function TenantOrganizationDetailPage() {
     [],
   );
 
-  const tenantModuleActiveById = useMemo(() => {
-    const m = new Map<string, boolean>();
-    for (const r of tenantModsRes?.data ?? []) {
-      m.set(r.module_id, r.is_active);
-    }
-    return m;
-  }, [tenantModsRes?.data]);
-
   const catalogModules = useMemo(
     () => (modulesRes?.data ?? []).filter((mod) => !mod.is_deleted),
     [modulesRes?.data],
   );
 
-  const moduleColumns = useMemo<ColumnDef<Module, unknown>[]>(
-    () => [
-      {
-        accessorKey: 'name',
-        header: 'Module',
-        cell: ({ getValue }) => <span className="font-medium">{getValue<string>()}</span>,
-      },
-      {
-        accessorKey: 'slug',
-        header: 'Slug',
-        cell: ({ getValue }) => <code className="text-xs">{getValue<string>()}</code>,
-      },
-      {
-        accessorKey: 'category',
-        header: 'Category',
-        cell: ({ getValue }) => <Badge variant="outline">{getValue<string>()}</Badge>,
-      },
-      {
-        id: 'for_tenant',
-        header: () => <div className="text-right">Enabled for tenant</div>,
-        cell: ({ row }) => {
-          const on = tenantModuleActiveById.get(row.original.id) === true;
-          return (
-            <div className="text-right">
-              <Badge variant={on ? 'default' : 'secondary'}>{on ? 'Yes' : 'No'}</Badge>
-            </div>
-          );
-        },
-      },
-    ],
-    [tenantModuleActiveById],
-  );
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const canEditTenantModules = isPlatformSuperAdminFromAccessToken(accessToken);
 
-  const branches = branchesRes?.data ?? [];
-  /** Root tenant is created with the org; show it first so Branches is never empty for a healthy tenant. */
-  const branchTableRows = useMemo(
-    () => (rootTenant ? [rootTenant, ...branches] : branches),
-    [rootTenant, branches],
-  );
   if (orgError) {
     return (
       <div className="p-6 text-destructive">
@@ -280,7 +251,7 @@ function TenantOrganizationDetailPage() {
     return <div className="p-6 text-sm text-muted-foreground">Loading tenant…</div>;
   }
 
-  if (!rootTenant) {
+  if (!contextTenant) {
     const tenantCount = orgTenantsRes?.data?.length ?? 0;
     return (
       <div className="p-6 max-w-2xl space-y-4">
@@ -300,9 +271,8 @@ function TenantOrganizationDetailPage() {
               : ' — there are no tenant rows for this organization yet.'}
           </p>
           <p className="text-muted-foreground">
-            New tenants created from this app get a default environment automatically. Older or
-            manually inserted organizations may need a root tenant row added in the database, or
-            you can create another organization from the tenant list.
+            Provision a root tenant from the tenant list (Create tenant wizard), or add a root tenant
+            row in the database for legacy organisations.
           </p>
           <ReadOnlyRow label="Slug" value={org.slug} />
           <ReadOnlyRow label="Organization ID" value={org.id} />
@@ -335,19 +305,26 @@ function TenantOrganizationDetailPage() {
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
-            <BreadcrumbPage className="max-w-[12rem] truncate">{org.name}</BreadcrumbPage>
+            <BreadcrumbPage className="max-w-[12rem] truncate">{contextTenant.name}</BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon-sm" asChild aria-label="Back to list">
-            <Link to="/configurator/tenant">
-              <ArrowLeft className="size-4" />
-            </Link>
-          </Button>
-          <h1 className="text-xl font-semibold tracking-tight">{org.name}</h1>
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon-sm" asChild aria-label="Back to list">
+              <Link to="/configurator/tenant">
+                <ArrowLeft className="size-4" />
+              </Link>
+            </Button>
+            <h1 className="text-xl font-semibold tracking-tight">{contextTenant.name}</h1>
+          </div>
+          {contextTenant.parent_tenant_id ? (
+            <p className="pl-10 text-xs text-muted-foreground">
+              Branch under {org.name}
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -389,7 +366,10 @@ function TenantOrganizationDetailPage() {
             <ReadOnlyRow label="Organization" value={org.name} />
             <ReadOnlyRow label="Slug" value={`${org.slug}.iqhealth.app`} />
             <ReadOnlyRow label="Plan" value={planSlug} />
-            <ReadOnlyRow label="Status" value={provisioningLabel(rootTenant.provisioning_status)} />
+            <ReadOnlyRow
+              label="Status"
+              value={provisioningLabel(contextTenant.provisioning_status)}
+            />
             <div className="space-y-1">
               <div className="text-xs font-medium text-muted-foreground">Modules enabled</div>
               <div className="flex flex-wrap gap-1">
@@ -408,7 +388,7 @@ function TenantOrganizationDetailPage() {
               <ReadOnlyRow label="Total users" value="—" />
               <ReadOnlyRow
                 label="Active branches"
-                value={branchesLoading ? '…' : String(branches.length)}
+                value={orgTenantsLoading ? '…' : String(branchTreeRows.length)}
               />
               <ReadOnlyRow label="Monthly test volume" value="—" />
             </div>
@@ -430,40 +410,41 @@ function TenantOrganizationDetailPage() {
           <div className="rounded-lg border">
             <DataTable
               columns={branchColumns}
-              data={branchTableRows}
-              isLoading={branchesLoading}
-              emptyTitle="No environments"
-              emptyDescription="No tenant rows returned for this organization."
+              data={branchTreeRows}
+              isLoading={orgTenantsLoading}
+              emptyTitle="No branches yet"
+              emptyDescription="Use Add branch to create nested branches under this tenant."
             />
           </div>
         </TabsContent>
 
         <TabsContent value="users" className="mt-4">
-          <TenantUsersPanel iqTenantId={rootTenant.iq_tenant_id} />
+          <TenantUsersPanel
+            iqTenantId={contextTenant.iq_tenant_id}
+            organizationId={org.id}
+          />
         </TabsContent>
 
         <TabsContent value="role-templates" className="mt-4">
-          <TenantRoleTemplatesPanel iqTenantId={rootTenant.iq_tenant_id} />
+          <TenantRoleTemplatesPanel iqTenantId={contextTenant.iq_tenant_id} />
         </TabsContent>
 
         <TabsContent value="department-templates" className="mt-4">
-          <TenantDepartmentsPanel iqTenantId={rootTenant.iq_tenant_id} />
+          <TenantDepartmentsPanel iqTenantId={contextTenant.iq_tenant_id} />
         </TabsContent>
 
         <TabsContent value="billing" className="mt-4">
-          <TenantBillingPanel iqTenantId={rootTenant.iq_tenant_id} />
+          <TenantBillingPanel iqTenantId={contextTenant.iq_tenant_id} />
         </TabsContent>
 
         <TabsContent value="modules" className="mt-4">
-          <div className="rounded-lg border">
-            <DataTable
-              columns={moduleColumns}
-              data={catalogModules}
-              isLoading={modulesCatalogLoading || tenantModsLoading}
-              emptyTitle="No modules in catalog"
-              emptyDescription="Add modules under Master data → Modules."
-            />
-          </div>
+          <TenantModulesPanel
+            iqTenantId={contextTenant.iq_tenant_id}
+            catalogModules={catalogModules}
+            tenantModules={tenantModsRes?.data ?? []}
+            isLoading={modulesCatalogLoading || tenantModsLoading}
+            canEditModules={canEditTenantModules}
+          />
         </TabsContent>
 
         <TabsContent value="audit-logs" className="mt-4">
@@ -474,12 +455,13 @@ function TenantOrganizationDetailPage() {
         </TabsContent>
       </Tabs>
 
-      <AddBranchDialog
+      <CreateBranchWizard
         open={addBranchOpen}
         onOpenChange={setAddBranchOpen}
         organizationId={organizationId}
         organizationSlug={org.slug}
-        parentTenantId={rootTenant.iq_tenant_id}
+        parentTenantId={contextTenant.iq_tenant_id}
+        parentTenantName={contextTenant.name}
       />
     </div>
   );

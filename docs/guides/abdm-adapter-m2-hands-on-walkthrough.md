@@ -171,9 +171,10 @@ You need a real **sandbox ABHA address** before M2.
 | Step | Swagger / curl |
 |------|----------------|
 | 1 | `POST /m1/enrol/aadhaar/otp` — body: 12-digit sandbox Aadhaar |
-| 2 | `POST /m1/enrol/aadhaar/verify` — OTP from sandbox SMS |
-| 3 | `POST /m1/abha-address` — pick address |
-| 4 | `GET /m1/profile?sessionId=...` — confirm ABHA |
+| 2 | `POST /m1/enrol/aadhaar/verify` — `{ sessionId, otp, mobile, useAadhaarLinkedMobile: true }` if using Aadhaar-linked mobile (skips mobile-verify) |
+| 3 | `GET /m1/abha-address/suggestions?sessionId=...` — if linked mobile; **or** `mobile-verify/otp` + `mobile-verify/verify` first if different mobile |
+| 4 | `POST /m1/abha-address` — pick address |
+| 5 | `GET /m1/profile?sessionId=...` — confirm ABHA |
 
 Copy **`abhaAddress`** (e.g. `kamalxxx@sbx`).
 

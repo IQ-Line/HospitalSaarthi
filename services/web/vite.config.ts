@@ -47,6 +47,10 @@ export default defineConfig(({ mode }) => {
         target: process.env.REGISTRATION_PROXY_TARGET ?? 'http://localhost:3006',
         changeOrigin: true,
       },
+      '^/api/abdm/v1': {
+        target: process.env.ABDM_ADAPTER_PROXY_TARGET ?? 'http://localhost:3007',
+        changeOrigin: true,
+      },
       '/api': {
         target: bffOrigin,
         changeOrigin: true,

@@ -37,13 +37,19 @@ export const LEGACY_TO_CANONICAL_CAPABILITY_KEY: Readonly<Record<string, string>
   "cfg:shell:access": "configurator:shell:access",
   "fd:shell:access": "frontdesk:shell:access",
   // Visitpad (legacy `md:` namespace)
-  "md:visitpad:view": "visitpad-templates:visitpad:view",
-  "md:visitpad:create": "visitpad-templates:visitpad:create",
-  "md:visitpad:update": "visitpad-templates:catalog:update",
-  "md:visitpad:delete": "visitpad-templates:catalog:delete",
-  "md:catalog:read": "visitpad-templates:catalog:read",
-  "md:catalog:update": "visitpad-templates:catalog:update",
-  "md:catalog:delete": "visitpad-templates:catalog:delete",
+  "md:visitpad:view": "visitpad-master:visitpad:view",
+  "md:visitpad:create": "visitpad-master:visitpad:create",
+  "md:visitpad:update": "visitpad-master:visitpad:create",
+  "md:visitpad:delete": "visitpad-master:visitpad:create",
+  "md:catalog:read": "visitpad-master:visitpad:view",
+  "md:catalog:update": "visitpad-master:visitpad:create",
+  "md:catalog:delete": "visitpad-master:visitpad:create",
+  "visitpad-templates:visitpad:view": "visitpad-master:visitpad:view",
+  "visitpad-templates:visitpad:create": "visitpad-master:visitpad:create",
+  "visitpad-templates:catalog:read": "visitpad-master:visitpad:view",
+  "visitpad-templates:catalog:update": "visitpad-master:visitpad:create",
+  "visitpad-templates:catalog:delete": "visitpad-master:visitpad:create",
+  "visitpad-templates:catalog:manage": "visitpad-master:visitpad:create",
 };
 
 /** Resolve a stored or JWT capability key to the canonical catalog-slug runtime key. */

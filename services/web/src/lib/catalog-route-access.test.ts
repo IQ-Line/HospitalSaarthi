@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  principalGrantsCatalogModuleSlugRouteAccess,
   principalGrantsCatalogRouteAccess,
   principalHasCatalogModuleAction,
 } from './catalog-route-access';
@@ -8,34 +9,33 @@ const ndwadPrincipal = new Set([
   'allergens:allergens:read',
   'tenant-modules:tenant-modules:read',
   'users:users:read',
-  'visitpad-templates:catalog:read',
 ]);
 
 describe('principalGrantsCatalogRouteAccess', () => {
   it('allows visitpad when principal has an L2 catalog key', () => {
     expect(
       principalGrantsCatalogRouteAccess(ndwadPrincipal, '/visitpad/allergens', {
-        catalogProductSlugs: ['visitpad-templates'],
+        catalogProductSlugs: ['master-data', 'visitpad-master'],
         routePrefix: '/visitpad',
       }),
     ).toBe(true);
   });
 
-  it('allows visitpad child routes for visitpad-templates:visitpad:view only', () => {
-    const shellViewOnly = new Set(['visitpad-templates:visitpad:view']);
+  it('denies visitpad child routes for visitpad-master:visitpad:view only', () => {
+    const shellViewOnly = new Set(['visitpad-master:visitpad:view']);
     expect(
       principalGrantsCatalogRouteAccess(shellViewOnly, '/visitpad/vitals', {
-        catalogProductSlugs: ['visitpad-templates'],
+        catalogProductSlugs: ['master-data', 'visitpad-master'],
         routePrefix: '/visitpad',
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
-  it('allows visitpad layout for L2-only principal (no visitpad-templates shell keys)', () => {
+  it('allows visitpad layout for L2-only principal (no visitpad-master shell keys)', () => {
     const keys = new Set(['allergens:allergens:read', 'units:units:update']);
     expect(
       principalGrantsCatalogRouteAccess(keys, '/visitpad', {
-        catalogProductSlugs: ['visitpad-templates'],
+        catalogProductSlugs: ['master-data', 'visitpad-master'],
         routePrefix: '/visitpad',
       }),
     ).toBe(true);
@@ -59,6 +59,31 @@ describe('principalGrantsCatalogRouteAccess', () => {
         catalogProductSlugs: ['configurator'],
         routePrefix: '/configurator',
       }),
+    ).toBe(true);
+  });
+});
+
+describe('principalGrantsCatalogModuleSlugRouteAccess', () => {
+  it('grants when principal has module read', () => {
+    expect(
+      principalGrantsCatalogModuleSlugRouteAccess(
+        new Set(['chief-complaints:chief-complaints:read']),
+        ['chief-complaints'],
+      ),
+    ).toBe(true);
+  });
+
+  it('denies when principal lacks any L2 action on the module', () => {
+    expect(
+      principalGrantsCatalogModuleSlugRouteAccess(new Set(['visitpad-master:visitpad:view']), [
+        'chief-complaints',
+      ]),
+    ).toBe(false);
+  });
+
+  it('grants when principal has create without read', () => {
+    expect(
+      principalGrantsCatalogModuleSlugRouteAccess(new Set(['vitals:vitals:create']), ['vitals']),
     ).toBe(true);
   });
 });

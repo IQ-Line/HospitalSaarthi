@@ -12,7 +12,7 @@ export const billingAndFinanceModuleManifest: ModuleManifest = {
 
   routePrefix: '/billing-and-finance',
 
-  sortOrder: 35,
+  sortOrder: 110,
 
   requiredModulesAny: ['billing-and-finance'],
 

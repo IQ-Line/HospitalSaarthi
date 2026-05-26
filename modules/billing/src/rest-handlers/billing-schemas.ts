@@ -39,6 +39,28 @@ export const captureChargeRouteSchema = {
   },
 } as const;
 
+export const listBillsRouteSchema = {
+  ...tag,
+  summary: "List bills (invoices)",
+  querystring: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      patient_id: uuid,
+      visit_id: uuid,
+      status: {
+        type: "string",
+        enum: ["DRAFT", "FINALIZED", "PARTIALLY_PAID", "PAID", "CLOSED", "CANCELLED", "REPLACED"],
+      },
+      bill_type: { type: "string", enum: ["INTERIM", "FINAL", "STANDALONE"] },
+      from_date: { type: "string", format: "date" },
+      to_date: { type: "string", format: "date" },
+      limit: { type: "integer", minimum: 1, maximum: 200 },
+      cursor: { type: "string" },
+    },
+  },
+} as const;
+
 export const getBillRouteSchema = { ...billIdRoute, summary: "Get bill with line items" } as const;
 export const finalizeBillRouteSchema = { ...billIdRoute, summary: "Finalize bill" } as const;
 export const receiptRouteSchema = { ...billIdRoute, summary: "Receipt (HTML)" } as const;

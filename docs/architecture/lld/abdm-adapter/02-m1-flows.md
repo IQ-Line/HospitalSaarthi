@@ -18,9 +18,19 @@ Each group corresponds to one file under `packages/ts-sdk-abha/src/protocol/m1/`
 |------|----------------------------------------------|-------------------------------------------|----------------------------------------|
 | 1    | `POST /api/abdm/v1/m1/enrol/aadhaar/otp`     | `POST /v3/enrollment/request/otp`          | `INIT` → `AADHAAR_OTP_REQUESTED`       |
 | 1b   | `POST /api/abdm/v1/m1/enrol/aadhaar/otp/resend` | Same NHA path with **non-empty** `txnId` (Postman) | stays `AADHAAR_OTP_REQUESTED`, new `txn_id` |
-| 2    | `POST /api/abdm/v1/m1/enrol/aadhaar/verify`  | `POST /v3/enrollment/enrol/byAadhaar`      | `AADHAAR_OTP_REQUESTED` → `ABHA_CREATED` (tokens persisted) |
-| 2b   | `POST /api/abdm/v1/m1/enrol/mobile-verify/otp` | `POST /v3/enrollment/request/otp` (mobile) | `ABHA_CREATED` → `MOBILE_OTP_REQUESTED` |
+| 2    | `POST /api/abdm/v1/m1/enrol/aadhaar/verify`  | `POST /v3/enrollment/enrol/byAadhaar`      | See **linked-mobile branch** below |
+| 2b   | `POST /api/abdm/v1/m1/enrol/mobile-verify/otp` | `POST /v3/enrollment/request/otp` (mobile) | `ABHA_CREATED` → `MOBILE_OTP_REQUESTED` — **different mobile only** |
 | 2c   | `POST /api/abdm/v1/m1/enrol/mobile-verify/verify` | `POST /v3/enrollment/auth/byAbdm`     | `MOBILE_OTP_REQUESTED` → `MOBILE_OTP_VERIFIED` |
+
+**Step 2 — linked-mobile branch (NHA-aligned):**
+
+Request body includes optional **`useAadhaarLinkedMobile`**:
+
+- **`true`** (user chose Aadhaar-linked primary mobile): `AADHAAR_OTP_REQUESTED` → **`MOBILE_OTP_VERIFIED`** directly; no NHA mobile-verify calls. Context: `mobileVerifiedVia: "aadhaar-linked"`.
+- **`false`** (different primary mobile): `AADHAAR_OTP_REQUESTED` → **`ABHA_CREATED`**; steps 2b–2c required before ABHA address.
+- **Omitted**: infer from NHA `ABHAProfile.mobile` in the `byAadhaar` response (non-null → same as `true`).
+
+ABHA address APIs require session state **`MOBILE_OTP_VERIFIED`** in both paths.
 
 State written: `txn_id` (step 1 / resend response), `x_token` + `t_token` + new `txn_id` (step 2 response), `context` snapshot (NHA profile fields).
 

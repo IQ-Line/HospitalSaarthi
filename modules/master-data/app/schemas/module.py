@@ -14,6 +14,12 @@ class ModuleCategory(StrEnum):
     support = "support"
 
 
+class ModuleKind(StrEnum):
+    platform = "platform"
+    foundation = "foundation"
+    product = "product"
+
+
 class ModuleResponse(BaseModel):
     """Single module row returned by list/detail endpoints."""
 
@@ -31,6 +37,14 @@ class ModuleResponse(BaseModel):
         ge=1,
         le=10,
         description="Nesting depth (parent → child → child …); computed by the API.",
+    )
+    module_kind: ModuleKind = Field(
+        default=ModuleKind.product,
+        description="Classification: platform, foundation, or product. Inherited from L1 ancestor.",
+    )
+    display_order: int = Field(
+        default=0,
+        description="Stable sort weight within the same level. Lower values appear first.",
     )
     icon: str | None = Field(default=None, description="Optional UI icon token.")
     is_active: bool = Field(description="False hides the module from default admin navigation.")
@@ -59,6 +73,8 @@ class ModuleNavResponse(BaseModel):
     slug: str
     category: ModuleCategory
     level: int = Field(ge=1, le=10)
+    module_kind: ModuleKind = Field(default=ModuleKind.product)
+    display_order: int = Field(default=0)
     icon: str | None = None
 
 
@@ -90,6 +106,8 @@ class ModuleCreate(BaseModel):
     version: str = Field(default="0.0.0")
     description: str | None = None
     parent_id: UUID | None = None
+    module_kind: ModuleKind = Field(default=ModuleKind.product)
+    display_order: int = Field(default=0)
     icon: str | None = None
     is_active: bool = True
 
@@ -106,6 +124,7 @@ class ModuleUpdate(BaseModel):
     description: str | None = None
     parent_id: UUID | None = None
     icon: str | None = None
+    display_order: int | None = None
     is_active: bool | None = None
     is_deleted: bool | None = Field(
         default=None,
