@@ -14,7 +14,7 @@ const BASE_URL = resolveBrowserApiBaseUrl();
 const VISITPAD_CATALOG_API_PREFIX = '/api/v1/master-data/visitpad/';
 const EMPI_API_PREFIX = '/api/empi/v1/';
 const REGISTRATION_API_PREFIX = '/api/registration/v1/';
-const USER_MANAGEMENT_API_PREFIX = '/api/user-management/v1';
+const USER_MANAGEMENT_API_PREFIX = '/api/user-management';
 const CONFIGURATOR_API_PREFIX = '/api/configurator/v1';
 const BILLING_API_PREFIX = '/api/billing/v1/';
 

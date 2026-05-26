@@ -119,7 +119,13 @@ export function VisitRegistrationClinicalSections({
   );
 }
 
-export function VisitRegistrationAppointmentSection({ register, watch, setValue }: FormProps) {
+export function VisitRegistrationAppointmentSection({
+  register,
+  watch,
+  setValue,
+  tariffsLoading = false,
+  tariffsError = false,
+}: FormProps & { tariffsLoading?: boolean; tariffsError?: boolean }) {
   const departmentId = watch('appointment.department_id') ?? '';
   const providerId = watch('appointment.provider_id') ?? '';
   const visitTypeCode = watch('appointment.visit_type_code') ?? '';
@@ -153,9 +159,11 @@ export function VisitRegistrationAppointmentSection({ register, watch, setValue 
     ? 'Select a department first'
     : providersQuery.isPending
       ? 'Loading doctors…'
-      : doctorOptions.length > 0
-        ? 'Select doctor'
-        : `No doctors in ${selectedDepartmentName}`;
+      : providersQuery.isError
+        ? 'Failed to load doctors'
+        : doctorOptions.length > 0
+          ? 'Select doctor'
+          : `No doctors in ${selectedDepartmentName}`;
 
   const departmentPlaceholder = resolveDepartmentPlaceholder(
     departmentsQuery.isPending,
@@ -168,10 +176,13 @@ export function VisitRegistrationAppointmentSection({ register, watch, setValue 
     tax_percent: 0,
     discount: 0,
   };
-  const consultationChargeDisplay =
-    consultationFee.unit_price > 0
-      ? formatInr(consultationFee.unit_price ?? 0)
-      : 'Select department & doctor';
+  const consultationChargeDisplay = resolveConsultationChargeLabel({
+    tariffsLoading,
+    tariffsError,
+    selectedDepartmentName,
+    providerId,
+    consultationFee,
+  });
 
   return (
     <RegistrationSection title="Visit Details">
@@ -181,7 +192,13 @@ export function VisitRegistrationAppointmentSection({ register, watch, setValue 
           required
           value={departmentId || '__none__'}
           onValueChange={(v) => {
-            setValue('appointment.department_id', v === '__none__' ? '' : v);
+            const nextId = v === '__none__' ? '' : v;
+            const nextName =
+              nextId === ''
+                ? ''
+                : (departments.find((d) => d.id === nextId)?.name ?? '');
+            setValue('appointment.department_id', nextId);
+            setValue('appointment.department_name', nextName);
             setValue('appointment.provider_id', '');
           }}
           placeholder={departmentPlaceholder}
@@ -243,8 +260,16 @@ export function VisitRegistrationBillingSection({
   watch,
   setValue,
   paymentModeError,
-  variant = 'compact',
-}: BillingSectionProps & { variant?: 'compact' | 'detailed' }) {
+  variant = 'detailed',
+  tariffsLoading = false,
+  tariffsError = false,
+  hasProvider = false,
+}: BillingSectionProps & {
+  variant?: 'compact' | 'detailed';
+  tariffsLoading?: boolean;
+  tariffsError?: boolean;
+  hasProvider?: boolean;
+}) {
   const paymentMode = watch('billing.payment_mode') ?? '';
 
   if (variant === 'compact') {
@@ -332,25 +357,22 @@ export function VisitRegistrationBillingSection({
 
   return (
     <RegistrationSection title="Billing">
-      <div className="relative">
-        <Label htmlFor="visit-reg-billing-search" className="sr-only">
-          Add billing item
-        </Label>
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          id="visit-reg-billing-search"
-          className="h-10 pl-9"
-          placeholder="Add billing item…"
-          disabled
-          {...register('billing.add_item_search')}
-        />
-      </div>
+      {tariffsError ? (
+        <p className="text-sm text-destructive">
+          Could not load tariff catalog — check billing access and tariff master rows for this
+          tenant.
+        </p>
+      ) : null}
+      {tariffsLoading ? (
+        <p className="text-sm text-muted-foreground">Loading charges from tariff catalog…</p>
+      ) : null}
 
       <div className="overflow-x-auto rounded-md border border-border">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Item</TableHead>
+              <TableHead>Tariff type</TableHead>
+              <TableHead>Service</TableHead>
               <TableHead className="w-28 text-right">Unit price</TableHead>
               <TableHead className="w-24 text-right">Tax (%)</TableHead>
               <TableHead className="w-28 text-right">Net price</TableHead>
@@ -360,32 +382,45 @@ export function VisitRegistrationBillingSection({
           </TableHeader>
           <TableBody>
             <BillingFeeRow
-              label="Registration fee"
-              unitPricePath="billing.registration_fee.unit_price"
-              taxPath="billing.registration_fee.tax_percent"
+              tariffTypeLabel="Registration fee"
+              serviceName={registrationFee.service_name ?? 'Registration fee'}
+              unitPrice={registrationFee.unit_price}
+              taxPercent={registrationFee.tax_percent}
               discountPath="billing.registration_fee.discount"
               register={register}
               netPrice={regNet}
               total={regTotal}
+              muted={tariffsLoading}
             />
-            <BillingFeeRow
-              label="Consultation fee"
-              unitPricePath="billing.consultation_fee.unit_price"
-              taxPath="billing.consultation_fee.tax_percent"
-              discountPath="billing.consultation_fee.discount"
-              register={register}
-              netPrice={consultNet}
-              total={consultTotal}
-            />
+            {hasProvider ? (
+              <BillingFeeRow
+                tariffTypeLabel="Consultation fee"
+                serviceName={
+                  consultationFee.service_name?.trim() ||
+                  (consultationFee.unit_price > 0 ? 'Consultation' : 'Select department & doctor')
+                }
+                unitPrice={consultationFee.unit_price}
+                taxPercent={consultationFee.tax_percent}
+                discountPath="billing.consultation_fee.discount"
+                register={register}
+                netPrice={consultNet}
+                total={consultTotal}
+                muted={tariffsLoading || consultationFee.unit_price <= 0}
+              />
+            ) : null}
             <TableRow className="bg-muted/40 font-medium">
-              <TableCell>All Items Summary</TableCell>
-              <TableCell className="text-right tabular-nums">{formatInr(regNet + consultNet)}</TableCell>
-              <TableCell className="text-right text-muted-foreground">—</TableCell>
-              <TableCell className="text-right tabular-nums">{formatInr(regNet + consultNet)}</TableCell>
+              <TableCell colSpan={2}>All items summary</TableCell>
               <TableCell className="text-right tabular-nums">
-                {formatInr(registrationFee.discount + consultationFee.discount)}
+                {formatInr(registrationFee.unit_price + (hasProvider ? consultationFee.unit_price : 0))}
               </TableCell>
-              <TableCell className="text-right tabular-nums">{formatInr(itemsSubtotal)}</TableCell>
+              <TableCell className="text-right text-muted-foreground">—</TableCell>
+              <TableCell className="text-right tabular-nums">{formatInr(regNet + (hasProvider ? consultNet : 0))}</TableCell>
+              <TableCell className="text-right tabular-nums">
+                {formatInr(registrationFee.discount + (hasProvider ? consultationFee.discount : 0))}
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
+                {formatInr(hasProvider ? itemsSubtotal : regTotal)}
+              </TableCell>
             </TableRow>
             <TableRow>
               <TableCell colSpan={4}>Invoice discount</TableCell>
@@ -452,6 +487,25 @@ export function VisitRegistrationBillingSection({
       </div>
     </RegistrationSection>
   );
+}
+
+function resolveConsultationChargeLabel(args: {
+  tariffsLoading: boolean;
+  tariffsError: boolean;
+  selectedDepartmentName: string | null;
+  providerId: string;
+  consultationFee: { unit_price: number; service_name?: string };
+}): string {
+  if (args.tariffsLoading) return 'Loading…';
+  if (args.tariffsError) return 'Tariff catalog unavailable';
+  if (!args.selectedDepartmentName || !args.providerId) return 'Select department & doctor';
+  if (args.consultationFee.unit_price > 0) {
+    const name = args.consultationFee.service_name?.trim();
+    return name
+      ? `${formatInr(args.consultationFee.unit_price)} — ${name}`
+      : formatInr(args.consultationFee.unit_price);
+  }
+  return 'No consultation tariff for this department & doctor';
 }
 
 function resolveDepartmentPlaceholder(
@@ -706,41 +760,32 @@ function SelectField({
 }
 
 function BillingFeeRow({
-  label,
-  unitPricePath,
-  taxPath,
+  tariffTypeLabel,
+  serviceName,
+  unitPrice,
+  taxPercent,
   discountPath,
   register,
   netPrice,
   total,
+  muted = false,
 }: {
-  label: string;
-  unitPricePath: 'billing.registration_fee.unit_price' | 'billing.consultation_fee.unit_price';
-  taxPath: 'billing.registration_fee.tax_percent' | 'billing.consultation_fee.tax_percent';
+  tariffTypeLabel: string;
+  serviceName: string;
+  unitPrice: number;
+  taxPercent: number;
   discountPath: 'billing.registration_fee.discount' | 'billing.consultation_fee.discount';
   register: UseFormRegister<CreateVisitRequestBody>;
   netPrice: number;
   total: number;
+  muted?: boolean;
 }) {
   return (
-    <TableRow>
-      <TableCell className="font-medium">{label}</TableCell>
-      <TableCell className="text-right">
-        <Input
-          type="number"
-          min={0}
-          className="h-9 w-24 ml-auto text-right tabular-nums"
-          {...register(unitPricePath, { valueAsNumber: true })}
-        />
-      </TableCell>
-      <TableCell className="text-right">
-        <Input
-          type="number"
-          min={0}
-          className="h-9 w-20 ml-auto text-right tabular-nums"
-          {...register(taxPath, { valueAsNumber: true })}
-        />
-      </TableCell>
+    <TableRow className={muted ? 'opacity-60' : undefined}>
+      <TableCell className="font-medium">{tariffTypeLabel}</TableCell>
+      <TableCell className="text-muted-foreground text-sm">{serviceName}</TableCell>
+      <TableCell className="text-right tabular-nums">{formatInr(unitPrice)}</TableCell>
+      <TableCell className="text-right tabular-nums">{taxPercent}</TableCell>
       <TableCell className="text-right tabular-nums">{formatInr(netPrice)}</TableCell>
       <TableCell className="text-right">
         <Input

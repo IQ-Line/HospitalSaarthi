@@ -127,6 +127,8 @@ export type VisitRegistrationFormGateInput = {
   paymentMode: string | undefined;
   hasProvider?: boolean;
   consultationUnitPrice?: number;
+  registrationItemCode?: string;
+  consultationItemCode?: string;
 };
 
 export function visitRegistrationFormBlockers(
@@ -136,9 +138,16 @@ export function visitRegistrationFormBlockers(
   if (!VISIT_REG_PHONE_RE.test((args.phone ?? '').trim())) missing.push('10-digit phone');
   if (!args.firstName?.trim()) missing.push('first name');
   if (!isVisitRegistrationGrandTotalPositive(args.grandTotal)) missing.push('billing total above ₹0');
-  if (args.hasProvider && (args.consultationUnitPrice ?? 0) <= 0) {
-    missing.push('consultation fee above ₹0');
-  }
+  // TODO: re-enable tariff gates after Tariff Master rows exist (API integration testing).
+  // if (args.hasProvider && (args.consultationUnitPrice ?? 0) <= 0) {
+  //   missing.push('consultation fee above ₹0');
+  // }
+  // if (!args.registrationItemCode?.trim()) {
+  //   missing.push('registration tariff');
+  // }
+  // if (args.hasProvider && !args.consultationItemCode?.trim()) {
+  //   missing.push('consultation tariff');
+  // }
   if (!args.paymentMode?.trim()) missing.push('payment mode');
   return missing;
 }
