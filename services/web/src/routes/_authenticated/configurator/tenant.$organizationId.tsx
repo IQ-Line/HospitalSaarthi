@@ -1,7 +1,16 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
-import { ArrowLeft } from 'lucide-react';
+import {
+  ArrowLeft,
+  Building2,
+  Calendar,
+  GitBranch,
+  Globe,
+  Layers,
+  Shield,
+  Users,
+} from 'lucide-react';
 import { Badge } from '@pulse/ui/badge';
 import { Button } from '@pulse/ui/button';
 import {
@@ -12,6 +21,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@pulse/ui/breadcrumb';
+import { Card, CardContent, CardHeader, CardTitle } from '@pulse/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@pulse/ui/tabs';
 import { DataTable } from '@/components/data-table';
 import {
@@ -19,20 +29,32 @@ import {
   useTenantModules,
   useTenants,
 } from '@/features/configurator/api';
-import { AddBranchDialog } from '@/features/configurator/components/add-branch-dialog';
+import { CreateBranchWizard } from '@/features/configurator/components/create-branch-wizard';
+import { TenantModulesPanel } from '@/features/configurator/components/tenant-modules-panel';
 import {
   TenantBillingPanel,
   TenantDepartmentsPanel,
   TenantRoleTemplatesPanel,
   TenantUsersPanel,
 } from '@/features/configurator/components/tenant-detail-panels';
+import { isPlatformSuperAdminFromAccessToken } from '@/lib/platform-admin';
+import { useAuthStore } from '@/stores/auth.store';
+import {
+  buildDescendantBranchTreeRows,
+  type TenantTreeRow,
+} from '@/features/configurator/tenant-tree';
 import type { ConfiguratorTenant } from '@/features/configurator/types';
 import { useModules } from '@/features/master-data/api';
 import { ReadOnlyRow } from '@/features/master-data/components/read-only-row';
-import type { Module } from '@/features/master-data/types';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@pulse/ui/empty';
 
 export const Route = createFileRoute('/_authenticated/configurator/tenant/$organizationId')({
+  validateSearch: (search: Record<string, unknown>) => ({
+    tenantId:
+      typeof search.tenantId === 'string' && search.tenantId.trim().length > 0
+        ? search.tenantId.trim()
+        : undefined,
+  }),
   component: TenantOrganizationDetailPage,
 });
 
@@ -68,37 +90,46 @@ function TenantTabComingSoon({ title, body }: { title: string; body: string }) {
 
 function TenantOrganizationDetailPage() {
   const { organizationId } = Route.useParams();
+  const { tenantId: tenantIdFromSearch } = Route.useSearch();
   const [tab, setTab] = useState('overview');
   const [addBranchOpen, setAddBranchOpen] = useState(false);
 
   const { data: org, isLoading: orgLoading, error: orgError } = useOrganization(organizationId);
-  /** List all tenants for the org, then pick root client-side (avoids brittle is_root-only queries). */
+  /** List all tenants for the org; detail view is scoped to one tenant (from list eye link or org root). */
   const { data: orgTenantsRes, isLoading: orgTenantsLoading } = useTenants(
     { org_id: organizationId },
     { enabled: !!organizationId },
   );
-  const rootTenant = useMemo(() => {
-    const rows = orgTenantsRes?.data ?? [];
-    return rows.find((t) => t.parent_tenant_id == null) ?? null;
-  }, [orgTenantsRes?.data]);
+  const orgTenants = orgTenantsRes?.data ?? [];
 
-  const { data: branchesRes, isLoading: branchesLoading } = useTenants(
-    {
-      org_id: organizationId,
-      parent_tenant_id: rootTenant?.iq_tenant_id,
-    },
-    { enabled: !!organizationId && !!rootTenant?.iq_tenant_id },
+  const rootTenant = useMemo(
+    () => orgTenants.find((t) => t.parent_tenant_id == null) ?? null,
+    [orgTenants],
   );
 
+  const contextTenant = useMemo(() => {
+    if (tenantIdFromSearch) {
+      const selected = orgTenants.find((t) => t.iq_tenant_id === tenantIdFromSearch);
+      if (selected) return selected;
+    }
+    return rootTenant;
+  }, [orgTenants, tenantIdFromSearch, rootTenant]);
+
+  const branchTreeRows = useMemo(() => {
+    if (!contextTenant) return [];
+    return buildDescendantBranchTreeRows(orgTenants, contextTenant.iq_tenant_id);
+  }, [orgTenants, contextTenant]);
+
   const { data: modulesRes, isLoading: modulesCatalogLoading } = useModules(undefined, {
-    enabled: !!rootTenant?.iq_tenant_id,
+    enabled: !!contextTenant?.iq_tenant_id,
     globalCatalog: true,
+    moduleKinds: ['product'],
   });
   const { data: tenantModsRes, isLoading: tenantModsLoading } = useTenantModules(
-    rootTenant?.iq_tenant_id ?? '',
+    contextTenant?.iq_tenant_id ?? '',
     {
       enabled:
-        !!rootTenant?.iq_tenant_id &&
+        !!contextTenant?.iq_tenant_id &&
         (tab === 'overview' || tab === 'modules'),
     },
   );
@@ -114,7 +145,7 @@ function TenantOrganizationDetailPage() {
   const activeModuleNames = useMemo(() => {
     const rows = tenantModsRes?.data ?? [];
     return rows
-      .filter((r) => r.is_active)
+      .filter((r) => r.is_active && moduleNameById.has(r.module_id))
       .map((r) => moduleNameById.get(r.module_id) ?? r.module_id.slice(0, 8));
   }, [tenantModsRes?.data, moduleNameById]);
 
@@ -127,36 +158,35 @@ function TenantOrganizationDetailPage() {
     return typeof slug === 'string' ? slug : '—';
   }, [org?.metadata]);
 
-  const branchColumns = useMemo<ColumnDef<ConfiguratorTenant, unknown>[]>(
+  const branchColumns = useMemo<ColumnDef<TenantTreeRow, unknown>[]>(
     () => [
       {
         accessorKey: 'name',
         header: 'Name',
-        cell: ({ getValue }) => <span className="font-medium">{getValue<string>()}</span>,
+        cell: ({ row }) => {
+          const depth = row.original.depth ?? 0;
+          return (
+            <div style={{ paddingLeft: `${depth * 1.25}rem` }} className="min-w-0">
+              <span className="font-medium">{row.original.name}</span>
+            </div>
+          );
+        },
       },
       {
         id: 'record_kind',
         header: 'Record',
-        cell: ({ row }) =>
-          row.original.parent_tenant_id == null ? (
-            <Badge variant="default" className="text-xs font-normal">
-              Default environment
-            </Badge>
-          ) : (
-            <Badge variant="secondary" className="text-xs font-normal">
-              Branch
-            </Badge>
-          ),
+        cell: () => (
+          <Badge variant="secondary" className="text-xs font-normal">
+            Branch
+          </Badge>
+        ),
       },
       {
         accessorKey: 'branch_code',
         header: 'Code',
-        cell: ({ row, getValue }) => {
+        cell: ({ getValue }) => {
           const v = getValue<string | null>();
           if (v) return <code className="text-xs">{v}</code>;
-          if (row.original.parent_tenant_id == null) {
-            return <span className="text-muted-foreground text-xs">— (org root)</span>;
-          }
           return <span className="text-muted-foreground">—</span>;
         },
       },
@@ -167,10 +197,6 @@ function TenantOrganizationDetailPage() {
           const v = row.original.branch_type;
           if (v) {
             return <Badge variant="secondary">{branchTypeLabels[v] ?? v}</Badge>;
-          }
-          if (row.original.parent_tenant_id == null) {
-            const t = row.original.type.replace(/_/g, ' ');
-            return <Badge variant="outline" className="text-xs font-normal capitalize">{t}</Badge>;
           }
           return <span className="text-muted-foreground">—</span>;
         },
@@ -212,58 +238,14 @@ function TenantOrganizationDetailPage() {
     [],
   );
 
-  const tenantModuleActiveById = useMemo(() => {
-    const m = new Map<string, boolean>();
-    for (const r of tenantModsRes?.data ?? []) {
-      m.set(r.module_id, r.is_active);
-    }
-    return m;
-  }, [tenantModsRes?.data]);
-
   const catalogModules = useMemo(
     () => (modulesRes?.data ?? []).filter((mod) => !mod.is_deleted),
     [modulesRes?.data],
   );
 
-  const moduleColumns = useMemo<ColumnDef<Module, unknown>[]>(
-    () => [
-      {
-        accessorKey: 'name',
-        header: 'Module',
-        cell: ({ getValue }) => <span className="font-medium">{getValue<string>()}</span>,
-      },
-      {
-        accessorKey: 'slug',
-        header: 'Slug',
-        cell: ({ getValue }) => <code className="text-xs">{getValue<string>()}</code>,
-      },
-      {
-        accessorKey: 'category',
-        header: 'Category',
-        cell: ({ getValue }) => <Badge variant="outline">{getValue<string>()}</Badge>,
-      },
-      {
-        id: 'for_tenant',
-        header: () => <div className="text-right">Enabled for tenant</div>,
-        cell: ({ row }) => {
-          const on = tenantModuleActiveById.get(row.original.id) === true;
-          return (
-            <div className="text-right">
-              <Badge variant={on ? 'default' : 'secondary'}>{on ? 'Yes' : 'No'}</Badge>
-            </div>
-          );
-        },
-      },
-    ],
-    [tenantModuleActiveById],
-  );
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const canEditTenantModules = isPlatformSuperAdminFromAccessToken(accessToken);
 
-  const branches = branchesRes?.data ?? [];
-  /** Root tenant is created with the org; show it first so Branches is never empty for a healthy tenant. */
-  const branchTableRows = useMemo(
-    () => (rootTenant ? [rootTenant, ...branches] : branches),
-    [rootTenant, branches],
-  );
   if (orgError) {
     return (
       <div className="p-6 text-destructive">
@@ -280,7 +262,7 @@ function TenantOrganizationDetailPage() {
     return <div className="p-6 text-sm text-muted-foreground">Loading tenant…</div>;
   }
 
-  if (!rootTenant) {
+  if (!contextTenant) {
     const tenantCount = orgTenantsRes?.data?.length ?? 0;
     return (
       <div className="p-6 max-w-2xl space-y-4">
@@ -300,9 +282,8 @@ function TenantOrganizationDetailPage() {
               : ' — there are no tenant rows for this organization yet.'}
           </p>
           <p className="text-muted-foreground">
-            New tenants created from this app get a default environment automatically. Older or
-            manually inserted organizations may need a root tenant row added in the database, or
-            you can create another organization from the tenant list.
+            Provision a root tenant from the tenant list (Create tenant wizard), or add a root tenant
+            row in the database for legacy organisations.
           </p>
           <ReadOnlyRow label="Slug" value={org.slug} />
           <ReadOnlyRow label="Organization ID" value={org.id} />
@@ -335,19 +316,26 @@ function TenantOrganizationDetailPage() {
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
-            <BreadcrumbPage className="max-w-[12rem] truncate">{org.name}</BreadcrumbPage>
+            <BreadcrumbPage className="max-w-[12rem] truncate">{contextTenant.name}</BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon-sm" asChild aria-label="Back to list">
-            <Link to="/configurator/tenant">
-              <ArrowLeft className="size-4" />
-            </Link>
-          </Button>
-          <h1 className="text-xl font-semibold tracking-tight">{org.name}</h1>
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon-sm" asChild aria-label="Back to list">
+              <Link to="/configurator/tenant">
+                <ArrowLeft className="size-4" />
+              </Link>
+            </Button>
+            <h1 className="text-xl font-semibold tracking-tight">{contextTenant.name}</h1>
+          </div>
+          {contextTenant.parent_tenant_id ? (
+            <p className="pl-10 text-xs text-muted-foreground">
+              Branch under {org.name}
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -384,37 +372,169 @@ function TenantOrganizationDetailPage() {
           </TabsList>
         </div>
 
-        <TabsContent value="overview" className="mt-4 space-y-4">
-          <div className="max-w-2xl space-y-3 text-sm">
-            <ReadOnlyRow label="Organization" value={org.name} />
-            <ReadOnlyRow label="Slug" value={`${org.slug}.iqhealth.app`} />
-            <ReadOnlyRow label="Plan" value={planSlug} />
-            <ReadOnlyRow label="Status" value={provisioningLabel(rootTenant.provisioning_status)} />
-            <div className="space-y-1">
-              <div className="text-xs font-medium text-muted-foreground">Modules enabled</div>
-              <div className="flex flex-wrap gap-1">
-                {activeModuleNames.length === 0 ? (
-                  <span className="text-muted-foreground">None</span>
-                ) : (
-                  activeModuleNames.map((name) => (
-                    <Badge key={name} variant="outline" className="text-xs font-normal">
+        <TabsContent value="overview" className="mt-4 space-y-6">
+          {/* Status banner */}
+          <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-card px-5 py-4 shadow-sm">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+              <Building2 className="size-5 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-base font-semibold truncate">{org.name}</h2>
+              <p className="text-sm text-muted-foreground truncate">
+                {org.slug}.iqhealth.app
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge
+                variant={rootTenant?.provisioning_status === 'active' ? 'default' : 'secondary'}
+                className="text-xs"
+              >
+                {provisioningLabel(rootTenant?.provisioning_status ?? '')}
+              </Badge>
+              <Badge variant="outline" className="text-xs">
+                {planSlug}
+              </Badge>
+            </div>
+          </div>
+
+          {/* Stats grid */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Card className="shadow-sm">
+              <CardContent className="flex items-center gap-3 p-4">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/10">
+                  <GitBranch className="size-4 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold tabular-nums leading-none">
+                    {orgTenantsLoading ? '…' : orgTenants.length}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Active branches</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="shadow-sm">
+              <CardContent className="flex items-center gap-3 p-4">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10">
+                  <Layers className="size-4 text-emerald-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold tabular-nums leading-none">
+                    {tenantModsLoading ? '…' : activeModuleNames.length}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Modules enabled</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="shadow-sm">
+              <CardContent className="flex items-center gap-3 p-4">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-violet-500/10">
+                  <Users className="size-4 text-violet-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold tabular-nums leading-none">—</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Total users</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="shadow-sm">
+              <CardContent className="flex items-center gap-3 p-4">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-amber-500/10">
+                  <Shield className="size-4 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold tabular-nums leading-none">—</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Monthly volume</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Details cards */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            {/* Organization details */}
+            <Card className="shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                  <Globe className="size-4 text-muted-foreground" />
+                  Organization details
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Organization ID</span>
+                  <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{org.id.slice(0, 8)}…</code>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Tenant ID</span>
+                  <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{rootTenant?.iq_tenant_id.slice(0, 8)}…</code>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Slug</span>
+                  <span className="font-medium">{org.slug}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Plan</span>
+                  <span className="font-medium">{planSlug}</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Timeline */}
+            <Card className="shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                  <Calendar className="size-4 text-muted-foreground" />
+                  Timeline
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Created</span>
+                  <span className="font-medium tabular-nums">{formatShortDate(org.created_at)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Last updated</span>
+                  <span className="font-medium tabular-nums">{formatShortDate(org.updated_at)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Provisioning status</span>
+                  <Badge
+                    variant={rootTenant?.provisioning_status === 'active' ? 'default' : 'secondary'}
+                    className="text-xs"
+                  >
+                    {provisioningLabel(rootTenant?.provisioning_status ?? '')}
+                  </Badge>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Modules enabled */}
+          <Card className="shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                <Layers className="size-4 text-muted-foreground" />
+                Enabled modules
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {activeModuleNames.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No modules enabled yet.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {activeModuleNames.map((name) => (
+                    <Badge
+                      key={name}
+                      variant="secondary"
+                      className="px-2.5 py-1 text-xs font-normal"
+                    >
                       {name}
                     </Badge>
-                  ))
-                )}
-              </div>
-            </div>
-            <div className="grid gap-3 border-t pt-3 sm:grid-cols-3">
-              <ReadOnlyRow label="Total users" value="—" />
-              <ReadOnlyRow
-                label="Active branches"
-                value={branchesLoading ? '…' : String(branches.length)}
-              />
-              <ReadOnlyRow label="Monthly test volume" value="—" />
-            </div>
-            <ReadOnlyRow label="Created" value={formatShortDate(org.created_at)} />
-            <ReadOnlyRow label="Updated" value={formatShortDate(org.updated_at)} />
-          </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="branches" className="mt-4 space-y-4">
@@ -430,40 +550,41 @@ function TenantOrganizationDetailPage() {
           <div className="rounded-lg border">
             <DataTable
               columns={branchColumns}
-              data={branchTableRows}
-              isLoading={branchesLoading}
-              emptyTitle="No environments"
-              emptyDescription="No tenant rows returned for this organization."
+              data={branchTreeRows}
+              isLoading={orgTenantsLoading}
+              emptyTitle="No branches yet"
+              emptyDescription="Use Add branch to create nested branches under this tenant."
             />
           </div>
         </TabsContent>
 
         <TabsContent value="users" className="mt-4">
-          <TenantUsersPanel iqTenantId={rootTenant.iq_tenant_id} />
+          <TenantUsersPanel
+            iqTenantId={contextTenant.iq_tenant_id}
+            organizationId={org.id}
+          />
         </TabsContent>
 
         <TabsContent value="role-templates" className="mt-4">
-          <TenantRoleTemplatesPanel iqTenantId={rootTenant.iq_tenant_id} />
+          <TenantRoleTemplatesPanel iqTenantId={contextTenant.iq_tenant_id} />
         </TabsContent>
 
         <TabsContent value="department-templates" className="mt-4">
-          <TenantDepartmentsPanel iqTenantId={rootTenant.iq_tenant_id} />
+          <TenantDepartmentsPanel iqTenantId={contextTenant.iq_tenant_id} />
         </TabsContent>
 
         <TabsContent value="billing" className="mt-4">
-          <TenantBillingPanel iqTenantId={rootTenant.iq_tenant_id} />
+          <TenantBillingPanel iqTenantId={contextTenant.iq_tenant_id} />
         </TabsContent>
 
         <TabsContent value="modules" className="mt-4">
-          <div className="rounded-lg border">
-            <DataTable
-              columns={moduleColumns}
-              data={catalogModules}
-              isLoading={modulesCatalogLoading || tenantModsLoading}
-              emptyTitle="No modules in catalog"
-              emptyDescription="Add modules under Master data → Modules."
-            />
-          </div>
+          <TenantModulesPanel
+            iqTenantId={contextTenant.iq_tenant_id}
+            catalogModules={catalogModules}
+            tenantModules={tenantModsRes?.data ?? []}
+            isLoading={modulesCatalogLoading || tenantModsLoading}
+            canEditModules={canEditTenantModules}
+          />
         </TabsContent>
 
         <TabsContent value="audit-logs" className="mt-4">
@@ -474,12 +595,13 @@ function TenantOrganizationDetailPage() {
         </TabsContent>
       </Tabs>
 
-      <AddBranchDialog
+      <CreateBranchWizard
         open={addBranchOpen}
         onOpenChange={setAddBranchOpen}
         organizationId={organizationId}
         organizationSlug={org.slug}
-        parentTenantId={rootTenant.iq_tenant_id}
+        parentTenantId={contextTenant.iq_tenant_id}
+        parentTenantName={contextTenant.name}
       />
     </div>
   );

@@ -107,6 +107,7 @@ describe("enrolAadhaarVerifyRequest", () => {
 
     expect(out.txnId).toBe("txn-after-create");
     expect(out.healthIdNumber).toBe("91-1234-5678-XXXX");
+    expect(out.mobileVerifySkipped).toBe(false);
     expect(stored.state).toBe("ABHA_CREATED");
     expect(stored.xToken).toBe("profile.jwt");
     expect(stored.tToken).toBe("refresh.jwt");
@@ -122,5 +123,140 @@ describe("enrolAadhaarVerifyRequest", () => {
     expect(call.body.authData.otp.txnId).toBe("txn-from-otp");
     expect(call.body.authData.otp.mobile).toBe("9876543210");
     expect(call.body.consent.code).toBe("abha-enrollment");
+  });
+
+  it("skips mobile-verify when useAadhaarLinkedMobile is true", async () => {
+    let stored = baseSession();
+    const sessions: AbdmSessionsPort = {
+      async create() {
+        throw new Error("unused");
+      },
+      async findById(input) {
+        return input.sessionId === stored.sessionId && input.iqTenantId === stored.iqTenantId
+          ? stored
+          : null;
+      },
+      async patch(input) {
+        stored = {
+          ...stored,
+          ...(input.state !== undefined ? { state: input.state } : {}),
+          ...(input.txnId !== undefined ? { txnId: input.txnId } : {}),
+          ...(input.xToken !== undefined ? { xToken: input.xToken } : {}),
+          ...(input.tToken !== undefined ? { tToken: input.tToken } : {}),
+          context: { ...stored.context, ...(input.contextMerge ?? {}) },
+          updatedAt: new Date(),
+        };
+        return stored;
+      },
+    };
+
+    const gateway: GatewayClient = {
+      post: vi.fn(),
+      get: vi.fn(),
+      getPublicCertificate: vi.fn(),
+      getDiagnosticsSnapshot: vi.fn(() => ({
+        tokenValidUntilMs: null,
+        certValidUntilMs: null,
+        certCached: false,
+      })),
+    };
+
+    const deps: AbdmAdapterDeps = {
+      sessions,
+      gateway,
+      secrets: { resolve: vi.fn() },
+      fidelius: { encryptForPeer: vi.fn(), decryptFromPeer: vi.fn() },
+    };
+
+    const { publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+    const spki = publicKey.export({ type: "spki", format: "der" }) as Buffer;
+    vi.mocked(deps.gateway.getPublicCertificate).mockResolvedValue({
+      publicKey: spki.toString("base64"),
+      encryptionAlgorithm: "RSA/ECB/OAEPWithSHA-1AndMGF1Padding",
+    });
+    vi.mocked(deps.gateway.post).mockResolvedValue({
+      txnId: "txn-after-create",
+      healthIdNumber: "91-1234-5678-XXXX",
+      jwtResponse: { token: "profile.jwt", refreshToken: "refresh.jwt" },
+      ABHAProfile: { mobile: "9876543210" },
+      new: true,
+    });
+
+    const out = await enrolAadhaarVerifyRequest(
+      {
+        sessionId: SID,
+        otp: "123456",
+        mobile: "9876543210",
+        useAadhaarLinkedMobile: true,
+        iqTenantId: TENANT,
+      },
+      deps,
+    );
+
+    expect(out.mobileVerifySkipped).toBe(true);
+    expect(stored.state).toBe("MOBILE_OTP_VERIFIED");
+    expect(stored.context.mobileVerifiedVia).toBe("aadhaar-linked");
+    expect(stored.context.enrolPrimaryMobile).toBe("9876543210");
+  });
+
+  it("infers mobile-verify skip from NHA ABHAProfile.mobile when flag omitted", async () => {
+    let stored = baseSession();
+    const sessions: AbdmSessionsPort = {
+      async create() {
+        throw new Error("unused");
+      },
+      async findById(input) {
+        return input.sessionId === stored.sessionId && input.iqTenantId === stored.iqTenantId
+          ? stored
+          : null;
+      },
+      async patch(input) {
+        stored = {
+          ...stored,
+          ...(input.state !== undefined ? { state: input.state } : {}),
+          context: { ...stored.context, ...(input.contextMerge ?? {}) },
+          updatedAt: new Date(),
+        };
+        return stored;
+      },
+    };
+
+    const gateway: GatewayClient = {
+      post: vi.fn(),
+      get: vi.fn(),
+      getPublicCertificate: vi.fn(),
+      getDiagnosticsSnapshot: vi.fn(() => ({
+        tokenValidUntilMs: null,
+        certValidUntilMs: null,
+        certCached: false,
+      })),
+    };
+
+    const deps: AbdmAdapterDeps = {
+      sessions,
+      gateway,
+      secrets: { resolve: vi.fn() },
+      fidelius: { encryptForPeer: vi.fn(), decryptFromPeer: vi.fn() },
+    };
+
+    const { publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+    const spki = publicKey.export({ type: "spki", format: "der" }) as Buffer;
+    vi.mocked(deps.gateway.getPublicCertificate).mockResolvedValue({
+      publicKey: spki.toString("base64"),
+      encryptionAlgorithm: "RSA/ECB/OAEPWithSHA-1AndMGF1Padding",
+    });
+    vi.mocked(deps.gateway.post).mockResolvedValue({
+      txnId: "txn-after-create",
+      ABHAProfile: { mobile: "9876543210" },
+      jwtResponse: { token: "profile.jwt" },
+    });
+
+    const out = await enrolAadhaarVerifyRequest(
+      { sessionId: SID, otp: "123456", mobile: "9876543210", iqTenantId: TENANT },
+      deps,
+    );
+
+    expect(out.mobileVerifySkipped).toBe(true);
+    expect(stored.state).toBe("MOBILE_OTP_VERIFIED");
   });
 });

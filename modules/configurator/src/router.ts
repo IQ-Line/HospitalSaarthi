@@ -6,6 +6,7 @@ import type {
   TenantRepo,
   TenantModuleRepo,
   RunConfiguratorTransaction,
+  InfrastructureModuleCatalogPort,
   ModuleCapabilityResolverPort,
   TenantAdminProvisioningPort,
 } from "./ports.js";
@@ -20,6 +21,9 @@ export interface ConfiguratorRouterOptions {
   tenantRepo: TenantRepo;
   tenantModuleRepo: TenantModuleRepo;
   runConfiguratorTransaction: RunConfiguratorTransaction;
+  createInfrastructureCatalog?: (
+    authorization?: string,
+  ) => InfrastructureModuleCatalogPort;
   createModuleCapabilityResolver?: (
     authorization?: string,
   ) => ModuleCapabilityResolverPort;
@@ -40,6 +44,19 @@ async function configuratorRouter(
         ...(error.code ? { code: error.code } : {}),
       });
     }
+    const pgCode =
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      typeof (error as { code: unknown }).code === "string"
+        ? (error as { code: string }).code
+        : undefined;
+    if (pgCode === "23505") {
+      return reply.status(409).send({
+        error: "A record with the same unique key already exists",
+        code: "CONFLICT",
+      });
+    }
     throw error;
   });
 
@@ -57,12 +74,14 @@ async function configuratorRouter(
   });
 
   if (
+    options.createInfrastructureCatalog &&
     options.createModuleCapabilityResolver &&
     options.createAdminProvisioner &&
     options.eventBus
   ) {
     registerTenantOnboardingHandler(app, {
       runConfiguratorTransaction: options.runConfiguratorTransaction,
+      createInfrastructureCatalog: options.createInfrastructureCatalog,
       createModuleCapabilityResolver: options.createModuleCapabilityResolver,
       createAdminProvisioner: options.createAdminProvisioner,
       eventBus: options.eventBus,

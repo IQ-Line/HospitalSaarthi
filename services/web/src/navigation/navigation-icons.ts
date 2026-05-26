@@ -9,6 +9,7 @@ import {
   Columns2,
   ConciergeBell,
   Database,
+  FileText,
   FlaskConical,
   HeartPulse,
   Layers,
@@ -24,6 +25,7 @@ import {
   Stethoscope,
   Syringe,
   Users,
+  Wallet,
 } from 'lucide-react';
 
 /** Maps manifest `icon` string keys to Lucide components. */
@@ -51,7 +53,10 @@ export const NAVIGATION_ICONS: Record<string, LucideIcon> = {
   scissors: Scissors,
   'flask-conical': FlaskConical,
   building: Building2,
+  'building-2': Building2,
   'sliders-horizontal': SlidersHorizontal,
+  'file-text': FileText,
+  wallet: Wallet,
 };
 
 export function resolveNavigationIcon(iconKey?: string): LucideIcon | undefined {

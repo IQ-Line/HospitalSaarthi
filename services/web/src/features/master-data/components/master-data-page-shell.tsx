@@ -10,12 +10,13 @@ import {
 } from '@pulse/ui/breadcrumb';
 import { PageHeader } from '@/components/page-header';
 
-type MasterDataSection = 'modules' | 'permissions' | 'module-permissions';
+type MasterDataSection = 'modules' | 'permissions' | 'module-permissions' | 'departments';
 
 const sectionConfig: Record<MasterDataSection, { label: string; to: string }> = {
   modules: { label: 'Modules', to: '/master-data/modules' },
   permissions: { label: 'Permissions', to: '/master-data/permissions' },
   'module-permissions': { label: 'Module Permissions', to: '/master-data/module-permissions' },
+  departments: { label: 'Departments', to: '/master-data/departments' },
 };
 
 interface MasterDataPageShellProps {

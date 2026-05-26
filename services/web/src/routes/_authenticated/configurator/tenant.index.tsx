@@ -2,7 +2,7 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import { requireCatalogRouteAccess } from '@/lib/require-catalog-route-access';
 import { useMemo, useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Eye, Pencil, Trash2 } from 'lucide-react';
+import { Eye, GitBranch, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@pulse/ui/badge';
 import { Button } from '@pulse/ui/button';
@@ -15,18 +15,25 @@ import {
 } from '@pulse/ui/select';
 import { DataTable } from '@/components/data-table';
 import {
+  useOrganization,
   useOrganizations,
   useProvisionTenant,
+  useTenants,
 } from '@/features/configurator/api';
 import type { TenantOnboardingInput } from '@/features/configurator/api/tenant-onboarding';
 import { CreateTenantWizard } from '@/features/configurator/components/create-tenant-wizard';
+import { CreateBranchWizard } from '@/features/configurator/components/create-branch-wizard';
 import { ConfiguratorPageShell } from '@/features/configurator/components/configurator-page-shell';
-import type {
-  Organization,
-  OrganizationStatus,
-  OrganizationType,
-} from '@/features/configurator/types';
-import { organizationTypeOptions } from '@/features/configurator/validation';
+import { useScopedOrganizationId } from '@/features/configurator/hooks/use-scoped-organization-id';
+import {
+  buildTenantTreeRows,
+  filterTenantsToSubtree,
+  type TenantTreeRow,
+} from '@/features/configurator/tenant-tree';
+import type { ConfiguratorTenant, ConfiguratorTenantType } from '@/features/configurator/types';
+import { useAuthStore } from '@/stores/auth.store';
+import { useTenantStore } from '@/stores/tenant.store';
+import { resolvePlatformSuperAdmin } from '@/lib/platform-admin';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { rowMatchesSearch } from '@/features/master-data/table-search';
@@ -41,14 +48,14 @@ export const Route = createFileRoute('/_authenticated/configurator/tenant/')({
   component: ConfiguratorTenantListPage,
 });
 
-const statusFilterOptions: Array<{ value: OrganizationStatus | 'all'; label: string }> = [
-  { value: 'all', label: 'All status' },
-  { value: 'active', label: 'Active' },
-  { value: 'suspended', label: 'Suspended' },
-  { value: 'decommissioned', label: 'Decommissioned' },
-];
+const tenantTypeLabels: Record<ConfiguratorTenantType, string> = {
+  full_platform: 'Full platform',
+  fragmented: 'Fragmented',
+  lite: 'Lite',
+};
 
-const organizationStatusLabels: Record<OrganizationStatus, string> = {
+const provisioningStatusLabels: Record<string, string> = {
+  provisioning: 'Provisioning',
   active: 'Active',
   suspended: 'Suspended',
   decommissioned: 'Decommissioned',
@@ -61,59 +68,129 @@ function formatShortDate(iso: string) {
 }
 
 function statusBadgeVariant(
-  status: OrganizationStatus,
+  status: string,
 ): 'default' | 'secondary' | 'destructive' | 'outline' {
   if (status === 'active') return 'default';
-  if (status === 'suspended') return 'secondary';
+  if (status === 'provisioning') return 'secondary';
+  if (status === 'suspended') return 'destructive';
   return 'outline';
 }
 
 function ConfiguratorTenantListPage() {
   const [tableSearch, setTableSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<OrganizationStatus | 'all'>('all');
-  const [typeFilter, setTypeFilter] = useState<OrganizationType | 'all'>('all');
+  const [statusFilter, setStatusFilter] = useState<string | 'all'>('all');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [branchWizardParent, setBranchWizardParent] = useState<ConfiguratorTenant | null>(null);
   const canCreateTenant = useCatalogModuleAction('tenants', 'create');
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const authRoles = useAuthStore((s) => s.roles);
+  const activeTenantId = useTenantStore((s) => s.tenantId);
+  const isPlatformSuperAdmin = resolvePlatformSuperAdmin({ authRoles, accessToken });
+
+  const { organizationId, organizationName, isResolving } = useScopedOrganizationId();
+  const { data: scopedOrg } = useOrganization(organizationId ?? '', {
+    enabled: !!organizationId && !isPlatformSuperAdmin,
+  });
+
+  // Superadmin: fetch all orgs so we can show org name in the table
+  const { data: orgsData } = useOrganizations({}, { enabled: isPlatformSuperAdmin });
+  const orgNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const org of orgsData?.data ?? []) {
+      m.set(org.id, org.name);
+    }
+    return m;
+  }, [orgsData?.data]);
 
   const listFilters = useMemo(
     () => ({
-      status: statusFilter === 'all' ? undefined : statusFilter,
-      type: typeFilter === 'all' ? undefined : typeFilter,
+      // Superadmin sees all orgs — no org_id filter
+      org_id: isPlatformSuperAdmin ? undefined : organizationId,
+      provisioning_status: statusFilter === 'all' ? undefined : statusFilter,
     }),
-    [statusFilter, typeFilter],
+    [organizationId, statusFilter, isPlatformSuperAdmin],
   );
 
-  const { data, isLoading, error } = useOrganizations(listFilters);
-  const organizations = data?.data ?? [];
+  const { data, isLoading, error } = useTenants(listFilters, {
+    enabled: isPlatformSuperAdmin || !!organizationId,
+  });
+  const allTenants = data?.data ?? [];
+  const tenantsForList = useMemo(() => {
+    if (isPlatformSuperAdmin || !activeTenantId?.trim()) {
+      return allTenants;
+    }
+    return filterTenantsToSubtree(allTenants, activeTenantId.trim());
+  }, [allTenants, activeTenantId, isPlatformSuperAdmin]);
+
+  const treeRootTenantId = useMemo(() => {
+    if (isPlatformSuperAdmin || !activeTenantId?.trim()) {
+      return null;
+    }
+    return activeTenantId.trim();
+  }, [activeTenantId, isPlatformSuperAdmin]);
+
+  const tenantTreeRows = useMemo(
+    () => buildTenantTreeRows(tenantsForList, { rootTenantId: treeRootTenantId }),
+    [tenantsForList, treeRootTenantId],
+  );
 
   const provisionMutation = useProvisionTenant();
 
-  const filteredOrgs = useMemo(() => {
-    return organizations.filter((o) =>
+  const filteredTenants = useMemo(() => {
+    return tenantTreeRows.filter((t) =>
       rowMatchesSearch(
         tableSearch,
-        o.name,
-        o.slug,
-        o.type,
-        o.status,
-        o.contact_email ?? '',
-        o.contact_phone ?? '',
-        o.address ?? '',
+        t.name,
+        t.slug,
+        t.type,
+        t.provisioning_status,
+        t.branch_code ?? '',
+        t.contact_email ?? '',
+        orgNameById.get(t.org_id) ?? '',
       ),
     );
-  }, [organizations, tableSearch]);
+  }, [tenantTreeRows, tableSearch, orgNameById]);
 
-  const columns = useMemo<ColumnDef<Organization, unknown>[]>(
+  const columns = useMemo<ColumnDef<TenantTreeRow, unknown>[]>(
     () => [
+      ...(isPlatformSuperAdmin
+        ? [
+            {
+              id: 'organization',
+              header: 'Organization',
+              cell: ({ row }: { row: { original: TenantTreeRow } }) => {
+                const name = orgNameById.get(row.original.org_id);
+                return (
+                  <span className="text-sm font-medium">
+                    {name ?? row.original.org_id.slice(0, 8)}
+                  </span>
+                );
+              },
+            } satisfies ColumnDef<TenantTreeRow, unknown>,
+          ]
+        : []),
       {
         accessorKey: 'name',
         header: 'Tenant',
-        cell: ({ row }) => (
-          <div>
-            <div className="font-medium">{row.original.name}</div>
-            <div className="text-xs text-muted-foreground">{row.original.slug}</div>
-          </div>
-        ),
+        cell: ({ row }) => {
+          const depth = row.original.depth;
+          const pad = depth * 1.75;
+          return (
+            <div style={{ paddingLeft: `${pad}rem` }} className="min-w-0">
+              <div className="flex items-center gap-2">
+                {depth > 0 ? (
+                  <GitBranch className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                ) : null}
+                <div className="min-w-0">
+                  <div className={depth > 0 ? 'font-medium text-sm' : 'font-medium'}>
+                    {row.original.name}
+                  </div>
+                  <div className="text-xs text-muted-foreground">{row.original.slug}</div>
+                </div>
+              </div>
+            </div>
+          );
+        },
       },
       {
         accessorKey: 'slug',
@@ -121,21 +198,34 @@ function ConfiguratorTenantListPage() {
         cell: ({ getValue }) => <code className="text-xs">{getValue<string>()}</code>,
       },
       {
+        id: 'level',
+        header: 'Level',
+        cell: ({ row }) =>
+          row.original.parent_tenant_id ? (
+            <Badge variant="outline">
+              Branch{row.original.branch_code ? ` · ${row.original.branch_code}` : ''}
+            </Badge>
+          ) : (
+            <Badge variant="secondary">Root</Badge>
+          ),
+      },
+      {
         accessorKey: 'type',
         header: 'Type',
         cell: ({ getValue }) => {
-          const t = getValue<OrganizationType>();
-          const label = organizationTypeOptions.find((o) => o.value === t)?.label ?? t;
-          return <Badge variant="secondary">{label}</Badge>;
+          const t = getValue<ConfiguratorTenantType>();
+          return <Badge variant="secondary">{tenantTypeLabels[t] ?? t}</Badge>;
         },
       },
       {
-        accessorKey: 'status',
+        accessorKey: 'provisioning_status',
         header: 'Status',
         cell: ({ getValue }) => {
-          const s = getValue<OrganizationStatus>();
+          const s = getValue<string>();
           return (
-            <Badge variant={statusBadgeVariant(s)}>{organizationStatusLabels[s]}</Badge>
+            <Badge variant={statusBadgeVariant(s)}>
+              {provisioningStatusLabels[s] ?? s}
+            </Badge>
           );
         },
       },
@@ -156,47 +246,49 @@ function ConfiguratorTenantListPage() {
         ),
       },
       {
-        accessorKey: 'created_at',
-        header: 'Created',
-        cell: ({ getValue }) => (
-          <span className="text-sm">{formatShortDate(getValue<string>())}</span>
-        ),
-      },
-      {
         id: 'actions',
         header: () => <div className="text-right">Actions</div>,
         cell: ({ row }) => {
-          const org = row.original;
+          const tenant = row.original;
+
           return (
             <div className="flex items-center justify-end gap-1">
+              {canCreateTenant ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Add branch"
+                  title="Add child branch"
+                  onClick={() => setBranchWizardParent(tenant)}
+                >
+                  <GitBranch className="size-4" />
+                </Button>
+              ) : null}
               <Button variant="ghost" size="icon-sm" asChild aria-label="View tenant">
-                <Link to="/configurator/tenant/$organizationId" params={{ organizationId: org.id }}>
+                <Link
+                  to="/configurator/tenant/$organizationId"
+                  params={{ organizationId: tenant.org_id }}
+                  search={{ tenantId: tenant.iq_tenant_id }}
+                >
                   <Eye className="size-4" />
                 </Link>
               </Button>
               <Button variant="ghost" size="icon-sm" asChild aria-label="Edit tenant">
-                <Link to="/configurator/tenant/$organizationId" params={{ organizationId: org.id }}>
+                <Link
+                  to="/configurator/tenant/$organizationId"
+                  params={{ organizationId: tenant.org_id }}
+                  search={{ tenantId: tenant.iq_tenant_id }}
+                >
                   <Pencil className="size-4" />
                 </Link>
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="text-destructive hover:text-destructive"
-                aria-label="Delete tenant"
-                onClick={() =>
-                  toast.info('Removing a tenant is not available from this screen.')
-                }
-              >
-                <Trash2 className="size-4" />
               </Button>
             </div>
           );
         },
       },
     ],
-    [],
+    [canCreateTenant, isPlatformSuperAdmin, orgNameById],
   );
 
   const onCreateWizardComplete = async (input: TenantOnboardingInput) => {
@@ -209,6 +301,14 @@ function ConfiguratorTenantListPage() {
     }
   };
 
+  if (!organizationId && !isResolving && !isPlatformSuperAdmin) {
+    return (
+      <div className="p-6 text-muted-foreground">
+        No organisation scope is available. Select an organisation in the header or sign in again.
+      </div>
+    );
+  }
+
   if (error) {
     return (
       <div className="p-6 text-destructive">
@@ -217,42 +317,36 @@ function ConfiguratorTenantListPage() {
     );
   }
 
+  const scopeTitle = isPlatformSuperAdmin
+    ? 'All Tenants'
+    : organizationName
+      ? `Tenants · ${organizationName}`
+      : 'Tenants';
+
   return (
     <ConfiguratorPageShell
       section="tenant"
-      title="Tenant"
-      description="Tenants and their default environment (configurator)."
+      title={scopeTitle}
+      description={
+        isPlatformSuperAdmin
+          ? 'Tenants and branches for your current organisation. Indented rows are child branches; use Add branch on any row to nest further.'
+          : 'Your tenant and its child branches only. Use Add branch on a row to create nested branches under it.'
+      }
       actions={
         <div className="flex items-center gap-2">
           <Select
             value={statusFilter}
-            onValueChange={(value) => setStatusFilter(value as OrganizationStatus | 'all')}
+            onValueChange={(value) => setStatusFilter(value)}
           >
-            <SelectTrigger className="w-40">
+            <SelectTrigger className="w-44">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              {statusFilterOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={typeFilter}
-            onValueChange={(value) => setTypeFilter(value as OrganizationType | 'all')}
-          >
-            <SelectTrigger className="w-52">
-              <SelectValue placeholder="Type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All types</SelectItem>
-              {organizationTypeOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
+              <SelectItem value="all">All status</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="provisioning">Provisioning</SelectItem>
+              <SelectItem value="suspended">Suspended</SelectItem>
+              <SelectItem value="decommissioned">Decommissioned</SelectItem>
             </SelectContent>
           </Select>
           {canCreateTenant ? (
@@ -271,10 +365,16 @@ function ConfiguratorTenantListPage() {
         </div>
         <DataTable
           columns={columns}
-          data={filteredOrgs}
-          isLoading={isLoading}
-          emptyTitle="No tenants found"
-          emptyDescription="Create a tenant to register a new tenant record and default environment."
+          data={filteredTenants}
+          isLoading={isLoading || isResolving}
+          emptyTitle={
+            isPlatformSuperAdmin ? 'No tenants in this organisation' : 'No branches under your tenant'
+          }
+          emptyDescription={
+            isPlatformSuperAdmin
+              ? 'Create a tenant to provision a new environment under this organisation.'
+              : 'Add a branch from the actions menu on your tenant row.'
+          }
         />
       </div>
 
@@ -283,7 +383,21 @@ function ConfiguratorTenantListPage() {
         onOpenChange={setIsCreateOpen}
         isSubmitting={provisionMutation.isPending}
         onComplete={onCreateWizardComplete}
+        defaultOrganizationId={organizationId}
       />
+
+      {branchWizardParent && organizationId ? (
+        <CreateBranchWizard
+          open={!!branchWizardParent}
+          onOpenChange={(open) => {
+            if (!open) setBranchWizardParent(null);
+          }}
+          organizationId={organizationId}
+          organizationSlug={scopedOrg?.slug ?? ''}
+          parentTenantId={branchWizardParent.iq_tenant_id}
+          parentTenantName={branchWizardParent.name}
+        />
+      ) : null}
     </ConfiguratorPageShell>
   );
 }

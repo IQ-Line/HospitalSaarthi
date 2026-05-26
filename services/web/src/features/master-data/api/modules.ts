@@ -5,6 +5,7 @@ import { masterDataKeys } from './query-keys';
 import type {
   ModuleCategory,
   ModuleCreateInput,
+  ModuleKind,
   ModuleListResponse,
   ModuleSingleResponse,
   ModuleUpdateInput,
@@ -31,12 +32,22 @@ export function useModules(
      * rows are not stored per tenant. Pass `false` only for intentional tenant_master reads.
      */
     globalCatalog?: boolean;
+    /** Server-side filter by module kind(s). Omit to return all kinds. */
+    moduleKinds?: ModuleKind[];
   },
 ) {
-  const params = category ? `?category=${category}` : '';
+  const search = new URLSearchParams();
+  if (category) search.set('category', category);
+  if (options?.moduleKinds?.length) {
+    search.set('module_kind', options.moduleKinds.join(','));
+  }
+  const qs = search.toString();
+  const params = qs ? `?${qs}` : '';
   const globalCatalog = options?.globalCatalog !== false;
   return useQuery({
-    queryKey: globalCatalog ? masterDataKeys.globalModules() : masterDataKeys.modules(category),
+    queryKey: globalCatalog
+      ? [...masterDataKeys.globalModules(), ...(options?.moduleKinds ?? [])]
+      : masterDataKeys.modules(category),
     queryFn: () =>
       globalCatalog
         ? platformCatalogClient<ModuleListResponse>(`${BASE}${params}`)

@@ -5,7 +5,7 @@ export const frontdeskModuleManifest: ModuleManifest = {
   name: 'Frontdesk',
   icon: 'concierge-bell',
   routePrefix: '/frontdesk',
-  sortOrder: 30,
+  sortOrder: 100,
   requiredModulesAny: ['frontdesk'],
   navigation: [
     {

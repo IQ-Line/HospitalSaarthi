@@ -5,11 +5,9 @@ import type {
   OrganizationFilters,
   UpdateOrganizationData,
 } from "../domain/organization.types.js";
+import { assertPlatformSuperAdmin } from "../http/request-auth-context.js";
+import { createOrganization } from "../use-cases/create-organization.js";
 import { listOrganizations } from "../use-cases/list-organizations.js";
-import {
-  createOrganizationWithDefaultTenantAndTenantModules,
-  type TenantModuleEnablementInput,
-} from "../use-cases/create-organization-with-default-tenant-and-modules.js";
 import { getOrganizationById } from "../use-cases/get-organization-by-id.js";
 import { updateOrganization } from "../use-cases/update-organization.js";
 import {
@@ -17,10 +15,6 @@ import {
   postOrganizationBodySchema,
   uuidParamSchema,
 } from "./route-schemas.js";
-
-type PostOrganizationRequestBody = CreateOrganizationData & {
-  tenant_modules?: TenantModuleEnablementInput[];
-};
 
 interface OrganizationsQuery {
   status?: string;
@@ -52,24 +46,15 @@ export function registerOrganizationsHandler(
     },
   );
 
-  app.post<{ Body: PostOrganizationRequestBody }>(
+  app.post<{ Body: CreateOrganizationData }>(
     "/organizations",
     {
-      schema: {
-        body: postOrganizationBodySchema,
-      },
+      schema: { body: postOrganizationBodySchema },
+      preHandler: (request) => { assertPlatformSuperAdmin(request); },
     },
     async (request, reply) => {
-      const { tenant_modules = [], ...orgData } = request.body;
       const created = await runConfiguratorTransaction((repos) =>
-        createOrganizationWithDefaultTenantAndTenantModules(
-          repos.organizationRepo,
-          repos.tenantRepo,
-          repos.tenantModuleRepo,
-          orgData,
-          tenant_modules,
-          orgData.created_by,
-        ),
+        createOrganization(repos.organizationRepo, request.body),
       );
       return reply.code(201).send(created);
     },

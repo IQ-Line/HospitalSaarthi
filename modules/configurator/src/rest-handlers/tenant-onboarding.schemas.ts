@@ -22,17 +22,39 @@ const tenantModuleEnablementItemSchema = {
 
 export const tenantOnboardingBodySchema = {
   type: "object",
-  required: ["organization", "plan", "modules", "admin"],
+  required: ["organization", "tenant", "modules", "admin"],
   additionalProperties: false,
   properties: {
     organization: {
       type: "object",
-      required: ["name", "slug", "type"],
+      additionalProperties: false,
+      properties: {
+        id: uuidString,
+        name: { type: "string", minLength: 1 },
+        slug: { type: "string", minLength: 3 },
+        type: organizationTypeSchema,
+        contact_email: { anyOf: [{ type: "string", format: "email" }, { type: "null" }] },
+        website: { anyOf: [{ type: "string" }, { type: "null" }] },
+        metadata: { anyOf: [{ type: "object" }, { type: "null" }] },
+      },
+    },
+    tenant: {
+      type: "object",
+      required: ["name", "slug"],
       additionalProperties: false,
       properties: {
         name: { type: "string", minLength: 1 },
         slug: { type: "string", minLength: 3 },
-        type: organizationTypeSchema,
+        parent_tenant_id: { anyOf: [uuidString, { type: "null" }] },
+        type: { type: "string", minLength: 1 },
+        branch_code: { anyOf: [{ type: "string", minLength: 2, maxLength: 10 }, { type: "null" }] },
+        branch_type: { anyOf: [{ type: "string" }, { type: "null" }] },
+        address_line1: { anyOf: [{ type: "string" }, { type: "null" }] },
+        city: { anyOf: [{ type: "string" }, { type: "null" }] },
+        state: { anyOf: [{ type: "string" }, { type: "null" }] },
+        pin_code: { anyOf: [{ type: "string" }, { type: "null" }] },
+        contact_phone: { anyOf: [{ type: "string" }, { type: "null" }] },
+        contact_email: { anyOf: [{ type: "string" }, { type: "null" }] },
         metadata: { anyOf: [{ type: "object" }, { type: "null" }] },
       },
     },
@@ -49,7 +71,7 @@ export const tenantOnboardingBodySchema = {
     },
     modules: {
       type: "array",
-      minItems: 1,
+      minItems: 0,
       maxItems: 2000,
       items: tenantModuleEnablementItemSchema,
     },

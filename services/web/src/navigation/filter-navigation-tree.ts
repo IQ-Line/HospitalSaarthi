@@ -72,11 +72,41 @@ function passesCapabilityGate(
   return principalGrantsNavNodeAccess(access, node, parent);
 }
 
+function catalogVisibilityScopeHidesNode(
+  node: NavigationNode,
+  ctx: NavFilterContext,
+): boolean {
+  if (!ctx.catalogIndex) {
+    return false;
+  }
+  const slug = node.catalogModuleSlug ?? resolveSlugFromRoute(node.route);
+  if (!slug) {
+    return false;
+  }
+  const entry = ctx.catalogIndex.bySlug.get(slug);
+  if (!entry) {
+    return false;
+  }
+  if (ctx.isSuperAdmin) {
+    return entry.module_kind === 'product';
+  }
+  return entry.visibility_scope === 'superadmin';
+}
+
+function resolveSlugFromRoute(route: string | undefined): string | null {
+  if (!route) return null;
+  const segments = route.split('/').filter(Boolean);
+  return segments.length >= 2 ? (segments[segments.length - 1] ?? null) : null;
+}
+
 export function isNavigationNodeVisible(
   node: NavigationNode,
   ctx: NavFilterContext,
   parent?: NavFilterParentContext,
 ): boolean {
+  if (catalogVisibilityScopeHidesNode(node, ctx)) {
+    return false;
+  }
   const gatedNode = nodeWithInheritedTenantGates(node, parent);
   if (!passesTenantModuleGate(gatedNode, ctx.enabledModuleSlugs)) {
     return false;

@@ -21,7 +21,15 @@ import {
 } from '@pulse/ui/dialog';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@pulse/ui/select';
 import { Textarea } from '@pulse/ui/textarea';
+import { usePicklistValues } from '@/features/master-data/api';
 import type { Capability, UmRole } from '../types';
 import { MasterDataCapabilityPermissionTree } from './master-data-capability-permission-tree';
 import { PermissionSelectionScrollRegion } from './permission-selection-scroll-region';
@@ -499,6 +507,8 @@ export function RoleEditorDialog({
   const umRoleCreate = useCapability(UM_ROLE_CREATE);
   const umRoleUpdate = useCapability(UM_ROLE_UPDATE);
   const umCapabilityRead = useCapability(UM_CAPABILITY_READ);
+  const { data: roleTypeOptions, isLoading: roleTypesLoading } =
+    usePicklistValues('role-types');
   const isCreate = mode === 'create';
   const isView = mode === 'view';
   const roleFormEditable = !isView && (isCreate ? umRoleCreate : umRoleUpdate);
@@ -635,6 +645,37 @@ export function RoleEditorDialog({
                   disabled={!roleFormEditable}
                   onChange={(event) => onDescriptionChange(event.target.value)}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="role-editor-type">Role type</Label>
+                <Select
+                  value={code || undefined}
+                  onValueChange={(value) => {
+                    onCodeChange(value);
+                    const match = roleTypeOptions?.find((opt) => opt.value === value);
+                    if (match && isCreate) {
+                      onDisplayNameChange(match.label);
+                    }
+                  }}
+                  disabled={!roleFormEditable || roleTypesLoading}
+                >
+                  <SelectTrigger id="role-editor-type">
+                    <SelectValue
+                      placeholder={roleTypesLoading ? 'Loading…' : 'Select role type'}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(roleTypeOptions ?? []).map((opt) => (
+                      <SelectItem key={opt.id} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Selecting a type auto-fills the short ID{isCreate ? ' and name' : ''}.
+                </p>
               </div>
 
               {!roleFormEditable ? (

@@ -41,6 +41,9 @@ export type ModuleCatalogEntry = {
   /** Tree depth from Master Data (`1` = L1 product module). */
   level: number;
   parent_id: string | null;
+  module_kind?: 'platform' | 'foundation' | 'product';
+  display_order?: number;
+  visibility_scope?: 'superadmin' | 'tenant';
 };
 
 export type ModuleCatalogIndex = {

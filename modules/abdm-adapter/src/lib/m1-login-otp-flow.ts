@@ -10,6 +10,7 @@ import {
 import {
   LOGIN_API_VARIANT_KEY,
   LOGIN_NEEDS_USER_VERIFY_KEY,
+  LOGIN_PENDING_REFRESH_TOKEN_KEY,
   LOGIN_SCOPES_CONTEXT_KEY,
   LOGIN_TRANSFER_TOKEN_KEY,
   type M1NhaLoginApiVariant,
@@ -186,6 +187,10 @@ export async function m1LoginOtpVerify(
         "NHA login/verify response missing token/refreshToken for account selection (check multi-account verify response)",
       );
     }
+    const pendingRefresh =
+      typeof nha.refreshToken === "string" && nha.refreshToken.trim()
+        ? nha.refreshToken.trim()
+        : undefined;
     await deps.sessions.patch({
       iqTenantId,
       sessionId: session.sessionId,
@@ -193,6 +198,7 @@ export async function m1LoginOtpVerify(
       txnId,
       contextMerge: {
         [LOGIN_TRANSFER_TOKEN_KEY]: transferToken,
+        ...(pendingRefresh ? { [LOGIN_PENDING_REFRESH_TOKEN_KEY]: pendingRefresh } : {}),
         [LOGIN_NEEDS_USER_VERIFY_KEY]: true,
         loginAccounts: accounts,
         loginVerifiedAt: new Date().toISOString(),

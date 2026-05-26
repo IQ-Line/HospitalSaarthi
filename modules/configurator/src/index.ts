@@ -57,6 +57,7 @@ export type {
   ConfiguratorTransactionRepos,
   RunConfiguratorTransaction,
   ModuleCapabilityResolverPort,
+  InfrastructureModuleCatalogPort,
   TenantAdminProvisioningPort,
 } from "./ports.js";
 

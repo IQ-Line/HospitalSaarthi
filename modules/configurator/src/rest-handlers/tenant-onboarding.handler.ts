@@ -3,15 +3,20 @@ import type { FastifyInstance } from "fastify";
 import type { EventBus } from "@hims/ts-sdk-events";
 import type {
   ModuleCapabilityResolverPort,
+  InfrastructureModuleCatalogPort,
   RunConfiguratorTransaction,
   TenantAdminProvisioningPort,
 } from "../ports.js";
 import type { ProvisionTenantInput } from "../domain/onboarding.types.js";
+import { assertTenantOnboardingAllowed } from "../http/tenant-onboarding-access.js";
 import { provisionTenant } from "../use-cases/provision-tenant.js";
 import { tenantOnboardingBodySchema } from "./tenant-onboarding.schemas.js";
 
 export interface TenantOnboardingHandlerDeps {
   runConfiguratorTransaction: RunConfiguratorTransaction;
+  createInfrastructureCatalog: (
+    authorization?: string,
+  ) => InfrastructureModuleCatalogPort;
   createModuleCapabilityResolver: (
     authorization?: string,
   ) => ModuleCapabilityResolverPort;
@@ -33,6 +38,7 @@ export function registerTenantOnboardingHandler(
       },
     },
     async (request, reply) => {
+      assertTenantOnboardingAllowed(request, request.body);
       const correlationId = randomUUID();
       const actorId = resolveActorId(request) ?? correlationId;
       const authorization =
@@ -43,6 +49,8 @@ export function registerTenantOnboardingHandler(
       const result = await provisionTenant(
         {
           runConfiguratorTransaction: deps.runConfiguratorTransaction,
+          infrastructureCatalog:
+            deps.createInfrastructureCatalog(authorization),
           moduleCapabilityResolver:
             deps.createModuleCapabilityResolver(authorization),
           adminProvisioner: deps.createAdminProvisioner(authorization),

@@ -7,6 +7,7 @@ import type {
   TenantRepo,
   TenantModuleRepo,
   ModuleCapabilityResolverPort,
+  InfrastructureModuleCatalogPort,
   TenantAdminProvisioningPort,
   RunConfiguratorTransaction,
 } from "../ports.js";
@@ -18,6 +19,7 @@ import {
   TENANT_ADMIN_ROLE_CODE,
   TENANT_ADMIN_ROLE_DISPLAY_NAME,
 } from "../domain/onboarding.types.js";
+import { buildTenantCerbosScopeKey } from "../domain/tenant-cerbos-scope.js";
 import { createOrganization } from "./create-organization.js";
 import { createTenant } from "./create-tenant.js";
 import { createTenantModule } from "./create-tenant-module.js";
@@ -32,6 +34,7 @@ export const TENANT_ONBOARDING_EVENT_CONTRACT_VERSION = "1.0.0";
 
 export interface ProvisionTenantDeps {
   runConfiguratorTransaction: RunConfiguratorTransaction;
+  infrastructureCatalog: InfrastructureModuleCatalogPort;
   moduleCapabilityResolver: ModuleCapabilityResolverPort;
   adminProvisioner: TenantAdminProvisioningPort;
   eventBus: EventBus;
@@ -63,11 +66,26 @@ export async function provisionTenant(
   // --- A. Validate input ---------------------------------------------------
   validateInput(input);
 
-  const moduleIds = deduplicateModuleIds(input.modules);
+  const productModuleIds = deduplicateModuleIds(input.modules);
   const adminFullName =
     `${input.admin.first_name.trim()} ${input.admin.last_name.trim()}`.trim();
   const adminEmail = input.admin.email.trim().toLowerCase();
   const adminUserId = randomUUID();
+
+  // --- A2. Auto-enable infrastructure modules -----------------------------
+  // Must run BEFORE auth account creation so no orphaned entities on failure.
+  const infraModuleIds =
+    await deps.infrastructureCatalog.fetchInfrastructureModuleIds();
+  const infraIdSet = new Set(infraModuleIds);
+  const moduleIds = mergeModuleIds(infraModuleIds, productModuleIds);
+
+  if (moduleIds.length === 0) {
+    throw new ConfiguratorError(
+      422,
+      "No modules available for tenant — infrastructure catalog returned empty and no product modules selected",
+      "NO_MODULES_AVAILABLE",
+    );
+  }
 
   // --- B. Pre-transaction checks -------------------------------------------
   await deps.adminProvisioner.checkEmailAvailability(adminEmail);
@@ -85,7 +103,7 @@ export async function provisionTenant(
   // Must commit BEFORE capability resolution and HTTP calls because the
   // entitlement check calls back to configurator to verify tenant modules.
   const coreData = await deps.runConfiguratorTransaction(async (repos) => {
-    return createCoreEntities(repos, ctx, input, moduleIds, adminEmail);
+    return createCoreEntities(repos, ctx, input, moduleIds, infraIdSet, adminEmail);
   });
 
   // --- E. Resolve capabilities using committed tenant data -----------------
@@ -185,7 +203,7 @@ export async function provisionTenant(
       ctx,
       result,
       moduleIds,
-      input.plan.slug,
+      input.plan?.slug ?? "branch",
     );
   } catch {
     // eslint-disable-next-line no-console
@@ -235,29 +253,59 @@ async function createCoreEntities(
   ctx: ProvisionTenantContext,
   input: ProvisionTenantInput,
   moduleIds: string[],
+  infraModuleIds: ReadonlySet<string>,
   adminEmail: string,
 ): Promise<CoreProvisioningData> {
-  const organization = await createOrganization(repos.organizationRepo, {
-    name: input.organization.name,
-    slug: input.organization.slug,
-    type: input.organization.type,
-    status: "active",
-    contact_email: adminEmail,
-    metadata: buildOrganizationMetadata(input),
-    created_by: ctx.actorId,
-  });
+  const existingOrgId = input.organization.id?.trim();
+  let organization;
+
+  if (existingOrgId) {
+    const existing = await repos.organizationRepo.findById(existingOrgId);
+    if (!existing) {
+      throw new ConfiguratorError(400, "organization not found", "VALIDATION_ERROR");
+    }
+    organization = existing;
+  } else {
+    const orgContactEmail = input.organization.contact_email?.trim() || null;
+    const orgWebsite = input.organization.website?.trim() || null;
+    organization = await createOrganization(repos.organizationRepo, {
+      name: input.organization.name!,
+      slug: input.organization.slug!,
+      type: input.organization.type!,
+      status: "active",
+      contact_email: orgContactEmail,
+      website: orgWebsite,
+      metadata: buildOrganizationMetadata(input),
+      created_by: ctx.actorId,
+    });
+  }
+
+  const tenantMetadata = {
+    ...(organization.metadata ?? {}),
+    ...(input.tenant.metadata ?? {}),
+  };
+
+  const tenantSlug = input.tenant.slug.trim().toLowerCase();
 
   const tenant = await createTenant(repos.tenantRepo, repos.organizationRepo, {
     org_id: organization.id,
-    parent_tenant_id: null,
-    name: organization.name,
-    slug: organization.slug,
-    type: "full_platform",
+    parent_tenant_id: input.tenant.parent_tenant_id?.trim() || null,
+    name: input.tenant.name.trim(),
+    slug: tenantSlug,
+    type: (input.tenant.type?.trim() || "full_platform") as import("../domain/tenant.types.js").TenantType,
     data_isolation_level: "shared",
-    cerbos_scope_key: `tenant:${organization.id}`,
+    cerbos_scope_key: buildTenantCerbosScopeKey(organization.id, tenantSlug),
     timezone: "Asia/Kolkata",
     locale: "en-IN",
-    metadata: organization.metadata,
+    metadata: tenantMetadata,
+    branch_code: input.tenant.branch_code?.trim() || null,
+    branch_type: (input.tenant.branch_type?.trim() || null) as import("../domain/tenant.types.js").BranchType | null,
+    address_line1: input.tenant.address_line1?.trim() || null,
+    city: input.tenant.city?.trim() || null,
+    state: input.tenant.state?.trim() || null,
+    pin_code: input.tenant.pin_code?.trim() || null,
+    contact_phone: input.tenant.contact_phone?.trim() || null,
+    contact_email: input.tenant.contact_email?.trim() || null,
     created_by: ctx.actorId,
   });
 
@@ -266,11 +314,12 @@ async function createCoreEntities(
   for (const moduleId of moduleIds) {
     if (seen.has(moduleId)) continue;
     seen.add(moduleId);
+    const isCoreOverride = infraModuleIds.has(moduleId);
     const tm = await createTenantModule(repos.tenantModuleRepo, repos.tenantRepo, {
       iq_tenant_id: tenant.iq_tenant_id,
       module_id: moduleId,
       is_active: true,
-      is_core_override: false,
+      is_core_override: isCoreOverride,
       created_by: ctx.actorId,
     });
     tenantModules.push({
@@ -304,29 +353,61 @@ async function createCoreEntities(
 // ---------------------------------------------------------------------------
 
 function validateInput(input: ProvisionTenantInput): void {
+  const existingOrgId = input.organization.id?.trim();
   const orgName = input.organization.name?.trim();
   const orgSlug = input.organization.slug?.trim();
-  if (!orgName) {
-    throw new ConfiguratorError(400, "organization.name is required", "VALIDATION_ERROR");
+  if (!existingOrgId) {
+    if (!orgName) {
+      throw new ConfiguratorError(400, "organization.name is required", "VALIDATION_ERROR");
+    }
+    if (!orgSlug || orgSlug.length < 3) {
+      throw new ConfiguratorError(
+        400,
+        "organization.slug must be at least 3 characters",
+        "VALIDATION_ERROR",
+      );
+    }
+    if (!input.organization.type) {
+      throw new ConfiguratorError(400, "organization.type is required", "VALIDATION_ERROR");
+    }
   }
-  if (!orgSlug || orgSlug.length < 3) {
+  const tenantName = input.tenant?.name?.trim();
+  const tenantSlug = input.tenant?.slug?.trim();
+  if (!tenantName) {
+    throw new ConfiguratorError(400, "tenant.name is required", "VALIDATION_ERROR");
+  }
+  if (!tenantSlug || tenantSlug.length < 3) {
     throw new ConfiguratorError(
       400,
-      "organization.slug must be at least 3 characters",
+      "tenant.slug must be at least 3 characters",
       "VALIDATION_ERROR",
     );
   }
-  if (!input.organization.type) {
-    throw new ConfiguratorError(400, "organization.type is required", "VALIDATION_ERROR");
+  const orgContactEmail = input.organization.contact_email?.trim();
+  if (orgContactEmail && !EMAIL_RE.test(orgContactEmail)) {
+    throw new ConfiguratorError(
+      400,
+      "organization.contact_email must be a valid email",
+      "VALIDATION_ERROR",
+    );
   }
-  if (!input.plan?.slug) {
-    throw new ConfiguratorError(400, "plan.slug is required", "VALIDATION_ERROR");
+  const isBranch = !!input.tenant.parent_tenant_id?.trim();
+  const planSlug = input.plan?.slug?.trim();
+  if (!isBranch && !planSlug) {
+    throw new ConfiguratorError(
+      400,
+      "plan.slug is required — pass an explicit plan identifier (e.g. \"starter\")",
+      "VALIDATION_ERROR",
+    );
+  }
+  if (input.plan) {
+    input.plan = { ...input.plan, slug: planSlug ?? "" };
   }
   if (!input.modules || input.modules.length === 0) {
     throw new ConfiguratorError(
-      422,
-      "At least one module must be selected",
-      "NO_MODULES_SELECTED",
+      400,
+      "modules array is required",
+      "VALIDATION_ERROR",
     );
   }
 
@@ -364,17 +445,34 @@ function deduplicateModuleIds(
   return result;
 }
 
+/** Infrastructure IDs first, then product IDs, deduplicated. */
+function mergeModuleIds(
+  infraIds: string[],
+  productIds: string[],
+): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const id of [...infraIds, ...productIds]) {
+    if (!seen.has(id)) {
+      seen.add(id);
+      result.push(id);
+    }
+  }
+  return result;
+}
+
 function buildOrganizationMetadata(
   input: ProvisionTenantInput,
 ): Record<string, unknown> {
+  const { website: _website, ...restMetadata } = input.organization.metadata ?? {};
   return {
-    ...(input.organization.metadata ?? {}),
+    ...restMetadata,
     provisioning: {
-      plan_slug: input.plan.slug,
+      plan_slug: input.plan?.slug ?? null,
       module_override_ids: input.modules.map((m) => m.module_id),
-      trial_end_date: input.plan.trial_end_date ?? null,
-      max_users_override: input.plan.max_users_override ?? null,
-      max_branches_override: input.plan.max_branches_override ?? null,
+      trial_end_date: input.plan?.trial_end_date ?? null,
+      max_users_override: input.plan?.max_users_override ?? null,
+      max_branches_override: input.plan?.max_branches_override ?? null,
     },
   };
 }
@@ -383,7 +481,7 @@ function buildOrganizationMetadata(
 // Event publishing
 // ---------------------------------------------------------------------------
 
-export interface TenantOnboardingCompletedPayload {
+export type TenantOnboardingCompletedPayload = {
   organization_id: string;
   organization_slug: string;
   tenant_id: string;
@@ -395,7 +493,7 @@ export interface TenantOnboardingCompletedPayload {
   enabled_module_ids: string[];
   plan_slug: string;
   provisioned_at: string;
-}
+} & Record<string, unknown>;
 
 async function publishOnboardingCompletedEvent(
   eventBus: EventBus,

@@ -212,6 +212,7 @@ export function registerRoleHandlers(fastify: FastifyInstance, deps: RoleHandler
     async (request, reply) => {
       const cid = request.correlationId ?? request.id;
       const tenantId = deps.getTenantId(request);
+      const authorization = request.headers.authorization;
       try {
         const roleId = requireUuidRouteId(request.params.id);
         return reply.send(
@@ -220,6 +221,7 @@ export function registerRoleHandlers(fastify: FastifyInstance, deps: RoleHandler
             tenantId,
             roleId,
             request.body,
+            { authorization: typeof authorization === "string" ? authorization : undefined },
           ),
         );
       } catch (err) {

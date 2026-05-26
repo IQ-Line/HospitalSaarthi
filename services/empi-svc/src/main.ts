@@ -1,4 +1,5 @@
 import Fastify from "fastify";
+import { validateAuthConfig } from "@hims/ts-sdk-identity";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import { tenantPlugin } from "@hims/ts-sdk-tenant";
 import { createDb } from "@hims/ts-sdk-db";
@@ -17,9 +18,6 @@ const PORT = Number(
   process.env["EMPI_PORT"] ?? process.env["EMPI_SVC_PORT"] ?? 3002,
 );
 const DATABASE_URL = process.env["DATABASE_URL"] ?? "";
-const JWKS_URL =
-  process.env["JWKS_URL"] ??
-  "http://localhost:3000/api/auth/.well-known/jwks.json";
 const ENABLE_AUTH = process.env["ENABLE_AUTH"] === "true";
 
 const fastifyAjv = {
@@ -69,7 +67,7 @@ async function main() {
   await app.register(async (api) => {
     if (ENABLE_AUTH) {
       const { identityPlugin } = await import("@hims/ts-sdk-identity");
-      await api.register(identityPlugin, { jwksUrl: JWKS_URL });
+      await api.register(identityPlugin, validateAuthConfig());
     }
     await api.register(tenantPlugin);
 

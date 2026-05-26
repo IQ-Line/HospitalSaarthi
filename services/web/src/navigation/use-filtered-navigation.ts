@@ -4,7 +4,9 @@ import { useModuleCatalog } from '@/platform/modules/module-catalog';
 import { useEnabledTenantModuleSlugs } from '@/platform/modules/use-enabled-tenant-modules';
 import { applyCatalogNavigationLabels } from './apply-catalog-navigation-labels';
 import { normalizeCapabilityKey } from '@/lib/principal-capabilities';
+import { resolvePlatformSuperAdmin } from '@/lib/platform-admin';
 import { resolveNavigationCapabilityBypass } from '@/lib/resolve-nav-bypass';
+import { useAuthStore } from '@/stores/auth.store';
 import { usePermissionsStore } from '@/stores/permissions.store';
 import { capabilityKeysGrantProductAccess } from './module-product-access';
 import { buildNavCapabilityAccessInput } from './nav-capability-access';
@@ -17,10 +19,12 @@ export function buildNavFilterContext(
   enabledModuleSlugs: ReadonlySet<string> | null,
   options?: {
     bypassCapabilityGates?: boolean;
+    isSuperAdmin?: boolean;
     catalogIndex?: import('@/platform/modules/types').ModuleCatalogIndex | null;
   },
 ): NavFilterContext {
   const bypassCapabilityGates = options?.bypassCapabilityGates === true;
+  const isSuperAdmin = options?.isSuperAdmin === true;
   const catalogIndex = options?.catalogIndex ?? null;
 
   const hasAnyCapabilityForProduct = (catalogProductSlugs: readonly string[]) =>
@@ -59,6 +63,8 @@ export function buildNavFilterContext(
     navAccess,
     enabledModuleSlugs,
     bypassCapabilityGates,
+    isSuperAdmin,
+    catalogIndex,
   };
 }
 
@@ -67,15 +73,19 @@ export function useFilteredNavigation() {
   const capabilityKeys = usePermissionsStore((s) => s.capabilityKeys);
   const principalRoles = usePermissionsStore((s) => s.roles);
   const permissionsLoaded = usePermissionsStore((s) => s.isLoaded);
+  const authRoles = useAuthStore((s) => s.roles);
+  const accessToken = useAuthStore((s) => s.accessToken);
   const enabledModuleSlugs = useEnabledTenantModuleSlugs();
   const { index: catalogIndex } = useModuleCatalog();
   const bypassCapabilityGates = resolveNavigationCapabilityBypass();
+  const isSuperAdmin = resolvePlatformSuperAdmin({ principalRoles, authRoles, accessToken });
 
   return useMemo(() => {
     const filtered = filterNavigationTree(
       manifest,
       buildNavFilterContext(capabilityKeys, enabledModuleSlugs, {
         bypassCapabilityGates,
+        isSuperAdmin,
         catalogIndex: catalogIndex ?? null,
       }),
     );
@@ -84,9 +94,12 @@ export function useFilteredNavigation() {
     manifest,
     capabilityKeys,
     principalRoles,
+    authRoles,
+    accessToken,
     permissionsLoaded,
     enabledModuleSlugs,
     bypassCapabilityGates,
+    isSuperAdmin,
     catalogIndex,
   ]);
 }

@@ -1,10 +1,12 @@
 import { apiClient } from '@/lib/api-client';
 import { parseAccessJwtClaims } from '@/lib/jwt-claims';
 import { isPlatformSuperAdminFromAccessToken } from '@/lib/platform-admin';
+import { useAuthStore } from '@/stores/auth.store';
 import { useTenantStore } from '@/stores/tenant.store';
 
 type ConfiguratorTenantRow = {
   iq_tenant_id: string;
+  org_id: string;
   name: string;
   slug: string;
   provisioning_status: string;
@@ -17,16 +19,21 @@ type ConfiguratorTenantListResponse = {
 
 const DEFAULT_BRANCH = { id: 'branch-001', name: 'Main Campus' } as const;
 
-async function fetchTenantName(tenantId: string): Promise<string> {
+async function fetchTenantRow(tenantId: string): Promise<ConfiguratorTenantRow> {
   try {
-    const row = await apiClient<ConfiguratorTenantRow>(
+    return await apiClient<ConfiguratorTenantRow>(
       `/api/configurator/v1/tenants/${encodeURIComponent(tenantId)}`,
       { method: 'GET' },
       { tenantIdOverride: tenantId },
     );
-    return row.name?.trim() || row.slug || tenantId;
   } catch {
-    return tenantId;
+    return {
+      iq_tenant_id: tenantId,
+      org_id: parseAccessJwtClaims(useAuthStore.getState().accessToken).org_id ?? '',
+      name: tenantId,
+      slug: tenantId,
+      provisioning_status: 'active',
+    };
   }
 }
 
@@ -58,12 +65,14 @@ export async function applyTenantSessionFromAuth(input: ApplyTenantSessionInput)
   const activeTenantId =
     isSuperAdmin && preferred && preferred.length > 0 ? preferred : homeTenantId;
 
-  const tenantName = await fetchTenantName(activeTenantId);
+  const tenantRow = await fetchTenantRow(activeTenantId);
+  const tenantName = tenantRow.name?.trim() || tenantRow.slug || activeTenantId;
 
   useTenantStore.getState().setTenantContext({
     homeTenantId,
     tenantId: activeTenantId,
     tenantName,
+    organizationId: tenantRow.org_id,
     branches: [DEFAULT_BRANCH],
     activeBranch: DEFAULT_BRANCH.id,
   });

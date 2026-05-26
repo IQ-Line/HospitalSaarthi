@@ -11,6 +11,7 @@ import {
   extractEnrolmentProfileTokens,
 } from "@hims/ts-sdk-abha/protocol/m1";
 import { snapshotEnrolByAadhaarResponse } from "../../lib/nha-enrol-context-snapshot.js";
+import { resolveSkipEnrolMobileVerify } from "../../lib/m1-enrol-linked-mobile.js";
 
 export async function enrolAadhaarVerifyRequest(
   input: AbdmTenantInput<EnrolAadhaarVerifyHimsRequest>,
@@ -77,15 +78,26 @@ export async function enrolAadhaarVerifyRequest(
       : typeof nha.isNew === "boolean"
         ? nha.isNew
         : undefined;
+  const mobileVerifySkipped = resolveSkipEnrolMobileVerify(
+    input.useAadhaarLinkedMobile,
+    nha,
+  );
   await deps.sessions.patch({
     iqTenantId,
     sessionId: session.sessionId,
-    state: "ABHA_CREATED",
+    state: mobileVerifySkipped ? "MOBILE_OTP_VERIFIED" : "ABHA_CREATED",
     txnId,
     xToken,
     ...(tToken ? { tToken } : {}),
     contextMerge: {
       enrolSnapshot: snapshotEnrolByAadhaarResponse(nha),
+      enrolPrimaryMobile: mobile,
+      ...(mobileVerifySkipped
+        ? {
+            mobileVerifiedVia: "aadhaar-linked",
+            mobileVerifiedAt: new Date().toISOString(),
+          }
+        : {}),
     },
   });
   return {
@@ -93,6 +105,7 @@ export async function enrolAadhaarVerifyRequest(
     txnId,
     healthIdNumber: nha.healthIdNumber,
     isNew,
+    mobileVerifySkipped,
     message: typeof nha.message === "string" ? nha.message : "ABHA enrolment step completed",
   };
 }

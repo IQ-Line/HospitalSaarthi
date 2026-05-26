@@ -54,6 +54,12 @@ export interface EnrolAadhaarVerifyHimsRequest {
   otp: string;
   /** Primary 10-digit mobile for ABHA (NHA `enrol/byAadhaar` — required). */
   mobile: string;
+  /**
+   * When true, skip enrol mobile-verify OTP after byAadhaar (Aadhaar-linked primary mobile).
+   * When false, require POST /m1/enrol/mobile-verify/* even if NHA profile shows mobile.
+   * When omitted, inferred from NHA `ABHAProfile.mobile` (non-null = linked mobile saved).
+   */
+  useAadhaarLinkedMobile?: boolean;
 }
 
 export interface EnrolAadhaarVerifyHimsResponse {
@@ -62,6 +68,8 @@ export interface EnrolAadhaarVerifyHimsResponse {
   healthIdNumber?: string;
   isNew?: boolean;
   message?: string;
+  /** True when mobile-verify OTP steps were bypassed (linked mobile). */
+  mobileVerifySkipped?: boolean;
 }
 
 export function extractEnrolmentProfileTokens(nha: NhaEnrolByAadhaarResponse): {
