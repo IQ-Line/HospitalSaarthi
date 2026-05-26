@@ -16,6 +16,7 @@ function session(overrides: Partial<AbdmSession> = {}): AbdmSession {
     xToken: null,
     tToken: null,
     context: {
+      loginScopes: ["abha-login", "mobile-verify"],
       loginTransferToken: "transfer.jwt",
       loginNeedsUserVerify: true,
     },
@@ -77,6 +78,62 @@ describe("loginVerifyUserRequest", () => {
       expect.objectContaining({
         xToken: "profile.jwt",
         tToken: "refresh.jwt",
+      }),
+    );
+  });
+
+  it("completes aadhaar-verify verify/user locally without NHA T-token call", async () => {
+    const patch = vi.fn(async () => session({ xToken: "profile.jwt" }));
+    const post = vi.fn();
+    const deps: AbdmAdapterDeps = {
+      sessions: {
+        findById: vi.fn(async () =>
+          session({
+            context: {
+              loginScopes: ["abha-login", "aadhaar-verify"],
+              loginTransferToken: "profile.jwt",
+              loginPendingRefreshToken: "refresh.jwt",
+              loginNeedsUserVerify: true,
+              loginAccounts: [{ abhaNumber: "91-3488-3776-0621" }],
+            },
+          }),
+        ),
+        patch,
+        create: vi.fn(),
+      },
+      gateway: {
+        post,
+        get: vi.fn(),
+        getPublicCertificate: vi.fn(),
+        getDiagnosticsSnapshot: vi.fn(() => ({
+          tokenValidUntilMs: null,
+          certValidUntilMs: null,
+          certCached: false,
+        })),
+      },
+      fidelius: {} as AbdmAdapterDeps["fidelius"],
+      secrets: {} as AbdmAdapterDeps["secrets"],
+    };
+
+    const out = await loginVerifyUserRequest(
+      {
+        sessionId: "sess-1",
+        abhaNumber: "91348837760621",
+        iqTenantId: TENANT,
+      },
+      deps,
+    );
+
+    expect(out.message).toBe("User verified");
+    expect(post).not.toHaveBeenCalled();
+    expect(patch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        xToken: "profile.jwt",
+        tToken: "refresh.jwt",
+        contextMerge: expect.objectContaining({
+          loginNeedsUserVerify: false,
+          loginSelectedAbhaNumber: "91-3488-3776-0621",
+        }),
       }),
     );
   });

@@ -12,6 +12,8 @@ import type { M1OtpSessionFlowKind } from "./m1-login-otp-flow.js";
 import {
   LOGIN_API_VARIANT_KEY,
   LOGIN_NEEDS_USER_VERIFY_KEY,
+  LOGIN_PENDING_REFRESH_TOKEN_KEY,
+  LOGIN_SCOPES_CONTEXT_KEY,
   LOGIN_TRANSFER_TOKEN_KEY,
 } from "./m1-login-session-context.js";
 import { parseLoginApiVariant } from "./m1-nha-login-paths.js";
@@ -67,6 +69,38 @@ export async function m1LoginVerifyUser(
   }
 
   const abhaNumber = normalizeAbhaNumber(input.abhaNumber);
+  const scopes = session.context[LOGIN_SCOPES_CONTEXT_KEY];
+
+  if (isAadhaarVerifyAccountSelection(scopes)) {
+    assertAbhaInLoginAccounts(abhaNumber, session.context.loginAccounts);
+    const profileToken = transferToken.trim();
+    const pendingRefresh = session.context[LOGIN_PENDING_REFRESH_TOKEN_KEY];
+    const tToken =
+      typeof pendingRefresh === "string" && pendingRefresh.trim()
+        ? pendingRefresh.trim()
+        : undefined;
+    await deps.sessions.patch({
+      iqTenantId,
+      sessionId: session.sessionId,
+      state: "OTP_VERIFIED",
+      txnId: session.txnId,
+      xToken: profileToken,
+      ...(tToken ? { tToken } : {}),
+      contextMerge: {
+        [LOGIN_NEEDS_USER_VERIFY_KEY]: false,
+        [LOGIN_TRANSFER_TOKEN_KEY]: undefined,
+        [LOGIN_PENDING_REFRESH_TOKEN_KEY]: undefined,
+        loginSelectedAbhaNumber: abhaNumber,
+        loginUserVerifiedAt: new Date().toISOString(),
+      },
+    });
+    return {
+      sessionId: session.sessionId,
+      txnId: session.txnId,
+      message: "User verified",
+    };
+  }
+
   const body: NhaLoginVerifyUserBody = {
     ABHANumber: abhaNumber,
     txnId: session.txnId,
@@ -99,4 +133,29 @@ export async function m1LoginVerifyUser(
     txnId,
     message: typeof nha.message === "string" ? nha.message : "User verified",
   };
+}
+
+/** Aadhaar-channel verify already returns profile tokens; verify/user selects ABHA locally (no NHA call). */
+function isAadhaarVerifyAccountSelection(scopes: unknown): boolean {
+  if (!Array.isArray(scopes)) return false;
+  const list = scopes.filter((s): s is string => typeof s === "string");
+  return list.includes("aadhaar-verify") && !list.includes("mobile-verify");
+}
+
+function assertAbhaInLoginAccounts(abhaNumber: string, accounts: unknown): void {
+  if (!Array.isArray(accounts)) {
+    throw new AbdmUseCaseError("session missing login accounts from verify step", 409, "CONFLICT");
+  }
+  for (const row of accounts) {
+    if (!row || typeof row !== "object") continue;
+    const candidate = (row as { abhaNumber?: string }).abhaNumber;
+    if (candidate && normalizeAbhaNumber(candidate) === abhaNumber) {
+      return;
+    }
+  }
+  throw new AbdmUseCaseError(
+    "abhaNumber does not match any account from verify response",
+    400,
+    "BAD_REQUEST",
+  );
 }
