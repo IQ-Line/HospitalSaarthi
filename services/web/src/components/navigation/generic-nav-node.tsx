@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from '@tanstack/react-router';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Circle } from 'lucide-react';
 import { SidebarNavLink } from '@/components/layout/sidebar-nav-link';
 import { resolveNavigationIcon } from '@/navigation/navigation-icons';
 import type { NavigationNode } from '@/navigation/types';
@@ -13,25 +13,39 @@ type GenericNavNodeProps = {
   depth?: number;
 };
 
-function routePrefixFromNode(node: NavigationNode): string | undefined {
-  if (node.route) {
-    return node.route;
-  }
+function collectRoutePrefixes(node: NavigationNode): string[] {
+  if (node.route) return [node.route];
+  const result: string[] = [];
   for (const child of node.children ?? []) {
-    const prefix = routePrefixFromNode(child);
-    if (!prefix) {
-      continue;
-    }
-    // Visitpad catalog leaves share `/visitpad/*` — use product prefix for active/open state.
-    if (prefix === '/visitpad' || prefix.startsWith('/visitpad/')) {
-      return '/visitpad';
-    }
-    return prefix;
+    result.push(...collectRoutePrefixes(child));
   }
-  return undefined;
+  return result;
 }
 
-function useNavGroupOpen(routePrefix: string | undefined): [boolean, () => void] {
+function commonPrefix(paths: string[]): string | undefined {
+  if (paths.length === 0) return undefined;
+  if (paths.length === 1) return paths[0];
+  const sorted = paths.slice().sort();
+  const first = sorted[0]!;
+  const last = sorted[sorted.length - 1]!;
+  let i = 0;
+  while (i < first.length && i < last.length && first[i] === last[i]) i++;
+  const prefix = first.slice(0, i);
+  const lastSlash = prefix.lastIndexOf('/');
+  return lastSlash > 0 ? prefix.slice(0, lastSlash) : prefix || undefined;
+}
+
+function routePrefixFromNode(node: NavigationNode): string | undefined {
+  if (node.route) return node.route;
+  const allRoutes = collectRoutePrefixes(node);
+  return commonPrefix(allRoutes);
+}
+
+function useNavGroupState(routePrefix: string | undefined): {
+  isActive: boolean;
+  isOpen: boolean;
+  toggle: () => void;
+} {
   const { pathname } = useLocation();
   const isActive = routePrefix ? pathname.startsWith(routePrefix) : false;
   const [isOpen, setIsOpen] = useState(true);
@@ -42,14 +56,14 @@ function useNavGroupOpen(routePrefix: string | undefined): [boolean, () => void]
     }
   }, [isActive]);
 
-  return [isOpen, () => setIsOpen((prev) => !prev)];
+  return { isActive, isOpen, toggle: () => setIsOpen((prev) => !prev) };
 }
 
 export function GenericNavNode({ node, collapsed, depth = 0 }: GenericNavNodeProps) {
   const Icon = resolveNavigationIcon(node.icon);
   const hasChildren = (node.children?.length ?? 0) > 0;
   const routePrefix = useMemo(() => routePrefixFromNode(node), [node]);
-  const [isOpen, toggleOpen] = useNavGroupOpen(hasChildren ? routePrefix : undefined);
+  const { isActive, isOpen, toggle: toggleOpen } = useNavGroupState(hasChildren ? routePrefix : undefined);
   const expandSidebar = () => useUIPrefsStore.setState({ sidebarCollapsed: false });
 
   if (!hasChildren && node.route) {
@@ -60,6 +74,7 @@ export function GenericNavNode({ node, collapsed, depth = 0 }: GenericNavNodePro
         icon={Icon}
         collapsed={collapsed}
         nested={depth > 0}
+        depth={depth}
         search={node.search}
       />
     );
@@ -67,6 +82,7 @@ export function GenericNavNode({ node, collapsed, depth = 0 }: GenericNavNodePro
 
   if (hasChildren) {
     const nestedGroup = !collapsed && depth > 0;
+    const activeHighlight = isActive ? 'bg-sidebar-primary/10 text-foreground' : '';
     return (
       <div className={`space-y-1${nestedGroup ? ' ml-6' : ''}`}>
         <button
@@ -78,19 +94,23 @@ export function GenericNavNode({ node, collapsed, depth = 0 }: GenericNavNodePro
             }
             toggleOpen();
           }}
-          className={`w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-sidebar-accent transition-colors ${
+          className={`w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm ${depth === 0 ? 'font-semibold text-foreground' : depth === 1 ? 'font-medium text-foreground/80' : 'text-foreground/70'} ${activeHighlight} hover:bg-sidebar-primary/10 transition-colors ${
             collapsed ? 'justify-center' : ''
           }`}
           title={collapsed ? node.label : undefined}
         >
-          {Icon ? <Icon className="size-4 shrink-0" /> : null}
+          {Icon ? (
+            <Icon className="size-4 shrink-0" />
+          ) : (
+            <Circle className="size-4 shrink-0 opacity-40" />
+          )}
           {!collapsed && (
             <>
-              <span className="font-medium truncate">{node.label}</span>
+              <span className="truncate">{node.label}</span>
               {isOpen ? (
-                <ChevronDown className="size-4 ml-auto shrink-0" />
+                <ChevronDown className="size-3.5 ml-auto shrink-0 opacity-50" />
               ) : (
-                <ChevronRight className="size-4 ml-auto shrink-0" />
+                <ChevronRight className="size-3.5 ml-auto shrink-0 opacity-50" />
               )}
             </>
           )}
