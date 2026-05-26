@@ -53,8 +53,18 @@ export {
   registerM2CallbackRoutes,
   registerM2PlatformRoutes,
 } from "./rest-handlers/m2/index.js";
+export {
+  registerM3CallbackRoutes,
+  registerM3PlatformRoutes,
+} from "./rest-handlers/m3/index.js";
+export { DrizzleM3ConsentRequestsRepo } from "./data-access/abdm-m3-consent-requests.repo.js";
+export { DrizzleM3ConsentArtefactsHiuRepo } from "./data-access/abdm-m3-consent-artefacts-hiu.repo.js";
+export { DrizzleM3DataTransfersRepo } from "./data-access/abdm-m3-data-transfers.repo.js";
 export { registerM2EventConsumers } from "./events/register-m2-consumers.js";
-export { HttpHipDataPushClient } from "./data-access/hip-data-push.client.js";
+export {
+  HttpHipDataPushClient,
+  createHipDataPushClientFromEnv,
+} from "./data-access/hip-data-push.client.js";
 export { InMemoryLinkOtpStore, generateLinkOtp6 } from "./lib/link-otp-store.js";
 export {
   createSmsClientFromEnv,
@@ -70,3 +80,4 @@ export {
   requireCallbackSecurityInProd,
   requireSessionTokenCryptoInProd,
 } from "./lib/session-token-crypto.js";
+export { allowInsecureAbdmCallbacks, nodeEnv } from "./lib/abdm-runtime-env.js";

@@ -12,6 +12,7 @@ import type {
   M3HipState,
   M3HiuState,
 } from "@hims/ts-sdk-abha";
+import type { M3HiuContext } from "../use-cases/m3/hiu/context.js";
 
 export type AbdmFlowKind =
   | "abdm.m1.aadhaar-otp.v1"
@@ -23,7 +24,9 @@ export type AbdmFlowKind =
   | "abdm.m2.add-contexts.v1"
   | "abdm.m2.sms-notify.v1"
   | "abdm.m3.hip.v1"
-  | "abdm.m3.hiu.v1";
+  | "abdm.m3.hiu.v1"
+  /** Inbound HIP→HIU bundle push dedupe (not a user-facing flow). */
+  | "abdm.m3.hiu.transfer-push.v1";
 
 export interface M2UserLinkContext {
   transactionId?: string;
@@ -75,7 +78,10 @@ export interface M3HipContext {
   transactionId?: string;
   dataPushUrl?: string;
   requestId?: string;
+  error?: { code: string; message: string };
 }
+
+export type { M3HiuContext };
 
 export interface FlowContextMap {
   "abdm.m1.aadhaar-otp.v1": Record<string, unknown>;
@@ -87,7 +93,8 @@ export interface FlowContextMap {
   "abdm.m2.add-contexts.v1": M2AddContextsContext;
   "abdm.m2.sms-notify.v1": M2SmsNotifyContext;
   "abdm.m3.hip.v1": M3HipContext;
-  "abdm.m3.hiu.v1": Record<string, unknown>;
+  "abdm.m3.hiu.v1": M3HiuContext;
+  "abdm.m3.hiu.transfer-push.v1": Record<string, unknown>;
 }
 
 export interface FlowStateMap {
@@ -101,6 +108,7 @@ export interface FlowStateMap {
   "abdm.m2.sms-notify.v1": M2SmsNotifyState;
   "abdm.m3.hip.v1": M3HipState;
   "abdm.m3.hiu.v1": M3HiuState;
+  "abdm.m3.hiu.transfer-push.v1": "INIT";
 }
 
 export interface AbdmSession<F extends AbdmFlowKind = AbdmFlowKind> {

@@ -5,6 +5,7 @@ import {
   registerM0Routes,
   registerM1Routes,
   registerM2PlatformRoutes,
+  registerM3PlatformRoutes,
 } from "./rest-handlers/index.js";
 
 export type AbdmAdapterRouterOptions = AbdmAdapterDeps;
@@ -16,6 +17,7 @@ async function abdmAdapterRouter(
   await registerM0Routes(app, options);
   await registerM1Routes(app, options);
   await registerM2PlatformRoutes(app, options);
+  await registerM3PlatformRoutes(app, options);
 }
 
 export function createRouter(options: AbdmAdapterRouterOptions) {

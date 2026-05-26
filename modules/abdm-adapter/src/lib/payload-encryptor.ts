@@ -3,6 +3,9 @@ import {
   type SessionTokenCrypto,
 } from "./session-token-crypto.js";
 import type { PayloadEncryptor } from "../ports.js";
+
+/** Opaque AES-GCM ciphertext stored at rest (e.g. HIU private key JWK). */
+export type EncryptedString = string;
 import { allowPlaintextTokensAtRest, nodeEnv } from "./abdm-runtime-env.js";
 
 const DEV_PLAINTEXT_ENCRYPTOR: PayloadEncryptor = {

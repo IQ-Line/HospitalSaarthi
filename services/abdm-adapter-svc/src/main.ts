@@ -22,9 +22,13 @@ import {
   NoOpEmpiClient,
   NoOpRecordFoundationClient,
   registerM2CallbackRoutes,
+  registerM3CallbackRoutes,
   registerM2EventConsumers,
-  HttpHipDataPushClient,
+  createHipDataPushClientFromEnv,
   DrizzleLinkOtpsRepo,
+  DrizzleM3ConsentRequestsRepo,
+  DrizzleM3ConsentArtefactsHiuRepo,
+  DrizzleM3DataTransfersRepo,
   createSmsClientFromEnv,
 } from "@hims/abdm-adapter";
 import {
@@ -34,6 +38,8 @@ import {
 } from "./load-env.js";
 import { registerHttpErrorHandler } from "./http-errors.js";
 import {
+  allowInsecureAbdmCallbacks,
+  nodeEnv,
   requireCallbackSecurityInProd,
   requireSessionTokenCryptoInProd,
 } from "@hims/abdm-adapter";
@@ -62,6 +68,7 @@ const ABDM_MOCK_ABHA_ADDRESS =
   process.env["ABDM_MOCK_ABHA_ADDRESS"]?.trim() || "test.user@sbx";
 const ABDM_DEFAULT_SMS_PHONE = process.env["ABDM_DEFAULT_SMS_PHONE"]?.trim() ?? "";
 const ABDM_HIP_DISPLAY_NAME = process.env["ABDM_HIP_DISPLAY_NAME"]?.trim() ?? "Hospital";
+const ABDM_X_HIU_ID = process.env["ABDM_X_HIU_ID"] ?? "SBX_TEST_HIU_001";
 
 const repoRoot = path.resolve(serviceRoot, "../..");
 
@@ -153,7 +160,10 @@ async function main() {
     );
   }
   const payloadEncryptor = createPayloadEncryptorFromEnv();
-  const dataPush = new HttpHipDataPushClient();
+  const dataPush = createHipDataPushClientFromEnv();
+  const m3ConsentRequests = new DrizzleM3ConsentRequestsRepo(db);
+  const m3ConsentArtefactsHiu = new DrizzleM3ConsentArtefactsHiuRepo(db);
+  const m3DataTransfers = new DrizzleM3DataTransfersRepo(db);
   const linkOtpStore = new DrizzleLinkOtpsRepo(db);
   const sms = createSmsClientFromEnv();
 
@@ -165,12 +175,16 @@ async function main() {
     inboundMessages,
     linkTokens,
     consentArtefacts,
+    m3ConsentRequests,
+    m3ConsentArtefactsHiu,
+    m3DataTransfers,
     empi,
     recordFoundation,
     dataPush,
     payloadEncryptor,
     eventBus,
     xHipId: ABDM_X_HIP_ID,
+    xHiuId: ABDM_X_HIU_ID,
     xCmId: ABDM_X_CM_ID,
     defaultSmsPhoneNo: ABDM_DEFAULT_SMS_PHONE || undefined,
     hipDisplayName: ABDM_HIP_DISPLAY_NAME,
@@ -192,15 +206,30 @@ async function main() {
     payloadEncryptor,
     eventBus,
     xHipId: ABDM_X_HIP_ID,
+    xHiuId: ABDM_X_HIU_ID,
     xCmId: ABDM_X_CM_ID,
+    m3ConsentRequests,
+    m3ConsentArtefactsHiu,
+    m3DataTransfers,
     defaultSmsPhoneNo: ABDM_DEFAULT_SMS_PHONE || undefined,
     hipDisplayName: ABDM_HIP_DISPLAY_NAME,
     linkOtpStore,
     sms,
   };
 
+  app.log.info(
+    {
+      nodeEnv: nodeEnv(),
+      allowInsecureCallbacks: allowInsecureAbdmCallbacks(),
+      adapterPublicBaseUrl: process.env["ABDM_ADAPTER_PUBLIC_BASE_URL"] ?? null,
+      m3MockGateway: process.env["ABDM_M3_MOCK_GATEWAY"] === "true",
+    },
+    "ABDM /api/v3 callback security",
+  );
+
   await app.register(async (v3) => {
     await registerM2CallbackRoutes(v3, adapterDeps);
+    await registerM3CallbackRoutes(v3, adapterDeps);
   }, { prefix: "/api/v3" });
 
   const abdmRouter = createRouter(adapterDeps);
@@ -218,6 +247,30 @@ async function main() {
   }, { prefix: "/api" });
 
   await app.listen({ port: PORT, host: "0.0.0.0" });
+
+  const janitorIntervalMs = Number(process.env["ABDM_JANITOR_INTERVAL_MS"] ?? 300_000);
+  if (Number.isFinite(janitorIntervalMs) && janitorIntervalMs > 0) {
+    const runJanitor = async () => {
+      try {
+        const linkExpired = await linkTokens.janitor();
+        const transferExpired = await m3DataTransfers.janitor();
+        const consentExpired = await m3ConsentRequests.janitor();
+        if (linkExpired || transferExpired || consentExpired) {
+          app.log.info(
+            { linkExpired, transferExpired, consentExpired },
+            "ABDM janitor sweep",
+          );
+        }
+      } catch (err) {
+        app.log.error(err, "ABDM janitor sweep failed");
+      }
+    };
+    const janitorTimer = setInterval(() => {
+      void runJanitor();
+    }, janitorIntervalMs);
+    janitorTimer.unref?.();
+    app.log.info({ janitorIntervalMs }, "ABDM janitor scheduled");
+  }
 }
 
 main().catch((err) => {

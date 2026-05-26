@@ -35,6 +35,12 @@ export const ABDM_ERROR_CODES = {
   LINK_TOKEN_INVALID_JWT: 'ABDM-1066',
   /** Consent signature verification failed. */
   INVALID_SIGNATURE: 'ABDM-1411',
+  /** M3 — invalid or unknown consent artefact id. */
+  INVALID_CONSENT_ARTEFACT: 'ABDM-1080',
+  /** M3 — consent artefact expired. */
+  CONSENT_EXPIRED: 'ABDM-1092',
+  /** M3 — consent not in GRANTED state for data request. */
+  CONSENT_NOT_GRANTED: 'ABDM-1093',
   /** Gateway upstream timeout/5xx. */
   GATEWAY_UNAVAILABLE: 'ABDM-9001',
 } as const;

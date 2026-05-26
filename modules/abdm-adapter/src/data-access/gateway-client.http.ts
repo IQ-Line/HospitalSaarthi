@@ -233,6 +233,27 @@ export class HttpGatewayClient implements GatewayClient {
     linkToken?: string;
     xHipId?: string;
   }): Promise<TRes> {
+    try {
+      return await this.doPost<TReq, TRes>(input);
+    } catch (e) {
+      if (e instanceof AbdmGatewayError && e.statusCode === 401) {
+        this.invalidateBearer();
+        return await this.doPost<TReq, TRes>(input);
+      }
+      throw e;
+    }
+  }
+
+  private async doPost<TReq, TRes>(input: {
+    path: string;
+    body: TReq;
+    headers?: Record<string, string>;
+    target?: AbdmGatewayRouteTarget;
+    withBearer?: boolean;
+    requestId?: string;
+    linkToken?: string;
+    xHipId?: string;
+  }): Promise<TRes> {
     const target = input.target ?? "abha";
     // HIE-CM v3 APIs (generate-token, link/carecontext, …) require gateway bearer.
     // Session acquisition uses fetchBearerToken() directly (no Authorization on that POST).

@@ -12,14 +12,16 @@ import { enrolAadhaarOtpRequest } from "./enrol-aadhaar-otp-request.js";
  * `RUN_ABDM_SANDBOX_TESTS=1 ABDM_SANDBOX_TEST_AADHAAR=... pnpm -F @hims/abdm-adapter test:sandbox`
  */
 
-const RUN = process.env["RUN_ABDM_SANDBOX_TESTS"] === "1";
+import { resolveSandboxDatabaseUrl, hasSandboxAadhaarEnv } from "../../test-utils/sandbox-env.js";
 
-describe.skipIf(!RUN)("enrolAadhaarOtpRequest — ABDM sandbox (RUN_ABDM_SANDBOX_TESTS=1)", () => {
+const RUN = process.env["RUN_ABDM_SANDBOX_TESTS"] === "1";
+const DB_URL = resolveSandboxDatabaseUrl();
+
+describe.skipIf(!RUN || !DB_URL || !hasSandboxAadhaarEnv())(
+  "enrolAadhaarOtpRequest — ABDM sandbox (RUN_ABDM_SANDBOX_TESTS=1)",
+  () => {
   it("dispatches OTP against NHA SBX (requires valid sandbox Aadhaar + env)", async () => {
-    const databaseUrl = process.env["DATABASE_URL"];
-    if (!databaseUrl) {
-      throw new Error("DATABASE_URL required for sandbox integration test");
-    }
+    const databaseUrl = DB_URL!;
     const secrets = new EnvSecretsClient();
     const gateway = new HttpGatewayClient({
       gatewayBaseUrl:
@@ -35,12 +37,7 @@ describe.skipIf(!RUN)("enrolAadhaarOtpRequest — ABDM sandbox (RUN_ABDM_SANDBOX
     const fidelius = new FideliusEncryptor();
     const deps = { sessions, gateway, secrets, fidelius };
 
-    const aadhaar = process.env["ABDM_SANDBOX_TEST_AADHAAR"] ?? "";
-    if (!/^\d{12}$/.test(aadhaar)) {
-      throw new Error(
-        "Set ABDM_SANDBOX_TEST_AADHAAR to a 12-digit sandbox Aadhaar for this test",
-      );
-    }
+    const aadhaar = process.env["ABDM_SANDBOX_TEST_AADHAAR"]!;
 
     const tenantId =
       process.env["ABDM_SANDBOX_TEST_TENANT_ID"] ??
