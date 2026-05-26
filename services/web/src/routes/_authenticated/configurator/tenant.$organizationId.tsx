@@ -368,9 +368,9 @@ function TenantOrganizationDetailPage() {
             <TabsTrigger value="modules" className="shrink-0 text-xs sm:text-sm">
               Modules
             </TabsTrigger>
-            <TabsTrigger value="audit-logs" className="shrink-0 text-xs sm:text-sm">
+            {/* <TabsTrigger value="audit-logs" className="shrink-0 text-xs sm:text-sm">
               Audit logs
-            </TabsTrigger>
+            </TabsTrigger> */}
           </TabsList>
         </div>
 
