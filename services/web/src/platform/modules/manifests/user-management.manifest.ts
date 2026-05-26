@@ -5,7 +5,7 @@ export const userManagementModuleManifest: ModuleManifest = {
   name: 'User Management',
   icon: 'users',
   routePrefix: '/user-management',
-  sortOrder: 20,
+  sortOrder: 0,
   requiredModulesAny: ['user-management'],
   navigation: [
     {

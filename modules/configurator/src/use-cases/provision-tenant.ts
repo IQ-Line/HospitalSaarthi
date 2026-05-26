@@ -7,6 +7,7 @@ import type {
   TenantRepo,
   TenantModuleRepo,
   ModuleCapabilityResolverPort,
+  InfrastructureModuleCatalogPort,
   TenantAdminProvisioningPort,
   RunConfiguratorTransaction,
 } from "../ports.js";
@@ -33,6 +34,7 @@ export const TENANT_ONBOARDING_EVENT_CONTRACT_VERSION = "1.0.0";
 
 export interface ProvisionTenantDeps {
   runConfiguratorTransaction: RunConfiguratorTransaction;
+  infrastructureCatalog: InfrastructureModuleCatalogPort;
   moduleCapabilityResolver: ModuleCapabilityResolverPort;
   adminProvisioner: TenantAdminProvisioningPort;
   eventBus: EventBus;
@@ -64,11 +66,26 @@ export async function provisionTenant(
   // --- A. Validate input ---------------------------------------------------
   validateInput(input);
 
-  const moduleIds = deduplicateModuleIds(input.modules);
+  const productModuleIds = deduplicateModuleIds(input.modules);
   const adminFullName =
     `${input.admin.first_name.trim()} ${input.admin.last_name.trim()}`.trim();
   const adminEmail = input.admin.email.trim().toLowerCase();
   const adminUserId = randomUUID();
+
+  // --- A2. Auto-enable infrastructure modules -----------------------------
+  // Must run BEFORE auth account creation so no orphaned entities on failure.
+  const infraModuleIds =
+    await deps.infrastructureCatalog.fetchInfrastructureModuleIds();
+  const infraIdSet = new Set(infraModuleIds);
+  const moduleIds = mergeModuleIds(infraModuleIds, productModuleIds);
+
+  if (moduleIds.length === 0) {
+    throw new ConfiguratorError(
+      422,
+      "No modules available for tenant — infrastructure catalog returned empty and no product modules selected",
+      "NO_MODULES_AVAILABLE",
+    );
+  }
 
   // --- B. Pre-transaction checks -------------------------------------------
   await deps.adminProvisioner.checkEmailAvailability(adminEmail);
@@ -86,7 +103,7 @@ export async function provisionTenant(
   // Must commit BEFORE capability resolution and HTTP calls because the
   // entitlement check calls back to configurator to verify tenant modules.
   const coreData = await deps.runConfiguratorTransaction(async (repos) => {
-    return createCoreEntities(repos, ctx, input, moduleIds, adminEmail);
+    return createCoreEntities(repos, ctx, input, moduleIds, infraIdSet, adminEmail);
   });
 
   // --- E. Resolve capabilities using committed tenant data -----------------
@@ -236,6 +253,7 @@ async function createCoreEntities(
   ctx: ProvisionTenantContext,
   input: ProvisionTenantInput,
   moduleIds: string[],
+  infraModuleIds: ReadonlySet<string>,
   adminEmail: string,
 ): Promise<CoreProvisioningData> {
   const existingOrgId = input.organization.id?.trim();
@@ -288,11 +306,12 @@ async function createCoreEntities(
   for (const moduleId of moduleIds) {
     if (seen.has(moduleId)) continue;
     seen.add(moduleId);
+    const isCoreOverride = infraModuleIds.has(moduleId);
     const tm = await createTenantModule(repos.tenantModuleRepo, repos.tenantRepo, {
       iq_tenant_id: tenant.iq_tenant_id,
       module_id: moduleId,
       is_active: true,
-      is_core_override: false,
+      is_core_override: isCoreOverride,
       created_by: ctx.actorId,
     });
     tenantModules.push({
@@ -368,9 +387,9 @@ function validateInput(input: ProvisionTenantInput): void {
   input.plan = { ...input.plan, slug: planSlug };
   if (!input.modules || input.modules.length === 0) {
     throw new ConfiguratorError(
-      422,
-      "At least one module must be selected",
-      "NO_MODULES_SELECTED",
+      400,
+      "modules array is required",
+      "VALIDATION_ERROR",
     );
   }
 
@@ -408,6 +427,22 @@ function deduplicateModuleIds(
   return result;
 }
 
+/** Infrastructure IDs first, then product IDs, deduplicated. */
+function mergeModuleIds(
+  infraIds: string[],
+  productIds: string[],
+): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const id of [...infraIds, ...productIds]) {
+    if (!seen.has(id)) {
+      seen.add(id);
+      result.push(id);
+    }
+  }
+  return result;
+}
+
 function buildOrganizationMetadata(
   input: ProvisionTenantInput,
 ): Record<string, unknown> {
@@ -429,7 +464,7 @@ function buildOrganizationMetadata(
 // Event publishing
 // ---------------------------------------------------------------------------
 
-export interface TenantOnboardingCompletedPayload {
+export type TenantOnboardingCompletedPayload = {
   organization_id: string;
   organization_slug: string;
   tenant_id: string;
@@ -441,7 +476,7 @@ export interface TenantOnboardingCompletedPayload {
   enabled_module_ids: string[];
   plan_slug: string;
   provisioned_at: string;
-}
+} & Record<string, unknown>;
 
 async function publishOnboardingCompletedEvent(
   eventBus: EventBus,

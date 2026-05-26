@@ -5,7 +5,7 @@ export const configuratorModuleManifest: ModuleManifest = {
   name: 'Configurator',
   icon: 'sliders-horizontal',
   routePrefix: '/configurator',
-  sortOrder: 50,
+  sortOrder: 10,
   requiredModulesAny: ['configurator'],
   navigation: [
     {

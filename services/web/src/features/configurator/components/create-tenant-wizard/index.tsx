@@ -105,13 +105,14 @@ export function CreateTenantWizard({
   const { data: modulesRes, isLoading: modulesLoading } = useModules(undefined, {
     enabled: open,
     globalCatalog: true,
+    moduleKinds: ['product'],
   });
-  const modules = useMemo(() => {
+  const productModules = useMemo(() => {
     const all = modulesRes?.data ?? [];
     return all.filter((m) => m.is_active && !m.is_deleted);
   }, [modulesRes?.data]);
 
-  const childMap = useMemo(() => buildChildrenMap(modules), [modules]);
+  const childMap = useMemo(() => buildChildrenMap(productModules), [productModules]);
   const rootModules = useMemo(() => childMap.get(null) ?? [], [childMap]);
 
   const form = useForm<WizardFormValues>({
@@ -251,8 +252,8 @@ export function CreateTenantWizard({
   );
 
   const selectAllModules = useCallback(() => {
-    setEnabledModuleIds(new Set(modules.map((module) => module.id)));
-  }, [modules]);
+    setEnabledModuleIds(new Set(productModules.map((module) => module.id)));
+  }, [productModules]);
 
   const clearAllModules = useCallback(() => {
     setEnabledModuleIds(new Set());
@@ -458,7 +459,7 @@ export function CreateTenantWizard({
                 rootModules={rootModules}
                 childMap={childMap}
                 moduleOverrideIds={enabledModuleIds}
-                totalModuleCount={modules.length}
+                totalModuleCount={productModules.length}
                 onToggleModule={toggleModule}
                 onSelectModuleSubtree={selectModuleSubtree}
                 onSelectAllModules={selectAllModules}

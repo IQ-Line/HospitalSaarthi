@@ -22,7 +22,7 @@ export function buildChildrenMap(modules: Module[]): Map<string | null, Module[]
     map.get(p)!.push(m);
   }
   for (const arr of map.values()) {
-    arr.sort((a, b) => a.name.localeCompare(b.name));
+    arr.sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0) || a.name.localeCompare(b.name));
   }
   return map;
 }

@@ -62,7 +62,7 @@ export const tenantOnboardingBodySchema = {
     },
     modules: {
       type: "array",
-      minItems: 1,
+      minItems: 0,
       maxItems: 2000,
       items: tenantModuleEnablementItemSchema,
     },
