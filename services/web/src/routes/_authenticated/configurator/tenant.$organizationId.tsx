@@ -540,15 +540,17 @@ function TenantOrganizationDetailPage() {
         </TabsContent>
 
         <TabsContent value="branches" className="mt-4 space-y-4">
-          <div className="flex justify-end">
-            <Button
-              type="button"
-              className="bg-[#008C9E] text-white hover:bg-[#00798a]"
-              onClick={() => setAddBranchOpen(true)}
-            >
-              + Add branch
-            </Button>
-          </div>
+          {isPlatformSuperAdminFromAccessToken(accessToken) ? (
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                className="bg-[#008C9E] text-white hover:bg-[#00798a]"
+                onClick={() => setAddBranchOpen(true)}
+              >
+                + Add branch
+              </Button>
+            </div>
+          ) : null}
           <div className="rounded-lg border">
             <DataTable
               columns={branchColumns}
