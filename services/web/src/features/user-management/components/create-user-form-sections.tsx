@@ -107,6 +107,8 @@ export function CreateUserIdentitySection({ register, errors }: SharedFormSectio
 
 type CreateUserWorkplaceSectionProps = SharedFormSectionProps & {
   control: Control<CreateUserFormValues>;
+  /** When provided, fetches departments from this tenant's catalog instead of the session tenant. */
+  iqTenantId?: string;
 };
 
 /** Department and clearance — org/tenant come from Configurator (super-admin) or session tenant. */
@@ -114,8 +116,9 @@ export function CreateUserWorkplaceSection({
   register,
   errors,
   control,
+  iqTenantId,
 }: CreateUserWorkplaceSectionProps) {
-  const { data: deptData, isLoading: deptLoading } = useDepartments();
+  const { data: deptData, isLoading: deptLoading } = useDepartments(undefined, { iqTenantId });
   const departments = (deptData?.data ?? []).filter((d) => d.is_active);
 
   return (

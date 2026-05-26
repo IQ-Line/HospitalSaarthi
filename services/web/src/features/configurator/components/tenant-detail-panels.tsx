@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useReducer, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm, type UseFormReturn } from 'react-hook-form';
+import { useForm, Controller, type UseFormReturn } from 'react-hook-form';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Plus } from 'lucide-react';
@@ -23,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@pulse/ui/select';
+import { Switch } from '@pulse/ui/switch';
 import { Textarea } from '@pulse/ui/textarea';
 import { DataTable } from '@/components/data-table';
 import { ConfirmDialog } from '@/components/confirm-dialog';
@@ -75,9 +76,11 @@ import {
   useDepartments,
   useUpdateDepartment,
 } from '@/features/master-data/api';
+import { ReadOnlyRow } from '@/features/master-data/components/read-only-row';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { rowMatchesSearch } from '@/features/master-data/table-search';
 import type { Department, DepartmentType } from '@/features/master-data/types';
+import { toSlug } from '@/features/master-data/utils';
 import {
   EMPTY_DEPARTMENT_FORM_VALUES,
   departmentFormSchema,
@@ -105,6 +108,13 @@ const DEPARTMENT_TYPES: DepartmentType[] = [
   'administrative',
   'support',
 ];
+
+const DEPARTMENT_TYPE_LABELS: Record<DepartmentType, string> = {
+  clinical: 'Clinical',
+  diagnostic: 'Diagnostic',
+  administrative: 'Administrative',
+  support: 'Support',
+};
 
 
 export function TenantUsersPanel({
@@ -230,48 +240,108 @@ function DepartmentFormFields({
 }: {
   form: UseFormReturn<DepartmentFormInput, unknown, DepartmentFormValues>;
 }) {
-  const { register, setValue, watch } = form;
-  const type = watch('type');
+  const {
+    register,
+    control,
+    watch,
+    formState: { errors },
+  } = form;
+  const watchedName = watch('name');
+  const codeSuggestion = toSlug(watchedName).toUpperCase().replace(/-/g, '_');
+
   return (
-    <div className="space-y-3">
-      <div className="space-y-1.5">
-        <Label htmlFor="dept-name">Name</Label>
-        <Input id="dept-name" {...register('name')} />
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="dept-name">Name</Label>
+          <Input
+            id="dept-name"
+            placeholder="e.g. Cardiology"
+            {...register('name')}
+          />
+          {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="dept-code">Code</Label>
+          <Input
+            id="dept-code"
+            placeholder={codeSuggestion || 'e.g. CARDIOLOGY'}
+            {...register('code')}
+          />
+          {errors.code && <p className="text-xs text-destructive">{errors.code.message}</p>}
+        </div>
       </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="dept-code">Code</Label>
-        <Input id="dept-code" {...register('code')} />
-      </div>
+
       <div className="space-y-1.5">
         <Label>Type</Label>
-        <Select value={type} onValueChange={(v) => setValue('type', v as DepartmentType)}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {DEPARTMENT_TYPES.map((t) => (
-              <SelectItem key={t} value={t}>
-                {t}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Controller
+          name="type"
+          control={control}
+          render={({ field }) => (
+            <Select value={field.value} onValueChange={field.onChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select department type" />
+              </SelectTrigger>
+              <SelectContent>
+                {DEPARTMENT_TYPES.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {DEPARTMENT_TYPE_LABELS[option]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        />
+        {errors.type && <p className="text-xs text-destructive">{errors.type.message}</p>}
       </div>
+
       <div className="space-y-1.5">
-        <Label htmlFor="dept-desc">Description</Label>
-        <Textarea id="dept-desc" rows={2} {...register('description')} />
+        <Label htmlFor="dept-description">Description (optional)</Label>
+        <Textarea
+          id="dept-description"
+          rows={3}
+          placeholder={`Describe the ${watchedName || 'department'} and its scope`}
+          {...register('description')}
+        />
+        {errors.description && (
+          <p className="text-xs text-destructive">{errors.description.message}</p>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between rounded-md border px-3 py-2">
+        <div>
+          <p className="text-sm font-medium">Active</p>
+          <p className="text-xs text-muted-foreground">
+            Inactive departments are hidden from selection lists.
+          </p>
+        </div>
+        <Controller
+          name="is_active"
+          control={control}
+          render={({ field }) => (
+            <Switch checked={field.value} onCheckedChange={field.onChange} />
+          )}
+        />
       </div>
     </div>
   );
 }
 
 export function TenantDepartmentsPanel({ iqTenantId }: { iqTenantId: string }) {
-  const [search, setSearch] = useState('');
+  const { canCreate, canUpdate, canDelete } = useCatalogModuleCrud('departments', {
+    productModuleSlug: 'master-data',
+  });
+  const [tableSearch, setTableSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState<DepartmentType | 'all'>('all');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [editing, setEditing] = useState<Department | null>(null);
-  const [deleting, setDeleting] = useState<Department | null>(null);
+  const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
+  const [viewingDepartment, setViewingDepartment] = useState<Department | null>(null);
+  const [deletingDepartment, setDeletingDepartment] = useState<Department | null>(null);
 
-  const { data, isLoading, error } = useDepartments(undefined, { iqTenantId });
+  const deptType = typeFilter === 'all' ? undefined : typeFilter;
+  const { data, isLoading, error } = useDepartments(deptType, { iqTenantId });
+  const departments = data?.data ?? [];
+
   const createMutation = useCreateDepartment(iqTenantId);
   const updateMutation = useUpdateDepartment(iqTenantId);
   const deleteMutation = useDeleteDepartment(iqTenantId);
@@ -285,13 +355,11 @@ export function TenantDepartmentsPanel({ iqTenantId }: { iqTenantId: string }) {
     defaultValues: EMPTY_DEPARTMENT_FORM_VALUES,
   });
 
-  const rows = useMemo(() => {
-    const list = data?.data ?? [];
-    if (!search.trim()) return list;
-    return list.filter((d) =>
-      rowMatchesSearch(search, d.name, d.code, d.type, d.description ?? ''),
+  const filteredDepartments = useMemo(() => {
+    return departments.filter((d) =>
+      rowMatchesSearch(tableSearch, d.name, d.code, d.type),
     );
-  }, [data?.data, search]);
+  }, [departments, tableSearch]);
 
   const columns = useMemo<ColumnDef<Department, unknown>[]>(
     () => [
@@ -304,21 +372,32 @@ export function TenantDepartmentsPanel({ iqTenantId }: { iqTenantId: string }) {
       {
         accessorKey: 'type',
         header: 'Type',
-        cell: ({ getValue }) => <Badge variant="outline">{getValue<string>()}</Badge>,
+        cell: ({ getValue }) => (
+          <Badge variant="secondary">
+            {DEPARTMENT_TYPE_LABELS[getValue<DepartmentType>()] ?? getValue<string>()}
+          </Badge>
+        ),
       },
       {
         accessorKey: 'is_active',
-        header: 'Active',
+        header: 'Status',
         cell: ({ row }) => (
           <TableActiveToggle
             active={row.original.is_active}
-            disabled={updateMutation.isPending}
+            disabled={
+              !canUpdate ||
+              (updateMutation.isPending &&
+                updateMutation.variables?.id === row.original.id)
+            }
             onCheckedChange={(next) => {
               if (next === row.original.is_active) return;
               updateMutation.mutate(
                 { id: row.original.id, input: { is_active: next } },
                 {
-                  onSuccess: () => toast.success(next ? 'Activated' : 'Deactivated'),
+                  onSuccess: () =>
+                    toast.success(
+                      next ? 'Department activated' : 'Department deactivated',
+                    ),
                   onError: (err) => toast.error(mutationErrorMessage(err)),
                 },
               );
@@ -328,21 +407,12 @@ export function TenantDepartmentsPanel({ iqTenantId }: { iqTenantId: string }) {
       },
       {
         id: 'actions',
-        header: '',
+        header: () => <div className="text-right">Actions</div>,
         cell: ({ row }) => (
           <EntityRowActions
-            onView={() => {
-              setEditing(row.original);
-              editForm.reset({
-                name: row.original.name,
-                code: row.original.code,
-                type: row.original.type,
-                description: row.original.description,
-                is_active: row.original.is_active,
-              });
-            }}
+            onView={() => setViewingDepartment(row.original)}
             onEdit={() => {
-              setEditing(row.original);
+              setEditingDepartment(row.original);
               editForm.reset({
                 name: row.original.name,
                 code: row.original.code,
@@ -351,13 +421,59 @@ export function TenantDepartmentsPanel({ iqTenantId }: { iqTenantId: string }) {
                 is_active: row.original.is_active,
               });
             }}
-            onDelete={() => setDeleting(row.original)}
+            onDelete={() => setDeletingDepartment(row.original)}
+            disabled={deleteMutation.isPending}
+            canEdit={canUpdate}
+            canDelete={canDelete}
           />
         ),
       },
     ],
-    [editForm, updateMutation],
+    [
+      canDelete,
+      canUpdate,
+      deleteMutation.isPending,
+      editForm,
+      updateMutation.isPending,
+      updateMutation.variables,
+    ],
   );
+
+  const onCreateSubmit = createForm.handleSubmit(async (values) => {
+    try {
+      await createMutation.mutateAsync(values);
+      toast.success('Department created');
+      setIsCreateOpen(false);
+      createForm.reset(EMPTY_DEPARTMENT_FORM_VALUES);
+    } catch (err) {
+      toast.error(mutationErrorMessage(err));
+    }
+  });
+
+  const onEditSubmit = editForm.handleSubmit(async (values) => {
+    if (!editingDepartment) return;
+    try {
+      await updateMutation.mutateAsync({
+        id: editingDepartment.id,
+        input: values,
+      });
+      toast.success('Department updated');
+      setEditingDepartment(null);
+    } catch (err) {
+      toast.error(mutationErrorMessage(err));
+    }
+  });
+
+  const onDeleteConfirm = async () => {
+    if (!deletingDepartment) return;
+    try {
+      await deleteMutation.mutateAsync(deletingDepartment.id);
+      toast.success('Department deleted');
+      setDeletingDepartment(null);
+    } catch (err) {
+      toast.error(mutationErrorMessage(err));
+    }
+  };
 
   if (error) {
     return (
@@ -367,109 +483,115 @@ export function TenantDepartmentsPanel({ iqTenantId }: { iqTenantId: string }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <Button
-          size="sm"
-          onClick={() => {
-            createForm.reset(EMPTY_DEPARTMENT_FORM_VALUES);
-            setIsCreateOpen(true);
-          }}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Select
+          value={typeFilter}
+          onValueChange={(value) => setTypeFilter(value as DepartmentType | 'all')}
         >
-          <Plus className="size-4 mr-1" />
-          Add department
-        </Button>
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="Filter type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All types</SelectItem>
+            {DEPARTMENT_TYPES.map((option) => (
+              <SelectItem key={option} value={option}>
+                {DEPARTMENT_TYPE_LABELS[option]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {canCreate ? (
+          <Button
+            size="sm"
+            onClick={() => {
+              createForm.reset(EMPTY_DEPARTMENT_FORM_VALUES);
+              setIsCreateOpen(true);
+            }}
+          >
+            <Plus className="size-4 mr-1" />
+            Add Department
+          </Button>
+        ) : null}
       </div>
-      <EntityTableToolbar value={search} onChange={setSearch} placeholder="Search departments…" />
+      <EntityTableToolbar value={tableSearch} onChange={setTableSearch} placeholder="Search name, code, type…" />
       <div className="rounded-lg border">
         <DataTable
           columns={columns}
-          data={rows}
+          data={filteredDepartments}
           isLoading={isLoading}
-          emptyTitle="No tenant departments"
-          emptyDescription="Create departments for this tenant catalog."
+          emptyTitle="No departments found"
+          emptyDescription="Add a department to get started."
         />
       </div>
 
+      {/* Create dialog */}
       <EntityFormDialog
         open={isCreateOpen}
-        onOpenChange={setIsCreateOpen}
-        title="Add department"
-        description="Create a department in this tenant catalog."
-        submitLabel="Create"
+        onOpenChange={(open) => {
+          setIsCreateOpen(open);
+          if (!open) createForm.reset(EMPTY_DEPARTMENT_FORM_VALUES);
+        }}
+        title="Add Department"
+        description="Create a new hospital department."
+        submitLabel="Create Department"
         isSubmitting={createMutation.isPending}
-        onSubmit={createForm.handleSubmit((values) => {
-          createMutation.mutate(
-            {
-              name: values.name,
-              code: values.code,
-              type: values.type,
-              description: values.description,
-              is_active: values.is_active,
-            },
-            {
-              onSuccess: () => {
-                toast.success('Department created');
-                setIsCreateOpen(false);
-                createForm.reset(EMPTY_DEPARTMENT_FORM_VALUES);
-              },
-              onError: (err) => toast.error(mutationErrorMessage(err)),
-            },
-          );
-        })}
+        onSubmit={onCreateSubmit}
       >
         <DepartmentFormFields form={createForm} />
       </EntityFormDialog>
 
+      {/* Edit dialog */}
       <EntityFormDialog
-        open={!!editing}
-        onOpenChange={(open) => !open && setEditing(null)}
-        title="Edit department"
-        description={editing ? `Update ${editing.name}.` : ''}
-        submitLabel="Save"
+        open={!!editingDepartment}
+        onOpenChange={(open) => {
+          if (!open) setEditingDepartment(null);
+        }}
+        title="Edit Department"
+        description="Update department details."
+        submitLabel="Save Changes"
         isSubmitting={updateMutation.isPending}
-        onSubmit={editForm.handleSubmit((values) => {
-          if (!editing) return;
-          updateMutation.mutate(
-            {
-              id: editing.id,
-              input: {
-                name: values.name,
-                code: values.code,
-                type: values.type,
-                description: values.description,
-                is_active: values.is_active,
-              },
-            },
-            {
-              onSuccess: () => {
-                toast.success('Department updated');
-                setEditing(null);
-              },
-              onError: (err) => toast.error(mutationErrorMessage(err)),
-            },
-          );
-        })}
+        onSubmit={onEditSubmit}
       >
         <DepartmentFormFields form={editForm} />
       </EntityFormDialog>
 
+      {/* View dialog */}
+      <Dialog
+        open={!!viewingDepartment}
+        onOpenChange={(open) => !open && setViewingDepartment(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Department details</DialogTitle>
+            <DialogDescription>Read-only department information.</DialogDescription>
+          </DialogHeader>
+          {viewingDepartment && (
+            <div className="space-y-2 text-sm">
+              <ReadOnlyRow label="Name" value={viewingDepartment.name} />
+              <ReadOnlyRow label="Code" value={viewingDepartment.code} />
+              <ReadOnlyRow
+                label="Type"
+                value={DEPARTMENT_TYPE_LABELS[viewingDepartment.type] ?? viewingDepartment.type}
+              />
+              <ReadOnlyRow
+                label="Status"
+                value={viewingDepartment.is_active ? 'Active' : 'Inactive'}
+              />
+              <ReadOnlyRow label="Description" value={viewingDepartment.description ?? '-'} />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirm */}
       <ConfirmDialog
-        open={!!deleting}
-        onOpenChange={(open) => !open && setDeleting(null)}
-        title="Delete department?"
-        description={`Remove "${deleting?.name}" from the tenant catalog.`}
+        open={!!deletingDepartment}
+        onOpenChange={(open) => !open && setDeletingDepartment(null)}
+        title="Delete department"
+        description={`Soft-delete department "${deletingDepartment?.name ?? ''}"?`}
         confirmLabel="Delete"
         destructive
-        onConfirm={async () => {
-          if (!deleting) return;
-          try {
-            await deleteMutation.mutateAsync(deleting.id);
-            toast.success('Department deleted');
-            setDeleting(null);
-          } catch (err) {
-            toast.error(mutationErrorMessage(err));
-          }
-        }}
+        onConfirm={onDeleteConfirm}
       />
     </div>
   );
