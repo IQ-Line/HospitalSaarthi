@@ -202,48 +202,60 @@ def upgrade() -> None:
 
     op.execute(
         f"""
-        UPDATE configurator.tenant_modules tm
-        SET is_active = false, updated_at = now()
-        WHERE tm.module_id = '{MODULE_VISITPAD_TEMPLATES_ID}'::uuid
-          AND tm.is_active = true;
+        DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'configurator' AND table_name = 'tenant_modules'
+          ) THEN
+            UPDATE configurator.tenant_modules tm
+            SET is_active = false, updated_at = now()
+            WHERE tm.module_id = '{MODULE_VISITPAD_TEMPLATES_ID}'::uuid
+              AND tm.is_active = true;
+
+            INSERT INTO configurator.tenant_modules (
+                iq_tenant_id, module_id, is_active, is_core_override, created_at, updated_at
+            )
+            SELECT
+                legacy.iq_tenant_id,
+                vm.id,
+                true,
+                false,
+                now(),
+                now()
+            FROM configurator.tenant_modules legacy
+            INNER JOIN global_master.modules vm
+              ON vm.slug = 'visitpad-master' AND NOT vm.is_deleted
+            WHERE legacy.module_id = '55555555-5555-4555-8555-555555555501'::uuid
+              AND NOT legacy.is_active
+              AND NOT EXISTS (
+                SELECT 1 FROM configurator.tenant_modules existing
+                WHERE existing.iq_tenant_id = legacy.iq_tenant_id
+                  AND existing.module_id = vm.id
+              );
+          END IF;
+        END $$;
         """
     )
 
     op.execute(
         """
-        INSERT INTO configurator.tenant_modules (
-            iq_tenant_id, module_id, is_active, is_core_override, created_at, updated_at
-        )
-        SELECT
-            legacy.iq_tenant_id,
-            vm.id,
-            true,
-            false,
-            now(),
-            now()
-        FROM configurator.tenant_modules legacy
-        INNER JOIN global_master.modules vm
-          ON vm.slug = 'visitpad-master' AND NOT vm.is_deleted
-        WHERE legacy.module_id = '55555555-5555-4555-8555-555555555501'::uuid
-          AND NOT legacy.is_active
-          AND NOT EXISTS (
-            SELECT 1 FROM configurator.tenant_modules existing
-            WHERE existing.iq_tenant_id = legacy.iq_tenant_id
-              AND existing.module_id = vm.id
-          );
-        """
-    )
-
-    op.execute(
-        """
-        UPDATE user_management.capabilities
-        SET capability_key = replace(capability_key, 'visitpad-templates:', 'visitpad-master:'),
-            module = CASE
-              WHEN module = 'visitpad-templates' THEN 'visitpad-master'
-              ELSE module
-            END,
-            updated_at = now()
-        WHERE capability_key LIKE 'visitpad-templates:%';
+        DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'user_management' AND table_name = 'capabilities'
+          ) THEN
+            UPDATE user_management.capabilities
+            SET capability_key = replace(capability_key, 'visitpad-templates:', 'visitpad-master:'),
+                module = CASE
+                  WHEN module = 'visitpad-templates' THEN 'visitpad-master'
+                  ELSE module
+                END,
+                updated_at = now()
+            WHERE capability_key LIKE 'visitpad-templates:%';
+          END IF;
+        END $$;
         """
     )
 

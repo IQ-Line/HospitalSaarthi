@@ -29,6 +29,11 @@ export interface TenantModuleEntitlementPort {
 export interface MasterDataModuleCatalogPort {
   resolveModuleSlugsByIds(moduleIds: string[]): Promise<Map<string, string>>;
   /**
+   * Resolves `module_kind` for a set of normalized module slugs.
+   * Returns a map of `slug → module_kind` (e.g. `'product'`, `'platform'`, `'foundation'`).
+   */
+  resolveModuleKindBySlugs(slugs: readonly string[]): Promise<Map<string, string>>;
+  /**
    * Expands enabled catalog slugs to include every descendant module slug in the tree.
    * L1 `tenant_modules` rows imply L2+ permissions linked on child modules.
    */

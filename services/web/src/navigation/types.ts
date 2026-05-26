@@ -34,6 +34,8 @@ export type NavFilterContext = {
   bypassCapabilityGates?: boolean;
   /** True when the current principal is a platform superadmin. */
   isSuperAdmin?: boolean;
+  /** True when the current principal is a tenant administrator. */
+  isTenantAdmin?: boolean;
   /** Module catalog index for visibility_scope lookups. */
   catalogIndex?: import('@/platform/modules/types').ModuleCatalogIndex | null;
   /**

@@ -87,7 +87,7 @@ function catalogVisibilityScopeHidesNode(
   if (!entry) {
     return false;
   }
-  if (ctx.isSuperAdmin) {
+  if (ctx.isSuperAdmin || ctx.isTenantAdmin) {
     return entry.module_kind === 'product';
   }
   return entry.visibility_scope === 'superadmin';

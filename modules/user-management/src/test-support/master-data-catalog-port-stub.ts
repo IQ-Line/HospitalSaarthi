@@ -37,6 +37,9 @@ export function createMasterDataModuleCatalogPortStub(
     async resolveModuleSlugsByIds() {
       return new Map();
     },
+    async resolveModuleKindBySlugs() {
+      return new Map();
+    },
     async expandEnabledModuleSlugs(moduleSlugs) {
       return moduleSlugs;
     },

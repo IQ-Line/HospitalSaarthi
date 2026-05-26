@@ -262,6 +262,93 @@ describe("listAssignableRuntimeCapabilities", () => {
     expect(result.map((capability) => capability.id)).toEqual(["cap-tariff-read"]);
   });
 
+  it("excludes platform module capabilities when productOnly is true", async () => {
+    const visitpadModuleId = "11111111-1111-4111-8111-111111111111";
+    const capabilityRepository = new InMemoryCapabilityRepository(
+      [
+        capability({ id: "cap-um", module: "user-management" }),
+        capability({ id: "cap-cfg", module: "configurator" }),
+        capability({
+          id: "cap-vp",
+          module: "visitpad",
+          source_catalog: "master_data",
+          source_module_slug: "visitpad",
+          source_permission_slug: "read",
+        }),
+      ].map((c) => ({ capability: c })),
+    );
+
+    const result = await listAssignableRuntimeCapabilities(
+      {
+        capabilityRepository,
+        tenantModuleEntitlementPort: {
+          listTenantEnabledModuleIds: vi.fn().mockResolvedValue([visitpadModuleId]),
+        },
+        masterDataModuleCatalogPort: createMasterDataModuleCatalogPortStub({
+          resolveModuleSlugsByIds: vi
+            .fn()
+            .mockResolvedValue(new Map([[visitpadModuleId, "visitpad"]])),
+          resolveModuleKindBySlugs: vi
+            .fn()
+            .mockResolvedValue(new Map([["visitpad", "product"]])),
+        }),
+      },
+      "tenant-a",
+      undefined,
+      { productOnly: true },
+    );
+
+    expect(result.map((c) => c.id)).toEqual(["cap-vp"]);
+    expect(result.some((c) => c.module === "user-management")).toBe(false);
+    expect(result.some((c) => c.module === "configurator")).toBe(false);
+  });
+
+  it("excludes foundation module capabilities when productOnly is true", async () => {
+    const empiModuleId = "44444444-4444-4444-8444-444444444444";
+    const opdModuleId = "55555555-5555-4555-8555-555555555555";
+    const capabilityRepository = new InMemoryCapabilityRepository(
+      [
+        capability({
+          id: "cap-empi",
+          module: "empi",
+          source_catalog: "master_data",
+          source_module_slug: "empi",
+          source_permission_slug: "read",
+        }),
+        capability({
+          id: "cap-opd",
+          module: "opd",
+          source_catalog: "master_data",
+          source_module_slug: "opd",
+          source_permission_slug: "read",
+        }),
+      ].map((c) => ({ capability: c })),
+    );
+
+    const result = await listAssignableRuntimeCapabilities(
+      {
+        capabilityRepository,
+        tenantModuleEntitlementPort: {
+          listTenantEnabledModuleIds: vi.fn().mockResolvedValue([empiModuleId, opdModuleId]),
+        },
+        masterDataModuleCatalogPort: createMasterDataModuleCatalogPortStub({
+          resolveModuleSlugsByIds: vi
+            .fn()
+            .mockResolvedValue(new Map([[empiModuleId, "empi"], [opdModuleId, "opd"]])),
+          resolveModuleKindBySlugs: vi
+            .fn()
+            .mockResolvedValue(new Map([["empi", "foundation"], ["opd", "product"]])),
+        }),
+      },
+      "tenant-a",
+      undefined,
+      { productOnly: true },
+    );
+
+    expect(result.map((c) => c.id)).toEqual(["cap-opd"]);
+    expect(result.some((c) => c.module === "empi")).toBe(false);
+  });
+
   it("propagates configurator lookup failures (fail closed)", async () => {
     const capabilityRepository = new InMemoryCapabilityRepository(
       [capability({ id: "cap-um", module: "user-management" })].map((c) => ({ capability: c })),

@@ -37,7 +37,7 @@ import {
   TenantRoleTemplatesPanel,
   TenantUsersPanel,
 } from '@/features/configurator/components/tenant-detail-panels';
-import { isPlatformSuperAdminFromAccessToken } from '@/lib/platform-admin';
+import { isPlatformSuperAdminFromAccessToken, isTenantAdminFromAccessToken } from '@/lib/platform-admin';
 import { useAuthStore } from '@/stores/auth.store';
 import {
   buildDescendantBranchTreeRows,
@@ -244,7 +244,9 @@ function TenantOrganizationDetailPage() {
   );
 
   const accessToken = useAuthStore((s) => s.accessToken);
-  const canEditTenantModules = isPlatformSuperAdminFromAccessToken(accessToken);
+  const canEditTenantModules =
+    isPlatformSuperAdminFromAccessToken(accessToken) ||
+    isTenantAdminFromAccessToken(accessToken);
 
   if (orgError) {
     return (

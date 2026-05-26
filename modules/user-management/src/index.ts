@@ -176,7 +176,10 @@ export type { ListCapabilitiesDeps } from "./use-cases/list-capabilities.js";
 export { listAssignableCapabilities } from "./use-cases/list-assignable-capabilities.js";
 export type { ListAssignableCapabilitiesDeps } from "./use-cases/list-assignable-capabilities.js";
 export { listAssignableRuntimeCapabilities } from "./use-cases/list-assignable-runtime-capabilities.js";
-export type { ListAssignableRuntimeCapabilitiesDeps } from "./use-cases/list-assignable-runtime-capabilities.js";
+export type {
+  ListAssignableRuntimeCapabilitiesDeps,
+  ListAssignableRuntimeCapabilitiesOptions,
+} from "./use-cases/list-assignable-runtime-capabilities.js";
 export { assertRuntimeCapabilitiesEntitledForTenant } from "./use-cases/assert-runtime-capabilities-entitled-for-tenant.js";
 export {
   MODULE_SLUG_PATTERN,

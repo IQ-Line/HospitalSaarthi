@@ -21,6 +21,7 @@ const DEFAULT_MAX_ATTEMPTS = 3;
 const DEFAULT_CACHE_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_MAX_CACHE_ENTRIES = 8;
 const MODULE_SLUG_MAP_CACHE_KEY = "master-data-module-slug-map";
+const MODULE_KIND_BY_SLUG_CACHE_KEY = "master-data-module-kind-by-slug";
 const MODULE_TREE_CACHE_KEY = "master-data-module-tree";
 const PERMISSION_SLUG_MAP_CACHE_KEY = "master-data-permission-slug-map";
 const MODULE_PERMISSION_SOURCE_PAIRS_CACHE_KEY = "master-data-module-permission-source-pairs";
@@ -31,6 +32,7 @@ type ModuleRow = {
   slug: string;
   parent_id?: string | null;
   level?: number;
+  module_kind?: string;
 };
 
 type ModuleListResponse = {
@@ -77,6 +79,7 @@ export class HttpMasterDataModuleCatalogAdapter implements MasterDataModuleCatal
   private readonly timeoutMs: number;
   private readonly maxAttempts: number;
   private readonly moduleSlugByIdCache: BoundedTtlCache<Map<string, string>>;
+  private readonly moduleKindBySlugCache: BoundedTtlCache<Map<string, string>>;
   private readonly moduleTreeCache: BoundedTtlCache<ModuleRow[]>;
   private readonly permissionSlugByIdCache: BoundedTtlCache<Map<string, string>>;
   private readonly modulePermissionSourcePairsCache: BoundedTtlCache<Set<string>>;
@@ -93,6 +96,7 @@ export class HttpMasterDataModuleCatalogAdapter implements MasterDataModuleCatal
         options.log?.({ source: "master_data", cache: event.outcome, cacheKey: event.key }, message),
     };
     this.moduleSlugByIdCache = new BoundedTtlCache<Map<string, string>>(cacheOpts);
+    this.moduleKindBySlugCache = new BoundedTtlCache<Map<string, string>>(cacheOpts);
     this.moduleTreeCache = new BoundedTtlCache<ModuleRow[]>(cacheOpts);
     this.permissionSlugByIdCache = new BoundedTtlCache<Map<string, string>>(cacheOpts);
     this.modulePermissionSourcePairsCache = new BoundedTtlCache<Set<string>>(cacheOpts);
@@ -161,6 +165,20 @@ export class HttpMasterDataModuleCatalogAdapter implements MasterDataModuleCatal
     return resolved;
   }
 
+  async resolveModuleKindBySlugs(slugs: readonly string[]): Promise<Map<string, string>> {
+    await this.ensureModuleCatalogLoaded();
+    const kindBySlug = this.moduleKindBySlugCache.get(MODULE_KIND_BY_SLUG_CACHE_KEY) ?? new Map();
+    const result = new Map<string, string>();
+    for (const slug of slugs) {
+      const normalized = normalizeModuleSlug(slug);
+      const kind = kindBySlug.get(normalized);
+      if (kind !== undefined) {
+        result.set(normalized, kind);
+      }
+    }
+    return result;
+  }
+
   private async loadModuleTree(): Promise<ModuleRow[]> {
     await this.ensureModuleCatalogLoaded();
     return this.moduleTreeCache.get(MODULE_TREE_CACHE_KEY) ?? [];
@@ -181,6 +199,7 @@ export class HttpMasterDataModuleCatalogAdapter implements MasterDataModuleCatal
 
     const rows = await this.fetchModuleRows();
     const slugByModuleId = new Map<string, string>();
+    const kindBySlug = new Map<string, string>();
     const normalizedSlugs = new Set<string>();
     for (const row of rows) {
       if (typeof row.id !== "string" || typeof row.slug !== "string" || row.slug.length === 0) {
@@ -196,10 +215,14 @@ export class HttpMasterDataModuleCatalogAdapter implements MasterDataModuleCatal
       }
       normalizedSlugs.add(normalized);
       slugByModuleId.set(row.id, normalized);
+      if (row.module_kind) {
+        kindBySlug.set(normalized, row.module_kind);
+      }
     }
 
     this.moduleTreeCache.set(MODULE_TREE_CACHE_KEY, rows);
     this.moduleSlugByIdCache.set(MODULE_SLUG_MAP_CACHE_KEY, slugByModuleId);
+    this.moduleKindBySlugCache.set(MODULE_KIND_BY_SLUG_CACHE_KEY, kindBySlug);
     this.log?.(
       { source: "master_data", cache: "miss", moduleCount: slugByModuleId.size },
       "Master Data module slug map loaded",
