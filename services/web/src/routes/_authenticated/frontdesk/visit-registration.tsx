@@ -51,6 +51,7 @@ type FormValues = CreateVisitRequestBody;
 
 function VisitRegistrationRoute() {
   const [createAbhaOpen, setCreateAbhaOpen] = useState(false);
+  /** Header search UI; patient/registration lookup from form phase is not wired yet. */
   const [formSearchDraft, setFormSearchDraft] = useState('');
   const { canCreate } = useCatalogModuleCrud('registration', {
     productModuleSlug: 'frontdesk',

@@ -1,10 +1,7 @@
 import { useRef, type ChangeEvent, type KeyboardEvent, type ClipboardEvent } from 'react';
 import { Input } from '@pulse/ui/input';
+import { digitsOnly } from '@/lib/digits-only';
 import { cn } from '@pulse/utils';
-
-function digitsOnly(value: string, maxLen: number): string {
-  return value.replace(/\D/g, '').slice(0, maxLen);
-}
 
 function maskSegment(value: string): string {
   if (!value) return '';
