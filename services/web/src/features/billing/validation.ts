@@ -1,12 +1,11 @@
 import { z } from 'zod';
+import { tariffTypeRequiresProvider } from './lib/tariff-type';
 
 const optionalText = z.string().trim().optional().or(z.literal(''));
 const optionalNullableText = z
   .union([z.string().trim(), z.literal(''), z.null()])
   .optional()
   .transform((v) => (v === '' || v === undefined ? null : v));
-
-const tariffTypeSchema = z.enum(['registration', 'opd']);
 
 const baseTariffFields = {
   service_name: z.string().trim().min(1, 'Service name is required'),
@@ -22,7 +21,7 @@ const baseTariffFields = {
 export const tariffServiceCreateSchema = z
   .object({
     service_code: z.string().trim().min(1, 'Service code is required').max(64),
-    tariff_type: tariffTypeSchema,
+    tariff_type: z.string().trim().min(1, 'Tariff type is required'),
     department_id: z
       .union([z.string().uuid(), z.literal(''), z.null()])
       .optional()
@@ -34,7 +33,7 @@ export const tariffServiceCreateSchema = z
     ...baseTariffFields,
   })
   .superRefine((v, ctx) => {
-    if (v.tariff_type !== 'opd') return;
+    if (!tariffTypeRequiresProvider(v.tariff_type)) return;
     if (!v.department_id) {
       ctx.addIssue({ code: 'custom', path: ['department_id'], message: 'Department is required' });
     }
@@ -54,7 +53,7 @@ export type TariffServiceEditFormValues = z.input<typeof tariffServiceEditSchema
 export const EMPTY_TARIFF_CREATE_VALUES: TariffServiceCreateFormValues = {
   service_code: '',
   service_name: '',
-  tariff_type: 'registration',
+  tariff_type: 'registration-fee',
   department_id: null,
   provider_id: null,
   base_price: 0,

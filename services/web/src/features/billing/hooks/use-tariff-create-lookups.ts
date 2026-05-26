@@ -1,36 +1,34 @@
 import { useMemo } from 'react';
 import { useDepartments, usePicklistValues } from '@/features/master-data/api';
 import { useUserList } from '@/features/user-management/api/queries';
-import {
-  picklistValueToTariffType,
-  TARIFF_TYPE_PICKLIST_SLUG,
-  type TariffFormType,
-} from '../lib/tariff-type';
+import { TARIFF_TYPE_PICKLIST_SLUG, tariffTypeRequiresProvider } from '../lib/tariff-type';
 
 /** Same department API as visit registration (`GET /api/v1/master-data/departments`). */
 export function useTariffCreateLookups(
   enabled: boolean,
-  tariffType: TariffFormType,
+  tariffType: string,
   departmentId: string | null,
   iqTenantId?: string,
 ) {
   const picklists = usePicklistValues(TARIFF_TYPE_PICKLIST_SLUG, enabled);
+  const requiresProvider = tariffTypeRequiresProvider(tariffType);
   const departments = useDepartments(undefined, {
-    enabled: enabled && tariffType === 'opd',
+    enabled: enabled && requiresProvider,
     iqTenantId,
   });
   /** `GET /api/user-management/users` — loaded after department is chosen. */
   const users = useUserList(iqTenantId, {
-    enabled: enabled && tariffType === 'opd' && Boolean(departmentId),
+    enabled: enabled && requiresProvider && Boolean(departmentId),
   });
 
-  const tariffTypeOptions = useMemo(() => {
-    const labels: Record<TariffFormType, string> = { registration: 'Registration', opd: 'OPD' };
-    return (picklists.data ?? []).map((row) => {
-      const value = picklistValueToTariffType(row.value);
-      return { value, label: labels[value] ?? row.label };
-    });
-  }, [picklists.data]);
+  const tariffTypeOptions = useMemo(
+    () =>
+      (picklists.data ?? []).map((row) => ({
+        value: row.value,
+        label: row.label,
+      })),
+    [picklists.data],
+  );
 
   const departmentOptions = useMemo(
     () => (departments.data?.data ?? []).map((d) => ({ value: d.id, label: d.name })),
@@ -66,4 +64,18 @@ export function useTariffCreateLookups(
     departmentsError: departments.isError,
     doctorsError: users.isError,
   };
+}
+
+/** Tariff type filter options for list pages (picklist value + label). */
+export function useTariffTypeFilterOptions(enabled = true) {
+  const picklists = usePicklistValues(TARIFF_TYPE_PICKLIST_SLUG, enabled);
+  const options = useMemo(
+    () =>
+      (picklists.data ?? []).map((row) => ({
+        value: row.value,
+        label: row.label,
+      })),
+    [picklists.data],
+  );
+  return { options, isLoading: picklists.isPending };
 }
