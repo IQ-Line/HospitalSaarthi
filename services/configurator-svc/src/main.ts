@@ -120,6 +120,13 @@ async function main() {
         tenantModuleRepo,
         runConfiguratorTransaction,
         eventBus,
+        createInfrastructureCatalog: (authorization) =>
+          new HttpModuleCapabilityResolverAdapter({
+            userManagementBaseUrl,
+            masterDataBaseUrl,
+            authorization,
+            log: logFn,
+          }),
         createModuleCapabilityResolver: (authorization) =>
           new HttpModuleCapabilityResolverAdapter({
             userManagementBaseUrl,

@@ -61,7 +61,7 @@ export class DrizzleOrganizationRepo implements OrganizationRepo {
         status: data.status ?? "active",
         contact_email: data.contact_email?.trim() || null,
         website: data.website?.trim() || null,
-        contact_phone: data.contact_phone ?? null,
+        contact_phone: data.contact_phone?.trim() || null,
         address: data.address ?? null,
         metadata: data.metadata ?? null,
         created_by: data.created_by ?? null,

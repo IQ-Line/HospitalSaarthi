@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiClient, apiClientWithIqTenant } from '@/lib/api-client';
+import { apiClient, apiClientWithIqTenant, ApiError } from '@/lib/api-client';
 import { invalidateModuleRegistration } from '@/platform/modules/module-catalog';
 import { fetchTenants, tenantsQueryOptions } from './catalog';
 import { refreshAccessToken } from '@/lib/auth-session';
@@ -129,8 +129,7 @@ export function useSetTenantModuleActive() {
           ctx,
         );
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        if (!message.includes('409') && !message.toLowerCase().includes('already exists')) {
+        if (!(err instanceof ApiError) || err.status !== 409) {
           throw err;
         }
         return apiClient<TenantModuleRow>(

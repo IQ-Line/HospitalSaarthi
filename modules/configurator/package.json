@@ -6,6 +6,7 @@
   "dependencies": {
     "@hims/ts-sdk-db": "workspace:*",
     "@hims/ts-sdk-identity": "workspace:*",
+    "@hims/ts-sdk-tenant": "workspace:*",
     "fastify": "^5.3.3",
     "fastify-plugin": "^5.0.1"
   }

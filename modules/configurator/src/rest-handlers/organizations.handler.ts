@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import type { OrganizationRepo } from "../ports.js";
+import type { OrganizationRepo, RunConfiguratorTransaction } from "../ports.js";
 import type {
   CreateOrganizationData,
   OrganizationFilters,
@@ -23,13 +23,14 @@ interface OrganizationsQuery {
 
 export interface OrganizationsHandlerDeps {
   organizationRepo: OrganizationRepo;
+  runConfiguratorTransaction: RunConfiguratorTransaction;
 }
 
 export function registerOrganizationsHandler(
   app: FastifyInstance,
   deps: OrganizationsHandlerDeps,
 ): void {
-  const { organizationRepo } = deps;
+  const { organizationRepo, runConfiguratorTransaction } = deps;
 
   app.get<{ Querystring: OrganizationsQuery }>(
     "/organizations",
@@ -48,13 +49,13 @@ export function registerOrganizationsHandler(
   app.post<{ Body: CreateOrganizationData }>(
     "/organizations",
     {
-      schema: {
-        body: postOrganizationBodySchema,
-      },
+      schema: { body: postOrganizationBodySchema },
+      preHandler: (request) => { assertPlatformSuperAdmin(request); },
     },
     async (request, reply) => {
-      assertPlatformSuperAdmin(request);
-      const created = await createOrganization(organizationRepo, request.body);
+      const created = await runConfiguratorTransaction((repos) =>
+        createOrganization(repos.organizationRepo, request.body),
+      );
       return reply.code(201).send(created);
     },
   );

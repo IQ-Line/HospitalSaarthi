@@ -1,7 +1,4 @@
-/** Cerbos scope key aligned with configurator `buildTenantCerbosScopeKey`. */
-export function buildTenantCerbosScopeKey(orgId: string, tenantSlug: string): string {
-  return `tenant:${orgId}:${tenantSlug.trim().toLowerCase()}`;
-}
+export { buildTenantCerbosScopeKey } from "@hims/ts-sdk-tenant";
 
 export function branchTenantSlug(orgSlug: string, branchCode: string): string {
   const normalized = branchCode

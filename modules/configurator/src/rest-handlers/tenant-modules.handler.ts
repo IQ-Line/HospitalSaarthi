@@ -105,9 +105,9 @@ export function registerTenantModulesHandler(
         params: tenantModuleParamsSchema,
         body: patchTenantModuleBodySchema,
       },
+      preHandler: (request) => { assertPlatformSuperAdmin(request); },
     },
     async (request, reply) => {
-      assertPlatformSuperAdmin(request);
       const updated = await updateTenantModule(
         tenantModuleRepo,
         {
@@ -129,9 +129,9 @@ export function registerTenantModulesHandler(
       schema: {
         params: tenantModuleParamsSchema,
       },
+      preHandler: (request) => { assertPlatformSuperAdmin(request); },
     },
     async (request, reply) => {
-      assertPlatformSuperAdmin(request);
       const deleted = await deleteTenantModule(tenantModuleRepo, {
         iq_tenant_id: request.params.tenantId,
         module_id: request.params.moduleId,

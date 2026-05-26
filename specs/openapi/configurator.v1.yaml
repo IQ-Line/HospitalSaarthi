@@ -1,8 +1,17 @@
 openapi: 3.1.0
 info:
   title: HIMS Configurator API
-  version: 1.0.0
-  description: Configurator module — tenant registry, module enablement, feature flag overrides, configuration management.
+  version: 1.1.0
+  description: |
+    Configurator module — tenant registry, module enablement, feature flag overrides, configuration management.
+
+    ## Changelog
+
+    ### 1.1.0 (breaking)
+    - POST /tenant-onboarding: `tenant` is now a required top-level field separate from `organization`.
+      Old payloads that embedded tenant fields inside `organization` will fail schema validation.
+    - POST /organizations: response is the `Organization` schema directly (includes `created_by`).
+      The legacy `OrganizationWithDefaultTenantResponse` shape is deprecated.
 servers:
   - url: /api/configurator/v1
 security:
@@ -450,6 +459,40 @@ paths:
           description: Tenant module row deleted.
         "404":
           description: Tenant module not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /tenant-onboarding:
+    post:
+      operationId: provisionTenant
+      summary: Full tenant onboarding
+      description: >
+        One-shot endpoint that creates/reuses an organization, provisions a tenant,
+        enables modules, provisions the admin role/user, and publishes domain events.
+      tags:
+        - Tenant Onboarding
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProvisionTenantInput"
+      responses:
+        "201":
+          description: Tenant successfully provisioned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProvisionTenantResult"
+        "400":
+          description: Validation failure.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Organization or tenant slug conflict.
           content:
             application/json:
               schema:
@@ -944,3 +987,222 @@ components:
         total:
           type: integer
           minimum: 0
+    ProvisionTenantInput:
+      type: object
+      required:
+        - organization
+        - tenant
+        - plan
+        - modules
+        - admin
+      properties:
+        organization:
+          type: object
+          required:
+            - name
+            - slug
+            - type
+          properties:
+            id:
+              type: string
+              format: uuid
+              description: If provided, reuses existing organization instead of creating one.
+            name:
+              type: string
+              minLength: 1
+            slug:
+              type: string
+              minLength: 3
+            type:
+              $ref: "#/components/schemas/OrganizationType"
+            contact_email:
+              type: string
+              nullable: true
+            website:
+              type: string
+              nullable: true
+            metadata:
+              type: object
+              nullable: true
+        tenant:
+          type: object
+          required:
+            - name
+            - slug
+          properties:
+            name:
+              type: string
+              minLength: 1
+            slug:
+              type: string
+              minLength: 3
+            metadata:
+              type: object
+              nullable: true
+        plan:
+          type: object
+          required:
+            - slug
+          properties:
+            slug:
+              type: string
+              minLength: 1
+              description: Plan identifier (e.g. "starter", "professional").
+            trial_end_date:
+              type: string
+              format: date
+              nullable: true
+            max_users_override:
+              type: integer
+              nullable: true
+            max_branches_override:
+              type: integer
+              nullable: true
+        modules:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required:
+              - module_id
+              - is_active
+            properties:
+              module_id:
+                type: string
+                format: uuid
+              is_active:
+                type: boolean
+        admin:
+          type: object
+          required:
+            - first_name
+            - last_name
+            - email
+            - password
+          properties:
+            first_name:
+              type: string
+              minLength: 1
+            last_name:
+              type: string
+              minLength: 1
+            email:
+              type: string
+              format: email
+            password:
+              type: string
+              minLength: 8
+            phone:
+              type: string
+              nullable: true
+            username:
+              type: string
+              nullable: true
+    ProvisionTenantResult:
+      type: object
+      required:
+        - organization
+        - tenant
+        - tenant_modules
+        - admin_role
+        - admin_user
+        - provisioning_status
+        - correlation_id
+      properties:
+        organization:
+          type: object
+          required:
+            - id
+            - name
+            - slug
+            - type
+            - status
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            slug:
+              type: string
+            type:
+              type: string
+            status:
+              type: string
+        tenant:
+          type: object
+          required:
+            - iq_tenant_id
+            - org_id
+            - name
+            - slug
+            - provisioning_status
+          properties:
+            iq_tenant_id:
+              type: string
+              format: uuid
+            org_id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            slug:
+              type: string
+            provisioning_status:
+              type: string
+        tenant_modules:
+          type: array
+          items:
+            type: object
+            required:
+              - iq_tenant_id
+              - module_id
+              - is_active
+            properties:
+              iq_tenant_id:
+                type: string
+                format: uuid
+              module_id:
+                type: string
+                format: uuid
+              is_active:
+                type: boolean
+        admin_role:
+          type: object
+          required:
+            - id
+            - code
+            - display_name
+            - is_system
+          properties:
+            id:
+              type: string
+              format: uuid
+            code:
+              type: string
+            display_name:
+              type: string
+            is_system:
+              type: boolean
+        admin_user:
+          type: object
+          required:
+            - id
+            - email
+            - full_name
+          properties:
+            id:
+              type: string
+              format: uuid
+            email:
+              type: string
+              format: email
+            full_name:
+              type: string
+        provisioning_status:
+          type: string
+          enum:
+            - completed
+        correlation_id:
+          type: string
+          format: uuid

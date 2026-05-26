@@ -383,7 +383,14 @@ function validateInput(input: ProvisionTenantInput): void {
       "VALIDATION_ERROR",
     );
   }
-  const planSlug = input.plan?.slug?.trim() || "starter";
+  const planSlug = input.plan?.slug?.trim();
+  if (!planSlug) {
+    throw new ConfiguratorError(
+      400,
+      "plan.slug is required — pass an explicit plan identifier (e.g. \"starter\")",
+      "VALIDATION_ERROR",
+    );
+  }
   input.plan = { ...input.plan, slug: planSlug };
   if (!input.modules || input.modules.length === 0) {
     throw new ConfiguratorError(
@@ -446,12 +453,11 @@ function mergeModuleIds(
 function buildOrganizationMetadata(
   input: ProvisionTenantInput,
 ): Record<string, unknown> {
-  const planSlug = input.plan?.slug?.trim() || "starter";
   const { website: _website, ...restMetadata } = input.organization.metadata ?? {};
   return {
     ...restMetadata,
     provisioning: {
-      plan_slug: planSlug,
+      plan_slug: input.plan.slug,
       module_override_ids: input.modules.map((m) => m.module_id),
       trial_end_date: input.plan?.trial_end_date ?? null,
       max_users_override: input.plan?.max_users_override ?? null,

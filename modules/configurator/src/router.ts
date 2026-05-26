@@ -62,6 +62,7 @@ async function configuratorRouter(
 
   registerOrganizationsHandler(app, {
     organizationRepo: options.organizationRepo,
+    runConfiguratorTransaction: options.runConfiguratorTransaction,
   });
   registerTenantsHandler(app, {
     tenantRepo: options.tenantRepo,
