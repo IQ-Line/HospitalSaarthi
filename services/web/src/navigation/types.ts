@@ -21,6 +21,8 @@ export type NavigationNode = {
    * differs from the catalog slug (optional; usually inferred from `route`).
    */
   catalogModuleSlug?: string;
+  /** When true, only platform super-admins see this node. */
+  superAdminOnly?: boolean;
   children?: NavigationNode[];
 };
 

@@ -104,6 +104,9 @@ export function isNavigationNodeVisible(
   ctx: NavFilterContext,
   parent?: NavFilterParentContext,
 ): boolean {
+  if (node.superAdminOnly && !ctx.isSuperAdmin) {
+    return false;
+  }
   if (catalogVisibilityScopeHidesNode(node, ctx)) {
     return false;
   }
