@@ -16,6 +16,7 @@ import { BillingPageShell } from '@/features/billing/components/billing-page-she
 import { formatDateTime, formatMoneyDisplay } from '@/features/billing/lib/format';
 import type { Bill, BillStatus } from '@/features/billing/types';
 import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
+import { ApiError } from '@/lib/api-client';
 import { mutationErrorMessage } from '@/lib/mutation-error';
 
 const EMPTY_BILLS: Bill[] = [];
@@ -132,12 +133,7 @@ function BillingInvoicePage() {
       breadcrumbLabel="Invoice"
       description="Patient invoices and billing documents for the current tenant."
     >
-      {!canRead ? (
-        <p className="text-sm text-muted-foreground">
-          You do not have permission to view invoices. Requires{' '}
-          <code className="text-xs">invoice:invoice:read</code>.
-        </p>
-      ) : (
+      {canRead ? (
         <>
           <div className="flex flex-wrap items-center gap-3">
             <Select
@@ -165,9 +161,9 @@ function BillingInvoicePage() {
             </Button>
           </div>
 
-          {error ? (
+          {error && !(error instanceof ApiError && error.status === 403) ? (
             <p className="text-sm text-destructive">{mutationErrorMessage(error)}</p>
-          ) : (
+          ) : error ? null : (
             <DataTable
               columns={columns}
               data={bills}
@@ -177,7 +173,7 @@ function BillingInvoicePage() {
             />
           )}
         </>
-      )}
+      ) : null}
     </BillingPageShell>
   );
 }

@@ -13,12 +13,14 @@ export const masterDataModuleManifest: ModuleManifest = {
       label: 'Modules',
       icon: 'database',
       route: '/master-data/modules',
+      catalogModuleSlug: 'modules',
     },
     {
       id: 'master-data-permissions',
       label: 'Permissions',
       icon: 'shield-check',
       route: '/master-data/permissions',
+      catalogModuleSlug: 'permissions',
     },
     {
       id: 'master-data-module-permissions',
@@ -26,6 +28,13 @@ export const masterDataModuleManifest: ModuleManifest = {
       icon: 'link',
       route: '/master-data/module-permissions',
       catalogModuleSlug: 'permissions',
+    },
+    {
+      id: 'master-data-departments',
+      label: 'Departments',
+      icon: 'building-2',
+      route: '/master-data/departments',
+      catalogModuleSlug: 'departments',
     },
   ],
 };

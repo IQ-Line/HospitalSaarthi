@@ -19,7 +19,7 @@ export async function createIntakeForNewPatient(
   },
   tenantId: string,
   input: NewPatientIntakeInput,
-  ctx: CreateRegistrationContext,
+  ctx: CreateRegistrationContext & { bearerToken?: string },
 ): Promise<
   | { ok: true; result: InsertRegistrationResult }
   | {
@@ -47,6 +47,7 @@ export async function createIntakeForNewPatient(
     tenantId,
     ctx.idempotencyKey,
     input.patient,
+    ctx.bearerToken,
   );
 
   if (!empiResult.ok) {

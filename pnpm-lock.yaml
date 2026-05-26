@@ -85,6 +85,9 @@ importers:
 
   modules/billing:
     dependencies:
+      '@hims/ts-sdk-authz':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-authz
       '@hims/ts-sdk-db':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-db
@@ -138,6 +141,9 @@ importers:
 
   modules/registration:
     dependencies:
+      '@hims/ts-sdk-authz':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-authz
       '@hims/ts-sdk-db':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-db
@@ -595,15 +601,24 @@ importers:
       '@hims/dev-bootstrap':
         specifier: workspace:*
         version: link:../../packages/dev-bootstrap
+      '@hims/ts-sdk-authz':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-authz
       '@hims/ts-sdk-db':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-db
+      '@hims/ts-sdk-identity':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-identity
       '@hims/ts-sdk-openapi':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-openapi
       '@hims/ts-sdk-tenant':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-tenant
+      '@hims/user-management':
+        specifier: workspace:*
+        version: link:../../modules/user-management
       fastify:
         specifier: ^5.3.3
         version: 5.8.5
@@ -691,6 +706,9 @@ importers:
       '@hims/registration':
         specifier: workspace:*
         version: link:../../modules/registration
+      '@hims/ts-sdk-authz':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-authz
       '@hims/ts-sdk-db':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-db
@@ -706,6 +724,9 @@ importers:
       '@hims/ts-sdk-tenant':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-tenant
+      '@hims/user-management':
+        specifier: workspace:*
+        version: link:../../modules/user-management
       fastify:
         specifier: ^5.3.3
         version: 5.8.5

@@ -26,6 +26,7 @@ function catalogModulesFromIndex(index: ModuleCatalogIndex): Module[] {
       level: entry.level,
       module_kind: entry.module_kind,
       display_order: entry.display_order,
+      visibility_scope: entry.visibility_scope,
       icon: entry.icon,
       is_active: entry.is_active,
       is_deleted: false,

@@ -94,18 +94,23 @@ export class HttpEmpiGateway implements EmpiHttpPort {
     private readonly log?: EmpiGatewayLog,
   ) {}
 
-  private jsonHeaders(tenantId: string, idempotencyKey: string): Record<string, string> {
-    return {
+  private jsonHeaders(tenantId: string, idempotencyKey: string, bearerToken?: string): Record<string, string> {
+    const h: Record<string, string> = {
       iq_tenant_id: tenantId,
       "Content-Type": "application/json",
       "Idempotency-Key": idempotencyKey,
     };
+    if (bearerToken) {
+      h["Authorization"] = `Bearer ${bearerToken}`;
+    }
+    return h;
   }
 
   async registerPatient(
     tenantId: string,
     idempotencyKey: string,
     body: Record<string, unknown>,
+    bearerToken?: string,
   ): Promise<EmpiRegisterPatientResult> {
     const url = joinUrl(this.empiServiceOrigin, "/api/empi/v1/patients");
 
@@ -113,7 +118,7 @@ export class HttpEmpiGateway implements EmpiHttpPort {
     try {
       res = await fetch(url, {
         method: "POST",
-        headers: this.jsonHeaders(tenantId, idempotencyKey),
+        headers: this.jsonHeaders(tenantId, idempotencyKey, bearerToken),
         body: JSON.stringify(body),
       });
     } catch (err) {

@@ -83,6 +83,7 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
       const tenantId = deps.getTenantId(request);
       const actorId = deps.getActorId(request);
       const cid = request.correlationId ?? request.id;
+      const authorization = request.headers.authorization;
       try {
         const hasAccessMutation =
           (Array.isArray(request.body?.capability_ids) && request.body.capability_ids.length > 0) ||
@@ -99,6 +100,7 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
           deps.createUserDeps,
           { tenantId, actorId, correlationId: cid },
           request.body,
+          { authorization: typeof authorization === "string" ? authorization : undefined },
         );
         return reply.status(201).send(user);
       } catch (err) {
@@ -131,6 +133,7 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
       const tenantId = deps.getTenantId(request);
       const actorId = deps.getActorId(request);
       const cid = request.correlationId ?? request.id;
+      const authorization = request.headers.authorization;
       try {
         const allowed = await ensureUserAccessMutationAllowed(request, reply, tenantId);
         if (!allowed) {
@@ -142,6 +145,7 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
             { tenantId, actorId, correlationId: cid },
             request.params.id,
             request.body,
+            { authorization: typeof authorization === "string" ? authorization : undefined },
           ),
         );
       } catch (err) {
@@ -195,6 +199,7 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
       const tenantId = deps.getTenantId(request);
       const actorId = deps.getActorId(request);
       const cid = request.correlationId ?? request.id;
+      const authorization = request.headers.authorization;
       try {
         const allowed = await ensureUserAccessMutationAllowed(request, reply, tenantId);
         if (!allowed) {
@@ -210,6 +215,7 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
               ? { role_template_capability_ids: request.body.role_template_capability_ids }
               : {}),
           },
+          { authorization: typeof authorization === "string" ? authorization : undefined },
         );
         return reply.status(201).send(applied);
       } catch (err) {
@@ -244,14 +250,43 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
     },
   );
 
-  fastify.get(
+  fastify.get<{ Querystring: { department?: string } }>(
+    "/providers",
+    { config: { authMode: "protected" } },
+    async (request, reply) => {
+      const tenantId = deps.getTenantId(request);
+      const department = request.query.department?.trim() || undefined;
+      const users = await deps.listUsersAuthzDeps.userRepository.listUsers(
+        tenantId,
+        department ? { department } : undefined,
+      );
+      return reply.send(
+        users
+          .filter((u) => u.status === "active")
+          .map((u) => ({
+            id: u.id,
+            full_name: u.full_name,
+            department: u.department ?? null,
+            status: u.status,
+          })),
+      );
+    },
+  );
+
+  fastify.get<{ Querystring: { department?: string } }>(
     "/users",
     { config: { authMode: "protected" } },
     async (request, reply) => {
       const tenantId = deps.getTenantId(request);
       const cid = request.correlationId ?? request.id;
+      const department = request.query.department?.trim() || undefined;
       try {
-        const users = await listUsersWithAuthz(request, deps.listUsersAuthzDeps, tenantId);
+        const users = await listUsersWithAuthz(
+          request,
+          deps.listUsersAuthzDeps,
+          tenantId,
+          department ? { department } : undefined,
+        );
         return reply.send(users);
       } catch (err) {
         return replyWithUserManagementError(reply, err, cid);

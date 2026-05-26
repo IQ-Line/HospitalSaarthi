@@ -30,10 +30,15 @@ function principalAttrPlain(request: FastifyRequest): Record<string, unknown> {
  * layer (SQL for Drizzle, in-memory filter for tests). Otherwise falls back to fetching tenant
  * rows and evaluating the plan with {@link filterUsersMatchingUserReadPlan}.
  */
+export type ListUsersFilter = {
+  department?: string;
+};
+
 export async function listUsersWithAuthz(
   request: FastifyRequest,
   deps: ListUsersWithAuthzDeps,
   tenantId: string,
+  filter?: ListUsersFilter,
 ): Promise<User[]> {
   const pep = request as PepRequest;
   const plan = await pep.planResources(
@@ -51,7 +56,7 @@ export async function listUsersWithAuthz(
   }
 
   if (plan.kind === PlanKind.ALWAYS_ALLOWED) {
-    return deps.userRepository.listUsers(tenantId);
+    return deps.userRepository.listUsers(tenantId, { department: filter?.department });
   }
 
   const principalAttr = principalAttrPlain(request);
@@ -61,9 +66,9 @@ export async function listUsersWithAuthz(
     planConditionAllowsUserReadResourceSqlPushdown(plan.condition)
   ) {
     const abac = userReadListResourceAbacFromPrincipalAttr(principalAttr);
-    return deps.userRepository.listUsers(tenantId, { userReadResourceAbac: abac });
+    return deps.userRepository.listUsers(tenantId, { userReadResourceAbac: abac, department: filter?.department });
   }
 
-  const rows = await deps.userRepository.listUsers(tenantId);
+  const rows = await deps.userRepository.listUsers(tenantId, { department: filter?.department });
   return filterUsersMatchingUserReadPlan(rows, plan, tenantId, principalAttr);
 }

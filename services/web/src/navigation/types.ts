@@ -32,6 +32,10 @@ export type NavFilterContext = {
   enabledModuleSlugs: ReadonlySet<string> | null;
   /** When true, capability gates are not evaluated (tests only). */
   bypassCapabilityGates?: boolean;
+  /** True when the current principal is a platform superadmin. */
+  isSuperAdmin?: boolean;
+  /** Module catalog index for visibility_scope lookups. */
+  catalogIndex?: import('@/platform/modules/types').ModuleCatalogIndex | null;
   /**
    * L1 catalog product access via any L2+ runtime key prefix (e.g. `users:users:read` for User Management).
    */

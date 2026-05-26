@@ -30,6 +30,7 @@ export function buildCatalogIndex(modules: readonly Module[]): ModuleCatalogInde
       parent_id: module.parent_id,
       module_kind: module.module_kind,
       display_order: module.display_order,
+      visibility_scope: module.visibility_scope,
     };
     byId.set(module.id, entry);
     byId.set(module.id.toLowerCase(), entry);

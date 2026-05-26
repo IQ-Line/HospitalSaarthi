@@ -14,11 +14,17 @@ const BASE = '/api/configurator/v1/organizations';
 
 export { fetchOrganizations };
 
-export function useOrganizations(filters: {
-  status?: OrganizationStatus;
-  type?: OrganizationType;
-}) {
-  return useQuery(organizationsQueryOptions(filters));
+export function useOrganizations(
+  filters: {
+    status?: OrganizationStatus;
+    type?: OrganizationType;
+  },
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    ...organizationsQueryOptions(filters),
+    enabled: options?.enabled ?? true,
+  });
 }
 
 export function useOrganization(id: string, options?: { enabled?: boolean }) {

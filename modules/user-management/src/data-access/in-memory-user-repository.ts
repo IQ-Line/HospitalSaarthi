@@ -115,7 +115,7 @@ export class InMemoryUserRepository implements UserRepository {
 
   async listUsers(tenantId: string, options?: ListUsersOptions): Promise<User[]> {
     const prefix = `${tenantId}:`;
-    const out: User[] = [];
+    let out: User[] = [];
     for (const [key, row] of this.users) {
       if (key.startsWith(prefix)) {
         out.push(this.toUser(row));
@@ -123,8 +123,13 @@ export class InMemoryUserRepository implements UserRepository {
     }
     out.sort((a, b) => a.id.localeCompare(b.id));
     const abac = options?.userReadResourceAbac;
-    if (abac === undefined) return out;
-    return out.filter((u) => userMatchesReadListResourceAbac(u, abac));
+    if (abac !== undefined) {
+      out = out.filter((u) => userMatchesReadListResourceAbac(u, abac));
+    }
+    if (options?.department !== undefined) {
+      out = out.filter((u) => u.department === options.department);
+    }
+    return out;
   }
 
   async updateUser(tenantId: string, userId: string, input: UpdateUserInput): Promise<User | null> {

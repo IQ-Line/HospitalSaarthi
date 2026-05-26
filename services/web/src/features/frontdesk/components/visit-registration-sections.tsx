@@ -33,10 +33,12 @@ import {
   type VisitRegistrationSectionId,
 } from '@/features/frontdesk/visit-registration-sections.store';
 import { useDepartments } from '@/features/master-data/api';
+import { useProviderList } from '@/features/user-management/api/queries';
+import { useVisitpadVitalsCatalog } from '@/features/visitpad/api';
+import type { VisitpadVital } from '@/features/visitpad/types';
 import {
   VISIT_REGISTRATION_LAB_TEST_CATALOG,
   VISIT_REGISTRATION_PAYMENT_MODES,
-  VISIT_REGISTRATION_PROVIDERS,
   VISIT_REGISTRATION_RIS_BOOKING_TYPES,
   VISIT_REGISTRATION_RIS_CONTRAST_OPTIONS,
   VISIT_REGISTRATION_RIS_MODALITIES,
@@ -121,17 +123,39 @@ export function VisitRegistrationAppointmentSection({ register, watch, setValue 
   const departmentId = watch('appointment.department_id') ?? '';
   const providerId = watch('appointment.provider_id') ?? '';
   const visitTypeCode = watch('appointment.visit_type_code') ?? '';
-  const hasProviders = VISIT_REGISTRATION_PROVIDERS.length > 0;
 
   const departmentsQuery = useDepartments();
+  const departments = departmentsQuery.data?.data ?? [];
   const departmentOptions = useMemo(
     () =>
-      (departmentsQuery.data?.data ?? []).map((d) => ({
+      departments.filter((d) => d.is_active).map((d) => ({
         value: d.id,
         label: d.name,
       })),
-    [departmentsQuery.data?.data],
+    [departments],
   );
+
+  const selectedDepartmentName = useMemo(
+    () => departments.find((d) => d.id === departmentId)?.name ?? null,
+    [departments, departmentId],
+  );
+
+  const providersQuery = useProviderList(null, {
+    department: selectedDepartmentName ?? undefined,
+    enabled: !!selectedDepartmentName,
+  });
+  const doctorOptions = useMemo(() => {
+    const providers = providersQuery.data ?? [];
+    return providers.map((p) => ({ value: p.id, label: p.full_name }));
+  }, [providersQuery.data]);
+
+  const doctorPlaceholder = !selectedDepartmentName
+    ? 'Select a department first'
+    : providersQuery.isPending
+      ? 'Loading doctors…'
+      : doctorOptions.length > 0
+        ? 'Select doctor'
+        : `No doctors in ${selectedDepartmentName}`;
 
   const departmentPlaceholder = resolveDepartmentPlaceholder(
     departmentsQuery.isPending,
@@ -156,7 +180,10 @@ export function VisitRegistrationAppointmentSection({ register, watch, setValue 
           label="Department"
           required
           value={departmentId || '__none__'}
-          onValueChange={(v) => setValue('appointment.department_id', v === '__none__' ? '' : v)}
+          onValueChange={(v) => {
+            setValue('appointment.department_id', v === '__none__' ? '' : v);
+            setValue('appointment.provider_id', '');
+          }}
           placeholder={departmentPlaceholder}
           disabled={
             departmentsQuery.isPending ||
@@ -179,9 +206,9 @@ export function VisitRegistrationAppointmentSection({ register, watch, setValue 
           required
           value={providerId || '__none__'}
           onValueChange={(v) => setValue('appointment.provider_id', v === '__none__' ? '' : v)}
-          placeholder={hasProviders ? 'Select Doctor' : 'No doctors in this tenant'}
-          disabled={!hasProviders}
-          options={VISIT_REGISTRATION_PROVIDERS.map((p) => ({ value: p.id, label: p.name }))}
+          placeholder={doctorPlaceholder}
+          disabled={!selectedDepartmentName || providersQuery.isPending || doctorOptions.length === 0}
+          options={doctorOptions}
         />
         <Field>
           <RegistrationFieldLabel htmlFor="visit-reg-consultation-charge">

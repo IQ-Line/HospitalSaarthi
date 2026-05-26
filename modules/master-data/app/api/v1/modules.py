@@ -19,6 +19,7 @@ from app.schemas.module import (
     ModuleResponse,
     ModuleSingleResponse,
     ModuleUpdate,
+    VisibilityScope,
 )
 from app.services.module_service import (
     create_module,
@@ -41,6 +42,9 @@ def get_modules(
     module_kind: Annotated[str | None, Query(
         description="Filter by module kind(s). Comma-separated: ?module_kind=product,foundation",
     )] = None,
+    visibility: Annotated[VisibilityScope | None, Query(
+        description="Filter by visibility scope: 'tenant' (default for tenant admins) or 'superadmin'. Omit to return all.",
+    )] = None,
 ) -> ModuleListResponse:
     kinds: list[ModuleKind] | None = None
     if module_kind is not None:
@@ -50,7 +54,7 @@ def get_modules(
         except ValueError:
             from fastapi import HTTPException
             raise HTTPException(status_code=422, detail=f"Invalid module_kind value(s): {module_kind}")
-    modules = list_modules(repository, category=category, module_kinds=kinds)
+    modules = list_modules(repository, category=category, module_kinds=kinds, visibility=visibility)
     data = [ModuleResponse.model_validate(module) for module in modules]
     return ModuleListResponse(data=data, total=len(data))
 
@@ -66,8 +70,11 @@ def get_modules(
 )
 def get_modules_for_nav(
     repository: Annotated[ModuleRepository, Depends(get_module_repository)],
+    visibility: Annotated[VisibilityScope | None, Query(
+        description="Filter by visibility scope. Tenant admins should pass 'tenant'; superadmins omit to see all.",
+    )] = None,
 ) -> ModuleNavListResponse:
-    modules = list_modules_for_nav(repository)
+    modules = list_modules_for_nav(repository, visibility=visibility)
     data = [ModuleNavResponse.model_validate(module) for module in modules]
     return ModuleNavListResponse(data=data)
 

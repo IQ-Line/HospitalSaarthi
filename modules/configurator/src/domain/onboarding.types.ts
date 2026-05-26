@@ -7,9 +7,9 @@ import type { OrganizationType } from "./organization.types.js";
 export interface ProvisionTenantInput {
   organization: {
     id?: string;
-    name: string;
-    slug: string;
-    type: OrganizationType;
+    name?: string;
+    slug?: string;
+    type?: OrganizationType;
     contact_email?: string | null;
     website?: string | null;
     metadata?: Record<string, unknown> | null;
@@ -17,9 +17,19 @@ export interface ProvisionTenantInput {
   tenant: {
     name: string;
     slug: string;
+    parent_tenant_id?: string | null;
+    type?: string;
+    branch_code?: string | null;
+    branch_type?: string | null;
+    address_line1?: string | null;
+    city?: string | null;
+    state?: string | null;
+    pin_code?: string | null;
+    contact_phone?: string | null;
+    contact_email?: string | null;
     metadata?: Record<string, unknown> | null;
   };
-  plan: {
+  plan?: {
     slug: string;
     trial_end_date?: string | null;
     max_users_override?: number | null;

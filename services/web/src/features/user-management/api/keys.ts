@@ -18,5 +18,7 @@ export const userManagementKeys = {
     [...userManagementKeys.userAccessRoot(), 'effective-capabilities', id, tenantScopeKey] as const,
   userRoleTemplates: (id: string, tenantScopeKey = 'active-tenant') =>
     [...userManagementKeys.userAccessRoot(), 'role-templates', id, tenantScopeKey] as const,
+  providers: () => [...userManagementKeys.all, 'providers'] as const,
+  providerList: () => [...userManagementKeys.providers(), 'list'] as const,
   platformDirectory: () => [...userManagementKeys.all, 'platform-directory'] as const,
 };

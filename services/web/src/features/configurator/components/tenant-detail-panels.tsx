@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm, type UseFormReturn } from 'react-hook-form';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type ColumnDef } from '@tanstack/react-table';
-import { useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@pulse/ui/badge';
@@ -64,28 +64,24 @@ import {
 } from '@/features/billing/validation';
 import {
   useCreateDepartment,
-  useCreateSystemRole,
   useDeleteDepartment,
-  useDeleteSystemRole,
   useDepartments,
-  useSystemRoles,
   useUpdateDepartment,
-  useUpdateSystemRole,
 } from '@/features/master-data/api';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { rowMatchesSearch } from '@/features/master-data/table-search';
-import type { Department, DepartmentType, SystemRole } from '@/features/master-data/types';
-import { toSlug } from '@/features/master-data/utils';
+import type { Department, DepartmentType } from '@/features/master-data/types';
 import {
   EMPTY_DEPARTMENT_FORM_VALUES,
-  EMPTY_SYSTEM_ROLE_FORM_VALUES,
   departmentFormSchema,
-  systemRoleFormSchema,
   type DepartmentFormInput,
   type DepartmentFormValues,
-  type SystemRoleFormInput,
-  type SystemRoleFormValues,
 } from '@/features/master-data/validation';
+import { useCreateRole, useDeleteRole } from '@/features/user-management/api/mutations';
+import { roleListOptions } from '@/features/user-management/api/queries';
+import { userManagementKeys } from '@/features/user-management/api/keys';
+import type { UmRole, UpdateRoleBody } from '@/features/user-management/types';
+import { apiClient } from '@/lib/api-client';
 import { mutationErrorMessage as billingMutationError } from '@/lib/mutation-error';
 
 const DEPARTMENT_TYPES: DepartmentType[] = [
@@ -95,7 +91,6 @@ const DEPARTMENT_TYPES: DepartmentType[] = [
   'support',
 ];
 
-const BILLING_FORCE_LIVE = { forceLive: true as const };
 
 export function TenantUsersPanel({
   iqTenantId,
@@ -466,107 +461,114 @@ export function TenantDepartmentsPanel({ iqTenantId }: { iqTenantId: string }) {
 }
 
 function TenantRoleFormFields({
-  form,
+  register,
+  errors,
+  statusValue,
+  onStatusChange,
 }: {
-  form: UseFormReturn<SystemRoleFormInput, unknown, SystemRoleFormValues>;
+  register: ReturnType<typeof useForm<TenantRoleFormValues>>['register'];
+  errors: ReturnType<typeof useForm<TenantRoleFormValues>>['formState']['errors'];
+  statusValue: string;
+  onStatusChange: (active: boolean) => void;
 }) {
-  const { register, control, watch, formState: { errors } } = form;
-  const watchedName = watch('name');
-  const slugSuggestion = toSlug(watchedName);
-
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label htmlFor="tenant-role-name">Name</Label>
-          <Input id="tenant-role-name" placeholder="e.g. Ward Clerk" {...register('name')} />
-          {errors.name ? <p className="text-xs text-destructive">{errors.name.message}</p> : null}
+          <Label htmlFor="tenant-role-name">Display name</Label>
+          <Input id="tenant-role-name" placeholder="e.g. Ward Clerk" {...register('display_name')} />
+          {errors.display_name ? <p className="text-xs text-destructive">{errors.display_name.message}</p> : null}
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="tenant-role-slug">Slug</Label>
-          <Input
-            id="tenant-role-slug"
-            placeholder={slugSuggestion || 'ward-clerk'}
-            {...register('slug')}
-          />
-          {errors.slug ? <p className="text-xs text-destructive">{errors.slug.message}</p> : null}
+          <Label htmlFor="tenant-role-code">Code</Label>
+          <Input id="tenant-role-code" placeholder="e.g. ward_clerk" {...register('code')} />
+          {errors.code ? <p className="text-xs text-destructive">{errors.code.message}</p> : null}
         </div>
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="tenant-role-description">Description (optional)</Label>
         <Textarea id="tenant-role-description" rows={3} {...register('description')} />
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="flex items-center justify-between rounded-md border px-3 py-2">
-          <div>
-            <p className="text-sm font-medium">Template role</p>
-            <p className="text-xs text-muted-foreground">Marks this as a platform template.</p>
-          </div>
-          <Controller
-            name="is_template"
-            control={control}
-            render={({ field }) => (
-              <Switch checked={field.value} onCheckedChange={field.onChange} />
-            )}
-          />
+      <div className="flex items-center justify-between rounded-md border px-3 py-2">
+        <div>
+          <p className="text-sm font-medium">Active</p>
+          <p className="text-xs text-muted-foreground">Inactive roles are hidden from active lists.</p>
         </div>
-        <div className="flex items-center justify-between rounded-md border px-3 py-2">
-          <div>
-            <p className="text-sm font-medium">Active</p>
-            <p className="text-xs text-muted-foreground">Inactive roles are hidden from active lists.</p>
-          </div>
-          <Controller
-            name="is_active"
-            control={control}
-            render={({ field }) => (
-              <Switch checked={field.value} onCheckedChange={field.onChange} />
-            )}
-          />
-        </div>
+        <Switch
+          checked={statusValue === 'active'}
+          onCheckedChange={(checked) => onStatusChange(checked)}
+        />
       </div>
     </div>
   );
 }
 
+type TenantRoleFormValues = {
+  display_name: string;
+  code: string;
+  description: string;
+  status: 'active' | 'inactive';
+};
+
+const EMPTY_ROLE_FORM: TenantRoleFormValues = {
+  display_name: '',
+  code: '',
+  description: '',
+  status: 'active',
+};
+
 export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string }) {
   const [search, setSearch] = useState('');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [editing, setEditing] = useState<SystemRole | null>(null);
-  const [deleting, setDeleting] = useState<SystemRole | null>(null);
+  const [editing, setEditing] = useState<UmRole | null>(null);
+  const [deleting, setDeleting] = useState<UmRole | null>(null);
 
-  const { data, isLoading, error } = useSystemRoles(true, { iqTenantId });
-  const createMutation = useCreateSystemRole(iqTenantId);
-  const updateMutation = useUpdateSystemRole(iqTenantId);
-  const deleteMutation = useDeleteSystemRole(iqTenantId);
-
-  const createForm = useForm<SystemRoleFormInput, unknown, SystemRoleFormValues>({
-    resolver: zodResolver(systemRoleFormSchema),
-    defaultValues: EMPTY_SYSTEM_ROLE_FORM_VALUES,
+  const { data, isLoading, error } = useQuery(roleListOptions(iqTenantId));
+  const createMutation = useCreateRole(iqTenantId);
+  const deleteMutation = useDeleteRole(iqTenantId);
+  const qc = useQueryClient();
+  const updateMutation = useMutation({
+    mutationFn: ({ roleId, body }: { roleId: string; body: UpdateRoleBody }) =>
+      apiClient<UmRole>(
+        `/api/user-management/roles/${encodeURIComponent(roleId)}`,
+        { method: 'PATCH', body: JSON.stringify(body) },
+        { tenantIdOverride: iqTenantId },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: userManagementKeys.roleList() }).catch(() => {});
+    },
   });
-  const editForm = useForm<SystemRoleFormInput, unknown, SystemRoleFormValues>({
-    resolver: zodResolver(systemRoleFormSchema),
-    defaultValues: EMPTY_SYSTEM_ROLE_FORM_VALUES,
+
+  const createForm = useForm<TenantRoleFormValues>({
+    defaultValues: EMPTY_ROLE_FORM,
+  });
+  const editForm = useForm<TenantRoleFormValues>({
+    defaultValues: EMPTY_ROLE_FORM,
   });
 
   const rows = useMemo(() => {
-    const list = data?.data ?? [];
+    const list = data ?? [];
     if (!search.trim()) return list;
     return list.filter((r) =>
-      rowMatchesSearch(search, r.name, r.slug, r.description ?? '', String(r.is_template)),
+      rowMatchesSearch(search, r.display_name, r.code, r.description ?? ''),
     );
-  }, [data?.data, search]);
+  }, [data, search]);
 
-  const columns = useMemo<ColumnDef<SystemRole, unknown>[]>(
+  const columns = useMemo<ColumnDef<UmRole, unknown>[]>(
     () => [
-      { accessorKey: 'name', header: 'Name' },
       {
-        accessorKey: 'slug',
-        header: 'Slug',
+        accessorKey: 'display_name',
+        header: 'Name',
+        cell: ({ getValue }) => <span className="font-medium">{getValue<string>()}</span>,
+      },
+      {
+        accessorKey: 'code',
+        header: 'Code',
         cell: ({ getValue }) => <code className="text-xs">{getValue<string>()}</code>,
       },
       {
-        accessorKey: 'is_template',
-        header: 'Template',
+        accessorKey: 'is_system',
+        header: 'System',
         cell: ({ getValue }) => (
           <Badge variant={getValue<boolean>() ? 'secondary' : 'outline'}>
             {getValue<boolean>() ? 'Yes' : 'No'}
@@ -574,16 +576,17 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
         ),
       },
       {
-        accessorKey: 'is_active',
+        accessorKey: 'status',
         header: 'Active',
         cell: ({ row }) => (
           <TableActiveToggle
-            active={row.original.is_active}
+            active={row.original.status === 'active'}
             disabled={updateMutation.isPending}
             onCheckedChange={(next) => {
-              if (next === row.original.is_active) return;
+              const newStatus = next ? 'active' : 'inactive';
+              if (newStatus === row.original.status) return;
               updateMutation.mutate(
-                { id: row.original.id, input: { is_active: next } },
+                { roleId: row.original.id, body: { status: newStatus } },
                 {
                   onSuccess: () => toast.success(next ? 'Activated' : 'Deactivated'),
                   onError: (err) => toast.error(mutationErrorMessage(err)),
@@ -601,21 +604,19 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
             onView={() => {
               setEditing(row.original);
               editForm.reset({
-                name: row.original.name,
-                slug: row.original.slug,
-                description: row.original.description,
-                is_template: row.original.is_template,
-                is_active: row.original.is_active,
+                display_name: row.original.display_name,
+                code: row.original.code,
+                description: row.original.description ?? '',
+                status: row.original.status,
               });
             }}
             onEdit={() => {
               setEditing(row.original);
               editForm.reset({
-                name: row.original.name,
-                slug: row.original.slug,
-                description: row.original.description,
-                is_template: row.original.is_template,
-                is_active: row.original.is_active,
+                display_name: row.original.display_name,
+                code: row.original.code,
+                description: row.original.description ?? '',
+                status: row.original.status,
               });
             }}
             onDelete={() => setDeleting(row.original)}
@@ -638,7 +639,7 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
         <Button
           size="sm"
           onClick={() => {
-            createForm.reset(EMPTY_SYSTEM_ROLE_FORM_VALUES);
+            createForm.reset(EMPTY_ROLE_FORM);
             setIsCreateOpen(true);
           }}
         >
@@ -653,7 +654,7 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
           data={rows}
           isLoading={isLoading}
           emptyTitle="No role templates"
-          emptyDescription="Create system roles marked as templates for this tenant."
+          emptyDescription="Create roles for this tenant or they will appear here after provisioning."
         />
       </div>
 
@@ -661,34 +662,55 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
         open={isCreateOpen}
         onOpenChange={setIsCreateOpen}
         title="Create role"
-        description="Create a role template in this tenant catalog."
+        description="Create a role for this tenant."
         submitLabel="Create"
         isSubmitting={createMutation.isPending}
         onSubmit={createForm.handleSubmit((values) => {
-          createMutation.mutate(values, {
-            onSuccess: () => {
-              toast.success('Role created');
-              setIsCreateOpen(false);
-              createForm.reset(EMPTY_SYSTEM_ROLE_FORM_VALUES);
+          createMutation.mutate(
+            {
+              code: values.code,
+              display_name: values.display_name,
+              description: values.description || null,
+              status: values.status,
             },
-            onError: (err) => toast.error(mutationErrorMessage(err)),
-          });
+            {
+              onSuccess: () => {
+                toast.success('Role created');
+                setIsCreateOpen(false);
+                createForm.reset(EMPTY_ROLE_FORM);
+              },
+              onError: (err) => toast.error(mutationErrorMessage(err)),
+            },
+          );
         })}
       >
-        <TenantRoleFormFields form={createForm} />
+        <TenantRoleFormFields
+          register={createForm.register}
+          errors={createForm.formState.errors}
+          statusValue={createForm.watch('status')}
+          onStatusChange={(active) => createForm.setValue('status', active ? 'active' : 'inactive')}
+        />
       </EntityFormDialog>
 
       <EntityFormDialog
         open={!!editing}
         onOpenChange={(open) => !open && setEditing(null)}
         title="Edit role"
-        description={editing ? `Update ${editing.name}.` : ''}
+        description={editing ? `Update ${editing.display_name}.` : ''}
         submitLabel="Save"
         isSubmitting={updateMutation.isPending}
         onSubmit={editForm.handleSubmit((values) => {
           if (!editing) return;
           updateMutation.mutate(
-            { id: editing.id, input: values },
+            {
+              roleId: editing.id,
+              body: {
+                code: values.code,
+                display_name: values.display_name,
+                description: values.description || null,
+                status: values.status,
+              },
+            },
             {
               onSuccess: () => {
                 toast.success('Role updated');
@@ -699,14 +721,19 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
           );
         })}
       >
-        <TenantRoleFormFields form={editForm} />
+        <TenantRoleFormFields
+          register={editForm.register}
+          errors={editForm.formState.errors}
+          statusValue={editForm.watch('status')}
+          onStatusChange={(active) => editForm.setValue('status', active ? 'active' : 'inactive')}
+        />
       </EntityFormDialog>
 
       <ConfirmDialog
         open={!!deleting}
         onOpenChange={(open) => !open && setDeleting(null)}
         title="Delete role?"
-        description={`Remove "${deleting?.name}" from the tenant catalog.`}
+        description={`Remove "${deleting?.display_name}" from this tenant.`}
         confirmLabel="Delete"
         destructive
         onConfirm={async () => {
@@ -738,11 +765,10 @@ export function TenantBillingPanel({ iqTenantId }: { iqTenantId: string }) {
   );
   const { data, isLoading, error } = useTariffServices(listParams, {
     iqTenantId,
-    ...BILLING_FORCE_LIVE,
   });
   const services = data?.data ?? [];
-  const createMutation = useCreateTariffService(iqTenantId, BILLING_FORCE_LIVE);
-  const updateMutation = useUpdateTariffService(iqTenantId, BILLING_FORCE_LIVE);
+  const createMutation = useCreateTariffService(iqTenantId);
+  const updateMutation = useUpdateTariffService(iqTenantId);
   const departmentsQuery = useDepartments(undefined, { enabled: isCreateOpen, iqTenantId });
 
   const createForm = useForm<TariffServiceCreateFormValues>({
