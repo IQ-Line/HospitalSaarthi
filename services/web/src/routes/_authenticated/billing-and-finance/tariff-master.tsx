@@ -29,7 +29,6 @@ import {
   useUpdateTariffService,
 } from '@/features/billing/api';
 import { useDepartments } from '@/features/master-data/api';
-import { BillingMockNotice } from '@/features/billing/components/billing-mock-notice';
 import { BillingPageShell } from '@/features/billing/components/billing-page-shell';
 import {
   TariffServiceCreateFormFields,
@@ -221,8 +220,6 @@ function BillingServicesPage() {
     >
       {canRead ? (
       <>
-      <BillingMockNotice />
-
       <div className="flex flex-wrap items-center gap-3">
         <EntityTableToolbar
           value={search}

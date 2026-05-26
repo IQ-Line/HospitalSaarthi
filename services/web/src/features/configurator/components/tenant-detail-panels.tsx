@@ -91,7 +91,6 @@ const DEPARTMENT_TYPES: DepartmentType[] = [
   'support',
 ];
 
-const BILLING_FORCE_LIVE = { forceLive: true as const };
 
 export function TenantUsersPanel({
   iqTenantId,
@@ -766,11 +765,10 @@ export function TenantBillingPanel({ iqTenantId }: { iqTenantId: string }) {
   );
   const { data, isLoading, error } = useTariffServices(listParams, {
     iqTenantId,
-    ...BILLING_FORCE_LIVE,
   });
   const services = data?.data ?? [];
-  const createMutation = useCreateTariffService(iqTenantId, BILLING_FORCE_LIVE);
-  const updateMutation = useUpdateTariffService(iqTenantId, BILLING_FORCE_LIVE);
+  const createMutation = useCreateTariffService(iqTenantId);
+  const updateMutation = useUpdateTariffService(iqTenantId);
   const departmentsQuery = useDepartments(undefined, { enabled: isCreateOpen, iqTenantId });
 
   const createForm = useForm<TariffServiceCreateFormValues>({

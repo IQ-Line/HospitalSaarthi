@@ -123,6 +123,7 @@ function TenantOrganizationDetailPage() {
   const { data: modulesRes, isLoading: modulesCatalogLoading } = useModules(undefined, {
     enabled: !!contextTenant?.iq_tenant_id,
     globalCatalog: true,
+    moduleKinds: ['product'],
   });
   const { data: tenantModsRes, isLoading: tenantModsLoading } = useTenantModules(
     contextTenant?.iq_tenant_id ?? '',
@@ -141,22 +142,12 @@ function TenantOrganizationDetailPage() {
     return m;
   }, [modulesRes?.data]);
 
-  const productModuleIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const mod of modulesRes?.data ?? []) {
-      if (mod.module_kind === 'product') {
-        ids.add(mod.id);
-      }
-    }
-    return ids;
-  }, [modulesRes?.data]);
-
   const activeModuleNames = useMemo(() => {
     const rows = tenantModsRes?.data ?? [];
     return rows
-      .filter((r) => r.is_active && productModuleIds.has(r.module_id))
+      .filter((r) => r.is_active && moduleNameById.has(r.module_id))
       .map((r) => moduleNameById.get(r.module_id) ?? r.module_id.slice(0, 8));
-  }, [tenantModsRes?.data, moduleNameById, productModuleIds]);
+  }, [tenantModsRes?.data, moduleNameById]);
 
   const planSlug = useMemo(() => {
     const meta = org?.metadata as Record<string, unknown> | null | undefined;

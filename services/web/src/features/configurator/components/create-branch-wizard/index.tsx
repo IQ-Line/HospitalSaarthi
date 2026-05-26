@@ -76,6 +76,7 @@ export function CreateBranchWizard({
   const { data: modulesRes, isLoading: modulesLoading } = useModules(undefined, {
     enabled: open,
     globalCatalog: true,
+    moduleKinds: ['product'],
   });
   const modules = useMemo(() => {
     const all = modulesRes?.data ?? [];

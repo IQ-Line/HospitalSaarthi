@@ -11,6 +11,7 @@ import {
 import type {
   CapabilityRepository,
   MasterDataModuleCatalogPort,
+  ModuleEntitlementRequestContext,
   ReplaceRoleCapabilitiesInput,
   RoleCapabilityRepository,
   RoleRepository,
@@ -35,6 +36,7 @@ export async function replaceRoleCapabilities(
   tenantId: string,
   roleId: string,
   input: ReplaceRoleCapabilitiesInput,
+  context?: ModuleEntitlementRequestContext,
 ): Promise<Capability[]> {
   if (!Array.isArray(input.capability_ids)) {
     throw new ValidationError("replace_role_capabilities_invalid");
@@ -80,7 +82,7 @@ export async function replaceRoleCapabilities(
     },
     tenantId,
     capabilityIds,
-    { cachePolicy: "bypass-cache" },
+    { cachePolicy: "bypass-cache", authorization: context?.authorization },
   );
 
   return deps.roleCapabilityRepository.replaceCapabilitiesForRole(tenantId, roleId, {

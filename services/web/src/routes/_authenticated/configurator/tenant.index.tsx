@@ -14,7 +14,12 @@ import {
   SelectValue,
 } from '@pulse/ui/select';
 import { DataTable } from '@/components/data-table';
-import { useOrganization, useProvisionTenant, useTenants } from '@/features/configurator/api';
+import {
+  useOrganization,
+  useOrganizations,
+  useProvisionTenant,
+  useTenants,
+} from '@/features/configurator/api';
 import type { TenantOnboardingInput } from '@/features/configurator/api/tenant-onboarding';
 import { CreateTenantWizard } from '@/features/configurator/components/create-tenant-wizard';
 import { CreateBranchWizard } from '@/features/configurator/components/create-branch-wizard';
@@ -84,19 +89,30 @@ function ConfiguratorTenantListPage() {
 
   const { organizationId, organizationName, isResolving } = useScopedOrganizationId();
   const { data: scopedOrg } = useOrganization(organizationId ?? '', {
-    enabled: !!organizationId,
+    enabled: !!organizationId && !isPlatformSuperAdmin,
   });
+
+  // Superadmin: fetch all orgs so we can show org name in the table
+  const { data: orgsData } = useOrganizations({}, { enabled: isPlatformSuperAdmin });
+  const orgNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const org of orgsData?.data ?? []) {
+      m.set(org.id, org.name);
+    }
+    return m;
+  }, [orgsData?.data]);
 
   const listFilters = useMemo(
     () => ({
-      org_id: organizationId,
+      // Superadmin sees all orgs — no org_id filter
+      org_id: isPlatformSuperAdmin ? undefined : organizationId,
       provisioning_status: statusFilter === 'all' ? undefined : statusFilter,
     }),
-    [organizationId, statusFilter],
+    [organizationId, statusFilter, isPlatformSuperAdmin],
   );
 
   const { data, isLoading, error } = useTenants(listFilters, {
-    enabled: !!organizationId,
+    enabled: isPlatformSuperAdmin || !!organizationId,
   });
   const allTenants = data?.data ?? [];
   const tenantsForList = useMemo(() => {
@@ -130,12 +146,29 @@ function ConfiguratorTenantListPage() {
         t.provisioning_status,
         t.branch_code ?? '',
         t.contact_email ?? '',
+        orgNameById.get(t.org_id) ?? '',
       ),
     );
-  }, [tenantTreeRows, tableSearch]);
+  }, [tenantTreeRows, tableSearch, orgNameById]);
 
   const columns = useMemo<ColumnDef<TenantTreeRow, unknown>[]>(
     () => [
+      ...(isPlatformSuperAdmin
+        ? [
+            {
+              id: 'organization',
+              header: 'Organization',
+              cell: ({ row }: { row: { original: TenantTreeRow } }) => {
+                const name = orgNameById.get(row.original.org_id);
+                return (
+                  <span className="text-sm font-medium">
+                    {name ?? row.original.org_id.slice(0, 8)}
+                  </span>
+                );
+              },
+            } satisfies ColumnDef<TenantTreeRow, unknown>,
+          ]
+        : []),
       {
         accessorKey: 'name',
         header: 'Tenant',
@@ -217,12 +250,10 @@ function ConfiguratorTenantListPage() {
         header: () => <div className="text-right">Actions</div>,
         cell: ({ row }) => {
           const tenant = row.original;
-          const isChildRowInTree = row.original.depth > 0;
-          const showTenantUserChildActions = isPlatformSuperAdmin || !isChildRowInTree;
 
           return (
             <div className="flex items-center justify-end gap-1">
-              {canCreateTenant && showTenantUserChildActions ? (
+              {canCreateTenant ? (
                 <Button
                   type="button"
                   variant="ghost"
@@ -234,34 +265,30 @@ function ConfiguratorTenantListPage() {
                   <GitBranch className="size-4" />
                 </Button>
               ) : null}
-              {showTenantUserChildActions ? (
-                <>
-                  <Button variant="ghost" size="icon-sm" asChild aria-label="View tenant">
-                    <Link
-                      to="/configurator/tenant/$organizationId"
-                      params={{ organizationId: tenant.org_id }}
-                      search={{ tenantId: tenant.iq_tenant_id }}
-                    >
-                      <Eye className="size-4" />
-                    </Link>
-                  </Button>
-                  <Button variant="ghost" size="icon-sm" asChild aria-label="Edit tenant">
-                    <Link
-                      to="/configurator/tenant/$organizationId"
-                      params={{ organizationId: tenant.org_id }}
-                      search={{ tenantId: tenant.iq_tenant_id }}
-                    >
-                      <Pencil className="size-4" />
-                    </Link>
-                  </Button>
-                </>
-              ) : null}
+              <Button variant="ghost" size="icon-sm" asChild aria-label="View tenant">
+                <Link
+                  to="/configurator/tenant/$organizationId"
+                  params={{ organizationId: tenant.org_id }}
+                  search={{ tenantId: tenant.iq_tenant_id }}
+                >
+                  <Eye className="size-4" />
+                </Link>
+              </Button>
+              <Button variant="ghost" size="icon-sm" asChild aria-label="Edit tenant">
+                <Link
+                  to="/configurator/tenant/$organizationId"
+                  params={{ organizationId: tenant.org_id }}
+                  search={{ tenantId: tenant.iq_tenant_id }}
+                >
+                  <Pencil className="size-4" />
+                </Link>
+              </Button>
             </div>
           );
         },
       },
     ],
-    [canCreateTenant, isPlatformSuperAdmin],
+    [canCreateTenant, isPlatformSuperAdmin, orgNameById],
   );
 
   const onCreateWizardComplete = async (input: TenantOnboardingInput) => {
@@ -274,7 +301,7 @@ function ConfiguratorTenantListPage() {
     }
   };
 
-  if (!organizationId && !isResolving) {
+  if (!organizationId && !isResolving && !isPlatformSuperAdmin) {
     return (
       <div className="p-6 text-muted-foreground">
         No organisation scope is available. Select an organisation in the header or sign in again.
@@ -290,7 +317,11 @@ function ConfiguratorTenantListPage() {
     );
   }
 
-  const scopeTitle = organizationName ? `Tenants · ${organizationName}` : 'Tenants';
+  const scopeTitle = isPlatformSuperAdmin
+    ? 'All Tenants'
+    : organizationName
+      ? `Tenants · ${organizationName}`
+      : 'Tenants';
 
   return (
     <ConfiguratorPageShell
