@@ -1,11 +1,21 @@
-/** Parse JSON API error bodies (e.g. FastAPI) into a single user-visible string. */
+type ApiErrorJson = {
+  detail?: unknown;
+  error?: unknown;
+  message?: unknown;
+};
+
+function truncateMessage(text: string, max = 400): string {
+  return text.length > max ? `${text.slice(0, max)}…` : text;
+}
+
+/** Parse JSON API error bodies (FastAPI `detail`, Fastify `error`, generic `message`). */
 export function formatApiErrorBody(status: number, body: string): string {
   const raw = body?.trim();
   if (!raw) return `Request failed (${status})`;
   try {
-    const parsed = JSON.parse(raw) as { detail?: unknown; message?: unknown };
+    const parsed = JSON.parse(raw) as ApiErrorJson;
     const d = parsed.detail;
-    if (typeof d === 'string') return d.length > 400 ? `${d.slice(0, 400)}…` : d;
+    if (typeof d === 'string') return truncateMessage(d);
     if (Array.isArray(d)) {
       const parts = d
         .map((item) => {
@@ -18,15 +28,17 @@ export function formatApiErrorBody(status: number, body: string): string {
         })
         .filter((x): x is string => Boolean(x));
       if (parts.length > 0) {
-        const s = parts.join('; ');
-        return s.length > 400 ? `${s.slice(0, 400)}…` : s;
+        return truncateMessage(parts.join('; '));
       }
     }
+    if (typeof parsed.error === 'string' && parsed.error.length > 0) {
+      return truncateMessage(parsed.error);
+    }
     if (typeof parsed.message === 'string' && parsed.message.length > 0) {
-      return parsed.message.length > 400 ? `${parsed.message.slice(0, 400)}…` : parsed.message;
+      return truncateMessage(parsed.message);
     }
   } catch {
     /* fall through */
   }
-  return raw.length > 400 ? `${raw.slice(0, 400)}…` : raw;
+  return truncateMessage(raw);
 }

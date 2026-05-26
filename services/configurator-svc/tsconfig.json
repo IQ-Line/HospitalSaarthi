@@ -1,15 +1,8 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "composite": true
+    "noEmit": true,
+    "ignoreDeprecations": "6.0"
   },
-  "references": [
-    { "path": "../../packages/ts-sdk-db" },
-    { "path": "../../packages/ts-sdk-events" },
-    { "path": "../../packages/ts-sdk-openapi" },
-    { "path": "../../modules/configurator" }
-  ],
   "include": ["src/**/*.ts"]
 }

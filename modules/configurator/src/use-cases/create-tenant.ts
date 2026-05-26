@@ -3,6 +3,7 @@ import type { OrganizationRepo, TenantRepo } from "../ports.js";
 import type {
   BranchType,
   CreateTenantData,
+  Tenant,
   TenantType,
 } from "../domain/tenant.types.js";
 

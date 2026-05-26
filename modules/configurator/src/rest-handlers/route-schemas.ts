@@ -47,16 +47,6 @@ export const uuidParamSchema = {
   },
 } as const;
 
-const tenantModuleEnablementItemSchema = {
-  type: "object",
-  required: ["module_id", "is_active"],
-  additionalProperties: false,
-  properties: {
-    module_id: uuidString,
-    is_active: { type: "boolean" },
-  },
-} as const;
-
 export const postOrganizationBodySchema = {
   type: "object",
   required: ["name", "slug", "type"],
@@ -66,15 +56,11 @@ export const postOrganizationBodySchema = {
     slug: { type: "string", minLength: 3 },
     type: organizationTypeSchema,
     status: organizationStatusSchema,
-    contact_email: { type: "string" },
+    contact_email: { anyOf: [{ type: "string", format: "email" }, { type: "null" }] },
+    website: { anyOf: [{ type: "string" }, { type: "null" }] },
     contact_phone: { type: "string" },
     address: { type: "string" },
     metadata: { type: "object" },
-    tenant_modules: {
-      type: "array",
-      maxItems: 2000,
-      items: tenantModuleEnablementItemSchema,
-    },
   },
 } as const;
 
@@ -86,7 +72,8 @@ export const patchOrganizationBodySchema = {
     slug: { type: "string", minLength: 3 },
     type: organizationTypeSchema,
     status: organizationStatusSchema,
-    contact_email: { anyOf: [{ type: "string" }, { type: "null" }] },
+    contact_email: { anyOf: [{ type: "string", format: "email" }, { type: "null" }] },
+    website: { anyOf: [{ type: "string" }, { type: "null" }] },
     contact_phone: { anyOf: [{ type: "string" }, { type: "null" }] },
     address: { anyOf: [{ type: "string" }, { type: "null" }] },
     metadata: { anyOf: [{ type: "object" }, { type: "null" }] },

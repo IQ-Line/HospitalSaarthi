@@ -58,6 +58,9 @@ export function buildCreateUserRequestBody(
 type CreateUserFormProps = {
   /** Platform super-admin: pick target hospital tenant for POST /users. */
   canSelectTargetTenant?: boolean;
+  /** Configurator tenant detail: scope UM APIs and POST /users to this tenant. */
+  fixedTargetTenantId?: string;
+  fixedConfiguratorOrgId?: string | null;
   layout?: 'page' | 'dialog';
   /** When false, stay on the form after create (e.g. create-only admins without user.read). Default true. */
   navigateToProfileOnSuccess?: boolean;
@@ -67,6 +70,8 @@ type CreateUserFormProps = {
 
 export function CreateUserForm({
   canSelectTargetTenant = false,
+  fixedTargetTenantId,
+  fixedConfiguratorOrgId,
   layout = 'page',
   navigateToProfileOnSuccess = true,
   onCancel,
@@ -77,15 +82,23 @@ export function CreateUserForm({
   const navigate = useNavigate();
   const create = useCreateUser();
   const activeTenantId = useTenantStore((s) => s.tenantId);
-  const [targetTenantId, setTargetTenantId] = useState(activeTenantId ?? '');
-  const [configuratorOrgId, setConfiguratorOrgId] = useState<string | null>(null);
+  const fixedTenant = fixedTargetTenantId?.trim() ?? '';
+  const [targetTenantId, setTargetTenantId] = useState(fixedTenant || activeTenantId || '');
+  const [configuratorOrgId, setConfiguratorOrgId] = useState<string | null>(
+    fixedConfiguratorOrgId ?? null,
+  );
   const requireRoleTemplate = umRoleAssign;
   /** Non–super-admin: always scope APIs to the signed-in tenant. Super-admin: selected catalog tenant. */
-  const effectiveTenantId = canSelectTargetTenant
-    ? targetTenantId || activeTenantId || ''
-    : activeTenantId ?? '';
-  const apiTenantScope =
-    canSelectTargetTenant && targetTenantId ? targetTenantId : activeTenantId ?? undefined;
+  const effectiveTenantId = fixedTenant
+    ? fixedTenant
+    : canSelectTargetTenant
+      ? targetTenantId || activeTenantId || ''
+      : activeTenantId ?? '';
+  const apiTenantScope = fixedTenant
+    ? fixedTenant
+    : canSelectTargetTenant && targetTenantId
+      ? targetTenantId
+      : activeTenantId ?? undefined;
 
   useEffect(() => {
     if (!canSelectTargetTenant && activeTenantId) {
@@ -223,15 +236,20 @@ export function CreateUserForm({
       });
       return;
     }
-    const tenantForCreate =
-      canSelectTargetTenant && targetTenantId.trim() ? targetTenantId.trim() : undefined;
+    const tenantForCreate = fixedTenant
+      ? fixedTenant
+      : canSelectTargetTenant && targetTenantId.trim()
+        ? targetTenantId.trim()
+        : undefined;
+    const orgForCreate =
+      fixedConfiguratorOrgId ?? (canSelectTargetTenant ? configuratorOrgId : null);
     create.mutate(
       {
         body: buildCreateUserRequestBody(
           values,
           umRoleAssign,
           allRoleCapabilityIds,
-          canSelectTargetTenant ? configuratorOrgId : null,
+          orgForCreate,
         ),
         targetTenantId: tenantForCreate,
       },

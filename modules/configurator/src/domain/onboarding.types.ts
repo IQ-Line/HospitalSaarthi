@@ -6,9 +6,17 @@ import type { OrganizationType } from "./organization.types.js";
  */
 export interface ProvisionTenantInput {
   organization: {
+    id?: string;
     name: string;
     slug: string;
     type: OrganizationType;
+    contact_email?: string | null;
+    website?: string | null;
+    metadata?: Record<string, unknown> | null;
+  };
+  tenant: {
+    name: string;
+    slug: string;
     metadata?: Record<string, unknown> | null;
   };
   plan: {

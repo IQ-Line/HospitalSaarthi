@@ -5,7 +5,6 @@ import { configuratorKeys } from './query-keys';
 import type {
   Organization,
   OrganizationCreateInput,
-  OrganizationCreateResponse,
   OrganizationStatus,
   OrganizationType,
   OrganizationUpdateInput,
@@ -22,11 +21,11 @@ export function useOrganizations(filters: {
   return useQuery(organizationsQueryOptions(filters));
 }
 
-export function useOrganization(id: string) {
+export function useOrganization(id: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: configuratorKeys.organizationDetail(id),
     queryFn: () => apiClient<Organization>(`${BASE}/${id}`),
-    enabled: !!id,
+    enabled: (options?.enabled ?? true) && !!id,
   });
 }
 
@@ -34,7 +33,7 @@ export function useCreateOrganization() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: OrganizationCreateInput) =>
-      apiClient<OrganizationCreateResponse>(BASE, {
+      apiClient<Organization>(BASE, {
         method: 'POST',
         body: JSON.stringify(input),
       }),

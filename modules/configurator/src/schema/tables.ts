@@ -28,6 +28,7 @@ export const organizations = configuratorSchema.table(
     type: text("type").notNull(),
     status: text("status").notNull().default("active"),
     contact_email: text("contact_email"),
+    website: text("website"),
     contact_phone: text("contact_phone"),
     address: text("address"),
     metadata: jsonb("metadata"),
