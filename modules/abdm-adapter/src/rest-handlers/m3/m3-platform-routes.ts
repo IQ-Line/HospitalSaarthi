@@ -5,11 +5,18 @@ import { startDataRequest } from "../../use-cases/m3/hiu/start-data-request.js";
 import type { PurposeCode } from "@hims/ts-sdk-abha/protocol/m3/common.js";
 import type { HiTypePascal } from "@hims/ts-sdk-abha/protocol/m3/common.js";
 import { isM3MockGateway } from "../../lib/m3-runtime-env.js";
+import { M3Hiu } from "../../lib/m3-fsm-states.js";
 import {
   AbdmGatewayError,
   formatNhaUpstreamMessage,
   parseNhaErrorBody,
 } from "../../lib/gateway-errors.js";
+import {
+  m3SessionIdParamSchema,
+  m3TransferIdParamSchema,
+  startConsentRequestBodySchema,
+  startDataRequestBodySchema,
+} from "./m3-route-schemas.js";
 
 function sendGatewayError(reply: FastifyReply, err: AbdmGatewayError): unknown {
   const status =
@@ -33,7 +40,10 @@ export async function registerM3PlatformRoutes(
   app: FastifyInstance,
   deps: AbdmAdapterDeps,
 ): Promise<void> {
-  app.post("/m3/hiu/consent/request", async (req, reply) => {
+  app.post(
+    "/m3/hiu/consent/request",
+    { schema: { body: startConsentRequestBodySchema } },
+    async (req, reply) => {
     const iqTenantId = tenantId(req);
     if (!iqTenantId) {
       return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
@@ -56,9 +66,13 @@ export async function registerM3PlatformRoutes(
       const message = e instanceof Error ? e.message : String(e);
       return reply.status(400).send({ error: "BadRequest", message });
     }
-  });
+  },
+  );
 
-  app.get("/m3/hiu/consent/request/:sessionId", async (req, reply) => {
+  app.get(
+    "/m3/hiu/consent/request/:sessionId",
+    { schema: { params: m3SessionIdParamSchema } },
+    async (req, reply) => {
     const iqTenantId = tenantId(req);
     if (!iqTenantId) {
       return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
@@ -78,9 +92,13 @@ export async function registerM3PlatformRoutes(
         session.context.consentArtefactIds ?? row?.consentArtefactIds,
       error: session.context.error,
     });
-  });
+  },
+  );
 
-  app.post("/m3/hiu/data-request", async (req, reply) => {
+  app.post(
+    "/m3/hiu/data-request",
+    { schema: { body: startDataRequestBodySchema } },
+    async (req, reply) => {
     const iqTenantId = tenantId(req);
     if (!iqTenantId) {
       return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
@@ -97,9 +115,13 @@ export async function registerM3PlatformRoutes(
       const status = message.includes("not found") ? 404 : 400;
       return reply.status(status).send({ error: "BadRequest", message });
     }
-  });
+  },
+  );
 
-  app.get("/m3/hiu/transfers/:transferId", async (req, reply) => {
+  app.get(
+    "/m3/hiu/transfers/:transferId",
+    { schema: { params: m3TransferIdParamSchema } },
+    async (req, reply) => {
     const iqTenantId = tenantId(req);
     if (!iqTenantId) {
       return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
@@ -113,7 +135,7 @@ export async function registerM3PlatformRoutes(
       transferId: transfer.transferId,
       state: transfer.state,
       consentId: transfer.consentId,
-      bundle: transfer.state === "ACKNOWLEDGED" ? transfer.bundleJson : undefined,
+      bundle: transfer.state === M3Hiu.ACKNOWLEDGED ? transfer.bundleJson : undefined,
       error: transfer.error,
       ...(isM3MockGateway()
         ? {
@@ -122,5 +144,6 @@ export async function registerM3PlatformRoutes(
           }
         : {}),
     });
-  });
+  },
+  );
 }

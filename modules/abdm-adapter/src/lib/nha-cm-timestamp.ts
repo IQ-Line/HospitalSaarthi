@@ -19,20 +19,32 @@ function isUtcMidnightEnd(iso: string): boolean {
 export function normalizeConsentPermissionDateRange(dateRange: {
   from: string;
   to: string;
-}): { from: string; to: string; adjustedToFromMidnight: boolean } {
-  if (!isUtcMidnightEnd(dateRange.to)) {
-    return { from: dateRange.from, to: dateRange.to, adjustedToFromMidnight: false };
-  }
-  const toMs = new Date(dateRange.to).getTime();
+}): {
+  from: string;
+  to: string;
+  adjustedToFromMidnight: boolean;
+  adjustedToFuture: boolean;
+} {
+  const from = dateRange.from;
+  let to = dateRange.to;
+  let adjustedToFromMidnight = false;
+  let adjustedToFuture = false;
   const nowMs = Date.now();
-  if (Number.isNaN(toMs) || toMs > nowMs) {
-    return { from: dateRange.from, to: dateRange.to, adjustedToFromMidnight: false };
+  let toMs = new Date(to).getTime();
+
+  if (isUtcMidnightEnd(to) && !Number.isNaN(toMs) && toMs <= nowMs) {
+    to = new Date(nowMs).toISOString();
+    adjustedToFromMidnight = true;
+    toMs = nowMs;
   }
-  return {
-    from: dateRange.from,
-    to: new Date(nowMs).toISOString(),
-    adjustedToFromMidnight: true,
-  };
+
+  // Swagger copy/paste often lands a few seconds ahead of server clock; NHA rejects future `to`.
+  if (!Number.isNaN(toMs) && toMs > nowMs) {
+    to = new Date(nowMs).toISOString();
+    adjustedToFuture = true;
+  }
+
+  return { from, to, adjustedToFromMidnight, adjustedToFuture };
 }
 
 /**

@@ -6,6 +6,8 @@ import {
   m3AdapterPublicBaseUrl,
   skipM3OutboundGateway,
 } from "../../../lib/m3-runtime-env.js";
+import { assertFlowKind } from "../../../domain/session.js";
+import { M3Hiu } from "../../../lib/m3-fsm-states.js";
 
 export interface StartDataRequestInput {
   consentId: string;
@@ -32,7 +34,7 @@ export async function startDataRequest(
     iqTenantId: input.iqTenantId,
     consentRequestId: artefact.consentRequestId,
   });
-  if (!consentRow || consentRow.state !== "CONSENT_GRANTED") {
+  if (!consentRow || consentRow.state !== M3Hiu.CONSENT_GRANTED) {
     throw new Error("Consent not in GRANTED state");
   }
 
@@ -40,7 +42,11 @@ export async function startDataRequest(
     iqTenantId: input.iqTenantId,
     sessionId: consentRow.sessionId,
   });
-  if (!session || session.state !== "CONSENT_GRANTED") {
+  if (!session) {
+    throw new Error("Session not found");
+  }
+  assertFlowKind(session, "abdm.m3.hiu.v1");
+  if (session.state !== M3Hiu.CONSENT_GRANTED) {
     throw new Error("Session not ready for data request");
   }
 
@@ -89,7 +95,7 @@ export async function startDataRequest(
     transferId,
     sessionId: consentRow.sessionId,
     flowKind: "abdm.m3.hiu.v1",
-    state: "DATA_REQUESTED",
+    state: M3Hiu.DATA_REQUESTED,
     consentId: input.consentId,
     outboundRequestId,
     cmTransactionId: null,
@@ -107,15 +113,16 @@ export async function startDataRequest(
   await deps.sessions.patch({
     iqTenantId: input.iqTenantId,
     sessionId: consentRow.sessionId,
-    state: "DATA_REQUESTED",
+    state: M3Hiu.DATA_REQUESTED,
     contextMerge: {
       consentId: input.consentId,
       transferId,
       hiuPublicKeyBase64: keyMaterial.ourPublicKey,
       transferNonceBase64: keyMaterial.ourNonce,
+      hiuPrivateKeyJwk: encryptedPrivate,
       dateRange: permissionRange,
     },
   });
 
-  return { transferId, state: "DATA_REQUESTED" };
+  return { transferId, state: M3Hiu.DATA_REQUESTED };
 }

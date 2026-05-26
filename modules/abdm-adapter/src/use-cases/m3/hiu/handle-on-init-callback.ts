@@ -1,6 +1,7 @@
 import type { OnConsentInitCallback } from "@hims/ts-sdk-abha/protocol/m3/hiu-consent-request.js";
 import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
 import { resolveM3ConsentRequestRow } from "./resolve-m3-consent-row.js";
+import { M3Hiu } from "../../../lib/m3-fsm-states.js";
 
 export async function handleOnInitCallback(
   input: AbdmTenantInput<OnConsentInitCallback & { inboundRequestId: string }>,
@@ -16,7 +17,7 @@ export async function handleOnInitCallback(
   if (!row) return;
 
   const hasError = Boolean(input.error?.code || input.error?.message);
-  const nextState = hasError ? "EXPIRED" : "AWAITING_PATIENT_APPROVAL";
+  const nextState = hasError ? M3Hiu.EXPIRED : M3Hiu.AWAITING_PATIENT_APPROVAL;
 
   await deps.sessions.patch({
     iqTenantId: input.iqTenantId,

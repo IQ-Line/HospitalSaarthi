@@ -4,6 +4,8 @@ import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
 import { verifyM3ConsentArtefactSignature } from "../../../lib/m3-consent-artefact-signature.js";
 import { resolveConsentPatientId } from "../../../lib/resolve-consent-patient-id.js";
 import { createConsentGrantedEnvelope } from "../../../lib/abdm-envelope.js";
+import { assertFlowKind } from "../../../domain/session.js";
+import { M3Hiu } from "../../../lib/m3-fsm-states.js";
 import type { M3HiuContext } from "./context.js";
 
 export async function handleOnFetchCallback(
@@ -33,7 +35,7 @@ export async function handleOnFetchCallback(
     await deps.sessions.patch({
       iqTenantId: input.iqTenantId,
       sessionId: pendingRow.sessionId,
-      state: "CONSENT_DENIED",
+      state: M3Hiu.CONSENT_DENIED,
       contextMerge: {
         error: {
           code: ABDM_ERROR_CODES.INVALID_SIGNATURE,
@@ -44,7 +46,7 @@ export async function handleOnFetchCallback(
     await deps.m3ConsentRequests.patch({
       iqTenantId: input.iqTenantId,
       consentRequestId,
-      state: "CONSENT_DENIED",
+      state: M3Hiu.CONSENT_DENIED,
     });
     return;
   }
@@ -95,7 +97,8 @@ export async function handleOnFetchCallback(
     iqTenantId: input.iqTenantId,
     sessionId: pendingRow.sessionId,
   });
-  if (!session || session.flowKind !== "abdm.m3.hiu.v1") return;
+  if (!session) return;
+  assertFlowKind(session, "abdm.m3.hiu.v1");
 
   const ctx = session.context as M3HiuContext;
   const pendingList = ctx.pendingArtefactIds ?? [];
@@ -113,14 +116,14 @@ export async function handleOnFetchCallback(
       consentArtefactIds: mergedIds,
       consentId,
     },
-    ...(allDone ? { state: "CONSENT_GRANTED" } : {}),
+    ...(allDone ? { state: M3Hiu.CONSENT_GRANTED } : {}),
   });
 
   if (allDone) {
     await deps.m3ConsentRequests.patch({
       iqTenantId: input.iqTenantId,
       consentRequestId,
-      state: "CONSENT_GRANTED",
+      state: M3Hiu.CONSENT_GRANTED,
       consentArtefactIds: mergedIds,
     });
     if (deps.eventBus) {

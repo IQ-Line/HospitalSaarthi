@@ -7,12 +7,23 @@ import { LinkTokenNotAvailable } from "../../lib/link-token-cache.js";
 import { linkTokenAcquire } from "../../use-cases/m2/link-token/acquire.js";
 import { getLinkTokenStatus } from "../../use-cases/m2/link-token/status.js";
 import { getAbdmSession } from "../../use-cases/m2/sessions/get-session.js";
+import {
+  addContextsPublishBodySchema,
+  hipInitiatedLinkStartBodySchema,
+  linkTokenAcquireBodySchema,
+  linkTokenStatusQuerySchema,
+  m2SessionIdParamSchema,
+  smsNotifyBodySchema,
+} from "./m2-route-schemas.js";
 
 export async function registerM2PlatformRoutes(
   app: FastifyInstance,
   deps: AbdmAdapterDeps,
 ): Promise<void> {
-  app.post("/m2/link-token/acquire", async (req, reply) => {
+  app.post(
+    "/m2/link-token/acquire",
+    { schema: { body: linkTokenAcquireBodySchema } },
+    async (req, reply) => {
     const iqTenantId = String(req.headers["x-tenant-id"] ?? "").trim();
     if (!iqTenantId) {
       return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
@@ -32,9 +43,13 @@ export async function registerM2PlatformRoutes(
     const status =
       result.state === "FAILED" ? 503 : result.state === "TOKEN_AVAILABLE" ? 200 : 202;
     return reply.status(status).send(result);
-  });
+  },
+  );
 
-  app.get("/m2/link-token/status", async (req, reply) => {
+  app.get(
+    "/m2/link-token/status",
+    { schema: { querystring: linkTokenStatusQuerySchema } },
+    async (req, reply) => {
     const iqTenantId = String(req.headers["x-tenant-id"] ?? "").trim();
     if (!iqTenantId) {
       return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
@@ -52,9 +67,13 @@ export async function registerM2PlatformRoutes(
       return reply.status(404).send(result);
     }
     return reply.status(200).send(result);
-  });
+  },
+  );
 
-  app.get("/m2/sessions/:sessionId", async (req, reply) => {
+  app.get(
+    "/m2/sessions/:sessionId",
+    { schema: { params: m2SessionIdParamSchema } },
+    async (req, reply) => {
     const iqTenantId = String(req.headers["x-tenant-id"] ?? "").trim();
     if (!iqTenantId) {
       return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
@@ -65,9 +84,13 @@ export async function registerM2PlatformRoutes(
       return reply.status(404).send({ error: "NotFound", message: "session not found" });
     }
     return reply.status(200).send(session);
-  });
+  },
+  );
 
-  app.post("/m2/hip/initiated-link/start", async (req, reply) => {
+  app.post(
+    "/m2/hip/initiated-link/start",
+    { schema: { body: hipInitiatedLinkStartBodySchema } },
+    async (req, reply) => {
     const iqTenantId = String(req.headers["x-tenant-id"] ?? "").trim();
     if (!iqTenantId) {
       return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
@@ -100,9 +123,13 @@ export async function registerM2PlatformRoutes(
       }
       throw e;
     }
-  });
+  },
+  );
 
-  app.post("/m2/add-contexts/publish", async (req, reply) => {
+  app.post(
+    "/m2/add-contexts/publish",
+    { schema: { body: addContextsPublishBodySchema } },
+    async (req, reply) => {
     const iqTenantId = String(req.headers["x-tenant-id"] ?? "").trim();
     if (!iqTenantId) {
       return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
@@ -116,9 +143,13 @@ export async function registerM2PlatformRoutes(
     };
     const result = await addContextsPublish({ iqTenantId, ...body }, deps);
     return reply.status(202).send(result);
-  });
+  },
+  );
 
-  app.post("/m2/sms/notify", async (req, reply) => {
+  app.post(
+    "/m2/sms/notify",
+    { schema: { body: smsNotifyBodySchema } },
+    async (req, reply) => {
     const iqTenantId = String(req.headers["x-tenant-id"] ?? "").trim();
     if (!iqTenantId) {
       return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
@@ -126,5 +157,6 @@ export async function registerM2PlatformRoutes(
     const body = req.body as { phoneNo: string; hipName?: string };
     const result = await smsNotifyRequest({ iqTenantId, ...body }, deps);
     return reply.status(202).send(result);
-  });
+  },
+  );
 }

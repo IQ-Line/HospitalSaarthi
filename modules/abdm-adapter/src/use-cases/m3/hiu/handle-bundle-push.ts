@@ -7,6 +7,7 @@ import { skipM3OutboundGateway } from "../../../lib/m3-runtime-env.js";
 import { createHealthRecordReceivedEnvelope } from "../../../lib/abdm-envelope.js";
 import { AbdmGatewayError } from "../../../lib/gateway-errors.js";
 import { abdmWarn } from "../../../lib/abdm-adapter-log.js";
+import { M3Hiu } from "../../../lib/m3-fsm-states.js";
 
 export async function handleBundlePush(
   input: AbdmTenantInput<{
@@ -30,12 +31,14 @@ export async function handleBundlePush(
     return;
   }
 
-  await deps.m3DataTransfers.patch({
+  await deps.m3DataTransfers.patchWithSession({
     iqTenantId: input.iqTenantId,
     transferId: transfer.transferId,
-    state: "BUNDLES_RECEIVED",
-    hipPublicKeyB64: peerKey,
-    hipNonceB64: peerNonce,
+    transfer: {
+      state: M3Hiu.BUNDLES_RECEIVED,
+      hipPublicKeyB64: peerKey,
+      hipNonceB64: peerNonce,
+    },
   });
 
   const privateKeyPlain = deps.payloadEncryptor.decrypt(transfer.hiuPrivateKeyJwk);
@@ -70,26 +73,25 @@ export async function handleBundlePush(
     })),
   };
 
-  await deps.m3DataTransfers.patch({
+  await deps.m3DataTransfers.patchWithSession({
     iqTenantId: input.iqTenantId,
     transferId: transfer.transferId,
-    state: "BUNDLES_DECRYPTED",
+    transfer: {
+      state: M3Hiu.RECORDS_INGESTED,
+      bundleJson,
+    },
+    session: transfer.sessionId
+      ? {
+          sessionId: transfer.sessionId,
+          state: M3Hiu.RECORDS_INGESTED,
+          contextMerge: {
+            bundleJsonId: transfer.transferId,
+            hipPublicKeyBase64: peerKey,
+            hipNonceBase64: peerNonce,
+          },
+        }
+      : undefined,
   });
-
-  await deps.m3DataTransfers.patch({
-    iqTenantId: input.iqTenantId,
-    transferId: transfer.transferId,
-    state: "RECORDS_INGESTED",
-    bundleJson,
-  });
-
-  if (transfer.sessionId) {
-    await deps.sessions.patch({
-      iqTenantId: input.iqTenantId,
-      sessionId: transfer.sessionId,
-      state: "RECORDS_INGESTED",
-    });
-  }
 
   if (deps.eventBus) {
     await deps.eventBus.publish(
@@ -147,23 +149,17 @@ export async function handleBundlePush(
         cmTransactionId: cmTxn,
         ...gateway,
       });
-      // Bundle is stored locally — do not fail the HIP→HIU push HTTP callback.
     }
   }
 
-  await deps.m3DataTransfers.patch({
+  await deps.m3DataTransfers.patchWithSession({
     iqTenantId: input.iqTenantId,
     transferId: transfer.transferId,
-    state: "ACKNOWLEDGED",
+    transfer: { state: M3Hiu.ACKNOWLEDGED },
+    session: transfer.sessionId
+      ? { sessionId: transfer.sessionId, state: M3Hiu.ACKNOWLEDGED }
+      : undefined,
   });
-
-  if (transfer.sessionId) {
-    await deps.sessions.patch({
-      iqTenantId: input.iqTenantId,
-      sessionId: transfer.sessionId,
-      state: "ACKNOWLEDGED",
-    });
-  }
 }
 
 async function failTransfer(
@@ -172,18 +168,19 @@ async function failTransfer(
   code: string,
   message: string,
 ): Promise<void> {
-  await deps.m3DataTransfers.patch({
+  await deps.m3DataTransfers.patchWithSession({
     iqTenantId: transfer.iqTenantId,
     transferId: transfer.transferId,
-    state: "EXPIRED",
-    error: { code, message },
+    transfer: {
+      state: M3Hiu.EXPIRED,
+      error: { code, message },
+    },
+    session: transfer.sessionId
+      ? {
+          sessionId: transfer.sessionId,
+          state: M3Hiu.EXPIRED,
+          contextMerge: { error: { code, message } },
+        }
+      : undefined,
   });
-  if (transfer.sessionId) {
-    await deps.sessions.patch({
-      iqTenantId: transfer.iqTenantId,
-      sessionId: transfer.sessionId,
-      state: "EXPIRED",
-      contextMerge: { error: { code, message } },
-    });
-  }
 }

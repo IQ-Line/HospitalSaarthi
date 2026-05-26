@@ -11,6 +11,7 @@ import {
 import { abdmWarn } from "../../../lib/abdm-adapter-log.js";
 import { skipM3OutboundGateway } from "../../../lib/m3-runtime-env.js";
 import type { M3HiuContext } from "./context.js";
+import { M3Hiu } from "../../../lib/m3-fsm-states.js";
 
 const PURPOSE_TEXT: Record<PurposeCode, string> = {
   CAREMGT: "Care Management",
@@ -42,10 +43,12 @@ export async function startConsentRequest(
   deps: AbdmAdapterDeps,
 ): Promise<StartConsentRequestResult> {
   const normalizedRange = normalizeConsentPermissionDateRange(input.dateRange);
-  if (normalizedRange.adjustedToFromMidnight) {
+  if (normalizedRange.adjustedToFromMidnight || normalizedRange.adjustedToFuture) {
     abdmWarn("abdm.m3.consent.date_range_to_normalized", {
-      from: input.dateRange.to,
+      requestedTo: input.dateRange.to,
       to: normalizedRange.to,
+      adjustedToFromMidnight: normalizedRange.adjustedToFromMidnight,
+      adjustedToFuture: normalizedRange.adjustedToFuture,
     });
   }
   validateConsentPermissionDateRange(normalizedRange);
@@ -79,7 +82,7 @@ export async function startConsentRequest(
   await deps.sessions.patch({
     iqTenantId: input.iqTenantId,
     sessionId: session.sessionId,
-    state: "CONSENT_INIT_REQUESTED",
+    state: M3Hiu.CONSENT_INIT_REQUESTED,
     requestId: outboundRequestId,
   });
 
@@ -132,10 +135,10 @@ export async function startConsentRequest(
     permissionDateFrom: new Date(permissionDateRange.from),
     permissionDateTo: new Date(permissionDateRange.to),
     dataEraseAt: new Date(dataEraseAt),
-    state: "CONSENT_INIT_REQUESTED",
+    state: M3Hiu.CONSENT_INIT_REQUESTED,
     consentArtefactIds: [],
     context: { outboundRequestId },
   });
 
-  return { sessionId: session.sessionId, state: "CONSENT_INIT_REQUESTED" };
+  return { sessionId: session.sessionId, state: M3Hiu.CONSENT_INIT_REQUESTED };
 }

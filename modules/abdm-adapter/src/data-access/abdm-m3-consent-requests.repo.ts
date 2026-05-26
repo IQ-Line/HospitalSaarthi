@@ -1,7 +1,8 @@
 import type { DbInstance } from "@hims/ts-sdk-db";
-import { and, eq } from "@hims/ts-sdk-db";
+import { and, eq, lt } from "@hims/ts-sdk-db";
 import { abdmM3ConsentRequests } from "../schema/tables.js";
 import type { M3ConsentRequestsPort, M3ConsentRequestRow } from "../ports.js";
+import { M3Hiu } from "../lib/m3-fsm-states.js";
 
 function rowToRecord(row: typeof abdmM3ConsentRequests.$inferSelect): M3ConsentRequestRow {
   return {
@@ -15,7 +16,7 @@ function rowToRecord(row: typeof abdmM3ConsentRequests.$inferSelect): M3ConsentR
     permissionDateFrom: row.permission_date_from,
     permissionDateTo: row.permission_date_to,
     dataEraseAt: row.data_erase_at,
-    state: row.state,
+    state: row.state as M3ConsentRequestRow["state"],
     consentArtefactIds: row.consent_artefact_ids ?? [],
     context: (row.context ?? {}) as Record<string, unknown>,
     createdAt: row.created_at,
@@ -119,8 +120,26 @@ export class DrizzleM3ConsentRequestsRepo implements M3ConsentRequestsPort {
       .where(eq(abdmM3ConsentRequests.iq_tenant_id, iqTenantId));
     return rows
       .filter((r) =>
-        ["CONSENT_INIT_REQUESTED", "AWAITING_PATIENT_APPROVAL"].includes(r.state),
+        new Set<string>([M3Hiu.CONSENT_INIT_REQUESTED, M3Hiu.AWAITING_PATIENT_APPROVAL]).has(
+          r.state,
+        ),
       )
       .map(rowToRecord);
+  }
+
+  async janitor(): Promise<number> {
+    const hours = Number(process.env["ABDM_M3_CONSENT_REQUEST_EXPIRY_HOURS"] ?? 72);
+    const cutoff = new Date(Date.now() - hours * 3600000);
+    const result = await this.db
+      .update(abdmM3ConsentRequests)
+      .set({ state: M3Hiu.EXPIRED, updated_at: new Date() })
+      .where(
+        and(
+          eq(abdmM3ConsentRequests.state, M3Hiu.AWAITING_PATIENT_APPROVAL),
+          lt(abdmM3ConsentRequests.created_at, cutoff),
+        ),
+      )
+      .returning({ consent_request_id: abdmM3ConsentRequests.consent_request_id });
+    return result.length;
   }
 }

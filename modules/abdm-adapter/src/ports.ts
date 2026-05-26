@@ -11,6 +11,7 @@
  * lands (per ADR-0027). The port signatures themselves do not change.
  */
 
+import type { M3HipState, M3HiuState } from "@hims/ts-sdk-abha";
 import type { EventBus } from "@hims/ts-sdk-events";
 import type { AbdmSession } from "./domain/session.js";
 
@@ -320,7 +321,7 @@ export interface M3ConsentRequestRow {
   permissionDateFrom: Date;
   permissionDateTo: Date;
   dataEraseAt: Date;
-  state: string;
+  state: M3HiuState;
   consentArtefactIds: string[];
   context: Record<string, unknown>;
   createdAt: Date;
@@ -340,11 +341,13 @@ export interface M3ConsentRequestsPort {
   patch(input: {
     iqTenantId: string;
     consentRequestId: string;
-    state?: string;
+    state?: M3HiuState;
     consentArtefactIds?: string[];
     contextMerge?: Record<string, unknown>;
   }): Promise<void>;
   listActive(iqTenantId: string): Promise<M3ConsentRequestRow[]>;
+  /** Expire stale `AWAITING_PATIENT_APPROVAL` rows past consent TTL. */
+  janitor(): Promise<number>;
 }
 
 export interface M3ConsentArtefactHiuRow {
@@ -381,7 +384,7 @@ export interface M3DataTransferRow {
   transferId: string;
   sessionId: string | null;
   flowKind: string;
-  state: string;
+  state: M3HiuState;
   consentId: string;
   outboundRequestId: string | null;
   cmTransactionId: string | null;
@@ -415,7 +418,7 @@ export interface M3DataTransfersPort {
   patch(input: {
     iqTenantId: string;
     transferId: string;
-    state?: string;
+    state?: M3HiuState;
     cmTransactionId?: string;
     hipPublicKeyB64?: string;
     hipNonceB64?: string;
@@ -423,6 +426,27 @@ export interface M3DataTransfersPort {
     error?: { code: string; message: string } | null;
     awaitingPushUntil?: Date | null;
   }): Promise<void>;
+  /** Atomically patch transfer row and optional HIU session row. */
+  patchWithSession(input: {
+    iqTenantId: string;
+    transferId: string;
+    transfer: {
+      state?: M3HiuState;
+      cmTransactionId?: string | null;
+      hipPublicKeyB64?: string;
+      hipNonceB64?: string;
+      bundleJson?: Record<string, unknown> | null;
+      error?: { code: string; message: string } | null;
+      awaitingPushUntil?: Date | null;
+    };
+    session?: {
+      sessionId: string;
+      state?: M3HiuState;
+      contextMerge?: Record<string, unknown>;
+    };
+  }): Promise<void>;
+  /** Expire stale `AWAITING_PUSH` rows past `awaiting_push_until`. */
+  janitor(): Promise<number>;
 }
 
 export interface AbdmAdapterDeps {

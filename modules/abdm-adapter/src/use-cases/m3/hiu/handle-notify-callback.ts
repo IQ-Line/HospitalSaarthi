@@ -5,6 +5,7 @@ import { M3_GATEWAY_PATHS } from "../../../lib/m3-gateway-paths.js";
 import { skipM3OutboundGateway } from "../../../lib/m3-runtime-env.js";
 import { fetchConsentArtefact } from "./fetch-artefact.js";
 import { resolveM3ConsentRequestRow } from "./resolve-m3-consent-row.js";
+import { M3Hiu } from "../../../lib/m3-fsm-states.js";
 
 export async function handleNotifyCallback(
   input: AbdmTenantInput<ConsentNotifyCallback & { inboundRequestId: string }>,
@@ -22,7 +23,7 @@ export async function handleNotifyCallback(
     await deps.sessions.patch({
       iqTenantId: input.iqTenantId,
       sessionId: row.sessionId,
-      state: "CONSENT_DENIED",
+      state: M3Hiu.CONSENT_DENIED,
       contextMerge: {
         error: {
           code: notification.status,
@@ -33,7 +34,7 @@ export async function handleNotifyCallback(
     await deps.m3ConsentRequests.patch({
       iqTenantId: input.iqTenantId,
       consentRequestId: row.consentRequestId,
-      state: "CONSENT_DENIED",
+      state: M3Hiu.CONSENT_DENIED,
     });
     return;
   }

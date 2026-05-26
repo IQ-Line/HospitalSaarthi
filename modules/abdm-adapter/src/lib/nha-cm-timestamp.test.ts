@@ -36,7 +36,19 @@ describe("normalizeConsentPermissionDateRange", () => {
       from: "2026-01-01T00:00:00.000Z",
       to,
       adjustedToFromMidnight: false,
+      adjustedToFuture: false,
     });
+  });
+
+  it("clamps future end to now", () => {
+    const nowMs = Date.now();
+    const future = new Date(nowMs + 120_000).toISOString();
+    const result = normalizeConsentPermissionDateRange({
+      from: "2026-01-01T00:00:00.000Z",
+      to: future,
+    });
+    expect(result.adjustedToFuture).toBe(true);
+    expect(new Date(result.to).getTime()).toBeLessThanOrEqual(nowMs + 50);
   });
 });
 

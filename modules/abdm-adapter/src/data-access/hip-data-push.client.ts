@@ -38,7 +38,7 @@ export class HttpHipDataPushClient implements HipDataPushClient {
     return dataPushUrl;
   }
 
-  private assertAllowlisted(url: string): void {
+  private assertAllowListed(url: string): void {
     if (this.allowlistHosts.length === 0) return;
     const host = new URL(url).hostname.toLowerCase();
     if (!this.allowlistHosts.includes(host)) {
@@ -53,7 +53,7 @@ export class HttpHipDataPushClient implements HipDataPushClient {
     iqTenantId?: string;
   }): Promise<void> {
     const targetUrl = this.resolvePushUrl(input.dataPushUrl);
-    this.assertAllowlisted(targetUrl);
+    this.assertAllowListed(targetUrl);
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",

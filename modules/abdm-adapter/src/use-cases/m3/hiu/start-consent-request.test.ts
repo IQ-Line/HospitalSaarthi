@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { buildMockAbdmDeps } from "../../../test-utils/mock-deps.js";
 import { startConsentRequest } from "./start-consent-request.js";
+import { M3Hiu } from "../../../lib/m3-fsm-states.js";
 
 describe("startConsentRequest", () => {
   it("creates session and consent request row", async () => {
@@ -23,7 +24,7 @@ describe("startConsentRequest", () => {
         iqTenantId: input.iqTenantId,
         sessionId: input.sessionId,
         flowKind: "abdm.m3.hiu.v1",
-        state: input.state ?? "CONSENT_INIT_REQUESTED",
+        state: input.state ?? M3Hiu.CONSENT_INIT_REQUESTED,
         txnId: null,
         requestId: input.requestId ?? null,
         xToken: null,
@@ -60,7 +61,7 @@ describe("startConsentRequest", () => {
       deps,
     );
 
-    expect(result.state).toBe("CONSENT_INIT_REQUESTED");
+    expect(result.state).toBe(M3Hiu.CONSENT_INIT_REQUESTED);
     expect(sessions.create).toHaveBeenCalled();
     expect(m3ConsentRequests.insert).toHaveBeenCalled();
   });

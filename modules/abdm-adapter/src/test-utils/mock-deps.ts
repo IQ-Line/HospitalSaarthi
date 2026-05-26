@@ -18,7 +18,11 @@ export function buildMockAbdmDeps(
       } as AbdmAdapterDeps["inboundMessages"]),
     linkTokens: overrides.linkTokens ?? ({} as AbdmAdapterDeps["linkTokens"]),
     consentArtefacts:
-      overrides.consentArtefacts ?? ({} as AbdmAdapterDeps["consentArtefacts"]),
+      overrides.consentArtefacts ??
+      ({
+        upsert: async () => undefined,
+        findById: async () => null,
+      } as AbdmAdapterDeps["consentArtefacts"]),
     m3ConsentRequests:
       overrides.m3ConsentRequests ??
       ({
@@ -27,6 +31,7 @@ export function buildMockAbdmDeps(
         findBySessionId: async () => null,
         patch: async () => undefined,
         listActive: async () => [],
+        janitor: async () => 0,
       } as AbdmAdapterDeps["m3ConsentRequests"]),
     m3ConsentArtefactsHiu:
       overrides.m3ConsentArtefactsHiu ??
@@ -44,6 +49,8 @@ export function buildMockAbdmDeps(
         findByOutboundRequestId: async () => null,
         findLatestActiveByConsentId: async () => null,
         patch: async () => undefined,
+        patchWithSession: async () => undefined,
+        janitor: async () => 0,
       } as AbdmAdapterDeps["m3DataTransfers"]),
     empi:
       overrides.empi ??

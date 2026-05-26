@@ -8,6 +8,7 @@ import { createConsentGrantedEnvelope } from "../../../lib/abdm-envelope.js";
 import { M2_GATEWAY_PATHS } from "../../../lib/m2-gateway-paths.js";
 import { skipOutboundGatewayInDev } from "../../../lib/dev-inbound-simulation.js";
 import type { M3HiuContext } from "./context.js";
+import { M3Hiu } from "../../../lib/m3-fsm-states.js";
 
 /**
  * When HIU and HIP share one bridge URL, CM may send M3 patient approval to
@@ -36,6 +37,8 @@ export async function handleM3HipConsentNotifyBridge(
   const forPatient = active
     .filter((r) => r.patientAbhaAddress === patientAbha)
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  // TODO(multi-consent): prefer consentRequestId from notify when CM provides it;
+  // today we pick newest active row for patient+HIP — ambiguous with parallel requests.
   const row =
     forPatient.find((r) => r.hipId === hipId || r.hipId == null) ?? forPatient[0];
   if (!row) return false;
@@ -50,7 +53,7 @@ export async function handleM3HipConsentNotifyBridge(
     await deps.sessions.patch({
       iqTenantId: input.iqTenantId,
       sessionId: row.sessionId,
-      state: "CONSENT_DENIED",
+      state: M3Hiu.CONSENT_DENIED,
       contextMerge: {
         error: {
           code: ABDM_ERROR_CODES.INVALID_SIGNATURE,
@@ -61,7 +64,7 @@ export async function handleM3HipConsentNotifyBridge(
     await deps.m3ConsentRequests.patch({
       iqTenantId: input.iqTenantId,
       consentRequestId: row.consentRequestId,
-      state: "CONSENT_DENIED",
+      state: M3Hiu.CONSENT_DENIED,
     });
     await sendHipOnNotifyAck(input, deps);
     return true;
@@ -115,7 +118,7 @@ export async function handleM3HipConsentNotifyBridge(
   await deps.sessions.patch({
     iqTenantId: input.iqTenantId,
     sessionId: row.sessionId,
-    state: "CONSENT_GRANTED",
+    state: M3Hiu.CONSENT_GRANTED,
     contextMerge: {
       consentRequestId: row.consentRequestId,
       consentId,
@@ -128,7 +131,7 @@ export async function handleM3HipConsentNotifyBridge(
   await deps.m3ConsentRequests.patch({
     iqTenantId: input.iqTenantId,
     consentRequestId: row.consentRequestId,
-    state: "CONSENT_GRANTED",
+    state: M3Hiu.CONSENT_GRANTED,
     consentArtefactIds: artefactIds,
   });
 
@@ -175,7 +178,7 @@ async function handleM3HipConsentRevoked(
   await deps.sessions.patch({
     iqTenantId: input.iqTenantId,
     sessionId: row.sessionId,
-    state: "CONSENT_DENIED",
+    state: M3Hiu.CONSENT_DENIED,
     contextMerge: {
       consentId,
       error: { code: "REVOKED", message: "Consent revoked by patient" },
@@ -185,7 +188,7 @@ async function handleM3HipConsentRevoked(
   await deps.m3ConsentRequests.patch({
     iqTenantId: input.iqTenantId,
     consentRequestId: row.consentRequestId,
-    state: "CONSENT_DENIED",
+    state: M3Hiu.CONSENT_DENIED,
   });
 
   await sendHipOnNotifyAck(input, deps);

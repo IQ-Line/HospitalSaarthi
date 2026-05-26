@@ -1,7 +1,8 @@
 import type { DbInstance } from "@hims/ts-sdk-db";
-import { and, desc, eq, inArray } from "@hims/ts-sdk-db";
-import { abdmM3DataTransfers } from "../schema/tables.js";
+import { and, desc, eq, inArray, lt, sql } from "@hims/ts-sdk-db";
+import { abdmM3DataTransfers, abdmSessions } from "../schema/tables.js";
 import type { M3DataTransfersPort, M3DataTransferRow } from "../ports.js";
+import { M3Hiu } from "../lib/m3-fsm-states.js";
 
 function rowToRecord(row: typeof abdmM3DataTransfers.$inferSelect): M3DataTransferRow {
   return {
@@ -9,7 +10,7 @@ function rowToRecord(row: typeof abdmM3DataTransfers.$inferSelect): M3DataTransf
     transferId: row.transfer_id,
     sessionId: row.session_id,
     flowKind: row.flow_kind,
-    state: row.state,
+    state: row.state as M3DataTransferRow["state"],
     consentId: row.consent_id,
     outboundRequestId: row.outbound_request_id,
     cmTransactionId: row.cm_transaction_id,
@@ -106,7 +107,7 @@ export class DrizzleM3DataTransfersRepo implements M3DataTransfersPort {
         and(
           eq(abdmM3DataTransfers.iq_tenant_id, iqTenantId),
           eq(abdmM3DataTransfers.consent_id, consentId),
-          inArray(abdmM3DataTransfers.state, ["DATA_REQUESTED", "AWAITING_PUSH"]),
+          inArray(abdmM3DataTransfers.state, [M3Hiu.DATA_REQUESTED, M3Hiu.AWAITING_PUSH]),
         ),
       )
       .orderBy(desc(abdmM3DataTransfers.updated_at))
@@ -117,7 +118,7 @@ export class DrizzleM3DataTransfersRepo implements M3DataTransfersPort {
   async patch(input: {
     iqTenantId: string;
     transferId: string;
-    state?: string;
+    state?: M3DataTransferRow["state"];
     cmTransactionId?: string;
     hipPublicKeyB64?: string;
     hipNonceB64?: string;
@@ -151,5 +152,97 @@ export class DrizzleM3DataTransfersRepo implements M3DataTransfersPort {
           eq(abdmM3DataTransfers.transfer_id, input.transferId),
         ),
       );
+  }
+
+  async patchWithSession(input: {
+    iqTenantId: string;
+    transferId: string;
+    transfer: {
+      state?: M3DataTransferRow["state"];
+      cmTransactionId?: string | null;
+      hipPublicKeyB64?: string;
+      hipNonceB64?: string;
+      bundleJson?: Record<string, unknown> | null;
+      error?: { code: string; message: string } | null;
+      awaitingPushUntil?: Date | null;
+    };
+    session?: {
+      sessionId: string;
+      state?: M3DataTransferRow["state"];
+      contextMerge?: Record<string, unknown>;
+    };
+  }): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(abdmM3DataTransfers)
+        .set({
+          ...(input.transfer.state ? { state: input.transfer.state } : {}),
+          ...(input.transfer.cmTransactionId !== undefined
+            ? { cm_transaction_id: input.transfer.cmTransactionId }
+            : {}),
+          ...(input.transfer.hipPublicKeyB64 !== undefined
+            ? { hip_public_key_b64: input.transfer.hipPublicKeyB64 }
+            : {}),
+          ...(input.transfer.hipNonceB64 !== undefined
+            ? { hip_nonce_b64: input.transfer.hipNonceB64 }
+            : {}),
+          ...(input.transfer.bundleJson !== undefined
+            ? { bundle_json: input.transfer.bundleJson }
+            : {}),
+          ...(input.transfer.error !== undefined ? { error: input.transfer.error } : {}),
+          ...(input.transfer.awaitingPushUntil !== undefined
+            ? { awaiting_push_until: input.transfer.awaitingPushUntil }
+            : {}),
+          updated_at: new Date(),
+        })
+        .where(
+          and(
+            eq(abdmM3DataTransfers.iq_tenant_id, input.iqTenantId),
+            eq(abdmM3DataTransfers.transfer_id, input.transferId),
+          ),
+        );
+
+      if (input.session) {
+        const hasContextMerge =
+          input.session.contextMerge !== undefined &&
+          Object.keys(input.session.contextMerge).length > 0;
+        await tx
+          .update(abdmSessions)
+          .set({
+            ...(input.session.state !== undefined ? { state: input.session.state } : {}),
+            ...(hasContextMerge
+              ? {
+                  context: sql`${abdmSessions.context} || ${JSON.stringify(input.session.contextMerge)}::jsonb`,
+                }
+              : {}),
+            updated_at: new Date(),
+          })
+          .where(
+            and(
+              eq(abdmSessions.iq_tenant_id, input.iqTenantId),
+              eq(abdmSessions.session_id, input.session.sessionId),
+            ),
+          );
+      }
+    });
+  }
+
+  async janitor(): Promise<number> {
+    const now = new Date();
+    const result = await this.db
+      .update(abdmM3DataTransfers)
+      .set({
+        state: M3Hiu.EXPIRED,
+        error: { code: "AWAITING_PUSH_TIMEOUT", message: "HIP push not received in time" },
+        updated_at: now,
+      })
+      .where(
+        and(
+          eq(abdmM3DataTransfers.state, M3Hiu.AWAITING_PUSH),
+          lt(abdmM3DataTransfers.awaiting_push_until, now),
+        ),
+      )
+      .returning({ transfer_id: abdmM3DataTransfers.transfer_id });
+    return result.length;
   }
 }

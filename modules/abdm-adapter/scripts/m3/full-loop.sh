@@ -6,8 +6,9 @@
 #
 # Requires:
 #   - Adapter service running on :3007
-#   - ABDM_M3_MOCK_GATEWAY=true
-#   - ABDM_M3_LOOPBACK_HIU=true
+#   - services/abdm-adapter-svc/.env:
+#       ABDM_M3_MOCK_GATEWAY=true
+#       ABDM_M3_LOOPBACK_HIU=true
 #   - PostgreSQL with M3 migration applied
 #
 # Exit 0 on success (transfer state = ACKNOWLEDGED), 1 otherwise.
@@ -20,6 +21,10 @@ export ABDM_TEST_TENANT_ID="$TENANT_ID"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Every platform GET/POST must send x-tenant-id (inject scripts read ABDM_TEST_TENANT_ID).
 TENANT_HDR=(-H "x-tenant-id: $TENANT_ID")
+
+# NHA rejects future dateRange.to — use current UTC (not midnight).
+DATE_TO="$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")"
+DATE_FROM="$(date -u -d "30 days ago" +"%Y-%m-%dT%H:%M:%S.000Z")"
 
 step() {
   echo
@@ -37,17 +42,41 @@ require_state() {
   echo "OK: state=$actual"
 }
 
+post_json() {
+  local url="$1"
+  local body="$2"
+  local tmp
+  tmp="$(mktemp)"
+  local http_code
+  http_code="$(curl -sS -o "$tmp" -w "%{http_code}" -X POST "$url" \
+    -H "Content-Type: application/json" \
+    -H "x-tenant-id: $TENANT_ID" \
+    -d "$body")"
+  if [[ "$http_code" -lt 200 || "$http_code" -ge 300 ]]; then
+    echo "HTTP $http_code from POST $url" >&2
+    cat "$tmp" >&2
+    echo >&2
+    if grep -q '"error":"Upstream"' "$tmp" 2>/dev/null; then
+      echo "Hint: full-loop requires mock mode. In services/abdm-adapter-svc/.env set:" >&2
+      echo "  ABDM_M3_MOCK_GATEWAY=true" >&2
+      echo "  ABDM_M3_LOOPBACK_HIU=true" >&2
+      echo "Then restart: npx nx run abdm-adapter-svc:serve" >&2
+    fi
+    rm -f "$tmp"
+    exit 1
+  fi
+  cat "$tmp"
+  rm -f "$tmp"
+}
+
 # -----------------------------------------------------------------------------
 step 1 "Start consent request"
-SESSION=$(curl -sSfX POST "$BASE_URL/api/abdm/v1/m3/hiu/consent/request" \
-  -H "Content-Type: application/json" \
-  -H "x-tenant-id: $TENANT_ID" \
-  -d '{
-    "patientAbhaAddress": "test.user@sbx",
-    "purpose": "CAREMGT",
-    "hiTypes": ["OPConsultation"],
-    "dateRange": { "from": "2025-01-01T00:00:00Z", "to": "2026-05-21T00:00:00Z" }
-  }' | jq -r '.sessionId')
+SESSION=$(post_json "$BASE_URL/api/abdm/v1/m3/hiu/consent/request" "{
+  \"patientAbhaAddress\": \"test.user@sbx\",
+  \"purpose\": \"CAREMGT\",
+  \"hiTypes\": [\"OPConsultation\"],
+  \"dateRange\": { \"from\": \"$DATE_FROM\", \"to\": \"$DATE_TO\" }
+}" | jq -r '.sessionId')
 
 CONSENT_REQUEST_ID=$(curl -sSf "${TENANT_HDR[@]}" \
   "$BASE_URL/api/abdm/v1/m3/hiu/consent/request/$SESSION" \
@@ -80,11 +109,8 @@ require_state "CONSENT_GRANTED" "$STATE" "step 4"
 
 # -----------------------------------------------------------------------------
 step 5 "Start data request"
-TRANSFER_ID=$(curl -sSfX POST "$BASE_URL/api/abdm/v1/m3/hiu/data-request" \
-  -H "Content-Type: application/json" \
-  -H "x-tenant-id: $TENANT_ID" \
-  -d "{\"consentId\":\"$CONSENT_ID\"}" \
-  | jq -r '.transferId')
+TRANSFER_ID=$(post_json "$BASE_URL/api/abdm/v1/m3/hiu/data-request" \
+  "{\"consentId\":\"$CONSENT_ID\"}" | jq -r '.transferId')
 echo "TRANSFER_ID=$TRANSFER_ID"
 
 # -----------------------------------------------------------------------------

@@ -247,6 +247,30 @@ async function main() {
   }, { prefix: "/api" });
 
   await app.listen({ port: PORT, host: "0.0.0.0" });
+
+  const janitorIntervalMs = Number(process.env["ABDM_JANITOR_INTERVAL_MS"] ?? 300_000);
+  if (Number.isFinite(janitorIntervalMs) && janitorIntervalMs > 0) {
+    const runJanitor = async () => {
+      try {
+        const linkExpired = await linkTokens.janitor();
+        const transferExpired = await m3DataTransfers.janitor();
+        const consentExpired = await m3ConsentRequests.janitor();
+        if (linkExpired || transferExpired || consentExpired) {
+          app.log.info(
+            { linkExpired, transferExpired, consentExpired },
+            "ABDM janitor sweep",
+          );
+        }
+      } catch (err) {
+        app.log.error(err, "ABDM janitor sweep failed");
+      }
+    };
+    const janitorTimer = setInterval(() => {
+      void runJanitor();
+    }, janitorIntervalMs);
+    janitorTimer.unref?.();
+    app.log.info({ janitorIntervalMs }, "ABDM janitor scheduled");
+  }
 }
 
 main().catch((err) => {

@@ -11,6 +11,8 @@ import { skipOutboundGatewayInDev } from "../../../lib/dev-inbound-simulation.js
 import { abdmWarn } from "../../../lib/abdm-adapter-log.js";
 import { retryWithBackoff } from "../../../lib/retry-with-backoff.js";
 import { AbdmGatewayError } from "../../../lib/gateway-errors.js";
+import { M3Hip } from "../../../lib/m3-fsm-states.js";
+import { M3Hiu } from "../../../lib/m3-fsm-states.js";
 
 /** §6.3.3–6.3.6 — ack, encrypt/push bundles, notify CM. */
 export async function handleHipHiRequestCallback(
@@ -32,7 +34,7 @@ export async function handleHipHiRequestCallback(
   await deps.sessions.patch({
     iqTenantId: input.iqTenantId,
     sessionId: session.sessionId,
-    state: "DATA_REQUESTED",
+    state: M3Hip.DATA_REQUESTED,
   });
 
   const activeTransfer =
@@ -94,7 +96,7 @@ export async function handleHipHiRequestCallback(
   await deps.sessions.patch({
     iqTenantId: input.iqTenantId,
     sessionId: session.sessionId,
-    state: "ACKNOWLEDGED",
+    state: M3Hip.ACKNOWLEDGED,
   });
 
   if (!parsed || !deps.dataPush) {
@@ -102,7 +104,7 @@ export async function handleHipHiRequestCallback(
       await deps.sessions.patch({
         iqTenantId: input.iqTenantId,
         sessionId: session.sessionId,
-        state: "FAILED",
+        state: M3Hip.FAILED,
       });
     }
     return;
@@ -117,7 +119,7 @@ export async function handleHipHiRequestCallback(
     await deps.sessions.patch({
       iqTenantId: input.iqTenantId,
       sessionId: session.sessionId,
-      state: "FAILED",
+      state: M3Hip.FAILED,
     });
     return;
   }
@@ -156,7 +158,7 @@ export async function handleHipHiRequestCallback(
     await deps.sessions.patch({
       iqTenantId: input.iqTenantId,
       sessionId: session.sessionId,
-      state: "FAILED",
+      state: M3Hip.FAILED,
       contextMerge: {
         error: { code: "HI_PUSH_FAILED", message: failureMessage },
       },
@@ -184,7 +186,7 @@ export async function handleHipHiRequestCallback(
       input.iqTenantId,
       input.inboundRequestId,
     ));
-  const hiuTransferDone = hiuTransfer?.state === "ACKNOWLEDGED";
+  const hiuTransferDone = hiuTransfer?.state === M3Hiu.ACKNOWLEDGED;
 
   try {
     await retryWithBackoff(
@@ -214,7 +216,7 @@ export async function handleHipHiRequestCallback(
       await deps.sessions.patch({
         iqTenantId: input.iqTenantId,
         sessionId: session.sessionId,
-        state: "FAILED",
+        state: M3Hip.FAILED,
         contextMerge: {
           error: { code: "HI_NOTIFY_FAILED", message: failureMessage },
         },
@@ -231,6 +233,6 @@ export async function handleHipHiRequestCallback(
   await deps.sessions.patch({
     iqTenantId: input.iqTenantId,
     sessionId: session.sessionId,
-    state: "ACKNOWLEDGED",
+    state: M3Hip.ACKNOWLEDGED,
   });
 }

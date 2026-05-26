@@ -24,7 +24,9 @@ export type AbdmFlowKind =
   | "abdm.m2.add-contexts.v1"
   | "abdm.m2.sms-notify.v1"
   | "abdm.m3.hip.v1"
-  | "abdm.m3.hiu.v1";
+  | "abdm.m3.hiu.v1"
+  /** Inbound HIP→HIU bundle push dedupe (not a user-facing flow). */
+  | "abdm.m3.hiu.transfer-push.v1";
 
 export interface M2UserLinkContext {
   transactionId?: string;
@@ -92,6 +94,7 @@ export interface FlowContextMap {
   "abdm.m2.sms-notify.v1": M2SmsNotifyContext;
   "abdm.m3.hip.v1": M3HipContext;
   "abdm.m3.hiu.v1": M3HiuContext;
+  "abdm.m3.hiu.transfer-push.v1": Record<string, unknown>;
 }
 
 export interface FlowStateMap {
@@ -105,6 +108,7 @@ export interface FlowStateMap {
   "abdm.m2.sms-notify.v1": M2SmsNotifyState;
   "abdm.m3.hip.v1": M3HipState;
   "abdm.m3.hiu.v1": M3HiuState;
+  "abdm.m3.hiu.transfer-push.v1": "INIT";
 }
 
 export interface AbdmSession<F extends AbdmFlowKind = AbdmFlowKind> {

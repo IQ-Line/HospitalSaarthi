@@ -195,9 +195,11 @@ HIU-side only. The HIP side does not write here — it keeps state on `abdm_sess
 CREATE TABLE abdm_adapter.abdm_m3_data_transfers (
   iq_tenant_id            uuid NOT NULL,
   transfer_id             uuid NOT NULL,                   -- platform UUID; embedded in dataPushUrl
+  session_id              uuid,                             -- HIU session that initiated the fetch (nullable for orphan rows)
   flow_kind               text NOT NULL,                    -- always 'abdm.m3.hiu.v1'
   state                   text NOT NULL,                    -- M3HiuState (data-fetch sub-flow subset)
   consent_id              text NOT NULL,
+  outbound_request_id     text,                             -- gateway REQUEST-ID on data-request init (dedupe + on-request correlation)
   cm_transaction_id       text,                             -- CM-issued on /hiu/health-information/on-request
   hiu_private_key_jwk     text NOT NULL,                    -- encrypted at rest via PayloadEncryptor
   hiu_public_key_b64      text NOT NULL,                    -- base64 65-byte EC point we sent to CM
