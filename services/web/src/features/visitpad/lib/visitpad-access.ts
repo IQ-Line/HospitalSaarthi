@@ -8,7 +8,8 @@ import { getModuleCatalogIndexFromCache } from '@/platform/modules/module-catalo
 import type { NavigationNode } from '@/navigation/types';
 import type { VisitpadPrimaryTab } from '@/features/visitpad/visitpad-nav-model';
 
-export const VISITPAD_CATALOG_PRODUCT_SLUGS = ['visitpad-templates'] as const;
+/** Master Data catalog gates for Visitpad routes (L1 ``master-data`` and L2 ``visitpad-master``). */
+export const VISITPAD_CATALOG_PRODUCT_SLUGS = ['master-data', 'visitpad-master'] as const;
 export const VISITPAD_ROUTE_PREFIX = visitpadModuleManifest.routePrefix;
 
 /** Primary shell tabs (horizontal); each group maps to manifest leaf node ids. */

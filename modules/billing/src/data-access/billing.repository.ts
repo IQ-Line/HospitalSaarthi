@@ -1,8 +1,21 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, isNull, type DbInstance } from "@hims/ts-sdk-db";
+import { and, eq, isNull, sql, type DbInstance } from "@hims/ts-sdk-db";
 import { billItems, bills, payments } from "../schema/tables.js";
-import type { BillItemRow, BillRow, BillWithItems, PaymentRow } from "../domain/bill.types.js";
+import type {
+  BillItemRow,
+  BillRow,
+  BillWithItems,
+  ListBillsQuery,
+  ListBillsResult,
+  PaymentRow,
+} from "../domain/bill.types.js";
 import type { BillingRepo, NewBillItemRow, NewBillRow, NewPaymentRow } from "../ports.js";
+import {
+  billListCursorCompare,
+  clampBillListLimit,
+  decodeBillListCursor,
+  encodeBillListCursor,
+} from "../lib/bill-list-pagination.js";
 import {
   allocateBillNumber,
   allocatePaymentNumber,
@@ -101,6 +114,43 @@ class DrizzleBillingRepo implements BillingRepo {
     return rows.map(toBillItemRow);
   }
 
+  async listBills(tenantId: string, query: ListBillsQuery): Promise<ListBillsResult> {
+    const limit = clampBillListLimit(query.limit);
+    const cursor = decodeBillListCursor(query.cursor);
+    const conditions = [eq(bills.iq_tenant_id, tenantId)];
+
+    if (query.patient_id) conditions.push(eq(bills.patient_id, query.patient_id));
+    if (query.visit_id) conditions.push(eq(bills.visit_id, query.visit_id));
+    if (query.status) conditions.push(eq(bills.status, query.status));
+    if (query.bill_type) conditions.push(eq(bills.bill_type, query.bill_type));
+    if (query.from_date) conditions.push(sql`${bills.bill_date} >= ${query.from_date}`);
+    if (query.to_date) conditions.push(sql`${bills.bill_date} <= ${query.to_date}`);
+    if (cursor) {
+      conditions.push(
+        sql`(${bills.created_at}, ${bills.id}) < (${cursor.created_at}::timestamptz, ${cursor.id}::uuid)`,
+      );
+    }
+
+    const rows = await this.db
+      .select()
+      .from(bills)
+      .where(and(...conditions))
+      .orderBy(sql`${bills.created_at} desc`, sql`${bills.id} desc`)
+      .limit(limit + 1);
+
+    const hasMore = rows.length > limit;
+    const pageRows = hasMore ? rows.slice(0, limit) : rows;
+    const last = pageRows.at(-1);
+
+    return {
+      data: pageRows.map(toBillRow),
+      page: {
+        limit,
+        next_cursor: hasMore && last ? encodeBillListCursor(toBillRow(last)) : null,
+      },
+    };
+  }
+
   async insertPayment(input: NewPaymentRow) {
     const payment_number = await allocatePaymentNumber(this.db, input.iq_tenant_id);
     const receipt_number =
@@ -177,6 +227,37 @@ class InMemoryBillingRepo implements BillingRepo {
     return this.items.filter(
       (i) => i.iq_tenant_id === tenantId && i.bill_id === billId && i.status === "ACTIVE",
     );
+  }
+
+  async listBills(tenantId: string, query: ListBillsQuery): Promise<ListBillsResult> {
+    const limit = clampBillListLimit(query.limit);
+    const cursor = decodeBillListCursor(query.cursor);
+
+    let rows = this.bills.filter((b) => b.iq_tenant_id === tenantId);
+    if (query.patient_id) rows = rows.filter((b) => b.patient_id === query.patient_id);
+    if (query.visit_id) rows = rows.filter((b) => b.visit_id === query.visit_id);
+    if (query.status) rows = rows.filter((b) => b.status === query.status);
+    if (query.bill_type) rows = rows.filter((b) => b.bill_type === query.bill_type);
+    if (query.from_date) rows = rows.filter((b) => b.bill_date >= query.from_date!);
+    if (query.to_date) rows = rows.filter((b) => b.bill_date <= query.to_date!);
+    if (cursor) rows = rows.filter((b) => billListCursorCompare(b, cursor));
+
+    rows.sort((a, b) => {
+      if (a.created_at !== b.created_at) return b.created_at.localeCompare(a.created_at);
+      return b.id.localeCompare(a.id);
+    });
+
+    const hasMore = rows.length > limit;
+    const pageRows = hasMore ? rows.slice(0, limit) : rows;
+    const last = pageRows.at(-1);
+
+    return {
+      data: pageRows,
+      page: {
+        limit,
+        next_cursor: hasMore && last ? encodeBillListCursor(last) : null,
+      },
+    };
   }
 
   async insertPayment(input: NewPaymentRow) {

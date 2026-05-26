@@ -1,5 +1,4 @@
 import { getRegisteredModuleManifests } from '@/platform/modules/module-registry';
-import { registerBuiltinModuleManifests } from '@/platform/modules/register-builtin-modules';
 import type { ModuleManifest } from '@/platform/modules/types';
 import {
   buildPrincipalCapabilityModuleSegments,
@@ -59,7 +58,7 @@ export function capabilityKeysGrantProductAccessFromManifest(
     return false;
   }
 
-  registerBuiltinModuleManifests();
+  // Manifests are registered once at app bootstrap — never invalidate compose cache here.
   const capabilityModuleSegments = buildPrincipalCapabilityModuleSegments(capabilityKeys);
 
   for (const manifest of getRegisteredModuleManifests()) {

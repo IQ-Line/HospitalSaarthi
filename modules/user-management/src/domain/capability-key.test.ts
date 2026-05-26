@@ -41,7 +41,7 @@ describe("capability-key", () => {
   it("uses catalog module slug as runtime module key", () => {
     expect(runtimeModuleKeyForCatalogSlug("user-management")).toBe("user-management");
     expect(runtimeModuleKeyForCatalogSlug("users")).toBe("users");
-    expect(runtimeModuleKeyForCatalogSlug("visitpad-templates")).toBe("visitpad-templates");
+    expect(runtimeModuleKeyForCatalogSlug("visitpad-master")).toBe("visitpad-master");
   });
 
   it("asserts capability_key module segment matches catalog module slug", () => {

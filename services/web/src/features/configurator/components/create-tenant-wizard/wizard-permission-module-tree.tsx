@@ -1,4 +1,5 @@
 import { Badge } from '@pulse/ui/badge';
+import { Button } from '@pulse/ui/button';
 import { Checkbox } from '@pulse/ui/checkbox';
 import {
   Accordion,
@@ -10,8 +11,10 @@ import type { Module } from '@/features/master-data/types';
 import { moduleDescriptionLine } from './wizard-helpers';
 import type { MasterDataPermissionOption } from './wizard-master-data-permissions';
 import {
+  allCapabilityIdsFromOptions,
   filterChildModulesForWizardTree,
   permissionOptionsForModuleNode,
+  permissionOptionsForModuleSubtree,
 } from './wizard-module-tree';
 
 function permissionLabel(option: MasterDataPermissionOption): string {
@@ -30,8 +33,6 @@ export type WizardPermissionModuleTreeProps = {
   moduleCheckboxes?: boolean;
   /** Accordion item values that start expanded. Default none (all closed). */
   defaultExpandedModuleIds?: string[];
-  /** Multi-column grid (wizard). Single column fits dialogs and narrow panels. */
-  multiColumn?: boolean;
 };
 
 export function WizardPermissionModuleTree({
@@ -44,7 +45,6 @@ export function WizardPermissionModuleTree({
   onToggleModuleCapabilities,
   moduleCheckboxes = false,
   defaultExpandedModuleIds = [],
-  multiColumn = false,
 }: WizardPermissionModuleTreeProps) {
   const visibleRoots = roots.filter((module) =>
     moduleHasVisibleContent(module, childMap, enabledModuleIds, optionsByModuleId),
@@ -55,13 +55,7 @@ export function WizardPermissionModuleTree({
   }
 
   return (
-    <div
-      className={
-        multiColumn
-          ? 'grid min-w-0 grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3'
-          : 'flex w-full min-w-0 flex-col gap-3'
-      }
-    >
+    <div className="flex w-full min-w-0 flex-col gap-3">
       {visibleRoots.map((module) => (
         <Accordion
           key={module.id}
@@ -145,9 +139,13 @@ function ModulePermissionAccordionNode({
     enabledModuleIds,
     optionsByModuleId,
   );
-  const permissionIds = permissionOptions
-    .map((option) => option.runtimeCapabilityId)
-    .filter((id): id is string => id !== null);
+  const subtreeOptions = permissionOptionsForModuleSubtree(
+    module,
+    childMap,
+    enabledModuleIds,
+    optionsByModuleId,
+  );
+  const permissionIds = allCapabilityIdsFromOptions(subtreeOptions);
   const selectedInModule = permissionIds.filter((id) => selectedCapabilityIds.has(id)).length;
   const allSelected =
     permissionIds.length > 0 && permissionIds.every((id) => selectedCapabilityIds.has(id));
@@ -256,9 +254,11 @@ function ModuleAccordionHeader({
   someSelected: boolean;
   onToggleModule: () => void;
 }) {
+  const showSelectAll = moduleCheckboxes && permissionIds.length > 0;
+
   return (
     <div className="flex w-full min-w-0 items-start gap-2 pr-2 text-left text-xs">
-      {moduleCheckboxes && permissionIds.length > 0 ? (
+      {showSelectAll ? (
         <Checkbox
           checked={allSelected ? true : someSelected ? 'indeterminate' : false}
           onCheckedChange={onToggleModule}
@@ -287,6 +287,20 @@ function ModuleAccordionHeader({
           <span className="mt-1 block text-[11px] leading-snug text-muted-foreground">{descLine}</span>
         ) : null}
       </span>
+      {showSelectAll ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 shrink-0 px-2 text-xs"
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleModule();
+          }}
+        >
+          {allSelected ? 'Clear all' : 'Select all'}
+        </Button>
+      ) : null}
     </div>
   );
 }

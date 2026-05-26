@@ -6,14 +6,9 @@ export type NavModuleTreeNode = {
   children: NavModuleTreeNode[];
 };
 
-/** Top-level module slug → app route prefix (when it differs from `/${slug}`). */
-const ROOT_PATH_BY_SLUG: Record<string, string> = {
-  'visitpad-templates': '/visitpad',
-};
-
 /**
  * Module slug → fixed route prefix regardless of catalog parent (cross-tree anchors).
- * Example: `visitpad-master` is catalogued under Master Data but the SPA lives under `/visitpad`.
+ * `visitpad-master` is catalogued under Master Data but the SPA lives under `/visitpad`.
  */
 const ANCHOR_PATH_BY_SLUG: Record<string, string> = {
   'visitpad-master': '/visitpad',
@@ -28,7 +23,6 @@ const SEGMENT_BY_SLUG: Record<string, string> = {
   rxcolumns: 'rx-columns',
   tenants: 'tenant',
   'user-roles': 'roles',
-  'system-roles': 'system-roles',
   'module-permissions': 'module-permissions',
 };
 
@@ -85,7 +79,7 @@ export function buildNavModuleTree(modules: NavModule[]): NavModuleTreeNode[] {
     if (anchored !== undefined) {
       path = anchored;
     } else if (module.parent_id === null) {
-      path = ROOT_PATH_BY_SLUG[module.slug] ?? `/${module.slug}`;
+      path = `/${module.slug}`;
     } else {
       const parent = byId.get(module.parent_id);
       if (parent === undefined) {

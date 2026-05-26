@@ -34,9 +34,9 @@ Override with env if your Postman environment uses different hosts.
 |--------|----------------|----------------------------------------|--------|
 | Done | `POST /api/abdm/v1/m1/enrol/aadhaar/otp` | `POST /v3/enrollment/request/otp` | `txnId` empty on first send |
 | Done | `POST /api/abdm/v1/m1/enrol/aadhaar/otp/resend` | Same | `txnId` from session |
-| Done | `POST /api/abdm/v1/m1/enrol/aadhaar/verify` | `POST /v3/enrollment/enrol/byAadhaar` | Stores `x_token`, `t_token`, new `txn_id` |
-| Done | `POST /api/abdm/v1/m1/enrol/mobile-verify/otp` | `POST /v3/enrollment/request/otp` | Scopes `abha-enrol` + `mobile-verify`; **enrolment chain**, see below |
-| Done | `POST /api/abdm/v1/m1/enrol/mobile-verify/verify` | `POST /v3/enrollment/auth/byAbdm` | |
+| Done | `POST /api/abdm/v1/m1/enrol/aadhaar/verify` | `POST /v3/enrollment/enrol/byAadhaar` | Stores `x_token`, `t_token`, new `txn_id`; optional **`useAadhaarLinkedMobile`** → skip to `MOBILE_OTP_VERIFIED` when linked |
+| Done | `POST /api/abdm/v1/m1/enrol/mobile-verify/otp` | `POST /v3/enrollment/request/otp` | Scopes `abha-enrol` + `mobile-verify`; **different primary mobile only** |
+| Done | `POST /api/abdm/v1/m1/enrol/mobile-verify/verify` | `POST /v3/enrollment/auth/byAbdm` | **Different primary mobile only** |
 | Done | `GET /api/abdm/v1/m1/abha-address/suggestions` | `GET /v3/enrollment/enrol/suggestion` | Header `Transaction_Id` = session `txn_id` (Postman + `milestone1.md`) |
 | Done | `POST /api/abdm/v1/m1/abha-address` | `POST /v3/enrollment/enrol/abha-address` | |
 | Done | `GET /api/abdm/v1/m1/profile` | `GET /v3/profile/account` | Gateway bearer + `X-token: Bearer <session x_token>` |
@@ -49,7 +49,7 @@ Override with env if your Postman environment uses different hosts.
 ### LLD vs Postman (important)
 
 - **[02-m1-flows.md](./02-m1-flows.md) §3** historically referenced `…/abha-address/suggestion`. The **Postman collection** and **adapter** use **`GET /v3/enrollment/enrol/suggestion`** — §02 is updated to match.
-- **Standalone mobile-only enrol** and **DL enrolment** are **out of M1 scope** (require `dl-flow` on NHA). Phase A **Aadhaar chain** uses `…/mobile-verify/…`; ABHA address steps require session state **`MOBILE_OTP_VERIFIED`** after mobile-verify confirm.
+- **Standalone mobile-only enrol** and **DL enrolment** are **out of M1 scope** (require `dl-flow` on NHA). When primary mobile **matches Aadhaar-linked**, NHA saves mobile on profile and Step 4 mobile-verify is **not** required — adapter sets **`MOBILE_OTP_VERIFIED`** on verify when `useAadhaarLinkedMobile: true` (or inferred from `ABHAProfile.mobile`). When primary mobile **differs**, session stays **`ABHA_CREATED`** until mobile-verify confirm. ABHA address steps always require **`MOBILE_OTP_VERIFIED`**.
 
 ## Staging / production checklist (PR review)
 
@@ -63,7 +63,8 @@ Override with env if your Postman environment uses different hosts.
 | AJV on Aadhaar chain + address + profile GETs | **Done** — `m1-route-schemas.ts` on routes |
 | OTP body `timeStamp` in IST | **Done** — `abdmOtpTimestampIst()` (UTC+5:30, not server TZ) |
 | FSM state names (aadhaar vs mobile-verify) | **Done** — `M1_AADHAAR_OTP_STATES` in `ts-sdk-abha` |
-| Enrol state machine (mobile before address) | **Done** — `MOBILE_OTP_VERIFIED` required for address APIs |
+| Enrol state machine (mobile before address) | **Done** — `MOBILE_OTP_VERIFIED` required for address APIs; linked-mobile bypass on aadhaar/verify |
+| Linked-mobile bypass unit tests | **Done** — `m1-enrol-linked-mobile.test.ts`, `enrol-aadhaar-verify-request.test.ts` |
 | Session TTL | **Done** — `context.expiresAt`; cleanup: `services/abdm-adapter-svc/scripts/cleanup-expired-sessions.mjs` |
 | Full sandbox e2e | **Done** — gated `m1-aadhaar-chain.sandbox.integration.test.ts` (`pnpm -F @hims/abdm-adapter test:sandbox`) |
 | Rate limiting on OTP | **Done** — `assertM1OtpRateLimit` on all OTP-dispatch paths (in-process; Redis later) |

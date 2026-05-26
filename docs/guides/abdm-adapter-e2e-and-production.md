@@ -199,20 +199,30 @@ Use **your** service base: `http://localhost:3007/api/abdm/v1`.
 
 All steps need `x-tenant-id: <ABDM_DEV_TENANT_ID>`.
 
-| Step | Method | Path | Body / query | Session state after |
-|------|--------|------|--------------|---------------------|
-| 0 Smoke | `GET` | `/m0/gateway/session` | — | — |
-| 1 OTP | `POST` | `/m1/enrol/aadhaar/otp` | `{ "aadhaarNumber": "12 digits" }` | `AADHAAR_OTP_REQUESTED` → save **`sessionId`** |
-| 1b Resend (optional) | `POST` | `/m1/enrol/aadhaar/otp/resend` | `{ "sessionId" }` | stays `AADHAAR_OTP_REQUESTED` |
-| 2 Verify | `POST` | `/m1/enrol/aadhaar/verify` | `{ "sessionId", "otp": "6 digits", "mobile": "10 digits" }` | `ABHA_CREATED` |
-| 3 Mobile OTP | `POST` | `/m1/enrol/mobile-verify/otp` | `{ "sessionId", "mobile": "10 digits" }` | `MOBILE_OTP_REQUESTED` |
-| 4 Mobile verify | `POST` | `/m1/enrol/mobile-verify/verify` | `{ "sessionId", "otp": "6 digits" }` | `MOBILE_OTP_VERIFIED` |
-| 5 Suggestions | `GET` | `/m1/abha-address/suggestions?sessionId=` | — | needs **`MOBILE_OTP_VERIFIED`** |
-| 6 Create address | `POST` | `/m1/abha-address` | `{ "sessionId", "abhaAddress": "user@sbx" }` | address created |
-| 7 Profile | `GET` | `/m1/profile?sessionId=` | — | confirm ABHA profile |
-| Poll (any step) | `GET` | `/m1/sessions/{sessionId}` | — | read **`state`** + **`nextStep`** hint |
+### 2.1 Linked mobile (4 platform calls — recommended when Aadhaar OTP mobile = primary)
 
-**UI note (other products show only `otp` → `verify` → `suggestions`):** NHA allows skipping separate mobile OTP when the **primary mobile matches Aadhaar-linked mobile**; our adapter still requires steps 3–4 today unless we add a `useAadhaarLinkedMobile` bypass. Frontends must call mobile-verify or wait for that API change.
+| Step | Method | Path | Body / query | Saves |
+|------|--------|------|--------------|-------|
+| 0 Smoke | `GET` | `/m0/gateway/session` | — | Gateway token works |
+| 1 OTP | `POST` | `/m1/enrol/aadhaar/otp` | `{ "aadhaarNumber": "12 digits" }` | `sessionId`, `txnId` |
+| 2 Verify | `POST` | `/m1/enrol/aadhaar/verify` | `{ "sessionId", "otp", "mobile", "useAadhaarLinkedMobile": true }` | Tokens; `mobileVerifySkipped: true` → session `MOBILE_OTP_VERIFIED` |
+| 3 Suggestions | `GET` | `/m1/abha-address/suggestions?sessionId=` | — | ABHA address options |
+| 4 Create address | `POST` | `/m1/abha-address` | `{ "sessionId", "abhaAddress" }` | **`abhaAddress`** for M2 |
+| 5 Profile | `GET` | `/m1/profile?sessionId=` | — | Confirm ABHA created |
+
+### 2.2 Different primary mobile (6 platform calls — NHA Step 4 required)
+
+Same as §2.1 through step 2, but set **`useAadhaarLinkedMobile: false`** on verify. Then:
+
+| Step | Method | Path | Body / query |
+|------|--------|------|--------------|
+| 3 Mobile OTP | `POST` | `/m1/enrol/mobile-verify/otp` | `{ "sessionId", "mobile" }` |
+| 4 Mobile verify | `POST` | `/m1/enrol/mobile-verify/verify` | `{ "sessionId", "otp" }` |
+| 5–7 | — | suggestions → abha-address → profile | Same as §2.1 steps 3–5 |
+
+If **`useAadhaarLinkedMobile`** is omitted on verify, the adapter infers skip from NHA **`ABHAProfile.mobile`** (non-null = linked mobile saved).
+
+Use **`GET /m1/sessions/{sessionId}`** when the UI needs `nextStep` after verify.
 
 **After M1:** Note the **`abhaAddress`** (e.g. `yourname@sbx`). Use it in M2 generate-token and `initiated-link/start`. Set `ABDM_MOCK_ABHA_ADDRESS` to the same value if using mock EMPI.
 
@@ -502,8 +512,12 @@ Save **`transferId`** from 202. Poll every 15–30s:
 |------|--------|------|
 | `/m0/gateway/session` | GET | Smoke test |
 | `/m1/enrol/aadhaar/otp` | POST | M1 start |
-| `/m1/enrol/aadhaar/verify` | POST | M1 |
+| `/m1/enrol/aadhaar/verify` | POST | M1 — optional `useAadhaarLinkedMobile` skips mobile-verify when linked |
+| `/m1/enrol/mobile-verify/otp` | POST | M1 — **different primary mobile only** |
+| `/m1/enrol/mobile-verify/verify` | POST | M1 — **different primary mobile only** |
+| `/m1/abha-address/suggestions` | GET | M1 — after `MOBILE_OTP_VERIFIED` |
 | `/m1/abha-address` | POST | M1 — get ABHA address |
+| `/m1/sessions/{sessionId}` | GET | M1 — state + `nextStep` |
 | `/m1/profile` | GET | M1 — verify profile |
 | `/m2/link-token/acquire` | POST | Pre-mint link token (wait for `on-generate-token`) |
 | `/m2/link-token/status` | GET | Poll `TOKEN_AVAILABLE` |

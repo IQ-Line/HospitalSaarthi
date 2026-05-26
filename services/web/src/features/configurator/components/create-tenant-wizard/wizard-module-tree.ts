@@ -88,6 +88,36 @@ function collectDescendantPermissionOptions(
   return collected;
 }
 
+function dedupePermissionOptions(
+  options: MasterDataPermissionOption[],
+): MasterDataPermissionOption[] {
+  const seen = new Set<string>();
+  return options.filter((option) => {
+    if (option.runtimeCapabilityId === null || seen.has(option.runtimeCapabilityId)) {
+      return false;
+    }
+    seen.add(option.runtimeCapabilityId);
+    return true;
+  });
+}
+
+/** All permissions in this module node and every enabled descendant (for per-level select-all). */
+export function permissionOptionsForModuleSubtree(
+  module: Module,
+  childMap: Map<string | null, Module[]>,
+  enabledModuleIds: Set<string>,
+  optionsByModuleId: Map<string, MasterDataPermissionOption[]>,
+): MasterDataPermissionOption[] {
+  const direct = optionsByModuleId.get(module.id) ?? [];
+  const descendant = collectDescendantPermissionOptions(
+    module.id,
+    childMap,
+    enabledModuleIds,
+    optionsByModuleId,
+  );
+  return dedupePermissionOptions([...direct, ...descendant]);
+}
+
 /** Direct + rolled-up permissions for a module node (L3 includes L4+ links). */
 export function permissionOptionsForModuleNode(
   module: Module,
@@ -99,20 +129,10 @@ export function permissionOptionsForModuleNode(
   if (module.level < WIZARD_MODULE_TREE_MAX_LEVEL) {
     return direct;
   }
-  const rolled = collectDescendantPermissionOptions(
-    module.id,
-    childMap,
-    enabledModuleIds,
-    optionsByModuleId,
-  );
-  const seen = new Set<string>();
-  return [...direct, ...rolled].filter((option) => {
-    if (option.runtimeCapabilityId === null || seen.has(option.runtimeCapabilityId)) {
-      return false;
-    }
-    seen.add(option.runtimeCapabilityId);
-    return true;
-  });
+  return dedupePermissionOptions([
+    ...direct,
+    ...collectDescendantPermissionOptions(module.id, childMap, enabledModuleIds, optionsByModuleId),
+  ]);
 }
 
 export function allCapabilityIdsFromOptions(

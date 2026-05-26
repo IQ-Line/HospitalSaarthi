@@ -56,6 +56,9 @@ export type {
   TenantModuleRepo,
   ConfiguratorTransactionRepos,
   RunConfiguratorTransaction,
+  ModuleCapabilityResolverPort,
+  InfrastructureModuleCatalogPort,
+  TenantAdminProvisioningPort,
 } from "./ports.js";
 
 export { DrizzleOrganizationRepo } from "./data-access/organization.repo.js";
@@ -68,3 +71,24 @@ export {
   tenants,
   tenantModules,
 } from "./schema/tables.js";
+
+export { provisionTenant } from "./use-cases/provision-tenant.js";
+export type { ProvisionTenantDeps, ProvisionTenantContext } from "./use-cases/provision-tenant.js";
+export {
+  TENANT_ONBOARDING_COMPLETED_EVENT,
+  TENANT_ONBOARDING_EVENT_CONTRACT_VERSION,
+} from "./use-cases/provision-tenant.js";
+export type { TenantOnboardingCompletedPayload } from "./use-cases/provision-tenant.js";
+
+export type {
+  ProvisionTenantInput,
+  ProvisionTenantResult,
+  ProvisionedRole,
+  ProvisionedUser,
+  ProvisionedTenant,
+  ProvisionedTenantModule,
+} from "./domain/onboarding.types.js";
+export {
+  TENANT_ADMIN_ROLE_CODE,
+  TENANT_ADMIN_ROLE_DISPLAY_NAME,
+} from "./domain/onboarding.types.js";

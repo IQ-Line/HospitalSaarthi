@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { assertPlatformSuperAdmin } from "../http/request-auth-context.js";
 import type { TenantModuleRepo, TenantRepo } from "../ports.js";
 import type {
   CreateTenantModuleData,
@@ -104,6 +105,7 @@ export function registerTenantModulesHandler(
         params: tenantModuleParamsSchema,
         body: patchTenantModuleBodySchema,
       },
+      preHandler: (request) => { assertPlatformSuperAdmin(request); },
     },
     async (request, reply) => {
       const updated = await updateTenantModule(
@@ -127,6 +129,7 @@ export function registerTenantModulesHandler(
       schema: {
         params: tenantModuleParamsSchema,
       },
+      preHandler: (request) => { assertPlatformSuperAdmin(request); },
     },
     async (request, reply) => {
       const deleted = await deleteTenantModule(tenantModuleRepo, {

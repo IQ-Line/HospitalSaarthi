@@ -1,4 +1,5 @@
 export type ModuleCategory = 'core' | 'clinical' | 'administrative' | 'support';
+export type ModuleKind = 'platform' | 'foundation' | 'product';
 export type PermissionAction = 'create' | 'read' | 'update' | 'delete' | 'manage';
 
 export interface Module {
@@ -10,6 +11,8 @@ export interface Module {
   category: ModuleCategory;
   version: string;
   level: number;
+  module_kind?: ModuleKind;
+  display_order?: number;
   icon: string | null;
   is_active: boolean;
   is_deleted: boolean;
@@ -33,6 +36,8 @@ export interface NavModule {
   slug: string;
   category: ModuleCategory;
   level: number;
+  module_kind?: ModuleKind;
+  display_order?: number;
   icon: string | null;
 }
 
@@ -51,6 +56,8 @@ export interface ModuleCreateInput {
   version?: string;
   description?: string | null;
   parent_id?: string | null;
+  module_kind?: ModuleKind;
+  display_order?: number;
   icon?: string | null;
   is_active?: boolean;
 }
@@ -62,6 +69,7 @@ export interface ModuleUpdateInput {
   version?: string;
   description?: string | null;
   parent_id?: string | null;
+  display_order?: number;
   icon?: string | null;
   is_active?: boolean;
   is_deleted?: boolean;

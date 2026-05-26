@@ -28,8 +28,6 @@ describe('super-admin sidebar vs global_master.modules L1 catalog', () => {
         'opd',
         'user-management',
         'user_management',
-        'visitpad-templates',
-        'visitpad_templates',
       ].sort(),
     );
     expect(l1Slugs.has('vaccines')).toBe(false);
@@ -49,7 +47,8 @@ describe('super-admin sidebar vs global_master.modules L1 catalog', () => {
     expect(ids).toContain('master-data');
     expect(ids).toContain('user-management');
     expect(ids).toContain('frontdesk');
-    expect(ids).toContain('visitpad');
+    expect(ids).toContain('master-data');
+    expect(ids).not.toContain('visitpad');
     expect(ids).toContain('configurator');
     expect(ids).not.toContain('empi');
     expect(ids).not.toContain('opd');
@@ -71,7 +70,7 @@ describe('super-admin sidebar vs global_master.modules L1 catalog', () => {
     expect(configurator?.label).toBe('Onboarding');
   });
 
-  it('Visitpad child Vaccines is a route under visitpad, not a catalog L1 module', () => {
+  it('Visitpad child Vaccines is nested under master-data → visitpad-master, not a sidebar root', () => {
     const manifest = composeNavigationManifest(getRegisteredModuleManifests());
     const filtered = filterNavigationTree(
       manifest,
@@ -80,9 +79,12 @@ describe('super-admin sidebar vs global_master.modules L1 catalog', () => {
       }),
     );
 
-    const visitpad = filtered.find((n) => n.id === 'visitpad');
-    expect(visitpad).toBeDefined();
-    expect(visitpad?.children?.some((c) => c.label === 'Vaccines')).toBe(true);
+    const visitpadMaster = filtered
+      .find((n) => n.id === 'master-data')
+      ?.children?.find((c) => c.id === 'visitpad-master');
+    expect(visitpadMaster).toBeDefined();
+    expect(visitpadMaster?.children?.some((c) => c.label === 'Vaccines')).toBe(true);
     expect(filtered.some((n) => n.id === 'vaccines')).toBe(false);
+    expect(filtered.some((n) => n.id === 'visitpad')).toBe(false);
   });
 });

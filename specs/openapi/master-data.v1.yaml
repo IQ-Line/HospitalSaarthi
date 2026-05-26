@@ -964,6 +964,16 @@ paths:
           schema:
           $ref: '#/components/schemas/ModuleCategory'
           description: Filter modules by catalog category (not authorization).
+        - name: module_kind
+          in: query
+          required: false
+          description: >-
+            Filter by module kind(s). Comma-separated:
+            `?module_kind=product,foundation`.
+            If omitted, all kinds are returned (backward compatible).
+          schema:
+            type: string
+          example: product,foundation
       responses:
         '200':
           description: Registered modules.
@@ -4029,6 +4039,12 @@ components:
         - clinical
         - administrative
         - support
+    ModuleKind:
+      type: string
+      enum:
+        - platform
+        - foundation
+        - product
     PermissionAction:
       type: string
       enum:
@@ -4609,6 +4625,12 @@ components:
           type: string
           format: uuid
           nullable: true
+        module_kind:
+          $ref: '#/components/schemas/ModuleKind'
+          default: product
+        display_order:
+          type: integer
+          default: 0
         icon:
           type: string
           nullable: true
@@ -4635,6 +4657,8 @@ components:
           type: string
           format: uuid
           nullable: true
+        display_order:
+          type: integer
         icon:
           type: string
           nullable: true
@@ -4690,6 +4714,14 @@ components:
           type: integer
           minimum: 1
           maximum: 10
+        module_kind:
+          $ref: '#/components/schemas/ModuleKind'
+          default: product
+          description: Classification inherited from L1 ancestor.
+        display_order:
+          type: integer
+          default: 0
+          description: Stable sort weight within the same level.
         icon:
           type: string
           nullable: true
@@ -4751,6 +4783,12 @@ components:
           type: integer
           minimum: 1
           maximum: 10
+        module_kind:
+          $ref: '#/components/schemas/ModuleKind'
+          default: product
+        display_order:
+          type: integer
+          default: 0
         icon:
           type: string
           nullable: true

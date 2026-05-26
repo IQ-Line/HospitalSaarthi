@@ -1,6 +1,7 @@
 import type { OrganizationRepo, TenantRepo } from "../ports.js";
 import type { CreateOrganizationData, Organization } from "../domain/organization.types.js";
 import type { Tenant } from "../domain/tenant.types.js";
+import { buildTenantCerbosScopeKey } from "../domain/tenant-cerbos-scope.js";
 import { createOrganization } from "./create-organization.js";
 import { createTenant } from "./create-tenant.js";
 
@@ -10,12 +11,10 @@ export interface OrganizationWithDefaultTenantResult {
 }
 
 /**
- * Creates an organization and a root default tenant (same name/slug, full_platform,
- * provisioning, shared isolation). `cerbos_scope_key` is `tenant:{organization.id}` (globally unique).
+ * @deprecated Do not use for new flows. Organizations and tenants are provisioned separately
+ * (POST /organizations creates the org only; POST /tenant-onboarding creates tenant + modules).
  *
- * Call inside `runConfiguratorTransaction` so both inserts commit or roll back together.
- * For module enablement rows on the default tenant in the same transaction, use
- * `createOrganizationWithDefaultTenantAndTenantModules`.
+ * Legacy helper: creates an organization and a root default tenant (same name/slug).
  */
 export async function createOrganizationWithDefaultTenant(
   organizationRepo: OrganizationRepo,
@@ -32,7 +31,7 @@ export async function createOrganizationWithDefaultTenant(
     type: "full_platform",
     provisioning_status: "provisioning",
     data_isolation_level: "shared",
-    cerbos_scope_key: `tenant:${organization.id}`,
+    cerbos_scope_key: buildTenantCerbosScopeKey(organization.id, organization.slug),
     timezone: "Asia/Kolkata",
     locale: "en-IN",
     metadata: organization.metadata,

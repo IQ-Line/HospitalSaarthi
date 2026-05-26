@@ -38,6 +38,7 @@ export interface Organization {
   type: OrganizationType;
   status: OrganizationStatus;
   contact_email: string | null;
+  website: string | null;
   contact_phone: string | null;
   address: string | null;
   metadata: Record<string, unknown> | null;
@@ -53,6 +54,7 @@ export interface CreateOrganizationData {
   type: OrganizationType;
   status?: OrganizationStatus;
   contact_email?: string | null;
+  website?: string | null;
   contact_phone?: string | null;
   address?: string | null;
   /** May include {@link TenantOrganizationWizardMetadata} from the admin UI wizard. */
@@ -66,6 +68,7 @@ export interface UpdateOrganizationData {
   type?: OrganizationType;
   status?: OrganizationStatus;
   contact_email?: string | null;
+  website?: string | null;
   contact_phone?: string | null;
   address?: string | null;
   /** May include {@link TenantOrganizationWizardMetadata} from the admin UI wizard. */

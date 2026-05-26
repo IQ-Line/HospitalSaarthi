@@ -1,30 +1,12 @@
-import {
-  ArrowLeft,
-  Building2,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ClipboardList,
-  Printer,
-  Search,
-} from 'lucide-react';
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { ChevronLeft, ChevronRight, RotateCcw, Save, Search } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
-import { useForm, useWatch, type SubmitHandler, type UseFormRegister } from 'react-hook-form';
+import { useForm, useWatch, type SubmitHandler } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Button } from '@pulse/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@pulse/ui/card';
-import { Checkbox } from '@pulse/ui/checkbox';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@pulse/ui/select';
 import {
   Table,
   TableBody,
@@ -34,6 +16,10 @@ import {
   TableRow,
 } from '@pulse/ui/table';
 import { executeCreateVisitFlow, listRegistrations } from '@/features/frontdesk/api/registrations';
+import { CreateAbhaDialog } from '@/features/abha/components/create-abha-dialog';
+import type { AbhaCreatedPayload } from '@/features/abha/types';
+import { RegistrationFormHeader, RegistrationTodayStatsSidebar } from '@/features/frontdesk/components/registration-form-chrome';
+import { RegistrationPatientSection } from '@/features/frontdesk/components/registration-patient-section';
 import {
   VisitRegistrationAppointmentSection,
   VisitRegistrationBillingSection,
@@ -49,8 +35,6 @@ import {
   visitRegistrationBlockHint,
   visitRegistrationFormBlockers,
   defaultVisitRegistrationAddress,
-  EMPI_BLOOD_GROUP_OPTIONS,
-  formatInr,
   parseDateOnly,
   startOfLocalDay,
 } from '@/features/frontdesk/utils/visit-registration-helpers';
@@ -66,6 +50,9 @@ export const Route = createFileRoute('/_authenticated/frontdesk/visit-registrati
 type FormValues = CreateVisitRequestBody;
 
 function VisitRegistrationRoute() {
+  const [createAbhaOpen, setCreateAbhaOpen] = useState(false);
+  /** Header search UI; patient/registration lookup from form phase is not wired yet. */
+  const [formSearchDraft, setFormSearchDraft] = useState('');
   const { canCreate } = useCatalogModuleCrud('registration', {
     productModuleSlug: 'frontdesk',
   });
@@ -163,7 +150,7 @@ function VisitRegistrationRoute() {
         registration_fee: { unit_price: 100, tax_percent: 0, discount: 0 },
         consultation_fee: { unit_price: 0, tax_percent: 0, discount: 0 },
         invoice_discount: 0,
-        payment_mode: '',
+        payment_mode: 'cash',
         amount_paid: 0,
       },
     },
@@ -235,9 +222,6 @@ function VisitRegistrationRoute() {
     form.setValue('patient.age_days', days, { shouldValidate: false });
   }, [dateOfBirth, form]);
 
-  const watchSame = form.watch('residential_same_as_permanent');
-  const patientBloodGroup = form.watch('patient.blood_group');
-
   const {
     ref: patientPhoneRef,
     onChange: patientPhoneRhfOnChange,
@@ -252,6 +236,36 @@ function VisitRegistrationRoute() {
   });
 
   const submitIdempotencyKeyRef = useRef<string | undefined>(undefined);
+
+  const handleAbhaCreated = (payload: AbhaCreatedPayload) => {
+    form.setValue('patient.abha_number', payload.abhaNumber, { shouldValidate: true });
+
+    const currentPhone = form.getValues('patient.phone')?.trim();
+    if (!currentPhone && payload.phone) {
+      form.setValue('patient.phone', payload.phone, { shouldValidate: true });
+    }
+
+    const currentFirst = form.getValues('patient.first_name')?.trim();
+    if (!currentFirst && payload.firstName) {
+      form.setValue('patient.first_name', payload.firstName, { shouldValidate: true });
+    }
+
+    const currentLast = form.getValues('patient.last_name')?.trim();
+    if (!currentLast && payload.lastName) {
+      form.setValue('patient.last_name', payload.lastName, { shouldValidate: true });
+    }
+
+    if (payload.gender) {
+      form.setValue('patient.gender', payload.gender, { shouldValidate: true });
+    }
+
+    const currentDob = form.getValues('patient.date_of_birth')?.trim();
+    if (!currentDob && payload.dateOfBirth) {
+      form.setValue('patient.date_of_birth', payload.dateOfBirth, { shouldValidate: true });
+    }
+
+    toast.success('ABHA details applied to registration form');
+  };
 
   const mutation = useMutation({
     mutationFn: (data: CreateVisitRequestBody) => {
@@ -325,43 +339,26 @@ function VisitRegistrationRoute() {
   };
 
   return (
-    <div className="min-h-full">
-      <div className="flex flex-col lg:flex-row min-h-[calc(100vh-2.5rem)]">
-        <div className="flex-1 p-6 space-y-6 border-r border-border">
-          <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">
-                {phase === 'list' ? 'Visit registrations' : 'New visit registration'}
-              </h1>
-              <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
-                <Building2 className="size-4 shrink-0" />
-                {branchLabel}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {phase === 'form' ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="gap-1"
-                  onClick={() => setPhase('list')}
-                >
-                  <ArrowLeft className="size-4 shrink-0" />
-                  Back to list
-                </Button>
-              ) : null}
-              {phase === 'form' ? <VisitRegistrationSectionMenu /> : null}
-              {phase === 'list' && canCreate ? (
-                <Button type="button" size="sm" onClick={() => setPhase('form')}>
-                  + New registration
-                </Button>
-              ) : null}
-            </div>
+    <div className="bg-background">
+      <div className="mx-auto w-full max-w-[1600px] p-4 md:p-6">
+          {phase === 'list' ? (
+          <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <h1 className="text-2xl font-semibold tracking-tight">Registration</h1>
+            <Button type="button" size="sm" onClick={() => setPhase('form')}>
+              + New registration
+            </Button>
           </header>
+          ) : (
+          <RegistrationFormHeader
+            searchValue={formSearchDraft}
+            onSearchChange={setFormSearchDraft}
+            onPatientQueue={() => setPhase('list')}
+            actions={<VisitRegistrationSectionMenu />}
+          />
+          )}
 
           {phase === 'list' ? (
-            <div className="space-y-4 rounded-lg border border-border bg-card p-4 md:p-5 shadow-sm">
+            <div className="mt-6 space-y-4 rounded-lg border border-border bg-card p-4 md:p-5 shadow-sm">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                 Registrations
               </h2>
@@ -473,467 +470,88 @@ function VisitRegistrationRoute() {
           ) : null}
 
           {phase === 'form' ? (
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-            {sectionVisible.patientDetails ? (
-            <section className="rounded-lg border border-border bg-card p-4 md:p-5 space-y-4 shadow-sm">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Patient details
-              </h2>
-              <div className="space-y-2">
-                <Label htmlFor="visit-reg-phone">Phone number</Label>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="inline-flex h-10 shrink-0 items-center rounded-md border border-input bg-muted px-3 text-sm tabular-nums">
-                    +91
-                  </span>
-                  <Input
-                    id="visit-reg-phone"
-                    name={patientPhoneName}
-                    ref={patientPhoneRef}
-                    onBlur={patientPhoneOnBlur}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                      const el = e.target;
-                      el.value = el.value.replace(/\D/g, '').slice(0, 10);
-                      void patientPhoneRhfOnChange(e);
-                    }}
-                    className="h-10 min-w-[10rem] flex-1 md:max-w-md"
-                    inputMode="numeric"
-                    autoComplete="tel-national"
-                    maxLength={10}
-                    placeholder="10-digit mobile"
+          <form onSubmit={form.handleSubmit(onSubmit)} className="mt-4 lg:mt-6">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_17.5rem] lg:items-start">
+              <div className="min-w-0 space-y-4">
+                {sectionVisible.patientDetails ? (
+                  <RegistrationPatientSection
+                    form={form}
+                    onCreateAbha={() => setCreateAbhaOpen(true)}
+                    patientPhoneRef={patientPhoneRef}
+                    patientPhoneName={patientPhoneName}
+                    patientPhoneOnBlur={patientPhoneOnBlur}
+                    patientPhoneRhfOnChange={patientPhoneRhfOnChange}
                   />
-                  <div className="flex shrink-0 flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      className="h-10 shrink-0 px-3"
-                      disabled
-                    >
-                      Verify ABHA
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      className="h-10 shrink-0 px-3"
-                      disabled
-                    >
-                      Create ABHA
-                    </Button>
-                  </div>
-                </div>
-                {form.formState.errors.patient?.phone && (
-                  <p className="text-sm text-destructive" role="alert">
-                    {form.formState.errors.patient.phone.message}
+                ) : null}
+
+                <VisitRegistrationClinicalSections
+                  register={form.register}
+                  watch={form.watch}
+                  setValue={form.setValue}
+                  visible={{
+                    labTests: sectionVisible.labTests,
+                    risAppointment: sectionVisible.risAppointment,
+                  }}
+                />
+
+                {sectionVisible.appointmentDetails ? (
+                  <VisitRegistrationAppointmentSection
+                    register={form.register}
+                    watch={form.watch}
+                    setValue={form.setValue}
+                  />
+                ) : null}
+
+                {sectionVisible.billing ? (
+                  <VisitRegistrationBillingSection
+                    register={form.register}
+                    watch={form.watch}
+                    setValue={form.setValue}
+                    paymentModeError={form.formState.errors.billing?.payment_mode?.message}
+                    variant="compact"
+                  />
+                ) : null}
+
+                <footer className="flex flex-wrap items-center justify-end gap-3 pt-2">
+                  <Button
+                    type="submit"
+                    disabled={mutation.isPending || !canCreateVisit}
+                    title={createVisitBlockHint ?? undefined}
+                    className="h-10 gap-2 bg-primary px-6 text-primary-foreground hover:bg-primary/90"
+                  >
+                    <Save className="size-4" />
+                    {mutation.isPending ? 'Saving…' : 'Create Visit'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10 gap-2 px-6"
+                    onClick={() => form.reset()}
+                    disabled={mutation.isPending}
+                  >
+                    <RotateCcw className="size-4" />
+                    Clear
+                  </Button>
+                </footer>
+                {createVisitBlockHint ? (
+                  <p className="text-right text-xs text-destructive" role="status">
+                    {createVisitBlockHint}
                   </p>
-                )}
+                ) : null}
               </div>
 
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="space-y-2">
-                  <Label>
-                    First name <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    {...form.register('patient.first_name', {
-                      required: 'First name is required',
-                      validate: (v) => Boolean(v?.trim()) || 'First name is required',
-                    })}
-                  />
-                  {form.formState.errors.patient?.first_name ? (
-                    <p className="text-sm text-destructive" role="alert">
-                      {form.formState.errors.patient.first_name.message}
-                    </p>
-                  ) : null}
-                </div>
-                <div className="space-y-2">
-                  <Label>Middle name</Label>
-                  <Input {...form.register('patient.middle_name')} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Last name</Label>
-                  <Input {...form.register('patient.last_name')} />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Gender</Label>
-                <div className="flex flex-wrap gap-2">
-                  {(['male', 'female', 'other'] as const).map((g) => (
-                    <Button
-                      key={g}
-                      type="button"
-                      size="sm"
-                      variant={form.watch('patient.gender') === g ? 'default' : 'outline'}
-                      className="capitalize"
-                      onClick={() => form.setValue('patient.gender', g)}
-                    >
-                      {g}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="grid gap-4 grid-cols-1 sm:grid-cols-3 lg:grid-cols-4">
-                <div className="space-y-2 sm:col-span-3 lg:col-span-1">
-                  <Label htmlFor="visit-reg-dob">Date of birth</Label>
-                  <div className="relative">
-                    <Input
-                      id="visit-reg-dob"
-                      type="date"
-                      className="h-10 w-full pr-10"
-                      {...form.register('patient.date_of_birth')}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="visit-reg-age-yrs">Yrs</Label>
-                  <Input
-                    id="visit-reg-age-yrs"
-                    type="number"
-                    min={0}
-                    className="h-10"
-                    {...form.register('patient.age_years', { valueAsNumber: true })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="visit-reg-age-mon">Mon</Label>
-                  <Input
-                    id="visit-reg-age-mon"
-                    type="number"
-                    min={0}
-                    max={11}
-                    className="h-10"
-                    {...form.register('patient.age_months', { valueAsNumber: true })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="visit-reg-age-days">Days</Label>
-                  <Input
-                    id="visit-reg-age-days"
-                    type="number"
-                    min={0}
-                    max={31}
-                    className="h-10"
-                    {...form.register('patient.age_days', { valueAsNumber: true })}
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="space-y-2">
-                  <Label>Email</Label>
-                  <Input type="email" {...form.register('patient.email')} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Blood group</Label>
-                  <Select
-                    value={patientBloodGroup ? patientBloodGroup : '__none__'}
-                    onValueChange={(v: string) =>
-                      form.setValue('patient.blood_group', v === '__none__' ? '' : v)
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">—</SelectItem>
-                      {EMPI_BLOOD_GROUP_OPTIONS.map((bg) => (
-                        <SelectItem key={bg} value={bg}>
-                          {bg}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                className="text-sm text-primary hover:underline flex items-center gap-1"
-                onClick={() => setShowExtendedPatient((v) => !v)}
-              >
-                {showExtendedPatient ? (
-                  <>
-                    <ChevronDown className="size-4" /> Show less
-                  </>
-                ) : (
-                  <>
-                    <ChevronRight className="size-4" /> Show more (UHID / ABHA)
-                  </>
-                )}
-              </button>
-              {showExtendedPatient && (
-                <div className="grid gap-4 md:grid-cols-2 border-t border-border pt-4">
-                  <div className="space-y-2">
-                    <Label>UHID</Label>
-                    <Input disabled placeholder="Auto-generated on save" className="opacity-70" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>ABHA number</Label>
-                    <Input {...form.register('patient.abha_number')} placeholder="Dummy" />
-                  </div>
-                </div>
-              )}
-            </section>
-            ) : null}
-
-            <section className="rounded-lg border border-border bg-card p-4 md:p-5 space-y-4 shadow-sm">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Attendant details
-              </h2>
-              <p className="text-xs text-muted-foreground">
-                Dummy fields until attendant workflow is integrated.
-              </p>
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="space-y-2">
-                  <Label>Relation to patient</Label>
-                  <Select
-                    value={form.watch('attendant.relation')}
-                    onValueChange={(v: string) => form.setValue('attendant.relation', v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {['Father', 'Mother', 'Spouse', 'Sibling', 'Other'].map((r) => (
-                        <SelectItem key={r} value={r}>
-                          {r}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Attendant name</Label>
-                  <Input {...form.register('attendant.name')} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Attendant phone</Label>
-                  <Input {...form.register('attendant.phone')} />
-                </div>
-              </div>
-            </section>
-
-            <AddressBlock title="Permanent address" prefix="permanent_address" register={form.register} />
-
-            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2">
-              <Checkbox
-                id="same-perm"
-                checked={watchSame}
-                onCheckedChange={(c: boolean | 'indeterminate') =>
-                  form.setValue('residential_same_as_permanent', c === true)
-                }
-              />
-              <Label htmlFor="same-perm" className="font-normal cursor-pointer">
-                Same as permanent address
-              </Label>
+              <RegistrationTodayStatsSidebar />
             </div>
-
-            {!watchSame && (
-              <AddressBlock title="Residential address" prefix="residential_address" register={form.register} />
-            )}
-
-            <section className="rounded-lg border border-border bg-card p-4 md:p-5 space-y-4 shadow-sm">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Background
-              </h2>
-              <p className="text-xs text-muted-foreground">
-                Education, occupation, religion — captured on patient profile when integrated.
-              </p>
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="space-y-2">
-                  <Label>Education</Label>
-                  <Input {...form.register('other.education')} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Occupation</Label>
-                  <Input {...form.register('other.occupation')} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Religion</Label>
-                  <Input {...form.register('other.religion')} />
-                </div>
-              </div>
-            </section>
-
-            <VisitRegistrationClinicalSections
-              register={form.register}
-              watch={form.watch}
-              setValue={form.setValue}
-              visible={{
-                vitals: sectionVisible.vitals,
-                labTests: sectionVisible.labTests,
-                risAppointment: sectionVisible.risAppointment,
-              }}
-            />
-
-            {sectionVisible.appointmentDetails ? (
-              <VisitRegistrationAppointmentSection
-                register={form.register}
-                watch={form.watch}
-                setValue={form.setValue}
-              />
-            ) : null}
-
-            {sectionVisible.billing ? (
-              <VisitRegistrationBillingSection
-                register={form.register}
-                watch={form.watch}
-                setValue={form.setValue}
-                paymentModeError={form.formState.errors.billing?.payment_mode?.message}
-              />
-            ) : null}
-
-            <section className="rounded-lg border border-border bg-card p-4 md:p-5 space-y-4 shadow-sm">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Other details
-              </h2>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="visit-reg-referred-by">Referred by</Label>
-                  <Input
-                    id="visit-reg-referred-by"
-                    {...form.register('notes.referral')}
-                    placeholder="Referring doctor or source"
-                    className="h-10"
-                  />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="visit-reg-clinical-notes">Notes</Label>
-                  <textarea
-                    id="visit-reg-clinical-notes"
-                    className="flex min-h-[88px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
-                    {...form.register('notes.additional')}
-                    placeholder="Clinical notes or remarks"
-                  />
-                </div>
-              </div>
-            </section>
-
-            <footer className="sticky bottom-0 z-10 flex flex-col gap-3 border-t border-border bg-background/90 backdrop-blur-sm py-4 md:flex-row md:items-center md:justify-between supports-[backdrop-filter]:bg-background/80">
-              <div className="flex flex-wrap items-center gap-2">
-                <Button type="button" variant="outline" size="sm" disabled>
-                  <Printer className="size-4 mr-1" />
-                  Print Patient ID
-                </Button>
-                <Button type="button" variant="outline" size="sm" disabled>
-                  <Printer className="size-4 mr-1" />
-                  Print Visit Form
-                </Button>
-                <span className="text-sm text-muted-foreground ml-2">
-                  Total: {formatInr(formGate.grandTotal)}
-                  {createVisitBlockHint ? (
-                    <span className="text-destructive"> — {createVisitBlockHint}</span>
-                  ) : null}
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="outline" onClick={() => form.reset()} disabled={mutation.isPending}>
-                  Clear
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={mutation.isPending || !canCreateVisit}
-                  title={createVisitBlockHint}
-                >
-                  {mutation.isPending ? 'Saving…' : 'Create Visit'}
-                </Button>
-                <Button type="button" variant="secondary" disabled>
-                  Save &amp; Print Labels
-                </Button>
-              </div>
-            </footer>
           </form>
           ) : null}
-        </div>
-
-        <aside className="w-full lg:w-72 shrink-0 p-6 bg-muted/30 border-t lg:border-t-0 lg:border-l border-border">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <ClipboardList className="size-4" />
-                Today&apos;s visits
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <StatRow label="Total visits" value="98" />
-              <StatRow label="Doctor consultations pending" value="40" accent="warning" />
-              <StatRow label="Doctor consultations done" value="58" accent="success" />
-              <p className="text-xs text-muted-foreground pt-2">
-                Summary is placeholder data until visit list API is wired.
-              </p>
-            </CardContent>
-          </Card>
-        </aside>
       </div>
+
+      <CreateAbhaDialog
+        open={createAbhaOpen}
+        onOpenChange={setCreateAbhaOpen}
+        onSuccess={handleAbhaCreated}
+      />
     </div>
   );
 }
 
-function StatRow({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: string;
-  accent?: 'warning' | 'success';
-}) {
-  return (
-    <div className="flex justify-between gap-2">
-      <span className="text-muted-foreground">{label}</span>
-      <span
-        className={
-          accent === 'warning'
-            ? 'font-semibold text-amber-700'
-            : accent === 'success'
-              ? 'font-semibold text-emerald-700'
-              : 'font-medium'
-        }
-      >
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function AddressBlock({
-  title,
-  prefix,
-  register,
-}: {
-  title: string;
-  prefix: 'permanent_address' | 'residential_address';
-  register: UseFormRegister<FormValues>;
-}) {
-  return (
-    <section className="rounded-lg border border-border bg-card p-4 md:p-5 space-y-4 shadow-sm">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{title}</h2>
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2 md:col-span-2">
-          <Label>Address line 1</Label>
-          <Input {...register(`${prefix}.line1`)} />
-        </div>
-        <div className="space-y-2 md:col-span-2">
-          <Label>Address line 2</Label>
-          <Input {...register(`${prefix}.line2`)} />
-        </div>
-        <div className="space-y-2">
-          <Label>City</Label>
-          <Input {...register(`${prefix}.city`)} />
-        </div>
-        <div className="space-y-2">
-          <Label>State</Label>
-          <Input {...register(`${prefix}.state`)} />
-        </div>
-        <div className="space-y-2">
-          <Label>District</Label>
-          <Input {...register(`${prefix}.district`)} />
-        </div>
-        <div className="space-y-2">
-          <Label>Pincode</Label>
-          <Input {...register(`${prefix}.pincode`)} />
-        </div>
-      </div>
-    </section>
-  );
-}

@@ -84,11 +84,22 @@ describe.skipIf(!RUN || !DB_URL || !hasSandboxAadhaarEnv())("M1 Aadhaar chain â€
         sessionId: otpOut.sessionId,
         otp: aadhaarOtp,
         mobile,
+        useAadhaarLinkedMobile: true,
         iqTenantId: tenantId,
       },
       deps,
     );
     expect(verifyOut.txnId.length).toBeGreaterThan(0);
+
+    if (verifyOut.mobileVerifySkipped) {
+      const session = await deps.sessions.findById({
+        iqTenantId: tenantId,
+        sessionId: otpOut.sessionId,
+      });
+      expect(session?.state).toBe("MOBILE_OTP_VERIFIED");
+      expect(session?.xToken).toBeTruthy();
+      return;
+    }
 
     const mobileSend = await enrolMobileVerifySendOtpRequest(
       {
