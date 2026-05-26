@@ -151,6 +151,23 @@ export function TenantUsersPanel({
         cell: ({ getValue }) => getValue<string | null>() ?? '—',
       },
       {
+        accessorKey: 'role_display_names',
+        header: 'Roles',
+        cell: ({ getValue }) => {
+          const names = getValue<string[] | undefined>();
+          if (!names || names.length === 0) return <span className="text-muted-foreground">—</span>;
+          return (
+            <div className="flex flex-wrap gap-1">
+              {names.map((name) => (
+                <Badge key={name} variant="outline" className="text-xs">
+                  {name}
+                </Badge>
+              ))}
+            </div>
+          );
+        },
+      },
+      {
         accessorKey: 'status',
         header: 'Status',
         cell: ({ getValue }) => (
