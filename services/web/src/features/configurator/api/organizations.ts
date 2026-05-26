@@ -21,11 +21,11 @@ export function useOrganizations(filters: {
   return useQuery(organizationsQueryOptions(filters));
 }
 
-export function useOrganization(id: string) {
+export function useOrganization(id: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: configuratorKeys.organizationDetail(id),
     queryFn: () => apiClient<Organization>(`${BASE}/${id}`),
-    enabled: !!id,
+    enabled: (options?.enabled ?? true) && !!id,
   });
 }
 

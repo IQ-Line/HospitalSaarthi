@@ -200,10 +200,10 @@ export function CreateTenantWizard({
   ]);
 
   useEffect(() => {
-    if (!open || modules.length === 0 || modulesDefaultsApplied.current) return;
-    setEnabledModuleIds(defaultEnabledModuleIds(modules, childMap));
+    if (!open || productModules.length === 0 || modulesDefaultsApplied.current) return;
+    setEnabledModuleIds(defaultEnabledModuleIds(productModules, childMap));
     modulesDefaultsApplied.current = true;
-  }, [open, modules, childMap]);
+  }, [open, productModules, childMap]);
 
   useEffect(() => {
     if (!open || orgSlugUserEdited.current) return;
