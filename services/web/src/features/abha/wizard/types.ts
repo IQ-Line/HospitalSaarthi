@@ -1,4 +1,8 @@
-import type { AbhaProfileDisplay, EnrolAadhaarVerifyResponse } from '@/features/abha/types';
+import type {
+  AbhaProfileDisplay,
+  EnrolAadhaarVerifyResponse,
+  ProfileAccountResponse,
+} from '@/features/abha/types';
 
 export type WizardStep = 'method' | 'login-soon' | 'consent' | 'otp' | 'profile' | 'address-edit';
 
@@ -36,6 +40,7 @@ export interface AbhaWizardState {
   };
   isSubmitting: boolean;
   profileDisplay: AbhaProfileDisplay | null;
+  profileAccount: ProfileAccountResponse | null;
   verifySnapshot: EnrolAadhaarVerifyResponse | null;
 }
 
@@ -58,7 +63,11 @@ export type AbhaWizardAction =
   | { type: 'START_RESEND_COOLDOWN' }
   | { type: 'TICK_RESEND_COOLDOWN' }
   | { type: 'SET_SUBMITTING'; isSubmitting: boolean }
-  | { type: 'SET_PROFILE_DISPLAY'; profileDisplay: AbhaProfileDisplay | null }
+  | {
+      type: 'SET_PROFILE_DISPLAY';
+      profileDisplay: AbhaProfileDisplay | null;
+      profileAccount: ProfileAccountResponse | null;
+    }
   | { type: 'SET_VERIFY_SNAPSHOT'; snapshot: EnrolAadhaarVerifyResponse | null }
   | { type: 'SET_ADDRESS_SUGGESTIONS'; suggestions: string[] }
   | { type: 'SET_ADDRESS_LOCAL'; value: string }

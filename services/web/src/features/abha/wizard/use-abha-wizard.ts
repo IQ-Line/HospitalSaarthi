@@ -115,6 +115,7 @@ export function useAbhaWizard({
       dispatch({
         type: 'SET_PROFILE_DISPLAY',
         profileDisplay: mapAbhaProfileDisplay(profileRes.profile, verify),
+        profileAccount: profileRes,
       });
       return profileRes;
     },
@@ -125,7 +126,7 @@ export function useAbhaWizard({
     async (prefetched?: ProfileAccountResponse) => {
       const sid = state.otpSession.sessionId;
       if (!sid) return;
-      const profileRes = prefetched ?? (await getAbhaProfile(sid));
+      const profileRes = prefetched ?? state.profileAccount ?? (await getAbhaProfile(sid));
       const prefill = mapAbhaProfileToFormPrefill(
         profileRes.profile,
         state.verifySnapshot ?? undefined,
@@ -133,7 +134,7 @@ export function useAbhaWizard({
       onSuccess(prefill);
       onOpenChange(false);
     },
-    [state.otpSession.sessionId, state.verifySnapshot, onSuccess, onOpenChange],
+    [state.otpSession.sessionId, state.profileAccount, state.verifySnapshot, onSuccess, onOpenChange],
   );
 
   const finishWithPrefill = useCallback(async () => {
@@ -291,9 +292,10 @@ export function useAbhaWizard({
           profileRes.profile,
           state.verifySnapshot ?? undefined,
         ),
+        profileAccount: profileRes,
       });
       toast.success('ABHA address created');
-      await applySuccessAndClose(profileRes);
+      await applySuccessAndClose();
     } catch (err) {
       toast.error(mutationErrorMessage(err));
     } finally {

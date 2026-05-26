@@ -5,6 +5,18 @@ function initialConsentChecked(): Record<number, boolean> {
   return Object.fromEntries(CONSENT_ITEMS.map((_, i) => [i, false]));
 }
 
+function freshOtpSession(sessionId: string, aadhaarNumber: string): AbhaWizardState['otpSession'] {
+  return {
+    sessionId,
+    aadhaarNumber,
+    otp: '',
+    mobile: '',
+    otpMobileLast4: '',
+    sendCount: 0,
+    resendCooldown: 0,
+  };
+}
+
 export function createInitialAbhaWizardState(): AbhaWizardState {
   return {
     step: 'method',
@@ -34,6 +46,7 @@ export function createInitialAbhaWizardState(): AbhaWizardState {
     },
     isSubmitting: false,
     profileDisplay: null,
+    profileAccount: null,
     verifySnapshot: null,
   };
 }
@@ -71,6 +84,8 @@ export function abhaWizardReducer(
           checked: Object.fromEntries(CONSENT_ITEMS.map((_, i) => [i, action.checked])),
           hwAcknowledged: action.checked,
           beneficiaryAcknowledged: action.checked,
+          healthcareWorkerName: action.checked ? state.consent.healthcareWorkerName : '',
+          beneficiaryName: action.checked ? state.consent.beneficiaryName : '',
         },
       };
     case 'SET_HW_ACK':
@@ -90,11 +105,7 @@ export function abhaWizardReducer(
     case 'INIT_OTP_SESSION':
       return {
         ...state,
-        otpSession: {
-          ...state.otpSession,
-          sessionId: action.sessionId,
-          aadhaarNumber: action.aadhaarNumber,
-        },
+        otpSession: freshOtpSession(action.sessionId, action.aadhaarNumber),
       };
     case 'SET_OTP':
       return { ...state, otpSession: { ...state.otpSession, otp: action.otp } };
@@ -119,7 +130,11 @@ export function abhaWizardReducer(
     case 'SET_SUBMITTING':
       return { ...state, isSubmitting: action.isSubmitting };
     case 'SET_PROFILE_DISPLAY':
-      return { ...state, profileDisplay: action.profileDisplay };
+      return {
+        ...state,
+        profileDisplay: action.profileDisplay,
+        profileAccount: action.profileAccount,
+      };
     case 'SET_VERIFY_SNAPSHOT':
       return { ...state, verifySnapshot: action.snapshot };
     case 'SET_ADDRESS_SUGGESTIONS':
@@ -141,6 +156,7 @@ export function abhaWizardReducer(
         step: 'profile',
         address: {
           ...state.address,
+          suggestions: [],
           needsMobileVerifyOtp: false,
           mobileVerifyOtp: '',
           addressLocal: '',
