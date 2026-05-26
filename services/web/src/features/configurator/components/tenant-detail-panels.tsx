@@ -41,7 +41,6 @@ import {
   UM_ROLE_UPDATE,
   UM_ROLES_ADMIN_ANY,
   UM_USER_CREATE,
-  UM_USER_READ,
 } from '@/lib/runtime-capability-keys';
 import { CreateUserForm } from '@/features/user-management/components/create-user-form';
 import type { Capability, UmUser } from '@/features/user-management/types';
@@ -127,7 +126,6 @@ export function TenantUsersPanel({
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const qc = useQueryClient();
-  const umUserRead = useCapability(UM_USER_READ);
   const { data, isLoading, error } = useTenantUsers(iqTenantId);
 
   const columns = useMemo<ColumnDef<UmUser, unknown>[]>(
@@ -217,7 +215,7 @@ export function TenantUsersPanel({
                 fixedTargetTenantId={iqTenantId}
                 fixedConfiguratorOrgId={organizationId}
                 layout="dialog"
-                navigateToProfileOnSuccess={umUserRead}
+                navigateToProfileOnSuccess={false}
                 onCancel={() => setCreateOpen(false)}
                 onCreated={(user) => {
                   void qc.invalidateQueries({
