@@ -1,0 +1,66 @@
+openapi: 3.1.0
+info:
+  title: Smart Parcha API
+  version: 1.0.0
+  description: |
+    Standalone Smart Parcha orchestration service. Delegates visit/prescription
+    data to the host HIMS via configurable HTTP paths (see service env template).
+servers:
+  - url: http://localhost:3008
+paths:
+  /api/v1/smart-parcha/visits/{visitId}/full-context:
+    get:
+      operationId: getFullContext
+      summary: Load visit + patient + prescription + parcha for consultation UI
+      parameters:
+        - name: visitId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: addendum
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Full context payload
+  /api/v1/smart-parcha/{visitId}/save-and-ingest:
+    post:
+      operationId: saveAndIngest
+      summary: Persist canvas pages and optional AI frame ingest
+      parameters:
+        - name: visitId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Save result
+  /api/v1/smart-parcha/visits/{visitId}/save-prescription:
+    post:
+      operationId: savePrescription
+      summary: Save prescription draft (delegates to host HIMS)
+      parameters:
+        - name: visitId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Save result
+  /api/v1/smart-parcha/visits/{visitId}/end-consultation:
+    post:
+      operationId: endConsultation
+      summary: End consultation (delegates to host HIMS)
+      parameters:
+        - name: visitId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: End consultation result

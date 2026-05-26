@@ -1,0 +1,24 @@
+{
+  "name": "smart-parcha-svc",
+  "projectType": "application",
+  "tags": ["type:service", "scope:smart-parcha", "language:typescript", "deploy:aks"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsup --config tsup.config.ts",
+        "cwd": "services/smart-parcha-svc"
+      },
+      "outputs": ["{projectRoot}/dist"],
+      "cache": true
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsx watch src/main.ts",
+        "cwd": "services/smart-parcha-svc",
+        "envFile": "{workspaceRoot}/.env"
+      }
+    }
+  }
+}

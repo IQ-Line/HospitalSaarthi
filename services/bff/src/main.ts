@@ -42,6 +42,14 @@ const upstreams: UpstreamRoute[] = [
     prefix: '/api/registration/v1',
     upstream: process.env['REGISTRATION_URL'] ?? 'http://localhost:3006',
   },
+  {
+    prefix: '/api/v1/smart-parcha',
+    upstream: process.env['SMART_PARCHA_URL'] ?? 'http://localhost:3008',
+  },
+  {
+    prefix: '/v2',
+    upstream: process.env['SMART_PARCHA_URL'] ?? 'http://localhost:3008',
+  },
 ];
 
 const isProduction = process.env['NODE_ENV'] === 'production';

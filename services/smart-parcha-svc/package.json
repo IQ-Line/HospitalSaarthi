@@ -1,0 +1,17 @@
+{
+  "name": "@hims/smart-parcha-svc",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@hims/smart-parcha": "workspace:*",
+    "@hims/ts-sdk-openapi": "workspace:*",
+    "@hims/ts-sdk-tenant": "workspace:*",
+    "dotenv": "^16.6.1",
+    "fastify": "^5.3.3",
+    "fastify-plugin": "^5.0.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.5"
+  }
+}

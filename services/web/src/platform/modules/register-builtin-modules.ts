@@ -7,6 +7,7 @@ import { frontdeskModuleManifest } from './manifests/frontdesk.manifest';
 import { masterDataModuleManifest } from './manifests/master-data.manifest';
 import { userManagementModuleManifest } from './manifests/user-management.manifest';
 import { visitpadModuleManifest } from './manifests/visitpad.manifest';
+import { smartParchaModuleManifest } from './manifests/smart-parcha.manifest';
 
 const BUILTIN_MODULE_MANIFESTS = [
   dashboardModuleManifest,
@@ -15,6 +16,7 @@ const BUILTIN_MODULE_MANIFESTS = [
   frontdeskModuleManifest,
   billingAndFinanceModuleManifest,
   visitpadModuleManifest,
+  smartParchaModuleManifest,
   configuratorModuleManifest,
 ] as const;
 
