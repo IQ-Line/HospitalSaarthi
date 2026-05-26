@@ -231,4 +231,16 @@ export class MockRecordFoundationClient implements RecordFoundationClient {
       }),
     );
   }
+
+  async ingestExternalRecord(_input: {
+    iqTenantId: string;
+    patientId: string;
+    consentArtifactId: string;
+    bundleJson: Record<string, unknown>;
+    sourceHipId: string;
+    sourceHipDisplayName?: string;
+    dataEraseAt: string;
+  }): Promise<{ externalRecordId: string }> {
+    return { externalRecordId: "mock-ext-rec-" + Date.now() };
+  }
 }

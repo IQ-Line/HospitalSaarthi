@@ -8,7 +8,8 @@ info:
     Does NOT own clinical source data (operational modules), patient identity (EMPI), or ABDM consent
     artifacts (Integration Hub).
 servers:
-  - url: http://localhost:3006
+  - url: http://localhost:3006/api/record-foundation/v1
+    description: Local development
 security:
   - bearerAuth: []
 tags:
@@ -25,16 +26,18 @@ tags:
   - name: Admin
     description: Administrative jobs — timeline rebuild, erasure runs.
 paths:
-  /api/v1/care-contexts:
+  /care-contexts:
     get:
       operationId: listCareContexts
       summary: List care contexts for a patient
       tags: [Care Contexts]
       parameters:
         - { name: patient_id, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: linked, in: query, required: false, schema: { type: string, enum: ["true", "false"] } }
         - { name: status, in: query, required: false, schema: { $ref: "#/components/schemas/CareContextStatus" } }
         - { name: abha_linkage_status, in: query, required: false, schema: { $ref: "#/components/schemas/AbhaLinkageStatus" } }
         - { name: source_origin, in: query, required: false, schema: { $ref: "#/components/schemas/SourceOrigin" } }
+        - { name: source_record_type, in: query, required: false, schema: { $ref: "#/components/schemas/SourceRecordType" } }
       responses:
         "200":
           description: Care context list.
@@ -43,7 +46,28 @@ paths:
               schema: { $ref: "#/components/schemas/CareContextListResponse" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
-  /api/v1/care-contexts/{id}:
+    post:
+      operationId: createCareContext
+      summary: Create a new care context
+      tags: [Care Contexts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateCareContextRequest" }
+      responses:
+        "201":
+          description: Care context created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CareContextSingleResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409":
+          description: Duplicate care context (unique constraint violation).
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/ProblemDetails" }
+  /care-contexts/{id}:
     get:
       operationId: getCareContext
       summary: Fetch one care context
@@ -57,7 +81,26 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/CareContextSingleResponse" }
         "404": { $ref: "#/components/responses/NotFound" }
-  /api/v1/care-contexts/discoverable:
+  /care-contexts/{id}/linkage:
+    patch:
+      operationId: updateCareContextLinkage
+      summary: Update care context ABDM linkage status
+      tags: [Care Contexts]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateLinkageRequest" }
+      responses:
+        "200":
+          description: Linkage updated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CareContextSingleResponse" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /care-contexts/discoverable:
     get:
       operationId: listDiscoverableCareContexts
       summary: List care contexts disclosable for ABDM HIP discovery
@@ -73,7 +116,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CareContextListResponse" }
-  /api/v1/care-contexts/bulk-update-linkage:
+  /care-contexts/bulk-update-linkage:
     post:
       operationId: bulkUpdateLinkage
       summary: Mark a batch of care contexts as ABDM-linked
@@ -91,7 +134,24 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/BulkUpdateLinkageResponse" }
         "400": { $ref: "#/components/responses/BadRequest" }
-  /api/v1/bundles/{id}:
+  /bundles:
+    post:
+      operationId: storeBundle
+      summary: Store a FHIR Document Bundle against an existing care context
+      tags: [Bundles]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StoreBundleRequest" }
+      responses:
+        "201":
+          description: Bundle stored.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BundleManifestSingleResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+  /bundles/{id}:
     get:
       operationId: getBundle
       summary: Fetch a FHIR Document Bundle by manifest id
@@ -120,7 +180,7 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/ProblemDetails" }
-  /api/v1/bundle-manifests:
+  /bundle-manifests:
     get:
       operationId: listBundleManifests
       summary: List bundle manifests for a care context
@@ -133,7 +193,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/BundleManifestListResponse" }
-  /api/v1/disclosures:
+  /disclosures:
     post:
       operationId: evaluateDisclosure
       summary: Evaluate disclosable bundles under a consent
@@ -149,27 +209,12 @@ paths:
             schema: { $ref: "#/components/schemas/DisclosureRequest" }
       responses:
         "200":
-          description: Disclosable bundles.
+          description: Disclosable bundles with inline FHIR JSON content.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/DisclosureResponse" }
         "400": { $ref: "#/components/responses/BadRequest" }
-  /api/v1/timeline:
-    get:
-      operationId: getTimeline
-      summary: Patient timeline (most-recent first)
-      tags: [Timeline]
-      parameters:
-        - { name: patient_id, in: query, required: true, schema: { type: string, format: uuid } }
-        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
-        - { name: before, in: query, required: false, schema: { type: string, format: date-time }, description: "Cursor: occurred_at upper bound." }
-      responses:
-        "200":
-          description: Timeline entries.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/TimelineListResponse" }
-  /api/v1/external-records:
+  /external-records:
     get:
       operationId: listExternalRecords
       summary: List HIU-received external records for a patient
@@ -182,7 +227,23 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ExternalRecordListResponse" }
-  /api/v1/external-records/{id}:
+    post:
+      operationId: ingestExternalRecord
+      summary: Ingest a decrypted HIU bundle as an external record
+      tags: [External Records]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/IngestExternalRecordRequest" }
+      responses:
+        "201":
+          description: External record ingested.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExternalRecordSingleResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+  /external-records/{id}:
     get:
       operationId: getExternalRecord
       summary: Fetch one external record (with its FHIR bundle)
@@ -201,7 +262,7 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/ProblemDetails" }
-  /api/v1/external-records/{id}/mark-viewed:
+  /external-records/{id}/mark-viewed:
     post:
       operationId: markExternalRecordViewed
       summary: Mark an external record as viewed by a doctor
@@ -215,7 +276,22 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ExternalRecordSingleResponse" }
         "404": { $ref: "#/components/responses/NotFound" }
-  /api/v1/admin/timeline/rebuild:
+  /timeline:
+    get:
+      operationId: getTimeline
+      summary: Patient timeline (most-recent first)
+      tags: [Timeline]
+      parameters:
+        - { name: patient_id, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: before, in: query, required: false, schema: { type: string, format: date-time }, description: "Cursor: occurred_at upper bound." }
+      responses:
+        "200":
+          description: Timeline entries.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TimelineListResponse" }
+  /admin/timeline/rebuild:
     post:
       operationId: rebuildTimeline
       summary: Rebuild the timeline projection for a patient
@@ -229,7 +305,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/AdminJobResponse" }
         "403": { $ref: "#/components/responses/Forbidden" }
-  /api/v1/admin/jobs/{id}:
+  /admin/jobs/{id}:
     get:
       operationId: getAdminJob
       summary: Fetch an admin job's status
@@ -243,7 +319,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/AdminJobResponse" }
         "404": { $ref: "#/components/responses/NotFound" }
-  /api/v1/admin/erasure-runs:
+  /admin/erasure-runs:
     post:
       operationId: triggerErasureRun
       summary: Manually trigger an erasure run (dry-run supported)
@@ -355,6 +431,7 @@ components:
           type: array
           nullable: true
           items: { type: string }
+        consent_disclosable: { type: boolean }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
         linked_at: { type: string, format: date-time, nullable: true }
@@ -372,6 +449,37 @@ components:
       required: [data]
       properties:
         data: { $ref: "#/components/schemas/CareContext" }
+    CreateCareContextRequest:
+      type: object
+      required:
+        - patient_id
+        - source_origin
+        - source_system_id
+        - source_record_type
+        - display
+        - period_start
+      additionalProperties: false
+      properties:
+        patient_id: { type: string, format: uuid }
+        source_origin: { $ref: "#/components/schemas/SourceOrigin" }
+        source_system_id: { type: string }
+        source_record_type: { $ref: "#/components/schemas/SourceRecordType" }
+        source_record_id: { type: string }
+        encounter_id: { type: string, format: uuid }
+        display: { type: string }
+        period_start: { type: string, format: date-time }
+        period_end: { type: string, format: date-time }
+        sensitivity_labels:
+          type: array
+          items: { type: string }
+    UpdateLinkageRequest:
+      type: object
+      required: [abha_linkage_status]
+      additionalProperties: false
+      properties:
+        abha_linkage_status: { $ref: "#/components/schemas/AbhaLinkageStatus" }
+        abdm_reference_number: { type: string }
+        linked_at: { type: string, format: date-time }
     BulkUpdateLinkageRequest:
       type: object
       required: [updates]
@@ -446,6 +554,11 @@ components:
         produced_at: { type: string, format: date-time }
         received_at: { type: string, format: date-time, nullable: true }
         stored_at: { type: string, format: date-time }
+    BundleManifestSingleResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/BundleManifest" }
     BundleManifestListResponse:
       type: object
       required: [data, total]
@@ -454,6 +567,26 @@ components:
           type: array
           items: { $ref: "#/components/schemas/BundleManifest" }
         total: { type: integer, minimum: 0 }
+    StoreBundleRequest:
+      type: object
+      required:
+        - care_context_id
+        - bundle_kind
+        - fhir_profile_url
+        - fhir_profile_version
+        - bundle_json
+        - produced_at
+      additionalProperties: false
+      properties:
+        care_context_id: { type: string, format: uuid }
+        bundle_kind: { $ref: "#/components/schemas/BundleKind" }
+        fhir_profile_url: { type: string, format: uri }
+        fhir_profile_version: { type: string }
+        producer_kind: { type: string, enum: [platform_module, external_hip] }
+        producer_id: { type: string }
+        bundle_json: { type: object, description: Full FHIR R4 Bundle JSON }
+        produced_at: { type: string, format: date-time }
+        received_at: { type: string, format: date-time }
     DisclosureRequest:
       type: object
       required: [consent_artifact_id, patient_id, hi_types, date_range]
@@ -482,13 +615,11 @@ components:
           type: array
           items:
             type: object
-            required: [bundle_manifest_id, care_context_id, bundle_kind]
+            required: [careContextReference, content, media]
             properties:
-              bundle_manifest_id: { type: string, format: uuid }
-              care_context_id: { type: string, format: uuid }
-              bundle_kind: { $ref: "#/components/schemas/BundleKind" }
-              bundle_hash: { type: string }
-              produced_at: { type: string, format: date-time }
+              careContextReference: { type: string, format: uuid }
+              content: { type: object, description: Full FHIR R4 Bundle JSON inline }
+              media: { type: string }
         excluded:
           type: array
           items:
@@ -574,6 +705,30 @@ components:
                   type: object
                   description: Full FHIR R4 Bundle JSON.
                   additionalProperties: true
+    IngestExternalRecordRequest:
+      type: object
+      required:
+        - patient_id
+        - consent_artifact_id
+        - bundle_json
+        - source_hip_id
+        - data_erase_at
+        - bundle_kind
+        - fhir_profile_url
+        - fhir_profile_version
+        - produced_at
+      additionalProperties: false
+      properties:
+        patient_id: { type: string, format: uuid }
+        consent_artifact_id: { type: string, format: uuid }
+        bundle_json: { type: object, description: Decrypted FHIR R4 Bundle JSON }
+        source_hip_id: { type: string }
+        source_hip_display_name: { type: string }
+        data_erase_at: { type: string, format: date-time }
+        bundle_kind: { $ref: "#/components/schemas/BundleKind" }
+        fhir_profile_url: { type: string, format: uri }
+        fhir_profile_version: { type: string }
+        produced_at: { type: string, format: date-time }
     ErasureRunRequest:
       type: object
       additionalProperties: false

@@ -42,9 +42,11 @@
       "indexes": [
         {"columns": ["iq_tenant_id", "patient_id", "period_start"], "name": "idx_care_contexts_patient_time", "note": "Discovery for ABDM (sorted), timeline queries."},
         {"columns": ["iq_tenant_id", "patient_id", "status", "abha_linkage_status"], "name": "idx_care_contexts_linkable", "note": "Find linkable contexts when patient ABHA is connected."},
-        {"columns": ["iq_tenant_id", "source_origin", "source_system_id", "source_record_id"], "name": "uq_care_contexts_source", "unique": true, "note": "Idempotency: a single source record produces at most one care context (ignoring amendments via supersedes_id)."},
+        {"columns": ["iq_tenant_id", "source_origin", "source_system_id", "source_record_id", "source_record_type"], "name": "uq_care_contexts_source", "unique": true, "note": "Idempotency: one source record can produce multiple care contexts of different types (e.g. opd_visit + prescription for same visit)."},
         {"columns": ["iq_tenant_id", "abdm_reference_number"], "name": "uq_care_contexts_abdm_ref", "unique": true, "note": "Conditional unique on abdm_reference_number IS NOT NULL."},
-        {"columns": ["data_erase_at"], "name": "idx_care_contexts_erase_due", "note": "Polled by erasure scheduler. Sparse on data_erase_at IS NOT NULL."}
+        {"columns": ["data_erase_at"], "name": "idx_care_contexts_erase_due", "note": "Polled by erasure scheduler. Sparse on data_erase_at IS NOT NULL."},
+        {"columns": ["iq_tenant_id", "encounter_id"], "name": "idx_care_contexts_encounter", "note": "Find all care contexts for an encounter (visit + prescriptions + labs)."},
+        {"columns": ["iq_tenant_id", "supersedes_id"], "name": "idx_care_contexts_supersedes", "note": "Amendment chain traversal."}
       ]
     },
     "record_bundle_manifests": {
@@ -67,7 +69,11 @@
         "signature_storage_ref": {"type": "TEXT", "nullable": true, "description": "Vault/object-storage ref for an optional digital signature over the bundle."},
         "produced_at": {"type": "TIMESTAMPTZ", "nullable": false, "description": "Authoring timestamp (Composition.date)."},
         "received_at": {"type": "TIMESTAMPTZ", "nullable": true, "description": "When the platform received this bundle (for producer_kind='external_hip')."},
-        "stored_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"}
+        "stored_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
+        "created_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
+        "updated_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
+        "created_by": {"type": "UUID", "nullable": true},
+        "updated_by": {"type": "UUID", "nullable": true}
       },
       "primary_key": ["iq_tenant_id", "id"],
       "indexes": [
@@ -86,7 +92,11 @@
         "bundle_jsonb": {"type": "JSONB", "nullable": true, "description": "When storage_kind='inline_jsonb'. The full FHIR Bundle. NULL when storage_kind='object_storage_ref'."},
         "object_storage_ref": {"type": "TEXT", "nullable": true, "description": "When storage_kind='object_storage_ref'. URL to the bundle bytes in object storage. NULL when storage_kind='inline_jsonb'."},
         "encryption_kind": {"type": "TEXT", "nullable": false, "default": "at_rest_pg", "check": "encryption_kind IN ('at_rest_pg','at_rest_object_kms','app_encrypted')"},
-        "stored_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"}
+        "stored_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
+        "created_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
+        "updated_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
+        "created_by": {"type": "UUID", "nullable": true},
+        "updated_by": {"type": "UUID", "nullable": true}
       },
       "primary_key": ["iq_tenant_id", "id"],
       "indexes": []
@@ -106,7 +116,11 @@
         "received_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
         "display_summary": {"type": "JSONB", "nullable": true, "description": "Parsed summary fields for fast timeline display: {title, sectionCount, attestor, encounterDate, primaryDiagnosis}. Derived from the bundle but stored denormalised so the timeline does not parse JSONB on every read."},
         "doctor_viewed_at": {"type": "TIMESTAMPTZ", "nullable": true, "description": "First time a doctor opened this record. Audit / 'unread badge' hint."},
-        "data_erase_at": {"type": "TIMESTAMPTZ", "nullable": false, "description": "Denormalised from the consent artifact's permissions for fast erasure scheduling."}
+        "data_erase_at": {"type": "TIMESTAMPTZ", "nullable": false, "description": "Denormalised from the consent artifact's permissions for fast erasure scheduling."},
+        "created_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
+        "updated_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
+        "created_by": {"type": "UUID", "nullable": true},
+        "updated_by": {"type": "UUID", "nullable": true}
       },
       "primary_key": ["iq_tenant_id", "id"],
       "indexes": [
@@ -130,7 +144,11 @@
         "origin_label": {"type": "TEXT", "nullable": false, "description": "'Internal' | 'Legacy: <system>' | 'External: <HIP display name>'."},
         "consent_disclosable": {"type": "BOOLEAN", "nullable": false, "default": "false", "description": "Whether ABDM consent currently allows disclosure of this care context. Maintained by the consent.granted/revoked event consumers."},
         "sensitivity_labels": {"type": "TEXT[]", "nullable": true},
-        "rebuilt_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"}
+        "rebuilt_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
+        "created_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
+        "updated_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
+        "created_by": {"type": "UUID", "nullable": true},
+        "updated_by": {"type": "UUID", "nullable": true}
       },
       "primary_key": ["iq_tenant_id", "id"],
       "indexes": [
@@ -154,7 +172,11 @@
         "data_erase_at": {"type": "TIMESTAMPTZ", "nullable": false, "description": "The deadline that triggered this erasure."},
         "erased_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
         "erasure_actor": {"type": "TEXT", "nullable": false, "default": "scheduler", "description": "'scheduler' for time-driven erasure, 'manual:<user_id>' for manual revocations."},
-        "reason": {"type": "TEXT", "nullable": false, "check": "reason IN ('consent_expired','consent_revoked','manual_purge','retention_policy')"}
+        "reason": {"type": "TEXT", "nullable": false, "check": "reason IN ('consent_expired','consent_revoked','manual_purge','retention_policy')"},
+        "created_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
+        "updated_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
+        "created_by": {"type": "UUID", "nullable": true},
+        "updated_by": {"type": "UUID", "nullable": true}
       },
       "primary_key": ["iq_tenant_id", "id"],
       "indexes": [

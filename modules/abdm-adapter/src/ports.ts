@@ -186,6 +186,16 @@ export interface RecordFoundationClient {
     consentId: string;
     dateRange?: { from: string; to: string };
   }): Promise<HealthRecordBundleEntry[]>;
+  /** Ingest decrypted HIU bundle into RF's external-record inbox (M3 HIU receive). */
+  ingestExternalRecord(input: {
+    iqTenantId: string;
+    patientId: string;
+    consentArtifactId: string;
+    bundleJson: Record<string, unknown>;
+    sourceHipId: string;
+    sourceHipDisplayName?: string;
+    dataEraseAt: string;
+  }): Promise<{ externalRecordId: string }>;
 }
 
 /** POST encrypted health data to HIU-provided dataPushUrl (not NHA gateway base). */
