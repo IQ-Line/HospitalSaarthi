@@ -1,4 +1,7 @@
-export { buildTenantCerbosScopeKey } from "@hims/ts-sdk-tenant";
+// @keep-in-sync-with modules/configurator/src/domain/tenant-cerbos-scope.ts
+export function buildTenantCerbosScopeKey(orgId: string, tenantSlug: string): string {
+  return `tenant:${orgId}:${tenantSlug.trim().toLowerCase()}`;
+}
 
 export function branchTenantSlug(orgSlug: string, branchCode: string): string {
   const normalized = branchCode
