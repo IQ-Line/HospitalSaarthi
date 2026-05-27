@@ -33,7 +33,8 @@ import {
 import type { ConfiguratorTenant, ConfiguratorTenantType } from '@/features/configurator/types';
 import { useAuthStore } from '@/stores/auth.store';
 import { useTenantStore } from '@/stores/tenant.store';
-import { resolvePlatformSuperAdmin } from '@/lib/platform-admin';
+import { resolvePlatformSuperAdmin, resolveTenantAdmin } from '@/lib/platform-admin';
+import { usePermissionsStore } from '@/stores/permissions.store';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { rowMatchesSearch } from '@/features/master-data/table-search';
@@ -84,8 +85,15 @@ function ConfiguratorTenantListPage() {
   const canCreateTenant = useCatalogModuleAction('tenants', 'create');
   const accessToken = useAuthStore((s) => s.accessToken);
   const authRoles = useAuthStore((s) => s.roles);
+  const principalRoles = usePermissionsStore((s) => s.roles);
   const activeTenantId = useTenantStore((s) => s.tenantId);
-  const isPlatformSuperAdmin = resolvePlatformSuperAdmin({ authRoles, accessToken });
+  const isPlatformSuperAdmin = resolvePlatformSuperAdmin({
+    principalRoles,
+    authRoles,
+    accessToken,
+  });
+  const isTenantAdmin = resolveTenantAdmin({ principalRoles, authRoles, accessToken });
+  const canProvisionTenants = canCreateTenant && !isTenantAdmin;
 
   const { organizationId, organizationName, isResolving } = useScopedOrganizationId();
   const { data: scopedOrg } = useOrganization(organizationId ?? '', {
@@ -253,7 +261,7 @@ function ConfiguratorTenantListPage() {
 
           return (
             <div className="flex items-center justify-end gap-1">
-              {canCreateTenant ? (
+              {canProvisionTenants ? (
                 <Button
                   type="button"
                   variant="ghost"
@@ -288,7 +296,7 @@ function ConfiguratorTenantListPage() {
         },
       },
     ],
-    [canCreateTenant, isPlatformSuperAdmin, orgNameById],
+    [canProvisionTenants, isPlatformSuperAdmin, orgNameById],
   );
 
   const onCreateWizardComplete = async (input: TenantOnboardingInput) => {
@@ -330,7 +338,9 @@ function ConfiguratorTenantListPage() {
       description={
         isPlatformSuperAdmin
           ? 'Tenants and branches for your current organisation. Indented rows are child branches; use Add branch on any row to nest further.'
-          : 'Your tenant and its child branches only. Use Add branch on a row to create nested branches under it.'
+          : isTenantAdmin
+            ? 'Your tenant and its child branches only.'
+            : 'Your tenant and its child branches only. Use Add branch on a row to create nested branches under it.'
       }
       actions={
         <div className="flex items-center gap-2">
@@ -349,7 +359,7 @@ function ConfiguratorTenantListPage() {
               <SelectItem value="decommissioned">Decommissioned</SelectItem>
             </SelectContent>
           </Select>
-          {canCreateTenant ? (
+          {canProvisionTenants ? (
             <Button onClick={() => setIsCreateOpen(true)}>+ Create Tenant</Button>
           ) : null}
         </div>
@@ -373,7 +383,9 @@ function ConfiguratorTenantListPage() {
           emptyDescription={
             isPlatformSuperAdmin
               ? 'Create a tenant to provision a new environment under this organisation.'
-              : 'Add a branch from the actions menu on your tenant row.'
+              : isTenantAdmin
+                ? 'No branches are configured under your tenant yet.'
+                : 'Add a branch from the actions menu on your tenant row.'
           }
         />
       </div>
