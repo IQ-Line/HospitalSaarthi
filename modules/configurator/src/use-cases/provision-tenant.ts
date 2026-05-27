@@ -264,6 +264,16 @@ async function createCoreEntities(
     if (!existing) {
       throw new ConfiguratorError(400, "organization not found", "VALIDATION_ERROR");
     }
+    if (existing.type === "standalone_hospital") {
+      const existingTenants = await repos.tenantRepo.findByOrgId(existingOrgId);
+      if (existingTenants.length > 0) {
+        throw new ConfiguratorError(
+          409,
+          "This standalone hospital organisation already has a tenant",
+          "STANDALONE_ORG_TENANT_EXISTS",
+        );
+      }
+    }
     organization = existing;
   } else {
     const orgContactEmail = input.organization.contact_email?.trim() || null;
