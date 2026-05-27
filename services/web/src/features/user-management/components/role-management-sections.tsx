@@ -467,6 +467,8 @@ type RoleEditorDialogProps = {
   onDelete: () => void;
   /** When true, shows catalog provenance metadata on capability rows (admin operators). */
   showCapabilityProvenance?: boolean;
+  /** When true, only product modules are shown in the permission tree (excludes platform modules). */
+  productOnly?: boolean;
 };
 
 export function RoleEditorDialog({
@@ -503,6 +505,7 @@ export function RoleEditorDialog({
   onSave,
   onDelete,
   showCapabilityProvenance = false,
+  productOnly = false,
 }: RoleEditorDialogProps) {
   const umRoleCreate = useCapability(UM_ROLE_CREATE);
   const umRoleUpdate = useCapability(UM_ROLE_UPDATE);
@@ -808,6 +811,7 @@ export function RoleEditorDialog({
                         selectedCapabilityIds={selectedCapabilityIds}
                         onSelectedCapabilityIdsChange={onSetSelectedCapabilityIds}
                         editable={roleFormEditable}
+                        productOnly={productOnly}
                       />
                     </PermissionSelectionScrollRegion>
                   )}

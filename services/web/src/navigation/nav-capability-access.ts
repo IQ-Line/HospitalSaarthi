@@ -1,15 +1,16 @@
-import { canonicalizeRuntimeCapabilityKey } from '@/lib/legacy-capability-key-remap';
 import { normalizeCapabilityKey } from '@/lib/principal-capabilities';
 import type { ModuleCatalogIndex } from '@/platform/modules/types';
 import { catalogSlugVariants } from '@/platform/modules/catalog-slug-variants';
 import type { NavigationNode } from './types';
-import { principalGrantsCatalogModuleSlugRouteAccess } from '@/lib/catalog-route-access';
+import {
+  principalGrantsCatalogModuleSlugRouteAccess,
+  principalHasCatalogModuleAction,
+} from '@/lib/catalog-route-access';
 import { capabilityKeysGrantProductAccess } from './module-product-access';
 
 /** First segment of a runtime capability key (catalog L2+ module slug). */
 export function capabilityKeyModuleSegment(key: string): string | null {
-  const canonical = canonicalizeRuntimeCapabilityKey(normalizeCapabilityKey(key));
-  const segment = canonical.split(':')[0]?.trim();
+  const segment = normalizeCapabilityKey(key).split(':')[0]?.trim();
   return segment || null;
 }
 
@@ -132,6 +133,96 @@ export function resolveCatalogModuleSlugsForNavRoute(
 /** L2 product keys whose resource segment grants shell nav (e.g. `visitpad-master:visitpad:view`). */
 const PRODUCT_WIDE_NAV_RESOURCES = new Set(['visitpad']);
 
+const VISITPAD_MASTER_SHELL_NAV_ACTIONS = ['read', 'manage', 'create', 'update', 'delete'] as const;
+
+/**
+ * L1 product shell keys (`configurator:shell:access`, `master-data:shell:access`, …)
+ * grant navigation for routes under that product without per-L2 catalog keys.
+ *
+ * `master-data:shell:access` does **not** grant Visitpad catalog routes or the
+ * `visitpad-master` nav group — those require `visitpad-master:*` shell/catalog keys or L3 keys.
+ */
+export function principalHasL1ProductShellAccess(
+  capabilityKeys: ReadonlySet<string>,
+  catalogProductSlugs: readonly string[],
+  route?: string,
+): boolean {
+  if (catalogProductSlugs.length === 0) {
+    return false;
+  }
+
+  const isVisitpadRoute =
+    route != null && (route === '/visitpad' || route.startsWith('/visitpad/'));
+  const visitpadMasterNavContext = catalogProductSlugs.some((slug) =>
+    catalogSlugMatchesRouteSegment(slug, 'visitpad-master'),
+  );
+
+  for (const rawKey of capabilityKeys) {
+    const parts = normalizeCapabilityKey(rawKey).split(':');
+    if (parts.length !== 3 || parts[1] !== 'shell' || parts[2] !== 'access') {
+      continue;
+    }
+    const l1 = parts[0];
+    if (!l1) {
+      continue;
+    }
+
+    if (
+      catalogSlugMatchesRouteSegment(l1, 'master-data') &&
+      (isVisitpadRoute || (visitpadMasterNavContext && route == null))
+    ) {
+      continue;
+    }
+
+    for (const productSlug of catalogProductSlugs) {
+      if (catalogSlugMatchesRouteSegment(productSlug, l1)) {
+        return true;
+      }
+      for (const variant of catalogSlugVariants(productSlug)) {
+        if (catalogSlugMatchesRouteSegment(variant, l1)) {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Visitpad L3 leaves when the principal holds L2 `visitpad-master` shell keys
+ * (`visitpad:view` / `visitpad:create` or `catalog:read` / `catalog:manage`, etc.)
+ * without per-section L3 keys (`units:units:read`, …).
+ */
+export function principalGrantsVisitpadMasterShellLeafNav(
+  capabilityKeys: ReadonlySet<string>,
+  route: string,
+  productSlugs: readonly string[],
+): boolean {
+  if (route !== '/visitpad' && !route.startsWith('/visitpad/')) {
+    return false;
+  }
+
+  const visitpadProducts = productSlugs.filter((slug) =>
+    catalogSlugMatchesRouteSegment(slug, 'visitpad-master'),
+  );
+  if (visitpadProducts.length === 0) {
+    return false;
+  }
+
+  if (principalHasProductWideNavCapability(capabilityKeys, visitpadProducts)) {
+    return true;
+  }
+
+  for (const action of VISITPAD_MASTER_SHELL_NAV_ACTIONS) {
+    if (principalHasCatalogModuleAction(capabilityKeys, 'visitpad-master', action)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 /**
  * True when the principal holds an L1 product shell key (`<product>:visitpad:view|create`)
  * that should authorize every child route under that product manifest.
@@ -145,7 +236,7 @@ export function principalHasProductWideNavCapability(
   }
 
   for (const rawKey of capabilityKeys) {
-    const parts = canonicalizeRuntimeCapabilityKey(normalizeCapabilityKey(rawKey)).split(':');
+    const parts = normalizeCapabilityKey(rawKey).split(':');
     if (parts.length < 3) {
       continue;
     }
@@ -248,6 +339,18 @@ export function principalGrantsNavNodeAccess(
     if (principalGrantsCatalogModuleSlugRouteAccess(input.capabilityKeys, moduleSlugs)) {
       return true;
     }
+    if (
+      principalGrantsVisitpadMasterShellLeafNav(
+        input.capabilityKeys,
+        node.route,
+        productSlugs,
+      )
+    ) {
+      return true;
+    }
+    if (principalHasL1ProductShellAccess(input.capabilityKeys, productSlugs, node.route)) {
+      return true;
+    }
     // Module index routes (no L2 path segment): any L2+ key under the L1 product, or route prefix slug.
     if (!pathSegment) {
       if (productSlugs.length && input.hasAnyCapabilityForProduct?.(productSlugs)) {
@@ -274,9 +377,24 @@ export function principalGrantsNavNodeAccess(
     return false;
   }
 
+  // Visitpad Master nav group: `master-data:shell:access` alone must not show the catalog tree.
+  if (node.id === 'visitpad-master') {
+    return (
+      principalGrantsVisitpadMasterShellLeafNav(
+        input.capabilityKeys,
+        '/visitpad',
+        ['visitpad-master'],
+      ) ||
+      input.hasAnyCapabilityForProduct?.(['visitpad-master']) === true
+    );
+  }
+
   // Nav group (no route): visible when product-level access exists; leaves are pruned separately.
   if (productSlugs.length) {
-    return input.hasAnyCapabilityForProduct?.(productSlugs) === true;
+    return (
+      input.hasAnyCapabilityForProduct?.(productSlugs) === true ||
+      principalHasL1ProductShellAccess(input.capabilityKeys, productSlugs, undefined)
+    );
   }
 
   return false;

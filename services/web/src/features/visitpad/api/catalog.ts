@@ -1,5 +1,6 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
-import { catalogIqTenantHeaderValue } from '@/lib/catalog-tenant';
+import { resolveVisitpadCatalogScopeKey } from '@/lib/catalog-tenant';
+import { useAuthStore } from '@/stores/auth.store';
 import { useTenantStore } from '@/stores/tenant.store';
 import { apiClient, apiClientGlobalCatalogRead } from '@/lib/api-client';
 import { visitpadKeys } from './query-keys';
@@ -94,7 +95,9 @@ function listUrl(
  * hydrates — avoids a transient `global` query key + fetch without `iq_tenant_id` before UUID scope.
  */
 function useVisitpadCatalogScopeKey(): string {
-  return useTenantStore((s) => catalogIqTenantHeaderValue(s.tenantId) ?? 'global');
+  const tenantId = useTenantStore((s) => s.tenantId);
+  const roles = useAuthStore((s) => s.roles);
+  return resolveVisitpadCatalogScopeKey(tenantId, roles);
 }
 
 function pageKey(p?: VisitpadCatalogPageParams): [number, number] {

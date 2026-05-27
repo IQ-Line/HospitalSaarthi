@@ -8,7 +8,7 @@ vi.mock('@/lib/auth-session', () => ({
   refreshAccessToken: () => refreshAccessTokenMock(),
 }));
 
-import { apiClient, resolveEffectiveTenantId } from './api-client';
+import { apiClient, apiClientGlobalCatalogRead, resolveEffectiveTenantId } from './api-client';
 
 const DEV_TENANT = 'f47ac10b-58cc-4372-a567-0e02b2c3d480';
 const OTHER_TENANT = 'a1b2c3d4-e5f6-4789-a012-3456789abcde';
@@ -173,6 +173,102 @@ describe('apiClient', () => {
     const headers = new Headers(init.headers);
     expect(headers.get('iq_tenant_id')).toBe(SEED_TENANT);
     expect(headers.get('x-tenant-id')).toBe(SEED_TENANT);
+  });
+
+  it('omits iq_tenant_id for visitpad catalog when principal is platform super-admin', async () => {
+    useAuthStore.setState({ roles: ['super-admin'] });
+
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ data: [], total: 0 }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    await apiClient('/api/v1/master-data/visitpad/units?limit=20&offset=0', { method: 'GET' });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = new Headers(init.headers);
+    expect(headers.has('iq_tenant_id')).toBe(false);
+    expect(headers.has('x-tenant-id')).toBe(false);
+  });
+
+  it('sends iq_tenant_id for visitpad catalog when principal is tenant-admin', async () => {
+    useAuthStore.setState({ roles: ['tenant-admin'] });
+
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ data: [], total: 0 }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    await apiClient('/api/v1/master-data/visitpad/vitals?limit=20&offset=0', { method: 'GET' });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = new Headers(init.headers);
+    expect(headers.get('iq_tenant_id')).toBe(DEV_TENANT);
+    expect(headers.get('x-tenant-id')).toBe(DEV_TENANT);
+  });
+
+  it('sends iq_tenant_id on visitpad import-from-platform POST for tenant-admin', async () => {
+    useAuthStore.setState({ roles: ['tenant-admin'] });
+
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ data: { created: [], skipped: [], errors: [] } }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    await apiClient('/api/v1/master-data/visitpad/units/import-from-platform', {
+      method: 'POST',
+      body: JSON.stringify({ platform_row_ids: ['00000000-0000-0000-0000-000000000001'] }),
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = new Headers(init.headers);
+    expect(headers.get('iq_tenant_id')).toBe(DEV_TENANT);
+    expect(headers.get('x-tenant-id')).toBe(DEV_TENANT);
+  });
+
+  it('omits iq_tenant_id on visitpad import-from-platform POST for platform super-admin', async () => {
+    useAuthStore.setState({ roles: ['super-admin'] });
+
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ data: { created: [], skipped: [], errors: [] } }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    await apiClient('/api/v1/master-data/visitpad/medicines/import-from-platform', {
+      method: 'POST',
+      body: JSON.stringify({ platform_row_ids: ['00000000-0000-0000-0000-000000000002'] }),
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = new Headers(init.headers);
+    expect(headers.has('iq_tenant_id')).toBe(false);
+    expect(headers.has('x-tenant-id')).toBe(false);
+  });
+
+  it('omits iq_tenant_id for visitpad global library GET during tenant import modal', async () => {
+    useAuthStore.setState({ roles: ['tenant-admin'] });
+
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ data: [], total: 0 }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    await apiClientGlobalCatalogRead('/api/v1/master-data/visitpad/diagnoses?limit=50&offset=0');
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = new Headers(init.headers);
+    expect(headers.has('iq_tenant_id')).toBe(false);
+    expect(headers.has('x-tenant-id')).toBe(false);
   });
 
   it('omits iq_tenant_id for global_master catalog reads while a tenant is selected', async () => {

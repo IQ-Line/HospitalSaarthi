@@ -46,6 +46,8 @@ import {
 import { ApiError } from '@/lib/api-client';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
+import { useSyncRegistrationBillingTariffs } from '@/features/frontdesk/hooks/use-sync-registration-billing-tariffs';
+import { useVisitRegistrationTariffs } from '@/features/frontdesk/hooks/use-visit-registration-tariffs';
 import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
 import { useTenantStore } from '@/stores/tenant.store';
 
@@ -136,6 +138,7 @@ function VisitRegistrationRoute() {
       vitals: {},
       appointment: {
         department_id: '',
+        department_name: '',
         room_number: '',
         provider_id: '',
         visit_type_code: '',
@@ -159,8 +162,8 @@ function VisitRegistrationRoute() {
       },
       billing: {
         add_item_search: '',
-        registration_fee: { unit_price: 100, tax_percent: 0, discount: 0 },
-        consultation_fee: { unit_price: 0, tax_percent: 0, discount: 0 },
+        registration_fee: { unit_price: 0, tax_percent: 0, discount: 0, item_code: '', service_name: '' },
+        consultation_fee: { unit_price: 0, tax_percent: 0, discount: 0, item_code: '', service_name: '' },
         invoice_discount: 0,
         payment_mode: 'cash',
         amount_paid: 0,
@@ -176,6 +179,7 @@ function VisitRegistrationRoute() {
     patientPhone,
     patientFirstName,
     appointmentProviderId,
+    appointmentDepartmentName,
     dateOfBirth,
   ] = useWatch({
     control: form.control,
@@ -187,22 +191,36 @@ function VisitRegistrationRoute() {
       'patient.phone',
       'patient.first_name',
       'appointment.provider_id',
+      'appointment.department_name',
       'patient.date_of_birth',
     ],
   });
 
   const hasProvider = Boolean(appointmentProviderId?.trim());
+  const departmentName = (appointmentDepartmentName ?? '').trim() || null;
+  const tariffs = useVisitRegistrationTariffs(departmentName, appointmentProviderId?.trim() || null);
+
+  useSyncRegistrationBillingTariffs(
+    form.watch,
+    form.setValue,
+    tariffs.registrationFeeLine,
+    tariffs.consultationFeeLine,
+    hasProvider,
+  );
+
   const formGate = {
     phone: patientPhone,
     firstName: patientFirstName,
     grandTotal: computeBillingGrandTotal(
-      billingRegistrationFee ?? { unit_price: 100, tax_percent: 0, discount: 0 },
+      billingRegistrationFee ?? { unit_price: 0, tax_percent: 0, discount: 0 },
       billingConsultationFee ?? { unit_price: 0, tax_percent: 0, discount: 0 },
       billingInvoiceDiscount ?? 0,
     ),
     paymentMode: billingPaymentMode,
     hasProvider,
     consultationUnitPrice: billingConsultationFee?.unit_price ?? 0,
+    registrationItemCode: billingRegistrationFee?.item_code,
+    consultationItemCode: billingConsultationFee?.item_code,
   };
   const canCreateVisit = isVisitRegistrationFormComplete(formGate);
   const createVisitBlockHint = visitRegistrationBlockHint(formGate);
@@ -583,6 +601,8 @@ function VisitRegistrationRoute() {
                     register={form.register}
                     watch={form.watch}
                     setValue={form.setValue}
+                    tariffsLoading={tariffs.isLoading}
+                    tariffsError={tariffs.isError}
                   />
                 ) : null}
 
@@ -592,7 +612,10 @@ function VisitRegistrationRoute() {
                     watch={form.watch}
                     setValue={form.setValue}
                     paymentModeError={form.formState.errors.billing?.payment_mode?.message}
-                    variant="compact"
+                    variant="detailed"
+                    tariffsLoading={tariffs.isLoading}
+                    tariffsError={tariffs.isError}
+                    hasProvider={hasProvider}
                   />
                 ) : null}
 

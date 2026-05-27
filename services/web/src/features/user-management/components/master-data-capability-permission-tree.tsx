@@ -24,6 +24,8 @@ export type MasterDataCapabilityPermissionTreeProps = {
   selectedCapabilityIds: string[];
   onSelectedCapabilityIdsChange: (ids: string[]) => void;
   editable?: boolean;
+  /** When true, always exclude platform modules regardless of admin status. */
+  productOnly?: boolean;
 };
 
 /**
@@ -36,6 +38,7 @@ export function MasterDataCapabilityPermissionTree({
   selectedCapabilityIds,
   onSelectedCapabilityIdsChange,
   editable = true,
+  productOnly = false,
 }: MasterDataCapabilityPermissionTreeProps) {
   const principalRoles = usePermissionsStore((s) => s.roles);
   const authRoles = useAuthStore((s) => s.roles);
@@ -50,17 +53,21 @@ export function MasterDataCapabilityPermissionTree({
   );
 
   const modules = useMemo(
-    () => isSuperAdmin ? allModules : allModules.filter((m) => m.module_kind !== 'platform'),
-    [isSuperAdmin, allModules],
+    () => productOnly
+      ? allModules.filter((m) => m.module_kind === 'product')
+      : isSuperAdmin
+        ? allModules
+        : allModules.filter((m) => m.module_kind !== 'platform'),
+    [isSuperAdmin, productOnly, allModules],
   );
 
   const visibleCapabilities = useMemo(() => {
-    if (isSuperAdmin) return capabilities;
+    if (isSuperAdmin && !productOnly) return capabilities;
     return capabilities.filter((cap) => {
       const slug = resolveCapabilityCatalogModuleSlug(cap, allModules);
       return slug === null || !PLATFORM_MODULE_SLUGS.has(slug);
     });
-  }, [isSuperAdmin, capabilities, allModules]);
+  }, [isSuperAdmin, productOnly, capabilities, allModules]);
 
   const tree = useMemo(
     () => buildMasterDataPermissionTreeContext(modules, visibleCapabilities),

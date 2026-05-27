@@ -1,60 +1,64 @@
 import { useMemo } from 'react';
 import { useDepartments, usePicklistValues } from '@/features/master-data/api';
-import { useUserList } from '@/features/user-management/api/queries';
-import {
-  picklistValueToTariffType,
-  TARIFF_TYPE_PICKLIST_SLUG,
-  type TariffFormType,
-} from '../lib/tariff-type';
+import { useProviderList } from '@/features/user-management/api/queries';
+import { TARIFF_TYPE_PICKLIST_SLUG, tariffTypeRequiresProvider } from '../lib/tariff-type';
 
 /** Same department API as visit registration (`GET /api/v1/master-data/departments`). */
 export function useTariffCreateLookups(
   enabled: boolean,
-  tariffType: TariffFormType,
+  tariffType: string,
   departmentId: string | null,
   iqTenantId?: string,
 ) {
   const picklists = usePicklistValues(TARIFF_TYPE_PICKLIST_SLUG, enabled);
+  const requiresProvider = tariffTypeRequiresProvider(tariffType);
   const departments = useDepartments(undefined, {
-    enabled: enabled && tariffType === 'opd',
+    enabled: enabled && requiresProvider,
     iqTenantId,
   });
-  /** `GET /api/user-management/users` — loaded after department is chosen. */
-  const users = useUserList(iqTenantId, {
-    enabled: enabled && tariffType === 'opd' && Boolean(departmentId),
+  const selectedDepartmentName = useMemo(
+    () =>
+      (departments.data?.data ?? []).find((d) => d.id === departmentId)?.name ?? null,
+    [departmentId, departments.data?.data],
+  );
+
+  /**
+   * `GET /api/user-management/providers` — `auth.read`, not `user.read`, so receptionist /
+   * clinical roles can populate the doctor field without User Management list access.
+   */
+  const providers = useProviderList(iqTenantId, {
+    enabled:
+      enabled && requiresProvider && Boolean(departmentId) && Boolean(selectedDepartmentName),
+    department: selectedDepartmentName ?? undefined,
   });
 
-  const tariffTypeOptions = useMemo(() => {
-    const labels: Record<TariffFormType, string> = { registration: 'Registration', opd: 'OPD' };
-    return (picklists.data ?? []).map((row) => {
-      const value = picklistValueToTariffType(row.value);
-      return { value, label: labels[value] ?? row.label };
-    });
-  }, [picklists.data]);
+  const tariffTypeOptions = useMemo(
+    () =>
+      (picklists.data ?? []).map((row) => ({
+        value: row.value,
+        label: row.label,
+      })),
+    [picklists.data],
+  );
 
   const departmentOptions = useMemo(
     () => (departments.data?.data ?? []).map((d) => ({ value: d.id, label: d.name })),
     [departments.data?.data],
   );
 
-  const selectedDepartmentName = useMemo(
-    () => departmentOptions.find((d) => d.value === departmentId)?.label ?? null,
-    [departmentId, departmentOptions],
-  );
-
   const doctorOptions = useMemo(() => {
     if (!departmentId) return [];
     const deptKey = selectedDepartmentName?.trim().toLowerCase();
-    const active = (users.data ?? []).filter((u) => u.status === 'active');
+    const active = providers.data ?? [];
     const matched =
       deptKey && deptKey.length > 0
-        ? active.filter((u) => (u.department?.trim().toLowerCase() ?? '') === deptKey)
+        ? active.filter((p) => (p.department?.trim().toLowerCase() ?? '') === deptKey)
         : active;
-    return (matched.length > 0 ? matched : active).map((u) => ({
-      value: u.id,
-      label: u.full_name,
+    return (matched.length > 0 ? matched : active).map((p) => ({
+      value: p.id,
+      label: p.full_name,
     }));
-  }, [departmentId, selectedDepartmentName, users.data]);
+  }, [departmentId, selectedDepartmentName, providers.data]);
 
   return {
     tariffTypeOptions,
@@ -62,8 +66,22 @@ export function useTariffCreateLookups(
     doctorOptions,
     isLoadingPicklists: picklists.isPending,
     isLoadingDepartments: departments.isPending,
-    isLoadingDoctors: users.isPending,
+    isLoadingDoctors: providers.isPending,
     departmentsError: departments.isError,
-    doctorsError: users.isError,
+    doctorsError: providers.isError,
   };
+}
+
+/** Tariff type filter options for list pages (picklist value + label). */
+export function useTariffTypeFilterOptions(enabled = true) {
+  const picklists = usePicklistValues(TARIFF_TYPE_PICKLIST_SLUG, enabled);
+  const options = useMemo(
+    () =>
+      (picklists.data ?? []).map((row) => ({
+        value: row.value,
+        label: row.label,
+      })),
+    [picklists.data],
+  );
+  return { options, isLoading: picklists.isPending };
 }

@@ -3,6 +3,9 @@ import { getRolesFromAccessToken } from '@/lib/access-token';
 /** Canonical role code for platform operators (matches dev seed `super-admin`). */
 export const PLATFORM_SUPER_ADMIN_ROLE = 'super-admin';
 
+/** Canonical role code for tenant administrators (matches provisioning seed `tenant-admin`). */
+export const TENANT_ADMIN_ROLE = 'tenant-admin';
+
 export function isPlatformSuperAdminRole(role: string): boolean {
   return role.trim().toLowerCase() === PLATFORM_SUPER_ADMIN_ROLE;
 }
@@ -28,5 +31,32 @@ export function resolvePlatformSuperAdmin(input: {
     isPlatformSuperAdmin(input.principalRoles) ||
     isPlatformSuperAdmin(input.authRoles) ||
     isPlatformSuperAdminFromAccessToken(input.accessToken)
+  );
+}
+
+export function isTenantAdminRole(role: string): boolean {
+  return role.trim().toLowerCase() === TENANT_ADMIN_ROLE;
+}
+
+export function isTenantAdmin(roles: readonly string[] | undefined): boolean {
+  if (roles == null || roles.length === 0) {
+    return false;
+  }
+  return roles.some(isTenantAdminRole);
+}
+
+export function isTenantAdminFromAccessToken(accessToken: string | null | undefined): boolean {
+  return isTenantAdmin(getRolesFromAccessToken(accessToken));
+}
+
+export function resolveTenantAdmin(input: {
+  principalRoles?: readonly string[];
+  authRoles?: readonly string[];
+  accessToken?: string | null;
+}): boolean {
+  return (
+    isTenantAdmin(input.principalRoles) ||
+    isTenantAdmin(input.authRoles) ||
+    isTenantAdminFromAccessToken(input.accessToken)
   );
 }

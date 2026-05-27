@@ -3,13 +3,12 @@ import { useAuthStore } from '@/stores/auth.store';
 import { usePermissionsStore } from '@/stores/permissions.store';
 
 /**
- * Platform super-admin UX: sidebar and layout route gates mirror tenant/catalog scope
- * without requiring every L2 capability on the principal. APIs and Cerbos stay authoritative.
+ * Platform super-admin only: sidebar and layout route gates show full Visitpad nav without
+ * every L2 capability on the principal. Tenant-admins remain capability-gated in the UI.
+ * APIs and Cerbos stay authoritative.
  */
 export function resolveNavigationCapabilityBypass(): boolean {
-  return resolvePlatformSuperAdmin({
-    principalRoles: usePermissionsStore.getState().roles,
-    authRoles: useAuthStore.getState().roles,
-    accessToken: useAuthStore.getState().accessToken,
-  });
+  const principalRoles = usePermissionsStore.getState().roles;
+  const authRoles = useAuthStore.getState().roles;
+  return resolvePlatformSuperAdmin({ principalRoles, authRoles });
 }

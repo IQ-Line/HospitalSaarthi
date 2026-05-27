@@ -29,6 +29,7 @@ import {
   useUpdateTariffService,
 } from '@/features/billing/api';
 import { useDepartments } from '@/features/master-data/api';
+import { useProviderList } from '@/features/user-management/api/queries';
 import { BillingPageShell } from '@/features/billing/components/billing-page-shell';
 import {
   TariffServiceCreateFormFields,
@@ -40,7 +41,6 @@ import {
   formToCreatePayload,
   formToUpdatePayload,
   serviceToEditFormValues,
-  tariffTypeLabel,
 } from '@/features/billing/lib/form-mappers';
 import type { TariffService } from '@/features/billing/types';
 import {
@@ -88,6 +88,14 @@ function BillingServicesPage() {
 
   const { data, isLoading, isFetching, error, refetch } = useTariffServices(listParams, { enabled: canRead });
   const services = data?.data ?? EMPTY_SERVICES;
+  const providersQuery = useProviderList(null, { enabled: canRead });
+  const providerNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const provider of providersQuery.data ?? []) {
+      map.set(provider.id, provider.full_name);
+    }
+    return map;
+  }, [providersQuery.data]);
 
   const createMutation = useCreateTariffService();
   const updateMutation = useUpdateTariffService();
@@ -147,11 +155,25 @@ function BillingServicesPage() {
       },
       { accessorKey: 'service_name', header: 'Name' },
       {
+        accessorKey: 'department',
+        header: 'Department',
+        cell: ({ getValue }) => getValue<string | null>() ?? '—',
+      },
+      {
         accessorKey: 'category',
         header: 'Category',
         cell: ({ getValue }) => {
           const v = getValue<string | null>();
           return v ? <Badge variant="secondary">{v}</Badge> : '—';
+        },
+      },
+      {
+        id: 'doctor',
+        header: 'Doctor',
+        cell: ({ row }) => {
+          const providerId = row.original.provider_id;
+          if (!providerId) return '—';
+          return providerNameById.get(providerId) ?? '—';
         },
       },
       {
@@ -197,7 +219,7 @@ function BillingServicesPage() {
         ),
       },
     ],
-    [canDelete, canUpdate, editForm, handleActiveChange, updateMutation.isPending],
+    [canDelete, canUpdate, editForm, handleActiveChange, providerNameById, updateMutation.isPending],
   );
 
   return (
@@ -362,7 +384,7 @@ function BillingServicesPage() {
                 {formatMoneyDisplay(viewing.tax_percentage)}% · {viewing.tax_type ?? '—'}
               </dd>
               <dt className="text-muted-foreground">Tariff type</dt>
-              <dd>{tariffTypeLabel(viewing.category)}</dd>
+              <dd>{viewing.category ?? '—'}</dd>
               <dt className="text-muted-foreground">Department</dt>
               <dd>{viewing.department ?? '—'}</dd>
               <dt className="text-muted-foreground">Effective</dt>
