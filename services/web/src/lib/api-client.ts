@@ -211,8 +211,8 @@ async function fetchWithAuthRetry(
     ) {
       headers.set('x-tenant-id', serviceIqTenantHeaderValue(tenantId));
     }
-    /** Billing tariffs are tenant-scoped — JWT/home tenant; never stale EMPI placeholder. */
-    if (path.startsWith(BILLING_API_PREFIX) && !headers.has('iq_tenant_id')) {
+    /** Billing tariffs are tenant-scoped — always normalize (caller may pass stale EMPI placeholder). */
+    if (path.startsWith(BILLING_API_PREFIX)) {
       const billingTenant = billingIqTenantHeaderValue(tenantId, accessToken);
       headers.set('iq_tenant_id', billingTenant);
       headers.set('x-tenant-id', billingTenant);
