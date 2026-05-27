@@ -1,4 +1,4 @@
-import type { WizardStep } from './types';
+import type { AbhaWizardFlow, WizardStep } from './types';
 
 export const CONSENT_ITEMS = [
   'I am voluntarily sharing my Aadhaar / identity information with the National Health Authority (NHA) for the sole purpose of creation of ABHA number.',
@@ -10,18 +10,57 @@ export const CONSENT_ITEMS = [
   'I consent to anonymization and subsequent use of my health records for public health purposes.',
 ] as const;
 
+export const LOGIN_METHODS = [
+  { id: 'abha-number', label: 'ABHA Number' },
+  { id: 'abha-address', label: 'ABHA Address' },
+  { id: 'mobile', label: 'Mobile Number' },
+  { id: 'aadhaar', label: 'Aadhaar Number' },
+] as const;
+
 export const MAX_OTP_SENDS = 3;
 export const RESEND_COOLDOWN_SEC = 60;
 export const ABHA_ADDRESS_SUFFIX = '@sbx';
 
+export const DIALOG_SHELL =
+  'flex min-h-[min(560px,85dvh)] max-h-[min(92dvh,780px)] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl';
+
+export const CONTENT_MIN_H = 'min-h-[360px]';
+
+const LOGIN_BACK_STEPS: WizardStep[] = [
+  'login-abha-number',
+  'login-abha-channel',
+  'login-abha-address',
+  'login-abha-address-channel',
+  'login-mobile',
+  'login-otp',
+  'login-account-select',
+];
+
 export const WIZARD_STEP_CONFIG: Record<
   WizardStep,
-  { wide: boolean; showFooter: boolean; showBack: boolean }
+  { showFooter: boolean; showBack: boolean }
 > = {
-  method: { wide: false, showFooter: false, showBack: false },
-  'login-soon': { wide: false, showFooter: true, showBack: true },
-  consent: { wide: true, showFooter: true, showBack: true },
-  otp: { wide: true, showFooter: true, showBack: true },
-  profile: { wide: true, showFooter: true, showBack: false },
-  'address-edit': { wide: true, showFooter: true, showBack: true },
+  method: { showFooter: false, showBack: false },
+  'login-method': { showFooter: false, showBack: false },
+  'login-abha-number': { showFooter: true, showBack: true },
+  'login-abha-channel': { showFooter: true, showBack: true },
+  'login-abha-address': { showFooter: true, showBack: true },
+  'login-abha-address-channel': { showFooter: true, showBack: true },
+  'login-mobile': { showFooter: true, showBack: true },
+  'login-otp': { showFooter: true, showBack: true },
+  'login-account-select': { showFooter: true, showBack: true },
+  consent: { showFooter: true, showBack: true },
+  otp: { showFooter: true, showBack: true },
+  profile: { showFooter: true, showBack: false },
+  'address-edit': { showFooter: true, showBack: true },
 };
+
+export function stepShowsBack(step: WizardStep, flow: AbhaWizardFlow): boolean {
+  const cfg = WIZARD_STEP_CONFIG[step];
+  if (step === 'login-method') return flow === 'create';
+  return cfg.showBack;
+}
+
+export function isLoginBackStep(step: WizardStep): boolean {
+  return LOGIN_BACK_STEPS.includes(step);
+}

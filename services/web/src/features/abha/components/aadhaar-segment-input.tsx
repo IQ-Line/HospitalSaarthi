@@ -14,11 +14,13 @@ export interface AadhaarSegmentInputProps {
   seg3: string;
   maskSeg1: boolean;
   maskSeg2: boolean;
+  maskSeg3: boolean;
   onSeg1Change: (value: string) => void;
   onSeg2Change: (value: string) => void;
   onSeg3Change: (value: string) => void;
   onMaskSeg1: (masked: boolean) => void;
   onMaskSeg2: (masked: boolean) => void;
+  onMaskSeg3: (masked: boolean) => void;
   className?: string;
 }
 
@@ -28,11 +30,13 @@ export function AadhaarSegmentInput({
   seg3,
   maskSeg1,
   maskSeg2,
+  maskSeg3,
   onSeg1Change,
   onSeg2Change,
   onSeg3Change,
   onMaskSeg1,
   onMaskSeg2,
+  onMaskSeg3,
   className,
 }: AadhaarSegmentInputProps) {
   const ref1 = useRef<HTMLInputElement>(null);
@@ -83,6 +87,7 @@ export function AadhaarSegmentInput({
     if (!pasted) return;
     onMaskSeg1(false);
     onMaskSeg2(false);
+    onMaskSeg3(false);
     onSeg1Change(pasted.slice(0, 4));
     onSeg2Change(pasted.slice(4, 8));
     onSeg3Change(pasted.slice(8, 12));
@@ -136,11 +141,13 @@ export function AadhaarSegmentInput({
         inputMode="numeric"
         autoComplete="off"
         maxLength={4}
-        value={seg3}
+        value={maskSeg3 ? maskSegment(seg3) : seg3}
         onChange={(e: ChangeEvent<HTMLInputElement>) =>
-          handleSegChange(3, e.target.value, onSeg3Change)
+          handleSegChange(3, e.target.value, onSeg3Change, () => onMaskSeg3(false))
         }
-        onKeyDown={(e) => handleKeyDown(3, seg3, e)}
+        onKeyDown={(e) => handleKeyDown(3, seg3, e, () => onMaskSeg3(false))}
+        onBlur={() => onMaskSeg3(seg3.length > 0)}
+        onFocus={() => onMaskSeg3(false)}
         onPaste={handlePaste}
         className={segmentClass}
         placeholder="----"

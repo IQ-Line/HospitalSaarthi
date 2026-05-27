@@ -186,7 +186,7 @@ export function VisitRegistrationAppointmentSection({
 
   return (
     <RegistrationSection title="Visit Details">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 lg:items-end">
         <SelectField
           label="Department"
           required
@@ -214,7 +214,7 @@ export function VisitRegistrationAppointmentSection({
           <Input
             id="visit-reg-room"
             placeholder=""
-            className="h-10"
+            className="h-10 w-full"
             {...register('appointment.room_number')}
           />
         </Field>
@@ -235,7 +235,7 @@ export function VisitRegistrationAppointmentSection({
             id="visit-reg-consultation-charge"
             readOnly
             value={consultationChargeDisplay}
-            className="h-10 bg-muted/50"
+            className="h-10 w-full bg-muted/50"
             tabIndex={-1}
           />
         </Field>
@@ -275,7 +275,7 @@ export function VisitRegistrationBillingSection({
   if (variant === 'compact') {
     return (
       <RegistrationSection title="Billing">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:items-end">
           <Field>
             <RegistrationFieldLabel htmlFor="visit-reg-discount-pct">
               Discount (%)
@@ -716,7 +716,7 @@ function RisPanel({ register, watch, setValue }: FormProps) {
 }
 
 function Field({ className, children }: { className?: string; children?: ReactNode }) {
-  return <div className={className ? `space-y-2 ${className}` : 'space-y-2'}>{children}</div>;
+  return <div className={className ? `space-y-1.5 ${className}` : 'space-y-1.5'}>{children}</div>;
 }
 
 function SelectField({
@@ -743,7 +743,7 @@ function SelectField({
         {required ? <span className="text-destructive"> *</span> : null}
       </Label>
       <Select value={value} onValueChange={onValueChange} disabled={disabled}>
-        <SelectTrigger className="h-10">
+        <SelectTrigger className="h-10 w-full">
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
         <SelectContent>

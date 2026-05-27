@@ -17,3 +17,28 @@ export function listDistrictsForStateCode(stateCode: string | number): StateDist
   if (!Number.isFinite(code) || code <= 0) return [];
   return STATE_DISTRICT_CODES.find((entry) => entry.state_code === code)?.districts ?? [];
 }
+
+function normalizePlaceName(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+/** Resolve catalog state code from NHA `stateName` (case-insensitive). */
+export function findStateCodeByName(stateName: string): string | undefined {
+  const target = normalizePlaceName(stateName);
+  if (!target) return undefined;
+  const entry = STATE_DISTRICT_CODES.find((row) => normalizePlaceName(row.state) === target);
+  return entry ? String(entry.state_code) : undefined;
+}
+
+/** Resolve catalog district code from NHA `districtName` within a state code. */
+export function findDistrictCodeByName(
+  stateCode: string,
+  districtName: string,
+): string | undefined {
+  const target = normalizePlaceName(districtName);
+  if (!target) return undefined;
+  const district = listDistrictsForStateCode(stateCode).find(
+    (row) => normalizePlaceName(row.name) === target,
+  );
+  return district ? String(district.code) : undefined;
+}

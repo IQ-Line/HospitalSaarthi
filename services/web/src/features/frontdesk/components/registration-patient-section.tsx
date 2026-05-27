@@ -1,7 +1,13 @@
-import { Calendar } from 'lucide-react';
+import { Calendar, MoreVertical } from 'lucide-react';
 import { useMemo, type ChangeEvent, type Ref } from 'react';
 import type { ChangeHandler, UseFormReturn } from 'react-hook-form';
 import { Button } from '@pulse/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@pulse/ui/dropdown-menu';
 import { Input } from '@pulse/ui/input';
 import {
   Select,
@@ -23,9 +29,20 @@ import {
   listStateDistrictCatalog,
 } from '@/features/frontdesk/utils/state-district-catalog';
 
+export type RegistrationAbhaContext = {
+  sessionId: string;
+  abhaNumber: string;
+  abhaAddress: string;
+};
+
 type PatientSectionProps = {
   form: UseFormReturn<CreateVisitRequestBody>;
   onCreateAbha: () => void;
+  onVerifyAbha: () => void;
+  abhaContext: RegistrationAbhaContext | null;
+  onClearAbhaRegistration: () => void;
+  onDownloadAbhaCard: () => void;
+  abhaCardDownloading?: boolean;
   patientPhoneRef: Ref<HTMLInputElement>;
   patientPhoneName: string;
   patientPhoneOnBlur: ChangeHandler;
@@ -41,6 +58,11 @@ const GENDER_OPTIONS = [
 export function RegistrationPatientSection({
   form,
   onCreateAbha,
+  onVerifyAbha,
+  abhaContext,
+  onClearAbhaRegistration,
+  onDownloadAbhaCard,
+  abhaCardDownloading = false,
   patientPhoneRef,
   patientPhoneName,
   patientPhoneOnBlur,
@@ -49,6 +71,10 @@ export function RegistrationPatientSection({
   const gender = form.watch('patient.gender') ?? 'male';
   const stateCode = form.watch('permanent_address.state') ?? '';
   const districtCode = form.watch('permanent_address.district') ?? '';
+  const formAbhaNumber = form.watch('patient.abha_number') ?? '';
+  const formAbhaAddress = form.watch('patient.abha_address') ?? '';
+  const displayAbhaNumber = abhaContext?.abhaNumber?.trim() || formAbhaNumber.trim();
+  const displayAbhaAddress = abhaContext?.abhaAddress?.trim() || formAbhaAddress.trim();
   const register = form.register;
 
   const stateOptions = useMemo(() => listStateDistrictCatalog(), []);
@@ -61,37 +87,95 @@ export function RegistrationPatientSection({
   return (
     <RegistrationSection title="Patient Details">
       <RegistrationField>
-        <RegistrationFieldLabel htmlFor="visit-reg-phone" required>
-          Phone Number
-        </RegistrationFieldLabel>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
-          <Input
-            id="visit-reg-phone"
-            name={patientPhoneName}
-            ref={patientPhoneRef}
-            onBlur={patientPhoneOnBlur}
-            onChange={(e: ChangeEvent<HTMLInputElement>) => {
-              const el = e.target;
-              el.value = el.value.replace(/\D/g, '').slice(0, 10);
-              void patientPhoneRhfOnChange(e);
-            }}
-            className="h-10 min-w-0 sm:max-w-[14rem] sm:shrink-0"
-            inputMode="numeric"
-            autoComplete="tel-national"
-            maxLength={10}
-            placeholder="Enter 10-digit number"
-          />
-          <Button
-            type="button"
-            variant="outline"
-            className="h-10 flex-1 px-4"
-            onClick={onCreateAbha}
-          >
-            Create ABHA
-          </Button>
-          <Button type="button" variant="outline" className="h-10 flex-1 px-4" disabled>
-            Verify ABHA
-          </Button>
+        <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-nowrap sm:items-end sm:gap-3">
+          <div className="w-full min-w-0 shrink-0 sm:max-w-[25rem]">
+            <RegistrationFieldLabel htmlFor="visit-reg-phone" required>
+              Phone Number
+            </RegistrationFieldLabel>
+            <Input
+              id="visit-reg-phone"
+              name={patientPhoneName}
+              ref={patientPhoneRef}
+              onBlur={patientPhoneOnBlur}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                const el = e.target;
+                el.value = el.value.replace(/\D/g, '').slice(0, 10);
+                void patientPhoneRhfOnChange(e);
+              }}
+              className="mt-1.5 h-9 w-full"
+              inputMode="numeric"
+              autoComplete="tel-national"
+              maxLength={10}
+              placeholder="Enter 10-digit number"
+            />
+          </div>
+          {abhaContext ? (
+            <>
+              <div className="min-w-0 flex-1 basis-0">
+                <RegistrationFieldLabel>ABHA Number</RegistrationFieldLabel>
+                <Input
+                  readOnly
+                  value={displayAbhaNumber}
+                  placeholder="—"
+                  className="mt-1.5 h-9 w-full bg-muted/60 font-medium tabular-nums text-foreground"
+                  aria-label="ABHA Number"
+                />
+              </div>
+              <div className="min-w-0 flex-[1.6] basis-0">
+                <RegistrationFieldLabel>ABHA Address</RegistrationFieldLabel>
+                <Input
+                  readOnly
+                  value={displayAbhaAddress}
+                  placeholder="—"
+                  className="mt-1.5 h-9 w-full bg-muted/60 text-foreground"
+                  aria-label="ABHA Address"
+                />
+              </div>
+              <div className="shrink-0 self-end">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-9 w-9"
+                      aria-label="ABHA actions"
+                    >
+                    <MoreVertical className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={onClearAbhaRegistration}>Clear</DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={abhaCardDownloading}
+                    onSelect={onDownloadAbhaCard}
+                  >
+                    {abhaCardDownloading ? 'Downloading…' : 'Download ABHA card'}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </>
+          ) : (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-9 min-w-0 flex-1 px-4"
+                onClick={onCreateAbha}
+              >
+                Create ABHA
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-9 min-w-0 flex-1 px-4"
+                onClick={onVerifyAbha}
+              >
+                Verify ABHA
+              </Button>
+            </>
+          )}
         </div>
         {form.formState.errors.patient?.phone ? (
           <p className="text-sm text-destructive" role="alert">
@@ -101,7 +185,7 @@ export function RegistrationPatientSection({
       </RegistrationField>
 
       <RegistrationSubsectionLabel>Patient Details</RegistrationSubsectionLabel>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3 md:items-end">
         <RegistrationField>
           <RegistrationFieldLabel required>First Name</RegistrationFieldLabel>
           <Input
@@ -128,7 +212,7 @@ export function RegistrationPatientSection({
         </RegistrationField>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-end">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:items-end">
         <RegistrationField className="lg:col-span-4">
           <RegistrationFieldLabel required>Gender</RegistrationFieldLabel>
           <ToggleGroup
@@ -214,7 +298,7 @@ export function RegistrationPatientSection({
         <RegistrationFieldLabel htmlFor="visit-reg-addr-line1">Address Line 1</RegistrationFieldLabel>
         <Input id="visit-reg-addr-line1" className="h-10" {...register('permanent_address.line1')} />
       </RegistrationField>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3 md:items-end">
         <RegistrationField>
           <RegistrationFieldLabel required>State</RegistrationFieldLabel>
           <Select
@@ -225,7 +309,7 @@ export function RegistrationPatientSection({
               form.setValue('permanent_address.district', '');
             }}
           >
-            <SelectTrigger className="h-10">
+            <SelectTrigger className="h-10 w-full">
               <SelectValue placeholder="Select State" />
             </SelectTrigger>
             <SelectContent>
@@ -247,7 +331,7 @@ export function RegistrationPatientSection({
               form.setValue('permanent_address.district', v === '__none__' ? '' : v)
             }
           >
-            <SelectTrigger className="h-10">
+            <SelectTrigger className="h-10 w-full">
               <SelectValue placeholder="Select District" />
             </SelectTrigger>
             <SelectContent>
@@ -264,7 +348,7 @@ export function RegistrationPatientSection({
           <RegistrationFieldLabel htmlFor="visit-reg-pin">PIN Code</RegistrationFieldLabel>
           <Input
             id="visit-reg-pin"
-            className="h-10"
+            className="h-10 w-full"
             placeholder="Enter 6-digit PIN code"
             maxLength={6}
             inputMode="numeric"

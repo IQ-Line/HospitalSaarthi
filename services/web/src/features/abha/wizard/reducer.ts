@@ -1,5 +1,5 @@
 import { CONSENT_ITEMS, RESEND_COOLDOWN_SEC } from './constants';
-import type { AbhaWizardAction, AbhaWizardState } from './types';
+import type { AbhaWizardAction, AbhaWizardFlow, AbhaWizardState } from './types';
 
 function initialConsentChecked(): Record<number, boolean> {
   return Object.fromEntries(CONSENT_ITEMS.map((_, i) => [i, false]));
@@ -14,19 +14,40 @@ function freshOtpSession(sessionId: string, aadhaarNumber: string): AbhaWizardSt
     otpMobileLast4: '',
     sendCount: 0,
     resendCooldown: 0,
+    aadhaarLinkedMobile: true,
   };
 }
 
-export function createInitialAbhaWizardState(): AbhaWizardState {
+function emptyLoginState(): AbhaWizardState['login'] {
   return {
-    step: 'method',
-    aadhaar: { seg1: '', seg2: '', seg3: '', maskSeg1: false, maskSeg2: false },
+    abhaSegments: ['', '', '', ''],
+    channel: null,
+    otp: '',
+    otpMobileLast4: '',
+    sendCount: 0,
+    resendCooldown: 0,
+    mode: null,
+    mobile: '',
+    accounts: [],
+    profileFetched: false,
+    abhaAddress: '',
+    abhaAddressError: null,
+    abhaAddressChannel: null,
+  };
+}
+
+export function createInitialAbhaWizardState(flow: AbhaWizardFlow = 'create'): AbhaWizardState {
+  return {
+    flow,
+    step: flow === 'verify' ? 'login-method' : 'method',
+    aadhaar: { seg1: '', seg2: '', seg3: '', maskSeg1: false, maskSeg2: false, maskSeg3: false },
     consent: {
       checked: initialConsentChecked(),
       hwAcknowledged: false,
       beneficiaryAcknowledged: false,
       healthcareWorkerName: '',
       beneficiaryName: '',
+      isLoginAadhaarConsent: false,
     },
     otpSession: {
       sessionId: '',
@@ -36,7 +57,9 @@ export function createInitialAbhaWizardState(): AbhaWizardState {
       otpMobileLast4: '',
       sendCount: 0,
       resendCooldown: 0,
+      aadhaarLinkedMobile: true,
     },
+    login: emptyLoginState(),
     address: {
       suggestions: [],
       addressLocal: '',
@@ -56,16 +79,24 @@ export function abhaWizardReducer(
   action: AbhaWizardAction,
 ): AbhaWizardState {
   switch (action.type) {
+    case 'OPEN': {
+      const initial = createInitialAbhaWizardState(action.flow);
+      return {
+        ...initial,
+        consent: { ...initial.consent, healthcareWorkerName: action.healthcareWorkerName },
+      };
+    }
+    case 'RESET':
+      return createInitialAbhaWizardState(state.flow);
     case 'SET_STEP':
       return { ...state, step: action.step };
-    case 'RESET':
-      return createInitialAbhaWizardState();
     case 'SET_AADHAAR_SEG': {
       const key = action.index === 1 ? 'seg1' : action.index === 2 ? 'seg2' : 'seg3';
       return { ...state, aadhaar: { ...state.aadhaar, [key]: action.value } };
     }
     case 'SET_MASK_SEG': {
-      const key = action.index === 1 ? 'maskSeg1' : 'maskSeg2';
+      const key =
+        action.index === 1 ? 'maskSeg1' : action.index === 2 ? 'maskSeg2' : 'maskSeg3';
       return { ...state, aadhaar: { ...state.aadhaar, [key]: action.masked } };
     }
     case 'SET_CONSENT_ITEM':
@@ -102,15 +133,36 @@ export function abhaWizardReducer(
       };
     case 'SET_BENEFICIARY_NAME':
       return { ...state, consent: { ...state.consent, beneficiaryName: action.name } };
+    case 'SET_LOGIN_AADHAAR_CONSENT':
+      return {
+        ...state,
+        consent: { ...state.consent, isLoginAadhaarConsent: action.value },
+      };
     case 'INIT_OTP_SESSION':
       return {
         ...state,
-        otpSession: freshOtpSession(action.sessionId, action.aadhaarNumber),
+        otpSession: freshOtpSession(
+          action.sessionId,
+          action.aadhaarNumber ?? state.otpSession.aadhaarNumber,
+        ),
+      };
+    case 'SET_OTP_SESSION_ID':
+      return {
+        ...state,
+        otpSession: { ...state.otpSession, sessionId: action.sessionId },
       };
     case 'SET_OTP':
       return { ...state, otpSession: { ...state.otpSession, otp: action.otp } };
     case 'SET_MOBILE':
-      return { ...state, otpSession: { ...state.otpSession, mobile: action.mobile } };
+      return {
+        ...state,
+        otpSession: { ...state.otpSession, mobile: action.mobile },
+      };
+    case 'SET_AADHAAR_LINKED_MOBILE':
+      return {
+        ...state,
+        otpSession: { ...state.otpSession, aadhaarLinkedMobile: action.value },
+      };
     case 'SET_OTP_MOBILE_LAST4':
       return { ...state, otpSession: { ...state.otpSession, otpMobileLast4: action.last4 } };
     case 'OTP_SENT':
@@ -127,6 +179,71 @@ export function abhaWizardReducer(
       const next = state.otpSession.resendCooldown <= 1 ? 0 : state.otpSession.resendCooldown - 1;
       return { ...state, otpSession: { ...state.otpSession, resendCooldown: next } };
     }
+    case 'SET_LOGIN_ABHA_SEGMENTS':
+      return { ...state, login: { ...state.login, abhaSegments: action.segments } };
+    case 'SET_LOGIN_CHANNEL':
+      return { ...state, login: { ...state.login, channel: action.channel } };
+    case 'SET_LOGIN_OTP':
+      return { ...state, login: { ...state.login, otp: action.otp } };
+    case 'SET_LOGIN_OTP_MOBILE_LAST4':
+      return { ...state, login: { ...state.login, otpMobileLast4: action.last4 } };
+    case 'LOGIN_OTP_SENT':
+      return {
+        ...state,
+        login: { ...state.login, sendCount: state.login.sendCount + 1 },
+      };
+    case 'BEGIN_LOGIN_OTP':
+      return {
+        ...state,
+        login: {
+          ...state.login,
+          otp: '',
+          sendCount: 1,
+          resendCooldown: RESEND_COOLDOWN_SEC,
+          otpMobileLast4: action.last4,
+        },
+      };
+    case 'START_LOGIN_RESEND_COOLDOWN':
+      return {
+        ...state,
+        login: { ...state.login, resendCooldown: RESEND_COOLDOWN_SEC },
+      };
+    case 'TICK_LOGIN_RESEND_COOLDOWN': {
+      const next = state.login.resendCooldown <= 1 ? 0 : state.login.resendCooldown - 1;
+      return { ...state, login: { ...state.login, resendCooldown: next } };
+    }
+    case 'SET_LOGIN_MODE':
+      return { ...state, login: { ...state.login, mode: action.mode } };
+    case 'SET_LOGIN_MOBILE':
+      return { ...state, login: { ...state.login, mobile: action.mobile } };
+    case 'SET_LOGIN_ACCOUNTS':
+      return { ...state, login: { ...state.login, accounts: action.accounts } };
+    case 'SET_LOGIN_PROFILE_FETCHED':
+      return { ...state, login: { ...state.login, profileFetched: action.value } };
+    case 'SET_LOGIN_ABHA_ADDRESS':
+      return {
+        ...state,
+        login: {
+          ...state.login,
+          abhaAddress: action.value,
+          abhaAddressError: null,
+        },
+      };
+    case 'SET_LOGIN_ABHA_ADDRESS_ERROR':
+      return {
+        ...state,
+        login: { ...state.login, abhaAddressError: action.error },
+      };
+    case 'SET_LOGIN_ABHA_ADDRESS_CHANNEL':
+      return {
+        ...state,
+        login: { ...state.login, abhaAddressChannel: action.channel },
+      };
+    case 'CLEAR_LOGIN_ABHA_ADDRESS':
+      return {
+        ...state,
+        login: { ...state.login, abhaAddress: '', abhaAddressError: null },
+      };
     case 'SET_SUBMITTING':
       return { ...state, isSubmitting: action.isSubmitting };
     case 'SET_PROFILE_DISPLAY':
