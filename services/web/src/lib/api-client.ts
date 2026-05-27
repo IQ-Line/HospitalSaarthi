@@ -4,14 +4,15 @@ import { refreshAccessToken } from '@/lib/auth-session';
 import {
   billingIqTenantHeaderValue,
   catalogIqTenantHeaderValue,
+  isVisitpadCatalogApiPath,
   serviceIqTenantHeaderValue,
+  visitpadCatalogOmitsIqTenantHeader,
 } from '@/lib/catalog-tenant';
 import { useAuthStore } from '@/stores/auth.store';
+import { usePermissionsStore } from '@/stores/permissions.store';
 import { useTenantStore } from '@/stores/tenant.store';
 
 const BASE_URL = resolveBrowserApiBaseUrl();
-
-const VISITPAD_CATALOG_API_PREFIX = '/api/v1/master-data/visitpad/';
 const EMPI_API_PREFIX = '/api/empi/v1/';
 const REGISTRATION_API_PREFIX = '/api/registration/v1/';
 const USER_MANAGEMENT_API_PREFIX = '/api/user-management';
@@ -83,6 +84,19 @@ function shouldOmitTenantHeaders(context?: ApiClientContext): boolean {
   return context?.tenantIdOverride === null;
 }
 
+function visitpadOmitsTenantHeaderForPath(path: string): boolean {
+  const { roles } = useAuthStore.getState();
+  const { roles: principalRoles } = usePermissionsStore.getState();
+  return visitpadCatalogOmitsIqTenantHeader({ path, authRoles: roles, principalRoles });
+}
+
+function shouldOmitTenantHeadersForPath(path: string, context?: ApiClientContext): boolean {
+  if (shouldOmitTenantHeaders(context)) {
+    return true;
+  }
+  return visitpadOmitsTenantHeaderForPath(path);
+}
+
 function buildRequestHeaders(
   path: string,
   options: RequestInit,
@@ -97,13 +111,16 @@ function buildRequestHeaders(
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  if (!shouldOmitTenantHeaders(context) && !path.startsWith(BILLING_API_PREFIX)) {
+  const skipTenantHeaders = shouldOmitTenantHeadersForPath(path, context);
+
+  if (!skipTenantHeaders && !path.startsWith(BILLING_API_PREFIX)) {
     applyTenantHeaders(headers, path, tenantId);
   }
 
   if (
     isWriteHttpMethod(options.method) &&
-    path.startsWith(VISITPAD_CATALOG_API_PREFIX) &&
+    isVisitpadCatalogApiPath(path) &&
+    !skipTenantHeaders &&
     tenantId != null &&
     tenantId.trim() !== '' &&
     catalogIqTenantHeaderValue(tenantId) == null
@@ -171,7 +188,7 @@ async function fetchWithAuthRetry(
   const tenantId = resolveEffectiveTenantId(context);
   const accessToken = useAuthStore.getState().accessToken;
   const catalogTenant = catalogIqTenantHeaderValue(tenantId);
-  const omitTenantHeaders = shouldOmitTenantHeaders(context);
+  const omitTenantHeaders = shouldOmitTenantHeadersForPath(path, context);
 
   if (!omitTenantHeaders) {
     if (
@@ -198,8 +215,8 @@ async function fetchWithAuthRetry(
     ) {
       headers.set('x-tenant-id', serviceIqTenantHeaderValue(tenantId));
     }
-    /** Billing tariffs are tenant-scoped — JWT/home tenant; never stale EMPI placeholder. */
-    if (path.startsWith(BILLING_API_PREFIX) && !headers.has('iq_tenant_id')) {
+    /** Billing tariffs are tenant-scoped — always normalize (caller may pass stale EMPI placeholder). */
+    if (path.startsWith(BILLING_API_PREFIX)) {
       const billingTenant = billingIqTenantHeaderValue(tenantId, accessToken);
       headers.set('iq_tenant_id', billingTenant);
       headers.set('x-tenant-id', billingTenant);

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 
 import { useTenantModules } from '@/features/configurator/api/tenants';
+import { capabilityKeysGrantProductAccess } from '@/navigation/module-product-access';
 import { resolvePlatformSuperAdmin, resolveTenantAdmin } from '@/lib/platform-admin';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePermissionsStore } from '@/stores/permissions.store';
@@ -122,6 +123,7 @@ export function buildEnabledModuleSlugsFromCatalog(
  */
 export function useEnabledTenantModuleSlugs(): ReadonlySet<string> | null {
   const tenantId = useTenantStore((s) => s.tenantId);
+  const capabilityKeys = usePermissionsStore((s) => s.capabilityKeys);
   const principalRoles = usePermissionsStore((s) => s.roles);
   const authRoles = useAuthStore((s) => s.roles);
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -179,12 +181,20 @@ export function useEnabledTenantModuleSlugs(): ReadonlySet<string> | null {
     if (isTenantAdminRole) {
       const enriched = new Set(tenantCatalogSlugs);
       addCatalogSlugToSet(enriched, 'configurator');
+      if (capabilityKeysGrantProductAccess(capabilityKeys, ['master-data'], index)) {
+        addCatalogSlugToSet(enriched, 'master-data');
+      }
+      if (capabilityKeysGrantProductAccess(capabilityKeys, ['visitpad-master'], index)) {
+        addCatalogSlugToSet(enriched, 'visitpad-master');
+        addCatalogSlugToSet(enriched, 'master-data');
+      }
       return buildEnabledModuleSlugsFromCatalog(enriched);
     }
 
     return buildEnabledModuleSlugsFromCatalog(tenantCatalogSlugs);
   }, [
     tenantId,
+    capabilityKeys,
     isSuperAdmin,
     isTenantAdminRole,
     tenantModulesQuery.data,

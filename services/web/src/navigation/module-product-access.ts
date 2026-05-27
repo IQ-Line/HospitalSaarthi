@@ -3,7 +3,6 @@ import type { Module } from '@/features/master-data/types';
 import { catalogSlugMatchesRouteSegment } from '@/navigation/nav-capability-access';
 import { capabilityKeysGrantProductAccessFromManifest } from '@/navigation/manifest-product-access';
 import { catalogSlugVariants } from '@/platform/modules/catalog-slug-variants';
-import { canonicalizeRuntimeCapabilityKey } from '@/lib/legacy-capability-key-remap';
 import { normalizeCapabilityKey } from '@/lib/principal-capabilities';
 import type { ModuleCatalogIndex } from '@/platform/modules/types';
 
@@ -53,7 +52,7 @@ export function capabilityKeysGrantProductAccess(
   }
 
   for (const rawKey of capabilityKeys) {
-    const segment = canonicalizeRuntimeCapabilityKey(normalizeCapabilityKey(rawKey)).split(':')[0];
+    const segment = normalizeCapabilityKey(rawKey).split(':')[0];
     if (!segment) {
       continue;
     }
@@ -74,7 +73,7 @@ export function capabilityKeysGrantProductAccess(
     const expandedSlugs = expandModuleSlugsWithDescendants(catalogProductSlugs, modules);
 
     for (const rawKey of capabilityKeys) {
-      const segment = canonicalizeRuntimeCapabilityKey(normalizeCapabilityKey(rawKey)).split(':')[0];
+      const segment = normalizeCapabilityKey(rawKey).split(':')[0];
       if (segment && expandedSlugs.has(segment)) {
         return true;
       }
