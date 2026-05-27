@@ -6,7 +6,10 @@ import {
   DEV_DEFAULT_IQ_TENANT_ID,
   DEV_TENANT_IQ_CATALOG_UUID,
   isVisitpadTenantCatalogScope,
+  isVisitpadTenantCatalogScopeForPrincipal,
+  resolveVisitpadCatalogScopeKey,
   serviceIqTenantHeaderValue,
+  visitpadCatalogOmitsIqTenantHeader,
 } from './catalog-tenant';
 
 describe('catalogIqTenantHeaderValue', () => {
@@ -39,6 +42,38 @@ describe('isVisitpadTenantCatalogScope', () => {
   it('is true only when a catalog header would be sent', () => {
     expect(isVisitpadTenantCatalogScope('tenant-001')).toBe(false);
     expect(isVisitpadTenantCatalogScope(DEV_TENANT_IQ_CATALOG_UUID)).toBe(true);
+  });
+});
+
+describe('visitpad catalog scope by principal role', () => {
+  const visitpadPath = '/api/v1/master-data/visitpad/units';
+
+  it('omits iq_tenant_id for platform super-admin', () => {
+    expect(
+      visitpadCatalogOmitsIqTenantHeader({
+        path: visitpadPath,
+        authRoles: ['super-admin'],
+      }),
+    ).toBe(true);
+    expect(resolveVisitpadCatalogScopeKey(DEV_TENANT_IQ_CATALOG_UUID, ['super-admin'])).toBe('global');
+    expect(
+      isVisitpadTenantCatalogScopeForPrincipal(DEV_TENANT_IQ_CATALOG_UUID, ['super-admin']),
+    ).toBe(false);
+  });
+
+  it('sends tenant scope for tenant-admin with UUID tenant', () => {
+    expect(
+      visitpadCatalogOmitsIqTenantHeader({
+        path: visitpadPath,
+        authRoles: ['tenant-admin'],
+      }),
+    ).toBe(false);
+    expect(resolveVisitpadCatalogScopeKey(DEV_TENANT_IQ_CATALOG_UUID, ['tenant-admin'])).toBe(
+      DEV_TENANT_IQ_CATALOG_UUID.toLowerCase(),
+    );
+    expect(
+      isVisitpadTenantCatalogScopeForPrincipal(DEV_TENANT_IQ_CATALOG_UUID, ['tenant-admin']),
+    ).toBe(true);
   });
 });
 

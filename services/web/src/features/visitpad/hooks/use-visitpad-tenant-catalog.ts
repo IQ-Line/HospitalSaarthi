@@ -1,11 +1,14 @@
-import { isVisitpadTenantCatalogScope } from '@/lib/catalog-tenant';
+import { isVisitpadTenantCatalogScopeForPrincipal } from '@/lib/catalog-tenant';
+import { useAuthStore } from '@/stores/auth.store';
 import { useTenantStore } from '@/stores/tenant.store';
 
-/** True when the active tenant id is a UUID string — catalog APIs send `iq_tenant_id` (tenant schema). */
+/** True when Visitpad APIs are tenant-scoped (`iq_tenant_id` sent). False for platform super-admin (global_master). */
 export function useVisitpadTenantCatalog() {
   const tenantId = useTenantStore((s) => s.tenantId);
+  const roles = useAuthStore((s) => s.roles);
+  const accessToken = useAuthStore((s) => s.accessToken);
   return {
     tenantId,
-    tenantCatalog: isVisitpadTenantCatalogScope(tenantId),
+    tenantCatalog: isVisitpadTenantCatalogScopeForPrincipal(tenantId, roles, accessToken),
   };
 }
