@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { CFG_SHELL_ACCESS } from '@/lib/runtime-capability-keys';
 import {
   buildNavCapabilityAccessInput,
   buildPrincipalCapabilityModuleSegments,
   capabilityKeysGrantModuleSlugAccess,
   catalogSlugMatchesRouteSegment,
   principalGrantsNavNodeAccess,
+  principalHasL1ProductShellAccess,
   principalHasProductWideNavCapability,
   resolveCatalogModuleSlugsForNavRoute,
 } from './nav-capability-access';
@@ -42,6 +44,37 @@ const catalogIndex: ModuleCatalogIndex = {
     ],
   ]),
 };
+
+describe('principalHasL1ProductShellAccess', () => {
+  it('grants configurator nav for configurator:shell:access', () => {
+    expect(principalHasL1ProductShellAccess(new Set([CFG_SHELL_ACCESS]), ['configurator'])).toBe(
+      true,
+    );
+  });
+
+  it('does not grant visitpad-master for unrelated shell keys', () => {
+    expect(principalHasL1ProductShellAccess(new Set([CFG_SHELL_ACCESS]), ['visitpad-master'])).toBe(
+      false,
+    );
+  });
+
+  it('does not grant visitpad routes for master-data:shell:access only', () => {
+    const keys = new Set(['master-data:shell:access']);
+    expect(
+      principalHasL1ProductShellAccess(keys, ['master-data', 'visitpad-master'], '/visitpad/units'),
+    ).toBe(false);
+    expect(
+      principalHasL1ProductShellAccess(keys, ['master-data', 'visitpad-master'], undefined),
+    ).toBe(false);
+  });
+
+  it('grants master-data routes for master-data:shell:access', () => {
+    const keys = new Set(['master-data:shell:access']);
+    expect(principalHasL1ProductShellAccess(keys, ['master-data'], '/master-data/departments')).toBe(
+      true,
+    );
+  });
+});
 
 describe('catalogSlugMatchesRouteSegment', () => {
   it('matches hyphen-normalized slugs', () => {
@@ -160,6 +193,22 @@ describe('principalGrantsNavNodeAccess', () => {
         accessInput(ndwadPrincipal),
         { id: 'master-data-modules', label: 'Modules', route: '/master-data/modules' },
         { parentProductSlugs: ['master-data'] },
+      ),
+    ).toBe(true);
+  });
+
+  it('shows configurator tenant for configurator:shell:access only', () => {
+    expect(
+      principalGrantsNavNodeAccess(
+        accessInput(new Set([CFG_SHELL_ACCESS])),
+        {
+          id: 'configurator-tenant',
+          label: 'Tenant',
+          route: '/configurator/tenant',
+          catalogModuleSlug: 'tenant-modules',
+          requiredModulesAny: ['configurator'],
+        },
+        { parentProductSlugs: ['configurator'] },
       ),
     ).toBe(true);
   });

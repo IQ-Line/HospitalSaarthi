@@ -41,7 +41,7 @@ describe('principalGrantsCatalogRouteAccess', () => {
     ).toBe(true);
   });
 
-  it('denies configurator tenant when principal lacks tenant-modules and tenants keys', () => {
+  it('allows configurator tenant for configurator:shell:access without tenant-modules keys', () => {
     const keys = new Set(['configurator:shell:access']);
     expect(
       principalGrantsCatalogRouteAccess(keys, '/configurator/tenant', {
@@ -49,7 +49,7 @@ describe('principalGrantsCatalogRouteAccess', () => {
         catalogProductSlugs: ['configurator'],
         routePrefix: '/configurator',
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it('allows configurator tenant for tenant-modules:read', () => {
