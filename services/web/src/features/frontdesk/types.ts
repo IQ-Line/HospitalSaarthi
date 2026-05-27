@@ -82,6 +82,7 @@ export interface CreateVisitRequestBody {
     blood_group?: string | null;
     /** Dummy until EMPI / ABHA integration */
     abha_number?: string | null;
+    abha_address?: string | null;
   };
   /** Dummy until attendant API exists */
   attendant: {

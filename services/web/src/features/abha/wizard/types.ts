@@ -35,6 +35,7 @@ export interface AbhaWizardState {
     seg3: string;
     maskSeg1: boolean;
     maskSeg2: boolean;
+    maskSeg3: boolean;
   };
   consent: {
     checked: Record<number, boolean>;
@@ -52,6 +53,8 @@ export interface AbhaWizardState {
     otpMobileLast4: string;
     sendCount: number;
     resendCooldown: number;
+    /** User confirms entered mobile is Aadhaar-linked → verify sends useAadhaarLinkedMobile. */
+    aadhaarLinkedMobile: boolean;
   };
   login: {
     abhaSegments: [string, string, string, string];
@@ -86,7 +89,7 @@ export type AbhaWizardAction =
   | { type: 'RESET' }
   | { type: 'SET_STEP'; step: WizardStep }
   | { type: 'SET_AADHAAR_SEG'; index: 1 | 2 | 3; value: string }
-  | { type: 'SET_MASK_SEG'; index: 1 | 2; masked: boolean }
+  | { type: 'SET_MASK_SEG'; index: 1 | 2 | 3; masked: boolean }
   | { type: 'SET_CONSENT_ITEM'; index: number; checked: boolean }
   | { type: 'SELECT_ALL_CONSENT'; checked: boolean }
   | { type: 'SET_HW_ACK'; acknowledged: boolean }
@@ -95,8 +98,10 @@ export type AbhaWizardAction =
   | { type: 'SET_BENEFICIARY_NAME'; name: string }
   | { type: 'SET_LOGIN_AADHAAR_CONSENT'; value: boolean }
   | { type: 'INIT_OTP_SESSION'; sessionId: string; aadhaarNumber?: string }
+  | { type: 'SET_OTP_SESSION_ID'; sessionId: string }
   | { type: 'SET_OTP'; otp: string }
   | { type: 'SET_MOBILE'; mobile: string }
+  | { type: 'SET_AADHAAR_LINKED_MOBILE'; value: boolean }
   | { type: 'SET_OTP_MOBILE_LAST4'; last4: string }
   | { type: 'OTP_SENT' }
   | { type: 'START_RESEND_COOLDOWN' }

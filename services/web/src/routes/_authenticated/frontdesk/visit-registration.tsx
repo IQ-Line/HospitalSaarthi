@@ -19,7 +19,12 @@ import { executeCreateVisitFlow, listRegistrations } from '@/features/frontdesk/
 import { CreateAbhaDialog } from '@/features/abha/components/create-abha-dialog';
 import type { AbhaCreatedPayload } from '@/features/abha/types';
 import { RegistrationFormHeader, RegistrationTodayStatsSidebar } from '@/features/frontdesk/components/registration-form-chrome';
-import { RegistrationPatientSection } from '@/features/frontdesk/components/registration-patient-section';
+import {
+  RegistrationPatientSection,
+  type RegistrationAbhaContext,
+} from '@/features/frontdesk/components/registration-patient-section';
+import { getAbhaCard } from '@/features/abha/api/m1-enrolment';
+import { downloadAbhaCardFile } from '@/features/abha/utils/download-abha-card';
 import {
   VisitRegistrationAppointmentSection,
   VisitRegistrationBillingSection,
@@ -56,7 +61,10 @@ function VisitRegistrationRoute() {
   const { canCreate, canRead } = useCatalogModuleCrud('registration', {
     productModuleSlug: 'frontdesk',
   });
-  const [createAbhaOpen, setCreateAbhaOpen] = useState(false);
+  const [abhaRegistration, setAbhaRegistration] = useState<RegistrationAbhaContext | null>(
+    null,
+  );
+  const [abhaCardDownloading, setAbhaCardDownloading] = useState(false);
   /** Header search UI; patient/registration lookup from form phase is not wired yet. */
   const [formSearchDraft, setFormSearchDraft] = useState('');
   const tenantName = useTenantStore((s) => s.tenantName);
@@ -106,6 +114,7 @@ function VisitRegistrationRoute() {
         email: '',
         blood_group: '',
         abha_number: '',
+        abha_address: '',
       },
       attendant: {
         relation: 'Father',
@@ -240,52 +249,89 @@ function VisitRegistrationRoute() {
 
   const submitIdempotencyKeyRef = useRef<string | undefined>(undefined);
 
-  const handleAbhaCreated = (payload: AbhaCreatedPayload) => {
-    form.setValue('patient.abha_number', payload.abhaNumber, { shouldValidate: true });
+  const applyAbhaPayloadToForm = (payload: AbhaCreatedPayload) => {
+    if (payload.abhaNumber) {
+      form.setValue('patient.abha_number', payload.abhaNumber, { shouldValidate: true });
+    }
+    if (payload.abhaAddress) {
+      form.setValue('patient.abha_address', payload.abhaAddress, { shouldValidate: true });
+    }
 
-    const currentPhone = form.getValues('patient.phone')?.trim();
-    if (!currentPhone && payload.phone) {
+    if (payload.phone) {
       form.setValue('patient.phone', payload.phone, { shouldValidate: true });
     }
-
-    const currentFirst = form.getValues('patient.first_name')?.trim();
-    if (!currentFirst && payload.firstName) {
+    if (payload.firstName) {
       form.setValue('patient.first_name', payload.firstName, { shouldValidate: true });
     }
-
-    const currentLast = form.getValues('patient.last_name')?.trim();
-    if (!currentLast && payload.lastName) {
+    if (payload.lastName) {
       form.setValue('patient.last_name', payload.lastName, { shouldValidate: true });
     }
-
     if (payload.gender) {
       form.setValue('patient.gender', payload.gender, { shouldValidate: true });
     }
-
-    const currentDob = form.getValues('patient.date_of_birth')?.trim();
-    if (!currentDob && payload.dateOfBirth) {
+    if (payload.dateOfBirth) {
       form.setValue('patient.date_of_birth', payload.dateOfBirth, { shouldValidate: true });
     }
 
     if (payload.address) {
       const { line1, state, district, pincode } = payload.address;
-      const permanent = form.getValues('permanent_address');
-
-      if (line1 && !permanent.line1?.trim()) {
+      if (line1) {
         form.setValue('permanent_address.line1', line1, { shouldValidate: true });
       }
-      if (state && !permanent.state?.trim()) {
+      if (state) {
         form.setValue('permanent_address.state', state, { shouldValidate: true });
-      }
-      if (district && !permanent.district?.trim()) {
+        if (district) {
+          window.setTimeout(() => {
+            form.setValue('permanent_address.district', district, { shouldValidate: true });
+          }, 0);
+        }
+      } else if (district) {
         form.setValue('permanent_address.district', district, { shouldValidate: true });
       }
-      if (pincode && !permanent.pincode?.trim()) {
+      if (pincode) {
         form.setValue('permanent_address.pincode', pincode, { shouldValidate: true });
       }
     }
+  };
 
+  const handleAbhaCreated = (payload: AbhaCreatedPayload) => {
+    applyAbhaPayloadToForm(payload);
+    const abhaNumber =
+      payload.abhaNumber?.trim() || form.getValues('patient.abha_number')?.trim() || '';
+    const abhaAddress =
+      payload.abhaAddress?.trim() || form.getValues('patient.abha_address')?.trim() || '';
+    if (payload.sessionId || abhaNumber || abhaAddress) {
+      setAbhaRegistration({
+        sessionId: payload.sessionId ?? '',
+        abhaNumber,
+        abhaAddress,
+      });
+    }
     toast.success('ABHA details applied to registration form');
+  };
+
+  const handleClearAbhaRegistration = () => {
+    form.reset();
+    setAbhaRegistration(null);
+    toast.message('Registration form cleared');
+  };
+
+  const handleDownloadAbhaCard = async () => {
+    const sessionId = abhaRegistration?.sessionId;
+    if (!sessionId) {
+      toast.error('No ABHA session available for download');
+      return;
+    }
+    setAbhaCardDownloading(true);
+    try {
+      const res = await getAbhaCard(sessionId);
+      downloadAbhaCardFile(res);
+      toast.success('ABHA card download started');
+    } catch (err) {
+      toast.error(mutationErrorMessage(err));
+    } finally {
+      setAbhaCardDownloading(false);
+    }
   };
 
   const mutation = useMutation({
@@ -361,7 +407,13 @@ function VisitRegistrationRoute() {
 
   return (
     <div className="bg-background">
-      <div className="mx-auto w-full max-w-[1600px] p-4 md:p-6">
+      <div
+        className={
+          phase === 'form'
+            ? 'w-full px-3 py-3 md:px-4 md:py-4'
+            : 'mx-auto w-full max-w-[1600px] p-4 md:p-6'
+        }
+      >
           {phase === 'list' ? (
           <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <h1 className="text-2xl font-semibold tracking-tight">Registration</h1>
@@ -491,12 +543,16 @@ function VisitRegistrationRoute() {
           ) : null}
 
           {phase === 'form' ? (
-          <form onSubmit={form.handleSubmit(onSubmit)} className="mt-4 lg:mt-6">
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_17.5rem] lg:items-start">
-              <div className="min-w-0 space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="mt-3 lg:mt-4">
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_16rem] lg:items-start">
+              <div className="min-w-0 space-y-3">
                 {sectionVisible.patientDetails ? (
                   <RegistrationPatientSection
                     form={form}
+                    abhaContext={abhaRegistration}
+                    onClearAbhaRegistration={handleClearAbhaRegistration}
+                    onDownloadAbhaCard={() => void handleDownloadAbhaCard()}
+                    abhaCardDownloading={abhaCardDownloading}
                     onCreateAbha={() => {
                       setAbhaDialogFlow('create');
                       setAbhaDialogOpen(true);
@@ -554,7 +610,10 @@ function VisitRegistrationRoute() {
                     type="button"
                     variant="outline"
                     className="h-10 gap-2 px-6"
-                    onClick={() => form.reset()}
+                    onClick={() => {
+                      form.reset();
+                      setAbhaRegistration(null);
+                    }}
                     disabled={mutation.isPending}
                   >
                     <RotateCcw className="size-4" />

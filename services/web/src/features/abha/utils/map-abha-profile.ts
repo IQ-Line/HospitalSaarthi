@@ -15,6 +15,26 @@ function pickString(obj: Record<string, unknown>, key: string): string {
   return typeof v === 'string' ? v.trim() : '';
 }
 
+/** NHA profile may be flat or nested under `ABHAProfile` / `data`. */
+export function normalizeNhaProfile(profile: NhaAbhaProfile): NhaAbhaProfile {
+  const record = profile as Record<string, unknown>;
+  const nested = record.ABHAProfile ?? record.abhaProfile ?? record.data;
+  if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+    return { ...record, ...(nested as NhaAbhaProfile) };
+  }
+  return profile;
+}
+
+function pickProfileString(profile: NhaAbhaProfile, ...keys: string[]): string {
+  const flat = normalizeNhaProfile(profile) as Record<string, unknown>;
+  for (const key of keys) {
+    const v = flat[key];
+    if (typeof v === 'string' && v.trim()) return v.trim();
+    if (typeof v === 'number' && Number.isFinite(v)) return String(v);
+  }
+  return '';
+}
+
 function formatDob(profile: NhaAbhaProfile): string {
   const direct = profile.dob?.trim();
   if (direct) {
@@ -55,9 +75,12 @@ function patientName(profile: NhaAbhaProfile): string {
 }
 
 function abhaAddress(profile: NhaAbhaProfile): string {
-  const preferred = profile.preferredAbhaAddress?.trim();
+  const flat = normalizeNhaProfile(profile);
+  const direct = pickProfileString(flat, 'abhaAddress', 'abha_address');
+  if (direct) return direct;
+  const preferred = pickProfileString(flat, 'preferredAbhaAddress', 'preferredAddress');
   if (preferred) return preferred;
-  const phr = profile.phrAddress?.find((a) => typeof a === 'string' && a.trim());
+  const phr = flat.phrAddress?.find((a) => typeof a === 'string' && a.trim());
   return phr?.trim() ?? '';
 }
 
@@ -72,7 +95,7 @@ function physicalAddress(profile: NhaAbhaProfile): string {
 
 function abhaNumber(profile: NhaAbhaProfile, verify?: EnrolAadhaarVerifyResponse): string {
   return (
-    pickString(profile as Record<string, unknown>, 'ABHANumber') ||
+    pickProfileString(profile, 'ABHANumber', 'abhaNumber', 'healthIdNumber') ||
     verify?.healthIdNumber?.trim() ||
     ''
   );
@@ -82,36 +105,29 @@ export function mapAbhaProfileDisplay(
   profile: NhaAbhaProfile,
   verify?: EnrolAadhaarVerifyResponse,
 ): AbhaProfileDisplay {
-  const genderRaw = profile.gender?.trim() ?? '';
+  const flat = normalizeNhaProfile(profile);
+  const genderRaw = flat.gender?.trim() ?? '';
   return {
-    abhaNumber: abhaNumber(profile, verify),
-    abhaAddress: abhaAddress(profile),
-    patientName: patientName(profile),
+    abhaNumber: abhaNumber(flat, verify),
+    abhaAddress: abhaAddress(flat),
+    patientName: patientName(flat),
     gender: formatGenderDisplay(genderRaw),
-    dateOfBirth: formatDob(profile),
-    mobile: profile.mobile?.replace(/\D/g, '').slice(-10) ?? '',
-    address: physicalAddress(profile),
+    dateOfBirth: formatDob(flat),
+    mobile: flat.mobile?.replace(/\D/g, '').slice(-10) ?? '',
+    address: physicalAddress(flat),
   };
 }
 
-function profileField(profile: NhaAbhaProfile, ...keys: string[]): string {
-  for (const key of keys) {
-    const v = profile[key];
-    if (typeof v === 'string' && v.trim()) return v.trim();
-    if (typeof v === 'number' && Number.isFinite(v)) return String(v);
-  }
-  return '';
-}
-
 export function mapAbhaProfileAddressPrefill(profile: NhaAbhaProfile): AbhaAddressPrefill | undefined {
-  const line1 = profileField(profile, 'address');
-  const pincode = profileField(profile, 'pinCode', 'pincode').replace(/\D/g, '').slice(0, 6);
+  const flat = normalizeNhaProfile(profile);
+  const line1 = pickProfileString(flat, 'address');
+  const pincode = pickProfileString(flat, 'pinCode', 'pincode').replace(/\D/g, '').slice(0, 6);
 
-  let state = profileField(profile, 'stateCode', 'state_code');
-  let district = profileField(profile, 'districtCode', 'district_code');
+  let state = pickProfileString(flat, 'stateCode', 'state_code');
+  let district = pickProfileString(flat, 'districtCode', 'district_code');
 
-  const stateName = profileField(profile, 'stateName');
-  const districtName = profileField(profile, 'districtName');
+  const stateName = pickProfileString(flat, 'stateName');
+  const districtName = pickProfileString(flat, 'districtName');
 
   if (!state && stateName) {
     state = findStateCodeByName(stateName) ?? '';
@@ -132,29 +148,31 @@ export function mapAbhaProfileToFormPrefill(
   profile: NhaAbhaProfile,
   verify?: EnrolAadhaarVerifyResponse,
 ): AbhaCreatedPayload {
-  const display = mapAbhaProfileDisplay(profile, verify);
-  const fullName = patientName(profile);
+  const flat = normalizeNhaProfile(profile);
+  const display = mapAbhaProfileDisplay(flat, verify);
+  const fullName = patientName(flat);
   const nameParts = fullName.split(/\s+/).filter(Boolean);
-  const firstName = profile.firstName?.trim() || nameParts[0] || '';
+  const firstName = flat.firstName?.trim() || nameParts[0] || '';
   const lastName =
-    profile.lastName?.trim() || (nameParts.length > 1 ? nameParts.slice(1).join(' ') : '');
+    flat.lastName?.trim() || (nameParts.length > 1 ? nameParts.slice(1).join(' ') : '');
 
   const dobIso = (() => {
     const d = display.dateOfBirth.match(/^(\d{2})-(\d{2})-(\d{4})$/);
     if (d) return `${d[3]}-${d[2]}-${d[1]}`;
-    const iso = profile.dob?.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    const iso = flat.dob?.match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
     return undefined;
   })();
 
   return {
+    sessionId: '',
     abhaNumber: display.abhaNumber,
     abhaAddress: display.abhaAddress,
     phone: display.mobile || undefined,
     firstName: firstName || undefined,
     lastName: lastName || undefined,
-    gender: mapGenderToForm(profile.gender ?? ''),
+    gender: mapGenderToForm(flat.gender ?? ''),
     dateOfBirth: dobIso,
-    address: mapAbhaProfileAddressPrefill(profile),
+    address: mapAbhaProfileAddressPrefill(flat),
   };
 }

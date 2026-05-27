@@ -14,6 +14,7 @@ function freshOtpSession(sessionId: string, aadhaarNumber: string): AbhaWizardSt
     otpMobileLast4: '',
     sendCount: 0,
     resendCooldown: 0,
+    aadhaarLinkedMobile: true,
   };
 }
 
@@ -39,7 +40,7 @@ export function createInitialAbhaWizardState(flow: AbhaWizardFlow = 'create'): A
   return {
     flow,
     step: flow === 'verify' ? 'login-method' : 'method',
-    aadhaar: { seg1: '', seg2: '', seg3: '', maskSeg1: false, maskSeg2: false },
+    aadhaar: { seg1: '', seg2: '', seg3: '', maskSeg1: false, maskSeg2: false, maskSeg3: false },
     consent: {
       checked: initialConsentChecked(),
       hwAcknowledged: false,
@@ -56,6 +57,7 @@ export function createInitialAbhaWizardState(flow: AbhaWizardFlow = 'create'): A
       otpMobileLast4: '',
       sendCount: 0,
       resendCooldown: 0,
+      aadhaarLinkedMobile: true,
     },
     login: emptyLoginState(),
     address: {
@@ -77,14 +79,13 @@ export function abhaWizardReducer(
   action: AbhaWizardAction,
 ): AbhaWizardState {
   switch (action.type) {
-    case 'OPEN':
+    case 'OPEN': {
+      const initial = createInitialAbhaWizardState(action.flow);
       return {
-        ...createInitialAbhaWizardState(action.flow),
-        consent: {
-          ...createInitialAbhaWizardState(action.flow).consent,
-          healthcareWorkerName: action.healthcareWorkerName,
-        },
+        ...initial,
+        consent: { ...initial.consent, healthcareWorkerName: action.healthcareWorkerName },
       };
+    }
     case 'RESET':
       return createInitialAbhaWizardState(state.flow);
     case 'SET_STEP':
@@ -94,7 +95,8 @@ export function abhaWizardReducer(
       return { ...state, aadhaar: { ...state.aadhaar, [key]: action.value } };
     }
     case 'SET_MASK_SEG': {
-      const key = action.index === 1 ? 'maskSeg1' : 'maskSeg2';
+      const key =
+        action.index === 1 ? 'maskSeg1' : action.index === 2 ? 'maskSeg2' : 'maskSeg3';
       return { ...state, aadhaar: { ...state.aadhaar, [key]: action.masked } };
     }
     case 'SET_CONSENT_ITEM':
@@ -144,10 +146,23 @@ export function abhaWizardReducer(
           action.aadhaarNumber ?? state.otpSession.aadhaarNumber,
         ),
       };
+    case 'SET_OTP_SESSION_ID':
+      return {
+        ...state,
+        otpSession: { ...state.otpSession, sessionId: action.sessionId },
+      };
     case 'SET_OTP':
       return { ...state, otpSession: { ...state.otpSession, otp: action.otp } };
     case 'SET_MOBILE':
-      return { ...state, otpSession: { ...state.otpSession, mobile: action.mobile } };
+      return {
+        ...state,
+        otpSession: { ...state.otpSession, mobile: action.mobile },
+      };
+    case 'SET_AADHAAR_LINKED_MOBILE':
+      return {
+        ...state,
+        otpSession: { ...state.otpSession, aadhaarLinkedMobile: action.value },
+      };
     case 'SET_OTP_MOBILE_LAST4':
       return { ...state, otpSession: { ...state.otpSession, otpMobileLast4: action.last4 } };
     case 'OTP_SENT':

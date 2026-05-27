@@ -1,6 +1,8 @@
 /** NHA profile subset (passthrough from GET /m1/profile). */
 export interface NhaAbhaProfile {
   ABHANumber?: string;
+  abhaAddress?: string;
+  abhaNumber?: string;
   preferredAbhaAddress?: string;
   phrAddress?: string[];
   name?: string;
@@ -41,6 +43,8 @@ export interface EnrolAadhaarVerifyResponse {
   healthIdNumber?: string;
   isNew?: boolean;
   message: string;
+  /** True when enrol mobile-verify was bypassed (Aadhaar-linked mobile). */
+  mobileVerifySkipped?: boolean;
 }
 
 export interface ProfileAccountResponse {
@@ -116,8 +120,14 @@ export interface AbhaProfileDisplay {
   address: string;
 }
 
+export interface ProfileAbhaCardResponse {
+  sessionId: string;
+  card: Record<string, unknown>;
+}
+
 /** Payload passed to registration form on wizard success. */
 export interface AbhaCreatedPayload {
+  sessionId: string;
   abhaNumber: string;
   abhaAddress: string;
   phone?: string;

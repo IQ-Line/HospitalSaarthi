@@ -31,11 +31,13 @@ export function AbhaWizardConsentStep({
           seg3={aadhaar.seg3}
           maskSeg1={aadhaar.maskSeg1}
           maskSeg2={aadhaar.maskSeg2}
+          maskSeg3={aadhaar.maskSeg3}
           onSeg1Change={(v) => dispatch({ type: 'SET_AADHAAR_SEG', index: 1, value: v })}
           onSeg2Change={(v) => dispatch({ type: 'SET_AADHAAR_SEG', index: 2, value: v })}
           onSeg3Change={(v) => dispatch({ type: 'SET_AADHAAR_SEG', index: 3, value: v })}
           onMaskSeg1={(masked) => dispatch({ type: 'SET_MASK_SEG', index: 1, masked })}
           onMaskSeg2={(masked) => dispatch({ type: 'SET_MASK_SEG', index: 2, masked })}
+          onMaskSeg3={(masked) => dispatch({ type: 'SET_MASK_SEG', index: 3, masked })}
         />
         <p className="text-xs leading-relaxed text-muted-foreground">
           Please ensure that mobile number is linked with Aadhaar as it will be required for OTP

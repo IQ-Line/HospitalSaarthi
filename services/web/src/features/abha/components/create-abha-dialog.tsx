@@ -96,7 +96,7 @@ export function CreateAbhaDialog({
               dispatch={dispatch}
               otpMaskedLabel={derived.otpMaskedLabel}
               resendAttemptsLeft={derived.resendAttemptsLeft}
-              resendCooldown={derived.resendCooldown}
+              resendCooldown={state.otpSession.resendCooldown}
               canResendOtp={derived.canResendOtp}
               onResendOtp={() => void handlers.handleResendOtp()}
             />

@@ -10,6 +10,7 @@ import type {
   LoginOtpChannel,
   LoginVerifyResponse,
   LoginVerifyUserResponse,
+  ProfileAbhaCardResponse,
   ProfileAccountResponse,
   VerifyAbhaAddressChannel,
 } from '@/features/abha/types';
@@ -35,6 +36,7 @@ export function verifyAadhaarOtp(input: {
   sessionId: string;
   otp: string;
   mobile: string;
+  useAadhaarLinkedMobile?: boolean;
 }): Promise<EnrolAadhaarVerifyResponse> {
   return abdmFetch<EnrolAadhaarVerifyResponse>('/m1/enrol/aadhaar/verify', {
     method: 'POST',
@@ -45,6 +47,11 @@ export function verifyAadhaarOtp(input: {
 export function getAbhaProfile(sessionId: string): Promise<ProfileAccountResponse> {
   const qs = new URLSearchParams({ sessionId });
   return abdmFetch<ProfileAccountResponse>(`/m1/profile?${qs.toString()}`);
+}
+
+export function getAbhaCard(sessionId: string): Promise<ProfileAbhaCardResponse> {
+  const qs = new URLSearchParams({ sessionId });
+  return abdmFetch<ProfileAbhaCardResponse>(`/m1/profile/abha-card?${qs.toString()}`);
 }
 
 export function sendMobileVerifyOtp(input: {

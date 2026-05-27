@@ -38,8 +38,8 @@ import type { AbhaWizardState, LoginMode } from './types';
 import {
   extractMobileLast4FromMessage,
   formatMaskedMobileLast4,
+  fullAbhaAddressFromLocal,
   validateAbhaAddressLocal,
-  validateFullAbhaAddress,
 } from '@/features/abha/utils/abha-address-validation';
 import {
   mapAbhaProfileDisplay,
@@ -88,7 +88,7 @@ function computeDerived(state: AbhaWizardState) {
   const loginAbhaNumberValid = isAbhaNumberComplete(login.abhaSegments);
   const loginAbhaNumberDigits = abhaNumberFromSegments(login.abhaSegments);
   const loginMobileValid = /^\d{10}$/.test(login.mobile);
-  const loginAbhaAddressValid = validateFullAbhaAddress(login.abhaAddress) === null;
+  const loginAbhaAddressValid = validateAbhaAddressLocal(login.abhaAddress) === null;
   const loginResendAttemptsLeft = MAX_OTP_SENDS - login.sendCount;
   const canResendLoginOtp =
     login.resendCooldown === 0 && loginResendAttemptsLeft > 0 && !isSubmitting;
@@ -110,7 +110,6 @@ function computeDerived(state: AbhaWizardState) {
     canResendOtp,
     otpMaskedLabel,
     addressLocalValid: validateAbhaAddressLocal(address.addressLocal) === null,
-    resendCooldown: otpSession.resendCooldown,
     loginAbhaNumberValid,
     loginAbhaNumberDigits,
     loginMobileValid,
@@ -194,7 +193,13 @@ export function useAbhaWizard({
       if (state.login.profileFetched) return;
       const profileRes = await getAbhaProfile(sid);
       dispatch({ type: 'SET_LOGIN_PROFILE_FETCHED', value: true });
-      onSuccess(mapAbhaProfileToFormPrefill(profileRes.profile));
+      const display = mapAbhaProfileDisplay(profileRes.profile);
+      onSuccess({
+        ...mapAbhaProfileToFormPrefill(profileRes.profile),
+        sessionId: sid,
+        abhaNumber: display.abhaNumber,
+        abhaAddress: display.abhaAddress,
+      });
       onOpenChange(false);
     },
     [state.login.profileFetched, onSuccess, onOpenChange],
@@ -205,9 +210,16 @@ export function useAbhaWizard({
       const sid = state.otpSession.sessionId;
       if (!sid) return;
       const profileRes = prefetched ?? state.profileAccount ?? (await getAbhaProfile(sid));
-      onSuccess(
-        mapAbhaProfileToFormPrefill(profileRes.profile, state.verifySnapshot ?? undefined),
+      const display = mapAbhaProfileDisplay(
+        profileRes.profile,
+        state.verifySnapshot ?? undefined,
       );
+      onSuccess({
+        ...mapAbhaProfileToFormPrefill(profileRes.profile, state.verifySnapshot ?? undefined),
+        sessionId: sid,
+        abhaNumber: display.abhaNumber,
+        abhaAddress: display.abhaAddress,
+      });
       onOpenChange(false);
     },
     [state.otpSession.sessionId, state.profileAccount, state.verifySnapshot, onSuccess, onOpenChange],
@@ -245,6 +257,10 @@ export function useAbhaWizard({
 
   const ensureMobileVerifiedForAddress = useCallback(
     async (sid: string, mobileDigits: string): Promise<boolean> => {
+      if (state.verifySnapshot?.mobileVerifySkipped === true) {
+        await loadAddressSuggestions(sid);
+        return false;
+      }
       try {
         await loadAddressSuggestions(sid);
         return false;
@@ -255,7 +271,7 @@ export function useAbhaWizard({
       toast.info('Enter the OTP sent to your mobile to continue with ABHA address setup.');
       return true;
     },
-    [loadAddressSuggestions],
+    [loadAddressSuggestions, state.verifySnapshot?.mobileVerifySkipped],
   );
 
   const handleOpenChange = useCallback(
@@ -291,8 +307,14 @@ export function useAbhaWizard({
         dispatch({ type: 'SET_STEP', step: 'method' });
       }
     } else if (step === 'otp') dispatch({ type: 'SET_STEP', step: 'consent' });
-    else if (step === 'address-edit') dispatch({ type: 'RESET_ADDRESS_EDIT' });
-  }, [state.isSubmitting, state.step, state.login, state.consent]);
+    else if (step === 'address-edit') {
+      if (state.address.needsMobileVerifyOtp && state.address.suggestions.length === 0) {
+        dispatch({ type: 'SET_STEP', step: 'otp' });
+      } else {
+        dispatch({ type: 'RESET_ADDRESS_EDIT' });
+      }
+    }
+  }, [state.address.needsMobileVerifyOtp, state.address.suggestions.length, state.isSubmitting, state.step, state.login, state.consent]);
 
   const handleLoginMethodSelect = useCallback((methodId: string) => {
     if (methodId === 'abha-number') {
@@ -353,7 +375,10 @@ export function useAbhaWizard({
       if (!derived.loginAbhaAddressValid || state.isSubmitting) return;
       dispatch({ type: 'SET_SUBMITTING', isSubmitting: true });
       try {
-        const abhaAddress = state.login.abhaAddress.trim();
+        const abhaAddress = fullAbhaAddressFromLocal(
+          state.login.abhaAddress,
+          ABHA_ADDRESS_SUFFIX,
+        );
         const res = await sendVerifyAbhaAddressOtp({ abhaAddress, channel });
         dispatch({ type: 'INIT_OTP_SESSION', sessionId: res.sessionId });
         dispatch({ type: 'SET_LOGIN_MODE', mode: 'abha-address' });
@@ -372,7 +397,7 @@ export function useAbhaWizard({
   );
 
   const handleLoginAbhaAddressNext = useCallback(() => {
-    const err = validateFullAbhaAddress(state.login.abhaAddress);
+    const err = validateAbhaAddressLocal(state.login.abhaAddress);
     if (err) {
       dispatch({ type: 'SET_LOGIN_ABHA_ADDRESS_ERROR', error: err });
       return;
@@ -458,7 +483,7 @@ export function useAbhaWizard({
   }, [derived.consentStepValid, derived.fullAadhaar, showLoginOtpToast, state.isSubmitting]);
 
   const handleLoginResendOtp = useCallback(async () => {
-    const { mode, channel, abhaSegments, abhaAddress, abhaAddressChannel, mobile } = state.login;
+    const { mode, channel, abhaAddressChannel, mobile } = state.login;
     if (!derived.canResendLoginOtp || !mode || state.isSubmitting) return;
     dispatch({ type: 'SET_SUBMITTING', isSubmitting: true });
     try {
@@ -477,7 +502,10 @@ export function useAbhaWizard({
       } else if (mode === 'abha-address') {
         if (!abhaAddressChannel || !derived.loginAbhaAddressValid) return;
         res = await sendVerifyAbhaAddressOtp({
-          abhaAddress: abhaAddress.trim(),
+          abhaAddress: fullAbhaAddressFromLocal(
+            state.login.abhaAddress,
+            ABHA_ADDRESS_SUFFIX,
+          ),
           channel: abhaAddressChannel,
         });
       } else if (mode === 'mobile') {
@@ -489,7 +517,7 @@ export function useAbhaWizard({
       } else {
         return;
       }
-      dispatch({ type: 'INIT_OTP_SESSION', sessionId: res.sessionId });
+      dispatch({ type: 'SET_OTP_SESSION_ID', sessionId: res.sessionId });
       dispatch({ type: 'LOGIN_OTP_SENT' });
       dispatch({ type: 'START_LOGIN_RESEND_COOLDOWN' });
       const last4 =
@@ -564,20 +592,46 @@ export function useAbhaWizard({
   }, [derived.canResendOtp, showEnrolOtpToast, state.otpSession, state.isSubmitting]);
 
   const handleOtpNext = useCallback(async () => {
-    const { sessionId, otp, mobile } = state.otpSession;
+    const { sessionId, otp, mobile, aadhaarLinkedMobile } = state.otpSession;
     if (!derived.otpStepValid || !sessionId || state.isSubmitting) return;
+
     dispatch({ type: 'SET_SUBMITTING', isSubmitting: true });
     try {
-      const verifyRes = await verifyAadhaarOtp({ sessionId, otp, mobile });
+      const verifyRes = await verifyAadhaarOtp({
+        sessionId,
+        otp,
+        mobile,
+        useAadhaarLinkedMobile: aadhaarLinkedMobile,
+      });
       dispatch({ type: 'SET_VERIFY_SNAPSHOT', snapshot: verifyRes });
       await refreshProfileState(sessionId, verifyRes);
-      dispatch({ type: 'SET_STEP', step: 'profile' });
+
+      if (verifyRes.mobileVerifySkipped) {
+        try {
+          await loadAddressSuggestions(sessionId);
+        } catch (err) {
+          if (!isConflictError(err)) throw err;
+        }
+        dispatch({ type: 'SET_STEP', step: 'profile' });
+        return;
+      }
+
+      await sendMobileVerifyOtp({ sessionId, mobile });
+      dispatch({ type: 'SET_NEEDS_MOBILE_VERIFY_OTP', needs: true });
+      toast.info('Enter the OTP sent to your mobile to continue with ABHA setup.');
+      dispatch({ type: 'SET_STEP', step: 'address-edit' });
     } catch (err) {
       toast.error(mutationErrorMessage(err));
     } finally {
       dispatch({ type: 'SET_SUBMITTING', isSubmitting: false });
     }
-  }, [derived.otpStepValid, refreshProfileState, state.isSubmitting, state.otpSession]);
+  }, [
+    derived.otpStepValid,
+    loadAddressSuggestions,
+    refreshProfileState,
+    state.isSubmitting,
+    state.otpSession,
+  ]);
 
   const handleEditAddress = useCallback(async () => {
     const { sessionId, mobile } = state.otpSession;

@@ -12,7 +12,11 @@ import {
   AbhaNumberSegmentInput,
   formatAbhaNumberDisplay,
 } from '@/features/abha/components/abha-number-segment-input';
-import { CONTENT_MIN_H, LOGIN_METHODS } from '../../wizard/constants';
+import {
+  ABHA_ADDRESS_LOCAL_RULES,
+  fullAbhaAddressFromLocal,
+} from '@/features/abha/utils/abha-address-validation';
+import { ABHA_ADDRESS_SUFFIX, CONTENT_MIN_H, LOGIN_METHODS } from '../../wizard/constants';
 import type { AbhaWizardAction, AbhaWizardState, WizardStep } from '../../wizard/types';
 import { digitsOnly } from '@/lib/digits-only';
 
@@ -160,28 +164,43 @@ export function AbhaWizardLoginSteps({
 
   if (step === 'login-abha-address') {
     return (
-      <FieldGroup className="gap-4">
-        <Field>
+      <div className="space-y-6">
+        <Field className="gap-3">
           <FieldLabel className="text-sm font-semibold text-foreground">
             Enter Patient ABHA Address
           </FieldLabel>
-          <Input
-            autoComplete="off"
-            placeholder="username@sbx"
-            value={login.abhaAddress}
-            onChange={(e) =>
-              dispatch({ type: 'SET_LOGIN_ABHA_ADDRESS', value: e.target.value.trimStart() })
-            }
-            className="max-w-md text-lg"
-            aria-invalid={login.abhaAddressError != null}
-          />
+          <div className="flex max-w-md flex-wrap items-center gap-2">
+            <Input
+              autoComplete="off"
+              placeholder="Enter ABHA Address"
+              value={login.abhaAddress}
+              onChange={(e) =>
+                dispatch({
+                  type: 'SET_LOGIN_ABHA_ADDRESS',
+                  value: e.target.value.replace(/[^a-zA-Z0-9._]/g, ''),
+                })
+              }
+              className="h-11 min-w-[12rem] flex-1 text-base"
+              maxLength={18}
+              aria-invalid={login.abhaAddressError != null}
+              aria-describedby={login.abhaAddressError ? 'login-abha-address-error' : undefined}
+            />
+            <span className="inline-flex h-11 shrink-0 items-center rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground">
+              {ABHA_ADDRESS_SUFFIX}
+            </span>
+          </div>
           {login.abhaAddressError ? (
-            <p className="text-xs text-destructive" role="alert">
+            <p id="login-abha-address-error" className="text-xs text-destructive" role="alert">
               {login.abhaAddressError}
             </p>
           ) : null}
         </Field>
-      </FieldGroup>
+        <ol className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+          {ABHA_ADDRESS_LOCAL_RULES.map((rule) => (
+            <li key={rule}>{rule}</li>
+          ))}
+        </ol>
+      </div>
     );
   }
 
@@ -192,7 +211,9 @@ export function AbhaWizardLoginSteps({
           <FieldLabel className="text-sm font-semibold text-foreground">
             Enter Patient ABHA Address
           </FieldLabel>
-          <p className="text-lg font-medium text-foreground">{login.abhaAddress.trim()}</p>
+            <p className="text-lg font-medium text-foreground">
+              {fullAbhaAddressFromLocal(login.abhaAddress, ABHA_ADDRESS_SUFFIX)}
+            </p>
         </Field>
         <Field className="gap-3">
           <FieldLabel className="text-sm font-semibold text-foreground">
@@ -311,23 +332,21 @@ export function AbhaWizardLoginSteps({
             {isSubmitting ? 'Verifying…' : 'Verify'}
           </Button>
         </div>
-        <p className="text-center text-xs text-muted-foreground">
+        <p className="flex flex-wrap items-center justify-center gap-1 text-center text-xs text-muted-foreground">
           {loginResendAttemptsLeft > 0 ? (
             <>
-              {loginResendCooldown > 0 ? (
-                <>Resend OTP in {loginResendCooldown} sec.</>
-              ) : (
-                <button
-                  type="button"
-                  className="font-medium text-primary underline-offset-4 hover:underline"
-                  disabled={!canResendLoginOtp}
-                  onClick={onLoginResendOtp}
-                >
-                  Resend OTP
-                </button>
-              )}
-              {'. '}
-              Attempts remaining: {loginResendAttemptsLeft}
+              <Button
+                type="button"
+                variant="link"
+                className="h-auto p-0 text-xs font-semibold text-primary underline-offset-4 hover:text-primary/90"
+                disabled={loginResendCooldown > 0 || !canResendLoginOtp}
+                onClick={onLoginResendOtp}
+              >
+                {loginResendCooldown > 0
+                  ? `Resend OTP in ${loginResendCooldown} sec`
+                  : 'Resend OTP'}
+              </Button>
+              <span>· Attempts remaining: {loginResendAttemptsLeft}</span>
             </>
           ) : (
             'Maximum resend attempts reached'
