@@ -16,7 +16,13 @@ resourcePolicy:
             request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
             (
               "tariff-master:tariff-master:read" in request.principal.attr.capabilities ||
-              "tariff-master:tariff-master:read" in request.principal.attr.delegated_capabilities
+              "tariff-master:tariff-master:read" in request.principal.attr.delegated_capabilities ||
+              "tariff-master:tariff-master:create" in request.principal.attr.capabilities ||
+              "tariff-master:tariff-master:create" in request.principal.attr.delegated_capabilities ||
+              "tariff-master:tariff-master:update" in request.principal.attr.capabilities ||
+              "tariff-master:tariff-master:update" in request.principal.attr.delegated_capabilities ||
+              "billing-and-finance:shell:access" in request.principal.attr.capabilities ||
+              "billing-and-finance:shell:access" in request.principal.attr.delegated_capabilities
             )
 
     - actions:
@@ -28,7 +34,13 @@ resourcePolicy:
           expr: >-
             (
               "tariff-master:tariff-master:read" in request.principal.attr.capabilities ||
-              "tariff-master:tariff-master:read" in request.principal.attr.delegated_capabilities
+              "tariff-master:tariff-master:read" in request.principal.attr.delegated_capabilities ||
+              "tariff-master:tariff-master:create" in request.principal.attr.capabilities ||
+              "tariff-master:tariff-master:create" in request.principal.attr.delegated_capabilities ||
+              "tariff-master:tariff-master:update" in request.principal.attr.capabilities ||
+              "tariff-master:tariff-master:update" in request.principal.attr.delegated_capabilities ||
+              "billing-and-finance:shell:access" in request.principal.attr.capabilities ||
+              "billing-and-finance:shell:access" in request.principal.attr.delegated_capabilities
             )
 
     - actions:

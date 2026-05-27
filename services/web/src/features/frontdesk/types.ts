@@ -24,6 +24,8 @@ export type VisitRegistrationVitalsBlock = Record<string, number | string | null
 
 export interface VisitRegistrationAppointmentBlock {
   department_id?: string;
+  /** Resolved from master-data when `department_id` changes (tariff + charge ingest). */
+  department_name?: string;
   room_number?: string;
   provider_id?: string;
   visit_type_code?: string;
@@ -54,6 +56,10 @@ export interface VisitRegistrationBillingFeeLine {
   unit_price: number;
   tax_percent: number;
   discount: number;
+  /** Tariff `service_code` for `POST /charges` (`item_code`). */
+  item_code?: string;
+  /** Display label from tariff catalog. */
+  service_name?: string;
 }
 
 export interface VisitRegistrationBillingBlock {
