@@ -20,7 +20,7 @@ export function RegistrationSection({
       <div className="border-b border-border bg-muted/40 px-4 py-2.5 text-sm font-medium text-foreground">
         {title}
       </div>
-      <div className="space-y-4 p-4">{children}</div>
+      <div className="space-y-3 p-3 md:p-4">{children}</div>
     </section>
   );
 }
