@@ -167,13 +167,21 @@ export function useAbhaWizard({
     });
   }, []);
 
-  const showLoginOtpToast = useCallback((message: string, fallbackLast4: string) => {
-    const last4 = extractMobileLast4FromMessage(message) ?? fallbackLast4;
-    dispatch({ type: 'BEGIN_LOGIN_OTP', last4 });
+  const toastLoginOtpSent = useCallback((last4: string) => {
     toast.success('OTP Sent', {
       description: `OTP sent to mobile number ending with ******${last4}`,
     });
   }, []);
+
+  const enterLoginOtpStep = useCallback(
+    (message: string, fallbackLast4: string) => {
+      const last4 = extractMobileLast4FromMessage(message) ?? fallbackLast4;
+      dispatch({ type: 'BEGIN_LOGIN_OTP', last4 });
+      dispatch({ type: 'SET_STEP', step: 'login-otp' });
+      toastLoginOtpSent(last4);
+    },
+    [toastLoginOtpSent],
+  );
 
   const refreshProfileState = useCallback(
     async (sid: string, verify?: EnrolAadhaarVerifyResponse) => {
@@ -354,7 +362,7 @@ export function useAbhaWizard({
         dispatch({ type: 'INIT_OTP_SESSION', sessionId: res.sessionId });
         dispatch({ type: 'SET_LOGIN_MODE', mode: 'abha-number' });
         dispatch({ type: 'SET_LOGIN_CHANNEL', channel });
-        showLoginOtpToast(res.message, derived.loginAbhaNumberDigits.slice(-4));
+        enterLoginOtpStep(res.message, derived.loginAbhaNumberDigits.slice(-4));
       } catch (err) {
         toast.error(mutationErrorMessage(err));
       } finally {
@@ -365,7 +373,7 @@ export function useAbhaWizard({
       derived.isFrontdeskVerify,
       derived.loginAbhaNumberDigits,
       derived.loginAbhaNumberValid,
-      showLoginOtpToast,
+      enterLoginOtpStep,
       state.isSubmitting,
     ],
   );
@@ -383,7 +391,7 @@ export function useAbhaWizard({
         dispatch({ type: 'INIT_OTP_SESSION', sessionId: res.sessionId });
         dispatch({ type: 'SET_LOGIN_MODE', mode: 'abha-address' });
         dispatch({ type: 'SET_LOGIN_ABHA_ADDRESS_CHANNEL', channel });
-        showLoginOtpToast(
+        enterLoginOtpStep(
           res.message,
           abhaAddress.replace(/\D/g, '').slice(-4) || '0000',
         );
@@ -393,7 +401,7 @@ export function useAbhaWizard({
         dispatch({ type: 'SET_SUBMITTING', isSubmitting: false });
       }
     },
-    [derived.loginAbhaAddressValid, showLoginOtpToast, state.isSubmitting, state.login.abhaAddress],
+    [derived.loginAbhaAddressValid, enterLoginOtpStep, state.isSubmitting, state.login.abhaAddress],
   );
 
   const handleLoginAbhaAddressNext = useCallback(() => {
@@ -459,13 +467,13 @@ export function useAbhaWizard({
       const res = await sendLoginMobileOtp(state.login.mobile);
       dispatch({ type: 'INIT_OTP_SESSION', sessionId: res.sessionId });
       dispatch({ type: 'SET_LOGIN_MODE', mode: 'mobile' });
-      showLoginOtpToast(res.message, state.login.mobile.slice(-4));
+      enterLoginOtpStep(res.message, state.login.mobile.slice(-4));
     } catch (err) {
       toast.error(mutationErrorMessage(err));
     } finally {
       dispatch({ type: 'SET_SUBMITTING', isSubmitting: false });
     }
-  }, [derived.loginMobileValid, showLoginOtpToast, state.isSubmitting, state.login.mobile]);
+  }, [derived.loginMobileValid, enterLoginOtpStep, state.isSubmitting, state.login.mobile]);
 
   const handleLoginAadhaarOtpSend = useCallback(async () => {
     if (!derived.consentStepValid || state.isSubmitting) return;
@@ -474,13 +482,13 @@ export function useAbhaWizard({
       const res = await sendLoginAadhaarOtp(derived.fullAadhaar);
       dispatch({ type: 'INIT_OTP_SESSION', sessionId: res.sessionId });
       dispatch({ type: 'SET_LOGIN_MODE', mode: 'aadhaar' });
-      showLoginOtpToast(res.message, derived.fullAadhaar.slice(-4));
+      enterLoginOtpStep(res.message, derived.fullAadhaar.slice(-4));
     } catch (err) {
       toast.error(mutationErrorMessage(err));
     } finally {
       dispatch({ type: 'SET_SUBMITTING', isSubmitting: false });
     }
-  }, [derived.consentStepValid, derived.fullAadhaar, showLoginOtpToast, state.isSubmitting]);
+  }, [derived.consentStepValid, derived.fullAadhaar, enterLoginOtpStep, state.isSubmitting]);
 
   const handleLoginResendOtp = useCallback(async () => {
     const { mode, channel, abhaAddressChannel, mobile } = state.login;

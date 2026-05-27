@@ -266,6 +266,19 @@ function VisitRegistrationRoute() {
   });
 
   const submitIdempotencyKeyRef = useRef<string | undefined>(undefined);
+  const pendingAbhaDistrictRef = useRef<string | null>(null);
+  const permanentState = useWatch({ control: form.control, name: 'permanent_address.state' });
+
+  const applyPendingAbhaDistrict = () => {
+    const districtCode = pendingAbhaDistrictRef.current;
+    if (!districtCode || !form.getValues('permanent_address.state')) return;
+    form.setValue('permanent_address.district', districtCode, { shouldValidate: true });
+    pendingAbhaDistrictRef.current = null;
+  };
+
+  useEffect(() => {
+    applyPendingAbhaDistrict();
+  }, [permanentState, form]);
 
   const applyAbhaPayloadToForm = (payload: AbhaCreatedPayload) => {
     if (payload.abhaNumber) {
@@ -299,9 +312,7 @@ function VisitRegistrationRoute() {
       if (state) {
         form.setValue('permanent_address.state', state, { shouldValidate: true });
         if (district) {
-          window.setTimeout(() => {
-            form.setValue('permanent_address.district', district, { shouldValidate: true });
-          }, 0);
+          pendingAbhaDistrictRef.current = district;
         }
       } else if (district) {
         form.setValue('permanent_address.district', district, { shouldValidate: true });
@@ -309,6 +320,7 @@ function VisitRegistrationRoute() {
       if (pincode) {
         form.setValue('permanent_address.pincode', pincode, { shouldValidate: true });
       }
+      applyPendingAbhaDistrict();
     }
   };
 
@@ -329,9 +341,11 @@ function VisitRegistrationRoute() {
   };
 
   const handleClearAbhaRegistration = () => {
-    form.reset();
+    form.setValue('patient.abha_number', '', { shouldValidate: false });
+    form.setValue('patient.abha_address', '', { shouldValidate: false });
+    pendingAbhaDistrictRef.current = null;
     setAbhaRegistration(null);
-    toast.message('Registration form cleared');
+    toast.message('ABHA details cleared');
   };
 
   const handleDownloadAbhaCard = async () => {

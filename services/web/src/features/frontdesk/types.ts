@@ -86,7 +86,7 @@ export interface CreateVisitRequestBody {
     age_days?: number | null;
     email?: string | null;
     blood_group?: string | null;
-    /** Dummy until EMPI / ABHA integration */
+    /** Populated from ABHA wizard / verify flow; persisted via registration API when supported */
     abha_number?: string | null;
     abha_address?: string | null;
   };

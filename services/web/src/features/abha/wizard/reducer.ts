@@ -195,7 +195,6 @@ export function abhaWizardReducer(
     case 'BEGIN_LOGIN_OTP':
       return {
         ...state,
-        step: 'login-otp',
         login: {
           ...state.login,
           otp: '',
