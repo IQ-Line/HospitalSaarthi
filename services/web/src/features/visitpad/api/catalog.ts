@@ -97,8 +97,7 @@ function listUrl(
 function useVisitpadCatalogScopeKey(): string {
   const tenantId = useTenantStore((s) => s.tenantId);
   const roles = useAuthStore((s) => s.roles);
-  const accessToken = useAuthStore((s) => s.accessToken);
-  return resolveVisitpadCatalogScopeKey(tenantId, roles, accessToken);
+  return resolveVisitpadCatalogScopeKey(tenantId, roles);
 }
 
 function pageKey(p?: VisitpadCatalogPageParams): [number, number] {

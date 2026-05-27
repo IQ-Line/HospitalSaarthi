@@ -9,6 +9,7 @@ import {
   visitpadCatalogOmitsIqTenantHeader,
 } from '@/lib/catalog-tenant';
 import { useAuthStore } from '@/stores/auth.store';
+import { usePermissionsStore } from '@/stores/permissions.store';
 import { useTenantStore } from '@/stores/tenant.store';
 
 const BASE_URL = resolveBrowserApiBaseUrl();
@@ -83,12 +84,17 @@ function shouldOmitTenantHeaders(context?: ApiClientContext): boolean {
   return context?.tenantIdOverride === null;
 }
 
+function visitpadOmitsTenantHeaderForPath(path: string): boolean {
+  const { roles } = useAuthStore.getState();
+  const { roles: principalRoles } = usePermissionsStore.getState();
+  return visitpadCatalogOmitsIqTenantHeader({ path, authRoles: roles, principalRoles });
+}
+
 function shouldOmitTenantHeadersForPath(path: string, context?: ApiClientContext): boolean {
   if (shouldOmitTenantHeaders(context)) {
     return true;
   }
-  const { accessToken, roles } = useAuthStore.getState();
-  return visitpadCatalogOmitsIqTenantHeader({ path, authRoles: roles, accessToken });
+  return visitpadOmitsTenantHeaderForPath(path);
 }
 
 function buildRequestHeaders(
@@ -105,18 +111,16 @@ function buildRequestHeaders(
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  if (!shouldOmitTenantHeadersForPath(path, context) && !path.startsWith(BILLING_API_PREFIX)) {
+  const skipTenantHeaders = shouldOmitTenantHeadersForPath(path, context);
+
+  if (!skipTenantHeaders && !path.startsWith(BILLING_API_PREFIX)) {
     applyTenantHeaders(headers, path, tenantId);
   }
 
   if (
     isWriteHttpMethod(options.method) &&
     isVisitpadCatalogApiPath(path) &&
-    !visitpadCatalogOmitsIqTenantHeader({
-      path,
-      authRoles: useAuthStore.getState().roles,
-      accessToken: useAuthStore.getState().accessToken,
-    }) &&
+    !skipTenantHeaders &&
     tenantId != null &&
     tenantId.trim() !== '' &&
     catalogIqTenantHeaderValue(tenantId) == null

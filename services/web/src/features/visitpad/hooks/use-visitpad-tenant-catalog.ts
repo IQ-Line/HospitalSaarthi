@@ -6,9 +6,8 @@ import { useTenantStore } from '@/stores/tenant.store';
 export function useVisitpadTenantCatalog() {
   const tenantId = useTenantStore((s) => s.tenantId);
   const roles = useAuthStore((s) => s.roles);
-  const accessToken = useAuthStore((s) => s.accessToken);
   return {
     tenantId,
-    tenantCatalog: isVisitpadTenantCatalogScopeForPrincipal(tenantId, roles, accessToken),
+    tenantCatalog: isVisitpadTenantCatalogScopeForPrincipal(tenantId, roles),
   };
 }

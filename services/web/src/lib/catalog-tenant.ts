@@ -48,14 +48,14 @@ export function isVisitpadCatalogApiPath(path: string): boolean {
 export function visitpadCatalogOmitsIqTenantHeader(input: {
   path: string;
   authRoles?: readonly string[];
-  accessToken?: string | null;
+  principalRoles?: readonly string[];
 }): boolean {
   if (!isVisitpadCatalogApiPath(input.path)) {
     return false;
   }
   return resolvePlatformSuperAdmin({
     authRoles: input.authRoles,
-    accessToken: input.accessToken,
+    principalRoles: input.principalRoles,
   });
 }
 
@@ -67,9 +67,8 @@ export function isVisitpadTenantCatalogScope(tenantId: string | null | undefined
 export function resolveVisitpadCatalogScopeKey(
   tenantId: string | null | undefined,
   authRoles?: readonly string[],
-  accessToken?: string | null,
 ): string {
-  if (resolvePlatformSuperAdmin({ authRoles, accessToken })) {
+  if (resolvePlatformSuperAdmin({ authRoles })) {
     return 'global';
   }
   return catalogIqTenantHeaderValue(tenantId) ?? 'global';
@@ -79,9 +78,8 @@ export function resolveVisitpadCatalogScopeKey(
 export function isVisitpadTenantCatalogScopeForPrincipal(
   tenantId: string | null | undefined,
   authRoles?: readonly string[],
-  accessToken?: string | null,
 ): boolean {
-  if (resolvePlatformSuperAdmin({ authRoles, accessToken })) {
+  if (resolvePlatformSuperAdmin({ authRoles })) {
     return false;
   }
   return isVisitpadTenantCatalogScope(tenantId);

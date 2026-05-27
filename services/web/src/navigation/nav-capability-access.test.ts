@@ -123,17 +123,18 @@ describe('principalGrantsNavNodeAccess', () => {
     ).toBe(true);
   });
 
-  it('denies visitpad child when principal lacks matching module segment', () => {
+  it('denies visitpad child when principal has no visitpad or L3 keys', () => {
+    const usersOnly = new Set(['users:users:read']);
     expect(
       principalGrantsNavNodeAccess(
-        accessInput(ndwadPrincipal),
+        accessInput(usersOnly),
         { id: 'visitpad-conversions', label: 'Conversions', route: '/visitpad/conversions' },
         { parentProductSlugs: ['visitpad-master'], routePrefix: '/visitpad' },
       ),
     ).toBe(false);
   });
 
-  it('allows visitpad layout but not L2 leaves for visitpad-master:visitpad:view only', () => {
+  it('shows visitpad L3 leaves for visitpad-master shell keys (view or catalog:read)', () => {
     const shellViewOnly = new Set(['visitpad-master:visitpad:view']);
     expect(
       principalGrantsNavNodeAccess(
@@ -141,11 +142,13 @@ describe('principalGrantsNavNodeAccess', () => {
         { id: 'visitpad-vitals', label: 'Vitals', route: '/visitpad/vitals' },
         { parentProductSlugs: ['visitpad-master'], routePrefix: '/visitpad' },
       ),
-    ).toBe(false);
+    ).toBe(true);
+
+    const shellCatalogRead = new Set(['visitpad-master:catalog:read']);
     expect(
       principalGrantsNavNodeAccess(
-        accessInput(shellViewOnly),
-        { id: 'visitpad', label: 'Visitpad', route: '/visitpad' },
+        accessInput(shellCatalogRead),
+        { id: 'visitpad-units', label: 'Units', route: '/visitpad/units' },
         { parentProductSlugs: ['visitpad-master'], routePrefix: '/visitpad' },
       ),
     ).toBe(true);

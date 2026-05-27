@@ -1,3 +1,5 @@
+import { VISITPAD_CATALOG_SECTIONS } from '@/lib/visitpad-catalog-slugs';
+
 export const visitpadKeys = {
   all: ['visitpad'] as const,
   units: () => [...visitpadKeys.all, 'units'] as const,
@@ -22,29 +24,36 @@ const tenantCatalogKeysPrefix = (listPath: string) =>
 type VisitpadListInvalidationEntry = {
   listPath: string;
   listKey: readonly unknown[];
-  /** Prefix for rx-columns (all sections). */
   listKeyPrefix?: readonly unknown[];
 };
 
-const VISITPAD_LIST_INVALIDATION: readonly VisitpadListInvalidationEntry[] = [
-  { listPath: '/units', listKey: visitpadKeys.units() },
-  { listPath: '/unit-conversions', listKey: visitpadKeys.conversions() },
-  { listPath: '/vitals', listKey: visitpadKeys.vitals() },
-  { listPath: '/chief-complaints', listKey: visitpadKeys.chiefComplaints() },
-  { listPath: '/diagnoses', listKey: visitpadKeys.diagnoses() },
-  { listPath: '/allergens', listKey: visitpadKeys.allergens() },
-  { listPath: '/allergy-reactions', listKey: visitpadKeys.reactions() },
-  {
-    listPath: '/rx-columns',
-    listKey: visitpadKeys.rxColumns(),
-    listKeyPrefix: [...visitpadKeys.all, 'rx-columns'],
-  },
-  { listPath: '/medicines', listKey: visitpadKeys.medicines() },
-  { listPath: '/chronic-illnesses', listKey: visitpadKeys.chronicIllnesses() },
-  { listPath: '/procedures', listKey: visitpadKeys.procedures() },
-  { listPath: '/vaccines', listKey: visitpadKeys.vaccines() },
-  { listPath: '/manufacturers', listKey: visitpadKeys.manufacturers() },
-];
+const VISITPAD_LIST_KEY_BY_PATH: Record<string, () => readonly unknown[]> = {
+  '/units': visitpadKeys.units,
+  '/unit-conversions': visitpadKeys.conversions,
+  '/vitals': visitpadKeys.vitals,
+  '/chief-complaints': visitpadKeys.chiefComplaints,
+  '/diagnoses': visitpadKeys.diagnoses,
+  '/allergens': visitpadKeys.allergens,
+  '/allergy-reactions': visitpadKeys.reactions,
+  '/rx-columns': visitpadKeys.rxColumns,
+  '/medicines': visitpadKeys.medicines,
+  '/chronic-illnesses': visitpadKeys.chronicIllnesses,
+  '/procedures': visitpadKeys.procedures,
+  '/vaccines': visitpadKeys.vaccines,
+  '/manufacturers': visitpadKeys.manufacturers,
+};
+
+const VISITPAD_LIST_INVALIDATION: readonly VisitpadListInvalidationEntry[] =
+  VISITPAD_CATALOG_SECTIONS.map((section) => {
+    const listKey = VISITPAD_LIST_KEY_BY_PATH[section.listPath]();
+    return {
+      listPath: section.listPath,
+      listKey,
+      ...(section.listPath === '/rx-columns'
+        ? { listKeyPrefix: [...visitpadKeys.all, 'rx-columns'] as const }
+        : {}),
+    };
+  });
 
 /** `/api/v1/master-data/visitpad/vitals` → `/vitals`. */
 export function visitpadCatalogListPathFromBasePath(basePath: string): string | null {
@@ -75,7 +84,6 @@ function visitpadInvalidationKeysForListPath(listPath: string): readonly (readon
 
 /**
  * Query keys to invalidate after POST/PATCH/DELETE on a Visitpad catalog collection.
- * Avoids `visitpadKeys.all`, which refetches every section (e.g. units @ limit 200 on Vitals forms).
  */
 export function visitpadInvalidationKeysForCatalogBasePath(
   basePath: string,

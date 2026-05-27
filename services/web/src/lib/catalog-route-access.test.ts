@@ -21,20 +21,20 @@ describe('principalGrantsCatalogRouteAccess', () => {
     ).toBe(true);
   });
 
-  it('denies visitpad child routes for visitpad-master:visitpad:view only', () => {
+  it('allows visitpad child routes for visitpad-master shell keys without L3 keys', () => {
     const shellViewOnly = new Set(['visitpad-master:visitpad:view']);
     expect(
       principalGrantsCatalogRouteAccess(shellViewOnly, '/visitpad/vitals', {
         catalogProductSlugs: ['master-data', 'visitpad-master'],
         routePrefix: '/visitpad',
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 
-  it('allows visitpad layout for L2-only principal (no visitpad-master shell keys)', () => {
-    const keys = new Set(['allergens:allergens:read', 'units:units:update']);
+  it('allows visitpad leaf for L3 keys (no shell keys)', () => {
+    const keys = new Set(['allergens:allergens:read']);
     expect(
-      principalGrantsCatalogRouteAccess(keys, '/visitpad', {
+      principalGrantsCatalogRouteAccess(keys, '/visitpad/allergens', {
         catalogProductSlugs: ['master-data', 'visitpad-master'],
         routePrefix: '/visitpad',
       }),

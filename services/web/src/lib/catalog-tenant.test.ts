@@ -5,6 +5,7 @@ import {
   catalogIqTenantHeaderValue,
   DEV_DEFAULT_IQ_TENANT_ID,
   DEV_TENANT_IQ_CATALOG_UUID,
+  isVisitpadCatalogApiPath,
   isVisitpadTenantCatalogScope,
   isVisitpadTenantCatalogScopeForPrincipal,
   resolveVisitpadCatalogScopeKey,
@@ -42,6 +43,12 @@ describe('isVisitpadTenantCatalogScope', () => {
   it('is true only when a catalog header would be sent', () => {
     expect(isVisitpadTenantCatalogScope('tenant-001')).toBe(false);
     expect(isVisitpadTenantCatalogScope(DEV_TENANT_IQ_CATALOG_UUID)).toBe(true);
+  });
+});
+
+describe('isVisitpadCatalogApiPath', () => {
+  it('is false outside visitpad catalog', () => {
+    expect(isVisitpadCatalogApiPath('/api/billing/v1/charges')).toBe(false);
   });
 });
 
