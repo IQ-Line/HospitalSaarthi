@@ -12,6 +12,7 @@ from app.core.logging import configure_logging
 from app.middleware.auth_middleware import BearerAuthContextMiddleware
 from app.middleware.request_context import RequestContextMiddleware
 from app.middleware.request_logging import RequestLoggingMiddleware
+from hims_authz.middleware import BearerPrincipalMiddleware
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,14 @@ def create_app() -> FastAPI:
     app.add_middleware(BearerAuthContextMiddleware)
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(RequestContextMiddleware)
+    if settings.authz_enabled and settings.cerbos_url:
+        app.add_middleware(
+            BearerPrincipalMiddleware,
+            user_management_url=settings.user_management_url,
+            cerbos_url=settings.cerbos_url,
+            jwt_secret=settings.jwt_secret,
+            authz_enabled=settings.authz_enabled,
+        )
     register_exception_handlers(app)
     app.include_router(api_router, prefix=settings.api_prefix)
     return app

@@ -4,6 +4,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from hims_authz.dependency import require_authz
 from sqlalchemy.orm import Session
 
 from app.api.deps import (
@@ -57,7 +58,7 @@ conversions_router = APIRouter(
 )
 
 
-@units_router.get("", response_model=VisitpadUnitListResponse, summary="List units")
+@units_router.get("", response_model=VisitpadUnitListResponse, summary="List units", dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))])
 def get_visitpad_units(
     repository: Annotated[VisitpadUnitRepository, Depends(get_visitpad_unit_repository)],
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
@@ -80,6 +81,7 @@ def get_visitpad_units(
     "/keys",
     response_model=VisitpadCatalogKeysResponse,
     summary="List tenant unit codes for import-from-platform matching",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
 )
 def get_visitpad_unit_import_keys(
     repository: Annotated[VisitpadUnitRepository, Depends(get_visitpad_unit_repository)],
@@ -93,6 +95,7 @@ def get_visitpad_unit_import_keys(
     response_model=VisitpadUnitSingleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create unit",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.create"))],
 )
 def post_visitpad_unit(
     payload: VisitpadUnitCreate,
@@ -108,6 +111,7 @@ def post_visitpad_unit(
     "/import-from-platform",
     response_model=VisitpadPlatformImportSingleResponse,
     summary="Bulk-import units from the platform catalog",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.create"))],
 )
 def post_visitpad_units_import_from_platform(
     payload: VisitpadPlatformImportRequest,
@@ -131,6 +135,7 @@ def post_visitpad_units_import_from_platform(
     "/{unit_id}",
     response_model=VisitpadUnitSingleResponse,
     summary="Get unit by id",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
 )
 def get_visitpad_unit(
     unit_id: UUID,
@@ -146,6 +151,7 @@ def get_visitpad_unit(
     "/{unit_id}",
     response_model=VisitpadUnitSingleResponse,
     summary="Update unit",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.update"))],
 )
 def patch_visitpad_unit(
     unit_id: UUID,
@@ -173,6 +179,7 @@ def patch_visitpad_unit(
     "/{unit_id}",
     response_model=VisitpadUnitSingleResponse,
     summary="Soft-delete unit",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.delete"))],
 )
 def delete_visitpad_unit(
     unit_id: UUID,
@@ -198,6 +205,7 @@ def delete_visitpad_unit(
     "",
     response_model=VisitpadUnitConversionListResponse,
     summary="List unit conversions",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
 )
 def get_visitpad_unit_conversions(
     repository: Annotated[
@@ -224,6 +232,7 @@ def get_visitpad_unit_conversions(
     "/keys",
     response_model=VisitpadCatalogKeysResponse,
     summary="List tenant conversion keys (from→to) for import-from-platform matching",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
 )
 def get_visitpad_unit_conversion_import_keys(
     repository: Annotated[
@@ -240,6 +249,7 @@ def get_visitpad_unit_conversion_import_keys(
     response_model=VisitpadUnitConversionSingleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create unit conversion",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.create"))],
 )
 def post_visitpad_unit_conversion(
     payload: VisitpadUnitConversionCreate,
@@ -264,6 +274,7 @@ def post_visitpad_unit_conversion(
     "/import-from-platform",
     response_model=VisitpadPlatformImportSingleResponse,
     summary="Bulk-import unit conversions from the platform catalog",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.create"))],
 )
 def post_visitpad_unit_conversions_import_from_platform(
     payload: VisitpadPlatformImportRequest,
@@ -292,6 +303,7 @@ def post_visitpad_unit_conversions_import_from_platform(
     "/{conversion_id}",
     response_model=VisitpadUnitConversionSingleResponse,
     summary="Get conversion by id",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
 )
 def get_visitpad_unit_conversion(
     conversion_id: UUID,
@@ -314,6 +326,7 @@ def get_visitpad_unit_conversion(
     "/{conversion_id}",
     response_model=VisitpadUnitConversionSingleResponse,
     summary="Update unit conversion",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.update"))],
 )
 def patch_visitpad_unit_conversion(
     conversion_id: UUID,
@@ -342,6 +355,7 @@ def patch_visitpad_unit_conversion(
     "/{conversion_id}",
     response_model=VisitpadUnitConversionSingleResponse,
     summary="Soft-delete unit conversion",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.delete"))],
 )
 def delete_visitpad_unit_conversion(
     conversion_id: UUID,

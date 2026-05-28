@@ -4,6 +4,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from hims_authz.dependency import require_authz
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_session, get_visitpad_vital_repository
@@ -35,7 +36,12 @@ from app.services.visitpad.vitals import (
 router = APIRouter(prefix="/visitpad/vitals", tags=["Visitpad — Vitals"])
 
 
-@router.get("", response_model=VisitpadVitalListResponse, summary="List vitals")
+@router.get(
+    "",
+    response_model=VisitpadVitalListResponse,
+    summary="List vitals",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
+)
 def get_vitals(
     repository: Annotated[VisitpadVitalRepository, Depends(get_visitpad_vital_repository)],
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
@@ -60,6 +66,7 @@ def get_vitals(
     "/keys",
     response_model=VisitpadCatalogKeysResponse,
     summary="List tenant vital codes for import-from-platform matching",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
 )
 def get_vital_import_keys(
     repository: Annotated[VisitpadVitalRepository, Depends(get_visitpad_vital_repository)],
@@ -73,6 +80,7 @@ def get_vital_import_keys(
     response_model=VisitpadVitalSingleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create vital",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.create"))],
 )
 def post_vital(
     payload: VisitpadVitalCreate,
@@ -88,6 +96,7 @@ def post_vital(
     "/import-from-platform",
     response_model=VisitpadPlatformImportSingleResponse,
     summary="Bulk-import vitals from the platform catalog",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.create"))],
 )
 def post_vitals_import_from_platform(
     payload: VisitpadPlatformImportRequest,
@@ -107,7 +116,12 @@ def post_vitals_import_from_platform(
     return VisitpadPlatformImportSingleResponse(data=data)
 
 
-@router.get("/{vital_id}", response_model=VisitpadVitalSingleResponse, summary="Get vital")
+@router.get(
+    "/{vital_id}",
+    response_model=VisitpadVitalSingleResponse,
+    summary="Get vital",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
+)
 def get_vital(
     vital_id: UUID,
     repository: Annotated[VisitpadVitalRepository, Depends(get_visitpad_vital_repository)],
@@ -118,7 +132,12 @@ def get_vital(
     return VisitpadVitalSingleResponse(data=VisitpadVitalResponse.model_validate(row))
 
 
-@router.patch("/{vital_id}", response_model=VisitpadVitalSingleResponse, summary="Update vital")
+@router.patch(
+    "/{vital_id}",
+    response_model=VisitpadVitalSingleResponse,
+    summary="Update vital",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.update"))],
+)
 def patch_vital(
     vital_id: UUID,
     payload: VisitpadVitalUpdate,
@@ -140,6 +159,7 @@ def patch_vital(
     "/{vital_id}",
     response_model=VisitpadVitalSingleResponse,
     summary="Soft-delete vital",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.delete"))],
 )
 def delete_vital(
     vital_id: UUID,

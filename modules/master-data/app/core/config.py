@@ -92,6 +92,18 @@ class Settings(BaseSettings):
             "If true, mutation routes accept requests without a bearer token (Swagger/local only)."
         ),
     )
+    cerbos_url: str = Field(
+        default="localhost:3593",
+        description="Cerbos PDP gRPC endpoint for authorization (host:port, no protocol prefix).",
+    )
+    user_management_url: str = Field(
+        default="http://localhost:8001/api/user-management",
+        description="Base URL for the user-management service /auth/principal enrichment endpoint.",
+    )
+    authz_enabled: bool = Field(
+        default=False,
+        description="If true, enforce Cerbos authorization on protected routes. Disabled for tests.",
+    )
     dev_bearer_token: str | None = Field(
         default=None,
         description=(

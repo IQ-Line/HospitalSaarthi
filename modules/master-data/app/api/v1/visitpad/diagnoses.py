@@ -4,6 +4,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from hims_authz.dependency import require_authz
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_session, get_visitpad_diagnosis_repository
@@ -35,7 +36,12 @@ from app.services.visitpad.platform_bulk_import import import_visitpad_diagnoses
 router = APIRouter(prefix="/visitpad/diagnoses", tags=["Visitpad — Diagnoses"])
 
 
-@router.get("", response_model=VisitpadDiagnosisListResponse, summary="List diagnoses")
+@router.get(
+    "",
+    response_model=VisitpadDiagnosisListResponse,
+    summary="List diagnoses",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
+)
 def get_diagnoses(
     repository: Annotated[VisitpadDiagnosisRepository, Depends(get_visitpad_diagnosis_repository)],
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
@@ -61,6 +67,7 @@ def get_diagnoses(
     response_model=VisitpadDiagnosisSingleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create diagnosis",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.create"))],
 )
 def post_diagnosis(
     payload: VisitpadDiagnosisCreate,
@@ -76,6 +83,7 @@ def post_diagnosis(
     "/import-from-platform",
     response_model=VisitpadPlatformImportSingleResponse,
     summary="Bulk-import diagnoses from the platform catalog",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.create"))],
 )
 def post_diagnoses_import_from_platform(
     payload: VisitpadPlatformImportRequest,
@@ -99,6 +107,7 @@ def post_diagnoses_import_from_platform(
     "/keys",
     response_model=VisitpadCatalogKeysResponse,
     summary="List tenant diagnosis codes for import-from-platform matching",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
 )
 def get_diagnosis_import_keys(
     repository: Annotated[VisitpadDiagnosisRepository, Depends(get_visitpad_diagnosis_repository)],
@@ -107,7 +116,12 @@ def get_diagnosis_import_keys(
     return VisitpadCatalogKeysResponse(data=repository.list_import_key_strings())
 
 
-@router.get("/{diagnosis_id}", response_model=VisitpadDiagnosisSingleResponse, summary="Get diagnosis")
+@router.get(
+    "/{diagnosis_id}",
+    response_model=VisitpadDiagnosisSingleResponse,
+    summary="Get diagnosis",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
+)
 def get_diagnosis(
     diagnosis_id: UUID,
     repository: Annotated[VisitpadDiagnosisRepository, Depends(get_visitpad_diagnosis_repository)],
@@ -118,7 +132,12 @@ def get_diagnosis(
     return VisitpadDiagnosisSingleResponse(data=VisitpadDiagnosisResponse.model_validate(row))
 
 
-@router.patch("/{diagnosis_id}", response_model=VisitpadDiagnosisSingleResponse, summary="Update diagnosis")
+@router.patch(
+    "/{diagnosis_id}",
+    response_model=VisitpadDiagnosisSingleResponse,
+    summary="Update diagnosis",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.update"))],
+)
 def patch_diagnosis(
     diagnosis_id: UUID,
     payload: VisitpadDiagnosisUpdate,
@@ -136,7 +155,12 @@ def patch_diagnosis(
     return VisitpadDiagnosisSingleResponse(data=VisitpadDiagnosisResponse.model_validate(row))
 
 
-@router.delete("/{diagnosis_id}", response_model=VisitpadDiagnosisSingleResponse, summary="Soft-delete diagnosis")
+@router.delete(
+    "/{diagnosis_id}",
+    response_model=VisitpadDiagnosisSingleResponse,
+    summary="Soft-delete diagnosis",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.delete"))],
+)
 def delete_diagnosis(
     diagnosis_id: UUID,
     repository: Annotated[VisitpadDiagnosisRepository, Depends(get_visitpad_diagnosis_repository)],

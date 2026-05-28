@@ -4,6 +4,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from hims_authz.dependency import require_authz
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_session, get_visitpad_procedure_repository
@@ -36,7 +37,12 @@ from app.services.visitpad.procedures import (
 router = APIRouter(prefix="/visitpad/procedures", tags=["Visitpad — Procedures"])
 
 
-@router.get("", response_model=VisitpadProcedureListResponse, summary="List procedures")
+@router.get(
+    "",
+    response_model=VisitpadProcedureListResponse,
+    summary="List procedures",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
+)
 def get_procedures(
     repository: Annotated[VisitpadProcedureRepository, Depends(get_visitpad_procedure_repository)],
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
@@ -64,6 +70,7 @@ def get_procedures(
     response_model=VisitpadProcedureSingleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create procedure",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.create"))],
 )
 def post_procedure(
     payload: VisitpadProcedureCreate,
@@ -79,6 +86,7 @@ def post_procedure(
     "/import-from-platform",
     response_model=VisitpadPlatformImportSingleResponse,
     summary="Bulk-import procedures from the platform catalog",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.create"))],
 )
 def post_procedures_import_from_platform(
     payload: VisitpadPlatformImportRequest,
@@ -102,6 +110,7 @@ def post_procedures_import_from_platform(
     "/keys",
     response_model=VisitpadCatalogKeysResponse,
     summary="List tenant procedure CPT codes for import-from-platform matching",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
 )
 def get_procedure_import_keys(
     repository: Annotated[VisitpadProcedureRepository, Depends(get_visitpad_procedure_repository)],
@@ -110,7 +119,12 @@ def get_procedure_import_keys(
     return VisitpadCatalogKeysResponse(data=repository.list_import_key_strings())
 
 
-@router.get("/{procedure_id}", response_model=VisitpadProcedureSingleResponse, summary="Get procedure")
+@router.get(
+    "/{procedure_id}",
+    response_model=VisitpadProcedureSingleResponse,
+    summary="Get procedure",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
+)
 def get_procedure(
     procedure_id: UUID,
     repository: Annotated[VisitpadProcedureRepository, Depends(get_visitpad_procedure_repository)],
@@ -121,7 +135,12 @@ def get_procedure(
     return VisitpadProcedureSingleResponse(data=VisitpadProcedureResponse.model_validate(row))
 
 
-@router.patch("/{procedure_id}", response_model=VisitpadProcedureSingleResponse, summary="Update procedure")
+@router.patch(
+    "/{procedure_id}",
+    response_model=VisitpadProcedureSingleResponse,
+    summary="Update procedure",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.update"))],
+)
 def patch_procedure(
     procedure_id: UUID,
     payload: VisitpadProcedureUpdate,
@@ -139,7 +158,12 @@ def patch_procedure(
     return VisitpadProcedureSingleResponse(data=VisitpadProcedureResponse.model_validate(row))
 
 
-@router.delete("/{procedure_id}", response_model=VisitpadProcedureSingleResponse, summary="Soft-delete procedure")
+@router.delete(
+    "/{procedure_id}",
+    response_model=VisitpadProcedureSingleResponse,
+    summary="Soft-delete procedure",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.delete"))],
+)
 def delete_procedure(
     procedure_id: UUID,
     repository: Annotated[VisitpadProcedureRepository, Depends(get_visitpad_procedure_repository)],

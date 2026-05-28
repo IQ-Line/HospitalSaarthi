@@ -1,0 +1,163 @@
+---
+# Master Data — Visitpad tenant catalog CRUD.
+# Capabilities: master-data:visitpad:{read,create,update,delete}
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "master_data:visitpad"
+  version: default
+  rules:
+    - actions:
+        - "visitpad.read"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "master-data:visitpad:read" in request.principal.attr.capabilities ||
+              "master-data:visitpad:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "visitpad.read"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "master-data:visitpad:read" in request.principal.attr.capabilities ||
+              "master-data:visitpad:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "visitpad.read"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      name: cross-tenant-super-admin-visitpad-read
+      condition:
+        match:
+          expr: >-
+            "super-admin" in request.principal.attr.role_codes &&
+            (
+              "master-data:visitpad:read" in request.principal.attr.capabilities ||
+              "master-data:visitpad:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "visitpad.create"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "master-data:visitpad:create" in request.principal.attr.capabilities ||
+              "master-data:visitpad:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "visitpad.create"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "master-data:visitpad:create" in request.principal.attr.capabilities ||
+              "master-data:visitpad:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "visitpad.create"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      name: cross-tenant-super-admin-visitpad-create
+      condition:
+        match:
+          expr: >-
+            "super-admin" in request.principal.attr.role_codes &&
+            (
+              "master-data:visitpad:create" in request.principal.attr.capabilities ||
+              "master-data:visitpad:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "visitpad.update"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "master-data:visitpad:update" in request.principal.attr.capabilities ||
+              "master-data:visitpad:update" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "visitpad.update"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "master-data:visitpad:update" in request.principal.attr.capabilities ||
+              "master-data:visitpad:update" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "visitpad.update"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      name: cross-tenant-super-admin-visitpad-update
+      condition:
+        match:
+          expr: >-
+            "super-admin" in request.principal.attr.role_codes &&
+            (
+              "master-data:visitpad:update" in request.principal.attr.capabilities ||
+              "master-data:visitpad:update" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "visitpad.delete"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "master-data:visitpad:delete" in request.principal.attr.capabilities ||
+              "master-data:visitpad:delete" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "visitpad.delete"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "master-data:visitpad:delete" in request.principal.attr.capabilities ||
+              "master-data:visitpad:delete" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "visitpad.delete"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      name: cross-tenant-super-admin-visitpad-delete
+      condition:
+        match:
+          expr: >-
+            "super-admin" in request.principal.attr.role_codes &&
+            (
+              "master-data:visitpad:delete" in request.principal.attr.capabilities ||
+              "master-data:visitpad:delete" in request.principal.attr.delegated_capabilities
+            )

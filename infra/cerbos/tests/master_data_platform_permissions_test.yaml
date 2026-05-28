@@ -1,0 +1,145 @@
+# yaml-language-server: $schema=https://api.cerbos.dev/latest/cerbos/policy/v1/TestSuite.schema.json
+---
+name: master_data_platform_permissions_test
+description: Master Data — platform catalog read/create/update/delete require runtime capability keys and tenant alignment.
+
+principals:
+  platform_admin:
+    id: plat-admin
+    roles:
+      - "_unresolved"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      role_codes:
+        - "platform-admin"
+      capabilities:
+        - "master-data:platform:read"
+        - "master-data:platform:create"
+        - "master-data:platform:update"
+        - "master-data:platform:delete"
+      delegated_capabilities: []
+
+  platform_reader:
+    id: plat-reader
+    roles:
+      - "_unresolved"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      role_codes:
+        - "platform-reader"
+      capabilities:
+        - "master-data:platform:read"
+      delegated_capabilities: []
+
+resources:
+  catalog_record:
+    id: dept-42
+    kind: master_data:platform
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+
+  catalog_record_wrong_tenant:
+    id: dept-42
+    kind: master_data:platform
+    attr:
+      iq_tenant_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+
+tests:
+  - name: catalog.read — admin ALLOW
+    input:
+      principals: [platform_admin]
+      resources: [catalog_record]
+      actions: [catalog.read]
+    expected:
+      - principal: platform_admin
+        resource: catalog_record
+        actions:
+          catalog.read: EFFECT_ALLOW
+
+  - name: catalog.read — reader ALLOW
+    input:
+      principals: [platform_reader]
+      resources: [catalog_record]
+      actions: [catalog.read]
+    expected:
+      - principal: platform_reader
+        resource: catalog_record
+        actions:
+          catalog.read: EFFECT_ALLOW
+
+  - name: catalog.create — admin ALLOW
+    input:
+      principals: [platform_admin]
+      resources: [catalog_record]
+      actions: [catalog.create]
+    expected:
+      - principal: platform_admin
+        resource: catalog_record
+        actions:
+          catalog.create: EFFECT_ALLOW
+
+  - name: catalog.create — reader without create DENY
+    input:
+      principals: [platform_reader]
+      resources: [catalog_record]
+      actions: [catalog.create]
+    expected:
+      - principal: platform_reader
+        resource: catalog_record
+        actions:
+          catalog.create: EFFECT_DENY
+
+  - name: catalog.update — admin ALLOW
+    input:
+      principals: [platform_admin]
+      resources: [catalog_record]
+      actions: [catalog.update]
+    expected:
+      - principal: platform_admin
+        resource: catalog_record
+        actions:
+          catalog.update: EFFECT_ALLOW
+
+  - name: catalog.update — reader without update DENY
+    input:
+      principals: [platform_reader]
+      resources: [catalog_record]
+      actions: [catalog.update]
+    expected:
+      - principal: platform_reader
+        resource: catalog_record
+        actions:
+          catalog.update: EFFECT_DENY
+
+  - name: catalog.delete — admin ALLOW
+    input:
+      principals: [platform_admin]
+      resources: [catalog_record]
+      actions: [catalog.delete]
+    expected:
+      - principal: platform_admin
+        resource: catalog_record
+        actions:
+          catalog.delete: EFFECT_ALLOW
+
+  - name: catalog.delete — reader without delete DENY
+    input:
+      principals: [platform_reader]
+      resources: [catalog_record]
+      actions: [catalog.delete]
+    expected:
+      - principal: platform_reader
+        resource: catalog_record
+        actions:
+          catalog.delete: EFFECT_DENY
+
+  - name: catalog.read — wrong tenant DENY
+    input:
+      principals: [platform_admin]
+      resources: [catalog_record_wrong_tenant]
+      actions: [catalog.read]
+    expected:
+      - principal: platform_admin
+        resource: catalog_record_wrong_tenant
+        actions:
+          catalog.read: EFFECT_DENY

@@ -4,6 +4,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from hims_authz.dependency import require_authz
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_session, get_visitpad_manufacturer_repository
@@ -34,7 +35,12 @@ from app.services.visitpad.platform_bulk_import import import_visitpad_manufactu
 router = APIRouter(prefix="/visitpad/manufacturers", tags=["Visitpad — Manufacturers"])
 
 
-@router.get("", response_model=VisitpadManufacturerListResponse, summary="List manufacturers")
+@router.get(
+    "",
+    response_model=VisitpadManufacturerListResponse,
+    summary="List manufacturers",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
+)
 def get_manufacturers(
     repository: Annotated[VisitpadManufacturerRepository, Depends(get_visitpad_manufacturer_repository)],
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
@@ -53,6 +59,7 @@ def get_manufacturers(
     response_model=VisitpadManufacturerSingleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create manufacturer",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.create"))],
 )
 def post_manufacturer(
     payload: VisitpadManufacturerCreate,
@@ -68,6 +75,7 @@ def post_manufacturer(
     "/import-from-platform",
     response_model=VisitpadPlatformImportSingleResponse,
     summary="Bulk-import manufacturers from the platform catalog",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.create"))],
 )
 def post_manufacturers_import_from_platform(
     payload: VisitpadPlatformImportRequest,
@@ -91,6 +99,7 @@ def post_manufacturers_import_from_platform(
     "/keys",
     response_model=VisitpadCatalogKeysResponse,
     summary="List tenant manufacturer codes (lowercase) for import-from-platform matching",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
 )
 def get_manufacturer_import_keys(
     repository: Annotated[VisitpadManufacturerRepository, Depends(get_visitpad_manufacturer_repository)],
@@ -99,7 +108,12 @@ def get_manufacturer_import_keys(
     return VisitpadCatalogKeysResponse(data=repository.list_import_key_strings())
 
 
-@router.get("/{manufacturer_id}", response_model=VisitpadManufacturerSingleResponse, summary="Get manufacturer")
+@router.get(
+    "/{manufacturer_id}",
+    response_model=VisitpadManufacturerSingleResponse,
+    summary="Get manufacturer",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
+)
 def get_manufacturer(
     manufacturer_id: UUID,
     repository: Annotated[VisitpadManufacturerRepository, Depends(get_visitpad_manufacturer_repository)],
@@ -114,6 +128,7 @@ def get_manufacturer(
     "/{manufacturer_id}",
     response_model=VisitpadManufacturerSingleResponse,
     summary="Update manufacturer",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.update"))],
 )
 def patch_manufacturer(
     manufacturer_id: UUID,
@@ -132,6 +147,7 @@ def patch_manufacturer(
     "/{manufacturer_id}",
     response_model=VisitpadManufacturerSingleResponse,
     summary="Soft-delete manufacturer",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.delete"))],
 )
 def delete_manufacturer(
     manufacturer_id: UUID,

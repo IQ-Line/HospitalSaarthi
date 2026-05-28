@@ -6,6 +6,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
+from hims_authz.dependency import require_authz
+
 from app.api.deps import get_session, get_system_role_repository
 from app.api.errors import ResourceNotFoundError
 from app.repositories.system_role_repository import SystemRoleRepository
@@ -28,7 +30,7 @@ from app.services.system_role_service import (
 router = APIRouter(prefix="/system-roles", tags=["System roles"])
 
 
-@router.get("", response_model=SystemRoleListResponse, summary="List system role templates")
+@router.get("", response_model=SystemRoleListResponse, summary="List system role templates", dependencies=[Depends(require_authz("master_data:platform", "catalog.read"))])
 def get_system_roles(
     repository: Annotated[SystemRoleRepository, Depends(get_system_role_repository)],
     is_template: Annotated[bool | None, Query()] = None,
@@ -43,6 +45,7 @@ def get_system_roles(
     response_model=SystemRoleSingleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a system role template",
+    dependencies=[Depends(require_authz("master_data:platform", "catalog.create"))],
 )
 def post_system_role(
     payload: SystemRoleCreate,
@@ -58,6 +61,7 @@ def post_system_role(
     "/by-slug/{slug}",
     response_model=SystemRoleSingleResponse,
     summary="Get one system role by slug",
+    dependencies=[Depends(require_authz("master_data:platform", "catalog.read"))],
 )
 def get_system_role_by_slug_route(
     slug: str,
@@ -73,6 +77,7 @@ def get_system_role_by_slug_route(
     "/{system_role_id}",
     response_model=SystemRoleSingleResponse,
     summary="Get one system role by id",
+    dependencies=[Depends(require_authz("master_data:platform", "catalog.read"))],
 )
 def get_system_role_by_id_route(
     system_role_id: UUID,
@@ -88,6 +93,7 @@ def get_system_role_by_id_route(
     "/{system_role_id}",
     response_model=SystemRoleSingleResponse,
     summary="Update a system role template",
+    dependencies=[Depends(require_authz("master_data:platform", "catalog.update"))],
 )
 def patch_system_role(
     system_role_id: UUID,
@@ -104,6 +110,7 @@ def patch_system_role(
     "/{system_role_id}",
     response_model=SystemRoleSingleResponse,
     summary="Soft-delete a system role template",
+    dependencies=[Depends(require_authz("master_data:platform", "catalog.delete"))],
 )
 def delete_system_role(
     system_role_id: UUID,

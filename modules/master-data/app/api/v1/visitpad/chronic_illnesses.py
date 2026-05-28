@@ -4,6 +4,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from hims_authz.dependency import require_authz
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_session, get_visitpad_chronic_illness_repository
@@ -37,7 +38,7 @@ from app.services.visitpad.platform_bulk_import import (
 router = APIRouter(prefix="/visitpad/chronic-illnesses", tags=["Visitpad — Chronic illnesses"])
 
 
-@router.get("", response_model=VisitpadChronicIllnessListResponse, summary="List chronic illnesses")
+@router.get("", response_model=VisitpadChronicIllnessListResponse, summary="List chronic illnesses", dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))])
 def get_chronic_illnesses(
     repository: Annotated[
         VisitpadChronicIllnessRepository,
@@ -66,6 +67,7 @@ def get_chronic_illnesses(
     response_model=VisitpadChronicIllnessSingleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create chronic illness",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.create"))],
 )
 def post_chronic_illness(
     payload: VisitpadChronicIllnessCreate,
@@ -84,6 +86,7 @@ def post_chronic_illness(
     "/import-from-platform",
     response_model=VisitpadPlatformImportSingleResponse,
     summary="Bulk-import chronic illnesses from the platform catalog",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.create"))],
 )
 def post_chronic_illnesses_import_from_platform(
     payload: VisitpadPlatformImportRequest,
@@ -110,6 +113,7 @@ def post_chronic_illnesses_import_from_platform(
     "/keys",
     response_model=VisitpadCatalogKeysResponse,
     summary="List tenant chronic illness ICD-10 codes for import-from-platform matching",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
 )
 def get_chronic_illness_import_keys(
     repository: Annotated[
@@ -125,6 +129,7 @@ def get_chronic_illness_import_keys(
     "/{chronic_illness_id}",
     response_model=VisitpadChronicIllnessSingleResponse,
     summary="Get chronic illness",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
 )
 def get_chronic_illness(
     chronic_illness_id: UUID,
@@ -143,6 +148,7 @@ def get_chronic_illness(
     "/{chronic_illness_id}",
     response_model=VisitpadChronicIllnessSingleResponse,
     summary="Update chronic illness",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.update"))],
 )
 def patch_chronic_illness(
     chronic_illness_id: UUID,
@@ -168,6 +174,7 @@ def patch_chronic_illness(
     "/{chronic_illness_id}",
     response_model=VisitpadChronicIllnessSingleResponse,
     summary="Soft-delete chronic illness",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.delete"))],
 )
 def delete_chronic_illness(
     chronic_illness_id: UUID,

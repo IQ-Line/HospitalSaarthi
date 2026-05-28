@@ -6,6 +6,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
+from hims_authz.dependency import require_authz
+
 from app.api.deps import get_department_repository, get_session
 from app.api.errors import ResourceNotFoundError
 from app.repositories.department_repository import DepartmentRepository
@@ -28,7 +30,7 @@ from app.services.department_service import (
 router = APIRouter(prefix="/departments", tags=["Departments"])
 
 
-@router.get("", response_model=DepartmentListResponse, summary="List departments")
+@router.get("", response_model=DepartmentListResponse, summary="List departments", dependencies=[Depends(require_authz("master_data:platform", "catalog.read"))])
 def get_departments(
     repository: Annotated[DepartmentRepository, Depends(get_department_repository)],
     department_type: Annotated[DepartmentType | None, Query(alias="type")] = None,
@@ -43,6 +45,7 @@ def get_departments(
     response_model=DepartmentSingleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a department",
+    dependencies=[Depends(require_authz("master_data:platform", "catalog.create"))],
 )
 def post_department(
     payload: DepartmentCreate,
@@ -58,6 +61,7 @@ def post_department(
     "/{department_id}",
     response_model=DepartmentSingleResponse,
     summary="Get one department by id",
+    dependencies=[Depends(require_authz("master_data:platform", "catalog.read"))],
 )
 def get_department_by_id_route(
     department_id: UUID,
@@ -73,6 +77,7 @@ def get_department_by_id_route(
     "/{department_id}",
     response_model=DepartmentSingleResponse,
     summary="Update a department",
+    dependencies=[Depends(require_authz("master_data:platform", "catalog.update"))],
 )
 def patch_department(
     department_id: UUID,
@@ -89,6 +94,7 @@ def patch_department(
     "/{department_id}",
     response_model=DepartmentSingleResponse,
     summary="Soft-delete a department",
+    dependencies=[Depends(require_authz("master_data:platform", "catalog.delete"))],
 )
 def delete_department(
     department_id: UUID,

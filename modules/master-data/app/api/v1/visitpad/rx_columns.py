@@ -4,6 +4,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from hims_authz.dependency import require_authz
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_session, get_visitpad_rx_column_repository
@@ -35,7 +36,12 @@ from app.services.visitpad.rx_columns import (
 router = APIRouter(prefix="/visitpad/rx-columns", tags=["Visitpad — Rx columns"])
 
 
-@router.get("", response_model=VisitpadRxColumnListResponse, summary="List Rx columns")
+@router.get(
+    "",
+    response_model=VisitpadRxColumnListResponse,
+    summary="List Rx columns",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
+)
 def get_visitpad_rx_columns(
     repository: Annotated[VisitpadRxColumnRepository, Depends(get_visitpad_rx_column_repository)],
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
@@ -60,6 +66,7 @@ def get_visitpad_rx_columns(
     "/keys",
     response_model=VisitpadCatalogKeysResponse,
     summary="List tenant Rx column keys (section::code) for import-from-platform matching",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
 )
 def get_rx_column_import_keys(
     repository: Annotated[VisitpadRxColumnRepository, Depends(get_visitpad_rx_column_repository)],
@@ -76,6 +83,7 @@ def get_rx_column_import_keys(
     response_model=VisitpadRxColumnSingleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create Rx column",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.create"))],
 )
 def post_visitpad_rx_column(
     payload: VisitpadRxColumnCreate,
@@ -91,6 +99,7 @@ def post_visitpad_rx_column(
     "/import-from-platform",
     response_model=VisitpadPlatformImportSingleResponse,
     summary="Bulk-import Rx columns from the platform catalog",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.create"))],
 )
 def post_rx_columns_import_from_platform(
     payload: VisitpadPlatformImportRequest,
@@ -112,7 +121,12 @@ def post_rx_columns_import_from_platform(
     return VisitpadPlatformImportSingleResponse(data=data)
 
 
-@router.get("/{rx_column_id}", response_model=VisitpadRxColumnSingleResponse, summary="Get Rx column")
+@router.get(
+    "/{rx_column_id}",
+    response_model=VisitpadRxColumnSingleResponse,
+    summary="Get Rx column",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
+)
 def get_visitpad_rx_column(
     rx_column_id: UUID,
     repository: Annotated[VisitpadRxColumnRepository, Depends(get_visitpad_rx_column_repository)],
@@ -123,7 +137,12 @@ def get_visitpad_rx_column(
     return VisitpadRxColumnSingleResponse(data=VisitpadRxColumnResponse.model_validate(row))
 
 
-@router.patch("/{rx_column_id}", response_model=VisitpadRxColumnSingleResponse, summary="Update Rx column")
+@router.patch(
+    "/{rx_column_id}",
+    response_model=VisitpadRxColumnSingleResponse,
+    summary="Update Rx column",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.update"))],
+)
 def patch_visitpad_rx_column(
     rx_column_id: UUID,
     payload: VisitpadRxColumnUpdate,
@@ -141,7 +160,12 @@ def patch_visitpad_rx_column(
     return VisitpadRxColumnSingleResponse(data=VisitpadRxColumnResponse.model_validate(row))
 
 
-@router.delete("/{rx_column_id}", response_model=VisitpadRxColumnSingleResponse, summary="Soft-delete Rx column")
+@router.delete(
+    "/{rx_column_id}",
+    response_model=VisitpadRxColumnSingleResponse,
+    summary="Soft-delete Rx column",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.delete"))],
+)
 def delete_visitpad_rx_column(
     rx_column_id: UUID,
     repository: Annotated[VisitpadRxColumnRepository, Depends(get_visitpad_rx_column_repository)],

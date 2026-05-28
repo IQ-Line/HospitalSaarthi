@@ -6,6 +6,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
+from hims_authz.dependency import require_authz
+
 from app.api.deps import get_module_repository, get_session
 from app.api.errors import ResourceNotFoundError
 from app.repositories.module_repository import ModuleRepository
@@ -35,7 +37,7 @@ from app.services.module_service import (
 router = APIRouter(prefix="/modules", tags=["Modules"])
 
 
-@router.get("", response_model=ModuleListResponse, summary="List registered platform modules")
+@router.get("", response_model=ModuleListResponse, summary="List registered platform modules", dependencies=[Depends(require_authz("master_data:platform", "catalog.read"))])
 def get_modules(
     repository: Annotated[ModuleRepository, Depends(get_module_repository)],
     category: Annotated[ModuleCategory | None, Query()] = None,
@@ -67,6 +69,7 @@ def get_modules(
         "Returns every **active** catalog module (`is_active = true`, `is_deleted = false`) "
         "with navigation fields only. **No pagination** — full list in one response."
     ),
+    dependencies=[Depends(require_authz("master_data:platform", "catalog.read"))],
 )
 def get_modules_for_nav(
     repository: Annotated[ModuleRepository, Depends(get_module_repository)],
@@ -86,9 +89,10 @@ def get_modules_for_nav(
     summary="Create a module",
     description=(
         "Adds one catalog module. Omit **parent_id** for a top-level row. "
-        "To nest, set **parent_id** to another module’s id — each step is one level deeper "
+        "To nest, set **parent_id** to another module's id — each step is one level deeper "
         "(parent → child → child, like folders). **level** is not sent; the API fills it."
     ),
+    dependencies=[Depends(require_authz("master_data:platform", "catalog.create"))],
 )
 def post_module(
     payload: ModuleCreate,
@@ -104,6 +108,7 @@ def post_module(
     "/by-slug/{slug}",
     response_model=ModuleSingleResponse,
     summary="Get one module by slug",
+    dependencies=[Depends(require_authz("master_data:platform", "catalog.read"))],
 )
 def get_module_by_slug_route(
     slug: str,
@@ -124,6 +129,7 @@ def get_module_by_slug_route(
         "Returns the **complete** list in one response (**no pagination**). "
         "**404** if parent missing or soft-deleted; **200** with empty `data` if none."
     ),
+    dependencies=[Depends(require_authz("master_data:platform", "catalog.read"))],
 )
 def list_submodules_route(
     module_id: UUID,
@@ -138,6 +144,7 @@ def list_submodules_route(
     "/{module_id}",
     response_model=ModuleSingleResponse,
     summary="Get one module by id",
+    dependencies=[Depends(require_authz("master_data:platform", "catalog.read"))],
 )
 def get_module_by_id_route(
     module_id: UUID,
@@ -153,6 +160,7 @@ def get_module_by_id_route(
     "/{module_id}",
     response_model=ModuleSingleResponse,
     summary="Update a module",
+    dependencies=[Depends(require_authz("master_data:platform", "catalog.update"))],
 )
 def patch_module(
     module_id: UUID,
@@ -169,6 +177,7 @@ def patch_module(
     "/{module_id}",
     response_model=ModuleSingleResponse,
     summary="Soft-delete a module",
+    dependencies=[Depends(require_authz("master_data:platform", "catalog.delete"))],
 )
 def delete_module(
     module_id: UUID,
