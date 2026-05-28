@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { createFideliusEncryptorFromEnv } from "../../data-access/fidelius.js";
+import { isSpkiKeyToShareB64 } from "../../lib/fidelius-public-key.js";
 
 describe("m3 Fidelius round-trip", () => {
-  it("HIU keygen → HIP encrypt → HIU decrypt preserves payload", async () => {
+  it("HIU keygen → HIP encrypt → HIU decrypt preserves payload (SPKI keyToShare on wire)", async () => {
     const fidelius = createFideliusEncryptorFromEnv();
     const hiu = await fidelius.generateOurKeyMaterial();
     const payload = JSON.stringify({ resourceType: "Bundle", id: "m3-test" });
@@ -13,7 +14,10 @@ describe("m3 Fidelius round-trip", () => {
       peerNonce: hiu.ourNonce,
     });
 
-    const decrypted = await fidelius.decryptFromPeer({
+    expect(isSpkiKeyToShareB64(encrypted.ourPublicKey)).toBe(true);
+    expect(encrypted.ourPublicKey.startsWith("MIIB")).toBe(true);
+
+    const decrypted = await fidelius.decryptBundle({
       encryptedPayload: encrypted.encryptedPayload,
       peerPublicKey: encrypted.ourPublicKey,
       peerNonce: encrypted.ourNonce,

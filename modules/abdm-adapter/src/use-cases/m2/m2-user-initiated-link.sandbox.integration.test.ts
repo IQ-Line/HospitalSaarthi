@@ -48,7 +48,9 @@ function buildDeps(): AbdmAdapterDeps {
     } as never,
     consentArtefacts: { upsert: async () => true, findById: async () => null } as never,
     empi: new MockEmpiClient(process.env["ABDM_MOCK_ABHA_ADDRESS"] ?? "test.user@sbx"),
-    recordFoundation: new MockRecordFoundationClient(),
+    recordFoundation: new MockRecordFoundationClient(
+      process.env["ABDM_MOCK_ABHA_ADDRESS"] ?? "test.user@sbx",
+    ),
     payloadEncryptor: { encrypt: (s) => s, decrypt: (s) => s },
     linkOtpStore: new InMemoryLinkOtpStore(),
     sms: new LoggingSmsClient(),

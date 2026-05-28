@@ -53,7 +53,7 @@ describe("abhaAddressSuggestionsRequest", () => {
       sessions,
       gateway,
       secrets: { resolve: vi.fn() },
-      fidelius: { encryptForPeer: vi.fn(), decryptFromPeer: vi.fn() },
+      fidelius: { encryptForPeer: vi.fn(), decryptBundle: vi.fn() },
     };
 
     vi.mocked(deps.gateway.get).mockResolvedValue({

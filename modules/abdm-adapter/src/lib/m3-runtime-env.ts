@@ -27,3 +27,27 @@ export function m3AdapterPublicBaseUrl(): string {
     `http://localhost:${port}`
   );
 }
+
+/**
+ * Minimal push headers (Content-Type only) — production direct-transfer parity.
+ * `true`/`false` forces; unset auto-detects external CM transfer endpoints.
+ */
+export function m3DataPushMinimalHeaders(
+  targetUrl: string,
+  adapterBaseUrl: string,
+): boolean {
+  const forced = process.env["ABDM_M3_DATA_PUSH_MINIMAL_HEADERS"]?.trim();
+  if (forced === "true") return true;
+  if (forced === "false") return false;
+
+  try {
+    const targetHost = new URL(targetUrl).hostname.toLowerCase();
+    const adapterHost = new URL(adapterBaseUrl).hostname.toLowerCase();
+    if (targetHost === adapterHost || targetHost === "localhost") {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}

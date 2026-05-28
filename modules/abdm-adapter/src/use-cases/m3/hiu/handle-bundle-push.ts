@@ -50,7 +50,7 @@ export async function handleBundlePush(
   const decryptedParts: string[] = [];
   try {
     for (const entry of input.body.entries) {
-      const plain = await deps.fidelius.decryptFromPeer({
+      const plain = await deps.fidelius.decryptBundle({
         encryptedPayload: entry.content,
         peerPublicKey: peerKey,
         peerNonce: peerNonce,

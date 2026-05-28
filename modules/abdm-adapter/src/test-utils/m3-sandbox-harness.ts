@@ -53,7 +53,9 @@ export function buildM3SandboxDeps(databaseUrl: string): AbdmAdapterDeps {
     linkTokens: new DrizzleLinkTokensRepo(db),
     consentArtefacts: new DrizzleConsentArtefactsRepo(db),
     empi: new MockEmpiClient(M3_SANDBOX_ABHA),
-    recordFoundation: new MockRecordFoundationClient(),
+    recordFoundation: new MockRecordFoundationClient(
+      process.env["ABDM_MOCK_ABHA_ADDRESS"] ?? "test.user@sbx",
+    ),
     payloadEncryptor: createPayloadEncryptorFromEnv(),
     linkOtpStore: new InMemoryLinkOtpStore(),
     sms: new LoggingSmsClient(),

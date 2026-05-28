@@ -11,20 +11,15 @@ function hostnameOf(url: string): string | null {
 }
 
 /**
- * CM `hiRequest.dataPushUrl` often targets PHR. When this adapter is also the HIU, push to the
- * ngrok/local URL stored on `m3_data_transfers` from `start-data-request` instead.
+ * Resolve outbound HIP data-push URL.
+ * Production/non-loopback: always CM-provided `dataPushUrl`.
+ * Loopback: redirect external CM URLs to stored adapter HIU transfer endpoint.
  */
 export async function resolveHipDataPushUrl(
   input: { iqTenantId: string; consentId: string; cmDataPushUrl: string },
   deps: AbdmAdapterDeps,
 ): Promise<string> {
-  if (isM3LoopbackHiu()) {
-    return input.cmDataPushUrl;
-  }
-
-  const adapterHost = hostnameOf(m3AdapterPublicBaseUrl());
-  const cmHost = hostnameOf(input.cmDataPushUrl);
-  if (adapterHost && cmHost && (cmHost === adapterHost || cmHost === "localhost")) {
+  if (!isM3LoopbackHiu()) {
     return input.cmDataPushUrl;
   }
 
@@ -32,8 +27,14 @@ export async function resolveHipDataPushUrl(
     input.iqTenantId,
     input.consentId,
   );
-  if (transfer?.dataPushUrl) {
-    abdmWarn("abdm.m3.hip_push.data_push_url_override", {
+  if (!transfer?.dataPushUrl) {
+    return input.cmDataPushUrl;
+  }
+
+  const cmHost = hostnameOf(input.cmDataPushUrl);
+  const adapterHost = hostnameOf(m3AdapterPublicBaseUrl());
+  if (cmHost && adapterHost && cmHost !== adapterHost) {
+    abdmWarn("abdm.m3.hip_push.data_push_url_loopback_rewrite", {
       cmUrl: input.cmDataPushUrl,
       adapterUrl: transfer.dataPushUrl,
       transferId: transfer.transferId,

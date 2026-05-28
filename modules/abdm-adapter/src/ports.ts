@@ -185,6 +185,8 @@ export interface RecordFoundationClient {
     patientId: string;
     consentId: string;
     dateRange?: { from: string; to: string };
+    /** When set, bundle `careContextReference` must match consent (PHR ABDM-7727). */
+    careContextReferences?: string[];
   }): Promise<HealthRecordBundleEntry[]>;
 }
 
@@ -196,6 +198,8 @@ export interface HipDataPushClient {
     requestId: string;
     /** Required for M3 loopback push to this adapter's HIU receiver (`x-tenant-id`). */
     iqTenantId?: string;
+    xHipId?: string;
+    xCmId?: string;
   }): Promise<void>;
 }
 
@@ -268,7 +272,7 @@ export interface FideliusEncryptor {
    * `PayloadEncryptor`) on the M3 transfer row.
    *
    * Not used by HIP-side flows — they have a peer key from the inbound request and
-   * generate-and-encrypt in one call via `encryptBundlesForPeer`.
+   * generate-and-encrypt in one call via `encryptBundles`.
    */
   generateOurKeyMaterial(): Promise<{
     ourPublicKey: string;   // base64, 65-byte uncompressed EC point
@@ -281,22 +285,30 @@ export interface FideliusEncryptor {
     payloadJson: string;
     peerPublicKey: string;
     peerNonce: string;
-  }): Promise<{ encryptedPayload: string; ourPublicKey: string; ourNonce: string }>;
+  }): Promise<{
+    encryptedPayload: string;
+    /** SPKI keyToShare for outbound keyMaterial.dhPublicKey.keyValue */
+    ourPublicKey: string;
+    ourNonce: string;
+  }>;
 
-  /** One HIP key pair per push transaction (all care-context entries). */
-  encryptBundlesForPeer(input: {
+  /** One ephemeral HIP key pair per push transaction (all care-context entries). */
+  encryptBundles(input: {
     payloadJsons: string[];
+    /** Raw 65-byte EC point or SPKI keyToShare */
     peerPublicKey: string;
     peerNonce: string;
   }): Promise<{
     encryptedPayloads: string[];
+    /** SPKI keyToShare for outbound keyMaterial.dhPublicKey.keyValue */
     ourPublicKey: string;
     ourNonce: string;
   }>;
 
   /** Decrypt an inbound payload from an external HIP using our key material. M3 HIU receive. */
-  decryptFromPeer(input: {
+  decryptBundle(input: {
     encryptedPayload: string;
+    /** Raw 65-byte EC point or SPKI keyToShare from HIP push keyMaterial */
     peerPublicKey: string;
     peerNonce: string;
     ourPrivateKey: string;

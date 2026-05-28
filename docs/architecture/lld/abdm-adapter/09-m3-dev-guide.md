@@ -14,7 +14,8 @@
 Reading order before code:
 
 1. [`08-m3-flows.md`](./08-m3-flows.md) — flow catalogue (this guide assumes you've read it)
-2. [`04-orchestration-phase-1-http-first.md §11`](../integration-platform/04-orchestration-phase-1-http-first.md#11-portability-rules--the-structure-that-makes-future-de-migration-mechanical) — **the nine portability rules**. Memorise; PR review will check.
+2. [`12-phr-push-reconciliation.md`](./12-phr-push-reconciliation.md) — canonical M3 HIP push / Fidelius direction
+3. [`04-orchestration-phase-1-http-first.md §11`](../integration-platform/04-orchestration-phase-1-http-first.md#11-portability-rules--the-structure-that-makes-future-de-migration-mechanical) — **the nine portability rules**. Memorise; PR review will check.
 3. [`ADR-0031`](../../adr/0031-abdm-m3-mock-harness-strategy.md) — mock harness strategy (why curl-injectable + loopback)
 4. This file
 5. `docs/external/abdm/v3-m3-hiu-consent-request-health-records-fetch.md` — **the source spec.** Read §4 (Consent flow) end-to-end and §5 (Data flow) end-to-end before writing any handler. Skip §6 (Subscription — deferred to M4).
@@ -314,7 +315,7 @@ modules/abdm-adapter/src/use-cases/m3/hiu/
   handle-on-fetch-callback.ts             # inbound on-fetch → verify signature → persist → CONSENT_GRANTED
   start-data-request.ts                   # staff UI POST → deps.fidelius keypair → outbound /data-flow/.../request → DATA_REQUESTED
   handle-on-data-request-callback.ts      # inbound /hiu/health-information/on-request → AWAITING_PUSH (set 24h timer)
-  handle-bundle-push.ts                   # inbound /transfer/:id → deps.fidelius.decryptFromPeer → RECORDS_INGESTED → notify CM → ACKNOWLEDGED
+  handle-bundle-push.ts                   # inbound /transfer/:id → deps.fidelius.decryptBundle → RECORDS_INGESTED → notify CM → ACKNOWLEDGED
   *.test.ts
 ```
 
@@ -471,7 +472,7 @@ RUN_ABDM_SANDBOX_TESTS=1 npx nx run abdm-adapter:test -- m3-hiu-consent-request.
 - **Inbound response status is 2xx, consistently** — pick 200 (matches FT-certified production) or 202 (spec text for most endpoints), apply across all handlers, document the choice in PR. Do NOT assert exact status in integration tests. See [`08-m3-flows.md Pitfall §3`](./08-m3-flows.md#pitfall-3--inbound-response-status-any-2xx-works-spec-is-inconsistent-production-runs-on-200).
 - **HI types are PascalCase everywhere in M3** — see [`08-m3-flows.md pitfall §2`](./08-m3-flows.md#pitfall-2--hi-type-casing-varies-by-endpoint-inherited-from-m2).
 - **Crypto round-trip test passes** — `m3-fidelius-roundtrip.test.ts`. This is the most important regression-coverage test in M3; do not ship without it.
-- **No hand-rolled Fidelius and no direct lib imports** — every encrypt/decrypt site calls `deps.fidelius.encryptForPeer`, `deps.fidelius.encryptBundlesForPeer`, `deps.fidelius.decryptFromPeer`, or `deps.fidelius.generateOurKeyMaterial`. Grep `from "../../lib/fidelius` and `from ".*fidelius-crypto"` — anything outside `data-access/fidelius.ts` is a ship-blocker. See [`08-m3-flows.md Pitfall §6`](./08-m3-flows.md#pitfall-6--dont-reimplement-fidelius-use-the-wrappers).
+- **No hand-rolled Fidelius and no direct lib imports** — every encrypt/decrypt site calls `deps.fidelius.encryptForPeer`, `deps.fidelius.encryptBundles`, `deps.fidelius.decryptBundle`, or `deps.fidelius.generateOurKeyMaterial`. Grep `from "../../lib/fidelius` and `from ".*fidelius-crypto"` — anything outside `data-access/fidelius.ts` is a ship-blocker. See [`08-m3-flows.md Pitfall §6`](./08-m3-flows.md#pitfall-6--dont-reimplement-fidelius-use-the-wrappers).
 - **dataPushUrl allowlist** — env `ABDM_M3_DATA_PUSH_URL_ALLOWLIST` documented; allowlist enforcement asserted in `hip-data-push.client.test.ts` (extends the existing test file alongside `hip-data-push.client.ts`).
 - `pnpm -F @hims/ts-sdk-abha build` clean.
 - `npx nx run abdm-adapter:lint` and `npx nx run abdm-adapter:test` clean.
@@ -496,7 +497,7 @@ RUN_ABDM_SANDBOX_TESTS=1 npx nx run abdm-adapter:test -- m3-hiu-consent-request.
 | 7 | **HIP-side data response retry on dataPushUrl failure.** | 3 attempts × exponential backoff via timer rows (matches M2 add-contexts §4). After 3rd failure → `FAILED`, notify CM with `sessionStatus: FAILED, hiStatus: ERRORED`. 4xx after first retry skips remaining retries (don't repeatedly POST to misconfigured HIU). |
 | 8 | **Idempotency window for `/pushDataUrl`.** Gateway/HIP may retry the bundle drop. | `INSERT INTO abdm_inbound_messages ON CONFLICT DO NOTHING` keyed on `(iq_tenant_id, transfer_id)` — not `request_id`, since the push is signed-by-HIP not gateway-keyed. |
 | 9 | **OpenAPI extension granularity.** Extend single `specs/openapi/abdm-adapter.v1.yaml` or branch to M3 file? | Extend existing — keeps generated clients monolithic. Bump version minor (`1.x → 1.(x+1)`). |
-| 10 | **`FideliusEncryptor.generateOurKeyMaterial()` port method.** Added during build-pack prep (this PR) to unblock HIU-side keypair generation. The HIU needs the private key persisted across minutes-to-hours of waiting for the HIP push; the existing `encryptForPeer`/`encryptBundlesForPeer` methods drop `ourPrivateKey` in the data-access wrapper. | Method added at `ports.ts:259-275` + impl at `data-access/fidelius.ts`. Returns `{ourPublicKey, ourPrivateKey, ourNonce}` (all base64). **Caller MUST encrypt `ourPrivateKey` via `PayloadEncryptor.encrypt()` before persisting in `abdm_m3_data_transfers.hiu_private_key_jwk`.** Review the shape with security before merging — the private-key handover is the most security-sensitive piece of M3. |
+| 10 | **`FideliusEncryptor.generateOurKeyMaterial()` port method.** Added during build-pack prep (this PR) to unblock HIU-side keypair generation. The HIU needs the private key persisted across minutes-to-hours of waiting for the HIP push; the existing `encryptForPeer`/`encryptBundles` methods drop `ourPrivateKey` in the data-access wrapper. | Method added at `ports.ts:259-275` + impl at `data-access/fidelius.ts`. Returns `{ourPublicKey, ourPrivateKey, ourNonce}` (all base64). **Caller MUST encrypt `ourPrivateKey` via `PayloadEncryptor.encrypt()` before persisting in `abdm_m3_data_transfers.hiu_private_key_jwk`.** Review the shape with security before merging — the private-key handover is the most security-sensitive piece of M3. |
 
 Each item appears in the PR description with the chosen default and a Yes/No "any objections?" prompt.
 

@@ -71,6 +71,15 @@ export function registerHttpErrorHandler(app: {
       });
     }
 
+    if (err instanceof TypeError && err.message.includes("fetch failed")) {
+      request.log.warn({ err }, "upstream fetch failed");
+      return reply.status(503).send({
+        error: "Upstream",
+        message: "NHA gateway unreachable (network timeout). Retry in a moment.",
+        code: "GATEWAY_UNAVAILABLE",
+      });
+    }
+
     if (err instanceof AbdmUseCaseError) {
       return reply.status(err.httpStatus).send({
         error: err.clientCode,

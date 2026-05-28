@@ -1,21 +1,22 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HttpHipDataPushClient } from "./hip-data-push.client.js";
 
-describe("HttpHipDataPushClient loopback", () => {
+describe("HttpHipDataPushClient", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
   });
 
-  it("sends x-tenant-id on loopback push when iqTenantId is set", async () => {
+  it("sends full adapter headers on loopback adapter URLs", async () => {
     const fetchMock = vi.fn(async () => new Response("", { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
 
     const client = new HttpHipDataPushClient({
-      loopbackHiu: true,
       adapterBaseUrl: "http://localhost:3007",
     });
     await client.push({
-      dataPushUrl: "http://evil.example.com/api/v3/hiu/health-information/transfer/abc",
+      dataPushUrl:
+        "http://localhost:3007/api/v3/hiu/health-information/transfer/abc",
       body: { pageNumber: 0 },
       requestId: "req-1",
       iqTenantId: "00000000-0000-4000-8000-0000000000aa",
@@ -28,13 +29,31 @@ describe("HttpHipDataPushClient loopback", () => {
     );
     expect(String(init.headers?.["REQUEST-ID"] ?? "")).toBe("req-1");
   });
+
+  it("omits REQUEST-ID on external CM transfer URLs (auto minimal headers)", async () => {
+    const fetchMock = vi.fn(async () => new Response("", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubEnv("ABDM_ADAPTER_PUBLIC_BASE_URL", "https://bridge.example");
+
+    const client = new HttpHipDataPushClient({
+      adapterBaseUrl: "https://bridge.example",
+    });
+    await client.push({
+      dataPushUrl:
+        "https://apissbx.abdm.gov.in/abha/api/v3/patient-hiu/app/v0.5/health-information/transfer",
+      body: { pageNumber: 0 },
+      requestId: "req-phr",
+    });
+
+    const init = fetchMock.mock.calls[0]![1] as RequestInit;
+    expect(init.headers?.["REQUEST-ID"]).toBeUndefined();
+  });
 });
 
 describe("HttpHipDataPushClient allowlist", () => {
   it("rejects hosts not in allowlist", async () => {
     const client = new HttpHipDataPushClient({
       allowlistHosts: ["allowed.example.com"],
-      loopbackHiu: false,
     });
     await expect(
       client.push({
@@ -44,5 +63,4 @@ describe("HttpHipDataPushClient allowlist", () => {
       }),
     ).rejects.toThrow(/allowlist/);
   });
-
 });

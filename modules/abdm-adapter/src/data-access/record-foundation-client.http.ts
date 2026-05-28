@@ -82,6 +82,7 @@ export class HttpRecordFoundationClient implements RecordFoundationClient {
     patientId: string;
     consentId: string;
     dateRange?: { from: string; to: string };
+    careContextReferences?: string[];
   }): Promise<HealthRecordBundleEntry[]> {
     if (!this.baseUrl) return [];
     const url = new URL(
@@ -92,6 +93,9 @@ export class HttpRecordFoundationClient implements RecordFoundationClient {
     url.searchParams.set("consent_id", input.consentId);
     if (input.dateRange?.from) url.searchParams.set("from", input.dateRange.from);
     if (input.dateRange?.to) url.searchParams.set("to", input.dateRange.to);
+    for (const ref of input.careContextReferences ?? []) {
+      url.searchParams.append("care_context_reference", ref);
+    }
     const res = await fetchWithTimeout(url.toString(), {
       method: "GET",
       headers: { "x-tenant-id": input.iqTenantId, Accept: "application/json" },

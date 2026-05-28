@@ -11,6 +11,7 @@ import { skipOutboundGatewayInDev } from "../../../lib/dev-inbound-simulation.js
 import { abdmWarn } from "../../../lib/abdm-adapter-log.js";
 import { retryWithBackoff } from "../../../lib/retry-with-backoff.js";
 import { AbdmGatewayError } from "../../../lib/gateway-errors.js";
+import { extractConsentCareContextRefs } from "../../../lib/extract-consent-care-context-refs.js";
 import { M3Hip } from "../../../lib/m3-fsm-states.js";
 import { M3Hiu } from "../../../lib/m3-fsm-states.js";
 
@@ -163,12 +164,20 @@ export async function handleHipHiRequestCallback(
         error: { code: "HI_PUSH_FAILED", message: failureMessage },
       },
     });
+    const [m3Artefact, consentArtefact] = await Promise.all([
+      deps.m3ConsentArtefactsHiu.findById(input.iqTenantId, parsed.consentId),
+      deps.consentArtefacts.findById(input.iqTenantId, parsed.consentId),
+    ]);
+    const failedCareRefs = extractConsentCareContextRefs({
+      m3Artefact,
+      consentArtefact,
+    });
     await notifyHipDataTransfer(
       {
         iqTenantId: input.iqTenantId,
         consentId: parsed.consentId,
         transactionId,
-        careContextReferences: [],
+        careContextReferences: failedCareRefs,
         inboundRequestId: input.inboundRequestId,
         failed: true,
       },

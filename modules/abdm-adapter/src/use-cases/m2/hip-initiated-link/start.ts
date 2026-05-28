@@ -5,6 +5,7 @@ import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
 import { LinkTokenNotAvailable, getOrAcquireLinkToken } from "../../../lib/link-token-cache.js";
 import { M2_GATEWAY_PATHS } from "../../../lib/m2-gateway-paths.js";
 import { resolveUnifiedLinkHiType } from "../../../lib/m2-link-hi-type.js";
+import { toGatewayAbhaNumberPlain } from "../../../lib/m2-gateway-abha-number.js";
 import type { M2HipLinkContext } from "../../../domain/session.js";
 
 export interface HipInitiatedLinkStartInput {
@@ -76,7 +77,6 @@ export async function hipInitiatedLinkStart(
   ) as LinkCareContextRequest["patient"][0]["hiType"];
   const body: LinkCareContextRequest = {
     abhaAddress: input.abhaAddress,
-    abhaNumber: input.abhaNumber,
     patient: [
       {
         referenceNumber: input.abhaAddress,
