@@ -1,17 +1,25 @@
 import { describe, expect, it } from "vitest";
 import {
-  canonicalPhrPushKeyMaterial,
-  minimalSandboxBundleJson,
-  PHR_SANDBOX_PUSH_CHECKSUM,
-} from "./is-phr-sandbox-push.js";
+  canonicalHipPushKeyMaterial,
+  HIP_PUSH_CHECKSUM_LITERAL,
+  resolveHipPushChecksumMode,
+} from "./hip-push-envelope.js";
+import { checksumForHipPushEntry } from "./hip-push-checksum.js";
+import { minimalSandboxBundleJson } from "./hip-push-envelope.js";
 
-describe("PHR sandbox push envelope", () => {
-  it("uses literal checksum string per legacy HIMS", () => {
-    expect(PHR_SANDBOX_PUSH_CHECKSUM).toBe("string");
+describe("HIP push envelope", () => {
+  it("uses literal checksum by default (production HIMS parity)", () => {
+    expect(resolveHipPushChecksumMode()).toBe("literal");
+    expect(
+      checksumForHipPushEntry({
+        encryptedContent: "cipher",
+        plaintextJson: '{"a":1}',
+      }),
+    ).toBe(HIP_PUSH_CHECKSUM_LITERAL);
   });
 
   it("uses legacy HIMS keyMaterial shape on outbound push", () => {
-    const km = canonicalPhrPushKeyMaterial({
+    const km = canonicalHipPushKeyMaterial({
       hipPublicKeyB64: "hip-pub",
       hipNonceB64: "hip-nonce",
       keyExpiry: "2026-06-01T00:00:00.000Z",

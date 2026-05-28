@@ -4,10 +4,10 @@ import type { HipDataPushClient } from "../ports.js";
 import {
   isM3LoopbackHiu,
   m3AdapterPublicBaseUrl,
+  m3DataPushMinimalHeaders,
   m3DataPushUrlAllowlist,
 } from "../lib/m3-runtime-env.js";
 import { abdmWarn } from "../lib/abdm-adapter-log.js";
-import { isPhrSandboxDataPushUrl } from "../lib/is-phr-sandbox-push.js";
 
 export interface HttpHipDataPushClientConfig {
   loopbackHiu?: boolean;
@@ -58,11 +58,11 @@ export class HttpHipDataPushClient implements HipDataPushClient {
     const targetUrl = this.resolvePushUrl(input.dataPushUrl);
     this.assertAllowListed(targetUrl);
 
-    const phrTransfer = isPhrSandboxDataPushUrl(targetUrl);
+    const minimalHeaders = m3DataPushMinimalHeaders(targetUrl, this.adapterBaseUrl);
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
-    if (!phrTransfer) {
+    if (!minimalHeaders) {
       headers["REQUEST-ID"] = input.requestId;
       headers.TIMESTAMP = new Date().toISOString();
       if (input.iqTenantId) {

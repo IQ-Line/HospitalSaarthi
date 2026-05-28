@@ -1,19 +1,12 @@
 import type { HipDataPushRequest } from "@hims/ts-sdk-abha/protocol/m3/hip-data-transfer.js";
 import type { AbdmAdapterDeps } from "../../../ports.js";
 import type { ParsedHiRequest } from "../../../lib/parse-hi-request-body.js";
-import {
-  checksumForContent,
-} from "../../../data-access/hip-data-push.client.js";
-import { encryptBundlesForPhrSandbox } from "../../../lib/fidelius-phr-encrypt.js";
 import type { AbdmSession } from "../../../domain/session.js";
 import { assertFlowKind } from "../../../domain/session.js";
 import { resolveHipDataPushUrl } from "../../../lib/resolve-hip-data-push-url.js";
 import { extractConsentCareContextRefs } from "../../../lib/extract-consent-care-context-refs.js";
-import {
-  canonicalPhrPushKeyMaterial,
-  isPhrSandboxDataPushUrl,
-  PHR_SANDBOX_PUSH_CHECKSUM,
-} from "../../../lib/is-phr-sandbox-push.js";
+import { canonicalHipPushKeyMaterial } from "../../../lib/hip-push-envelope.js";
+import { checksumForHipPushEntry } from "../../../lib/hip-push-checksum.js";
 import { abdmWarn } from "../../../lib/abdm-adapter-log.js";
 import { isValidBcCurve25519PublicKeyB64 } from "../../../lib/fidelius-curve25519-bc.js";
 import { M3Hip } from "../../../lib/m3-fsm-states.js";
@@ -41,10 +34,9 @@ export async function pushHealthInformationForSession(
     consentArtefact,
   });
   if (careContextReferences.length === 0) {
-    abdmWarn("abdm.m3.hip_push.no_consent_care_contexts", {
-      consentId: input.parsed.consentId,
-      sessionId: input.session.sessionId,
-    });
+    throw new Error(
+      `No care context references in consent artefact (ABDM-7727): consentId=${input.parsed.consentId}`,
+    );
   }
 
   const bundles = await deps.recordFoundation.fetchBundlesForConsent({
@@ -52,10 +44,8 @@ export async function pushHealthInformationForSession(
     patientId: input.patientId,
     consentId: input.parsed.consentId,
     dateRange: input.parsed.dateRange,
-    ...(careContextReferences.length > 0 ? { careContextReferences } : {}),
+    careContextReferences,
   });
-
-  const phrSandbox = isPhrSandboxDataPushUrl(input.parsed.dataPushUrl);
 
   await deps.sessions.patch({
     iqTenantId: input.iqTenantId,
@@ -64,38 +54,28 @@ export async function pushHealthInformationForSession(
   });
 
   const payloadJsons = bundles.map((b) => b.contentJson);
-  const batch = phrSandbox
-    ? await encryptBundlesForPhrSandbox({
-        payloadJsons,
-        peerPublicKey: input.parsed.peerPublicKey,
-        peerNonce: input.parsed.peerNonce,
-        fidelius: deps.fidelius,
-      })
-    : {
-        ...(await deps.fidelius.encryptBundlesForPeer({
-          payloadJsons,
-          peerPublicKey: input.parsed.peerPublicKey,
-          peerNonce: input.parsed.peerNonce,
-        })),
-        engine: "typescript" as const,
-      };
+  const batch = await deps.fidelius.encryptBundlesForPeer({
+    payloadJsons,
+    peerPublicKey: input.parsed.peerPublicKey,
+    peerNonce: input.parsed.peerNonce,
+  });
 
-  if (phrSandbox) {
-    abdmWarn("abdm.m3.hip_push.phr_encrypt_engine", {
-      engine: batch.engine,
-      hipKeyToShareLen: batch.ourPublicKey.length,
-      hipKeyToShareX509: batch.ourPublicKey.startsWith("MIIB"),
-      hiuPubKeyValid: isValidBcCurve25519PublicKeyB64(input.parsed.peerPublicKey),
-      consentId: input.parsed.consentId,
-    });
-  }
+  abdmWarn("abdm.m3.hip_push.fidelius_encrypt", {
+    engine: batch.engine ?? "unknown",
+    hipKeyToShareLen: batch.ourPublicKey.length,
+    hipKeyToShareX509: batch.ourPublicKey.startsWith("MIIB"),
+    peerPubKeyValid: isValidBcCurve25519PublicKeyB64(input.parsed.peerPublicKey),
+    consentId: input.parsed.consentId,
+    entryCount: bundles.length,
+  });
 
   const entries: HipDataPushRequest["entries"] = bundles.map((bundle, i) => ({
     content: batch.encryptedPayloads[i]!,
     media: bundle.media,
-    checksum: phrSandbox
-      ? PHR_SANDBOX_PUSH_CHECKSUM
-      : checksumForContent(batch.encryptedPayloads[i]!),
+    checksum: checksumForHipPushEntry({
+      encryptedContent: batch.encryptedPayloads[i]!,
+      plaintextJson: bundle.contentJson,
+    }),
     careContextReference: bundle.careContextReference,
   }));
 
@@ -118,24 +98,11 @@ export async function pushHealthInformationForSession(
     },
   });
 
-  const keyMaterial = phrSandbox
-    ? canonicalPhrPushKeyMaterial({
-        hipPublicKeyB64: batch.ourPublicKey,
-        hipNonceB64: batch.ourNonce,
-        keyExpiry: input.parsed.keyExpiry,
-      })
-    : {
-        cryptoAlg: "ECDH",
-        curve: "Curve25519",
-        dhPublicKey: {
-          expiry:
-            input.parsed.keyExpiry ??
-            new Date(Date.now() + 86400000).toISOString(),
-          parameters: "Curve25519/32byte random key",
-          keyValue: batch.ourPublicKey,
-        },
-        nonce: batch.ourNonce,
-      };
+  const keyMaterial = canonicalHipPushKeyMaterial({
+    hipPublicKeyB64: batch.ourPublicKey,
+    hipNonceB64: batch.ourNonce,
+    keyExpiry: input.parsed.keyExpiry,
+  });
 
   const pushBody: HipDataPushRequest = {
     pageNumber: 0,

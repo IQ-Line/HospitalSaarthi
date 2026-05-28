@@ -1,6 +1,9 @@
 import type { AbdmAdapterDeps } from "../ports.js";
-import { isM3LoopbackHiu, m3AdapterPublicBaseUrl } from "./m3-runtime-env.js";
-import { isPhrSandboxDataPushUrl } from "./is-phr-sandbox-push.js";
+import {
+  isM3LoopbackHiu,
+  m3AdapterPublicBaseUrl,
+  m3DataPushNeverOverrideHosts,
+} from "./m3-runtime-env.js";
 import { abdmWarn } from "./abdm-adapter-log.js";
 
 function hostnameOf(url: string): string | null {
@@ -12,8 +15,10 @@ function hostnameOf(url: string): string | null {
 }
 
 /**
- * CM `hiRequest.dataPushUrl` often targets PHR. When this adapter is also the HIU, push to the
- * ngrok/local URL stored on `m3_data_transfers` from `start-data-request` instead.
+ * Resolve outbound HIP data-push URL.
+ * Production: always CM-provided `dataPushUrl`.
+ * Dev HIU loopback: may substitute stored adapter transfer URL unless CM host is on
+ * `ABDM_M3_DATA_PUSH_NEVER_OVERRIDE_HOSTS` (default: apissbx.abdm.gov.in).
  */
 export async function resolveHipDataPushUrl(
   input: { iqTenantId: string; consentId: string; cmDataPushUrl: string },
@@ -23,14 +28,9 @@ export async function resolveHipDataPushUrl(
     return input.cmDataPushUrl;
   }
 
-  // PHR My Records: always use CM-provided apissbx URL (never loopback transfer override).
-  if (isPhrSandboxDataPushUrl(input.cmDataPushUrl)) {
-    return input.cmDataPushUrl;
-  }
-
-  const adapterHost = hostnameOf(m3AdapterPublicBaseUrl());
   const cmHost = hostnameOf(input.cmDataPushUrl);
-  if (adapterHost && cmHost && (cmHost === adapterHost || cmHost === "localhost")) {
+  const neverOverride = m3DataPushNeverOverrideHosts();
+  if (cmHost && neverOverride.includes(cmHost)) {
     return input.cmDataPushUrl;
   }
 

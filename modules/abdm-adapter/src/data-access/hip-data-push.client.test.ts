@@ -4,6 +4,7 @@ import { HttpHipDataPushClient } from "./hip-data-push.client.js";
 describe("HttpHipDataPushClient loopback", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
   });
 
   it("sends x-tenant-id on loopback push when iqTenantId is set", async () => {
@@ -29,11 +30,15 @@ describe("HttpHipDataPushClient loopback", () => {
     expect(String(init.headers?.["REQUEST-ID"] ?? "")).toBe("req-1");
   });
 
-  it("omits REQUEST-ID on PHR apissbx transfer (legacy axios parity)", async () => {
+  it("omits REQUEST-ID on external CM transfer URLs (auto minimal headers)", async () => {
     const fetchMock = vi.fn(async () => new Response("", { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
+    vi.stubEnv("ABDM_ADAPTER_PUBLIC_BASE_URL", "https://bridge.example");
 
-    const client = new HttpHipDataPushClient({ loopbackHiu: false });
+    const client = new HttpHipDataPushClient({
+      loopbackHiu: false,
+      adapterBaseUrl: "https://bridge.example",
+    });
     await client.push({
       dataPushUrl:
         "https://apissbx.abdm.gov.in/abha/api/v3/patient-hiu/app/v0.5/health-information/transfer",
@@ -60,5 +65,4 @@ describe("HttpHipDataPushClient allowlist", () => {
       }),
     ).rejects.toThrow(/allowlist/);
   });
-
 });

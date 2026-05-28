@@ -7,7 +7,7 @@ describe("resolveHipDataPushUrl", () => {
     vi.unstubAllEnvs();
   });
 
-  it("keeps CM apissbx URL for PHR My Records (no loopback transfer override)", async () => {
+  it("keeps CM external URL when host is on never-override list (default apissbx)", async () => {
     vi.stubEnv("ABDM_ADAPTER_PUBLIC_BASE_URL", "https://bridge.example");
     vi.stubEnv("ABDM_M3_LOOPBACK_HIU", "false");
 
@@ -36,7 +36,7 @@ describe("resolveHipDataPushUrl", () => {
     expect(deps.m3DataTransfers.findLatestActiveByConsentId).not.toHaveBeenCalled();
   });
 
-  it("uses HIU transfer dataPushUrl when CM points at non-PHR host", async () => {
+  it("uses stored HIU transfer URL when CM host is not on never-override list", async () => {
     vi.stubEnv("ABDM_ADAPTER_PUBLIC_BASE_URL", "https://bridge.example");
     vi.stubEnv("ABDM_M3_LOOPBACK_HIU", "false");
 

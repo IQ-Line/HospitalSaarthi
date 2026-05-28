@@ -296,6 +296,7 @@ export interface FideliusEncryptor {
     encryptedPayloads: string[];
     ourPublicKey: string;
     ourNonce: string;
+    engine?: string;
   }>;
 
   /** Decrypt an inbound payload from an external HIP using our key material. M3 HIU receive. */

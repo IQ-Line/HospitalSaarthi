@@ -619,8 +619,10 @@ await deps.dataPush.push({
 
 **Notes on the canonical impl:**
 - `parseHiRequestBody` exists precisely to handle the consentId-at-top-level quirk; **do not** destructure `req.body.hiRequest.consent.id` directly in new code paths.
-- `checksumForContent` checksums the encrypted base64 payload (not plaintext). The ABDM spec doesn't pin this; production HIMS emits a literal string `'string'` as the checksum (known bug); the existing on-branch code chose sha256-of-ciphertext, which is also what the HIU side of any sandbox-aware integration test should expect.
-- `pageNumber: 0` matches `push-health-information.ts:73`. The fixture in `test-fixtures/m3/push/encrypted-bundle-sample.json` uses `1` for human-readable logging; either is gateway-accepted.
+- **HIP encrypt is env-driven, not PHR-specific.** When `ABDM_FIDELIUS_HIP_*` static keys are set, `FideliusEncryptor.encryptBundlesForPeer` uses the mgrmtech stack (HTTP → CLI → Java) and X509 `keyToShare` — same path for PHR, HIMS-HIU, and LIMS-HIP (production `abdi-lims-backed` parity). Without static keys, TS BC ephemeral encrypt is mock/loopback only.
+- Checksum defaults to literal `"string"` via `ABDM_M3_PUSH_CHECKSUM_MODE=literal` (production HIMS parity). Override with `sha256` or `md5` for harness tests.
+- Push headers: external CM `dataPushUrl` hosts use minimal headers (Content-Type only) by default; loopback adapter URLs get full NHA headers. Configure via `ABDM_M3_DATA_PUSH_MINIMAL_HEADERS`.
+- `pageNumber: 0` matches `push-health-information.ts`. The fixture in `test-fixtures/m3/push/encrypted-bundle-sample.json` uses `1` for human-readable logging; either is gateway-accepted.
 - `encryptBundlesForPeer` (plural) is the correct choice for fan-out. The singular `encryptForPeer` generates a fresh keypair per call and would ship N different HIP public keys — only one entry would decrypt at the HIU.
 - If you need a deterministic encrypt for tests (fixed HIP keypair + nonce so output is reproducible), use `encryptForPeerMaterialDeterministic` from `lib/fidelius-crypto.ts` — but call it only from test fixtures, not from production use-cases.
 

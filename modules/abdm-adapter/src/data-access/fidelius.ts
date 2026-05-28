@@ -1,17 +1,27 @@
-import { createHash, randomBytes } from "node:crypto";
-import type { FideliusEncryptor } from "../ports.js";
+import { randomBytes } from "node:crypto";
+import type { FideliusEncryptor as FideliusEncryptorPort } from "../ports.js";
 import {
   decryptFromPeerMaterial,
-  encryptBundlesForPeer,
+  encryptBundlesForPeer as encryptBundlesForPeerTs,
   encryptForPeerMaterial,
 } from "../lib/fidelius-crypto.js";
 import { generateEphemeralBcKeyPair } from "../lib/fidelius-curve25519-bc.js";
+import { encryptBundlesViaMgrmtech } from "../lib/fidelius-mgrmtech-encrypt.js";
+import { resolveStaticFideliusHipKeys } from "../lib/fidelius-http.client.js";
+
+export type FideliusEncryptEngine =
+  | "fidelius-http"
+  | "fidelius-cli"
+  | "fidelius-java"
+  | "typescript";
 
 /**
- * ABDM Fidelius encryptor (BC Weierstrass curve25519 ECDH + HKDF-SHA256 + AES-256-GCM).
- * @see https://kiranma72.github.io/abdm-docs/3-milestone2/encryption-decryption/implementation-guidelines/
+ * ABDM Fidelius encryptor.
+ * When static HIP keys are configured (production / sandbox), uses mgrmtech stack
+ * (HTTP → CLI → Java) with X509 keyToShare — same path for PHR, HIMS-HIU, LIMS-HIP.
+ * Otherwise falls back to in-process TS BC (mock harness / loopback only).
  */
-export class FideliusEncryptor implements FideliusEncryptor {
+export class FideliusEncryptor implements FideliusEncryptorPort {
   async generateOurKeyMaterial(): Promise<{
     ourPublicKey: string;
     ourPrivateKey: string;
@@ -30,11 +40,15 @@ export class FideliusEncryptor implements FideliusEncryptor {
     peerPublicKey: string;
     peerNonce: string;
   }): Promise<{ encryptedPayload: string; ourPublicKey: string; ourNonce: string }> {
-    const result = encryptForPeerMaterial(input);
+    const batch = await this.encryptBundlesForPeer({
+      payloadJsons: [input.payloadJson],
+      peerPublicKey: input.peerPublicKey,
+      peerNonce: input.peerNonce,
+    });
     return {
-      encryptedPayload: result.encryptedPayload,
-      ourPublicKey: result.ourPublicKey,
-      ourNonce: result.ourNonce,
+      encryptedPayload: batch.encryptedPayloads[0]!,
+      ourPublicKey: batch.ourPublicKey,
+      ourNonce: batch.ourNonce,
     };
   }
 
@@ -46,8 +60,19 @@ export class FideliusEncryptor implements FideliusEncryptor {
     encryptedPayloads: string[];
     ourPublicKey: string;
     ourNonce: string;
+    engine: FideliusEncryptEngine;
   }> {
-    return encryptBundlesForPeer(input);
+    const staticKeys = resolveStaticFideliusHipKeys();
+    if (staticKeys) {
+      const mgrmtech = await encryptBundlesViaMgrmtech({
+        ...input,
+        staticKeys,
+      });
+      return mgrmtech;
+    }
+
+    const ts = encryptBundlesForPeerTs(input);
+    return { ...ts, engine: "typescript" };
   }
 
   async decryptFromPeer(input: {
@@ -62,7 +87,7 @@ export class FideliusEncryptor implements FideliusEncryptor {
 }
 
 /** Legacy base64 stub — only when `ABDM_FIDELIUS_USE_STUB=true` (local webhook tests). */
-class FideliusEncryptorLegacyStub implements FideliusEncryptor {
+class FideliusEncryptorLegacyStub implements FideliusEncryptorPort {
   async generateOurKeyMaterial(): Promise<{
     ourPublicKey: string;
     ourPrivateKey: string;
@@ -83,12 +108,13 @@ class FideliusEncryptorLegacyStub implements FideliusEncryptor {
     encryptedPayloads: string[];
     ourPublicKey: string;
     ourNonce: string;
+    engine: FideliusEncryptEngine;
   }> {
     const encryptedPayloads: string[] = [];
     let ourPublicKey = "";
     let ourNonce = "";
     for (const json of input.payloadJsons) {
-      const one = await this.encryptForPeer({
+      const one = encryptForPeerMaterial({
         payloadJson: json,
         peerPublicKey: input.peerPublicKey,
         peerNonce: input.peerNonce,
@@ -98,7 +124,7 @@ class FideliusEncryptorLegacyStub implements FideliusEncryptor {
       ourNonce = one.ourNonce;
     }
     if (!ourPublicKey) {
-      const one = await this.encryptForPeer({
+      const one = encryptForPeerMaterial({
         payloadJson: "{}",
         peerPublicKey: input.peerPublicKey,
         peerNonce: input.peerNonce,
@@ -106,7 +132,7 @@ class FideliusEncryptorLegacyStub implements FideliusEncryptor {
       ourPublicKey = one.ourPublicKey;
       ourNonce = one.ourNonce;
     }
-    return { encryptedPayloads, ourPublicKey, ourNonce };
+    return { encryptedPayloads, ourPublicKey, ourNonce, engine: "typescript" };
   }
 
   async encryptForPeer(input: {
@@ -114,18 +140,11 @@ class FideliusEncryptorLegacyStub implements FideliusEncryptor {
     peerPublicKey: string;
     peerNonce: string;
   }): Promise<{ encryptedPayload: string; ourPublicKey: string; ourNonce: string }> {
-    const digest = createHash("sha256")
-      .update(input.peerPublicKey)
-      .update(input.peerNonce)
-      .update(input.payloadJson)
-      .digest();
-    const encryptedPayload = Buffer.from(
-      JSON.stringify({ stub: true, payload: input.payloadJson, digest: digest.toString("hex") }),
-    ).toString("base64");
+    const result = encryptForPeerMaterial(input);
     return {
-      encryptedPayload,
-      ourPublicKey: randomBytes(32).toString("base64"),
-      ourNonce: randomBytes(32).toString("base64"),
+      encryptedPayload: result.encryptedPayload,
+      ourPublicKey: result.ourPublicKey,
+      ourNonce: result.ourNonce,
     };
   }
 
@@ -139,7 +158,7 @@ class FideliusEncryptorLegacyStub implements FideliusEncryptor {
   }
 }
 
-export function createFideliusEncryptorFromEnv(): FideliusEncryptor {
+export function createFideliusEncryptorFromEnv(): FideliusEncryptorPort {
   if (process.env["ABDM_FIDELIUS_USE_STUB"] === "true") {
     return new FideliusEncryptorLegacyStub();
   }
