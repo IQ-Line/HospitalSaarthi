@@ -46,6 +46,31 @@ const identityStubPlugin = fp(
   { name: "@hims/ts-sdk-identity" },
 );
 
+const principalEnrichmentStubPlugin = fp(
+  async (fastify) => {
+    fastify.addHook("onRequest", async (request) => {
+      (request as Record<string, unknown>).cerbosPrincipal = {
+        id: "user-1",
+        roles: [],
+        attributes: {
+          iq_tenant_id: "tenant-a",
+          department: null,
+          org_id: null,
+          role_codes: [],
+          capabilities: [],
+          delegated_capabilities: [],
+          clearances: {},
+          um_clearance_effective_tier: 0,
+        },
+      };
+    });
+  },
+  {
+    name: "@hims/user-management-principal-enrichment",
+    dependencies: ["@hims/ts-sdk-identity"],
+  },
+);
+
 afterEach(async () => {
   cerbosCheckResource.mockReset();
   await Promise.all(
@@ -70,6 +95,7 @@ describe("authzPlugin", () => {
     });
 
     await app.register(identityStubPlugin);
+    await app.register(principalEnrichmentStubPlugin);
     await app.register(authzPlugin, {
       cerbosUrl: "localhost:3593",
       resolveTarget: async () => ({
@@ -101,6 +127,7 @@ describe("authzPlugin", () => {
     apps.push(app);
 
     await app.register(identityStubPlugin);
+    await app.register(principalEnrichmentStubPlugin);
     await app.register(authzPlugin, {
       cerbosUrl: "localhost:3593",
       resolveTarget: async () => null,

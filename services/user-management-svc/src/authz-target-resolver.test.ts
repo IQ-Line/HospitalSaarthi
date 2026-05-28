@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createUserManagementAuthzTargetResolver } from "./authz-target-resolver.js";
 
 describe("createUserManagementAuthzTargetResolver", () => {
-  it("maps GET /capabilities/assignable to capability.read", async () => {
+  it("returns null for GET /capabilities/assignable (now inline)", async () => {
     const getUserProfile = vi.fn();
     const resolver = createUserManagementAuthzTargetResolver({ getUserProfile });
 
@@ -17,21 +17,12 @@ describe("createUserManagementAuthzTargetResolver", () => {
       },
     } as never);
 
-    expect(target).toEqual({
-      kind: "capability",
-      id: "assignable",
-      action: "capability.read",
-      attr: {
-        iq_tenant_id: "tenant-a",
-        department: "admin",
-        required_clearance: 0,
-      },
-    });
+    expect(target).toBeNull();
     expect(getUserProfile).not.toHaveBeenCalled();
   });
 
-  it("maps GET /capabilities/:id to capability.read", async () => {
-    const getUserProfile = vi.fn().mockResolvedValue(null);
+  it("returns null for GET /capabilities/:id (now inline)", async () => {
+    const getUserProfile = vi.fn();
     const resolver = createUserManagementAuthzTargetResolver({ getUserProfile });
 
     const target = await resolver({
@@ -46,16 +37,7 @@ describe("createUserManagementAuthzTargetResolver", () => {
       },
     } as never);
 
-    expect(target).toEqual({
-      kind: "capability",
-      id: "f47ac10b-58cc-4372-a567-0e02b2c3d610",
-      action: "capability.read",
-      attr: {
-        iq_tenant_id: "tenant-a",
-        department: "admin",
-        required_clearance: 0,
-      },
-    });
+    expect(target).toBeNull();
     expect(getUserProfile).not.toHaveBeenCalled();
   });
 
@@ -93,7 +75,7 @@ describe("createUserManagementAuthzTargetResolver", () => {
     expect(getUserProfile).toHaveBeenCalledWith("tenant-a", "f47ac10b-58cc-4372-a567-0e02b2c3d611");
   });
 
-  it("maps GET /auth/principal to auth.read (tenant-only; no users:users:read)", async () => {
+  it("returns null for GET /auth/principal (now inline)", async () => {
     const getUserProfile = vi.fn();
     const resolver = createUserManagementAuthzTargetResolver({ getUserProfile });
 
@@ -108,20 +90,11 @@ describe("createUserManagementAuthzTargetResolver", () => {
       },
     } as never);
 
-    expect(target).toEqual({
-      kind: "auth",
-      id: "self",
-      action: "auth.read",
-      attr: {
-        iq_tenant_id: "f47ac10b-58cc-4372-a567-0e02b2c3d480",
-        department: null,
-        required_clearance: 0,
-      },
-    });
+    expect(target).toBeNull();
     expect(getUserProfile).not.toHaveBeenCalled();
   });
 
-  it("maps POST /users resource tenant from iq_tenant_id header for super-admin", async () => {
+  it("returns null for POST /users (now inline)", async () => {
     const getUserProfile = vi.fn();
     const resolver = createUserManagementAuthzTargetResolver({ getUserProfile });
 
@@ -138,15 +111,74 @@ describe("createUserManagementAuthzTargetResolver", () => {
       },
     } as never);
 
+    expect(target).toBeNull();
+  });
+
+  it("maps GET /users/:id to user.read on the target user", async () => {
+    const getUserProfile = vi.fn().mockResolvedValue({
+      org_id: null,
+      department: "admin",
+      clearance_tier_required: 1,
+    });
+    const resolver = createUserManagementAuthzTargetResolver({ getUserProfile });
+
+    const target = await resolver({
+      method: "GET",
+      url: "/api/user-management/users/f47ac10b-58cc-4372-a567-0e02b2c3d612",
+      routeOptions: { url: "/api/user-management/users/:id" },
+      params: { id: "f47ac10b-58cc-4372-a567-0e02b2c3d612" },
+      user: {
+        userId: "user-1",
+        tenantId: "tenant-a",
+        department: null,
+      },
+    } as never);
+
     expect(target).toEqual({
       kind: "user",
-      id: "new",
-      action: "user.create",
+      id: "f47ac10b-58cc-4372-a567-0e02b2c3d612",
+      action: "user.read",
       attr: {
-        iq_tenant_id: "tenant-target",
-        department: null,
-        required_clearance: 0,
+        iq_tenant_id: "tenant-a",
+        department: "admin",
+        required_clearance: 1,
+        org_id: null,
       },
     });
+    expect(getUserProfile).toHaveBeenCalledWith("tenant-a", "f47ac10b-58cc-4372-a567-0e02b2c3d612");
+  });
+
+  it("maps POST /users/:id/deactivate to user.deactivate on the target user", async () => {
+    const getUserProfile = vi.fn().mockResolvedValue({
+      org_id: null,
+      department: "admin",
+      clearance_tier_required: 0,
+    });
+    const resolver = createUserManagementAuthzTargetResolver({ getUserProfile });
+
+    const target = await resolver({
+      method: "POST",
+      url: "/api/user-management/users/f47ac10b-58cc-4372-a567-0e02b2c3d613/deactivate",
+      routeOptions: { url: "/api/user-management/users/:id/deactivate" },
+      params: { id: "f47ac10b-58cc-4372-a567-0e02b2c3d613" },
+      user: {
+        userId: "user-1",
+        tenantId: "tenant-a",
+        department: null,
+      },
+    } as never);
+
+    expect(target).toEqual({
+      kind: "user",
+      id: "f47ac10b-58cc-4372-a567-0e02b2c3d613",
+      action: "user.deactivate",
+      attr: {
+        iq_tenant_id: "tenant-a",
+        department: "admin",
+        required_clearance: 0,
+        org_id: null,
+      },
+    });
+    expect(getUserProfile).toHaveBeenCalledWith("tenant-a", "f47ac10b-58cc-4372-a567-0e02b2c3d613");
   });
 });

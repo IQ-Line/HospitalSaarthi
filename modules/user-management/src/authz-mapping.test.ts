@@ -7,6 +7,30 @@ const apps: Array<ReturnType<typeof Fastify>> = [];
 const identityPluginStub = fp(async () => {}, {
   name: "@hims/ts-sdk-identity",
 });
+const principalEnrichmentStub = fp(
+  async (fastify) => {
+    fastify.addHook("onRequest", async (request) => {
+      (request as Record<string, unknown>).cerbosPrincipal = {
+        id: "stub",
+        roles: [],
+        attributes: {
+          iq_tenant_id: "",
+          department: null,
+          org_id: null,
+          role_codes: [],
+          capabilities: [],
+          delegated_capabilities: [],
+          clearances: {},
+          um_clearance_effective_tier: 0,
+        },
+      };
+    });
+  },
+  {
+    name: "@hims/user-management-principal-enrichment",
+    dependencies: ["@hims/ts-sdk-identity"],
+  },
+);
 
 afterEach(async () => {
   await Promise.all(
@@ -27,6 +51,7 @@ describe("authz mapping enforcement", () => {
     apps.push(app);
 
     await app.register(identityPluginStub);
+    await app.register(principalEnrichmentStub);
     await app.register(authzPlugin, {
       cerbosUrl: "127.0.0.1:3593",
     });
