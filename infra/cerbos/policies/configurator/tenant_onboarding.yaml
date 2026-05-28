@@ -1,0 +1,32 @@
+---
+# Configurator — tenant onboarding (provision new tenant).
+# Capabilities: onboarding:onboarding:create
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "onboarding"
+  version: default
+  rules:
+    - actions:
+        - "onboarding.create"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "onboarding:onboarding:create" in request.principal.attr.capabilities ||
+              "onboarding:onboarding:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "onboarding.create"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "onboarding:onboarding:create" in request.principal.attr.capabilities ||
+              "onboarding:onboarding:create" in request.principal.attr.delegated_capabilities
+            )

@@ -1,16 +1,13 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import { identityPlugin, validateAuthConfig } from "@hims/ts-sdk-identity";
-import { assertCerbosReachable, authzPlugin } from "@hims/ts-sdk-authz";
+import { registerAuthzStack } from "@hims/ts-sdk-authz";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import { tenantPlugin } from "@hims/ts-sdk-tenant";
 import { createDb } from "@hims/ts-sdk-db";
 import { InProcessEventBus } from "@hims/ts-sdk-events";
 import {
-  DrizzleUserRepository,
-  DrizzlePrincipalRoleProjectionRepository,
-  DrizzlePrincipalAuthorizationRepository,
-  createDefaultPrincipalService,
+  createDefaultPrincipalDeps,
   principalRoleEnricherPlugin,
 } from "@hims/user-management";
 import {
@@ -103,34 +100,21 @@ async function main() {
     eventBus,
   };
 
-  const identityAuth = validateAuthConfig();
-
   if (!process.env["CERBOS_URL"] || process.env["CERBOS_URL"].trim() === "") {
     throw new Error("CERBOS_URL is required for authorization service");
   }
   const cerbosUrl = process.env["CERBOS_URL"].trim();
-  await assertCerbosReachable(cerbosUrl);
 
-  const userRepository = new DrizzleUserRepository(db);
-  const principalRoleProjectionRepository = new DrizzlePrincipalRoleProjectionRepository(db);
-  const principalAuthorizationRepository = new DrizzlePrincipalAuthorizationRepository(db);
-  const principalService = createDefaultPrincipalService({
-    userRepository,
-    principalRoleProjectionRepository,
-    principalAuthorizationRepository,
-  });
+  const { userRepository, principalService } = createDefaultPrincipalDeps(db);
 
   async function registerRegistrationApi(api: FastifyInstance): Promise<void> {
-    await api.register(identityPlugin, {
-      ...identityAuth,
-      skipPathPrefixes: ["/docs"],
-    });
-    await api.register(principalRoleEnricherPlugin, {
-      principalService,
-      userRepository,
-    });
-    await api.register(authzPlugin, {
+    await registerAuthzStack(api, {
       cerbosUrl,
+      identityPlugin,
+      identityAuth: validateAuthConfig(),
+      principalEnrichmentPlugin: principalRoleEnricherPlugin,
+      principalEnrichmentOptions: { principalService, userRepository },
+      skipAuthPrefixes: ["/docs"],
     });
     await api.register(tenantPlugin);
     registerRegistrationsHandler(api, handlerDeps);

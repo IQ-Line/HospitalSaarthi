@@ -1,5 +1,5 @@
 import sensible from "@fastify/sensible";
-import { assertCerbosReachable, authzPlugin } from "@hims/ts-sdk-authz";
+import { registerAuthzStack, authzPlugin } from "@hims/ts-sdk-authz";
 import {
   assertUserManagementDatabaseIsolation,
   createDb,
@@ -34,6 +34,7 @@ import {
   formatRuntimeAuthorizationStartupFailure,
   validateRuntimeAuthorizationStartup,
   principalRoleEnricherPlugin,
+  createDefaultPrincipalDeps,
 } from "../../../modules/user-management/src/index.js";
 import { deactivateSupersededLegacyCapabilities } from "../../../modules/user-management/src/dev/deactivate-superseded-legacy-capabilities.js";
 import { HttpConfiguratorTenantModuleEntitlementAdapter } from "./adapters/http-configurator-tenant-module-entitlement-adapter.js";
@@ -131,14 +132,11 @@ async function createApp(): Promise<FastifyInstance> {
   const configuratorUrl = requireUpstreamBaseUrl("CONFIGURATOR_URL");
   const masterDataUrl = requireUpstreamBaseUrl("MASTER_DATA_URL");
 
-  const userRepository = new DrizzleUserRepository(pgDb);
   const userProvisioningRepository = new DrizzleUserProvisioningRepository(pgDb);
   const capabilityRepository = new DrizzleCapabilityRepository(pgDb);
   const roleRepository = new DrizzleRoleRepository(pgDb);
   const roleCapabilityRepository = new DrizzleRoleCapabilityRepository(pgDb);
   const userAccessRepository = new DrizzleUserAccessRepository(pgDb);
-  const principalRoleProjectionRepository = new DrizzlePrincipalRoleProjectionRepository(pgDb);
-  const principalAuthorizationRepository = new DrizzlePrincipalAuthorizationRepository(pgDb);
 
   const legacyCleanup = await deactivateSupersededLegacyCapabilities(pgDb);
   if (legacyCleanup.deactivated > 0) {
@@ -171,11 +169,7 @@ async function createApp(): Promise<FastifyInstance> {
     log: (event, message) => app.log.info(event, message),
   });
 
-  const principalService = createDefaultPrincipalService({
-    userRepository,
-    principalRoleProjectionRepository,
-    principalAuthorizationRepository,
-  });
+  const { userRepository, principalService } = createDefaultPrincipalDeps(pgDb);
 
   const trustedOrigins = [
     ...new Set([
@@ -197,7 +191,7 @@ async function createApp(): Promise<FastifyInstance> {
   await repairJwksForDevelopment(pgDb, authEnv);
   const auth = createHimsBetterAuth(pgDb, authEnv, {
     userRepository,
-    principalRoleProjectionRepository,
+    principalRoleProjectionRepository: new DrizzlePrincipalRoleProjectionRepository(pgDb),
   });
   const authAccountProvisioner = createPasswordAuthAccountProvisioner(pgDb, auth);
 
@@ -239,19 +233,13 @@ async function createApp(): Promise<FastifyInstance> {
 
   await registerBetterAuth(app, auth, { trustedOrigins });
 
-  await app.register(identityPlugin, {
-    ...identityAuth,
-    skipPathPrefixes: ["/api/auth", "/docs"],
-  });
-
-  await assertCerbosReachable(cerbosUrl);
-
-  await app.register(principalRoleEnricherPlugin, {
-    principalService,
-    userRepository,
-  });
-  await app.register(authzPlugin, {
+  await registerAuthzStack(app, {
     cerbosUrl,
+    identityPlugin,
+    identityAuth,
+    principalEnrichmentPlugin: principalRoleEnricherPlugin,
+    principalEnrichmentOptions: { principalService, userRepository },
+    skipAuthPrefixes: ["/api/auth", "/docs"],
     resolveTarget: createUserManagementAuthzTargetResolver({
       getUserProfile: async (tenantId, userId) => {
         const u = await userRepository.getUserById(tenantId, userId);
@@ -273,8 +261,8 @@ async function createApp(): Promise<FastifyInstance> {
     roleRepository,
     roleCapabilityRepository,
     userAccessRepository,
-    principalRoleProjectionRepository,
-    principalAuthorizationRepository,
+    principalRoleProjectionRepository: new DrizzlePrincipalRoleProjectionRepository(pgDb),
+    principalAuthorizationRepository: new DrizzlePrincipalAuthorizationRepository(pgDb),
     authAccountProvisioner,
     tenantModuleEntitlementPort,
     masterDataModuleCatalogPort,

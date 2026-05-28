@@ -3,6 +3,8 @@ import { validateAuthConfig } from "@hims/ts-sdk-identity";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import { tenantPlugin } from "@hims/ts-sdk-tenant";
 import { createDb } from "@hims/ts-sdk-db";
+import { registerAuthzStack } from "@hims/ts-sdk-authz";
+import { createDefaultPrincipalDeps, principalRoleEnricherPlugin } from "@hims/user-management";
 import { InProcessEventBus } from "@hims/ts-sdk-events";
 import {
   createRouter,
@@ -18,12 +20,10 @@ const PORT = Number(
   process.env["EMPI_PORT"] ?? process.env["EMPI_SVC_PORT"] ?? 3002,
 );
 const DATABASE_URL = process.env["DATABASE_URL"] ?? "";
-const ENABLE_AUTH = process.env["ENABLE_AUTH"] === "true";
+const CERBOS_URL = process.env["CERBOS_URL"];
 
 const fastifyAjv = {
   customOptions: {
-    // Default Fastify Ajv uses removeAdditional: true, which strips unknown keys
-    // instead of failing when additionalProperties: false — clients must get 400.
     removeAdditional: false as const,
     coerceTypes: true,
     useDefaults: true,
@@ -64,11 +64,21 @@ async function main() {
     getTenantNumericCode,
   });
 
+  const { userRepository, principalService } = createDefaultPrincipalDeps(db);
+
+  if (!CERBOS_URL) {
+    throw new Error("CERBOS_URL environment variable is required");
+  }
+
   await app.register(async (api) => {
-    if (ENABLE_AUTH) {
-      const { identityPlugin } = await import("@hims/ts-sdk-identity");
-      await api.register(identityPlugin, validateAuthConfig());
-    }
+    await registerAuthzStack(api, {
+      cerbosUrl: CERBOS_URL,
+      identityPlugin: (await import("@hims/ts-sdk-identity")).identityPlugin,
+      identityAuth: validateAuthConfig(),
+      principalEnrichmentPlugin: principalRoleEnricherPlugin,
+      principalEnrichmentOptions: { principalService, userRepository },
+      skipAuthPrefixes: ["/docs"],
+    });
     await api.register(tenantPlugin);
 
     await api.register(async (scopedApp) => {

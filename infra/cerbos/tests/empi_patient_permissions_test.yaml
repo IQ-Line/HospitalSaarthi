@@ -1,0 +1,175 @@
+# yaml-language-server: $schema=https://api.cerbos.dev/latest/cerbos/policy/v1/TestSuite.schema.json
+---
+name: empi_patient_permissions_test
+description: >-
+  EMPI — patient read/create/update/delete require runtime capability keys and tenant alignment.
+
+principals:
+  patient_admin:
+    id: empi-admin
+    roles:
+      - "_unresolved"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities:
+        - "empi:patient:create"
+        - "empi:patient:read"
+        - "empi:patient:update"
+        - "empi:patient:delete"
+      delegated_capabilities: []
+
+  patient_reader:
+    id: empi-reader
+    roles:
+      - "_unresolved"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities:
+        - "empi:patient:read"
+      delegated_capabilities: []
+
+  patient_writer:
+    id: empi-writer
+    roles:
+      - "_unresolved"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities:
+        - "empi:patient:create"
+        - "empi:patient:update"
+      delegated_capabilities: []
+
+resources:
+  patient_record:
+    id: patient-42
+    kind: patient
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+
+  patient_record_wrong_tenant:
+    id: patient-42
+    kind: patient
+    attr:
+      iq_tenant_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+
+tests:
+  - name: patient.read — admin ALLOW
+    input:
+      principals: [patient_admin]
+      resources: [patient_record]
+      actions: [patient.read]
+    expected:
+      - principal: patient_admin
+        resource: patient_record
+        actions:
+          patient.read: EFFECT_ALLOW
+
+  - name: patient.read — reader ALLOW
+    input:
+      principals: [patient_reader]
+      resources: [patient_record]
+      actions: [patient.read]
+    expected:
+      - principal: patient_reader
+        resource: patient_record
+        actions:
+          patient.read: EFFECT_ALLOW
+
+  - name: patient.read — writer without read capability DENY
+    input:
+      principals: [patient_writer]
+      resources: [patient_record]
+      actions: [patient.read]
+    expected:
+      - principal: patient_writer
+        resource: patient_record
+        actions:
+          patient.read: EFFECT_DENY
+
+  - name: patient.create — admin ALLOW
+    input:
+      principals: [patient_admin]
+      resources: [patient_record]
+      actions: [patient.create]
+    expected:
+      - principal: patient_admin
+        resource: patient_record
+        actions:
+          patient.create: EFFECT_ALLOW
+
+  - name: patient.create — reader without create DENY
+    input:
+      principals: [patient_reader]
+      resources: [patient_record]
+      actions: [patient.create]
+    expected:
+      - principal: patient_reader
+        resource: patient_record
+        actions:
+          patient.create: EFFECT_DENY
+
+  - name: patient.update — admin ALLOW
+    input:
+      principals: [patient_admin]
+      resources: [patient_record]
+      actions: [patient.update]
+    expected:
+      - principal: patient_admin
+        resource: patient_record
+        actions:
+          patient.update: EFFECT_ALLOW
+
+  - name: patient.update — writer ALLOW
+    input:
+      principals: [patient_writer]
+      resources: [patient_record]
+      actions: [patient.update]
+    expected:
+      - principal: patient_writer
+        resource: patient_record
+        actions:
+          patient.update: EFFECT_ALLOW
+
+  - name: patient.update — reader without update DENY
+    input:
+      principals: [patient_reader]
+      resources: [patient_record]
+      actions: [patient.update]
+    expected:
+      - principal: patient_reader
+        resource: patient_record
+        actions:
+          patient.update: EFFECT_DENY
+
+  - name: patient.delete — admin ALLOW
+    input:
+      principals: [patient_admin]
+      resources: [patient_record]
+      actions: [patient.delete]
+    expected:
+      - principal: patient_admin
+        resource: patient_record
+        actions:
+          patient.delete: EFFECT_ALLOW
+
+  - name: patient.delete — writer without delete DENY
+    input:
+      principals: [patient_writer]
+      resources: [patient_record]
+      actions: [patient.delete]
+    expected:
+      - principal: patient_writer
+        resource: patient_record
+        actions:
+          patient.delete: EFFECT_DENY
+
+  - name: patient.read — wrong tenant DENY
+    input:
+      principals: [patient_admin]
+      resources: [patient_record_wrong_tenant]
+      actions: [patient.read]
+    expected:
+      - principal: patient_admin
+        resource: patient_record_wrong_tenant
+        actions:
+          patient.read: EFFECT_DENY

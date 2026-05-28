@@ -8,7 +8,6 @@ import type {
   TenantAdminProvisioningPort,
 } from "../ports.js";
 import type { ProvisionTenantInput } from "../domain/onboarding.types.js";
-import { assertTenantOnboardingAllowed } from "../http/tenant-onboarding-access.js";
 import { provisionTenant } from "../use-cases/provision-tenant.js";
 import { tenantOnboardingBodySchema } from "./tenant-onboarding.schemas.js";
 
@@ -33,12 +32,15 @@ export function registerTenantOnboardingHandler(
   app.post<{ Body: ProvisionTenantInput }>(
     "/tenant-onboarding",
     {
+      config: {
+        authMode: "protected",
+        authz: { kind: "onboarding", action: "onboarding.create" },
+      },
       schema: {
         body: tenantOnboardingBodySchema,
       },
     },
     async (request, reply) => {
-      assertTenantOnboardingAllowed(request, request.body);
       const correlationId = randomUUID();
       const actorId = resolveActorId(request) ?? correlationId;
       const authorization =

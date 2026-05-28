@@ -1,5 +1,4 @@
 import type { FastifyInstance } from "fastify";
-import { assertPlatformSuperAdmin } from "../http/request-auth-context.js";
 import type { TenantModuleRepo, TenantRepo } from "../ports.js";
 import type {
   CreateTenantModuleData,
@@ -34,6 +33,10 @@ export function registerTenantModulesHandler(
   app.get<{ Params: { tenantId: string }; Querystring: TenantModulesListQuery }>(
     "/tenants/:tenantId/modules",
     {
+      config: {
+        authMode: "protected",
+        authz: { kind: "tenant-module", action: "tenant-module.read" },
+      },
       schema: {
         params: {
           type: "object",
@@ -56,6 +59,10 @@ export function registerTenantModulesHandler(
   app.post<{ Params: { tenantId: string }; Body: Omit<CreateTenantModuleData, "iq_tenant_id"> }>(
     "/tenants/:tenantId/modules",
     {
+      config: {
+        authMode: "protected",
+        authz: { kind: "tenant-module", action: "tenant-module.create" },
+      },
       schema: {
         params: {
           type: "object",
@@ -79,6 +86,10 @@ export function registerTenantModulesHandler(
   app.get<{ Params: { tenantId: string; moduleId: string } }>(
     "/tenants/:tenantId/modules/:moduleId",
     {
+      config: {
+        authMode: "protected",
+        authz: { kind: "tenant-module", action: "tenant-module.read" },
+      },
       schema: {
         params: tenantModuleParamsSchema,
       },
@@ -101,11 +112,14 @@ export function registerTenantModulesHandler(
   }>(
     "/tenants/:tenantId/modules/:moduleId",
     {
+      config: {
+        authMode: "protected",
+        authz: { kind: "tenant-module", action: "tenant-module.update" },
+      },
       schema: {
         params: tenantModuleParamsSchema,
         body: patchTenantModuleBodySchema,
       },
-      preHandler: (request) => { assertPlatformSuperAdmin(request); },
     },
     async (request, reply) => {
       const updated = await updateTenantModule(
@@ -126,10 +140,13 @@ export function registerTenantModulesHandler(
   app.delete<{ Params: { tenantId: string; moduleId: string } }>(
     "/tenants/:tenantId/modules/:moduleId",
     {
+      config: {
+        authMode: "protected",
+        authz: { kind: "tenant-module", action: "tenant-module.delete" },
+      },
       schema: {
         params: tenantModuleParamsSchema,
       },
-      preHandler: (request) => { assertPlatformSuperAdmin(request); },
     },
     async (request, reply) => {
       const deleted = await deleteTenantModule(tenantModuleRepo, {

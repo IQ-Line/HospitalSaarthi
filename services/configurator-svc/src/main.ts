@@ -1,5 +1,6 @@
 import Fastify, { type FastifyInstance } from "fastify";
-import { validateAuthConfig } from "@hims/ts-sdk-identity";
+import { registerAuthzStack } from "@hims/ts-sdk-authz";
+import { createDefaultPrincipalDeps, principalRoleEnricherPlugin } from "@hims/user-management";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import {
   assertConfiguratorDatabaseIsolation,
@@ -89,12 +90,7 @@ async function main() {
     await eventBus.disconnect();
   });
 
-  const isProduction = process.env["NODE_ENV"] === "production";
-  const enableAuth = process.env["ENABLE_AUTH"] === "true";
-  if (isProduction && !enableAuth) {
-    throw new Error("ENABLE_AUTH=true is required when NODE_ENV=production");
-  }
-  const identityAuth = enableAuth ? validateAuthConfig() : undefined;
+  const { userRepository, principalService } = createDefaultPrincipalDeps(db);
 
   const userManagementBaseUrl = requireUpstreamBaseUrl(
     "USER_MANAGEMENT_URL",
@@ -109,10 +105,14 @@ async function main() {
     app.log.info(event, message);
 
   async function registerConfiguratorApi(api: FastifyInstance): Promise<void> {
-    if (identityAuth) {
-      const { identityPlugin } = await import("@hims/ts-sdk-identity");
-      await api.register(identityPlugin, identityAuth);
-    }
+    await registerAuthzStack(api, {
+      cerbosUrl: process.env["CERBOS_URL"] ?? "grpc://localhost:3593",
+      identityPlugin: (await import("@hims/ts-sdk-identity")).identityPlugin,
+      identityAuth: (await import("@hims/ts-sdk-identity")).validateAuthConfig(),
+      principalEnrichmentPlugin: principalRoleEnricherPlugin,
+      principalEnrichmentOptions: { principalService, userRepository },
+      skipAuthPrefixes: ["/docs"],
+    });
     await api.register(
       createRouter({
         organizationRepo,

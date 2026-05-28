@@ -5,7 +5,6 @@ import type {
   OrganizationFilters,
   UpdateOrganizationData,
 } from "../domain/organization.types.js";
-import { assertPlatformSuperAdmin } from "../http/request-auth-context.js";
 import { createOrganization } from "../use-cases/create-organization.js";
 import { listOrganizations } from "../use-cases/list-organizations.js";
 import { getOrganizationById } from "../use-cases/get-organization-by-id.js";
@@ -34,6 +33,12 @@ export function registerOrganizationsHandler(
 
   app.get<{ Querystring: OrganizationsQuery }>(
     "/organizations",
+    {
+      config: {
+        authMode: "protected",
+        authz: { kind: "organization", action: "org.read" },
+      },
+    },
     async (request) => {
       const { status, type } = request.query;
       const filters: OrganizationFilters = {};
@@ -49,8 +54,11 @@ export function registerOrganizationsHandler(
   app.post<{ Body: CreateOrganizationData }>(
     "/organizations",
     {
+      config: {
+        authMode: "protected",
+        authz: { kind: "organization", action: "org.create" },
+      },
       schema: { body: postOrganizationBodySchema },
-      preHandler: (request) => { assertPlatformSuperAdmin(request); },
     },
     async (request, reply) => {
       const created = await runConfiguratorTransaction((repos) =>
@@ -63,6 +71,10 @@ export function registerOrganizationsHandler(
   app.get<{ Params: { id: string } }>(
     "/organizations/:id",
     {
+      config: {
+        authMode: "protected",
+        authz: { kind: "organization", action: "org.read" },
+      },
       schema: {
         params: uuidParamSchema,
       },
@@ -79,6 +91,10 @@ export function registerOrganizationsHandler(
   app.patch<{ Params: { id: string }; Body: UpdateOrganizationData }>(
     "/organizations/:id",
     {
+      config: {
+        authMode: "protected",
+        authz: { kind: "organization", action: "org.update" },
+      },
       schema: {
         params: uuidParamSchema,
         body: patchOrganizationBodySchema,

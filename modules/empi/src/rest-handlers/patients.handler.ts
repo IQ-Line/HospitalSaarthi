@@ -62,6 +62,10 @@ export function registerPatientsHandler(
   app.post<{ Body: RegisterPatientRequestBody }>(
     "/patients",
     {
+      config: {
+        authMode: "protected",
+        authz: { kind: "patient", action: "patient.create" },
+      },
       schema: {
         body: createPatientBodySchema,
       },
@@ -95,6 +99,10 @@ export function registerPatientsHandler(
   app.get<{ Querystring: SearchPatientsQuerystring }>(
     "/patients",
     {
+      config: {
+        authMode: "protected",
+        authz: { kind: "patient", action: "patient.read" },
+      },
       schema: {
         querystring: searchPatientsQuerySchema,
       },
@@ -126,6 +134,10 @@ export function registerPatientsHandler(
   app.get<{ Params: { id: string } }>(
     "/patients/:id",
     {
+      config: {
+        authMode: "protected",
+        authz: { kind: "patient", action: "patient.read" },
+      },
       schema: {
         params: paramsPatientIdSchema,
       },
@@ -152,6 +164,10 @@ export function registerPatientsHandler(
   app.patch<{ Params: { id: string }; Body: UpdatePatientRequestBody }>(
     "/patients/:id",
     {
+      config: {
+        authMode: "protected",
+        authz: { kind: "patient", action: "patient.update" },
+      },
       schema: {
         params: paramsPatientIdSchema,
         body: updatePatientBodySchema,
@@ -179,6 +195,10 @@ export function registerPatientsHandler(
   }>(
     "/patients/:id/status",
     {
+      config: {
+        authMode: "protected",
+        authz: { kind: "patient", action: "patient.update" },
+      },
       schema: {
         params: paramsPatientIdSchema,
         body: changePatientStatusBodySchema,
@@ -217,6 +237,10 @@ export function registerPatientsHandler(
   }>(
     "/patients/:id/identifiers",
     {
+      config: {
+        authMode: "protected",
+        authz: { kind: "patient", action: "patient.update" },
+      },
       schema: {
         params: paramsPatientIdSchema,
         body: createIdentifierBodySchema,
@@ -247,6 +271,10 @@ export function registerPatientsHandler(
   app.delete<{ Params: { id: string; identifierId: string } }>(
     "/patients/:id/identifiers/:identifierId",
     {
+      config: {
+        authMode: "protected",
+        authz: { kind: "patient", action: "patient.update" },
+      },
       schema: {
         params: paramsPatientAndIdentifierSchema,
       },
@@ -269,6 +297,10 @@ export function registerPatientsHandler(
   app.post<{ Params: { id: string }; Body: CreateAddressRequestBody }>(
     "/patients/:id/addresses",
     {
+      config: {
+        authMode: "protected",
+        authz: { kind: "patient", action: "patient.update" },
+      },
       schema: {
         params: paramsPatientIdSchema,
         body: createAddressBodySchema,
@@ -301,6 +333,10 @@ export function registerPatientsHandler(
   }>(
     "/patients/:id/addresses/:addressId",
     {
+      config: {
+        authMode: "protected",
+        authz: { kind: "patient", action: "patient.update" },
+      },
       schema: {
         params: paramsPatientAndAddressSchema,
         body: updateAddressBodySchema,

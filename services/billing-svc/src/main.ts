@@ -3,12 +3,9 @@ import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import { tenantPlugin } from "@hims/ts-sdk-tenant";
 import { createDb } from "@hims/ts-sdk-db";
 import { validateAuthConfig, identityPlugin } from "@hims/ts-sdk-identity";
-import { assertCerbosReachable, authzPlugin } from "@hims/ts-sdk-authz";
+import { registerAuthzStack } from "@hims/ts-sdk-authz";
 import {
-  DrizzleUserRepository,
-  DrizzlePrincipalRoleProjectionRepository,
-  DrizzlePrincipalAuthorizationRepository,
-  createDefaultPrincipalService,
+  createDefaultPrincipalDeps,
   principalRoleEnricherPlugin,
 } from "@hims/user-management";
 import { createRouter } from "@hims/billing";
@@ -48,16 +45,7 @@ async function main() {
 
   const identityAuth = validateAuthConfig();
   const umDb = createDb(DATABASE_URL);
-  const userRepository = new DrizzleUserRepository(umDb);
-  const principalRoleProjectionRepository = new DrizzlePrincipalRoleProjectionRepository(umDb);
-  const principalAuthorizationRepository = new DrizzlePrincipalAuthorizationRepository(umDb);
-  const principalService = createDefaultPrincipalService({
-    userRepository,
-    principalRoleProjectionRepository,
-    principalAuthorizationRepository,
-  });
-
-  await assertCerbosReachable(CERBOS_URL);
+  const { userRepository, principalService } = createDefaultPrincipalDeps(umDb);
 
   await app.register(async (api) => {
     api.addHook("onRequest", async (request) => {
@@ -67,16 +55,13 @@ async function main() {
     });
     await api.register(tenantPlugin);
 
-    await api.register(identityPlugin, {
-      ...identityAuth,
-      skipPathPrefixes: ["/docs"],
-    });
-    await api.register(principalRoleEnricherPlugin, {
-      principalService,
-      userRepository,
-    });
-    await api.register(authzPlugin, {
+    await registerAuthzStack(api, {
       cerbosUrl: CERBOS_URL,
+      identityPlugin,
+      identityAuth,
+      principalEnrichmentPlugin: principalRoleEnricherPlugin,
+      principalEnrichmentOptions: { principalService, userRepository },
+      skipAuthPrefixes: ["/docs"],
     });
 
     await api.register(createRouter({ db, useMock: USE_MOCK_DATA }));

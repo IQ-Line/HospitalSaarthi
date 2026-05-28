@@ -1,0 +1,82 @@
+---
+# Configurator — tenant read/create/update operations.
+# Capabilities: tenant:tenant:{read,create,update}
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "tenant"
+  version: default
+  rules:
+    - actions:
+        - "tenant.read"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "tenant:tenant:read" in request.principal.attr.capabilities ||
+              "tenant:tenant:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "tenant.read"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "tenant:tenant:read" in request.principal.attr.capabilities ||
+              "tenant:tenant:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "tenant.create"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "tenant:tenant:create" in request.principal.attr.capabilities ||
+              "tenant:tenant:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "tenant.create"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "tenant:tenant:create" in request.principal.attr.capabilities ||
+              "tenant:tenant:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "tenant.update"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "tenant:tenant:update" in request.principal.attr.capabilities ||
+              "tenant:tenant:update" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "tenant.update"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "tenant:tenant:update" in request.principal.attr.capabilities ||
+              "tenant:tenant:update" in request.principal.attr.delegated_capabilities
+            )
