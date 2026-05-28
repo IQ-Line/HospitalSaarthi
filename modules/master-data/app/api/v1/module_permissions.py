@@ -6,6 +6,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
+from hims_authz.dependency import require_authz
+
 from app.api.deps import (
     get_module_permission_repository,
     get_module_repository,
@@ -39,6 +41,7 @@ router = APIRouter(prefix="/module-permissions", tags=["Module permissions"])
     "",
     response_model=ModulePermissionListResponse,
     summary="List module↔permission links",
+    dependencies=[Depends(require_authz("master_data:platform", "catalog.read"))],
 )
 def get_module_permissions(
     repository: Annotated[ModulePermissionRepository, Depends(get_module_permission_repository)],
@@ -63,6 +66,7 @@ def get_module_permissions(
     response_model=ModulePermissionSingleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a module↔permission link",
+    dependencies=[Depends(require_authz("master_data:platform", "catalog.create"))],
 )
 def post_module_permission(
     payload: ModulePermissionCreate,
@@ -89,6 +93,7 @@ def post_module_permission(
     "/by-slug/{slug}",
     response_model=ModulePermissionSingleResponse,
     summary="Get one link by slug",
+    dependencies=[Depends(require_authz("master_data:platform", "catalog.read"))],
 )
 def get_module_permission_by_slug_route(
     slug: str,
@@ -104,6 +109,7 @@ def get_module_permission_by_slug_route(
     "/{module_permission_id}",
     response_model=ModulePermissionSingleResponse,
     summary="Get one link by id",
+    dependencies=[Depends(require_authz("master_data:platform", "catalog.read"))],
 )
 def get_module_permission_by_id_route(
     module_permission_id: UUID,
@@ -119,6 +125,7 @@ def get_module_permission_by_id_route(
     "/{module_permission_id}",
     response_model=ModulePermissionSingleResponse,
     summary="Update a module↔permission link",
+    dependencies=[Depends(require_authz("master_data:platform", "catalog.update"))],
 )
 def patch_module_permission(
     module_permission_id: UUID,
@@ -143,6 +150,7 @@ def patch_module_permission(
     "/{module_permission_id}",
     response_model=ModulePermissionSingleResponse,
     summary="Soft-delete a module↔permission link",
+    dependencies=[Depends(require_authz("master_data:platform", "catalog.delete"))],
 )
 def delete_module_permission(
     module_permission_id: UUID,

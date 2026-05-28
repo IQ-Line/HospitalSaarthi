@@ -1,0 +1,145 @@
+# yaml-language-server: $schema=https://api.cerbos.dev/latest/cerbos/policy/v1/TestSuite.schema.json
+---
+name: master_data_visitpad_permissions_test
+description: Master Data — visitpad tenant catalog read/create/update/delete require runtime capability keys and tenant alignment.
+
+principals:
+  visitpad_admin:
+    id: vp-admin
+    roles:
+      - "_unresolved"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      role_codes:
+        - "tenant-admin"
+      capabilities:
+        - "master-data:visitpad:read"
+        - "master-data:visitpad:create"
+        - "master-data:visitpad:update"
+        - "master-data:visitpad:delete"
+      delegated_capabilities: []
+
+  visitpad_reader:
+    id: vp-reader
+    roles:
+      - "_unresolved"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      role_codes:
+        - "tenant-reader"
+      capabilities:
+        - "master-data:visitpad:read"
+      delegated_capabilities: []
+
+resources:
+  visitpad_record:
+    id: unit-42
+    kind: master_data:visitpad
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+
+  visitpad_record_wrong_tenant:
+    id: unit-42
+    kind: master_data:visitpad
+    attr:
+      iq_tenant_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+
+tests:
+  - name: visitpad.read — admin ALLOW
+    input:
+      principals: [visitpad_admin]
+      resources: [visitpad_record]
+      actions: [visitpad.read]
+    expected:
+      - principal: visitpad_admin
+        resource: visitpad_record
+        actions:
+          visitpad.read: EFFECT_ALLOW
+
+  - name: visitpad.read — reader ALLOW
+    input:
+      principals: [visitpad_reader]
+      resources: [visitpad_record]
+      actions: [visitpad.read]
+    expected:
+      - principal: visitpad_reader
+        resource: visitpad_record
+        actions:
+          visitpad.read: EFFECT_ALLOW
+
+  - name: visitpad.create — admin ALLOW
+    input:
+      principals: [visitpad_admin]
+      resources: [visitpad_record]
+      actions: [visitpad.create]
+    expected:
+      - principal: visitpad_admin
+        resource: visitpad_record
+        actions:
+          visitpad.create: EFFECT_ALLOW
+
+  - name: visitpad.create — reader without create DENY
+    input:
+      principals: [visitpad_reader]
+      resources: [visitpad_record]
+      actions: [visitpad.create]
+    expected:
+      - principal: visitpad_reader
+        resource: visitpad_record
+        actions:
+          visitpad.create: EFFECT_DENY
+
+  - name: visitpad.update — admin ALLOW
+    input:
+      principals: [visitpad_admin]
+      resources: [visitpad_record]
+      actions: [visitpad.update]
+    expected:
+      - principal: visitpad_admin
+        resource: visitpad_record
+        actions:
+          visitpad.update: EFFECT_ALLOW
+
+  - name: visitpad.update — reader without update DENY
+    input:
+      principals: [visitpad_reader]
+      resources: [visitpad_record]
+      actions: [visitpad.update]
+    expected:
+      - principal: visitpad_reader
+        resource: visitpad_record
+        actions:
+          visitpad.update: EFFECT_DENY
+
+  - name: visitpad.delete — admin ALLOW
+    input:
+      principals: [visitpad_admin]
+      resources: [visitpad_record]
+      actions: [visitpad.delete]
+    expected:
+      - principal: visitpad_admin
+        resource: visitpad_record
+        actions:
+          visitpad.delete: EFFECT_ALLOW
+
+  - name: visitpad.delete — reader without delete DENY
+    input:
+      principals: [visitpad_reader]
+      resources: [visitpad_record]
+      actions: [visitpad.delete]
+    expected:
+      - principal: visitpad_reader
+        resource: visitpad_record
+        actions:
+          visitpad.delete: EFFECT_DENY
+
+  - name: visitpad.read — wrong tenant DENY
+    input:
+      principals: [visitpad_admin]
+      resources: [visitpad_record_wrong_tenant]
+      actions: [visitpad.read]
+    expected:
+      - principal: visitpad_admin
+        resource: visitpad_record_wrong_tenant
+        actions:
+          visitpad.read: EFFECT_DENY

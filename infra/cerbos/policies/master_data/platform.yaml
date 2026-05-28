@@ -1,0 +1,163 @@
+---
+# Master Data — Platform global catalog CRUD.
+# Capabilities: master-data:platform:{read,create,update,delete}
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "master_data:platform"
+  version: default
+  rules:
+    - actions:
+        - "catalog.read"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "master-data:platform:read" in request.principal.attr.capabilities ||
+              "master-data:platform:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "catalog.read"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "master-data:platform:read" in request.principal.attr.capabilities ||
+              "master-data:platform:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "catalog.read"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      name: cross-tenant-super-admin-catalog-read
+      condition:
+        match:
+          expr: >-
+            "super-admin" in request.principal.attr.role_codes &&
+            (
+              "master-data:platform:read" in request.principal.attr.capabilities ||
+              "master-data:platform:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "catalog.create"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "master-data:platform:create" in request.principal.attr.capabilities ||
+              "master-data:platform:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "catalog.create"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "master-data:platform:create" in request.principal.attr.capabilities ||
+              "master-data:platform:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "catalog.create"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      name: cross-tenant-super-admin-catalog-create
+      condition:
+        match:
+          expr: >-
+            "super-admin" in request.principal.attr.role_codes &&
+            (
+              "master-data:platform:create" in request.principal.attr.capabilities ||
+              "master-data:platform:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "catalog.update"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "master-data:platform:update" in request.principal.attr.capabilities ||
+              "master-data:platform:update" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "catalog.update"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "master-data:platform:update" in request.principal.attr.capabilities ||
+              "master-data:platform:update" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "catalog.update"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      name: cross-tenant-super-admin-catalog-update
+      condition:
+        match:
+          expr: >-
+            "super-admin" in request.principal.attr.role_codes &&
+            (
+              "master-data:platform:update" in request.principal.attr.capabilities ||
+              "master-data:platform:update" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "catalog.delete"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "master-data:platform:delete" in request.principal.attr.capabilities ||
+              "master-data:platform:delete" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "catalog.delete"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "master-data:platform:delete" in request.principal.attr.capabilities ||
+              "master-data:platform:delete" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "catalog.delete"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      name: cross-tenant-super-admin-catalog-delete
+      condition:
+        match:
+          expr: >-
+            "super-admin" in request.principal.attr.role_codes &&
+            (
+              "master-data:platform:delete" in request.principal.attr.capabilities ||
+              "master-data:platform:delete" in request.principal.attr.delegated_capabilities
+            )

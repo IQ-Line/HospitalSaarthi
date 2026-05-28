@@ -4,6 +4,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from hims_authz.dependency import require_authz
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_session, get_visitpad_medicine_repository
@@ -35,7 +36,12 @@ from app.services.visitpad.platform_bulk_import import import_visitpad_medicines
 router = APIRouter(prefix="/visitpad/medicines", tags=["Visitpad — Medicines"])
 
 
-@router.get("", response_model=VisitpadMedicineListResponse, summary="List medicines")
+@router.get(
+    "",
+    response_model=VisitpadMedicineListResponse,
+    summary="List medicines",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
+)
 def get_medicines(
     repository: Annotated[VisitpadMedicineRepository, Depends(get_visitpad_medicine_repository)],
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
@@ -61,6 +67,7 @@ def get_medicines(
     response_model=VisitpadMedicineSingleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create medicine",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.create"))],
 )
 def post_medicine(
     payload: VisitpadMedicineCreate,
@@ -76,6 +83,7 @@ def post_medicine(
     "/import-from-platform",
     response_model=VisitpadPlatformImportSingleResponse,
     summary="Bulk-import medicines from the platform catalog",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.create"))],
 )
 def post_medicines_import_from_platform(
     payload: VisitpadPlatformImportRequest,
@@ -99,6 +107,7 @@ def post_medicines_import_from_platform(
     "/keys",
     response_model=VisitpadCatalogKeysResponse,
     summary="List tenant medicine codes for import-from-platform matching",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
 )
 def get_medicine_import_keys(
     repository: Annotated[VisitpadMedicineRepository, Depends(get_visitpad_medicine_repository)],
@@ -107,7 +116,12 @@ def get_medicine_import_keys(
     return VisitpadCatalogKeysResponse(data=repository.list_import_key_strings())
 
 
-@router.get("/{medicine_id}", response_model=VisitpadMedicineSingleResponse, summary="Get medicine")
+@router.get(
+    "/{medicine_id}",
+    response_model=VisitpadMedicineSingleResponse,
+    summary="Get medicine",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
+)
 def get_medicine(
     medicine_id: UUID,
     repository: Annotated[VisitpadMedicineRepository, Depends(get_visitpad_medicine_repository)],
@@ -118,7 +132,12 @@ def get_medicine(
     return VisitpadMedicineSingleResponse(data=VisitpadMedicineResponse.model_validate(row))
 
 
-@router.patch("/{medicine_id}", response_model=VisitpadMedicineSingleResponse, summary="Update medicine")
+@router.patch(
+    "/{medicine_id}",
+    response_model=VisitpadMedicineSingleResponse,
+    summary="Update medicine",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.update"))],
+)
 def patch_medicine(
     medicine_id: UUID,
     payload: VisitpadMedicineUpdate,
@@ -136,7 +155,12 @@ def patch_medicine(
     return VisitpadMedicineSingleResponse(data=VisitpadMedicineResponse.model_validate(row))
 
 
-@router.delete("/{medicine_id}", response_model=VisitpadMedicineSingleResponse, summary="Soft-delete medicine")
+@router.delete(
+    "/{medicine_id}",
+    response_model=VisitpadMedicineSingleResponse,
+    summary="Soft-delete medicine",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.delete"))],
+)
 def delete_medicine(
     medicine_id: UUID,
     repository: Annotated[VisitpadMedicineRepository, Depends(get_visitpad_medicine_repository)],
