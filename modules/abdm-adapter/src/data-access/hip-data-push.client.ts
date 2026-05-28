@@ -7,6 +7,7 @@ import {
   m3DataPushUrlAllowlist,
 } from "../lib/m3-runtime-env.js";
 import { abdmWarn } from "../lib/abdm-adapter-log.js";
+import { isPhrSandboxDataPushUrl } from "../lib/is-phr-sandbox-push.js";
 
 export interface HttpHipDataPushClientConfig {
   loopbackHiu?: boolean;
@@ -51,17 +52,28 @@ export class HttpHipDataPushClient implements HipDataPushClient {
     body: Record<string, unknown>;
     requestId: string;
     iqTenantId?: string;
+    xHipId?: string;
+    xCmId?: string;
   }): Promise<void> {
     const targetUrl = this.resolvePushUrl(input.dataPushUrl);
     this.assertAllowListed(targetUrl);
 
+    const phrTransfer = isPhrSandboxDataPushUrl(targetUrl);
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
-      "REQUEST-ID": input.requestId,
-      TIMESTAMP: new Date().toISOString(),
     };
-    if (input.iqTenantId) {
-      headers["x-tenant-id"] = input.iqTenantId;
+    if (!phrTransfer) {
+      headers["REQUEST-ID"] = input.requestId;
+      headers.TIMESTAMP = new Date().toISOString();
+      if (input.iqTenantId) {
+        headers["x-tenant-id"] = input.iqTenantId;
+      }
+      if (input.xHipId) {
+        headers["X-HIP-ID"] = input.xHipId;
+      }
+      if (input.xCmId) {
+        headers["X-CM-ID"] = input.xCmId;
+      }
     }
 
     const res = await fetchWithTimeout(targetUrl, {
@@ -74,6 +86,7 @@ export class HttpHipDataPushClient implements HipDataPushClient {
       abdmWarn("abdm.m3.hip_data_push.failed", {
         status: res.status,
         url: targetUrl.replace(/\/\/[^@]+@/, "//***@"),
+        bodyPreview: text.slice(0, 500),
       });
       throw new Error(
         `HIU data push failed ${res.status}: ${text.slice(0, 200)}`,
@@ -84,6 +97,11 @@ export class HttpHipDataPushClient implements HipDataPushClient {
 
 export function checksumForContent(content: string): string {
   return createHash("sha256").update(content).digest("hex");
+}
+
+/** ABDM HIP push: MD5 hex of UTF-8 plaintext FHIR JSON. */
+export function checksumMd5Plaintext(plainUtf8: string): string {
+  return createHash("md5").update(plainUtf8, "utf8").digest("hex");
 }
 
 export function newPushRequestId(): string {

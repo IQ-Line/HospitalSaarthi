@@ -83,6 +83,20 @@ export function decodePeerPublicKeyPoint(peerPublicKeyB64: string): Uint8Array {
   return new Uint8Array(bytes);
 }
 
+/** True when keyValue decodes to a valid BC CustomNamedCurves curve25519 point. */
+export function isValidBcCurve25519PublicKeyB64(peerPublicKeyB64: string): boolean {
+  try {
+    const bytes = Buffer.from(peerPublicKeyB64.trim(), "base64");
+    if (bytes.length !== 65 || bytes[0] !== 0x04) return false;
+    const x = Fp.fromBytes(bytes.subarray(1, 33));
+    const y = Fp.fromBytes(bytes.subarray(33, 65));
+    Point.fromAffine({ x, y }).assertValidity();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function exportUncompressedEcPointB64(privateKey32: Uint8Array): string {
   const pub = BASE_POINT.multiplyUnsafe(scalarFromPrivateBytes(privateKey32));
   return affineToUncompressedBytes(pub).toString("base64");

@@ -185,6 +185,8 @@ export interface RecordFoundationClient {
     patientId: string;
     consentId: string;
     dateRange?: { from: string; to: string };
+    /** When set, bundle `careContextReference` must match consent (PHR ABDM-7727). */
+    careContextReferences?: string[];
   }): Promise<HealthRecordBundleEntry[]>;
 }
 
@@ -196,6 +198,8 @@ export interface HipDataPushClient {
     requestId: string;
     /** Required for M3 loopback push to this adapter's HIU receiver (`x-tenant-id`). */
     iqTenantId?: string;
+    xHipId?: string;
+    xCmId?: string;
   }): Promise<void>;
 }
 

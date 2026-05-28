@@ -1,5 +1,6 @@
 import type { AbdmAdapterDeps } from "../ports.js";
 import { isM3LoopbackHiu, m3AdapterPublicBaseUrl } from "./m3-runtime-env.js";
+import { isPhrSandboxDataPushUrl } from "./is-phr-sandbox-push.js";
 import { abdmWarn } from "./abdm-adapter-log.js";
 
 function hostnameOf(url: string): string | null {
@@ -19,6 +20,11 @@ export async function resolveHipDataPushUrl(
   deps: AbdmAdapterDeps,
 ): Promise<string> {
   if (isM3LoopbackHiu()) {
+    return input.cmDataPushUrl;
+  }
+
+  // PHR My Records: always use CM-provided apissbx URL (never loopback transfer override).
+  if (isPhrSandboxDataPushUrl(input.cmDataPushUrl)) {
     return input.cmDataPushUrl;
   }
 

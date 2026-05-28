@@ -188,7 +188,7 @@ function buildMockHealthDocumentBundle(opts: {
 }
 
 export class MockRecordFoundationClient implements RecordFoundationClient {
-  private readonly defaultAbhaAddress = "test.user@sbx";
+  constructor(private readonly defaultAbhaAddress = "test.user@sbx") {}
 
   private readonly contexts: CareContextRef[] = [
     {
@@ -219,15 +219,20 @@ export class MockRecordFoundationClient implements RecordFoundationClient {
     /* no-op for mock */
   }
 
-  async fetchBundlesForConsent(_input: {
+  async fetchBundlesForConsent(input: {
     iqTenantId: string;
     patientId: string;
     consentId: string;
+    careContextReferences?: string[];
   }): Promise<HealthRecordBundleEntry[]> {
-    return this.contexts.map((ctx) =>
+    const refs =
+      input.careContextReferences?.length
+        ? input.careContextReferences
+        : this.contexts.map((ctx) => ctx.referenceNumber);
+    return refs.map((careContextReference) =>
       buildMockHealthDocumentBundle({
         abhaAddress: this.defaultAbhaAddress,
-        careContextReference: ctx.referenceNumber,
+        careContextReference,
       }),
     );
   }

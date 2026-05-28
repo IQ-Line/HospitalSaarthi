@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { GenerateTokenRequest } from "@hims/ts-sdk-abha/protocol/m2/index.js";
 import type { AbdmAdapterDeps } from "../ports.js";
 import { linkTokenExpiresAt } from "./decode-link-token-exp.js";
+import { toGatewayAbhaNumberPlain } from "./m2-gateway-abha-number.js";
 import { M2_GATEWAY_PATHS } from "./m2-gateway-paths.js";
 import { sleep } from "./sleep.js";
 
@@ -64,7 +65,7 @@ export async function getOrAcquireLinkToken(
   } else if (claim === "claimed") {
     const body: GenerateTokenRequest = {
       abhaAddress: input.abhaAddress,
-      abhaNumber: input.abhaNumber,
+      abhaNumber: toGatewayAbhaNumberPlain(input.abhaNumber),
       name: input.name,
       gender: input.gender,
       yearOfBirth: input.yearOfBirth,

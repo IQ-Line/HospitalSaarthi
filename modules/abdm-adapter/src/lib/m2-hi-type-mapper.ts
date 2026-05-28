@@ -24,8 +24,8 @@ export function toContextNotifyHiType(hiType: string): ContextNotifyHiType {
 }
 
 /**
- * Map platform input → wire value for `link/carecontext`.
- * Dev sandbox expects PascalCase (Prescription, OPConsultation, …), not ALL CAPS.
+ * Map platform input → wire value for `link/carecontext` (§4.3.3).
+ * Sandbox validates PascalCase (`OPConsultation`, `Prescription`, …).
  */
 export function toLinkCareContextHiType(hiType: string): string {
   const key = normalizeHiTypeKey(hiType);

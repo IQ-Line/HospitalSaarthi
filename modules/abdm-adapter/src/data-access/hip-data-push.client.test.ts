@@ -28,6 +28,22 @@ describe("HttpHipDataPushClient loopback", () => {
     );
     expect(String(init.headers?.["REQUEST-ID"] ?? "")).toBe("req-1");
   });
+
+  it("omits REQUEST-ID on PHR apissbx transfer (legacy axios parity)", async () => {
+    const fetchMock = vi.fn(async () => new Response("", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new HttpHipDataPushClient({ loopbackHiu: false });
+    await client.push({
+      dataPushUrl:
+        "https://apissbx.abdm.gov.in/abha/api/v3/patient-hiu/app/v0.5/health-information/transfer",
+      body: { pageNumber: 0 },
+      requestId: "req-phr",
+    });
+
+    const init = fetchMock.mock.calls[0]![1] as RequestInit;
+    expect(init.headers?.["REQUEST-ID"]).toBeUndefined();
+  });
 });
 
 describe("HttpHipDataPushClient allowlist", () => {
