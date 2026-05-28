@@ -1,5 +1,9 @@
 import type { AuthzTargetResolver } from "@hims/ts-sdk-authz";
 import {
+  resolveRoutePattern,
+  resolvePathParam,
+} from "@hims/ts-sdk-authz";
+import {
   buildCerbosUserMgmtResourceAttr,
   resolveEffectiveTenantId,
 } from "@hims/user-management";
@@ -16,31 +20,7 @@ export type UserManagementAuthzResolverDeps = {
   getUserProfile: (tenantId: string, userId: string) => Promise<UserProfileForAuthz | null>;
 };
 
-function normalizeUrl(url: string): string {
-  const path = url.split("?")[0] ?? "";
-  if (path.length > 1 && path.endsWith("/")) {
-    return path.slice(0, -1);
-  }
-  return path;
-}
-
 const ROUTE_PREFIX = "/api/user-management";
-
-function resolveRoutePattern(request: Parameters<AuthzTargetResolver>[0]): string {
-  const route = (request.routeOptions?.url ?? "") as string;
-  const raw = route.length > 0 ? normalizeUrl(route) : normalizeUrl(request.url);
-  return raw.startsWith(ROUTE_PREFIX) ? raw.slice(ROUTE_PREFIX.length) || "/" : raw;
-}
-
-function resolvePathParam(
-  request: Parameters<AuthzTargetResolver>[0],
-  name = "id",
-): string | null {
-  const params = request.params;
-  if (params == null || typeof params !== "object") return null;
-  const id = (params as Record<string, unknown>)[name];
-  return typeof id === "string" && id.length > 0 ? id : null;
-}
 
 function resolveResourceTenantId(request: Parameters<AuthzTargetResolver>[0]): string {
   return resolveEffectiveTenantId(request as FastifyRequest);
@@ -73,7 +53,7 @@ export function createUserManagementAuthzTargetResolver(
   deps: UserManagementAuthzResolverDeps,
 ): AuthzTargetResolver {
   return async (request) => {
-    const path = resolveRoutePattern(request);
+    const path = resolveRoutePattern(request, ROUTE_PREFIX);
     const method = request.method === "HEAD" ? "GET" : request.method;
 
     if (method === "GET" && path === "/users") {

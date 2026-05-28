@@ -5,6 +5,12 @@ export { principalAttrsForCerbos } from "./principal-attr.js";
 export { createPepMiddleware } from "./middleware.js";
 export { DecisionCache } from "./decision-cache.js";
 export { getCerbosClient, closeCerbosClient, normalizeCerbosGrpcUrl } from "./client.js";
+export {
+  normalizeUrl,
+  resolveRoutePattern,
+  resolvePathParam,
+  iqTenantAttr,
+} from "./resolver-utils.js";
 export type {
   AuthzPluginOptions,
   AuthzTarget,
