@@ -331,7 +331,7 @@ async function billingRouter(
 ): Promise<void> {
   app.get<{ Querystring: ListQuery }>(
     "/services",
-    { config: { authMode: "protected" } },
+    { config: { authMode: "protected", authz: { kind: "tariff_master", id: "list", action: "tariff-master.read" } } },
     async (request, reply) => {
       const q = request.query;
       const limit = clampLimit(q.limit);
@@ -393,7 +393,7 @@ async function billingRouter(
   app.post<{ Body: CreateBody }>(
     "/services",
     {
-      config: { authMode: "protected" },
+      config: { authMode: "protected", authz: { kind: "tariff_master", id: "new", action: "tariff-master.create" } },
       schema: createServiceSchema,
     },
     async (request, reply) => {

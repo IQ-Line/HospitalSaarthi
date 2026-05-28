@@ -2,7 +2,6 @@ import type { FastifyInstance } from "fastify";
 import type { TariffMasterRepo } from "../ports.js";
 import { sendUseCaseResult } from "../lib/handler-result.js";
 import { updateTariffService } from "../use-cases/update-tariff-service.js";
-import { protectedRoute } from "../lib/fastify-helpers.js";
 
 const bodySchema = {
   type: "object",
@@ -30,7 +29,7 @@ export function registerUpdateServiceHandler(
   app.patch<{ Params: { service_id: string } }>(
     "/services/:service_id",
     {
-      ...protectedRoute,
+      config: { authMode: "protected" as const, authz: { kind: "tariff_master", id: (req) => req.params.service_id, action: "tariff-master.update" } },
       schema: {
         tags: ["billing"],
         params: {

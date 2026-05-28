@@ -2,10 +2,11 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
 import type { Value } from "@cerbos/core";
 import { forbidden } from "@hims/ts-sdk-http";
-import type { Principal } from "@hims/ts-sdk-identity";
 import type {
   AuthzPluginOptions,
+  AuthzTarget,
   CheckResult,
+  InlineAuthzTarget,
   PlanResult,
   RouteAuthMode,
 } from "./types.js";
@@ -69,47 +70,126 @@ function getCache(request: FastifyRequest): DecisionCache {
   return cache;
 }
 
+function autoInferId(request: FastifyRequest): string {
+  const params = request.params as Record<string, string> | undefined;
+  if (params) {
+    if (params.id !== undefined && params.id !== "") return params.id;
+    const values = Object.values(params).filter((v) => v !== undefined && v !== "");
+    if (values.length > 0) return values[0];
+  }
+  return "";
+}
+
+async function resolveInlineTarget(
+  request: FastifyRequest,
+  inline: InlineAuthzTarget,
+): Promise<AuthzTarget> {
+  const id = typeof inline.id === "function"
+    ? await inline.id(request)
+    : (inline.id ?? autoInferId(request));
+
+  const userAttr = inline.resolveAttr
+    ? await inline.resolveAttr(request)
+    : undefined;
+
+  const attr: Record<string, Value> = {
+    iq_tenant_id: (request as unknown as { tenantId?: string }).tenantId ?? "",
+    ...(userAttr ?? {}),
+  };
+
+  return { kind: inline.kind, id, action: inline.action, attr };
+}
+
+function routeHasParams(routeKey: string): boolean {
+  return routeKey.includes(":");
+}
+
+async function validateInlineTarget(routeKey: string, target: InlineAuthzTarget): Promise<void> {
+  if (!target.kind || !target.action) {
+    throw new Error(`AuthZ mapping incomplete (inline): ${routeKey}`);
+  }
+  if (!target.id && !routeHasParams(routeKey)) {
+    throw new Error(
+      `AuthZ mapping incomplete (inline): ${routeKey} — id required when route has no path params`,
+    );
+  }
+}
+
+async function probeResolverTarget(
+  routeKey: string,
+  resolveTarget: NonNullable<AuthzPluginOptions["resolveTarget"]>,
+): Promise<void> {
+  const [method, ...pathParts] = routeKey.split(" ");
+  const path = pathParts.join(" ");
+  const probeRequest = {
+    method,
+    url: path,
+    routeOptions: {
+      url: path,
+      config: { authMode: "protected" },
+    },
+    params: extractRouteParams(path),
+    user: {
+      userId: PROBE_UUID,
+      tenantId: PROBE_UUID,
+      roles: [],
+      orgId: null,
+    },
+  } as unknown as FastifyRequest;
+  const target = await resolveTarget(probeRequest);
+  if (target === null || target === undefined) {
+    throw new Error(`AuthZ mapping incomplete: ${routeKey}`);
+  }
+}
+
+async function resolveProtectionTarget(
+  request: FastifyRequest,
+  inline: InlineAuthzTarget | undefined,
+  resolveTarget: AuthzPluginOptions["resolveTarget"],
+  routeKey: string,
+): Promise<AuthzTarget> {
+  if (inline) {
+    return resolveInlineTarget(request, inline);
+  }
+  if (resolveTarget) {
+    const target = await resolveTarget(request);
+    if (target === null || target === undefined) {
+      throw new Error(`AuthZ mapping incomplete: ${routeKey}`);
+    }
+    return target;
+  }
+  throw new Error(`AuthZ mapping incomplete: ${routeKey}`);
+}
+
 async function authzPluginFn(
   fastify: FastifyInstance,
   options: AuthzPluginOptions,
 ): Promise<void> {
   const cerbos = getCerbosClient(options);
   const protectedRouteKeys = new Set<string>();
+  const inlineTargets = new Map<string, InlineAuthzTarget>();
 
   fastify.addHook("onRoute", (routeOptions) => {
     for (const routeKey of toRouteKeys(routeOptions.method, routeOptions.url)) {
       const authMode = resolveRouteAuthMode(routeOptions.config);
       if (authMode === "protected") {
         protectedRouteKeys.add(routeKey);
+        const config = routeOptions.config as { authz?: InlineAuthzTarget } | undefined;
+        if (config?.authz) {
+          inlineTargets.set(routeKey, config.authz);
+        }
       }
     }
   });
 
   fastify.addHook("onReady", async () => {
     for (const routeKey of protectedRouteKeys) {
-      if (!options.resolveTarget) {
-        throw new Error(`AuthZ mapping incomplete: ${routeKey}`);
-      }
-
-      const [method, ...pathParts] = routeKey.split(" ");
-      const path = pathParts.join(" ");
-      const probeRequest = {
-        method,
-        url: path,
-        routeOptions: {
-          url: path,
-          config: { authMode: "protected" },
-        },
-        params: extractRouteParams(path),
-        user: {
-          userId: PROBE_UUID,
-          tenantId: PROBE_UUID,
-          roles: [],
-          orgId: null,
-        },
-      } as unknown as FastifyRequest;
-      const target = await options.resolveTarget(probeRequest);
-      if (target === null || target === undefined) {
+      const inline = inlineTargets.get(routeKey);
+      if (inline) {
+        await validateInlineTarget(routeKey, inline);
+      } else if (options.resolveTarget) {
+        await probeResolverTarget(routeKey, options.resolveTarget);
+      } else {
         throw new Error(`AuthZ mapping incomplete: ${routeKey}`);
       }
     }
@@ -182,14 +262,8 @@ async function authzPluginFn(
       return;
     }
 
-    if (!options.resolveTarget) {
-      throw new Error(`AuthZ mapping incomplete: ${routeKey}`);
-    }
-
-    const target = await options.resolveTarget(request);
-    if (target === null || target === undefined) {
-      throw new Error(`AuthZ mapping incomplete: ${routeKey}`);
-    }
+    const inline = inlineTargets.get(routeKey);
+    const target = await resolveProtectionTarget(request, inline, options.resolveTarget, routeKey);
 
     const result = await request.checkResource(
       target.kind,

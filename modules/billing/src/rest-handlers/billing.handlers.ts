@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { BillingDeps } from "../ports.js";
-import { parseIdempotencyKey, protectedRoute } from "../lib/fastify-helpers.js";
+import { parseIdempotencyKey } from "../lib/fastify-helpers.js";
 import { sendUseCaseResult } from "../lib/handler-result.js";
 import { renderReceiptHtml } from "../lib/receipt-html.js";
 import { applyBillDiscount } from "../use-cases/apply-bill-discount.js";
@@ -52,7 +52,7 @@ function parseListBillsQuery(q: ListBillsQuerystring): ListBillsQuery {
 export function registerBillingHandlers(app: FastifyInstance, deps: BillingDeps): void {
   app.post(
     "/charges",
-    { ...protectedRoute, schema: captureChargeRouteSchema },
+    { config: { authMode: "protected" as const, authz: { kind: "invoice", id: "new", action: "invoice.create" } }, schema: captureChargeRouteSchema },
     async (req, reply) => {
       const result = await captureCharge(deps, req.tenantId, req.body, parseIdempotencyKey(req.headers));
       return sendUseCaseResult(reply, result, { successCode: 201, wrapData: false });
@@ -61,7 +61,7 @@ export function registerBillingHandlers(app: FastifyInstance, deps: BillingDeps)
 
   app.get<{ Querystring: ListBillsQuerystring }>(
     "/bills",
-    { ...protectedRoute, schema: listBillsRouteSchema },
+    { config: { authMode: "protected" as const, authz: { kind: "invoice", id: "list", action: "invoice.read" } }, schema: listBillsRouteSchema },
     async (req, reply) => {
       const result = await listBills(deps, req.tenantId, parseListBillsQuery(req.query));
       return reply.send(result);
@@ -70,13 +70,13 @@ export function registerBillingHandlers(app: FastifyInstance, deps: BillingDeps)
 
   app.get<{ Params: BillParams }>(
     "/bills/:bill_id",
-    { ...protectedRoute, schema: getBillRouteSchema },
+    { config: { authMode: "protected" as const, authz: { kind: "invoice", id: (req) => req.params.bill_id, action: "invoice.read" } }, schema: getBillRouteSchema },
     async (req, reply) => sendUseCaseResult(reply, await getBill(deps, req.tenantId, req.params.bill_id)),
   );
 
   app.patch<{ Params: BillParams }>(
     "/bills/:bill_id",
-    { ...protectedRoute, schema: applyBillDiscountRouteSchema },
+    { config: { authMode: "protected" as const, authz: { kind: "invoice", id: (req) => req.params.bill_id, action: "invoice.update" } }, schema: applyBillDiscountRouteSchema },
     async (req, reply) =>
       sendUseCaseResult(
         reply,
@@ -86,14 +86,14 @@ export function registerBillingHandlers(app: FastifyInstance, deps: BillingDeps)
 
   app.post<{ Params: BillParams }>(
     "/bills/:bill_id/finalize",
-    { ...protectedRoute, schema: finalizeBillRouteSchema },
+    { config: { authMode: "protected" as const, authz: { kind: "invoice", id: (req) => req.params.bill_id, action: "invoice.update" } }, schema: finalizeBillRouteSchema },
     async (req, reply) =>
       sendUseCaseResult(reply, await finalizeBill(deps, req.tenantId, req.params.bill_id)),
   );
 
   app.post<{ Params: BillParams }>(
     "/bills/:bill_id/cancel",
-    { ...protectedRoute, schema: cancelBillRouteSchema },
+    { config: { authMode: "protected" as const, authz: { kind: "invoice", id: (req) => req.params.bill_id, action: "invoice.delete" } }, schema: cancelBillRouteSchema },
     async (req, reply) =>
       sendUseCaseResult(
         reply,
@@ -103,7 +103,7 @@ export function registerBillingHandlers(app: FastifyInstance, deps: BillingDeps)
 
   app.get<{ Params: BillParams }>(
     "/bills/:bill_id/receipt.pdf",
-    { ...protectedRoute, schema: receiptRouteSchema },
+    { config: { authMode: "protected" as const, authz: { kind: "invoice", id: (req) => req.params.bill_id, action: "invoice.read" } }, schema: receiptRouteSchema },
     async (req, reply) => {
       const result = await getBill(deps, req.tenantId, req.params.bill_id);
       if (!result.ok) return sendUseCaseResult(reply, result);
@@ -113,7 +113,7 @@ export function registerBillingHandlers(app: FastifyInstance, deps: BillingDeps)
 
   app.post(
     "/payments",
-    { ...protectedRoute, schema: recordPaymentRouteSchema },
+    { config: { authMode: "protected" as const, authz: { kind: "billing_account", id: "new", action: "billing-account.create" } }, schema: recordPaymentRouteSchema },
     async (req, reply) =>
       sendUseCaseResult(reply, await recordPayment(deps, req.tenantId, req.body), {
         successCode: 201,

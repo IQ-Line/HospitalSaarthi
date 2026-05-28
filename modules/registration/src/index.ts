@@ -37,4 +37,4 @@ export { HttpEmpiGateway } from "./lib/http-empi-gateway.js";
 export { registrationSchema, registrations } from "./schema/tables.js";
 export { applyRegistrationSchemaMigration } from "./schema/apply-migration.js";
 
-export { createRegistrationAuthzTargetResolver } from "./authz/registration-authz-target-resolver.js";
+

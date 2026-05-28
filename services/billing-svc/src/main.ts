@@ -11,7 +11,7 @@ import {
   createDefaultPrincipalService,
   principalRoleEnricherPlugin,
 } from "@hims/user-management";
-import { createRouter, createBillingAuthzTargetResolver } from "@hims/billing";
+import { createRouter } from "@hims/billing";
 import { resolveBillingRequestTenantId } from "./resolve-billing-tenant-id.js";
 
 const PORT = Number(process.env["BILLING_SVC_PORT"] ?? 3003);
@@ -77,7 +77,6 @@ async function main() {
     });
     await api.register(authzPlugin, {
       cerbosUrl: CERBOS_URL,
-      resolveTarget: createBillingAuthzTargetResolver(),
     });
 
     await api.register(createRouter({ db, useMock: USE_MOCK_DATA }));

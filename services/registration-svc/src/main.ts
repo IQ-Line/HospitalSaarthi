@@ -18,7 +18,6 @@ import {
   DrizzleRegistrationRepo,
   HttpEmpiGateway,
   registerRegistrationsHandler,
-  createRegistrationAuthzTargetResolver,
 } from "@hims/registration";
 
 const PORT = Number(process.env["REGISTRATION_SVC_PORT"] ?? 3006);
@@ -132,7 +131,6 @@ async function main() {
     });
     await api.register(authzPlugin, {
       cerbosUrl,
-      resolveTarget: createRegistrationAuthzTargetResolver(),
     });
     await api.register(tenantPlugin);
     registerRegistrationsHandler(api, handlerDeps);

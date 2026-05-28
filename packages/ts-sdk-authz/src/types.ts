@@ -42,9 +42,17 @@ export interface PepMiddlewareOptions {
 
 export type RouteAuthMode = "protected" | "public";
 
+export interface InlineAuthzTarget {
+  kind: string;
+  action: string;
+  id?: string | ((request: FastifyRequest) => string);
+  resolveAttr?: (request: FastifyRequest) => Record<string, Value> | Promise<Record<string, Value>>;
+}
+
 declare module "fastify" {
   interface FastifyContextConfig {
     authMode: RouteAuthMode;
+    authz?: InlineAuthzTarget;
   }
 
   interface FastifyRequest {
