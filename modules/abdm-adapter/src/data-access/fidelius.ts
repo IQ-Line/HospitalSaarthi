@@ -1,25 +1,17 @@
-import { randomBytes } from "node:crypto";
 import type { FideliusEncryptor as FideliusEncryptorPort } from "../ports.js";
 import {
   decryptFromPeerMaterial,
-  encryptBundlesForPeer as encryptBundlesForPeerTs,
+  encryptBundlesForPeer as encryptBundlesLib,
   encryptForPeerMaterial,
 } from "../lib/fidelius-crypto.js";
 import { generateEphemeralBcKeyPair } from "../lib/fidelius-curve25519-bc.js";
-import { encryptBundlesViaMgrmtech } from "../lib/fidelius-mgrmtech-encrypt.js";
-import { resolveStaticFideliusHipKeys } from "../lib/fidelius-http.client.js";
-
-export type FideliusEncryptEngine =
-  | "fidelius-http"
-  | "fidelius-cli"
-  | "fidelius-java"
-  | "typescript";
+import { isSpkiKeyToShareB64 } from "../lib/fidelius-public-key.js";
+import { randomBytes } from "node:crypto";
 
 /**
- * ABDM Fidelius encryptor.
- * When static HIP keys are configured (production / sandbox), uses mgrmtech stack
- * (HTTP → CLI → Java) with X509 keyToShare — same path for PHR, HIMS-HIU, LIMS-HIP.
- * Otherwise falls back to in-process TS BC (mock harness / loopback only).
+ * ABDM Fidelius encryptor — single in-process TypeScript implementation.
+ * Outbound HIP pushes emit SPKI keyToShare; inbound keys accept raw point or SPKI.
+ * @see docs/architecture/lld/abdm-adapter/12-phr-push-reconciliation.md
  */
 export class FideliusEncryptor implements FideliusEncryptorPort {
   async generateOurKeyMaterial(): Promise<{
@@ -40,7 +32,7 @@ export class FideliusEncryptor implements FideliusEncryptorPort {
     peerPublicKey: string;
     peerNonce: string;
   }): Promise<{ encryptedPayload: string; ourPublicKey: string; ourNonce: string }> {
-    const batch = await this.encryptBundlesForPeer({
+    const batch = await this.encryptBundles({
       payloadJsons: [input.payloadJson],
       peerPublicKey: input.peerPublicKey,
       peerNonce: input.peerNonce,
@@ -52,7 +44,7 @@ export class FideliusEncryptor implements FideliusEncryptorPort {
     };
   }
 
-  async encryptBundlesForPeer(input: {
+  async encryptBundles(input: {
     payloadJsons: string[];
     peerPublicKey: string;
     peerNonce: string;
@@ -60,22 +52,17 @@ export class FideliusEncryptor implements FideliusEncryptorPort {
     encryptedPayloads: string[];
     ourPublicKey: string;
     ourNonce: string;
-    engine: FideliusEncryptEngine;
   }> {
-    const staticKeys = resolveStaticFideliusHipKeys();
-    if (staticKeys) {
-      const mgrmtech = await encryptBundlesViaMgrmtech({
-        ...input,
-        staticKeys,
-      });
-      return mgrmtech;
+    const encrypted = encryptBundlesLib(input);
+    if (!isSpkiKeyToShareB64(encrypted.ourPublicKey)) {
+      throw new Error(
+        "Fidelius encrypt must emit X509/SPKI keyToShare for outbound keyMaterial.dhPublicKey.keyValue",
+      );
     }
-
-    const ts = encryptBundlesForPeerTs(input);
-    return { ...ts, engine: "typescript" };
+    return encrypted;
   }
 
-  async decryptFromPeer(input: {
+  async decryptBundle(input: {
     encryptedPayload: string;
     peerPublicKey: string;
     peerNonce: string;
@@ -100,7 +87,7 @@ class FideliusEncryptorLegacyStub implements FideliusEncryptorPort {
     };
   }
 
-  async encryptBundlesForPeer(input: {
+  async encryptBundles(input: {
     payloadJsons: string[];
     peerPublicKey: string;
     peerNonce: string;
@@ -108,7 +95,6 @@ class FideliusEncryptorLegacyStub implements FideliusEncryptorPort {
     encryptedPayloads: string[];
     ourPublicKey: string;
     ourNonce: string;
-    engine: FideliusEncryptEngine;
   }> {
     const encryptedPayloads: string[] = [];
     let ourPublicKey = "";
@@ -132,7 +118,7 @@ class FideliusEncryptorLegacyStub implements FideliusEncryptorPort {
       ourPublicKey = one.ourPublicKey;
       ourNonce = one.ourNonce;
     }
-    return { encryptedPayloads, ourPublicKey, ourNonce, engine: "typescript" };
+    return { encryptedPayloads, ourPublicKey, ourNonce };
   }
 
   async encryptForPeer(input: {
@@ -148,7 +134,7 @@ class FideliusEncryptorLegacyStub implements FideliusEncryptorPort {
     };
   }
 
-  async decryptFromPeer(input: {
+  async decryptBundle(input: {
     encryptedPayload: string;
   }): Promise<string> {
     const parsed = JSON.parse(

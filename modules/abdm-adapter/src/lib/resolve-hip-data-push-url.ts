@@ -1,9 +1,5 @@
 import type { AbdmAdapterDeps } from "../ports.js";
-import {
-  isM3LoopbackHiu,
-  m3AdapterPublicBaseUrl,
-  m3DataPushNeverOverrideHosts,
-} from "./m3-runtime-env.js";
+import { isM3LoopbackHiu, m3AdapterPublicBaseUrl } from "./m3-runtime-env.js";
 import { abdmWarn } from "./abdm-adapter-log.js";
 
 function hostnameOf(url: string): string | null {
@@ -16,21 +12,14 @@ function hostnameOf(url: string): string | null {
 
 /**
  * Resolve outbound HIP data-push URL.
- * Production: always CM-provided `dataPushUrl`.
- * Dev HIU loopback: may substitute stored adapter transfer URL unless CM host is on
- * `ABDM_M3_DATA_PUSH_NEVER_OVERRIDE_HOSTS` (default: apissbx.abdm.gov.in).
+ * Production/non-loopback: always CM-provided `dataPushUrl`.
+ * Loopback: redirect external CM URLs to stored adapter HIU transfer endpoint.
  */
 export async function resolveHipDataPushUrl(
   input: { iqTenantId: string; consentId: string; cmDataPushUrl: string },
   deps: AbdmAdapterDeps,
 ): Promise<string> {
-  if (isM3LoopbackHiu()) {
-    return input.cmDataPushUrl;
-  }
-
-  const cmHost = hostnameOf(input.cmDataPushUrl);
-  const neverOverride = m3DataPushNeverOverrideHosts();
-  if (cmHost && neverOverride.includes(cmHost)) {
+  if (!isM3LoopbackHiu()) {
     return input.cmDataPushUrl;
   }
 
@@ -38,8 +27,14 @@ export async function resolveHipDataPushUrl(
     input.iqTenantId,
     input.consentId,
   );
-  if (transfer?.dataPushUrl) {
-    abdmWarn("abdm.m3.hip_push.data_push_url_override", {
+  if (!transfer?.dataPushUrl) {
+    return input.cmDataPushUrl;
+  }
+
+  const cmHost = hostnameOf(input.cmDataPushUrl);
+  const adapterHost = hostnameOf(m3AdapterPublicBaseUrl());
+  if (cmHost && adapterHost && cmHost !== adapterHost) {
+    abdmWarn("abdm.m3.hip_push.data_push_url_loopback_rewrite", {
       cmUrl: input.cmDataPushUrl,
       adapterUrl: transfer.dataPushUrl,
       transferId: transfer.transferId,

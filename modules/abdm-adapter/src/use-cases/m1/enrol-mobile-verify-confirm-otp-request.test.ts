@@ -52,7 +52,7 @@ describe("enrolMobileVerifyConfirmOtpRequest", () => {
         getDiagnosticsSnapshot: vi.fn(),
       },
       secrets: { resolve: vi.fn() },
-      fidelius: { encryptForPeer: vi.fn(), decryptFromPeer: vi.fn() },
+      fidelius: { encryptForPeer: vi.fn(), decryptBundle: vi.fn() },
     };
 
     await expect(
@@ -97,7 +97,7 @@ describe("enrolMobileVerifyConfirmOtpRequest", () => {
       sessions,
       gateway,
       secrets: { resolve: vi.fn() },
-      fidelius: { encryptForPeer: vi.fn(), decryptFromPeer: vi.fn() },
+      fidelius: { encryptForPeer: vi.fn(), decryptBundle: vi.fn() },
     };
 
     const { publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });

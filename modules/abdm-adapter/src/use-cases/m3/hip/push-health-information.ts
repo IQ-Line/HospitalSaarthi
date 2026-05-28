@@ -8,7 +8,7 @@ import { extractConsentCareContextRefs } from "../../../lib/extract-consent-care
 import { canonicalHipPushKeyMaterial } from "../../../lib/hip-push-envelope.js";
 import { checksumForHipPushEntry } from "../../../lib/hip-push-checksum.js";
 import { abdmWarn } from "../../../lib/abdm-adapter-log.js";
-import { isValidBcCurve25519PublicKeyB64 } from "../../../lib/fidelius-curve25519-bc.js";
+import { isValidFideliusPublicKeyB64 } from "../../../lib/fidelius-public-key.js";
 import { M3Hip } from "../../../lib/m3-fsm-states.js";
 
 export async function pushHealthInformationForSession(
@@ -47,6 +47,12 @@ export async function pushHealthInformationForSession(
     careContextReferences,
   });
 
+  if (bundles.length === 0) {
+    throw new Error(
+      `No bundles from Record Foundation for consent care contexts: consentId=${input.parsed.consentId} patientId=${input.patientId} refs=[${careContextReferences.join(", ")}]`,
+    );
+  }
+
   await deps.sessions.patch({
     iqTenantId: input.iqTenantId,
     sessionId: input.session.sessionId,
@@ -54,17 +60,17 @@ export async function pushHealthInformationForSession(
   });
 
   const payloadJsons = bundles.map((b) => b.contentJson);
-  const batch = await deps.fidelius.encryptBundlesForPeer({
+  const batch = await deps.fidelius.encryptBundles({
     payloadJsons,
     peerPublicKey: input.parsed.peerPublicKey,
     peerNonce: input.parsed.peerNonce,
   });
 
   abdmWarn("abdm.m3.hip_push.fidelius_encrypt", {
-    engine: batch.engine ?? "unknown",
+    engine: "typescript",
     hipKeyToShareLen: batch.ourPublicKey.length,
     hipKeyToShareX509: batch.ourPublicKey.startsWith("MIIB"),
-    peerPubKeyValid: isValidBcCurve25519PublicKeyB64(input.parsed.peerPublicKey),
+    peerPubKeyValid: isValidFideliusPublicKeyB64(input.parsed.peerPublicKey),
     consentId: input.parsed.consentId,
     entryCount: bundles.length,
   });

@@ -2,7 +2,6 @@ import { createHash, randomUUID } from "node:crypto";
 import { fetchWithTimeout } from "../lib/fetch-with-timeout.js";
 import type { HipDataPushClient } from "../ports.js";
 import {
-  isM3LoopbackHiu,
   m3AdapterPublicBaseUrl,
   m3DataPushMinimalHeaders,
   m3DataPushUrlAllowlist,
@@ -10,33 +9,17 @@ import {
 import { abdmWarn } from "../lib/abdm-adapter-log.js";
 
 export interface HttpHipDataPushClientConfig {
-  loopbackHiu?: boolean;
   adapterBaseUrl?: string;
   allowlistHosts?: string[];
 }
 
 export class HttpHipDataPushClient implements HipDataPushClient {
-  private readonly loopbackHiu: boolean;
   private readonly adapterBaseUrl: string;
   private readonly allowlistHosts: string[];
 
   constructor(cfg: HttpHipDataPushClientConfig = {}) {
-    this.loopbackHiu = cfg.loopbackHiu ?? isM3LoopbackHiu();
     this.adapterBaseUrl = cfg.adapterBaseUrl ?? m3AdapterPublicBaseUrl();
     this.allowlistHosts = cfg.allowlistHosts ?? m3DataPushUrlAllowlist();
-  }
-
-  private resolvePushUrl(dataPushUrl: string): string {
-    if (this.loopbackHiu) {
-      try {
-        const parsed = new URL(dataPushUrl);
-        const path = `${parsed.pathname}${parsed.search}`;
-        return `${this.adapterBaseUrl}${path}`;
-      } catch {
-        return dataPushUrl;
-      }
-    }
-    return dataPushUrl;
   }
 
   private assertAllowListed(url: string): void {
@@ -55,7 +38,7 @@ export class HttpHipDataPushClient implements HipDataPushClient {
     xHipId?: string;
     xCmId?: string;
   }): Promise<void> {
-    const targetUrl = this.resolvePushUrl(input.dataPushUrl);
+    const targetUrl = input.dataPushUrl;
     this.assertAllowListed(targetUrl);
 
     const minimalHeaders = m3DataPushMinimalHeaders(targetUrl, this.adapterBaseUrl);

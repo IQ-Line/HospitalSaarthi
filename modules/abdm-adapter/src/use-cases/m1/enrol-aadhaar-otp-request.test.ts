@@ -59,7 +59,7 @@ function buildDeps(): AbdmAdapterDeps {
     secrets: { resolve: vi.fn() },
     fidelius: {
       encryptForPeer: vi.fn(),
-      decryptFromPeer: vi.fn(),
+      decryptBundle: vi.fn(),
     },
   };
 }

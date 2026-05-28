@@ -28,23 +28,6 @@ export function m3AdapterPublicBaseUrl(): string {
   );
 }
 
-function parseCommaList(raw: string | undefined): string[] {
-  if (!raw?.trim()) return [];
-  return raw
-    .split(",")
-    .map((h) => h.trim().toLowerCase())
-    .filter(Boolean);
-}
-
-/** CM transfer hosts that must never be replaced by stored adapter transfer URLs. */
-export function m3DataPushNeverOverrideHosts(): string[] {
-  const fromEnv = parseCommaList(
-    process.env["ABDM_M3_DATA_PUSH_NEVER_OVERRIDE_HOSTS"],
-  );
-  if (fromEnv.length > 0) return fromEnv;
-  return ["apissbx.abdm.gov.in"];
-}
-
 /**
  * Minimal push headers (Content-Type only) — production direct-transfer parity.
  * `true`/`false` forces; unset auto-detects external CM transfer endpoints.

@@ -17,6 +17,10 @@ import {
   generateEphemeralBcKeyPair,
   importPrivateKey32,
 } from "./fidelius-curve25519-bc.js";
+import {
+  exportKeyToShareSpkiB64,
+  normalizePeerPublicKeyToPointB64,
+} from "./fidelius-public-key.js";
 
 export function decodeBase64Key(value: string): Buffer {
   return Buffer.from(value.trim(), "base64");
@@ -89,7 +93,8 @@ function sharedSecretForEncrypt(
   peerPublicKeyB64: string,
 ): Buffer {
   const ourPriv = importPrivateKey32(ourPrivateKeyB64);
-  const peerPoint = decodePeerPublicKeyPoint(peerPublicKeyB64);
+  const peerPointB64 = normalizePeerPublicKeyToPointB64(peerPublicKeyB64);
+  const peerPoint = decodePeerPublicKeyPoint(peerPointB64);
   return ecdhSharedSecretBc(ourPriv, peerPoint);
 }
 
@@ -116,7 +121,7 @@ export function encryptForPeerMaterial(input: {
   const blob = encryptPayloadAesGcm(input.payloadJson, aesKey, iv);
   return {
     encryptedPayload: blob.toString("base64"),
-    ourPublicKey: ephemeral.ourPublicKeyB64,
+    ourPublicKey: exportKeyToShareSpkiB64(ephemeral.ourPublicKeyB64),
     ourNonce: ourNonce.toString("base64"),
     ourPrivateKey: ephemeral.ourPrivateKeyB64,
   };
@@ -137,7 +142,7 @@ export function encryptBundlesForPeer(input: {
   if (input.payloadJsons.length === 0) {
     return {
       encryptedPayloads: [],
-      ourPublicKey: ephemeral.ourPublicKeyB64,
+      ourPublicKey: exportKeyToShareSpkiB64(ephemeral.ourPublicKeyB64),
       ourNonce: ourNonce.toString("base64"),
     };
   }
@@ -153,7 +158,7 @@ export function encryptBundlesForPeer(input: {
   );
   return {
     encryptedPayloads,
-    ourPublicKey: ephemeral.ourPublicKeyB64,
+    ourPublicKey: exportKeyToShareSpkiB64(ephemeral.ourPublicKeyB64),
     ourNonce: ourNonce.toString("base64"),
   };
 }
@@ -167,7 +172,8 @@ export function decryptFromPeerMaterial(input: {
   ourNonce: string;
 }): string {
   const ourPriv = importPrivateKey32(input.ourPrivateKey);
-  const peerPoint = decodePeerPublicKeyPoint(input.peerPublicKey);
+  const peerPointB64 = normalizePeerPublicKeyToPointB64(input.peerPublicKey);
+  const peerPoint = decodePeerPublicKeyPoint(peerPointB64);
   const peerNonceBytes = decodeBase64Key(input.peerNonce);
   const ourNonceBytes = decodeBase64Key(input.ourNonce);
   const sharedSecret = ecdhSharedSecretBc(ourPriv, peerPoint);
@@ -194,7 +200,7 @@ export function encryptForPeerMaterialDeterministic(input: {
   const blob = encryptPayloadAesGcm(input.payloadJson, aesKey, iv);
   return {
     encryptedPayload: blob.toString("base64"),
-    ourPublicKey: ourPublicKeyB64,
+    ourPublicKey: exportKeyToShareSpkiB64(ourPublicKeyB64),
     ourNonce: input.hipNonceB64,
   };
 }
