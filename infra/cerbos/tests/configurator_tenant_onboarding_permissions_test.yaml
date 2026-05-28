@@ -1,0 +1,73 @@
+# yaml-language-server: $schema=https://api.cerbos.dev/latest/cerbos/policy/v1/TestSuite.schema.json
+---
+name: configurator_tenant_onboarding_permissions_test
+description: >-
+  Configurator — tenant onboarding (onboarding.create) requires correct runtime capability key and tenant alignment.
+
+principals:
+  onboarding_admin:
+    id: config-admin
+    roles:
+      - "_unresolved"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities:
+        - "onboarding:onboarding:create"
+      delegated_capabilities: []
+
+  no_onboarding:
+    id: config-reader
+    roles:
+      - "_unresolved"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities:
+        - "organization:organization:read"
+      delegated_capabilities: []
+
+resources:
+  onboarding_request:
+    id: request
+    kind: onboarding
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+
+  onboarding_request_wrong_tenant:
+    id: request
+    kind: onboarding
+    attr:
+      iq_tenant_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+
+tests:
+  - name: onboarding.create — admin ALLOW
+    input:
+      principals: [onboarding_admin]
+      resources: [onboarding_request]
+      actions: [onboarding.create]
+    expected:
+      - principal: onboarding_admin
+        resource: onboarding_request
+        actions:
+          onboarding.create: EFFECT_ALLOW
+
+  - name: onboarding.create — without capability DENY
+    input:
+      principals: [no_onboarding]
+      resources: [onboarding_request]
+      actions: [onboarding.create]
+    expected:
+      - principal: no_onboarding
+        resource: onboarding_request
+        actions:
+          onboarding.create: EFFECT_DENY
+
+  - name: onboarding.create — wrong tenant DENY
+    input:
+      principals: [onboarding_admin]
+      resources: [onboarding_request_wrong_tenant]
+      actions: [onboarding.create]
+    expected:
+      - principal: onboarding_admin
+        resource: onboarding_request_wrong_tenant
+        actions:
+          onboarding.create: EFFECT_DENY

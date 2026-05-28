@@ -1,0 +1,82 @@
+---
+# Configurator — organization read/create/update operations.
+# Capabilities: organization:organization:{read,create,update}
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "organization"
+  version: default
+  rules:
+    - actions:
+        - "org.read"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "organization:organization:read" in request.principal.attr.capabilities ||
+              "organization:organization:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "org.read"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "organization:organization:read" in request.principal.attr.capabilities ||
+              "organization:organization:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "org.create"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "organization:organization:create" in request.principal.attr.capabilities ||
+              "organization:organization:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "org.create"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "organization:organization:create" in request.principal.attr.capabilities ||
+              "organization:organization:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "org.update"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "organization:organization:update" in request.principal.attr.capabilities ||
+              "organization:organization:update" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "org.update"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "organization:organization:update" in request.principal.attr.capabilities ||
+              "organization:organization:update" in request.principal.attr.delegated_capabilities
+            )

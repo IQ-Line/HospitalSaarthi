@@ -1,5 +1,7 @@
 export { assertCerbosReachable } from "./cerbos-startup-probe.js";
 export { authzPlugin } from "./plugin.js";
+export { registerAuthzStack } from "./authz-stack.js";
+export type { RegisterAuthzStackOptions } from "./authz-stack.js";
 export { buildCerbosPrincipalWire } from "./principal-wire.js";
 export { principalAttrsForCerbos } from "./principal-attr.js";
 export { createPepMiddleware } from "./middleware.js";

@@ -1,0 +1,142 @@
+# yaml-language-server: $schema=https://api.cerbos.dev/latest/cerbos/policy/v1/TestSuite.schema.json
+---
+name: configurator_tenant_module_permissions_test
+description: >-
+  Configurator — tenant-module read/create/update/delete require runtime capability keys and tenant alignment.
+
+principals:
+  tm_admin:
+    id: config-admin
+    roles:
+      - "_unresolved"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities:
+        - "tenant-module:tenant-module:create"
+        - "tenant-module:tenant-module:read"
+        - "tenant-module:tenant-module:update"
+        - "tenant-module:tenant-module:delete"
+      delegated_capabilities: []
+
+  tm_reader:
+    id: config-reader
+    roles:
+      - "_unresolved"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities:
+        - "tenant-module:tenant-module:read"
+      delegated_capabilities: []
+
+resources:
+  tm_record:
+    id: tm-42
+    kind: tenant-module
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+
+  tm_record_wrong_tenant:
+    id: tm-42
+    kind: tenant-module
+    attr:
+      iq_tenant_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+
+tests:
+  - name: tenant-module.read — admin ALLOW
+    input:
+      principals: [tm_admin]
+      resources: [tm_record]
+      actions: [tenant-module.read]
+    expected:
+      - principal: tm_admin
+        resource: tm_record
+        actions:
+          tenant-module.read: EFFECT_ALLOW
+
+  - name: tenant-module.read — reader ALLOW
+    input:
+      principals: [tm_reader]
+      resources: [tm_record]
+      actions: [tenant-module.read]
+    expected:
+      - principal: tm_reader
+        resource: tm_record
+        actions:
+          tenant-module.read: EFFECT_ALLOW
+
+  - name: tenant-module.create — admin ALLOW
+    input:
+      principals: [tm_admin]
+      resources: [tm_record]
+      actions: [tenant-module.create]
+    expected:
+      - principal: tm_admin
+        resource: tm_record
+        actions:
+          tenant-module.create: EFFECT_ALLOW
+
+  - name: tenant-module.create — reader without create DENY
+    input:
+      principals: [tm_reader]
+      resources: [tm_record]
+      actions: [tenant-module.create]
+    expected:
+      - principal: tm_reader
+        resource: tm_record
+        actions:
+          tenant-module.create: EFFECT_DENY
+
+  - name: tenant-module.update — admin ALLOW
+    input:
+      principals: [tm_admin]
+      resources: [tm_record]
+      actions: [tenant-module.update]
+    expected:
+      - principal: tm_admin
+        resource: tm_record
+        actions:
+          tenant-module.update: EFFECT_ALLOW
+
+  - name: tenant-module.update — reader without update DENY
+    input:
+      principals: [tm_reader]
+      resources: [tm_record]
+      actions: [tenant-module.update]
+    expected:
+      - principal: tm_reader
+        resource: tm_record
+        actions:
+          tenant-module.update: EFFECT_DENY
+
+  - name: tenant-module.delete — admin ALLOW
+    input:
+      principals: [tm_admin]
+      resources: [tm_record]
+      actions: [tenant-module.delete]
+    expected:
+      - principal: tm_admin
+        resource: tm_record
+        actions:
+          tenant-module.delete: EFFECT_ALLOW
+
+  - name: tenant-module.delete — reader without delete DENY
+    input:
+      principals: [tm_reader]
+      resources: [tm_record]
+      actions: [tenant-module.delete]
+    expected:
+      - principal: tm_reader
+        resource: tm_record
+        actions:
+          tenant-module.delete: EFFECT_DENY
+
+  - name: tenant-module.read — wrong tenant DENY
+    input:
+      principals: [tm_admin]
+      resources: [tm_record_wrong_tenant]
+      actions: [tenant-module.read]
+    expected:
+      - principal: tm_admin
+        resource: tm_record_wrong_tenant
+        actions:
+          tenant-module.read: EFFECT_DENY

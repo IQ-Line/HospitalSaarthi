@@ -39,6 +39,12 @@ export function registerTenantsHandler(
 
   app.get<{ Querystring: TenantsQuery }>(
     "/tenants",
+    {
+      config: {
+        authMode: "protected",
+        authz: { kind: "tenant", action: "tenant.read" },
+      },
+    },
     async (request) => {
       const {
         org_id,
@@ -71,6 +77,10 @@ export function registerTenantsHandler(
   app.post<{ Body: CreateTenantData }>(
     "/tenants",
     {
+      config: {
+        authMode: "protected",
+        authz: { kind: "tenant", action: "tenant.create" },
+      },
       schema: {
         body: postTenantBodySchema,
       },
@@ -84,6 +94,10 @@ export function registerTenantsHandler(
   app.get<{ Params: { id: string } }>(
     "/tenants/:id",
     {
+      config: {
+        authMode: "protected",
+        authz: { kind: "tenant", action: "tenant.read" },
+      },
       schema: {
         params: uuidParamSchema,
       },
@@ -100,6 +114,10 @@ export function registerTenantsHandler(
   app.patch<{ Params: { id: string }; Body: UpdateTenantData }>(
     "/tenants/:id",
     {
+      config: {
+        authMode: "protected",
+        authz: { kind: "tenant", action: "tenant.update" },
+      },
       schema: {
         params: uuidParamSchema,
         body: patchTenantBodySchema,

@@ -1,0 +1,119 @@
+# yaml-language-server: $schema=https://api.cerbos.dev/latest/cerbos/policy/v1/TestSuite.schema.json
+---
+name: configurator_tenant_permissions_test
+description: >-
+  Configurator — tenant read/create/update require runtime capability keys and tenant alignment.
+
+principals:
+  tenant_admin:
+    id: config-admin
+    roles:
+      - "_unresolved"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities:
+        - "tenant:tenant:create"
+        - "tenant:tenant:read"
+        - "tenant:tenant:update"
+      delegated_capabilities: []
+
+  tenant_reader:
+    id: config-reader
+    roles:
+      - "_unresolved"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities:
+        - "tenant:tenant:read"
+      delegated_capabilities: []
+
+resources:
+  tenant_record:
+    id: tenant-42
+    kind: tenant
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+
+  tenant_record_wrong_tenant:
+    id: tenant-42
+    kind: tenant
+    attr:
+      iq_tenant_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+
+tests:
+  - name: tenant.read — admin ALLOW
+    input:
+      principals: [tenant_admin]
+      resources: [tenant_record]
+      actions: [tenant.read]
+    expected:
+      - principal: tenant_admin
+        resource: tenant_record
+        actions:
+          tenant.read: EFFECT_ALLOW
+
+  - name: tenant.read — reader ALLOW
+    input:
+      principals: [tenant_reader]
+      resources: [tenant_record]
+      actions: [tenant.read]
+    expected:
+      - principal: tenant_reader
+        resource: tenant_record
+        actions:
+          tenant.read: EFFECT_ALLOW
+
+  - name: tenant.create — admin ALLOW
+    input:
+      principals: [tenant_admin]
+      resources: [tenant_record]
+      actions: [tenant.create]
+    expected:
+      - principal: tenant_admin
+        resource: tenant_record
+        actions:
+          tenant.create: EFFECT_ALLOW
+
+  - name: tenant.create — reader without create DENY
+    input:
+      principals: [tenant_reader]
+      resources: [tenant_record]
+      actions: [tenant.create]
+    expected:
+      - principal: tenant_reader
+        resource: tenant_record
+        actions:
+          tenant.create: EFFECT_DENY
+
+  - name: tenant.update — admin ALLOW
+    input:
+      principals: [tenant_admin]
+      resources: [tenant_record]
+      actions: [tenant.update]
+    expected:
+      - principal: tenant_admin
+        resource: tenant_record
+        actions:
+          tenant.update: EFFECT_ALLOW
+
+  - name: tenant.update — reader without update DENY
+    input:
+      principals: [tenant_reader]
+      resources: [tenant_record]
+      actions: [tenant.update]
+    expected:
+      - principal: tenant_reader
+        resource: tenant_record
+        actions:
+          tenant.update: EFFECT_DENY
+
+  - name: tenant.read — wrong tenant DENY
+    input:
+      principals: [tenant_admin]
+      resources: [tenant_record_wrong_tenant]
+      actions: [tenant.read]
+    expected:
+      - principal: tenant_admin
+        resource: tenant_record_wrong_tenant
+        actions:
+          tenant.read: EFFECT_DENY

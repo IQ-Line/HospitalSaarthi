@@ -1,0 +1,119 @@
+# yaml-language-server: $schema=https://api.cerbos.dev/latest/cerbos/policy/v1/TestSuite.schema.json
+---
+name: configurator_organization_permissions_test
+description: >-
+  Configurator — organization read/create/update require runtime capability keys and tenant alignment.
+
+principals:
+  org_admin:
+    id: config-admin
+    roles:
+      - "_unresolved"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities:
+        - "organization:organization:create"
+        - "organization:organization:read"
+        - "organization:organization:update"
+      delegated_capabilities: []
+
+  org_reader:
+    id: config-reader
+    roles:
+      - "_unresolved"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities:
+        - "organization:organization:read"
+      delegated_capabilities: []
+
+resources:
+  org_record:
+    id: org-42
+    kind: organization
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+
+  org_record_wrong_tenant:
+    id: org-42
+    kind: organization
+    attr:
+      iq_tenant_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+
+tests:
+  - name: org.read — admin ALLOW
+    input:
+      principals: [org_admin]
+      resources: [org_record]
+      actions: [org.read]
+    expected:
+      - principal: org_admin
+        resource: org_record
+        actions:
+          org.read: EFFECT_ALLOW
+
+  - name: org.read — reader ALLOW
+    input:
+      principals: [org_reader]
+      resources: [org_record]
+      actions: [org.read]
+    expected:
+      - principal: org_reader
+        resource: org_record
+        actions:
+          org.read: EFFECT_ALLOW
+
+  - name: org.create — admin ALLOW
+    input:
+      principals: [org_admin]
+      resources: [org_record]
+      actions: [org.create]
+    expected:
+      - principal: org_admin
+        resource: org_record
+        actions:
+          org.create: EFFECT_ALLOW
+
+  - name: org.create — reader without create DENY
+    input:
+      principals: [org_reader]
+      resources: [org_record]
+      actions: [org.create]
+    expected:
+      - principal: org_reader
+        resource: org_record
+        actions:
+          org.create: EFFECT_DENY
+
+  - name: org.update — admin ALLOW
+    input:
+      principals: [org_admin]
+      resources: [org_record]
+      actions: [org.update]
+    expected:
+      - principal: org_admin
+        resource: org_record
+        actions:
+          org.update: EFFECT_ALLOW
+
+  - name: org.update — reader without update DENY
+    input:
+      principals: [org_reader]
+      resources: [org_record]
+      actions: [org.update]
+    expected:
+      - principal: org_reader
+        resource: org_record
+        actions:
+          org.update: EFFECT_DENY
+
+  - name: org.read — wrong tenant DENY
+    input:
+      principals: [org_admin]
+      resources: [org_record_wrong_tenant]
+      actions: [org.read]
+    expected:
+      - principal: org_admin
+        resource: org_record_wrong_tenant
+        actions:
+          org.read: EFFECT_DENY

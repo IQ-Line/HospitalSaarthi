@@ -128,6 +128,8 @@ export { InMemoryUserRepository } from "./data-access/in-memory-user-repository.
 export { DrizzlePrincipalAuthorizationRepository } from "./data-access/principal-authorization-repository.js";
 export { InMemoryPrincipalAuthorizationRepository } from "./data-access/in-memory-principal-authorization-repository.js";
 export { createDefaultPrincipalService } from "./services/default-principal-service.js";
+export { createDefaultPrincipalDeps } from "./create-default-principal-deps.js";
+export type { PrincipalDeps } from "./create-default-principal-deps.js";
 export type { DefaultPrincipalServiceDeps } from "./services/default-principal-service.js";
 export { DefaultPrincipalService } from "./services/default-principal-service.js";
 export {

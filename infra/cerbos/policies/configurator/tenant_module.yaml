@@ -1,0 +1,107 @@
+---
+# Configurator — tenant-module assignment operations.
+# Capabilities: tenant-module:tenant-module:{read,create,update,delete}
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "tenant-module"
+  version: default
+  rules:
+    - actions:
+        - "tenant-module.read"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "tenant-module:tenant-module:read" in request.principal.attr.capabilities ||
+              "tenant-module:tenant-module:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "tenant-module.read"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "tenant-module:tenant-module:read" in request.principal.attr.capabilities ||
+              "tenant-module:tenant-module:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "tenant-module.create"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "tenant-module:tenant-module:create" in request.principal.attr.capabilities ||
+              "tenant-module:tenant-module:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "tenant-module.create"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "tenant-module:tenant-module:create" in request.principal.attr.capabilities ||
+              "tenant-module:tenant-module:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "tenant-module.update"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "tenant-module:tenant-module:update" in request.principal.attr.capabilities ||
+              "tenant-module:tenant-module:update" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "tenant-module.update"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "tenant-module:tenant-module:update" in request.principal.attr.capabilities ||
+              "tenant-module:tenant-module:update" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "tenant-module.delete"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "tenant-module:tenant-module:delete" in request.principal.attr.capabilities ||
+              "tenant-module:tenant-module:delete" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "tenant-module.delete"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "tenant-module:tenant-module:delete" in request.principal.attr.capabilities ||
+              "tenant-module:tenant-module:delete" in request.principal.attr.delegated_capabilities
+            )
