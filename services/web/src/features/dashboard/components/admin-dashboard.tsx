@@ -28,27 +28,19 @@ export function AdminDashboard() {
   );
 
   const effectiveTenantId = useMemo(() => {
+    const pick = (id: string | null | undefined) =>
+      id && facilities.some((f) => f.tenantId === id) ? id : null;
+
     if (!isSuperAdmin) {
-      return activeTenantId ?? homeTenantId;
-    }
-    if (
-      dashboardTenantOverride &&
-      facilities.some((f) => f.tenantId === dashboardTenantOverride)
-    ) {
-      return dashboardTenantOverride;
+      return activeTenantId ?? homeTenantId ?? null;
     }
     return (
+      pick(dashboardTenantOverride) ??
+      pick(activeTenantId) ??
       resolveDefaultFacilityTenantId(facilities, homeTenantId) ??
-      homeTenantId ??
-      activeTenantId
+      null
     );
-  }, [
-    activeTenantId,
-    dashboardTenantOverride,
-    facilities,
-    homeTenantId,
-    isSuperAdmin,
-  ]);
+  }, [activeTenantId, dashboardTenantOverride, facilities, homeTenantId, isSuperAdmin]);
 
   const metricsQuery = useDashboardMetrics(effectiveTenantId ?? null);
   const bundle = metricsQuery.data;
@@ -70,10 +62,7 @@ export function AdminDashboard() {
           ) : (
             <div className="flex flex-wrap items-start justify-end gap-3">
               <FacilitySwitcher
-                selectedTenantId={
-                  dashboardTenantOverride ??
-                  (facilities.length > 0 ? (effectiveTenantId ?? undefined) : undefined)
-                }
+                selectedTenantId={effectiveTenantId ?? undefined}
                 homeTenantId={homeTenantId}
                 onChange={setDashboardTenantOverride}
               />

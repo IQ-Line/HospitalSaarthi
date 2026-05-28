@@ -1,22 +1,52 @@
+import { apiClientWithIqTenant } from '@/lib/api-client';
 import { DashboardDataUnavailableError } from './errors';
-import { shouldUseDashboardMock } from './facilities';
-import { getMockDashboardMetrics } from '../mock/dashboard-data.mock';
 import type { DashboardMetricsBundle } from '../types';
 
-const LIVE_METRICS_MESSAGE =
-  'Dashboard analytics API is not available. Set VITE_DASHBOARD_USE_MOCK=true for development, or wire /dashboard/* endpoints before disabling mock mode.';
+export const DASHBOARD_STATS_DAYS = 3;
+const STATS_PATH = `/api/registration/v1/dashboard/stats?days=${DASHBOARD_STATS_DAYS}`;
 
-/**
- * Dashboard metrics for a scoped tenant.
- * Live mode throws until `/dashboard/*` API calls are implemented.
- */
-export async function fetchDashboardMetrics(
-  tenantId: string | null,
-): Promise<DashboardMetricsBundle> {
-  if (shouldUseDashboardMock()) {
-    await new Promise((resolve) => setTimeout(resolve, 120));
-    return getMockDashboardMetrics(tenantId);
+type StatsApiResponse = {
+  stats: {
+    total_visits: number;
+    new_patient_registrations: number;
+    follow_up_patient_registrations: number;
+    doctor_pending_consultations: number;
+  };
+  patient_footfall: { date: string; count: number }[];
+  todays_visits: {
+    registration_id: string;
+    patient_name: string;
+    time: string;
+    status: 'completed' | 'pending' | 'in_progress';
+  }[];
+};
+
+export async function fetchDashboardMetrics(tenantId: string): Promise<DashboardMetricsBundle> {
+  if (!tenantId.trim()) {
+    throw new DashboardDataUnavailableError('Tenant is required for dashboard metrics.');
   }
 
-  throw new DashboardDataUnavailableError(LIVE_METRICS_MESSAGE);
+  try {
+    const body = await apiClientWithIqTenant<StatsApiResponse>(tenantId, STATS_PATH);
+    return {
+      stats: {
+        totalVisits: body.stats.total_visits,
+        newPatientRegistrations: body.stats.new_patient_registrations,
+        followUpPatientRegistrations: body.stats.follow_up_patient_registrations,
+        doctorPendingConsultations: body.stats.doctor_pending_consultations,
+      },
+      footfall: body.patient_footfall,
+      todaysVisits: body.todays_visits.map((v) => ({
+        id: v.registration_id,
+        patientName: v.patient_name,
+        time: v.time,
+        status: v.status,
+      })),
+      topItems: { medicines: [], diagnoses: [], diagnostics: [] },
+    };
+  } catch (error) {
+    throw new DashboardDataUnavailableError('Failed to load dashboard metrics from Registration.', {
+      cause: error,
+    });
+  }
 }

@@ -29,7 +29,7 @@ export function PatientFootfallChart({ data }: PatientFootfallChartProps) {
 
   return (
     <div className="rounded-lg border bg-card p-6">
-      <h3 className="text-lg font-medium">Patient Footfall</h3>
+      <h3 className="text-lg font-medium">Patient Footfall (last 3 days)</h3>
       <div className="mt-6 h-[300px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData} barGap={0}>

@@ -3,12 +3,19 @@ import { and, eq, sql } from "@hims/ts-sdk-db";
 import { desc, ilike, or } from "drizzle-orm";
 import { registrations } from "../schema/tables.js";
 import type { RegistrationRepo } from "../ports.js";
+import type { DashboardRepoMetrics, DashboardTodaysVisit } from "../domain/dashboard.types.js";
 import type {
   CreateRegistrationInput,
   ListRegistrationsParams,
   RegistrationRecord,
   RegistrationStatus,
 } from "../domain/registration.types.js";
+
+/** Normalized visit_type for dashboard buckets (strips punctuation / case). */
+const visitNorm = sql`regexp_replace(lower(trim(coalesce(${registrations.visit_type}, ''))), '[^a-z0-9]', '', 'g')`;
+/** IST calendar boundaries — timezone must be a SQL literal (not a bind param). */
+const dayBucket = sql`date_trunc('day', ${registrations.created_at} AT TIME ZONE 'Asia/Kolkata')`;
+const todayStartIst = sql`(date_trunc('day', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata') AT TIME ZONE 'Asia/Kolkata')`;
 
 function mapRow(row: typeof registrations.$inferSelect): RegistrationRecord {
   return {
@@ -202,4 +209,73 @@ export class DrizzleRegistrationRepo implements RegistrationRepo {
       .returning();
     return rows[0] ? mapRow(rows[0]) : undefined;
   }
+
+  async getDashboardMetrics(tenantId: string, days: number): Promise<DashboardRepoMetrics> {
+    const tenant = eq(registrations.iq_tenant_id, tenantId);
+    const footfallSince = sql`${registrations.created_at} >= ${todayStartIst} - (${days}::int - 1) * INTERVAL '1 day'`;
+    const todaySince = sql`${registrations.created_at} >= ${todayStartIst}`;
+
+    const [statsRow, footfallRows, todayRows] = await Promise.all([
+      this.db
+        .select({
+          total: sql<number>`count(*)::int`,
+          new_patients: sql<number>`count(*) filter (where ${visitNorm} in ('opdfirst', 'opdfirstvisit') or ${visitNorm} like '%first%')::int`,
+          follow_ups: sql<number>`count(*) filter (where ${visitNorm} in ('opdfollowup', 'opdfollowupvisit') or ${visitNorm} like '%follow%')::int`,
+        })
+        .from(registrations)
+        .where(tenant),
+      this.db
+        .select({
+          date: sql<string>`to_char(${dayBucket}, 'YYYY-MM-DD')`,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(registrations)
+        .where(and(tenant, footfallSince))
+        .groupBy(dayBucket)
+        .orderBy(dayBucket),
+      this.db
+        .select({
+          registration_id: registrations.registration_id,
+          patient_name: registrations.patient_full_name,
+          created_at: registrations.created_at,
+          registration_status: registrations.registration_status,
+        })
+        .from(registrations)
+        .where(and(tenant, todaySince))
+        .orderBy(desc(registrations.created_at))
+        .limit(50),
+    ]);
+
+    const todays_visits: DashboardTodaysVisit[] = todayRows.map((row) => ({
+      registration_id: row.registration_id,
+      patient_name: row.patient_name,
+      time: formatIstTime(row.created_at),
+      status: mapVisitStatus(row.registration_status),
+    }));
+
+    return {
+      total: Number(statsRow[0]?.total ?? 0),
+      new_patients: Number(statsRow[0]?.new_patients ?? 0),
+      follow_ups: Number(statsRow[0]?.follow_ups ?? 0),
+      footfall: footfallRows.map((r) => ({ date: r.date, count: Number(r.count) })),
+      todays_visits,
+    };
+  }
+}
+
+function formatIstTime(at: Date): string {
+  return at.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Kolkata",
+  });
+}
+
+function mapVisitStatus(
+  status: string,
+): DashboardTodaysVisit["status"] {
+  if (status === "completed") return "completed";
+  if (status === "in_progress") return "in_progress";
+  return "pending";
 }

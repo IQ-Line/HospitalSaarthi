@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 import { Search } from 'lucide-react';
+import { useTenantStore } from '@/stores/tenant.store';
+import { useDashboardMetrics } from '@/features/dashboard/hooks/use-dashboard-metrics';
 import { Button } from '@pulse/ui/button';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
@@ -64,13 +66,17 @@ export function RegistrationField({
   return <div className={cn('space-y-1.5', className)}>{children}</div>;
 }
 
-/** Right-rail counters — presentation-only until frontdesk stats API is wired. */
+/** Right-rail counters from Registration dashboard stats API. */
 export function RegistrationTodayStatsSidebar() {
+  const tenantId = useTenantStore((s) => s.tenantId ?? s.homeTenantId);
+  const metricsQuery = useDashboardMetrics(tenantId ?? null);
+  const s = metricsQuery.data?.stats;
+
   const stats = [
-    { label: 'Total Visits', value: 0 },
-    { label: 'New Patient Registrations', value: 0 },
-    { label: 'Follow Up Patient Registrations', value: 0 },
-    { label: 'Doctor Pending Consultations', value: 0 },
+    { label: 'Total Visits', value: s?.totalVisits ?? 0 },
+    { label: 'New Patient Registrations', value: s?.newPatientRegistrations ?? 0 },
+    { label: 'Follow Up Patient Registrations', value: s?.followUpPatientRegistrations ?? 0 },
+    { label: 'Doctor Pending Consultations', value: s?.doctorPendingConsultations ?? 0 },
   ] as const;
 
   return (

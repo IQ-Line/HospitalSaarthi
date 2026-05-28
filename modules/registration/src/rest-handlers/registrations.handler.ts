@@ -13,11 +13,13 @@ import { listRegistrations } from "../use-cases/list-registrations.js";
 import { createIntakeForNewPatient } from "../use-cases/create-intake-for-new-patient.js";
 import { completeRegistrationIntake } from "../use-cases/complete-registration-intake.js";
 import {
+  dashboardStatsQuerySchema,
   existingPatientRegistrationBodySchema,
   listRegistrationsQuerySchema,
   newPatientIntakeBodySchema,
   paramsRegistrationIdSchema,
 } from "./route-schemas.js";
+import { getDashboardMetrics } from "../use-cases/get-dashboard-metrics.js";
 import { serializeRegistration } from "./serialize-registration.js";
 import {
   idempotencyKeyRequiredResponse,
@@ -25,6 +27,10 @@ import {
   registrationStatusFromIntakeCompletion,
   resolveActorId,
 } from "../lib/registration-helpers.js";
+
+interface DashboardStatsQuery {
+  days?: string;
+}
 
 interface ListQuery {
   page?: string;
@@ -50,6 +56,23 @@ export function registerRegistrationsHandler(
   app: FastifyInstance,
   deps: RegistrationsHandlerDeps,
 ): void {
+  app.get<{ Querystring: DashboardStatsQuery }>(
+    "/dashboard/stats",
+    {
+      config: { authMode: "protected" as const },
+      schema: { querystring: dashboardStatsQuerySchema },
+    },
+    async (request, reply) => {
+      const days = request.query.days ? Number(request.query.days) : undefined;
+      const payload = await getDashboardMetrics(
+        { registrationRepo: deps.registrationRepo },
+        request.tenantId,
+        { days },
+      );
+      return reply.send(payload);
+    },
+  );
+
   app.get<{ Querystring: ListQuery }>(
     "/registrations",
     { config: { authMode: "protected" as const }, schema: { querystring: listRegistrationsQuerySchema } },

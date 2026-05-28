@@ -35,6 +35,10 @@ export function createRegistrationAuthzTargetResolver(): AuthzTargetResolver {
     const path = stripPrefix(fullPath);
     const method = request.method === "HEAD" ? "GET" : request.method;
 
+    if (method === "GET" && path === "/dashboard/stats") {
+      return { kind: "registration", id: "dashboard", action: "registration.read", attr: tenantAttr(request as FastifyRequest) };
+    }
+
     if (method === "GET" && path === "/registrations") {
       return { kind: "registration", id: "list", action: "registration.read", attr: tenantAttr(request as FastifyRequest) };
     }

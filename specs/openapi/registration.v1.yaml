@@ -30,6 +30,32 @@ servers:
     description: Local registration-svc (REGISTRATION_SVC_PORT; default 3006)
 
 paths:
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      summary: Dashboard registration metrics (tenant-scoped)
+      description: |
+        Returns visit counters, patient footfall for the last `days` calendar days (UTC, default 3),
+        and today's registrations. `doctor_pending_consultations` is always `0` until OPD queue is wired.
+        New vs follow-up counts use `visit_type` codes `opd_first` and `opd_follow_up`.
+      tags: [EncounterRegistrations]
+      parameters:
+        - name: days
+          in: query
+          schema: { type: integer, minimum: 3, maximum: 30, default: 3 }
+          description: Footfall window length in days (inclusive of today).
+      responses:
+        "200":
+          description: Dashboard metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStatsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /registrations:
     get:
       operationId: listRegistrations
@@ -358,6 +384,43 @@ components:
         page: { type: integer, minimum: 1 }
         limit: { type: integer, minimum: 1 }
         total_pages: { type: integer, minimum: 0 }
+
+    DashboardStatsResponse:
+      type: object
+      required: [stats, patient_footfall, todays_visits]
+      properties:
+        stats:
+          type: object
+          required:
+            - total_visits
+            - new_patient_registrations
+            - follow_up_patient_registrations
+            - doctor_pending_consultations
+          properties:
+            total_visits: { type: integer, minimum: 0 }
+            new_patient_registrations: { type: integer, minimum: 0 }
+            follow_up_patient_registrations: { type: integer, minimum: 0 }
+            doctor_pending_consultations: { type: integer, minimum: 0 }
+        patient_footfall:
+          type: array
+          items:
+            type: object
+            required: [date, count]
+            properties:
+              date: { type: string, format: date }
+              count: { type: integer, minimum: 0 }
+        todays_visits:
+          type: array
+          items:
+            type: object
+            required: [registration_id, patient_name, time, status]
+            properties:
+              registration_id: { type: string, format: uuid }
+              patient_name: { type: string }
+              time: { type: string, description: "HH:mm (UTC) from created_at" }
+              status:
+                type: string
+                enum: [completed, pending, in_progress]
 
     Registration:
       type: object

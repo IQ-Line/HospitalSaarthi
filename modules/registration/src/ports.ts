@@ -1,4 +1,5 @@
 import type { DbInstance } from "@hims/ts-sdk-db";
+import type { DashboardRepoMetrics } from "./domain/dashboard.types.js";
 import type {
   CreateRegistrationInput,
   InsertRegistrationResult,
@@ -34,6 +35,7 @@ export interface RegistrationRepo {
     toStatus: RegistrationStatus,
     actorId: string,
   ): Promise<RegistrationRecord | undefined>;
+  getDashboardMetrics(tenantId: string, days: number): Promise<DashboardRepoMetrics>;
 }
 
 export type EmpiRegisterPatientResult =
