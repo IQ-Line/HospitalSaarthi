@@ -15,6 +15,7 @@ export type {
   AuthzPluginOptions,
   AuthzTarget,
   AuthzTargetResolver,
+  InlineAuthzTarget,
   ResourceCheck,
   CheckResult,
   PlanResult,

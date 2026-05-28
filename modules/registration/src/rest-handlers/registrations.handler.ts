@@ -52,7 +52,7 @@ export function registerRegistrationsHandler(
 ): void {
   app.get<{ Querystring: ListQuery }>(
     "/registrations",
-    { config: { authMode: "protected" as const }, schema: { querystring: listRegistrationsQuerySchema } },
+    { config: { authMode: "protected" as const, authz: { kind: "registration", id: "list", action: "registration.read" } }, schema: { querystring: listRegistrationsQuerySchema } },
     async (request, reply) => {
       const q = request.query;
       const page = Math.max(1, q.page ? Number(q.page) : 1);
@@ -105,7 +105,7 @@ export function registerRegistrationsHandler(
 
   app.get<{ Params: { registrationId: string } }>(
     "/registrations/:registrationId",
-    { config: { authMode: "protected" as const }, schema: { params: paramsRegistrationIdSchema } },
+    { config: { authMode: "protected" as const, authz: { kind: "registration", id: (req) => req.params.registrationId, action: "registration.read" } }, schema: { params: paramsRegistrationIdSchema } },
     async (request, reply) => {
       const row = await getRegistration(
         { registrationRepo: deps.registrationRepo },
@@ -119,7 +119,7 @@ export function registerRegistrationsHandler(
 
   app.post<{ Body: CreateRegistrationInput }>(
     "/workflows/existing-patient/registrations",
-    { config: { authMode: "protected" as const }, schema: { body: existingPatientRegistrationBodySchema } },
+    { config: { authMode: "protected" as const, authz: { kind: "registration", id: "new", action: "registration.create" } }, schema: { body: existingPatientRegistrationBodySchema } },
     async (request, reply) => {
       const idempotencyKey = readIdempotencyKey(request);
       if (!idempotencyKey) {
@@ -148,7 +148,7 @@ export function registerRegistrationsHandler(
 
   app.post<{ Body: NewPatientIntakeInput }>(
     "/workflows/new-patient/registrations",
-    { config: { authMode: "protected" as const }, schema: { body: newPatientIntakeBodySchema } },
+    { config: { authMode: "protected" as const, authz: { kind: "registration", id: "new", action: "registration.create" } }, schema: { body: newPatientIntakeBodySchema } },
     async (request, reply) => {
       const idempotencyKey = readIdempotencyKey(request);
       if (!idempotencyKey) {
@@ -211,7 +211,7 @@ export function registerRegistrationsHandler(
 
   app.post<{ Params: { registrationId: string } }>(
     "/registrations/:registrationId/complete",
-    { config: { authMode: "protected" as const }, schema: { params: paramsRegistrationIdSchema } },
+    { config: { authMode: "protected" as const, authz: { kind: "registration", id: (req) => req.params.registrationId, action: "registration.update" } }, schema: { params: paramsRegistrationIdSchema } },
     async (request, reply) => {
       const updated = await completeRegistrationIntake(
         { registrationRepo: deps.registrationRepo },

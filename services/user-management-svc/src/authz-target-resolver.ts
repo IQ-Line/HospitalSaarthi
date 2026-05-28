@@ -12,7 +12,6 @@ import type { FastifyRequest } from "fastify";
 export type UserProfileForAuthz = {
   org_id: string | null;
   department: string | null;
-  /** Maps to Cerbos `resource.attr.required_clearance` (0–3). */
   clearance_tier_required: number;
 };
 
@@ -24,14 +23,6 @@ const ROUTE_PREFIX = "/api/user-management";
 
 function resolveResourceTenantId(request: Parameters<AuthzTargetResolver>[0]): string {
   return resolveEffectiveTenantId(request as FastifyRequest);
-}
-
-function tenantAttr(request: Parameters<AuthzTargetResolver>[0]) {
-  return buildCerbosUserMgmtResourceAttr({
-    iq_tenant_id: resolveResourceTenantId(request),
-    department: request.user.department ?? null,
-    required_clearance: 0,
-  });
 }
 
 async function userResourceAttr(
@@ -56,93 +47,6 @@ export function createUserManagementAuthzTargetResolver(
     const path = resolveRoutePattern(request, ROUTE_PREFIX);
     const method = request.method === "HEAD" ? "GET" : request.method;
 
-    if (method === "GET" && path === "/users") {
-      return { kind: "user", id: "list", action: "user.read", attr: tenantAttr(request) };
-    }
-
-    if (method === "POST" && path === "/users") {
-      return { kind: "user", id: "new", action: "user.create", attr: tenantAttr(request) };
-    }
-
-    if (method === "GET" && path === "/capabilities") {
-      return { kind: "capability", id: "list", action: "capability.read", attr: tenantAttr(request) };
-    }
-
-    if (method === "GET" && path === "/capabilities/assignable") {
-      return { kind: "capability", id: "assignable", action: "capability.read", attr: tenantAttr(request) };
-    }
-
-    if (method === "GET" && path === "/internal/runtime-capability-catalog") {
-      return {
-        kind: "capability",
-        id: "internal-catalog",
-        action: "capability.read",
-        attr: tenantAttr(request),
-      };
-    }
-
-    if (method === "GET" && path === "/internal/runtime-capability-catalog/assignable") {
-      return {
-        kind: "capability",
-        id: "internal-assignable",
-        action: "capability.read",
-        attr: tenantAttr(request),
-      };
-    }
-
-    if (method === "GET" && path === "/internal/module-entitlements/:tenantId") {
-      return {
-        kind: "capability",
-        id: "internal-entitlements",
-        action: "capability.read",
-        attr: tenantAttr(request),
-      };
-    }
-
-    if (method === "GET" && path === "/capabilities/:id") {
-      const id = resolvePathParam(request);
-      if (id === null) return null;
-      return { kind: "capability", id, action: "capability.read", attr: tenantAttr(request) };
-    }
-
-    if (method === "GET" && path === "/roles") {
-      return { kind: "role", id: "list", action: "role.read", attr: tenantAttr(request) };
-    }
-
-    if (method === "POST" && path === "/roles") {
-      return { kind: "role", id: "new", action: "role.create", attr: tenantAttr(request) };
-    }
-
-    if (method === "GET" && path === "/roles/:id") {
-      const id = resolvePathParam(request);
-      if (id === null) return null;
-      return { kind: "role", id, action: "role.read", attr: tenantAttr(request) };
-    }
-
-    if (method === "PATCH" && path === "/roles/:id") {
-      const id = resolvePathParam(request);
-      if (id === null) return null;
-      return { kind: "role", id, action: "role.update", attr: tenantAttr(request) };
-    }
-
-    if (method === "DELETE" && path === "/roles/:id") {
-      const id = resolvePathParam(request);
-      if (id === null) return null;
-      return { kind: "role", id, action: "role.delete", attr: tenantAttr(request) };
-    }
-
-    if (method === "GET" && path === "/roles/:id/capabilities") {
-      const id = resolvePathParam(request);
-      if (id === null) return null;
-      return { kind: "role", id, action: "role.read", attr: tenantAttr(request) };
-    }
-
-    if (method === "PUT" && path === "/roles/:id/capabilities") {
-      const id = resolvePathParam(request);
-      if (id === null) return null;
-      return { kind: "role", id, action: "role.update", attr: tenantAttr(request) };
-    }
-
     if (method === "GET" && path === "/users/:id/roles") {
       const id = resolvePathParam(request);
       if (id === null) return null;
@@ -151,19 +55,6 @@ export function createUserManagementAuthzTargetResolver(
         id,
         action: "user.read",
         attr: await userResourceAttr(deps, request, id),
-      };
-    }
-
-    if (method === "POST" && path === "/users/:id/roles") {
-      return { kind: "user_role_template", id: "new", action: "role.assign", attr: tenantAttr(request) };
-    }
-
-    if (method === "DELETE" && path === "/users/:id/roles/:roleId") {
-      return {
-        kind: "user_role_template",
-        id: "revoke",
-        action: "role.revoke",
-        attr: tenantAttr(request),
       };
     }
 
@@ -211,15 +102,6 @@ export function createUserManagementAuthzTargetResolver(
       };
     }
 
-    if (method === "PUT" && path === "/users/:id/capabilities") {
-      return {
-        kind: "user_role_template",
-        id: "new",
-        action: "role.assign",
-        attr: tenantAttr(request),
-      };
-    }
-
     if (method === "POST" && path === "/users/:id/deactivate") {
       const id = resolvePathParam(request);
       if (id === null) return null;
@@ -228,25 +110,6 @@ export function createUserManagementAuthzTargetResolver(
         id,
         action: "user.deactivate",
         attr: await userResourceAttr(deps, request, id),
-      };
-    }
-
-    if (method === "GET" && path === "/providers") {
-      return { kind: "auth", id: "provider-list", action: "auth.read", attr: tenantAttr(request) };
-    }
-
-    if (
-      method === "GET" &&
-      (path === "/auth/me" || path === "/auth/principal")
-    ) {
-      return {
-        // `/auth/*` endpoints are shell support: principal snapshot for SPA capability hydration.
-        // They must not require `users:users:read`, otherwise role admins without user.read
-        // could not load the principal used for navigation gating.
-        kind: "auth",
-        id: "self",
-        action: "auth.read",
-        attr: tenantAttr(request),
       };
     }
 

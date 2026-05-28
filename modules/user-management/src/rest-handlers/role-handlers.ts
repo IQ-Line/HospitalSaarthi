@@ -56,7 +56,7 @@ function requireUuidRouteId(id: string): string {
 export function registerRoleHandlers(fastify: FastifyInstance, deps: RoleHandlersDeps): void {
   fastify.get(
     "/capabilities",
-    { config: { authMode: "protected" } },
+    { config: { authMode: "protected", authz: { kind: "capability", id: "list", action: "capability.read" } } },
     async (request, reply) => {
       const cid = request.correlationId ?? request.id;
       try {
@@ -69,7 +69,7 @@ export function registerRoleHandlers(fastify: FastifyInstance, deps: RoleHandler
 
   fastify.get<{ Querystring: { product_only?: string } }>(
     "/capabilities/assignable",
-    { config: { authMode: "protected" } },
+    { config: { authMode: "protected", authz: { kind: "capability", id: "assignable", action: "capability.read" } } },
     async (request, reply) => {
       const tenantId = deps.getTenantId(request);
       const cid = request.correlationId ?? request.id;
@@ -92,7 +92,7 @@ export function registerRoleHandlers(fastify: FastifyInstance, deps: RoleHandler
 
   fastify.get<{ Params: { id: string } }>(
     "/capabilities/:id",
-    { config: { authMode: "protected" } },
+    { config: { authMode: "protected", authz: { kind: "capability", id: (req) => req.params.id, action: "capability.read" } } },
     async (request, reply) => {
       const cid = request.correlationId ?? request.id;
       try {
@@ -110,7 +110,7 @@ export function registerRoleHandlers(fastify: FastifyInstance, deps: RoleHandler
 
   fastify.get(
     "/roles",
-    { config: { authMode: "protected" } },
+    { config: { authMode: "protected", authz: { kind: "role", id: "list", action: "role.read" } } },
     async (request, reply) => {
       const tenantId = deps.getTenantId(request);
       const cid = request.correlationId ?? request.id;
@@ -124,7 +124,7 @@ export function registerRoleHandlers(fastify: FastifyInstance, deps: RoleHandler
 
   fastify.post<{ Body: CreateRoleInput }>(
     "/roles",
-    { config: { authMode: "protected" } },
+    { config: { authMode: "protected", authz: { kind: "role", id: "new", action: "role.create" } } },
     async (request, reply) => {
       const tenantId = deps.getTenantId(request);
       const actorId = deps.getActorId(request);
@@ -140,7 +140,7 @@ export function registerRoleHandlers(fastify: FastifyInstance, deps: RoleHandler
 
   fastify.get<{ Params: { id: string } }>(
     "/roles/:id",
-    { config: { authMode: "protected" } },
+    { config: { authMode: "protected", authz: { kind: "role", id: (req) => req.params.id, action: "role.read" } } },
     async (request, reply) => {
       const cid = request.correlationId ?? request.id;
       try {
@@ -159,7 +159,7 @@ export function registerRoleHandlers(fastify: FastifyInstance, deps: RoleHandler
 
   fastify.patch<{ Params: { id: string }; Body: UpdateRoleInput }>(
     "/roles/:id",
-    { config: { authMode: "protected" } },
+    { config: { authMode: "protected", authz: { kind: "role", id: (req) => req.params.id, action: "role.update" } } },
     async (request, reply) => {
       const cid = request.correlationId ?? request.id;
       try {
@@ -178,7 +178,7 @@ export function registerRoleHandlers(fastify: FastifyInstance, deps: RoleHandler
 
   fastify.delete<{ Params: { id: string } }>(
     "/roles/:id",
-    { config: { authMode: "protected" } },
+    { config: { authMode: "protected", authz: { kind: "role", id: (req) => req.params.id, action: "role.delete" } } },
     async (request, reply) => {
       const cid = request.correlationId ?? request.id;
       try {
@@ -197,7 +197,7 @@ export function registerRoleHandlers(fastify: FastifyInstance, deps: RoleHandler
 
   fastify.get<{ Params: { id: string } }>(
     "/roles/:id/capabilities",
-    { config: { authMode: "protected" } },
+    { config: { authMode: "protected", authz: { kind: "role", id: (req) => req.params.id, action: "role.read" } } },
     async (request, reply) => {
       const cid = request.correlationId ?? request.id;
       try {
@@ -212,7 +212,7 @@ export function registerRoleHandlers(fastify: FastifyInstance, deps: RoleHandler
 
   fastify.put<{ Params: { id: string }; Body: ReplaceRoleCapabilitiesInput }>(
     "/roles/:id/capabilities",
-    { config: { authMode: "protected" } },
+    { config: { authMode: "protected", authz: { kind: "role", id: (req) => req.params.id, action: "role.update" } } },
     async (request, reply) => {
       const cid = request.correlationId ?? request.id;
       const tenantId = deps.getTenantId(request);

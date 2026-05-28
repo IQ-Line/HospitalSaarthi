@@ -78,7 +78,7 @@ async function ensureUserAccessMutationAllowed(
 export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandlersDeps): void {
   fastify.post<{ Body: CreateUserInput }>(
     "/users",
-    { config: { authMode: "protected" } },
+    { config: { authMode: "protected", authz: { kind: "user", id: "new", action: "user.create" } } },
     async (request, reply) => {
       const tenantId = deps.getTenantId(request);
       const actorId = deps.getActorId(request);
@@ -128,7 +128,7 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
 
   fastify.put<{ Params: { id: string }; Body: ReplaceUserCapabilitiesInput }>(
     "/users/:id/capabilities",
-    { config: { authMode: "protected" } },
+    { config: { authMode: "protected", authz: { kind: "user_role_template", id: "new", action: "role.assign" } } },
     async (request, reply) => {
       const tenantId = deps.getTenantId(request);
       const actorId = deps.getActorId(request);
@@ -194,7 +194,7 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
     Body: { role_id: string; role_template_capability_ids?: string[] };
   }>(
     "/users/:id/roles",
-    { config: { authMode: "protected" } },
+    { config: { authMode: "protected", authz: { kind: "user_role_template", id: "new", action: "role.assign" } } },
     async (request, reply) => {
       const tenantId = deps.getTenantId(request);
       const actorId = deps.getActorId(request);
@@ -227,7 +227,7 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
 
   fastify.delete<{ Params: { id: string; roleId: string } }>(
     "/users/:id/roles/:roleId",
-    { config: { authMode: "protected" } },
+    { config: { authMode: "protected", authz: { kind: "user_role_template", id: "revoke", action: "role.revoke" } } },
     async (request, reply) => {
       const tenantId = deps.getTenantId(request);
       const actorId = deps.getActorId(request);
@@ -252,7 +252,7 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
 
   fastify.get<{ Querystring: { department?: string } }>(
     "/providers",
-    { config: { authMode: "protected" } },
+    { config: { authMode: "protected", authz: { kind: "auth", id: "provider-list", action: "auth.read" } } },
     async (request, reply) => {
       const tenantId = deps.getTenantId(request);
       const department = request.query.department?.trim() || undefined;
@@ -275,7 +275,7 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
 
   fastify.get<{ Querystring: { department?: string } }>(
     "/users",
-    { config: { authMode: "protected" } },
+    { config: { authMode: "protected", authz: { kind: "user", id: "list", action: "user.read" } } },
     async (request, reply) => {
       const tenantId = deps.getTenantId(request);
       const cid = request.correlationId ?? request.id;

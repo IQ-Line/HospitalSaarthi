@@ -49,7 +49,7 @@ export function registerInternalDiagnosticsHandlers(
 ): void {
   fastify.get<{ Params: { tenantId: string } }>(
     "/internal/module-entitlements/:tenantId",
-    { config: { authMode: "protected" } },
+    { config: { authMode: "protected", authz: { kind: "capability", id: "internal-entitlements", action: "capability.read" } } },
     async (request, reply) => {
       const cid = request.correlationId ?? request.id;
       try {
@@ -97,7 +97,7 @@ export function registerInternalDiagnosticsHandlers(
 
   fastify.get(
     "/internal/runtime-capability-catalog",
-    { config: { authMode: "protected" } },
+    { config: { authMode: "protected", authz: { kind: "capability", id: "internal-catalog", action: "capability.read" } } },
     async (request, reply) => {
       const cid = request.correlationId ?? request.id;
       try {
@@ -114,7 +114,7 @@ export function registerInternalDiagnosticsHandlers(
 
   fastify.get(
     "/internal/runtime-capability-catalog/assignable",
-    { config: { authMode: "protected" } },
+    { config: { authMode: "protected", authz: { kind: "capability", id: "internal-assignable", action: "capability.read" } } },
     async (request, reply) => {
       const tenantId = deps.getTenantId(request);
       const cid = request.correlationId ?? request.id;
