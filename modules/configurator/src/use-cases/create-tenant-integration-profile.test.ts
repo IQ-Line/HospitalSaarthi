@@ -7,7 +7,6 @@ const tenantId = "00000000-0000-4000-8000-0000000000aa";
 
 function mockRepos(overrides?: {
   tenant?: { iq_tenant_id: string } | undefined;
-  existingProfiles?: unknown[];
 }) {
   const tenantRepo: TenantRepo = {
     findById: vi.fn().mockResolvedValue(overrides?.tenant),
@@ -20,7 +19,7 @@ function mockRepos(overrides?: {
   };
 
   const tenantIntegrationProfilesRepo: TenantIntegrationProfilesRepo = {
-    findAll: vi.fn().mockResolvedValue(overrides?.existingProfiles ?? []),
+    findAll: vi.fn(),
     findById: vi.fn(),
     findActiveByTenantId: vi.fn(),
     findActiveByHipId: vi.fn(),
@@ -68,26 +67,7 @@ describe("createTenantIntegrationProfile", () => {
     ).rejects.toMatchObject({ statusCode: 400, message: "tenant not found" });
   });
 
-  it("rejects duplicate tenant + integration_kind", async () => {
-    const { tenantRepo, tenantIntegrationProfilesRepo } = mockRepos({
-      tenant: { iq_tenant_id: tenantId },
-      existingProfiles: [{ id: "existing" }],
-    });
-
-    await expect(
-      createTenantIntegrationProfile(tenantIntegrationProfilesRepo, tenantRepo, {
-        iq_tenant_id: tenantId,
-        integration_kind: "abdm",
-        hip_id: "HIP1",
-        hiu_id: "HIU1",
-      }),
-    ).rejects.toMatchObject({
-      statusCode: 409,
-      code: "CONFLICT",
-    } satisfies Partial<ConfiguratorError>);
-  });
-
-  it("creates profile when tenant exists and no duplicate", async () => {
+  it("creates profile when tenant exists", async () => {
     const { tenantRepo, tenantIntegrationProfilesRepo } = mockRepos({
       tenant: { iq_tenant_id: tenantId },
     });

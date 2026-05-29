@@ -11,12 +11,7 @@ export async function updateTenantIntegrationProfile(
   iqTenantId: string,
   data: UpdateTenantIntegrationProfileData,
 ): Promise<TenantIntegrationProfile> {
-  const existing = await repo.findById(id);
-  if (!existing || existing.iq_tenant_id !== iqTenantId) {
-    throw new ConfiguratorError(404, "integration profile not found");
-  }
-
-  const updated = await repo.update(id, data);
+  const updated = await repo.update(id, iqTenantId, data);
   if (!updated) {
     throw new ConfiguratorError(404, "integration profile not found");
   }

@@ -1,5 +1,7 @@
 export type IntegrationKind = "abdm";
 
+export type GatewayEnvironment = "sandbox" | "production";
+
 export interface TenantIntegrationProfile {
   id: string;
   iq_tenant_id: string;
@@ -15,7 +17,7 @@ export interface TenantIntegrationProfile {
   callback_base_url: string | null;
   sms_provider: string | null;
   sms_config: Record<string, unknown>;
-  gateway_environment: string;
+  gateway_environment: GatewayEnvironment;
   created_at: Date;
   updated_at: Date;
   created_by: string | null;
@@ -36,7 +38,7 @@ export interface CreateTenantIntegrationProfileData {
   callback_base_url?: string | null;
   sms_provider?: string | null;
   sms_config?: Record<string, unknown>;
-  gateway_environment?: string;
+  gateway_environment?: GatewayEnvironment;
   created_by?: string | null;
   updated_by?: string | null;
 }
@@ -53,7 +55,7 @@ export interface UpdateTenantIntegrationProfileData {
   callback_base_url?: string | null;
   sms_provider?: string | null;
   sms_config?: Record<string, unknown>;
-  gateway_environment?: string;
+  gateway_environment?: GatewayEnvironment;
   updated_by?: string | null;
 }
 

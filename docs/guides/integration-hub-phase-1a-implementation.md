@@ -111,6 +111,13 @@ pnpm seed-abdm-profile   # or: make seed-abdm-profile
 
 Requires `DATABASE_URL`, `make seed`, and `ABDM_X_HIP_ID` / `ABDM_X_HIU_ID` in `.env`. If `ABDM_DEV_TENANT_ID` in `.env` is not in the DB, the seed script falls back to the platform dev tenant (`DEVELOPMENT_SEED_TENANT_ID`); align `ABDM_DEV_TENANT_ID` with that UUID for callbacks.
 
+**By-hip lookup (internal):** In dev, `CONFIGURATOR_INTERNAL_API_KEY` unset → no header required. In production, set the same value on configurator-svc and send `x-configurator-internal-key` from integration-hub-svc (Code PR 2).
+
+```bash
+curl -s "http://localhost:3001/api/configurator/v1/integration-profiles/by-hip/IN3610001625"
+# With key: curl -H "x-configurator-internal-key: $CONFIGURATOR_INTERNAL_API_KEY" ...
+```
+
 Manual SQL (alternative):
 
 ```sql

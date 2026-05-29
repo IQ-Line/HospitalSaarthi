@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { assertPlatformSuperAdmin } from "../http/request-auth-context.js";
+import { assertConfiguratorInternalAccess } from "../http/assert-configurator-internal-access.js";
 import type { TenantIntegrationProfilesRepo, TenantRepo } from "../ports.js";
 import type {
   CreateTenantIntegrationProfileData,
@@ -24,6 +24,10 @@ interface IntegrationProfilesListQuery {
   is_active?: boolean;
 }
 
+interface ByHipQuery {
+  integration_kind?: IntegrationKind;
+}
+
 export interface TenantIntegrationProfilesHandlerDeps {
   tenantIntegrationProfilesRepo: TenantIntegrationProfilesRepo;
   tenantRepo: TenantRepo;
@@ -35,7 +39,7 @@ export function registerTenantIntegrationProfilesHandler(
 ): void {
   const { tenantIntegrationProfilesRepo, tenantRepo } = deps;
 
-  app.get<{ Params: { hipId: string } }>(
+  app.get<{ Params: { hipId: string }; Querystring: ByHipQuery }>(
     "/integration-profiles/by-hip/:hipId",
     {
       schema: {
@@ -44,12 +48,20 @@ export function registerTenantIntegrationProfilesHandler(
           required: ["hipId"],
           properties: { hipId: { type: "string", minLength: 1 } },
         },
+        querystring: {
+          type: "object",
+          properties: {
+            integration_kind: { type: "string", enum: ["abdm"] },
+          },
+        },
       },
     },
     async (request) => {
+      assertConfiguratorInternalAccess(request);
       return getActiveIntegrationProfileByHipId(
         tenantIntegrationProfilesRepo,
         request.params.hipId,
+        request.query.integration_kind ?? "abdm",
       );
     },
   );
@@ -92,9 +104,6 @@ export function registerTenantIntegrationProfilesHandler(
         },
         body: postTenantIntegrationProfileBodySchema,
       },
-      preHandler: (request) => {
-        assertPlatformSuperAdmin(request);
-      },
     },
     async (request, reply) => {
       const created = await createTenantIntegrationProfile(
@@ -133,9 +142,6 @@ export function registerTenantIntegrationProfilesHandler(
         params: tenantIntegrationProfileParamsSchema,
         body: patchTenantIntegrationProfileBodySchema,
       },
-      preHandler: (request) => {
-        assertPlatformSuperAdmin(request);
-      },
     },
     async (request) => {
       return updateTenantIntegrationProfile(
@@ -151,9 +157,6 @@ export function registerTenantIntegrationProfilesHandler(
     "/tenants/:tenantId/integration-profiles/:profileId",
     {
       schema: { params: tenantIntegrationProfileParamsSchema },
-      preHandler: (request) => {
-        assertPlatformSuperAdmin(request);
-      },
     },
     async (request, reply) => {
       await deleteTenantIntegrationProfile(

@@ -64,10 +64,14 @@ export interface TenantIntegrationProfilesRepo {
     iqTenantId: string,
     integrationKind: IntegrationKind,
   ): Promise<TenantIntegrationProfile | undefined>;
-  findActiveByHipId(hipId: string): Promise<TenantIntegrationProfile | undefined>;
+  findActiveByHipId(
+    hipId: string,
+    integrationKind: IntegrationKind,
+  ): Promise<TenantIntegrationProfile | undefined>;
   create(data: CreateTenantIntegrationProfileData): Promise<TenantIntegrationProfile>;
   update(
     id: string,
+    iqTenantId: string,
     data: UpdateTenantIntegrationProfileData,
   ): Promise<TenantIntegrationProfile | undefined>;
   delete(id: string): Promise<boolean>;

@@ -1,6 +1,10 @@
 import type { AbdmAdapterDeps } from "../integrations/abdm/ports.js";
 
-/** Per-tenant ABDM profile row (mirrors configurator.tenant_integration_profiles). */
+/**
+ * Per-tenant ABDM profile row.
+ * Keep field semantics aligned with `TenantIntegrationProfile` in `@hims/configurator`
+ * (`modules/configurator/src/domain/tenant-integration-profile.types.ts`).
+ */
 export interface TenantIntegrationProfile {
   id: string;
   iqTenantId: string;
@@ -15,7 +19,7 @@ export interface TenantIntegrationProfile {
   callbackBaseUrl: string | null;
   smsProvider: string | null;
   smsConfig: Record<string, unknown>;
-  gatewayEnvironment: string;
+  gatewayEnvironment: "sandbox" | "production";
 }
 
 export interface IntegrationContext {

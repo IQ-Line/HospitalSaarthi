@@ -66,14 +66,17 @@ export class DrizzleTenantIntegrationProfilesRepo
     return rows[0] as TenantIntegrationProfile | undefined;
   }
 
-  async findActiveByHipId(hipId: string): Promise<TenantIntegrationProfile | undefined> {
+  async findActiveByHipId(
+    hipId: string,
+    integrationKind: IntegrationKind,
+  ): Promise<TenantIntegrationProfile | undefined> {
     const rows = await this.db
       .select()
       .from(tenantIntegrationProfiles)
       .where(
         and(
           eq(tenantIntegrationProfiles.hip_id, hipId),
-          eq(tenantIntegrationProfiles.integration_kind, "abdm"),
+          eq(tenantIntegrationProfiles.integration_kind, integrationKind),
           eq(tenantIntegrationProfiles.is_active, true),
         ),
       )
@@ -112,6 +115,7 @@ export class DrizzleTenantIntegrationProfilesRepo
 
   async update(
     id: string,
+    iqTenantId: string,
     data: UpdateTenantIntegrationProfileData,
   ): Promise<TenantIntegrationProfile | undefined> {
     const patch = omitUndefined(data as Record<string, unknown>);
@@ -121,7 +125,12 @@ export class DrizzleTenantIntegrationProfilesRepo
         ...patch,
         updated_at: new Date(),
       })
-      .where(eq(tenantIntegrationProfiles.id, id))
+      .where(
+        and(
+          eq(tenantIntegrationProfiles.id, id),
+          eq(tenantIntegrationProfiles.iq_tenant_id, iqTenantId),
+        ),
+      )
       .returning();
 
     return rows[0] as TenantIntegrationProfile | undefined;

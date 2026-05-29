@@ -19,17 +19,6 @@ export async function createTenantIntegrationProfile(
     throw new ConfiguratorError(400, "tenant not found");
   }
 
-  const existing = await repo.findAll({
-    iq_tenant_id: data.iq_tenant_id,
-    integration_kind: data.integration_kind,
-  });
-  if (existing.length > 0) {
-    throw new ConfiguratorError(
-      409,
-      "integration profile already exists for tenant and kind",
-      "CONFLICT",
-    );
-  }
-
+  // Uniqueness on (iq_tenant_id, integration_kind) is enforced by DB; router maps 23505 → 409.
   return repo.create(data);
 }

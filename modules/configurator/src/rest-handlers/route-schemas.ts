@@ -168,6 +168,11 @@ export const integrationKindSchema = {
   enum: ["abdm"],
 } as const;
 
+export const gatewayEnvironmentSchema = {
+  type: "string",
+  enum: ["sandbox", "production"],
+} as const;
+
 export const tenantIntegrationProfileParamsSchema = {
   type: "object",
   required: ["tenantId", "profileId"],
@@ -194,7 +199,7 @@ export const postTenantIntegrationProfileBodySchema = {
     callback_base_url: { anyOf: [{ type: "string" }, { type: "null" }] },
     sms_provider: { anyOf: [{ type: "string" }, { type: "null" }] },
     sms_config: { type: "object" },
-    gateway_environment: { type: "string" },
+    gateway_environment: gatewayEnvironmentSchema,
     created_by: { anyOf: [uuidString, { type: "null" }] },
   },
 } as const;
@@ -214,7 +219,7 @@ export const patchTenantIntegrationProfileBodySchema = {
     callback_base_url: { anyOf: [{ type: "string" }, { type: "null" }] },
     sms_provider: { anyOf: [{ type: "string" }, { type: "null" }] },
     sms_config: { type: "object" },
-    gateway_environment: { type: "string" },
+    gateway_environment: gatewayEnvironmentSchema,
     updated_by: { anyOf: [uuidString, { type: "null" }] },
   },
 } as const;

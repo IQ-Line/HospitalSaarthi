@@ -1,11 +1,16 @@
 openapi: 3.1.0
 info:
   title: HIMS Configurator API
-  version: 1.1.0
+  version: 1.2.0
   description: |
     Configurator module — tenant registry, module enablement, feature flag overrides, configuration management.
 
     ## Changelog
+
+    ### 1.2.0
+    - Tenant integration profiles (ABDM Phase 1a): CRUD under `/tenants/{tenantId}/integration-profiles`.
+    - Internal route `GET /integration-profiles/by-hip/{hipId}` for service-to-service credential lookup
+      (requires `x-configurator-internal-key` when `CONFIGURATOR_INTERNAL_API_KEY` is set).
 
     ### 1.1.0 (breaking)
     - POST /tenant-onboarding: `tenant` is now a required top-level field separate from `organization`.
@@ -463,6 +468,209 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /integration-profiles/by-hip/{hipId}:
+    get:
+      operationId: getActiveIntegrationProfileByHipId
+      summary: Resolve active integration profile by HIP id (internal)
+      description: >
+        **Internal / service-to-service only.** Returns the active integration profile for callback
+        routing and gateway credential resolution (includes `client_secret` in plaintext for Phase 1a).
+        Not for browser or public clients. When `CONFIGURATOR_INTERNAL_API_KEY` is configured on the
+        service, callers must send matching `x-configurator-internal-key`. In local dev the check is
+        skipped if the env var is unset.
+      tags:
+        - Integration Profiles
+      security:
+        - internalServiceKey: []
+      parameters:
+        - name: hipId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - name: integration_kind
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [abdm]
+            default: abdm
+      responses:
+        "200":
+          description: Active profile for the HIP.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantIntegrationProfile"
+        "403":
+          description: Missing or invalid internal service key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No active profile for this HIP.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /tenants/{tenantId}/integration-profiles:
+    get:
+      operationId: listTenantIntegrationProfiles
+      summary: List tenant integration profiles
+      tags:
+        - Integration Profiles
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: integration_kind
+          in: query
+          schema:
+            type: string
+            enum: [abdm]
+        - name: is_active
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Profile list.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantIntegrationProfileListResponse"
+    post:
+      operationId: createTenantIntegrationProfile
+      summary: Create tenant integration profile
+      tags:
+        - Integration Profiles
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TenantIntegrationProfileCreateRequest"
+      responses:
+        "201":
+          description: Profile created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantIntegrationProfile"
+        "409":
+          description: Duplicate tenant + integration_kind or active HIP.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /tenants/{tenantId}/integration-profiles/{profileId}:
+    get:
+      operationId: getTenantIntegrationProfileById
+      summary: Get tenant integration profile
+      tags:
+        - Integration Profiles
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Profile found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantIntegrationProfile"
+        "404":
+          description: Profile not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateTenantIntegrationProfile
+      summary: Update tenant integration profile
+      tags:
+        - Integration Profiles
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TenantIntegrationProfilePatchRequest"
+      responses:
+        "200":
+          description: Profile updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantIntegrationProfile"
+        "404":
+          description: Profile not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteTenantIntegrationProfile
+      summary: Delete tenant integration profile
+      tags:
+        - Integration Profiles
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Profile deleted.
+        "404":
+          description: Profile not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /tenant-onboarding:
     post:
       operationId: provisionTenant
@@ -503,6 +711,13 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    internalServiceKey:
+      type: apiKey
+      in: header
+      name: x-configurator-internal-key
+      description: >
+        Shared secret for internal routes (e.g. by-hip profile lookup). Must match
+        CONFIGURATOR_INTERNAL_API_KEY on configurator-svc.
   schemas:
     ErrorResponse:
       type: object
@@ -987,6 +1202,174 @@ components:
         total:
           type: integer
           minimum: 0
+    TenantIntegrationProfile:
+      type: object
+      description: >
+        Per-tenant integration credentials (Phase 1a stores secrets in plaintext; not for public APIs).
+      required:
+        - id
+        - iq_tenant_id
+        - integration_kind
+        - is_active
+        - hip_id
+        - hiu_id
+        - cm_id
+        - gateway_environment
+        - sms_config
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        iq_tenant_id:
+          type: string
+          format: uuid
+        integration_kind:
+          type: string
+          enum: [abdm]
+        is_active:
+          type: boolean
+        hip_id:
+          type: string
+        hiu_id:
+          type: string
+        cm_id:
+          type: string
+        client_id:
+          type: string
+          nullable: true
+        client_secret:
+          type: string
+          nullable: true
+          description: Plaintext Phase 1a; internal consumers only.
+        default_sms_phone:
+          type: string
+          nullable: true
+        hip_display_name:
+          type: string
+          nullable: true
+        callback_base_url:
+          type: string
+          nullable: true
+        sms_provider:
+          type: string
+          nullable: true
+        sms_config:
+          type: object
+          additionalProperties: true
+        gateway_environment:
+          type: string
+          enum: [sandbox, production]
+          default: sandbox
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+    TenantIntegrationProfileListResponse:
+      type: object
+      required:
+        - data
+        - total
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/TenantIntegrationProfile"
+        total:
+          type: integer
+          minimum: 0
+    TenantIntegrationProfileCreateRequest:
+      type: object
+      required:
+        - integration_kind
+        - hip_id
+        - hiu_id
+      properties:
+        integration_kind:
+          type: string
+          enum: [abdm]
+        is_active:
+          type: boolean
+        hip_id:
+          type: string
+        hiu_id:
+          type: string
+        cm_id:
+          type: string
+        client_id:
+          type: string
+          nullable: true
+        client_secret:
+          type: string
+          nullable: true
+        default_sms_phone:
+          type: string
+          nullable: true
+        hip_display_name:
+          type: string
+          nullable: true
+        callback_base_url:
+          type: string
+          nullable: true
+        sms_provider:
+          type: string
+          nullable: true
+        sms_config:
+          type: object
+          additionalProperties: true
+        gateway_environment:
+          type: string
+          enum: [sandbox, production]
+    TenantIntegrationProfilePatchRequest:
+      type: object
+      properties:
+        is_active:
+          type: boolean
+        hip_id:
+          type: string
+        hiu_id:
+          type: string
+        cm_id:
+          type: string
+        client_id:
+          type: string
+          nullable: true
+        client_secret:
+          type: string
+          nullable: true
+        default_sms_phone:
+          type: string
+          nullable: true
+        hip_display_name:
+          type: string
+          nullable: true
+        callback_base_url:
+          type: string
+          nullable: true
+        sms_provider:
+          type: string
+          nullable: true
+        sms_config:
+          type: object
+          additionalProperties: true
+        gateway_environment:
+          type: string
+          enum: [sandbox, production]
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
     ProvisionTenantInput:
       type: object
       required:
