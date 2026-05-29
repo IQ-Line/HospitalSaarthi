@@ -119,6 +119,38 @@ export const tenantModules = configuratorSchema.table(
   ],
 );
 
+export const tenantIntegrationProfiles = configuratorSchema.table(
+  "tenant_integration_profiles",
+  {
+    id: uuid("id").notNull().defaultRandom().primaryKey(),
+    ...tenantColumn(),
+    integration_kind: text("integration_kind").notNull(),
+    is_active: boolean("is_active").notNull().default(true),
+    hip_id: text("hip_id").notNull(),
+    hiu_id: text("hiu_id").notNull(),
+    cm_id: text("cm_id").notNull().default("sbx"),
+    client_id: text("client_id"),
+    client_secret: text("client_secret"),
+    default_sms_phone: text("default_sms_phone"),
+    hip_display_name: text("hip_display_name"),
+    callback_base_url: text("callback_base_url"),
+    sms_provider: text("sms_provider"),
+    sms_config: jsonb("sms_config").notNull().default({}),
+    gateway_environment: text("gateway_environment").notNull().default("sandbox"),
+    ...auditColumns(),
+  },
+  (t) => [
+    uniqueIndex("idx_tenant_integration_profiles_tenant_kind").on(
+      t.iq_tenant_id,
+      t.integration_kind,
+    ),
+    uniqueIndex("idx_tenant_integration_profiles_hip_active")
+      .on(t.hip_id)
+      .where(sql`${t.integration_kind} = 'abdm' AND ${t.is_active} = true`),
+    index("idx_tenant_integration_profiles_tenant").on(t.iq_tenant_id),
+    check(
+      "chk_tenant_integration_profiles_kind",
+      sql`${t.integration_kind} IN ('abdm')`,
 
 export const sequenceConfiguration = configuratorSchema.table(
   "sequence_configuration",

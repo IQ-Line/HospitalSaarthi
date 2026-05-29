@@ -162,3 +162,64 @@ export const patchTenantModuleBodySchema = {
     updated_by: { anyOf: [uuidString, { type: "null" }] },
   },
 } as const;
+
+export const integrationKindSchema = {
+  type: "string",
+  enum: ["abdm"],
+} as const;
+
+export const gatewayEnvironmentSchema = {
+  type: "string",
+  enum: ["sandbox", "production"],
+} as const;
+
+export const tenantIntegrationProfileParamsSchema = {
+  type: "object",
+  required: ["tenantId", "profileId"],
+  properties: {
+    tenantId: uuidString,
+    profileId: uuidString,
+  },
+} as const;
+
+export const postTenantIntegrationProfileBodySchema = {
+  type: "object",
+  required: ["integration_kind", "hip_id", "hiu_id"],
+  additionalProperties: false,
+  properties: {
+    integration_kind: integrationKindSchema,
+    is_active: { type: "boolean" },
+    hip_id: { type: "string", minLength: 1 },
+    hiu_id: { type: "string", minLength: 1 },
+    cm_id: { type: "string" },
+    client_id: { anyOf: [{ type: "string" }, { type: "null" }] },
+    client_secret: { anyOf: [{ type: "string" }, { type: "null" }] },
+    default_sms_phone: { anyOf: [{ type: "string" }, { type: "null" }] },
+    hip_display_name: { anyOf: [{ type: "string" }, { type: "null" }] },
+    callback_base_url: { anyOf: [{ type: "string" }, { type: "null" }] },
+    sms_provider: { anyOf: [{ type: "string" }, { type: "null" }] },
+    sms_config: { type: "object" },
+    gateway_environment: gatewayEnvironmentSchema,
+    created_by: { anyOf: [uuidString, { type: "null" }] },
+  },
+} as const;
+
+export const patchTenantIntegrationProfileBodySchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    is_active: { type: "boolean" },
+    hip_id: { type: "string", minLength: 1 },
+    hiu_id: { type: "string", minLength: 1 },
+    cm_id: { type: "string" },
+    client_id: { anyOf: [{ type: "string" }, { type: "null" }] },
+    client_secret: { anyOf: [{ type: "string" }, { type: "null" }] },
+    default_sms_phone: { anyOf: [{ type: "string" }, { type: "null" }] },
+    hip_display_name: { anyOf: [{ type: "string" }, { type: "null" }] },
+    callback_base_url: { anyOf: [{ type: "string" }, { type: "null" }] },
+    sms_provider: { anyOf: [{ type: "string" }, { type: "null" }] },
+    sms_config: { type: "object" },
+    gateway_environment: gatewayEnvironmentSchema,
+    updated_by: { anyOf: [uuidString, { type: "null" }] },
+  },
+} as const;

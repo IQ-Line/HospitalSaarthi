@@ -18,6 +18,18 @@ This is a **large, critical change**. The goal is zero behavioural regression fo
 
 ## 2. Recommended code PR sequence
 
+Develop and merge **in this order only** (do not parallelize Part B before Part A lands):
+
+```mermaid
+flowchart LR
+  D144["PR 144 docs"]
+  C1["Code PR 1 Part A"]
+  C2["Code PR 2 Part B"]
+  C3["Code PR 3 Part C"]
+  C4["Code PR 4 Part D"]
+  D144 --> C1 --> C2 --> C3 --> C4
+```
+
 Use **four code PRs** after the documentation PR ([#144](https://github.com/IQ-Line/HospitalSaarthi/pull/144) or `docs(integration-hub): Phase 1a spec`). Do not label the docs PR as “implementation complete.”
 
 | PR | Issue Part | Contents | Merge gate |
@@ -111,7 +123,11 @@ Do **not** use boot-time `xHipId` in callback handlers after Part B.
 
 `registerM2EventConsumers(eventBus, adapterDeps)` currently receives boot-time deps including `xHipId`.
 
-Target: consumer handler receives `iqTenantId` from event payload → `buildAbdmDepsForTenant(iqTenantId, …)` → invoke use-case.
+**Tenant on events:** `@hims/ts-sdk-events` `DomainEvent` requires **`iq_tenant_id` on the envelope** (not only in payload). `handleCareContextRegisteredEvent` already reads `event.iq_tenant_id`. Optional `payload.iq_tenant_id` is redundant.
+
+Target (Code PR 2): `registerM2EventConsumers(eventBus, sharedInfra)` — each handler calls `buildAbdmDepsForTenant(event.iq_tenant_id, sharedInfra)` then invokes the use-case. **Publisher contract:** Record Foundation must set envelope `iq_tenant_id` when emitting `record-foundation.care-context.*` events.
+
+**Code PR 1:** no consumer wiring change.
 
 Shared across tenants (safe as singletons):
 
@@ -144,7 +160,7 @@ Per-tenant (must not be singleton):
 | Item | Phase 1a recommendation | Rationale |
 |------|-------------------------|-----------|
 | `gateway-client` `xCmId` | Pass via `AbdmAdapterDeps.xCmId`; set from profile when building deps | Matches existing use-case reads |
-| Gateway token cache | **Disable** or key cache by `(iqTenantId, gateway_environment)` | Sandbox-safe; issue allows disable |
+| Gateway token cache | **Disable** process-wide bearer cache in Code PR 2 | Multi-tenant leak risk if cache stays global; keyed cache `(iqTenantId, gateway_environment)` deferred for prod perf |
 | Callback HIP lookup | DB query + optional in-memory LRU (TTL 60s) | Correctness first; optimize if needed |
 | `ABDM_DEV_TENANT_ID` | See [§2.1 `ABDM_DEV_TENANT_ID` policy](#21-abdm_dev_tenant_id-policy) below | Resolved vs §7.1 in 01-phase-1a |
 | Fidelius per-tenant | **No change** | Issue defers to 1b+ |

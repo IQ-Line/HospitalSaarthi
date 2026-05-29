@@ -1,0 +1,22 @@
+{
+  "name": "integration-hub",
+  "tags": ["type:module", "scope:integration-hub", "language:typescript"],
+  "targets": {
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest run",
+        "cwd": "modules/integration-hub"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "options": {
+        "lintFilePatterns": [
+          "modules/integration-hub/src/index.ts",
+          "modules/integration-hub/src/lib/**/*.ts"
+        ]
+      }
+    }
+  }
+}

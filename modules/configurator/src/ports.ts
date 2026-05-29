@@ -18,6 +18,12 @@ import type {
   TenantModuleKey,
 } from "./domain/tenant-module.types.js";
 import type {
+  TenantIntegrationProfile,
+  CreateTenantIntegrationProfileData,
+  UpdateTenantIntegrationProfileData,
+  TenantIntegrationProfileFilters,
+  IntegrationKind,
+} from "./domain/tenant-integration-profile.types.js";
   IdentifierOverrides,
   IdentifierType,
   SequenceConfiguration,
@@ -57,6 +63,24 @@ export interface TenantModuleRepo {
   delete(key: TenantModuleKey): Promise<boolean>;
 }
 
+export interface TenantIntegrationProfilesRepo {
+  findAll(filters: TenantIntegrationProfileFilters): Promise<TenantIntegrationProfile[]>;
+  findById(id: string): Promise<TenantIntegrationProfile | undefined>;
+  findActiveByTenantId(
+    iqTenantId: string,
+    integrationKind: IntegrationKind,
+  ): Promise<TenantIntegrationProfile | undefined>;
+  findActiveByHipId(
+    hipId: string,
+    integrationKind: IntegrationKind,
+  ): Promise<TenantIntegrationProfile | undefined>;
+  create(data: CreateTenantIntegrationProfileData): Promise<TenantIntegrationProfile>;
+  update(
+    id: string,
+    iqTenantId: string,
+    data: UpdateTenantIntegrationProfileData,
+  ): Promise<TenantIntegrationProfile | undefined>;
+  delete(id: string): Promise<boolean>;
 export interface SequenceConfigurationRepo {
   findByTenantId(tenantId: string): Promise<SequenceConfiguration | undefined>;
   listSummaries(filters?: SequenceConfigurationFilters): Promise<SequenceConfigurationSummary[]>;
