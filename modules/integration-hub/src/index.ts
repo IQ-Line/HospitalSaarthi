@@ -4,16 +4,32 @@ export type {
 } from "./lib/integration-context.js";
 export {
   createSecretsClientFromProfile,
+  ProfileSecretsClient,
+  PROFILE_CLIENT_ID_REF,
+  PROFILE_CLIENT_SECRET_REF,
 } from "./lib/per-tenant-secrets.js";
 export type { IntegrationProfileRepo } from "./lib/integration-profile-repo.js";
 export {
   NotImplementedIntegrationProfileRepo,
 } from "./lib/integration-profile-repo.js";
 export {
+  ConfiguratorHttpIntegrationProfileRepo,
+} from "./lib/configurator-http-integration-profile-repo.js";
+export {
   buildAbdmDepsForTenant,
   mapConfiguratorProfileRow,
   type IntegrationHubSharedInfra,
+  type IntegrationHubDeploymentConfig,
 } from "./lib/build-abdm-deps.js";
+export { getAbdmDeps } from "./lib/get-abdm-deps.js";
+export {
+  integrationContextResolver,
+  IntegrationTenantRequiredError,
+} from "./lib/integration-context-resolver.js";
+export {
+  IntegrationProfileNotFoundError,
+  IntegrationContextMissingError,
+} from "./lib/integration-hub-errors.js";
 
 export { enrolAadhaarOtpRequest } from "./integrations/abdm/use-cases/index.js";
 export {
@@ -94,6 +110,7 @@ export {
 } from "./integrations/abdm/lib/link-otp-store.js";
 export {
   createSmsClientFromEnv,
+  createSmsClientFromProfile,
   HttpSmsClient,
   LoggingSmsClient,
   NoOpSmsClient,
@@ -107,3 +124,7 @@ export {
   requireSessionTokenCryptoInProd,
 } from "./integrations/abdm/lib/session-token-crypto.js";
 export { allowInsecureAbdmCallbacks, nodeEnv } from "./integrations/abdm/lib/abdm-runtime-env.js";
+export {
+  resolveCallbackTenantId,
+  resolveInboundRequestId,
+} from "./integrations/abdm/lib/resolve-callback-tenant.js";

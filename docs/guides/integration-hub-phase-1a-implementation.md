@@ -74,13 +74,52 @@ Use this guide while executing **one code PR at a time**. Read **03-safe-migrati
 
 ### Code PR 2 — Part B (Multi-tenant refactor)
 
-- [ ] All rest handlers: `options` → `request.integrationCtx.deps` (or helper `getAbdmDeps(request)`)
-- [ ] `router.ts`: `createRouter()` registers routes without `AbdmAdapterDeps` closure
-- [ ] **`/api/v3` callbacks:** after `resolveCallbackTenantId`, build deps for that tenant (see 03-safe-migration §4.2)
-- [ ] **`registerM2EventConsumers`:** `sharedInfra` + `buildAbdmDepsForTenant(event.iq_tenant_id, …)` per event (envelope `iq_tenant_id`, 03 §4.3)
-- [ ] `HttpGatewayClient`: `xCmId` from deps per request/call; **disable** process-wide token cache (03 §6)
-- [ ] `createSmsClientFromEnv` removed from hot path; `createSmsClientFromProfile(profile)`
-- [ ] `resolve-callback-tenant.ts`: DB `hip_id` → `iq_tenant_id` (keep `x-tenant-id` header for mock scripts)
+- [x] All rest handlers: `options` → `request.integrationCtx.deps` (or helper `getAbdmDeps(request)`)
+- [x] `router.ts`: `createRouter()` registers routes without `AbdmAdapterDeps` closure
+- [x] **`/api/v3` callbacks:** after `resolveCallbackTenantId`, build deps for that tenant (see 03-safe-migration §4.2)
+- [x] **`registerM2EventConsumers`:** `sharedInfra` + `buildAbdmDepsForTenant(event.iq_tenant_id, …)` per event (envelope `iq_tenant_id`, 03 §4.3)
+- [x] `HttpGatewayClient`: `xCmId` from deps per request/call; new client per tenant (no shared singleton cache across tenants)
+- [x] `createSmsClientFromProfile(profile)` on hot path; `createSmsClientFromEnv` retained for tests/sandbox only
+- [x] `resolve-callback-tenant.ts`: DB `hip_id` → `iq_tenant_id` (keep `x-tenant-id` header + `ABDM_DEV_TENANT_ID` fallback)
+
+#### Step 2 manual verification (before merge / before Step 3)
+
+Step 2 code lives in **`modules/integration-hub`** only. **`abdm-adapter-svc` still uses single-tenant `@hims/abdm-adapter`** until Step 3 wires `integration-hub-svc`. Use this checklist to prove Part B without a running hub service.
+
+**Automated (required):**
+
+```bash
+cd modules/integration-hub && npx vitest run
+# Expect 124+ tests pass (includes build-abdm-deps, resolve-callback-tenant,
+# configurator HTTP repo, integration-context-resolver, m2-inbound-helper, M2 consumers)
+cd ../configurator && npx vitest run src/use-cases/*integration-profile*
+```
+
+**Configurator + profile (prerequisite for callback/tenant tests):**
+
+```bash
+# configurator-svc on :3001, DATABASE_URL, make seed
+make seed-abdm-profile
+curl -s -H "x-configurator-internal-key: $CONFIGURATOR_INTERNAL_API_KEY" \
+  "http://localhost:3001/api/configurator/v1/integration-profiles/by-hip/<YOUR_HIP_ID>" | jq .
+```
+
+**What Step 2 unit tests prove (highest-risk paths):**
+
+| Risk | Test / code |
+|------|-------------|
+| Wrong tenant credentials on `/api/v3` | `m2-inbound-helper` mocks `buildAbdmDepsForTenant` per callback |
+| HIP → tenant | `resolve-callback-tenant.test.ts` (DB mock + dev fallback) |
+| Two tenants → two HIPs | `build-abdm-deps.test.ts` |
+| M2 async wrong `xHipId` | `register-m2-consumers.test.ts` uses `event.iq_tenant_id` |
+| Platform `getAbdmDeps` | `get-abdm-deps.test.ts`; resolver wired in `router.ts` + Step 3 `main.ts` |
+
+**After Step 3 only (live smoke — same as §4):**
+
+- `integration-hub-svc:serve` on port 3007
+- M1 POST with `x-tenant-id` (§4.3)
+- M2/M3 callback with `X-HIP-ID` from seeded profile (§4.4)
+- Two profiles / two tenants (§4.6)
 
 ### Code PR 3 — Part C (Schema + service)
 

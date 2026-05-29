@@ -2,11 +2,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { EmpiClientError } from "../../lib/empi-client-error.js";
 import { runInboundCallback } from "./m2-inbound-helper.js";
 
+vi.mock("../../../../lib/build-abdm-deps.js", () => ({
+  buildAbdmDepsForTenant: vi.fn(),
+}));
+
 describe("runInboundCallback", () => {
   const env = process.env;
 
   afterEach(() => {
     process.env = { ...env };
+    vi.clearAllMocks();
   });
 
   it("releases idempotency row when handler fails so gateway can retry", async () => {
@@ -14,6 +19,18 @@ describe("runInboundCallback", () => {
     process.env["ABDM_DEV_TENANT_ID"] = "00000000-0000-4000-8000-0000000000aa";
 
     const release = vi.fn(async () => undefined);
+    const { buildAbdmDepsForTenant } = await import("../../../../lib/build-abdm-deps.js");
+    vi.mocked(buildAbdmDepsForTenant).mockResolvedValue({
+      iqTenantId: "00000000-0000-4000-8000-0000000000aa",
+      profile: {} as never,
+      deps: {
+        inboundMessages: {
+          insertIfNew: async () => true,
+          release,
+        },
+      } as never,
+    });
+
     const reply = {
       code(status: number) {
         (this as { statusCode: number }).statusCode = status;
@@ -31,10 +48,10 @@ describe("runInboundCallback", () => {
       reply: reply as never,
       flowKind: "abdm.m2.user-initiated-link.v1",
       httpStatus: 202,
-      deps: {
-        inboundMessages: {
-          insertIfNew: async () => true,
-          release,
+      sharedInfra: {
+        profiles: {
+          findActiveByTenantId: vi.fn(),
+          findActiveByHipId: vi.fn(),
         },
       } as never,
       handler: async () => {

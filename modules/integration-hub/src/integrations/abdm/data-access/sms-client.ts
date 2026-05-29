@@ -1,6 +1,7 @@
 import { abdmWarn } from "../lib/abdm-adapter-log.js";
 import { fetchWithTimeout } from "../lib/fetch-with-timeout.js";
 import type { SmsClient } from "../ports.js";
+import type { TenantIntegrationProfile } from "../../../lib/integration-context.js";
 
 /** Logs OTP for sandbox when no real provider is configured. */
 export class LoggingSmsClient implements SmsClient {
@@ -67,6 +68,48 @@ export class TwilioSmsClient implements SmsClient {
     if (!res.ok) {
       throw new Error(`Twilio SMS failed: ${res.status}`);
     }
+  }
+}
+
+function readSmsConfigString(
+  config: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  const value = config[key];
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+/** Build SMS client from `tenant_integration_profiles.sms_provider` + `sms_config`. */
+export function createSmsClientFromProfile(profile: TenantIntegrationProfile): SmsClient {
+  const provider = (profile.smsProvider ?? "logging").toLowerCase();
+  const config = profile.smsConfig ?? {};
+
+  switch (provider) {
+    case "noop":
+      return new NoOpSmsClient();
+    case "http": {
+      const url = readSmsConfigString(config, "http_url") ?? readSmsConfigString(config, "url");
+      if (!url) {
+        throw new Error(
+          `sms_config.http_url required when sms_provider=http (tenant=${profile.iqTenantId})`,
+        );
+      }
+      return new HttpSmsClient(url, readSmsConfigString(config, "api_key"));
+    }
+    case "twilio": {
+      const sid = readSmsConfigString(config, "twilio_account_sid");
+      const token = readSmsConfigString(config, "twilio_auth_token");
+      const from = readSmsConfigString(config, "twilio_from");
+      if (!sid || !token || !from) {
+        throw new Error(
+          `sms_config twilio fields required when sms_provider=twilio (tenant=${profile.iqTenantId})`,
+        );
+      }
+      return new TwilioSmsClient(sid, token, from);
+    }
+    case "logging":
+    default:
+      return new LoggingSmsClient();
   }
 }
 

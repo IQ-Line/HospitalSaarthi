@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import type { AbdmAdapterDeps } from "../../ports.js";
+import { getAbdmDeps } from "../../../../lib/get-abdm-deps.js";
 import { hipInitiatedLinkStart } from "../../use-cases/m2/hip-initiated-link/start.js";
 import { addContextsPublish } from "../../use-cases/m2/add-contexts/publish.js";
 import { smsNotifyRequest } from "../../use-cases/m2/sms-notify/request.js";
@@ -16,10 +16,7 @@ import {
   smsNotifyBodySchema,
 } from "./m2-route-schemas.js";
 
-export async function registerM2PlatformRoutes(
-  app: FastifyInstance,
-  deps: AbdmAdapterDeps,
-): Promise<void> {
+export async function registerM2PlatformRoutes(app: FastifyInstance): Promise<void> {
   app.post(
     "/m2/link-token/acquire",
     { schema: { body: linkTokenAcquireBodySchema } },
@@ -39,7 +36,7 @@ export async function registerM2PlatformRoutes(
       timeoutMs?: number;
       wait?: boolean;
     };
-    const result = await linkTokenAcquire({ iqTenantId, ...body }, deps);
+    const result = await linkTokenAcquire({ iqTenantId, ...body }, getAbdmDeps(req));
     const status =
       result.state === "FAILED" ? 503 : result.state === "TOKEN_AVAILABLE" ? 200 : 202;
     return reply.status(status).send(result);
@@ -61,7 +58,7 @@ export async function registerM2PlatformRoutes(
         sessionId: q.sessionId?.trim(),
         abhaAddress: q.abhaAddress?.trim(),
       },
-      deps,
+      getAbdmDeps(req),
     );
     if (result.state === "NOT_FOUND" && !result.tokenReady) {
       return reply.status(404).send(result);
@@ -79,7 +76,7 @@ export async function registerM2PlatformRoutes(
       return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
     }
     const sessionId = String((req.params as { sessionId: string }).sessionId ?? "").trim();
-    const session = await getAbdmSession({ iqTenantId, sessionId }, deps);
+    const session = await getAbdmSession({ iqTenantId, sessionId }, getAbdmDeps(req));
     if (!session) {
       return reply.status(404).send({ error: "NotFound", message: "session not found" });
     }
@@ -111,7 +108,7 @@ export async function registerM2PlatformRoutes(
     try {
       const result = await hipInitiatedLinkStart(
         { iqTenantId, ...body },
-        deps,
+        getAbdmDeps(req),
       );
       return reply.status(202).send(result);
     } catch (e) {
@@ -141,7 +138,7 @@ export async function registerM2PlatformRoutes(
       hiType: string;
       eventDate?: string;
     };
-    const result = await addContextsPublish({ iqTenantId, ...body }, deps);
+    const result = await addContextsPublish({ iqTenantId, ...body }, getAbdmDeps(req));
     return reply.status(202).send(result);
   },
   );
@@ -155,7 +152,7 @@ export async function registerM2PlatformRoutes(
       return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
     }
     const body = req.body as { phoneNo: string; hipName?: string };
-    const result = await smsNotifyRequest({ iqTenantId, ...body }, deps);
+    const result = await smsNotifyRequest({ iqTenantId, ...body }, getAbdmDeps(req));
     return reply.status(202).send(result);
   },
   );

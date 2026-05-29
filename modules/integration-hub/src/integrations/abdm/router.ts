@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import fp from "fastify-plugin";
-import type { AbdmAdapterDeps } from "./ports.js";
+import type { IntegrationHubSharedInfra } from "../../lib/build-abdm-deps.js";
+import { integrationContextResolver } from "../../lib/integration-context-resolver.js";
 import {
   registerM0Routes,
   registerM1Routes,
@@ -8,21 +9,22 @@ import {
   registerM3PlatformRoutes,
 } from "./rest-handlers/index.js";
 
-export type AbdmAdapterRouterOptions = AbdmAdapterDeps;
+export type AbdmAdapterRouterOptions = IntegrationHubSharedInfra;
 
 async function abdmAdapterRouter(
   app: FastifyInstance,
-  options: AbdmAdapterRouterOptions,
+  sharedInfra: IntegrationHubSharedInfra,
 ): Promise<void> {
-  await registerM0Routes(app, options);
-  await registerM1Routes(app, options);
-  await registerM2PlatformRoutes(app, options);
-  await registerM3PlatformRoutes(app, options);
+  await app.register(integrationContextResolver(sharedInfra));
+  await registerM0Routes(app);
+  await registerM1Routes(app);
+  await registerM2PlatformRoutes(app);
+  await registerM3PlatformRoutes(app);
 }
 
-export function createRouter(options: AbdmAdapterRouterOptions) {
+export function createRouter(sharedInfra: IntegrationHubSharedInfra) {
   return fp(
-    async (app: FastifyInstance) => abdmAdapterRouter(app, options),
-    { fastify: "5.x", name: "@hims/abdm-adapter" },
+    async (app: FastifyInstance) => abdmAdapterRouter(app, sharedInfra),
+    { fastify: "5.x", name: "@hims/integration-hub-abdm-router" },
   );
 }

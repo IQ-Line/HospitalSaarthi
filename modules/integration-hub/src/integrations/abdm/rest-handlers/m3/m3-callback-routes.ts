@@ -1,5 +1,7 @@
 import type { FastifyInstance } from "fastify";
-import type { AbdmAdapterDeps } from "../../ports.js";
+import type { IntegrationHubSharedInfra } from "../../../../lib/build-abdm-deps.js";
+import { buildAbdmDepsForTenant } from "../../../../lib/build-abdm-deps.js";
+import { IntegrationProfileNotFoundError } from "../../../../lib/integration-hub-errors.js";
 import { runInboundCallback } from "../m2/m2-inbound-helper.js";
 import { handleOnInitCallback } from "../../use-cases/m3/hiu/handle-on-init-callback.js";
 import { handleNotifyCallback } from "../../use-cases/m3/hiu/handle-notify-callback.js";
@@ -11,7 +13,7 @@ import type { EncryptedBundlePushBody } from "@hims/ts-sdk-abha/protocol/m3/hiu-
 
 export async function registerM3CallbackRoutes(
   app: FastifyInstance,
-  deps: AbdmAdapterDeps,
+  sharedInfra: IntegrationHubSharedInfra,
 ): Promise<void> {
   app.post("/hiu/consent/request/on-init", async (req, reply) => {
     await runInboundCallback({
@@ -19,7 +21,7 @@ export async function registerM3CallbackRoutes(
       reply,
       flowKind: "abdm.m3.hiu.v1",
       httpStatus: 200,
-      deps,
+      sharedInfra,
       handler: async (ctx) => {
         await handleOnInitCallback(
           {
@@ -27,7 +29,7 @@ export async function registerM3CallbackRoutes(
             inboundRequestId: ctx.requestId,
             ...(ctx.body as object),
           },
-          deps,
+          ctx.deps,
         );
       },
     });
@@ -39,7 +41,7 @@ export async function registerM3CallbackRoutes(
       reply,
       flowKind: "abdm.m3.hiu.v1",
       httpStatus: 200,
-      deps,
+      sharedInfra,
       handler: async (ctx) => {
         await handleNotifyCallback(
           {
@@ -47,7 +49,7 @@ export async function registerM3CallbackRoutes(
             inboundRequestId: ctx.requestId,
             ...(ctx.body as object),
           },
-          deps,
+          ctx.deps,
         );
       },
     });
@@ -59,7 +61,7 @@ export async function registerM3CallbackRoutes(
       reply,
       flowKind: "abdm.m3.hiu.v1",
       httpStatus: 200,
-      deps,
+      sharedInfra,
       handler: async (ctx) => {
         await handleOnFetchCallback(
           {
@@ -67,7 +69,7 @@ export async function registerM3CallbackRoutes(
             inboundRequestId: ctx.requestId,
             ...(ctx.body as object),
           },
-          deps,
+          ctx.deps,
         );
       },
     });
@@ -79,7 +81,7 @@ export async function registerM3CallbackRoutes(
       reply,
       flowKind: "abdm.m3.hiu.v1",
       httpStatus: 200,
-      deps,
+      sharedInfra,
       handler: async (ctx) => {
         await handleOnDataRequestCallback(
           {
@@ -87,7 +89,7 @@ export async function registerM3CallbackRoutes(
             inboundRequestId: ctx.requestId,
             ...(ctx.body as object),
           },
-          deps,
+          ctx.deps,
         );
       },
     });
@@ -97,15 +99,30 @@ export async function registerM3CallbackRoutes(
     const headers = req.headers as Record<string, unknown>;
     const transferId = (req.params as { transferId: string }).transferId;
     let iqTenantId = String(headers["x-tenant-id"] ?? headers["X-Tenant-Id"] ?? "").trim();
+
     if (!iqTenantId) {
-      const row = await deps.m3DataTransfers.findByTransferId(transferId);
+      const lookupDeps = sharedInfra.m3DataTransfers;
+      const row = await lookupDeps.findByTransferId(transferId);
       if (!row) {
         return reply.code(404).send({ error: "NotFound", message: "transfer not found" });
       }
       iqTenantId = row.iqTenantId;
     }
-    // CM echoes HIU `outboundRequestId` (= transferId) on HIP /health-information/request.
-    // Dedupe must not reuse raw transferId or the HIP callback consumes the idempotency slot first.
+
+    let deps;
+    try {
+      deps = (await buildAbdmDepsForTenant(iqTenantId, sharedInfra)).deps;
+    } catch (e) {
+      if (e instanceof IntegrationProfileNotFoundError) {
+        return reply.code(404).send({
+          error: "NotFound",
+          message: e.message,
+          code: e.code,
+        });
+      }
+      throw e;
+    }
+
     let pushRequestId = "";
     try {
       pushRequestId = resolveInboundRequestId(headers, req.body);

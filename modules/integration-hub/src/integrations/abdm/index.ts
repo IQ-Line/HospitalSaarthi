@@ -1,6 +1,9 @@
 export { enrolAadhaarOtpRequest } from "./use-cases/index.js";
 export { encryptLoginIdWithAbdmPublicKey, publicKeyFingerprint } from "./lib/rsa-abdm-login-id.js";
-export { createRouter, type AbdmAdapterRouterOptions } from "./router.js";
+export {
+  createRouter,
+  type AbdmAdapterRouterOptions,
+} from "./router.js";
 
 export { ABDM_ADAPTER_MODULE_KEY } from "./domain/abdm-adapter.types.js";
 export { ABDM_ADAPTER_SOURCE_MODULE } from "./lib/abdm-adapter-constants.js";
@@ -68,11 +71,16 @@ export {
 export { InMemoryLinkOtpStore, generateLinkOtp6 } from "./lib/link-otp-store.js";
 export {
   createSmsClientFromEnv,
+  createSmsClientFromProfile,
   HttpSmsClient,
   LoggingSmsClient,
   NoOpSmsClient,
   TwilioSmsClient,
 } from "./data-access/sms-client.js";
+export {
+  resolveCallbackTenantId,
+  resolveInboundRequestId,
+} from "./lib/resolve-callback-tenant.js";
 export { EmpiClientError } from "./lib/empi-client-error.js";
 export { AbdmGatewayError, parseNhaErrorBody } from "./lib/gateway-errors.js";
 export { AbdmUseCaseError } from "./lib/m1-errors.js";

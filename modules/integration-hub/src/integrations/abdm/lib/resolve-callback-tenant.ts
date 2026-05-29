@@ -1,12 +1,14 @@
+import type { IntegrationProfileRepo } from "../../../lib/integration-profile-repo.js";
 import { abdmWarn } from "./abdm-adapter-log.js";
-import { parseHipTenantMap } from "./hip-tenant-map.js";
 
 /**
  * Maps inbound gateway callbacks to `iq_tenant_id`.
- * Mock/local inject scripts may send `x-tenant-id` (same as platform Door 1 APIs).
- * Production HIP: `ABDM_HIP_TENANT_MAP` (HIP id → tenant). Dev fallback: `ABDM_DEV_TENANT_ID`.
+ * Order: `x-tenant-id` header → DB lookup by `X-HIP-ID` → `ABDM_DEV_TENANT_ID` (dev fallback).
  */
-export function resolveCallbackTenantId(headers: Record<string, unknown>): string {
+export async function resolveCallbackTenantId(
+  headers: Record<string, unknown>,
+  profiles: IntegrationProfileRepo,
+): Promise<string> {
   const fromTenantHeader = String(
     headers["x-tenant-id"] ??
       headers["X-Tenant-Id"] ??
@@ -17,27 +19,19 @@ export function resolveCallbackTenantId(headers: Record<string, unknown>): strin
   if (fromTenantHeader) return fromTenantHeader;
 
   const hipId = String(headers["x-hip-id"] ?? headers["X-HIP-ID"] ?? "").trim();
-  const expectedHip = process.env["ABDM_X_HIP_ID"]?.trim();
-
-  if (expectedHip && hipId && hipId.toLowerCase() !== expectedHip.toLowerCase()) {
-    // Patient may grant consent for a linked HIP other than ABDM_X_HIP_ID (e.g. CHC vs hospital HIP).
-    abdmWarn("abdm.callback.hip_id_env_mismatch", {
-      expectedHip,
-      headerHipId: hipId,
-    });
-  }
-
   if (hipId) {
-    const map = parseHipTenantMap();
-    const mapped = map[hipId.toUpperCase()];
-    if (mapped) return mapped;
+    const profile = await profiles.findActiveByHipId(hipId);
+    if (profile) return profile.iqTenantId;
   }
 
   const devTenant = process.env["ABDM_DEV_TENANT_ID"]?.trim();
-  if (devTenant) return devTenant;
+  if (devTenant) {
+    abdmWarn("abdm.callback.dev_tenant_fallback", { hipId: hipId || null });
+    return devTenant;
+  }
 
   throw new Error(
-    "Cannot resolve callback tenant: set ABDM_HIP_TENANT_MAP or ABDM_DEV_TENANT_ID",
+    "Cannot resolve callback tenant: seed tenant_integration_profiles for HIP or set ABDM_DEV_TENANT_ID",
   );
 }
 

@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
-import type { AbdmAdapterDeps } from "../../ports.js";
+import { getAbdmDeps } from "../../../../lib/get-abdm-deps.js";
 import { startConsentRequest } from "../../use-cases/m3/hiu/start-consent-request.js";
 import { startDataRequest } from "../../use-cases/m3/hiu/start-data-request.js";
 import type { PurposeCode } from "@hims/ts-sdk-abha/protocol/m3/common.js";
@@ -36,10 +36,7 @@ function tenantId(req: { headers: Record<string, unknown> }): string {
   return String(req.headers["x-tenant-id"] ?? "").trim();
 }
 
-export async function registerM3PlatformRoutes(
-  app: FastifyInstance,
-  deps: AbdmAdapterDeps,
-): Promise<void> {
+export async function registerM3PlatformRoutes(app: FastifyInstance): Promise<void> {
   app.post(
     "/m3/hiu/consent/request",
     { schema: { body: startConsentRequestBodySchema } },
@@ -59,7 +56,7 @@ export async function registerM3PlatformRoutes(
       requesterRegNo?: string;
     };
     try {
-      const result = await startConsentRequest({ iqTenantId, ...body }, deps);
+      const result = await startConsentRequest({ iqTenantId, ...body }, getAbdmDeps(req));
       return reply.status(202).send(result);
     } catch (e) {
       if (e instanceof AbdmGatewayError) return sendGatewayError(reply, e);
@@ -78,11 +75,11 @@ export async function registerM3PlatformRoutes(
       return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
     }
     const sessionId = (req.params as { sessionId: string }).sessionId;
-    const session = await deps.sessions.findById({ iqTenantId, sessionId });
+    const session = await getAbdmDeps(req).sessions.findById({ iqTenantId, sessionId });
     if (!session || session.flowKind !== "abdm.m3.hiu.v1") {
       return reply.status(404).send({ error: "NotFound" });
     }
-    const row = await deps.m3ConsentRequests.findBySessionId({ iqTenantId, sessionId });
+    const row = await getAbdmDeps(req).m3ConsentRequests.findBySessionId({ iqTenantId, sessionId });
     return reply.status(200).send({
       sessionId: session.sessionId,
       state: session.state,
@@ -107,7 +104,7 @@ export async function registerM3PlatformRoutes(
     try {
       const result = await startDataRequest(
         { iqTenantId, consentId: body.consentId },
-        deps,
+        getAbdmDeps(req),
       );
       return reply.status(202).send(result);
     } catch (e) {
@@ -127,7 +124,7 @@ export async function registerM3PlatformRoutes(
       return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
     }
     const transferId = (req.params as { transferId: string }).transferId;
-    const transfer = await deps.m3DataTransfers.findById(iqTenantId, transferId);
+    const transfer = await getAbdmDeps(req).m3DataTransfers.findById(iqTenantId, transferId);
     if (!transfer) {
       return reply.status(404).send({ error: "NotFound" });
     }
