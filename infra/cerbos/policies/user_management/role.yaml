@@ -23,6 +23,11 @@ resourcePolicy:
         - "role.read"
       roles: ["super-admin"]
       effect: EFFECT_ALLOW
+
+    - actions:
+        - "role.read"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
       condition:
         match:
           expr: >-
@@ -43,6 +48,11 @@ resourcePolicy:
               "user-roles:user-roles:create" in request.principal.attr.capabilities ||
               "user-roles:user-roles:create" in request.principal.attr.delegated_capabilities
             )
+
+    - actions:
+        - "role.create"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
 
     - actions:
         - "role.create"
@@ -88,6 +98,13 @@ resourcePolicy:
               "user-roles:user-roles:delete" in request.principal.attr.capabilities ||
               "user-roles:user-roles:delete" in request.principal.attr.delegated_capabilities
             )
+
+    - actions:
+        - "role.update"
+        - "role.compose"
+        - "role.delete"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
 
     - actions:
         - "role.update"

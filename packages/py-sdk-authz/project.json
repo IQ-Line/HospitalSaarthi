@@ -1,0 +1,35 @@
+{
+  "name": "py-sdk-authz",
+  "projectType": "library",
+  "tags": ["type:sdk", "scope:authz", "language:python", "publish:npm"],
+  "namedInputs": {
+    "default": ["{projectRoot}/**/*"],
+    "production": [
+      "default",
+      "!{projectRoot}/tests/**/*"
+    ]
+  },
+  "targets": {
+    "setup": {
+      "command": "uv sync",
+      "options": { "cwd": "packages/py-sdk-authz" },
+      "inputs": ["default", "{projectRoot}/pyproject.toml"],
+      "cache": true,
+      "outputs": ["{projectRoot}/.venv"]
+    },
+    "lint": {
+      "command": "uv run ruff check .",
+      "options": { "cwd": "packages/py-sdk-authz" },
+      "dependsOn": ["setup"],
+      "inputs": ["default", "{projectRoot}/pyproject.toml"],
+      "cache": true
+    },
+    "test": {
+      "command": "uv run pytest",
+      "options": { "cwd": "packages/py-sdk-authz" },
+      "dependsOn": ["setup"],
+      "inputs": ["default"],
+      "cache": true
+    }
+  }
+}

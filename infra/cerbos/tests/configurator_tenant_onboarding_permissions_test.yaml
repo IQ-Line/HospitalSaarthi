@@ -25,6 +25,15 @@ principals:
         - "organization:organization:read"
       delegated_capabilities: []
 
+  super_admin:
+    id: sa-user
+    roles:
+      - "super-admin"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: []
+      delegated_capabilities: []
+
 resources:
   onboarding_request:
     id: request
@@ -60,6 +69,17 @@ tests:
         resource: onboarding_request
         actions:
           onboarding.create: EFFECT_DENY
+
+  - name: onboarding.create — super-admin without capability ALLOW
+    input:
+      principals: [super_admin]
+      resources: [onboarding_request]
+      actions: [onboarding.create]
+    expected:
+      - principal: super_admin
+        resource: onboarding_request
+        actions:
+          onboarding.create: EFFECT_ALLOW
 
   - name: onboarding.create — wrong tenant DENY
     input:

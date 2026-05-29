@@ -48,6 +48,7 @@ export async function listAssignableRuntimeCapabilities(
 
   const moduleSlugById = await deps.masterDataModuleCatalogPort.resolveModuleSlugsByIds(
     tenantEnabledModuleIds,
+    context?.authorization,
   );
 
   for (const moduleId of tenantEnabledModuleIds) {
@@ -80,6 +81,7 @@ export async function listAssignableRuntimeCapabilities(
   if (productOnly && assignableModuleSlugs.size > 0) {
     const kindBySlug = await deps.masterDataModuleCatalogPort.resolveModuleKindBySlugs(
       [...assignableModuleSlugs],
+      context?.authorization,
     );
     for (const slug of [...assignableModuleSlugs]) {
       const kind = kindBySlug.get(slug);
@@ -91,7 +93,7 @@ export async function listAssignableRuntimeCapabilities(
 
   const expandedSlugs = await deps.masterDataModuleCatalogPort.expandEnabledModuleSlugs([
     ...assignableModuleSlugs,
-  ]);
+  ], context?.authorization);
   for (const slug of expandedSlugs) {
     assignableModuleSlugs.add(normalizeModuleSlug(slug));
   }
@@ -99,7 +101,7 @@ export async function listAssignableRuntimeCapabilities(
   const moduleSlugList = [...assignableModuleSlugs];
   const [runtimeCapabilities, activeMasterDataSourcePairs] = await Promise.all([
     deps.capabilityRepository.listActiveRuntimeCapabilitiesByModuleSlugs(moduleSlugList),
-    deps.masterDataModuleCatalogPort.listActiveModulePermissionSourcePairs(moduleSlugList),
+    deps.masterDataModuleCatalogPort.listActiveModulePermissionSourcePairs(moduleSlugList, context?.authorization),
   ]);
 
   return filterRuntimeCapabilitiesByMasterDataLinks(

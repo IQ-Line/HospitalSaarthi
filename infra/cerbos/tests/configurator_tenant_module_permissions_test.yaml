@@ -28,6 +28,15 @@ principals:
         - "tenant-module:tenant-module:read"
       delegated_capabilities: []
 
+  super_admin:
+    id: sa-user
+    roles:
+      - "super-admin"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: []
+      delegated_capabilities: []
+
 resources:
   tm_record:
     id: tm-42
@@ -129,6 +138,50 @@ tests:
         resource: tm_record
         actions:
           tenant-module.delete: EFFECT_DENY
+
+  - name: tenant-module.read — super-admin without capability ALLOW
+    input:
+      principals: [super_admin]
+      resources: [tm_record]
+      actions: [tenant-module.read]
+    expected:
+      - principal: super_admin
+        resource: tm_record
+        actions:
+          tenant-module.read: EFFECT_ALLOW
+
+  - name: tenant-module.create — super-admin without capability ALLOW
+    input:
+      principals: [super_admin]
+      resources: [tm_record]
+      actions: [tenant-module.create]
+    expected:
+      - principal: super_admin
+        resource: tm_record
+        actions:
+          tenant-module.create: EFFECT_ALLOW
+
+  - name: tenant-module.update — super-admin without capability ALLOW
+    input:
+      principals: [super_admin]
+      resources: [tm_record]
+      actions: [tenant-module.update]
+    expected:
+      - principal: super_admin
+        resource: tm_record
+        actions:
+          tenant-module.update: EFFECT_ALLOW
+
+  - name: tenant-module.delete — super-admin without capability ALLOW
+    input:
+      principals: [super_admin]
+      resources: [tm_record]
+      actions: [tenant-module.delete]
+    expected:
+      - principal: super_admin
+        resource: tm_record
+        actions:
+          tenant-module.delete: EFFECT_ALLOW
 
   - name: tenant-module.read — wrong tenant DENY
     input:

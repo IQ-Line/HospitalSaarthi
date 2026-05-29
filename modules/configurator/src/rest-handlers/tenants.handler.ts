@@ -42,7 +42,7 @@ export function registerTenantsHandler(
     {
       config: {
         authMode: "protected",
-        authz: { kind: "tenant", action: "tenant.read" },
+        authz: { kind: "tenant", action: "tenant.read", id: "list" },
       },
     },
     async (request) => {
@@ -79,7 +79,7 @@ export function registerTenantsHandler(
     {
       config: {
         authMode: "protected",
-        authz: { kind: "tenant", action: "tenant.create" },
+        authz: { kind: "tenant", action: "tenant.create", id: "new" },
       },
       schema: {
         body: postTenantBodySchema,

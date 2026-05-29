@@ -19,6 +19,12 @@ resourcePolicy:
               "tenant-module:tenant-module:read" in request.principal.attr.delegated_capabilities
             )
 
+    # Super-admin unconditional bypass — no capability check needed
+    - actions:
+        - "tenant-module.read"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+
     - actions:
         - "tenant-module.read"
       roles: ["super-admin"]
@@ -44,6 +50,12 @@ resourcePolicy:
               "tenant-module:tenant-module:create" in request.principal.attr.delegated_capabilities
             )
 
+    # Super-admin unconditional bypass — no capability check needed
+    - actions:
+        - "tenant-module.create"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+
     - actions:
         - "tenant-module.create"
       roles: ["super-admin"]
@@ -69,6 +81,12 @@ resourcePolicy:
               "tenant-module:tenant-module:update" in request.principal.attr.delegated_capabilities
             )
 
+    # Super-admin unconditional bypass — no capability check needed
+    - actions:
+        - "tenant-module.update"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+
     - actions:
         - "tenant-module.update"
       roles: ["super-admin"]
@@ -93,6 +111,12 @@ resourcePolicy:
               "tenant-module:tenant-module:delete" in request.principal.attr.capabilities ||
               "tenant-module:tenant-module:delete" in request.principal.attr.delegated_capabilities
             )
+
+    # Super-admin unconditional bypass — no capability check needed
+    - actions:
+        - "tenant-module.delete"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
 
     - actions:
         - "tenant-module.delete"

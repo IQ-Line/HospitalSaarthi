@@ -19,6 +19,12 @@ resourcePolicy:
               "empi:patient:read" in request.principal.attr.delegated_capabilities
             )
 
+    # Super-admin unconditional bypass — no capability check needed
+    - actions:
+        - "patient.read"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+
     - actions:
         - "patient.read"
       roles: ["super-admin"]
@@ -44,6 +50,12 @@ resourcePolicy:
               "empi:patient:create" in request.principal.attr.delegated_capabilities
             )
 
+    # Super-admin unconditional bypass — no capability check needed
+    - actions:
+        - "patient.create"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+
     - actions:
         - "patient.create"
       roles: ["super-admin"]
@@ -69,6 +81,12 @@ resourcePolicy:
               "empi:patient:update" in request.principal.attr.delegated_capabilities
             )
 
+    # Super-admin unconditional bypass — no capability check needed
+    - actions:
+        - "patient.update"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+
     - actions:
         - "patient.update"
       roles: ["super-admin"]
@@ -93,6 +111,12 @@ resourcePolicy:
               "empi:patient:delete" in request.principal.attr.capabilities ||
               "empi:patient:delete" in request.principal.attr.delegated_capabilities
             )
+
+    # Super-admin unconditional bypass — no capability check needed
+    - actions:
+        - "patient.delete"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
 
     - actions:
         - "patient.delete"

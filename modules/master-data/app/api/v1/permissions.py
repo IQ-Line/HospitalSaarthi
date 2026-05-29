@@ -6,6 +6,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
+from hims_authz.dependency import require_authz
+
 from app.api.deps import get_permission_repository, get_session
 from app.api.errors import ResourceNotFoundError
 from app.repositories.permission_repository import PermissionRepository
@@ -29,7 +31,7 @@ from app.services.permission_service import (
 router = APIRouter(prefix="/permissions", tags=["Permissions"])
 
 
-@router.get("", response_model=PermissionListResponse, summary="List permission definitions")
+@router.get("", response_model=PermissionListResponse, summary="List permission definitions", dependencies=[Depends(require_authz("master_data:platform", "catalog.read"))])
 def get_permissions(
     repository: Annotated[PermissionRepository, Depends(get_permission_repository)],
     action: Annotated[PermissionAction | None, Query()] = None,
@@ -44,6 +46,7 @@ def get_permissions(
     response_model=PermissionSingleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a permission",
+    dependencies=[Depends(require_authz("master_data:platform", "catalog.create"))],
 )
 def post_permission(
     payload: PermissionCreate,
@@ -59,6 +62,7 @@ def post_permission(
     "/by-slug/{slug}",
     response_model=PermissionSingleResponse,
     summary="Get one permission by slug",
+    dependencies=[Depends(require_authz("master_data:platform", "catalog.read"))],
 )
 def get_permission_by_slug_route(
     slug: str,
@@ -74,6 +78,7 @@ def get_permission_by_slug_route(
     "/{permission_id}",
     response_model=PermissionSingleResponse,
     summary="Get one permission by id",
+    dependencies=[Depends(require_authz("master_data:platform", "catalog.read"))],
 )
 def get_permission_by_id_route(
     permission_id: UUID,
@@ -89,6 +94,7 @@ def get_permission_by_id_route(
     "/{permission_id}",
     response_model=PermissionSingleResponse,
     summary="Update a permission",
+    dependencies=[Depends(require_authz("master_data:platform", "catalog.update"))],
 )
 def patch_permission(
     permission_id: UUID,
@@ -105,6 +111,7 @@ def patch_permission(
     "/{permission_id}",
     response_model=PermissionSingleResponse,
     summary="Soft-delete a permission",
+    dependencies=[Depends(require_authz("master_data:platform", "catalog.delete"))],
 )
 def delete_permission(
     permission_id: UUID,

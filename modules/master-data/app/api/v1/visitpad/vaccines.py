@@ -4,6 +4,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from hims_authz.dependency import require_authz
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_session, get_visitpad_vaccine_repository
@@ -34,7 +35,12 @@ from app.services.visitpad.vaccines import (
 router = APIRouter(prefix="/visitpad/vaccines", tags=["Visitpad — Vaccines"])
 
 
-@router.get("", response_model=VisitpadVaccineListResponse, summary="List vaccines")
+@router.get(
+    "",
+    response_model=VisitpadVaccineListResponse,
+    summary="List vaccines",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
+)
 def get_vaccines(
     repository: Annotated[VisitpadVaccineRepository, Depends(get_visitpad_vaccine_repository)],
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
@@ -53,6 +59,7 @@ def get_vaccines(
     response_model=VisitpadVaccineSingleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create vaccine",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.create"))],
 )
 def post_vaccine(
     payload: VisitpadVaccineCreate,
@@ -68,6 +75,7 @@ def post_vaccine(
     "/import-from-platform",
     response_model=VisitpadPlatformImportSingleResponse,
     summary="Bulk-import vaccines from the platform catalog",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.create"))],
 )
 def post_vaccines_import_from_platform(
     payload: VisitpadPlatformImportRequest,
@@ -91,6 +99,7 @@ def post_vaccines_import_from_platform(
     "/keys",
     response_model=VisitpadCatalogKeysResponse,
     summary="List tenant vaccine codes for import-from-platform matching",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
 )
 def get_vaccine_import_keys(
     repository: Annotated[VisitpadVaccineRepository, Depends(get_visitpad_vaccine_repository)],
@@ -99,7 +108,12 @@ def get_vaccine_import_keys(
     return VisitpadCatalogKeysResponse(data=repository.list_import_key_strings())
 
 
-@router.get("/{vaccine_id}", response_model=VisitpadVaccineSingleResponse, summary="Get vaccine")
+@router.get(
+    "/{vaccine_id}",
+    response_model=VisitpadVaccineSingleResponse,
+    summary="Get vaccine",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
+)
 def get_vaccine(
     vaccine_id: UUID,
     repository: Annotated[VisitpadVaccineRepository, Depends(get_visitpad_vaccine_repository)],
@@ -110,7 +124,12 @@ def get_vaccine(
     return VisitpadVaccineSingleResponse(data=VisitpadVaccineResponse.model_validate(row))
 
 
-@router.patch("/{vaccine_id}", response_model=VisitpadVaccineSingleResponse, summary="Update vaccine")
+@router.patch(
+    "/{vaccine_id}",
+    response_model=VisitpadVaccineSingleResponse,
+    summary="Update vaccine",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.update"))],
+)
 def patch_vaccine(
     vaccine_id: UUID,
     payload: VisitpadVaccineUpdate,
@@ -124,7 +143,12 @@ def patch_vaccine(
     return VisitpadVaccineSingleResponse(data=VisitpadVaccineResponse.model_validate(row))
 
 
-@router.delete("/{vaccine_id}", response_model=VisitpadVaccineSingleResponse, summary="Soft-delete vaccine")
+@router.delete(
+    "/{vaccine_id}",
+    response_model=VisitpadVaccineSingleResponse,
+    summary="Soft-delete vaccine",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.delete"))],
+)
 def delete_vaccine(
     vaccine_id: UUID,
     repository: Annotated[VisitpadVaccineRepository, Depends(get_visitpad_vaccine_repository)],

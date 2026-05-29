@@ -5,6 +5,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 
+from hims_authz.dependency import require_authz
+
 from app.api.deps import get_picklist_repository
 from app.api.errors import ResourceNotFoundError
 from app.repositories.picklist_repository import PicklistRepository
@@ -23,7 +25,7 @@ from app.services.picklist_service import (
 router = APIRouter(prefix="/picklists", tags=["Picklists"])
 
 
-@router.get("", response_model=PicklistListResponse, summary="List picklist domains")
+@router.get("", response_model=PicklistListResponse, summary="List picklist domains", dependencies=[Depends(require_authz("master_data:platform", "catalog.read"))])
 def get_picklists(
     repository: Annotated[PicklistRepository, Depends(get_picklist_repository)],
 ) -> PicklistListResponse:
@@ -36,6 +38,7 @@ def get_picklists(
     "/{picklist_id}/values",
     response_model=PicklistValueListResponse,
     summary="List values for a picklist domain",
+    dependencies=[Depends(require_authz("master_data:platform", "catalog.read"))],
 )
 def get_picklist_values(
     picklist_id: UUID,

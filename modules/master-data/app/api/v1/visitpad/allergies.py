@@ -4,6 +4,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from hims_authz.dependency import require_authz
 from sqlalchemy.orm import Session
 
 from app.api.deps import (
@@ -57,7 +58,12 @@ reactions_router = APIRouter(
 )
 
 
-@allergens_router.get("", response_model=VisitpadAllergenListResponse, summary="List allergens")
+@allergens_router.get(
+    "",
+    response_model=VisitpadAllergenListResponse,
+    summary="List allergens",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
+)
 def get_allergens(
     repository: Annotated[VisitpadAllergenRepository, Depends(get_visitpad_allergen_repository)],
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
@@ -83,6 +89,7 @@ def get_allergens(
     response_model=VisitpadAllergenSingleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create allergen",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.create"))],
 )
 def post_allergen(
     payload: VisitpadAllergenCreate,
@@ -98,6 +105,7 @@ def post_allergen(
     "/import-from-platform",
     response_model=VisitpadPlatformImportSingleResponse,
     summary="Bulk-import allergens from the platform catalog",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.create"))],
 )
 def post_allergens_import_from_platform(
     payload: VisitpadPlatformImportRequest,
@@ -121,6 +129,7 @@ def post_allergens_import_from_platform(
     "/keys",
     response_model=VisitpadCatalogKeysResponse,
     summary="List tenant allergen codes for import-from-platform matching",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
 )
 def get_allergen_import_keys(
     repository: Annotated[VisitpadAllergenRepository, Depends(get_visitpad_allergen_repository)],
@@ -129,7 +138,12 @@ def get_allergen_import_keys(
     return VisitpadCatalogKeysResponse(data=repository.list_import_key_strings())
 
 
-@allergens_router.get("/{allergen_id}", response_model=VisitpadAllergenSingleResponse, summary="Get allergen")
+@allergens_router.get(
+    "/{allergen_id}",
+    response_model=VisitpadAllergenSingleResponse,
+    summary="Get allergen",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
+)
 def get_allergen(
     allergen_id: UUID,
     repository: Annotated[VisitpadAllergenRepository, Depends(get_visitpad_allergen_repository)],
@@ -140,7 +154,12 @@ def get_allergen(
     return VisitpadAllergenSingleResponse(data=VisitpadAllergenResponse.model_validate(row))
 
 
-@allergens_router.patch("/{allergen_id}", response_model=VisitpadAllergenSingleResponse, summary="Update allergen")
+@allergens_router.patch(
+    "/{allergen_id}",
+    response_model=VisitpadAllergenSingleResponse,
+    summary="Update allergen",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.update"))],
+)
 def patch_allergen(
     allergen_id: UUID,
     payload: VisitpadAllergenUpdate,
@@ -158,7 +177,12 @@ def patch_allergen(
     return VisitpadAllergenSingleResponse(data=VisitpadAllergenResponse.model_validate(row))
 
 
-@allergens_router.delete("/{allergen_id}", response_model=VisitpadAllergenSingleResponse, summary="Soft-delete allergen")
+@allergens_router.delete(
+    "/{allergen_id}",
+    response_model=VisitpadAllergenSingleResponse,
+    summary="Soft-delete allergen",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.delete"))],
+)
 def delete_allergen(
     allergen_id: UUID,
     repository: Annotated[VisitpadAllergenRepository, Depends(get_visitpad_allergen_repository)],
@@ -171,7 +195,12 @@ def delete_allergen(
     return VisitpadAllergenSingleResponse(data=VisitpadAllergenResponse.model_validate(row))
 
 
-@reactions_router.get("", response_model=VisitpadAllergyReactionListResponse, summary="List reactions")
+@reactions_router.get(
+    "",
+    response_model=VisitpadAllergyReactionListResponse,
+    summary="List reactions",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
+)
 def get_reactions(
     repository: Annotated[
         VisitpadAllergyReactionRepository,
@@ -198,6 +227,7 @@ def get_reactions(
     response_model=VisitpadAllergyReactionSingleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create reaction",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.create"))],
 )
 def post_reaction(
     payload: VisitpadAllergyReactionCreate,
@@ -216,6 +246,7 @@ def post_reaction(
     "/import-from-platform",
     response_model=VisitpadPlatformImportSingleResponse,
     summary="Bulk-import allergy reactions from the platform catalog",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.create"))],
 )
 def post_allergy_reactions_import_from_platform(
     payload: VisitpadPlatformImportRequest,
@@ -242,6 +273,7 @@ def post_allergy_reactions_import_from_platform(
     "/keys",
     response_model=VisitpadCatalogKeysResponse,
     summary="List tenant allergy reaction codes for import-from-platform matching",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
 )
 def get_allergy_reaction_import_keys(
     repository: Annotated[
@@ -257,6 +289,7 @@ def get_allergy_reaction_import_keys(
     "/{reaction_id}",
     response_model=VisitpadAllergyReactionSingleResponse,
     summary="Get reaction",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
 )
 def get_reaction(
     reaction_id: UUID,
@@ -275,6 +308,7 @@ def get_reaction(
     "/{reaction_id}",
     response_model=VisitpadAllergyReactionSingleResponse,
     summary="Update reaction",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.update"))],
 )
 def patch_reaction(
     reaction_id: UUID,
@@ -300,6 +334,7 @@ def patch_reaction(
     "/{reaction_id}",
     response_model=VisitpadAllergyReactionSingleResponse,
     summary="Soft-delete reaction",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.delete"))],
 )
 def delete_reaction(
     reaction_id: UUID,

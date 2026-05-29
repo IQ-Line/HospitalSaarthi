@@ -72,6 +72,16 @@ services/web/src/
 - ADR-0018: Frontend stack (Zustand, TanStack Router, TanStack Query)
 - ADR-0019: Fastify v5, Node.js 24 LTS
 
+## Protected local files — NEVER delete
+
+The following files and directories are local-only (untracked, never committed). They must NEVER be deleted, modified, or committed:
+
+- Any file under `.opencode/plans/` — planning documents kept on disk for reference across sessions
+- Any file under `scratch/` — scratch analysis notes
+- `infra/db/pg-init-trust.sh` — local PostgreSQL trust-auth init script
+
+If asked to clean, reset, or restructure the workspace, skip these paths.
+
 ## Nx commands
 
 ```bash

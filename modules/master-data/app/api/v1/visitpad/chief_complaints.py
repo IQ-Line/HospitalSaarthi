@@ -4,6 +4,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from hims_authz.dependency import require_authz
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_session, get_visitpad_chief_complaint_repository
@@ -40,7 +41,7 @@ from app.services.visitpad.platform_bulk_import import (
 router = APIRouter(prefix="/visitpad/chief-complaints", tags=["Visitpad — Chief complaints"])
 
 
-@router.get("", response_model=VisitpadChiefComplaintListResponse, summary="List chief complaints")
+@router.get("", response_model=VisitpadChiefComplaintListResponse, summary="List chief complaints", dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))])
 def get_chief_complaints(
     repository: Annotated[
         VisitpadChiefComplaintRepository,
@@ -70,6 +71,7 @@ def get_chief_complaints(
     "/descriptor",
     response_model=VisitpadChiefComplaintDescriptor,
     summary="Chief complaint form descriptor",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
 )
 def get_chief_complaint_descriptor() -> VisitpadChiefComplaintDescriptor:
     """Dropdown values and labels — derived from the same enums as create/update (no duplicate client constants)."""
@@ -81,6 +83,7 @@ def get_chief_complaint_descriptor() -> VisitpadChiefComplaintDescriptor:
     response_model=VisitpadChiefComplaintSingleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create chief complaint",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.create"))],
 )
 def post_chief_complaint(
     payload: VisitpadChiefComplaintCreate,
@@ -101,6 +104,7 @@ def post_chief_complaint(
     "/import-from-platform",
     response_model=VisitpadPlatformImportSingleResponse,
     summary="Bulk-import chief complaints from the platform catalog",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.create"))],
 )
 def post_chief_complaints_import_from_platform(
     payload: VisitpadPlatformImportRequest,
@@ -127,6 +131,7 @@ def post_chief_complaints_import_from_platform(
     "/keys",
     response_model=VisitpadCatalogKeysResponse,
     summary="List tenant chief complaint codes for import-from-platform matching",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
 )
 def get_chief_complaint_import_keys(
     repository: Annotated[
@@ -142,6 +147,7 @@ def get_chief_complaint_import_keys(
     "/{chief_complaint_id}",
     response_model=VisitpadChiefComplaintSingleResponse,
     summary="Get chief complaint",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.read"))],
 )
 def get_chief_complaint(
     chief_complaint_id: UUID,
@@ -162,6 +168,7 @@ def get_chief_complaint(
     "/{chief_complaint_id}",
     response_model=VisitpadChiefComplaintSingleResponse,
     summary="Update chief complaint",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.update"))],
 )
 def patch_chief_complaint(
     chief_complaint_id: UUID,
@@ -189,6 +196,7 @@ def patch_chief_complaint(
     "/{chief_complaint_id}",
     response_model=VisitpadChiefComplaintSingleResponse,
     summary="Soft-delete chief complaint",
+    dependencies=[Depends(require_authz("master_data:visitpad", "visitpad.delete"))],
 )
 def delete_chief_complaint(
     chief_complaint_id: UUID,
