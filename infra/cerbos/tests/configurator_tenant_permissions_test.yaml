@@ -27,6 +27,15 @@ principals:
         - "tenant:tenant:read"
       delegated_capabilities: []
 
+  super_admin:
+    id: sa-user
+    roles:
+      - "super-admin"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: []
+      delegated_capabilities: []
+
 resources:
   tenant_record:
     id: tenant-42
@@ -106,6 +115,39 @@ tests:
         resource: tenant_record
         actions:
           tenant.update: EFFECT_DENY
+
+  - name: tenant.read — super-admin without capability ALLOW
+    input:
+      principals: [super_admin]
+      resources: [tenant_record]
+      actions: [tenant.read]
+    expected:
+      - principal: super_admin
+        resource: tenant_record
+        actions:
+          tenant.read: EFFECT_ALLOW
+
+  - name: tenant.create — super-admin without capability ALLOW
+    input:
+      principals: [super_admin]
+      resources: [tenant_record]
+      actions: [tenant.create]
+    expected:
+      - principal: super_admin
+        resource: tenant_record
+        actions:
+          tenant.create: EFFECT_ALLOW
+
+  - name: tenant.update — super-admin without capability ALLOW
+    input:
+      principals: [super_admin]
+      resources: [tenant_record]
+      actions: [tenant.update]
+    expected:
+      - principal: super_admin
+        resource: tenant_record
+        actions:
+          tenant.update: EFFECT_ALLOW
 
   - name: tenant.read — wrong tenant DENY
     input:

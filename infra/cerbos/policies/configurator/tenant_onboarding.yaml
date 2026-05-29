@@ -19,6 +19,12 @@ resourcePolicy:
               "onboarding:onboarding:create" in request.principal.attr.delegated_capabilities
             )
 
+    # Super-admin unconditional bypass — no capability check needed
+    - actions:
+        - "onboarding.create"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+
     - actions:
         - "onboarding.create"
       roles: ["super-admin"]

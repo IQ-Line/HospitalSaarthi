@@ -19,6 +19,12 @@ resourcePolicy:
               "organization:organization:read" in request.principal.attr.delegated_capabilities
             )
 
+    # Super-admin unconditional bypass — no capability check needed
+    - actions:
+        - "org.read"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+
     - actions:
         - "org.read"
       roles: ["super-admin"]
@@ -44,6 +50,12 @@ resourcePolicy:
               "organization:organization:create" in request.principal.attr.delegated_capabilities
             )
 
+    # Super-admin unconditional bypass — no capability check needed
+    - actions:
+        - "org.create"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+
     - actions:
         - "org.create"
       roles: ["super-admin"]
@@ -68,6 +80,12 @@ resourcePolicy:
               "organization:organization:update" in request.principal.attr.capabilities ||
               "organization:organization:update" in request.principal.attr.delegated_capabilities
             )
+
+    # Super-admin unconditional bypass — no capability check needed
+    - actions:
+        - "org.update"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
 
     - actions:
         - "org.update"
