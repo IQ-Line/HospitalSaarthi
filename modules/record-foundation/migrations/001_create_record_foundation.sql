@@ -12,6 +12,8 @@ CREATE TABLE record_foundation.care_contexts (
     iq_tenant_id        UUID        NOT NULL,
     patient_id          UUID        NOT NULL,
     source_origin       TEXT        NOT NULL,
+    CONSTRAINT chk_care_contexts_source_origin
+        CHECK (source_origin IN ('platform_module','legacy_system','external_abdm')),
     source_system_id    TEXT        NOT NULL,
     source_record_type  TEXT        NOT NULL,
     source_record_id    TEXT,
@@ -60,8 +62,13 @@ CREATE TABLE record_foundation.bundles (
     updated_by          UUID,
 
     CONSTRAINT pk_bundles PRIMARY KEY (iq_tenant_id, id),
-    CONSTRAINT uq_bundles_care_context UNIQUE (iq_tenant_id, care_context_id)
+    CONSTRAINT fk_bundles_care_context
+        FOREIGN KEY (iq_tenant_id, care_context_id)
+        REFERENCES record_foundation.care_contexts (iq_tenant_id, id)
 );
+
+CREATE INDEX idx_bundles_care_context
+    ON record_foundation.bundles (iq_tenant_id, care_context_id);
 
 CREATE INDEX idx_bundles_kind
     ON record_foundation.bundles (iq_tenant_id, bundle_kind);

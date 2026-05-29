@@ -21,7 +21,14 @@ export function registerBundleHandlers(
       const { id } = request.params;
 
       const bundle = await deps.bundleRepo.findById(tenantId, id);
-      if (!bundle) return reply.code(404).send({ error: "Bundle not found" });
+      if (!bundle) {
+        return reply.code(404).send({
+          type: "about:blank",
+          title: "Not Found",
+          status: 404,
+          detail: "Bundle not found",
+        });
+      }
 
       return reply.send({ data: bundle });
     },
@@ -39,7 +46,14 @@ export function registerBundleHandlers(
         tenantId,
         careContextId,
       );
-      if (!context) return reply.code(404).send({ error: "Care context not found" });
+      if (!context) {
+        return reply.code(404).send({
+          type: "about:blank",
+          title: "Not Found",
+          status: 404,
+          detail: "Care context not found",
+        });
+      }
 
       const rows = await deps.bundleRepo.findByCareContextId(tenantId, careContextId);
       return reply.send({ data: rows });

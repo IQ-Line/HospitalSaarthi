@@ -48,7 +48,7 @@
         "bundle_kind": {"type": "TEXT", "nullable": false},
         "fhir_profile_url": {"type": "TEXT", "nullable": false},
         "fhir_profile_version": {"type": "TEXT", "nullable": false},
-        "producer_kind": {"type": "TEXT", "nullable": false, "default": "'platform_module'"},
+        "producer_kind": {"type": "TEXT", "nullable": false},
         "producer_id": {"type": "TEXT", "nullable": false},
         "bundle_json": {"type": "JSONB", "nullable": false},
         "bundle_size_bytes": {"type": "INTEGER", "nullable": false},
@@ -61,7 +61,8 @@
       },
       "primary_key": ["iq_tenant_id", "id"],
       "indexes": [
-        {"columns": ["iq_tenant_id", "care_context_id"], "name": "idx_bundles_care_context"}
+        {"columns": ["iq_tenant_id", "care_context_id"], "name": "idx_bundles_care_context"},
+        {"columns": ["iq_tenant_id", "bundle_kind"], "name": "idx_bundles_kind"}
       ]
     }
   },

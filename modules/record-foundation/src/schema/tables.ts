@@ -8,6 +8,7 @@ import {
   primaryKey,
   unique,
   index,
+  foreignKey,
   tenantColumn,
   auditColumns,
 } from "@hims/ts-sdk-db";
@@ -68,7 +69,11 @@ export const bundles = recordFoundationSchema.table(
   },
   (t) => [
     primaryKey({ columns: [t.iq_tenant_id, t.id] }),
-    unique("uq_bundles_care_context").on(t.iq_tenant_id, t.care_context_id),
+    index("idx_bundles_care_context").on(t.iq_tenant_id, t.care_context_id),
     index("idx_bundles_kind").on(t.iq_tenant_id, t.bundle_kind),
+    foreignKey({
+      columns: [t.iq_tenant_id, t.care_context_id],
+      foreignColumns: [careContexts.iq_tenant_id, careContexts.id],
+    }),
   ],
 );

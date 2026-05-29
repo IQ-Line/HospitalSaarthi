@@ -47,7 +47,14 @@ export function registerCareContextHandlers(
         id,
       );
 
-      if (!result) return reply.code(404).send({ error: "Care context not found" });
+      if (!result) {
+        return reply.code(404).send({
+          type: "about:blank",
+          title: "Not Found",
+          status: 404,
+          detail: "Care context not found",
+        });
+      }
       return reply.send({ data: result });
     },
   );

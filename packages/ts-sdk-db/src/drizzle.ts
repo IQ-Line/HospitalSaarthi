@@ -31,4 +31,5 @@ export {
   smallint,
   timestamp,
   unique,
+  foreignKey,
 } from "drizzle-orm/pg-core";

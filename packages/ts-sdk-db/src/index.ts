@@ -45,4 +45,5 @@ export {
   smallint,
   timestamp,
   unique,
+  foreignKey,
 } from "./drizzle.js";
