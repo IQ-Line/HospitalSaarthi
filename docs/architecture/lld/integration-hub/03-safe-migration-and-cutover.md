@@ -14,6 +14,22 @@ This is a **large, critical change**. The goal is zero behavioural regression fo
 4. **Same protocol surface** — URL paths, request/response shapes, Fidelius behaviour ([12-phr-push-reconciliation](../abdm-adapter/12-phr-push-reconciliation.md) unchanged).
 5. **Test before delete** — full smoke (implementation guide §4) before removing Phase 0 module.
 
+---
+
+## 2. Recommended code PR sequence
+
+Use **four code PRs** after the documentation PR ([#144](https://github.com/IQ-Line/HospitalSaarthi/pull/144) or `docs(integration-hub): Phase 1a spec`). Do not label the docs PR as “implementation complete.”
+
+| PR | Issue Part | Contents | Merge gate |
+|----|------------|----------|------------|
+| **Code 1** | A (foundation) | `tenant_integration_profiles` migration + Drizzle; **configurator-svc REST CRUD** + **seed script**; scaffold `integration-hub`; copy `integrations/abdm/` (no behaviour change); `buildAbdmDepsForTenant` stub | Configurator tests; profile API works; `abdm-adapter-svc` still runs unchanged |
+| **Code 2** | B (multi-tenant) | `integrationContextResolver`; `/api/v3` preHandler; all rest-handlers + gateway/sms/secrets; M2 event consumers; `resolve-callback-tenant` → DB | Unit tests green; callback + multi-tenant deps verified |
+| **Code 3** | C (schema + service) | `integration_hub` migrations; `integration-hub-svc` bootstrap; env `INTEGRATION_HUB_*` aliases; janitor extract | `integration-hub-svc:serve` + health + M1 request with profile |
+| **Code 4** | D (cleanup) | Delete `abdm-adapter` / `abdm-adapter-svc`; Makefile/docker/OpenAPI; data copy script; full regression matrix §8 | M3 `full-loop.sh`; optional sandbox tests |
+
+**Why four PRs (not one):** Part B (callbacks + event bus) is the highest regression risk; isolating it makes review and rollback easier while still delivering #143 end-to-end.
+
+**Rollback:** Revert the failing PR only; keep `abdm_adapter` schema until Code 4 merges.
 
 ---
 
@@ -21,8 +37,11 @@ This is a **large, critical change**. The goal is zero behavioural regression fo
 
 ### 3.1 New objects (Part A)
 
-- `configurator.tenant_integration_profiles` (+ index on `hip_id` where `is_active` and `integration_kind = 'abdm'`)
-- Optional: unique on `(hip_id)` for active ABDM profiles if one HIP cannot serve two tenants (recommended for production semantics)
+- `configurator.tenant_integration_profiles`
+- **Unique:** `(iq_tenant_id, integration_kind)` — one active ABDM profile per tenant
+- **Unique (Phase 1a decision):** `(hip_id)` where `integration_kind = 'abdm' AND is_active = true` — one tenant per HIP for callback routing (replaces `ABDM_HIP_TENANT_MAP` 1:1 semantics). Use a partial unique index in migration SQL
+- **Non-unique index:** `(iq_tenant_id)` on profiles for admin list queries
+- **Part A deliverables (required, not optional):** REST CRUD on `configurator-svc` **and** `scripts/seed-abdm-profile-from-env.mjs` (or documented `make seed-abdm-profile`) so devs are not blocked on raw SQL only
 
 ### 3.2 Schema rename (Part C)
 
@@ -127,8 +146,19 @@ Per-tenant (must not be singleton):
 | `gateway-client` `xCmId` | Pass via `AbdmAdapterDeps.xCmId`; set from profile when building deps | Matches existing use-case reads |
 | Gateway token cache | **Disable** or key cache by `(iqTenantId, gateway_environment)` | Sandbox-safe; issue allows disable |
 | Callback HIP lookup | DB query + optional in-memory LRU (TTL 60s) | Correctness first; optimize if needed |
-| `ABDM_DEV_TENANT_ID` | Keep as **last-resort** when DB has no row (dev only); log warning | Unblocks local dev before Configurator UI |
+| `ABDM_DEV_TENANT_ID` | See [§2.1 `ABDM_DEV_TENANT_ID` policy](#21-abdm_dev_tenant_id-policy) below | Resolved vs §7.1 in 01-phase-1a |
 | Fidelius per-tenant | **No change** | Issue defers to 1b+ |
+
+### 2.1 `ABDM_DEV_TENANT_ID` policy
+
+**Single rule (resolves doc inconsistency):**
+
+| Variable | Role in Phase 1a |
+|----------|------------------|
+| `ABDM_X_HIP_ID`, `ABDM_HIP_TENANT_MAP`, etc. | **Removed** from integration-hub-svc env — values live in `tenant_integration_profiles` |
+| `ABDM_DEV_TENANT_ID` | **Stays deployment-only** on integration-hub-svc for **callback tenant resolution fallback only** when: (1) `X-HIP-ID` / DB lookup finds no profile, and (2) `x-tenant-id` header absent. Log `warn` with code `abdm.callback.dev_tenant_fallback`. **Not** used for platform `/api/abdm/v1` routes — those require a profile row for `x-tenant-id` or return 404 |
+
+Platform routes must **fail closed** without a profile. Callbacks may use dev fallback temporarily until every sandbox HIP has a seeded profile.
 
 ---
 

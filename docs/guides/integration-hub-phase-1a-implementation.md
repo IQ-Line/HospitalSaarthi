@@ -5,7 +5,9 @@
 **Safe migration:** [03-safe-migration-and-cutover.md](../architecture/lld/integration-hub/03-safe-migration-and-cutover.md)  
 **Tracking:** [GitHub issue #143](https://github.com/IQ-Line/HospitalSaarthi/issues/143)
 
-Use this guide while executing Phase 1a. Read **03-safe-migration** before Part B — callback routes must not keep using a single boot-time `xHipId`. Protocol-level ABDM E2E (M1 enrolment, M2 link, M3 mock loop) stays in the existing runbooks — only **service name**, **env prefix**, and **credential source** change.
+**PR #144 is docs-only.** Rename to `docs(integration-hub): Phase 1a spec`. Code ships in **four follow-up PRs** — see [03-safe-migration §2](../architecture/lld/integration-hub/03-safe-migration-and-cutover.md#2-recommended-code-pr-sequence).
+
+Use this guide while executing Phase 1a code. Read **03-safe-migration** before Code PR 2 — callback routes must not keep using a single boot-time `xHipId`. Protocol-level ABDM E2E (M1 enrolment, M2 link, M3 mock loop) stays in the existing runbooks — only **service name**, **env prefix**, and **credential source** change.
 
 | Still valid after cutover | Path |
 |---------------------------|------|
@@ -41,7 +43,9 @@ Use this guide while executing Phase 1a. Read **03-safe-migration** before Part 
 
 ### Part A — Foundation
 
-- [ ] `tenant_integration_profiles` in configurator (Drizzle + migration + port + repo + REST CRUD if in scope)
+- [ ] `tenant_integration_profiles` in configurator (Drizzle + migration + partial unique on `hip_id` + port + repo)
+- [ ] **configurator-svc REST CRUD** for profiles (required — not SQL-only)
+- [ ] **Seed script** `seed-abdm-profile-from-env.mjs` (or `make` target) mapping current `.env` → profile row
 - [ ] Scaffold `modules/integration-hub/` (`package.json`, `project.json`, `tsconfig.json`, Nx tags)
 - [ ] Copy `modules/abdm-adapter/src/*` → `integrations/abdm/` (no behaviour change)
 - [ ] `lib/integration-context.ts` — types for `IntegrationContext` / `request.integrationCtx`
@@ -238,4 +242,20 @@ Canonical specs live under `docs/architecture/lld/integration-hub/`, not in the 
 
 ---
 
-Details: [03-safe-migration-and-cutover.md §2](../architecture/lld/integration-hub/03-safe-migration-and-cutover.md#2-recommended-pr-sequence).
+## 8. PR order (docs + four code PRs)
+
+| PR | Contents | Gate |
+|----|----------|------|
+| **#144** | Docs only (this guide + LLD) | Review; no code expected |
+| **Code 1** | Part A — configurator table + CRUD + seed + scaffold + copy ABDM | Configurator tests; `abdm-adapter-svc` unchanged |
+| **Code 2** | Part B — per-request deps (platform + **callbacks** + event consumers) | Unit tests; callback multi-tenant check |
+| **Code 3** | Part C — schema `integration_hub`, `integration-hub-svc`, env aliases | Smoke §4.1–4.3 |
+| **Code 4** | Part D — delete Phase 0 paths | Full regression + [03 §8](../architecture/lld/integration-hub/03-safe-migration-and-cutover.md#8-regression-matrix-must-pass-before-part-d) |
+
+Details: [03-safe-migration §2](../architecture/lld/integration-hub/03-safe-migration-and-cutover.md#2-recommended-code-pr-sequence).
+
+### `ABDM_DEV_TENANT_ID` (do not confuse with removed P0 vars)
+
+- **Removed** as a source of HIP/client credentials.
+- **Kept** on `integration-hub-svc` only for **callback** tenant fallback when DB `hip_id` lookup fails and no `x-tenant-id` header — log a warning.
+- Platform `/api/abdm/v1` routes: require `tenant_integration_profiles` row → 404 if missing.

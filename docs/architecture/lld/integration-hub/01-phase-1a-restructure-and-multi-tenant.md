@@ -6,6 +6,8 @@
 
 > **Scope note (issue comment 2026-05-29):** Comments attached to #143 paste older platform LLDs (13-table schema, FSM engine, `atomic-transition`, full env inventory from a broader transition analysis). Those decisions are **outdated or deferred** for this sprint. **This document and the issue body are authoritative for Phase 1a.**
 
+> **Docs vs code:** PR **#144** (or equivalent) is **documentation only** — it does not ship `integration-hub`, `integration-hub-svc`, or `tenant_integration_profiles` code. Use title `docs(integration-hub): Phase 1a spec`. Implementation follows [four code PRs](./03-safe-migration-and-cutover.md#2-recommended-code-pr-sequence) after docs merge.
+
 ---
 
 ## 1. Context
@@ -59,8 +61,10 @@ modules/configurator/                       changeset
     schema/tables.ts                        ADD tenant_integration_profiles
     integration-profiles/                   NEW (folder name; issue also says integrations-profiles/)
       integration-profiles.port.ts          port interface
-      rest-handlers.ts                    optional CRUD for admin/seed
+      rest-handlers.ts                    REST CRUD (required in Part A)
       data-access/                        DrizzleTenantIntegrationProfilesRepo
+    scripts/
+      seed-abdm-profile-from-env.mjs      dev seed from legacy .env (required in Part A)
 ```
 
 **Configurator naming:** Issue #143 uses `integrations-profiles/` in the tree diagram and `integration-profiles.port.ts` as the port file — pick **one folder** (`integration-profiles/`) and stay consistent in code.
@@ -92,11 +96,14 @@ Stores per-tenant ABDM gateway fields that are env vars today:
 | `gateway_environment` | `text DEFAULT 'sandbox'` | implied by gateway base URL |
 | `created_at` / `updated_at` | `timestamptz` | — |
 
-**Unique:** `(iq_tenant_id, integration_kind)`.
+**Unique constraints (Drizzle + migration):**
+
+- `(iq_tenant_id, integration_kind)` — one ABDM profile row per tenant
+- **Partial unique** on `hip_id` where `integration_kind = 'abdm' AND is_active = true` — at most one active tenant per HIP (same semantics as today's `ABDM_HIP_TENANT_MAP` JSON map)
 
 **Secrets (Phase 1a):** `client_id` and `client_secret` stored **plaintext** — no production deployment yet. Encryption/vault is Phase 1b+.
 
-**HIP → tenant lookup:** `hip_id` indexed for callback resolution (replaces `ABDM_HIP_TENANT_MAP`).
+**HIP → tenant lookup:** `findActiveByHipId(hipId)` on repo (replaces `parseHipTenantMap()` / `ABDM_HIP_TENANT_MAP`).
 
 ### 3.2 Runtime: `integrationContextResolver` middleware
 
@@ -114,7 +121,9 @@ On every request:
 
 **Use-cases** stay `(input, deps)` — no signature change.
 
-**Callbacks:** `lib/resolve-callback-tenant.ts` resolves tenant by `hip_id` query on profiles (not `ABDM_HIP_TENANT_MAP`). Dev fallback: `ABDM_DEV_TENANT_ID` may remain deployment-only until profiles exist for all sandboxes.
+**Callbacks:** `lib/resolve-callback-tenant.ts` resolves tenant by `hip_id` → `findActiveByHipId` (not `ABDM_HIP_TENANT_MAP`).
+
+**`ABDM_DEV_TENANT_ID` policy:** Removed from “credential” env (§7.1). **Kept** as deployment-only **callback fallback** when HIP DB lookup and `x-tenant-id` both fail — see [03-safe-migration §2.1](./03-safe-migration-and-cutover.md#21-abdm_dev_tenant_id-policy). Platform routes require a profile or return 404.
 
 **Critical:** `/api/v3` gateway callbacks are **not** behind `tenantPlugin` today. After resolving `iqTenantId` from `X-HIP-ID`, you must **build `deps` for that tenant** — do not reuse a single boot-time `adapterDeps`. See [03-safe-migration-and-cutover.md §4](./03-safe-migration-and-cutover.md#4-callback-routes-vs-platform-routes).
 
@@ -125,6 +134,68 @@ On every request:
 | Singleton (process-wide) | Per-tenant (from profile) |
 |--------------------------|-------------------------|
 | Drizzle repos, `fidelius`, `payloadEncryptor`, `eventBus`, EMPI/RF clients (deployment URL) | `gateway`, `sms`, `secrets`, `xHipId`, `xHiuId`, `xCmId`, `defaultSmsPhoneNo`, `hipDisplayName` |
+
+### 3.3 `buildAbdmDepsForTenant()` (canonical factory)
+
+Referenced in [03-safe-migration](./03-safe-migration-and-cutover.md); implemented in `modules/integration-hub/src/lib/build-abdm-deps.ts`.
+
+```typescript
+/** Process-wide: constructed once in integration-hub-svc main.ts */
+export interface IntegrationHubSharedInfra {
+  db: DbInstance;
+  deployment: {
+    gatewayBaseUrl: string;
+    abhaApiBaseUrl: string;
+    gatewayTimeoutMs?: number;
+  };
+  sessions: AbdmSessionsPort;
+  inboundMessages: InboundMessagesPort;
+  linkTokens: LinkTokensPort;
+  consentArtefacts: ConsentArtefactsPort;
+  m3ConsentRequests: M3ConsentRequestsPort;
+  m3ConsentArtefactsHiu: M3ConsentArtefactsHiuPort;
+  m3DataTransfers: M3DataTransfersPort;
+  empi: EmpiClient;
+  recordFoundation: RecordFoundationClient;
+  fidelius: FideliusEncryptor;
+  payloadEncryptor: PayloadEncryptor;
+  dataPush?: HipDataPushClient;
+  linkOtpStore: LinkOtpStorePort;
+  eventBus?: EventBus;
+  profiles: TenantIntegrationProfilesPort;
+}
+
+export interface TenantIntegrationProfile {
+  id: string;
+  iqTenantId: string;
+  integrationKind: "abdm";
+  hipId: string;
+  hiuId: string;
+  cmId: string;
+  clientId: string | null;
+  clientSecret: string | null;
+  defaultSmsPhone: string | null;
+  hipDisplayName: string | null;
+  callbackBaseUrl: string | null;
+  smsProvider: string | null;
+  smsConfig: Record<string, unknown>;
+  gatewayEnvironment: string;
+}
+
+/** Builds a fresh AbdmAdapterDeps for one tenant — call per request / per callback / per event. */
+export async function buildAbdmDepsForTenant(
+  iqTenantId: string,
+  shared: IntegrationHubSharedInfra,
+): Promise<AbdmAdapterDeps>;
+
+export interface IntegrationContext {
+  iqTenantId: string;
+  profile: TenantIntegrationProfile;
+  deps: AbdmAdapterDeps;
+}
+```
+
+`integrationContextResolver` and `/api/v3` preHandler both call `buildAbdmDepsForTenant` after resolving `iqTenantId`.
 
 ---
 
@@ -204,7 +275,8 @@ Data migration: copy `abdm_adapter.*` → `integration_hub.*` before deleting ol
 - `ABDM_SANDBOX_CLIENT_ID`, `ABDM_SANDBOX_CLIENT_SECRET`
 - `ABDM_DEFAULT_SMS_PHONE`, `ABDM_HIP_DISPLAY_NAME`
 - `ABDM_ADAPTER_PUBLIC_BASE_URL`
-- `ABDM_HIP_TENANT_MAP`, `ABDM_DEV_TENANT_ID` (tenant from profile; dev tenant id may stay as bootstrap-only — confirm in implementation)
+- `ABDM_HIP_TENANT_MAP` (replaced by DB `hip_id` lookup)
+- `ABDM_DEV_TENANT_ID` is **not** a credential — see §3.2 / [03 §2.1](./03-safe-migration-and-cutover.md#21-abdm_dev_tenant_id-policy) for callback-only fallback on integration-hub-svc
 - `ABDM_SMS_PROVIDER` and all `ABDM_SMS_*` provider vars
 
 ### 7.2 Renamed (deployment-level)
@@ -283,21 +355,22 @@ Issue #143 lists the main P1 renames. The following are also read from env in `m
 
 ## 9. Migration plan (parts A–D)
 
-### Part A — Foundation (additive)
+### Part A — Foundation (additive) — **Code PR 1**
 
-1. Add `tenant_integration_profiles` (Drizzle, migration, port, repo, export).
-2. Scaffold `modules/integration-hub/` + `integrations/abdm/`.
-3. Copy ABDM sources — no behaviour change.
-4. Add `integration-context.ts`, `per-tenant-secrets.ts`, `integration-profile-repo.ts`.
+1. Add `tenant_integration_profiles` (Drizzle, migration with partial unique on `hip_id`, port, repo, export).
+2. **Configurator-svc REST CRUD** for profiles + **seed script** from legacy `.env`.
+3. Scaffold `modules/integration-hub/` + `integrations/abdm/`.
+4. Copy ABDM sources — no behaviour change.
+5. Add `integration-context.ts`, `per-tenant-secrets.ts`, `integration-profile-repo.ts`, `build-abdm-deps.ts` (factory; may stub until PR 2).
 
-### Part B — Multi-tenant refactor
+### Part B — Multi-tenant refactor — **Code PR 2**
 
 5. Refactor rest handlers → `request.integrationCtx.deps` (`m0`, `m1`, `m2` platform + callbacks, `m3` platform + callbacks).
 6. Refactor `router.ts` — stateless plugin registration.
 7. Refactor data-access: `gateway-client.http.ts` (`xCmId` per-call), `sms-client.ts` (per-tenant factory), secrets primary path.
 8. Refactor `resolve-callback-tenant.ts` → DB by `hip_id`.
 
-### Part C — Schema + service
+### Part C — Schema + service — **Code PR 3**
 
 9. Rewrite 8 table defs → `integration_hub` schema.
 10. Fix import paths (`../schema` → `../../schema` under `integrations/abdm/`).
@@ -305,7 +378,7 @@ Issue #143 lists the main P1 renames. The following are also read from env in `m
 12. Wire `integrationContextResolver` in `main.ts`; extract janitor; rename P1 env vars; slim `load-env.ts`.
 13. Migrations, OpenAPI rename, Makefile/docker/devops.
 
-### Part D — Cleanup
+### Part D — Cleanup — **Code PR 4**
 
 14. Delete `modules/abdm-adapter/` + `services/abdm-adapter-svc/`.
 15. `pnpm install`.

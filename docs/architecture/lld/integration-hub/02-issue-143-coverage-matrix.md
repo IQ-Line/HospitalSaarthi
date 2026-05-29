@@ -125,11 +125,32 @@ Use when checking “did we touch everything?”
 
 ---
 
-## Sign-off checklist (docs complete)
+## PR #144 review follow-up (incorporated)
+
+| Review item | Resolution |
+|-------------|------------|
+| PR title implies code done | README + 01 intro: **docs only**; suggest title `docs(integration-hub): Phase 1a spec` |
+| 03 jumps §1 → §3 | Added [03 §2 Recommended code PR sequence](./03-safe-migration-and-cutover.md#2-recommended-code-pr-sequence) |
+| `ABDM_DEV_TENANT_ID` inconsistent | Unified policy in [03 §2.1](./03-safe-migration-and-cutover.md#21-abdm_dev_tenant_id-policy) + 01 §3.2 / §7.1 |
+| `hip_id` uniqueness | Partial unique index spec in 01 §3.1 + 03 §3.1 |
+| `buildAbdmDepsForTenant` unspecified | Full TypeScript sketch in [01 §3.3](./01-phase-1a-restructure-and-multi-tenant.md#33-buildabdmdepsfortenant-canonical-factory) |
+| Part A SQL-only | CRUD + seed script **required** in Code PR 1 |
+| Single vs multi PR | **Docs PR #144** then **four code PRs** (safer than one mega-PR) |
+
+## Sign-off checklist
+
+**Documentation (PR #144):**
 
 - [x] Issue body fully reflected in `01-phase-1a`
 - [x] Comment scope (defer vs implement) explicit
 - [x] Safe migration / callback deps documented
 - [x] Extra deployment env vars beyond issue table
 - [x] File touch list aligned with repo
-- [ ] **Implementation** — tracked on issue #143, not this matrix
+- [x] PR #144 review items addressed (2026-05-29)
+
+**Implementation (Code PRs 1–4):**
+
+- [ ] Code PR 1 — Configurator + scaffold
+- [ ] Code PR 2 — Multi-tenant deps (callbacks + M2 consumers)
+- [ ] Code PR 3 — `integration-hub-svc` + schema
+- [ ] Code PR 4 — Delete `abdm-adapter` + regression matrix
