@@ -24,12 +24,19 @@ export async function pushHealthInformationForSession(
     throw new Error("HipDataPushClient not configured");
   }
 
-  const bundles = await deps.recordFoundation.fetchBundlesForConsent({
+  const careContexts = await deps.recordFoundation.listCareContexts({
     iqTenantId: input.iqTenantId,
     patientId: input.patientId,
-    consentId: input.parsed.consentId,
-    dateRange: input.parsed.dateRange,
   });
+
+  const bundleEntries = [];
+  for (const cc of careContexts) {
+    const bundles = await deps.recordFoundation.listBundles({
+      iqTenantId: input.iqTenantId,
+      careContextId: cc.id,
+    });
+    bundleEntries.push(...bundles);
+  }
 
   await deps.sessions.patch({
     iqTenantId: input.iqTenantId,
@@ -38,12 +45,12 @@ export async function pushHealthInformationForSession(
   });
 
   const batch = await deps.fidelius.encryptBundlesForPeer({
-    payloadJsons: bundles.map((b) => b.contentJson),
+    payloadJsons: bundleEntries.map((b) => b.contentJson),
     peerPublicKey: input.parsed.peerPublicKey,
     peerNonce: input.parsed.peerNonce,
   });
 
-  const entries: HipDataPushRequest["entries"] = bundles.map((bundle, i) => ({
+  const entries: HipDataPushRequest["entries"] = bundleEntries.map((bundle, i) => ({
     content: batch.encryptedPayloads[i]!,
     media: bundle.media,
     checksum: checksumForContent(batch.encryptedPayloads[i]!),
@@ -101,5 +108,5 @@ export async function pushHealthInformationForSession(
     state: M3Hip.BUNDLES_PUSHED,
   });
 
-  return bundles.map((b) => b.careContextReference);
+  return bundleEntries.map((b) => b.careContextReference);
 }

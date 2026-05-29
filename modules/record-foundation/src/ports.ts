@@ -1,91 +1,83 @@
-import type {
-  CareContext,
-  CreateCareContextData,
-  CareContextFilters,
-} from "./domain/care-context.js";
-import type {
-  BundleManifest,
-  CreateBundleManifestData,
-} from "./domain/bundle-manifest.js";
-import type {
-  ExternalHealthRecord,
-  IngestExternalRecordData,
-} from "./domain/external-record.js";
+export interface CareContextRow {
+  id: string;
+  iq_tenant_id: string;
+  patient_id: string;
+  source_origin: string;
+  source_system_id: string;
+  source_record_type: string;
+  source_record_id: string | null;
+  encounter_id: string | null;
+  display: string;
+  period_start: Date;
+  period_end: Date | null;
+  status: string;
+  created_at: Date;
+  updated_at: Date;
+  created_by: string | null;
+  updated_by: string | null;
+}
+
+export interface CareContextFilters {
+  patient_id?: string;
+  status?: string;
+}
+
+export interface CreateCareContextData {
+  patient_id: string;
+  source_origin: string;
+  source_system_id: string;
+  source_record_type: string;
+  source_record_id?: string;
+  encounter_id?: string;
+  display: string;
+  period_start: Date;
+  period_end?: Date;
+  status?: string;
+  created_by?: string;
+}
 
 export interface CareContextRepo {
+  insert(data: CreateCareContextData & { iqTenantId: string }): Promise<CareContextRow>;
   findAll(
     tenantId: string,
-    filters: CareContextFilters,
-  ): Promise<{ data: CareContext[]; total: number }>;
-  findById(tenantId: string, id: string): Promise<CareContext | null>;
-  create(data: CreateCareContextData): Promise<CareContext>;
-  updateLinkage(
-    tenantId: string,
-    id: string,
-    abhaLinkageStatus: string,
-    abdmReferenceNumber?: string,
-    linkedAt?: string,
-  ): Promise<CareContext | null>;
-  bulkUpdateLinkage(
-    tenantId: string,
-    updates: Array<{
-      careContextId: string;
-      abhaLinkageStatus: string;
-      abdmReferenceNumber?: string;
-      linkedAt?: string;
-    }>,
-  ): Promise<number>;
+    filters?: CareContextFilters,
+  ): Promise<{ data: CareContextRow[]; total: number }>;
+  findById(tenantId: string, id: string): Promise<CareContextRow | null>;
 }
 
-export interface BundleManifestRepo {
-  findByCareContext(
-    tenantId: string,
-    careContextId: string,
-  ): Promise<BundleManifest[]>;
-  findById(tenantId: string, id: string): Promise<BundleManifest | null>;
-  create(data: CreateBundleManifestData): Promise<BundleManifest>;
+export interface BundleRow {
+  id: string;
+  iq_tenant_id: string;
+  care_context_id: string;
+  bundle_kind: string;
+  fhir_profile_url: string;
+  fhir_profile_version: string;
+  producer_kind: string;
+  producer_id: string;
+  bundle_json: Record<string, unknown>;
+  bundle_size_bytes: number;
+  produced_at: Date;
+  stored_at: Date;
+  created_at: Date;
+  updated_at: Date;
+  created_by: string | null;
+  updated_by: string | null;
 }
 
-export interface BundleStorageRepo {
-  findById(tenantId: string, id: string): Promise<{ bundleJson: Record<string, unknown> } | null>;
-  insert(data: {
-    iqTenantId: string;
-    bundleJson: Record<string, unknown>;
-  }): Promise<{ id: string }>;
+export interface CreateBundleData {
+  care_context_id: string;
+  bundle_kind: string;
+  fhir_profile_url: string;
+  fhir_profile_version: string;
+  producer_kind: string;
+  producer_id: string;
+  bundle_json: Record<string, unknown>;
+  bundle_size_bytes: number;
+  produced_at: Date;
 }
 
-export interface ExternalHealthRecordRepo {
-  findByPatient(
-    tenantId: string,
-    patientId: string,
-  ): Promise<ExternalHealthRecord[]>;
-  findById(
-    tenantId: string,
-    id: string,
-  ): Promise<ExternalHealthRecord | null>;
-  create(data: IngestExternalRecordData): Promise<ExternalHealthRecord>;
-  markViewed(
-    tenantId: string,
-    id: string,
-    viewedAt: string,
-  ): Promise<ExternalHealthRecord | null>;
-}
-
-export interface TimelineIndexRepo {
-  findByPatient(
-    tenantId: string,
-    patientId: string,
-  ): Promise<Array<Record<string, unknown>>>;
-}
-
-export interface ErasureLogRepo {
-  insert(data: {
-    iqTenantId: string;
-    erasedEntityKind: string;
-    erasedEntityId: string;
-    consentArtifactId?: string;
-    patientId: string;
-    dataEraseAt: string;
-    reason: string;
-  }): Promise<void>;
+export interface BundleRepo {
+  insert(data: CreateBundleData & { iqTenantId: string }): Promise<BundleRow>;
+  findById(tenantId: string, id: string): Promise<BundleRow | null>;
+  findByCareContextId(tenantId: string, careContextId: string): Promise<BundleRow[]>;
 }

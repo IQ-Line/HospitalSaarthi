@@ -6,7 +6,6 @@ import type {
   RecordFoundationClient,
 } from "../ports.js";
 
-/** NRCeS / NDHM profile URLs (sandbox mock bundles). */
 const NDHM_PROFILES = {
   documentBundle:
     "https://nrces.in/ndhm/fhir/r4/StructureDefinition/DocumentBundle",
@@ -18,7 +17,6 @@ const ABHA_IDENTIFIER_SYSTEM = "https://healthid.ndhm.gov.in";
 const SNOMED_SYSTEM = "http://snomed.info/sct";
 const V3_ACT_CODE_SYSTEM = "http://terminology.hl7.org/CodeSystem/v3-ActCode";
 
-/** Dev-only mocks when EMPI/RF are not running (see `ABDM_M2_MOCK_PLATFORM=true`). */
 export class MockEmpiClient implements EmpiClient {
   constructor(
     private readonly defaultAbhaAddress = "test.user@sbx",
@@ -205,42 +203,24 @@ export class MockRecordFoundationClient implements RecordFoundationClient {
     },
   ];
 
-  async listUnlinkedCareContexts(_input: {
+  async listCareContexts(_input: {
     iqTenantId: string;
     patientId: string;
   }): Promise<CareContextRef[]> {
     return [...this.contexts];
   }
 
-  async markCareContextLinked(_input: {
+  async listBundles(input: {
     iqTenantId: string;
     careContextId: string;
-  }): Promise<void> {
-    /* no-op for mock */
-  }
-
-  async fetchBundlesForConsent(_input: {
-    iqTenantId: string;
-    patientId: string;
-    consentId: string;
   }): Promise<HealthRecordBundleEntry[]> {
-    return this.contexts.map((ctx) =>
+    const ctx = this.contexts.find((c) => c.id === input.careContextId);
+    if (!ctx) return [];
+    return [
       buildMockHealthDocumentBundle({
         abhaAddress: this.defaultAbhaAddress,
         careContextReference: ctx.referenceNumber,
       }),
-    );
-  }
-
-  async ingestExternalRecord(_input: {
-    iqTenantId: string;
-    patientId: string;
-    consentArtifactId: string;
-    bundleJson: Record<string, unknown>;
-    sourceHipId: string;
-    sourceHipDisplayName?: string;
-    dataEraseAt: string;
-  }): Promise<{ externalRecordId: string }> {
-    return { externalRecordId: "mock-ext-rec-" + Date.now() };
+    ];
   }
 }

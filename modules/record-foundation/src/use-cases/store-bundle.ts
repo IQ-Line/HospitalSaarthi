@@ -1,17 +1,10 @@
-import { createHash } from "node:crypto";
-import type {
-  BundleManifestRepo,
-  BundleStorageRepo,
-} from "../ports.js";
-import type { BundleManifest } from "../domain/bundle-manifest.js";
+import type { BundleRepo, BundleRow } from "../ports.js";
 
 interface Deps {
-  bundleManifestRepo: BundleManifestRepo;
-  bundleStorageRepo: BundleStorageRepo;
+  bundleRepo: BundleRepo;
 }
 
 export interface StoreBundleInput {
-  iqTenantId: string;
   careContextId: string;
   bundleKind: string;
   fhirProfileUrl: string;
@@ -20,42 +13,26 @@ export interface StoreBundleInput {
   producerId: string;
   bundleJson: Record<string, unknown>;
   producedAt: Date;
-  receivedAt?: Date;
-}
-
-export interface StoreBundleResult {
-  manifest: BundleManifest;
-  bundleStorageId: string;
-  bundleHash: string;
 }
 
 export async function storeBundle(
   deps: Deps,
+  tenantId: string,
   input: StoreBundleInput,
-): Promise<StoreBundleResult> {
+): Promise<BundleRow> {
   const serialized = JSON.stringify(input.bundleJson);
-  const bundleHash = createHash("sha256").update(serialized).digest("hex");
   const bundleSizeBytes = Buffer.byteLength(serialized, "utf-8");
 
-  const { id: bundleStorageId } = await deps.bundleStorageRepo.insert({
-    iqTenantId: input.iqTenantId,
-    bundleJson: input.bundleJson,
-  });
-
-  const manifest = await deps.bundleManifestRepo.create({
-    iq_tenant_id: input.iqTenantId,
+  return deps.bundleRepo.insert({
+    iqTenantId: tenantId,
     care_context_id: input.careContextId,
-    bundle_kind: input.bundleKind as never,
+    bundle_kind: input.bundleKind,
     fhir_profile_url: input.fhirProfileUrl,
     fhir_profile_version: input.fhirProfileVersion,
-    producer_kind: input.producerKind as never,
+    producer_kind: input.producerKind,
     producer_id: input.producerId,
-    bundle_storage_id: bundleStorageId,
+    bundle_json: input.bundleJson,
     bundle_size_bytes: bundleSizeBytes,
-    bundle_hash: bundleHash,
     produced_at: input.producedAt,
-    received_at: input.receivedAt,
   });
-
-  return { manifest, bundleStorageId, bundleHash };
 }

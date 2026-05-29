@@ -1,8 +1,5 @@
-import type { CareContextRepo } from "../ports.js";
-import type {
-  CareContext,
-  CreateCareContextData,
-} from "../domain/care-context.js";
+import type { CareContextRepo, CareContextRow } from "../ports.js";
+import type { CreateCareContextData } from "../domain/care-context.js";
 
 interface Deps {
   careContextRepo: CareContextRepo;
@@ -10,7 +7,8 @@ interface Deps {
 
 export async function createCareContext(
   deps: Deps,
+  tenantId: string,
   data: CreateCareContextData,
-): Promise<CareContext> {
-  return deps.careContextRepo.create(data);
+): Promise<CareContextRow> {
+  return deps.careContextRepo.insert({ ...data, iqTenantId: tenantId });
 }

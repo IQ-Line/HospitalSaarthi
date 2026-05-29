@@ -1,11 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import type { BundleManifestRepo, BundleStorageRepo } from "../ports.js";
-import type { BundleManifest } from "../domain/bundle-manifest.js";
+import type { BundleRepo, BundleRow } from "../ports.js";
 import { storeBundle } from "./store-bundle.js";
 
 describe("storeBundle", () => {
-  it("stores a bundle and returns manifest with hash", async () => {
-    const manifest: BundleManifest = {
+  it("stores a bundle and returns it with size", async () => {
+    const bundle: BundleRow = {
       id: "bbbbbbbb-cccc-dddd-eeee-ffffffffffff",
       iq_tenant_id: "tenant-1",
       care_context_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
@@ -14,29 +13,24 @@ describe("storeBundle", () => {
       fhir_profile_version: "2.0.0",
       producer_kind: "platform_module",
       producer_id: "opd",
-      validation_status: "pending",
-      validation_errors: null,
-      bundle_storage_id: "storage-1",
+      bundle_json: { resourceType: "Bundle", type: "document" },
       bundle_size_bytes: 123,
-      bundle_hash: "abc123",
-      signature_storage_ref: null,
       produced_at: new Date(),
-      received_at: null,
       stored_at: new Date(),
+      created_at: new Date(),
+      updated_at: new Date(),
+      created_by: null,
+      updated_by: null,
     };
 
-    const bundleStorageRepo = {
-      insert: vi.fn().mockResolvedValue({ id: "storage-1" }),
-    } as unknown as BundleStorageRepo;
-
-    const bundleManifestRepo = {
-      create: vi.fn().mockResolvedValue(manifest),
-    } as unknown as BundleManifestRepo;
+    const bundleRepo = {
+      insert: vi.fn().mockResolvedValue(bundle),
+    } as unknown as BundleRepo;
 
     const result = await storeBundle(
-      { bundleManifestRepo, bundleStorageRepo },
+      { bundleRepo },
+      "tenant-1",
       {
-        iqTenantId: "tenant-1",
         careContextId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
         bundleKind: "OpConsultRecord",
         fhirProfileUrl: "https://nrces.in/ndhm/fhir/r4/StructureDefinition/OPConsultRecord",
@@ -48,9 +42,8 @@ describe("storeBundle", () => {
       },
     );
 
-    expect(bundleStorageRepo.insert).toHaveBeenCalledOnce();
-    expect(bundleManifestRepo.create).toHaveBeenCalledOnce();
-    expect(result.bundleHash).toBeTruthy();
-    expect(result.manifest.bundle_storage_id).toBe("storage-1");
+    expect(bundleRepo.insert).toHaveBeenCalledOnce();
+    expect(result.id).toBe("bbbbbbbb-cccc-dddd-eeee-ffffffffffff");
+    expect(result.bundle_size_bytes).toBeGreaterThan(0);
   });
 });

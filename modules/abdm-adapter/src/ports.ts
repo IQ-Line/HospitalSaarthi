@@ -171,31 +171,15 @@ export interface HealthRecordBundleEntry {
 }
 
 export interface RecordFoundationClient {
-  listUnlinkedCareContexts(input: {
+  listCareContexts(input: {
     iqTenantId: string;
     patientId: string;
   }): Promise<CareContextRef[]>;
-  markCareContextLinked(input: {
+
+  listBundles(input: {
     iqTenantId: string;
     careContextId: string;
-  }): Promise<void>;
-  /** Bundles to encrypt and push under consent (M3 §6.3.5). */
-  fetchBundlesForConsent(input: {
-    iqTenantId: string;
-    patientId: string;
-    consentId: string;
-    dateRange?: { from: string; to: string };
   }): Promise<HealthRecordBundleEntry[]>;
-  /** Ingest decrypted HIU bundle into RF's external-record inbox (M3 HIU receive). */
-  ingestExternalRecord(input: {
-    iqTenantId: string;
-    patientId: string;
-    consentArtifactId: string;
-    bundleJson: Record<string, unknown>;
-    sourceHipId: string;
-    sourceHipDisplayName?: string;
-    dataEraseAt: string;
-  }): Promise<{ externalRecordId: string }>;
 }
 
 /** POST encrypted health data to HIU-provided dataPushUrl (not NHA gateway base). */

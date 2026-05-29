@@ -1,4 +1,4 @@
-# Record Foundation domain events (per ADR-0028)
+# Record Foundation domain events
 #
 # Envelope: each published message MUST be a complete DomainEvent satisfying:
 #   specs/events/_envelope.schema.json
@@ -16,7 +16,7 @@ envelope: ./_envelope.schema.json
 event_types:
   record-foundation.care-context.registered:
     semantic: care-context.registered
-    description: A new care context has been registered (typically derived from a clinical-module finalised event).
+    description: A new care context has been registered.
     event_contract_version: "1.0.0"
     payload:
       type: object
@@ -46,37 +46,16 @@ event_types:
           type: string
           format: uuid
 
-  record-foundation.care-context.linked:
-    semantic: care-context.linked
-    description: A care context has been published to ABDM and acknowledged.
-    event_contract_version: "1.0.0"
-    payload:
-      type: object
-      required: [care_context_id, patient_id, abdm_reference_number]
-      additionalProperties: false
-      properties:
-        care_context_id:
-          type: string
-          format: uuid
-        patient_id:
-          type: string
-          format: uuid
-        abdm_reference_number:
-          type: string
-        iq_tenant_id:
-          type: string
-          format: uuid
-
   record-foundation.bundle.stored:
     semantic: bundle.stored
-    description: A FHIR Document Bundle has been validated and stored immutably.
+    description: A FHIR Document Bundle has been stored immutably.
     event_contract_version: "1.0.0"
     payload:
       type: object
-      required: [bundle_manifest_id, care_context_id, bundle_kind, fhir_profile_url, validation_status]
+      required: [bundle_id, care_context_id, bundle_kind, fhir_profile_url]
       additionalProperties: false
       properties:
-        bundle_manifest_id:
+        bundle_id:
           type: string
           format: uuid
         care_context_id:
@@ -87,67 +66,6 @@ event_types:
         fhir_profile_url:
           type: string
           format: uri
-        validation_status:
-          type: string
-          enum: [pending, valid, invalid, not_validated]
-        iq_tenant_id:
-          type: string
-          format: uuid
-
-  record-foundation.external-record.received:
-    semantic: external-record.received
-    description: An external HIU bundle has been ingested into the inbox.
-    event_contract_version: "1.0.0"
-    payload:
-      type: object
-      required: [external_health_record_id, bundle_manifest_id, patient_id, source_hip_id, consent_artifact_id, data_erase_at]
-      additionalProperties: false
-      properties:
-        external_health_record_id:
-          type: string
-          format: uuid
-        bundle_manifest_id:
-          type: string
-          format: uuid
-        patient_id:
-          type: string
-          format: uuid
-        source_hip_id:
-          type: string
-        consent_artifact_id:
-          type: string
-          format: uuid
-        data_erase_at:
-          type: string
-          format: date-time
-        iq_tenant_id:
-          type: string
-          format: uuid
-
-  record-foundation.bundle.erased:
-    semantic: bundle.erased
-    description: A bundle (internal or external) has been erased per consent expiry / revocation / retention policy.
-    event_contract_version: "1.0.0"
-    payload:
-      type: object
-      required: [erased_entity_kind, erased_entity_id, patient_id, reason]
-      additionalProperties: false
-      properties:
-        erased_entity_kind:
-          type: string
-          enum: [external_health_record, bundle_storage, care_context]
-        erased_entity_id:
-          type: string
-          format: uuid
-        consent_artifact_id:
-          type: ["string", "null"]
-          format: uuid
-        patient_id:
-          type: string
-          format: uuid
-        reason:
-          type: string
-          enum: [consent_expired, consent_revoked, manual_purge, retention_policy]
         iq_tenant_id:
           type: string
           format: uuid

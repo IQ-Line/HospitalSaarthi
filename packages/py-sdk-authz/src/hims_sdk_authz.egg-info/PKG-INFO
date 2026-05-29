@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: hims_sdk_authz
+Version: 0.1.0
+Summary: Python Cerbos authorization SDK for HIMS — CerbosClient wrapper, ASGI principal middleware, FastAPI authz dependency.
+Requires-Python: >=3.12
+Requires-Dist: cerbos>=0.3.0
+Requires-Dist: fastapi>=0.115.0
+Requires-Dist: httpx>=0.27.0
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: pyjwt>=2.8.0
+Requires-Dist: starlette>=0.37.0

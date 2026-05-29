@@ -3,15 +3,10 @@ import { validateAuthConfig } from "@hims/ts-sdk-identity";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import { tenantPlugin } from "@hims/ts-sdk-tenant";
 import { createDb } from "@hims/ts-sdk-db";
-import { InProcessEventBus } from "@hims/ts-sdk-events";
 import {
   createRouter,
   DrizzleCareContextRepo,
-  DrizzleBundleManifestRepo,
-  DrizzleBundleStorageRepo,
-  DrizzleExternalHealthRecordRepo,
-  DrizzleTimelineIndexRepo,
-  DrizzleErasureLogRepo,
+  DrizzleBundleRepo,
 } from "@hims/record-foundation";
 
 const PORT = Number(
@@ -35,31 +30,20 @@ async function main() {
     serviceId: "record-foundation",
     title: "Record Foundation API",
     version: "1.0.0",
-    description: "Care-context registry, immutable FHIR Document Bundle vault, external HIU bundle inbox.",
+    description: "Care-context registry and FHIR bundle vault.",
     apiPrefix: "/api/record-foundation/v1",
   });
 
   app.get("/healthz", async () => ({ status: "ok" }));
 
   const db = createDb(DATABASE_URL);
-  const eventBus = new InProcessEventBus();
-  await eventBus.connect();
 
   const careContextRepo = new DrizzleCareContextRepo(db);
-  const bundleManifestRepo = new DrizzleBundleManifestRepo(db);
-  const bundleStorageRepo = new DrizzleBundleStorageRepo(db);
-  const externalHealthRecordRepo = new DrizzleExternalHealthRecordRepo(db);
-  const timelineIndexRepo = new DrizzleTimelineIndexRepo(db);
-  const erasureLogRepo = new DrizzleErasureLogRepo(db);
+  const bundleRepo = new DrizzleBundleRepo(db);
 
   const recordFoundationRouter = createRouter({
     careContextRepo,
-    bundleManifestRepo,
-    bundleStorageRepo,
-    externalHealthRecordRepo,
-    timelineIndexRepo,
-    erasureLogRepo,
-    eventBus,
+    bundleRepo,
   });
 
   await app.register(async (api) => {
