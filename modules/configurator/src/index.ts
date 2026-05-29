@@ -69,6 +69,7 @@ export type {
   TenantRepo,
   TenantModuleRepo,
   TenantIntegrationProfilesRepo,
+  SequenceConfigurationRepo,
   ConfiguratorTransactionRepos,
   RunConfiguratorTransaction,
   ModuleCapabilityResolverPort,
@@ -80,6 +81,7 @@ export { DrizzleOrganizationRepo } from "./data-access/organization.repo.js";
 export { DrizzleTenantRepo } from "./data-access/tenant.repo.js";
 export { DrizzleTenantModuleRepo } from "./data-access/tenant-module.repo.js";
 export { DrizzleTenantIntegrationProfilesRepo } from "./data-access/tenant-integration-profile.repo.js";
+export { DrizzleSequenceConfigurationRepo } from "./data-access/sequence-configuration.repo.js";
 
 export {
   configuratorSchema,
@@ -87,6 +89,7 @@ export {
   tenants,
   tenantModules,
   tenantIntegrationProfiles,
+  sequenceConfiguration,
 } from "./schema/tables.js";
 
 export { provisionTenant } from "./use-cases/provision-tenant.js";

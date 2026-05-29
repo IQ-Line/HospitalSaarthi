@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: HIMS Configurator API
-  version: 1.2.0
+  version: 1.2.1
   description: |
     Configurator module — tenant registry, module enablement, feature flag overrides, configuration management.
 
@@ -11,6 +11,12 @@ info:
     - Tenant integration profiles (ABDM Phase 1a): CRUD under `/tenants/{tenantId}/integration-profiles`.
     - Internal route `GET /integration-profiles/by-hip/{hipId}` for service-to-service credential lookup
       (requires `x-configurator-internal-key` when `CONFIGURATOR_INTERNAL_API_KEY` is set).
+    ### 1.2.1
+    - Revert identifier to platform default via PUT with `is_custom: false` (DELETE endpoint removed).
+    - `sequence_configuration` rows are never hard-deleted when overrides are cleared.
+
+    ### 1.2.0
+    - Sequence configuration APIs for tenant-wise identifier format templates (`/sequence-configurations`, `/tenants/{tenantId}/sequence-configuration/*`).
 
     ### 1.1.0 (breaking)
     - POST /tenant-onboarding: `tenant` is now a required top-level field separate from `organization`.
@@ -490,6 +496,14 @@ paths:
             type: string
             minLength: 1
         - name: integration_kind
+  /sequence-configurations:
+    get:
+      operationId: listSequenceConfigurations
+      summary: List tenants with sequence configuration summaries
+      tags:
+        - Sequence Configuration
+      parameters:
+        - name: org_id
           in: query
           required: false
           schema:
@@ -603,6 +617,47 @@ paths:
                 $ref: "#/components/schemas/TenantIntegrationProfile"
         "404":
           description: Profile not found.
+            format: uuid
+        - name: provisioning_status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/ProvisioningStatus"
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/SequenceConfigurationStatus"
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Substring match on tenant name or tenant numeric code.
+      responses:
+        "200":
+          description: Tenant sequence configuration summaries.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SequenceConfigurationListResponse"
+  /tenants/{tenantId}/sequence-configuration:
+    get:
+      operationId: getSequenceConfiguration
+      summary: Get sequence configuration for a tenant
+      tags:
+        - Sequence Configuration
+      parameters:
+        - $ref: "#/components/parameters/TenantIdPath"
+      responses:
+        "200":
+          description: Effective sequence configuration for all identifier types.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SequenceConfigurationDetail"
+        "404":
+          description: Tenant not found.
           content:
             application/json:
               schema:
@@ -625,6 +680,18 @@ paths:
           schema:
             type: string
             format: uuid
+  /tenants/{tenantId}/sequence-configuration/identifiers/{identifierType}:
+    put:
+      operationId: upsertSequenceIdentifier
+      summary: Customize or revert an identifier format for a tenant
+      description: >
+        Set a custom format with `is_custom: true` and `segments`, or revert to the
+        platform default with `is_custom: false` (no segments required).
+      tags:
+        - Sequence Configuration
+      parameters:
+        - $ref: "#/components/parameters/TenantIdPath"
+        - $ref: "#/components/parameters/IdentifierTypePath"
       requestBody:
         required: true
         content:
@@ -640,6 +707,16 @@ paths:
                 $ref: "#/components/schemas/TenantIntegrationProfile"
         "404":
           description: Profile not found.
+              $ref: "#/components/schemas/SequenceIdentifierUpsertRequest"
+      responses:
+        "200":
+          description: Identifier configuration saved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SequenceIdentifierConfig"
+        "400":
+          description: Validation failure.
           content:
             application/json:
               schema:
@@ -667,6 +744,8 @@ paths:
           description: Profile deleted.
         "404":
           description: Profile not found.
+        "404":
+          description: Tenant not found.
           content:
             application/json:
               schema:
@@ -718,6 +797,21 @@ components:
       description: >
         Shared secret for internal routes (e.g. by-hip profile lookup). Must match
         CONFIGURATOR_INTERNAL_API_KEY on configurator-svc.
+  parameters:
+    TenantIdPath:
+      name: tenantId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Tenant primary key (`iq_tenant_id`).
+    IdentifierTypePath:
+      name: identifierType
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/IdentifierType"
   schemas:
     ErrorResponse:
       type: object
@@ -1099,6 +1193,10 @@ components:
         contact_email:
           type: string
           nullable: true
+        tenant_numeric_code:
+          type: string
+          nullable: true
+          description: Five-digit tenant code used in identifier segments.
         created_at:
           type: string
           format: date-time
@@ -1589,3 +1687,188 @@ components:
         correlation_id:
           type: string
           format: uuid
+    IdentifierType:
+      type: string
+      enum:
+        - patient_uhid
+        - op_visit
+        - ip_visit
+        - emergency_visit
+        - op_bill
+        - ip_bill
+        - emergency_bill
+    SegmentType:
+      type: string
+      enum:
+        - date_format
+        - sequence
+        - tenant_code
+        - prefix_text
+    DateFormat:
+      type: string
+      enum:
+        - YYMMDD
+        - YYYYMMDD
+        - MMDDYY
+        - DDMMYY
+    SequenceConfigurationStatus:
+      type: string
+      enum:
+        - default
+        - configured
+    SequenceFormatSegment:
+      type: object
+      required:
+        - segment_type
+        - enabled
+        - order_index
+      properties:
+        segment_type:
+          $ref: "#/components/schemas/SegmentType"
+        enabled:
+          type: boolean
+        order_index:
+          type: integer
+          minimum: 0
+        date_format:
+          $ref: "#/components/schemas/DateFormat"
+        sequence_digits:
+          type: integer
+          minimum: 1
+          maximum: 12
+        sequence_starts_at:
+          type: integer
+          minimum: 1
+        prefix_value:
+          type: string
+          nullable: true
+    SequenceIdentifierSummary:
+      type: object
+      required:
+        - is_custom
+        - format_code
+      properties:
+        is_custom:
+          type: boolean
+        format_code:
+          type: string
+    SequenceConfigurationSummary:
+      type: object
+      required:
+        - iq_tenant_id
+        - tenant_name
+        - provisioning_status
+        - status
+        - custom_count
+        - identifiers
+      properties:
+        iq_tenant_id:
+          type: string
+          format: uuid
+        tenant_name:
+          type: string
+        tenant_numeric_code:
+          type: string
+          nullable: true
+        provisioning_status:
+          $ref: "#/components/schemas/ProvisioningStatus"
+        status:
+          $ref: "#/components/schemas/SequenceConfigurationStatus"
+        custom_count:
+          type: integer
+          minimum: 0
+        identifiers:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/SequenceIdentifierSummary"
+    SequenceConfigurationListResponse:
+      type: object
+      required:
+        - data
+        - total
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/SequenceConfigurationSummary"
+        total:
+          type: integer
+          minimum: 0
+    SequenceIdentifierConfig:
+      type: object
+      required:
+        - identifier_type
+        - is_custom
+        - format_code
+        - segments
+      properties:
+        identifier_type:
+          $ref: "#/components/schemas/IdentifierType"
+        is_custom:
+          type: boolean
+        format_code:
+          type: string
+        segments:
+          type: array
+          items:
+            $ref: "#/components/schemas/SequenceFormatSegment"
+    SequenceConfigurationDetail:
+      type: object
+      required:
+        - iq_tenant_id
+        - tenant_name
+        - status
+        - configured_at
+        - identifiers
+      properties:
+        iq_tenant_id:
+          type: string
+          format: uuid
+        tenant_name:
+          type: string
+        tenant_numeric_code:
+          type: string
+          nullable: true
+        status:
+          $ref: "#/components/schemas/SequenceConfigurationStatus"
+        configured_at:
+          type: string
+          format: date-time
+          nullable: true
+        identifiers:
+          type: array
+          items:
+            $ref: "#/components/schemas/SequenceIdentifierConfig"
+    SequenceIdentifierUpsertRequest:
+      type: object
+      required:
+        - is_custom
+      properties:
+        is_custom:
+          type: boolean
+        segments:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/SequenceFormatSegment"
+      allOf:
+        - if:
+            properties:
+              is_custom:
+                const: true
+            required:
+              - is_custom
+          then:
+            required:
+              - is_custom
+              - segments
+        - if:
+            properties:
+              is_custom:
+                const: false
+            required:
+              - is_custom
+          then:
+            not:
+              required:
+                - segments

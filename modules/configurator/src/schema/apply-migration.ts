@@ -13,6 +13,7 @@ const MIGRATION_FILES = [
   "005_configurator_organization_website.sql",
   "006_configurator_tenant_org_fk.sql",
   "007_configurator_tenant_integration_profiles.sql",
+  "008_configurator_sequence_configuration.sql",
 ] as const;
 
 /**
