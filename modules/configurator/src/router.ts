@@ -5,6 +5,7 @@ import type {
   OrganizationRepo,
   TenantRepo,
   TenantModuleRepo,
+  SequenceConfigurationRepo,
   RunConfiguratorTransaction,
   InfrastructureModuleCatalogPort,
   ModuleCapabilityResolverPort,
@@ -15,11 +16,13 @@ import { registerOrganizationsHandler } from "./rest-handlers/organizations.hand
 import { registerTenantsHandler } from "./rest-handlers/tenants.handler.js";
 import { registerTenantModulesHandler } from "./rest-handlers/tenant-modules.handler.js";
 import { registerTenantOnboardingHandler } from "./rest-handlers/tenant-onboarding.handler.js";
+import { registerSequenceConfigurationHandler } from "./rest-handlers/sequence-configuration.handler.js";
 
 export interface ConfiguratorRouterOptions {
   organizationRepo: OrganizationRepo;
   tenantRepo: TenantRepo;
   tenantModuleRepo: TenantModuleRepo;
+  sequenceConfigurationRepo: SequenceConfigurationRepo;
   runConfiguratorTransaction: RunConfiguratorTransaction;
   createInfrastructureCatalog?: (
     authorization?: string,
@@ -71,6 +74,10 @@ async function configuratorRouter(
   registerTenantModulesHandler(app, {
     tenantModuleRepo: options.tenantModuleRepo,
     tenantRepo: options.tenantRepo,
+  });
+  registerSequenceConfigurationHandler(app, {
+    tenantRepo: options.tenantRepo,
+    sequenceConfigurationRepo: options.sequenceConfigurationRepo,
   });
 
   if (

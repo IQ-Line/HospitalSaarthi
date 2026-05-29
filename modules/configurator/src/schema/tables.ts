@@ -10,6 +10,7 @@ import {
   check,
   primaryKey,
   tenantColumn,
+  timestamp,
   sql,
 } from "@hims/ts-sdk-db";
 
@@ -71,6 +72,7 @@ export const tenants = configuratorSchema.table(
     pin_code: text("pin_code"),
     contact_phone: text("contact_phone"),
     contact_email: text("contact_email"),
+    tenant_numeric_code: text("tenant_numeric_code"),
     ...auditColumns(),
   },
   (t) => [
@@ -113,6 +115,28 @@ export const tenantModules = configuratorSchema.table(
     check(
       "chk_tenant_modules_core_always_active",
       sql`NOT (${t.is_core_override} AND NOT ${t.is_active})`,
+    ),
+  ],
+);
+
+
+export const sequenceConfiguration = configuratorSchema.table(
+  "sequence_configuration",
+  {
+    iq_tenant_id: uuid("iq_tenant_id")
+      .notNull()
+      .primaryKey()
+      .references(() => tenants.iq_tenant_id),
+    status: text("status").notNull().default("default"),
+    configured_at: timestamp("configured_at", { withTimezone: true }),
+    identifier_overrides: jsonb("identifier_overrides").notNull().default({}),
+    ...auditColumns(),
+  },
+  (t) => [
+    index("idx_sequence_configuration_status").on(t.status),
+    check(
+      "chk_sequence_configuration_status",
+      sql`${t.status} IN ('default', 'configured')`,
     ),
   ],
 );

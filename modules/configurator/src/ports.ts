@@ -17,6 +17,13 @@ import type {
   TenantModuleFilters,
   TenantModuleKey,
 } from "./domain/tenant-module.types.js";
+import type {
+  IdentifierOverrides,
+  IdentifierType,
+  SequenceConfiguration,
+  SequenceConfigurationFilters,
+  SequenceConfigurationSummary,
+} from "./domain/sequence-configuration.js";
 
 export interface OrganizationRepo {
   findAll(filters?: OrganizationFilters): Promise<Organization[]>;
@@ -48,6 +55,22 @@ export interface TenantModuleRepo {
     data: UpdateTenantModuleData,
   ): Promise<TenantModule | undefined>;
   delete(key: TenantModuleKey): Promise<boolean>;
+}
+
+export interface SequenceConfigurationRepo {
+  findByTenantId(tenantId: string): Promise<SequenceConfiguration | undefined>;
+  listSummaries(filters?: SequenceConfigurationFilters): Promise<SequenceConfigurationSummary[]>;
+  upsertIdentifier(
+    tenantId: string,
+    identifierType: IdentifierType,
+    override: NonNullable<IdentifierOverrides[IdentifierType]>,
+    actorId: string | null,
+  ): Promise<SequenceConfiguration>;
+  removeIdentifier(
+    tenantId: string,
+    identifierType: IdentifierType,
+    actorId: string | null,
+  ): Promise<void>;
 }
 
 /** Repos scoped to one DB transaction (atomic org + default tenant + tenant modules, etc.). */
