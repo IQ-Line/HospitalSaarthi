@@ -111,6 +111,7 @@ export interface CaptureChargeInput {
   unit_price_override?: number | null;
   tax_percentage_override?: number | null;
   line_discount_amount?: number | null;
+  line_discount_percentage?: number | null;
   performed_by?: string | null;
   performed_date?: string | null;
   department?: string | null;

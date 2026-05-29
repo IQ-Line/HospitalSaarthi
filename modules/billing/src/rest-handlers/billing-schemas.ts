@@ -31,6 +31,7 @@ export const captureChargeRouteSchema = {
       unit_price_override: { type: "number", exclusiveMinimum: 0, nullable: true },
       tax_percentage_override: { ...money, nullable: true },
       line_discount_amount: { ...money, nullable: true },
+      line_discount_percentage: { type: 'number', minimum: 0, maximum: 100, nullable: true },
       performed_by: { ...uuid, nullable: true },
       performed_date: { type: "string", format: "date-time", nullable: true },
       department: { type: "string", nullable: true },
