@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
-import type { AbdmAdapterDeps } from "../../ports.js";
+import { getAbdmDeps } from "../../../../lib/get-abdm-deps.js";
 import {
   AbdmGatewayError,
   formatNhaUpstreamMessage,
@@ -76,10 +76,7 @@ function parseUuid(v: unknown): string | null {
     : null;
 }
 
-export async function registerM1Routes(
-  app: FastifyInstance,
-  deps: AbdmAdapterDeps,
-): Promise<void> {
+export async function registerM1Routes(app: FastifyInstance): Promise<void> {
   app.get(
     "/m1/sessions/:sessionId",
     { schema: { params: sessionIdParamSchema } },
@@ -92,7 +89,7 @@ export async function registerM1Routes(
       });
     }
     try {
-      const out = await sessionGetRequest({ sessionId, iqTenantId: req.tenantId }, deps);
+      const out = await sessionGetRequest({ sessionId, iqTenantId: req.tenantId }, getAbdmDeps(req));
       return reply.status(200).send(out);
     } catch (err) {
       if (err instanceof AbdmUseCaseError) return sendUseCase(reply, err);
@@ -107,7 +104,7 @@ export async function registerM1Routes(
       const out = await enrolAadhaarOtpRequest({
         aadhaarNumber: raw.aadhaarNumber,
         iqTenantId: req.tenantId,
-      }, deps);
+      }, getAbdmDeps(req));
       return reply.status(200).send(out);
     } catch (err) {
       if (err instanceof AbdmGatewayError) return sendUpstream(reply, err);
@@ -125,7 +122,7 @@ export async function registerM1Routes(
         sessionId: raw.sessionId,
         aadhaarNumber: raw.aadhaarNumber,
         iqTenantId: req.tenantId,
-      }, deps);
+      }, getAbdmDeps(req));
       return reply.status(200).send(out);
     } catch (err) {
       if (err instanceof AbdmGatewayError) return sendUpstream(reply, err);
@@ -151,7 +148,7 @@ export async function registerM1Routes(
         mobile: raw.mobile,
         useAadhaarLinkedMobile: raw.useAadhaarLinkedMobile,
         iqTenantId: req.tenantId,
-      }, deps);
+      }, getAbdmDeps(req));
       return reply.status(200).send(out);
     } catch (err) {
       if (err instanceof AbdmGatewayError) return sendUpstream(reply, err);
@@ -170,7 +167,7 @@ export async function registerM1Routes(
         sessionId: raw.sessionId,
         mobile: raw.mobile,
         iqTenantId: req.tenantId,
-      }, deps);
+      }, getAbdmDeps(req));
       return reply.status(200).send(out);
     } catch (err) {
       if (err instanceof AbdmGatewayError) return sendUpstream(reply, err);
@@ -189,7 +186,7 @@ export async function registerM1Routes(
         sessionId: raw.sessionId,
         otp: raw.otp,
         iqTenantId: req.tenantId,
-      }, deps);
+      }, getAbdmDeps(req));
       return reply.status(200).send(out);
     } catch (err) {
       if (err instanceof AbdmGatewayError) return sendUpstream(reply, err);
@@ -204,7 +201,7 @@ export async function registerM1Routes(
     async (req, reply) => {
     const { sessionId } = req.query as { sessionId: string };
     try {
-      const out = await abhaAddressSuggestionsRequest({ sessionId, iqTenantId: req.tenantId }, deps);
+      const out = await abhaAddressSuggestionsRequest({ sessionId, iqTenantId: req.tenantId }, getAbdmDeps(req));
       return reply.status(200).send(out);
     } catch (err) {
       if (err instanceof AbdmGatewayError) return sendUpstream(reply, err);
@@ -235,7 +232,7 @@ export async function registerM1Routes(
         abhaAddress: raw.abhaAddress,
         ...(preferred !== undefined && !Number.isNaN(preferred) ? { preferred } : {}),
         iqTenantId: req.tenantId,
-      }, deps);
+      }, getAbdmDeps(req));
       return reply.status(200).send(out);
     } catch (err) {
       if (err instanceof AbdmGatewayError) return sendUpstream(reply, err);
@@ -250,7 +247,7 @@ export async function registerM1Routes(
     async (req, reply) => {
     const { sessionId } = req.query as { sessionId: string };
     try {
-      const out = await profileAccountGetRequest({ sessionId, iqTenantId: req.tenantId }, deps);
+      const out = await profileAccountGetRequest({ sessionId, iqTenantId: req.tenantId }, getAbdmDeps(req));
       return reply.status(200).send(out);
     } catch (err) {
       if (err instanceof AbdmGatewayError) return sendUpstream(reply, err);
@@ -266,7 +263,7 @@ export async function registerM1Routes(
           abhaNumber: String(raw?.abhaNumber ?? ""),
           ...(raw?.channel === "aadhaar" || raw?.channel === "abha-otp"
             ? { channel: raw.channel }
-            : {}), iqTenantId: req.tenantId }, deps);
+            : {}), iqTenantId: req.tenantId }, getAbdmDeps(req));
       return reply.status(200).send(out);
     } catch (err) {
       if (err instanceof AbdmGatewayError) return sendUpstream(reply, err);
@@ -277,7 +274,7 @@ export async function registerM1Routes(
 
   app.post("/m1/login/aadhaar/otp", { schema: { body: aadhaar12BodySchema } }, async (req, reply) => {
     try {
-      const out = await loginAadhaarOtpRequest({ aadhaarNumber: String((req.body as { aadhaarNumber?: unknown }).aadhaarNumber ?? ""), iqTenantId: req.tenantId }, deps);
+      const out = await loginAadhaarOtpRequest({ aadhaarNumber: String((req.body as { aadhaarNumber?: unknown }).aadhaarNumber ?? ""), iqTenantId: req.tenantId }, getAbdmDeps(req));
       return reply.status(200).send(out);
     } catch (err) {
       if (err instanceof AbdmGatewayError) return sendUpstream(reply, err);
@@ -288,7 +285,7 @@ export async function registerM1Routes(
 
   app.post("/m1/login/mobile/otp", { schema: { body: mobile10BodySchema } }, async (req, reply) => {
     try {
-      const out = await loginMobileOtpRequest({ mobile: String((req.body as { mobile?: unknown }).mobile ?? ""), iqTenantId: req.tenantId }, deps);
+      const out = await loginMobileOtpRequest({ mobile: String((req.body as { mobile?: unknown }).mobile ?? ""), iqTenantId: req.tenantId }, getAbdmDeps(req));
       return reply.status(200).send(out);
     } catch (err) {
       if (err instanceof AbdmGatewayError) return sendUpstream(reply, err);
@@ -300,7 +297,7 @@ export async function registerM1Routes(
   app.post("/m1/login/verify", { schema: { body: otp6SessionBodySchema } }, async (req, reply) => {
     const raw = req.body as { sessionId?: unknown; otp?: unknown };
     try {
-      const out = await loginVerifyOtpRequest({ sessionId: String(raw.sessionId), otp: String(raw?.otp ?? ""), iqTenantId: req.tenantId }, deps);
+      const out = await loginVerifyOtpRequest({ sessionId: String(raw.sessionId), otp: String(raw?.otp ?? ""), iqTenantId: req.tenantId }, getAbdmDeps(req));
       return reply.status(200).send(out);
     } catch (err) {
       if (err instanceof AbdmGatewayError) return sendUpstream(reply, err);
@@ -321,7 +318,7 @@ export async function registerM1Routes(
             abhaNumber: String(raw?.abhaNumber ?? ""),
             iqTenantId: req.tenantId,
           },
-          deps,
+          getAbdmDeps(req),
           "abdm.m1.login.v1",
         );
         return reply.status(200).send(out);
@@ -343,7 +340,7 @@ export async function registerM1Routes(
             abhaNumber: String(raw?.abhaNumber ?? ""),
             ...(raw?.channel === "aadhaar" || raw?.channel === "abha-otp"
               ? { channel: raw.channel }
-              : {}), iqTenantId: req.tenantId }, deps);
+              : {}), iqTenantId: req.tenantId }, getAbdmDeps(req));
         return reply.status(200).send(out);
       } catch (err) {
         if (err instanceof AbdmGatewayError) return sendUpstream(reply, err);
@@ -359,7 +356,7 @@ export async function registerM1Routes(
     async (req, reply) => {
       const raw = req.body as { sessionId?: unknown; otp?: unknown };
       try {
-        const out = await verifyAbhaNumberVerifyRequest({ sessionId: String(raw.sessionId), otp: String(raw?.otp ?? ""), iqTenantId: req.tenantId }, deps);
+        const out = await verifyAbhaNumberVerifyRequest({ sessionId: String(raw.sessionId), otp: String(raw?.otp ?? ""), iqTenantId: req.tenantId }, getAbdmDeps(req));
         return reply.status(200).send(out);
       } catch (err) {
         if (err instanceof AbdmGatewayError) return sendUpstream(reply, err);
@@ -379,7 +376,7 @@ export async function registerM1Routes(
             abhaAddress: String(raw?.abhaAddress ?? ""),
             ...(raw?.channel === "mobile" || raw?.channel === "aadhaar"
               ? { channel: raw.channel }
-              : {}), iqTenantId: req.tenantId }, deps);
+              : {}), iqTenantId: req.tenantId }, getAbdmDeps(req));
         return reply.status(200).send(out);
       } catch (err) {
         if (err instanceof AbdmGatewayError) return sendUpstream(reply, err);
@@ -395,7 +392,7 @@ export async function registerM1Routes(
     async (req, reply) => {
       const raw = req.body as { sessionId?: unknown; otp?: unknown };
       try {
-        const out = await verifyAbhaAddressVerifyRequest({ sessionId: String(raw.sessionId), otp: String(raw?.otp ?? ""), iqTenantId: req.tenantId }, deps);
+        const out = await verifyAbhaAddressVerifyRequest({ sessionId: String(raw.sessionId), otp: String(raw?.otp ?? ""), iqTenantId: req.tenantId }, getAbdmDeps(req));
         return reply.status(200).send(out);
       } catch (err) {
         if (err instanceof AbdmGatewayError) return sendUpstream(reply, err);
@@ -417,7 +414,7 @@ export async function registerM1Routes(
             abhaNumber: String(raw?.abhaNumber ?? ""),
             iqTenantId: req.tenantId,
           },
-          deps,
+          getAbdmDeps(req),
           "abdm.m1.verify-existing.v1",
         );
         return reply.status(200).send(out);
@@ -441,7 +438,7 @@ export async function registerM1Routes(
             abhaNumber: String(raw?.abhaNumber ?? ""),
             iqTenantId: req.tenantId,
           },
-          deps,
+          getAbdmDeps(req),
           "abdm.m1.verify-existing.v1",
         );
         return reply.status(200).send(out);
@@ -459,7 +456,7 @@ export async function registerM1Routes(
     async (req, reply) => {
       const raw = req.body as { sessionId?: unknown; mobile?: unknown };
       try {
-        const out = await profileMobileUpdateOtpRequest({ sessionId: String(raw.sessionId), mobile: String(raw?.mobile ?? ""), iqTenantId: req.tenantId }, deps);
+        const out = await profileMobileUpdateOtpRequest({ sessionId: String(raw.sessionId), mobile: String(raw?.mobile ?? ""), iqTenantId: req.tenantId }, getAbdmDeps(req));
         return reply.status(200).send(out);
       } catch (err) {
         if (err instanceof AbdmGatewayError) return sendUpstream(reply, err);
@@ -475,7 +472,7 @@ export async function registerM1Routes(
     async (req, reply) => {
       const raw = req.body as { sessionId?: unknown; otp?: unknown };
       try {
-        const out = await profileMobileUpdateVerifyRequest({ sessionId: String(raw.sessionId), otp: String(raw?.otp ?? ""), iqTenantId: req.tenantId }, deps);
+        const out = await profileMobileUpdateVerifyRequest({ sessionId: String(raw.sessionId), otp: String(raw?.otp ?? ""), iqTenantId: req.tenantId }, getAbdmDeps(req));
         return reply.status(200).send(out);
       } catch (err) {
         if (err instanceof AbdmGatewayError) return sendUpstream(reply, err);
@@ -491,7 +488,7 @@ export async function registerM1Routes(
     async (req, reply) => {
       const raw = req.body as { sessionId?: unknown; email?: unknown };
       try {
-        const out = await profileEmailUpdateOtpRequest({ sessionId: String(raw.sessionId), email: String(raw?.email ?? ""), iqTenantId: req.tenantId }, deps);
+        const out = await profileEmailUpdateOtpRequest({ sessionId: String(raw.sessionId), email: String(raw?.email ?? ""), iqTenantId: req.tenantId }, getAbdmDeps(req));
         return reply.status(200).send(out);
       } catch (err) {
         if (err instanceof AbdmGatewayError) return sendUpstream(reply, err);
@@ -507,7 +504,7 @@ export async function registerM1Routes(
     async (req, reply) => {
       const raw = req.body as { sessionId?: unknown; otp?: unknown };
       try {
-        const out = await profileEmailUpdateVerifyRequest({ sessionId: String(raw.sessionId), otp: String(raw?.otp ?? ""), iqTenantId: req.tenantId }, deps);
+        const out = await profileEmailUpdateVerifyRequest({ sessionId: String(raw.sessionId), otp: String(raw?.otp ?? ""), iqTenantId: req.tenantId }, getAbdmDeps(req));
         return reply.status(200).send(out);
       } catch (err) {
         if (err instanceof AbdmGatewayError) return sendUpstream(reply, err);
@@ -523,7 +520,7 @@ export async function registerM1Routes(
     async (req, reply) => {
     const { sessionId } = req.query as { sessionId: string };
     try {
-      const out = await profileAbhaCardGetRequest({ sessionId, iqTenantId: req.tenantId }, deps);
+      const out = await profileAbhaCardGetRequest({ sessionId, iqTenantId: req.tenantId }, getAbdmDeps(req));
       return reply.status(200).send(out);
     } catch (err) {
       if (err instanceof AbdmGatewayError) return sendUpstream(reply, err);
@@ -538,7 +535,7 @@ export async function registerM1Routes(
     async (req, reply) => {
     const { sessionId } = req.query as { sessionId: string };
     try {
-      const out = await profilePhrCardGetRequest({ sessionId, iqTenantId: req.tenantId }, deps);
+      const out = await profilePhrCardGetRequest({ sessionId, iqTenantId: req.tenantId }, getAbdmDeps(req));
       return reply.status(200).send(out);
     } catch (err) {
       if (err instanceof AbdmGatewayError) return sendUpstream(reply, err);
@@ -553,7 +550,7 @@ export async function registerM1Routes(
     async (req, reply) => {
     const { sessionId } = req.query as { sessionId: string };
     try {
-      const out = await profileQrCodeGetRequest({ sessionId, iqTenantId: req.tenantId }, deps);
+      const out = await profileQrCodeGetRequest({ sessionId, iqTenantId: req.tenantId }, getAbdmDeps(req));
       return reply.status(200).send(out);
     } catch (err) {
       if (err instanceof AbdmGatewayError) return sendUpstream(reply, err);

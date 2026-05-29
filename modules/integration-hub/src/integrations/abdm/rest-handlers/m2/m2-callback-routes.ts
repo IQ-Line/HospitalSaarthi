@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import type { AbdmAdapterDeps } from "../../ports.js";
+import type { IntegrationHubSharedInfra } from "../../../../lib/build-abdm-deps.js";
 import { runInboundCallback } from "./m2-inbound-helper.js";
 import { handleTokenCallback } from "../../use-cases/m2/link-token/handle-token-callback.js";
 import { handleHipLinkCallback } from "../../use-cases/m2/hip-initiated-link/handle-link-callback.js";
@@ -26,7 +26,7 @@ import type { HipHealthInformationRequest } from "@hims/ts-sdk-abha/protocol/m3/
 /** Gateway callback routes — mounted at `/api/v3` (no `/api/abdm/v1` prefix). */
 export async function registerM2CallbackRoutes(
   app: FastifyInstance,
-  deps: AbdmAdapterDeps,
+  sharedInfra: IntegrationHubSharedInfra,
 ): Promise<void> {
   app.post("/hip/token/on-generate-token", async (req, reply) => {
     await runInboundCallback({
@@ -34,8 +34,8 @@ export async function registerM2CallbackRoutes(
       reply,
       flowKind: "abdm.m2.link-token",
       httpStatus: 202,
-      deps,
-      handler: async ({ iqTenantId, body }) => {
+      sharedInfra,
+      handler: async ({ iqTenantId, body, deps }) => {
         const payload = body as OnGenerateTokenSuccessCallback & {
           abhaAddress?: string;
           abha_address?: string;
@@ -66,8 +66,8 @@ export async function registerM2CallbackRoutes(
       reply,
       flowKind: "abdm.m2.hip-initiated-link.v1",
       httpStatus: 202,
-      deps,
-      handler: async ({ iqTenantId, requestId, body }) => {
+      sharedInfra,
+      handler: async ({ iqTenantId, requestId, body, deps }) => {
         const payload = body as OnLinkCareContextCallback & { abhaAddress?: string };
         const gatewayRequestId =
           payload.response?.requestId ?? requestId;
@@ -90,8 +90,8 @@ export async function registerM2CallbackRoutes(
       reply,
       flowKind: "abdm.m2.user-initiated-link.v1",
       httpStatus: 200,
-      deps,
-      handler: async ({ iqTenantId, requestId, body }) => {
+      sharedInfra,
+      handler: async ({ iqTenantId, requestId, body, deps }) => {
         await handleDiscoverCallback(
           {
             iqTenantId,
@@ -110,8 +110,8 @@ export async function registerM2CallbackRoutes(
       reply,
       flowKind: "abdm.m2.user-initiated-link.v1",
       httpStatus: 200,
-      deps,
-      handler: async ({ iqTenantId, requestId, body }) => {
+      sharedInfra,
+      handler: async ({ iqTenantId, requestId, body, deps }) => {
         await handleLinkInitCallback(
           {
             iqTenantId,
@@ -130,8 +130,8 @@ export async function registerM2CallbackRoutes(
       reply,
       flowKind: "abdm.m2.user-initiated-link.v1",
       httpStatus: 202,
-      deps,
-      handler: async ({ iqTenantId, requestId, body }) => {
+      sharedInfra,
+      handler: async ({ iqTenantId, requestId, body, deps }) => {
         await handleLinkConfirmCallback(
           {
             iqTenantId,
@@ -150,8 +150,8 @@ export async function registerM2CallbackRoutes(
       reply,
       flowKind: "abdm.m2.add-contexts.v1",
       httpStatus: 202,
-      deps,
-      handler: async ({ iqTenantId, requestId, body }) => {
+      sharedInfra,
+      handler: async ({ iqTenantId, requestId, body, deps }) => {
         const payload = body as OnAddContextsCallback;
         const gatewayRequestId = payload.response?.requestId ?? requestId;
         await handleAddContextsCallback(
@@ -168,8 +168,8 @@ export async function registerM2CallbackRoutes(
       reply,
       flowKind: "abdm.m2.sms-notify.v1",
       httpStatus: 202,
-      deps,
-      handler: async ({ iqTenantId, requestId, body }) => {
+      sharedInfra,
+      handler: async ({ iqTenantId, requestId, body, deps }) => {
         const payload = body as OnSmsNotifyCallback;
         const gatewayRequestId = payload.resp?.requestId ?? requestId;
         await handleSmsNotifyCallback(
@@ -186,8 +186,8 @@ export async function registerM2CallbackRoutes(
       reply,
       flowKind: "abdm.m2.consent-notify.v1",
       httpStatus: 202,
-      deps,
-      handler: async ({ iqTenantId, requestId, body }) => {
+      sharedInfra,
+      handler: async ({ iqTenantId, requestId, body, deps }) => {
         const payload = {
           iqTenantId,
           inboundRequestId: requestId,
@@ -207,8 +207,8 @@ export async function registerM2CallbackRoutes(
       reply,
       flowKind: "abdm.m3.hip.v1",
       httpStatus: 202,
-      deps,
-      handler: async ({ iqTenantId, requestId, body }) => {
+      sharedInfra,
+      handler: async ({ iqTenantId, requestId, body, deps }) => {
         await handleHipHiRequestCallback(
           {
             iqTenantId,

@@ -165,7 +165,7 @@ Use when checking “did we touch everything?”
 **Implementation (strict order — same as plan flowchart):**
 
 - [x] Step 0 — PR #144 docs
-- [x] Step 1 — Code PR 1 / Part A (branch `step-1-code-pr-1`)
-- [ ] Step 2 — Code PR 2 / Part B (after Code PR 1)
+- [x] Step 1 — Code PR 1 / Part A (merged on `integration-hub`)
+- [x] Step 2 — Code PR 2 / Part B (`buildAbdmDepsForTenant`, callbacks, M2 consumers; 123+ hub unit tests)
 - [ ] Step 3 — Code PR 3 / Part C (after Code PR 2)
 - [ ] Step 4 — Code PR 4 / Part D (after Code PR 3)
