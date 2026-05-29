@@ -133,7 +133,7 @@ export function WizardStep0Organisation({
               className="h-9 font-mono text-sm"
               placeholder="e.g., city-diagnostics"
               readOnly={isExistingOrgSelection}
-              disabled={isExistingOrgSelection}
+              aria-readonly={isExistingOrgSelection}
               {...organisationSlugInputProps}
             />
             <FieldDescription>Minimum 3 characters; used as the organisation subdomain.</FieldDescription>

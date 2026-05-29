@@ -186,7 +186,7 @@ function buildMockHealthDocumentBundle(opts: {
 }
 
 export class MockRecordFoundationClient implements RecordFoundationClient {
-  private readonly defaultAbhaAddress = "test.user@sbx";
+  constructor(private readonly defaultAbhaAddress = "test.user@sbx") {}
 
   private readonly contexts: CareContextRef[] = [
     {
@@ -214,7 +214,9 @@ export class MockRecordFoundationClient implements RecordFoundationClient {
     iqTenantId: string;
     careContextId: string;
   }): Promise<HealthRecordBundleEntry[]> {
-    const ctx = this.contexts.find((c) => c.id === input.careContextId);
+    const ctx = this.contexts.find(
+      (c) => c.id === input.careContextId || c.referenceNumber === input.careContextId,
+    );
     if (!ctx) return [];
     return [
       buildMockHealthDocumentBundle({

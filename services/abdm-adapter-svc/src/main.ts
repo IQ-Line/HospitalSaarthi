@@ -150,7 +150,7 @@ async function main() {
       ? new HttpEmpiClient(EMPI_BASE_URL)
       : new NoOpEmpiClient();
   const recordFoundation = ABDM_M2_MOCK_PLATFORM
-    ? new MockRecordFoundationClient()
+    ? new MockRecordFoundationClient(ABDM_MOCK_ABHA_ADDRESS)
     : RECORD_FOUNDATION_BASE_URL
       ? new HttpRecordFoundationClient(RECORD_FOUNDATION_BASE_URL)
       : new NoOpRecordFoundationClient();

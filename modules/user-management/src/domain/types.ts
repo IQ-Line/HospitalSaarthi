@@ -24,6 +24,7 @@ export interface User {
    */
   clearance_tier_required?: number;
   status: UserStatus;
+  role_display_names?: string[];
 }
 
 /** Canonical machine-readable authorization primitive managed as data and consumed by Cerbos. */

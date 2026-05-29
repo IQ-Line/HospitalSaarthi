@@ -14,6 +14,7 @@ export const masterDataModuleManifest: ModuleManifest = {
       icon: 'database',
       route: '/master-data/modules',
       catalogModuleSlug: 'modules',
+      superAdminOnly: true,
     },
     {
       id: 'master-data-permissions',
@@ -21,6 +22,7 @@ export const masterDataModuleManifest: ModuleManifest = {
       icon: 'shield-check',
       route: '/master-data/permissions',
       catalogModuleSlug: 'permissions',
+      superAdminOnly: true,
     },
     {
       id: 'master-data-module-permissions',
@@ -28,6 +30,7 @@ export const masterDataModuleManifest: ModuleManifest = {
       icon: 'link',
       route: '/master-data/module-permissions',
       catalogModuleSlug: 'permissions',
+      superAdminOnly: true,
     },
     {
       id: 'master-data-departments',

@@ -6,10 +6,11 @@ describe("MockRecordFoundationClient", () => {
     const rf = new MockRecordFoundationClient();
     const bundles = await rf.listBundles({
       iqTenantId: "00000000-0000-4000-8000-0000000000aa",
-      careContextId: "visit-mock-001",
+      careContextId: "VISIT-MOCK-001",
     });
 
     expect(bundles).toHaveLength(1);
+    expect(bundles[0]!.careContextReference).toBe("VISIT-MOCK-001");
     for (const entry of bundles) {
       const bundle = JSON.parse(entry.contentJson) as {
         resourceType: string;
@@ -35,5 +36,18 @@ describe("MockRecordFoundationClient", () => {
 
     expect(contexts).toHaveLength(2);
     expect(contexts[0]!.referenceNumber).toBe("VISIT-MOCK-001");
+  });
+
+  it("embeds configured ABHA address in Patient.identifier", async () => {
+    const rf = new MockRecordFoundationClient("kamalthefirst@sbx");
+    const [entry] = await rf.listBundles({
+      iqTenantId: "00000000-0000-4000-8000-0000000000aa",
+      careContextId: "VISIT-MOCK-001",
+    });
+    const bundle = JSON.parse(entry!.contentJson) as {
+      entry: { resource: { resourceType: string; identifier?: { value: string }[] } }[];
+    };
+    const patient = bundle.entry.find((e) => e.resource.resourceType === "Patient");
+    expect(patient?.resource.identifier?.[0]?.value).toBe("kamalthefirst@sbx");
   });
 });

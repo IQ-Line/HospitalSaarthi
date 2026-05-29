@@ -13,6 +13,11 @@ resourcePolicy:
   rules:
     - actions:
         - "auth.read"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+
+    - actions:
+        - "auth.read"
       roles: ["*"]
       effect: EFFECT_ALLOW
       condition:

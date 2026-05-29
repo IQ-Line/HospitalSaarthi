@@ -37,7 +37,7 @@ import {
   TenantRoleTemplatesPanel,
   TenantUsersPanel,
 } from '@/features/configurator/components/tenant-detail-panels';
-import { isPlatformSuperAdminFromAccessToken } from '@/lib/platform-admin';
+import { isPlatformSuperAdminFromAccessToken, isTenantAdminFromAccessToken } from '@/lib/platform-admin';
 import { useAuthStore } from '@/stores/auth.store';
 import {
   buildDescendantBranchTreeRows,
@@ -244,7 +244,9 @@ function TenantOrganizationDetailPage() {
   );
 
   const accessToken = useAuthStore((s) => s.accessToken);
-  const canEditTenantModules = isPlatformSuperAdminFromAccessToken(accessToken);
+  const canEditTenantModules =
+    isPlatformSuperAdminFromAccessToken(accessToken) ||
+    isTenantAdminFromAccessToken(accessToken);
 
   if (orgError) {
     return (
@@ -366,9 +368,9 @@ function TenantOrganizationDetailPage() {
             <TabsTrigger value="modules" className="shrink-0 text-xs sm:text-sm">
               Modules
             </TabsTrigger>
-            <TabsTrigger value="audit-logs" className="shrink-0 text-xs sm:text-sm">
+            {/* <TabsTrigger value="audit-logs" className="shrink-0 text-xs sm:text-sm">
               Audit logs
-            </TabsTrigger>
+            </TabsTrigger> */}
           </TabsList>
         </div>
 
@@ -538,15 +540,17 @@ function TenantOrganizationDetailPage() {
         </TabsContent>
 
         <TabsContent value="branches" className="mt-4 space-y-4">
-          <div className="flex justify-end">
-            <Button
-              type="button"
-              className="bg-[#008C9E] text-white hover:bg-[#00798a]"
-              onClick={() => setAddBranchOpen(true)}
-            >
-              + Add branch
-            </Button>
-          </div>
+          {isPlatformSuperAdminFromAccessToken(accessToken) ? (
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                className="bg-[#008C9E] text-white hover:bg-[#00798a]"
+                onClick={() => setAddBranchOpen(true)}
+              >
+                + Add branch
+              </Button>
+            </div>
+          ) : null}
           <div className="rounded-lg border">
             <DataTable
               columns={branchColumns}

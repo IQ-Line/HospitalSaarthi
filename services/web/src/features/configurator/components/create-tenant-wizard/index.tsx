@@ -13,7 +13,7 @@ import {
 import { toast } from 'sonner';
 import type { TenantOnboardingInput } from '@/features/configurator/api/tenant-onboarding';
 import { useQuery } from '@tanstack/react-query';
-import { organizationsQueryOptions } from '@/features/configurator/api/catalog';
+import { organizationsQueryOptions, tenantsQueryOptions } from '@/features/configurator/api/catalog';
 import { useOrganization } from '@/features/configurator/api';
 import type { Organization } from '@/features/configurator/types';
 import { useAuthStore } from '@/stores/auth.store';
@@ -30,8 +30,11 @@ import { useModules } from '@/features/master-data/api';
 import { NEW_ORGANISATION_VALUE } from '@/features/configurator/create-tenant-wizard-schema';
 import { WizardStep0Organisation } from './wizard-step-0-organisation';
 import {
+  filterOrganisationsForTenantWizard,
   organisationEmailFromOrg,
+  organisationEligibleForNewTenant,
   organisationWebsiteFromOrg,
+  orgIdsWithTenants,
 } from './wizard-org-helpers';
 import { WizardStep1OrgFields } from './wizard-step-1-org-fields';
 import { WizardStep2Modules } from './wizard-step-2-modules';
@@ -96,7 +99,20 @@ export function CreateTenantWizard({
     ...organizationsQueryOptions({ status: 'active' }),
     enabled: open && showOrganisationStep,
   });
+  const { data: tenantsRes, isLoading: tenantsLoading } = useQuery({
+    ...tenantsQueryOptions({}),
+    enabled: open && showOrganisationStep,
+  });
   const organisations = organisationsRes?.data ?? [];
+  const tenantOrgIds = useMemo(
+    () => orgIdsWithTenants(tenantsRes?.data ?? []),
+    [tenantsRes?.data],
+  );
+  const selectableOrganisations = useMemo(
+    () => filterOrganisationsForTenantWizard(organisations, tenantOrgIds),
+    [organisations, tenantOrgIds],
+  );
+  const organisationCatalogLoading = organisationsLoading || tenantsLoading;
 
   const { data: scopedOrganization } = useOrganization(defaultOrganizationId ?? '', {
     enabled: open && !showOrganisationStep && !!defaultOrganizationId?.trim(),
@@ -131,13 +147,16 @@ export function CreateTenantWizard({
 
   const applyOrganisationToForm = useCallback(
     (org: Organization) => {
-      setValue('organisationSelectionId', org.id);
-      setValue('organisationId', org.id);
-      setValue('organisationName', org.name);
-      setValue('organisationSlug', org.slug);
-      setValue('organisationType', org.type);
-      setValue('organisationWebsite', organisationWebsiteFromOrg(org));
-      setValue('organisationEmail', organisationEmailFromOrg(org));
+      const setField = (name: keyof WizardFormValues, value: string) => {
+        setValue(name, value, { shouldDirty: false, shouldValidate: false });
+      };
+      setField('organisationSelectionId', org.id);
+      setField('organisationId', org.id);
+      setField('organisationName', org.name);
+      setField('organisationSlug', org.slug);
+      setField('organisationType', org.type);
+      setField('organisationWebsite', organisationWebsiteFromOrg(org));
+      setField('organisationEmail', organisationEmailFromOrg(org));
     },
     [setValue],
   );
@@ -145,6 +164,17 @@ export function CreateTenantWizard({
   const watchedOrgName = watch('organisationName');
   const watchedOrgSelectionId = watch('organisationSelectionId');
   const watchedTenantName = watch('tenantName');
+
+  const selectedOrganisationId =
+    watchedOrgSelectionId && watchedOrgSelectionId !== NEW_ORGANISATION_VALUE
+      ? watchedOrgSelectionId
+      : '';
+
+  const { data: selectedOrganisation } = useOrganization(selectedOrganisationId, {
+    enabled: open && showOrganisationStep && Boolean(selectedOrganisationId),
+  });
+
+  const appliedOrganisationIdRef = useRef<string | null>(null);
 
   const organisationSlugField = register('organisationSlug');
   const organisationSlugInputProps = {
@@ -170,6 +200,7 @@ export function CreateTenantWizard({
       tenantSlugUserEdited.current = false;
       modulesDefaultsApplied.current = false;
       defaultOrgApplied.current = false;
+      appliedOrganisationIdRef.current = null;
       return;
     }
     reset(WIZARD_DEFAULT_VALUES);
@@ -179,21 +210,74 @@ export function CreateTenantWizard({
     tenantSlugUserEdited.current = false;
     modulesDefaultsApplied.current = false;
     defaultOrgApplied.current = false;
+    appliedOrganisationIdRef.current = null;
   }, [open, reset, firstStep]);
 
   useEffect(() => {
-    if (!open || defaultOrgApplied.current || !defaultOrganizationId?.trim()) return;
-    const org = showOrganisationStep
-      ? organisations.find((o) => o.id === defaultOrganizationId.trim())
-      : scopedOrganization;
-    if (!org) return;
-    defaultOrgApplied.current = true;
+    if (!open || !showOrganisationStep) return;
+    if (watchedOrgSelectionId === NEW_ORGANISATION_VALUE) {
+      appliedOrganisationIdRef.current = null;
+      return;
+    }
+    const org =
+      selectedOrganisation ??
+      selectableOrganisations.find((o) => o.id === selectedOrganisationId);
+    if (!org || appliedOrganisationIdRef.current === org.id) return;
+    appliedOrganisationIdRef.current = org.id;
     orgSlugUserEdited.current = false;
     applyOrganisationToForm(org);
   }, [
     open,
-    defaultOrganizationId,
+    showOrganisationStep,
+    watchedOrgSelectionId,
+    selectedOrganisation,
+    selectedOrganisationId,
+    selectableOrganisations,
+    applyOrganisationToForm,
+  ]);
+
+  useEffect(() => {
+    if (!open || !showOrganisationStep || organisationCatalogLoading) return;
+    const selectionId = watchedOrgSelectionId;
+    if (!selectionId || selectionId === NEW_ORGANISATION_VALUE) return;
+    const org = organisations.find((o) => o.id === selectionId);
+    if (!org || organisationEligibleForNewTenant(org, tenantOrgIds)) return;
+    appliedOrganisationIdRef.current = null;
+    orgSlugUserEdited.current = false;
+    setValue('organisationSelectionId', '');
+    setValue('organisationId', '');
+    setValue('organisationName', '');
+    setValue('organisationSlug', '');
+    setValue('organisationWebsite', '');
+    setValue('organisationEmail', '');
+    setValue('organisationType', 'standalone_hospital');
+    toast.error(
+      'This standalone hospital already has a tenant. Choose another organisation or create a new one.',
+    );
+  }, [
+    open,
+    showOrganisationStep,
+    organisationCatalogLoading,
+    watchedOrgSelectionId,
     organisations,
+    tenantOrgIds,
+    setValue,
+  ]);
+
+  useEffect(() => {
+    if (!open || defaultOrgApplied.current || !defaultOrganizationId?.trim()) return;
+    const org = showOrganisationStep
+      ? selectableOrganisations.find((o) => o.id === defaultOrganizationId.trim())
+      : scopedOrganization;
+    if (!org) return;
+    defaultOrgApplied.current = true;
+    orgSlugUserEdited.current = false;
+    appliedOrganisationIdRef.current = org.id;
+    applyOrganisationToForm(org);
+  }, [
+    open,
+    defaultOrganizationId,
+    selectableOrganisations,
     scopedOrganization,
     showOrganisationStep,
     applyOrganisationToForm,
@@ -221,6 +305,7 @@ export function CreateTenantWizard({
   const onOrganisationSelectionChange = useCallback(
     (selectionId: string) => {
       orgSlugUserEdited.current = false;
+      appliedOrganisationIdRef.current = null;
       if (selectionId === NEW_ORGANISATION_VALUE) {
         setValue('organisationId', '');
         setValue('organisationName', '');
@@ -230,11 +315,23 @@ export function CreateTenantWizard({
         setValue('organisationType', 'standalone_hospital');
         return;
       }
-      const org = organisations.find((o) => o.id === selectionId);
-      if (!org) return;
-      applyOrganisationToForm(org);
+      const org = selectableOrganisations.find((o) => o.id === selectionId);
+      if (org) {
+        appliedOrganisationIdRef.current = org.id;
+        applyOrganisationToForm(org);
+        return;
+      }
+      const blocked = organisations.find((o) => o.id === selectionId);
+      if (blocked && !organisationEligibleForNewTenant(blocked, tenantOrgIds)) {
+        toast.error(
+          'This standalone hospital already has a tenant. Choose another organisation or create a new one.',
+        );
+        return;
+      }
+      setValue('organisationSelectionId', selectionId);
+      setValue('organisationId', selectionId);
     },
-    [organisations, applyOrganisationToForm, setValue],
+    [organisations, selectableOrganisations, tenantOrgIds, applyOrganisationToForm, setValue],
   );
 
   const toggleModule = useCallback(
@@ -266,6 +363,16 @@ export function CreateTenantWizard({
       if (!parsed.success) {
         toast.error(firstZodMessage(parsed.error));
         return;
+      }
+      const selectedOrgId = values.organisationSelectionId;
+      if (selectedOrgId && selectedOrgId !== NEW_ORGANISATION_VALUE) {
+        const org = organisations.find((o) => o.id === selectedOrgId);
+        if (org && !organisationEligibleForNewTenant(org, tenantOrgIds)) {
+          toast.error(
+            'This standalone hospital already has a tenant. Choose another organisation or create a new one.',
+          );
+          return;
+        }
       }
       setActiveStep(2);
       return;
@@ -439,8 +546,8 @@ export function CreateTenantWizard({
                 register={register}
                 control={control}
                 errors={errors}
-                organisations={organisations}
-                organisationsLoading={organisationsLoading}
+                organisations={selectableOrganisations}
+                organisationsLoading={organisationCatalogLoading}
                 organisationSlugInputProps={organisationSlugInputProps}
                 onOrganisationSelectionChange={onOrganisationSelectionChange}
               />

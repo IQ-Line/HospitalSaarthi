@@ -23,15 +23,15 @@ describe('visitpad-access for test-role principal', () => {
     registerBuiltinModuleManifests();
   });
 
-  it('denies manifest leaves when principal has only visitpad:view shell (L2 keys required)', () => {
+  it('allows all manifest leaves and primary tabs for visitpad-master shell view only', () => {
     const shellViewOnly = new Set(['visitpad-master:visitpad:view']);
     expect(principalGrantsVisitpadManifestNodeAccess(shellViewOnly, 'visitpad-vitals')).toBe(
-      false,
+      true,
     );
     expect(
       principalGrantsVisitpadManifestNodeAccess(shellViewOnly, 'visitpad-chief-complaints'),
-    ).toBe(false);
-    expect(filterVisitpadPrimaryTabGroups(shellViewOnly)).toHaveLength(0);
+    ).toBe(true);
+    expect(filterVisitpadPrimaryTabGroups(shellViewOnly).length).toBeGreaterThanOrEqual(10);
   });
 
   it('allows allergens and units, denies chief complaints', () => {

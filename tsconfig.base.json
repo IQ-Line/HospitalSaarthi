@@ -31,6 +31,7 @@
       "@hims/eslint-config": ["./packages/eslint-config/index.js"],
       "@hims/user-management": ["./modules/user-management/src/index.ts"],
       "@hims/configurator": ["./modules/configurator/src/index.ts"],
+      "@hims/integration-hub": ["./modules/integration-hub/src/index.ts"],
       "@hims/empi": ["./modules/empi/src/index.ts"],
       "@hims/record-foundation": ["./modules/record-foundation/src/index.ts"],
       "@hims/billing": ["./modules/billing/src/index.ts"],

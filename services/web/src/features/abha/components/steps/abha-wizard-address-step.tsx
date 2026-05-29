@@ -9,6 +9,7 @@ import {
 } from '@pulse/ui/input-otp';
 import { ProfileDetailRow } from '@/features/abha/components/abha-wizard-ui';
 import type { AbhaProfileDisplay } from '@/features/abha/types';
+import { ABHA_ADDRESS_LOCAL_RULES } from '@/features/abha/utils/abha-address-validation';
 import { ABHA_ADDRESS_SUFFIX } from '../../wizard/constants';
 import type { AbhaWizardAction, AbhaWizardState } from '../../wizard/types';
 import { digitsOnly } from '@/lib/digits-only';
@@ -115,12 +116,10 @@ export function AbhaWizardAddressStep({
                 {address.addressError}
               </p>
             ) : null}
-            <ol className="list-decimal space-y-0.5 pl-4 text-xs text-muted-foreground">
-              <li>Minimum length - 8 characters</li>
-              <li>Maximum length - 18 characters</li>
-              <li>Special characters allowed - 1 dot (.) and/or 1 underscore (_)</li>
-              <li>Dot/underscore must be in between (not at start or end)</li>
-              <li>Only letters and numbers are allowed</li>
+            <ol className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+              {ABHA_ADDRESS_LOCAL_RULES.map((rule) => (
+                <li key={rule}>{rule}</li>
+              ))}
             </ol>
           </div>
 

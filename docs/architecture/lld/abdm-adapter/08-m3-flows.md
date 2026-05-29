@@ -2,7 +2,7 @@
 
 The third sprint covers **M3** — patient-data exchange under consent. M3 is the milestone where the platform becomes both a **data-requester (HIU)** that asks another facility for a patient's records, and a **data-provider (HIP)** that ships records on a granted consent using the Fidelius envelope encryption that landed in M2.
 
-This doc is the flow catalogue. The companion [`09-m3-dev-guide.md`](./09-m3-dev-guide.md) is the developer checklist (read it after this one). The [`10-m3-mock-harness-guide.md`](./10-m3-mock-harness-guide.md) is the runtime playbook for driving M3 locally without depending on real ABDM gateway, Record Foundation, or EMPI.
+This doc is the flow catalogue. The companion [`09-m3-dev-guide.md`](./09-m3-dev-guide.md) is the developer checklist (read it after this one). The [`10-m3-mock-harness-guide.md`](./10-m3-mock-harness-guide.md) is the runtime playbook for driving M3 locally without depending on real ABDM gateway, Record Foundation, or EMPI. For canonical M3 HIP push / Fidelius direction see [`12-phr-push-reconciliation.md`](./12-phr-push-reconciliation.md).
 
 ---
 
@@ -301,7 +301,7 @@ stateDiagram-v2
   DATA_REQUESTED --> EXPIRED: on-request.error (e.g. ABDM-1092 expired consent)
   AWAITING_PUSH --> BUNDLES_RECEIVED: inbound POST /api/v3/hiu/health-information/transfer/:transferId
   AWAITING_PUSH --> EXPIRED: 24h timer fires without push
-  BUNDLES_RECEIVED --> BUNDLES_DECRYPTED: deps.fidelius.decryptFromPeer succeeds
+  BUNDLES_RECEIVED --> BUNDLES_DECRYPTED: deps.fidelius.decryptBundle succeeds
   BUNDLES_RECEIVED --> EXPIRED: decryption error (with reason recorded in context.error)
   BUNDLES_DECRYPTED --> RECORDS_INGESTED: write bundle_json to abdm_m3_data_transfers + emit abdm.health-record.received
   RECORDS_INGESTED --> ACKNOWLEDGED: outbound /data-flow/v3/health-information/notify (sessionStatus RECEIVED)
@@ -320,7 +320,7 @@ stateDiagram-v2
 | 1 | OUT (HIU → CM) | `POST /api/hiecm/data-flow/v3/health-information/request` | §5.3.1 | `→ DATA_REQUESTED` |
 | 1b | IN (CM → HIU) | `POST {callback}/api/v3/hiu/health-information/on-request` | §5.3.2 | `→ AWAITING_PUSH` / `→ EXPIRED` (on error) |
 | 2 | IN (HIP → HIU) | `POST {callback}/api/v3/hiu/health-information/transfer/:transferId` | §5.3 push | `→ BUNDLES_RECEIVED` |
-| 2b | platform | `deps.fidelius.decryptFromPeer({...})` | — | `→ BUNDLES_DECRYPTED` |
+| 2b | platform | `deps.fidelius.decryptBundle({...})` | — | `→ BUNDLES_DECRYPTED` |
 | 3 | platform | write `abdm_m3_data_transfers.bundle_json` + emit event | — | `→ RECORDS_INGESTED` |
 | 4 | OUT (HIU → CM) | `POST /api/hiecm/data-flow/v3/health-information/notify` (`notifier.type=HIU`) | §5.3.3 | `→ ACKNOWLEDGED` |
 
@@ -332,7 +332,7 @@ The push URL path `/api/v3/hiu/health-information/transfer/:transferId` is **our
 
 ### Crypto cheat sheet — HIU side
 
-Call the existing `FideliusEncryptor` port via `deps.fidelius` — NOT the lib functions directly. The port is async and exposes `encryptForPeer`, `encryptBundlesForPeer`, `decryptFromPeer` (no `Material` suffix). Direct lib imports skip the port pattern, break the testability seam, and would block the future durable-execution port (the lib functions can't be wrapped as activities if they're imported statically).
+Call the existing `FideliusEncryptor` port via `deps.fidelius` — NOT the lib functions directly. The port is async and exposes `encryptForPeer`, `encryptBundles`, `decryptBundle` (no `Material` suffix). Direct lib imports skip the port pattern, break the testability seam, and would block the future durable-execution port (the lib functions can't be wrapped as activities if they're imported statically).
 
 The port impl is [`data-access/fidelius.ts`](../../../../modules/abdm-adapter/src/data-access/fidelius.ts); under the hood it calls the same vector-tested wrappers in [`lib/fidelius-crypto.ts`](../../../../modules/abdm-adapter/src/lib/fidelius-crypto.ts).
 
@@ -363,7 +363,7 @@ const transfer = await deps.dataTransfers.findById({ iqTenantId, transferId });
 if (!transfer) throw new Error("transfer not found");
 const ourPrivateKeyB64 = deps.payloadEncryptor.decrypt(transfer.hiuPrivateKeyJwk);
 
-const plaintext = await deps.fidelius.decryptFromPeer({
+const plaintext = await deps.fidelius.decryptBundle({
   encryptedPayload: push.entries[0].content,
   peerPublicKey:    push.keyMaterial.dhPublicKey.keyValue,
   peerNonce:        push.keyMaterial.nonce,
@@ -373,7 +373,7 @@ const plaintext = await deps.fidelius.decryptFromPeer({
 const fhirBundle = JSON.parse(plaintext);
 ```
 
-**What `decryptFromPeer` does internally** (you don't write this — it's already there):
+**What `decryptBundle` does internally** (you don't write this — it's already there):
 1. ECDH on BC Weierstrass curve25519 (NOT Montgomery X25519)
 2. XOR the two 32-byte nonces; take **first 20 bytes as HKDF salt** and **last 12 bytes as AES-GCM IV**
 3. HKDF-SHA256 with empty `info`, 32-byte output → AES-256-GCM key
@@ -481,7 +481,7 @@ If decryption fails with "tag mismatch", the most likely cause is mis-implemente
 
 - **`on-request.error`** → `EXPIRED` (record `{code, message}` in context). Common: `ABDM-1092` (invalid or expired consent artefact id).
 - **24h no push** → `EXPIRED`. Janitor sweep; notify CM with `sessionStatus: FAILED`, `hiStatus: ERRORED`.
-- **Decryption fails (tag mismatch)** → `EXPIRED`. Notify CM with `sessionStatus: FAILED`, `hiStatus: ERRORED`. Common causes: salt/IV split wrong (or Fidelius framing reimplemented instead of calling `deps.fidelius.decryptFromPeer` — see Pitfall §6), HIP's public key not base64-decoded correctly, ciphertext truncated.
+- **Decryption fails (tag mismatch)** → `EXPIRED`. Notify CM with `sessionStatus: FAILED`, `hiStatus: ERRORED`. Common causes: salt/IV split wrong (or Fidelius framing reimplemented instead of calling `deps.fidelius.decryptBundle` — see Pitfall §6), HIP's public key not base64-decoded correctly, ciphertext truncated.
 - **Bundle parse fails (not valid FHIR JSON)** → `EXPIRED`. Notify CM; ship plaintext to dead-letter table for inspection (security risk if attacker can poison HIU storage — verify FHIR structure before storing).
 
 ---
@@ -518,7 +518,7 @@ stateDiagram-v2
   DATA_REQUESTED --> FAILED: keyMaterial invalid (e.g., HIU sent 32-byte Montgomery key — see Pitfall §4)
   KEYS_EXCHANGED --> BUNDLES_FETCHED: deps.recordFoundation.fetchBundlesForConsent succeeds
   KEYS_EXCHANGED --> FAILED: RF 5xx / not_found
-  BUNDLES_FETCHED --> BUNDLES_ENCRYPTED: deps.fidelius.encryptBundlesForPeer (one HIP keypair, N entries)
+  BUNDLES_FETCHED --> BUNDLES_ENCRYPTED: deps.fidelius.encryptBundles (one HIP keypair, N entries)
   BUNDLES_ENCRYPTED --> BUNDLES_PUSHED: deps.dataPush.push to dataPushUrl (with 3-retry backoff)
   BUNDLES_ENCRYPTED --> FAILED: push failed after 3 retries
   BUNDLES_PUSHED --> ACKNOWLEDGED: outbound /data-flow/v3/health-information/notify (sessionStatus TRANSFERRED, notifier.type=HIP)
@@ -534,7 +534,7 @@ stateDiagram-v2
 | 1b | OUT (HIP → CM) | `POST /api/hiecm/data-flow/v3/health-information/hip/on-request` | (HIP-side ack — symmetric to §5.3.2) | (part of step 1 transition; no separate state) |
 | 2 | platform | decode + validate `keyMaterial`; resolve patientId via M2 `ConsentArtefactsPort.findById` | — | `→ KEYS_EXCHANGED` |
 | 3 | platform | `deps.recordFoundation.fetchBundlesForConsent({iqTenantId, patientId, consentId, dateRange})` | — | `→ BUNDLES_FETCHED` |
-| 3b | platform | `deps.fidelius.encryptBundlesForPeer({payloadJsons, peerPublicKey, peerNonce})` (BC Weierstrass curve25519 + AES-256-GCM) | — | `→ BUNDLES_ENCRYPTED` |
+| 3b | platform | `deps.fidelius.encryptBundles({payloadJsons, peerPublicKey, peerNonce})` (BC Weierstrass curve25519 + AES-256-GCM) | — | `→ BUNDLES_ENCRYPTED` |
 | 4 | OUT (HIP → HIU) | `POST <hiRequest.dataPushUrl from §5.3.1 body>` | (push body — same shape as HIU receiver expects) | `→ BUNDLES_PUSHED` |
 | 5 | OUT (HIP → CM) | `POST /api/hiecm/data-flow/v3/health-information/notify` (`notifier.type=HIP`) | §5.3.3 | `→ ACKNOWLEDGED` |
 
@@ -546,7 +546,7 @@ The HIP-side data response is **already implemented on this branch**. Use this c
 |---|---|---|
 | Inbound body parser | [`lib/parse-hi-request-body.ts`](../../../../modules/abdm-adapter/src/lib/parse-hi-request-body.ts) | `parseHiRequestBody(body, requestId): ParsedHiRequest \| null` — handles both `body.hiRequest.consent.id` and `body.consentId` top-level alternative the gateway occasionally sends |
 | HIP ack use-case | [`use-cases/m3/hip/handle-hi-request-callback.ts`](../../../../modules/abdm-adapter/src/use-cases/m3/hip/handle-hi-request-callback.ts) | `handleHipHiRequestCallback(...)` — verifies signature, dedupes, parses, transitions session to `DATA_REQUESTED`, kicks off downstream |
-| Encrypt + push use-case | [`use-cases/m3/hip/push-health-information.ts`](../../../../modules/abdm-adapter/src/use-cases/m3/hip/push-health-information.ts) | `pushHealthInformationForSession(...)` — fetches bundles, calls `deps.fidelius.encryptBundlesForPeer`, posts to dataPushUrl, transitions through `KEYS_EXCHANGED → BUNDLES_FETCHED → BUNDLES_ENCRYPTED → BUNDLES_PUSHED` |
+| Encrypt + push use-case | [`use-cases/m3/hip/push-health-information.ts`](../../../../modules/abdm-adapter/src/use-cases/m3/hip/push-health-information.ts) | `pushHealthInformationForSession(...)` — fetches bundles, calls `deps.fidelius.encryptBundles`, posts to dataPushUrl, transitions through `KEYS_EXCHANGED → BUNDLES_FETCHED → BUNDLES_ENCRYPTED → BUNDLES_PUSHED` |
 | Notify CM use-case | [`use-cases/m3/hip/notify-data-transfer.ts`](../../../../modules/abdm-adapter/src/use-cases/m3/hip/notify-data-transfer.ts) | `notifyHipDataTransfer(...)` — posts `/data-flow/.../notify` with `notifier.type=HIP`, transitions to `ACKNOWLEDGED` |
 | Outbound push client | [`data-access/hip-data-push.client.ts`](../../../../modules/abdm-adapter/src/data-access/hip-data-push.client.ts) | `HttpHipDataPushClient implements HipDataPushClient` — POSTs to arbitrary `dataPushUrl`. Helpers: `checksumForContent(content)` (sha256 hex of the **encrypted** payload), `newPushRequestId()` (UUID for REQUEST-ID header) |
 | Fidelius port impl | [`data-access/fidelius.ts`](../../../../modules/abdm-adapter/src/data-access/fidelius.ts) | `FideliusEncryptor` class implementing the port; `createFideliusEncryptorFromEnv()` factory |
@@ -578,9 +578,9 @@ const entries = await deps.recordFoundation.fetchBundlesForConsent({
 });
 
 // 4. Encrypt all entries under ONE shared HIP keypair + nonce via the port.
-//    encryptBundlesForPeer (plural) generates ONE keypair and encrypts N payloads.
+//    encryptBundles (plural) generates ONE keypair and encrypts N payloads.
 //    Do NOT call encryptForPeer (singular) per-entry — fresh keypair per call breaks decryption.
-const batch = await deps.fidelius.encryptBundlesForPeer({
+const batch = await deps.fidelius.encryptBundles({
   payloadJsons:  entries.map((e) => e.contentJson),
   peerPublicKey: parsed.hiuPublicKey,
   peerNonce:     parsed.hiuNonce,
@@ -619,9 +619,12 @@ await deps.dataPush.push({
 
 **Notes on the canonical impl:**
 - `parseHiRequestBody` exists precisely to handle the consentId-at-top-level quirk; **do not** destructure `req.body.hiRequest.consent.id` directly in new code paths.
-- `checksumForContent` checksums the encrypted base64 payload (not plaintext). The ABDM spec doesn't pin this; production HIMS emits a literal string `'string'` as the checksum (known bug); the existing on-branch code chose sha256-of-ciphertext, which is also what the HIU side of any sandbox-aware integration test should expect.
-- `pageNumber: 0` matches `push-health-information.ts:73`. The fixture in `test-fixtures/m3/push/encrypted-bundle-sample.json` uses `1` for human-readable logging; either is gateway-accepted.
-- `encryptBundlesForPeer` (plural) is the correct choice for fan-out. The singular `encryptForPeer` generates a fresh keypair per call and would ship N different HIP public keys — only one entry would decrypt at the HIU.
+- **One in-process Fidelius path for all receivers** (PHR, HIMS, LIMS, loopback). `FideliusEncryptor.encryptBundles` uses ephemeral per-push keys and emits X509/SPKI `keyToShare` in outbound `keyMaterial.dhPublicKey.keyValue`. Inbound keys accept raw 65-byte EC point or SPKI; normalization is internal. See [`12-phr-push-reconciliation.md`](./12-phr-push-reconciliation.md).
+- Checksum defaults to literal `"string"` via `ABDM_M3_PUSH_CHECKSUM_MODE=literal` (production HIMS parity). Override with `sha256` or `md5` for harness tests.
+- Push headers: external CM `dataPushUrl` hosts use minimal headers (Content-Type only) by default; loopback adapter URLs get full NHA headers. Configure via `ABDM_M3_DATA_PUSH_MINIMAL_HEADERS`.
+- **URL rewrite is loopback-only.** Production/non-loopback always posts to CM-provided `dataPushUrl`. With `ABDM_M3_LOOPBACK_HIU=true`, external CM URLs redirect to the stored adapter HIU transfer endpoint.
+- `pageNumber: 0` matches `push-health-information.ts`. The fixture in `test-fixtures/m3/push/encrypted-bundle-sample.json` uses `1` for human-readable logging; either is gateway-accepted.
+- `encryptBundles` (plural) is the correct choice for fan-out. The singular `encryptForPeer` generates a fresh keypair per call and would ship N different HIP public keys — only one entry would decrypt at the HIU.
 - If you need a deterministic encrypt for tests (fixed HIP keypair + nonce so output is reproducible), use `encryptForPeerMaterialDeterministic` from `lib/fidelius-crypto.ts` — but call it only from test fixtures, not from production use-cases.
 
 **Reuses from M2:**
@@ -749,7 +752,7 @@ The real trap when rolling your own HKDF/AES-GCM is the **salt/IV split**, not t
 
 If you pass the full 32-byte XOR as the salt, or pass no IV separately to AES-GCM, the symptom is "tag mismatch" with no useful error.
 
-**Don't roll your own — go through the `FideliusEncryptor` port: `deps.fidelius.encryptForPeer`, `deps.fidelius.encryptBundlesForPeer`, `deps.fidelius.decryptFromPeer`, and `deps.fidelius.generateOurKeyMaterial`.** The port impl ([`data-access/fidelius.ts`](../../../../modules/abdm-adapter/src/data-access/fidelius.ts)) wraps the lib functions in [`lib/fidelius-crypto.ts`](../../../../modules/abdm-adapter/src/lib/fidelius-crypto.ts), which in turn handle `ecdhSharedSecretBc` + `deriveSaltAndIv` + `deriveAesKey` + AES-GCM with the framing the gateway expects. Internals are byte-exact against the Java BouncyCastle reference; see [`fidelius-java-vector.test.ts`](../../../../modules/abdm-adapter/src/lib/fidelius-java-vector.test.ts). Direct lib imports from use-cases are a ship-blocker (see [`09-m3-dev-guide.md §5.4`](./09-m3-dev-guide.md#54-function-shape-and-discipline)).
+**Don't roll your own — go through the `FideliusEncryptor` port: `deps.fidelius.encryptForPeer`, `deps.fidelius.encryptBundles`, `deps.fidelius.decryptBundle`, and `deps.fidelius.generateOurKeyMaterial`.** The port impl ([`data-access/fidelius.ts`](../../../../modules/abdm-adapter/src/data-access/fidelius.ts)) wraps the lib functions in [`lib/fidelius-crypto.ts`](../../../../modules/abdm-adapter/src/lib/fidelius-crypto.ts), which in turn handle `ecdhSharedSecretBc` + `deriveSaltAndIv` + `deriveAesKey` + AES-GCM with the framing the gateway expects. Internals are byte-exact against the Java BouncyCastle reference; see [`fidelius-java-vector.test.ts`](../../../../modules/abdm-adapter/src/lib/fidelius-java-vector.test.ts). Direct lib imports from use-cases are a ship-blocker (see [`09-m3-dev-guide.md §5.4`](./09-m3-dev-guide.md#54-function-shape-and-discipline)).
 
 ### Pitfall 7 — Multi-artefact consents fan out
 

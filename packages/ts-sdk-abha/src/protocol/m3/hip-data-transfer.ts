@@ -18,6 +18,8 @@ export interface HipHealthInformationRequest {
     dateRange?: { from: string; to: string };
     dataPushUrl?: string;
     keyMaterial?: HipHiRequestKeyMaterial;
+    /** CM-issued at on-request; must be echoed on push + notify (ABDM-1017 if wrong). */
+    transactionId?: string;
   };
   transactionId?: string;
   consentId?: string;

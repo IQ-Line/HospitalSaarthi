@@ -1,13 +1,14 @@
 import type { HipDataPushRequest } from "@hims/ts-sdk-abha/protocol/m3/hip-data-transfer.js";
 import type { AbdmAdapterDeps } from "../../../ports.js";
 import type { ParsedHiRequest } from "../../../lib/parse-hi-request-body.js";
-import {
-  checksumForContent,
-  newPushRequestId,
-} from "../../../data-access/hip-data-push.client.js";
 import type { AbdmSession } from "../../../domain/session.js";
 import { assertFlowKind } from "../../../domain/session.js";
 import { resolveHipDataPushUrl } from "../../../lib/resolve-hip-data-push-url.js";
+import { extractConsentCareContextRefs } from "../../../lib/extract-consent-care-context-refs.js";
+import { canonicalHipPushKeyMaterial } from "../../../lib/hip-push-envelope.js";
+import { checksumForHipPushEntry } from "../../../lib/hip-push-checksum.js";
+import { abdmWarn } from "../../../lib/abdm-adapter-log.js";
+import { isValidFideliusPublicKeyB64 } from "../../../lib/fidelius-public-key.js";
 import { M3Hip } from "../../../lib/m3-fsm-states.js";
 
 export async function pushHealthInformationForSession(
@@ -24,18 +25,32 @@ export async function pushHealthInformationForSession(
     throw new Error("HipDataPushClient not configured");
   }
 
-  const careContexts = await deps.recordFoundation.listCareContexts({
-    iqTenantId: input.iqTenantId,
-    patientId: input.patientId,
+  const [m3Artefact, consentArtefact] = await Promise.all([
+    deps.m3ConsentArtefactsHiu.findById(input.iqTenantId, input.parsed.consentId),
+    deps.consentArtefacts.findById(input.iqTenantId, input.parsed.consentId),
+  ]);
+  const careContextReferences = extractConsentCareContextRefs({
+    m3Artefact,
+    consentArtefact,
   });
+  if (careContextReferences.length === 0) {
+    throw new Error(
+      `No care context references in consent artefact (ABDM-7727): consentId=${input.parsed.consentId}`,
+    );
+  }
 
   const bundleEntries = [];
-  for (const cc of careContexts) {
+  for (const ref of careContextReferences) {
     const bundles = await deps.recordFoundation.listBundles({
       iqTenantId: input.iqTenantId,
-      careContextId: cc.id,
+      careContextId: ref,
     });
     bundleEntries.push(...bundles);
+  }
+  if (bundleEntries.length === 0) {
+    throw new Error(
+      `No bundles from Record Foundation for consent care contexts: consentId=${input.parsed.consentId} patientId=${input.patientId} refs=[${careContextReferences.join(", ")}]`,
+    );
   }
 
   await deps.sessions.patch({
@@ -44,16 +59,29 @@ export async function pushHealthInformationForSession(
     state: M3Hip.BUNDLES_FETCHED,
   });
 
-  const batch = await deps.fidelius.encryptBundlesForPeer({
-    payloadJsons: bundleEntries.map((b) => b.contentJson),
+  const payloadJsons = bundleEntries.map((b) => b.contentJson);
+  const batch = await deps.fidelius.encryptBundles({
+    payloadJsons,
     peerPublicKey: input.parsed.peerPublicKey,
     peerNonce: input.parsed.peerNonce,
+  });
+
+  abdmWarn("abdm.m3.hip_push.fidelius_encrypt", {
+    engine: "typescript",
+    hipKeyToShareLen: batch.ourPublicKey.length,
+    hipKeyToShareX509: batch.ourPublicKey.startsWith("MIIB"),
+    peerPubKeyValid: isValidFideliusPublicKeyB64(input.parsed.peerPublicKey),
+    consentId: input.parsed.consentId,
+    entryCount: bundleEntries.length,
   });
 
   const entries: HipDataPushRequest["entries"] = bundleEntries.map((bundle, i) => ({
     content: batch.encryptedPayloads[i]!,
     media: bundle.media,
-    checksum: checksumForContent(batch.encryptedPayloads[i]!),
+    checksum: checksumForHipPushEntry({
+      encryptedContent: batch.encryptedPayloads[i]!,
+      plaintextJson: bundle.contentJson,
+    }),
     careContextReference: bundle.careContextReference,
   }));
 
@@ -76,16 +104,11 @@ export async function pushHealthInformationForSession(
     },
   });
 
-  const keyMaterial = {
-    cryptoAlg: "ECDH",
-    curve: "Curve25519",
-    dhPublicKey: {
-      expiry: input.parsed.keyExpiry ?? new Date(Date.now() + 86400000).toISOString(),
-      parameters: "Curve25519/32byte random key",
-      keyValue: batch.ourPublicKey,
-    },
-    nonce: batch.ourNonce,
-  };
+  const keyMaterial = canonicalHipPushKeyMaterial({
+    hipPublicKeyB64: batch.ourPublicKey,
+    hipNonceB64: batch.ourNonce,
+    keyExpiry: input.parsed.keyExpiry,
+  });
 
   const pushBody: HipDataPushRequest = {
     pageNumber: 0,
@@ -98,8 +121,10 @@ export async function pushHealthInformationForSession(
   await deps.dataPush.push({
     dataPushUrl,
     body: pushBody as unknown as Record<string, unknown>,
-    requestId: newPushRequestId(),
+    requestId: input.parsed.transactionId,
     iqTenantId: input.iqTenantId,
+    xHipId: deps.xHipId,
+    xCmId: deps.xCmId,
   });
 
   await deps.sessions.patch({

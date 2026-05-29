@@ -65,11 +65,26 @@ export function runtimeCapabilityCatalogOptions() {
 }
 
 /** Tenant-enabled module slugs → assignable runtime capabilities for role editors. */
-export function assignableCapabilityCatalogOptions() {
+export function assignableCapabilityCatalogOptions(
+  tenantScope?: string | null,
+  options?: { productOnly?: boolean },
+) {
+  const productOnly = options?.productOnly === true;
+  const url = productOnly
+    ? `${BASE}/capabilities/assignable?product_only=true`
+    : `${BASE}/capabilities/assignable`;
   return queryOptions({
-    queryKey: userManagementKeys.assignableCapabilities(),
+    queryKey: [
+      ...userManagementKeys.assignableCapabilities(),
+      tenantScope ?? 'active-tenant',
+      productOnly ? 'product' : 'all',
+    ] as const,
     queryFn: () =>
-      apiClient<Capability[]>(`${BASE}/capabilities/assignable`, { method: 'GET' }),
+      apiClient<Capability[]>(
+        url,
+        { method: 'GET' },
+        tenantScope ? { tenantIdOverride: tenantScope } : undefined,
+      ),
   });
 }
 
@@ -220,9 +235,9 @@ export function useRolesSuspense() {
   return useSuspenseQuery(roleListOptions());
 }
 
-export function useRoleCapabilities(roleId: string, enabled: boolean) {
+export function useRoleCapabilities(roleId: string, enabled: boolean, tenantScope?: string | null) {
   return useQuery({
-    ...roleCapabilitiesOptions(roleId),
+    ...roleCapabilitiesOptions(roleId, tenantScope),
     enabled: enabled && roleId.length > 0,
   });
 }

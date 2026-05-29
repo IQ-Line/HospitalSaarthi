@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
-import { visitpadKeys } from './query-keys';
+import { visitpadInvalidationKeysForCatalogBasePath } from './query-keys';
 
 /** Soft-delete (or catalog delete) for Visitpad `DELETE /{id}` endpoints. */
 export function useVisitpadDelete(basePath: string) {
@@ -11,7 +11,9 @@ export function useVisitpadDelete(basePath: string) {
         method: 'DELETE',
       }),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: visitpadKeys.all });
+      for (const queryKey of visitpadInvalidationKeysForCatalogBasePath(basePath)) {
+        void qc.invalidateQueries({ queryKey });
+      }
     },
   });
 }

@@ -1,4 +1,4 @@
-/** Thrown when dashboard data cannot be loaded in live (non-mock) mode. */
+/** Thrown when dashboard data cannot be loaded from backend APIs. */
 export class DashboardDataUnavailableError extends Error {
   readonly code = 'DASHBOARD_DATA_UNAVAILABLE';
 

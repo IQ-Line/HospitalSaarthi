@@ -10,6 +10,7 @@ import {
   check,
   primaryKey,
   tenantColumn,
+  timestamp,
   sql,
 } from "@hims/ts-sdk-db";
 
@@ -71,6 +72,7 @@ export const tenants = configuratorSchema.table(
     pin_code: text("pin_code"),
     contact_phone: text("contact_phone"),
     contact_email: text("contact_email"),
+    tenant_numeric_code: text("tenant_numeric_code"),
     ...auditColumns(),
   },
   (t) => [
@@ -113,6 +115,60 @@ export const tenantModules = configuratorSchema.table(
     check(
       "chk_tenant_modules_core_always_active",
       sql`NOT (${t.is_core_override} AND NOT ${t.is_active})`,
+    ),
+  ],
+);
+
+export const tenantIntegrationProfiles = configuratorSchema.table(
+  "tenant_integration_profiles",
+  {
+    id: uuid("id").notNull().defaultRandom().primaryKey(),
+    ...tenantColumn(),
+    integration_kind: text("integration_kind").notNull(),
+    is_active: boolean("is_active").notNull().default(true),
+    hip_id: text("hip_id").notNull(),
+    hiu_id: text("hiu_id").notNull(),
+    cm_id: text("cm_id").notNull().default("sbx"),
+    client_id: text("client_id"),
+    client_secret: text("client_secret"),
+    default_sms_phone: text("default_sms_phone"),
+    hip_display_name: text("hip_display_name"),
+    callback_base_url: text("callback_base_url"),
+    sms_provider: text("sms_provider"),
+    sms_config: jsonb("sms_config").notNull().default({}),
+    gateway_environment: text("gateway_environment").notNull().default("sandbox"),
+    ...auditColumns(),
+  },
+  (t) => [
+    uniqueIndex("idx_tenant_integration_profiles_tenant_kind").on(
+      t.iq_tenant_id,
+      t.integration_kind,
+    ),
+    uniqueIndex("idx_tenant_integration_profiles_hip_active")
+      .on(t.hip_id)
+      .where(sql`${t.integration_kind} = 'abdm' AND ${t.is_active} = true`),
+    index("idx_tenant_integration_profiles_tenant").on(t.iq_tenant_id),
+    check(
+      "chk_tenant_integration_profiles_kind",
+      sql`${t.integration_kind} IN ('abdm')`,
+
+export const sequenceConfiguration = configuratorSchema.table(
+  "sequence_configuration",
+  {
+    iq_tenant_id: uuid("iq_tenant_id")
+      .notNull()
+      .primaryKey()
+      .references(() => tenants.iq_tenant_id),
+    status: text("status").notNull().default("default"),
+    configured_at: timestamp("configured_at", { withTimezone: true }),
+    identifier_overrides: jsonb("identifier_overrides").notNull().default({}),
+    ...auditColumns(),
+  },
+  (t) => [
+    index("idx_sequence_configuration_status").on(t.status),
+    check(
+      "chk_sequence_configuration_status",
+      sql`${t.status} IN ('default', 'configured')`,
     ),
   ],
 );

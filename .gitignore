@@ -53,6 +53,7 @@ infra/docker/volumes/
 # Claude Code
 .agents/
 .claude/
+.cursor/
 
 # Python
 __pycache__/

@@ -13,6 +13,8 @@ import {
   DrizzleOrganizationRepo,
   DrizzleTenantRepo,
   DrizzleTenantModuleRepo,
+  DrizzleTenantIntegrationProfilesRepo,
+  DrizzleSequenceConfigurationRepo,
   type RunConfiguratorTransaction,
 } from "@hims/configurator";
 import {
@@ -35,7 +37,15 @@ function requireUpstreamBaseUrl(envKey: string, fallback: string): string {
 }
 
 async function main() {
-  const app = Fastify({ logger: true });
+  const app = Fastify({
+    logger: true,
+    ajv: {
+      customOptions: {
+        // Default removeAdditional strips nested keys when oneOf/if-then schemas are used.
+        removeAdditional: false as const,
+      },
+    },
+  });
 
   await registerOpenApiDocs(app, {
     serviceId: "configurator",
@@ -72,6 +82,8 @@ async function main() {
   const organizationRepo = new DrizzleOrganizationRepo(db);
   const tenantRepo = new DrizzleTenantRepo(db);
   const tenantModuleRepo = new DrizzleTenantModuleRepo(db);
+  const tenantIntegrationProfilesRepo = new DrizzleTenantIntegrationProfilesRepo(db);
+  const sequenceConfigurationRepo = new DrizzleSequenceConfigurationRepo(db);
 
   const runConfiguratorTransaction: RunConfiguratorTransaction = (fn) =>
     db.transaction(async (tx) =>
@@ -118,6 +130,8 @@ async function main() {
         organizationRepo,
         tenantRepo,
         tenantModuleRepo,
+        tenantIntegrationProfilesRepo,
+        sequenceConfigurationRepo,
         runConfiguratorTransaction,
         eventBus,
         createInfrastructureCatalog: (authorization) =>

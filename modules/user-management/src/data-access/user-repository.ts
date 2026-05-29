@@ -14,7 +14,7 @@ import type {
   UserStatus,
   UserWithTenant,
 } from "../ports/index.js";
-import { users } from "../schema/tables.js";
+import { roles, user_roles, users } from "../schema/tables.js";
 
 function drizzleUserReadResourceAbacWhere(f: UserReadListResourceAbac): SQL {
   const tier = f.effectiveTier;
@@ -45,7 +45,17 @@ function rowToUser(row: {
   org_id: string | null;
   department: string | null;
   clearance_tier_required: number;
+  role_display_names?: string | string[];
 }): User {
+  let roleNames: string[] | undefined;
+  if (row.role_display_names !== undefined) {
+    if (Array.isArray(row.role_display_names)) {
+      roleNames = row.role_display_names.length > 0 ? row.role_display_names : undefined;
+    } else if (typeof row.role_display_names === "string") {
+      const parsed = parsePgTextArray(row.role_display_names);
+      roleNames = parsed.length > 0 ? parsed : undefined;
+    }
+  }
   return {
     id: row.id,
     full_name: row.full_name,
@@ -57,7 +67,20 @@ function rowToUser(row: {
     department: row.department,
     clearance_tier_required: row.clearance_tier_required,
     status: row.status as UserStatus,
+    ...(roleNames ? { role_display_names: roleNames } : {}),
   };
+}
+
+function parsePgTextArray(raw: string): string[] {
+  if (raw === "{}" || raw === "") return [];
+  const inner = raw.startsWith("{") && raw.endsWith("}") ? raw.slice(1, -1) : raw;
+  if (inner === "") return [];
+  return inner.split(",").map((s) => {
+    const trimmed = s.trim();
+    return trimmed.startsWith('"') && trimmed.endsWith('"')
+      ? trimmed.slice(1, -1).replace(/\\"/g, '"')
+      : trimmed;
+  });
 }
 
 const userColumns = {
@@ -151,7 +174,34 @@ export class DrizzleUserRepository implements UserRepository {
       conditions.push(eq(users.department, options.department));
     }
 
-    const rows = await this.db.select(userColumns).from(users).where(and(...conditions));
+    const rows = await this.db
+      .select({
+        ...userColumns,
+        role_display_names:
+          sql<string>`coalesce(array_agg(distinct ${roles.display_name}) filter (where ${roles.display_name} is not null), '{}')`.as(
+            "role_display_names",
+          ),
+      })
+      .from(users)
+      .leftJoin(
+        user_roles,
+        and(
+          eq(user_roles.iq_tenant_id, users.iq_tenant_id),
+          eq(user_roles.user_id, users.id),
+        ),
+      )
+      .leftJoin(
+        roles,
+        and(
+          eq(roles.iq_tenant_id, user_roles.iq_tenant_id),
+          eq(roles.id, user_roles.role_id),
+        ),
+      )
+      .where(and(...conditions))
+      .groupBy(
+        users.iq_tenant_id,
+        users.id,
+      );
 
     return rows.map((row) => rowToUser(row));
   }
