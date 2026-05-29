@@ -118,7 +118,10 @@ export function CreateUserWorkplaceSection({
   control,
   iqTenantId,
 }: CreateUserWorkplaceSectionProps) {
-  const { data: deptData, isLoading: deptLoading } = useDepartments(undefined, { iqTenantId });
+  const { data: deptData, isLoading: deptLoading } = useDepartments(undefined, {
+    iqTenantId,
+    formCatalog: true,
+  });
   const departments = (deptData?.data ?? []).filter((d) => d.is_active);
 
   return (

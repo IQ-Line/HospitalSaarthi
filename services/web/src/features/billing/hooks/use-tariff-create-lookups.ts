@@ -13,6 +13,7 @@ export function useTariffCreateLookups(
   const picklists = usePicklistValues(TARIFF_TYPE_PICKLIST_SLUG, enabled);
   const requiresProvider = tariffTypeRequiresProvider(tariffType);
   const departments = useDepartments(undefined, {
+    formCatalog: true,
     enabled: enabled && requiresProvider,
     iqTenantId,
   });

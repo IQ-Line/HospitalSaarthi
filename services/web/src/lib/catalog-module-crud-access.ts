@@ -98,6 +98,16 @@ export function catalogModuleCrudAccess(
     }
   }
 
+  if (catalogModuleSlug === 'departments') {
+    const shell = visitpadMasterShellCrudAccess(capabilityKeys);
+    canRead = canRead || shell.canRead;
+    if (shell.canMutate) {
+      mergedCreate = true;
+      mergedUpdate = true;
+      mergedDelete = true;
+    }
+  }
+
   return {
     canRead,
     canCreate: mergedCreate,

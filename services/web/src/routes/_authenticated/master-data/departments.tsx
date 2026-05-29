@@ -1,11 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, Controller } from 'react-hook-form';
 import { type ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
 import { Badge } from '@pulse/ui/badge';
-import { Button } from '@pulse/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -29,9 +28,17 @@ import { DataTable } from '@/components/data-table';
 import {
   useCreateDepartment,
   useDeleteDepartment,
+  useDepartmentPlatformImport,
   useDepartments,
+  useDepartmentsGlobalLibrary,
+  useDepartmentTenantImportKeys,
   useUpdateDepartment,
+  DEPARTMENT_CATALOG_DEFAULT_PAGE_SIZE,
+  DEPARTMENT_CATALOG_PAGE_SIZES,
 } from '@/features/master-data/api';
+import { useMasterDataTenantCatalog } from '@/features/master-data/hooks/use-master-data-tenant-catalog';
+import { ImportFromPlatformCatalogDialog } from '@/features/visitpad/components/import-from-platform-catalog-dialog';
+import { VisitpadHeaderActions } from '@/features/visitpad/components/visitpad-header-actions';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { EntityRowActions } from '@/features/master-data/components/entity-row-actions';
 import { MasterDataPageShell } from '@/features/master-data/components/master-data-page-shell';
@@ -39,7 +46,7 @@ import { MasterDataTableToolbar } from '@/features/master-data/components/master
 import { ReadOnlyRow } from '@/features/master-data/components/read-only-row';
 import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
-import { rowMatchesSearch } from '@/features/master-data/table-search';
+import { useVisitpadImportLibrarySearch } from '@/features/visitpad/hooks/use-visitpad-import-library-search';
 import { toSlug } from '@/features/master-data/utils';
 import {
   EMPTY_DEPARTMENT_FORM_VALUES,
@@ -65,20 +72,89 @@ function DepartmentsPage() {
   const { canCreate, canUpdate, canDelete } = useCatalogModuleCrud('departments', {
     productModuleSlug: 'master-data',
   });
+  const { tenantCatalog } = useMasterDataTenantCatalog();
   const [tableSearch, setTableSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<DepartmentType | 'all'>('all');
+  const [importOpen, setImportOpen] = useState(false);
+  const [libPageIndex, setLibPageIndex] = useState(0);
+  const libPageSize = 50;
+  const { librarySearch, librarySearchDraft, setLibrarySearchDraft } = useVisitpadImportLibrarySearch(
+    importOpen,
+    setLibPageIndex,
+  );
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(DEPARTMENT_CATALOG_DEFAULT_PAGE_SIZE);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
   const [viewingDepartment, setViewingDepartment] = useState<Department | null>(null);
   const [deletingDepartment, setDeletingDepartment] = useState<Department | null>(null);
 
   const deptType = typeFilter === 'all' ? undefined : typeFilter;
-  const { data, isLoading, error } = useDepartments(deptType);
+  const listPage = useMemo(() => ({ pageIndex, pageSize }), [pageIndex, pageSize]);
+  useEffect(() => {
+    setPageIndex(0);
+  }, [tableSearch, typeFilter]);
+  const { data, isLoading, error } = useDepartments(deptType, {
+    search: tableSearch || undefined,
+    page: listPage,
+  });
+  const { data: globalLib, isLoading: globalLibLoading } = useDepartmentsGlobalLibrary(
+    importOpen,
+    deptType,
+    { pageIndex: libPageIndex, pageSize: libPageSize },
+    librarySearch || undefined,
+  );
+  const { data: tenantCodeKeys } = useDepartmentTenantImportKeys(importOpen && tenantCatalog);
   const departments = data?.data ?? [];
+  const total = data?.total ?? 0;
 
   const createMutation = useCreateDepartment();
   const updateMutation = useUpdateDepartment();
   const deleteMutation = useDeleteDepartment();
+  const platformImport = useDepartmentPlatformImport();
+
+  const importedKeys = useMemo(() => tenantCodeKeys ?? new Set<string>(), [tenantCodeKeys]);
+  const globalRows = globalLib?.data ?? [];
+  const globalLibTotal = globalLib?.total ?? 0;
+
+  const importSearchParts = useCallback(
+    (d: Department) => [d.name, d.code, d.type, d.description ?? ''],
+    [],
+  );
+
+  const importColumns = useMemo(
+    () => [
+      { id: 'name', header: 'Name', cell: (d: Department) => d.name },
+      {
+        id: 'type',
+        header: 'Type',
+        cell: (d: Department) => (
+          <Badge variant="secondary">
+            {DEPARTMENT_TYPE_LABELS[d.type] ?? d.type}
+          </Badge>
+        ),
+      },
+    ],
+    [],
+  );
+
+  const getRowKey = useCallback((d: Department) => d.code.toLowerCase(), []);
+
+  const runDepartmentImport = async (selection: Department[]) => {
+    try {
+      const res = await platformImport.mutateAsync(selection.map((r) => r.id));
+      const { created, skipped, errors } = res.data;
+      const parts = [`${created.length} created`, `${skipped.length} skipped`];
+      if (errors.length) parts.push(`${errors.length} failed`);
+      toast.success(parts.join(', '));
+      if (errors.length) {
+        toast.error(errors.map((e) => e.message).join('; '));
+      }
+      setImportOpen(false);
+    } catch (err) {
+      toast.error(mutationErrorMessage(err));
+    }
+  };
 
   const createForm = useForm<DepartmentFormValues>({
     resolver: zodResolver(departmentFormSchema),
@@ -91,12 +167,6 @@ function DepartmentsPage() {
   });
 
   const typeOptions = useMemo(() => departmentTypeSchema.options, []);
-
-  const filteredDepartments = useMemo(() => {
-    return departments.filter((d) =>
-      rowMatchesSearch(tableSearch, d.name, d.code, d.type),
-    );
-  }, [departments, tableSearch]);
 
   const columns = useMemo<ColumnDef<Department, unknown>[]>(
     () => [
@@ -212,21 +282,17 @@ function DepartmentsPage() {
     }
   };
 
-  if (error) {
-    return (
-      <div className="p-6 text-destructive">
-        Failed to load departments: {error.message}
-      </div>
-    );
-  }
-
   return (
     <MasterDataPageShell
       section="departments"
       title="Departments"
-      description="Manage hospital departments across clinical, diagnostic, administrative, and support categories."
+      description={
+        tenantCatalog
+          ? 'Tenant department catalog: import from the platform library or add hospital-specific departments.'
+          : 'Platform department definitions shared across tenants.'
+      }
       actions={
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Select
             value={typeFilter}
             onValueChange={(value) => setTypeFilter(value as DepartmentType | 'all')}
@@ -243,9 +309,13 @@ function DepartmentsPage() {
               ))}
             </SelectContent>
           </Select>
-          {canCreate ? (
-            <Button onClick={() => setIsCreateOpen(true)}>Add Department</Button>
-          ) : null}
+          <VisitpadHeaderActions
+            catalogModuleSlug="departments"
+            addLabel="Add Department"
+            onAddClick={() => setIsCreateOpen(true)}
+            onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
+            importFromLibraryPending={platformImport.isPending}
+          />
         </div>
       }
     >
@@ -254,17 +324,28 @@ function DepartmentsPage() {
           <MasterDataTableToolbar
             value={tableSearch}
             onChange={setTableSearch}
-            debounceMs={0}
             placeholder="Search name, code, type…"
           />
         </div>
-        <DataTable
-          columns={columns}
-          data={filteredDepartments}
-          isLoading={isLoading}
-          emptyTitle="No departments found"
-          emptyDescription="Add a department to get started."
-        />
+        {error ? (
+          <p className="p-3 text-sm text-destructive">{error.message}</p>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={departments}
+            isLoading={isLoading}
+            emptyTitle="No departments found"
+            emptyDescription="Add a department to get started, or adjust your search."
+            manualPagination={{
+              pageIndex,
+              pageSize,
+              total,
+              pageSizeOptions: DEPARTMENT_CATALOG_PAGE_SIZES,
+              onPageChange: setPageIndex,
+              onPageSizeChange: setPageSize,
+            }}
+          />
+        )}
       </div>
 
       {/* Create dialog */}
@@ -325,6 +406,33 @@ function DepartmentsPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <ImportFromPlatformCatalogDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Import departments from platform library"
+        description="Copy selected platform departments into this tenant catalog. Already-imported codes are skipped."
+        searchPlaceholder="Search name, code, type…"
+        rows={globalRows}
+        isLoading={globalLibLoading}
+        getRowKey={getRowKey}
+        rowKeyHeader="Code"
+        importedKeys={importedKeys}
+        columns={importColumns}
+        searchParts={importSearchParts}
+        isSubmitting={platformImport.isPending}
+        onImportRows={runDepartmentImport}
+        libraryPagination={{
+          pageIndex: libPageIndex,
+          pageSize: libPageSize,
+          total: globalLibTotal,
+          onPageChange: setLibPageIndex,
+        }}
+        librarySearchControl={{
+          draft: librarySearchDraft,
+          onDraftChange: setLibrarySearchDraft,
+        }}
+      />
 
       {/* Delete confirm */}
       <ConfirmDialog

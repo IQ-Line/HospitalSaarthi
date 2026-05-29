@@ -157,6 +157,9 @@ importers:
       '@hims/ts-sdk-events':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-events
+      '@hims/ts-sdk-tenant':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-tenant
       '@noble/curves':
         specifier: ^1.9.0
         version: 1.9.7

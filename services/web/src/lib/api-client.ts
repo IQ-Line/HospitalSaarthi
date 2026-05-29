@@ -4,7 +4,7 @@ import { refreshAccessToken } from '@/lib/auth-session';
 import {
   billingIqTenantHeaderValue,
   catalogIqTenantHeaderValue,
-  isVisitpadCatalogApiPath,
+  isMasterDataDualSchemaCatalogApiPath,
   serviceIqTenantHeaderValue,
   visitpadCatalogOmitsIqTenantHeader,
 } from '@/lib/catalog-tenant';
@@ -119,7 +119,7 @@ function buildRequestHeaders(
 
   if (
     isWriteHttpMethod(options.method) &&
-    isVisitpadCatalogApiPath(path) &&
+    isMasterDataDualSchemaCatalogApiPath(path) &&
     !skipTenantHeaders &&
     tenantId != null &&
     tenantId.trim() !== '' &&

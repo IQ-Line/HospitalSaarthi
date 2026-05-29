@@ -151,6 +151,9 @@ export const tenantIntegrationProfiles = configuratorSchema.table(
     check(
       "chk_tenant_integration_profiles_kind",
       sql`${t.integration_kind} IN ('abdm')`,
+    ),
+  ],
+);
 
 export const sequenceConfiguration = configuratorSchema.table(
   "sequence_configuration",
