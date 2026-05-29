@@ -17,6 +17,13 @@ import type {
   TenantModuleFilters,
   TenantModuleKey,
 } from "./domain/tenant-module.types.js";
+import type {
+  TenantIntegrationProfile,
+  CreateTenantIntegrationProfileData,
+  UpdateTenantIntegrationProfileData,
+  TenantIntegrationProfileFilters,
+  IntegrationKind,
+} from "./domain/tenant-integration-profile.types.js";
 
 export interface OrganizationRepo {
   findAll(filters?: OrganizationFilters): Promise<Organization[]>;
@@ -48,6 +55,22 @@ export interface TenantModuleRepo {
     data: UpdateTenantModuleData,
   ): Promise<TenantModule | undefined>;
   delete(key: TenantModuleKey): Promise<boolean>;
+}
+
+export interface TenantIntegrationProfilesRepo {
+  findAll(filters: TenantIntegrationProfileFilters): Promise<TenantIntegrationProfile[]>;
+  findById(id: string): Promise<TenantIntegrationProfile | undefined>;
+  findActiveByTenantId(
+    iqTenantId: string,
+    integrationKind: IntegrationKind,
+  ): Promise<TenantIntegrationProfile | undefined>;
+  findActiveByHipId(hipId: string): Promise<TenantIntegrationProfile | undefined>;
+  create(data: CreateTenantIntegrationProfileData): Promise<TenantIntegrationProfile>;
+  update(
+    id: string,
+    data: UpdateTenantIntegrationProfileData,
+  ): Promise<TenantIntegrationProfile | undefined>;
+  delete(id: string): Promise<boolean>;
 }
 
 /** Repos scoped to one DB transaction (atomic org + default tenant + tenant modules, etc.). */

@@ -2,17 +2,27 @@
 
 **GitHub:** [Issue #143 — Phase 1a: Restructure abdm-adapter into integration-hub](https://github.com/IQ-Line/HospitalSaarthi/issues/143)
 
-## PR roadmap (docs vs code)
+## PR roadmap (strict order — develop sequentially)
 
-| PR | Purpose | Status |
-|----|---------|--------|
-| **#144** (or equivalent) | **Docs only** — LLD + guides + coverage matrix. Title should be `docs(integration-hub): Phase 1a spec` (not “implement”). | Land first |
-| **Code PR 1** | Configurator `tenant_integration_profiles` + Part A scaffold (copy `abdm-adapter` → `integrations/abdm/`, no behaviour change) | After #144 |
-| **Code PR 2** | Part B — `integrationContextResolver`, `/api/v3` callbacks, M2 consumers (**highest risk**) | |
-| **Code PR 3** | Part C — `integration_hub` schema, `integration-hub-svc`, env aliases | |
-| **Code PR 4** | Part D — delete `abdm-adapter`, smoke + regression matrix | |
+```mermaid
+flowchart LR
+  D144["PR 144 docs"]
+  C1["Code PR 1 Part A"]
+  C2["Code PR 2 Part B"]
+  C3["Code PR 3 Part C"]
+  C4["Code PR 4 Part D"]
+  D144 --> C1 --> C2 --> C3 --> C4
+```
 
-Implementation is **not** complete until all four code PRs merge. See [03-safe-migration §2](./03-safe-migration-and-cutover.md#2-recommended-code-pr-sequence).
+| Step | PR | Purpose | Status |
+|------|-----|---------|--------|
+| **0** | **#144** | **Docs only** — LLD + guides. Title: `docs(integration-hub): Phase 1a spec` | Complete first |
+| **1** | Code PR 1 | Part A — Configurator profiles + scaffold + copy `abdm` (no behaviour change) | After #144 |
+| **2** | Code PR 2 | Part B — `integrationContextResolver`, `/api/v3`, M2 consumers (**highest risk**) | After Code PR 1 |
+| **3** | Code PR 3 | Part C — `integration_hub` schema + `integration-hub-svc` | After Code PR 2 |
+| **4** | Code PR 4 | Part D — delete `abdm-adapter`, regression matrix | After Code PR 3 |
+
+**Do not** start Code PR 2 before Code PR 1 merges, etc. Implementation is **not** complete until Step 4 merges. Details: [03-safe-migration §2](./03-safe-migration-and-cutover.md#2-recommended-code-pr-sequence).
 
 ## What to read first
 

@@ -93,6 +93,10 @@ db-migrate: ## Run all pending migrations
 seed: ## Seed Configurator tenant, UM runtime data, Cerbos smoke check (catalog = Alembic)
 	pnpm seed
 
+.PHONY: seed-abdm-profile
+seed-abdm-profile: ## Seed configurator.tenant_integration_profiles from abdm-adapter-svc .env
+	pnpm seed-abdm-profile
+
 .PHONY: db-reset
 db-reset: ## Drop volumes, recreate infra, migrate, seed
 	$(DOCKER_COMPOSE) down -v

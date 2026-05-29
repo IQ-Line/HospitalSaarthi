@@ -1,0 +1,40 @@
+{
+  "description": "RSA-SHA256 over JCS(RFC 8785) consentDetail — self-signed test key only; replace with a real CM sandbox artefact when available for production interop proof",
+  "consentDetail": {
+    "schemaVersion": "v3",
+    "consentId": "11111111-1111-1111-1111-111111111111",
+    "createdAt": "2026-01-01T00:00:00.000Z",
+    "patient": {
+      "id": "patient@sbx"
+    },
+    "hip": {
+      "id": "IN3610001625"
+    },
+    "hiu": {
+      "id": "HIU-SANDBOX"
+    },
+    "purpose": {
+      "text": "Care Management",
+      "code": "CAREMGT",
+      "refUri": "https://example.com"
+    },
+    "hiTypes": [
+      "OPConsultation"
+    ],
+    "permission": {
+      "accessMode": "VIEW",
+      "dateRange": {
+        "from": "2020-01-01T00:00:00.000Z",
+        "to": "2030-01-01T00:00:00.000Z"
+      },
+      "dataEraseAt": "2030-01-01T00:00:00.000Z",
+      "frequency": {
+        "unit": "HOUR",
+        "value": 1,
+        "repeats": 0
+      }
+    }
+  },
+  "signature": "lzePPVgPDlWN7vP+obQbrMBX4JTiTxDIZMPxfhI0ms8lI0NdbPcDQDpLVZ2sELcASPJXtLLxyUCauNSqhjdBMh3veoZDYrRyuePxXSD6S0qgBTEYwzGRYG3aMAV60gtKGGe5lcZyoTrDIOrAqXD5Zsw6ajM05uZNSr+R3Sg7Q1nNeAmQvOybGbwzm1q8kKlfqDh0kRnGCznbUXSXAuwXdT66daBD6W67oxBFOgW+PSRmiR6SUhhUSTFJp+osuLSaz8hmNOeII1ItBkojo/AbAWuF6WZmxXldpNQpqIP67+VV0bH/lr6G3uifzyY5zq4SOmW7bSen5mN7g0W2r1e1og==",
+  "cmCertPem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtPQwNPU/6JjMDBSh7qrg\n18waAn+iBizyeQEHXhil71bS9F7E68tmx9w89nyj093dJN+OKawQgJX3DGTbi3mn\n5hmZoQBVyJUaeS0kwCWBe4pcm8UntARnvqbnESApxhCKWi1Gf8rdu0pA6eoW9MPc\nPJLmSIK2I0fxsXEAaDsvWFcr5es3ZRj8gd+/iQEbqk07dwflv44sNsm6YBRFakp/\n/lETNtJztWFRhzkKPgJsvJxmPT7WL5iOefLo8odcnA0B3IP8AV29AX3CL47+wE5+\nDICJQPZN6U77Cg1x4xvkaa2Bzear/d4PE+0++LVwtih+SEhmpYMVBBmXj7eM5czr\niwIDAQAB\n-----END PUBLIC KEY-----\n"
+}
