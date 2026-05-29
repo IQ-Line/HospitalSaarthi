@@ -28,5 +28,5 @@ export function resolvePathParam(
 }
 
 export function iqTenantAttr(request: FastifyRequest): { iq_tenant_id: string } {
-  return { iq_tenant_id: (request as unknown as { tenantId?: string }).tenantId ?? "" };
+  return { iq_tenant_id: request.user.tenantId };
 }

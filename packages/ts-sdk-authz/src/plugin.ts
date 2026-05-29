@@ -93,7 +93,7 @@ async function resolveInlineTarget(
     : undefined;
 
   const attr: Record<string, Value> = {
-    iq_tenant_id: (request as unknown as { tenantId?: string }).tenantId ?? "",
+    iq_tenant_id: request.user.tenantId,
     ...(userAttr ?? {}),
   };
 
