@@ -2,18 +2,12 @@ import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@pulse/ui/select';
 import { Textarea } from '@pulse/ui/textarea';
 import { useCreateRxStore } from '../../create-rx.store';
 import type { AllergyRow } from '../../types';
-import { CreateRxFormTable, type FormTableColumn } from '../create-rx-form-table';
-import { CreateRxSectionCard } from '../create-rx-section-card';
+import { CreateRxFormTable, type FormTableColumn } from '../form-table';
+import { LifestyleRadioGroup } from '../lifestyle-radio-group';
+import { SectionCard } from '../section-card';
 
 const ALLERGY_COLUMNS: FormTableColumn<AllergyRow>[] = [
   { key: 'allergen', label: 'Allergies', placeholder: 'Allergen' },
@@ -30,38 +24,11 @@ const ALLERGY_COLUMNS: FormTableColumn<AllergyRow>[] = [
   },
 ];
 
-function RadioGroup({
-  name,
-  value,
-  options,
-  onChange,
-  disabled,
-}: {
-  name: string;
-  value: string;
-  options: { value: string; label: string }[];
-  onChange: (v: string) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <div className="flex flex-wrap gap-4">
-      {options.map((opt) => (
-        <label key={opt.value} className="flex items-center gap-2 text-sm text-gray-600">
-          <input
-            type="radio"
-            name={name}
-            value={opt.value}
-            checked={value === opt.value}
-            onChange={() => onChange(opt.value)}
-            disabled={disabled}
-            className="size-4"
-          />
-          {opt.label}
-        </label>
-      ))}
-    </div>
-  );
-}
+const LIFESTYLE_OPTIONS = [
+  { value: 'former', label: 'Former' },
+  { value: 'current', label: 'Current' },
+  { value: 'never', label: 'Never' },
+] as const;
 
 export function CreateRxMedicalHistory() {
   const [showMore, setShowMore] = useState(false);
@@ -75,7 +42,7 @@ export function CreateRxMedicalHistory() {
 
   return (
     <div className="space-y-6 p-4">
-      <CreateRxSectionCard title="Chronic Illness & Lifestyle">
+      <SectionCard title="Chronic Illness & Lifestyle">
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="space-y-1.5">
             <Label className="text-sm text-gray-600">Chronic Illnesses</Label>
@@ -89,17 +56,11 @@ export function CreateRxMedicalHistory() {
           </div>
           <div className="space-y-1.5">
             <Label className="text-sm text-gray-600">Smoking Status</Label>
-            <RadioGroup
+            <LifestyleRadioGroup
               name="smoking"
               value={mh.smokingStatus}
-              options={[
-                { value: 'former', label: 'Former' },
-                { value: 'current', label: 'Current' },
-                { value: 'never', label: 'Never' },
-              ]}
-              onChange={(v) =>
-                patchMh({ smokingStatus: v as typeof mh.smokingStatus })
-              }
+              options={[...LIFESTYLE_OPTIONS]}
+              onChange={(v) => patchMh({ smokingStatus: v as typeof mh.smokingStatus })}
               disabled={isReadOnly}
             />
           </div>
@@ -130,24 +91,18 @@ export function CreateRxMedicalHistory() {
           </div>
           <div className="space-y-1.5">
             <Label className="text-sm text-gray-600">Alcohol Drinking</Label>
-            <RadioGroup
+            <LifestyleRadioGroup
               name="alcohol"
               value={mh.alcoholDrinking}
-              options={[
-                { value: 'Former', label: 'Former' },
-                { value: 'Current', label: 'Current' },
-                { value: 'Never', label: 'Never' },
-              ]}
-              onChange={(v) =>
-                patchMh({ alcoholDrinking: v as typeof mh.alcoholDrinking })
-              }
+              options={[...LIFESTYLE_OPTIONS]}
+              onChange={(v) => patchMh({ alcoholDrinking: v as typeof mh.alcoholDrinking })}
               disabled={isReadOnly}
             />
           </div>
         </div>
-      </CreateRxSectionCard>
+      </SectionCard>
 
-      <CreateRxSectionCard>
+      <SectionCard>
         <CreateRxFormTable
           title="Allergy Details"
           addButtonLabel="Add Allergy"
@@ -160,7 +115,7 @@ export function CreateRxMedicalHistory() {
           onRemove={removeAllergy}
           onUpdate={(i, field, value) => updateAllergy(i, field as keyof AllergyRow, value)}
         />
-      </CreateRxSectionCard>
+      </SectionCard>
 
       <button
         type="button"

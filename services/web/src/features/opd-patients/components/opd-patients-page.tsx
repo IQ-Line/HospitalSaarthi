@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { PatientsListPagination } from '@/components/patients/patients-list-pagination';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
 import { fetchOpdPatientsList } from '../api/opd-patients';
 import { opdPatientsQueryKeys } from '../api/query-keys';
@@ -123,16 +122,12 @@ export function OpdPatientsPage() {
         <OpdPatientsTable
           rows={rows}
           isLoading={loading}
+          total={total}
+          page={page}
+          pageSize={PAGE_SIZE}
+          onPageChange={setPage}
           onPatientRowClick={patientDetailsDialog.onRowClick}
         />
-        <div className="border-t border-gray-200 px-4 py-4">
-          <PatientsListPagination
-            currentPage={page}
-            entriesCount={total}
-            onPageChange={setPage}
-            rowPerPage={PAGE_SIZE}
-          />
-        </div>
       </div>
 
       <OpdPatientDetailsDialog

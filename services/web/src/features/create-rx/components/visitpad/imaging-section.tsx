@@ -1,7 +1,7 @@
 import { useCreateRxStore } from '../../create-rx.store';
 import type { ImagingRow } from '../../types';
-import { CreateRxFormTable, type FormTableColumn } from '../create-rx-form-table';
-import { CreateRxSectionHeader } from '../create-rx-section-header';
+import { CreateRxFormTable, type FormTableColumn } from '../form-table';
+import { SectionHeader } from '../section-header';
 
 const IMAGING_CHIPS = ['X-Ray', 'CT Scan', 'MRI', 'Ultrasound', 'PET Scan', 'Mammogram'];
 
@@ -36,7 +36,7 @@ export function CreateRxImagingSection() {
 
   return (
     <div>
-      <CreateRxSectionHeader
+      <SectionHeader
         title="Radiology Test"
         addLabel="Add Imaging"
         onAdd={add}

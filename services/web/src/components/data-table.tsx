@@ -42,6 +42,7 @@ interface DataTableProps<TData> {
   isLoading?: boolean;
   emptyTitle?: string;
   emptyDescription?: string;
+  onRowClick?: (row: TData) => void;
   /** Show TanStack column visibility menu (reference UI “Columns”). */
   showColumnMenu?: boolean;
   /** Server-driven pagination; when set, table shows pager footer and does not slice rows client-side. */
@@ -61,6 +62,7 @@ export function DataTable<TData>({
   isLoading,
   emptyTitle = 'No results',
   emptyDescription = 'No records found.',
+  onRowClick,
   showColumnMenu = false,
   manualPagination,
 }: DataTableProps<TData>) {
@@ -182,7 +184,11 @@ export function DataTable<TData>({
         </TableHeader>
         <TableBody>
           {table.getRowModel().rows.map((row) => (
-            <TableRow key={row.id}>
+            <TableRow
+              key={row.id}
+              className={onRowClick ? 'cursor-pointer' : undefined}
+              onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+            >
               {row.getVisibleCells().map((cell) => (
                 <TableCell key={cell.id}>
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}

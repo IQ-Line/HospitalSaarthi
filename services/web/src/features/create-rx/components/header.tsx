@@ -22,7 +22,7 @@ export function CreateRxHeader() {
 
   const meta = patient
     ? `UHID : ${patient.uhid}   |   Visit ID : ${visit?.visitNumber ?? '—'}`
-    : 'Scan barcode or enter visit number to load patient';
+    : 'Select a patient to begin';
 
   return (
     <div className="shrink-0 bg-card pb-1">
@@ -32,7 +32,7 @@ export function CreateRxHeader() {
             <h1 className="text-xl font-bold tracking-tight text-[#1e3a5f]">{title}</h1>
             <p className="text-sm text-[#717BBC]">{meta}</p>
             {isReadOnly ? (
-              <Badge variant="destructive" className="text-xs">
+              <Badge variant="outline" className="text-xs">
                 Read Only
               </Badge>
             ) : null}

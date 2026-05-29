@@ -9,20 +9,6 @@ const RIGHT_TABS: { key: CreateRxRightTab; label: string }[] = [
   { key: 'lab-reports', label: 'Lab Reports' },
 ];
 
-const AI_PREVIEW_FIELDS = [
-  'Chief Complaints',
-  'Medical History',
-  'Diagnosis',
-  'Medications',
-  'Tests Required',
-  'Imaging Required',
-  'Vaccines Required',
-  'Chronic Illness & Lifestyle',
-  'Previous Medications',
-  'Previous Medical Procedure',
-  'Allergy Details',
-] as const;
-
 function EmptyPreview({ message }: { message: string }) {
   return (
     <div className="flex min-h-[200px] flex-1 items-center justify-center bg-gray-100 p-6">
@@ -57,15 +43,11 @@ export function CreateRxRightPanel() {
           ))}
         </TabsList>
         <TabsContent value="ai-prescription" className="mt-0 min-h-0 flex-1 overflow-y-auto bg-gray-50 p-3">
-          <div className="space-y-4">
-            {AI_PREVIEW_FIELDS.map((label) => (
-              <div key={label}>
-                <p className="mb-1 text-sm font-semibold text-gray-700">{label}</p>
-                <div className="min-h-[38px] rounded-sm bg-gray-100 px-3 py-2 text-sm text-gray-400">
-                  —
-                </div>
-              </div>
-            ))}
+          <div>
+            <p className="mb-1 text-sm font-semibold text-gray-700">Prescription preview</p>
+            <div className="min-h-[120px] rounded-sm bg-gray-100 px-3 py-2 text-sm text-gray-400">
+              Preview will populate from visit data when the prescription API is wired.
+            </div>
           </div>
         </TabsContent>
         <TabsContent value="medical-history" className="mt-0 min-h-0 flex-1">

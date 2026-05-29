@@ -21,6 +21,10 @@ import type { OpdPatientVisitRow } from '../types';
 interface OpdPatientsTableProps {
   rows: OpdPatientVisitRow[];
   isLoading: boolean;
+  total: number;
+  page: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
   onPatientRowClick: (row: OpdPatientVisitRow) => void;
 }
 
@@ -28,7 +32,15 @@ function stopRowClick(e: MouseEvent) {
   e.stopPropagation();
 }
 
-export function OpdPatientsTable({ rows, isLoading, onPatientRowClick }: OpdPatientsTableProps) {
+export function OpdPatientsTable({
+  rows,
+  isLoading,
+  total,
+  page,
+  pageSize,
+  onPageChange,
+  onPatientRowClick,
+}: OpdPatientsTableProps) {
   const columns = useMemo<ColumnDef<OpdPatientVisitRow, unknown>[]>(
     () => [
       {
@@ -73,7 +85,7 @@ export function OpdPatientsTable({ rows, isLoading, onPatientRowClick }: OpdPati
               onClick={stopRowClick}
             >
               <Link
-                to="/create-rx-v2/$visitId"
+                to="/create-rx/$visitId"
                 params={{ visitId: row.original.id }}
                 search={{ mode: isView ? 'view' : 'edit' }}
                 onClick={stopRowClick}
@@ -145,6 +157,13 @@ export function OpdPatientsTable({ rows, isLoading, onPatientRowClick }: OpdPati
         onRowClick={onPatientRowClick}
         emptyTitle="No data available"
         emptyDescription="No OPD visits match the current filters."
+        manualPagination={{
+          pageIndex: page - 1,
+          pageSize,
+          total,
+          onPageChange: (pageIndex) => onPageChange(pageIndex + 1),
+          onPageSizeChange: () => {},
+        }}
       />
     </div>
   );

@@ -2,11 +2,11 @@ import { Button } from '@pulse/ui/button';
 import { cn } from '@pulse/utils';
 import { useCreateRxStore } from '../create-rx.store';
 import type { CreateRxSectionTab } from '../types';
-import { CreateRxCarePlan } from './visitpad/create-rx-care-plan';
-import { CreateRxCurrentMedication } from './visitpad/create-rx-current-medication';
-import { CreateRxMedicalHistory } from './visitpad/create-rx-medical-history';
-import { CreateRxPhysicalActivity } from './visitpad/create-rx-physical-activity';
-import { CreateRxPreConsult } from './create-rx-pre-consult';
+import { CreateRxCarePlan } from './visitpad/care-plan';
+import { CreateRxCurrentMedication } from './visitpad/current-medication';
+import { CreateRxMedicalHistory } from './visitpad/medical-history';
+import { CreateRxPhysicalActivity } from './visitpad/physical-activity';
+import { CreateRxPreConsult } from './pre-consult';
 
 const SECTION_TABS: { key: CreateRxSectionTab; label: string }[] = [
   { key: 'pre-consult', label: 'Pre Consult' },
@@ -79,7 +79,7 @@ export function CreateRxVisitPad({ onSave, onEndConsultation }: CreateRxVisitPad
           <Button
             type="button"
             size="sm"
-            className="bg-[#0d9488] hover:bg-[#0f766e] text-white"
+            className="bg-[#0d9488] text-white hover:bg-[#0f766e]"
             onClick={onEndConsultation}
           >
             End Consultation

@@ -1,8 +1,8 @@
 import { useCreateRxStore } from '../create-rx.store';
-import { CreateRxSectionCard } from './create-rx-section-card';
 import type { ChiefComplaintRow, ImmunizationRow } from '../types';
-import { CreateRxFormTable, type FormTableColumn } from './create-rx-form-table';
-import { CreateRxVitalsGrid } from './create-rx-vitals-grid';
+import { CreateRxFormTable, type FormTableColumn } from './form-table';
+import { SectionCard } from './section-card';
+import { CreateRxVitalsGrid } from './vitals-grid';
 
 const COMPLAINT_COLUMNS: FormTableColumn<ChiefComplaintRow>[] = [
   { key: 'complaint', label: 'Complaint', placeholder: 'Enter complaint' },
@@ -56,39 +56,39 @@ export function CreateRxPreConsult() {
 
   return (
     <div className="space-y-4 p-4 pb-6">
-      <CreateRxSectionCard title="Vitals">
+      <SectionCard title="Vitals">
         <CreateRxVitalsGrid />
-      </CreateRxSectionCard>
+      </SectionCard>
 
-      <CreateRxSectionCard>
+      <SectionCard>
         <CreateRxFormTable
-            title="Chief Complaints"
-            addButtonLabel="Add Complaint"
-            columns={COMPLAINT_COLUMNS}
-            rows={chiefComplaints}
-            readOnly={isReadOnly}
-            onAdd={addComplaintRow}
-            onRemove={removeComplaintRow}
-            onUpdate={(i, field, value) =>
-              updateComplaintRow(i, field as keyof ChiefComplaintRow, value)
-            }
-          />
-      </CreateRxSectionCard>
+          title="Chief Complaints"
+          addButtonLabel="Add Complaint"
+          columns={COMPLAINT_COLUMNS}
+          rows={chiefComplaints}
+          readOnly={isReadOnly}
+          onAdd={addComplaintRow}
+          onRemove={removeComplaintRow}
+          onUpdate={(i, field, value) =>
+            updateComplaintRow(i, field as keyof ChiefComplaintRow, value)
+          }
+        />
+      </SectionCard>
 
-      <CreateRxSectionCard>
+      <SectionCard>
         <CreateRxFormTable
-            title="Immunisation Details"
-            addButtonLabel="Add Immunisation"
-            columns={IMMUNIZATION_COLUMNS}
-            rows={immunizations}
-            readOnly={isReadOnly}
-            onAdd={addImmunizationRow}
-            onRemove={removeImmunizationRow}
-            onUpdate={(i, field, value) =>
-              updateImmunizationRow(i, field as keyof ImmunizationRow, value)
-            }
-          />
-      </CreateRxSectionCard>
+          title="Immunisation Details"
+          addButtonLabel="Add Immunisation"
+          columns={IMMUNIZATION_COLUMNS}
+          rows={immunizations}
+          readOnly={isReadOnly}
+          onAdd={addImmunizationRow}
+          onRemove={removeImmunizationRow}
+          onUpdate={(i, field, value) =>
+            updateImmunizationRow(i, field as keyof ImmunizationRow, value)
+          }
+        />
+      </SectionCard>
     </div>
   );
 }

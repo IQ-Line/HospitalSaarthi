@@ -1,26 +1,9 @@
 import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
-import { Input } from '@pulse/ui/input';
-import { Label } from '@pulse/ui/label';
+import { DetailViewField } from '@/components/detail-view';
 import { useCreateRxStore } from '../create-rx.store';
-import { CreateRxSectionCard } from './create-rx-section-card';
+import { SectionCard } from './section-card';
 
-function Field({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <Label className="text-sm text-gray-600">{label}</Label>
-      <Input value={value} readOnly className="border-[#CBD5E1] bg-white" />
-    </div>
-  );
-}
-
-/** Reference PatientDetails embeddedMode — read-only patient snapshot. */
 export function CreateRxPatientProfile() {
   const [showMore, setShowMore] = useState(false);
   const patient = useCreateRxStore((s) => s.context?.patient);
@@ -32,19 +15,27 @@ export function CreateRxPatientProfile() {
 
   return (
     <div className="p-4">
-      <CreateRxSectionCard>
+      <SectionCard>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <Field label="First Name" value={patient.firstName} />
-          <Field label="Middle Name" value={patient.middleName ?? ''} />
-          <Field label="Last Name" value={patient.lastName} />
+          <DetailViewField label="First Name" value={patient.firstName} />
+          <DetailViewField label="Middle Name" value={patient.middleName ?? ''} />
+          <DetailViewField label="Last Name" value={patient.lastName} />
         </div>
         <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-          <Field label="UHID" value={patient.uhid} />
-          <Field label="Phone Number" value={patient.phone ?? ''} />
-          <Field label="ABHA Number" value={patient.abhaNumber ?? 'N/A'} />
+          <DetailViewField label="UHID" value={patient.uhid} />
+          <DetailViewField label="Phone Number" value={patient.phone ?? ''} />
+          <DetailViewField
+            label="ABHA Number"
+            value={patient.abhaNumber ?? 'N/A'}
+            highlight={Boolean(patient.abhaNumber)}
+          />
         </div>
         <div className="mt-4">
-          <Field label="ABHA Address" value={patient.abhaAddress ?? 'N/A'} />
+          <DetailViewField
+            label="ABHA Address"
+            value={patient.abhaAddress ?? 'N/A'}
+            highlight={Boolean(patient.abhaAddress)}
+          />
         </div>
         <button
           type="button"
@@ -56,14 +47,14 @@ export function CreateRxPatientProfile() {
         </button>
         {showMore ? (
           <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-            <Field label="Display Name" value={fullName} />
-            <Field
+            <DetailViewField label="Display Name" value={fullName} />
+            <DetailViewField
               label="Gender / Age"
               value={`${patient.gender} / ${patient.age}`}
             />
           </div>
         ) : null}
-      </CreateRxSectionCard>
+      </SectionCard>
     </div>
   );
 }

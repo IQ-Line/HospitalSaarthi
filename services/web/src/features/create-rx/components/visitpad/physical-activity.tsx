@@ -1,6 +1,6 @@
 import { useCreateRxStore } from '../../create-rx.store';
 import type { PhysicalActivityRow } from '../../types';
-import { CreateRxFormTable, type FormTableColumn } from '../create-rx-form-table';
+import { CreateRxFormTable, type FormTableColumn } from '../form-table';
 
 const COLUMNS: FormTableColumn<PhysicalActivityRow>[] = [
   { key: 'steps', label: 'Steps', type: 'number', placeholder: 'Daily steps' },

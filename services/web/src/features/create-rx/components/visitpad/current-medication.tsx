@@ -5,10 +5,10 @@ import type {
   ProcedureRow,
   TestRow,
 } from '../../types';
-import { CreateRxFormTable, type FormTableColumn } from '../create-rx-form-table';
-import { CreateRxSectionCard } from '../create-rx-section-card';
-import { CreateRxSectionHeader } from '../create-rx-section-header';
-import { CreateRxImagingSection } from './create-rx-imaging-section';
+import { CreateRxFormTable, type FormTableColumn } from '../form-table';
+import { SectionCard } from '../section-card';
+import { SectionHeader } from '../section-header';
+import { CreateRxImagingSection } from './imaging-section';
 
 const DIAGNOSIS_COLUMNS: FormTableColumn<DiagnosisRow>[] = [
   { key: 'notes', label: 'Diagnosis', placeholder: 'Add Diagnosis' },
@@ -74,11 +74,11 @@ export function CreateRxCurrentMedication() {
 
   return (
     <div className="p-4">
-      <CreateRxSectionCard>
+      <SectionCard>
         <h3 className="mb-6 text-base font-semibold text-gray-700">Current Medication</h3>
         <div className="space-y-6">
           <div>
-            <CreateRxSectionHeader
+            <SectionHeader
               title="Diagnosis"
               addLabel="Add Diagnosis"
               onAdd={addDiagnosis}
@@ -146,7 +146,7 @@ export function CreateRxCurrentMedication() {
             }
           />
         </div>
-      </CreateRxSectionCard>
+      </SectionCard>
     </div>
   );
 }

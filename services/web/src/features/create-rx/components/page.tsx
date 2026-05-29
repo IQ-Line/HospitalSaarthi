@@ -4,14 +4,14 @@ import { toast } from 'sonner';
 import { TwoColumnLayout } from '@pulse/layouts/two-column-layout';
 import { Button } from '@pulse/ui/button';
 import { Skeleton } from '@pulse/ui/skeleton';
-import { getMockCreateRxVisitContext } from '../mock/visit-context.mock';
+import { fetchCreateRxVisitContext } from '../api/visit-context';
 import { useCreateRxStore } from '../create-rx.store';
-import { CreateRxDocumentsTab } from './create-rx-documents-tab';
-import { CreateRxHeader } from './create-rx-header';
-import { CreateRxMainTabs } from './create-rx-main-tabs';
-import { CreateRxPatientProfile } from './create-rx-patient-profile';
-import { CreateRxRightPanel } from './create-rx-right-panel';
-import { CreateRxVisitPad } from './create-rx-visit-pad';
+import { CreateRxDocumentsTab } from './documents-tab';
+import { CreateRxHeader } from './header';
+import { CreateRxMainTabs } from './main-tabs';
+import { CreateRxPatientProfile } from './patient-profile';
+import { CreateRxRightPanel } from './right-panel';
+import { CreateRxVisitPad } from './visit-pad';
 
 interface CreateRxPageProps {
   visitId: string;
@@ -26,14 +26,28 @@ export function CreateRxPage({ visitId, mode = 'edit' }: CreateRxPageProps) {
   const setLoading = useCreateRxStore((s) => s.setLoading);
 
   useEffect(() => {
-    setLoading(true);
-    const ctx = getMockCreateRxVisitContext(visitId);
-    if (!ctx) {
-      setLoading(false);
-      resetForVisit(null, false);
-      return;
-    }
-    resetForVisit(ctx, mode === 'view' || ctx.visit.status === 'completed');
+    let cancelled = false;
+
+    const load = async () => {
+      setLoading(true);
+      try {
+        const ctx = await fetchCreateRxVisitContext(visitId);
+        if (cancelled) return;
+        if (!ctx) {
+          resetForVisit(null, false);
+          return;
+        }
+        resetForVisit(ctx, mode === 'view' || ctx.visit.status === 'completed');
+      } catch {
+        if (!cancelled) resetForVisit(null, false);
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
   }, [visitId, mode, resetForVisit, setLoading]);
 
   const handleSave = () => {
