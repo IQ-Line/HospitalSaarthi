@@ -7,7 +7,7 @@ vi.mock('@/lib/api-client', () => ({
   apiClientWithIqTenant: (...args: unknown[]) => apiClientWithIqTenantMock(...args),
 }));
 
-import { DASHBOARD_STATS_DAYS, fetchDashboardMetrics } from './dashboard-metrics';
+import { fetchDashboardMetrics } from './dashboard-metrics';
 
 const tenantId = '00000000-0000-4000-8000-000000000001';
 
@@ -39,8 +39,9 @@ describe('fetchDashboardMetrics', () => {
 
     expect(apiClientWithIqTenantMock).toHaveBeenCalledWith(
       tenantId,
-      `/api/registration/v1/dashboard/stats?days=${DASHBOARD_STATS_DAYS}`,
+      '/api/registration/v1/dashboard/stats',
     );
+    expect(result.stats.doctorPendingConsultations).toBe(0);
     expect(result.stats.totalVisits).toBe(10);
     expect(result.todaysVisits[0]?.patientName).toBe('Test Patient');
   });

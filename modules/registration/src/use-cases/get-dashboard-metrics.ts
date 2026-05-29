@@ -1,4 +1,7 @@
-import type { DashboardStatsResponse } from "../domain/dashboard.types.js";
+import type {
+  DashboardStatsResponse,
+  DashboardTodaysVisit,
+} from "../domain/dashboard.types.js";
 import type { RegistrationRepo } from "../ports.js";
 
 const DEFAULT_DAYS = 3;
@@ -22,6 +25,21 @@ function fillFootfall(
   });
 }
 
+function formatIstTime(at: Date): string {
+  return at.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: TZ,
+  });
+}
+
+function mapVisitStatus(status: string): DashboardTodaysVisit["status"] {
+  if (status === "completed") return "completed";
+  if (status === "in_progress") return "in_progress";
+  return "pending";
+}
+
 export async function getDashboardMetrics(
   deps: { registrationRepo: RegistrationRepo },
   tenantId: string,
@@ -38,6 +56,11 @@ export async function getDashboardMetrics(
       doctor_pending_consultations: 0,
     },
     patient_footfall: fillFootfall(raw.footfall, days),
-    todays_visits: raw.todays_visits,
+    todays_visits: raw.todays_visits.map((row) => ({
+      registration_id: row.registration_id,
+      patient_name: row.patient_name,
+      time: formatIstTime(row.created_at),
+      status: mapVisitStatus(row.registration_status),
+    })),
   };
 }

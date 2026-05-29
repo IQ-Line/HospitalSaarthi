@@ -23,11 +23,19 @@ export interface DashboardStatsResponse {
   todays_visits: DashboardTodaysVisit[];
 }
 
+/** Today's visit row from the repository (presentation applied in use-case). */
+export interface DashboardRepoTodaysVisit {
+  registration_id: string;
+  patient_name: string;
+  created_at: Date;
+  registration_status: string;
+}
+
 /** Raw aggregates from the repository before footfall gap-fill. */
 export interface DashboardRepoMetrics {
   total: number;
   new_patients: number;
   follow_ups: number;
   footfall: DashboardFootfallPoint[];
-  todays_visits: DashboardTodaysVisit[];
+  todays_visits: DashboardRepoTodaysVisit[];
 }

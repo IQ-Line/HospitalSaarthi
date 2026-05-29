@@ -35,9 +35,9 @@ paths:
       operationId: getDashboardStats
       summary: Dashboard registration metrics (tenant-scoped)
       description: |
-        Returns visit counters, patient footfall for the last `days` calendar days (UTC, default 3),
+        Returns visit counters, patient footfall for the last `days` calendar days (IST, default 3),
         and today's registrations. `doctor_pending_consultations` is always `0` until OPD queue is wired.
-        New vs follow-up counts use `visit_type` codes `opd_first` and `opd_follow_up`.
+        New vs follow-up counts use `visit_type` codes `opd_first` and `opd_follow_up` only.
       tags: [EncounterRegistrations]
       parameters:
         - name: days

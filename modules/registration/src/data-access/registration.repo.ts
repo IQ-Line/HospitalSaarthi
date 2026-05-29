@@ -3,7 +3,7 @@ import { and, eq, sql } from "@hims/ts-sdk-db";
 import { desc, ilike, or } from "drizzle-orm";
 import { registrations } from "../schema/tables.js";
 import type { RegistrationRepo } from "../ports.js";
-import type { DashboardRepoMetrics, DashboardTodaysVisit } from "../domain/dashboard.types.js";
+import type { DashboardRepoMetrics } from "../domain/dashboard.types.js";
 import type {
   CreateRegistrationInput,
   ListRegistrationsParams,
@@ -13,6 +13,9 @@ import type {
 
 /** Normalized visit_type for dashboard buckets (strips punctuation / case). */
 const visitNorm = sql`regexp_replace(lower(trim(coalesce(${registrations.visit_type}, ''))), '[^a-z0-9]', '', 'g')`;
+/** Canonical codes from visit registration UI — no fuzzy substring matching. */
+const newVisitNorms = sql`${visitNorm} in ('opdfirst')`;
+const followUpVisitNorms = sql`${visitNorm} in ('opdfollowup')`;
 /** IST calendar boundaries — timezone must be a SQL literal (not a bind param). */
 const dayBucket = sql`date_trunc('day', ${registrations.created_at} AT TIME ZONE 'Asia/Kolkata')`;
 const todayStartIst = sql`(date_trunc('day', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata') AT TIME ZONE 'Asia/Kolkata')`;
@@ -219,8 +222,8 @@ export class DrizzleRegistrationRepo implements RegistrationRepo {
       this.db
         .select({
           total: sql<number>`count(*)::int`,
-          new_patients: sql<number>`count(*) filter (where ${visitNorm} in ('opdfirst', 'opdfirstvisit') or ${visitNorm} like '%first%')::int`,
-          follow_ups: sql<number>`count(*) filter (where ${visitNorm} in ('opdfollowup', 'opdfollowupvisit') or ${visitNorm} like '%follow%')::int`,
+          new_patients: sql<number>`count(*) filter (where ${newVisitNorms})::int`,
+          follow_ups: sql<number>`count(*) filter (where ${followUpVisitNorms})::int`,
         })
         .from(registrations)
         .where(tenant),
@@ -246,11 +249,11 @@ export class DrizzleRegistrationRepo implements RegistrationRepo {
         .limit(50),
     ]);
 
-    const todays_visits: DashboardTodaysVisit[] = todayRows.map((row) => ({
+    const todays_visits = todayRows.map((row) => ({
       registration_id: row.registration_id,
       patient_name: row.patient_name,
-      time: formatIstTime(row.created_at),
-      status: mapVisitStatus(row.registration_status),
+      created_at: row.created_at,
+      registration_status: row.registration_status,
     }));
 
     return {
@@ -261,21 +264,4 @@ export class DrizzleRegistrationRepo implements RegistrationRepo {
       todays_visits,
     };
   }
-}
-
-function formatIstTime(at: Date): string {
-  return at.toLocaleTimeString("en-GB", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    timeZone: "Asia/Kolkata",
-  });
-}
-
-function mapVisitStatus(
-  status: string,
-): DashboardTodaysVisit["status"] {
-  if (status === "completed") return "completed";
-  if (status === "in_progress") return "in_progress";
-  return "pending";
 }

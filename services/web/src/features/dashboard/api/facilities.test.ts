@@ -76,4 +76,8 @@ describe('resolveDefaultFacilityTenantId', () => {
   it('falls back to first facility when home tenant is absent', () => {
     expect(resolveDefaultFacilityTenantId(facilities, 'tenant-missing')).toBe('tenant-a');
   });
+
+  it('returns undefined when facilities list is empty', () => {
+    expect(resolveDefaultFacilityTenantId([], 'tenant-a')).toBeUndefined();
+  });
 });

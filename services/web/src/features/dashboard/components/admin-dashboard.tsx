@@ -127,13 +127,15 @@ export function AdminDashboard() {
             <TodaysVisitsTable visits={bundle.todaysVisits} />
           </div>
 
-          <div className="mt-8">
-            <TopItemsPanel
-              medicines={bundle.topItems.medicines}
-              diagnoses={bundle.topItems.diagnoses}
-              diagnostics={bundle.topItems.diagnostics}
-            />
-          </div>
+          {bundle.topItems ? (
+            <div className="mt-8">
+              <TopItemsPanel
+                medicines={bundle.topItems.medicines}
+                diagnoses={bundle.topItems.diagnoses}
+                diagnostics={bundle.topItems.diagnostics}
+              />
+            </div>
+          ) : null}
         </>
       ) : null}
     </div>

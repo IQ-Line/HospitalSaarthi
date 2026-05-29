@@ -2,8 +2,7 @@ import { apiClientWithIqTenant } from '@/lib/api-client';
 import { DashboardDataUnavailableError } from './errors';
 import type { DashboardMetricsBundle } from '../types';
 
-export const DASHBOARD_STATS_DAYS = 3;
-const STATS_PATH = `/api/registration/v1/dashboard/stats?days=${DASHBOARD_STATS_DAYS}`;
+const STATS_PATH = '/api/registration/v1/dashboard/stats';
 
 type StatsApiResponse = {
   stats: {
@@ -42,7 +41,6 @@ export async function fetchDashboardMetrics(tenantId: string): Promise<Dashboard
         time: v.time,
         status: v.status,
       })),
-      topItems: { medicines: [], diagnoses: [], diagnostics: [] },
     };
   } catch (error) {
     throw new DashboardDataUnavailableError('Failed to load dashboard metrics from Registration.', {
