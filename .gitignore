@@ -73,3 +73,12 @@ docs/external/abdm-wrapper/
 
 # Scratch / working notes (use for analysis docs, local-only)
 /scratch/
+
+# OpenCode planning documents (local-only, never commit)
+.opencode/plans/
+
+# Local PostgreSQL trust-auth init script
+infra/db/pg-init-trust.sh
+
+# Python build artifacts
+*.egg-info/

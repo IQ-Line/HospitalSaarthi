@@ -1,5 +1,7 @@
 import type { BundleRepo, BundleRow } from "../ports.js";
 
+const MAX_BUNDLE_SIZE_BYTES = 50 * 1024 * 1024;
+
 interface Deps {
   bundleRepo: BundleRepo;
 }
@@ -15,6 +17,13 @@ export interface StoreBundleInput {
   producedAt: Date;
 }
 
+export class BundleTooLargeError extends Error {
+  constructor(sizeBytes: number, maxBytes: number) {
+    super(`Bundle exceeds maximum size of ${maxBytes} bytes (got ${sizeBytes})`);
+    this.name = "BundleTooLargeError";
+  }
+}
+
 export async function storeBundle(
   deps: Deps,
   tenantId: string,
@@ -22,6 +31,10 @@ export async function storeBundle(
 ): Promise<BundleRow> {
   const serialized = JSON.stringify(input.bundleJson);
   const bundleSizeBytes = Buffer.byteLength(serialized, "utf-8");
+
+  if (bundleSizeBytes > MAX_BUNDLE_SIZE_BYTES) {
+    throw new BundleTooLargeError(bundleSizeBytes, MAX_BUNDLE_SIZE_BYTES);
+  }
 
   return deps.bundleRepo.insert({
     iqTenantId: tenantId,

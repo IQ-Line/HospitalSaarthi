@@ -6,6 +6,7 @@ info:
     Record Foundation API — care-context registry and immutable FHIR Document Bundle vault.
     Simplified CRUD service with 2 tables. Does NOT own clinical source data (operational
     modules), patient identity (EMPI), or ABDM artifacts (Integration Hub).
+    Care contexts are immutable after creation — create a new one to supersede an existing context.
 servers:
   - url: http://localhost:3006/api/record-foundation/v1
     description: Local development
@@ -187,17 +188,7 @@ components:
       enum: [platform_module, legacy_system, external_abdm]
     SourceRecordType:
       type: string
-      enum:
-        - opd_visit
-        - ipd_admission
-        - lab_report
-        - prescription
-        - radiology_report
-        - discharge_summary
-        - immunisation_record
-        - wellness_record
-        - health_document
-        - external_record
+      description: Clinical record type identifier. Values are defined per operational module (e.g. opd_visit, lab_report, discharge_summary).
     CareContext:
       type: object
       required:
@@ -290,7 +281,7 @@ components:
         bundle_kind: { type: string }
         fhir_profile_url: { type: string, format: uri }
         fhir_profile_version: { type: string }
-        producer_kind: { type: string }
-        producer_id: { type: string }
+        producer_kind: { type: string, default: "platform_module" }
+        producer_id: { type: string, description: "Defaults to the current tenant ID (x-tenant-id header) if omitted." }
         bundle_json: { type: object, description: Full FHIR R4 Bundle JSON }
         produced_at: { type: string, format: date-time }
