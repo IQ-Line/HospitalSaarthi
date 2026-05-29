@@ -39,6 +39,15 @@ principals:
         - "empi:patient:update"
       delegated_capabilities: []
 
+  super_admin:
+    id: sa-user
+    roles:
+      - "super-admin"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: []
+      delegated_capabilities: []
+
 resources:
   patient_record:
     id: patient-42
@@ -162,6 +171,50 @@ tests:
         resource: patient_record
         actions:
           patient.delete: EFFECT_DENY
+
+  - name: patient.read — super-admin without capability ALLOW
+    input:
+      principals: [super_admin]
+      resources: [patient_record]
+      actions: [patient.read]
+    expected:
+      - principal: super_admin
+        resource: patient_record
+        actions:
+          patient.read: EFFECT_ALLOW
+
+  - name: patient.create — super-admin without capability ALLOW
+    input:
+      principals: [super_admin]
+      resources: [patient_record]
+      actions: [patient.create]
+    expected:
+      - principal: super_admin
+        resource: patient_record
+        actions:
+          patient.create: EFFECT_ALLOW
+
+  - name: patient.update — super-admin without capability ALLOW
+    input:
+      principals: [super_admin]
+      resources: [patient_record]
+      actions: [patient.update]
+    expected:
+      - principal: super_admin
+        resource: patient_record
+        actions:
+          patient.update: EFFECT_ALLOW
+
+  - name: patient.delete — super-admin without capability ALLOW
+    input:
+      principals: [super_admin]
+      resources: [patient_record]
+      actions: [patient.delete]
+    expected:
+      - principal: super_admin
+        resource: patient_record
+        actions:
+          patient.delete: EFFECT_ALLOW
 
   - name: patient.read — wrong tenant DENY
     input:

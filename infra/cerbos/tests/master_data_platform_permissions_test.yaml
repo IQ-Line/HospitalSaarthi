@@ -31,6 +31,15 @@ principals:
         - "master-data:platform:read"
       delegated_capabilities: []
 
+  super_admin:
+    id: sa-user
+    roles:
+      - "super-admin"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: []
+      delegated_capabilities: []
+
 resources:
   catalog_record:
     id: dept-42
@@ -132,6 +141,50 @@ tests:
         resource: catalog_record
         actions:
           catalog.delete: EFFECT_DENY
+
+  - name: catalog.read — super-admin without capability ALLOW
+    input:
+      principals: [super_admin]
+      resources: [catalog_record]
+      actions: [catalog.read]
+    expected:
+      - principal: super_admin
+        resource: catalog_record
+        actions:
+          catalog.read: EFFECT_ALLOW
+
+  - name: catalog.create — super-admin without capability ALLOW
+    input:
+      principals: [super_admin]
+      resources: [catalog_record]
+      actions: [catalog.create]
+    expected:
+      - principal: super_admin
+        resource: catalog_record
+        actions:
+          catalog.create: EFFECT_ALLOW
+
+  - name: catalog.update — super-admin without capability ALLOW
+    input:
+      principals: [super_admin]
+      resources: [catalog_record]
+      actions: [catalog.update]
+    expected:
+      - principal: super_admin
+        resource: catalog_record
+        actions:
+          catalog.update: EFFECT_ALLOW
+
+  - name: catalog.delete — super-admin without capability ALLOW
+    input:
+      principals: [super_admin]
+      resources: [catalog_record]
+      actions: [catalog.delete]
+    expected:
+      - principal: super_admin
+        resource: catalog_record
+        actions:
+          catalog.delete: EFFECT_ALLOW
 
   - name: catalog.read — wrong tenant DENY
     input:

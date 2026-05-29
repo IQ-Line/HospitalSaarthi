@@ -31,6 +31,15 @@ principals:
         - "master-data:visitpad:read"
       delegated_capabilities: []
 
+  super_admin:
+    id: sa-user
+    roles:
+      - "super-admin"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: []
+      delegated_capabilities: []
+
 resources:
   visitpad_record:
     id: unit-42
@@ -132,6 +141,50 @@ tests:
         resource: visitpad_record
         actions:
           visitpad.delete: EFFECT_DENY
+
+  - name: visitpad.read — super-admin without capability ALLOW
+    input:
+      principals: [super_admin]
+      resources: [visitpad_record]
+      actions: [visitpad.read]
+    expected:
+      - principal: super_admin
+        resource: visitpad_record
+        actions:
+          visitpad.read: EFFECT_ALLOW
+
+  - name: visitpad.create — super-admin without capability ALLOW
+    input:
+      principals: [super_admin]
+      resources: [visitpad_record]
+      actions: [visitpad.create]
+    expected:
+      - principal: super_admin
+        resource: visitpad_record
+        actions:
+          visitpad.create: EFFECT_ALLOW
+
+  - name: visitpad.update — super-admin without capability ALLOW
+    input:
+      principals: [super_admin]
+      resources: [visitpad_record]
+      actions: [visitpad.update]
+    expected:
+      - principal: super_admin
+        resource: visitpad_record
+        actions:
+          visitpad.update: EFFECT_ALLOW
+
+  - name: visitpad.delete — super-admin without capability ALLOW
+    input:
+      principals: [super_admin]
+      resources: [visitpad_record]
+      actions: [visitpad.delete]
+    expected:
+      - principal: super_admin
+        resource: visitpad_record
+        actions:
+          visitpad.delete: EFFECT_ALLOW
 
   - name: visitpad.read — wrong tenant DENY
     input:

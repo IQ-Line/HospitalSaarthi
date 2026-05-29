@@ -19,6 +19,12 @@ resourcePolicy:
               "tenant:tenant:read" in request.principal.attr.delegated_capabilities
             )
 
+    # Super-admin unconditional bypass — no capability check needed
+    - actions:
+        - "tenant.read"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+
     - actions:
         - "tenant.read"
       roles: ["super-admin"]
@@ -44,6 +50,12 @@ resourcePolicy:
               "tenant:tenant:create" in request.principal.attr.delegated_capabilities
             )
 
+    # Super-admin unconditional bypass — no capability check needed
+    - actions:
+        - "tenant.create"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+
     - actions:
         - "tenant.create"
       roles: ["super-admin"]
@@ -68,6 +80,12 @@ resourcePolicy:
               "tenant:tenant:update" in request.principal.attr.capabilities ||
               "tenant:tenant:update" in request.principal.attr.delegated_capabilities
             )
+
+    # Super-admin unconditional bypass — no capability check needed
+    - actions:
+        - "tenant.update"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
 
     - actions:
         - "tenant.update"

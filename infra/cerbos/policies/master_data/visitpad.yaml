@@ -19,6 +19,12 @@ resourcePolicy:
               "master-data:visitpad:read" in request.principal.attr.delegated_capabilities
             )
 
+    # Super-admin unconditional bypass — no capability check needed
+    - actions:
+        - "visitpad.read"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+
     - actions:
         - "visitpad.read"
       roles: ["super-admin"]
@@ -57,6 +63,12 @@ resourcePolicy:
               "master-data:visitpad:create" in request.principal.attr.capabilities ||
               "master-data:visitpad:create" in request.principal.attr.delegated_capabilities
             )
+
+    # Super-admin unconditional bypass — no capability check needed
+    - actions:
+        - "visitpad.create"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
 
     - actions:
         - "visitpad.create"
@@ -97,6 +109,12 @@ resourcePolicy:
               "master-data:visitpad:update" in request.principal.attr.delegated_capabilities
             )
 
+    # Super-admin unconditional bypass — no capability check needed
+    - actions:
+        - "visitpad.update"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+
     - actions:
         - "visitpad.update"
       roles: ["super-admin"]
@@ -135,6 +153,12 @@ resourcePolicy:
               "master-data:visitpad:delete" in request.principal.attr.capabilities ||
               "master-data:visitpad:delete" in request.principal.attr.delegated_capabilities
             )
+
+    # Super-admin unconditional bypass — no capability check needed
+    - actions:
+        - "visitpad.delete"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
 
     - actions:
         - "visitpad.delete"
