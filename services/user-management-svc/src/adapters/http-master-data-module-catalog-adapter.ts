@@ -110,26 +110,30 @@ export class HttpMasterDataModuleCatalogAdapter implements MasterDataModuleCatal
     this.modulePermissionSourcePairsCache.invalidate(MODULE_PERMISSION_SOURCE_PAIRS_CACHE_KEY);
   }
 
-  async expandEnabledModuleSlugs(moduleSlugs: readonly string[]): Promise<readonly string[]> {
+  async expandEnabledModuleSlugs(
+    moduleSlugs: readonly string[],
+    authorization?: string,
+  ): Promise<readonly string[]> {
     const roots = dedupeTrimmedIds([...moduleSlugs]);
     if (roots.length === 0) {
       return [];
     }
-    const tree = await this.loadModuleTree();
+    const tree = await this.loadModuleTree(authorization);
     return [...expandModuleSlugsWithDescendants(roots, tree)];
   }
 
   async listActiveModulePermissionSourcePairs(
     moduleSlugs: readonly string[],
+    authorization?: string,
   ): Promise<ReadonlySet<string>> {
     const normalizedRoots = dedupeTrimmedIds([...moduleSlugs]).map((slug) => normalizeModuleSlug(slug));
     if (normalizedRoots.length === 0) {
       return new Set();
     }
 
-    const expanded = await this.expandEnabledModuleSlugs(normalizedRoots);
+    const expanded = await this.expandEnabledModuleSlugs(normalizedRoots, authorization);
     const allowedModuleSlugs = new Set(expanded.map((slug) => normalizeModuleSlug(slug)));
-    const allPairs = await this.loadModulePermissionSourcePairs();
+    const allPairs = await this.loadModulePermissionSourcePairs(authorization);
     const filtered = new Set<string>();
 
     for (const pairKey of allPairs) {
@@ -142,7 +146,10 @@ export class HttpMasterDataModuleCatalogAdapter implements MasterDataModuleCatal
     return filtered;
   }
 
-  async resolveModuleSlugsByIds(moduleIds: string[]): Promise<Map<string, string>> {
+  async resolveModuleSlugsByIds(
+    moduleIds: string[],
+    authorization?: string,
+  ): Promise<Map<string, string>> {
     const uniqueIds = dedupeTrimmedIds(moduleIds);
     assertWithinLimit(
       uniqueIds.length,
@@ -154,7 +161,7 @@ export class HttpMasterDataModuleCatalogAdapter implements MasterDataModuleCatal
       return new Map();
     }
 
-    const slugByModuleId = await this.loadModuleSlugMap();
+    const slugByModuleId = await this.loadModuleSlugMap(authorization);
     const resolved = new Map<string, string>();
     for (const moduleId of uniqueIds) {
       const slug = slugByModuleId.get(moduleId);
@@ -165,8 +172,11 @@ export class HttpMasterDataModuleCatalogAdapter implements MasterDataModuleCatal
     return resolved;
   }
 
-  async resolveModuleKindBySlugs(slugs: readonly string[]): Promise<Map<string, string>> {
-    await this.ensureModuleCatalogLoaded();
+  async resolveModuleKindBySlugs(
+    slugs: readonly string[],
+    authorization?: string,
+  ): Promise<Map<string, string>> {
+    await this.ensureModuleCatalogLoaded(authorization);
     const kindBySlug = this.moduleKindBySlugCache.get(MODULE_KIND_BY_SLUG_CACHE_KEY) ?? new Map();
     const result = new Map<string, string>();
     for (const slug of slugs) {
@@ -179,17 +189,17 @@ export class HttpMasterDataModuleCatalogAdapter implements MasterDataModuleCatal
     return result;
   }
 
-  private async loadModuleTree(): Promise<ModuleRow[]> {
-    await this.ensureModuleCatalogLoaded();
+  private async loadModuleTree(authorization?: string): Promise<ModuleRow[]> {
+    await this.ensureModuleCatalogLoaded(authorization);
     return this.moduleTreeCache.get(MODULE_TREE_CACHE_KEY) ?? [];
   }
 
-  private async loadModuleSlugMap(): Promise<Map<string, string>> {
-    await this.ensureModuleCatalogLoaded();
+  private async loadModuleSlugMap(authorization?: string): Promise<Map<string, string>> {
+    await this.ensureModuleCatalogLoaded(authorization);
     return this.moduleSlugByIdCache.get(MODULE_SLUG_MAP_CACHE_KEY) ?? new Map();
   }
 
-  private async ensureModuleCatalogLoaded(): Promise<void> {
+  private async ensureModuleCatalogLoaded(authorization?: string): Promise<void> {
     if (
       this.moduleTreeCache.get(MODULE_TREE_CACHE_KEY) !== undefined &&
       this.moduleSlugByIdCache.get(MODULE_SLUG_MAP_CACHE_KEY) !== undefined
@@ -197,7 +207,7 @@ export class HttpMasterDataModuleCatalogAdapter implements MasterDataModuleCatal
       return;
     }
 
-    const rows = await this.fetchModuleRows();
+    const rows = await this.fetchModuleRows(authorization);
     const slugByModuleId = new Map<string, string>();
     const kindBySlug = new Map<string, string>();
     const normalizedSlugs = new Set<string>();
@@ -229,7 +239,7 @@ export class HttpMasterDataModuleCatalogAdapter implements MasterDataModuleCatal
     );
   }
 
-  private async loadModulePermissionSourcePairs(): Promise<Set<string>> {
+  private async loadModulePermissionSourcePairs(authorization?: string): Promise<Set<string>> {
     const cached = this.modulePermissionSourcePairsCache.get(
       MODULE_PERMISSION_SOURCE_PAIRS_CACHE_KEY,
     );
@@ -238,9 +248,9 @@ export class HttpMasterDataModuleCatalogAdapter implements MasterDataModuleCatal
     }
 
     const [moduleSlugById, permissionSlugById, links] = await Promise.all([
-      this.loadModuleSlugMap(),
-      this.loadPermissionSlugMap(),
-      this.fetchModulePermissionRows(),
+      this.loadModuleSlugMap(authorization),
+      this.loadPermissionSlugMap(authorization),
+      this.fetchModulePermissionRows(authorization),
     ]);
 
     const pairs = new Set<string>();
@@ -260,13 +270,13 @@ export class HttpMasterDataModuleCatalogAdapter implements MasterDataModuleCatal
     return pairs;
   }
 
-  private async loadPermissionSlugMap(): Promise<Map<string, string>> {
+  private async loadPermissionSlugMap(authorization?: string): Promise<Map<string, string>> {
     const cached = this.permissionSlugByIdCache.get(PERMISSION_SLUG_MAP_CACHE_KEY);
     if (cached !== undefined) {
       return cached;
     }
 
-    const rows = await this.fetchPermissionRows();
+    const rows = await this.fetchPermissionRows(authorization);
     const slugByPermissionId = new Map<string, string>();
     for (const row of rows) {
       if (typeof row.id !== "string" || typeof row.slug !== "string" || row.slug.length === 0) {
@@ -279,18 +289,20 @@ export class HttpMasterDataModuleCatalogAdapter implements MasterDataModuleCatal
     return slugByPermissionId;
   }
 
-  private async fetchPermissionRows(): Promise<PermissionRow[]> {
-    return this.fetchPaginatedRows<PermissionRow>("/api/v1/master-data/permissions");
+  private async fetchPermissionRows(authorization?: string): Promise<PermissionRow[]> {
+    return this.fetchPaginatedRows<PermissionRow>("/api/v1/master-data/permissions", authorization);
   }
 
-  private async fetchModulePermissionRows(): Promise<ModulePermissionRow[]> {
+  private async fetchModulePermissionRows(authorization?: string): Promise<ModulePermissionRow[]> {
     return this.fetchPaginatedRows<ModulePermissionRow>(
       "/api/v1/master-data/module-permissions",
+      authorization,
     );
   }
 
   private async fetchPaginatedRows<T extends Record<string, unknown>>(
     path: string,
+    authorization?: string,
   ): Promise<T[]> {
     const rows: T[] = [];
     let offset = 0;
@@ -298,9 +310,13 @@ export class HttpMasterDataModuleCatalogAdapter implements MasterDataModuleCatal
 
     while (true) {
       const url = `${this.baseUrl}${path}?limit=${MODULE_PERMISSION_PAGE_LIMIT}&offset=${offset}`;
+      const headers: Record<string, string> = { accept: "application/json" };
+      if (authorization) {
+        headers.authorization = authorization;
+      }
       const body = await fetchJsonWithResilience<{ data?: T[]; total?: number }>({
         url,
-        headers: { accept: "application/json" },
+        headers,
         timeoutMs: this.timeoutMs,
         maxAttempts: this.maxAttempts,
         source: "master_data",
@@ -326,12 +342,16 @@ export class HttpMasterDataModuleCatalogAdapter implements MasterDataModuleCatal
     return rows;
   }
 
-  private async fetchModuleRows(): Promise<ModuleRow[]> {
+  private async fetchModuleRows(authorization?: string): Promise<ModuleRow[]> {
     const url = `${this.baseUrl}/api/v1/master-data/modules`;
+    const headers: Record<string, string> = { accept: "application/json" };
+    if (authorization) {
+      headers.authorization = authorization;
+    }
     try {
       const body = await fetchJsonWithResilience<ModuleListResponse>({
         url,
-        headers: { accept: "application/json" },
+        headers,
         timeoutMs: this.timeoutMs,
         maxAttempts: this.maxAttempts,
         source: "master_data",

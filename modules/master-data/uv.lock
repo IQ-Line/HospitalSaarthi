@@ -435,6 +435,7 @@ version = "0.1.0"
 source = { editable = "../../packages/py-sdk-authz" }
 dependencies = [
     { name = "cerbos" },
+    { name = "fastapi" },
     { name = "httpx" },
     { name = "pydantic" },
     { name = "pyjwt" },
@@ -444,6 +445,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "cerbos", specifier = ">=0.3.0" },
+    { name = "fastapi", specifier = ">=0.115.0" },
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "pyjwt", specifier = ">=2.8.0" },

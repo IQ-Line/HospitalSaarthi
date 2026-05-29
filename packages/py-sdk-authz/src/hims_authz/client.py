@@ -45,9 +45,5 @@ class AuthzClient:
                 ),
             )
             resp.raise_if_failed()
-            result = resp.to_dict()
-            actions_map = (
-                result.get("results", [{}])[0]
-                .get("actions", {})
-            )
-            return actions_map.get(action, False) is True
+            result = resp.get_resource(resource_id)
+            return result is not None and result.is_allowed(action)

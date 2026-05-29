@@ -10,7 +10,7 @@ export type InternalDiagnosticsHandlersDeps = {
   getTenantId: (request: FastifyRequest) => string;
   tenantModuleEntitlementPort: TenantModuleEntitlementPort;
   masterDataModuleCatalogPort: {
-    resolveModuleSlugsByIds(moduleIds: string[]): Promise<Map<string, string>>;
+    resolveModuleSlugsByIds(moduleIds: string[], authorization?: string): Promise<Map<string, string>>;
   };
   runtimeCapabilityCatalogPort: RuntimeCapabilityCatalogPort;
 };
@@ -75,6 +75,7 @@ export function registerInternalDiagnosticsHandlers(
           });
         const moduleSlugById = await deps.masterDataModuleCatalogPort.resolveModuleSlugsByIds(
           tenantEnabledModuleIds,
+          authorization,
         );
 
         const entitlements = tenantEnabledModuleIds.map((moduleId) => ({
