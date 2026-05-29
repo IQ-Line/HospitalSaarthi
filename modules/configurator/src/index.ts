@@ -54,6 +54,7 @@ export type {
   OrganizationRepo,
   TenantRepo,
   TenantModuleRepo,
+  SequenceConfigurationRepo,
   ConfiguratorTransactionRepos,
   RunConfiguratorTransaction,
   ModuleCapabilityResolverPort,
@@ -64,12 +65,14 @@ export type {
 export { DrizzleOrganizationRepo } from "./data-access/organization.repo.js";
 export { DrizzleTenantRepo } from "./data-access/tenant.repo.js";
 export { DrizzleTenantModuleRepo } from "./data-access/tenant-module.repo.js";
+export { DrizzleSequenceConfigurationRepo } from "./data-access/sequence-configuration.repo.js";
 
 export {
   configuratorSchema,
   organizations,
   tenants,
   tenantModules,
+  sequenceConfiguration,
 } from "./schema/tables.js";
 
 export { provisionTenant } from "./use-cases/provision-tenant.js";
