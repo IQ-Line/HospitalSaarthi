@@ -34,7 +34,7 @@ export function registerTenantOnboardingHandler(
     {
       config: {
         authMode: "protected",
-        authz: { kind: "onboarding", action: "onboarding.create" },
+        authz: { kind: "onboarding", action: "onboarding.create", id: "new" },
       },
       schema: {
         body: tenantOnboardingBodySchema,

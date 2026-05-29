@@ -24,6 +24,19 @@ principals:
       clearances: {}
       um_clearance_effective_tier: 0
 
+  super_admin_no_caps:
+    id: sa-no-caps
+    roles:
+      - "super-admin"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: null
+      capabilities: []
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
 resources:
   user_row_aa:
     id: user-target-aa
@@ -197,5 +210,49 @@ tests:
     expected:
       - principal: actor_tenant_aa
         resource: user_row_aa
+        actions:
+          user.update: EFFECT_ALLOW
+
+  - name: user.read — super-admin without capabilities cross-tenant ALLOW
+    input:
+      principals: [super_admin_no_caps]
+      resources: [user_row_bb]
+      actions: [user.read]
+    expected:
+      - principal: super_admin_no_caps
+        resource: user_row_bb
+        actions:
+          user.read: EFFECT_ALLOW
+
+  - name: user.read(list) — super-admin without capabilities cross-tenant ALLOW
+    input:
+      principals: [super_admin_no_caps]
+      resources: [user_list_bb]
+      actions: [user.read]
+    expected:
+      - principal: super_admin_no_caps
+        resource: user_list_bb
+        actions:
+          user.read: EFFECT_ALLOW
+
+  - name: user.create — super-admin without capabilities cross-tenant ALLOW
+    input:
+      principals: [super_admin_no_caps]
+      resources: [user_new_bb]
+      actions: [user.create]
+    expected:
+      - principal: super_admin_no_caps
+        resource: user_new_bb
+        actions:
+          user.create: EFFECT_ALLOW
+
+  - name: user.update — super-admin without capabilities cross-tenant ALLOW
+    input:
+      principals: [super_admin_no_caps]
+      resources: [user_row_bb]
+      actions: [user.update]
+    expected:
+      - principal: super_admin_no_caps
+        resource: user_row_bb
         actions:
           user.update: EFFECT_ALLOW
