@@ -86,7 +86,7 @@ export async function handleDiscoverCallback(
     contextMerge: { patientId: patient.patientId, abhaAddress },
   });
 
-  const contexts = await deps.recordFoundation.listUnlinkedCareContexts({
+  const contexts = await deps.recordFoundation.listCareContexts({
     iqTenantId: input.iqTenantId,
     patientId: patient.patientId,
   });

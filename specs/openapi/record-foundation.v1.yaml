@@ -3,47 +3,70 @@ info:
   title: Record Foundation API
   version: 1.0.0
   description: >
-    Record Foundation API — care-context registry, immutable internal FHIR Document Bundle vault,
-    external HIU bundle inbox, timeline read-model, and erasure log. Per ADR-0028 / ADR-0022 / ADR-0023.
-    Does NOT own clinical source data (operational modules), patient identity (EMPI), or ABDM consent
-    artifacts (Integration Hub).
+    Record Foundation API — care-context registry and immutable FHIR Document Bundle vault.
+    Simplified CRUD service with 2 tables. Does NOT own clinical source data (operational
+    modules), patient identity (EMPI), or ABDM artifacts (Integration Hub).
+    Care contexts are immutable after creation — create a new one to supersede an existing context.
 servers:
-  - url: http://localhost:3006
+  - url: http://localhost:3006/api/record-foundation/v1
+    description: Local development
 security:
   - bearerAuth: []
 tags:
   - name: Care Contexts
-    description: The discoverable health-record units linkable to an ABHA.
+    description: Discoverable health-record units.
   - name: Bundles
-    description: FHIR Document Bundle storage and manifests.
-  - name: Disclosures
-    description: Decide which bundles may be disclosed under a given consent.
-  - name: Timeline
-    description: Patient timeline read-model.
-  - name: External Records
-    description: Inbox of HIU-received external FHIR bundles.
-  - name: Admin
-    description: Administrative jobs — timeline rebuild, erasure runs.
+    description: FHIR Document Bundle storage.
 paths:
-  /api/v1/care-contexts:
+  /care-contexts:
     get:
       operationId: listCareContexts
       summary: List care contexts for a patient
       tags: [Care Contexts]
       parameters:
-        - { name: patient_id, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: patient_id, in: query, required: false, schema: { type: string, format: uuid } }
         - { name: status, in: query, required: false, schema: { $ref: "#/components/schemas/CareContextStatus" } }
-        - { name: abha_linkage_status, in: query, required: false, schema: { $ref: "#/components/schemas/AbhaLinkageStatus" } }
-        - { name: source_origin, in: query, required: false, schema: { $ref: "#/components/schemas/SourceOrigin" } }
       responses:
         "200":
           description: Care context list.
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/CareContextListResponse" }
+              schema:
+                type: object
+                required: [data, total]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/CareContext" }
+                  total: { type: integer, minimum: 0 }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
-  /api/v1/care-contexts/{id}:
+    post:
+      operationId: createCareContext
+      summary: Create a new care context
+      tags: [Care Contexts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateCareContextRequest" }
+      responses:
+        "201":
+          description: Care context created.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/CareContext" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409":
+          description: Duplicate care context.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/ProblemDetails" }
+  /care-contexts/{id}:
     get:
       operationId: getCareContext
       summary: Fetch one care context
@@ -55,211 +78,70 @@ paths:
           description: Care context found.
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/CareContextSingleResponse" }
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/CareContext" }
         "404": { $ref: "#/components/responses/NotFound" }
-  /api/v1/care-contexts/discoverable:
+  /care-contexts/{careContextId}/bundles:
     get:
-      operationId: listDiscoverableCareContexts
-      summary: List care contexts disclosable for ABDM HIP discovery
-      description: >
-        Used by Integration Hub when responding to /v3/care-context/discover.
-        Returns only contexts whose abha_linkage_status is 'linked' and consent_disclosable = true.
-      tags: [Care Contexts]
+      operationId: listCareContextBundles
+      summary: List bundles for a care context
+      tags: [Bundles]
       parameters:
-        - { name: patient_id, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: careContextId, in: path, required: true, schema: { type: string, format: uuid } }
       responses:
         "200":
-          description: Discoverable contexts.
+          description: Bundle list.
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/CareContextListResponse" }
-  /api/v1/care-contexts/bulk-update-linkage:
-    post:
-      operationId: bulkUpdateLinkage
-      summary: Mark a batch of care contexts as ABDM-linked
-      description: Called by Integration Hub after M2 link completion to set abdm_reference_number / linked_at.
-      tags: [Care Contexts]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/BulkUpdateLinkageRequest" }
-      responses:
-        "200":
-          description: Linkage updated.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/BulkUpdateLinkageResponse" }
-        "400": { $ref: "#/components/responses/BadRequest" }
-  /api/v1/bundles/{id}:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Bundle" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /bundles/{id}:
     get:
       operationId: getBundle
-      summary: Fetch a FHIR Document Bundle by manifest id
-      description: >
-        Returns the FHIR Bundle JSON. Integration Hub fetches this to push to ABDM during HIP M3 data exchange.
-        bundle_storage rows are immutable.
+      summary: Fetch a FHIR Document Bundle by id
       tags: [Bundles]
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
       responses:
         "200":
-          description: FHIR Bundle JSON.
+          description: Bundle found.
           content:
-            application/fhir+json:
-              schema:
-                type: object
-                description: Full FHIR R4 Bundle.
-                additionalProperties: true
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Bundle" }
         "404": { $ref: "#/components/responses/NotFound" }
-        "410":
-          description: Bundle has been erased per consent expiry.
-          content:
-            application/problem+json:
-              schema: { $ref: "#/components/schemas/ProblemDetails" }
-  /api/v1/bundle-manifests:
-    get:
-      operationId: listBundleManifests
-      summary: List bundle manifests for a care context
-      tags: [Bundles]
-      parameters:
-        - { name: care_context_id, in: query, required: true, schema: { type: string, format: uuid } }
-      responses:
-        "200":
-          description: Manifest list.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/BundleManifestListResponse" }
-  /api/v1/disclosures:
     post:
-      operationId: evaluateDisclosure
-      summary: Evaluate disclosable bundles under a consent
-      description: >
-        Integration Hub asks "given this consent (hi_types, dateRange, careContextRefs), what bundles are
-        currently disclosable?" Record Foundation checks consent_disclosable, sensitivity labels, and
-        time bounds, returning bundle manifest IDs ready to be pushed via M3.
-      tags: [Disclosures]
+      operationId: storeBundle
+      summary: Store a FHIR Document Bundle against an existing care context
+      tags: [Bundles]
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/DisclosureRequest" }
+            schema: { $ref: "#/components/schemas/StoreBundleRequest" }
       responses:
-        "200":
-          description: Disclosable bundles.
+        "201":
+          description: Bundle stored.
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/DisclosureResponse" }
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Bundle" }
         "400": { $ref: "#/components/responses/BadRequest" }
-  /api/v1/timeline:
-    get:
-      operationId: getTimeline
-      summary: Patient timeline (most-recent first)
-      tags: [Timeline]
-      parameters:
-        - { name: patient_id, in: query, required: true, schema: { type: string, format: uuid } }
-        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
-        - { name: before, in: query, required: false, schema: { type: string, format: date-time }, description: "Cursor: occurred_at upper bound." }
-      responses:
-        "200":
-          description: Timeline entries.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/TimelineListResponse" }
-  /api/v1/external-records:
-    get:
-      operationId: listExternalRecords
-      summary: List HIU-received external records for a patient
-      tags: [External Records]
-      parameters:
-        - { name: patient_id, in: query, required: true, schema: { type: string, format: uuid } }
-      responses:
-        "200":
-          description: External record list.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/ExternalRecordListResponse" }
-  /api/v1/external-records/{id}:
-    get:
-      operationId: getExternalRecord
-      summary: Fetch one external record (with its FHIR bundle)
-      tags: [External Records]
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
-      responses:
-        "200":
-          description: External record + bundle JSON.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/ExternalRecordWithBundleResponse" }
-        "404": { $ref: "#/components/responses/NotFound" }
-        "410":
-          description: External record has been erased per consent expiry.
-          content:
-            application/problem+json:
-              schema: { $ref: "#/components/schemas/ProblemDetails" }
-  /api/v1/external-records/{id}/mark-viewed:
-    post:
-      operationId: markExternalRecordViewed
-      summary: Mark an external record as viewed by a doctor
-      tags: [External Records]
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
-      responses:
-        "200":
-          description: Marked viewed.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/ExternalRecordSingleResponse" }
-        "404": { $ref: "#/components/responses/NotFound" }
-  /api/v1/admin/timeline/rebuild:
-    post:
-      operationId: rebuildTimeline
-      summary: Rebuild the timeline projection for a patient
-      tags: [Admin]
-      parameters:
-        - { name: patient_id, in: query, required: true, schema: { type: string, format: uuid } }
-      responses:
-        "202":
-          description: Rebuild job scheduled.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/AdminJobResponse" }
-        "403": { $ref: "#/components/responses/Forbidden" }
-  /api/v1/admin/jobs/{id}:
-    get:
-      operationId: getAdminJob
-      summary: Fetch an admin job's status
-      tags: [Admin]
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
-      responses:
-        "200":
-          description: Job state.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/AdminJobResponse" }
-        "404": { $ref: "#/components/responses/NotFound" }
-  /api/v1/admin/erasure-runs:
-    post:
-      operationId: triggerErasureRun
-      summary: Manually trigger an erasure run (dry-run supported)
-      tags: [Admin]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/ErasureRunRequest" }
-      responses:
-        "202":
-          description: Erasure run scheduled.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/AdminJobResponse" }
-        "403": { $ref: "#/components/responses/Forbidden" }
 components:
   securitySchemes:
     bearerAuth:
@@ -298,35 +180,20 @@ components:
         status: { type: integer }
         detail: { type: string }
         instance: { type: string }
-        code: { type: string }
-    AbhaLinkageStatus:
+    CareContextStatus:
       type: string
-      enum: [not_linked, linkable, linked, revoked]
+      enum: [active, inactive, archived]
     SourceOrigin:
       type: string
       enum: [platform_module, legacy_system, external_abdm]
     SourceRecordType:
       type: string
-      enum:
-        - opd_visit
-        - ipd_admission
-        - lab_report
-        - prescription
-        - radiology_report
-        - discharge_summary
-        - immunisation_record
-        - wellness_record
-        - health_document
-        - external_record
-    CareContextStatus:
-      type: string
-      enum: [draft, final, superseded, cancelled, archived]
+      description: Clinical record type identifier. Values are defined per operational module (e.g. opd_visit, lab_report, discharge_summary).
     CareContext:
       type: object
       required:
         - id
         - patient_id
-        - abha_linkage_status
         - source_origin
         - source_system_id
         - source_record_type
@@ -334,13 +201,10 @@ components:
         - period_start
         - status
         - created_at
-        - updated_at
       properties:
         id: { type: string, format: uuid }
         iq_tenant_id: { type: string, format: uuid }
         patient_id: { type: string, format: uuid }
-        abha_linkage_status: { $ref: "#/components/schemas/AbhaLinkageStatus" }
-        abdm_reference_number: { type: string, nullable: true }
         source_origin: { $ref: "#/components/schemas/SourceOrigin" }
         source_system_id: { type: string }
         source_record_type: { $ref: "#/components/schemas/SourceRecordType" }
@@ -350,69 +214,32 @@ components:
         period_start: { type: string, format: date-time }
         period_end: { type: string, format: date-time, nullable: true }
         status: { $ref: "#/components/schemas/CareContextStatus" }
-        supersedes_id: { type: string, format: uuid, nullable: true }
-        sensitivity_labels:
-          type: array
-          nullable: true
-          items: { type: string }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
-        linked_at: { type: string, format: date-time, nullable: true }
-        data_erase_at: { type: string, format: date-time, nullable: true }
-    CareContextListResponse:
+        created_by: { type: string, format: uuid, nullable: true }
+        updated_by: { type: string, format: uuid, nullable: true }
+    CreateCareContextRequest:
       type: object
-      required: [data, total]
-      properties:
-        data:
-          type: array
-          items: { $ref: "#/components/schemas/CareContext" }
-        total: { type: integer, minimum: 0 }
-    CareContextSingleResponse:
-      type: object
-      required: [data]
-      properties:
-        data: { $ref: "#/components/schemas/CareContext" }
-    BulkUpdateLinkageRequest:
-      type: object
-      required: [updates]
+      required:
+        - patient_id
+        - source_origin
+        - source_system_id
+        - source_record_type
+        - display
+        - period_start
       additionalProperties: false
       properties:
-        updates:
-          type: array
-          minItems: 1
-          items:
-            type: object
-            required: [care_context_id, abdm_reference_number]
-            properties:
-              care_context_id: { type: string, format: uuid }
-              abdm_reference_number: { type: string }
-              linked_at: { type: string, format: date-time }
-    BulkUpdateLinkageResponse:
-      type: object
-      required: [updated_count]
-      properties:
-        updated_count: { type: integer, minimum: 0 }
-        skipped:
-          type: array
-          items:
-            type: object
-            properties:
-              care_context_id: { type: string, format: uuid }
-              reason: { type: string }
-    BundleKind:
-      type: string
-      enum:
-        - OpConsultRecord
-        - Prescription
-        - DischargeSummary
-        - DiagnosticReport
-        - HealthDocumentRecord
-        - ImmunizationRecord
-        - WellnessRecord
-    ValidationStatus:
-      type: string
-      enum: [pending, valid, invalid, not_validated]
-    BundleManifest:
+        patient_id: { type: string, format: uuid }
+        source_origin: { $ref: "#/components/schemas/SourceOrigin" }
+        source_system_id: { type: string }
+        source_record_type: { $ref: "#/components/schemas/SourceRecordType" }
+        source_record_id: { type: string }
+        encounter_id: { type: string, format: uuid }
+        display: { type: string }
+        period_start: { type: string, format: date-time }
+        period_end: { type: string, format: date-time }
+        status: { $ref: "#/components/schemas/CareContextStatus" }
+    Bundle:
       type: object
       required:
         - id
@@ -420,195 +247,41 @@ components:
         - bundle_kind
         - fhir_profile_url
         - fhir_profile_version
-        - producer_kind
-        - producer_id
-        - validation_status
-        - bundle_storage_id
-        - bundle_size_bytes
-        - bundle_hash
+        - bundle_json
         - produced_at
-        - stored_at
       properties:
         id: { type: string, format: uuid }
         iq_tenant_id: { type: string, format: uuid }
         care_context_id: { type: string, format: uuid }
-        bundle_kind: { $ref: "#/components/schemas/BundleKind" }
+        bundle_kind: { type: string }
         fhir_profile_url: { type: string, format: uri }
         fhir_profile_version: { type: string }
-        producer_kind: { type: string, enum: [platform_module, external_hip] }
+        producer_kind: { type: string }
         producer_id: { type: string }
-        validation_status: { $ref: "#/components/schemas/ValidationStatus" }
-        validation_errors: { type: object, additionalProperties: true, nullable: true }
-        bundle_storage_id: { type: string, format: uuid }
+        bundle_json: { type: object, description: Full FHIR R4 Bundle JSON }
         bundle_size_bytes: { type: integer }
-        bundle_hash: { type: string, description: SHA-256 hex. }
-        signature_storage_ref: { type: string, nullable: true }
         produced_at: { type: string, format: date-time }
-        received_at: { type: string, format: date-time, nullable: true }
         stored_at: { type: string, format: date-time }
-    BundleManifestListResponse:
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        created_by: { type: string, format: uuid, nullable: true }
+        updated_by: { type: string, format: uuid, nullable: true }
+    StoreBundleRequest:
       type: object
-      required: [data, total]
-      properties:
-        data:
-          type: array
-          items: { $ref: "#/components/schemas/BundleManifest" }
-        total: { type: integer, minimum: 0 }
-    DisclosureRequest:
-      type: object
-      required: [consent_artifact_id, patient_id, hi_types, date_range]
+      required:
+        - care_context_id
+        - bundle_kind
+        - fhir_profile_url
+        - fhir_profile_version
+        - bundle_json
+        - produced_at
       additionalProperties: false
       properties:
-        consent_artifact_id: { type: string, format: uuid }
-        patient_id: { type: string, format: uuid }
-        hi_types:
-          type: array
-          items: { type: string }
-        date_range:
-          type: object
-          required: [from, to]
-          properties:
-            from: { type: string, format: date-time }
-            to: { type: string, format: date-time }
-        care_context_ids:
-          type: array
-          items: { type: string, format: uuid }
-          description: Optional explicit subset; default is all matching the consent.
-    DisclosureResponse:
-      type: object
-      required: [bundles]
-      properties:
-        bundles:
-          type: array
-          items:
-            type: object
-            required: [bundle_manifest_id, care_context_id, bundle_kind]
-            properties:
-              bundle_manifest_id: { type: string, format: uuid }
-              care_context_id: { type: string, format: uuid }
-              bundle_kind: { $ref: "#/components/schemas/BundleKind" }
-              bundle_hash: { type: string }
-              produced_at: { type: string, format: date-time }
-        excluded:
-          type: array
-          items:
-            type: object
-            properties:
-              care_context_id: { type: string, format: uuid }
-              reason:
-                type: string
-                enum: [outside_date_range, hi_type_mismatch, sensitivity_blocked, not_disclosable, erased]
-    TimelineEntry:
-      type: object
-      required: [id, patient_id, care_context_id, occurred_at, kind, title, origin_label, consent_disclosable]
-      properties:
-        id: { type: string, format: uuid }
-        patient_id: { type: string, format: uuid }
         care_context_id: { type: string, format: uuid }
-        occurred_at: { type: string, format: date-time }
-        kind: { $ref: "#/components/schemas/SourceRecordType" }
-        title: { type: string }
-        subtitle: { type: string, nullable: true }
-        origin_label: { type: string }
-        consent_disclosable: { type: boolean }
-        sensitivity_labels:
-          type: array
-          nullable: true
-          items: { type: string }
-        rebuilt_at: { type: string, format: date-time }
-    TimelineListResponse:
-      type: object
-      required: [data]
-      properties:
-        data:
-          type: array
-          items: { $ref: "#/components/schemas/TimelineEntry" }
-        next_cursor: { type: string, format: date-time, nullable: true }
-    ExternalRecord:
-      type: object
-      required: [id, patient_id, care_context_id, bundle_manifest_id, consent_artifact_id, source_hip_id, received_at, data_erase_at]
-      properties:
-        id: { type: string, format: uuid }
-        iq_tenant_id: { type: string, format: uuid }
-        patient_id: { type: string, format: uuid }
-        care_context_id: { type: string, format: uuid }
-        bundle_manifest_id: { type: string, format: uuid }
-        consent_artifact_id: { type: string, format: uuid }
-        source_hip_id: { type: string }
-        source_hip_display_name: { type: string, nullable: true }
-        received_at: { type: string, format: date-time }
-        display_summary:
-          type: object
-          nullable: true
-          properties:
-            title: { type: string }
-            sectionCount: { type: integer }
-            attestor: { type: string }
-            encounterDate: { type: string, format: date-time }
-            primaryDiagnosis: { type: string }
-        doctor_viewed_at: { type: string, format: date-time, nullable: true }
-        data_erase_at: { type: string, format: date-time }
-    ExternalRecordListResponse:
-      type: object
-      required: [data, total]
-      properties:
-        data:
-          type: array
-          items: { $ref: "#/components/schemas/ExternalRecord" }
-        total: { type: integer, minimum: 0 }
-    ExternalRecordSingleResponse:
-      type: object
-      required: [data]
-      properties:
-        data: { $ref: "#/components/schemas/ExternalRecord" }
-    ExternalRecordWithBundleResponse:
-      type: object
-      required: [data]
-      properties:
-        data:
-          allOf:
-            - $ref: "#/components/schemas/ExternalRecord"
-            - type: object
-              properties:
-                bundle:
-                  type: object
-                  description: Full FHIR R4 Bundle JSON.
-                  additionalProperties: true
-    ErasureRunRequest:
-      type: object
-      additionalProperties: false
-      properties:
-        dry_run: { type: boolean, default: true }
-        as_of: { type: string, format: date-time, description: Treat now() as this timestamp; defaults to now. }
-        scope:
-          type: string
-          enum: [all, external_records_only, internal_only]
-          default: all
-        patient_id:
-          type: string
-          format: uuid
-          description: Optional — limit to a single patient.
-    AdminJob:
-      type: object
-      required: [id, kind, status, started_at]
-      properties:
-        id: { type: string, format: uuid }
-        kind: { type: string, enum: [timeline_rebuild, erasure_run] }
-        status: { type: string, enum: [scheduled, running, succeeded, failed] }
-        progress:
-          type: object
-          properties:
-            processed: { type: integer }
-            total: { type: integer }
-        result:
-          type: object
-          additionalProperties: true
-          description: Job-specific summary (counts, dry-run preview).
-        error: { type: string, nullable: true }
-        started_at: { type: string, format: date-time }
-        completed_at: { type: string, format: date-time, nullable: true }
-    AdminJobResponse:
-      type: object
-      required: [data]
-      properties:
-        data: { $ref: "#/components/schemas/AdminJob" }
+        bundle_kind: { type: string }
+        fhir_profile_url: { type: string, format: uri }
+        fhir_profile_version: { type: string }
+        producer_kind: { type: string, default: "platform_module" }
+        producer_id: { type: string, description: "Defaults to the current tenant ID (x-tenant-id header) if omitted." }
+        bundle_json: { type: object, description: Full FHIR R4 Bundle JSON }
+        produced_at: { type: string, format: date-time }

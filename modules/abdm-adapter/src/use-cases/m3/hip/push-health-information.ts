@@ -39,15 +39,15 @@ export async function pushHealthInformationForSession(
     );
   }
 
-  const bundles = await deps.recordFoundation.fetchBundlesForConsent({
-    iqTenantId: input.iqTenantId,
-    patientId: input.patientId,
-    consentId: input.parsed.consentId,
-    dateRange: input.parsed.dateRange,
-    careContextReferences,
-  });
-
-  if (bundles.length === 0) {
+  const bundleEntries = [];
+  for (const ref of careContextReferences) {
+    const bundles = await deps.recordFoundation.listBundles({
+      iqTenantId: input.iqTenantId,
+      careContextId: ref,
+    });
+    bundleEntries.push(...bundles);
+  }
+  if (bundleEntries.length === 0) {
     throw new Error(
       `No bundles from Record Foundation for consent care contexts: consentId=${input.parsed.consentId} patientId=${input.patientId} refs=[${careContextReferences.join(", ")}]`,
     );
@@ -59,7 +59,7 @@ export async function pushHealthInformationForSession(
     state: M3Hip.BUNDLES_FETCHED,
   });
 
-  const payloadJsons = bundles.map((b) => b.contentJson);
+  const payloadJsons = bundleEntries.map((b) => b.contentJson);
   const batch = await deps.fidelius.encryptBundles({
     payloadJsons,
     peerPublicKey: input.parsed.peerPublicKey,
@@ -72,10 +72,10 @@ export async function pushHealthInformationForSession(
     hipKeyToShareX509: batch.ourPublicKey.startsWith("MIIB"),
     peerPubKeyValid: isValidFideliusPublicKeyB64(input.parsed.peerPublicKey),
     consentId: input.parsed.consentId,
-    entryCount: bundles.length,
+    entryCount: bundleEntries.length,
   });
 
-  const entries: HipDataPushRequest["entries"] = bundles.map((bundle, i) => ({
+  const entries: HipDataPushRequest["entries"] = bundleEntries.map((bundle, i) => ({
     content: batch.encryptedPayloads[i]!,
     media: bundle.media,
     checksum: checksumForHipPushEntry({
@@ -133,5 +133,5 @@ export async function pushHealthInformationForSession(
     state: M3Hip.BUNDLES_PUSHED,
   });
 
-  return bundles.map((b) => b.careContextReference);
+  return bundleEntries.map((b) => b.careContextReference);
 }

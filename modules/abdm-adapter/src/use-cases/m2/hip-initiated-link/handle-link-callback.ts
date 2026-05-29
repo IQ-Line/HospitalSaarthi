@@ -54,12 +54,6 @@ export async function handleHipLinkCallback(
   });
 
   const ctx = session.context;
-  for (const cc of ctx.careContexts) {
-    await deps.recordFoundation.markCareContextLinked({
-      iqTenantId: input.iqTenantId,
-      careContextId: cc.referenceNumber,
-    });
-  }
 
   await deps.sessions.patch({
     iqTenantId: input.iqTenantId,

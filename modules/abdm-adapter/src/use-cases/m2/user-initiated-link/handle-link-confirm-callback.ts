@@ -46,12 +46,6 @@ export async function handleLinkConfirmCallback(
 
   const ctx = session.context;
   const careContexts = ctx.careContexts ?? [];
-  for (const cc of careContexts) {
-    await deps.recordFoundation.markCareContextLinked({
-      iqTenantId: input.iqTenantId,
-      careContextId: cc.referenceNumber,
-    });
-  }
 
   const patientPayload =
     careContexts.length > 0

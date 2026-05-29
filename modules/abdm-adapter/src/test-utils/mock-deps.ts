@@ -62,9 +62,8 @@ export function buildMockAbdmDeps(
     recordFoundation:
       overrides.recordFoundation ??
       ({
-        listUnlinkedCareContexts: async () => [],
-        markCareContextLinked: async () => undefined,
-        fetchBundlesForConsent: async () => [],
+        listCareContexts: async () => [],
+        listBundles: async () => [],
       } as AbdmAdapterDeps["recordFoundation"]),
     dataPush: overrides.dataPush,
     payloadEncryptor:

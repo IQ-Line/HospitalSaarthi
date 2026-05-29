@@ -24,7 +24,8 @@ describe("pushHealthInformationForSession", () => {
       },
       consentArtefacts: { findById: vi.fn().mockResolvedValue(null) },
       recordFoundation: {
-        fetchBundlesForConsent: vi.fn().mockResolvedValue([]),
+        listBundles: vi.fn().mockResolvedValue([]),
+        listCareContexts: vi.fn(),
       },
       sessions: { patch: vi.fn().mockResolvedValue(undefined) },
       xHipId: "IN3610001625",

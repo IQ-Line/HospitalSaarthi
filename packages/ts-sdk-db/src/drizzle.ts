@@ -25,9 +25,11 @@ export {
   bigint,
   boolean,
   date,
+  integer,
   numeric,
   primaryKey,
   smallint,
   timestamp,
   unique,
+  foreignKey,
 } from "drizzle-orm/pg-core";

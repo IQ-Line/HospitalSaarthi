@@ -1,165 +1,68 @@
 {
   "$schema": "erd/v1",
   "schema": "record_foundation",
-  "description": "Record Foundation -- the fifth core platform module per ADR-0028. Owns: care-context registry, immutable internal FHIR Document Bundle vault, external HIU bundle inbox, timeline read-model, scheduled erasure of consent-expired records. Does NOT own clinical source data (operational modules own that), patient identity (EMPI), or ABDM transport / consent artifacts (Integration Hub).",
+  "description": "Record Foundation — simplified module with care-context registry and FHIR Document Bundle vault. 2 tables only.",
   "citus": {
     "distribution_column": "iq_tenant_id",
     "reference_tables": [],
-    "rationale": "All Record Foundation data is patient-scoped, hence tenant-scoped. Co-locates with EMPI / OPD / Integration Hub data on the same shard for shard-local cross-module queries (BFF aggregation, timeline projection)."
+    "rationale": "All Record Foundation data is patient-scoped, hence tenant-scoped."
   },
   "phasing": {
-    "Phase_0": "Schema agreed and committed in this LLD. Tables not yet created (no consumers in Phase 0).",
-    "Phase_1_v1": "All 6 tables created. Consumers wired: OPD's consultation.finalized event triggers care_contexts row + record_bundle_manifests row + bundle_storage row. Integration Hub's abdm.consent.granted event marks care_contexts.consent_disclosable. Integration Hub's abdm.health-record.received event ingests external_health_records. Erasure scheduler runs nightly.",
-    "Post-launch": "Bundle migration to object storage when row sizes exceed thresholds. Per-section section-level access controls within a Composition. Specialty-aware timeline projections (Phase 4 EMR product reads from this substrate)."
+    "Phase_0": "Schema implemented. Tables created. Consumers being wired in Phase 1."
   },
   "entities": {
     "care_contexts": {
-      "description": "The discoverable health-record units linkable to an ABHA. One row per (patient, source clinical event). Mirrors the production ABDM care-context concept but generalised: a care_context is *anything* that can become an ABDM-discoverable record (OPD visit, lab report, prescription, discharge summary, scanned document) -- with origin tracking that distinguishes platform-internal sources from external HIU-received and from legacy-system ingested records.",
+      "description": "The discoverable health-record units. One row per (patient, source clinical event). Tracks origin, type, and time window.",
       "distribution": "distributed_by_iq_tenant_id",
       "columns": {
         "id": {"type": "UUID", "nullable": false, "default": "gen_random_uuid()"},
         "iq_tenant_id": {"type": "UUID", "nullable": false},
         "patient_id": {"type": "UUID", "nullable": false, "description": "EMPI patient_id."},
-        "abha_linkage_status": {"type": "TEXT", "nullable": false, "default": "not_linked", "check": "abha_linkage_status IN ('not_linked','linkable','linked','revoked')", "description": "Whether this care context has been published to ABDM as a linked context. 'linkable' = patient has ABHA but linking not yet performed. 'linked' = ABDM gateway has acknowledged the link."},
-        "abdm_reference_number": {"type": "TEXT", "nullable": true, "description": "ABDM-side reference number (the gateway-recognised pointer). NULL until linked."},
-        "source_origin": {"type": "TEXT", "nullable": false, "check": "source_origin IN ('platform_module','legacy_system','external_abdm')", "description": "Distinguishes records authored inside the platform from records ingested from a legacy system through the Integration Hub from records received from an external HIP via M3."},
-        "source_system_id": {"type": "TEXT", "nullable": false, "description": "For platform_module: module name (e.g., 'opd', 'lab'). For legacy_system: integration name. For external_abdm: external HIP id."},
-        "source_record_type": {"type": "TEXT", "nullable": false, "check": "source_record_type IN ('opd_visit','ipd_admission','lab_report','prescription','radiology_report','discharge_summary','immunisation_record','wellness_record','health_document','external_record')", "description": "Maps 1:1 to ABDM HI types."},
-        "source_record_id": {"type": "TEXT", "nullable": true, "description": "Primary key in the source module's table. NULL for external_abdm-origin records (no internal source)."},
-        "encounter_id": {"type": "UUID", "nullable": true, "description": "Optional grouping. Multiple care contexts (visit + prescription + lab) may share an encounter."},
-        "display": {"type": "TEXT", "nullable": false, "description": "Patient-facing display name for the care context (e.g., 'OPD Visit at AIIMS Delhi -- 12 Mar 2026', 'CBC Lab Report -- 14 Mar 2026')."},
+        "source_origin": {"type": "TEXT", "nullable": false, "check": "source_origin IN ('platform_module','legacy_system','external_abdm')"},
+        "source_system_id": {"type": "TEXT", "nullable": false},
+        "source_record_type": {"type": "TEXT", "nullable": false},
+        "source_record_id": {"type": "TEXT", "nullable": true},
+        "encounter_id": {"type": "UUID", "nullable": true},
+        "display": {"type": "TEXT", "nullable": false},
         "period_start": {"type": "TIMESTAMPTZ", "nullable": false},
         "period_end": {"type": "TIMESTAMPTZ", "nullable": true},
-        "status": {"type": "TEXT", "nullable": false, "default": "draft", "check": "status IN ('draft','final','superseded','cancelled','archived')"},
-        "supersedes_id": {"type": "UUID", "nullable": true, "description": "When status='superseded' or when this row supersedes another, points to the prior care_context. Implements the FHIR Composition.relatesTo amendment pattern at the care-context level."},
-        "sensitivity_labels": {"type": "TEXT[]", "nullable": true, "description": "Optional labels (e.g., {'restricted','psychiatry','hiv'}) to gate disclosure under finer policy."},
+        "status": {"type": "TEXT", "nullable": false, "default": "active"},
         "created_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
         "updated_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
-        "linked_at": {"type": "TIMESTAMPTZ", "nullable": true},
-        "data_erase_at": {"type": "TIMESTAMPTZ", "nullable": true, "description": "For external_abdm-origin records, the ABDM consent-mandated erasure deadline. Polled by the erasure scheduler."}
+        "created_by": {"type": "UUID", "nullable": true},
+        "updated_by": {"type": "UUID", "nullable": true}
       },
       "primary_key": ["iq_tenant_id", "id"],
       "indexes": [
-        {"columns": ["iq_tenant_id", "patient_id", "period_start"], "name": "idx_care_contexts_patient_time", "note": "Discovery for ABDM (sorted), timeline queries."},
-        {"columns": ["iq_tenant_id", "patient_id", "status", "abha_linkage_status"], "name": "idx_care_contexts_linkable", "note": "Find linkable contexts when patient ABHA is connected."},
-        {"columns": ["iq_tenant_id", "source_origin", "source_system_id", "source_record_id"], "name": "uq_care_contexts_source", "unique": true, "note": "Idempotency: a single source record produces at most one care context (ignoring amendments via supersedes_id)."},
-        {"columns": ["iq_tenant_id", "abdm_reference_number"], "name": "uq_care_contexts_abdm_ref", "unique": true, "note": "Conditional unique on abdm_reference_number IS NOT NULL."},
-        {"columns": ["data_erase_at"], "name": "idx_care_contexts_erase_due", "note": "Polled by erasure scheduler. Sparse on data_erase_at IS NOT NULL."}
+        {"columns": ["iq_tenant_id", "patient_id", "period_start"], "name": "idx_care_contexts_patient_time"},
+        {"columns": ["iq_tenant_id", "source_origin", "source_system_id", "source_record_id", "source_record_type"], "name": "uq_care_contexts_source", "unique": true}
       ]
     },
-    "record_bundle_manifests": {
-      "description": "Manifest per FHIR Document Bundle produced or received. Records what bundle exists, what NRCeS profile it conforms to, who produced it, and where the bytes live. The bytes themselves are in bundle_storage. Per ADR-0022 (immutable) and ADR-0023 (assembly origin).",
+    "bundles": {
+      "description": "FHIR Document Bundles stored as inline JSONB. INSERT-only: rows are NEVER updated.",
       "distribution": "distributed_by_iq_tenant_id",
       "columns": {
         "id": {"type": "UUID", "nullable": false, "default": "gen_random_uuid()"},
         "iq_tenant_id": {"type": "UUID", "nullable": false},
-        "care_context_id": {"type": "UUID", "nullable": false, "description": "The care context this bundle represents."},
-        "bundle_kind": {"type": "TEXT", "nullable": false, "check": "bundle_kind IN ('OpConsultRecord','Prescription','DischargeSummary','DiagnosticReport','HealthDocumentRecord','ImmunizationRecord','WellnessRecord')", "description": "Maps to NRCeS R4 profile names."},
-        "fhir_profile_url": {"type": "TEXT", "nullable": false, "description": "The NRCeS profile canonical URL (e.g., 'https://nrces.in/ndhm/fhir/r4/StructureDefinition/OPConsultRecord')."},
-        "fhir_profile_version": {"type": "TEXT", "nullable": false, "description": "The pinned profile version (e.g., '2.0.0')."},
-        "producer_kind": {"type": "TEXT", "nullable": false, "check": "producer_kind IN ('platform_module','external_hip')", "description": "Who composed this bundle."},
-        "producer_id": {"type": "TEXT", "nullable": false, "description": "Module name when producer_kind='platform_module'; external HIP id when producer_kind='external_hip'."},
-        "validation_status": {"type": "TEXT", "nullable": false, "default": "pending", "check": "validation_status IN ('pending','valid','invalid','not_validated')", "description": "Result of NRCeS profile validation. 'not_validated' = received from external HIP and validation skipped (we trust the HIP's declared conformance and store the artifact)."},
-        "validation_errors": {"type": "JSONB", "nullable": true},
-        "bundle_storage_id": {"type": "UUID", "nullable": false, "description": "FK-equivalent to bundle_storage.id."},
-        "bundle_size_bytes": {"type": "INTEGER", "nullable": false},
-        "bundle_hash": {"type": "TEXT", "nullable": false, "description": "SHA-256 of the bundle bytes. Critical for integrity and signature verification."},
-        "signature_storage_ref": {"type": "TEXT", "nullable": true, "description": "Vault/object-storage ref for an optional digital signature over the bundle."},
-        "produced_at": {"type": "TIMESTAMPTZ", "nullable": false, "description": "Authoring timestamp (Composition.date)."},
-        "received_at": {"type": "TIMESTAMPTZ", "nullable": true, "description": "When the platform received this bundle (for producer_kind='external_hip')."},
-        "stored_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"}
-      },
-      "primary_key": ["iq_tenant_id", "id"],
-      "indexes": [
-        {"columns": ["iq_tenant_id", "care_context_id"], "name": "idx_manifests_care_context", "note": "Find the bundle for a care context."},
-        {"columns": ["iq_tenant_id", "bundle_kind"], "name": "idx_manifests_kind"},
-        {"columns": ["iq_tenant_id", "validation_status"], "name": "idx_manifests_invalid", "note": "Triage invalid bundles for ops review."}
-      ]
-    },
-    "bundle_storage": {
-      "description": "Byte-exact storage of FHIR Document Bundles. INSERT-only: rows are NEVER updated. On erasure, rows are DELETE'd and an erasure_log row is written. Storage strategy: JSONB for v1 (PostgreSQL); object-storage extraction is a future optimisation noted in phasing.",
-      "distribution": "distributed_by_iq_tenant_id",
-      "columns": {
-        "id": {"type": "UUID", "nullable": false, "default": "gen_random_uuid()"},
-        "iq_tenant_id": {"type": "UUID", "nullable": false},
-        "storage_kind": {"type": "TEXT", "nullable": false, "default": "inline_jsonb", "check": "storage_kind IN ('inline_jsonb','object_storage_ref')", "description": "v1 always 'inline_jsonb'. Object storage is post-launch."},
-        "bundle_jsonb": {"type": "JSONB", "nullable": true, "description": "When storage_kind='inline_jsonb'. The full FHIR Bundle. NULL when storage_kind='object_storage_ref'."},
-        "object_storage_ref": {"type": "TEXT", "nullable": true, "description": "When storage_kind='object_storage_ref'. URL to the bundle bytes in object storage. NULL when storage_kind='inline_jsonb'."},
-        "encryption_kind": {"type": "TEXT", "nullable": false, "default": "at_rest_pg", "check": "encryption_kind IN ('at_rest_pg','at_rest_object_kms','app_encrypted')"},
-        "stored_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"}
-      },
-      "primary_key": ["iq_tenant_id", "id"],
-      "indexes": []
-    },
-    "external_health_records": {
-      "description": "Inbox for FHIR Document Bundles received from external HIPs via M3. One row per (consent_artifact, source HIP, received bundle). The bundle bytes live in bundle_storage (linked via record_bundle_manifests); this table holds the receipt metadata and HIU-side display index.",
-      "distribution": "distributed_by_iq_tenant_id",
-      "columns": {
-        "id": {"type": "UUID", "nullable": false, "default": "gen_random_uuid()"},
-        "iq_tenant_id": {"type": "UUID", "nullable": false},
-        "patient_id": {"type": "UUID", "nullable": false},
-        "care_context_id": {"type": "UUID", "nullable": false, "description": "The care_context row registered for this external record (with source_origin='external_abdm')."},
-        "bundle_manifest_id": {"type": "UUID", "nullable": false},
-        "consent_artifact_id": {"type": "UUID", "nullable": false, "description": "Refers to integration_hub.abdm_consent_artifacts.id under which this record was disclosed."},
-        "source_hip_id": {"type": "TEXT", "nullable": false, "description": "ABDM HIP id of the originating health information provider."},
-        "source_hip_display_name": {"type": "TEXT", "nullable": true},
-        "received_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
-        "display_summary": {"type": "JSONB", "nullable": true, "description": "Parsed summary fields for fast timeline display: {title, sectionCount, attestor, encounterDate, primaryDiagnosis}. Derived from the bundle but stored denormalised so the timeline does not parse JSONB on every read."},
-        "doctor_viewed_at": {"type": "TIMESTAMPTZ", "nullable": true, "description": "First time a doctor opened this record. Audit / 'unread badge' hint."},
-        "data_erase_at": {"type": "TIMESTAMPTZ", "nullable": false, "description": "Denormalised from the consent artifact's permissions for fast erasure scheduling."}
-      },
-      "primary_key": ["iq_tenant_id", "id"],
-      "indexes": [
-        {"columns": ["iq_tenant_id", "patient_id", "received_at"], "name": "idx_external_records_patient_time"},
-        {"columns": ["iq_tenant_id", "consent_artifact_id"], "name": "idx_external_records_consent"},
-        {"columns": ["data_erase_at"], "name": "idx_external_records_erase_due", "note": "Polled by erasure scheduler."}
-      ]
-    },
-    "timeline_index": {
-      "description": "Denormalised, patient-keyed timeline projection. Source-of-truth-NEVER (rebuildable from care_contexts + record_bundle_manifests + external_health_records by replay). Read by the doctor's timeline UI and by ABDM HIP discovery responses to avoid joining three tables on every read.",
-      "distribution": "distributed_by_iq_tenant_id",
-      "columns": {
-        "id": {"type": "UUID", "nullable": false, "default": "gen_random_uuid()"},
-        "iq_tenant_id": {"type": "UUID", "nullable": false},
-        "patient_id": {"type": "UUID", "nullable": false},
         "care_context_id": {"type": "UUID", "nullable": false},
-        "occurred_at": {"type": "TIMESTAMPTZ", "nullable": false, "description": "The clinical date displayed (Composition.date for internal, encounterDate for external)."},
-        "kind": {"type": "TEXT", "nullable": false, "description": "Same vocabulary as care_contexts.source_record_type."},
-        "title": {"type": "TEXT", "nullable": false},
-        "subtitle": {"type": "TEXT", "nullable": true, "description": "Secondary line (e.g., department, attending practitioner, primary diagnosis)."},
-        "origin_label": {"type": "TEXT", "nullable": false, "description": "'Internal' | 'Legacy: <system>' | 'External: <HIP display name>'."},
-        "consent_disclosable": {"type": "BOOLEAN", "nullable": false, "default": "false", "description": "Whether ABDM consent currently allows disclosure of this care context. Maintained by the consent.granted/revoked event consumers."},
-        "sensitivity_labels": {"type": "TEXT[]", "nullable": true},
-        "rebuilt_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"}
+        "bundle_kind": {"type": "TEXT", "nullable": false},
+        "fhir_profile_url": {"type": "TEXT", "nullable": false},
+        "fhir_profile_version": {"type": "TEXT", "nullable": false},
+        "producer_kind": {"type": "TEXT", "nullable": false},
+        "producer_id": {"type": "TEXT", "nullable": false},
+        "bundle_json": {"type": "JSONB", "nullable": false},
+        "bundle_size_bytes": {"type": "INTEGER", "nullable": false},
+        "produced_at": {"type": "TIMESTAMPTZ", "nullable": false},
+        "stored_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
+        "created_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
+        "updated_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
+        "created_by": {"type": "UUID", "nullable": true},
+        "updated_by": {"type": "UUID", "nullable": true}
       },
       "primary_key": ["iq_tenant_id", "id"],
       "indexes": [
-        {"columns": ["iq_tenant_id", "patient_id", "occurred_at"], "name": "idx_timeline_patient_time", "note": "Primary timeline read."},
-        {"columns": ["iq_tenant_id", "care_context_id"], "name": "uq_timeline_context", "unique": true},
-        {"columns": ["iq_tenant_id", "patient_id", "consent_disclosable"], "name": "idx_timeline_disclosable", "note": "ABDM HIP discovery filters here."}
-      ]
-    },
-    "erasure_log": {
-      "description": "Append-only log of erasures performed under ABDM consent expiry. Provides regulatory evidence that the platform honoured the consent's dataEraseAt obligation. Per ADR-0022 / DPDP Act section 11.",
-      "distribution": "distributed_by_iq_tenant_id",
-      "columns": {
-        "id": {"type": "BIGINT", "nullable": false, "default": "nextval('erasure_log_id_seq')"},
-        "iq_tenant_id": {"type": "UUID", "nullable": false},
-        "erased_entity_kind": {"type": "TEXT", "nullable": false, "check": "erased_entity_kind IN ('external_health_record','bundle_storage','care_context')"},
-        "erased_entity_id": {"type": "UUID", "nullable": false, "description": "The id of the erased row. The row no longer exists; this log preserves the reference."},
-        "consent_artifact_id": {"type": "UUID", "nullable": true, "description": "Consent under which the original record was disclosed (when applicable)."},
-        "patient_id": {"type": "UUID", "nullable": false},
-        "original_size_bytes": {"type": "INTEGER", "nullable": true},
-        "original_hash": {"type": "TEXT", "nullable": true},
-        "data_erase_at": {"type": "TIMESTAMPTZ", "nullable": false, "description": "The deadline that triggered this erasure."},
-        "erased_at": {"type": "TIMESTAMPTZ", "nullable": false, "default": "now()"},
-        "erasure_actor": {"type": "TEXT", "nullable": false, "default": "scheduler", "description": "'scheduler' for time-driven erasure, 'manual:<user_id>' for manual revocations."},
-        "reason": {"type": "TEXT", "nullable": false, "check": "reason IN ('consent_expired','consent_revoked','manual_purge','retention_policy')"}
-      },
-      "primary_key": ["iq_tenant_id", "id"],
-      "indexes": [
-        {"columns": ["iq_tenant_id", "patient_id", "erased_at"], "name": "idx_erasure_log_patient"},
-        {"columns": ["iq_tenant_id", "consent_artifact_id"], "name": "idx_erasure_log_consent"}
+        {"columns": ["iq_tenant_id", "care_context_id"], "name": "idx_bundles_care_context"},
+        {"columns": ["iq_tenant_id", "bundle_kind"], "name": "idx_bundles_kind"}
       ]
     }
   },
@@ -167,35 +70,18 @@
     "published": [
       {
         "name": "record-foundation.care-context.registered",
-        "description": "A new care context has been registered (typically derived from a clinical-module finalised event).",
         "payload_fields": ["care_context_id", "patient_id", "source_origin", "source_record_type", "display", "period_start", "period_end", "iq_tenant_id"]
       },
       {
-        "name": "record-foundation.care-context.linked",
-        "description": "A care context has been published to ABDM and acknowledged (abha_linkage_status='linked').",
-        "payload_fields": ["care_context_id", "patient_id", "abdm_reference_number", "iq_tenant_id"]
-      },
-      {
         "name": "record-foundation.bundle.stored",
-        "description": "A FHIR Document Bundle has been validated and stored immutably.",
-        "payload_fields": ["bundle_manifest_id", "care_context_id", "bundle_kind", "fhir_profile_url", "validation_status", "iq_tenant_id"]
-      },
-      {
-        "name": "record-foundation.external-record.received",
-        "description": "An external HIU bundle has been ingested into the inbox.",
-        "payload_fields": ["external_health_record_id", "bundle_manifest_id", "patient_id", "source_hip_id", "consent_artifact_id", "data_erase_at", "iq_tenant_id"]
-      },
-      {
-        "name": "record-foundation.bundle.erased",
-        "description": "A bundle (internal or external) has been erased per consent expiry / revocation / retention policy.",
-        "payload_fields": ["erased_entity_kind", "erased_entity_id", "consent_artifact_id", "patient_id", "reason", "iq_tenant_id"]
+        "payload_fields": ["bundle_id", "care_context_id", "bundle_kind", "fhir_profile_url", "iq_tenant_id"]
       }
     ],
     "consumed": [
       {
         "name": "consultation.finalized",
         "publisher": "modules/opd",
-        "description": "Triggers care_context registration + bundle assembly + immutable storage for the finalised OPD consultation. Payload includes the FHIR resources OPD has serialised (Encounter, MedicationRequest, etc.); Record Foundation orchestrates Composition assembly and validation."
+        "description": "Triggers care_context registration + bundle storage."
       },
       {
         "name": "lab-report.finalized",
@@ -206,21 +92,6 @@
         "name": "discharge-summary.signed",
         "publisher": "modules/ipd",
         "description": "(Phase 2) Triggers care_context + bundle for a signed discharge summary."
-      },
-      {
-        "name": "abdm.consent.granted",
-        "publisher": "services/integration-hub-svc",
-        "description": "Toggles timeline_index.consent_disclosable=true for care contexts in scope of the granted consent. Schedules data_erase_at on relevant rows."
-      },
-      {
-        "name": "abdm.consent.revoked",
-        "publisher": "services/integration-hub-svc",
-        "description": "Toggles timeline_index.consent_disclosable=false. If consent.role=hiu, schedules immediate erasure of received external records under that consent."
-      },
-      {
-        "name": "abdm.health-record.received",
-        "publisher": "services/integration-hub-svc",
-        "description": "Ingests an external bundle into bundle_storage + record_bundle_manifests + external_health_records + care_contexts(source_origin='external_abdm')."
       }
     ]
   }
