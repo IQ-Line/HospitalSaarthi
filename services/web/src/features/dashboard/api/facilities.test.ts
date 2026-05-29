@@ -1,12 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fetchTenants } from '@/features/configurator/api/catalog';
-import { MOCK_DASHBOARD_FACILITIES } from '../mock/facilities.mock';
 import { DashboardDataUnavailableError } from './errors';
-import {
-  fetchDashboardFacilities,
-  resolveDefaultFacilityTenantId,
-  shouldUseDashboardMock,
-} from './facilities';
+import { fetchDashboardFacilities, resolveDefaultFacilityTenantId } from './facilities';
 
 vi.mock('@/features/configurator/api/catalog', () => ({
   fetchTenants: vi.fn(),
@@ -14,59 +9,12 @@ vi.mock('@/features/configurator/api/catalog', () => ({
 
 const fetchTenantsMock = vi.mocked(fetchTenants);
 
-describe('shouldUseDashboardMock', () => {
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
-  it('is true when VITE_DASHBOARD_USE_MOCK=true', () => {
-    vi.stubEnv('VITE_DASHBOARD_USE_MOCK', 'true');
-    vi.stubEnv('DEV', 'false');
-    expect(shouldUseDashboardMock()).toBe(true);
-  });
-
-  it('is true in dev when mock flag is not explicitly false', () => {
-    vi.stubEnv('DEV', 'true');
-    vi.unstubAllEnvs();
-    vi.stubEnv('DEV', 'true');
-    expect(shouldUseDashboardMock()).toBe(true);
-  });
-
-  it('is false when VITE_DASHBOARD_USE_MOCK=false even in dev', () => {
-    vi.stubEnv('DEV', 'true');
-    vi.stubEnv('VITE_DASHBOARD_USE_MOCK', 'false');
-    expect(shouldUseDashboardMock()).toBe(false);
-  });
-});
-
 describe('fetchDashboardFacilities', () => {
   afterEach(() => {
-    vi.unstubAllEnvs();
     vi.clearAllMocks();
   });
 
-  it('returns mock facilities in mock mode', async () => {
-    vi.stubEnv('VITE_DASHBOARD_USE_MOCK', 'true');
-    const facilities = await fetchDashboardFacilities();
-    expect(facilities).toEqual(MOCK_DASHBOARD_FACILITIES);
-    expect(fetchTenantsMock).not.toHaveBeenCalled();
-  });
-
-  it('does not return mock facilities when Configurator fails in live mode', async () => {
-    vi.stubEnv('DEV', 'false');
-    vi.stubEnv('VITE_DASHBOARD_USE_MOCK', 'false');
-    fetchTenantsMock.mockRejectedValue(new Error('Configurator unavailable'));
-
-    await expect(fetchDashboardFacilities()).rejects.toSatisfy((error: unknown) => {
-      expect(error).toBeInstanceOf(DashboardDataUnavailableError);
-      expect((error as Error).message).toContain('Failed to load facilities');
-      return true;
-    });
-  });
-
-  it('maps Configurator tenants in live mode', async () => {
-    vi.stubEnv('DEV', 'false');
-    vi.stubEnv('VITE_DASHBOARD_USE_MOCK', 'false');
+  it('maps and dedupes Configurator tenants', async () => {
     fetchTenantsMock.mockResolvedValue({
       data: [
         {
@@ -108,6 +56,11 @@ describe('fetchDashboardFacilities', () => {
       },
     ]);
   });
+
+  it('throws when Configurator fails', async () => {
+    fetchTenantsMock.mockRejectedValue(new Error('Configurator unavailable'));
+    await expect(fetchDashboardFacilities()).rejects.toBeInstanceOf(DashboardDataUnavailableError);
+  });
 });
 
 describe('resolveDefaultFacilityTenantId', () => {
@@ -124,7 +77,7 @@ describe('resolveDefaultFacilityTenantId', () => {
     expect(resolveDefaultFacilityTenantId(facilities, 'tenant-missing')).toBe('tenant-a');
   });
 
-  it('returns undefined for an empty facility list', () => {
+  it('returns undefined when facilities list is empty', () => {
     expect(resolveDefaultFacilityTenantId([], 'tenant-a')).toBeUndefined();
   });
 });

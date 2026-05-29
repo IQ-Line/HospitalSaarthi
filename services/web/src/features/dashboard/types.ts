@@ -39,5 +39,6 @@ export interface DashboardMetricsBundle {
   stats: DashboardStats;
   footfall: FootfallPoint[];
   todaysVisits: TodaysVisitRow[];
-  topItems: DashboardTopItems;
+  /** Placeholder until pharmacy/diagnostics ranking APIs exist. */
+  topItems?: DashboardTopItems;
 }

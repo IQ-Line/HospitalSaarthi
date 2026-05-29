@@ -1,5 +1,8 @@
 import type { ReactNode } from 'react';
 import { Search } from 'lucide-react';
+import { useTenantStore } from '@/stores/tenant.store';
+import { useDashboardMetricsSidebar } from '@/features/dashboard/hooks/use-dashboard-metrics';
+import { Skeleton } from '@pulse/ui/skeleton';
 import { Button } from '@pulse/ui/button';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
@@ -64,18 +67,26 @@ export function RegistrationField({
   return <div className={cn('space-y-1.5', className)}>{children}</div>;
 }
 
-/** Right-rail counters — presentation-only until frontdesk stats API is wired. */
+/** Right-rail counters from Registration dashboard stats API. */
 export function RegistrationTodayStatsSidebar() {
+  const tenantId = useTenantStore((s) => s.tenantId ?? s.homeTenantId);
+  const metricsQuery = useDashboardMetricsSidebar(tenantId ?? null);
+  const s = metricsQuery.data?.stats;
+  const isLoading = metricsQuery.isLoading && !metricsQuery.data;
+
   const stats = [
-    { label: 'Total Visits', value: 0 },
-    { label: 'New Patient Registrations', value: 0 },
-    { label: 'Follow Up Patient Registrations', value: 0 },
-    { label: 'Doctor Pending Consultations', value: 0 },
+    { label: 'Total Visits', value: s?.totalVisits },
+    { label: 'New Patient Registrations', value: s?.newPatientRegistrations },
+    { label: 'Follow Up Patient Registrations', value: s?.followUpPatientRegistrations },
+    { label: 'Doctor Pending Consultations', value: s?.doctorPendingConsultations },
   ] as const;
 
   return (
     <aside className="space-y-3 lg:sticky lg:top-4 lg:self-start">
       <h2 className="text-base font-semibold text-foreground">Today&apos;s Statistics</h2>
+      {metricsQuery.isError ? (
+        <p className="text-sm text-destructive">Could not load today&apos;s statistics.</p>
+      ) : null}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
         {stats.map((stat) => (
           <div
@@ -83,9 +94,13 @@ export function RegistrationTodayStatsSidebar() {
             className="flex items-center justify-between gap-3 rounded-md border border-border bg-card px-4 py-3 shadow-sm"
           >
             <span className="text-sm leading-snug text-muted-foreground">{stat.label}</span>
-            <span className="shrink-0 text-2xl font-semibold tabular-nums text-foreground">
-              {stat.value}
-            </span>
+            {isLoading ? (
+              <Skeleton className="h-8 w-12 shrink-0" aria-hidden />
+            ) : (
+              <span className="shrink-0 text-2xl font-semibold tabular-nums text-foreground">
+                {stat.value ?? 0}
+              </span>
+            )}
           </div>
         ))}
       </div>

@@ -19,6 +19,14 @@ const registrationStatusEnum = ["pending", "in_progress", "completed", "cancelle
 
 const intakeCompletionEnum = ["pending", "partial", "complete"] as const;
 
+export const dashboardStatsQuerySchema = {
+  type: "object" as const,
+  additionalProperties: false,
+  properties: {
+    days: { type: "string", pattern: "^[1-9][0-9]*$" },
+  },
+};
+
 export const listRegistrationsQuerySchema = {
   type: "object" as const,
   additionalProperties: false,
