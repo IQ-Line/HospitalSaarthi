@@ -10,6 +10,8 @@ Integration Hub owns **transport** between the platform and external systems —
 
 Lives in `modules/integration-hub/`, deployed in `services/integration-hub-svc/` (its own service from day one — always-deployed platform infrastructure per [ADR-0011](../../adr/0011-integration-hub-split.md)).
 
+> **Active work (2026-05):** [Phase 1a — restructure + per-tenant credentials](../integration-hub/01-phase-1a-restructure-and-multi-tenant.md) ([issue #143](https://github.com/IQ-Line/HospitalSaarthi/issues/143)) ships the ABDM code move and `configurator.tenant_integration_profiles` first. The full 13-table control plane and FSM/timer worker below remain **deferred**.
+
 ---
 
 ## Where to start
