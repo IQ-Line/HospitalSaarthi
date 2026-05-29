@@ -22,6 +22,11 @@ resourcePolicy:
         - "capability.read"
       roles: ["super-admin"]
       effect: EFFECT_ALLOW
+
+    - actions:
+        - "capability.read"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
       condition:
         match:
           expr: >-

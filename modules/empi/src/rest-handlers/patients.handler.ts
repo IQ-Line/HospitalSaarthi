@@ -64,7 +64,7 @@ export function registerPatientsHandler(
     {
       config: {
         authMode: "protected",
-        authz: { kind: "patient", action: "patient.create" },
+        authz: { kind: "patient", action: "patient.create", id: "new" },
       },
       schema: {
         body: createPatientBodySchema,
@@ -101,7 +101,7 @@ export function registerPatientsHandler(
     {
       config: {
         authMode: "protected",
-        authz: { kind: "patient", action: "patient.read" },
+        authz: { kind: "patient", action: "patient.read", id: "list" },
       },
       schema: {
         querystring: searchPatientsQuerySchema,

@@ -36,7 +36,7 @@ export function registerOrganizationsHandler(
     {
       config: {
         authMode: "protected",
-        authz: { kind: "organization", action: "org.read" },
+        authz: { kind: "organization", action: "org.read", id: "list" },
       },
     },
     async (request) => {
@@ -56,7 +56,7 @@ export function registerOrganizationsHandler(
     {
       config: {
         authMode: "protected",
-        authz: { kind: "organization", action: "org.create" },
+        authz: { kind: "organization", action: "org.create", id: "new" },
       },
       schema: { body: postOrganizationBodySchema },
     },
