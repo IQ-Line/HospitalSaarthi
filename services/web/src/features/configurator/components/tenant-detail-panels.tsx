@@ -74,6 +74,8 @@ import {
   useDeleteDepartment,
   useDepartments,
   useUpdateDepartment,
+  DEPARTMENT_CATALOG_DEFAULT_PAGE_SIZE,
+  DEPARTMENT_CATALOG_PAGE_SIZES,
 } from '@/features/master-data/api';
 import { ReadOnlyRow } from '@/features/master-data/components/read-only-row';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
@@ -348,14 +350,25 @@ export function TenantDepartmentsPanel({ iqTenantId }: { iqTenantId: string }) {
   });
   const [tableSearch, setTableSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<DepartmentType | 'all'>('all');
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(DEPARTMENT_CATALOG_DEFAULT_PAGE_SIZE);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
   const [viewingDepartment, setViewingDepartment] = useState<Department | null>(null);
   const [deletingDepartment, setDeletingDepartment] = useState<Department | null>(null);
 
   const deptType = typeFilter === 'all' ? undefined : typeFilter;
-  const { data, isLoading, error } = useDepartments(deptType, { iqTenantId });
+  const listPage = useMemo(() => ({ pageIndex, pageSize }), [pageIndex, pageSize]);
+  useEffect(() => {
+    setPageIndex(0);
+  }, [tableSearch, typeFilter]);
+  const { data, isLoading, error } = useDepartments(deptType, {
+    iqTenantId,
+    search: tableSearch || undefined,
+    page: listPage,
+  });
   const departments = data?.data ?? [];
+  const total = data?.total ?? 0;
 
   const createMutation = useCreateDepartment(iqTenantId);
   const updateMutation = useUpdateDepartment(iqTenantId);
@@ -369,12 +382,6 @@ export function TenantDepartmentsPanel({ iqTenantId }: { iqTenantId: string }) {
     resolver: zodResolver(departmentFormSchema),
     defaultValues: EMPTY_DEPARTMENT_FORM_VALUES,
   });
-
-  const filteredDepartments = useMemo(() => {
-    return departments.filter((d) =>
-      rowMatchesSearch(tableSearch, d.name, d.code, d.type),
-    );
-  }, [departments, tableSearch]);
 
   const columns = useMemo<ColumnDef<Department, unknown>[]>(
     () => [
@@ -490,12 +497,6 @@ export function TenantDepartmentsPanel({ iqTenantId }: { iqTenantId: string }) {
     }
   };
 
-  if (error) {
-    return (
-      <p className="text-sm text-destructive">Failed to load departments: {error.message}</p>
-    );
-  }
-
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -530,13 +531,25 @@ export function TenantDepartmentsPanel({ iqTenantId }: { iqTenantId: string }) {
       </div>
       <EntityTableToolbar value={tableSearch} onChange={setTableSearch} placeholder="Search name, code, type…" />
       <div className="rounded-lg border">
-        <DataTable
-          columns={columns}
-          data={filteredDepartments}
-          isLoading={isLoading}
-          emptyTitle="No departments found"
-          emptyDescription="Add a department to get started."
-        />
+        {error ? (
+          <p className="p-3 text-sm text-destructive">Failed to load departments: {error.message}</p>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={departments}
+            isLoading={isLoading}
+            emptyTitle="No departments found"
+            emptyDescription="Add a department to get started."
+            manualPagination={{
+              pageIndex,
+              pageSize,
+              total,
+              pageSizeOptions: DEPARTMENT_CATALOG_PAGE_SIZES,
+              onPageChange: setPageIndex,
+              onPageSizeChange: setPageSize,
+            }}
+          />
+        )}
       </div>
 
       {/* Create dialog */}
@@ -1107,7 +1120,11 @@ export function TenantBillingPanel({ iqTenantId }: { iqTenantId: string }) {
   const services = data?.data ?? [];
   const createMutation = useCreateTariffService(iqTenantId);
   const updateMutation = useUpdateTariffService(iqTenantId);
-  const departmentsQuery = useDepartments(undefined, { enabled: isCreateOpen, iqTenantId });
+  const departmentsQuery = useDepartments(undefined, {
+    enabled: isCreateOpen,
+    iqTenantId,
+    formCatalog: true,
+  });
 
   const createForm = useForm<TariffServiceCreateFormValues>({
     resolver: zodResolver(tariffServiceCreateSchema),

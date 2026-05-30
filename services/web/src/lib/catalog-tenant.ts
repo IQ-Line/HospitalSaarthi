@@ -7,6 +7,7 @@ import {
 } from '../../../../packages/dev-bootstrap/src/dev-tenant-ids.ts';
 
 const VISITPAD_CATALOG_API_PATH_PREFIX = '/api/v1/master-data/visitpad';
+const DEPARTMENTS_CATALOG_API_PATH_PREFIX = '/api/v1/master-data/departments';
 
 /**
  * Visitpad / master-data catalog sends `iq_tenant_id` when the active tenant id is a
@@ -44,13 +45,21 @@ export function isVisitpadCatalogApiPath(path: string): boolean {
   return path.startsWith(VISITPAD_CATALOG_API_PATH_PREFIX);
 }
 
-/** Platform super-admin edits Visitpad via `global_master` — omit `iq_tenant_id` on these APIs. */
+/** Visitpad + departments catalogs use ``global_master`` / ``tenant_master`` dual schemas. */
+export function isMasterDataDualSchemaCatalogApiPath(path: string): boolean {
+  return (
+    path.startsWith(VISITPAD_CATALOG_API_PATH_PREFIX) ||
+    path.startsWith(DEPARTMENTS_CATALOG_API_PATH_PREFIX)
+  );
+}
+
+/** Platform super-admin edits dual-schema catalogs via `global_master` — omit `iq_tenant_id`. */
 export function visitpadCatalogOmitsIqTenantHeader(input: {
   path: string;
   authRoles?: readonly string[];
   principalRoles?: readonly string[];
 }): boolean {
-  if (!isVisitpadCatalogApiPath(input.path)) {
+  if (!isMasterDataDualSchemaCatalogApiPath(input.path)) {
     return false;
   }
   return resolvePlatformSuperAdmin({

@@ -130,7 +130,7 @@ export function VisitRegistrationAppointmentSection({
   const providerId = watch('appointment.provider_id') ?? '';
   const visitTypeCode = watch('appointment.visit_type_code') ?? '';
 
-  const departmentsQuery = useDepartments();
+  const departmentsQuery = useDepartments(undefined, { formCatalog: true });
   const departments = departmentsQuery.data?.data ?? [];
   const departmentOptions = useMemo(
     () =>

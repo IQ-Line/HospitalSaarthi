@@ -62,4 +62,13 @@ describe('catalogModuleCrudAccess', () => {
     expect(users.canRead).toBe(false);
     expect(users.canCreate).toBe(false);
   });
+
+  it('grants departments CRUD from visitpad-master shell keys (tenant-admin parity)', () => {
+    const shellOnly = new Set([MD_VISITPAD_VIEW, MD_VISITPAD_CREATE]);
+    const departments = catalogModuleCrudAccess(shellOnly, 'departments');
+    expect(departments.canRead).toBe(true);
+    expect(departments.canCreate).toBe(true);
+    expect(departments.canUpdate).toBe(true);
+    expect(departments.canDelete).toBe(true);
+  });
 });

@@ -193,6 +193,24 @@ describe('apiClient', () => {
     expect(headers.has('x-tenant-id')).toBe(false);
   });
 
+  it('omits iq_tenant_id for departments catalog when principal is platform super-admin', async () => {
+    useAuthStore.setState({ roles: ['super-admin'] });
+
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ data: [], total: 0 }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    await apiClient('/api/v1/master-data/departments', { method: 'GET' });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = new Headers(init.headers);
+    expect(headers.has('iq_tenant_id')).toBe(false);
+    expect(headers.has('x-tenant-id')).toBe(false);
+  });
+
   it('sends iq_tenant_id for visitpad catalog when principal is tenant-admin', async () => {
     useAuthStore.setState({ roles: ['tenant-admin'] });
 

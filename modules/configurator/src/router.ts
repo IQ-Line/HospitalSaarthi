@@ -81,6 +81,7 @@ async function configuratorRouter(
   registerTenantIntegrationProfilesHandler(app, {
     tenantIntegrationProfilesRepo: options.tenantIntegrationProfilesRepo,
     tenantRepo: options.tenantRepo,
+  });
   registerSequenceConfigurationHandler(app, {
     tenantRepo: options.tenantRepo,
     sequenceConfigurationRepo: options.sequenceConfigurationRepo,

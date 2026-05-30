@@ -99,7 +99,7 @@ function BillingServicesPage() {
 
   const createMutation = useCreateTariffService();
   const updateMutation = useUpdateTariffService();
-  const departmentsQuery = useDepartments(undefined, { enabled: isCreateOpen });
+  const departmentsQuery = useDepartments(undefined, { enabled: isCreateOpen, formCatalog: true });
 
   const createForm = useForm<TariffServiceCreateFormValues>({
     resolver: zodResolver(tariffServiceCreateSchema),

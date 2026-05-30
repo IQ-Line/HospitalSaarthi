@@ -34,10 +34,27 @@ class FakeDepartmentRepository:
     def __init__(self) -> None:
         self._rows = [_sample_department_row()]
 
-    def list_departments(self, *, department_type=None):
-        if department_type is None:
-            return list(self._rows)
-        return [r for r in self._rows if r.type == department_type.value]
+    def list_departments(
+        self,
+        *,
+        search=None,
+        department_type=None,
+        limit=50,
+        offset=0,
+    ):
+        rows = self._rows
+        if department_type is not None:
+            rows = [r for r in rows if r.type == department_type.value]
+        if search:
+            term = search.strip().lower()
+            rows = [
+                r
+                for r in rows
+                if term in r.name.lower() or term in r.code.lower() or term in r.type.lower()
+            ]
+        total = len(rows)
+        page = rows[offset : offset + limit]
+        return page, total
 
     def create_department(self, department):
         self._rows.append(department)
