@@ -40,4 +40,4 @@ export {
   DEPARTMENT_CATALOG_PAGE_SIZES,
   DEPARTMENT_CATALOG_FORM_PAGE,
 } from './departments';
-export { usePicklistValues } from './picklists';
+export { usePicklistValues, useRoleTypePicklistValues, ROLE_TYPES_PICKLIST_SLUG } from './picklists';

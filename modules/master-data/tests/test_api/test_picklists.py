@@ -75,7 +75,7 @@ def _seed_picklist_with_values(session: Session) -> tuple[UUID, UUID]:
         label="Male",
         display_order=1,
         is_active=True,
-        is_default=False,
+        is_global=False,
     )
     female = PicklistValueModel(
         category_id=picklist.id,
@@ -83,7 +83,7 @@ def _seed_picklist_with_values(session: Session) -> tuple[UUID, UUID]:
         label="Female",
         display_order=2,
         is_active=True,
-        is_default=False,
+        is_global=False,
     )
     session.add_all([male, female])
     session.commit()
