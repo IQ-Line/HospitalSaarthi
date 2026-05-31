@@ -1,11 +1,11 @@
-"""Rename picklist_values.is_default → is_global and align role-types seeds.
+"""Dedupe role-types picklist values to hyphenated platform role codes.
 
-Revision ID: 038_picklist_values_is_global
-Revises: 037_module_visibility_scope
+Revision ID: 039_picklist_role_types_hyphen_dedupe
+Revises: 038_picklist_values_is_global
 
-- Column ``is_global``: platform-wide role types (super-admin, tenant-admin) vs tenant staff types.
-- Normalizes legacy ``superadmin`` / ``super_admin`` → ``super-admin`` (hyphen, matches UM role.code).
-- Ensures ``tenant-admin`` exists with ``is_global = true`` (no underscore duplicate).
+Fixes databases that already ran an earlier 038 revision that inserted ``tenant_admin``
+while 033 had seeded ``tenant-admin``, and renamed ``super-admin`` → ``super_admin``.
+Idempotent: safe on fresh installs after the corrected 038.
 """
 
 from __future__ import annotations
@@ -14,8 +14,8 @@ from collections.abc import Sequence
 
 from alembic import op
 
-revision: str = "038_picklist_values_is_global"
-down_revision: str | Sequence[str] | None = "037_module_visibility_scope"
+revision: str = "039_picklist_role_types_hyphen_dedupe"
+down_revision: str | Sequence[str] | None = "038_picklist_values_is_global"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -25,14 +25,6 @@ def upgrade() -> None:
     if bind.dialect.name != "postgresql":
         return
 
-    op.execute(
-        """
-        ALTER TABLE global_master.picklist_values
-        RENAME COLUMN is_default TO is_global;
-        """
-    )
-
-    # Drop underscore/legacy super rows when hyphen row already exists.
     op.execute(
         """
         DELETE FROM global_master.picklist_values pv
@@ -91,35 +83,6 @@ def upgrade() -> None:
 
     op.execute(
         """
-        INSERT INTO global_master.picklist_values (
-            id, category_id, value, label, description, metadata,
-            is_active, is_global, display_order, created_at, updated_at
-        )
-        SELECT
-            gen_random_uuid(),
-            p.id,
-            'tenant-admin',
-            'Tenant Admin',
-            NULL,
-            NULL,
-            true,
-            true,
-            9,
-            now(),
-            now()
-        FROM global_master.picklist p
-        WHERE p.slug = 'role-types'
-          AND NOT p.is_deleted
-          AND NOT EXISTS (
-              SELECT 1 FROM global_master.picklist_values pv
-              WHERE pv.category_id = p.id
-                AND pv.value = 'tenant-admin'
-          );
-        """
-    )
-
-    op.execute(
-        """
         UPDATE global_master.picklist_values pv
         SET is_global = true
         FROM global_master.picklist p
@@ -144,39 +107,4 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    bind = op.get_bind()
-    if bind.dialect.name != "postgresql":
-        return
-
-    op.execute(
-        """
-        DELETE FROM global_master.picklist_values pv
-        USING global_master.picklist p
-        WHERE pv.category_id = p.id
-          AND p.slug = 'role-types'
-          AND pv.value = 'tenant-admin'
-          AND NOT EXISTS (
-              SELECT 1 FROM global_master.picklist_values pv2
-              WHERE pv2.category_id = p.id
-                AND pv2.value = 'tenant_admin'
-          );
-        """
-    )
-
-    op.execute(
-        """
-        UPDATE global_master.picklist_values pv
-        SET value = 'superadmin'
-        FROM global_master.picklist p
-        WHERE pv.category_id = p.id
-          AND p.slug = 'role-types'
-          AND pv.value = 'super-admin';
-        """
-    )
-
-    op.execute(
-        """
-        ALTER TABLE global_master.picklist_values
-        RENAME COLUMN is_global TO is_default;
-        """
-    )
+    pass

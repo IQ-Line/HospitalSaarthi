@@ -1,7 +1,7 @@
 import type { PicklistValue } from '@/features/master-data/types';
 
 /** Role-type picklist values for platform operators (UM role.code templates). */
-export const GLOBAL_ROLE_TYPE_VALUES = ['super_admin', 'tenant_admin'] as const;
+export const GLOBAL_ROLE_TYPE_VALUES = ['super-admin', 'tenant-admin'] as const;
 
 export type GlobalRoleTypeValue = (typeof GLOBAL_ROLE_TYPE_VALUES)[number];
 

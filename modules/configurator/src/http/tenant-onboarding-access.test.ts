@@ -5,9 +5,10 @@ import { assertTenantOnboardingAllowed } from "./tenant-onboarding-access.js";
 
 function mockRequest(input: {
   user?: { roles: string[]; orgId?: string; userId?: string };
+  authorization?: string;
 }): Parameters<typeof assertTenantOnboardingAllowed>[0] {
   return {
-    headers: {},
+    headers: input.authorization ? { authorization: input.authorization } : {},
     user: input.user as never,
   } as Parameters<typeof assertTenantOnboardingAllowed>[0];
 }
@@ -76,5 +77,17 @@ describe("assertTenantOnboardingAllowed", () => {
         },
       ),
     ).toThrow(ConfiguratorError);
+  });
+
+  it("allows super-admin from Bearer JWT when identity plugin did not set request.user", () => {
+    const token = `hdr.${Buffer.from(
+      JSON.stringify({ sub: "u1", roles: ["super-admin"] }),
+    ).toString("base64url")}.sig`;
+    expect(() =>
+      assertTenantOnboardingAllowed(
+        mockRequest({ authorization: `Bearer ${token}` }),
+        baseInput,
+      ),
+    ).not.toThrow();
   });
 });
