@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from '@pulse/ui/select';
 import { Textarea } from '@pulse/ui/textarea';
-import { usePicklistValues } from '@/features/master-data/api';
+import { useRoleTypePicklistValues } from '@/features/master-data/api';
 import type { Capability, UmRole } from '../types';
 import { MasterDataCapabilityPermissionTree } from './master-data-capability-permission-tree';
 import { PermissionSelectionScrollRegion } from './permission-selection-scroll-region';
@@ -510,8 +510,7 @@ export function RoleEditorDialog({
   const umRoleCreate = useCapability(UM_ROLE_CREATE);
   const umRoleUpdate = useCapability(UM_ROLE_UPDATE);
   const umCapabilityRead = useCapability(UM_CAPABILITY_READ);
-  const { data: roleTypeOptions, isLoading: roleTypesLoading } =
-    usePicklistValues('role-types');
+  const { data: roleTypeOptions, isLoading: roleTypesLoading } = useRoleTypePicklistValues();
   const isCreate = mode === 'create';
   const isView = mode === 'view';
   const roleFormEditable = !isView && (isCreate ? umRoleCreate : umRoleUpdate);
@@ -584,15 +583,15 @@ export function RoleEditorDialog({
         <div className="shrink-0 space-y-2 border-b p-4 pb-3">
           <DialogHeader>
             <DialogTitle>
-              {isCreate ? 'New role' : isView ? 'View role' : 'Edit role'}
+              {isCreate ? 'New role template' : isView ? 'View role' : 'Edit role'}
             </DialogTitle>
-            <DialogDescription>
+            {/* <DialogDescription>
               {isCreate
                 ? 'Give the role a name and choose what people with this role can do.'
                 : isView
                   ? 'See what this role allows. You cannot make changes with your account.'
                   : 'Update the name or change what this role allows.'}
-            </DialogDescription>
+            </DialogDescription> */}
           </DialogHeader>
         </div>
 
@@ -608,46 +607,13 @@ export function RoleEditorDialog({
                       {role.is_system ? <Badge variant="secondary">System role</Badge> : null}
                     </>
                   ) : (
-                    <Badge variant="secondary">New role</Badge>
+                    <Badge variant="secondary">New Role Template</Badge>
                   )}
                   {isDirty ? <Badge variant="outline">Unsaved changes</Badge> : null}
                 </div>
-                <p className="text-sm text-muted-foreground">
+                {/* <p className="text-sm text-muted-foreground">
                   Give the role a name, then choose what it allows on the right.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="role-editor-code">Short ID</Label>
-                <Input
-                  id="role-editor-code"
-                  placeholder="e.g. clinical-admin"
-                  value={code}
-                  disabled={!roleFormEditable}
-                  onChange={(event) => onCodeChange(event.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="role-editor-name">Role name</Label>
-                <Input
-                  id="role-editor-name"
-                  placeholder="Clinical administrator"
-                  value={displayName}
-                  disabled={!roleFormEditable}
-                  onChange={(event) => onDisplayNameChange(event.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="role-editor-description">Description</Label>
-                <Textarea
-                  id="role-editor-description"
-                  placeholder="Summarize who should receive this role."
-                  value={description}
-                  disabled={!roleFormEditable}
-                  onChange={(event) => onDescriptionChange(event.target.value)}
-                />
+                </p> */}
               </div>
 
               <div className="space-y-2">
@@ -677,8 +643,44 @@ export function RoleEditorDialog({
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Selecting a type auto-fills the short ID{isCreate ? ' and name' : ''}.
+                  Selecting a type auto-fills the short ID{isCreate ? ' and name' : ''}. Platform
+                  operators see global types (Super Admin, Tenant Admin); hospital admins see
+                  clinical and staff types.
                 </p>
+              </div>
+
+
+              <div className="space-y-2">
+                <Label htmlFor="role-editor-name">Role name</Label>
+                <Input
+                  id="role-editor-name"
+                  placeholder="Clinical administrator"
+                  value={displayName}
+                  disabled={!roleFormEditable}
+                  onChange={(event) => onDisplayNameChange(event.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="role-editor-description">Description</Label>
+                <Textarea
+                  id="role-editor-description"
+                  placeholder="Summarize who should receive this role."
+                  value={description}
+                  disabled={!roleFormEditable}
+                  onChange={(event) => onDescriptionChange(event.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="role-editor-code">Short ID</Label>
+                <Input
+                  id="role-editor-code"
+                  placeholder="e.g. clinical-admin"
+                  value={code}
+                  disabled={!roleFormEditable}
+                  onChange={(event) => onCodeChange(event.target.value)}
+                />
               </div>
 
               {!roleFormEditable ? (

@@ -212,7 +212,8 @@ export interface PicklistValue {
   label: string;
   description: string | null;
   is_active: boolean;
-  is_default: boolean;
+  /** Platform-wide role type (super_admin, tenant_admin) vs tenant staff types. */
+  is_global: boolean;
   display_order: number;
   created_at: string;
   updated_at: string;
