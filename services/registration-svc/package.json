@@ -5,6 +5,7 @@
   "type": "module",
   "dependencies": {
     "@fastify/cors": "^11.0.1",
+    "@hims/pdf-client": "workspace:*",
     "@hims/registration": "workspace:*",
     "@hims/ts-sdk-authz": "workspace:*",
     "@hims/ts-sdk-openapi": "workspace:*",

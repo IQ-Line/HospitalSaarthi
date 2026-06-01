@@ -27,6 +27,8 @@ type BillParams = { bill_id: string };
 type ListBillsQuerystring = {
   patient_id?: string;
   visit_id?: string;
+  source_module?: string;
+  source_ref?: string;
   status?: BillStatus;
   bill_type?: string;
   from_date?: string;
@@ -40,6 +42,8 @@ function parseListBillsQuery(q: ListBillsQuerystring): ListBillsQuery {
   return {
     patient_id: q.patient_id,
     visit_id: q.visit_id,
+    source_module: q.source_module,
+    source_ref: q.source_ref,
     status: q.status,
     bill_type: q.bill_type,
     from_date: q.from_date,
