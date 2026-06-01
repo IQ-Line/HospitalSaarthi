@@ -49,6 +49,8 @@ export const listBillsRouteSchema = {
     properties: {
       patient_id: uuid,
       visit_id: uuid,
+      source_module: { type: "string" },
+      source_ref: uuid,
       status: {
         type: "string",
         enum: ["DRAFT", "FINALIZED", "PARTIALLY_PAID", "PAID", "CLOSED", "CANCELLED", "REPLACED"],

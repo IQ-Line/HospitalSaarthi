@@ -4,6 +4,8 @@ import {
   mapVisitRegistrationToAppointmentBody,
   mapVisitRegistrationToNewPatientIntakeBody,
 } from '@/features/frontdesk/utils/visit-registration-helpers';
+import { formatPatientAddressForReport } from '@/features/frontdesk/utils/report-address';
+import type { RegistrationReportQueryContext } from '@/features/frontdesk/api/registration-documents';
 import type {
   CreateNewPatientRegistrationResponse,
   CreateVisitRequestBody,
@@ -110,6 +112,17 @@ export async function createAppointmentStub(
   };
 }
 
+export interface RegistrationReportMeta {
+  departmentName?: string;
+  doctorName?: string;
+  facilityName?: string;
+}
+
+export interface CreateVisitFlowResult extends CreateNewPatientRegistrationResponse {
+  bill_id: string;
+  report_context: RegistrationReportQueryContext;
+}
+
 /**
  * Desk **Create Visit** orchestration (sequential).
  *
@@ -120,22 +133,42 @@ export async function createAppointmentStub(
  */
 export async function executeCreateVisitFlow(
   form: CreateVisitRequestBody,
-  options: { idempotencyKey: string },
-): Promise<CreateNewPatientRegistrationResponse> {
+  options: { idempotencyKey: string; reportMeta?: RegistrationReportMeta },
+): Promise<CreateVisitFlowResult> {
   const registration = await createNewPatientRegistration(
     mapVisitRegistrationToNewPatientIntakeBody(form),
     { idempotencyKey: options.idempotencyKey },
   );
 
   await createAppointmentStub(form, registration);
-  await executeVisitRegistrationBilling(form, {
+  const billing = await executeVisitRegistrationBilling(form, {
     patient_id: registration.patient_id,
     registration_id: registration.registration_id,
     visit_id: registration.visit_id,
     idempotencyKey: options.idempotencyKey,
   });
 
-  return completeRegistrationIntake(registration.registration_id);
+  const completed = await completeRegistrationIntake(registration.registration_id);
+  const patientAddress = formatPatientAddressForReport(
+    form.residential_address?.line1?.trim()
+      ? form.residential_address
+      : form.permanent_address,
+  );
+
+  return {
+    ...completed,
+    bill_id: billing.bill_id,
+    report_context: {
+      bill_id: billing.bill_id,
+      department_name:
+        options.reportMeta?.departmentName?.trim() || form.appointment?.department_name?.trim(),
+      doctor_name: options.reportMeta?.doctorName?.trim(),
+      room_number: form.appointment?.room_number?.trim(),
+      patient_address: patientAddress,
+      payment_method: form.billing?.payment_mode?.trim()?.toUpperCase(),
+      facility_name: options.reportMeta?.facilityName?.trim(),
+    },
+  };
 }
 
 /** After appointment + billing succeed, mark the registration row completed. */

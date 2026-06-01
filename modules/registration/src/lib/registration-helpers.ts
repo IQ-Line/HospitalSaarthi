@@ -56,6 +56,11 @@ export function registrationStatusFromIntakeCompletion(
   }
 }
 
+/** Desk documents (OPD slip, invoice) are available for any active registration row. */
+export function isRegistrationDocumentEligible(status: RegistrationStatus): boolean {
+  return status !== REGISTRATION_STATUS_CANCELLED;
+}
+
 // ─── Events (ADR-0017 in-process bus) ─────────────────────────────────────────
 
 export const REGISTRATION_EVENT_REGISTRATION_CREATED =

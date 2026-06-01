@@ -108,6 +108,8 @@ export type BillsListResponse = {
 export type BillsListParams = {
   patient_id?: string;
   visit_id?: string;
+  source_module?: string;
+  source_ref?: string;
   status?: BillStatus;
   bill_type?: string;
   from_date?: string;
