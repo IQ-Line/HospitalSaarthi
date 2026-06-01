@@ -27,10 +27,12 @@ export function applyOpdVisitSummaryOverlay(
   summary: OpdVisitSummary | undefined,
 ): OpdPatientVisitRow {
   if (!summary) return row;
-  const status =
+  const status: OpdVisitStatus =
     summary.status === 'in_progress'
       ? 'in-progress'
-      : (summary.status as OpdVisitStatus);
+      : summary.status === 'pre_consulted'
+        ? 'pre-consulted'
+        : (summary.status as OpdVisitStatus);
   return {
     ...row,
     status,

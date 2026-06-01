@@ -34,6 +34,8 @@ def effective_encounter_status(visit: Visit | None, rx: Prescription | None) -> 
             return "completed"
         if visit.status == "cancelled":
             return "cancelled"
+        if visit.status == "pre_consulted":
+            return "pre_consulted"
         if visit.status in ("in_progress", "registered"):
             return "in_progress"
         return visit.status
@@ -175,6 +177,28 @@ class PrescriptionRepository:
             updated_at=now,
         )
         self._session.add(rx)
+        self._session.flush()
+        return visit, rx
+
+    def save_nurse_pre_consult_for_visit(
+        self,
+        visit_id: UUID,
+        patient_id: UUID,
+        form_data: dict[str, Any],
+    ) -> tuple[Visit, Prescription]:
+        """Persist nurse vitals / pre-consult data and mark visit ready for doctor."""
+        visit, rx = self._get_or_create_prescription_for_visit(visit_id, patient_id)
+        if rx.status in ("final", "cancelled") or visit.status == "completed":
+            raise PermissionError("prescription is read-only")
+
+        now = datetime.now(UTC)
+        visit.status = "pre_consulted"
+        visit.updated_at = now
+        rx.form_data = form_data
+        rx.status = "draft"
+        rx.updated_at = now
+        self._session.flush()
+        persist_normalized_from_form_data(self._session, self._tenant_id, rx.id, form_data)
         self._session.flush()
         return visit, rx
 

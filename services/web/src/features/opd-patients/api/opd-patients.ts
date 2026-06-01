@@ -12,11 +12,14 @@ import type { OpdDoctorScope, OpdPatientsListParams, OpdPatientsListResponse } f
 function toOpdStatusQuery(status: string): string | undefined {
   if (!status) return undefined;
   if (status === 'in-progress') return 'in_progress';
+  if (status === 'pre-consulted') return 'pre_consulted';
   return status;
 }
 
 /** Resolve EMPI display fields per patient id (search API requires name/phone/uhid criteria). */
-async function fetchEmpiPatientLookupMap(patientIds: string[]): Promise<Map<string, EmpiPatient>> {
+export async function fetchEmpiPatientLookupMap(
+  patientIds: string[],
+): Promise<Map<string, EmpiPatient>> {
   if (patientIds.length === 0) return new Map();
 
   const map = new Map<string, EmpiPatient>();

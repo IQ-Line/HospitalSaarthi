@@ -6,6 +6,7 @@ import type { OpdPatientVisitRow, OpdVisitStatus } from '../types';
 function mapEncounterStatus(visitStatus: string): OpdVisitStatus {
   if (visitStatus === 'completed') return 'completed';
   if (visitStatus === 'cancelled') return 'cancelled';
+  if (visitStatus === 'pre_consulted') return 'pre-consulted';
   if (visitStatus === 'in_progress') return 'in-progress';
   return 'registered';
 }

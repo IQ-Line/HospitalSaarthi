@@ -135,6 +135,31 @@ def get_patient_prescription(
     return _to_response(db, bundle)
 
 
+@router.put("/visits/{visit_id}/prescription/pre-consult", response_model=OpdPrescriptionResponse)
+def upsert_visit_nurse_pre_consult(
+    visit_id: UUID,
+    body: OpdPrescriptionUpsertRequest,
+    db: DbSession,
+    tenant_id: TenantId,
+) -> OpdPrescriptionResponse:
+    visit = _visit_for_tenant(db, tenant_id, visit_id)
+    repo = PrescriptionRepository(db, tenant_id)
+    try:
+        visit, rx = repo.save_nurse_pre_consult_for_visit(
+            visit_id,
+            visit.patient_id,
+            body.form_data,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    db.commit()
+    return _to_response(db, bundle_api.bundle_from_prescription(db, tenant_id, rx))
+
+
 @router.put("/visits/{visit_id}/prescription", response_model=OpdPrescriptionResponse)
 def upsert_visit_prescription(
     visit_id: UUID,

@@ -21,6 +21,7 @@ export interface OpdPatientListApiResponse {
 function toOpdStatusQuery(status: string): string | undefined {
   if (!status) return undefined;
   if (status === 'in-progress') return 'in_progress';
+  if (status === 'pre-consulted') return 'pre_consulted';
   return status;
 }
 

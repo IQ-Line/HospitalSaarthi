@@ -255,6 +255,48 @@ def test_patient_prescription_skips_visit_without_prescription_row(
     assert loaded.json()["visit_id"] == str(rx_visit_id)
 
 
+def test_nurse_pre_consult_sets_visit_status(client: TestClient) -> None:
+    from opd.core.database import get_db_session
+    from opd.models.visit import Visit
+
+    tenant = uuid.UUID(TENANT)
+    patient = uuid.UUID(PATIENT)
+    now = datetime.now(UTC)
+
+    db_gen = client.app.dependency_overrides[get_db_session]()
+    db = next(db_gen)
+    try:
+        visit = Visit(
+            tenant_id=tenant,
+            patient_id=patient,
+            status="registered",
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(visit)
+        db.commit()
+        visit_id = visit.id
+    finally:
+        db_gen.close()
+
+    payload = {
+        "form_data": {
+            "vitals": {"systolic_bp": "118", "diastolic_bp": "76"},
+            "chiefComplaints": [],
+            "immunizations": [],
+        }
+    }
+    saved = client.put(
+        f"/api/v1/opd/visits/{visit_id}/prescription/pre-consult",
+        json=payload,
+        headers=_headers(),
+    )
+    assert saved.status_code == 200
+    body = saved.json()
+    assert body["visit_status"] == "pre_consulted"
+    assert body["form_data"]["vitals"]["systolic_bp"] == "118"
+
+
 def test_get_patient_prescription_without_visit_row(client: TestClient) -> None:
     from opd.core.database import get_db_session
     from opd.models.prescription import Prescription
