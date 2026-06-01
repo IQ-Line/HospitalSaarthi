@@ -12,11 +12,15 @@ import type {
   VisitRegistrationBillingFeeLine,
 } from '@/features/frontdesk/types';
 
-function lineDiscountOnly(
+function lineDiscountFields(
   line: VisitRegistrationBillingFeeLine | undefined,
-): Pick<CaptureChargeInput, 'line_discount_amount'> {
-  const discount = line?.discount ?? 0;
-  return discount > 0 ? { line_discount_amount: discount } : {};
+): Pick<CaptureChargeInput, 'line_discount_amount' | 'line_discount_percentage'> {
+  const fields: Pick<CaptureChargeInput, 'line_discount_amount' | 'line_discount_percentage'> = {};
+  const discountPct = line?.discount_percent ?? 0;
+  const discountAmt = line?.discount ?? 0;
+  if (discountPct > 0) fields.line_discount_percentage = discountPct;
+  if (discountAmt > 0) fields.line_discount_amount = discountAmt;
+  return fields;
 }
 
 function requireItemCode(
@@ -72,7 +76,7 @@ export async function executeVisitRegistrationBilling(
         ...chargeBase,
         item_code: regItemCode,
         provider_id: null,
-        ...lineDiscountOnly(billing?.registration_fee),
+        ...lineDiscountFields(billing?.registration_fee),
       },
       `${ctx.idempotencyKey}:reg-fee`,
     );
@@ -87,7 +91,7 @@ export async function executeVisitRegistrationBilling(
         item_code: consultItemCode,
         provider_id: providerId,
         department: departmentName,
-        ...lineDiscountOnly(billing?.consultation_fee),
+        ...lineDiscountFields(billing?.consultation_fee),
       },
       `${ctx.idempotencyKey}:consult`,
     );

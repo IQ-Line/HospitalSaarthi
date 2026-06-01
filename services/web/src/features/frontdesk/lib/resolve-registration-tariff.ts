@@ -65,6 +65,7 @@ export function pickConsultationTariff(
 export function tariffToBillingFeeLine(tariff: TariffService): {
   unit_price: number;
   tax_percent: number;
+  discount_percent: number;
   discount: number;
   item_code: string;
   service_name: string;
@@ -72,6 +73,7 @@ export function tariffToBillingFeeLine(tariff: TariffService): {
   return {
     unit_price: Number(tariff.base_price) || 0,
     tax_percent: Number(tariff.tax_percentage) || 0,
+    discount_percent: 0,
     discount: 0,
     item_code: tariff.service_code,
     service_name: tariff.service_name,

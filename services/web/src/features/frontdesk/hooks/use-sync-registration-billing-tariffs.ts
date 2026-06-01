@@ -5,6 +5,7 @@ import type { CreateVisitRequestBody } from '@/features/frontdesk/types';
 type FeeLine = {
   unit_price: number;
   tax_percent: number;
+  discount_percent: number;
   discount: number;
   item_code: string;
   service_name: string;
@@ -19,7 +20,9 @@ export function useSyncRegistrationBillingTariffs(
   hasProvider: boolean,
 ) {
   const currentRegDiscount = watch('billing.registration_fee.discount') ?? 0;
+  const currentRegDiscountPct = watch('billing.registration_fee.discount_percent') ?? 0;
   const currentConsultDiscount = watch('billing.consultation_fee.discount') ?? 0;
+  const currentConsultDiscountPct = watch('billing.consultation_fee.discount_percent') ?? 0;
 
   useEffect(() => {
     if (!registrationFeeLine) return;
@@ -28,16 +31,24 @@ export function useSyncRegistrationBillingTariffs(
       {
         ...registrationFeeLine,
         discount: currentRegDiscount,
+        discount_percent: currentRegDiscountPct,
       },
       { shouldDirty: true },
     );
-  }, [registrationFeeLine, currentRegDiscount, setValue]);
+  }, [registrationFeeLine, currentRegDiscount, currentRegDiscountPct, setValue]);
 
   useEffect(() => {
     if (!hasProvider) {
       setValue(
         'billing.consultation_fee',
-        { unit_price: 0, tax_percent: 0, discount: 0, item_code: '', service_name: '' },
+        {
+          unit_price: 0,
+          tax_percent: 0,
+          discount_percent: 0,
+          discount: 0,
+          item_code: '',
+          service_name: '',
+        },
         { shouldDirty: true },
       );
       return;
@@ -48,8 +59,9 @@ export function useSyncRegistrationBillingTariffs(
       {
         ...consultationFeeLine,
         discount: currentConsultDiscount,
+        discount_percent: currentConsultDiscountPct,
       },
       { shouldDirty: true },
     );
-  }, [consultationFeeLine, hasProvider, currentConsultDiscount, setValue]);
+  }, [consultationFeeLine, hasProvider, currentConsultDiscount, currentConsultDiscountPct, setValue]);
 }
