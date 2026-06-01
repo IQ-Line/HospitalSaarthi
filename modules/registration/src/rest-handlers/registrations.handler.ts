@@ -1,30 +1,29 @@
 /// <reference path="../fastify.d.ts" />
 import type { FastifyInstance } from "fastify";
 import type { EventBus } from "@hims/ts-sdk-events";
-import type { EmpiHttpPort, RegistrationRepo } from "../ports.js";
+import type { EmpiHttpPort, RegistrationRepo, VisitRepo } from "../ports.js";
 import type {
-  CreateRegistrationInput,
+  ExistingPatientVisitInput,
   NewPatientIntakeInput,
-  RegistrationStatus,
 } from "../domain/registration.types.js";
-import { createRegistration } from "../use-cases/create-registration.js";
 import { getRegistration } from "../use-cases/get-registration.js";
 import { listRegistrations } from "../use-cases/list-registrations.js";
-import { createIntakeForNewPatient } from "../use-cases/create-intake-for-new-patient.js";
-import { completeRegistrationIntake } from "../use-cases/complete-registration-intake.js";
+import {
+  createIntakeForNewPatient,
+  createVisitForExistingPatient,
+} from "../use-cases/create-intake-for-new-patient.js";
 import {
   dashboardStatsQuerySchema,
-  existingPatientRegistrationBodySchema,
+  existingPatientVisitBodySchema,
   listRegistrationsQuerySchema,
   newPatientIntakeBodySchema,
   paramsRegistrationIdSchema,
 } from "./route-schemas.js";
 import { getDashboardMetrics } from "../use-cases/get-dashboard-metrics.js";
-import { serializeRegistration } from "./serialize-registration.js";
+import { serializeRegistration, serializeRegistrationWithVisit } from "./serialize-registration.js";
 import {
   idempotencyKeyRequiredResponse,
   readIdempotencyKey,
-  registrationStatusFromIntakeCompletion,
   resolveActorId,
 } from "../lib/registration-helpers.js";
 
@@ -39,15 +38,12 @@ interface ListQuery {
   uhid?: string;
   mobile?: string;
   name?: string;
-  status?: string;
   patient_id?: string;
-  facility_id?: string;
-  department_id?: string;
-  provider_id?: string;
 }
 
 export interface RegistrationsHandlerDeps {
   registrationRepo: RegistrationRepo;
+  visitRepo: VisitRepo;
   empiGateway: EmpiHttpPort | undefined;
   eventBus: EventBus;
 }
@@ -65,7 +61,7 @@ export function registerRegistrationsHandler(
     async (request, reply) => {
       const days = request.query.days ? Number(request.query.days) : undefined;
       const payload = await getDashboardMetrics(
-        { registrationRepo: deps.registrationRepo },
+        { visitRepo: deps.visitRepo },
         request.tenantId,
         { days },
       );
@@ -92,11 +88,7 @@ export function registerRegistrationsHandler(
             uhid: q.uhid,
             mobile: q.mobile,
             name: q.name,
-            status: q.status as RegistrationStatus | undefined,
             patient_id: q.patient_id,
-            facility_id: q.facility_id,
-            department_id: q.department_id,
-            provider_id: q.provider_id,
           },
         );
         return reply.send({
@@ -140,32 +132,37 @@ export function registerRegistrationsHandler(
     },
   );
 
-  app.post<{ Body: CreateRegistrationInput }>(
+  app.post<{ Body: ExistingPatientVisitInput }>(
     "/workflows/existing-patient/registrations",
-    { config: { authMode: "protected" as const }, schema: { body: existingPatientRegistrationBodySchema } },
+    { config: { authMode: "protected" as const }, schema: { body: existingPatientVisitBodySchema } },
     async (request, reply) => {
       const idempotencyKey = readIdempotencyKey(request);
       if (!idempotencyKey) {
         return reply.code(400).send(idempotencyKeyRequiredResponse());
       }
 
-      const result = await createRegistration(
-        {
-          registrationRepo: deps.registrationRepo,
-          eventBus: deps.eventBus,
-        },
+      const result = await createVisitForExistingPatient(
+        { visitRepo: deps.visitRepo, eventBus: deps.eventBus },
         request.tenantId,
         request.body,
         {
           idempotencyKey,
           actorId: resolveActorId(request),
-          initialStatus: registrationStatusFromIntakeCompletion(
-            request.body.intake_completion ?? "partial",
-          ),
         },
       );
+
+      const registration = await deps.registrationRepo.findByPatientId(
+        request.tenantId,
+        request.body.patient_id,
+      );
+
       const status = result.created ? 201 : 200;
-      return reply.code(status).send(serializeRegistration(result.record));
+      return reply.code(status).send(
+        serializeRegistrationWithVisit({
+          registration,
+          visit: result.record,
+        }),
+      );
     },
   );
 
@@ -193,6 +190,7 @@ export function registerRegistrationsHandler(
       const intake = await createIntakeForNewPatient(
         {
           registrationRepo: deps.registrationRepo,
+          visitRepo: deps.visitRepo,
           empiGateway: deps.empiGateway,
           eventBus: deps.eventBus,
         },
@@ -201,9 +199,6 @@ export function registerRegistrationsHandler(
         {
           idempotencyKey,
           actorId: resolveActorId(request),
-          initialStatus: registrationStatusFromIntakeCompletion(
-            request.body.intake_completion ?? "partial",
-          ),
           bearerToken,
         },
       );
@@ -227,25 +222,8 @@ export function registerRegistrationsHandler(
         });
       }
 
-      const status = intake.result.created ? 201 : 200;
-      return reply.code(status).send(serializeRegistration(intake.result.record));
-    },
-  );
-
-  app.post<{ Params: { registrationId: string } }>(
-    "/registrations/:registrationId/complete",
-    { config: { authMode: "protected" as const }, schema: { params: paramsRegistrationIdSchema } },
-    async (request, reply) => {
-      const updated = await completeRegistrationIntake(
-        { registrationRepo: deps.registrationRepo },
-        request.tenantId,
-        request.params.registrationId,
-        resolveActorId(request),
-      );
-      if (!updated) {
-        return reply.code(404).send({ error: "Registration not found" });
-      }
-      return reply.send(serializeRegistration(updated));
+      const status = intake.created ? 201 : 200;
+      return reply.code(status).send(serializeRegistrationWithVisit(intake.result));
     },
   );
 }

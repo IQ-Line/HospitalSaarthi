@@ -1,6 +1,6 @@
-import type { IntakeCompletion, RegistrationStatus } from "../lib/registration-helpers.js";
+import type { IntakeCompletion } from "../lib/registration-helpers.js";
 
-export type { IntakeCompletion, RegistrationStatus } from "../lib/registration-helpers.js";
+export type { IntakeCompletion } from "../lib/registration-helpers.js";
 
 export interface PatientDemographicsSnapshot {
   uhid: string;
@@ -16,7 +16,6 @@ export interface PatientDemographicsSnapshot {
 export interface RegistrationRecord {
   registration_id: string;
   iq_tenant_id: string;
-  visit_id: string | null;
   patient_id: string;
   patient_uhid: string;
   patient_abha_number: string | null;
@@ -27,12 +26,6 @@ export interface RegistrationRecord {
   patient_date_of_birth: string | null;
   patient_year_of_birth: number | null;
   patient_source_record_id: string;
-  facility_id: string | null;
-  visit_type: string | null;
-  department_id: string | null;
-  provider_id: string | null;
-  appointment_id: string | null;
-  registration_status: RegistrationStatus;
   idempotency_key: string | null;
   created_by: string | null;
   updated_by: string | null;
@@ -44,13 +37,6 @@ export interface CreateRegistrationInput {
   patient_id: string;
   patient_source_record_id: string;
   patient_snapshot: PatientDemographicsSnapshot;
-  facility_id?: string | null;
-  visit_type?: string | null;
-  department_id?: string | null;
-  provider_id?: string | null;
-  appointment_id?: string | null;
-  /** Desk visit-intake progress at create time (defaults to `pending`). */
-  intake_completion?: IntakeCompletion;
 }
 
 export interface NewPatientIntakeInput {
@@ -58,7 +44,17 @@ export interface NewPatientIntakeInput {
   facility_id?: string | null;
   visit_type?: string | null;
   department_id?: string | null;
-  provider_id?: string | null;
+  doctor_id?: string | null;
+  appointment_id?: string | null;
+  intake_completion?: IntakeCompletion;
+}
+
+export interface ExistingPatientVisitInput {
+  patient_id: string;
+  facility_id?: string | null;
+  visit_type?: string | null;
+  department_id?: string | null;
+  doctor_id?: string | null;
   appointment_id?: string | null;
   intake_completion?: IntakeCompletion;
 }
@@ -66,19 +62,11 @@ export interface NewPatientIntakeInput {
 export interface ListRegistrationsParams {
   page: number;
   limit: number;
-  /** Substring match on snapshot uhid, phone, or full name (see `q` precedence in OpenAPI). */
   q?: string;
-  /** @deprecated Use `q` — kept for transitional FE */
   uhid?: string;
-  /** @deprecated Use `q` */
   mobile?: string;
-  /** @deprecated Use `q` */
   name?: string;
-  status?: RegistrationStatus;
   patient_id?: string;
-  facility_id?: string;
-  department_id?: string;
-  provider_id?: string;
 }
 
 export type RegistrationListItem = RegistrationRecord;
@@ -96,3 +84,7 @@ export interface InsertRegistrationResult {
   created: boolean;
 }
 
+export interface RegistrationWithVisitRecord {
+  registration: RegistrationRecord | null;
+  visit: import("./visit.types.js").VisitRecord;
+}

@@ -17,11 +17,13 @@ import { HttpPdfPlatformRenderer } from "@hims/pdf-client";
 import {
   applyRegistrationSchemaMigration,
   DrizzleRegistrationRepo,
+  DrizzleVisitRepo,
   HttpBillingGateway,
   HttpEmpiGateway,
   createRegistrationAuthzTargetResolver,
   registerDocumentsHandler,
   registerRegistrationsHandler,
+  registerVisitsHandler,
 } from "@hims/registration";
 
 const PORT = Number(process.env["REGISTRATION_SVC_PORT"] ?? 3006);
@@ -98,6 +100,7 @@ async function main() {
 
   const db = createDb(DATABASE_URL);
   const registrationRepo = new DrizzleRegistrationRepo(db);
+  const visitRepo = new DrizzleVisitRepo(db);
   const empiGateway = new HttpEmpiGateway(EMPI_URL, {
     warn: (detail, message) => app.log.warn(detail, message),
   });
@@ -112,12 +115,14 @@ async function main() {
 
   const handlerDeps = {
     registrationRepo,
+    visitRepo,
     empiGateway,
     eventBus,
   };
 
   const documentDeps = {
     registrationRepo,
+    visitRepo,
     billingReadPort,
     pdfRenderer,
     defaultReportWebOrigin: process.env["REPORT_WEB_ORIGIN"] ?? "http://localhost:5173",
@@ -156,6 +161,7 @@ async function main() {
     });
     await api.register(tenantPlugin);
     registerRegistrationsHandler(api, handlerDeps);
+    registerVisitsHandler(api, { visitRepo, registrationRepo, eventBus });
     registerDocumentsHandler(api, documentDeps);
   }
 

@@ -2,7 +2,7 @@ import type {
   DashboardStatsResponse,
   DashboardTodaysVisit,
 } from "../domain/dashboard.types.js";
-import type { RegistrationRepo } from "../ports.js";
+import type { VisitRepo } from "../ports.js";
 
 const DEFAULT_DAYS = 3;
 const TZ = "Asia/Kolkata";
@@ -41,12 +41,12 @@ function mapVisitStatus(status: string): DashboardTodaysVisit["status"] {
 }
 
 export async function getDashboardMetrics(
-  deps: { registrationRepo: RegistrationRepo },
+  deps: { visitRepo: VisitRepo },
   tenantId: string,
   options?: { days?: number },
 ): Promise<DashboardStatsResponse> {
   const days = clampDays(options?.days);
-  const raw = await deps.registrationRepo.getDashboardMetrics(tenantId, days);
+  const raw = await deps.visitRepo.getDashboardMetrics(tenantId, days);
 
   return {
     stats: {
@@ -57,10 +57,11 @@ export async function getDashboardMetrics(
     },
     patient_footfall: fillFootfall(raw.footfall, days),
     todays_visits: raw.todays_visits.map((row) => ({
+      visit_id: row.visit_id,
       registration_id: row.registration_id,
       patient_name: row.patient_name,
       time: formatIstTime(row.created_at),
-      status: mapVisitStatus(row.registration_status),
+      status: mapVisitStatus(row.visit_status),
     })),
   };
 }

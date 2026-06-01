@@ -380,8 +380,8 @@ export function mapVisitRegistrationToNewPatientIntakeBody(
   const departmentId = optionalUuid(apt?.department_id);
   if (departmentId) body.department_id = departmentId;
 
-  const providerId = optionalUuid(apt?.provider_id);
-  if (providerId) body.provider_id = providerId;
+  const doctorId = optionalUuid(apt?.provider_id);
+  if (doctorId) body.doctor_id = doctorId;
 
   return body;
 }

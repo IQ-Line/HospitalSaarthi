@@ -1,5 +1,4 @@
 import type { OPDSlipReportPayload } from "@hims/registration-reports";
-import type { RegistrationRecord } from "../domain/registration.types.js";
 import type { BillingReadPort } from "../ports.js";
 import {
   ageYearsFromRegistration,
@@ -9,6 +8,8 @@ import {
   tokenNumberFromRegistrationId,
   type ReportDocumentContext,
 } from "../lib/report-document-context.js";
+import type { RegistrationDocumentSource } from "../lib/registration-document-source.js";
+import { documentVisitRef } from "../lib/registration-document-source.js";
 
 export interface BuildOpdSlipPayloadDeps {
   billingReadPort: BillingReadPort | undefined;
@@ -17,9 +18,11 @@ export interface BuildOpdSlipPayloadDeps {
 export async function buildOpdSlipPayload(
   deps: BuildOpdSlipPayloadDeps,
   tenantId: string,
-  record: RegistrationRecord,
+  source: RegistrationDocumentSource,
   context?: ReportDocumentContext,
 ): Promise<OPDSlipReportPayload> {
+  const { registration: record, visit } = source;
+  const visitRef = documentVisitRef(source);
   const nameParts = splitPatientName(record.patient_full_name);
   const age = ageYearsFromRegistration(record.patient_date_of_birth, record.patient_year_of_birth);
   const departmentName = context?.departmentName?.trim() || "NA";
@@ -31,7 +34,7 @@ export async function buildOpdSlipPayload(
       ? []
       : await deps.billingReadPort.listBillsForRegistration(tenantId, record.registration_id, {
           bearerToken: context?.bearerToken,
-          visitId: record.visit_id,
+          visitId: visitRef.visit_id,
         });
 
   const netTotal = bills.reduce(
@@ -47,7 +50,7 @@ export async function buildOpdSlipPayload(
         }).format(netTotal)
       : undefined;
 
-  const validTillDate = new Date(record.created_at);
+  const validTillDate = new Date(visitRef.created_at);
   validTillDate.setDate(validTillDate.getDate() + 7);
 
   return {
@@ -70,10 +73,10 @@ export async function buildOpdSlipPayload(
       addressForDisplay: context?.patientAddress?.trim() || undefined,
     },
     visitData: {
-      visitNumber: formatVisitNumberForSlip(record),
-      createdAt: record.created_at.toISOString(),
-      visitType: record.visit_type ?? "opd_first",
-      status: record.registration_status,
+      visitNumber: formatVisitNumberForSlip(visitRef),
+      createdAt: visitRef.created_at.toISOString(),
+      visitType: visit?.visit_type ?? "opd_first",
+      status: visit?.status ?? "pending",
       department: { name: departmentName },
       doctor: { name: doctorName },
       roomNumber,
