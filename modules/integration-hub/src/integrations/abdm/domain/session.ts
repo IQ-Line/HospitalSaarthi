@@ -1,5 +1,5 @@
 /**
- * `AbdmSession` — per-flow state row (`abdm_adapter.abdm_sessions`).
+ * `AbdmSession` — per-flow state row (`integration_hub.abdm_sessions`).
  */
 
 import type {

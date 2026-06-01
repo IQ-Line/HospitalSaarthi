@@ -1,10 +1,11 @@
-import type {
-  OpdPatientVisitRow,
-  OpdPatientsFilters,
-  OpdPatientsListParams,
-  OpdPatientsListResponse,
-  OpdPatientsStats,
-} from '../types';
+import {
+  computeOpdPatientsStats,
+  filterOpdPatientRows,
+  matchesAgeGroup,
+} from '../lib/opd-patients-list-utils';
+import type { OpdPatientVisitRow, OpdPatientsListParams, OpdPatientsListResponse } from '../types';
+
+export { matchesAgeGroup };
 
 const MOCK_ROWS: OpdPatientVisitRow[] = [
   {
@@ -289,47 +290,9 @@ const MOCK_ROWS: OpdPatientVisitRow[] = [
   },
 ];
 
-function matchesAgeGroup(age: number, group: string): boolean {
-  if (!group) return true;
-  if (group === '0-12') return age <= 12;
-  if (group === '13-18') return age >= 13 && age <= 18;
-  if (group === '19-30') return age >= 19 && age <= 30;
-  if (group === '31-50') return age >= 31 && age <= 50;
-  if (group === '51+') return age >= 51;
-  return true;
-}
-
-function filterRows(rows: OpdPatientVisitRow[], filters: OpdPatientsFilters, doctorScope: string): OpdPatientVisitRow[] {
-  const q = filters.search.trim().toLowerCase();
-  return rows.filter((row) => {
-    if (doctorScope === 'myPatients' && !row.isOwnPatient) return false;
-    if (doctorScope === 'otherPatients' && row.isOwnPatient) return false;
-    if (q) {
-      const hay = `${row.visitNumber} ${row.patientName} ${row.patientId}`.toLowerCase();
-      if (!hay.includes(q)) return false;
-    }
-    if (filters.gender && row.gender !== filters.gender) return false;
-    if (filters.ageGroup && !matchesAgeGroup(row.age, filters.ageGroup)) return false;
-    if (filters.status && row.status !== filters.status) return false;
-    if (filters.doctorId && row.doctorId !== filters.doctorId) return false;
-    if (filters.startDate && row.visitCreatedAt < filters.startDate) return false;
-    if (filters.endDate && row.visitCreatedAt > filters.endDate) return false;
-    return true;
-  });
-}
-
-function computeStats(rows: OpdPatientVisitRow[]): OpdPatientsStats {
-  return {
-    total: rows.length,
-    pending: rows.filter((r) => r.status === 'registered' || r.status === 'in-progress').length,
-    cancelled: rows.filter((r) => r.status === 'cancelled').length,
-    reviewed: rows.filter((r) => r.status === 'completed').length,
-  };
-}
-
 export function getMockOpdPatientsList(params: OpdPatientsListParams): OpdPatientsListResponse {
-  const filtered = filterRows(MOCK_ROWS, params.filters, params.doctorScope);
-  const stats = computeStats(filtered);
+  const filtered = filterOpdPatientRows(MOCK_ROWS, params.filters, params.doctorScope);
+  const stats = computeOpdPatientsStats(filtered);
   const start = (params.page - 1) * params.limit;
   const items = filtered.slice(start, start + params.limit);
   return { items, total: filtered.length, stats };

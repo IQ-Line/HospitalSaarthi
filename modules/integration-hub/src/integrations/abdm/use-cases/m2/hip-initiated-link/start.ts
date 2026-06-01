@@ -72,11 +72,13 @@ export async function hipInitiatedLinkStart(
   }
 
   const requestId = randomUUID();
+  const abhaNumberPlain = toGatewayAbhaNumberPlain(input.abhaNumber);
   const hiType = resolveUnifiedLinkHiType(
     input.careContexts,
   ) as LinkCareContextRequest["patient"][0]["hiType"];
   const body: LinkCareContextRequest = {
     abhaAddress: input.abhaAddress,
+    ...(abhaNumberPlain ? { abhaNumber: abhaNumberPlain } : {}),
     patient: [
       {
         referenceNumber: input.abhaAddress,

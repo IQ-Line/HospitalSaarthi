@@ -8,7 +8,7 @@ const MAIN_TABS: { key: CreateRxMainTab; label: string }[] = [
   { key: 'patient-profile', label: 'Patient Profile' },
 ];
 
-export function CreateRxMainTabs() {
+export function MainTabs() {
   const activeMainTab = useCreateRxStore((s) => s.activeMainTab);
   const setActiveMainTab = useCreateRxStore((s) => s.setActiveMainTab);
 

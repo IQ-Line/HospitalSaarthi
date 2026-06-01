@@ -32,7 +32,7 @@ import type {
 const defaultMedicalHistory = (): MedicalHistoryData => ({
   chronicIllness: '',
   smokingStatus: '',
-  alcoholDrinking: '',
+  alcoholStatus: '',
   dietType: '',
   historyOfPresentIllness: '',
 });
@@ -61,6 +61,7 @@ const defaultFormData = (): CreateRxFormData => ({
 
 interface CreateRxState {
   context: CreateRxVisitContext | null;
+  opdPrescriptionId: string | null;
   isReadOnly: boolean;
   loading: boolean;
   activeMainTab: CreateRxMainTab;
@@ -68,7 +69,12 @@ interface CreateRxState {
   activeRightTab: CreateRxRightTab;
   formData: CreateRxFormData;
 
-  resetForVisit: (ctx: CreateRxVisitContext | null, isReadOnly: boolean) => void;
+  resetForVisit: (
+    ctx: CreateRxVisitContext | null,
+    isReadOnly: boolean,
+    initialFormData?: CreateRxFormData,
+    opdPrescriptionId?: string | null,
+  ) => void;
   setLoading: (loading: boolean) => void;
   setActiveMainTab: (tab: CreateRxMainTab) => void;
   setActiveSectionTab: (tab: CreateRxSectionTab) => void;
@@ -107,6 +113,7 @@ interface CreateRxState {
 
 export const useCreateRxStore = create<CreateRxState>((set) => ({
   context: null,
+  opdPrescriptionId: null,
   isReadOnly: false,
   loading: true,
   activeMainTab: 'visitpad',
@@ -114,15 +121,16 @@ export const useCreateRxStore = create<CreateRxState>((set) => ({
   activeRightTab: 'ai-prescription',
   formData: defaultFormData(),
 
-  resetForVisit: (ctx, isReadOnly) =>
+  resetForVisit: (ctx, isReadOnly, initialFormData, opdPrescriptionId = null) =>
     set({
       context: ctx,
+      opdPrescriptionId,
       isReadOnly,
       loading: false,
       activeMainTab: 'visitpad',
       activeSectionTab: 'pre-consult',
       activeRightTab: 'ai-prescription',
-      formData: defaultFormData(),
+      formData: initialFormData ?? defaultFormData(),
     }),
 
   setLoading: (loading) => set({ loading }),

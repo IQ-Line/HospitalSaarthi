@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Seed configurator.tenant_integration_profiles from abdm-adapter-svc .env (Phase 1a Part A).
+ * Seed configurator.tenant_integration_profiles from integration-hub-svc .env (Phase 1a Part A).
  *
  * Usage:
  *   pnpm seed-abdm-profile
@@ -44,7 +44,7 @@ function loadEnvFileOverride(envPath: string): void {
 
 const { loadWorkspaceEnv } = await import("../tools/seed-user-management-dev/load-env.ts");
 loadWorkspaceEnv(repoRoot);
-loadEnvFileOverride(path.join(repoRoot, "services/abdm-adapter-svc/.env"));
+loadEnvFileOverride(path.join(repoRoot, "services/integration-hub-svc/.env"));
 
 const { createDb, resolveDatabaseUrl } = await import("../packages/ts-sdk-db/src/index.ts");
 const { applyConfiguratorSchemaMigration } = await import(
@@ -116,7 +116,7 @@ for (const candidateId of tenantIdCandidates) {
     if (envTenantId && candidateId !== envTenantId) {
       console.warn(
         `[seed-abdm-profile] env tenant ${envTenantId} not in configurator.tenants; using platform seed tenant ${candidateId}. ` +
-          `Set ABDM_DEV_TENANT_ID=${candidateId} in services/abdm-adapter-svc/.env for callbacks.`,
+          `Set ABDM_DEV_TENANT_ID=${candidateId} in services/integration-hub-svc/.env for callbacks.`,
       );
     }
     break;

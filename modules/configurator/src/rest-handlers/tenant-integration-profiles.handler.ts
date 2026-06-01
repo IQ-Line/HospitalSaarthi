@@ -43,6 +43,7 @@ export function registerTenantIntegrationProfilesHandler(
     "/integration-profiles/by-hip/:hipId",
     {
       schema: {
+        security: [{ internalServiceKey: [] }],
         params: {
           type: "object",
           required: ["hipId"],

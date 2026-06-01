@@ -1,9 +1,9 @@
 /**
- * Repository interfaces for the abdm-adapter module.
+ * Repository interfaces for the ABDM integration (`@hims/integration-hub`).
  *
  * Three ports collectively form `AbdmAdapterDeps` — the contract that every
  * use-case function takes as its second argument. Concrete implementations
- * live in `./data-access/`. The Fastify entry (`services/abdm-adapter-svc`)
+ * live in `./data-access/`. The Fastify entry (`services/integration-hub-svc`)
  * constructs the concretions once at boot and threads them through the router.
  *
  * Phase-0 implementations (Drizzle repo, axios/undici gateway client, Fidelius

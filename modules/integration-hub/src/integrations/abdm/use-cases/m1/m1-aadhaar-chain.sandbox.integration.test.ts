@@ -21,7 +21,8 @@ import { enrolMobileVerifyConfirmOtpRequest } from "./enrol-mobile-verify-confir
  *   ABDM_SANDBOX_TEST_MOBILE=10digits \
  *   ABDM_SANDBOX_TEST_AADHAAR_OTP=6digits \
  *   ABDM_SANDBOX_TEST_MOBILE_OTP=6digits \
- *   pnpm -F @hims/abdm-adapter test:sandbox
+ *   cd modules/integration-hub && pnpm test:sandbox
+ *   (loads env via vitest.sandbox.setup.ts → services/integration-hub-svc/.env)
  */
 
 import { resolveSandboxDatabaseUrl, hasSandboxAadhaarEnv } from "../../test-utils/sandbox-env.js";

@@ -25,7 +25,7 @@ flowchart LR
 | 1 — Code PR 1 | After #144 merged | §2 Code PR 1 below |
 | 2 — Code PR 2 | After Code PR 1 merged | §2 Code PR 2 below |
 | 3 — Code PR 3 | After Code PR 2 merged | §2 Code PR 3 below |
-| 4 — Code PR 4 | After Code PR 3 merged + smoke | §2 Code PR 4 + §4 E2E |
+| 4 — Code PR 4 | After Code PR 3 merged + smoke | §2 Code PR 4 + §4 E2E + §4.7 |
 
 Use this guide while executing **one code PR at a time**. Read **03-safe-migration** before Code PR 2 — callback routes must not keep using a single boot-time `xHipId`. Protocol-level ABDM E2E (M1 enrolment, M2 link, M3 mock loop) stays in the existing runbooks — only **service name**, **env prefix**, and **credential source** change.
 
@@ -39,23 +39,15 @@ Use this guide while executing **one code PR at a time**. Read **03-safe-migrati
 
 ---
 
-## 1. Before you start
+## 1. Current repo state (Phase 1a complete)
 
-**Current repo state (pre–Phase 1a):**
-
-- Module: `modules/abdm-adapter/` (`@hims/abdm-adapter`)
-- Service: `services/abdm-adapter-svc/` (default port **3007**)
-- DB schema: `abdm_adapter` (8 tables)
-- Credentials: boot-time env (see `services/abdm-adapter-svc/.env.example`)
-- Callback tenant: `ABDM_HIP_TENANT_MAP` or `ABDM_DEV_TENANT_ID` ([`resolve-callback-tenant.ts`](../../modules/abdm-adapter/src/lib/resolve-callback-tenant.ts))
-
-**Target state:**
-
-- Module: `modules/integration-hub/` with `integrations/abdm/`
-- Service: `services/integration-hub-svc/`
-- DB schema: `integration_hub` (same 8 ABDM tables)
+- Module: `modules/integration-hub/` (`@hims/integration-hub`) with `src/integrations/abdm/`
+- Service: `services/integration-hub-svc/` (default port **3007**)
+- DB schema: `integration_hub` only (legacy `abdm_adapter` dropped after cutover)
 - Credentials: `configurator.tenant_integration_profiles` + `integrationContextResolver` middleware
-- Callback tenant: lookup `hip_id` on profiles table
+- Callback tenant: lookup `hip_id` on profiles table (+ dev fallbacks per [03-safe-migration §2.1](../architecture/lld/integration-hub/03-safe-migration-and-cutover.md#21-abdm_dev_tenant_id-policy))
+
+Phase 0 paths (`modules/abdm-adapter/`, `services/abdm-adapter-svc/`, `specs/openapi/abdm-adapter.v1.yaml`) are removed.
 
 ---
 
@@ -63,14 +55,14 @@ Use this guide while executing **one code PR at a time**. Read **03-safe-migrati
 
 ### Code PR 1 — Part A (Foundation)
 
-- [ ] `tenant_integration_profiles` in configurator (Drizzle + migration + partial unique on `hip_id` + port + repo)
-- [ ] **configurator-svc REST CRUD** for profiles (required — not SQL-only)
-- [ ] **Seed script** `scripts/seed-abdm-profile-from-env.mts` — `pnpm seed-abdm-profile` or `make seed-abdm-profile`
-- [ ] Scaffold `modules/integration-hub/` (`package.json`, `project.json`, `tsconfig.json`, Nx tags)
-- [ ] Copy `modules/abdm-adapter/src/*` → `integrations/abdm/` (no behaviour change)
-- [ ] `lib/integration-context.ts` — types for `IntegrationContext` / `request.integrationCtx`
-- [ ] `lib/per-tenant-secrets.ts` — implements `SecretsClient` from profile (+ `env:` fallback)
-- [ ] `lib/integration-profile-repo.ts` — read active profile by `iq_tenant_id`; read by `hip_id` for callbacks
+- [x] `tenant_integration_profiles` in configurator (Drizzle + migration + partial unique on `hip_id` + port + repo)
+- [x] **configurator-svc REST CRUD** for profiles (required — not SQL-only)
+- [x] **Seed script** `scripts/seed-abdm-profile-from-env.mts` — `pnpm seed-abdm-profile` or `make seed-abdm-profile`
+- [x] Scaffold `modules/integration-hub/` (`package.json`, `project.json`, `tsconfig.json`, Nx tags)
+- [x] Copy `modules/abdm-adapter/src/*` → `integrations/abdm/` (no behaviour change)
+- [x] `lib/integration-context.ts` — types for `IntegrationContext` / `request.integrationCtx`
+- [x] `lib/per-tenant-secrets.ts` — implements `SecretsClient` from profile (+ `env:` fallback)
+- [x] `lib/integration-profile-repo.ts` — read active profile by `iq_tenant_id`; read by `hip_id` for callbacks
 
 ### Code PR 2 — Part B (Multi-tenant refactor)
 
@@ -82,66 +74,30 @@ Use this guide while executing **one code PR at a time**. Read **03-safe-migrati
 - [x] `createSmsClientFromProfile(profile)` on hot path; `createSmsClientFromEnv` retained for tests/sandbox only
 - [x] `resolve-callback-tenant.ts`: DB `hip_id` → `iq_tenant_id` (keep `x-tenant-id` header + `ABDM_DEV_TENANT_ID` fallback)
 
-#### Step 2 manual verification (before merge / before Step 3)
-
-Step 2 code lives in **`modules/integration-hub`** only. **`abdm-adapter-svc` still uses single-tenant `@hims/abdm-adapter`** until Step 3 wires `integration-hub-svc`. Use this checklist to prove Part B without a running hub service.
-
-**Automated (required):**
-
-```bash
-cd modules/integration-hub && npx vitest run
-# Expect 124+ tests pass (includes build-abdm-deps, resolve-callback-tenant,
-# configurator HTTP repo, integration-context-resolver, m2-inbound-helper, M2 consumers)
-cd ../configurator && npx vitest run src/use-cases/*integration-profile*
-```
-
-**Configurator + profile (prerequisite for callback/tenant tests):**
-
-```bash
-# configurator-svc on :3001, DATABASE_URL, make seed
-make seed-abdm-profile
-curl -s -H "x-configurator-internal-key: $CONFIGURATOR_INTERNAL_API_KEY" \
-  "http://localhost:3001/api/configurator/v1/integration-profiles/by-hip/<YOUR_HIP_ID>" | jq .
-```
-
-**What Step 2 unit tests prove (highest-risk paths):**
-
-| Risk | Test / code |
-|------|-------------|
-| Wrong tenant credentials on `/api/v3` | `m2-inbound-helper` mocks `buildAbdmDepsForTenant` per callback |
-| HIP → tenant | `resolve-callback-tenant.test.ts` (DB mock + dev fallback) |
-| Two tenants → two HIPs | `build-abdm-deps.test.ts` |
-| M2 async wrong `xHipId` | `register-m2-consumers.test.ts` uses `event.iq_tenant_id` |
-| Platform `getAbdmDeps` | `get-abdm-deps.test.ts`; resolver wired in `router.ts` + Step 3 `main.ts` |
-
-**After Step 3 only (live smoke — same as §4):**
-
-- `integration-hub-svc:serve` on port 3007
-- M1 POST with `x-tenant-id` (§4.3)
-- M2/M3 callback with `X-HIP-ID` from seeded profile (§4.4)
-- Two profiles / two tenants (§4.6)
-
 ### Code PR 3 — Part C (Schema + service)
 
-- [ ] `INTEGRATION_HUB_SCHEMA_NAME = 'integration_hub'` in `schema/tables.ts`
-- [ ] Import path fixes under `integrations/abdm/`
-- [ ] `services/integration-hub-svc/src/main.ts`: middleware + deployment env only
-- [ ] `workers/janitor.ts` extracted
-- [ ] `normalizeIntegrationHubEnvAliases()` — full old→new table in [01-phase-1a §7.5](../architecture/lld/integration-hub/01-phase-1a-restructure-and-multi-tenant.md#75-normalizeintegrationhubenvaliases-reference-code-pr-3)
-- [ ] `specs/openapi/integration-hub.v1.yaml` (rename from `abdm-adapter.v1.yaml`)
-- [ ] Makefile / docker / devops-handoff updates
+- [x] `INTEGRATION_HUB_SCHEMA_NAME = 'integration_hub'` in `schema/tables.ts`
+- [x] `modules/integration-hub/migrations/` (0000–0003; fresh `integration_hub` schema)
+- [x] `services/integration-hub-svc/src/main.ts`: middleware + deployment env only
+- [x] `workers/janitor.ts` extracted
+- [x] `normalizeIntegrationHubEnvAliases()` — bidirectional old↔new per [01-phase-1a §7.5](../architecture/lld/integration-hub/01-phase-1a-restructure-and-multi-tenant.md#75-normalizeintegrationhubenvaliases-reference-code-pr-3)
+- [x] `specs/openapi/integration-hub.v1.yaml` (rename from `abdm-adapter.v1.yaml`)
+- [x] Makefile (`integration-hub-svc:db-migrate`), `tools/dockerfile-for-svc.sh`, `infra/devops-handoff.md`
+- [x] PR2 follow-ups: `resolveCallbackTenant` + profile passthrough; prod guard on `ABDM_DEV_TENANT_ID`; `req.tenantId` on M2/M3 platform routes
 
 ### Code PR 4 — Part D (Cleanup)
 
-- [ ] Remove `modules/abdm-adapter/` and `services/abdm-adapter-svc/`
-- [ ] `pnpm install`
-- [ ] Full smoke below passes
+- [x] Remove `modules/abdm-adapter/` and `services/abdm-adapter-svc/`
+- [x] Relocate M3 scripts, `tools/fidelius-java-vector`, `test-fixtures/m3`, `vitest.sandbox.setup.ts` under `modules/integration-hub/`
+- [x] `pnpm copy-abdm-schema` — copy `abdm_adapter` → `integration_hub` + row-count gate; `pnpm copy-abdm-schema -- --drop` drops legacy schema
+- [x] `pnpm install`
+- [x] Full smoke below passes
 
 ---
 
 ## 3. Seeding `tenant_integration_profiles` (local)
 
-After Part A migration, prefer the seed script (reads `services/abdm-adapter-svc/.env`):
+After Part A migration, prefer the seed script (reads `services/integration-hub-svc/.env`):
 
 ```bash
 npx nx run configurator:db-migrate
@@ -157,47 +113,15 @@ curl -s "http://localhost:3001/api/configurator/v1/integration-profiles/by-hip/I
 # With key: curl -H "x-configurator-internal-key: $CONFIGURATOR_INTERNAL_API_KEY" ...
 ```
 
-Manual SQL (alternative):
+Manual SQL (alternative): see previous revision or configurator migration comments.
 
-```sql
-INSERT INTO configurator.tenant_integration_profiles (
-  iq_tenant_id,
-  integration_kind,
-  is_active,
-  hip_id,
-  hiu_id,
-  cm_id,
-  client_id,
-  client_secret,
-  default_sms_phone,
-  hip_display_name,
-  callback_base_url,
-  sms_provider,
-  sms_config,
-  gateway_environment
-) VALUES (
-  '00000000-0000-4000-8000-0000000000aa',  -- same as old ABDM_DEV_TENANT_ID
-  'abdm',
-  true,
-  'IN3610001625',                            -- old ABDM_X_HIP_ID
-  'SBX_TEST_HIU_001',                        -- old ABDM_X_HIU_ID
-  'sbx',
-  '<sandbox-client-id>',
-  '<sandbox-client-secret>',
-  '+91XXXXXXXXXX',
-  'Hospital Saarthi Test HIP',
-  'http://localhost:3007',                   -- or ngrok URL
-  'logging',
-  '{}'::jsonb,
-  'sandbox'
-);
-```
-
-**Callback test:** a second tenant with a different `hip_id` proves multi-tenant callback routing without `ABDM_HIP_TENANT_MAP`.
+**Callback test:** a second tenant with a different `hip_id` proves multi-tenant callback routing without `ABDM_HIP_TENANT_MAP` (§4.6).
 
 ---
 
-## 4. E2E smoke test (after Part D)
+## 4. E2E smoke test (Step 3 gate + full matrix)
+
+**Step 4 merge gate:** §4.5–4.7 + M3 `full-loop.sh` + live sandbox regression (§4.8) + multi-tenant (§4.6).
 
 Run in order. Failures usually mean middleware did not load a profile or env aliases were not wired.
 
@@ -222,31 +146,19 @@ Both should return `{"status":"ok"}` (or equivalent).
 
 ### 4.3 Platform route with tenant header (profile required)
 
-Any M1 route that calls the gateway proves per-tenant OAuth credentials:
-
 ```bash
-export TENANT=00000000-0000-4000-8000-0000000000aa
-curl -sS -X POST "http://localhost:3007/api/abdm/v1/abha/enrol/aadhaar/request-otp" \
+export TENANT=f47ac10b-58cc-4372-a567-0e02b2c3d480   # or your seeded iq_tenant_id
+curl -sS -X POST "http://localhost:3007/api/abdm/v1/m1/enrol/aadhaar/otp" \
   -H "Content-Type: application/json" \
   -H "x-tenant-id: $TENANT" \
-  -d '{"aadhaar":"XXXXXXXXXXXX"}'
+  -d '{"aadhaarNumber":"XXXXXXXXXXXX"}'
 ```
 
 **Expect:** not `500` from “missing profile”; gateway may return sandbox validation errors — that is fine.
 
-**Failure modes:**
-
-| Symptom | Likely cause |
-|---------|----------------|
-| 404 / unknown tenant | No row in `tenant_integration_profiles` for `x-tenant-id` |
-| 401 from NHA | Wrong `client_id` / `client_secret` in profile |
-| Wrong HIP in outbound headers | Profile `hip_id` mismatch |
-
 ### 4.4 Callback tenant resolution (DB `hip_id`)
 
-Simulate an inbound callback with `X-HIP-ID` set to the profile’s `hip_id` (no `ABDM_HIP_TENANT_MAP` in env):
-
-- Use existing M2/M3 mock scripts under `modules/abdm-adapter/scripts/` (update path after move to `integrations/abdm/scripts/`).
+- Use M2/M3 mock scripts under `modules/integration-hub/scripts/m3/` (target `integration-hub-svc` on :3007 or mock port — see §4.5).
 - Or POST a minimal discover callback documented in [abdm-adapter-m2-simple-reference.md](./abdm-adapter-m2-simple-reference.md).
 
 **Expect:** handler runs under the tenant that owns that `hip_id` in `tenant_integration_profiles`.
@@ -255,21 +167,63 @@ Simulate an inbound callback with `X-HIP-ID` set to the profile’s `hip_id` (no
 
 ```bash
 npx nx run integration-hub:test --skip-nx-cache
-# or until rename lands:
-npx nx run abdm-adapter:test --skip-nx-cache
+# or: cd modules/integration-hub && npx vitest run   # expect 128+ tests
 ```
 
-M3 mock full loop (after script paths updated):
+**M3 mock full loop** (does not require changing live `.env` on :3007):
 
 ```bash
-bash modules/integration-hub/integrations/abdm/scripts/m3/full-loop.sh
+# Terminal A — mock hub on :3008 (live hub may stay on :3007)
+cd services/integration-hub-svc
+INTEGRATION_HUB_M3_MOCK_SERVE=true npx tsx src/main.ts
+
+# Terminal B — use seeded tenant + mock base URL
+export ABDM_ADAPTER_BASE_URL=http://localhost:3008
+export ABDM_TEST_TENANT_ID=<your iq_tenant_id from seed>
+bash modules/integration-hub/scripts/m3/full-loop.sh
 ```
+
+Env on the main service for live M3: `ABDM_M3_MOCK_GATEWAY=false`, `ABDM_M3_LOOPBACK_HIU=false`, `ABDM_ADAPTER_PUBLIC_BASE_URL=<ngrok>`.
 
 ### 4.6 Multi-tenant spot check
 
-1. Insert a **second** profile row (different `iq_tenant_id`, different `hip_id`).
-2. Repeat §4.3 with each `x-tenant-id`.
-3. Confirm gateway calls use the matching HIP/client credentials (log `X-HIP-ID` or gateway request audit).
+1. Insert a **second** profile row (different `iq_tenant_id`, different `hip_id`, sandbox creds).
+2. Repeat §4.3 with each `x-tenant-id` — not `INTEGRATION_PROFILE_NOT_FOUND`.
+3. Trigger an inbound callback with `X-HIP-ID` matching each profile’s `hip_id` — correct tenant in logs (minimize `dev_tenant_fallback` warnings).
+
+### 4.7 Schema cutover (`abdm_adapter` → `integration_hub`)
+
+When both schemas exist (e.g. after running legacy and hub migrations):
+
+```bash
+npx nx run integration-hub-svc:db-migrate
+pnpm copy-abdm-schema              # INSERT … SELECT + count gate (dst >= src per table)
+pnpm copy-abdm-schema -- --drop    # same copy, then DROP SCHEMA abdm_adapter CASCADE
+```
+
+Tables (8): `abdm_sessions`, `abdm_inbound_messages`, `abdm_link_tokens`, `abdm_consent_artefacts`, `abdm_link_otps`, `abdm_m3_consent_requests`, `abdm_m3_consent_artefacts_hiu`, `abdm_m3_data_transfers`.
+
+Spot-check after copy:
+
+```sql
+SELECT session_id, flow_kind, state
+FROM integration_hub.abdm_sessions
+WHERE iq_tenant_id = '<your-tenant-uuid>'
+ORDER BY updated_at DESC LIMIT 5;
+```
+
+### 4.8 Live sandbox regression (manual)
+
+Re-run after Step 4 on **`integration-hub-svc`** only (port **3007**):
+
+| Milestone | Key checks |
+|-----------|------------|
+| **M0** | `GET /api/abdm/v1/m0/gateway/session` + `x-tenant-id` |
+| **M1** | OTP / verify / profile |
+| **M2** | link-token → `initiated-link/start` → ngrok `on_carecontext` → publish → PHR **Linked facilities** |
+| **M3** | consent/request (+ `requesterRegNo`) → PHR grant → `data-request` → transfer `ACKNOWLEDGED`; PHR **My records** after refresh |
+
+Startup log must show `m3MockGateway: false` for live M3.
 
 ---
 
@@ -280,7 +234,7 @@ After Phase 1a, `.env` for `integration-hub-svc` should **not** contain `ABDM_X_
 - `DATABASE_URL` / `INTEGRATION_HUB_DATABASE_URL`
 - `INTEGRATION_HUB_ABDM_GATEWAY_BASE_URL`, `INTEGRATION_HUB_ABDM_ABHA_API_BASE_URL`
 - `INTEGRATION_HUB_TOKEN_ENCRYPTION_KEY`
-- M3 dev flags: `INTEGRATION_HUB_ABDM_M3_MOCK_GATEWAY`, `INTEGRATION_HUB_ABDM_M3_LOOPBACK_HIU`
+- M3 dev flags: `INTEGRATION_HUB_ABDM_M3_MOCK_GATEWAY`, `INTEGRATION_HUB_ABDM_M3_LOOPBACK_HIU` (or legacy `ABDM_M3_*` aliases)
 - `EMPI_BASE_URL`, `RECORD_FOUNDATION_BASE_URL`
 - `ENABLE_AUTH`, `JWKS_URL` (staging+)
 
@@ -322,7 +276,7 @@ Canonical specs live under `docs/architecture/lld/integration-hub/`, not in the 
 | PR | Contents | Gate |
 |----|----------|------|
 | **#144** | Docs only (this guide + LLD) | Review; no code expected |
-| **Code 1** | Part A — configurator table + CRUD + seed + scaffold + copy ABDM | Configurator tests; `abdm-adapter-svc` unchanged |
+| **Code 1** | Part A — configurator table + CRUD + seed + scaffold + copy ABDM | Configurator tests |
 | **Code 2** | Part B — per-request deps (platform + **callbacks** + event consumers) | Unit tests; callback multi-tenant check |
 | **Code 3** | Part C — schema `integration_hub`, `integration-hub-svc`, env aliases | Smoke §4.1–4.3 |
 | **Code 4** | Part D — delete Phase 0 paths | Full regression + [03 §8](../architecture/lld/integration-hub/03-safe-migration-and-cutover.md#8-regression-matrix-must-pass-before-part-d) |

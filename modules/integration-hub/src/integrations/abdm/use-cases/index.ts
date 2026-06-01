@@ -1,5 +1,5 @@
 /**
- * Use-case barrel for abdm-adapter.
+ * Use-case barrel for the ABDM integration in `@hims/integration-hub`.
  *
  * Use-cases are pure functions: `(input, deps: AbdmAdapterDeps) => Promise<Result>`.
  * No global state; no direct DB writes (always via `deps.sessions`); no

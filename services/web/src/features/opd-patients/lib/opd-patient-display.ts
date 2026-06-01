@@ -22,6 +22,8 @@ export function opdStatusLabel(status: OpdVisitStatus): string {
   switch (status) {
     case 'registered':
       return 'Registered';
+    case 'pre-consulted':
+      return 'Pre Consulted';
     case 'in-progress':
       return 'In-Progress';
     case 'completed':
@@ -37,6 +39,8 @@ export function opdStatusBadgeClass(status: OpdVisitStatus): string {
   switch (status) {
     case 'registered':
       return 'bg-cyan-100 text-cyan-950';
+    case 'pre-consulted':
+      return 'bg-amber-100 text-amber-900';
     case 'completed':
       return 'bg-green-100 text-green-800';
     case 'in-progress':
@@ -46,4 +50,10 @@ export function opdStatusBadgeClass(status: OpdVisitStatus): string {
     default:
       return 'bg-muted text-muted-foreground';
   }
+}
+
+export function formatGenderAge(gender: string, age: number): string {
+  const letter =
+    gender === 'male' ? 'M' : gender === 'female' ? 'F' : gender?.charAt(0).toUpperCase() ?? '—';
+  return `${letter}, ${age} Years`;
 }
