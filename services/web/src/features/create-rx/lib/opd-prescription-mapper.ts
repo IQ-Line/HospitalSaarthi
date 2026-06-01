@@ -8,7 +8,7 @@ import {
 import { formVitalsToLegacyVitals, legacyVitalsToFormVitals } from './opd-legacy-vitals';
 import { emptyComplaintRow, emptyImmunizationRow } from './row-factories';
 
-function lineItems<T>(rows: T[], map: (row: T, index: number) => object): object[] {
+function lineItems<T, R>(rows: T[], map: (row: T, index: number) => R): R[] {
   return rows.map((row, index) => map(row, index));
 }
 

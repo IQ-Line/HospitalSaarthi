@@ -204,4 +204,4 @@ export async function fetchLatestOpdVisitForPatient(
     row.updated_at > latest.updated_at ? row : latest,
   );
 }
-
+

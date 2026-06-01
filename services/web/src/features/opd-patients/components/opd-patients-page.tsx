@@ -73,6 +73,7 @@ export function OpdPatientsPage() {
     queryKey: opdPatientsQueryKeys.list(listParams),
     queryFn: () => fetchOpdPatientsList(listParams),
     placeholderData: (prev) => prev,
+    refetchOnWindowFocus: true,
   });
 
   const loading = isLoading;
