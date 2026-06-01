@@ -4,7 +4,7 @@ import { DetailViewField } from '@/components/detail-view';
 import { useCreateRxStore } from '../create-rx.store';
 import { SectionCard } from './section-card';
 
-export function CreateRxPatientProfile() {
+export function PatientProfile() {
   const [showMore, setShowMore] = useState(false);
   const patient = useCreateRxStore((s) => s.context?.patient);
   if (!patient) return null;

@@ -18,6 +18,7 @@ const REGISTRATION_API_PREFIX = '/api/registration/v1/';
 const USER_MANAGEMENT_API_PREFIX = '/api/user-management';
 const CONFIGURATOR_API_PREFIX = '/api/configurator/v1';
 const BILLING_API_PREFIX = '/api/billing/v1/';
+const OPD_API_PREFIX = '/api/v1/opd/';
 
 function isRegistrationApiPath(path: string): boolean {
   return (
@@ -56,7 +57,8 @@ function pathRequiresTenantHeader(path: string): boolean {
     path.startsWith(USER_MANAGEMENT_API_PREFIX) ||
     path.startsWith(EMPI_API_PREFIX) ||
     isRegistrationApiPath(path) ||
-    path.startsWith(CONFIGURATOR_API_PREFIX)
+    path.startsWith(CONFIGURATOR_API_PREFIX) ||
+    path.startsWith(OPD_API_PREFIX)
   );
 }
 
@@ -141,6 +143,54 @@ export async function apiClient<T>(
   return parseJsonResponse<T>(
     await fetchWithAuthRetry(path, options, context, true),
   );
+}
+
+/** Binary response (e.g. PDF) with the same auth and tenant headers as {@link apiClient}. */
+export async function apiClientBlob(
+  path: string,
+  options: RequestInit = {},
+  context?: ApiClientContext,
+): Promise<Blob> {
+  const headers = buildRequestHeaders(path, options, context);
+  headers.delete('Content-Type');
+  headers.set('Accept', 'application/pdf');
+
+  const response = await fetchWithAuthRetry(
+    path,
+    { ...options, method: options.method ?? 'GET', headers },
+    context,
+    true,
+  );
+
+  if (!response.ok) {
+    throw new ApiError(response.status, await response.text());
+  }
+
+  return response.blob();
+}
+
+/** HTML/text response with the same auth and tenant headers as {@link apiClient}. */
+export async function apiClientText(
+  path: string,
+  options: RequestInit = {},
+  context?: ApiClientContext,
+): Promise<string> {
+  const headers = buildRequestHeaders(path, options, context);
+  headers.delete('Content-Type');
+  headers.set('Accept', 'text/html');
+
+  const response = await fetchWithAuthRetry(
+    path,
+    { ...options, method: options.method ?? 'GET', headers },
+    context,
+    true,
+  );
+
+  if (!response.ok) {
+    throw new ApiError(response.status, await response.text());
+  }
+
+  return response.text();
 }
 
 /** Master-data / UM / billing calls scoped to a specific tenant (configurator tenant detail). */

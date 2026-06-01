@@ -24,6 +24,8 @@ export interface RegisterOpenApiDocsOptions {
    * generating from route schemas. `baseDir` is the directory containing `path`.
    */
   staticSpec?: { path: string; baseDir: string };
+  /** Merged into `components.securitySchemes` for route-generated specs (enables Swagger Authorize). */
+  securitySchemes?: Record<string, Record<string, unknown>>;
 }
 
 /**
@@ -66,6 +68,9 @@ export async function registerOpenApiDocs(
           options.apiPrefix !== undefined
             ? [{ url: options.apiPrefix }]
             : [{ url: "/" }],
+        ...(options.securitySchemes !== undefined
+          ? { components: { securitySchemes: options.securitySchemes } }
+          : {}),
       },
     });
   }

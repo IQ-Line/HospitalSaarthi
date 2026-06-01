@@ -98,6 +98,14 @@ paths:
         - $ref: "#/components/parameters/TenantIdHeader"
         - { name: patient_id, in: query, required: false, schema: { type: string, format: uuid } }
         - { name: visit_id, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: source_module, in: query, required: false, schema: { $ref: "#/components/schemas/SourceModule" } }
+        - {
+            name: source_ref,
+            in: query,
+            required: false,
+            schema: { type: string, format: uuid },
+            description: Returns bills that have at least one line item with this source reference.
+          }
         - { name: status, in: query, required: false, schema: { $ref: "#/components/schemas/BillStatus" } }
         - { name: bill_type, in: query, required: false, schema: { $ref: "#/components/schemas/BillType" } }
         - { name: from_date, in: query, required: false, schema: { type: string, format: date } }

@@ -26,11 +26,11 @@ The total set of images Jenkins ever needs to build is 11. They're enumerated in
 
 ## 2. The deployable services
 
-There are exactly **10** images the pipeline ever has to produce:
+There are exactly **9** images the pipeline ever has to produce:
 
 | Service (Nx project name) | Image name in ACR | Dockerfile | Build context | What it is |
 |---|---|---|---|---|
-| `abdm-adapter-svc` | `hims.azurecr.io/abdm-adapter-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `.` (repo root) | TS Fastify; ABDM gateway adapter |
+| `integration-hub-svc` | `hims.azurecr.io/integration-hub-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `.` (repo root) | TS Fastify; multi-tenant integration hub (ABDM) |
 | `billing-svc` | `hims.azurecr.io/billing-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `.` | TS Fastify |
 | `configurator-svc` | `hims.azurecr.io/configurator-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `.` | TS Fastify |
 | `empi-svc` | `hims.azurecr.io/empi-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `.` | TS Fastify |
@@ -94,7 +94,7 @@ Each project declares `projectType` (`application` for deployables, `library` fo
 npx nx show projects --type=app
 ```
 
-Output (sorted): `abdm-adapter-svc`, `bff`, `billing-svc`, `cerbos-policies`, `configurator-svc`, `empi-svc`, `master-data`, `registration-svc`, `user-management-svc`, `web` — exactly 10 entries. `master-data` (the Python service) is an Nx project with `projectType: application` and the `deploy:aks` tag, so it participates in affected detection like any other deployable: change a file under `modules/master-data/` and `--affected` returns `["master-data"]`.
+Output (sorted): `bff`, `billing-svc`, `cerbos-policies`, `configurator-svc`, `empi-svc`, `integration-hub-svc`, `master-data`, `registration-svc`, `user-management-svc`, `web` — exactly 10 entries (`integration-hub-svc` replaces Phase 0 `abdm-adapter-svc`). `master-data` (the Python service) is an Nx project with `projectType: application` and the `deploy:aks` tag, so it participates in affected detection like any other deployable: change a file under `modules/master-data/` and `--affected` returns `["master-data"]`.
 
 ---
 
@@ -633,7 +633,7 @@ done
 ```bash
 rm -rf packages/*/dist services/*/dist
 npx nx run-many -t build \
-  -p abdm-adapter-svc,billing-svc,configurator-svc,empi-svc,registration-svc,user-management-svc,bff,web \
+  -p integration-hub-svc,billing-svc,configurator-svc,empi-svc,registration-svc,user-management-svc,bff,web \
   --skip-nx-cache
 ```
 

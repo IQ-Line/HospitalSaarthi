@@ -9,7 +9,7 @@ function genderLetter(gender: string): string {
   return '—';
 }
 
-export function CreateRxHeader() {
+export function Header() {
   const context = useCreateRxStore((s) => s.context);
   const isReadOnly = useCreateRxStore((s) => s.isReadOnly);
 

@@ -24,7 +24,7 @@ build-backend = "hatchling.build"
 packages = ["src/opd_svc"]
 
 [tool.uv.sources]
-hims-opd = { path = "../../modules/opd" }
+hims-opd = { path = "../../modules/opd", editable = true }
 
 [tool.ruff]
 line-length = 100

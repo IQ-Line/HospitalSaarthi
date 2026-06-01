@@ -1,4 +1,4 @@
-/** AJV JSON Schema fragments for M1 routes (aligned with specs/openapi/abdm-adapter.v1.yaml). */
+/** AJV JSON Schema fragments for M1 routes (aligned with specs/openapi/integration-hub.v1.yaml). */
 
 export const uuidParam = {
   type: "string" as const,

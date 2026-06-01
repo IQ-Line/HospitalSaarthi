@@ -43,7 +43,10 @@ export {
 
 export { ABDM_ADAPTER_MODULE_KEY } from "./integrations/abdm/domain/abdm-adapter.types.js";
 export { ABDM_ADAPTER_SOURCE_MODULE } from "./integrations/abdm/lib/abdm-adapter-constants.js";
-export { ABDM_ADAPTER_SCHEMA_NAME } from "./integrations/abdm/schema/tables.js";
+export {
+  ABDM_ADAPTER_SCHEMA_NAME,
+  INTEGRATION_HUB_SCHEMA_NAME,
+} from "./integrations/abdm/schema/tables.js";
 
 export type {
   AbdmSession,
@@ -125,6 +128,13 @@ export {
 } from "./integrations/abdm/lib/session-token-crypto.js";
 export { allowInsecureAbdmCallbacks, nodeEnv } from "./integrations/abdm/lib/abdm-runtime-env.js";
 export {
+  runIntegrationHubJanitor,
+  scheduleIntegrationHubJanitor,
+} from "./workers/janitor.js";
+export {
+  resolveCallbackTenant,
   resolveCallbackTenantId,
   resolveInboundRequestId,
+  type ResolvedCallbackTenant,
 } from "./integrations/abdm/lib/resolve-callback-tenant.js";
+export type { BuildAbdmDepsOptions } from "./lib/build-abdm-deps.js";

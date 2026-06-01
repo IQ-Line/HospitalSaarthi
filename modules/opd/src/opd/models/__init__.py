@@ -1,9 +1,7 @@
-"""SQLAlchemy models for the OPD module.
-
-Re-export ``Base`` so Alembic's ``target_metadata`` discovery picks up every
-table declared under ``opd.models``.
-"""
+"""SQLAlchemy models for the OPD module."""
 
 from opd.models.base import Base
+from opd.models.prescription import Prescription
+from opd.models.visit import Visit
 
-__all__ = ["Base"]
+__all__ = ["Base", "Visit", "Prescription"]

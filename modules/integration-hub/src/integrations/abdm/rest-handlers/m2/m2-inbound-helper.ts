@@ -10,7 +10,7 @@ import {
 } from "../../lib/abdm-runtime-env.js";
 import { abdmWarn } from "../../lib/abdm-adapter-log.js";
 import {
-  resolveCallbackTenantId,
+  resolveCallbackTenant,
   resolveInboundRequestId,
 } from "../../lib/resolve-callback-tenant.js";
 
@@ -53,9 +53,9 @@ export async function runInboundCallback(input: {
     });
   }
 
-  let iqTenantId: string;
+  let resolved;
   try {
-    iqTenantId = await resolveCallbackTenantId(headers, input.sharedInfra.profiles);
+    resolved = await resolveCallbackTenant(headers, input.sharedInfra.profiles);
   } catch (e) {
     return input.reply.code(400).send({
       error: "BadRequest",
@@ -63,9 +63,13 @@ export async function runInboundCallback(input: {
     });
   }
 
+  const iqTenantId = resolved.iqTenantId;
+
   let integrationCtx;
   try {
-    integrationCtx = await buildAbdmDepsForTenant(iqTenantId, input.sharedInfra);
+    integrationCtx = await buildAbdmDepsForTenant(iqTenantId, input.sharedInfra, {
+      profile: resolved.profile,
+    });
   } catch (e) {
     if (e instanceof IntegrationProfileNotFoundError) {
       return input.reply.code(404).send({

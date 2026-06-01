@@ -1,4 +1,6 @@
-import { newRowId } from './row-factory';
+export function newRowId(): string {
+  return crypto.randomUUID();
+}
 import type {
   AllergyRow,
   ChiefComplaintRow,

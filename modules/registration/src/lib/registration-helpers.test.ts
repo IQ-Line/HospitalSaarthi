@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  isRegistrationDocumentEligible,
   parseRegistrationStatus,
   registrationStatusFromIntakeCompletion,
+  REGISTRATION_STATUS_CANCELLED,
   REGISTRATION_STATUS_COMPLETED,
   REGISTRATION_STATUS_IN_PROGRESS,
   REGISTRATION_STATUS_PENDING,
@@ -26,5 +28,12 @@ describe("registration status", () => {
 
   it("rejects unknown status", () => {
     expect(() => parseRegistrationStatus("routed")).toThrow("invalid_registration_status");
+  });
+
+  it("allows desk documents for active registration statuses", () => {
+    expect(isRegistrationDocumentEligible(REGISTRATION_STATUS_PENDING)).toBe(true);
+    expect(isRegistrationDocumentEligible(REGISTRATION_STATUS_IN_PROGRESS)).toBe(true);
+    expect(isRegistrationDocumentEligible(REGISTRATION_STATUS_COMPLETED)).toBe(true);
+    expect(isRegistrationDocumentEligible(REGISTRATION_STATUS_CANCELLED)).toBe(false);
   });
 });

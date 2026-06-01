@@ -1,4 +1,9 @@
-export type OpdVisitStatus = 'registered' | 'in-progress' | 'completed' | 'cancelled';
+export type OpdVisitStatus =
+  | 'registered'
+  | 'pre-consulted'
+  | 'in-progress'
+  | 'completed'
+  | 'cancelled';
 
 export type OpdDoctorScope = 'all' | 'myPatients' | 'otherPatients';
 

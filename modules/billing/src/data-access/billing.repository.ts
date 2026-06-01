@@ -121,6 +121,26 @@ class DrizzleBillingRepo implements BillingRepo {
 
     if (query.patient_id) conditions.push(eq(bills.patient_id, query.patient_id));
     if (query.visit_id) conditions.push(eq(bills.visit_id, query.visit_id));
+    if (query.source_module && query.source_ref) {
+      conditions.push(
+        sql`exists (
+          select 1 from billing.bill_items bi
+          where bi.iq_tenant_id = ${tenantId}
+            and bi.bill_id = ${bills.id}
+            and bi.source_module = ${query.source_module}
+            and bi.source_ref = ${query.source_ref}::uuid
+        )`,
+      );
+    } else if (query.source_module) {
+      conditions.push(
+        sql`exists (
+          select 1 from billing.bill_items bi
+          where bi.iq_tenant_id = ${tenantId}
+            and bi.bill_id = ${bills.id}
+            and bi.source_module = ${query.source_module}
+        )`,
+      );
+    }
     if (query.status) conditions.push(eq(bills.status, query.status));
     if (query.bill_type) conditions.push(eq(bills.bill_type, query.bill_type));
     if (query.from_date) conditions.push(sql`${bills.bill_date} >= ${query.from_date}`);

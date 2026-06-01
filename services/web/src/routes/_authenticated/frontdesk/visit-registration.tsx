@@ -16,6 +16,12 @@ import {
   TableRow,
 } from '@pulse/ui/table';
 import { executeCreateVisitFlow, listRegistrations } from '@/features/frontdesk/api/registrations';
+import type { RegistrationReportQueryContext } from '@/features/frontdesk/api/registration-documents';
+import { resolveRegistrationBillId } from '@/features/frontdesk/api/registration-bill';
+import {
+  RegistrationReportsModal,
+  type RegistrationReportView,
+} from '@/components/registration-reports-modal';
 import { CreateAbhaDialog } from '@/features/abha/components/create-abha-dialog';
 import type { AbhaCreatedPayload } from '@/features/abha/types';
 import { RegistrationFormHeader, RegistrationTodayStatsSidebar } from '@/features/frontdesk/components/registration-form-chrome';
@@ -32,7 +38,7 @@ import {
   VisitRegistrationSectionMenu,
 } from '@/features/frontdesk/components/visit-registration-sections';
 import { useVisitRegistrationSectionsStore } from '@/features/frontdesk/visit-registration-sections.store';
-import type { CreateVisitRequestBody } from '@/features/frontdesk/types';
+import type { CreateVisitRequestBody, RegistrationListItemResponse } from '@/features/frontdesk/types';
 import {
   ageYmdSinceBirth,
   birthDateFromAgeYmd,
@@ -51,11 +57,19 @@ import { useDebouncedValue } from '@/lib/use-debounced-value';
 import { useSyncRegistrationBillingTariffs } from '@/features/frontdesk/hooks/use-sync-registration-billing-tariffs';
 import { useVisitRegistrationTariffs } from '@/features/frontdesk/hooks/use-visit-registration-tariffs';
 import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
+import { useProviderList } from '@/features/user-management/api/queries';
 import { useTenantStore } from '@/stores/tenant.store';
 
 export const Route = createFileRoute('/_authenticated/frontdesk/visit-registration')({
   component: VisitRegistrationRoute,
 });
+
+type ReportsModalConfig = {
+  registrationId: string;
+  reportContext: RegistrationReportQueryContext;
+  singleView?: RegistrationReportView;
+  footerMode: 'registration' | 'list';
+};
 
 type FormValues = CreateVisitRequestBody;
 
@@ -80,11 +94,17 @@ function VisitRegistrationRoute() {
 
   const [showExtendedPatient, setShowExtendedPatient] = useState(false);
   const [phase, setPhase] = useState<'list' | 'form'>('list');
+  const [reportsModalOpen, setReportsModalOpen] = useState(false);
+  const [reportsModal, setReportsModal] = useState<ReportsModalConfig | null>(null);
+  const [invoiceLookupRegistrationId, setInvoiceLookupRegistrationId] = useState<string | null>(
+    null,
+  );
   const [listSearchDraft, setListSearchDraft] = useState('');
   const listSearch = useDebouncedValue(listSearchDraft.trim(), 300);
   const [listPage, setListPage] = useState(1);
   const queryClient = useQueryClient();
   const sectionVisible = useVisitRegistrationSectionsStore((s) => s.visible);
+  const providersQuery = useProviderList(null, { enabled: phase === 'form' });
 
   useEffect(() => {
     setListPage(1);
@@ -100,6 +120,38 @@ function VisitRegistrationRoute() {
       }),
     enabled: phase === 'list',
   });
+
+  const openSlipPreview = (row: RegistrationListItemResponse) => {
+    setReportsModal({
+      registrationId: row.registration_id,
+      reportContext: { facility_name: branchLabel },
+      singleView: 'slip',
+      footerMode: 'list',
+    });
+    setReportsModalOpen(true);
+  };
+
+  const openInvoicePreview = async (row: RegistrationListItemResponse) => {
+    setInvoiceLookupRegistrationId(row.registration_id);
+    try {
+      const billId = await resolveRegistrationBillId(row.registration_id, row.visit_id);
+      if (!billId) {
+        toast.error('No invoice found for this registration.');
+        return;
+      }
+      setReportsModal({
+        registrationId: row.registration_id,
+        reportContext: { bill_id: billId, facility_name: branchLabel },
+        singleView: 'receipt',
+        footerMode: 'list',
+      });
+      setReportsModalOpen(true);
+    } catch (err) {
+      toast.error(mutationErrorMessage(err));
+    } finally {
+      setInvoiceLookupRegistrationId(null);
+    }
+  };
 
   const form = useForm<FormValues>({
     mode: 'onChange',
@@ -417,7 +469,18 @@ function VisitRegistrationRoute() {
     mutationFn: (data: CreateVisitRequestBody) => {
       const idempotencyKey = submitIdempotencyKeyRef.current ?? crypto.randomUUID();
       submitIdempotencyKeyRef.current = idempotencyKey;
-      return executeCreateVisitFlow(data, { idempotencyKey });
+      const providerId = data.appointment?.provider_id?.trim();
+      const doctorName = providerId
+        ? providersQuery.data?.find((provider) => provider.id === providerId)?.full_name
+        : undefined;
+      return executeCreateVisitFlow(data, {
+        idempotencyKey,
+        reportMeta: {
+          departmentName: data.appointment?.department_name,
+          doctorName,
+          facilityName: branchLabel,
+        },
+      });
     },
     onSettled: () => {
       submitIdempotencyKeyRef.current = undefined;
@@ -429,7 +492,14 @@ function VisitRegistrationRoute() {
       } else {
         toast.success('Registration saved.');
       }
-      setPhase('list');
+      form.reset();
+      setAbhaRegistration(null);
+      setReportsModal({
+        registrationId: res.registration_id,
+        reportContext: res.report_context,
+        footerMode: 'registration',
+      });
+      setReportsModalOpen(true);
     },
     onError: (err) => {
       toast.error(mutationErrorMessage(err));
@@ -589,17 +659,21 @@ function VisitRegistrationRoute() {
                           <TableHead>Phone</TableHead>
                           <TableHead>Status</TableHead>
                           <TableHead>Visit type</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {listQuery.data.data.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={6} className="text-center text-muted-foreground">
+                            <TableCell colSpan={7} className="text-center text-muted-foreground">
                               No registrations match your search.
                             </TableCell>
                           </TableRow>
                         ) : (
-                          listQuery.data.data.map((row) => (
+                          listQuery.data.data.map((row) => {
+                            const invoiceLoading =
+                              invoiceLookupRegistrationId === row.registration_id;
+                            return (
                             <TableRow key={row.registration_id}>
                               <TableCell className="whitespace-nowrap tabular-nums text-muted-foreground">
                                 {new Date(row.created_at).toLocaleString()}
@@ -611,8 +685,32 @@ function VisitRegistrationRoute() {
                               <TableCell className="tabular-nums">{row.patient_phone_number ?? '—'}</TableCell>
                               <TableCell>{row.registration_status}</TableCell>
                               <TableCell>{row.visit_type ?? '—'}</TableCell>
+                              <TableCell className="relative text-right">
+                                <div className="flex flex-wrap justify-end gap-2">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    title="Preview OPD slip"
+                                    onClick={() => openSlipPreview(row)}
+                                  >
+                                    OPD Slip
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={invoiceLoading}
+                                    title="Preview invoice"
+                                    onClick={() => void openInvoicePreview(row)}
+                                  >
+                                    {invoiceLoading ? 'Loading…' : 'Invoice'}
+                                  </Button>
+                                </div>
+                              </TableCell>
                             </TableRow>
-                          ))
+                            );
+                          })
                         )}
                       </TableBody>
                     </Table>
@@ -759,6 +857,26 @@ function VisitRegistrationRoute() {
         flow={abhaDialogFlow}
         onSuccess={handleAbhaCreated}
       />
+
+      {reportsModal ? (
+        <RegistrationReportsModal
+          open={reportsModalOpen}
+          onOpenChange={(open) => {
+            setReportsModalOpen(open);
+            if (!open) {
+              const fromRegistrationFlow = reportsModal.footerMode === 'registration';
+              setReportsModal(null);
+              if (fromRegistrationFlow) {
+                setPhase('list');
+              }
+            }
+          }}
+          registrationId={reportsModal.registrationId}
+          reportContext={reportsModal.reportContext}
+          singleView={reportsModal.singleView}
+          footerMode={reportsModal.footerMode}
+        />
+      ) : null}
     </div>
   );
 }
