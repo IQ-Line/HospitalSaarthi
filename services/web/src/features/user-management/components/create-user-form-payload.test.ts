@@ -9,6 +9,7 @@ const baseValues: CreateUserFormValues = {
   phone: '',
   username: 'manishusername',
   department: '',
+  doctor_tariffs: [],
   clearance_tier_required: 0,
   role_template_ids: ['a107b93a-c083-4a66-9c88-c6706d99a49d'],
   role_capability_selection_ids: ['cap-create-user'],

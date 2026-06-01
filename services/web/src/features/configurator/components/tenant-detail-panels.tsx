@@ -1235,9 +1235,7 @@ export function TenantBillingPanel({ iqTenantId }: { iqTenantId: string }) {
         submitLabel="Create"
         isSubmitting={createMutation.isPending}
         onSubmit={createForm.handleSubmit((values) => {
-          const departmentName =
-            departmentsQuery.data?.data.find((d) => d.id === values.department_id)?.name ?? null;
-          createMutation.mutate(formToCreatePayload(values, departmentName), {
+          createMutation.mutate(formToCreatePayload(values), {
             onSuccess: () => {
               toast.success('Service created');
               setIsCreateOpen(false);

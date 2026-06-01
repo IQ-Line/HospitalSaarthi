@@ -9,7 +9,7 @@ import {
 const TARIFF_LIST_LIMIT = 200;
 
 export function useVisitRegistrationTariffs(
-  departmentName: string | null,
+  departmentId: string | null,
   providerId: string | null,
 ) {
   const catalogQuery = useTariffServices(
@@ -25,8 +25,8 @@ export function useVisitRegistrationTariffs(
   );
 
   const consultationTariff = useMemo(
-    () => pickConsultationTariff(catalog, providerId, departmentName),
-    [catalog, providerId, departmentName],
+    () => pickConsultationTariff(catalog, providerId, departmentId),
+    [catalog, providerId, departmentId],
   );
 
   const registrationFeeLine = useMemo(

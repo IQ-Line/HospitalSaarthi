@@ -214,8 +214,8 @@ function VisitRegistrationRoute() {
   const skipDobToAgeSyncRef = useRef(false);
 
   const hasProvider = Boolean(appointmentProviderId?.trim());
-  const departmentName = (appointmentDepartmentName ?? '').trim() || null;
-  const tariffs = useVisitRegistrationTariffs(departmentName, appointmentProviderId?.trim() || null);
+  const departmentId = (appointmentDepartmentId ?? '').trim() || null;
+  const tariffs = useVisitRegistrationTariffs(departmentId, appointmentProviderId?.trim() || null);
 
   useSyncRegistrationBillingTariffs(
     form.watch,

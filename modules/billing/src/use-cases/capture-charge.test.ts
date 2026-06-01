@@ -15,7 +15,7 @@ const tariff: TariffMasterRow = {
   service_name: "Registration Fee",
   description: null,
   provider_id: null,
-  department: "frontdesk",
+  department_id: null,
   category: "registration",
   sub_category: null,
   tax_type: "EXEMPT",

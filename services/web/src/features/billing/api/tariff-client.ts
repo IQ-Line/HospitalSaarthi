@@ -6,6 +6,7 @@ import { apiClient, apiClientWithIqTenant } from '@/lib/api-client';
 import { useAuthStore } from '@/stores/auth.store';
 import { useTenantStore } from '@/stores/tenant.store';
 import type {
+  ServiceBulkCreateResponse,
   ServiceCreateInput,
   ServiceSingleResponse,
   ServicesListParams,
@@ -50,7 +51,8 @@ function listQueryString(params: ServicesListParams): string {
   const sp = new URLSearchParams();
   if (params.q?.trim()) sp.set('q', params.q.trim());
   if (params.category?.trim()) sp.set('category', params.category.trim());
-  if (params.department?.trim()) sp.set('department', params.department.trim());
+  if (params.department_id?.trim()) sp.set('department_id', params.department_id.trim());
+  else if (params.department?.trim()) sp.set('department', params.department.trim());
   if (params.is_active !== undefined) sp.set('is_active', String(params.is_active));
   sp.set('limit', String(clampLimit(params.limit)));
   if (params.cursor?.trim()) sp.set('cursor', params.cursor.trim());
@@ -71,8 +73,8 @@ export function listTariffServices(
 export function createTariffService(
   input: ServiceCreateInput,
   iqTenantId?: string,
-): Promise<ServiceSingleResponse> {
-  return billingFetch<ServiceSingleResponse>(iqTenantId, BASE, {
+): Promise<ServiceSingleResponse | ServiceBulkCreateResponse> {
+  return billingFetch<ServiceSingleResponse | ServiceBulkCreateResponse>(iqTenantId, BASE, {
     method: 'POST',
     body: JSON.stringify(input),
   });

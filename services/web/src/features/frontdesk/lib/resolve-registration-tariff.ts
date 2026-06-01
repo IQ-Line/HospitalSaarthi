@@ -18,22 +18,12 @@ export function isConsultationCategory(category: string | null | undefined): boo
   return c === TARIFF_PICKLIST_CONSULTATION_FEE || c === LEGACY_CONSULTATION_CATEGORY;
 }
 
-function normDept(value: string | null | undefined): string {
-  return value?.trim().toLowerCase() ?? '';
-}
-
 /** Frontdesk / rack registration fee (no doctor). */
 export function pickRegistrationTariff(rows: TariffService[]): TariffService | null {
   const candidates = rows.filter((r) => r.is_active && isRegistrationCategory(r.category));
   if (candidates.length === 0) return null;
-
   const rack = candidates.filter((r) => r.provider_id == null);
-  const pool = rack.length > 0 ? rack : candidates;
-
-  const frontdesk = pool.find((r) => normDept(r.department) === 'frontdesk');
-  if (frontdesk) return frontdesk;
-
-  return pool[0] ?? null;
+  return rack[0] ?? candidates[0] ?? null;
 }
 
 /**
@@ -42,12 +32,12 @@ export function pickRegistrationTariff(rows: TariffService[]): TariffService | n
 export function pickConsultationTariff(
   rows: TariffService[],
   providerId: string | null | undefined,
-  departmentName: string | null | undefined,
+  departmentId: string | null | undefined,
 ): TariffService | null {
-  const deptKey = normDept(departmentName);
+  const deptId = departmentId?.trim() || null;
   let candidates = rows.filter((r) => r.is_active && isConsultationCategory(r.category));
-  if (deptKey) {
-    const inDept = candidates.filter((r) => normDept(r.department) === deptKey);
+  if (deptId) {
+    const inDept = candidates.filter((r) => r.department_id === deptId);
     if (inDept.length > 0) candidates = inDept;
   }
   if (candidates.length === 0) return null;

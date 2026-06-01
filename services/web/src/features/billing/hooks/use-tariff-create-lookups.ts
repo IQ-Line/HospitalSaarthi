@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useDepartments, usePicklistValues } from '@/features/master-data/api';
-import { useProviderList } from '@/features/user-management/api/queries';
+import { useDoctorsForDepartment } from './use-doctors-for-department';
 import { TARIFF_TYPE_PICKLIST_SLUG, tariffTypeRequiresProvider } from '../lib/tariff-type';
 
 /** Same department API as visit registration (`GET /api/v1/master-data/departments`). */
@@ -17,20 +17,11 @@ export function useTariffCreateLookups(
     enabled: enabled && requiresProvider,
     iqTenantId,
   });
-  const selectedDepartmentName = useMemo(
-    () =>
-      (departments.data?.data ?? []).find((d) => d.id === departmentId)?.name ?? null,
-    [departmentId, departments.data?.data],
-  );
 
-  /**
-   * `GET /api/user-management/providers` — `auth.read`, not `user.read`, so receptionist /
-   * clinical roles can populate the doctor field without User Management list access.
-   */
-  const providers = useProviderList(iqTenantId, {
-    enabled:
-      enabled && requiresProvider && Boolean(departmentId) && Boolean(selectedDepartmentName),
-    department: selectedDepartmentName ?? undefined,
+  const doctors = useDoctorsForDepartment(departmentId, {
+    enabled: enabled && requiresProvider && Boolean(departmentId),
+    iqTenantId,
+    includeAllWhenEmpty: true,
   });
 
   const tariffTypeOptions = useMemo(
@@ -47,29 +38,15 @@ export function useTariffCreateLookups(
     [departments.data?.data],
   );
 
-  const doctorOptions = useMemo(() => {
-    if (!departmentId) return [];
-    const deptKey = selectedDepartmentName?.trim().toLowerCase();
-    const active = providers.data ?? [];
-    const matched =
-      deptKey && deptKey.length > 0
-        ? active.filter((p) => (p.department?.trim().toLowerCase() ?? '') === deptKey)
-        : active;
-    return (matched.length > 0 ? matched : active).map((p) => ({
-      value: p.id,
-      label: p.full_name,
-    }));
-  }, [departmentId, selectedDepartmentName, providers.data]);
-
   return {
     tariffTypeOptions,
     departmentOptions,
-    doctorOptions,
+    doctorOptions: doctors.doctorOptions,
     isLoadingPicklists: picklists.isPending,
     isLoadingDepartments: departments.isPending,
-    isLoadingDoctors: providers.isPending,
+    isLoadingDoctors: doctors.isLoading,
     departmentsError: departments.isError,
-    doctorsError: providers.isError,
+    doctorsError: doctors.isError,
   };
 }
 

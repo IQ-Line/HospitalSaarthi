@@ -5,7 +5,7 @@ export type TariffService = {
   service_name: string;
   description: string | null;
   provider_id: string | null;
-  department: string | null;
+  department_id: string | null;
   category: string | null;
   sub_category: string | null;
   tax_type: string | null;
@@ -28,25 +28,34 @@ export type ServicesListResponse = {
 export type ServiceSingleResponse = { data: TariffService };
 
 export type ServiceCreateInput = {
-  service_code: string;
-  service_name: string;
-  base_price: string | number;
+  service_code?: string;
+  service_name?: string;
+  base_price?: string | number;
   tax_percentage?: string | number;
   description?: string | null;
   provider_id?: string | null;
-  department?: string | null;
+  department_id?: string | null;
   category?: string | null;
   sub_category?: string | null;
   tax_type?: string | null;
   is_active?: boolean;
   effective_from?: string;
   effective_to?: string | null;
+  department_tariffs?: Array<{
+    department_id: string;
+    base_price: string | number;
+    tax_percentage?: string | number;
+    service_code?: string;
+    service_name?: string;
+  }>;
 };
+
+export type ServiceBulkCreateResponse = { data: TariffService[] };
 
 export type ServiceUpdateInput = {
   service_name?: string;
   description?: string | null;
-  department?: string | null;
+  department_id?: string | null;
   category?: string | null;
   sub_category?: string | null;
   tax_type?: string | null;
@@ -60,7 +69,9 @@ export type ServiceUpdateInput = {
 export type ServicesListParams = {
   q?: string;
   category?: string;
+  /** Master-data department uuid (`department_id` on tariff row). */
   department?: string;
+  department_id?: string;
   is_active?: boolean;
   limit?: number;
   cursor?: string;
