@@ -143,6 +143,54 @@ export async function apiClient<T>(
   );
 }
 
+/** Binary response (e.g. PDF) with the same auth and tenant headers as {@link apiClient}. */
+export async function apiClientBlob(
+  path: string,
+  options: RequestInit = {},
+  context?: ApiClientContext,
+): Promise<Blob> {
+  const headers = buildRequestHeaders(path, options, context);
+  headers.delete('Content-Type');
+  headers.set('Accept', 'application/pdf');
+
+  const response = await fetchWithAuthRetry(
+    path,
+    { ...options, method: options.method ?? 'GET', headers },
+    context,
+    true,
+  );
+
+  if (!response.ok) {
+    throw new ApiError(response.status, await response.text());
+  }
+
+  return response.blob();
+}
+
+/** HTML/text response with the same auth and tenant headers as {@link apiClient}. */
+export async function apiClientText(
+  path: string,
+  options: RequestInit = {},
+  context?: ApiClientContext,
+): Promise<string> {
+  const headers = buildRequestHeaders(path, options, context);
+  headers.delete('Content-Type');
+  headers.set('Accept', 'text/html');
+
+  const response = await fetchWithAuthRetry(
+    path,
+    { ...options, method: options.method ?? 'GET', headers },
+    context,
+    true,
+  );
+
+  if (!response.ok) {
+    throw new ApiError(response.status, await response.text());
+  }
+
+  return response.text();
+}
+
 /** Master-data / UM / billing calls scoped to a specific tenant (configurator tenant detail). */
 export async function apiClientWithIqTenant<T>(
   iqTenantId: string,

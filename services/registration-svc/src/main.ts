@@ -28,7 +28,7 @@ const PORT = Number(process.env["REGISTRATION_SVC_PORT"] ?? 3006);
 const DATABASE_URL = process.env["DATABASE_URL"] ?? "";
 const EMPI_URL = process.env["EMPI_URL"] ?? "http://localhost:3002";
 const BILLING_URL = process.env["BILLING_URL"] ?? "http://localhost:3003";
-const PDF_PLATFORM_URL = process.env["PDF_PLATFORM_URL"] ?? "http://localhost:3001";
+const PDF_PLATFORM_URL = process.env["PDF_PLATFORM_URL"] ?? "http://localhost:8091";
 const PDF_PLATFORM_API_KEY = process.env["PDF_PLATFORM_API_KEY"];
 
 const fastifyAjv = {
@@ -120,6 +120,8 @@ async function main() {
     registrationRepo,
     billingReadPort,
     pdfRenderer,
+    defaultReportWebOrigin: process.env["REPORT_WEB_ORIGIN"] ?? "http://localhost:5173",
+    defaultReportLogoUrl: process.env["REPORT_LOGO_URL"] ?? "/reportLogo.svg",
   };
 
   const identityAuth = validateAuthConfig();

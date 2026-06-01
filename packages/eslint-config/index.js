@@ -14,7 +14,7 @@ export const base = [
       '@nx/enforce-module-boundaries': [
         'error',
         {
-          allow: [],
+          allow: ['@hims/registration-reports'],
           depConstraints: [
             {
               sourceTag: 'type:module',

@@ -72,12 +72,39 @@ export interface BillingBillSummary {
   status: string;
 }
 
+export interface BillingBillItem {
+  description: string;
+  quantity: string;
+  unit_price: string;
+  discount_amount: string;
+  tax_percentage: string;
+  department: string | null;
+  status: "ACTIVE" | "VOIDED";
+}
+
+export interface BillingBillDetail {
+  bill: {
+    bill_number: string;
+    bill_date: string;
+    created_at: string;
+    discount_amount: string;
+    paid_amount: string;
+    net_amount: string;
+  };
+  items: BillingBillItem[];
+}
+
 export interface BillingReadPort {
   listBillsForRegistration(
     tenantId: string,
     registrationId: string,
     options?: { bearerToken?: string; visitId?: string | null },
   ): Promise<BillingBillSummary[]>;
+  getBill(
+    tenantId: string,
+    billId: string,
+    options?: { bearerToken?: string },
+  ): Promise<BillingBillDetail | null>;
 }
 
 export type { DbInstance };

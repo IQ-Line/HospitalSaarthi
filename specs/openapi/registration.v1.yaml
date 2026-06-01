@@ -140,9 +140,10 @@ paths:
   /registrations/{registrationId}/documents/opd-slip.pdf:
     get:
       operationId: getRegistrationOpdSlipPdf
-      summary: OPD slip PDF for a completed registration
+      summary: OPD slip PDF for a registration
       description: |
-        Returns a PDF generated server-side for desk preview and print after registration is completed.
+        Returns a PDF generated server-side for desk preview and print once the registration row exists
+        (`pending`, `in_progress`, or `completed`). Cancelled registrations return 409.
       tags: [EncounterRegistrations]
       parameters:
         - $ref: "#/components/parameters/RegistrationId"
