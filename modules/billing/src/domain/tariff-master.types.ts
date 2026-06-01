@@ -7,7 +7,7 @@ export type TariffMasterRow = {
   service_name: string;
   description: string | null;
   provider_id: string | null;
-  department: string | null;
+  department_id: string | null;
   category: string | null;
   sub_category: string | null;
   tax_type: string | null;
@@ -25,7 +25,7 @@ export type TariffMasterRow = {
 export type UpdateTariffServiceInput = {
   service_name?: string;
   description?: string | null;
-  department?: string | null;
+  department_id?: string | null;
   category?: string | null;
   sub_category?: string | null;
   tax_type?: string | null;

@@ -8,6 +8,7 @@ const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), "../../migr
 const MIGRATION_FILES = [
   "0000_billing_master.sql",
   "0001_bills_payments.sql",
+  "0002_tariff_department_id.sql",
 ] as const;
 
 /**

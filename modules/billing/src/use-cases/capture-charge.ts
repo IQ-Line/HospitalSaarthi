@@ -148,7 +148,7 @@ export async function captureCharge(
     source_ref: input.source_ref ?? null,
     performed_date: input.performed_date ?? new Date().toISOString(),
     performed_by: input.performed_by ?? providerId,
-    department: input.department ?? tariff.department,
+    department: input.department ?? tariff.department_id,
     status: "ACTIVE",
     idempotency_key: idempotencyKey ?? null,
     notes: input.notes ?? null,

@@ -43,7 +43,10 @@ export const tariffServiceCreateSchema = z
   });
 
 export const tariffServiceEditSchema = z.object({
-  department: optionalNullableText,
+  department_id: z
+    .union([z.string().uuid(), z.literal(''), z.null()])
+    .optional()
+    .transform((v) => (v === '' || v === undefined ? null : v)),
   ...baseTariffFields,
 });
 
@@ -70,7 +73,7 @@ export const EMPTY_TARIFF_EDIT_VALUES: TariffServiceEditFormValues = {
   base_price: 0,
   tax_percentage: 0,
   description: null,
-  department: null,
+  department_id: null,
   tax_type: null,
   is_active: true,
   effective_from: '',

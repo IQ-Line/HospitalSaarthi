@@ -1,10 +1,19 @@
 import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import fp from "fastify-plugin";
-import { and, eq, sql, type DbInstance } from "@hims/ts-sdk-db";
+import { and, desc, eq, sql, type DbInstance } from "@hims/ts-sdk-db";
 import { createTariffMasterRepo } from "./data-access/tariff-master.repository.js";
 import type { TariffMasterRow } from "./domain/tariff-master.types.js";
 import { formatMoney, parseEffectiveWindow, toTariffRow } from "./lib/tariff-api.js";
+import {
+  expandBulkCreateRows,
+  isBulkDoctorCreate,
+  parseCreateServiceBody,
+  stampTariffInsertTimestamps,
+  type CreateServiceBody,
+  validateBulkCreate,
+  validateSingleCreate,
+} from "./lib/create-tariff-service.js";
 import { createBillingRepo, createInMemoryBillingRepo } from "./data-access/billing.repository.js";
 import { seedMockBills } from "./lib/mock-bills.js";
 import { registerBillingHandlers } from "./rest-handlers/billing.handlers.js";
@@ -20,36 +29,22 @@ export interface BillingRouterOptions {
 type ListQuery = {
   q?: string;
   category?: string;
+  /** Filters `department_id` (uuid). Alias: `department_id`. */
   department?: string;
+  department_id?: string;
   is_active?: string;
   limit?: string;
   cursor?: string;
 };
 
-type Cursor = { service_name: string; id: string };
-
-type CreateBody = {
-  service_code: string;
-  service_name: string;
-  base_price: string | number;
-  tax_percentage?: string | number;
-  description?: string | null;
-  provider_id?: string | null;
-  department?: string | null;
-  category?: string | null;
-  sub_category?: string | null;
-  tax_type?: string | null;
-  is_active?: boolean;
-  effective_from?: string;
-  effective_to?: string | null;
-};
+type Cursor = { created_at: string; id: string };
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
 const MOCK_TS = "2026-05-15T00:00:00.000Z";
 
 /** Paste this in Swagger POST /services body (or omit body in mock mode — defaults apply). */
-export const CREATE_SERVICE_DUMMY: CreateBody = {
+export const CREATE_SERVICE_DUMMY: CreateServiceBody = {
   service_code: "LAB_CBC",
   service_name: "CBC Test",
   base_price: "150.0000",
@@ -57,14 +52,13 @@ export const CREATE_SERVICE_DUMMY: CreateBody = {
   description: "Complete blood count",
   category: "lab",
   tax_type: "CGST_SGST",
-  department: "pathology",
+  department_id: null,
   provider_id: null,
 };
 
 const createServiceSchema = {
   body: {
     type: "object",
-    required: ["service_code", "service_name", "base_price"],
     properties: {
       service_code: { type: "string" },
       service_name: { type: "string" },
@@ -72,13 +66,27 @@ const createServiceSchema = {
       tax_percentage: { type: ["string", "number"] },
       description: { type: ["string", "null"] },
       provider_id: { type: ["string", "null"], format: "uuid" },
-      department: { type: ["string", "null"] },
+      department_id: { type: ["string", "null"], format: "uuid" },
       category: { type: ["string", "null"] },
       sub_category: { type: ["string", "null"] },
       tax_type: { type: ["string", "null"] },
       is_active: { type: "boolean", default: true },
       effective_from: { type: "string", format: "date-time" },
       effective_to: { type: ["string", "null"], format: "date-time" },
+      department_tariffs: {
+        type: "array",
+        items: {
+          type: "object",
+          required: ["department_id", "base_price"],
+          properties: {
+            department_id: { type: "string", format: "uuid" },
+            base_price: { type: ["string", "number"] },
+            tax_percentage: { type: ["string", "number"] },
+            service_code: { type: "string" },
+            service_name: { type: "string" },
+          },
+        },
+      },
     },
   },
 } as const;
@@ -91,7 +99,7 @@ const MOCK_ROWS: TariffMasterRow[] = [
     service_name: "Registration Fee",
     description: "First visit registration",
     provider_id: null,
-    department: "frontdesk",
+    department_id: null,
     category: "registration",
     sub_category: null,
     tax_type: "EXEMPT",
@@ -112,7 +120,7 @@ const MOCK_ROWS: TariffMasterRow[] = [
     service_name: "General Consultation (rack)",
     description: null,
     provider_id: null,
-    department: "opd",
+    department_id: null,
     category: "consultation",
     sub_category: null,
     tax_type: "CGST_SGST",
@@ -133,7 +141,7 @@ const MOCK_ROWS: TariffMasterRow[] = [
     service_name: "General Consultation — Dr Smith",
     description: null,
     provider_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-    department: "opd",
+    department_id: null,
     category: "consultation",
     sub_category: null,
     tax_type: "CGST_SGST",
@@ -154,7 +162,7 @@ const MOCK_ROWS: TariffMasterRow[] = [
     service_name: "Wound Dressing",
     description: null,
     provider_id: null,
-    department: "opd",
+    department_id: null,
     category: "procedure",
     sub_category: null,
     tax_type: "CGST_SGST",
@@ -186,73 +194,61 @@ function decodeCursor(raw: string | undefined): Cursor | null {
   if (!raw) return null;
   try {
     const c = JSON.parse(Buffer.from(raw, "base64url").toString("utf8")) as Cursor;
-    return typeof c.service_name === "string" && typeof c.id === "string" ? c : null;
+    return typeof c.created_at === "string" && typeof c.id === "string" ? c : null;
   } catch {
     return null;
   }
 }
 
-function encodeCursor(row: { service_name: string; id: string }): string {
+function encodeCursor(row: { created_at: string; id: string }): string {
   return Buffer.from(JSON.stringify(row)).toString("base64url");
 }
 
-function parseCreateBody(body: unknown): CreateBody | null {
-  if (!body || typeof body !== "object") return null;
-  const b = body as Record<string, unknown>;
-  if (typeof b.service_code !== "string" || typeof b.service_name !== "string") return null;
-  if (
-    b.base_price === undefined ||
-    b.base_price === null ||
-    (typeof b.base_price !== "string" && typeof b.base_price !== "number")
-  ) {
-    return null;
-  }
-  return {
-    service_code: b.service_code,
-    service_name: b.service_name,
-    base_price: b.base_price as string | number,
-    tax_percentage: b.tax_percentage as string | number | undefined,
-    description: (b.description as string | null | undefined) ?? null,
-    provider_id: (b.provider_id as string | null | undefined) ?? null,
-    department: (b.department as string | null | undefined) ?? null,
-    category: (b.category as string | null | undefined) ?? null,
-    sub_category: (b.sub_category as string | null | undefined) ?? null,
-    tax_type: (b.tax_type as string | null | undefined) ?? null,
-    is_active: typeof b.is_active === "boolean" ? b.is_active : undefined,
-    effective_from: typeof b.effective_from === "string" ? b.effective_from : undefined,
-    effective_to:
-      b.effective_to === null
-        ? null
-        : typeof b.effective_to === "string"
-          ? b.effective_to
-          : undefined,
-  };
+function compareCreatedDesc(a: TariffMasterRow, b: TariffMasterRow): number {
+  const byCreated = b.created_at.localeCompare(a.created_at);
+  return byCreated !== 0 ? byCreated : b.id.localeCompare(a.id);
 }
 
-function validateCreate(body: CreateBody): string | null {
-  if (!body.service_code.trim()) return "service_code is required";
-  if (!body.service_name.trim()) return "service_name is required";
-  const price = Number(body.base_price);
-  if (!Number.isFinite(price) || price < 0) return "base_price must be >= 0";
-  const tax = Number(body.tax_percentage ?? 0);
-  if (!Number.isFinite(tax) || tax < 0 || tax > 100) return "tax_percentage must be between 0 and 100";
-  return null;
+function isBeforeCursor(row: TariffMasterRow, cursor: Cursor): boolean {
+  return (
+    row.created_at < cursor.created_at ||
+    (row.created_at === cursor.created_at && row.id < cursor.id)
+  );
 }
 
 function sameProvider(a: string | null, b: string | null): boolean {
   return a === b || (a === null && b === null);
 }
 
-function hasDuplicate(tenantId: string, code: string, providerId: string | null): boolean {
-  return MOCK_ROWS.some(
-    (r) =>
-      r.iq_tenant_id === tenantId &&
-      r.service_code === code &&
-      sameProvider(r.provider_id, providerId),
+function hasDuplicate(
+  tenantId: string,
+  code: string,
+  providerId: string | null,
+  departmentId: string | null,
+): boolean {
+  return (
+    MOCK_ROWS.some(
+      (r) =>
+        r.iq_tenant_id === tenantId &&
+        r.service_code === code &&
+        sameProvider(r.provider_id, providerId),
+    ) ||
+    (providerId !== null &&
+      departmentId !== null &&
+      MOCK_ROWS.some(
+        (r) =>
+          r.iq_tenant_id === tenantId &&
+          r.provider_id === providerId &&
+          r.department_id === departmentId,
+      ))
   );
 }
 
-function createMockRow(tenantId: string, body: CreateBody): TariffMasterRow {
+function listDepartmentFilter(q: ListQuery): string | undefined {
+  return q.department_id?.trim() || q.department?.trim() || undefined;
+}
+
+function createMockRow(tenantId: string, body: CreateServiceBody & { service_code: string; service_name: string; base_price: string | number }): TariffMasterRow {
   const now = new Date().toISOString();
   const effectiveFrom = body.effective_from ?? now;
   const providerId = body.provider_id ?? null;
@@ -263,7 +259,7 @@ function createMockRow(tenantId: string, body: CreateBody): TariffMasterRow {
     service_name: body.service_name.trim(),
     description: body.description ?? null,
     provider_id: providerId,
-    department: body.department ?? null,
+    department_id: body.department_id ?? null,
     category: body.category ?? null,
     sub_category: body.sub_category ?? null,
     tax_type: body.tax_type ?? null,
@@ -294,22 +290,14 @@ function listMock(tenantId: string, q: ListQuery, limit: number) {
   }
   const category = q.category?.trim();
   if (category) rows = rows.filter((r) => r.category === category);
-  const department = q.department?.trim();
-  if (department) rows = rows.filter((r) => r.department === department);
+  const departmentId = listDepartmentFilter(q);
+  if (departmentId) rows = rows.filter((r) => r.department_id === departmentId);
   if (active !== undefined) rows = rows.filter((r) => r.is_active === active);
   if (cursor) {
-    rows = rows.filter(
-      (r) =>
-        r.service_name > cursor.service_name ||
-        (r.service_name === cursor.service_name && r.id > cursor.id),
-    );
+    rows = rows.filter((r) => isBeforeCursor(r, cursor));
   }
 
-  rows.sort((a, b) =>
-    a.service_name === b.service_name
-      ? a.id.localeCompare(b.id)
-      : a.service_name.localeCompare(b.service_name),
-  );
+  rows.sort(compareCreatedDesc);
 
   const hasMore = rows.length > limit;
   const pageRows = hasMore ? rows.slice(0, limit) : rows;
@@ -320,7 +308,7 @@ function listMock(tenantId: string, q: ListQuery, limit: number) {
     page: {
       limit,
       next_cursor:
-        hasMore && last ? encodeCursor({ service_name: last.service_name, id: last.id }) : null,
+        hasMore && last ? encodeCursor({ created_at: last.created_at, id: last.id }) : null,
     },
   };
 }
@@ -357,12 +345,13 @@ async function billingRouter(
         );
       }
       if (q.category?.trim()) conditions.push(eq(billingMaster.category, q.category.trim()));
-      if (q.department?.trim()) conditions.push(eq(billingMaster.department, q.department.trim()));
+      const departmentId = listDepartmentFilter(q);
+      if (departmentId) conditions.push(eq(billingMaster.department_id, departmentId));
       const active = parseBool(q.is_active);
       if (active !== undefined) conditions.push(eq(billingMaster.is_active, active));
       if (cursor) {
         conditions.push(
-          sql`(${billingMaster.service_name}, ${billingMaster.id}) > (${cursor.service_name}, ${cursor.id}::uuid)`,
+          sql`(${billingMaster.created_at}, ${billingMaster.id}) < (${cursor.created_at}::timestamptz, ${cursor.id}::uuid)`,
         );
       }
 
@@ -370,7 +359,7 @@ async function billingRouter(
         .select()
         .from(billingMaster)
         .where(and(...conditions))
-        .orderBy(billingMaster.service_name, billingMaster.id)
+        .orderBy(desc(billingMaster.created_at), desc(billingMaster.id))
         .limit(limit + 1);
 
       const hasMore = rows.length > limit;
@@ -383,31 +372,114 @@ async function billingRouter(
           limit,
           next_cursor:
             hasMore && last
-              ? encodeCursor({ service_name: last.service_name, id: last.id })
+              ? encodeCursor({ created_at: last.created_at.toISOString(), id: last.id })
               : null,
         },
       });
     },
   );
 
-  app.post<{ Body: CreateBody }>(
+  app.post<{ Body: CreateServiceBody }>(
     "/services",
     {
       config: { authMode: "protected" },
       schema: createServiceSchema,
     },
     async (request, reply) => {
-      const body = parseCreateBody(request.body) ?? (useMock ? CREATE_SERVICE_DUMMY : null);
-      if (!body) {
+      const parsed =
+        parseCreateServiceBody(request.body) ??
+        (useMock && !isBulkDoctorCreate(request.body as CreateServiceBody)
+          ? (CREATE_SERVICE_DUMMY as CreateServiceBody & {
+              service_code: string;
+              service_name: string;
+              base_price: string | number;
+            })
+          : null);
+
+      if (!parsed) {
         return reply.code(400).send({
           statusCode: 400,
           error: "Bad Request",
           message:
-            "service_code, service_name, and base_price are required. Example body: " +
+            "Provide service_code, service_name, and base_price — or provider_id with department_tariffs[]. Example: " +
             JSON.stringify(CREATE_SERVICE_DUMMY),
         });
       }
-      const validationError = validateCreate(body);
+
+      const tenantId = request.tenantId;
+
+      if (isBulkDoctorCreate(parsed)) {
+        const bulkError = validateBulkCreate(parsed);
+        if (bulkError) {
+          return reply.code(400).send({ statusCode: 400, error: "Bad Request", message: bulkError });
+        }
+
+        const effective = parseEffectiveWindow(parsed.effective_from, parsed.effective_to);
+        if (typeof effective === "string") {
+          return reply.code(400).send({ statusCode: 400, error: "Bad Request", message: effective });
+        }
+
+        const rowsToInsert = expandBulkCreateRows(tenantId, parsed, {
+          effectiveFrom: effective.from,
+          effectiveTo: effective.to,
+        });
+
+        if (useMock) {
+          for (const row of rowsToInsert) {
+            if (hasDuplicate(tenantId, row.service_code, row.provider_id, row.department_id)) {
+              return reply.code(409).send({
+                statusCode: 409,
+                error: "Conflict",
+                message: "Consultation tariff already exists for this doctor and department",
+              });
+            }
+          }
+          const base = Date.now();
+          const created = rowsToInsert.map((row, i) => {
+            const r = createMockRow(tenantId, {
+              ...parsed,
+              service_code: row.service_code,
+              service_name: row.service_name,
+              base_price: row.base_price,
+              department_id: row.department_id,
+              provider_id: row.provider_id,
+            });
+            const ts = new Date(base + i).toISOString();
+            r.created_at = ts;
+            r.updated_at = ts;
+            return r;
+          });
+          MOCK_ROWS.push(...created);
+          return reply.code(201).send({ data: created });
+        }
+
+        if (!db) {
+          return reply.code(500).send({
+            statusCode: 500,
+            error: "Internal Server Error",
+            message: "Database not configured (set BILLING_USE_MOCK_DATA=true for local mock data)",
+          });
+        }
+
+        try {
+          const inserted = await db
+            .insert(billingMaster)
+            .values(stampTariffInsertTimestamps(rowsToInsert))
+            .returning();
+          return reply.code(201).send({ data: inserted.map(toTariffRow) });
+        } catch (err: unknown) {
+          if ((err as { code?: string }).code === "23505") {
+            return reply.code(409).send({
+              statusCode: 409,
+              error: "Conflict",
+              message: "Consultation tariff already exists for this doctor and department",
+            });
+          }
+          throw err;
+        }
+      }
+
+      const validationError = validateSingleCreate(parsed);
       if (validationError) {
         return reply.code(400).send({
           statusCode: 400,
@@ -416,19 +488,22 @@ async function billingRouter(
         });
       }
 
-      const tenantId = request.tenantId;
-      const providerId = body.provider_id ?? null;
-      const code = body.service_code.trim();
+      const providerId = parsed.provider_id ?? null;
+      const code = parsed.service_code!.trim();
+      const departmentId = parsed.department_id ?? null;
 
       if (useMock) {
-        if (hasDuplicate(tenantId, code, providerId)) {
+        if (hasDuplicate(tenantId, code, providerId, departmentId)) {
           return reply.code(409).send({
             statusCode: 409,
             error: "Conflict",
-            message: "Service already exists for this tenant, code, and provider",
+            message:
+              providerId && departmentId
+                ? "Consultation tariff already exists for this doctor and department"
+                : "Service already exists for this tenant, code, and provider",
           });
         }
-        const row = createMockRow(tenantId, body);
+        const row = createMockRow(tenantId, parsed as CreateServiceBody & { service_code: string; service_name: string; base_price: string | number });
         MOCK_ROWS.push(row);
         return reply.code(201).send({ data: row });
       }
@@ -441,7 +516,7 @@ async function billingRouter(
         });
       }
 
-      const effective = parseEffectiveWindow(body.effective_from, body.effective_to);
+      const effective = parseEffectiveWindow(parsed.effective_from, parsed.effective_to);
       if (typeof effective === "string") {
         return reply.code(400).send({
           statusCode: 400,
@@ -451,23 +526,26 @@ async function billingRouter(
       }
 
       try {
+        const now = new Date();
         const [row] = await db
           .insert(billingMaster)
           .values({
             iq_tenant_id: tenantId,
             service_code: code,
-            service_name: body.service_name.trim(),
-            description: body.description ?? null,
+            service_name: parsed.service_name!.trim(),
+            description: parsed.description ?? null,
             provider_id: providerId,
-            department: body.department ?? null,
-            category: body.category ?? null,
-            sub_category: body.sub_category ?? null,
-            tax_type: body.tax_type ?? null,
-            is_active: body.is_active ?? true,
-            base_price: formatMoney(Number(body.base_price)),
-            tax_percentage: formatMoney(Number(body.tax_percentage ?? 0)),
+            department_id: departmentId,
+            category: parsed.category ?? null,
+            sub_category: parsed.sub_category ?? null,
+            tax_type: parsed.tax_type ?? null,
+            is_active: parsed.is_active ?? true,
+            base_price: formatMoney(Number(parsed.base_price)),
+            tax_percentage: formatMoney(Number(parsed.tax_percentage ?? 0)),
             effective_from: effective.from,
             effective_to: effective.to,
+            created_at: now,
+            updated_at: now,
           })
           .returning();
 
@@ -484,7 +562,10 @@ async function billingRouter(
           return reply.code(409).send({
             statusCode: 409,
             error: "Conflict",
-            message: "Service already exists for this tenant, code, and provider",
+            message:
+              providerId && departmentId
+                ? "Consultation tariff already exists for this doctor and department"
+                : "Service already exists for this tenant, code, and provider",
           });
         }
         throw err;

@@ -11,7 +11,7 @@ const bodySchema = {
   properties: {
     service_name: { type: "string" },
     description: { type: ["string", "null"] },
-    department: { type: ["string", "null"] },
+    department_id: { type: ["string", "null"], format: "uuid" },
     category: { type: ["string", "null"] },
     sub_category: { type: ["string", "null"] },
     tax_type: { type: ["string", "null"] },

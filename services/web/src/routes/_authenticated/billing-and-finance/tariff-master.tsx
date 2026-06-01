@@ -97,9 +97,17 @@ function BillingServicesPage() {
     return map;
   }, [providersQuery.data]);
 
+  const departmentsQuery = useDepartments(undefined, { enabled: canRead, formCatalog: true });
+  const departmentNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const dept of departmentsQuery.data?.data ?? []) {
+      map.set(dept.id, dept.name);
+    }
+    return map;
+  }, [departmentsQuery.data]);
+
   const createMutation = useCreateTariffService();
   const updateMutation = useUpdateTariffService();
-  const departmentsQuery = useDepartments(undefined, { enabled: isCreateOpen, formCatalog: true });
 
   const createForm = useForm<TariffServiceCreateFormValues>({
     resolver: zodResolver(tariffServiceCreateSchema),
@@ -155,9 +163,13 @@ function BillingServicesPage() {
       },
       { accessorKey: 'service_name', header: 'Name' },
       {
-        accessorKey: 'department',
+        id: 'department',
         header: 'Department',
-        cell: ({ getValue }) => getValue<string | null>() ?? '—',
+        cell: ({ row }) => {
+          const id = row.original.department_id;
+          if (!id) return '—';
+          return departmentNameById.get(id) ?? '—';
+        },
       },
       {
         accessorKey: 'category',
@@ -219,7 +231,7 @@ function BillingServicesPage() {
         ),
       },
     ],
-    [canDelete, canUpdate, editForm, handleActiveChange, providerNameById, updateMutation.isPending],
+    [canDelete, canUpdate, departmentNameById, editForm, handleActiveChange, providerNameById, updateMutation.isPending],
   );
 
   return (
@@ -310,10 +322,7 @@ function BillingServicesPage() {
             submitLabel="Create"
             isSubmitting={createMutation.isPending}
             onSubmit={createForm.handleSubmit((values) => {
-              const departmentName =
-                departmentsQuery.data?.data.find((d) => d.id === values.department_id)?.name ??
-                null;
-              createMutation.mutate(formToCreatePayload(values, departmentName), {
+              createMutation.mutate(formToCreatePayload(values), {
                 onSuccess: () => {
                   toast.success('Tariff created');
                   setIsCreateOpen(false);
@@ -386,7 +395,11 @@ function BillingServicesPage() {
               <dt className="text-muted-foreground">Tariff type</dt>
               <dd>{viewing.category ?? '—'}</dd>
               <dt className="text-muted-foreground">Department</dt>
-              <dd>{viewing.department ?? '—'}</dd>
+              <dd>
+                {viewing.department_id
+                  ? (departmentNameById.get(viewing.department_id) ?? '—')
+                  : '—'}
+              </dd>
               <dt className="text-muted-foreground">Effective</dt>
               <dd>
                 {formatDateTime(viewing.effective_from)}

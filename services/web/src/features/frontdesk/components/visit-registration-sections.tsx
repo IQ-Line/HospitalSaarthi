@@ -33,7 +33,7 @@ import {
   type VisitRegistrationSectionId,
 } from '@/features/frontdesk/visit-registration-sections.store';
 import { useDepartments } from '@/features/master-data/api';
-import { useProviderList } from '@/features/user-management/api/queries';
+import { useDoctorsForDepartment } from '@/features/billing/hooks/use-doctors-for-department';
 import { useVisitpadVitalsCatalog } from '@/features/visitpad/api';
 import type { VisitpadVital } from '@/features/visitpad/types';
 import {
@@ -147,29 +147,20 @@ export function VisitRegistrationAppointmentSection({
     [departments],
   );
 
-  const selectedDepartmentName = useMemo(
-    () => departments.find((d) => d.id === departmentId)?.name ?? null,
-    [departments, departmentId],
-  );
+  const { doctorOptions, selectedDepartmentName, isLoading: doctorsLoading, isError: doctorsError } =
+    useDoctorsForDepartment(departmentId || null, {
+      enabled: Boolean(departmentId),
+    });
 
-  const providersQuery = useProviderList(null, {
-    department: selectedDepartmentName ?? undefined,
-    enabled: !!selectedDepartmentName,
-  });
-  const doctorOptions = useMemo(() => {
-    const providers = providersQuery.data ?? [];
-    return providers.map((p) => ({ value: p.id, label: p.full_name }));
-  }, [providersQuery.data]);
-
-  const doctorPlaceholder = !selectedDepartmentName
+  const doctorPlaceholder = !departmentId
     ? 'Select a department first'
-    : providersQuery.isPending
+    : doctorsLoading
       ? 'Loading doctors…'
-      : providersQuery.isError
+      : doctorsError
         ? 'Failed to load doctors'
         : doctorOptions.length > 0
           ? 'Select doctor'
-          : `No doctors in ${selectedDepartmentName}`;
+          : `No doctors in ${selectedDepartmentName ?? 'this department'}`;
 
   const departmentPlaceholder = resolveDepartmentPlaceholder(
     departmentsQuery.isPending,
@@ -231,7 +222,7 @@ export function VisitRegistrationAppointmentSection({
           value={providerId || '__none__'}
           onValueChange={(v) => setValue('appointment.provider_id', v === '__none__' ? '' : v)}
           placeholder={doctorPlaceholder}
-          disabled={!selectedDepartmentName || providersQuery.isPending || doctorOptions.length === 0}
+          disabled={!departmentId || doctorsLoading || doctorOptions.length === 0}
           options={doctorOptions}
         />
         <Field>

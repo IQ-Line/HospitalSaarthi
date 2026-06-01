@@ -5,6 +5,8 @@ import {
   pickRegistrationTariff,
 } from '@/features/frontdesk/lib/resolve-registration-tariff';
 
+const deptCardio = 'dddddddd-dddd-4ddd-8ddd-dddddddddd01';
+
 function row(partial: Partial<TariffService> & Pick<TariffService, 'service_code'>): TariffService {
   return {
     id: partial.id ?? '00000000-0000-4000-8000-000000000001',
@@ -12,7 +14,7 @@ function row(partial: Partial<TariffService> & Pick<TariffService, 'service_code
     service_name: partial.service_name ?? partial.service_code,
     description: null,
     provider_id: partial.provider_id ?? null,
-    department: partial.department ?? null,
+    department_id: partial.department_id ?? null,
     category: partial.category ?? null,
     sub_category: null,
     tax_type: null,
@@ -30,10 +32,10 @@ function row(partial: Partial<TariffService> & Pick<TariffService, 'service_code
 }
 
 describe('pickRegistrationTariff', () => {
-  it('prefers frontdesk rack registration-fee row', () => {
+  it('prefers rack registration-fee row', () => {
     const picked = pickRegistrationTariff([
-      row({ service_code: 'REG_OTHER', category: 'registration-fee', department: 'opd' }),
-      row({ service_code: 'REG_FEE', category: 'registration-fee', department: 'frontdesk' }),
+      row({ service_code: 'REG_OTHER', category: 'registration-fee', provider_id: 'x' }),
+      row({ service_code: 'REG_FEE', category: 'registration-fee', provider_id: null }),
     ]);
     expect(picked?.service_code).toBe('REG_FEE');
   });
@@ -48,20 +50,20 @@ describe('pickConsultationTariff', () => {
         row({
           service_code: 'CONS_GENERAL',
           category: 'consultation-fee',
-          department: 'cariology',
+          department_id: deptCardio,
           provider_id: null,
           base_price: '400.0000',
         }),
         row({
           service_code: 'TAF123',
           category: 'consultation-fee',
-          department: 'cariology',
+          department_id: deptCardio,
           provider_id: doctorId,
           base_price: '105.0000',
         }),
       ],
       doctorId,
-      'cariology',
+      deptCardio,
     );
     expect(picked?.service_code).toBe('TAF123');
     expect(picked?.provider_id).toBe(doctorId);
