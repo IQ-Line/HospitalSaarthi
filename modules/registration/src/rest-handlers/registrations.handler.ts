@@ -1,4 +1,3 @@
-/// <reference path="../fastify.d.ts" />
 import type { FastifyInstance } from "fastify";
 import type { EventBus } from "@hims/ts-sdk-events";
 import type {
