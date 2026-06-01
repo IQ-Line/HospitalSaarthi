@@ -16,8 +16,10 @@ import {
 import {
   applyRegistrationSchemaMigration,
   DrizzleRegistrationRepo,
+  DrizzleVisitRepo,
   HttpEmpiGateway,
   registerRegistrationsHandler,
+  registerVisitsHandler,
   createRegistrationAuthzTargetResolver,
 } from "@hims/registration";
 
@@ -92,6 +94,7 @@ async function main() {
 
   const db = createDb(DATABASE_URL);
   const registrationRepo = new DrizzleRegistrationRepo(db);
+  const visitRepo = new DrizzleVisitRepo(db);
   const empiGateway = new HttpEmpiGateway(EMPI_URL, {
     warn: (detail, message) => app.log.warn(detail, message),
   });
@@ -100,6 +103,7 @@ async function main() {
 
   const handlerDeps = {
     registrationRepo,
+    visitRepo,
     empiGateway,
     eventBus,
   };
@@ -136,6 +140,7 @@ async function main() {
     });
     await api.register(tenantPlugin);
     registerRegistrationsHandler(api, handlerDeps);
+    registerVisitsHandler(api, { visitRepo, registrationRepo, eventBus });
   }
 
   await app.register(registerRegistrationApi, { prefix: "/api/registration/v1" });

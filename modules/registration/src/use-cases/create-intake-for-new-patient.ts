@@ -1,27 +1,33 @@
 import type { EventBus } from "@hims/ts-sdk-events";
-import type { EmpiHttpPort, RegistrationRepo } from "../ports.js";
+import type { EmpiHttpPort, RegistrationRepo, VisitRepo } from "../ports.js";
 import type {
-  InsertRegistrationResult,
   NewPatientIntakeInput,
   PatientDemographicsSnapshot,
+  RegistrationWithVisitRecord,
 } from "../domain/registration.types.js";
-import {
-  createRegistration,
-  type CreateRegistrationContext,
-} from "./create-registration.js";
-import { registrationStatusFromIntakeCompletion } from "../lib/registration-helpers.js";
+import type { InsertVisitResult } from "../domain/visit.types.js";
+import { createRegistration } from "./create-registration.js";
+import { createVisit } from "./create-visit.js";
+import { visitStatusFromIntakeCompletion } from "../lib/visit-helpers.js";
+
+export type IntakeContext = {
+  idempotencyKey: string;
+  actorId: string;
+  bearerToken?: string;
+};
 
 export async function createIntakeForNewPatient(
   deps: {
     registrationRepo: RegistrationRepo;
+    visitRepo: VisitRepo;
     empiGateway: EmpiHttpPort;
     eventBus: EventBus;
   },
   tenantId: string,
   input: NewPatientIntakeInput,
-  ctx: CreateRegistrationContext & { bearerToken?: string },
+  ctx: IntakeContext,
 ): Promise<
-  | { ok: true; result: InsertRegistrationResult }
+  | { ok: true; result: RegistrationWithVisitRecord; created: boolean }
   | {
       ok: false;
       kind: "duplicate";
@@ -35,12 +41,19 @@ export async function createIntakeForNewPatient(
   | { ok: false; kind: "empi_error"; status: number; body: string }
   | { ok: false; kind: "empi_unavailable"; status: number; body: string }
 > {
-  const existing = await deps.registrationRepo.findByIdempotencyKey(
+  const existingVisit = await deps.visitRepo.findByIdempotencyKey(
     tenantId,
     ctx.idempotencyKey,
   );
-  if (existing) {
-    return { ok: true, result: { record: existing, created: false } };
+  if (existingVisit) {
+    const registration =
+      (await deps.registrationRepo.findByIdempotencyKey(tenantId, ctx.idempotencyKey)) ??
+      (await deps.registrationRepo.findByPatientId(tenantId, existingVisit.patient_id));
+    return {
+      ok: true,
+      result: { registration: registration ?? null, visit: existingVisit },
+      created: false,
+    };
   }
 
   const empiResult = await deps.empiGateway.registerPatient(
@@ -90,27 +103,68 @@ export async function createIntakeForNewPatient(
     };
   }
 
-  const result = await createRegistration(
+  const registrationResult = await createRegistration(
     deps,
     tenantId,
     {
       patient_id: empiResult.patientId,
       patient_source_record_id: empiResult.sourceRecordId,
       patient_snapshot: empiResult.snapshot,
+    },
+    ctx,
+  );
+
+  const visitResult = await createVisit(
+    deps,
+    tenantId,
+    {
+      patient_id: empiResult.patientId,
       facility_id: input.facility_id,
       visit_type: input.visit_type,
       department_id: input.department_id,
-      provider_id: input.provider_id,
+      doctor_id: input.doctor_id,
       appointment_id: input.appointment_id,
       intake_completion: input.intake_completion,
     },
     {
-      ...ctx,
-      initialStatus:
-        ctx.initialStatus ??
-        registrationStatusFromIntakeCompletion(input.intake_completion ?? "partial"),
+      idempotencyKey: ctx.idempotencyKey,
+      actorId: ctx.actorId,
+      initialStatus: visitStatusFromIntakeCompletion(input.intake_completion ?? "partial"),
     },
   );
 
-  return { ok: true, result };
+  return {
+    ok: true,
+    result: {
+      registration: registrationResult.record,
+      visit: visitResult.record,
+    },
+    created: registrationResult.created || visitResult.created,
+  };
+}
+
+export async function createVisitForExistingPatient(
+  deps: { visitRepo: VisitRepo; eventBus: EventBus },
+  tenantId: string,
+  input: import("../domain/registration.types.js").ExistingPatientVisitInput,
+  ctx: IntakeContext,
+): Promise<InsertVisitResult> {
+  return createVisit(
+    deps,
+    tenantId,
+    {
+      patient_id: input.patient_id,
+      facility_id: input.facility_id,
+      visit_type: input.visit_type,
+      department_id: input.department_id,
+      doctor_id: input.doctor_id,
+      appointment_id: input.appointment_id,
+      intake_completion: input.intake_completion,
+    },
+    {
+      idempotencyKey: ctx.idempotencyKey,
+      actorId: ctx.actorId,
+      initialStatus: visitStatusFromIntakeCompletion(input.intake_completion ?? "partial"),
+    },
+  );
 }

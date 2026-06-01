@@ -29,6 +29,14 @@ function stripPrefix(path: string): string {
   return path.startsWith(PREFIX) ? path.slice(PREFIX.length) || "/" : path;
 }
 
+function visitReadTarget(request: FastifyRequest, id: string): AuthzTarget {
+  return { kind: "registration", id, action: "registration.read", attr: tenantAttr(request) };
+}
+
+function visitWriteTarget(request: FastifyRequest, id: string, action: "registration.create" | "registration.update"): AuthzTarget {
+  return { kind: "registration", id, action, attr: tenantAttr(request) };
+}
+
 export function createRegistrationAuthzTargetResolver(): AuthzTargetResolver {
   return (request): AuthzTarget | null => {
     const fullPath = resolveRoutePattern(request);
@@ -36,25 +44,53 @@ export function createRegistrationAuthzTargetResolver(): AuthzTargetResolver {
     const method = request.method === "HEAD" ? "GET" : request.method;
 
     if (method === "GET" && path === "/registrations") {
-      return { kind: "registration", id: "list", action: "registration.read", attr: tenantAttr(request as FastifyRequest) };
+      return visitReadTarget(request as FastifyRequest, "list");
     }
 
     if (method === "GET" && path === "/registrations/:registrationId") {
       const id = resolvePathParam(request, "registrationId");
-      return { kind: "registration", id: id ?? "detail", action: "registration.read", attr: tenantAttr(request as FastifyRequest) };
+      return visitReadTarget(request as FastifyRequest, id ?? "detail");
+    }
+
+    if (method === "GET" && path === "/visits") {
+      return visitReadTarget(request as FastifyRequest, "visits-list");
+    }
+
+    if (method === "GET" && path === "/visits/:visitId") {
+      const id = resolvePathParam(request, "visitId");
+      return visitReadTarget(request as FastifyRequest, id ?? "visit-detail");
     }
 
     if (method === "POST" && path === "/workflows/new-patient/registrations") {
-      return { kind: "registration", id: "new", action: "registration.create", attr: tenantAttr(request as FastifyRequest) };
+      return visitWriteTarget(request as FastifyRequest, "new", "registration.create");
     }
 
     if (method === "POST" && path === "/workflows/existing-patient/registrations") {
-      return { kind: "registration", id: "new", action: "registration.create", attr: tenantAttr(request as FastifyRequest) };
+      return visitWriteTarget(request as FastifyRequest, "new-visit", "registration.create");
     }
 
-    if (method === "POST" && path === "/registrations/:registrationId/complete") {
-      const id = resolvePathParam(request, "registrationId");
-      return { kind: "registration", id: id ?? "complete", action: "registration.update", attr: tenantAttr(request as FastifyRequest) };
+    if (method === "POST" && path === "/visits") {
+      return visitWriteTarget(request as FastifyRequest, "new-visit", "registration.create");
+    }
+
+    if (method === "PATCH" && path === "/visits/:visitId") {
+      const id = resolvePathParam(request, "visitId");
+      return visitWriteTarget(request as FastifyRequest, id ?? "visit-update", "registration.update");
+    }
+
+    if (method === "DELETE" && path === "/visits/:visitId") {
+      const id = resolvePathParam(request, "visitId");
+      return visitWriteTarget(request as FastifyRequest, id ?? "visit-delete", "registration.update");
+    }
+
+    if (method === "POST" && path === "/visits/:visitId/status") {
+      const id = resolvePathParam(request, "visitId");
+      return visitWriteTarget(request as FastifyRequest, id ?? "visit-status", "registration.update");
+    }
+
+    if (method === "POST" && path === "/visits/:visitId/complete") {
+      const id = resolvePathParam(request, "visitId");
+      return visitWriteTarget(request as FastifyRequest, id ?? "visit-complete", "registration.update");
     }
 
     return null;

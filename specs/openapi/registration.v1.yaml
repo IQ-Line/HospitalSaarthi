@@ -3,27 +3,28 @@ info:
   title: Registration — Encounter intake (OPD / IPD / shared)
   version: 1.0.0
   description: |
-    **ADR-0029:** Registration owns the intake row and the new-patient EMPI orchestration saga.
-    List/get/search are **EMPI-free** via a frozen patient demographics snapshot on each row
-    (`patient_source_record_id` points to EMPI for audit/lineage).
+    **ADR-0029:** Registration owns the patient demographics snapshot and visit encounter rows.
+    Patient snapshot lives on `registration.registration` (one row per patient per tenant).
+    Encounter details live on `registration.visit` (one row per desk visit).
 
     **Workflows:**
-    - *Existing patient:* `POST /workflows/existing-patient/registrations` — caller supplies
-      `patient_id`, `patient_source_record_id`, and `patient_snapshot` from EMPI search.
-    - *New patient:* `POST /workflows/new-patient/registrations` — Registration calls EMPI once,
-      then persists the snapshot from EMPI's response.
+    - *Existing patient:* `POST /workflows/existing-patient/registrations` — inserts a visit row only
+      (patient already known to EMPI; no registration or EMPI write).
+    - *New patient:* `POST /workflows/new-patient/registrations` — EMPI register + registration snapshot +
+      visit row in one desk action.
 
-    **Status:** `pending`, `in_progress`, `completed` (desk intake progress via `intake_completion`),
-    and `cancelled` (operator void — preserved from legacy data). Call
-    `POST /registrations/{id}/complete` when the full desk chain finishes.
+    **Visit status:** `pending`, `in_progress`, `completed`, `cancelled`. Call
+    `POST /visits/{visitId}/complete` when the full desk chain finishes.
 
 tags:
   - name: EncounterRegistrations
-    description: List, get, and status transitions on registration rows.
+    description: List and get patient registration snapshots.
+  - name: Visits
+    description: CRUD and status transitions on visit encounter rows.
   - name: ExistingPatientIntake
-    description: Register a visit for a patient already known to EMPI.
+    description: Create a visit for a patient already known to EMPI.
   - name: NewPatientIntake
-    description: Register demographics (via EMPI) plus encounter row in one desk action.
+    description: Register demographics (via EMPI) plus visit row in one desk action.
 
 servers:
   - url: http://localhost:3006/api/registration/v1
@@ -33,10 +34,10 @@ paths:
   /registrations:
     get:
       operationId: listRegistrations
-      summary: List encounter registrations (paginated, local snapshot search)
+      summary: List patient registrations (paginated, local snapshot search)
       description: |
-        Tenant-scoped rows newest first. **No EMPI calls** — search uses snapshot columns
-        (`patient_full_name`, `patient_phone_number`, `patient_uhid`).
+        Tenant-scoped patient snapshot rows newest first. **No EMPI calls** — search uses snapshot
+        columns (`patient_full_name`, `patient_phone_number`, `patient_uhid`).
 
         Free-text `q` matches UHID, phone, or full name (substring, case-insensitive).
 
@@ -69,19 +70,7 @@ paths:
           in: query
           schema: { type: string, minLength: 2 }
           description: Substring on `patient_full_name` (minimum 2 characters when used).
-        - name: status
-          in: query
-          schema: { $ref: "#/components/schemas/RegistrationStatus" }
         - name: patient_id
-          in: query
-          schema: { type: string, format: uuid }
-        - name: facility_id
-          in: query
-          schema: { type: string, format: uuid }
-        - name: department_id
-          in: query
-          schema: { type: string, format: uuid }
-        - name: provider_id
           in: query
           schema: { type: string, format: uuid }
       responses:
@@ -97,7 +86,7 @@ paths:
   /registrations/{registrationId}:
     get:
       operationId: getRegistration
-      summary: Get registration by id
+      summary: Get patient registration snapshot by id
       tags: [EncounterRegistrations]
       parameters:
         - $ref: "#/components/parameters/RegistrationId"
@@ -107,22 +96,159 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Registration"
+                $ref: "#/components/schemas/RegistrationSnapshot"
         "404":
           description: Not found
 
-  /registrations/{registrationId}/complete:
-    post:
-      operationId: completeRegistrationIntake
-      summary: Mark registration completed (full visit-intake done)
-      description: |
-        Sets `registration_status` to `completed` after appointment and billing succeed.
-      tags: [EncounterRegistrations]
+  /visits:
+    get:
+      operationId: listVisits
+      summary: List visits (paginated)
+      tags: [Visits]
       parameters:
-        - $ref: "#/components/parameters/RegistrationId"
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/VisitStatus" }
+        - name: patient_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: facility_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: department_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: doctor_id
+          in: query
+          schema: { type: string, format: uuid }
       responses:
         "200":
-          description: Registration marked completed
+          description: Paginated visit list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VisitListPage"
+    post:
+      operationId: createVisit
+      summary: Create a visit row
+      tags: [Visits]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateVisitRequest"
+      responses:
+        "201":
+          description: Visit created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Visit"
+        "200":
+          description: Idempotent replay
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Visit"
+        "400":
+          description: Invalid body or missing Idempotency-Key
+
+  /visits/{visitId}:
+    get:
+      operationId: getVisit
+      summary: Get visit by id
+      tags: [Visits]
+      parameters:
+        - $ref: "#/components/parameters/VisitId"
+      responses:
+        "200":
+          description: Visit row
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Visit"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateVisit
+      summary: Update visit encounter fields
+      tags: [Visits]
+      parameters:
+        - $ref: "#/components/parameters/VisitId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateVisitRequest"
+      responses:
+        "200":
+          description: Visit updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Visit"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteVisit
+      summary: Delete a visit row
+      tags: [Visits]
+      parameters:
+        - $ref: "#/components/parameters/VisitId"
+      responses:
+        "204":
+          description: Visit deleted
+        "404":
+          description: Not found
+
+  /visits/{visitId}/status:
+    post:
+      operationId: updateVisitStatus
+      summary: Change visit status
+      tags: [Visits]
+      parameters:
+        - $ref: "#/components/parameters/VisitId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateVisitStatusRequest"
+      responses:
+        "200":
+          description: Visit status updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Visit"
+        "400":
+          description: Invalid status
+        "404":
+          description: Not found
+
+  /visits/{visitId}/complete:
+    post:
+      operationId: completeVisitIntake
+      summary: Mark visit completed (full desk intake done)
+      description: |
+        Sets visit `status` to `completed` after appointment and billing succeed.
+        Returns merged registration snapshot + visit fields for desk workflows.
+      tags: [Visits]
+      parameters:
+        - $ref: "#/components/parameters/VisitId"
+      responses:
+        "200":
+          description: Visit marked completed
           content:
             application/json:
               schema:
@@ -132,11 +258,10 @@ paths:
 
   /workflows/existing-patient/registrations:
     post:
-      operationId: createRegistrationForExistingPatient
-      summary: Existing-patient visit registration
+      operationId: createVisitForExistingPatient
+      summary: Existing-patient visit creation
       description: |
-        Caller has already resolved the patient in EMPI. Registration stores the supplied
-        snapshot — no EMPI round trip on this path.
+        Patient already exists in EMPI. Inserts a visit row only — no registration or EMPI write.
       tags: [ExistingPatientIntake]
       parameters:
         - $ref: "#/components/parameters/IdempotencyKeyHeader"
@@ -145,16 +270,16 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ExistingPatientRegistrationRequest"
+              $ref: "#/components/schemas/ExistingPatientVisitRequest"
       responses:
         "200":
-          description: Idempotent replay — existing registration returned
+          description: Idempotent replay — existing visit returned
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Registration"
         "201":
-          description: Registration created
+          description: Visit created
           content:
             application/json:
               schema:
@@ -167,8 +292,8 @@ paths:
       operationId: createRegistrationForNewPatient
       summary: New-patient visit registration (EMPI saga)
       description: |
-        Creates patient in EMPI (forwards `Idempotency-Key`), then inserts the registration row
-        with demographics snapshot from EMPI's response.
+        Creates patient in EMPI (forwards `Idempotency-Key`), inserts the registration snapshot,
+        then creates the visit row.
 
         Returns `503` (`empi_gateway_not_configured`) when EMPI is not wired.
         Returns `409` (`patient_already_exists`) when EMPI reports a duplicate — use
@@ -184,13 +309,13 @@ paths:
               $ref: "#/components/schemas/NewPatientIntakeRequest"
       responses:
         "200":
-          description: Idempotent replay — existing registration returned
+          description: Idempotent replay
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Registration"
         "201":
-          description: Registration created
+          description: Registration + visit created
           content:
             application/json:
               schema:
@@ -218,14 +343,6 @@ components:
         maxLength: 128
       description: >
         Client-generated key for retry-safe creates. Same key + tenant returns the original row (200).
-    IdempotencyKeyHeaderOptional:
-      name: Idempotency-Key
-      in: header
-      required: false
-      schema:
-        type: string
-        minLength: 1
-        maxLength: 128
     RegistrationId:
       name: registrationId
       in: path
@@ -233,12 +350,24 @@ components:
       schema:
         type: string
         format: uuid
+    VisitId:
+      name: visitId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
 
   schemas:
-    RegistrationStatus:
+    VisitStatus:
       type: string
       enum: [pending, in_progress, completed, cancelled]
       default: pending
+
+    RegistrationStatus:
+      type: string
+      enum: [pending, in_progress, completed, cancelled]
+      description: Desk workflow alias for visit status on merged responses.
 
     DuplicatePatientResponse:
       type: object
@@ -259,7 +388,7 @@ components:
       type: string
       enum: [pending, partial, complete]
       description: |
-        Desk visit-intake progress at create time. `partial` → `in_progress` (registration only);
+        Desk visit-intake progress at create time. `partial` → `in_progress`;
         `complete` → `completed`; omitted defaults to `partial` on workflow POSTs.
 
     PatientSnapshot:
@@ -276,29 +405,57 @@ components:
         date_of_birth: { type: string, format: date, nullable: true }
         year_of_birth: { type: integer, nullable: true }
 
-    ExistingPatientRegistrationRequest:
+    ExistingPatientVisitRequest:
       type: object
-      required: [patient_id, patient_source_record_id, patient_snapshot]
+      required: [patient_id]
       additionalProperties: false
       properties:
         patient_id:
           type: string
           format: uuid
-        patient_source_record_id:
-          type: string
-          format: uuid
-          description: Soft-ref to empi.patient_source_records.id
-        patient_snapshot:
-          $ref: "#/components/schemas/PatientSnapshot"
         facility_id: { type: string, format: uuid, nullable: true }
         visit_type:
           type: string
           description: Phase 1 free string; align with Master Data visit_types catalog later.
         department_id: { type: string, format: uuid, nullable: true }
-        provider_id: { type: string, format: uuid, nullable: true }
+        doctor_id: { type: string, format: uuid, nullable: true }
         appointment_id: { type: string, format: uuid, nullable: true }
         intake_completion:
           $ref: "#/components/schemas/IntakeCompletion"
+
+    CreateVisitRequest:
+      type: object
+      required: [patient_id]
+      additionalProperties: false
+      properties:
+        patient_id:
+          type: string
+          format: uuid
+        facility_id: { type: string, format: uuid, nullable: true }
+        visit_type: { type: string }
+        department_id: { type: string, format: uuid, nullable: true }
+        doctor_id: { type: string, format: uuid, nullable: true }
+        appointment_id: { type: string, format: uuid, nullable: true }
+        intake_completion:
+          $ref: "#/components/schemas/IntakeCompletion"
+
+    UpdateVisitRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        visit_type: { type: string, nullable: true }
+        facility_id: { type: string, format: uuid, nullable: true }
+        department_id: { type: string, format: uuid, nullable: true }
+        doctor_id: { type: string, format: uuid, nullable: true }
+        appointment_id: { type: string, format: uuid, nullable: true }
+
+    UpdateVisitStatusRequest:
+      type: object
+      required: [status]
+      additionalProperties: false
+      properties:
+        status:
+          $ref: "#/components/schemas/VisitStatus"
 
     CreatePatientDemographicsRequest:
       type: object
@@ -341,7 +498,7 @@ components:
         facility_id: { type: string, format: uuid, nullable: true }
         visit_type: { type: string }
         department_id: { type: string, format: uuid, nullable: true }
-        provider_id: { type: string, format: uuid, nullable: true }
+        doctor_id: { type: string, format: uuid, nullable: true }
         appointment_id: { type: string, format: uuid, nullable: true }
         intake_completion:
           $ref: "#/components/schemas/IntakeCompletion"
@@ -353,14 +510,85 @@ components:
         data:
           type: array
           items:
-            $ref: "#/components/schemas/Registration"
+            $ref: "#/components/schemas/RegistrationSnapshot"
         total: { type: integer, minimum: 0 }
         page: { type: integer, minimum: 1 }
         limit: { type: integer, minimum: 1 }
         total_pages: { type: integer, minimum: 0 }
 
+    VisitListPage:
+      type: object
+      required: [data, total, page, limit, total_pages]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Visit"
+        total: { type: integer, minimum: 0 }
+        page: { type: integer, minimum: 1 }
+        limit: { type: integer, minimum: 1 }
+        total_pages: { type: integer, minimum: 0 }
+
+    RegistrationSnapshot:
+      type: object
+      required:
+        - registration_id
+        - iq_tenant_id
+        - patient_id
+        - patient_uhid
+        - patient_full_name
+        - patient_phone_number
+        - patient_source_record_id
+        - created_at
+        - updated_at
+      properties:
+        registration_id: { type: string, format: uuid }
+        iq_tenant_id: { type: string, format: uuid }
+        patient_id: { type: string, format: uuid }
+        patient_uhid: { type: string }
+        patient_abha_number: { type: string, nullable: true }
+        patient_abha_address: { type: string, nullable: true }
+        patient_full_name: { type: string }
+        patient_phone_number: { type: string }
+        patient_gender: { type: string, nullable: true }
+        patient_date_of_birth: { type: string, format: date, nullable: true }
+        patient_year_of_birth: { type: integer, nullable: true }
+        patient_source_record_id: { type: string, format: uuid }
+        created_by: { type: string, format: uuid, nullable: true }
+        updated_by: { type: string, format: uuid, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    Visit:
+      type: object
+      required:
+        - visit_id
+        - iq_tenant_id
+        - patient_id
+        - status
+        - created_at
+        - updated_at
+      properties:
+        visit_id: { type: string, format: uuid }
+        iq_tenant_id: { type: string, format: uuid }
+        patient_id: { type: string, format: uuid }
+        visit_type: { type: string, nullable: true }
+        status:
+          $ref: "#/components/schemas/VisitStatus"
+        facility_id: { type: string, format: uuid, nullable: true }
+        department_id: { type: string, format: uuid, nullable: true }
+        doctor_id: { type: string, format: uuid, nullable: true }
+        appointment_id: { type: string, format: uuid, nullable: true }
+        created_by: { type: string, format: uuid, nullable: true }
+        updated_by: { type: string, format: uuid, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
     Registration:
       type: object
+      description: |
+        Merged desk workflow response — patient snapshot from registration plus encounter
+        fields from visit. `registration_status` mirrors visit `status`.
       required:
         - registration_id
         - iq_tenant_id
@@ -389,7 +617,7 @@ components:
         facility_id: { type: string, format: uuid, nullable: true }
         visit_type: { type: string, nullable: true }
         department_id: { type: string, format: uuid, nullable: true }
-        provider_id: { type: string, format: uuid, nullable: true }
+        doctor_id: { type: string, format: uuid, nullable: true }
         appointment_id: { type: string, format: uuid, nullable: true }
         registration_status:
           $ref: "#/components/schemas/RegistrationStatus"
