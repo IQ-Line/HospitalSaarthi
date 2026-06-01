@@ -1,0 +1,750 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hims
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hims-config
+  namespace: himsv2
+data:
+  NODE_ENV: "production"
+  LOG_LEVEL: "info"
+  ENABLE_AUTH: "true"
+  EVENT_BUS_TYPE: "in-process"
+  CERBOS_URL: "cerbos.himsv2.svc.cluster.local:3593"
+  JWKS_URL: "https://hims.example.com/api/auth/.well-known/jwks.json"
+  JWT_ISSUER: "https://hims.example.com"
+  JWT_AUDIENCE: "hims-platform"
+  AUTH_BASE_URL: "https://hims.example.com"
+  AUTH_TRUSTED_ORIGINS: "https://hims.example.com"
+  CORS_ORIGINS: "https://hims.example.com"
+  USER_MANAGEMENT_URL: "http://user-management-svc.himsv2.svc.cluster.local:3005"
+  CONFIGURATOR_URL: "http://configurator-svc.himsv2.svc.cluster.local:3001"
+  EMPI_URL: "http://empi-svc.himsv2.svc.cluster.local:3002"
+  BILLING_URL: "http://billing-svc.himsv2.svc.cluster.local:3003"
+  REGISTRATION_URL: "http://registration-svc.himsv2.svc.cluster.local:3006"
+  MASTER_DATA_URL: "http://master-data.himsv2.svc.cluster.local:8010"
+  VISITS_STUB: "true"
+  MASTER_DATA_API_PREFIX: "/api/v1/master-data"
+  MASTER_DATA_LOG_LEVEL: "INFO"
+  ABDM_GATEWAY_BASE_URL: "https://dev.abdm.gov.in"
+  ABDM_ABHA_API_BASE_URL: "https://abhasbx.abdm.gov.in/abha/api"
+  ABDM_X_CM_ID: "sbx"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hims-secrets
+  namespace: himsv2
+type: Opaque
+stringData:
+  DATABASE_URL: "postgresql://himsdevuser:L4k77epfaP6uJqR3@iqline-dev-shared-pg.postgres.database.azure.com:5432/hims-v2?sslmode=require"
+  PGBOUNCER_URL: "postgresql://himsdevuser:L4k77epfaP6uJqR3@iqline-dev-shared-pg.postgres.database.azure.com:6432/hims-v2?sslmode=require"
+  MASTER_DATA_DATABASE_URL: "postgresql+psycopg://hims:<replace-me>@postgres.example.com:5432/hims?sslmode=require"
+  USER_MGMT_DATABASE_URL: "postgresql://himsdevuser:L4k77epfaP6uJqR3@iqline-dev-shared-pg.postgres.database.azure.com:5432/hims-v2?sslmode=require"
+  ABDM_DATA_DATABASE_URL: "postgresql://himsdevuser:L4k77epfaP6uJqR3@iqline-dev-shared-pg.postgres.database.azure.com:5432/hims-v2?sslmode=require"
+  BETTER_AUTH_SECRET: "<replace-with-min-32-chars>"
+  ABDM_SANDBOX_CLIENT_ID: "<replace-me>"
+  ABDM_SANDBOX_CLIENT_SECRET: "<replace-me>"
+  ABDM_TOKEN_ENCRYPTION_KEY: "<replace-with-base64-32-byte-key>"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cerbos
+  namespace: himsv2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cerbos
+  template:
+    metadata:
+      labels:
+        app: cerbos
+    spec:
+      imagePullSecrets:
+        - name: gitlab-registry-secret
+      nodeSelector:
+       agentpool: himsv2
+      containers:
+        - name: cerbos
+          image: acriqline.azurecr.io/cerbos:latest
+          ports:
+            - name: grpc
+              containerPort: 3593
+            - name: http
+              containerPort: 3592
+          livenessProbe:
+            httpGet:
+              path: /_cerbos/health
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /_cerbos/health
+              port: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cerbos
+  namespace: himsv2
+spec:
+  selector:
+    app: cerbos
+  ports:
+    - name: grpc
+      port: 3593
+      targetPort: grpc
+    - name: http
+      port: 3592
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bff
+  namespace: himsv2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bff
+  template:
+    metadata:
+      labels:
+        app: bff
+    spec:
+      imagePullSecrets:
+        - name: gitlab-registry-secret
+      nodeSelector:
+       agentpool: himsv2
+      containers:
+        - name: bff
+          image: acriqline.azurecr.io/bff:replace-me
+          ports:
+            - name: http
+              containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: hims-config
+            - secretRef:
+                name: hims-secrets
+          env:
+            - name: BFF_PORT
+              value: "3000"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bff
+  namespace: himsv2
+spec:
+  selector:
+    app: bff
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: himsv2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      imagePullSecrets:
+        - name: gitlab-registry-secret
+      nodeSelector:
+       agentpool: himsv2
+      containers:
+        - name: web
+          image: acriqline.azurecr.io/web:replace-me
+          ports:
+            - name: http
+              containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  namespace: himsv2
+spec:
+  selector:
+    app: web
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: configurator-svc
+  namespace: himsv2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: configurator-svc
+  template:
+    metadata:
+      labels:
+        app: configurator-svc
+    spec:
+      imagePullSecrets:
+        - name: gitlab-registry-secret
+      nodeSelector:
+       agentpool: himsv2
+      containers:
+        - name: configurator-svc
+          image: acriqline.azurecr.io/configurator-svc:replace-me
+          ports:
+            - name: http
+              containerPort: 3001
+          envFrom:
+            - configMapRef:
+                name: hims-config
+            - secretRef:
+                name: hims-secrets
+          env:
+            - name: CONFIGURATOR_SVC_PORT
+              value: "3001"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: DATABASE_URL
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: configurator-svc
+  namespace: himsv2
+spec:
+  selector:
+    app: configurator-svc
+  ports:
+    - name: http
+      port: 3001
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: empi-svc
+  namespace: himsv2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: empi-svc
+  template:
+    metadata:
+      labels:
+        app: empi-svc
+    spec:
+      imagePullSecrets:
+        - name: gitlab-registry-secret
+      nodeSelector:
+       agentpool: himsv2
+      containers:
+        - name: empi-svc
+          image: acriqline.azurecr.io/empi-svc:replace-me
+          ports:
+            - name: http
+              containerPort: 3002
+          envFrom:
+            - configMapRef:
+                name: hims-config
+            - secretRef:
+                name: hims-secrets
+          env:
+            - name: EMPI_SVC_PORT
+              value: "3002"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: DATABASE_URL
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: empi-svc
+  namespace: himsv2
+spec:
+  selector:
+    app: empi-svc
+  ports:
+    - name: http
+      port: 3002
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing-svc
+  namespace: himsv2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: billing-svc
+  template:
+    metadata:
+      labels:
+        app: billing-svc
+    spec:
+      imagePullSecrets:
+        - name: gitlab-registry-secret
+      nodeSelector:
+       agentpool: himsv2
+      containers:
+        - name: billing-svc
+          image: acriqline.azurecr.io/billing-svc:replace-me
+          ports:
+            - name: http
+              containerPort: 3003
+          envFrom:
+            - configMapRef:
+                name: hims-config
+            - secretRef:
+                name: hims-secrets
+          env:
+            - name: BILLING_SVC_PORT
+              value: "3003"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: DATABASE_URL
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: billing-svc
+  namespace: himsv2
+spec:
+  selector:
+    app: billing-svc
+  ports:
+    - name: http
+      port: 3003
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: registration-svc
+  namespace: himsv2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: registration-svc
+  template:
+    metadata:
+      labels:
+        app: registration-svc
+    spec:
+      imagePullSecrets:
+        - name: gitlab-registry-secret
+      nodeSelector:
+       agentpool: himsv2
+      containers:
+        - name: registration-svc
+          image: acriqline.azurecr.io/registration-svc:replace-me
+          ports:
+            - name: http
+              containerPort: 3006
+          envFrom:
+            - configMapRef:
+                name: hims-config
+            - secretRef:
+                name: hims-secrets
+          env:
+            - name: REGISTRATION_SVC_PORT
+              value: "3006"
+            - name: REGISTRATION_SKIP_MIGRATE
+              value: "true"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: DATABASE_URL
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: registration-svc
+  namespace: himsv2
+spec:
+  selector:
+    app: registration-svc
+  ports:
+    - name: http
+      port: 3006
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-management-svc
+  namespace: himsv2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: user-management-svc
+  template:
+    metadata:
+      labels:
+        app: user-management-svc
+    spec:
+      imagePullSecrets:
+        - name: gitlab-registry-secret
+      nodeSelector:
+       agentpool: himsv2
+      containers:
+        - name: user-management-svc
+          image: acriqline.azurecr.io/user-management-svc:replace-me
+          ports:
+            - name: http
+              containerPort: 3005
+          envFrom:
+            - configMapRef:
+                name: hims-config
+            - secretRef:
+                name: hims-secrets
+          env:
+            - name: USER_MANAGEMENT_SVC_PORT
+              value: "3005"
+            - name: USER_MGMT_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: USER_MGMT_DATABASE_URL
+            - name: BETTER_AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: BETTER_AUTH_SECRET
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            requests:
+              cpu: 75m
+              memory: 256Mi
+            limits:
+              cpu: 750m
+              memory: 768Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-management-svc
+  namespace: himsv2
+spec:
+  selector:
+    app: user-management-svc
+  ports:
+    - name: http
+      port: 3005
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: abdm-adapter-svc
+  namespace: himsv2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: abdm-adapter-svc
+  template:
+    metadata:
+      labels:
+        app: abdm-adapter-svc
+    spec:
+      imagePullSecrets:
+        - name: gitlab-registry-secret
+      nodeSelector:
+       agentpool: himsv2
+      containers:
+        - name: abdm-adapter-svc
+          image: acriqline.azurecr.io/abdm-adapter-svc:replace-me
+          ports:
+            - name: http
+              containerPort: 3007
+          envFrom:
+            - configMapRef:
+                name: hims-config
+            - secretRef:
+                name: hims-secrets
+          env:
+            - name: ABDM_ADAPTER_SVC_PORT
+              value: "3007"
+            - name: ABDM_DATA_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: ABDM_DATA_DATABASE_URL
+            - name: ABDM_SANDBOX_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: ABDM_SANDBOX_CLIENT_ID
+            - name: ABDM_SANDBOX_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: ABDM_SANDBOX_CLIENT_SECRET
+            - name: ABDM_TOKEN_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: ABDM_TOKEN_ENCRYPTION_KEY
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            requests:
+              cpu: 75m
+              memory: 256Mi
+            limits:
+              cpu: 750m
+              memory: 768Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: abdm-adapter-svc
+  namespace: himsv2
+spec:
+  selector:
+    app: abdm-adapter-svc
+  ports:
+    - name: http
+      port: 3007
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: master-data
+  namespace: himsv2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: master-data
+  template:
+    metadata:
+      labels:
+        app: master-data
+    spec:
+      imagePullSecrets:
+        - name: gitlab-registry-secret
+      nodeSelector:
+       agentpool: himsv2
+      containers:
+        - name: master-data
+          image: acriqline.azurecr.io/master-data:replace-me
+          ports:
+            - name: http
+              containerPort: 8010
+          envFrom:
+            - configMapRef:
+                name: hims-config
+            - secretRef:
+                name: hims-secrets
+          env:
+            - name: MASTER_DATA_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: MASTER_DATA_DATABASE_URL
+          livenessProbe:
+            httpGet:
+              path: /api/v1/master-data/health
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /api/v1/master-data/health
+              port: http
+          resources:
+            requests:
+              cpu: 75m
+              memory: 256Mi
+            limits:
+              cpu: 750m
+              memory: 768Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: master-data
+  namespace: himsv2
+spec:
+  selector:
+    app: master-data
+  ports:
+    - name: http
+      port: 8010
+      targetPort: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hims
+  namespace: himsv2
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "20m"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: hims.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: bff
+                port:
+                  number: 3000
+          - path: /_cerbos
+            pathType: Prefix
+            backend:
+              service:
+                name: cerbos
+                port:
+                  number: 3592
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 80
