@@ -9,6 +9,8 @@ function billsQueryString(params: BillsListParams): string {
   const q = new URLSearchParams();
   if (params.patient_id) q.set('patient_id', params.patient_id);
   if (params.visit_id) q.set('visit_id', params.visit_id);
+  if (params.source_module) q.set('source_module', params.source_module);
+  if (params.source_ref) q.set('source_ref', params.source_ref);
   if (params.status) q.set('status', params.status);
   if (params.bill_type) q.set('bill_type', params.bill_type);
   if (params.from_date) q.set('from_date', params.from_date);

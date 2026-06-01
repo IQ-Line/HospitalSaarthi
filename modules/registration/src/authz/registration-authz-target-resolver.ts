@@ -29,11 +29,28 @@ function stripPrefix(path: string): string {
   return path.startsWith(PREFIX) ? path.slice(PREFIX.length) || "/" : path;
 }
 
+const REGISTRATION_DOCUMENT_PATHS = new Set([
+  "/registrations/:registrationId/documents/opd-slip.pdf",
+  "/registrations/:registrationId/documents/opd-slip.html",
+  "/registrations/:registrationId/documents/opd-receipt.html",
+  "/registrations/:registrationId/documents/opd-receipt.pdf",
+]);
+
 export function createRegistrationAuthzTargetResolver(): AuthzTargetResolver {
   return (request): AuthzTarget | null => {
     const fullPath = resolveRoutePattern(request);
     const path = stripPrefix(fullPath);
     const method = request.method === "HEAD" ? "GET" : request.method;
+
+    if (method === "GET" && REGISTRATION_DOCUMENT_PATHS.has(path)) {
+      const id = resolvePathParam(request, "registrationId");
+      return {
+        kind: "registration",
+        id: id ?? "registration-document",
+        action: "registration.read",
+        attr: tenantAttr(request as FastifyRequest),
+      };
+    }
 
     if (method === "GET" && path === "/dashboard/stats") {
       return { kind: "registration", id: "dashboard", action: "registration.read", attr: tenantAttr(request as FastifyRequest) };
