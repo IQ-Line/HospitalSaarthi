@@ -22,8 +22,7 @@ From the repo root (Postgres on `localhost:5433` per root `.env`):
 ```bash
 cd services/opd-svc
 uv sync --reinstall-package hims-opd
-npx nx run opd:migrate
-npx nx run opd-svc:serve
+npx nx run opd-svc:serve   # runs opd:db-migrate first
 ```
 
 `hims-opd` is an **editable** path dependency — handler changes under `modules/opd/` are used at runtime.

@@ -86,6 +86,7 @@ db-migrate: ## Run all pending migrations
 	$(NX) run master-data:migrate
 	$(NX) run empi:db-migrate
 	$(NX) run registration:db-migrate
+	$(NX) run opd:db-migrate
 	$(NX) run billing:db-migrate
 	$(NX) run integration-hub-svc:db-migrate
 
