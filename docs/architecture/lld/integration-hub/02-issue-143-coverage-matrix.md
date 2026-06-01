@@ -79,8 +79,8 @@ Use when checking “did we touch everything?”
 
 | File | Route group |
 |------|-------------|
-| `rest-handlers/m0/m0-routes.ts` | Platform |
-| `rest-handlers/m1/m1-routes.ts` | Platform |
+| `rest-handlers/m0/gateway-session.probe.ts`, `m0/index.ts` | Platform |
+| `rest-handlers/m1/m1-routes.ts`, `m1/index.ts` | Platform |
 | `rest-handlers/m2/m2-platform-routes.ts` | Platform |
 | `rest-handlers/m2/m2-callback-routes.ts` | Callback (`/api/v3`) |
 | `rest-handlers/m2/m2-inbound-helper.ts` | Shared callback runner |
@@ -98,7 +98,7 @@ Use when checking “did we touch everything?”
 | `lib/resolve-callback-tenant.ts` | DB `hip_id` → tenant |
 | `lib/hip-tenant-map.ts` | Remove or dev-only fallback |
 | `lib/m3-runtime-env.ts` | `callback_base_url` from profile where needed |
-| `events/register-m2-consumers.ts` | Per-tenant deps from event `iqTenantId` |
+| `events/register-m2-consumers.ts` | Per-tenant deps from event envelope `iq_tenant_id` (Code PR 2) |
 
 ### Service bootstrap
 
@@ -112,8 +112,11 @@ Use when checking “did we touch everything?”
 | File | Change |
 |------|--------|
 | `modules/configurator/src/schema/tables.ts` | `tenant_integration_profiles` |
-| `modules/configurator/src/data-access/*` | `DrizzleTenantIntegrationProfilesRepo` |
-| `modules/configurator/src/integration-profiles/` (new) | port, use-cases, `rest-handlers.ts` |
+| `modules/configurator/migrations/007_*.sql` | DDL + partial unique on `hip_id` |
+| `modules/configurator/src/data-access/tenant-integration-profile.repo.ts` | `DrizzleTenantIntegrationProfilesRepo` |
+| `modules/configurator/src/rest-handlers/tenant-integration-profiles.handler.ts` | REST CRUD + `GET /integration-profiles/by-hip/:hipId` |
+| `scripts/seed-abdm-profile-from-env.mts` | env → profile row |
+| `modules/integration-hub/` | scaffold + `integrations/abdm/` copy + lib stubs |
 | `modules/configurator/src/index.ts` | exports |
 
 ### Tests to update after move
@@ -124,6 +127,17 @@ Use when checking “did we touch everything?”
 - `test-utils/m3-sandbox-harness.ts`, `test-utils/sandbox-env.ts`
 
 ---
+
+## PR #144 round-2 review (incorporated)
+
+| Review item | Resolution |
+|-------------|------------|
+| `m0-routes.ts` path wrong | Fixed → `gateway-session.probe.ts` + `m0/index.ts` |
+| Events lack `iqTenantId` | Envelope `iq_tenant_id` required by `DomainEvent`; Code PR 2 uses `event.iq_tenant_id` — see 03 §4.3 |
+| `m2-inbound-helper.test.ts` missing from test list | Listed under Tests to update |
+| Gateway cache two options | **Disable** in Code PR 2 — 03 §6, 01 §11 |
+| §7.4 vars without renames | §7.4 table + §7.5 alias reference |
+| `normalizeIntegrationHubEnvAliases` unspecified | §7.5 codifies §7.2 + §7.4 + Postman aliases |
 
 ## PR #144 review follow-up (incorporated)
 
@@ -148,9 +162,10 @@ Use when checking “did we touch everything?”
 - [x] File touch list aligned with repo
 - [x] PR #144 review items addressed (2026-05-29)
 
-**Implementation (Code PRs 1–4):**
+**Implementation (strict order — same as plan flowchart):**
 
-- [ ] Code PR 1 — Configurator + scaffold
-- [ ] Code PR 2 — Multi-tenant deps (callbacks + M2 consumers)
-- [ ] Code PR 3 — `integration-hub-svc` + schema
-- [ ] Code PR 4 — Delete `abdm-adapter` + regression matrix
+- [x] Step 0 — PR #144 docs
+- [x] Step 1 — Code PR 1 / Part A (merged on `integration-hub`)
+- [x] Step 2 — Code PR 2 / Part B (`buildAbdmDepsForTenant`, callbacks, M2 consumers; 123+ hub unit tests)
+- [ ] Step 3 — Code PR 3 / Part C (after Code PR 2)
+- [ ] Step 4 — Code PR 4 / Part D (after Code PR 3)

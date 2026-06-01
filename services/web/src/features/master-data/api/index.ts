@@ -30,8 +30,14 @@ export {
 } from './module-permissions';
 export {
   useDepartments,
+  useDepartmentsGlobalLibrary,
+  useDepartmentTenantImportKeys,
+  useDepartmentPlatformImport,
   useCreateDepartment,
   useUpdateDepartment,
   useDeleteDepartment,
+  DEPARTMENT_CATALOG_DEFAULT_PAGE_SIZE,
+  DEPARTMENT_CATALOG_PAGE_SIZES,
+  DEPARTMENT_CATALOG_FORM_PAGE,
 } from './departments';
-export { usePicklistValues } from './picklists';
+export { usePicklistValues, useRoleTypePicklistValues, ROLE_TYPES_PICKLIST_SLUG } from './picklists';

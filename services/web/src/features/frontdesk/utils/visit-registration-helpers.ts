@@ -91,14 +91,50 @@ export const VISIT_REGISTRATION_TEXTAREA_CLASS =
 
 // ─── Billing helpers ───────────────────────────────────────────────────────────
 
-export function billingLineNetPrice(line: VisitRegistrationBillingFeeLine): number {
-  const unit = line.unit_price ?? 0;
-  const tax = line.tax_percent ?? 0;
-  return Math.round(unit * (1 + tax / 100));
+/** Resolved line discount in rupees (explicit ₹ amount, or derived from %). */
+export function billingLineDiscountAmount(line: VisitRegistrationBillingFeeLine): number {
+  const discountRs = line.discount ?? 0;
+  if (discountRs > 0) return discountRs;
+  const pct = line.discount_percent ?? 0;
+  if (pct > 0) return Math.round((line.unit_price ?? 0) * pct / 100);
+  return 0;
 }
 
+/** Pre-tax net after line discount (unit − discount). */
+export function billingLineNetPrice(line: VisitRegistrationBillingFeeLine): number {
+  const unit = line.unit_price ?? 0;
+  return Math.max(0, unit - billingLineDiscountAmount(line));
+}
+
+/** Tax computed on full unit price (matches billing-svc desk line math). */
+export function billingLineTaxAmount(line: VisitRegistrationBillingFeeLine): number {
+  const unit = line.unit_price ?? 0;
+  const tax = line.tax_percent ?? 0;
+  return Math.round(unit * tax / 100);
+}
+
+/** Line total: (unit + tax) − discount — aligned with billing-svc `computeDeskLineAmounts`. */
 export function billingLineTotal(line: VisitRegistrationBillingFeeLine): number {
-  return billingLineNetPrice(line) - (line.discount ?? 0);
+  const unit = line.unit_price ?? 0;
+  const tax = billingLineTaxAmount(line);
+  const discount = billingLineDiscountAmount(line);
+  return Math.max(0, unit + tax - discount);
+}
+
+const AMOUNT_PAID_EPSILON = 0.001;
+
+/** Accept exact grand total, floor, or ceiling (e.g. 109.5 → 109, 109.5, or 110). */
+export function isVisitRegistrationAmountPaidValid(
+  amountPaid: number | null | undefined,
+  grandTotal: number,
+): boolean {
+  if (!Number.isFinite(amountPaid) || (amountPaid ?? 0) <= 0) return false;
+  if (!Number.isFinite(grandTotal) || grandTotal <= 0) return false;
+  const paid = amountPaid as number;
+  const floor = Math.floor(grandTotal + AMOUNT_PAID_EPSILON);
+  const ceil = Math.ceil(grandTotal - AMOUNT_PAID_EPSILON);
+  const exact = Math.abs(paid - grandTotal) < AMOUNT_PAID_EPSILON;
+  return exact || paid === floor || paid === ceil;
 }
 
 export function computeBillingGrandTotal(
@@ -124,6 +160,7 @@ export type VisitRegistrationFormGateInput = {
   phone: string | undefined;
   firstName: string | undefined;
   grandTotal: number;
+  amountPaid: number | null | undefined;
   paymentMode: string | undefined;
   departmentId?: string;
   providerId?: string;
@@ -144,6 +181,9 @@ export function visitRegistrationFormBlockers(
   if (!args.providerId?.trim()) missing.push('doctor');
   if (!args.visitTypeCode?.trim()) missing.push('visit type');
   if (!isVisitRegistrationGrandTotalPositive(args.grandTotal)) missing.push('billing total above ₹0');
+  if (!isVisitRegistrationAmountPaidValid(args.amountPaid, args.grandTotal)) {
+    missing.push('valid amount paid (exact, floor, or ceiling of total)');
+  }
   // TODO: re-enable tariff gates after Tariff Master rows exist (API integration testing).
   // if (args.hasProvider && (args.consultationUnitPrice ?? 0) <= 0) {
   //   missing.push('consultation fee above ₹0');
@@ -169,6 +209,18 @@ export function visitRegistrationBlockHint(args: VisitRegistrationFormGateInput)
 
 export function formatInr(amount: number): string {
   return `₹${amount.toLocaleString('en-IN')}`;
+}
+
+/** Invoice / line deduction preview — avoids showing "-₹0" when amount is zero. */
+export function formatBillingDeduction(amount: number): string {
+  if (!Number.isFinite(amount) || amount <= 0) return '—';
+  return `-${formatInr(amount)}`;
+}
+
+/** Tax column in summary rows — matches data rows (0 vs ₹ amount). */
+export function formatBillingTaxSummary(taxAmount: number): string {
+  if (!Number.isFinite(taxAmount) || taxAmount <= 0) return '0';
+  return formatInr(taxAmount);
 }
 
 // ─── Date of birth → age ─────────────────────────────────────────────────────

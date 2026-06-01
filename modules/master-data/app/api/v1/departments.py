@@ -3,11 +3,12 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_department_repository, get_session
 from app.api.errors import ResourceNotFoundError
+from app.api.v1.visitpad.catalog_http import require_visitpad_tenant_catalog_scope
 from app.repositories.department_repository import DepartmentRepository
 from app.schemas.department import (
     DepartmentCreate,
@@ -17,6 +18,12 @@ from app.schemas.department import (
     DepartmentType,
     DepartmentUpdate,
 )
+from app.schemas.visitpad.platform_import import (
+    VisitpadCatalogKeysResponse,
+    VisitpadPlatformImportRequest,
+    VisitpadPlatformImportSingleResponse,
+)
+from app.services.department_platform_import import import_departments_from_platform
 from app.services.department_service import (
     create_department,
     get_department_by_id,
@@ -31,11 +38,20 @@ router = APIRouter(prefix="/departments", tags=["Departments"])
 @router.get("", response_model=DepartmentListResponse, summary="List departments")
 def get_departments(
     repository: Annotated[DepartmentRepository, Depends(get_department_repository)],
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    search: Annotated[str | None, Query()] = None,
     department_type: Annotated[DepartmentType | None, Query(alias="type")] = None,
 ) -> DepartmentListResponse:
-    rows = list_departments(repository, department_type=department_type)
+    rows, total = list_departments(
+        repository,
+        search=search,
+        department_type=department_type,
+        limit=limit,
+        offset=offset,
+    )
     data = [DepartmentResponse.model_validate(row) for row in rows]
-    return DepartmentListResponse(data=data, total=len(data))
+    return DepartmentListResponse(data=data, total=total)
 
 
 @router.post(
@@ -52,6 +68,41 @@ def post_department(
     row = create_department(repository, payload, actor_id=None)
     session.commit()
     return DepartmentSingleResponse(data=DepartmentResponse.model_validate(row))
+
+
+@router.post(
+    "/import-from-platform",
+    response_model=VisitpadPlatformImportSingleResponse,
+    summary="Bulk-import departments from the platform catalog",
+)
+def post_departments_import_from_platform(
+    payload: VisitpadPlatformImportRequest,
+    repository: Annotated[DepartmentRepository, Depends(get_department_repository)],
+    session: Annotated[Session, Depends(get_session)],
+) -> VisitpadPlatformImportSingleResponse:
+    try:
+        data = import_departments_from_platform(
+            session,
+            scope=repository.scope,
+            tenant_repo=repository,
+            platform_row_ids=payload.platform_row_ids,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    session.commit()
+    return VisitpadPlatformImportSingleResponse(data=data)
+
+
+@router.get(
+    "/keys",
+    response_model=VisitpadCatalogKeysResponse,
+    summary="List tenant department codes (lowercase) for import-from-platform matching",
+)
+def get_department_import_keys(
+    repository: Annotated[DepartmentRepository, Depends(get_department_repository)],
+) -> VisitpadCatalogKeysResponse:
+    require_visitpad_tenant_catalog_scope(repository.scope)
+    return VisitpadCatalogKeysResponse(data=repository.list_import_key_strings())
 
 
 @router.get(

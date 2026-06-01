@@ -46,10 +46,15 @@ import {
   VISIT_REGISTRATION_RIS_STUDY_TYPES,
   VISIT_REGISTRATION_TEXTAREA_CLASS,
   VISIT_REGISTRATION_VISIT_TYPES,
+  billingLineDiscountAmount,
   billingLineNetPrice,
+  billingLineTaxAmount,
   billingLineTotal,
   computeBillingGrandTotal,
+  formatBillingDeduction,
+  formatBillingTaxSummary,
   formatInr,
+  isVisitRegistrationAmountPaidValid,
 } from '@/features/frontdesk/utils/visit-registration-helpers';
 
 type FormProps = {
@@ -60,6 +65,7 @@ type FormProps = {
 
 type BillingSectionProps = FormProps & {
   paymentModeError?: string;
+  amountPaidError?: string;
 };
 
 export function VisitRegistrationSectionMenu() {
@@ -130,7 +136,7 @@ export function VisitRegistrationAppointmentSection({
   const providerId = watch('appointment.provider_id') ?? '';
   const visitTypeCode = watch('appointment.visit_type_code') ?? '';
 
-  const departmentsQuery = useDepartments();
+  const departmentsQuery = useDepartments(undefined, { formCatalog: true });
   const departments = departmentsQuery.data?.data ?? [];
   const departmentOptions = useMemo(
     () =>
@@ -174,6 +180,7 @@ export function VisitRegistrationAppointmentSection({
   const consultationFee = watch('billing.consultation_fee') ?? {
     unit_price: 0,
     tax_percent: 0,
+    discount_percent: 0,
     discount: 0,
   };
   const consultationChargeDisplay = resolveConsultationChargeLabel({
@@ -260,6 +267,7 @@ export function VisitRegistrationBillingSection({
   watch,
   setValue,
   paymentModeError,
+  amountPaidError,
   variant = 'detailed',
   tariffsLoading = false,
   tariffsError = false,
@@ -335,18 +343,23 @@ export function VisitRegistrationBillingSection({
   const registrationFee = watch('billing.registration_fee') ?? {
     unit_price: 100,
     tax_percent: 0,
+    discount_percent: 0,
     discount: 0,
   };
   const consultationFee = watch('billing.consultation_fee') ?? {
     unit_price: 0,
     tax_percent: 0,
+    discount_percent: 0,
     discount: 0,
   };
   const invoiceDiscount = watch('billing.invoice_discount') ?? 0;
+  const amountPaid = watch('billing.amount_paid');
 
   const regNet = billingLineNetPrice(registrationFee);
+  const regTax = billingLineTaxAmount(registrationFee);
   const regTotal = billingLineTotal(registrationFee);
   const consultNet = billingLineNetPrice(consultationFee);
+  const consultTax = billingLineTaxAmount(consultationFee);
   const consultTotal = billingLineTotal(consultationFee);
   const itemsSubtotal = regTotal + consultTotal;
   const grandTotal = computeBillingGrandTotal(
@@ -354,6 +367,11 @@ export function VisitRegistrationBillingSection({
     consultationFee,
     invoiceDiscount,
   );
+  const amountPaidInvalid =
+    grandTotal > 0 && !isVisitRegistrationAmountPaidValid(amountPaid, grandTotal);
+  const amountPaidHint = amountPaidError ?? (amountPaidInvalid
+    ? 'Enter exact total, floor, or ceiling (e.g. 109.5 → 109, 109.5, or 110)'
+    : undefined);
 
   return (
     <RegistrationSection title="Billing">
@@ -367,17 +385,19 @@ export function VisitRegistrationBillingSection({
         <p className="text-sm text-muted-foreground">Loading charges from tariff catalog…</p>
       ) : null}
 
-      <div className="overflow-x-auto rounded-md border border-border">
-        <Table>
+      <div className="rounded-md border border-border">
+        <Table className={`${BILLING_TABLE_CLASS} [&_th]:!text-center [&_td]:text-center`}>
+          <BillingTableColGroup />
           <TableHeader>
-            <TableRow>
-              <TableHead>Tariff type</TableHead>
-              <TableHead>Service</TableHead>
-              <TableHead className="w-28 text-right">Unit price</TableHead>
-              <TableHead className="w-24 text-right">Tax (%)</TableHead>
-              <TableHead className="w-28 text-right">Net price</TableHead>
-              <TableHead className="w-28 text-right">Discount (₹)</TableHead>
-              <TableHead className="w-28 text-right">Total</TableHead>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className={BILLING_HEAD_CELL}>Tariff type</TableHead>
+              <TableHead className={BILLING_HEAD_CELL}>Service</TableHead>
+              <TableHead className={BILLING_HEAD_CELL}>Unit price</TableHead>
+              <TableHead className={BILLING_HEAD_CELL}>Discount (%)</TableHead>
+              <TableHead className={BILLING_HEAD_CELL}>Discount (₹)</TableHead>
+              <TableHead className={BILLING_HEAD_CELL}>Net price</TableHead>
+              <TableHead className={BILLING_HEAD_CELL}>Tax (%)</TableHead>
+              <TableHead className={BILLING_HEAD_CELL}>Total</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -386,9 +406,12 @@ export function VisitRegistrationBillingSection({
               serviceName={registrationFee.service_name ?? 'Registration fee'}
               unitPrice={registrationFee.unit_price}
               taxPercent={registrationFee.tax_percent}
-              discountPath="billing.registration_fee.discount"
+              discountPercentPath="billing.registration_fee.discount_percent"
+              discountRsPath="billing.registration_fee.discount"
               register={register}
+              setValue={setValue}
               netPrice={regNet}
+              taxAmount={regTax}
               total={regTotal}
               muted={tariffsLoading}
             />
@@ -401,44 +424,69 @@ export function VisitRegistrationBillingSection({
                 }
                 unitPrice={consultationFee.unit_price}
                 taxPercent={consultationFee.tax_percent}
-                discountPath="billing.consultation_fee.discount"
+                discountPercentPath="billing.consultation_fee.discount_percent"
+                discountRsPath="billing.consultation_fee.discount"
                 register={register}
+                setValue={setValue}
                 netPrice={consultNet}
+                taxAmount={consultTax}
                 total={consultTotal}
                 muted={tariffsLoading || consultationFee.unit_price <= 0}
               />
             ) : null}
-            <TableRow className="bg-muted/40 font-medium">
-              <TableCell colSpan={2}>All items summary</TableCell>
-              <TableCell className="text-right tabular-nums">
+            <TableRow className="bg-muted/40 font-medium hover:bg-muted/40">
+              <TableCell className={BILLING_LABEL_CELL}>All items summary</TableCell>
+              <TableCell className={BILLING_EMPTY_CELL}>—</TableCell>
+              <TableCell className={BILLING_NUM_CELL}>
                 {formatInr(registrationFee.unit_price + (hasProvider ? consultationFee.unit_price : 0))}
               </TableCell>
-              <TableCell className="text-right text-muted-foreground">—</TableCell>
-              <TableCell className="text-right tabular-nums">{formatInr(regNet + (hasProvider ? consultNet : 0))}</TableCell>
-              <TableCell className="text-right tabular-nums">
-                {formatInr(registrationFee.discount + (hasProvider ? consultationFee.discount : 0))}
+              <TableCell className={BILLING_EMPTY_CELL}>—</TableCell>
+              <TableCell className={BILLING_NUM_CELL}>
+                {formatInr(
+                  billingLineDiscountAmount(registrationFee) +
+                    (hasProvider ? billingLineDiscountAmount(consultationFee) : 0),
+                )}
               </TableCell>
-              <TableCell className="text-right tabular-nums">
+              <TableCell className={BILLING_NUM_CELL}>
+                {formatInr(regNet + (hasProvider ? consultNet : 0))}
+              </TableCell>
+              <TableCell className={BILLING_NUM_CELL}>
+                {formatBillingTaxSummary(regTax + (hasProvider ? consultTax : 0))}
+              </TableCell>
+              <TableCell className={BILLING_NUM_CELL}>
                 {formatInr(hasProvider ? itemsSubtotal : regTotal)}
               </TableCell>
             </TableRow>
-            <TableRow>
-              <TableCell colSpan={4}>Invoice discount</TableCell>
-              <TableCell className="text-right">
+            <TableRow className="hover:bg-transparent">
+              <TableCell className={BILLING_LABEL_CELL}>Invoice discount</TableCell>
+              <TableCell className={BILLING_EMPTY_CELL}>—</TableCell>
+              <TableCell className={BILLING_EMPTY_CELL}>—</TableCell>
+              <TableCell className={BILLING_EMPTY_CELL}>—</TableCell>
+              <BillingNumericInputCell>
                 <Input
                   type="number"
                   min={0}
-                  className="ml-auto h-9 w-24 text-right tabular-nums"
+                  className={BILLING_INPUT_CLASS}
                   {...register('billing.invoice_discount', { valueAsNumber: true })}
                 />
-              </TableCell>
-              <TableCell className="text-right tabular-nums text-muted-foreground">
-                -{formatInr(invoiceDiscount)}
+              </BillingNumericInputCell>
+              <TableCell className={BILLING_EMPTY_CELL}>—</TableCell>
+              <TableCell className={BILLING_EMPTY_CELL}>—</TableCell>
+              <TableCell className={`${BILLING_NUM_CELL} text-muted-foreground`}>
+                {formatBillingDeduction(invoiceDiscount)}
               </TableCell>
             </TableRow>
-            <TableRow className="bg-muted/60 font-semibold">
-              <TableCell colSpan={5}>Grand total</TableCell>
-              <TableCell className="text-right text-base tabular-nums">{formatInr(grandTotal)}</TableCell>
+            <TableRow className="bg-muted/60 font-semibold hover:bg-muted/60">
+              <TableCell className={BILLING_LABEL_CELL}>Grand total</TableCell>
+              <TableCell className={BILLING_EMPTY_CELL}>—</TableCell>
+              <TableCell className={BILLING_EMPTY_CELL}>—</TableCell>
+              <TableCell className={BILLING_EMPTY_CELL}>—</TableCell>
+              <TableCell className={BILLING_EMPTY_CELL}>—</TableCell>
+              <TableCell className={BILLING_EMPTY_CELL}>—</TableCell>
+              <TableCell className={BILLING_EMPTY_CELL}>—</TableCell>
+              <TableCell className={`${BILLING_NUM_CELL} text-base font-semibold`}>
+                {formatInr(grandTotal)}
+              </TableCell>
             </TableRow>
           </TableBody>
         </Table>
@@ -473,16 +521,21 @@ export function VisitRegistrationBillingSection({
           ) : null}
         </Field>
         <Field className="sm:w-40">
-          <RegistrationFieldLabel htmlFor="visit-reg-amount-paid-detailed">
+          <RegistrationFieldLabel htmlFor="visit-reg-amount-paid-detailed" required>
             Amount paid
           </RegistrationFieldLabel>
           <Input
             id="visit-reg-amount-paid-detailed"
             type="number"
             min={0}
+            step="any"
             className="h-10 tabular-nums"
+            aria-invalid={amountPaidHint ? true : undefined}
             {...register('billing.amount_paid', { valueAsNumber: true })}
           />
+          {amountPaidHint ? (
+            <p className="text-xs text-destructive">{amountPaidHint}</p>
+          ) : null}
         </Field>
       </div>
     </RegistrationSection>
@@ -759,14 +812,54 @@ function SelectField({
   );
 }
 
+const BILLING_TABLE_CLASS = 'min-w-[44rem] table-fixed';
+const BILLING_CELL = 'h-11 px-2 align-middle text-center';
+const BILLING_HEAD_CELL = `${BILLING_CELL} !text-center font-medium whitespace-nowrap`;
+const BILLING_LABEL_CELL = `${BILLING_CELL} font-medium`;
+const BILLING_SERVICE_CELL = `${BILLING_CELL} max-w-0 truncate text-sm text-muted-foreground`;
+const BILLING_NUM_CELL = `${BILLING_CELL} tabular-nums`;
+const BILLING_EMPTY_CELL = `${BILLING_CELL} text-muted-foreground`;
+const BILLING_INPUT_CELL = `${BILLING_CELL} p-1`;
+const BILLING_INPUT_CLASS = 'h-8 w-full max-w-[5.25rem] text-center tabular-nums';
+
+function BillingTableColGroup() {
+  return (
+    <colgroup>
+      <col style={{ width: '16%' }} />
+      <col style={{ width: '14%' }} />
+      <col style={{ width: '11%' }} />
+      <col style={{ width: '9%' }} />
+      <col style={{ width: '11%' }} />
+      <col style={{ width: '11%' }} />
+      <col style={{ width: '13%' }} />
+      <col style={{ width: '15%' }} />
+    </colgroup>
+  );
+}
+
+function BillingNumericInputCell({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  return (
+    <TableCell className={BILLING_INPUT_CELL}>
+      <div className="flex h-full items-center justify-center">{children}</div>
+    </TableCell>
+  );
+}
+
 function BillingFeeRow({
   tariffTypeLabel,
   serviceName,
   unitPrice,
   taxPercent,
-  discountPath,
+  discountPercentPath,
+  discountRsPath,
   register,
+  setValue,
   netPrice,
+  taxAmount,
   total,
   muted = false,
 }: {
@@ -774,28 +867,61 @@ function BillingFeeRow({
   serviceName: string;
   unitPrice: number;
   taxPercent: number;
-  discountPath: 'billing.registration_fee.discount' | 'billing.consultation_fee.discount';
+  discountPercentPath:
+    | 'billing.registration_fee.discount_percent'
+    | 'billing.consultation_fee.discount_percent';
+  discountRsPath: 'billing.registration_fee.discount' | 'billing.consultation_fee.discount';
   register: UseFormRegister<CreateVisitRequestBody>;
+  setValue: UseFormSetValue<CreateVisitRequestBody>;
   netPrice: number;
+  taxAmount: number;
   total: number;
   muted?: boolean;
 }) {
+  const discountPercentReg = register(discountPercentPath, { valueAsNumber: true });
+  const discountRsReg = register(discountRsPath, { valueAsNumber: true });
+
   return (
     <TableRow className={muted ? 'opacity-60' : undefined}>
-      <TableCell className="font-medium">{tariffTypeLabel}</TableCell>
-      <TableCell className="text-muted-foreground text-sm">{serviceName}</TableCell>
-      <TableCell className="text-right tabular-nums">{formatInr(unitPrice)}</TableCell>
-      <TableCell className="text-right tabular-nums">{taxPercent}</TableCell>
-      <TableCell className="text-right tabular-nums">{formatInr(netPrice)}</TableCell>
-      <TableCell className="text-right">
+      <TableCell className={BILLING_LABEL_CELL}>{tariffTypeLabel}</TableCell>
+      <TableCell className={BILLING_SERVICE_CELL} title={serviceName}>
+        {serviceName}
+      </TableCell>
+      <TableCell className={BILLING_NUM_CELL}>{formatInr(unitPrice)}</TableCell>
+      <BillingNumericInputCell>
         <Input
           type="number"
           min={0}
-          className="h-9 w-24 ml-auto text-right tabular-nums"
-          {...register(discountPath, { valueAsNumber: true })}
+          max={100}
+          className={BILLING_INPUT_CLASS}
+          {...discountPercentReg}
+          onChange={(e) => {
+            void discountPercentReg.onChange(e);
+            const pct = Number(e.target.value);
+            if (Number.isFinite(pct) && pct >= 0) {
+              setValue(discountRsPath, Math.round(unitPrice * pct / 100), {
+                shouldDirty: true,
+                shouldValidate: true,
+              });
+            }
+          }}
         />
+      </BillingNumericInputCell>
+      <BillingNumericInputCell>
+        <Input type="number" min={0} className={BILLING_INPUT_CLASS} {...discountRsReg} />
+      </BillingNumericInputCell>
+      <TableCell className={BILLING_NUM_CELL}>{formatInr(netPrice)}</TableCell>
+      <TableCell className={BILLING_NUM_CELL}>
+        {taxPercent > 0 ? (
+          <span className="inline-flex flex-col items-center justify-center gap-0.5 leading-none">
+            <span>{taxPercent}%</span>
+            <span className="text-xs text-muted-foreground">{formatInr(taxAmount)}</span>
+          </span>
+        ) : (
+          '0'
+        )}
       </TableCell>
-      <TableCell className="text-right tabular-nums font-medium">{formatInr(total)}</TableCell>
+      <TableCell className={`${BILLING_NUM_CELL} font-medium`}>{formatInr(total)}</TableCell>
     </TableRow>
   );
 }

@@ -5,6 +5,7 @@ import {
   catalogIqTenantHeaderValue,
   DEV_DEFAULT_IQ_TENANT_ID,
   DEV_TENANT_IQ_CATALOG_UUID,
+  isMasterDataDualSchemaCatalogApiPath,
   isVisitpadCatalogApiPath,
   isVisitpadTenantCatalogScope,
   isVisitpadTenantCatalogScopeForPrincipal,
@@ -52,13 +53,32 @@ describe('isVisitpadCatalogApiPath', () => {
   });
 });
 
+describe('isMasterDataDualSchemaCatalogApiPath', () => {
+  it('includes visitpad and departments catalog paths', () => {
+    expect(isMasterDataDualSchemaCatalogApiPath('/api/v1/master-data/visitpad/units')).toBe(true);
+    expect(isMasterDataDualSchemaCatalogApiPath('/api/v1/master-data/departments')).toBe(true);
+    expect(isMasterDataDualSchemaCatalogApiPath('/api/v1/master-data/departments/import-from-platform')).toBe(
+      true,
+    );
+    expect(isMasterDataDualSchemaCatalogApiPath('/api/v1/master-data/modules')).toBe(false);
+  });
+});
+
 describe('visitpad catalog scope by principal role', () => {
   const visitpadPath = '/api/v1/master-data/visitpad/units';
+
+  const departmentsPath = '/api/v1/master-data/departments';
 
   it('omits iq_tenant_id for platform super-admin', () => {
     expect(
       visitpadCatalogOmitsIqTenantHeader({
         path: visitpadPath,
+        authRoles: ['super-admin'],
+      }),
+    ).toBe(true);
+    expect(
+      visitpadCatalogOmitsIqTenantHeader({
+        path: departmentsPath,
         authRoles: ['super-admin'],
       }),
     ).toBe(true);

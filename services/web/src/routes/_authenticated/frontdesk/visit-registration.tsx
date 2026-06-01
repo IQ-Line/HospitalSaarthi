@@ -164,8 +164,8 @@ function VisitRegistrationRoute() {
       },
       billing: {
         add_item_search: '',
-        registration_fee: { unit_price: 0, tax_percent: 0, discount: 0, item_code: '', service_name: '' },
-        consultation_fee: { unit_price: 0, tax_percent: 0, discount: 0, item_code: '', service_name: '' },
+        registration_fee: { unit_price: 0, tax_percent: 0, discount_percent: 0, discount: 0, item_code: '', service_name: '' },
+        consultation_fee: { unit_price: 0, tax_percent: 0, discount_percent: 0, discount: 0, item_code: '', service_name: '' },
         invoice_discount: 0,
         payment_mode: 'cash',
         amount_paid: 0,
@@ -178,6 +178,7 @@ function VisitRegistrationRoute() {
     billingConsultationFee,
     billingInvoiceDiscount,
     billingPaymentMode,
+    billingAmountPaid,
     patientPhone,
     patientFirstName,
     appointmentProviderId,
@@ -195,6 +196,7 @@ function VisitRegistrationRoute() {
       'billing.consultation_fee',
       'billing.invoice_discount',
       'billing.payment_mode',
+      'billing.amount_paid',
       'patient.phone',
       'patient.first_name',
       'appointment.provider_id',
@@ -230,10 +232,11 @@ function VisitRegistrationRoute() {
     providerId: appointmentProviderId,
     visitTypeCode: appointmentVisitTypeCode,
     grandTotal: computeBillingGrandTotal(
-      billingRegistrationFee ?? { unit_price: 0, tax_percent: 0, discount: 0 },
-      billingConsultationFee ?? { unit_price: 0, tax_percent: 0, discount: 0 },
+      billingRegistrationFee ?? { unit_price: 0, tax_percent: 0, discount_percent: 0, discount: 0 },
+      billingConsultationFee ?? { unit_price: 0, tax_percent: 0, discount_percent: 0, discount: 0 },
       billingInvoiceDiscount ?? 0,
     ),
+    amountPaid: billingAmountPaid,
     paymentMode: billingPaymentMode,
     hasProvider,
     consultationUnitPrice: billingConsultationFee?.unit_price ?? 0,
@@ -441,10 +444,11 @@ function VisitRegistrationRoute() {
       providerId: data.appointment?.provider_id,
       visitTypeCode: data.appointment?.visit_type_code,
       grandTotal: computeBillingGrandTotal(
-        data.billing?.registration_fee ?? { unit_price: 0, tax_percent: 0, discount: 0 },
-        data.billing?.consultation_fee ?? { unit_price: 0, tax_percent: 0, discount: 0 },
+        data.billing?.registration_fee ?? { unit_price: 0, tax_percent: 0, discount_percent: 0, discount: 0 },
+        data.billing?.consultation_fee ?? { unit_price: 0, tax_percent: 0, discount_percent: 0, discount: 0 },
         data.billing?.invoice_discount ?? 0,
       ),
+      amountPaid: data.billing?.amount_paid,
       paymentMode: data.billing?.payment_mode,
       hasProvider: Boolean(data.appointment?.provider_id?.trim()),
       consultationUnitPrice: data.billing?.consultation_fee?.unit_price ?? 0,
@@ -485,6 +489,12 @@ function VisitRegistrationRoute() {
         form.setError('billing.payment_mode', {
           type: 'required',
           message: 'Payment mode is required',
+        });
+      }
+      if (blockers.some((b) => b.startsWith('valid amount paid'))) {
+        form.setError('billing.amount_paid', {
+          type: 'validate',
+          message: 'Enter exact total, floor, or ceiling of grand total',
         });
       }
       toast.error(visitRegistrationBlockHint(gate) ?? 'Complete all required fields.');
@@ -698,6 +708,7 @@ function VisitRegistrationRoute() {
                     watch={form.watch}
                     setValue={form.setValue}
                     paymentModeError={form.formState.errors.billing?.payment_mode?.message}
+                    amountPaidError={form.formState.errors.billing?.amount_paid?.message}
                     variant="detailed"
                     tariffsLoading={tariffs.isLoading}
                     tariffsError={tariffs.isError}

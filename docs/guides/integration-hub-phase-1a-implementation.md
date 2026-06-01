@@ -5,9 +5,29 @@
 **Safe migration:** [03-safe-migration-and-cutover.md](../architecture/lld/integration-hub/03-safe-migration-and-cutover.md)  
 **Tracking:** [GitHub issue #143](https://github.com/IQ-Line/HospitalSaarthi/issues/143)
 
-**PR #144 is docs-only.** Rename to `docs(integration-hub): Phase 1a spec`. Code ships in **four follow-up PRs** — see [03-safe-migration §2](../architecture/lld/integration-hub/03-safe-migration-and-cutover.md#2-recommended-code-pr-sequence).
+**PR #144 is docs-only.** Rename to `docs(integration-hub): Phase 1a spec`. Code ships in **four follow-up PRs** in **strict order** — see [03-safe-migration §2](../architecture/lld/integration-hub/03-safe-migration-and-cutover.md#2-recommended-code-pr-sequence).
 
-Use this guide while executing Phase 1a code. Read **03-safe-migration** before Code PR 2 — callback routes must not keep using a single boot-time `xHipId`. Protocol-level ABDM E2E (M1 enrolment, M2 link, M3 mock loop) stays in the existing runbooks — only **service name**, **env prefix**, and **credential source** change.
+## 0. Development order (follow this sequence)
+
+```mermaid
+flowchart LR
+  D144["PR 144 docs"]
+  C1["Code PR 1 Part A"]
+  C2["Code PR 2 Part B"]
+  C3["Code PR 3 Part C"]
+  C4["Code PR 4 Part D"]
+  D144 --> C1 --> C2 --> C3 --> C4
+```
+
+| Step | When to start | Checklist section |
+|------|---------------|-------------------|
+| 0 — #144 | Done | Read LLD 01–03 (no code) |
+| 1 — Code PR 1 | After #144 merged | §2 Code PR 1 below |
+| 2 — Code PR 2 | After Code PR 1 merged | §2 Code PR 2 below |
+| 3 — Code PR 3 | After Code PR 2 merged | §2 Code PR 3 below |
+| 4 — Code PR 4 | After Code PR 3 merged + smoke | §2 Code PR 4 + §4 E2E |
+
+Use this guide while executing **one code PR at a time**. Read **03-safe-migration** before Code PR 2 — callback routes must not keep using a single boot-time `xHipId`. Protocol-level ABDM E2E (M1 enrolment, M2 link, M3 mock loop) stays in the existing runbooks — only **service name**, **env prefix**, and **credential source** change.
 
 | Still valid after cutover | Path |
 |---------------------------|------|
@@ -39,40 +59,79 @@ Use this guide while executing Phase 1a code. Read **03-safe-migration** before 
 
 ---
 
-## 2. Implementation checklist (maps to issue parts A–D)
+## 2. Implementation checklist (by Code PR — same order as §0)
 
-### Part A — Foundation
+### Code PR 1 — Part A (Foundation)
 
 - [ ] `tenant_integration_profiles` in configurator (Drizzle + migration + partial unique on `hip_id` + port + repo)
 - [ ] **configurator-svc REST CRUD** for profiles (required — not SQL-only)
-- [ ] **Seed script** `seed-abdm-profile-from-env.mjs` (or `make` target) mapping current `.env` → profile row
+- [ ] **Seed script** `scripts/seed-abdm-profile-from-env.mts` — `pnpm seed-abdm-profile` or `make seed-abdm-profile`
 - [ ] Scaffold `modules/integration-hub/` (`package.json`, `project.json`, `tsconfig.json`, Nx tags)
 - [ ] Copy `modules/abdm-adapter/src/*` → `integrations/abdm/` (no behaviour change)
 - [ ] `lib/integration-context.ts` — types for `IntegrationContext` / `request.integrationCtx`
 - [ ] `lib/per-tenant-secrets.ts` — implements `SecretsClient` from profile (+ `env:` fallback)
 - [ ] `lib/integration-profile-repo.ts` — read active profile by `iq_tenant_id`; read by `hip_id` for callbacks
 
-### Part B — Multi-tenant refactor
+### Code PR 2 — Part B (Multi-tenant refactor)
 
-- [ ] All rest handlers: `options` → `request.integrationCtx.deps` (or helper `getAbdmDeps(request)`)
-- [ ] `router.ts`: `createRouter()` registers routes without `AbdmAdapterDeps` closure
-- [ ] **`/api/v3` callbacks:** after `resolveCallbackTenantId`, build deps for that tenant (see 03-safe-migration §4.2)
-- [ ] **`registerM2EventConsumers`:** build deps from event `iqTenantId`, not boot-time `xHipId` (03 §4.3)
-- [ ] `HttpGatewayClient`: `xCmId` from deps per request/call; token cache disabled or keyed by tenant
-- [ ] `createSmsClientFromEnv` removed from hot path; `createSmsClientFromProfile(profile)`
-- [ ] `resolve-callback-tenant.ts`: DB `hip_id` → `iq_tenant_id` (keep `x-tenant-id` header for mock scripts)
+- [x] All rest handlers: `options` → `request.integrationCtx.deps` (or helper `getAbdmDeps(request)`)
+- [x] `router.ts`: `createRouter()` registers routes without `AbdmAdapterDeps` closure
+- [x] **`/api/v3` callbacks:** after `resolveCallbackTenantId`, build deps for that tenant (see 03-safe-migration §4.2)
+- [x] **`registerM2EventConsumers`:** `sharedInfra` + `buildAbdmDepsForTenant(event.iq_tenant_id, …)` per event (envelope `iq_tenant_id`, 03 §4.3)
+- [x] `HttpGatewayClient`: `xCmId` from deps per request/call; new client per tenant (no shared singleton cache across tenants)
+- [x] `createSmsClientFromProfile(profile)` on hot path; `createSmsClientFromEnv` retained for tests/sandbox only
+- [x] `resolve-callback-tenant.ts`: DB `hip_id` → `iq_tenant_id` (keep `x-tenant-id` header + `ABDM_DEV_TENANT_ID` fallback)
 
-### Part C — Schema + service
+#### Step 2 manual verification (before merge / before Step 3)
+
+Step 2 code lives in **`modules/integration-hub`** only. **`abdm-adapter-svc` still uses single-tenant `@hims/abdm-adapter`** until Step 3 wires `integration-hub-svc`. Use this checklist to prove Part B without a running hub service.
+
+**Automated (required):**
+
+```bash
+cd modules/integration-hub && npx vitest run
+# Expect 124+ tests pass (includes build-abdm-deps, resolve-callback-tenant,
+# configurator HTTP repo, integration-context-resolver, m2-inbound-helper, M2 consumers)
+cd ../configurator && npx vitest run src/use-cases/*integration-profile*
+```
+
+**Configurator + profile (prerequisite for callback/tenant tests):**
+
+```bash
+# configurator-svc on :3001, DATABASE_URL, make seed
+make seed-abdm-profile
+curl -s -H "x-configurator-internal-key: $CONFIGURATOR_INTERNAL_API_KEY" \
+  "http://localhost:3001/api/configurator/v1/integration-profiles/by-hip/<YOUR_HIP_ID>" | jq .
+```
+
+**What Step 2 unit tests prove (highest-risk paths):**
+
+| Risk | Test / code |
+|------|-------------|
+| Wrong tenant credentials on `/api/v3` | `m2-inbound-helper` mocks `buildAbdmDepsForTenant` per callback |
+| HIP → tenant | `resolve-callback-tenant.test.ts` (DB mock + dev fallback) |
+| Two tenants → two HIPs | `build-abdm-deps.test.ts` |
+| M2 async wrong `xHipId` | `register-m2-consumers.test.ts` uses `event.iq_tenant_id` |
+| Platform `getAbdmDeps` | `get-abdm-deps.test.ts`; resolver wired in `router.ts` + Step 3 `main.ts` |
+
+**After Step 3 only (live smoke — same as §4):**
+
+- `integration-hub-svc:serve` on port 3007
+- M1 POST with `x-tenant-id` (§4.3)
+- M2/M3 callback with `X-HIP-ID` from seeded profile (§4.4)
+- Two profiles / two tenants (§4.6)
+
+### Code PR 3 — Part C (Schema + service)
 
 - [ ] `INTEGRATION_HUB_SCHEMA_NAME = 'integration_hub'` in `schema/tables.ts`
 - [ ] Import path fixes under `integrations/abdm/`
 - [ ] `services/integration-hub-svc/src/main.ts`: middleware + deployment env only
 - [ ] `workers/janitor.ts` extracted
-- [ ] `normalizeIntegrationHubEnvAliases()` (keep reading old `ABDM_*` names during transition)
+- [ ] `normalizeIntegrationHubEnvAliases()` — full old→new table in [01-phase-1a §7.5](../architecture/lld/integration-hub/01-phase-1a-restructure-and-multi-tenant.md#75-normalizeintegrationhubenvaliases-reference-code-pr-3)
 - [ ] `specs/openapi/integration-hub.v1.yaml` (rename from `abdm-adapter.v1.yaml`)
 - [ ] Makefile / docker / devops-handoff updates
 
-### Part D — Cleanup
+### Code PR 4 — Part D (Cleanup)
 
 - [ ] Remove `modules/abdm-adapter/` and `services/abdm-adapter-svc/`
 - [ ] `pnpm install`
@@ -82,7 +141,23 @@ Use this guide while executing Phase 1a code. Read **03-safe-migration** before 
 
 ## 3. Seeding `tenant_integration_profiles` (local)
 
-After Part A migration, insert one row per dev tenant (values mirror your current `.env`):
+After Part A migration, prefer the seed script (reads `services/abdm-adapter-svc/.env`):
+
+```bash
+npx nx run configurator:db-migrate
+pnpm seed-abdm-profile   # or: make seed-abdm-profile
+```
+
+Requires `DATABASE_URL`, `make seed`, and `ABDM_X_HIP_ID` / `ABDM_X_HIU_ID` in `.env`. If `ABDM_DEV_TENANT_ID` in `.env` is not in the DB, the seed script falls back to the platform dev tenant (`DEVELOPMENT_SEED_TENANT_ID`); align `ABDM_DEV_TENANT_ID` with that UUID for callbacks.
+
+**By-hip lookup (internal):** In dev, `CONFIGURATOR_INTERNAL_API_KEY` unset → no header required. In production, set the same value on configurator-svc and send `x-configurator-internal-key` from integration-hub-svc (Code PR 2).
+
+```bash
+curl -s "http://localhost:3001/api/configurator/v1/integration-profiles/by-hip/IN3610001625"
+# With key: curl -H "x-configurator-internal-key: $CONFIGURATOR_INTERNAL_API_KEY" ...
+```
+
+Manual SQL (alternative):
 
 ```sql
 INSERT INTO configurator.tenant_integration_profiles (

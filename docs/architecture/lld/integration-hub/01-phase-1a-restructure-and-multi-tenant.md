@@ -6,7 +6,9 @@
 
 > **Scope note (issue comment 2026-05-29):** Comments attached to #143 paste older platform LLDs (13-table schema, FSM engine, `atomic-transition`, full env inventory from a broader transition analysis). Those decisions are **outdated or deferred** for this sprint. **This document and the issue body are authoritative for Phase 1a.**
 
-> **Docs vs code:** PR **#144** (or equivalent) is **documentation only** — it does not ship `integration-hub`, `integration-hub-svc`, or `tenant_integration_profiles` code. Use title `docs(integration-hub): Phase 1a spec`. Implementation follows [four code PRs](./03-safe-migration-and-cutover.md#2-recommended-code-pr-sequence) after docs merge.
+> **Docs vs code:** PR **#144** (or equivalent) is **documentation only** — it does not ship `integration-hub`, `integration-hub-svc`, or `tenant_integration_profiles` code. Use title `docs(integration-hub): Phase 1a spec`.
+>
+> **Development order:** `#144` → Code PR 1 (Part A) → Code PR 2 (Part B) → Code PR 3 (Part C) → Code PR 4 (Part D). See [README](./README.md#pr-roadmap-strict-order--develop-sequentially) or [03-safe-migration §2](./03-safe-migration-and-cutover.md#2-recommended-code-pr-sequence). **Do not skip steps.**
 
 ---
 
@@ -317,22 +319,40 @@ Service should accept **old names as aliases** during transition (same pattern a
 
 ### 7.4 Deployment-level vars (in codebase today — rename with `INTEGRATION_HUB_*` prefix)
 
-Issue #143 lists the main P1 renames. The following are also read from env in `modules/abdm-adapter` and stay **deployment-level** (not in `tenant_integration_profiles`):
+Issue #143 lists the main P1 renames in §7.2. The following are also read from env in `modules/abdm-adapter` and stay **deployment-level** (not in `tenant_integration_profiles`). Rename in **Code PR 3** via `normalizeIntegrationHubEnvAliases()`:
 
-| Current env | Used for |
-|-------------|----------|
-| `ABDM_M3_PUSH_CHECKSUM_MODE` | HIP push checksum (`literal` / `sha256` / `md5`) |
-| `ABDM_M3_DATA_PUSH_MINIMAL_HEADERS` | External data-push POST headers |
-| `ABDM_M3_KEYPAIR_TTL_HOURS` | M3 keypair session TTL |
-| `ABDM_M3_PUSH_TIMEOUT_MS` / `ABDM_M3_PUSH_TOTAL_TIMEOUT_MS` | HIP push HTTP timeouts |
-| `ABDM_LINK_TOKEN_POLL_INTERVAL_MS` / `ABDM_LINK_TOKEN_POLL_MAX_INTERVAL_MS` | Link token polling |
-| `ABDM_MOCK_PATIENT_ID` | M2 mock platform patient id |
-| `ABDM_DEV_INBOUND_SIMULATION` | Skip outbound NHA acks (local only) |
-| `ABDM_SESSION_TTL_HOURS` | Session janitor (if referenced) |
-| `EMPI_BASE_URL` / `RECORD_FOUNDATION_BASE_URL` | Cross-module HTTP (not ABDM-prefixed) |
-| `ENABLE_AUTH` / `JWKS_URL` / `NODE_ENV` | Platform auth (unchanged names) |
+| Current env | New (Code PR 3) | Used for |
+|-------------|-----------------|----------|
+| `ABDM_M3_PUSH_CHECKSUM_MODE` | `INTEGRATION_HUB_ABDM_M3_PUSH_CHECKSUM_MODE` | HIP push checksum (`literal` / `sha256` / `md5`) |
+| `ABDM_M3_DATA_PUSH_MINIMAL_HEADERS` | `INTEGRATION_HUB_ABDM_M3_DATA_PUSH_MINIMAL_HEADERS` | External data-push POST headers |
+| `ABDM_M3_KEYPAIR_TTL_HOURS` | `INTEGRATION_HUB_ABDM_M3_KEYPAIR_TTL_HOURS` | M3 keypair session TTL |
+| `ABDM_M3_PUSH_TIMEOUT_MS` | `INTEGRATION_HUB_ABDM_M3_PUSH_TIMEOUT_MS` | HIP push HTTP timeout |
+| `ABDM_M3_PUSH_TOTAL_TIMEOUT_MS` | `INTEGRATION_HUB_ABDM_M3_PUSH_TOTAL_TIMEOUT_MS` | HIP push total timeout |
+| `ABDM_LINK_TOKEN_POLL_INTERVAL_MS` | `INTEGRATION_HUB_ABDM_LINK_TOKEN_POLL_INTERVAL_MS` | Link token poll interval |
+| `ABDM_LINK_TOKEN_POLL_MAX_INTERVAL_MS` | `INTEGRATION_HUB_ABDM_LINK_TOKEN_POLL_MAX_INTERVAL_MS` | Link token poll max interval |
+| `ABDM_MOCK_PATIENT_ID` | `INTEGRATION_HUB_ABDM_MOCK_PATIENT_ID` | M2 mock platform patient id |
+| `ABDM_DEV_INBOUND_SIMULATION` | `INTEGRATION_HUB_ABDM_DEV_INBOUND_SIMULATION` | Skip outbound NHA acks (local only) |
+
+**Unchanged names** (not ABDM-prefixed): `EMPI_BASE_URL`, `RECORD_FOUNDATION_BASE_URL`, `ENABLE_AUTH`, `JWKS_URL`, `NODE_ENV`.
 
 `callback_base_url` and M3 loopback URL logic that today read `ABDM_ADAPTER_PUBLIC_BASE_URL` / `ABDM_ADAPTER_SVC_PORT` should read from **profile** (`callback_base_url`) where the URL is tenant-specific (ngrok per hospital).
+
+### 7.5 `normalizeIntegrationHubEnvAliases()` reference (Code PR 3)
+
+**Code PR 1** does not implement alias normalization. **Code PR 3** adds `normalizeIntegrationHubEnvAliases()` in `integration-hub-svc` (extends today's `normalizeAbdmEnvAliases()` in `abdm-adapter-svc`): for each row below, if the **new** name is unset and the **old** name is set, copy old → new.
+
+**§7.2 renames** — see table in §7.2 (all `ABDM_*` → `INTEGRATION_HUB_*` / `INTEGRATION_HUB_ABDM_*` as listed there).
+
+**§7.4 renames** — see table in §7.4 above.
+
+**Postman / informal aliases** (today in `load-env.ts`; carry forward in Code PR 3):
+
+| Informal key | Resolves to (old) | After rename, also accept |
+|--------------|-------------------|---------------------------|
+| `clientId` | `ABDM_SANDBOX_CLIENT_ID` | `INTEGRATION_HUB_*` client id var from profile seed docs |
+| `clientSecret` | `ABDM_SANDBOX_CLIENT_SECRET` | same pattern |
+
+**Test-only (§7.3):** no rename — `ABDM_SANDBOX_TEST_*`, `ABDM_RUN_LIVE_NHA_SANDBOX`, `ABDM_SANDBOX_TEST_TENANT_ID` keep current names.
 
 ---
 
@@ -401,7 +421,7 @@ Issue #143 lists the main P1 renames. The following are also read from env in `m
 ## 11. Open design items (resolve in Part B)
 
 1. **`gateway-client.http.ts`** — per-call `xCmId` vs tenant-aware secrets client.
-2. **`GatewayClient` token caching** — scope per `(tenant, environment)` or disable for sandbox.
+2. **`GatewayClient` token caching** — **disable** process-wide cache in Code PR 2; keyed `(tenant, environment)` deferred for prod.
 3. **Callback resolver fast path** — direct DB query vs in-memory cache of `hip_id → tenant`.
 4. **Dev tenant bootstrap** — whether `ABDM_DEV_TENANT_ID` remains when profile seeding is incomplete.
 

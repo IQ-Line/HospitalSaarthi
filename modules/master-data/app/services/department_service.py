@@ -17,9 +17,17 @@ class DepartmentNotFoundError(Exception):
 def list_departments(
     repository: DepartmentRepository,
     *,
+    search: str | None = None,
     department_type: DepartmentType | None = None,
-) -> list[Any]:
-    return repository.list_departments(department_type=department_type)
+    limit: int = 50,
+    offset: int = 0,
+) -> tuple[list[Any], int]:
+    return repository.list_departments(
+        search=search,
+        department_type=department_type,
+        limit=limit,
+        offset=offset,
+    )
 
 
 def get_department_by_id(

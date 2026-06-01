@@ -43,7 +43,7 @@ function toPatch(values: FormValues): UpdateUserBody {
 
 export function UserEditForm({ user }: { user: UmUser }) {
   const update = useUpdateUser(user.id);
-  const { data: deptData, isLoading: deptLoading } = useDepartments();
+  const { data: deptData, isLoading: deptLoading } = useDepartments(undefined, { formCatalog: true });
   const departments = (deptData?.data ?? []).filter((d) => d.is_active);
   const { reset, handleSubmit, register, control, formState } = useForm<FormValues>({
     resolver: zodResolver(schema),

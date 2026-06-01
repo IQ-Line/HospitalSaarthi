@@ -798,11 +798,31 @@ paths:
     get:
       operationId: listDepartments
       summary: List hospital departments
-      description: Returns active department rows (`is_deleted = false`). Optional `type` filter.
+      description: Returns active department rows (`is_deleted = false`). Supports pagination and search.
       security: []
       tags:
         - Departments
       parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
         - name: type
           in: query
           required: false
@@ -945,6 +965,52 @@ paths:
                 $ref: '#/components/schemas/DepartmentSingleResponse'
         '404':
           description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /departments/import-from-platform:
+    post:
+      operationId: importDepartmentsFromPlatform
+      summary: Bulk-import departments from the platform catalog
+      security: []
+      tags:
+        - Departments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitpadPlatformImportRequest'
+      responses:
+        '200':
+          description: Import result (created, skipped, errors).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadPlatformImportSingleResponse'
+        '400':
+          description: Invalid request or tenant scope required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /departments/keys:
+    get:
+      operationId: listDepartmentImportKeys
+      summary: List tenant department codes for import matching
+      security: []
+      tags:
+        - Departments
+      responses:
+        '200':
+          description: Lowercase department codes in the tenant catalog.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitpadCatalogKeysResponse'
+        '400':
+          description: Tenant catalog scope required.
           content:
             application/json:
               schema:
