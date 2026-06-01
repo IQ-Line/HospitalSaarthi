@@ -37,4 +37,4 @@ curl -sS -X POST "$BASE/api/abdm/v1/m2/hip/initiated-link/start" \
     \"count\": 1
   }"
 echo ""
-echo "Done. Check logs and abdm_adapter.abdm_sessions / abdm_link_tokens."
+echo "Done. Check logs and integration_hub.abdm_sessions / integration_hub.abdm_link_tokens."

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Delete `abdm_adapter.abdm_sessions` rows past `context.expiresAt`.
+ * Delete `integration_hub.abdm_sessions` rows past `context.expiresAt`.
+ * Prefer the in-process janitor in integration-hub-svc; this is for manual/ops use.
  */
 import { spawnSync } from "node:child_process";
 import path from "node:path";
@@ -11,6 +12,7 @@ const serviceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 config({ path: path.join(serviceRoot, ".env"), override: true });
 
 const raw = (
+  process.env["INTEGRATION_HUB_DATABASE_URL"] ??
   process.env["ABDM_DATA_DATABASE_URL"] ??
   process.env["DATABASE_URL"] ??
   ""
@@ -25,7 +27,7 @@ if (!url) {
 }
 
 const sql = `
-DELETE FROM abdm_adapter.abdm_sessions
+DELETE FROM integration_hub.abdm_sessions
 WHERE (context->>'expiresAt') IS NOT NULL
   AND (context->>'expiresAt')::timestamptz < now();
 `;

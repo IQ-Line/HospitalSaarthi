@@ -8,7 +8,7 @@ import { handleNotifyCallback } from "../../use-cases/m3/hiu/handle-notify-callb
 import { handleOnFetchCallback } from "../../use-cases/m3/hiu/handle-on-fetch-callback.js";
 import { handleOnDataRequestCallback } from "../../use-cases/m3/hiu/handle-on-data-request-callback.js";
 import { handleBundlePush } from "../../use-cases/m3/hiu/handle-bundle-push.js";
-import { resolveInboundRequestId } from "../../lib/resolve-callback-tenant.js";
+import { resolveCallbackTenant, resolveInboundRequestId } from "../../lib/resolve-callback-tenant.js";
 import type { EncryptedBundlePushBody } from "@hims/ts-sdk-abha/protocol/m3/hiu-data-fetch.js";
 
 export async function registerM3CallbackRoutes(
@@ -95,23 +95,46 @@ export async function registerM3CallbackRoutes(
     });
   });
 
+  /**
+   * Encrypted bundle push from CM/HIP — `transferId` is in the URL.
+   * Tenant: `x-tenant-id` header, else `integration_hub.abdm_m3_data_transfers` row
+   * (CM often omits tenant headers), else HIP/header resolution via {@link resolveCallbackTenant}.
+   */
   app.post("/hiu/health-information/transfer/:transferId", async (req, reply) => {
     const headers = req.headers as Record<string, unknown>;
     const transferId = (req.params as { transferId: string }).transferId;
     let iqTenantId = String(headers["x-tenant-id"] ?? headers["X-Tenant-Id"] ?? "").trim();
+    let profile;
 
     if (!iqTenantId) {
-      const lookupDeps = sharedInfra.m3DataTransfers;
-      const row = await lookupDeps.findByTransferId(transferId);
-      if (!row) {
-        return reply.code(404).send({ error: "NotFound", message: "transfer not found" });
+      const row = await sharedInfra.m3DataTransfers.findByTransferId(transferId);
+      if (row) {
+        iqTenantId = row.iqTenantId;
+      } else {
+        try {
+          const resolved = await resolveCallbackTenant(headers, sharedInfra.profiles);
+          iqTenantId = resolved.iqTenantId;
+          profile = resolved.profile;
+        } catch (e) {
+          return reply.code(400).send({
+            error: "BadRequest",
+            message: e instanceof Error ? e.message : "tenant resolution failed",
+          });
+        }
       }
-      iqTenantId = row.iqTenantId;
+    } else {
+      const hipId = String(headers["x-hip-id"] ?? headers["X-HIP-ID"] ?? "").trim();
+      if (hipId) {
+        const byHip = await sharedInfra.profiles.findActiveByHipId(hipId);
+        if (byHip?.iqTenantId === iqTenantId) {
+          profile = byHip;
+        }
+      }
     }
 
     let deps;
     try {
-      deps = (await buildAbdmDepsForTenant(iqTenantId, sharedInfra)).deps;
+      deps = (await buildAbdmDepsForTenant(iqTenantId, sharedInfra, { profile })).deps;
     } catch (e) {
       if (e instanceof IntegrationProfileNotFoundError) {
         return reply.code(404).send({

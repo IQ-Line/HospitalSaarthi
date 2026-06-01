@@ -7,9 +7,9 @@ import { HttpGatewayClient } from "../../data-access/gateway-client.http.js";
 import { enrolAadhaarOtpRequest } from "./enrol-aadhaar-otp-request.js";
 
 /**
- * Excluded from default `nx run abdm-adapter:test` (see vitest.config.ts).
+ * Excluded from default `nx run integration-hub:test` (see vitest.config.ts).
  * Run: `pnpm -F @hims/ts-sdk-db build` then
- * `RUN_ABDM_SANDBOX_TESTS=1 ABDM_SANDBOX_TEST_AADHAAR=... pnpm -F @hims/abdm-adapter test:sandbox`
+ * `RUN_ABDM_SANDBOX_TESTS=1 ABDM_SANDBOX_TEST_AADHAAR=...` and `cd modules/integration-hub && pnpm test:sandbox`
  */
 
 import { resolveSandboxDatabaseUrl, hasSandboxAadhaarEnv } from "../../test-utils/sandbox-env.js";

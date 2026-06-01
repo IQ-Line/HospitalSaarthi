@@ -1,6 +1,6 @@
 # M3 Mock Harness Scripts
 
-Bash scripts that simulate ABDM CM callbacks against a locally-running adapter service. See [`docs/architecture/lld/abdm-adapter/10-m3-mock-harness-guide.md`](../../../../docs/architecture/lld/abdm-adapter/10-m3-mock-harness-guide.md) for the full walkthrough.
+Bash scripts that simulate ABDM CM callbacks against a locally-running `integration-hub-svc`. See [`docs/architecture/lld/abdm-adapter/10-m3-mock-harness-guide.md`](../../../../docs/architecture/lld/abdm-adapter/10-m3-mock-harness-guide.md) for the full walkthrough.
 
 ## Requirements
 

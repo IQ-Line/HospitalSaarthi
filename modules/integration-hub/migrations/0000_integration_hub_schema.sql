@@ -1,4 +1,4 @@
--- abdm-adapter schema — aligned with modules/abdm-adapter/src/schema/tables.ts (Drizzle).
+-- integration_hub schema — aligned with modules/integration-hub/src/integrations/abdm/schema/tables.ts (Drizzle).
 -- Apply: psql "$DATABASE_URL" -f modules/integration-hub/migrations/0000_integration_hub_schema.sql
 -- Requires PostgreSQL 13+ (gen_random_uuid).
 --
