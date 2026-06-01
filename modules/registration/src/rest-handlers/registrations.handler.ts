@@ -1,7 +1,13 @@
 /// <reference path="../fastify.d.ts" />
 import type { FastifyInstance } from "fastify";
 import type { EventBus } from "@hims/ts-sdk-events";
-import type { EmpiHttpPort, OpdHttpPort, RegistrationRepo, VisitRepo } from "../ports.js";
+import type {
+  EmpiHttpPort,
+  OpdHttpPort,
+  PicklistReadPort,
+  RegistrationRepo,
+  VisitRepo,
+} from "../ports.js";
 import type {
   ExistingPatientVisitInput,
   NewPatientIntakeInput,
@@ -20,7 +26,11 @@ import {
   paramsRegistrationIdSchema,
 } from "./route-schemas.js";
 import { getDashboardMetrics } from "../use-cases/get-dashboard-metrics.js";
-import { serializeRegistration, serializeRegistrationWithVisit } from "./serialize-registration.js";
+import {
+  serializeRegistration,
+  serializeRegistrationWithVisit,
+  type PicklistLabelMaps,
+} from "./serialize-registration.js";
 import {
   idempotencyKeyRequiredResponse,
   readIdempotencyKey,
@@ -47,6 +57,18 @@ export interface RegistrationsHandlerDeps {
   empiGateway: EmpiHttpPort | undefined;
   eventBus: EventBus;
   opdGateway?: OpdHttpPort;
+  picklistReadPort?: PicklistReadPort;
+}
+
+async function loadPicklistLabelMaps(
+  picklistReadPort: PicklistReadPort | undefined,
+): Promise<PicklistLabelMaps | undefined> {
+  if (!picklistReadPort) return undefined;
+  const maps = await picklistReadPort.getLabelMaps();
+  return {
+    visitTypes: maps.visitTypes,
+    registrationStatuses: maps.registrationStatuses,
+  };
 }
 
 export function registerRegistrationsHandler(
@@ -92,9 +114,10 @@ export function registerRegistrationsHandler(
             patient_id: q.patient_id,
           },
         );
+        const labelMaps = await loadPicklistLabelMaps(deps.picklistReadPort);
         return reply.send({
           ...result,
-          data: result.data.map(serializeRegistration),
+          data: result.data.map((row) => serializeRegistration(row, labelMaps)),
         });
       } catch (err) {
         if (err instanceof Error && err.message === "name_search_too_short") {
@@ -129,7 +152,8 @@ export function registerRegistrationsHandler(
         request.params.registrationId,
       );
       if (!row) return reply.code(404).send({ error: "Registration not found" });
-      return reply.send(serializeRegistration(row));
+      const labelMaps = await loadPicklistLabelMaps(deps.picklistReadPort);
+      return reply.send(serializeRegistration(row, labelMaps));
     },
   );
 
@@ -162,11 +186,15 @@ export function registerRegistrationsHandler(
       );
 
       const status = result.created ? 201 : 200;
+      const labelMaps = await loadPicklistLabelMaps(deps.picklistReadPort);
       return reply.code(status).send(
-        serializeRegistrationWithVisit({
-          registration,
-          visit: result.record,
-        }),
+        serializeRegistrationWithVisit(
+          {
+            registration: registration ?? null,
+            visit: result.record,
+          },
+          labelMaps,
+        ),
       );
     },
   );
@@ -229,7 +257,10 @@ export function registerRegistrationsHandler(
       }
 
       const status = intake.created ? 201 : 200;
-      return reply.code(status).send(serializeRegistrationWithVisit(intake.result));
+      const labelMaps = await loadPicklistLabelMaps(deps.picklistReadPort);
+      return reply.code(status).send(
+        serializeRegistrationWithVisit(intake.result, labelMaps),
+      );
     },
   );
 }

@@ -33,23 +33,6 @@ data:
   ABDM_ABHA_API_BASE_URL: "https://abhasbx.abdm.gov.in/abha/api"
   ABDM_X_CM_ID: "sbx"
 ---
-apiVersion: v1
-kind: Secret
-metadata:
-  name: hims-secrets
-  namespace: himsv2
-type: Opaque
-stringData:
-  DATABASE_URL: "postgresql://himsdevuser:L4k77epfaP6uJqR3@iqline-dev-shared-pg.postgres.database.azure.com:5432/hims-v2?sslmode=require"
-  PGBOUNCER_URL: "postgresql://himsdevuser:L4k77epfaP6uJqR3@iqline-dev-shared-pg.postgres.database.azure.com:6432/hims-v2?sslmode=require"
-  MASTER_DATA_DATABASE_URL: "postgresql+psycopg://hims:<replace-me>@postgres.example.com:5432/hims?sslmode=require"
-  USER_MGMT_DATABASE_URL: "postgresql://himsdevuser:L4k77epfaP6uJqR3@iqline-dev-shared-pg.postgres.database.azure.com:5432/hims-v2?sslmode=require"
-  ABDM_DATA_DATABASE_URL: "postgresql://himsdevuser:L4k77epfaP6uJqR3@iqline-dev-shared-pg.postgres.database.azure.com:5432/hims-v2?sslmode=require"
-  BETTER_AUTH_SECRET: "<replace-with-min-32-chars>"
-  ABDM_SANDBOX_CLIENT_ID: "<replace-me>"
-  ABDM_SANDBOX_CLIENT_SECRET: "<replace-me>"
-  ABDM_TOKEN_ENCRYPTION_KEY: "<replace-with-base64-32-byte-key>"
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:

@@ -58,6 +58,7 @@ export { DrizzleVisitRepo } from "./data-access/visit.repo.js";
 export { HttpEmpiGateway } from "./lib/http-empi-gateway.js";
 export { HttpOpdGateway } from "./lib/http-opd-gateway.js";
 export { HttpBillingGateway } from "./lib/http-billing-gateway.js";
+export { HttpPicklistGateway } from "./lib/http-picklist-gateway.js";
 export { registerDocumentsHandler, type DocumentsHandlerDeps } from "./rest-handlers/documents.handler.js";
 
 export { registrationSchema, registrations, visits } from "./schema/tables.js";

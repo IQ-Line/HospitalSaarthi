@@ -807,12 +807,20 @@ components:
         patient_source_record_id: { type: string, format: uuid }
         facility_id: { type: string, format: uuid, nullable: true }
         visit_type: { type: string, nullable: true }
+        visit_type_label:
+          type: string
+          nullable: true
+          description: Display label from Master Data visit-types picklist.
         department_id: { type: string, format: uuid, nullable: true }
         doctor_id: { type: string, format: uuid, nullable: true }
         appointment_id: { type: string, format: uuid, nullable: true }
         registration_status:
           $ref: "#/components/schemas/VisitStatus"
           description: Mirrors visit `status` when overlay is present; placeholder on snapshot-only rows.
+        registration_status_label:
+          type: string
+          nullable: true
+          description: Display label from Master Data registration-status picklist.
         created_by: { type: string, format: uuid, nullable: true }
         updated_by: { type: string, format: uuid, nullable: true }
         created_at: { type: string, format: date-time }

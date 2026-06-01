@@ -15,14 +15,6 @@ export const EMPI_BLOOD_GROUP_OPTIONS = [
 
 const EMPI_BLOOD_GROUP_SET = new Set<string>(EMPI_BLOOD_GROUP_OPTIONS);
 
-export const VISIT_REGISTRATION_VISIT_TYPES = [
-  { value: 'opd_first', label: 'OPD — First visit' },
-  { value: 'opd_follow_up', label: 'OPD — Follow-up' },
-  { value: 'ipd_admission', label: 'IPD admission' },
-  { value: 'emergency', label: 'Emergency' },
-  { value: 'daycare', label: 'Day care' },
-] as const;
-
 export const VISIT_REGISTRATION_RIS_MODALITIES = [
   { value: 'xray', label: 'X-Ray' },
   { value: 'ct', label: 'CT' },

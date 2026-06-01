@@ -148,10 +148,12 @@ export interface RegistrationListItemResponse {
   patient_source_record_id: string;
   facility_id: string | null;
   visit_type: string | null;
+  visit_type_label?: string | null;
   department_id: string | null;
   doctor_id: string | null;
   appointment_id: string | null;
   registration_status: string;
+  registration_status_label?: string | null;
   created_by: string | null;
   updated_by: string | null;
   created_at: string;

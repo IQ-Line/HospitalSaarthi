@@ -39,6 +39,7 @@ export interface VisitsHandlerDeps {
   visitRepo: VisitRepo;
   registrationRepo: RegistrationRepo;
   eventBus: EventBus;
+  opdGateway?: OpdHttpPort;
 }
 
 export function registerVisitsHandler(app: FastifyInstance, deps: VisitsHandlerDeps): void {
