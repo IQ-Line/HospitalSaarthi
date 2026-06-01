@@ -11,7 +11,7 @@ const baseRow: TariffMasterRow = {
   service_name: "CBC Test",
   description: null,
   provider_id: null,
-  department: "pathology",
+  department_id: null,
   category: "lab",
   sub_category: null,
   tax_type: "CGST_SGST",

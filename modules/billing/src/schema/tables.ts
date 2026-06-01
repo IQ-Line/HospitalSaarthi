@@ -23,7 +23,7 @@ export const billingMaster = billingSchema.table(
     service_name: text("service_name").notNull(),
     description: text("description"),
     provider_id: uuid("provider_id"),
-    department: text("department"),
+    department_id: uuid("department_id"),
     category: text("category"),
     sub_category: text("sub_category"),
     tax_type: text("tax_type"),

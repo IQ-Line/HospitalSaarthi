@@ -14,7 +14,7 @@ function sharedEditFields(service: TariffService) {
     base_price: Number(service.base_price),
     tax_percentage: Number(service.tax_percentage),
     description: service.description,
-    department: service.department,
+    department_id: service.department_id,
     tax_type: service.tax_type,
     is_active: service.is_active,
     effective_from: toDatetimeLocalValue(service.effective_from),
@@ -26,10 +26,7 @@ export function serviceToEditFormValues(service: TariffService): TariffServiceEd
   return sharedEditFields(service);
 }
 
-export function formToCreatePayload(
-  values: TariffServiceCreateFormValues,
-  departmentName: string | null,
-): ServiceCreateInput {
+export function formToCreatePayload(values: TariffServiceCreateFormValues): ServiceCreateInput {
   const v = tariffServiceCreateSchema.parse(values);
   const isRegistrationFee = v.tariff_type === TARIFF_PICKLIST_REGISTRATION_FEE;
   return {
@@ -39,7 +36,7 @@ export function formToCreatePayload(
     tax_percentage: v.tax_percentage,
     description: v.description,
     provider_id: isRegistrationFee ? null : v.provider_id,
-    department: isRegistrationFee ? 'frontdesk' : departmentName,
+    department_id: isRegistrationFee ? null : v.department_id,
     category: v.tariff_type,
     sub_category: null,
     tax_type: v.tax_type,
@@ -56,7 +53,7 @@ export function formToUpdatePayload(values: TariffServiceEditFormValues): Servic
     base_price: v.base_price,
     tax_percentage: v.tax_percentage,
     description: v.description,
-    department: v.department,
+    department_id: v.department_id,
     tax_type: v.tax_type,
     is_active: v.is_active,
     effective_from: fromDatetimeLocalValue(v.effective_from),

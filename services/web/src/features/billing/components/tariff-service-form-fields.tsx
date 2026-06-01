@@ -337,13 +337,13 @@ export function TariffServiceEditFormFields({
         options={TAX_TYPES.map((t) => ({ value: t, label: t }))}
       />
       <div className="space-y-2">
-        <Label htmlFor="department">Department</Label>
+        <Label htmlFor="department_id">Department ID</Label>
         <Controller
-          name="department"
+          name="department_id"
           control={control}
           render={({ field, fieldState }) => (
             <>
-              <Input id="department" value={field.value ?? ''} onChange={field.onChange} />
+              <Input id="department_id" value={field.value ?? ''} onChange={field.onChange} />
               <FieldError message={fieldState.error?.message} />
             </>
           )}
