@@ -42,6 +42,10 @@ const upstreams: UpstreamRoute[] = [
     prefix: '/api/registration/v1',
     upstream: process.env['REGISTRATION_URL'] ?? 'http://localhost:3006',
   },
+  {
+    prefix: '/api/v1/opd',
+    upstream: process.env['OPD_URL'] ?? 'http://localhost:8020',
+  },
 ];
 
 const isProduction = process.env['NODE_ENV'] === 'production';

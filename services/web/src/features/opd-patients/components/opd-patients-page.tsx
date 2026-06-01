@@ -16,18 +16,11 @@ import type { OpdDoctorScope, OpdPatientsFilters } from '../types';
 
 const PAGE_SIZE = 10;
 
-function todayIsoDate(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function defaultFilters(): OpdPatientsFilters {
-  const today = todayIsoDate();
-  const start = new Date();
-  start.setDate(start.getDate() - 17);
   return {
     search: '',
-    startDate: start.toISOString().slice(0, 10),
-    endDate: today,
+    startDate: '',
+    endDate: '',
     gender: '',
     ageGroup: '',
     visitType: '',
@@ -80,6 +73,7 @@ export function OpdPatientsPage() {
     queryKey: opdPatientsQueryKeys.list(listParams),
     queryFn: () => fetchOpdPatientsList(listParams),
     placeholderData: (prev) => prev,
+    refetchOnWindowFocus: true,
   });
 
   const loading = isLoading || isFetching;

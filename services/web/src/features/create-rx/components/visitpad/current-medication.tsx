@@ -1,3 +1,6 @@
+import { useCallback, useMemo } from 'react';
+import { findVisitpadMedicineByDisplayName } from '../../lib/visitpad-catalog-options';
+import { useCreateRxVisitpadMasters } from '../../hooks/use-create-rx-visitpad-masters';
 import { useCreateRxStore } from '../../create-rx.store';
 import type {
   DiagnosisRow,
@@ -10,53 +13,22 @@ import { SectionCard } from '../section-card';
 import { SectionHeader } from '../section-header';
 import { CreateRxImagingSection } from './imaging-section';
 
-const DIAGNOSIS_COLUMNS: FormTableColumn<DiagnosisRow>[] = [
-  { key: 'notes', label: 'Diagnosis', placeholder: 'Add Diagnosis' },
-  {
-    key: 'certainty',
-    label: 'Certainty',
-    type: 'select',
-    width: '220px',
-    options: [
-      { label: 'Confirmed', value: 'confirmed' },
-      { label: 'Presumed', value: 'presumed' },
-    ],
-  },
+const CERTAINTY_OPTIONS = [
+  { label: 'Confirmed', value: 'confirmed' },
+  { label: 'Presumed', value: 'presumed' },
 ];
 
-const MEDICINE_COLUMNS: FormTableColumn<MedicineRow>[] = [
-  { key: 'medicine', label: 'Medicine', placeholder: 'Medicine name' },
-  { key: 'dosageForm', label: 'Dosage Form', placeholder: 'Tablet' },
-  { key: 'route', label: 'Route', placeholder: 'Oral' },
-  { key: 'strength', label: 'Strength', placeholder: '500mg' },
-  { key: 'dosage', label: 'Dosage', placeholder: '1-0-1' },
-  { key: 'days', label: 'Days', type: 'number', width: '70px' },
-  { key: 'frequency', label: 'Frequency', placeholder: 'OD' },
-  { key: 'quantity', label: 'Quantity', type: 'number', width: '80px' },
-];
-
-const TEST_COLUMNS: FormTableColumn<TestRow>[] = [
-  { key: 'testName', label: 'Test Name', placeholder: 'Test name' },
-  {
-    key: 'status',
-    label: 'Status',
-    type: 'select',
-    options: [
-      { label: 'Pending', value: 'pending' },
-      { label: 'Completed', value: 'completed' },
-    ],
-  },
-];
-
-const PROCEDURE_COLUMNS: FormTableColumn<ProcedureRow>[] = [
-  { key: 'procedureName', label: 'Procedure', placeholder: 'Procedure name' },
-  { key: 'advisedDate', label: 'Advised Date', type: 'date', width: '130px' },
+const TEST_STATUS_OPTIONS = [
+  { label: 'Pending', value: 'pending' },
+  { label: 'Completed', value: 'completed' },
 ];
 
 export function CreateRxCurrentMedication() {
+  const { isLoading: catalogLoading, diagnosisOptions, medicineOptions, medicines } =
+    useCreateRxVisitpadMasters();
   const isReadOnly = useCreateRxStore((s) => s.isReadOnly);
   const diagnosis = useCreateRxStore((s) => s.formData.diagnosis);
-  const medicines = useCreateRxStore((s) => s.formData.medicines);
+  const medicinesRows = useCreateRxStore((s) => s.formData.medicines);
   const tests = useCreateRxStore((s) => s.formData.testsRequired);
   const procedures = useCreateRxStore((s) => s.formData.procedures);
   const addDiagnosis = useCreateRxStore((s) => s.addDiagnosisRow);
@@ -71,6 +43,95 @@ export function CreateRxCurrentMedication() {
   const addProcedure = useCreateRxStore((s) => s.addProcedureRow);
   const removeProcedure = useCreateRxStore((s) => s.removeProcedureRow);
   const updateProcedure = useCreateRxStore((s) => s.updateProcedureRow);
+
+  const diagnosisColumns = useMemo<FormTableColumn<DiagnosisRow>[]>(
+    () => [
+      {
+        key: 'notes',
+        label: 'Diagnosis',
+        type: 'select',
+        placeholder: 'Select diagnosis',
+        options: diagnosisOptions,
+      },
+      {
+        key: 'certainty',
+        label: 'Certainty',
+        type: 'select',
+        width: '220px',
+        options: CERTAINTY_OPTIONS,
+      },
+    ],
+    [diagnosisOptions],
+  );
+
+  const medicineColumns = useMemo<FormTableColumn<MedicineRow>[]>(
+    () => [
+      {
+        key: 'medicine',
+        label: 'Medicine',
+        type: 'select',
+        placeholder: 'Select medicine',
+        options: medicineOptions,
+      },
+      { key: 'dosageForm', label: 'Dosage Form', placeholder: 'Tablet' },
+      { key: 'route', label: 'Route', placeholder: 'Oral' },
+      { key: 'strength', label: 'Strength', placeholder: '500mg' },
+      { key: 'dosage', label: 'Dosage', placeholder: '1-0-1' },
+      { key: 'days', label: 'Days', type: 'number', width: '70px' },
+      { key: 'frequency', label: 'Frequency', placeholder: 'OD' },
+      { key: 'quantity', label: 'Quantity', type: 'number', width: '80px' },
+    ],
+    [medicineOptions],
+  );
+
+  const testColumns = useMemo<FormTableColumn<TestRow>[]>(
+    () => [
+      { key: 'testName', label: 'Test Name', placeholder: 'Test name' },
+      {
+        key: 'status',
+        label: 'Status',
+        type: 'select',
+        options: TEST_STATUS_OPTIONS,
+      },
+    ],
+    [],
+  );
+
+  const procedureColumns = useMemo<FormTableColumn<ProcedureRow>[]>(
+    () => [
+      { key: 'procedureName', label: 'Procedure', placeholder: 'Procedure name' },
+      { key: 'advisedDate', label: 'Advised Date', type: 'date', width: '130px' },
+    ],
+    [],
+  );
+
+  const handleMedicineUpdate = useCallback(
+    (index: number, field: keyof MedicineRow, value: string) => {
+      updateMedicine(index, field, value);
+      if (field !== 'medicine') return;
+
+      const catalogMedicine = findVisitpadMedicineByDisplayName(medicines, value);
+      if (!catalogMedicine) return;
+
+      updateMedicine(index, 'dosageForm', catalogMedicine.dosage_form);
+      updateMedicine(
+        index,
+        'route',
+        catalogMedicine.default_route ?? catalogMedicine.route_of_admin[0] ?? '',
+      );
+      updateMedicine(index, 'strength', catalogMedicine.strength_display);
+      if (catalogMedicine.default_frequency) {
+        updateMedicine(index, 'frequency', catalogMedicine.default_frequency);
+      }
+      if (catalogMedicine.default_duration_days != null) {
+        updateMedicine(index, 'days', String(catalogMedicine.default_duration_days));
+      }
+      if (catalogMedicine.typical_quantity != null) {
+        updateMedicine(index, 'quantity', String(catalogMedicine.typical_quantity));
+      }
+    },
+    [medicines, updateMedicine],
+  );
 
   return (
     <div className="p-4">
@@ -87,9 +148,10 @@ export function CreateRxCurrentMedication() {
             <CreateRxFormTable
               title="Diagnosis"
               addButtonLabel="Add Diagnosis"
-              columns={DIAGNOSIS_COLUMNS}
+              columns={diagnosisColumns}
               rows={diagnosis}
               readOnly={isReadOnly}
+              catalogLoading={catalogLoading}
               hideTitle
               hideAdd
               emptyMessage="No diagnoses added. Click 'Add Diagnosis' to begin."
@@ -105,14 +167,15 @@ export function CreateRxCurrentMedication() {
             title="Medications (Rx)"
             addButtonLabel="Add Medicine"
             indexColumnLabel="Sl. No."
-            columns={MEDICINE_COLUMNS}
-            rows={medicines}
+            columns={medicineColumns}
+            rows={medicinesRows}
             readOnly={isReadOnly}
+            catalogLoading={catalogLoading}
             emptyMessage="No medications added. Click 'Add Medicine' to begin."
             onAdd={addMedicine}
             onRemove={removeMedicine}
             onUpdate={(i, field, value) =>
-              updateMedicine(i, field as keyof MedicineRow, value)
+              handleMedicineUpdate(i, field as keyof MedicineRow, value)
             }
           />
 
@@ -120,7 +183,7 @@ export function CreateRxCurrentMedication() {
             title="Laboratory Test"
             addButtonLabel="Add Test"
             indexColumnLabel="Sl. No."
-            columns={TEST_COLUMNS}
+            columns={testColumns}
             rows={tests}
             readOnly={isReadOnly}
             emptyMessage="No laboratory tests added."
@@ -135,7 +198,7 @@ export function CreateRxCurrentMedication() {
             title="Procedures"
             addButtonLabel="Add Procedure"
             indexColumnLabel="Sl. No."
-            columns={PROCEDURE_COLUMNS}
+            columns={procedureColumns}
             rows={procedures}
             readOnly={isReadOnly}
             emptyMessage="No procedures added."

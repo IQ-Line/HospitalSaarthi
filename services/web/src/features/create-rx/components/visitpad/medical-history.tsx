@@ -1,28 +1,26 @@
 import { ChevronDown } from 'lucide-react';
-import { useState } from 'react';
-import { Input } from '@pulse/ui/input';
+import { useMemo, useState } from 'react';
 import { Label } from '@pulse/ui/label';
 import { Textarea } from '@pulse/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@pulse/ui/select';
+import { useCreateRxVisitpadMasters } from '../../hooks/use-create-rx-visitpad-masters';
 import { useCreateRxStore } from '../../create-rx.store';
 import type { AllergyRow } from '../../types';
 import { CreateRxFormTable, type FormTableColumn } from '../form-table';
 import { LifestyleRadioGroup } from '../lifestyle-radio-group';
 import { SectionCard } from '../section-card';
 
-const ALLERGY_COLUMNS: FormTableColumn<AllergyRow>[] = [
-  { key: 'allergen', label: 'Allergies', placeholder: 'Allergen' },
-  { key: 'reaction', label: 'Reactions', placeholder: 'Reaction' },
-  {
-    key: 'severity',
-    label: 'Severity',
-    type: 'select',
-    options: [
-      { label: 'Mild', value: 'mild' },
-      { label: 'Moderate', value: 'moderate' },
-      { label: 'Severe', value: 'severe' },
-    ],
-  },
-];
+const SEVERITY_OPTIONS = [
+  { label: 'Mild', value: 'mild' },
+  { label: 'Moderate', value: 'moderate' },
+  { label: 'Severe', value: 'severe' },
+] as const;
 
 const LIFESTYLE_OPTIONS = [
   { value: 'former', label: 'Former' },
@@ -32,6 +30,12 @@ const LIFESTYLE_OPTIONS = [
 
 export function CreateRxMedicalHistory() {
   const [showMore, setShowMore] = useState(false);
+  const {
+    isLoading: catalogLoading,
+    allergenOptions,
+    allergyReactionOptions,
+    chronicIllnessOptions,
+  } = useCreateRxVisitpadMasters();
   const isReadOnly = useCreateRxStore((s) => s.isReadOnly);
   const mh = useCreateRxStore((s) => s.formData.medicalHistory);
   const allergies = useCreateRxStore((s) => s.formData.allergyDetails);
@@ -40,19 +44,57 @@ export function CreateRxMedicalHistory() {
   const removeAllergy = useCreateRxStore((s) => s.removeAllergyRow);
   const updateAllergy = useCreateRxStore((s) => s.updateAllergyRow);
 
+  const allergyColumns = useMemo<FormTableColumn<AllergyRow>[]>(
+    () => [
+      {
+        key: 'allergen',
+        label: 'Allergies',
+        type: 'select',
+        placeholder: 'Select allergen',
+        options: allergenOptions,
+      },
+      {
+        key: 'reaction',
+        label: 'Reactions',
+        type: 'select',
+        placeholder: 'Select reaction',
+        options: allergyReactionOptions,
+      },
+      {
+        key: 'severity',
+        label: 'Severity',
+        type: 'select',
+        options: [...SEVERITY_OPTIONS],
+      },
+    ],
+    [allergenOptions, allergyReactionOptions],
+  );
+
   return (
     <div className="space-y-6 p-4">
       <SectionCard title="Chronic Illness & Lifestyle">
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="space-y-1.5">
             <Label className="text-sm text-gray-600">Chronic Illnesses</Label>
-            <Input
-              placeholder="Select or type chronic illness..."
-              value={mh.chronicIllness}
-              onChange={(e) => patchMh({ chronicIllness: e.target.value })}
-              readOnly={isReadOnly}
-              className="border-[#CBD5E1]"
-            />
+            <Select
+              value={mh.chronicIllness || '__none__'}
+              onValueChange={(v) => patchMh({ chronicIllness: v === '__none__' ? '' : v })}
+              disabled={isReadOnly || catalogLoading}
+            >
+              <SelectTrigger className="border-[#CBD5E1]">
+                <SelectValue
+                  placeholder={catalogLoading ? 'Loading catalog…' : 'Select chronic illness'}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">—</SelectItem>
+                {chronicIllnessOptions.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-1.5">
             <Label className="text-sm text-gray-600">Smoking Status</Label>
@@ -81,13 +123,22 @@ export function CreateRxMedicalHistory() {
         <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="space-y-1.5">
             <Label className="text-sm text-gray-600">Diet Type</Label>
-            <Input
-              placeholder="Select or type diet..."
-              value={mh.dietType}
-              onChange={(e) => patchMh({ dietType: e.target.value })}
-              readOnly={isReadOnly}
-              className="border-[#CBD5E1]"
-            />
+            <Select
+              value={mh.dietType || '__none__'}
+              onValueChange={(v) => patchMh({ dietType: v === '__none__' ? '' : v })}
+              disabled={isReadOnly}
+            >
+              <SelectTrigger className="border-[#CBD5E1]">
+                <SelectValue placeholder="Select diet type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">—</SelectItem>
+                <SelectItem value="vegetarian">Vegetarian</SelectItem>
+                <SelectItem value="non-vegetarian">Non-vegetarian</SelectItem>
+                <SelectItem value="vegan">Vegan</SelectItem>
+                <SelectItem value="mixed">Mixed</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-1.5">
             <Label className="text-sm text-gray-600">Alcohol Drinking</Label>
@@ -107,9 +158,10 @@ export function CreateRxMedicalHistory() {
           title="Allergy Details"
           addButtonLabel="Add Allergy"
           indexColumnLabel="Sl. No."
-          columns={ALLERGY_COLUMNS}
+          columns={allergyColumns}
           rows={allergies}
           readOnly={isReadOnly}
+          catalogLoading={catalogLoading}
           emptyMessage="No data found"
           onAdd={addAllergy}
           onRemove={removeAllergy}

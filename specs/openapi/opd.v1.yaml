@@ -1,0 +1,166 @@
+openapi: 3.1.0
+info:
+  title: OPD — Visits and prescriptions
+  version: 1.0.0
+  description: |
+    OPD clinical encounter API. Persists visit lifecycle and prescription form data
+  for Create RX / Visitpad until normalized child tables are introduced.
+
+servers:
+  - url: http://localhost:8020/api/v1/opd
+    description: Local opd-svc (OPD_SVC_PORT; default 8020)
+
+paths:
+  /visits:
+    get:
+      operationId: listOpdVisits
+      summary: List OPD visits for the active tenant
+      tags: [OpdVisits]
+      parameters:
+        - name: patient_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [registered, in_progress, completed, cancelled]
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        '200':
+          description: Visit rows
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OpdVisitSummary'
+
+  /patients/{patientId}/prescription:
+    get:
+      operationId: getPatientPrescription
+      summary: Latest visit prescription for a patient
+      tags: [OpdPrescriptions]
+      parameters:
+        - $ref: '#/components/parameters/PatientId'
+      responses:
+        '200':
+          description: Visit + prescription payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpdPrescriptionResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: upsertPatientPrescription
+      summary: Save prescription draft (creates visit when needed)
+      tags: [OpdPrescriptions]
+      parameters:
+        - $ref: '#/components/parameters/PatientId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpdPrescriptionUpsertRequest'
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpdPrescriptionResponse'
+
+  /patients/{patientId}/prescription/end:
+    post:
+      operationId: endPatientConsultation
+      summary: Finalize consultation and prescription
+      tags: [OpdPrescriptions]
+      parameters:
+        - $ref: '#/components/parameters/PatientId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpdPrescriptionUpsertRequest'
+      responses:
+        '200':
+          description: Consultation ended
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpdPrescriptionResponse'
+
+components:
+  parameters:
+    PatientId:
+      name: patientId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [detail]
+      properties:
+        detail: { type: string }
+
+    OpdVisitSummary:
+      type: object
+      required: [visit_id, patient_id, status, updated_at]
+      properties:
+        visit_id: { type: string, format: uuid }
+        patient_id: { type: string, format: uuid }
+        status:
+          type: string
+          enum: [registered, in_progress, completed, cancelled]
+        updated_at: { type: string, format: date-time }
+
+    OpdPrescriptionUpsertRequest:
+      type: object
+      required: [form_data]
+      properties:
+        form_data:
+          type: object
+          additionalProperties: true
+          description: Create RX form payload (vitals, chief complaints, etc.)
+
+    OpdPrescriptionResponse:
+      type: object
+      required:
+        - visit_id
+        - patient_id
+        - visit_status
+        - prescription_status
+        - is_read_only
+        - form_data
+      properties:
+        visit_id: { type: string, format: uuid }
+        patient_id: { type: string, format: uuid }
+        visit_status:
+          type: string
+          enum: [registered, in_progress, completed, cancelled]
+        prescription_status:
+          type: string
+          enum: [draft, final, cancelled]
+        is_read_only: { type: boolean }
+        form_data:
+          type: object
+          additionalProperties: true

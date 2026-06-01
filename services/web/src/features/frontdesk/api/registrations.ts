@@ -35,6 +35,7 @@ export interface ListRegistrationsParams {
   limit?: number;
   /** Substring match on snapshot UHID, phone, or patient name. */
   q?: string;
+  patient_id?: string;
 }
 
 export async function listRegistrations(
@@ -44,6 +45,7 @@ export async function listRegistrations(
   if (params.page != null) sp.set('page', String(params.page));
   if (params.limit != null) sp.set('limit', String(params.limit));
   if (params.q?.trim()) sp.set('q', params.q.trim());
+  if (params.patient_id?.trim()) sp.set('patient_id', params.patient_id.trim());
   const qs = sp.toString();
   return apiClient<RegistrationListPageResponse>(
     `${registrationApiBase()}/registrations${qs ? `?${qs}` : ''}`,
