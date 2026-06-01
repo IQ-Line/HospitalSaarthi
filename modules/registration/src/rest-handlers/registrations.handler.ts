@@ -1,7 +1,7 @@
 /// <reference path="../fastify.d.ts" />
 import type { FastifyInstance } from "fastify";
 import type { EventBus } from "@hims/ts-sdk-events";
-import type { EmpiHttpPort, RegistrationRepo } from "../ports.js";
+import type { EmpiHttpPort, PicklistReadPort, RegistrationRepo } from "../ports.js";
 import type {
   CreateRegistrationInput,
   NewPatientIntakeInput,
@@ -20,7 +20,7 @@ import {
   paramsRegistrationIdSchema,
 } from "./route-schemas.js";
 import { getDashboardMetrics } from "../use-cases/get-dashboard-metrics.js";
-import { serializeRegistration } from "./serialize-registration.js";
+import { serializeRegistration, type PicklistLabelMaps } from "./serialize-registration.js";
 import {
   idempotencyKeyRequiredResponse,
   readIdempotencyKey,
@@ -50,6 +50,18 @@ export interface RegistrationsHandlerDeps {
   registrationRepo: RegistrationRepo;
   empiGateway: EmpiHttpPort | undefined;
   eventBus: EventBus;
+  picklistReadPort?: PicklistReadPort;
+}
+
+async function loadPicklistLabelMaps(
+  picklistReadPort: PicklistReadPort | undefined,
+): Promise<PicklistLabelMaps | undefined> {
+  if (!picklistReadPort) return undefined;
+  const maps = await picklistReadPort.getLabelMaps();
+  return {
+    visitTypes: maps.visitTypes,
+    registrationStatuses: maps.registrationStatuses,
+  };
 }
 
 export function registerRegistrationsHandler(
@@ -99,9 +111,10 @@ export function registerRegistrationsHandler(
             provider_id: q.provider_id,
           },
         );
+        const labelMaps = await loadPicklistLabelMaps(deps.picklistReadPort);
         return reply.send({
           ...result,
-          data: result.data.map(serializeRegistration),
+          data: result.data.map((row) => serializeRegistration(row, labelMaps)),
         });
       } catch (err) {
         if (err instanceof Error && err.message === "name_search_too_short") {
@@ -136,7 +149,8 @@ export function registerRegistrationsHandler(
         request.params.registrationId,
       );
       if (!row) return reply.code(404).send({ error: "Registration not found" });
-      return reply.send(serializeRegistration(row));
+      const labelMaps = await loadPicklistLabelMaps(deps.picklistReadPort);
+      return reply.send(serializeRegistration(row, labelMaps));
     },
   );
 
@@ -165,7 +179,8 @@ export function registerRegistrationsHandler(
         },
       );
       const status = result.created ? 201 : 200;
-      return reply.code(status).send(serializeRegistration(result.record));
+      const labelMaps = await loadPicklistLabelMaps(deps.picklistReadPort);
+      return reply.code(status).send(serializeRegistration(result.record, labelMaps));
     },
   );
 
@@ -228,7 +243,8 @@ export function registerRegistrationsHandler(
       }
 
       const status = intake.result.created ? 201 : 200;
-      return reply.code(status).send(serializeRegistration(intake.result.record));
+      const labelMaps = await loadPicklistLabelMaps(deps.picklistReadPort);
+      return reply.code(status).send(serializeRegistration(intake.result.record, labelMaps));
     },
   );
 
@@ -245,7 +261,8 @@ export function registerRegistrationsHandler(
       if (!updated) {
         return reply.code(404).send({ error: "Registration not found" });
       }
-      return reply.send(serializeRegistration(updated));
+      const labelMaps = await loadPicklistLabelMaps(deps.picklistReadPort);
+      return reply.send(serializeRegistration(updated, labelMaps));
     },
   );
 }

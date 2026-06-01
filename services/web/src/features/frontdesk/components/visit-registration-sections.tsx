@@ -33,6 +33,7 @@ import {
   type VisitRegistrationSectionId,
 } from '@/features/frontdesk/visit-registration-sections.store';
 import { useDepartments } from '@/features/master-data/api';
+import { useVisitTypePicklistValues } from '@/features/master-data/api/picklists';
 import { useDoctorsForDepartment } from '@/features/billing/hooks/use-doctors-for-department';
 import { useVisitpadVitalsCatalog } from '@/features/visitpad/api';
 import type { VisitpadVital } from '@/features/visitpad/types';
@@ -45,7 +46,6 @@ import {
   VISIT_REGISTRATION_RIS_PRIORITIES,
   VISIT_REGISTRATION_RIS_STUDY_TYPES,
   VISIT_REGISTRATION_TEXTAREA_CLASS,
-  VISIT_REGISTRATION_VISIT_TYPES,
   billingLineDiscountAmount,
   billingLineNetPrice,
   billingLineTaxAmount,
@@ -137,6 +137,7 @@ export function VisitRegistrationAppointmentSection({
   const visitTypeCode = watch('appointment.visit_type_code') ?? '';
 
   const departmentsQuery = useDepartments(undefined, { formCatalog: true });
+  const visitTypesQuery = useVisitTypePicklistValues();
   const departments = departmentsQuery.data?.data ?? [];
   const departmentOptions = useMemo(
     () =>
@@ -181,6 +182,23 @@ export function VisitRegistrationAppointmentSection({
     providerId,
     consultationFee,
   });
+
+  const visitTypeOptions = useMemo(
+    () =>
+      (visitTypesQuery.data ?? []).map((row) => ({
+        value: row.value,
+        label: row.label,
+      })),
+    [visitTypesQuery.data],
+  );
+
+  const visitTypePlaceholder = visitTypesQuery.isPending
+    ? 'Loading visit types…'
+    : visitTypesQuery.isError
+      ? 'Failed to load visit types'
+      : visitTypeOptions.length > 0
+        ? 'Select Visit Type'
+        : 'No visit types configured';
 
   return (
     <RegistrationSection title="Visit Details">
@@ -242,11 +260,13 @@ export function VisitRegistrationAppointmentSection({
           required
           value={visitTypeCode || '__none__'}
           onValueChange={(v) => setValue('appointment.visit_type_code', v === '__none__' ? '' : v)}
-          placeholder="Select Visit Type"
-          options={VISIT_REGISTRATION_VISIT_TYPES.map((vt) => ({
-            value: vt.value,
-            label: vt.label,
-          }))}
+          placeholder={visitTypePlaceholder}
+          disabled={
+            visitTypesQuery.isPending ||
+            visitTypesQuery.isError ||
+            visitTypeOptions.length === 0
+          }
+          options={visitTypeOptions}
         />
       </div>
     </RegistrationSection>
