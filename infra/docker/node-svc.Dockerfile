@@ -14,7 +14,7 @@ ARG NODE_VERSION=24
 ARG PNPM_VERSION=10.33.0
 
 # ---------- base: node + pnpm ----------
-FROM acriqline.azurecr.io/hims/node:${NODE_VERSION}-bookworm-slim AS base
+FROM acriqline.azurecr.io/hims/node:24-bookworm-slim AS base
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 WORKDIR /repo
 
@@ -48,7 +48,7 @@ RUN npx nx build "${SERVICE_NAME}"
 RUN pnpm --filter "@hims/${SERVICE_NAME}" deploy --prod --config.node-linker=hoisted /out
 
 # ---------- runtime ----------
-FROM acriqline.azurecr.io/hims/node:${NODE_VERSION}-bookworm-slim AS runtime
+FROM acriqline.azurecr.io/hims/node:24-bookworm-slim AS runtime
 ARG SERVICE_NAME
 
 ENV NODE_ENV=production
