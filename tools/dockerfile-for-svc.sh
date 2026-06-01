@@ -31,6 +31,10 @@ case "$svc" in
     # Python service — repo-root context, same as TS services.
     echo "infra/docker/master-data.Dockerfile ."
     ;;
+  opd-svc)
+    # Python OPD wrapper — dedicated Dockerfile, repo-root context.
+    echo "services/opd-svc/Dockerfile ."
+    ;;
   *)
     echo "ERROR: no Dockerfile mapping for service '$svc'" >&2
     echo "       update tools/dockerfile-for-svc.sh when adding new deployable services" >&2
