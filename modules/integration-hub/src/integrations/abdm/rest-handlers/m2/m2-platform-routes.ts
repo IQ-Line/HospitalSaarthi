@@ -21,7 +21,7 @@ export async function registerM2PlatformRoutes(app: FastifyInstance): Promise<vo
     "/m2/link-token/acquire",
     { schema: { body: linkTokenAcquireBodySchema } },
     async (req, reply) => {
-    const iqTenantId = String(req.headers["x-tenant-id"] ?? "").trim();
+    const iqTenantId = req.tenantId?.trim() ?? "";
     if (!iqTenantId) {
       return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
     }
@@ -47,7 +47,7 @@ export async function registerM2PlatformRoutes(app: FastifyInstance): Promise<vo
     "/m2/link-token/status",
     { schema: { querystring: linkTokenStatusQuerySchema } },
     async (req, reply) => {
-    const iqTenantId = String(req.headers["x-tenant-id"] ?? "").trim();
+    const iqTenantId = req.tenantId?.trim() ?? "";
     if (!iqTenantId) {
       return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
     }
@@ -71,7 +71,7 @@ export async function registerM2PlatformRoutes(app: FastifyInstance): Promise<vo
     "/m2/sessions/:sessionId",
     { schema: { params: m2SessionIdParamSchema } },
     async (req, reply) => {
-    const iqTenantId = String(req.headers["x-tenant-id"] ?? "").trim();
+    const iqTenantId = req.tenantId?.trim() ?? "";
     if (!iqTenantId) {
       return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
     }
@@ -88,7 +88,7 @@ export async function registerM2PlatformRoutes(app: FastifyInstance): Promise<vo
     "/m2/hip/initiated-link/start",
     { schema: { body: hipInitiatedLinkStartBodySchema } },
     async (req, reply) => {
-    const iqTenantId = String(req.headers["x-tenant-id"] ?? "").trim();
+    const iqTenantId = req.tenantId?.trim() ?? "";
     if (!iqTenantId) {
       return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
     }
@@ -127,7 +127,7 @@ export async function registerM2PlatformRoutes(app: FastifyInstance): Promise<vo
     "/m2/add-contexts/publish",
     { schema: { body: addContextsPublishBodySchema } },
     async (req, reply) => {
-    const iqTenantId = String(req.headers["x-tenant-id"] ?? "").trim();
+    const iqTenantId = req.tenantId?.trim() ?? "";
     if (!iqTenantId) {
       return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
     }
@@ -147,7 +147,7 @@ export async function registerM2PlatformRoutes(app: FastifyInstance): Promise<vo
     "/m2/sms/notify",
     { schema: { body: smsNotifyBodySchema } },
     async (req, reply) => {
-    const iqTenantId = String(req.headers["x-tenant-id"] ?? "").trim();
+    const iqTenantId = req.tenantId?.trim() ?? "";
     if (!iqTenantId) {
       return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
     }

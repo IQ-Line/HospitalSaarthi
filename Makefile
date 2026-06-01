@@ -6,7 +6,7 @@ NX := npx nx
 
 # Services that ship a .env.example to seed a personal .env (kept in sync with
 # the actual services/ tree; see docs/dev/port-allocation.md for ports).
-SERVICE_ENVS := bff user-management-svc empi-svc configurator-svc billing-svc registration-svc abdm-adapter-svc web
+SERVICE_ENVS := bff user-management-svc empi-svc configurator-svc billing-svc registration-svc integration-hub-svc web
 
 # --- Setup -------------------------------------------------------------------
 
@@ -87,15 +87,19 @@ db-migrate: ## Run all pending migrations
 	$(NX) run empi:db-migrate
 	$(NX) run registration:db-migrate
 	$(NX) run billing:db-migrate
-	$(NX) run abdm-adapter-svc:db-migrate
+	$(NX) run integration-hub-svc:db-migrate
 
 .PHONY: seed
 seed: ## Seed Configurator tenant, UM runtime data, Cerbos smoke check (catalog = Alembic)
 	pnpm seed
 
 .PHONY: seed-abdm-profile
-seed-abdm-profile: ## Seed configurator.tenant_integration_profiles from abdm-adapter-svc .env
+seed-abdm-profile: ## Seed configurator.tenant_integration_profiles from integration-hub-svc .env
 	pnpm seed-abdm-profile
+
+.PHONY: copy-abdm-schema
+copy-abdm-schema: ## Copy abdm_adapter tables → integration_hub (idempotent); use ARGS="-- --drop" to drop legacy schema
+	pnpm copy-abdm-schema $(ARGS)
 
 .PHONY: db-reset
 db-reset: ## Drop volumes, recreate infra, migrate, seed

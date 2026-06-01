@@ -96,14 +96,27 @@ export function mapConfiguratorProfileRow(
   };
 }
 
+export interface BuildAbdmDepsOptions {
+  /** When already loaded (e.g. HIP callback path), skips a second configurator HTTP round-trip. */
+  profile?: TenantIntegrationProfile;
+}
+
 /** Builds per-tenant deps and profile — call per request / callback / event. */
 export async function buildAbdmDepsForTenant(
   iqTenantId: string,
   shared: IntegrationHubSharedInfra,
+  options?: BuildAbdmDepsOptions,
 ): Promise<IntegrationContext> {
-  const profile = await shared.profiles.findActiveByTenantId(iqTenantId);
+  const profile =
+    options?.profile ?? (await shared.profiles.findActiveByTenantId(iqTenantId));
   if (!profile) {
     throw new IntegrationProfileNotFoundError(iqTenantId);
+  }
+  if (profile.iqTenantId !== iqTenantId) {
+    throw new IntegrationProfileNotFoundError(
+      iqTenantId,
+      `profile tenant mismatch (expected ${iqTenantId}, got ${profile.iqTenantId})`,
+    );
   }
 
   const { gatewayBaseUrl, abhaApiBaseUrl } = resolveGatewayUrls(profile, shared.deployment);

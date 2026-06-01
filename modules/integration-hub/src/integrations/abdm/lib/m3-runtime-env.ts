@@ -21,11 +21,14 @@ export function skipM3OutboundGateway(): boolean {
 }
 
 export function m3AdapterPublicBaseUrl(): string {
-  const port = process.env["ABDM_ADAPTER_SVC_PORT"] ?? "3007";
-  return (
-    process.env["ABDM_ADAPTER_PUBLIC_BASE_URL"]?.replace(/\/+$/, "") ??
-    `http://localhost:${port}`
-  );
+  const port =
+    process.env["INTEGRATION_HUB_SVC_PORT"] ??
+    process.env["ABDM_ADAPTER_SVC_PORT"] ??
+    "3007";
+  const fromEnv =
+    process.env["ABDM_ADAPTER_PUBLIC_BASE_URL"]?.trim() ||
+    process.env["INTEGRATION_HUB_PUBLIC_BASE_URL"]?.trim();
+  return fromEnv?.replace(/\/+$/, "") ?? `http://localhost:${port}`;
 }
 
 /**

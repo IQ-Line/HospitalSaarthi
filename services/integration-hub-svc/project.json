@@ -1,0 +1,38 @@
+{
+  "name": "integration-hub-svc",
+  "projectType": "application",
+  "tags": ["type:service", "scope:integration-hub", "language:typescript", "deploy:aks"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsup --config tsup.config.ts",
+        "cwd": "services/integration-hub-svc"
+      },
+      "outputs": ["{projectRoot}/dist"],
+      "cache": true
+    },
+    "serve": {
+      "command": "tsx watch src/main.ts",
+      "dependsOn": ["ts-sdk-fhir:build", "ts-sdk-abha:build"],
+      "options": {
+        "cwd": "services/integration-hub-svc",
+        "envFile": "{workspaceRoot}/.env"
+      }
+    },
+    "db:migrate": {
+      "command": "node scripts/migrate.mjs",
+      "options": {
+        "cwd": "services/integration-hub-svc",
+        "envFile": "{workspaceRoot}/.env"
+      }
+    },
+    "db-migrate": {
+      "command": "node scripts/migrate.mjs",
+      "options": {
+        "cwd": "services/integration-hub-svc",
+        "envFile": "{workspaceRoot}/.env"
+      }
+    }
+  }
+}

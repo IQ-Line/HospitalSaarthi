@@ -1,8 +1,0 @@
-{
-  "description": "Deterministic HIP→HIU encrypt; HIU key from NHA M3 spec sample (65-byte Weierstrass point)",
-  "plaintext": "{\"resourceType\":\"Bundle\",\"id\":\"bc-vector-1\"}",
-  "hipPrivateKeyB64": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=",
-  "hipNonceB64": "ERERERERERERERERERERERERERERERERERERERERERE=",
-  "hiuPublicKeyB64": "BCpsBW37KgfLyjxJK0zHHG26hDjxzK368DEO4PapzFhQM0cghZziKuvJh5/anTnHitVHKMn0Owr1HvcH1fm0DpA=",
-  "hiuNonceB64": "ISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhIQ=="
-}

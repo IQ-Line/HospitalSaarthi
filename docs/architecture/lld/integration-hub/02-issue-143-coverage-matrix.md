@@ -166,6 +166,6 @@ Use when checking “did we touch everything?”
 
 - [x] Step 0 — PR #144 docs
 - [x] Step 1 — Code PR 1 / Part A (merged on `integration-hub`)
-- [x] Step 2 — Code PR 2 / Part B (`buildAbdmDepsForTenant`, callbacks, M2 consumers; 123+ hub unit tests)
-- [ ] Step 3 — Code PR 3 / Part C (after Code PR 2)
-- [ ] Step 4 — Code PR 4 / Part D (after Code PR 3)
+- [x] Step 2 — Code PR 2 / Part B (`buildAbdmDepsForTenant`, callbacks, M2 consumers; 128+ hub unit tests)
+- [x] Step 3 — Code PR 3 / Part C (`integration_hub` schema, `integration-hub-svc`, env aliases, janitor, OpenAPI)
+- [x] Step 4 — Code PR 4 / Part D (after Code PR 3)
