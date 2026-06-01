@@ -5,6 +5,7 @@
   "main": "./src/index.ts",
   "dependencies": {
     "@hims/pdf-client": "workspace:*",
+    "@hims/registration-reports": "workspace:*",
     "@hims/ts-sdk-authz": "workspace:*",
     "@hims/ts-sdk-db": "workspace:*",
     "@hims/ts-sdk-events": "workspace:*"

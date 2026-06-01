@@ -15,8 +15,61 @@ type BillsListWire = {
   }>;
 };
 
+type BillDetailWire = {
+  data?: {
+    bill: {
+      bill_number: string;
+      bill_date: string;
+      created_at: string;
+      discount_amount: string;
+      paid_amount: string;
+      net_amount: string;
+    };
+    items: Array<{
+      description: string;
+      quantity: string;
+      unit_price: string;
+      discount_amount: string;
+      tax_percentage: string;
+      department: string | null;
+      status: "ACTIVE" | "VOIDED";
+    }>;
+  };
+};
+
 export class HttpBillingGateway implements BillingReadPort {
   constructor(private readonly billingServiceOrigin: string) {}
+
+  async getBill(
+    tenantId: string,
+    billId: string,
+    options?: { bearerToken?: string },
+  ) {
+    const headers: Record<string, string> = {
+      iq_tenant_id: tenantId,
+      "x-tenant-id": tenantId,
+      Accept: "application/json",
+    };
+    if (options?.bearerToken) {
+      headers.Authorization = `Bearer ${options.bearerToken}`;
+    }
+
+    const url = joinUrl(this.billingServiceOrigin, `/api/billing/v1/bills/${billId}`);
+
+    let res: Response;
+    try {
+      res = await fetch(url, { headers });
+    } catch {
+      return null;
+    }
+
+    if (!res.ok) {
+      return null;
+    }
+
+    const json = (await res.json()) as BillDetailWire;
+    return json.data ?? null;
+  }
 
   async listBillsForRegistration(
     tenantId: string,
