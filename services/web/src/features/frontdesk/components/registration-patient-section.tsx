@@ -1,4 +1,4 @@
-import { Calendar, MoreVertical } from 'lucide-react';
+import { MoreVertical } from 'lucide-react';
 import { useMemo, type ChangeEvent, type Ref } from 'react';
 import type { ChangeHandler, UseFormReturn } from 'react-hook-form';
 import { Button } from '@pulse/ui/button';
@@ -24,6 +24,7 @@ import {
   RegistrationSubsectionLabel,
 } from '@/features/frontdesk/components/registration-form-chrome';
 import type { CreateVisitRequestBody } from '@/features/frontdesk/types';
+import { coerceAgePartValue } from '@/features/frontdesk/utils/visit-registration-helpers';
 import {
   listDistrictsForStateCode,
   listStateDistrictCatalog,
@@ -240,18 +241,12 @@ export function RegistrationPatientSection({
         </RegistrationField>
         <RegistrationField className="lg:col-span-3">
           <RegistrationFieldLabel htmlFor="visit-reg-dob">Date of Birth</RegistrationFieldLabel>
-          <div className="relative">
-            <Input
-              id="visit-reg-dob"
-              type="date"
-              className="h-10 w-full pr-10"
-              {...register('patient.date_of_birth')}
-            />
-            <Calendar
-              className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-              aria-hidden
-            />
-          </div>
+          <Input
+            id="visit-reg-dob"
+            type="date"
+            className="h-10 w-full"
+            {...register('patient.date_of_birth')}
+          />
         </RegistrationField>
         <RegistrationField className="lg:col-span-1">
           <RegistrationFieldLabel htmlFor="visit-reg-age-yrs" required>
@@ -264,7 +259,10 @@ export function RegistrationPatientSection({
             max={125}
             placeholder="0-125"
             className="h-10"
-            {...register('patient.age_years', { valueAsNumber: true })}
+            {...register('patient.age_years', {
+              valueAsNumber: true,
+              setValueAs: coerceAgePartValue,
+            })}
           />
         </RegistrationField>
         <RegistrationField className="lg:col-span-2">
@@ -276,7 +274,10 @@ export function RegistrationPatientSection({
             max={11}
             placeholder="0-11"
             className="h-10"
-            {...register('patient.age_months', { valueAsNumber: true })}
+            {...register('patient.age_months', {
+              valueAsNumber: true,
+              setValueAs: coerceAgePartValue,
+            })}
           />
         </RegistrationField>
         <RegistrationField className="lg:col-span-2">
@@ -288,7 +289,10 @@ export function RegistrationPatientSection({
             max={30}
             placeholder="0-30"
             className="h-10"
-            {...register('patient.age_days', { valueAsNumber: true })}
+            {...register('patient.age_days', {
+              valueAsNumber: true,
+              setValueAs: coerceAgePartValue,
+            })}
           />
         </RegistrationField>
       </div>

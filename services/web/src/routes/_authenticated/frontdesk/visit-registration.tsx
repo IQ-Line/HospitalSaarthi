@@ -35,7 +35,9 @@ import { useVisitRegistrationSectionsStore } from '@/features/frontdesk/visit-re
 import type { CreateVisitRequestBody } from '@/features/frontdesk/types';
 import {
   ageYmdSinceBirth,
+  birthDateFromAgeYmd,
   computeBillingGrandTotal,
+  hasEnteredAgeYmd,
   isVisitRegistrationFormComplete,
   visitRegistrationBlockHint,
   visitRegistrationFormBlockers,
@@ -179,8 +181,13 @@ function VisitRegistrationRoute() {
     patientPhone,
     patientFirstName,
     appointmentProviderId,
+    appointmentDepartmentId,
+    appointmentVisitTypeCode,
     appointmentDepartmentName,
     dateOfBirth,
+    ageYears,
+    ageMonths,
+    ageDays,
   ] = useWatch({
     control: form.control,
     name: [
@@ -191,10 +198,18 @@ function VisitRegistrationRoute() {
       'patient.phone',
       'patient.first_name',
       'appointment.provider_id',
+      'appointment.department_id',
+      'appointment.visit_type_code',
       'appointment.department_name',
       'patient.date_of_birth',
+      'patient.age_years',
+      'patient.age_months',
+      'patient.age_days',
     ],
   });
+
+  /** When age fields drive DOB, skip the next DOB→age reaction (avoids overwriting month/day while typing). */
+  const skipDobToAgeSyncRef = useRef(false);
 
   const hasProvider = Boolean(appointmentProviderId?.trim());
   const departmentName = (appointmentDepartmentName ?? '').trim() || null;
@@ -211,6 +226,9 @@ function VisitRegistrationRoute() {
   const formGate = {
     phone: patientPhone,
     firstName: patientFirstName,
+    departmentId: appointmentDepartmentId,
+    providerId: appointmentProviderId,
+    visitTypeCode: appointmentVisitTypeCode,
     grandTotal: computeBillingGrandTotal(
       billingRegistrationFee ?? { unit_price: 0, tax_percent: 0, discount: 0 },
       billingConsultationFee ?? { unit_price: 0, tax_percent: 0, discount: 0 },
@@ -226,11 +244,18 @@ function VisitRegistrationRoute() {
   const createVisitBlockHint = visitRegistrationBlockHint(formGate);
 
   useEffect(() => {
+    if (skipDobToAgeSyncRef.current) {
+      skipDobToAgeSyncRef.current = false;
+      return;
+    }
+
     const raw = (dateOfBirth ?? '').trim();
     if (!raw) {
-      form.setValue('patient.age_years', null, { shouldValidate: false });
-      form.setValue('patient.age_months', null, { shouldValidate: false });
-      form.setValue('patient.age_days', null, { shouldValidate: false });
+      if (!hasEnteredAgeYmd(ageYears, ageMonths, ageDays)) {
+        form.setValue('patient.age_years', null, { shouldValidate: false });
+        form.setValue('patient.age_months', null, { shouldValidate: false });
+        form.setValue('patient.age_days', null, { shouldValidate: false });
+      }
       return;
     }
 
@@ -251,6 +276,25 @@ function VisitRegistrationRoute() {
     form.setValue('patient.age_months', months, { shouldValidate: false });
     form.setValue('patient.age_days', days, { shouldValidate: false });
   }, [dateOfBirth, form]);
+
+  useEffect(() => {
+    if (!hasEnteredAgeYmd(ageYears, ageMonths, ageDays)) {
+      if ((dateOfBirth ?? '').trim()) {
+        skipDobToAgeSyncRef.current = true;
+        form.setValue('patient.date_of_birth', '', { shouldValidate: false });
+      }
+      return;
+    }
+
+    const y = typeof ageYears === 'number' && !Number.isNaN(ageYears) ? ageYears : 0;
+    const mo = typeof ageMonths === 'number' && !Number.isNaN(ageMonths) ? ageMonths : 0;
+    const d = typeof ageDays === 'number' && !Number.isNaN(ageDays) ? ageDays : 0;
+    const derivedDob = birthDateFromAgeYmd(y, mo, d);
+    if ((dateOfBirth ?? '').trim() !== derivedDob) {
+      skipDobToAgeSyncRef.current = true;
+      form.setValue('patient.date_of_birth', derivedDob, { shouldValidate: false });
+    }
+  }, [ageYears, ageMonths, ageDays, dateOfBirth, form]);
 
   const {
     ref: patientPhoneRef,
@@ -393,6 +437,9 @@ function VisitRegistrationRoute() {
     const gate = {
       phone: data.patient?.phone,
       firstName: data.patient?.first_name,
+      departmentId: data.appointment?.department_id,
+      providerId: data.appointment?.provider_id,
+      visitTypeCode: data.appointment?.visit_type_code,
       grandTotal: computeBillingGrandTotal(
         data.billing?.registration_fee ?? { unit_price: 0, tax_percent: 0, discount: 0 },
         data.billing?.consultation_fee ?? { unit_price: 0, tax_percent: 0, discount: 0 },
@@ -416,6 +463,24 @@ function VisitRegistrationRoute() {
           message: 'First name is required',
         });
       }
+      if (blockers.includes('department')) {
+        form.setError('appointment.department_id', {
+          type: 'required',
+          message: 'Department is required',
+        });
+      }
+      if (blockers.includes('doctor')) {
+        form.setError('appointment.provider_id', {
+          type: 'required',
+          message: 'Doctor is required',
+        });
+      }
+      if (blockers.includes('visit type')) {
+        form.setError('appointment.visit_type_code', {
+          type: 'required',
+          message: 'Visit type is required',
+        });
+      }
       if (blockers.includes('payment mode')) {
         form.setError('billing.payment_mode', {
           type: 'required',
@@ -425,7 +490,14 @@ function VisitRegistrationRoute() {
       toast.error(visitRegistrationBlockHint(gate) ?? 'Complete all required fields.');
       return;
     }
-    form.clearErrors(['patient.phone', 'patient.first_name', 'billing.payment_mode']);
+    form.clearErrors([
+      'patient.phone',
+      'patient.first_name',
+      'appointment.department_id',
+      'appointment.provider_id',
+      'appointment.visit_type_code',
+      'billing.payment_mode',
+    ]);
 
     submitIdempotencyKeyRef.current = crypto.randomUUID();
     const payload: CreateVisitRequestBody = {
