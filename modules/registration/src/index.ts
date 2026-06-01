@@ -29,11 +29,12 @@ export {
 } from "./lib/registration-helpers.js";
 export { publishRegistrationCreated } from "./events/publish-registration-created.js";
 
-export type { RegistrationRepo, EmpiHttpPort } from "./ports.js";
+export type { RegistrationRepo, EmpiHttpPort, PicklistReadPort } from "./ports.js";
 
 export { DrizzleRegistrationRepo } from "./data-access/registration.repo.js";
 export { HttpEmpiGateway } from "./lib/http-empi-gateway.js";
 export { HttpBillingGateway } from "./lib/http-billing-gateway.js";
+export { HttpPicklistGateway } from "./lib/http-picklist-gateway.js";
 export { registerDocumentsHandler, type DocumentsHandlerDeps } from "./rest-handlers/documents.handler.js";
 export type { BillingReadPort, BillingBillSummary } from "./ports.js";
 

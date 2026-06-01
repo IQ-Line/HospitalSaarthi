@@ -94,6 +94,13 @@ export interface BillingBillDetail {
   items: BillingBillItem[];
 }
 
+export interface PicklistReadPort {
+  getLabelMaps(): Promise<{
+    visitTypes: ReadonlyMap<string, string>;
+    registrationStatuses: ReadonlyMap<string, string>;
+  }>;
+}
+
 export interface BillingReadPort {
   listBillsForRegistration(
     tenantId: string,
