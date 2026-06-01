@@ -22,7 +22,6 @@ import {
 import { Switch } from '@pulse/ui/switch';
 import { toast } from 'sonner';
 import {
-  useSequenceConfigurationDetail,
   useUpsertSequenceIdentifier,
   type SequenceIdentifierConfig,
 } from '@/features/configurator/api/sequence-configuration';
@@ -58,6 +57,8 @@ interface SequenceCustomizeDialogProps {
   onOpenChange: (open: boolean) => void;
   tenantId: string;
   identifierType: IdentifierType | null;
+  sourceConfig: SequenceIdentifierConfig | null;
+  tenantNumericCode: string | null;
   onSaved: () => void;
 }
 
@@ -66,20 +67,16 @@ export function SequenceCustomizeDialog({
   onOpenChange,
   tenantId,
   identifierType,
+  sourceConfig,
+  tenantNumericCode: tenantNumericCodeProp,
   onSaved,
 }: SequenceCustomizeDialogProps) {
-  const { data: detail } = useSequenceConfigurationDetail(tenantId, { enabled: open && !!tenantId });
   const upsert = useUpsertSequenceIdentifier(tenantId);
   const [segments, setSegments] = useState<SequenceFormatSegment[]>([]);
   const [revertToDefault, setRevertToDefault] = useState(false);
 
-  const tenantNumericCode = normalizeTenantNumericCode(detail?.tenant_numeric_code);
+  const tenantNumericCode = normalizeTenantNumericCode(tenantNumericCodeProp);
   const meta = identifierType ? SEQUENCE_IDENTIFIER_META[identifierType] : null;
-
-  const sourceConfig = useMemo((): SequenceIdentifierConfig | undefined => {
-    if (!identifierType || !detail) return undefined;
-    return detail.identifiers.find((i) => i.identifier_type === identifierType);
-  }, [detail, identifierType]);
 
   useEffect(() => {
     if (!open || !sourceConfig) return;
@@ -148,7 +145,7 @@ export function SequenceCustomizeDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 space-y-5">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-8 space-y-5">
           <div className="rounded-lg border border-border/80 bg-muted/30 px-4 py-3.5 space-y-1.5">
             <p className="text-xs font-medium text-muted-foreground">Format preview</p>
             <p className="font-mono text-xl font-semibold tracking-tight break-all text-foreground">

@@ -5,6 +5,7 @@ import { Button } from '@pulse/ui/button';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@pulse/ui/dialog';
@@ -28,10 +29,10 @@ export function SequenceIdentifiersDialog({
   tenantName,
   tenantCode,
 }: SequenceIdentifiersDialogProps) {
-  const { data: detail, refetch } = useSequenceConfigurationDetail(tenantId, {
-    enabled: open && !!tenantId,
-  });
   const [customizeType, setCustomizeType] = useState<IdentifierType | null>(null);
+  const { data: detail, refetch } = useSequenceConfigurationDetail(tenantId, {
+    enabled: (open || customizeType != null) && !!tenantId,
+  });
 
   const codeLabel = tenantCode?.trim() || '—';
 
@@ -51,7 +52,9 @@ export function SequenceIdentifiersDialog({
         >
           <DialogHeader className="shrink-0 border-b px-5 py-4 text-left">
             <DialogTitle className="text-base font-semibold">{tenantName}</DialogTitle>
-            <p className="text-xs text-muted-foreground">Tenant code: {codeLabel}</p>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Tenant code: {codeLabel}
+            </DialogDescription>
           </DialogHeader>
 
           <ul className="min-h-0 flex-1 overflow-y-auto divide-y">
@@ -107,6 +110,12 @@ export function SequenceIdentifiersDialog({
         }}
         tenantId={tenantId}
         identifierType={customizeType}
+        sourceConfig={
+          customizeType && detail
+            ? (detail.identifiers.find((i) => i.identifier_type === customizeType) ?? null)
+            : null
+        }
+        tenantNumericCode={detail?.tenant_numeric_code ?? tenantCode}
         onSaved={() => void refetch()}
       />
     </>
