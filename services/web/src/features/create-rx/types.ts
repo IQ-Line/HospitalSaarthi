@@ -72,7 +72,7 @@ export interface PhysicalActivityRow {
 export interface MedicalHistoryData {
   chronicIllness: string;
   smokingStatus: '' | 'former' | 'current' | 'never';
-  alcoholDrinking: '' | 'former' | 'current' | 'never';
+  alcoholStatus: '' | 'former' | 'current' | 'never';
   dietType: string;
   historyOfPresentIllness: string;
 }

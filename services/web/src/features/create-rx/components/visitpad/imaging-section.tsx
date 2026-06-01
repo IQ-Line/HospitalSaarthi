@@ -1,6 +1,6 @@
 import { useCreateRxStore } from '../../create-rx.store';
 import type { ImagingRow } from '../../types';
-import { CreateRxFormTable, type FormTableColumn } from '../form-table';
+import { FormTable, type FormTableColumn } from '../form-table';
 import { SectionHeader } from '../section-header';
 
 const IMAGING_CHIPS = ['X-Ray', 'CT Scan', 'MRI', 'Ultrasound', 'PET Scan', 'Mammogram'];
@@ -20,7 +20,7 @@ const COLUMNS: FormTableColumn<ImagingRow>[] = [
   },
 ];
 
-export function CreateRxImagingSection() {
+export function ImagingSection() {
   const isReadOnly = useCreateRxStore((s) => s.isReadOnly);
   const rows = useCreateRxStore((s) => s.formData.imagingRequired);
   const add = useCreateRxStore((s) => s.addImagingRow);
@@ -55,7 +55,7 @@ export function CreateRxImagingSection() {
           </button>
         ))}
       </div>
-      <CreateRxFormTable
+      <FormTable
         title="Radiology Test"
         addButtonLabel="Add Imaging"
         columns={COLUMNS}

@@ -130,6 +130,7 @@ export function OpdPatientsFiltersBar({
           <SelectContent>
             <SelectItem value={SELECT_NONE}>Status</SelectItem>
             <SelectItem value="registered">Registered</SelectItem>
+            <SelectItem value="pre-consulted">Pre Consulted</SelectItem>
             <SelectItem value="in-progress">In-Progress</SelectItem>
             <SelectItem value="completed">Consulted</SelectItem>
             <SelectItem value="cancelled">Cancelled</SelectItem>
