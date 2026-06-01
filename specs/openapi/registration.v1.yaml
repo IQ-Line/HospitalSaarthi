@@ -137,6 +137,30 @@ paths:
         "404":
           description: Not found
 
+  /registrations/{registrationId}/documents/opd-slip.pdf:
+    get:
+      operationId: getRegistrationOpdSlipPdf
+      summary: OPD slip PDF for a completed registration
+      description: |
+        Returns a PDF generated server-side for desk preview and print after registration is completed.
+      tags: [EncounterRegistrations]
+      parameters:
+        - $ref: "#/components/parameters/RegistrationId"
+      responses:
+        "200":
+          description: OPD slip PDF
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Registration not found
+        "409":
+          description: Registration not in a printable state
+        "503":
+          description: PDF renderer unavailable
+
   /registrations/{registrationId}/complete:
     post:
       operationId: completeRegistrationIntake

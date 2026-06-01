@@ -188,6 +188,9 @@ importers:
 
   modules/registration:
     dependencies:
+      '@hims/pdf-client':
+        specifier: workspace:*
+        version: link:../../packages/pdf-client
       '@hims/ts-sdk-authz':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-authz
@@ -759,6 +762,9 @@ importers:
       '@fastify/cors':
         specifier: ^11.0.1
         version: 11.2.0
+      '@hims/pdf-client':
+        specifier: workspace:*
+        version: link:../../packages/pdf-client
       '@hims/registration':
         specifier: workspace:*
         version: link:../../modules/registration

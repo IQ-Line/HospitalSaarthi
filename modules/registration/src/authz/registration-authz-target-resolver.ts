@@ -61,6 +61,16 @@ export function createRegistrationAuthzTargetResolver(): AuthzTargetResolver {
       return { kind: "registration", id: id ?? "complete", action: "registration.update", attr: tenantAttr(request as FastifyRequest) };
     }
 
+    if (method === "GET" && path === "/registrations/:registrationId/documents/opd-slip.pdf") {
+      const id = resolvePathParam(request, "registrationId");
+      return {
+        kind: "registration",
+        id: id ?? "opd-slip",
+        action: "registration.read",
+        attr: tenantAttr(request as FastifyRequest),
+      };
+    }
+
     return null;
   };
 }

@@ -65,4 +65,19 @@ export interface EmpiHttpPort {
   ): Promise<EmpiRegisterPatientResult>;
 }
 
+export interface BillingBillSummary {
+  billId: string;
+  billNumber: string;
+  netAmount: string;
+  status: string;
+}
+
+export interface BillingReadPort {
+  listBillsForRegistration(
+    tenantId: string,
+    registrationId: string,
+    options?: { bearerToken?: string; visitId?: string | null },
+  ): Promise<BillingBillSummary[]>;
+}
+
 export type { DbInstance };
