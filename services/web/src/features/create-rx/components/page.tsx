@@ -72,21 +72,9 @@ export function Page({
           return;
         }
 
-<<<<<<< HEAD
         if (prescription) {
           ctx.visit.id = prescription.visit_id;
         }
-=======
-        if (!resolveOpdConsultationTenantId()) {
-          toast.error('Tenant context is missing. Sign in again and retry.');
-          resetForVisit(null, false);
-          return;
-        }
-
-        const prescription = loadPrescription
-          ? await fetchOpdPrescriptionSession(ctx.visit.id, ctx.patient.id)
-          : null;
->>>>>>> 6db9cb2488c8e7bf49b4bfeea2ddff25b87bb9ea
         const session = resolveCreateRxSession(ctx, mode, prescription);
         const formData = prepareCreateRxFormDataForSession(
           prescription?.form_data,
@@ -99,13 +87,10 @@ export function Page({
           toast.error('Failed to load consultation.');
           resetForVisit(null, false);
         }
-<<<<<<< HEAD
       } finally {
         if (!cancelled) {
           setLoading(false);
         }
-=======
->>>>>>> 6db9cb2488c8e7bf49b4bfeea2ddff25b87bb9ea
       }
     };
 
