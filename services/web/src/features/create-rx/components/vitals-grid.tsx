@@ -36,7 +36,7 @@ function VitalInput({
   );
 }
 
-export function CreateRxVitalsGrid() {
+export function VitalsGrid() {
   const vitals = useCreateRxStore((s) => s.formData.vitals);
   const isReadOnly = useCreateRxStore((s) => s.isReadOnly);
   const setVital = useCreateRxStore((s) => s.setVital);

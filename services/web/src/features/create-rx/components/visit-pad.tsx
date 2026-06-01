@@ -1,12 +1,13 @@
 import { Button } from '@pulse/ui/button';
 import { cn } from '@pulse/utils';
+import { hasAtLeastOneChiefComplaint } from '../lib/chief-complaint-validation';
 import { useCreateRxStore } from '../create-rx.store';
 import type { CreateRxSectionTab } from '../types';
-import { CreateRxCarePlan } from './visitpad/care-plan';
-import { CreateRxCurrentMedication } from './visitpad/current-medication';
-import { CreateRxMedicalHistory } from './visitpad/medical-history';
-import { CreateRxPhysicalActivity } from './visitpad/physical-activity';
-import { CreateRxPreConsult } from './pre-consult';
+import { CarePlan } from './visitpad/care-plan';
+import { CurrentMedication } from './visitpad/current-medication';
+import { MedicalHistory } from './visitpad/medical-history';
+import { PhysicalActivity } from './visitpad/physical-activity';
+import { PreConsult } from './pre-consult';
 
 const SECTION_TABS: { key: CreateRxSectionTab; label: string }[] = [
   { key: 'pre-consult', label: 'Pre Consult' },
@@ -16,30 +17,32 @@ const SECTION_TABS: { key: CreateRxSectionTab; label: string }[] = [
   { key: 'care-plan', label: 'Care Plan' },
 ];
 
-interface CreateRxVisitPadProps {
+interface VisitPadProps {
   onSave: () => void;
   onEndConsultation: () => void;
 }
 
-export function CreateRxVisitPad({ onSave, onEndConsultation }: CreateRxVisitPadProps) {
+export function VisitPad({ onSave, onEndConsultation }: VisitPadProps) {
   const activeSectionTab = useCreateRxStore((s) => s.activeSectionTab);
   const setActiveSectionTab = useCreateRxStore((s) => s.setActiveSectionTab);
   const isReadOnly = useCreateRxStore((s) => s.isReadOnly);
+  const chiefComplaints = useCreateRxStore((s) => s.formData.chiefComplaints);
+  const canEndConsultation = hasAtLeastOneChiefComplaint(chiefComplaints);
 
   const renderSection = () => {
     switch (activeSectionTab) {
       case 'pre-consult':
-        return <CreateRxPreConsult />;
+        return <PreConsult />;
       case 'medical-history':
-        return <CreateRxMedicalHistory />;
+        return <MedicalHistory />;
       case 'current-medication':
-        return <CreateRxCurrentMedication />;
+        return <CurrentMedication />;
       case 'physical-activity':
-        return <CreateRxPhysicalActivity />;
+        return <PhysicalActivity />;
       case 'care-plan':
-        return <CreateRxCarePlan />;
+        return <CarePlan />;
       default:
-        return <CreateRxPreConsult />;
+        return <PreConsult />;
     }
   };
 
@@ -72,18 +75,37 @@ export function CreateRxVisitPad({ onSave, onEndConsultation }: CreateRxVisitPad
         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-gray-50">{renderSection()}</div>
       </div>
       {!isReadOnly ? (
-        <div className="flex shrink-0 justify-end gap-3 border-t border-gray-200 bg-white px-4 py-3">
-          <Button type="button" variant="outline" size="sm" className="border-blue-600 text-blue-600" onClick={onSave}>
-            Save
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            className="bg-[#0d9488] text-white hover:bg-[#0f766e]"
-            onClick={onEndConsultation}
-          >
-            End Consultation
-          </Button>
+        <div className="flex shrink-0 flex-col items-end gap-1 border-t border-gray-200 bg-white px-4 py-3">
+          <div className="flex w-full justify-end gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="border-blue-600 text-blue-600"
+              onClick={onSave}
+            >
+              Save
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="bg-[#0d9488] text-white hover:bg-[#0f766e] disabled:opacity-50"
+              onClick={onEndConsultation}
+              disabled={!canEndConsultation}
+              title={
+                canEndConsultation
+                  ? 'End consultation for this patient'
+                  : 'Add at least one chief complaint before ending consultation'
+              }
+            >
+              End Consultation
+            </Button>
+          </div>
+          {!canEndConsultation ? (
+            <p className="text-xs text-muted-foreground">
+              Select at least one chief complaint from Visitpad masters to end consultation.
+            </p>
+          ) : null}
         </div>
       ) : null}
     </div>

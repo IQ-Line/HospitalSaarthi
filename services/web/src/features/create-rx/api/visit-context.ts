@@ -1,12 +1,10 @@
 import { getMockCreateRxVisitContext } from '../mock/visit-context.mock';
+import { fetchCreateRxVisitContextFromServices } from './build-visit-context';
 import type { CreateRxVisitContext } from '../types';
 
-/** Dev UI without visit context API — set `VITE_CREATE_RX_USE_MOCK=false` when backend is wired. */
+/** Opt-in mock visit context — set `VITE_CREATE_RX_USE_MOCK=true` for UI-only development. */
 export function createRxUseMock(): boolean {
-  return (
-    import.meta.env.VITE_CREATE_RX_USE_MOCK === 'true' ||
-    (import.meta.env.DEV && import.meta.env.VITE_CREATE_RX_USE_MOCK !== 'false')
-  );
+  return import.meta.env.VITE_CREATE_RX_USE_MOCK === 'true';
 }
 
 export async function fetchCreateRxVisitContext(
@@ -14,9 +12,9 @@ export async function fetchCreateRxVisitContext(
 ): Promise<CreateRxVisitContext | null> {
   if (createRxUseMock()) {
     await new Promise((r) => setTimeout(r, 80));
-    return getMockCreateRxVisitContext(visitId);
+    const mock = getMockCreateRxVisitContext(visitId);
+    if (mock) return mock;
   }
-  throw new Error(
-    'Create RX visit context API is not available. Set VITE_CREATE_RX_USE_MOCK=true for development, or wire the visit context endpoint before disabling mock mode.',
-  );
+
+  return fetchCreateRxVisitContextFromServices(visitId);
 }

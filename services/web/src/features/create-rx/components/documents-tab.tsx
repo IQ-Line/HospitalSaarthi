@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { useCreateRxStore } from '../create-rx.store';
 
 /** Reference DocumentsTab — dashed Add New File card in a grid. */
-export function CreateRxDocumentsTab() {
+export function DocumentsTab() {
   const isReadOnly = useCreateRxStore((s) => s.isReadOnly);
 
   return (

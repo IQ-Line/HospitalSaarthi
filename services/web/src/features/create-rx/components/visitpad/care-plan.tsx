@@ -10,7 +10,7 @@ import {
 import { Textarea } from '@pulse/ui/textarea';
 import { useCreateRxStore } from '../../create-rx.store';
 
-export function CreateRxCarePlan() {
+export function CarePlan() {
   const isReadOnly = useCreateRxStore((s) => s.isReadOnly);
   const carePlan = useCreateRxStore((s) => s.formData.carePlan);
   const patch = useCreateRxStore((s) => s.patchCarePlan);

@@ -1,7 +1,7 @@
 import { getMockOpdPatientsList } from '@/features/opd-patients/mock/opd-patients.mock';
 import type { CreateRxVisitContext } from '../types';
 
-/** Resolves visit context from OPD patients mock list by visit id. */
+/** Resolves visit context from OPD patients mock list by visit or patient id. */
 export function getMockCreateRxVisitContext(visitId: string): CreateRxVisitContext | null {
   const { items } = getMockOpdPatientsList({
     page: 1,
@@ -19,7 +19,7 @@ export function getMockCreateRxVisitContext(visitId: string): CreateRxVisitConte
     doctorScope: 'all',
   });
 
-  const row = items.find((r) => r.id === visitId);
+  const row = items.find((r) => r.id === visitId || r.patientId === visitId);
   if (!row) return null;
 
   const nameParts = row.patientName.split(' ');

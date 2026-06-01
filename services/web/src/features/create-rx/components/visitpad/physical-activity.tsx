@@ -1,6 +1,6 @@
 import { useCreateRxStore } from '../../create-rx.store';
 import type { PhysicalActivityRow } from '../../types';
-import { CreateRxFormTable, type FormTableColumn } from '../form-table';
+import { FormTable, type FormTableColumn } from '../form-table';
 
 const COLUMNS: FormTableColumn<PhysicalActivityRow>[] = [
   { key: 'steps', label: 'Steps', type: 'number', placeholder: 'Daily steps' },
@@ -13,7 +13,7 @@ const COLUMNS: FormTableColumn<PhysicalActivityRow>[] = [
   },
 ];
 
-export function CreateRxPhysicalActivity() {
+export function PhysicalActivity() {
   const isReadOnly = useCreateRxStore((s) => s.isReadOnly);
   const rows = useCreateRxStore((s) => s.formData.physicalActivity);
   const add = useCreateRxStore((s) => s.addPhysicalActivityRow);
@@ -22,7 +22,7 @@ export function CreateRxPhysicalActivity() {
 
   return (
     <div className="p-4">
-      <CreateRxFormTable
+      <FormTable
         title="Physical Activity"
         addButtonLabel="Add"
         columns={COLUMNS}

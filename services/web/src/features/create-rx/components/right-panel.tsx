@@ -17,7 +17,7 @@ function EmptyPreview({ message }: { message: string }) {
   );
 }
 
-export function CreateRxRightPanel() {
+export function RightPanel() {
   const activeRightTab = useCreateRxStore((s) => s.activeRightTab);
   const setActiveRightTab = useCreateRxStore((s) => s.setActiveRightTab);
 

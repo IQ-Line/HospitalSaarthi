@@ -75,6 +75,7 @@ export function OpdPatientsTable({
         header: () => <span className="text-xs font-semibold tracking-wide text-muted-foreground">ACTIONS</span>,
         cell: ({ row }) => {
           const isView = row.original.actionLabel === 'View RX';
+          const isStart = row.original.actionLabel === 'Start RX';
           return (
             <Button
               type="button"
@@ -87,7 +88,10 @@ export function OpdPatientsTable({
               <Link
                 to="/create-rx/$visitId"
                 params={{ visitId: row.original.id }}
-                search={{ mode: isView ? 'view' : 'edit' }}
+                search={{
+                  mode: isView ? 'view' : 'edit',
+                  loadPrescription: !isStart,
+                }}
                 onClick={stopRowClick}
               >
                 {row.original.actionLabel}
@@ -156,7 +160,7 @@ export function OpdPatientsTable({
         isLoading={isLoading}
         onRowClick={onPatientRowClick}
         emptyTitle="No data available"
-        emptyDescription="No OPD visits match the current filters."
+        emptyDescription="No registered patients match the current filters."
         manualPagination={{
           pageIndex: page - 1,
           pageSize,
