@@ -198,6 +198,9 @@ export type VisitRegistrationFormGateInput = {
   grandTotal: number;
   amountPaid: number | null | undefined;
   paymentMode: string | undefined;
+  departmentId?: string;
+  providerId?: string;
+  visitTypeCode?: string;
   hasProvider?: boolean;
   consultationUnitPrice?: number;
   registrationItemCode?: string;
@@ -210,6 +213,9 @@ export function visitRegistrationFormBlockers(
   const missing: string[] = [];
   if (!VISIT_REG_PHONE_RE.test((args.phone ?? '').trim())) missing.push('10-digit phone');
   if (!args.firstName?.trim()) missing.push('first name');
+  if (!args.departmentId?.trim()) missing.push('department');
+  if (!args.providerId?.trim()) missing.push('doctor');
+  if (!args.visitTypeCode?.trim()) missing.push('visit type');
   if (!isVisitRegistrationGrandTotalPositive(args.grandTotal)) missing.push('billing total above ₹0');
   if (!isVisitRegistrationAmountPaidValid(args.amountPaid, args.grandTotal)) {
     missing.push('valid amount paid (exact, floor, or ceiling of total)');
@@ -286,6 +292,47 @@ export function ageYmdSinceBirth(
     mo += 12;
   }
   return { years: y, months: mo, days: d };
+}
+
+export function formatDateOnlyLocal(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/** Derive DOB from age parts relative to today (desk registration convention). */
+export function birthDateFromAgeYmd(
+  years: number,
+  months: number,
+  days: number,
+  referenceLocal: Date = startOfLocalDay(new Date()),
+): string {
+  const y = Math.max(0, Math.min(125, Math.floor(years) || 0));
+  const mo = Math.max(0, Math.min(11, Math.floor(months) || 0));
+  const d = Math.max(0, Math.min(30, Math.floor(days) || 0));
+  const ref = new Date(referenceLocal);
+  ref.setFullYear(ref.getFullYear() - y);
+  ref.setMonth(ref.getMonth() - mo);
+  ref.setDate(ref.getDate() - d);
+  return formatDateOnlyLocal(ref);
+}
+
+export function hasEnteredAgeYmd(
+  years: number | null | undefined,
+  months: number | null | undefined,
+  days: number | null | undefined,
+): boolean {
+  return [years, months, days].some(
+    (v) => typeof v === 'number' && !Number.isNaN(v),
+  );
+}
+
+/** RHF `setValueAs` for optional age inputs — empty string → null, not NaN. */
+export function coerceAgePartValue(value: unknown): number | null {
+  if (value === '' || value === null || value === undefined) return null;
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isNaN(n) ? null : n;
 }
 
 // ─── API payload mapping ─────────────────────────────────────────────────────
