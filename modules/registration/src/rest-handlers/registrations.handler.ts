@@ -1,7 +1,7 @@
 /// <reference path="../fastify.d.ts" />
 import type { FastifyInstance } from "fastify";
 import type { EventBus } from "@hims/ts-sdk-events";
-import type { EmpiHttpPort, RegistrationRepo, VisitRepo } from "../ports.js";
+import type { EmpiHttpPort, OpdHttpPort, RegistrationRepo, VisitRepo } from "../ports.js";
 import type {
   ExistingPatientVisitInput,
   NewPatientIntakeInput,
@@ -46,6 +46,7 @@ export interface RegistrationsHandlerDeps {
   visitRepo: VisitRepo;
   empiGateway: EmpiHttpPort | undefined;
   eventBus: EventBus;
+  opdGateway?: OpdHttpPort;
 }
 
 export function registerRegistrationsHandler(
@@ -141,13 +142,17 @@ export function registerRegistrationsHandler(
         return reply.code(400).send(idempotencyKeyRequiredResponse());
       }
 
+      const authHeader = request.headers.authorization;
+      const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
+
       const result = await createVisitForExistingPatient(
-        { visitRepo: deps.visitRepo, eventBus: deps.eventBus },
+        { visitRepo: deps.visitRepo, eventBus: deps.eventBus, opdGateway: deps.opdGateway },
         request.tenantId,
         request.body,
         {
           idempotencyKey,
           actorId: resolveActorId(request),
+          bearerToken,
         },
       );
 
@@ -193,6 +198,7 @@ export function registerRegistrationsHandler(
           visitRepo: deps.visitRepo,
           empiGateway: deps.empiGateway,
           eventBus: deps.eventBus,
+          opdGateway: deps.opdGateway,
         },
         request.tenantId,
         request.body,

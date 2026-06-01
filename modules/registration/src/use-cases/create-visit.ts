@@ -1,5 +1,5 @@
 import type { EventBus } from "@hims/ts-sdk-events";
-import type { VisitRepo } from "../ports.js";
+import type { OpdHttpPort, VisitRepo } from "../ports.js";
 import type { CreateVisitInput, InsertVisitResult } from "../domain/visit.types.js";
 import type { VisitStatus } from "../lib/visit-helpers.js";
 import { visitStatusFromIntakeCompletion } from "../lib/visit-helpers.js";
@@ -9,10 +9,11 @@ export type CreateVisitContext = {
   idempotencyKey: string;
   actorId: string;
   initialStatus?: VisitStatus;
+  bearerToken?: string;
 };
 
 export async function createVisit(
-  deps: { visitRepo: VisitRepo; eventBus: EventBus },
+  deps: { visitRepo: VisitRepo; eventBus: EventBus; opdGateway?: OpdHttpPort },
   tenantId: string,
   input: CreateVisitInput,
   ctx: CreateVisitContext,
@@ -30,6 +31,15 @@ export async function createVisit(
 
   if (result.created) {
     await publishVisitCreated(deps, result.record, ctx.actorId);
+    if (deps.opdGateway) {
+      await deps.opdGateway.ensureEncounter(
+        tenantId,
+        result.record.visit_id,
+        result.record.patient_id,
+        ctx.bearerToken,
+        result.record.doctor_id,
+      );
+    }
   }
 
   return result;

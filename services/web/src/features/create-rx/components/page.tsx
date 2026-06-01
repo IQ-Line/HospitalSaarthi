@@ -9,6 +9,7 @@ import { opdPatientsQueryKeys } from '@/features/opd-patients/api/query-keys';
 import { resolveOpdConsultationTenantId } from '@/features/opd-patients/lib/opd-consultation-tenant';
 import {
   endOpdConsultation,
+  ensureOpdRegistrationEncounter,
   fetchOpdPrescriptionSession,
   saveOpdPrescriptionDraft,
 } from '../api/opd-prescription';
@@ -29,6 +30,8 @@ import { VisitPad } from './visit-pad';
 
 interface PageProps {
   visitId: string;
+  /** Registration/queue patient id when ``visitId`` is not the EMPI patient id (Start RX). */
+  patientId?: string;
   mode?: 'edit' | 'view';
   /** False when opening a brand-new consultation (Start RX). Defaults to true. */
   loadPrescription?: boolean;
@@ -36,6 +39,7 @@ interface PageProps {
 
 export function Page({
   visitId,
+  patientId,
   mode = 'edit',
   loadPrescription = true,
 }: PageProps) {
@@ -60,11 +64,18 @@ export function Page({
           return;
         }
 
-        const prescription = loadPrescription
+        let prescription = loadPrescription
           ? await fetchOpdPrescriptionSession(visitId)
           : null;
 
-        const patientKey = prescription?.patient_id ?? visitId;
+        const patientKey = prescription?.patient_id ?? patientId?.trim() ?? visitId;
+        if (!prescription && patientId?.trim()) {
+          try {
+            prescription = await ensureOpdRegistrationEncounter(visitId, patientId);
+          } catch {
+            /* End/save will auto-ensure on server; ignore if OPD unreachable here */
+          }
+        }
         const ctx = await fetchCreateRxVisitContext(patientKey);
         if (cancelled) return;
         if (!ctx) {
@@ -74,6 +85,8 @@ export function Page({
 
         if (prescription) {
           ctx.visit.id = prescription.visit_id;
+        } else {
+          ctx.visit.id = visitId;
         }
         const session = resolveCreateRxSession(ctx, mode, prescription);
         const formData = prepareCreateRxFormDataForSession(

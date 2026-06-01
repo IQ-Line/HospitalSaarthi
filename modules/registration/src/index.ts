@@ -56,6 +56,7 @@ export type { RegistrationRepo, VisitRepo, EmpiHttpPort, BillingReadPort, Billin
 export { DrizzleRegistrationRepo } from "./data-access/registration.repo.js";
 export { DrizzleVisitRepo } from "./data-access/visit.repo.js";
 export { HttpEmpiGateway } from "./lib/http-empi-gateway.js";
+export { HttpOpdGateway } from "./lib/http-opd-gateway.js";
 export { HttpBillingGateway } from "./lib/http-billing-gateway.js";
 export { registerDocumentsHandler, type DocumentsHandlerDeps } from "./rest-handlers/documents.handler.js";
 

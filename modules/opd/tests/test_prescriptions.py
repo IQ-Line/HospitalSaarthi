@@ -13,9 +13,12 @@ from sqlalchemy.pool import StaticPool
 from opd.core.database import get_db_session
 from opd.main import create_app
 from opd.models import Base
+from opd.models.registration_visit import RegistrationVisit
 
 TENANT = "550e8400-e29b-41d4-a716-446655440000"
 PATIENT = "660e8400-e29b-41d4-a716-446655440001"
+VISIT = "770e8400-e29b-41d4-a716-446655440002"
+DOCTOR = "880e8400-e29b-41d4-a716-446655440003"
 
 
 @pytest.fixture
@@ -27,7 +30,7 @@ def client() -> Generator[TestClient, None, None]:
     )
     for table in Base.metadata.tables.values():
         table.schema = None
-    Base.metadata.create_all(engine)
+    Base.metadata.create_all(engine, checkfirst=True)
     session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
     def override_db() -> Generator[Session, None, None]:
@@ -40,6 +43,23 @@ def client() -> Generator[TestClient, None, None]:
     app = create_app()
     app.dependency_overrides[get_db_session] = override_db
     with TestClient(app) as test_client:
+        now = datetime.now(UTC)
+        session = session_factory()
+        try:
+            session.add(
+                RegistrationVisit(
+                    visit_id=uuid.UUID(VISIT),
+                    tenant_id=uuid.UUID(TENANT),
+                    patient_id=uuid.UUID(PATIENT),
+                    doctor_id=uuid.UUID(DOCTOR),
+                    status="pending",
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+            session.commit()
+        finally:
+            session.close()
         yield test_client
 
 
@@ -170,7 +190,77 @@ def test_end_consultation_persists_form_data(client: TestClient) -> None:
     assert by_rx.json()["visit_id"] == body["visit_id"]
 
 
+def test_end_visit_without_opd_row_ensures_from_registration(client: TestClient) -> None:
+    """Desk registration may skip PUT /encounter; end consultation must still work."""
+    end = client.post(
+        f"/api/v1/opd/visits/{VISIT}/prescription/end",
+        json={
+            "form_data": {
+                "vitals": {"spo2": "99"},
+                "chiefComplaints": [
+                    {
+                        "id": "1",
+                        "complaint": "Cough",
+                        "severity": "mild",
+                        "duration": "1",
+                        "durationUnit": "days",
+                        "notes": "",
+                    }
+                ],
+            }
+        },
+        headers=_headers(),
+    )
+    assert end.status_code == 200
+    assert end.json()["visit_id"] == VISIT
+    assert end.json()["prescription_status"] == "final"
+
+
+def test_ensure_registration_encounter_creates_visit_and_prescription(client: TestClient) -> None:
+    visit_id = str(VISIT)
+    patient_id = str(PATIENT)
+
+    response = client.put(
+        f"/api/v1/opd/visits/{visit_id}/encounter",
+        json={"patient_id": patient_id, "doctor_id": DOCTOR},
+        headers=_headers(),
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["visit_id"] == visit_id
+    assert body["patient_id"] == patient_id
+    assert body["prescription_status"] == "draft"
+
+    by_visit = client.get(f"/api/v1/opd/visits/{visit_id}/prescription", headers=_headers())
+    assert by_visit.status_code == 200
+
+
 def test_list_patients_returns_completed_encounter(client: TestClient) -> None:
+    from opd.core.database import get_db_session
+
+    tenant = uuid.UUID(TENANT)
+    patient = uuid.UUID(PATIENT)
+    visit = uuid.UUID(VISIT)
+    now = datetime.now(UTC)
+
+    db_gen = client.app.dependency_overrides[get_db_session]()
+    db = next(db_gen)
+    try:
+        db.add(
+            RegistrationVisit(
+                visit_id=visit,
+                tenant_id=tenant,
+                patient_id=patient,
+                doctor_id=uuid.UUID(DOCTOR),
+                status="completed",
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
     payload = {
         "form_data": {
             "vitals": {},
@@ -230,6 +320,7 @@ def test_patient_prescription_skips_visit_without_prescription_row(
                 tenant_id=tenant,
                 visit_id=rx_visit.id,
                 patient_id=patient,
+                doctor_id=uuid.UUID(DOCTOR),
                 status="final",
                 form_data={"chiefComplaints": [{"complaint": "Cough"}]},
                 created_at=earlier,
@@ -274,14 +365,25 @@ def test_nurse_pre_consult_sets_visit_status(client: TestClient) -> None:
             updated_at=now,
         )
         db.add(visit)
+        db.add(
+            RegistrationVisit(
+                visit_id=visit.id,
+                tenant_id=tenant,
+                patient_id=patient,
+                doctor_id=uuid.UUID(DOCTOR),
+                status="pending",
+                created_at=now,
+                updated_at=now,
+            )
+        )
         db.commit()
         visit_id = visit.id
     finally:
-        db_gen.close()
+        db.close()
 
-    payload = {
-        "form_data": {
-            "vitals": {"systolic_bp": "118", "diastolic_bp": "76"},
+        payload = {
+            "form_data": {
+                "vitals": {"systolic_bp": "118", "diastolic_bp": "76"},
             "chiefComplaints": [],
             "immunizations": [],
         }
@@ -314,6 +416,7 @@ def test_get_patient_prescription_without_visit_row(client: TestClient) -> None:
                 tenant_id=tenant,
                 visit_id=visit_key,
                 patient_id=patient,
+                doctor_id=uuid.UUID(DOCTOR),
                 status="final",
                 form_data={
                     "chiefComplaints": [

@@ -1,7 +1,7 @@
 /// <reference path="../fastify.d.ts" />
 import type { FastifyInstance } from "fastify";
 import type { EventBus } from "@hims/ts-sdk-events";
-import type { RegistrationRepo, VisitRepo } from "../ports.js";
+import type { OpdHttpPort, RegistrationRepo, VisitRepo } from "../ports.js";
 import type { CreateVisitInput, UpdateVisitInput } from "../domain/visit.types.js";
 import type { VisitStatus } from "../lib/visit-helpers.js";
 import { createVisit } from "../use-cases/create-visit.js";
@@ -93,13 +93,17 @@ export function registerVisitsHandler(app: FastifyInstance, deps: VisitsHandlerD
         return reply.code(400).send(idempotencyKeyRequiredResponse());
       }
 
+      const authHeader = request.headers.authorization;
+      const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
+
       const result = await createVisit(
-        { visitRepo: deps.visitRepo, eventBus: deps.eventBus },
+        { visitRepo: deps.visitRepo, eventBus: deps.eventBus, opdGateway: deps.opdGateway },
         request.tenantId,
         request.body,
         {
           idempotencyKey,
           actorId: resolveActorId(request),
+          bearerToken,
           initialStatus: visitStatusFromIntakeCompletion(
             request.body.intake_completion ?? "partial",
           ),

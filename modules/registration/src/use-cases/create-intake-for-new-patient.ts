@@ -1,5 +1,5 @@
 import type { EventBus } from "@hims/ts-sdk-events";
-import type { EmpiHttpPort, RegistrationRepo, VisitRepo } from "../ports.js";
+import type { EmpiHttpPort, OpdHttpPort, RegistrationRepo, VisitRepo } from "../ports.js";
 import type {
   NewPatientIntakeInput,
   PatientDemographicsSnapshot,
@@ -22,6 +22,7 @@ export async function createIntakeForNewPatient(
     visitRepo: VisitRepo;
     empiGateway: EmpiHttpPort;
     eventBus: EventBus;
+    opdGateway?: OpdHttpPort;
   },
   tenantId: string,
   input: NewPatientIntakeInput,
@@ -129,6 +130,7 @@ export async function createIntakeForNewPatient(
     {
       idempotencyKey: ctx.idempotencyKey,
       actorId: ctx.actorId,
+      bearerToken: ctx.bearerToken,
       initialStatus: visitStatusFromIntakeCompletion(input.intake_completion ?? "partial"),
     },
   );
@@ -144,7 +146,11 @@ export async function createIntakeForNewPatient(
 }
 
 export async function createVisitForExistingPatient(
-  deps: { visitRepo: VisitRepo; eventBus: EventBus },
+  deps: {
+    visitRepo: VisitRepo;
+    eventBus: EventBus;
+    opdGateway?: OpdHttpPort;
+  },
   tenantId: string,
   input: import("../domain/registration.types.js").ExistingPatientVisitInput,
   ctx: IntakeContext,
@@ -164,6 +170,7 @@ export async function createVisitForExistingPatient(
     {
       idempotencyKey: ctx.idempotencyKey,
       actorId: ctx.actorId,
+      bearerToken: ctx.bearerToken,
       initialStatus: visitStatusFromIntakeCompletion(input.intake_completion ?? "partial"),
     },
   );
