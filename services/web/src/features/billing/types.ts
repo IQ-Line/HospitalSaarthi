@@ -34,6 +34,7 @@ export type ServiceCreateInput = {
   tax_percentage?: string | number;
   description?: string | null;
   provider_id?: string | null;
+  department_id?: string | null;
   department?: string | null;
   category?: string | null;
   sub_category?: string | null;

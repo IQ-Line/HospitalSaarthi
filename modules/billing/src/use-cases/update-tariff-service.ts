@@ -10,6 +10,7 @@ import {
   validateEffectiveRange,
   validateMoney,
 } from "../lib/tariff-api.js";
+import { isRegistrationTariffCategory } from "../lib/tariff-category.js";
 
 const SCALAR_KEYS = [
   "service_name",
@@ -95,6 +96,38 @@ export async function updateTariffService(
 
   const built = buildPatch(input, existing, updatedBy);
   if ("ok" in built) return built;
+
+  const willBeActive = built.is_active ?? existing.is_active;
+  if (willBeActive) {
+    if (isRegistrationTariffCategory(built.category ?? existing.category) && !existing.provider_id) {
+      const duplicate = await deps.tariffRepo.findActiveRegistrationFee(tenantId, serviceId);
+      if (duplicate) {
+        return {
+          ok: false,
+          code: "CONFLICT",
+          message: "registration_fee_already_exists: only one active registration fee is allowed per tenant",
+        };
+      }
+    }
+
+    const providerId = existing.provider_id;
+    if (providerId) {
+      const department = built.department ?? existing.department;
+      const duplicate = await deps.tariffRepo.findActiveProviderDepartmentTariff(tenantId, {
+        provider_id: providerId,
+        department_id: existing.department_id,
+        department,
+        excludeId: serviceId,
+      });
+      if (duplicate) {
+        return {
+          ok: false,
+          code: "CONFLICT",
+          message: "provider_department_tariff_already_exists: this doctor already has a tariff in this department",
+        };
+      }
+    }
+  }
 
   const updated = await deps.tariffRepo.update(tenantId, serviceId, built);
   return updated

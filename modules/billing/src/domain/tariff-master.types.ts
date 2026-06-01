@@ -7,6 +7,8 @@ export type TariffMasterRow = {
   service_name: string;
   description: string | null;
   provider_id: string | null;
+  department_id: string | null;
+  consultation_type_id: string | null;
   department: string | null;
   category: string | null;
   sub_category: string | null;

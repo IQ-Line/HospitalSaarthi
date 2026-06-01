@@ -2,6 +2,7 @@ import { computeDeskLineAmounts, computeLineAmounts } from "../lib/bill-math.js"
 import { money } from "../lib/money.js";
 import { fail, ok, syncBillTotals } from "../lib/use-case.js";
 import type { CaptureChargeInput, ChargeIngestResponse, UseCaseResult } from "../domain/bill.types.js";
+import type { TariffMasterRow } from "../domain/tariff-master.types.js";
 import type { BillingDeps } from "../ports.js";
 import { newDraftBill } from "../data-access/billing.repository.js";
 
@@ -94,8 +95,26 @@ export async function captureCharge(
   idempotencyKey?: string,
 ): Promise<UseCaseResult<ChargeIngestResponse>> {
   if (!input.patient_id) return fail("VALIDATION", "patient_id is required");
-  if (!input.item_code?.trim()) return fail("VALIDATION", "item_code is required");
   if (!input.source_module?.trim()) return fail("VALIDATION", "source_module is required");
+
+  const consultationPath =
+    Boolean(input.provider_id?.trim()) &&
+    Boolean(input.department_id?.trim()) &&
+    Boolean(input.consultation_type_id?.trim());
+  const legacyPath = Boolean(input.item_code?.trim());
+
+  if (!consultationPath && !legacyPath) {
+    return fail(
+      "VALIDATION",
+      "item_code or (provider_id, department_id, consultation_type_id) is required",
+    );
+  }
+  if (consultationPath && legacyPath) {
+    return fail(
+      "VALIDATION",
+      "supply either item_code (legacy) or provider_id + department_id + consultation_type_id, not both",
+    );
+  }
 
   if (
     hasDeskPricingOverrides(input) &&
@@ -112,11 +131,32 @@ export async function captureCharge(
     if (existing) return ok(toResponse(existing, true));
   }
 
-  const providerId = input.provider_id ?? null;
-  const tariff = await deps.tariffRepo.findByCodeAndProvider(tenantId, input.item_code, providerId);
-  if (!tariff) {
-    return fail("NOT_FOUND", "catalog_row_not_found: no active tariff for service_code and provider");
+  let tariff: TariffMasterRow | undefined;
+  if (consultationPath) {
+    tariff = await deps.tariffRepo.resolveConsultationTariff(
+      tenantId,
+      input.provider_id!,
+      input.department_id!,
+      input.consultation_type_id!,
+    );
+    if (!tariff) {
+      return fail(
+        "NOT_FOUND",
+        "consultation_tariff_not_found: no active tariff for provider, department, and consultation type",
+      );
+    }
+  } else {
+    const providerId = input.provider_id ?? null;
+    tariff = await deps.tariffRepo.findByCodeAndProvider(tenantId, input.item_code!, providerId);
+    if (!tariff) {
+      return fail(
+        "NOT_FOUND",
+        "catalog_row_not_found: no active tariff for service_code and provider",
+      );
+    }
   }
+
+  const providerId = input.provider_id ?? tariff.provider_id;
 
   const visitId = input.visit_id ?? null;
   const bill =
@@ -148,7 +188,7 @@ export async function captureCharge(
     source_ref: input.source_ref ?? null,
     performed_date: input.performed_date ?? new Date().toISOString(),
     performed_by: input.performed_by ?? providerId,
-    department: input.department ?? tariff.department,
+    department: input.department ?? tariff.department ?? null,
     status: "ACTIVE",
     idempotency_key: idempotencyKey ?? null,
     notes: input.notes ?? null,

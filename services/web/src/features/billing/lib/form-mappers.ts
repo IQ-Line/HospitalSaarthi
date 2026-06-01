@@ -39,6 +39,7 @@ export function formToCreatePayload(
     tax_percentage: v.tax_percentage,
     description: v.description,
     provider_id: isRegistrationFee ? null : v.provider_id,
+    department_id: isRegistrationFee ? null : v.department_id,
     department: isRegistrationFee ? 'frontdesk' : departmentName,
     category: v.tariff_type,
     sub_category: null,

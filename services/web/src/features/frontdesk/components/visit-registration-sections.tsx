@@ -33,7 +33,7 @@ import {
   type VisitRegistrationSectionId,
 } from '@/features/frontdesk/visit-registration-sections.store';
 import { useDepartments } from '@/features/master-data/api';
-import { useProviderList } from '@/features/user-management/api/queries';
+import { useDoctorsForDepartment } from '@/features/billing/hooks/use-doctors-for-department';
 import { useVisitpadVitalsCatalog } from '@/features/visitpad/api';
 import type { VisitpadVital } from '@/features/visitpad/types';
 import {
@@ -45,11 +45,12 @@ import {
   VISIT_REGISTRATION_RIS_PRIORITIES,
   VISIT_REGISTRATION_RIS_STUDY_TYPES,
   VISIT_REGISTRATION_TEXTAREA_CLASS,
-  VISIT_REGISTRATION_VISIT_TYPES,
+  VISIT_REGISTRATION_OPD_VISIT_TYPES,
   billingLineDiscountAmount,
   billingLineNetPrice,
   billingLineTaxAmount,
   billingLineTotal,
+  VISIT_TYPE_OPD_FIRST,
   computeBillingGrandTotal,
   formatBillingDeduction,
   formatBillingTaxSummary,
@@ -131,7 +132,8 @@ export function VisitRegistrationAppointmentSection({
   setValue,
   tariffsLoading = false,
   tariffsError = false,
-}: FormProps & { tariffsLoading?: boolean; tariffsError?: boolean }) {
+  visitTypeLoading = false,
+}: FormProps & { tariffsLoading?: boolean; tariffsError?: boolean; visitTypeLoading?: boolean }) {
   const departmentId = watch('appointment.department_id') ?? '';
   const providerId = watch('appointment.provider_id') ?? '';
   const visitTypeCode = watch('appointment.visit_type_code') ?? '';
@@ -152,24 +154,21 @@ export function VisitRegistrationAppointmentSection({
     [departments, departmentId],
   );
 
-  const providersQuery = useProviderList(null, {
-    department: selectedDepartmentName ?? undefined,
-    enabled: !!selectedDepartmentName,
+  const doctors = useDoctorsForDepartment(departmentId || null, {
+    enabled: Boolean(departmentId),
+    departmentName: selectedDepartmentName,
   });
-  const doctorOptions = useMemo(() => {
-    const providers = providersQuery.data ?? [];
-    return providers.map((p) => ({ value: p.id, label: p.full_name }));
-  }, [providersQuery.data]);
+  const doctorOptions = doctors.doctorOptions;
 
-  const doctorPlaceholder = !selectedDepartmentName
+  const doctorPlaceholder = !departmentId
     ? 'Select a department first'
-    : providersQuery.isPending
+    : doctors.isLoading
       ? 'Loading doctors…'
-      : providersQuery.isError
+      : doctors.isError
         ? 'Failed to load doctors'
         : doctorOptions.length > 0
           ? 'Select doctor'
-          : `No doctors in ${selectedDepartmentName}`;
+          : `No doctors in ${selectedDepartmentName ?? 'this department'}`;
 
   const departmentPlaceholder = resolveDepartmentPlaceholder(
     departmentsQuery.isPending,
@@ -190,6 +189,15 @@ export function VisitRegistrationAppointmentSection({
     providerId,
     consultationFee,
   });
+
+  const patientPhone = watch('patient.phone') ?? '';
+  const visitTypePlaceholder = !patientPhone.trim()
+    ? 'Enter patient phone first'
+    : visitTypeLoading
+      ? 'Detecting visit type…'
+      : visitTypeCode
+        ? undefined
+        : 'Detecting visit type…';
 
   return (
     <RegistrationSection title="Visit Details">
@@ -231,7 +239,7 @@ export function VisitRegistrationAppointmentSection({
           value={providerId || '__none__'}
           onValueChange={(v) => setValue('appointment.provider_id', v === '__none__' ? '' : v)}
           placeholder={doctorPlaceholder}
-          disabled={!selectedDepartmentName || providersQuery.isPending || doctorOptions.length === 0}
+          disabled={!departmentId || doctors.isLoading || doctorOptions.length === 0}
           options={doctorOptions}
         />
         <Field>
@@ -250,9 +258,10 @@ export function VisitRegistrationAppointmentSection({
           label="Visit Type"
           required
           value={visitTypeCode || '__none__'}
-          onValueChange={(v) => setValue('appointment.visit_type_code', v === '__none__' ? '' : v)}
-          placeholder="Select Visit Type"
-          options={VISIT_REGISTRATION_VISIT_TYPES.map((vt) => ({
+          onValueChange={() => {}}
+          placeholder={visitTypePlaceholder ?? 'Select Visit Type'}
+          disabled
+          options={VISIT_REGISTRATION_OPD_VISIT_TYPES.map((vt) => ({
             value: vt.value,
             label: vt.label,
           }))}
@@ -272,11 +281,15 @@ export function VisitRegistrationBillingSection({
   tariffsLoading = false,
   tariffsError = false,
   hasProvider = false,
+  isFirstVisit = false,
+  hasRegistrationTariff = false,
 }: BillingSectionProps & {
   variant?: 'compact' | 'detailed';
   tariffsLoading?: boolean;
   tariffsError?: boolean;
   hasProvider?: boolean;
+  isFirstVisit?: boolean;
+  hasRegistrationTariff?: boolean;
 }) {
   const paymentMode = watch('billing.payment_mode') ?? '';
 
@@ -355,9 +368,9 @@ export function VisitRegistrationBillingSection({
   const invoiceDiscount = watch('billing.invoice_discount') ?? 0;
   const amountPaid = watch('billing.amount_paid');
 
-  const regNet = billingLineNetPrice(registrationFee);
-  const regTax = billingLineTaxAmount(registrationFee);
-  const regTotal = billingLineTotal(registrationFee);
+  const regNet = isFirstVisit ? billingLineNetPrice(registrationFee) : 0;
+  const regTax = isFirstVisit ? billingLineTaxAmount(registrationFee) : 0;
+  const regTotal = isFirstVisit ? billingLineTotal(registrationFee) : 0;
   const consultNet = billingLineNetPrice(consultationFee);
   const consultTax = billingLineTaxAmount(consultationFee);
   const consultTotal = billingLineTotal(consultationFee);
@@ -366,12 +379,11 @@ export function VisitRegistrationBillingSection({
     registrationFee,
     consultationFee,
     invoiceDiscount,
+    { includeRegistrationFee: isFirstVisit },
   );
   const amountPaidInvalid =
     grandTotal > 0 && !isVisitRegistrationAmountPaidValid(amountPaid, grandTotal);
-  const amountPaidHint = amountPaidError ?? (amountPaidInvalid
-    ? 'Enter exact total, floor, or ceiling (e.g. 109.5 → 109, 109.5, or 110)'
-    : undefined);
+  const showAmountPaidError = Boolean(amountPaidError) || amountPaidInvalid;
 
   return (
     <RegistrationSection title="Billing">
@@ -401,20 +413,27 @@ export function VisitRegistrationBillingSection({
             </TableRow>
           </TableHeader>
           <TableBody>
-            <BillingFeeRow
-              tariffTypeLabel="Registration fee"
-              serviceName={registrationFee.service_name ?? 'Registration fee'}
-              unitPrice={registrationFee.unit_price}
-              taxPercent={registrationFee.tax_percent}
-              discountPercentPath="billing.registration_fee.discount_percent"
-              discountRsPath="billing.registration_fee.discount"
-              register={register}
-              setValue={setValue}
-              netPrice={regNet}
-              taxAmount={regTax}
-              total={regTotal}
-              muted={tariffsLoading}
-            />
+            {isFirstVisit ? (
+              <BillingFeeRow
+                tariffTypeLabel="Registration fee"
+                serviceName={
+                  registrationFee.service_name?.trim() ||
+                  (hasRegistrationTariff || tariffsLoading
+                    ? 'Registration fee'
+                    : 'Not configured in Tariff Master')
+                }
+                unitPrice={registrationFee.unit_price}
+                taxPercent={registrationFee.tax_percent}
+                discountPercentPath="billing.registration_fee.discount_percent"
+                discountRsPath="billing.registration_fee.discount"
+                register={register}
+                setValue={setValue}
+                netPrice={regNet}
+                taxAmount={regTax}
+                total={regTotal}
+                muted={tariffsLoading}
+              />
+            ) : null}
             {hasProvider ? (
               <BillingFeeRow
                 tariffTypeLabel="Consultation fee"
@@ -438,12 +457,15 @@ export function VisitRegistrationBillingSection({
               <TableCell className={BILLING_LABEL_CELL}>All items summary</TableCell>
               <TableCell className={BILLING_EMPTY_CELL}>—</TableCell>
               <TableCell className={BILLING_NUM_CELL}>
-                {formatInr(registrationFee.unit_price + (hasProvider ? consultationFee.unit_price : 0))}
+                {formatInr(
+                  (isFirstVisit ? registrationFee.unit_price : 0) +
+                    (hasProvider ? consultationFee.unit_price : 0),
+                )}
               </TableCell>
               <TableCell className={BILLING_EMPTY_CELL}>—</TableCell>
               <TableCell className={BILLING_NUM_CELL}>
                 {formatInr(
-                  billingLineDiscountAmount(registrationFee) +
+                  (isFirstVisit ? billingLineDiscountAmount(registrationFee) : 0) +
                     (hasProvider ? billingLineDiscountAmount(consultationFee) : 0),
                 )}
               </TableCell>
@@ -530,11 +552,11 @@ export function VisitRegistrationBillingSection({
             min={0}
             step="any"
             className="h-10 tabular-nums"
-            aria-invalid={amountPaidHint ? true : undefined}
+            aria-invalid={showAmountPaidError ? true : undefined}
             {...register('billing.amount_paid', { valueAsNumber: true })}
           />
-          {amountPaidHint ? (
-            <p className="text-xs text-destructive">{amountPaidHint}</p>
+          {amountPaidError ? (
+            <p className="text-xs text-destructive">{amountPaidError}</p>
           ) : null}
         </Field>
       </div>

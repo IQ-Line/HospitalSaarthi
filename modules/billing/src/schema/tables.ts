@@ -14,6 +14,20 @@ import {
 export const BILLING_SCHEMA_NAME = "billing" as const;
 export const billingSchema = pgSchema(BILLING_SCHEMA_NAME);
 
+export const consultationTypes = billingSchema.table(
+  "consultation_types",
+  {
+    id: uuid("id").defaultRandom().notNull(),
+    ...tenantColumn(),
+    code: text("code").notNull(),
+    display_name: text("display_name").notNull(),
+    is_active: boolean("is_active").notNull().default(true),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.iq_tenant_id, t.id] })],
+);
+
 export const billingMaster = billingSchema.table(
   "tariff_master",
   {
@@ -23,6 +37,8 @@ export const billingMaster = billingSchema.table(
     service_name: text("service_name").notNull(),
     description: text("description"),
     provider_id: uuid("provider_id"),
+    department_id: uuid("department_id"),
+    consultation_type_id: uuid("consultation_type_id"),
     department: text("department"),
     category: text("category"),
     sub_category: text("sub_category"),

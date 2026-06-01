@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { TariffMasterRow } from "../domain/tariff-master.types.js";
 import { applyTariffPatch } from "../lib/tariff-api.js";
 import type { TariffMasterRepo } from "../ports.js";
+import { noopTariffRepoMethods } from "../lib/test-tariff-repo-stubs.js";
 import { updateTariffService } from "./update-tariff-service.js";
 
 const baseRow: TariffMasterRow = {
@@ -11,6 +12,8 @@ const baseRow: TariffMasterRow = {
   service_name: "CBC Test",
   description: null,
   provider_id: null,
+  department_id: null,
+  consultation_type_id: null,
   department: "pathology",
   category: "lab",
   sub_category: null,
@@ -29,6 +32,7 @@ const baseRow: TariffMasterRow = {
 function createRepo(row: TariffMasterRow): TariffMasterRepo {
   let current = { ...row };
   return {
+    ...noopTariffRepoMethods,
     findById: async () => current,
     update: async (_t, _id, patch) => {
       current = applyTariffPatch(current, patch);
@@ -40,7 +44,13 @@ function createRepo(row: TariffMasterRow): TariffMasterRepo {
 describe("updateTariffService", () => {
   it("returns NOT_FOUND when service is missing", async () => {
     const result = await updateTariffService(
-      { tariffRepo: { findById: async () => undefined, update: async () => undefined } },
+      {
+        tariffRepo: {
+          ...noopTariffRepoMethods,
+          findById: async () => undefined,
+          update: async () => undefined,
+        },
+      },
       baseRow.iq_tenant_id,
       baseRow.id,
       { service_name: "Updated" },

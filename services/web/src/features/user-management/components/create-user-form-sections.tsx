@@ -23,7 +23,27 @@ import { UM_ROLE_ASSIGN, UM_ROLE_READ } from '@/lib/runtime-capability-keys';
 import { useDepartments } from '@/features/master-data/api';
 import type { Capability, UmRole } from '../types';
 import { MasterDataCapabilityPermissionTree } from './master-data-capability-permission-tree';
+import {
+  CONSULTATION_FEE_MAX,
+  CreateUserDoctorDepartmentsSection,
+  DEFAULT_DOCTOR_DEPARTMENT_ROW,
+} from './create-user-doctor-departments-section';
 import { UserManagementSectionCard } from './user-management-section-card';
+import { isDoctorRole } from '../lib/is-doctor-role';
+
+const departmentConsultationRowSchema = z.object({
+  department_id: z.string().min(1, 'Select a department').uuid('Select a department'),
+  base_price: z.coerce
+    .number()
+    .min(0, 'Consultation fee must be at least ₹0')
+    .max(CONSULTATION_FEE_MAX, `Consultation fee cannot exceed ₹${CONSULTATION_FEE_MAX}`),
+  tax_percentage: z.coerce
+    .number()
+    .min(0, 'Tax must be at least 0%')
+    .max(100, 'Tax cannot exceed 100%'),
+  room_number: z.string().optional(),
+  opd_days: z.array(z.string()).default([]),
+});
 
 export type CreateUserAccessOptions = {
   /** When true, exactly one role id is required to submit. */
@@ -43,6 +63,7 @@ export function buildCreateUserFormSchema(options: CreateUserAccessOptions) {
       ? z.array(z.string().uuid()).length(1, 'Select a role.')
       : z.array(z.string().uuid()).max(1).default([]),
     role_capability_selection_ids: z.array(z.string().uuid()).default([]),
+    department_consultations: z.array(departmentConsultationRowSchema).default([]),
   });
 }
 
@@ -109,6 +130,7 @@ type CreateUserWorkplaceSectionProps = SharedFormSectionProps & {
   control: Control<CreateUserFormValues>;
   /** When provided, fetches departments from this tenant's catalog instead of the session tenant. */
   iqTenantId?: string;
+  selectedRole?: UmRole;
 };
 
 /** Department and clearance — org/tenant come from Configurator (super-admin) or session tenant. */
@@ -117,12 +139,62 @@ export function CreateUserWorkplaceSection({
   errors,
   control,
   iqTenantId,
+  selectedRole,
 }: CreateUserWorkplaceSectionProps) {
   const { data: deptData, isLoading: deptLoading } = useDepartments(undefined, {
     iqTenantId,
     formCatalog: true,
   });
   const departments = (deptData?.data ?? []).filter((d) => d.is_active);
+  const doctorRole = isDoctorRole(selectedRole);
+
+  if (doctorRole) {
+    return (
+      <>
+        <CreateUserDoctorDepartmentsSection
+          control={control}
+          errors={errors}
+          departments={departments}
+          departmentsLoading={deptLoading}
+        />
+        <UserManagementSectionCard
+          title="Access level"
+          description="Clearance tier for this doctor."
+          contentClassName="space-y-4"
+        >
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="c_clearance">Access level</Label>
+              <Controller
+                control={control}
+                name="clearance_tier_required"
+                render={({ field }) => (
+                  <Select
+                    value={String(field.value ?? 0)}
+                    onValueChange={(value: string) => field.onChange(Number(value))}
+                  >
+                    <SelectTrigger id="c_clearance">
+                      <SelectValue placeholder="Select access level" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">Level 0</SelectItem>
+                      <SelectItem value="1">Level 1</SelectItem>
+                      <SelectItem value="2">Level 2</SelectItem>
+                      <SelectItem value="3">Level 3</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              <p className="text-xs text-muted-foreground">
+                Higher levels can be used for more sensitive work.
+              </p>
+              <FieldError message={errors.clearance_tier_required?.message?.toString()} />
+            </div>
+          </div>
+        </UserManagementSectionCard>
+      </>
+    );
+  }
 
   return (
     <UserManagementSectionCard

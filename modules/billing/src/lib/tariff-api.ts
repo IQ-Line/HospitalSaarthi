@@ -14,6 +14,8 @@ export function toTariffRow(row: typeof billingMaster.$inferSelect): TariffMaste
     service_name: row.service_name,
     description: row.description,
     provider_id: row.provider_id,
+    department_id: row.department_id,
+    consultation_type_id: row.consultation_type_id,
     department: row.department,
     category: row.category,
     sub_category: row.sub_category,

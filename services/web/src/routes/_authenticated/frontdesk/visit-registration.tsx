@@ -39,6 +39,8 @@ import {
   isVisitRegistrationFormComplete,
   visitRegistrationBlockHint,
   visitRegistrationFormBlockers,
+  isValidVisitRegistrationPhone,
+  VISIT_TYPE_OPD_FIRST,
   defaultVisitRegistrationAddress,
   parseDateOnly,
   startOfLocalDay,
@@ -47,6 +49,7 @@ import { ApiError } from '@/lib/api-client';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
 import { useSyncRegistrationBillingTariffs } from '@/features/frontdesk/hooks/use-sync-registration-billing-tariffs';
+import { useAutoVisitType } from '@/features/frontdesk/hooks/use-auto-visit-type';
 import { useVisitRegistrationTariffs } from '@/features/frontdesk/hooks/use-visit-registration-tariffs';
 import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
 import { useTenantStore } from '@/stores/tenant.store';
@@ -180,7 +183,9 @@ function VisitRegistrationRoute() {
     patientPhone,
     patientFirstName,
     appointmentProviderId,
+    appointmentDepartmentId,
     appointmentDepartmentName,
+    appointmentVisitTypeCode,
     dateOfBirth,
   ] = useWatch({
     control: form.control,
@@ -193,14 +198,36 @@ function VisitRegistrationRoute() {
       'patient.phone',
       'patient.first_name',
       'appointment.provider_id',
+      'appointment.department_id',
       'appointment.department_name',
+      'appointment.visit_type_code',
       'patient.date_of_birth',
     ],
   });
 
   const hasProvider = Boolean(appointmentProviderId?.trim());
+  const isFirstVisit = appointmentVisitTypeCode === VISIT_TYPE_OPD_FIRST;
+  const departmentId = (appointmentDepartmentId ?? '').trim() || null;
   const departmentName = (appointmentDepartmentName ?? '').trim() || null;
-  const tariffs = useVisitRegistrationTariffs(departmentName, appointmentProviderId?.trim() || null);
+  const tariffs = useVisitRegistrationTariffs(
+    departmentId,
+    departmentName,
+    appointmentProviderId?.trim() || null,
+  );
+
+  const autoVisitType = useAutoVisitType(patientPhone);
+
+  useEffect(() => {
+    if (autoVisitType.visitTypeCode) {
+      form.setValue('appointment.visit_type_code', autoVisitType.visitTypeCode, {
+        shouldDirty: true,
+      });
+      return;
+    }
+    if (!isValidVisitRegistrationPhone(patientPhone)) {
+      form.setValue('appointment.visit_type_code', '', { shouldDirty: false });
+    }
+  }, [autoVisitType.visitTypeCode, patientPhone, form]);
 
   useSyncRegistrationBillingTariffs(
     form.watch,
@@ -208,6 +235,7 @@ function VisitRegistrationRoute() {
     tariffs.registrationFeeLine,
     tariffs.consultationFeeLine,
     hasProvider,
+    appointmentVisitTypeCode,
   );
 
   const formGate = {
@@ -217,6 +245,7 @@ function VisitRegistrationRoute() {
       billingRegistrationFee ?? { unit_price: 0, tax_percent: 0, discount_percent: 0, discount: 0 },
       billingConsultationFee ?? { unit_price: 0, tax_percent: 0, discount_percent: 0, discount: 0 },
       billingInvoiceDiscount ?? 0,
+      { includeRegistrationFee: isFirstVisit },
     ),
     amountPaid: billingAmountPaid,
     paymentMode: billingPaymentMode,
@@ -400,6 +429,7 @@ function VisitRegistrationRoute() {
         data.billing?.registration_fee ?? { unit_price: 0, tax_percent: 0, discount_percent: 0, discount: 0 },
         data.billing?.consultation_fee ?? { unit_price: 0, tax_percent: 0, discount_percent: 0, discount: 0 },
         data.billing?.invoice_discount ?? 0,
+        { includeRegistrationFee: data.appointment?.visit_type_code === VISIT_TYPE_OPD_FIRST },
       ),
       amountPaid: data.billing?.amount_paid,
       paymentMode: data.billing?.payment_mode,
@@ -424,12 +454,6 @@ function VisitRegistrationRoute() {
         form.setError('billing.payment_mode', {
           type: 'required',
           message: 'Payment mode is required',
-        });
-      }
-      if (blockers.some((b) => b.startsWith('valid amount paid'))) {
-        form.setError('billing.amount_paid', {
-          type: 'validate',
-          message: 'Enter exact total, floor, or ceiling of grand total',
         });
       }
       toast.error(visitRegistrationBlockHint(gate) ?? 'Complete all required fields.');
@@ -627,6 +651,7 @@ function VisitRegistrationRoute() {
                     setValue={form.setValue}
                     tariffsLoading={tariffs.isLoading}
                     tariffsError={tariffs.isError}
+                    visitTypeLoading={autoVisitType.isLoading}
                   />
                 ) : null}
 
@@ -641,6 +666,8 @@ function VisitRegistrationRoute() {
                     tariffsLoading={tariffs.isLoading}
                     tariffsError={tariffs.isError}
                     hasProvider={hasProvider}
+                    isFirstVisit={isFirstVisit}
+                    hasRegistrationTariff={Boolean(tariffs.registrationFeeLine)}
                   />
                 ) : null}
 

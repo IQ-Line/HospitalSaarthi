@@ -59,8 +59,11 @@ export interface VisitRegistrationBillingFeeLine {
   discount_percent: number;
   /** Line discount amount in rupees. */
   discount: number;
-  /** Tariff `service_code` for `POST /charges` (`item_code`). */
+  /** Tariff `service_code` for legacy `POST /charges` (`item_code`). */
   item_code?: string;
+  /** Department-aware consultation charge (preferred over item_code). */
+  department_id?: string;
+  consultation_type_id?: string;
   /** Display label from tariff catalog. */
   service_name?: string;
 }

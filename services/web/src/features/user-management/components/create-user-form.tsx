@@ -3,10 +3,18 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { Button } from '@pulse/ui/button';
 import type { CreateUserBody } from '../types';
 import { useCapability } from '@/hooks/use-capability';
 import { UM_ROLE_ASSIGN, UM_ROLE_READ } from '@/lib/runtime-capability-keys';
+import {
+  bulkUpsertProviderConsultationTariffs,
+  listConsultationTypes,
+} from '@/features/billing/api/provider-consultation-tariffs';
+import { useDepartments } from '@/features/master-data/api';
+import { DEFAULT_CONSULTATION_TYPE_CODE } from '@/features/billing/constants';
+import { billingKeys } from '@/features/billing/api/query-keys';
 import { useCreateUser } from '../api/mutations';
 import { roleCapabilitiesOptions, roleListOptions } from '../api/queries';
 import { useTenantStore } from '@/stores/tenant.store';
@@ -18,6 +26,8 @@ import {
   CreateUserWorkplaceSection,
   type CreateUserFormValues,
 } from './create-user-form-sections';
+import { DEFAULT_DOCTOR_DEPARTMENT_ROW } from './create-user-doctor-departments-section';
+import { findSelectedRole, isDoctorRole } from '../lib/is-doctor-role';
 
 /** Maps form values to `POST /users` body. Exported for unit tests. */
 export function buildCreateUserRequestBody(
@@ -26,6 +36,8 @@ export function buildCreateUserRequestBody(
   allRoleCapabilityIds: string[],
   /** Configurator organization id when super-admin picked org/tenant. */
   configuratorOrgId?: string | null,
+  /** When doctor has department rows, maps department id → display name for UM `department`. */
+  departmentNameById?: ReadonlyMap<string, string>,
 ): CreateUserBody {
   const roleIds = assignRoles ? values.role_template_ids : [];
   let role_template_capability_ids: string[] | undefined;
@@ -34,10 +46,16 @@ export function buildCreateUserRequestBody(
     const picked = values.role_capability_selection_ids.filter((id) =>
       allRoleCapabilityIds.includes(id),
     );
-    // Always send explicit capability ids when the UI loaded the role catalog — matches what
-    // the admin selected (including default "select all"). Never send [] (backend = grant nothing).
     role_template_capability_ids =
       picked.length > 0 ? picked : [...allRoleCapabilityIds];
+  }
+
+  let department: string | null = null;
+  if (values.department_consultations.length > 0 && departmentNameById) {
+    const firstId = values.department_consultations[0]?.department_id;
+    department = firstId ? departmentNameById.get(firstId) ?? null : null;
+  } else if (values.department !== '') {
+    department = values.department;
   }
 
   return {
@@ -47,12 +65,28 @@ export function buildCreateUserRequestBody(
     phone: values.phone === '' ? null : values.phone,
     username: values.username === '' ? null : values.username,
     org_id: values.org_id === '' ? null : values.org_id,
-    department: values.department === '' ? null : values.department,
+    department,
     clearance_tier_required: values.clearance_tier_required,
     capability_ids: [],
     role_template_ids: roleIds,
     ...(role_template_capability_ids !== undefined ? { role_template_capability_ids } : {}),
   };
+}
+
+export function validateDoctorDepartmentConsultations(
+  values: CreateUserFormValues,
+): string | null {
+  if (values.department_consultations.length === 0) {
+    return 'Add at least one department with consultation charges for a doctor.';
+  }
+  const seen = new Set<string>();
+  for (const row of values.department_consultations) {
+    if (seen.has(row.department_id)) {
+      return 'Each department can only appear once.';
+    }
+    seen.add(row.department_id);
+  }
+  return null;
 }
 
 type CreateUserFormProps = {
@@ -134,10 +168,54 @@ export function CreateUserForm({
       clearance_tier_required: 0,
       role_template_ids: [],
       role_capability_selection_ids: [],
+      department_consultations: [],
     },
   });
 
   const availableRoles = (rolesQuery.data ?? []).filter((role) => role.status === 'active');
+
+  const selectedRoleTemplateIds = form.watch('role_template_ids');
+  const selectedRoleId = selectedRoleTemplateIds[0] ?? '';
+  const selectedRole = findSelectedRole(availableRoles, selectedRoleId);
+  const doctorRoleSelected = isDoctorRole(selectedRole);
+
+  const { data: deptData } = useDepartments(undefined, {
+    iqTenantId: apiTenantScope,
+    formCatalog: true,
+  });
+  const departmentNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const dept of deptData?.data ?? []) {
+      map.set(dept.id, dept.name);
+    }
+    return map;
+  }, [deptData?.data]);
+
+  const consultationTypesQuery = useQuery({
+    queryKey: [...billingKeys.all, 'consultation-types', apiTenantScope ?? 'session'],
+    queryFn: () => listConsultationTypes(apiTenantScope),
+    enabled: doctorRoleSelected && Boolean(apiTenantScope),
+    staleTime: 60_000,
+  });
+  const generalConsultationTypeId = useMemo(
+    () =>
+      consultationTypesQuery.data?.data.find(
+        (type) => type.code === DEFAULT_CONSULTATION_TYPE_CODE,
+      )?.id,
+    [consultationTypesQuery.data?.data],
+  );
+
+  useEffect(() => {
+    if (!doctorRoleSelected) {
+      form.setValue('department_consultations', [], { shouldDirty: true });
+      return;
+    }
+    if (form.getValues('department_consultations').length === 0) {
+      form.setValue('department_consultations', [{ ...DEFAULT_DOCTOR_DEPARTMENT_ROW }], {
+        shouldDirty: true,
+      });
+    }
+  }, [doctorRoleSelected, form]);
 
   useLayoutEffect(() => {
     if (!requireRoleTemplate) {
@@ -155,9 +233,6 @@ export function CreateUserForm({
       form.setValue('role_template_ids', [roles[0].id], { shouldValidate: true });
     }
   }, [requireRoleTemplate, umRoleRead, rolesQuery.data, form]);
-
-  const selectedRoleTemplateIds = form.watch('role_template_ids');
-  const selectedRoleId = selectedRoleTemplateIds[0] ?? '';
 
   const roleCapabilitiesQueryEnabled = Boolean(selectedRoleId) && umRoleRead;
 
@@ -223,7 +298,7 @@ export function CreateUserForm({
     roleCapabilitiesQueryEnabled &&
     (roleCapabilitiesQuery.isFetching || roleCapabilitiesQuery.data === undefined);
 
-  const onSubmit = form.handleSubmit((values) => {
+  const onSubmit = form.handleSubmit(async (values) => {
     if (
       umRoleAssign &&
       values.role_template_ids.length === 1 &&
@@ -236,6 +311,20 @@ export function CreateUserForm({
       });
       return;
     }
+
+    const roleForSubmit = findSelectedRole(availableRoles, values.role_template_ids[0]);
+    if (isDoctorRole(roleForSubmit)) {
+      const deptError = validateDoctorDepartmentConsultations(values);
+      if (deptError) {
+        form.setError('department_consultations', { type: 'custom', message: deptError });
+        return;
+      }
+      if (!generalConsultationTypeId) {
+        toast.error('Consultation types are not loaded yet. Try again in a moment.');
+        return;
+      }
+    }
+
     const tenantForCreate = fixedTenant
       ? fixedTenant
       : canSelectTargetTenant && targetTenantId.trim()
@@ -243,30 +332,54 @@ export function CreateUserForm({
         : undefined;
     const orgForCreate =
       fixedConfiguratorOrgId ?? (canSelectTargetTenant ? configuratorOrgId : null);
-    create.mutate(
-      {
+
+    try {
+      const user = await create.mutateAsync({
         body: buildCreateUserRequestBody(
           values,
           umRoleAssign,
           allRoleCapabilityIds,
           orgForCreate,
+          departmentNameById,
         ),
         targetTenantId: tenantForCreate,
-      },
-      {
-        onSuccess: (user) => {
-          if (navigateToProfileOnSuccess) {
-            void navigate({
-              to: '/user-management/$userId',
-              params: { userId: user.id },
-            });
-            return;
-          }
-          form.reset();
-          onCreated?.(user);
-        },
-      },
-    );
+      });
+
+      if (isDoctorRole(roleForSubmit) && values.department_consultations.length > 0) {
+        try {
+          await bulkUpsertProviderConsultationTariffs(
+            {
+              provider_id: user.id,
+              items: values.department_consultations.map((row) => ({
+                department_id: row.department_id,
+                consultation_type_id: generalConsultationTypeId!,
+                base_price: Number(row.base_price).toFixed(2),
+                tax_percentage: Number(row.tax_percentage).toFixed(4),
+              })),
+            },
+            tenantForCreate ?? apiTenantScope,
+          );
+        } catch (billingErr) {
+          toast.error(
+            billingErr instanceof Error
+              ? `User created, but consultation tariffs failed: ${billingErr.message}`
+              : 'User created, but consultation tariffs could not be saved.',
+          );
+        }
+      }
+
+      if (navigateToProfileOnSuccess) {
+        void navigate({
+          to: '/user-management/$userId',
+          params: { userId: user.id },
+        });
+        return;
+      }
+      form.reset();
+      onCreated?.(user);
+    } catch {
+      /* mutation toast handled by api client / caller */
+    }
   });
 
   const isDialog = layout === 'dialog';
@@ -293,13 +406,6 @@ export function CreateUserForm({
           />
         ) : null}
 
-        <CreateUserWorkplaceSection
-          register={form.register}
-          errors={form.formState.errors}
-          control={form.control}
-          iqTenantId={apiTenantScope}
-        />
-
         <CreateUserAccessSection
           roleTemplates={availableRoles}
           roleTemplatesPending={roleTemplatesPending}
@@ -309,6 +415,14 @@ export function CreateUserForm({
           roleCapabilitiesError={roleCapabilitiesQuery.isError}
           control={form.control}
           errors={form.formState.errors}
+        />
+
+        <CreateUserWorkplaceSection
+          register={form.register}
+          errors={form.formState.errors}
+          control={form.control}
+          iqTenantId={apiTenantScope}
+          selectedRole={selectedRole}
         />
       </div>
 
@@ -331,7 +445,8 @@ export function CreateUserForm({
             roleAssignmentBlocked ||
             roleCapabilitiesStillLoading ||
             (requireRoleTemplate && roleTemplatesPending) ||
-            roleCapabilitiesPending
+            roleCapabilitiesPending ||
+            (doctorRoleSelected && consultationTypesQuery.isLoading)
           }
         >
           {create.isPending ? 'Creating...' : 'Create user'}

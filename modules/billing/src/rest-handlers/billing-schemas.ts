@@ -17,7 +17,7 @@ export const captureChargeRouteSchema = {
   summary: "Capture charge (registration / OPD)",
   body: {
     type: "object",
-    required: ["patient_id", "source_module", "item_code"],
+    required: ["patient_id", "source_module"],
     additionalProperties: false,
     properties: {
       patient_id: uuid,
@@ -27,6 +27,8 @@ export const captureChargeRouteSchema = {
       source_ref: { ...uuid, nullable: true },
       item_code: { type: "string" },
       provider_id: { ...uuid, nullable: true },
+      department_id: { ...uuid, nullable: true },
+      consultation_type_id: { ...uuid, nullable: true },
       quantity: { ...money, default: 1 },
       unit_price_override: { type: "number", exclusiveMinimum: 0, nullable: true },
       tax_percentage_override: { ...money, nullable: true },

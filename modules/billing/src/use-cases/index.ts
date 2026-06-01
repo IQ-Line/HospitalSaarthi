@@ -6,3 +6,7 @@ export { getBill } from "./get-bill.js";
 export { listBills } from "./list-bills.js";
 export { recordPayment } from "./record-payment.js";
 export { updateTariffService } from "./update-tariff-service.js";
+export { bulkUpsertProviderConsultationTariffs } from "./bulk-upsert-provider-consultation-tariffs.js";
+export { listProviderConsultationTariffs } from "./list-provider-consultation-tariffs.js";
+export { listConsultationTypes } from "./list-consultation-types.js";
+export { resolveConsultationTariff } from "./resolve-consultation-tariff.js";

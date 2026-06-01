@@ -6,3 +6,8 @@ export { BILLING_SOURCE_MODULE } from "./lib/billing-constants.js";
 export { BILLING_SCHEMA_NAME } from "./schema/tables.js";
 
 export { createBillingAuthzTargetResolver } from "./authz/billing-authz-target-resolver.js";
+
+export {
+  createPermissiveConsultationTariffReferenceValidator,
+  type ConsultationTariffReferenceValidator,
+} from "./ports.js";

@@ -104,8 +104,10 @@ export interface CaptureChargeInput {
   visit_type?: string | null;
   source_module: string;
   source_ref?: string | null;
-  item_code: string;
+  item_code?: string;
   provider_id?: string | null;
+  department_id?: string | null;
+  consultation_type_id?: string | null;
   quantity?: number | string;
   /** Desk override — requires catalog row + override permission; must be > 0 when set. */
   unit_price_override?: number | null;

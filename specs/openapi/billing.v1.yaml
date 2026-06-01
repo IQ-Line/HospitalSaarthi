@@ -731,6 +731,56 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
         "500": { $ref: "#/components/responses/InternalServerError" }
+  /v1/billing/provider-consultation-tariffs/bulk-upsert:
+    post:
+      operationId: bulkUpsertProviderConsultationTariffs
+      summary: Bulk upsert provider consultation tariffs (per department and type)
+      description: >
+        Billing generates `service_code` internally (`CONSULT_{TYPE}_{DEPARTMENT}`).
+        Idempotent on `(provider_id, department_id, consultation_type_id)`.
+      tags: [Service Catalog]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProviderConsultationTariffBulkUpsertRequest" }
+      responses:
+        "200":
+          description: Tariffs upserted.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProviderConsultationTariffListResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+  /v1/billing/provider-consultation-tariffs:
+    get:
+      operationId: listProviderConsultationTariffs
+      summary: List provider consultation tariffs
+      tags: [Service Catalog]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: provider_id, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: department_id, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: consultation_type_id, in: query, required: false, schema: { type: string, format: uuid } }
+      description: >
+        List department-aware consultation tariffs. Supply `provider_id`, `department_id`, or both
+        (at least one required).
+      responses:
+        "200":
+          description: Consultation tariff rows for a provider.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProviderConsultationTariffListResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
   /v1/billing/price-agreements:
     get:
       operationId: listPriceAgreements
@@ -1304,7 +1354,7 @@ components:
     # ───────────────────────── Requests ─────────────────────────
     ChargeIngestRequest:
       type: object
-      required: [patient_id, source_module, item_code, quantity]
+      required: [patient_id, source_module, quantity]
       additionalProperties: false
       properties:
         patient_id: { type: string, format: uuid }
@@ -1312,13 +1362,74 @@ components:
         visit_type: { allOf: [{ $ref: "#/components/schemas/VisitType" }], nullable: true }
         source_module: { $ref: "#/components/schemas/SourceModule" }
         source_ref: { type: string, format: uuid, nullable: true, description: Required when `source_module != 'manual'`. }
-        item_code: { type: string, description: Service code or package code. }
+        item_code:
+          type: string
+          description: Legacy catalog lookup by service code (mutually exclusive with consultation identifiers).
+        provider_id: { type: string, format: uuid, nullable: true }
+        department_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: With `provider_id` and `consultation_type_id`, resolves department-aware consultation tariff.
+        consultation_type_id: { type: string, format: uuid, nullable: true }
         quantity: { type: string, format: decimal, pattern: "^[0-9]+(\\.[0-9]{1,2})?$", default: "1" }
         unit: { type: string, nullable: true }
         performed_by: { type: string, format: uuid, nullable: true }
         performed_date: { type: string, format: date-time, nullable: true }
-        department: { type: string, nullable: true }
+        department: { type: string, nullable: true, description: Snapshot label on bill line (not used for tariff lookup). }
         notes: { type: string, nullable: true }
+    ProviderConsultationTariffBulkUpsertRequest:
+      type: object
+      required: [provider_id, items]
+      additionalProperties: false
+      properties:
+        provider_id: { type: string, format: uuid }
+        items:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/ProviderConsultationTariffUpsertItem" }
+    ProviderConsultationTariffUpsertItem:
+      type: object
+      required: [department_id, consultation_type_id, base_price]
+      additionalProperties: false
+      properties:
+        department_id: { type: string, format: uuid }
+        consultation_type_id: { type: string, format: uuid }
+        base_price: { $ref: "#/components/schemas/Money" }
+        tax_percentage: { type: string, format: decimal, pattern: "^[0-9]+(\\.[0-9]{1,4})?$" }
+    ProviderConsultationTariff:
+      type: object
+      required:
+        - id
+        - provider_id
+        - department_id
+        - consultation_type_id
+        - service_code
+        - service_name
+        - base_price
+        - tax_percentage
+        - is_active
+        - effective_from
+      properties:
+        id: { type: string, format: uuid }
+        provider_id: { type: string, format: uuid, nullable: true }
+        department_id: { type: string, format: uuid, nullable: true }
+        consultation_type_id: { type: string, format: uuid, nullable: true }
+        service_code: { type: string }
+        service_name: { type: string }
+        department: { type: string, nullable: true }
+        base_price: { $ref: "#/components/schemas/Money" }
+        tax_percentage: { type: string, format: decimal, pattern: "^[0-9]+(\\.[0-9]{1,4})?$" }
+        is_active: { type: boolean }
+        effective_from: { type: string, format: date-time }
+        effective_to: { type: string, format: date-time, nullable: true }
+    ProviderConsultationTariffListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/ProviderConsultationTariff" }
     ChargeIngestResponse:
       type: object
       required: [bill_item_id, bill_id, snapshotted_unit_price, snapshotted_tax_percentage, net_amount]

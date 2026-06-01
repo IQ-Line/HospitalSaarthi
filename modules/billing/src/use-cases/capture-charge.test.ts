@@ -3,6 +3,7 @@ import type { TariffMasterRow } from "../domain/tariff-master.types.js";
 import { applyTariffPatch } from "../lib/tariff-api.js";
 import { createInMemoryBillingRepo } from "../data-access/billing.repository.js";
 import type { TariffMasterRepo } from "../ports.js";
+import { noopTariffRepoMethods } from "../lib/test-tariff-repo-stubs.js";
 import { captureCharge } from "./capture-charge.js";
 
 const tenantId = "00000000-0000-0000-0000-000000000007";
@@ -15,6 +16,8 @@ const tariff: TariffMasterRow = {
   service_name: "Registration Fee",
   description: null,
   provider_id: null,
+  department_id: null,
+  consultation_type_id: null,
   department: "frontdesk",
   category: "registration",
   sub_category: null,
@@ -32,9 +35,17 @@ const tariff: TariffMasterRow = {
 
 function tariffRepo(row: TariffMasterRow): TariffMasterRepo {
   return {
+    ...noopTariffRepoMethods,
     findById: async () => row,
     findByCodeAndProvider: async (t, code, providerId) =>
       t === row.iq_tenant_id && code === row.service_code && providerId === row.provider_id
+        ? row
+        : undefined,
+    resolveConsultationTariff: async (t, providerId, departmentId, consultationTypeId) =>
+      t === row.iq_tenant_id &&
+      providerId === row.provider_id &&
+      departmentId === row.department_id &&
+      consultationTypeId === row.consultation_type_id
         ? row
         : undefined,
     update: async (_t, _id, patch) => applyTariffPatch(row, patch),
@@ -42,8 +53,8 @@ function tariffRepo(row: TariffMasterRow): TariffMasterRepo {
 }
 
 const emptyTariffRepo: TariffMasterRepo = {
+  ...noopTariffRepoMethods,
   findById: async () => undefined,
-  findByCodeAndProvider: async () => undefined,
   update: async () => undefined,
 };
 
@@ -112,6 +123,34 @@ describe("captureCharge", () => {
     expect(result.code).toBe("VALIDATION");
     expect(result.message).toContain("desk_price_overrides_disabled");
     expect(result.message).toContain("#94");
+  });
+
+  it("resolves consultation tariff by provider, department, and type", async () => {
+    const consultationTariff: TariffMasterRow = {
+      ...tariff,
+      id: "33333333-3333-4333-8333-333333333333",
+      service_code: "CONSULT_GENERAL_DEPT_CARDIO",
+      service_name: "General Consultation — Cardiology",
+      provider_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      department_id: "dddddddd-dddd-4ddd-8ddd-dddddddddd01",
+      consultation_type_id: "cccccccc-cccc-4ccc-8ccc-cccccccccc01",
+      base_price: "800.0000",
+    };
+    const { repo } = createInMemoryBillingRepo();
+    const result = await captureCharge(
+      { tariffRepo: tariffRepo(consultationTariff), billingRepo: repo },
+      tenantId,
+      {
+        patient_id: patientId,
+        source_module: "opd",
+        provider_id: consultationTariff.provider_id!,
+        department_id: consultationTariff.department_id!,
+        consultation_type_id: consultationTariff.consultation_type_id!,
+      },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.snapshotted_unit_price).toBe("800.0000");
   });
 
   it("returns 404 when catalog row missing even with override", async () => {

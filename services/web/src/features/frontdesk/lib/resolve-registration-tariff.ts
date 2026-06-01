@@ -8,6 +8,14 @@ export const TARIFF_PICKLIST_CONSULTATION_FEE = 'consultation-fee';
 export const LEGACY_REGISTRATION_CATEGORY = 'registration';
 export const LEGACY_CONSULTATION_CATEGORY = 'consultation';
 
+function isEffectiveNow(row: TariffService, at = new Date()): boolean {
+  const from = new Date(row.effective_from);
+  if (Number.isNaN(from.getTime()) || from > at) return false;
+  if (!row.effective_to) return true;
+  const to = new Date(row.effective_to);
+  return !Number.isNaN(to.getTime()) && to > at;
+}
+
 export function isRegistrationCategory(category: string | null | undefined): boolean {
   const c = category?.trim().toLowerCase() ?? '';
   return c === TARIFF_PICKLIST_REGISTRATION_FEE || c === LEGACY_REGISTRATION_CATEGORY;
@@ -24,7 +32,9 @@ function normDept(value: string | null | undefined): string {
 
 /** Frontdesk / rack registration fee (no doctor). */
 export function pickRegistrationTariff(rows: TariffService[]): TariffService | null {
-  const candidates = rows.filter((r) => r.is_active && isRegistrationCategory(r.category));
+  const candidates = rows.filter(
+    (r) => r.is_active && isRegistrationCategory(r.category) && isEffectiveNow(r),
+  );
   if (candidates.length === 0) return null;
 
   const rack = candidates.filter((r) => r.provider_id == null);

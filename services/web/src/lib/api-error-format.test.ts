@@ -23,4 +23,34 @@ describe('formatApiErrorBody', () => {
       ),
     ).toBe('tenant slug already exists');
   });
+
+  it('prefers message over generic Fastify error label', () => {
+    expect(
+      formatApiErrorBody(
+        409,
+        JSON.stringify({
+          statusCode: 409,
+          error: 'Conflict',
+          message:
+            'provider_department_tariff_already_exists: this doctor already has a tariff in this department',
+        }),
+      ),
+    ).toBe('This doctor already has a tariff in this department.');
+  });
+
+  it('humanizes registration fee duplicate message', () => {
+    expect(
+      formatApiErrorBody(
+        409,
+        JSON.stringify({
+          statusCode: 409,
+          error: 'Conflict',
+          message:
+            'registration_fee_already_exists: only one active registration fee is allowed per tenant',
+        }),
+      ),
+    ).toBe(
+      'Only one active registration fee is allowed. Deactivate the existing registration fee first.',
+    );
+  });
 });

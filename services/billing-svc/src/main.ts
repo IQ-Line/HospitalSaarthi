@@ -11,7 +11,12 @@ import {
   createDefaultPrincipalService,
   principalRoleEnricherPlugin,
 } from "@hims/user-management";
-import { createRouter, createBillingAuthzTargetResolver } from "@hims/billing";
+import {
+  createPermissiveConsultationTariffReferenceValidator,
+  createRouter,
+  createBillingAuthzTargetResolver,
+} from "@hims/billing";
+import { createConsultationTariffReferenceValidator } from "./create-consultation-tariff-reference-validator.js";
 import { resolveBillingRequestTenantId } from "./resolve-billing-tenant-id.js";
 
 const PORT = Number(process.env["BILLING_SVC_PORT"] ?? 3003);
@@ -80,7 +85,11 @@ async function main() {
       resolveTarget: createBillingAuthzTargetResolver(),
     });
 
-    await api.register(createRouter({ db, useMock: USE_MOCK_DATA }));
+    const referenceValidator = USE_MOCK_DATA
+      ? createPermissiveConsultationTariffReferenceValidator()
+      : createConsultationTariffReferenceValidator(userRepository);
+
+    await api.register(createRouter({ db, useMock: USE_MOCK_DATA, referenceValidator }));
   }, { prefix: "/api/billing/v1" });
 
   await app.listen({ port: PORT, host: "0.0.0.0" });

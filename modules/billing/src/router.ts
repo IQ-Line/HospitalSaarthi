@@ -2,19 +2,32 @@ import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import fp from "fastify-plugin";
 import { and, eq, sql, type DbInstance } from "@hims/ts-sdk-db";
+import { createConsultationTypesRepo } from "./data-access/consultation-types.repository.js";
 import { createTariffMasterRepo } from "./data-access/tariff-master.repository.js";
+import {
+  createPermissiveConsultationTariffReferenceValidator,
+  type ConsultationTariffReferenceValidator,
+} from "./ports.js";
 import type { TariffMasterRow } from "./domain/tariff-master.types.js";
 import { formatMoney, parseEffectiveWindow, toTariffRow } from "./lib/tariff-api.js";
 import { createBillingRepo, createInMemoryBillingRepo } from "./data-access/billing.repository.js";
 import { seedMockBills } from "./lib/mock-bills.js";
 import { registerBillingHandlers } from "./rest-handlers/billing.handlers.js";
+import { registerProviderConsultationTariffHandlers } from "./rest-handlers/provider-consultation-tariffs.handler.js";
 import { registerUpdateServiceHandler } from "./rest-handlers/update-service.handler.js";
 import { billingMaster } from "./schema/tables.js";
+import {
+  createTariffService,
+  toInsertValues,
+} from "./use-cases/create-tariff-service.js";
+import { sendUseCaseResult } from "./lib/handler-result.js";
 
 export interface BillingRouterOptions {
   db?: DbInstance;
   /** Return in-memory sample rows (no DB). Default off; set BILLING_USE_MOCK_DATA=true in billing-svc. */
   useMock?: boolean;
+  /** Provider/department existence checks for consultation tariffs (defaults to permissive). */
+  referenceValidator?: ConsultationTariffReferenceValidator;
 }
 
 type ListQuery = {
@@ -35,6 +48,7 @@ type CreateBody = {
   tax_percentage?: string | number;
   description?: string | null;
   provider_id?: string | null;
+  department_id?: string | null;
   department?: string | null;
   category?: string | null;
   sub_category?: string | null;
@@ -72,6 +86,7 @@ const createServiceSchema = {
       tax_percentage: { type: ["string", "number"] },
       description: { type: ["string", "null"] },
       provider_id: { type: ["string", "null"], format: "uuid" },
+      department_id: { type: ["string", "null"], format: "uuid" },
       department: { type: ["string", "null"] },
       category: { type: ["string", "null"] },
       sub_category: { type: ["string", "null"] },
@@ -91,6 +106,8 @@ const MOCK_ROWS: TariffMasterRow[] = [
     service_name: "Registration Fee",
     description: "First visit registration",
     provider_id: null,
+    department_id: null,
+    consultation_type_id: null,
     department: "frontdesk",
     category: "registration",
     sub_category: null,
@@ -112,6 +129,8 @@ const MOCK_ROWS: TariffMasterRow[] = [
     service_name: "General Consultation (rack)",
     description: null,
     provider_id: null,
+    department_id: null,
+    consultation_type_id: null,
     department: "opd",
     category: "consultation",
     sub_category: null,
@@ -133,6 +152,8 @@ const MOCK_ROWS: TariffMasterRow[] = [
     service_name: "General Consultation — Dr Smith",
     description: null,
     provider_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    department_id: null,
+    consultation_type_id: null,
     department: "opd",
     category: "consultation",
     sub_category: null,
@@ -154,6 +175,8 @@ const MOCK_ROWS: TariffMasterRow[] = [
     service_name: "Wound Dressing",
     description: null,
     provider_id: null,
+    department_id: null,
+    consultation_type_id: null,
     department: "opd",
     category: "procedure",
     sub_category: null,
@@ -214,6 +237,7 @@ function parseCreateBody(body: unknown): CreateBody | null {
     tax_percentage: b.tax_percentage as string | number | undefined,
     description: (b.description as string | null | undefined) ?? null,
     provider_id: (b.provider_id as string | null | undefined) ?? null,
+    department_id: (b.department_id as string | null | undefined) ?? null,
     department: (b.department as string | null | undefined) ?? null,
     category: (b.category as string | null | undefined) ?? null,
     sub_category: (b.sub_category as string | null | undefined) ?? null,
@@ -227,16 +251,6 @@ function parseCreateBody(body: unknown): CreateBody | null {
           ? b.effective_to
           : undefined,
   };
-}
-
-function validateCreate(body: CreateBody): string | null {
-  if (!body.service_code.trim()) return "service_code is required";
-  if (!body.service_name.trim()) return "service_name is required";
-  const price = Number(body.base_price);
-  if (!Number.isFinite(price) || price < 0) return "base_price must be >= 0";
-  const tax = Number(body.tax_percentage ?? 0);
-  if (!Number.isFinite(tax) || tax < 0 || tax > 100) return "tax_percentage must be between 0 and 100";
-  return null;
 }
 
 function sameProvider(a: string | null, b: string | null): boolean {
@@ -263,6 +277,8 @@ function createMockRow(tenantId: string, body: CreateBody): TariffMasterRow {
     service_name: body.service_name.trim(),
     description: body.description ?? null,
     provider_id: providerId,
+    department_id: body.department_id ?? null,
+    consultation_type_id: null,
     department: body.department ?? null,
     category: body.category ?? null,
     sub_category: body.sub_category ?? null,
@@ -327,8 +343,10 @@ function listMock(tenantId: string, q: ListQuery, limit: number) {
 
 async function billingRouter(
   app: FastifyInstance,
-  { db, useMock }: BillingRouterOptions,
+  { db, useMock, referenceValidator }: BillingRouterOptions,
 ): Promise<void> {
+  const tariffRepo = createTariffMasterRepo(useMock || !db ? MOCK_ROWS : db);
+
   app.get<{ Querystring: ListQuery }>(
     "/services",
     { config: { authMode: "protected" } },
@@ -407,33 +425,18 @@ async function billingRouter(
             JSON.stringify(CREATE_SERVICE_DUMMY),
         });
       }
-      const validationError = validateCreate(body);
-      if (validationError) {
-        return reply.code(400).send({
-          statusCode: 400,
-          error: "Bad Request",
-          message: validationError,
-        });
-      }
 
       const tenantId = request.tenantId;
-      const providerId = body.provider_id ?? null;
-      const code = body.service_code.trim();
 
-      if (useMock) {
-        if (hasDuplicate(tenantId, code, providerId)) {
+      if (useMock || !db) {
+        if (hasDuplicate(tenantId, body.service_code.trim(), body.provider_id ?? null)) {
           return reply.code(409).send({
             statusCode: 409,
             error: "Conflict",
             message: "Service already exists for this tenant, code, and provider",
           });
         }
-        const row = createMockRow(tenantId, body);
-        MOCK_ROWS.push(row);
-        return reply.code(201).send({ data: row });
-      }
-
-      if (!db) {
+      } else if (!db) {
         return reply.code(500).send({
           statusCode: 500,
           error: "Internal Server Error",
@@ -441,59 +444,45 @@ async function billingRouter(
         });
       }
 
-      const effective = parseEffectiveWindow(body.effective_from, body.effective_to);
-      if (typeof effective === "string") {
-        return reply.code(400).send({
-          statusCode: 400,
-          error: "Bad Request",
-          message: effective,
-        });
-      }
-
-      try {
-        const [row] = await db
-          .insert(billingMaster)
-          .values({
-            iq_tenant_id: tenantId,
-            service_code: code,
-            service_name: body.service_name.trim(),
-            description: body.description ?? null,
-            provider_id: providerId,
-            department: body.department ?? null,
-            category: body.category ?? null,
-            sub_category: body.sub_category ?? null,
-            tax_type: body.tax_type ?? null,
-            is_active: body.is_active ?? true,
-            base_price: formatMoney(Number(body.base_price)),
-            tax_percentage: formatMoney(Number(body.tax_percentage ?? 0)),
-            effective_from: effective.from,
-            effective_to: effective.to,
-          })
-          .returning();
-
-        if (!row) {
-          return reply.code(500).send({
-            statusCode: 500,
-            error: "Internal Server Error",
-            message: "Insert failed",
-          });
-        }
-        return reply.code(201).send({ data: toTariffRow(row) });
-      } catch (err: unknown) {
-        if ((err as { code?: string }).code === "23505") {
-          return reply.code(409).send({
-            statusCode: 409,
-            error: "Conflict",
-            message: "Service already exists for this tenant, code, and provider",
-          });
-        }
-        throw err;
-      }
+      return sendUseCaseResult(
+        reply,
+        await createTariffService(
+          {
+            tariffRepo,
+            insert: async (tid, createBody, effective) => {
+              if (useMock || !db) {
+                const row = createMockRow(tid, createBody);
+                MOCK_ROWS.push(row);
+                return row;
+              }
+              const [row] = await db!
+                .insert(billingMaster)
+                .values(toInsertValues(tid, createBody, effective))
+                .returning();
+              if (!row) {
+                throw new Error("Insert failed");
+              }
+              return toTariffRow(row);
+            },
+          },
+          tenantId,
+          body,
+        ),
+        201,
+      );
     },
   );
 
-  const tariffRepo = createTariffMasterRepo(useMock || !db ? MOCK_ROWS : db);
   registerUpdateServiceHandler(app, tariffRepo);
+
+  const consultationTypesRepo = createConsultationTypesRepo(useMock || !db ? "memory" : db!);
+  const consultationRefs =
+    referenceValidator ?? createPermissiveConsultationTariffReferenceValidator();
+  registerProviderConsultationTariffHandlers(app, {
+    tariffRepo,
+    consultationTypesRepo,
+    referenceValidator: consultationRefs,
+  });
 
   const memoryBilling = useMock || !db ? createInMemoryBillingRepo() : null;
   if (memoryBilling && useMock) seedMockBills(memoryBilling.bills);

@@ -10,8 +10,10 @@ export interface CaptureChargeInput {
   visit_type?: string;
   source_module: string;
   source_ref?: string | null;
-  item_code: string;
+  item_code?: string;
   provider_id?: string | null;
+  department_id?: string | null;
+  consultation_type_id?: string | null;
   quantity?: number;
   /** Desk-entered unit price (overrides tariff catalog for this charge line). */
   unit_price_override?: number;

@@ -23,6 +23,23 @@ export const VISIT_REGISTRATION_VISIT_TYPES = [
   { value: 'daycare', label: 'Day care' },
 ] as const;
 
+/** OPD desk auto-assignment: first visit vs follow-up only. */
+export const VISIT_REGISTRATION_OPD_VISIT_TYPES = VISIT_REGISTRATION_VISIT_TYPES.filter(
+  (vt) => vt.value === 'opd_first' || vt.value === 'opd_follow_up',
+);
+
+export const VISIT_TYPE_OPD_FIRST = 'opd_first' as const;
+export const VISIT_TYPE_OPD_FOLLOW_UP = 'opd_follow_up' as const;
+
+export function resolveOpdVisitTypeCode(isExistingPatient: boolean): string {
+  return isExistingPatient ? VISIT_TYPE_OPD_FOLLOW_UP : VISIT_TYPE_OPD_FIRST;
+}
+
+/** EMPI stores registration-desk phones as E.164 India (`+91` + 10 digits). */
+export function visitRegistrationEmpiPhone(phone10: string): string {
+  return `+91${phone10}`;
+}
+
 export const VISIT_REGISTRATION_RIS_MODALITIES = [
   { value: 'xray', label: 'X-Ray' },
   { value: 'ct', label: 'CT' },
@@ -141,9 +158,24 @@ export function computeBillingGrandTotal(
   registrationFee: VisitRegistrationBillingFeeLine,
   consultationFee: VisitRegistrationBillingFeeLine,
   invoiceDiscount: number,
+  options?: { includeRegistrationFee?: boolean },
 ): number {
-  const subtotal = billingLineTotal(registrationFee) + billingLineTotal(consultationFee);
+  const includeRegistration = options?.includeRegistrationFee ?? true;
+  const subtotal =
+    (includeRegistration ? billingLineTotal(registrationFee) : 0) +
+    billingLineTotal(consultationFee);
   return Math.max(0, subtotal - (invoiceDiscount ?? 0));
+}
+
+export function emptyRegistrationBillingFeeLine(): VisitRegistrationBillingFeeLine {
+  return {
+    unit_price: 0,
+    tax_percent: 0,
+    discount_percent: 0,
+    discount: 0,
+    item_code: '',
+    service_name: '',
+  };
 }
 
 export function isVisitRegistrationGrandTotalPositive(grandTotal: number): boolean {
@@ -155,6 +187,10 @@ export function isVisitRegistrationPaymentModeSelected(paymentMode: string | und
 }
 
 const VISIT_REG_PHONE_RE = /^\d{10}$/;
+
+export function isValidVisitRegistrationPhone(phone: string | undefined): boolean {
+  return VISIT_REG_PHONE_RE.test((phone ?? '').trim());
+}
 
 export type VisitRegistrationFormGateInput = {
   phone: string | undefined;

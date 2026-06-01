@@ -66,8 +66,11 @@ export async function executeVisitRegistrationBilling(
     source_ref: ctx.registration_id,
   };
 
-  // TODO: re-enable requireItemCode for registration when registration-fee tariff exists.
-  const regItemCode = billing?.registration_fee?.item_code?.trim() || null;
+  // Registration fee applies on first visit only.
+  const visitTypeCode = appointment?.visit_type_code?.trim() || null;
+  const isFirstVisit = visitTypeCode === 'opd_first';
+  const regItemCode =
+    isFirstVisit ? billing?.registration_fee?.item_code?.trim() || null : null;
   let billId: string | null = null;
 
   if (regItemCode) {
@@ -84,7 +87,30 @@ export async function executeVisitRegistrationBilling(
   }
 
   const consultItemCode = billing?.consultation_fee?.item_code?.trim() || null;
-  if (hasProvider && consultItemCode) {
+  const consultDepartmentId = billing?.consultation_fee?.department_id?.trim() || null;
+  const consultTypeId = billing?.consultation_fee?.consultation_type_id?.trim() || null;
+  const useConsultationPath =
+    hasProvider && Boolean(consultDepartmentId) && Boolean(consultTypeId);
+
+  if (useConsultationPath) {
+    const consultCharge = await captureCharge(
+      {
+        ...chargeBase,
+        provider_id: providerId,
+        department_id: consultDepartmentId,
+        consultation_type_id: consultTypeId,
+        department: departmentName,
+        ...lineDiscountFields(billing?.consultation_fee),
+      },
+      `${ctx.idempotencyKey}:consult`,
+    );
+    if (billId && consultCharge.bill_id !== billId) {
+      throw new Error(
+        `Registration billing: charges on different bills (${billId} vs ${consultCharge.bill_id})`,
+      );
+    }
+    billId = consultCharge.bill_id;
+  } else if (hasProvider && consultItemCode) {
     const consultCharge = await captureCharge(
       {
         ...chargeBase,

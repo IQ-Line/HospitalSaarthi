@@ -49,6 +49,33 @@ export function createBillingAuthzTargetResolver(): AuthzTargetResolver {
       return { kind: "tariff_master", id, action: "tariff-master.update", attr: tenantAttr(request) };
     }
 
+    if (method === "GET" && path === "/consultation-types") {
+      return {
+        kind: "tariff_master",
+        id: "consultation-types",
+        action: "tariff-master.read",
+        attr: tenantAttr(request),
+      };
+    }
+
+    if (method === "POST" && path === "/provider-consultation-tariffs/bulk-upsert") {
+      return {
+        kind: "tariff_master",
+        id: "provider-consultation-bulk",
+        action: "tariff-master.create",
+        attr: tenantAttr(request),
+      };
+    }
+
+    if (method === "GET" && path === "/provider-consultation-tariffs") {
+      return {
+        kind: "tariff_master",
+        id: "provider-consultation-list",
+        action: "tariff-master.read",
+        attr: tenantAttr(request),
+      };
+    }
+
     if (method === "POST" && path === "/charges") {
       return { kind: "invoice", id: "new", action: "invoice.create", attr: tenantAttr(request) };
     }
