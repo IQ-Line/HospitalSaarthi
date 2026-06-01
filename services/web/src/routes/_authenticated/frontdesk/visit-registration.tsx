@@ -15,7 +15,9 @@ import {
   TableHeader,
   TableRow,
 } from '@pulse/ui/table';
+import { fetchOpdSlipPdf } from '@/features/frontdesk/api/opd-slip';
 import { executeCreateVisitFlow, listRegistrations } from '@/features/frontdesk/api/registrations';
+import { DocumentPreviewModal } from '@/components/document-preview-modal';
 import { CreateAbhaDialog } from '@/features/abha/components/create-abha-dialog';
 import type { AbhaCreatedPayload } from '@/features/abha/types';
 import { RegistrationFormHeader, RegistrationTodayStatsSidebar } from '@/features/frontdesk/components/registration-form-chrome';
@@ -80,6 +82,8 @@ function VisitRegistrationRoute() {
 
   const [showExtendedPatient, setShowExtendedPatient] = useState(false);
   const [phase, setPhase] = useState<'list' | 'form'>('list');
+  const [opdSlipRegistrationId, setOpdSlipRegistrationId] = useState<string | null>(null);
+  const [opdSlipModalOpen, setOpdSlipModalOpen] = useState(false);
   const [listSearchDraft, setListSearchDraft] = useState('');
   const listSearch = useDebouncedValue(listSearchDraft.trim(), 300);
   const [listPage, setListPage] = useState(1);
@@ -429,7 +433,8 @@ function VisitRegistrationRoute() {
       } else {
         toast.success('Registration saved.');
       }
-      setPhase('list');
+      setOpdSlipRegistrationId(res.registration_id);
+      setOpdSlipModalOpen(true);
     },
     onError: (err) => {
       toast.error(mutationErrorMessage(err));
@@ -759,6 +764,24 @@ function VisitRegistrationRoute() {
         flow={abhaDialogFlow}
         onSuccess={handleAbhaCreated}
       />
+
+      {opdSlipRegistrationId ? (
+        <DocumentPreviewModal
+          open={opdSlipModalOpen}
+          onOpenChange={(open) => {
+            setOpdSlipModalOpen(open);
+            if (!open) {
+              setOpdSlipRegistrationId(null);
+              setPhase('list');
+            }
+          }}
+          title="OPD slip"
+          description="Preview and print the registration OPD slip."
+          queryKey={['registration', opdSlipRegistrationId, 'opd-slip']}
+          fetchPdf={() => fetchOpdSlipPdf(opdSlipRegistrationId)}
+          downloadFilename={`opd-slip-${opdSlipRegistrationId}.pdf`}
+        />
+      ) : null}
     </div>
   );
 }
