@@ -1,6 +1,6 @@
 import type { DbInstance } from "@hims/ts-sdk-db";
 import { and, eq, gt, isNotNull, lt, sql } from "@hims/ts-sdk-db";
-import { abdmLinkTokens } from "../schema/tables.js";
+import { abdmLinkTokens, INTEGRATION_HUB_SCHEMA_NAME } from "../schema/tables.js";
 import type { LinkTokensPort } from "../ports.js";
 
 const FRESH_BUFFER_MS = 60_000;
@@ -40,8 +40,9 @@ export class DrizzleLinkTokensRepo implements LinkTokensPort {
     if (fresh) return "fresh-exists";
 
     const pendingUntil = new Date(Date.now() + PENDING_GRACE_MS);
+    const linkTokensTable = `${INTEGRATION_HUB_SCHEMA_NAME}.abdm_link_tokens`;
     const result = await this.db.execute(sql`
-      INSERT INTO abdm_adapter.abdm_link_tokens
+      INSERT INTO ${sql.raw(linkTokensTable)}
         (iq_tenant_id, abha_address, pending_request_id, pending_expires_at)
       VALUES (${iqTenantId}::uuid, ${abhaAddress}, ${requestId}, ${pendingUntil})
       ON CONFLICT (iq_tenant_id, abha_address) DO UPDATE
@@ -51,20 +52,20 @@ export class DrizzleLinkTokensRepo implements LinkTokensPort {
             expires_at = NULL
         WHERE (
           (
-            abdm_adapter.abdm_link_tokens.link_token IS NULL
+            ${sql.raw(`${linkTokensTable}.link_token`)} IS NULL
             AND (
-              abdm_adapter.abdm_link_tokens.pending_expires_at IS NULL
-              OR abdm_adapter.abdm_link_tokens.pending_expires_at < now()
+              ${sql.raw(`${linkTokensTable}.pending_expires_at`)} IS NULL
+              OR ${sql.raw(`${linkTokensTable}.pending_expires_at`)} < now()
             )
           )
           OR (
-            abdm_adapter.abdm_link_tokens.link_token IS NOT NULL
-            AND abdm_adapter.abdm_link_tokens.expires_at <= now() + interval '60 seconds'
+            ${sql.raw(`${linkTokensTable}.link_token`)} IS NOT NULL
+            AND ${sql.raw(`${linkTokensTable}.expires_at`)} <= now() + interval '60 seconds'
           )
         )
         AND NOT (
-          abdm_adapter.abdm_link_tokens.link_token IS NOT NULL
-          AND abdm_adapter.abdm_link_tokens.expires_at > now() + interval '60 seconds'
+          ${sql.raw(`${linkTokensTable}.link_token`)} IS NOT NULL
+          AND ${sql.raw(`${linkTokensTable}.expires_at`)} > now() + interval '60 seconds'
         )
       RETURNING pending_request_id
     `);

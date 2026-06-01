@@ -32,16 +32,12 @@ function sendGatewayError(reply: FastifyReply, err: AbdmGatewayError): unknown {
   });
 }
 
-function tenantId(req: { headers: Record<string, unknown> }): string {
-  return String(req.headers["x-tenant-id"] ?? "").trim();
-}
-
 export async function registerM3PlatformRoutes(app: FastifyInstance): Promise<void> {
   app.post(
     "/m3/hiu/consent/request",
     { schema: { body: startConsentRequestBodySchema } },
     async (req, reply) => {
-    const iqTenantId = tenantId(req);
+    const iqTenantId = req.tenantId?.trim() ?? "";
     if (!iqTenantId) {
       return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
     }
@@ -70,7 +66,7 @@ export async function registerM3PlatformRoutes(app: FastifyInstance): Promise<vo
     "/m3/hiu/consent/request/:sessionId",
     { schema: { params: m3SessionIdParamSchema } },
     async (req, reply) => {
-    const iqTenantId = tenantId(req);
+    const iqTenantId = req.tenantId?.trim() ?? "";
     if (!iqTenantId) {
       return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
     }
@@ -96,7 +92,7 @@ export async function registerM3PlatformRoutes(app: FastifyInstance): Promise<vo
     "/m3/hiu/data-request",
     { schema: { body: startDataRequestBodySchema } },
     async (req, reply) => {
-    const iqTenantId = tenantId(req);
+    const iqTenantId = req.tenantId?.trim() ?? "";
     if (!iqTenantId) {
       return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
     }
@@ -119,7 +115,7 @@ export async function registerM3PlatformRoutes(app: FastifyInstance): Promise<vo
     "/m3/hiu/transfers/:transferId",
     { schema: { params: m3TransferIdParamSchema } },
     async (req, reply) => {
-    const iqTenantId = tenantId(req);
+    const iqTenantId = req.tenantId?.trim() ?? "";
     if (!iqTenantId) {
       return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
     }

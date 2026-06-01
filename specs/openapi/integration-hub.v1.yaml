@@ -1,880 +1,1453 @@
 openapi: 3.1.0
 info:
-  title: Integration Hub API
-  version: 1.0.0
-  description: >
-    Integration Hub API — control plane for external integrations and the ABDM adapter.
-    Owns the integration registry, durable workflow FSM engine, inbound/outbound transport logs,
-    and ABDM-specific protocol state (gateway sessions, scan-and-share tokens, consent artifacts,
-    link tokens, M3 data-exchange sessions). Does NOT own clinical records (Record Foundation),
-    facility HFR ID (Configurator), or credential bytes (resolved via @hims/ts-sdk-secrets, which
-    supports env:, azure-keyvault://, aws-sm://, vault://, file:// schemes; env: is the Phase 0/1
-    default with a pre-prod migration gate). Does NOT include a per-module audit table —
-    audit substrate is workflow_transitions + inbound/outbound message logs + domain events,
-    projected by the future centralized audit consumer (ADR-0024). Per ADR-0027, ADR-0028, ADR-0024.
+  title: Integration Hub API (ABDM)
+  version: 1.1.0
+  description: |
+    Hospital platform adapter for NHA ABDM gateway access — Milestones M1 (ABHA),
+    M2 (HIP-side care-context linking + consent receipt), and M3 (HIU consent
+    request + data fetch, HIP data response).
+
+    Authenticated routes require header `x-tenant-id` (hospital tenant UUID) on each operation below.
+
+    Gateway callback paths (e.g. `/api/v3/hiu/consent/request/on-init`) are not
+    documented here; see `docs/architecture/lld/integration-hub/08-m3-flows.md` for
+    inbound body shapes.
+
 servers:
-  - url: http://localhost:3005
-security:
-  - bearerAuth: []
+  - url: http://localhost:3007/api/abdm/v1
+    description: Development
+
 tags:
-  - name: Integrations
-    description: Tenant integration registry and credential references.
-  - name: Workflows
-    description: Durable FSM workflow engine — list, inspect, retry, cancel.
-  - name: ABDM ABHA
-    description: ABDM Milestone 1 — ABHA enrollment / verify / address creation.
-  - name: ABDM M2 Linking
-    description: ABDM Milestone 2 — care-context HIP linking.
-  - name: ABDM M3 HIU
-    description: ABDM Milestone 3 — HIU consent-driven data fetch.
-  - name: ABDM Consent
-    description: ABDM consent artifacts (read surface, used by Record Foundation).
-  - name: Scan-and-Share
-    description: ABDM scan-and-share token issuances (used by registration desk).
-  - name: Gateway Callbacks
-    description: ABDM gateway-only callback endpoints. Not for platform clients.
+  - name: M0-Gateway
+    description: Gateway session and encryption certificate
+  - name: M1-Enrolment
+    description: ABHA creation via Aadhaar
+  - name: M1-Profile
+    description: Profile and ABHA card download
+  - name: M1-Login
+    description: Login to existing ABHA
+  - name: M1-Verify
+    description: Frontdesk verification of existing ABHA
+  - name: M3-HIU-Consent
+    description: HIU-side consent request, notify, fetch (doctor requesting records from another HIP)
+  - name: M3-HIU-Data
+    description: HIU-side data fetch (requesting and receiving encrypted bundles)
+
+security:
+  - TenantHeader: []
+
 paths:
-  /api/v1/integrations:
+  /m0/gateway/session:
     get:
-      operationId: listIntegrations
-      summary: List integrations for the calling tenant
-      tags: [Integrations]
+      operationId: abdmM0GatewaySessionProbe
+      summary: Verify gateway access token and ABHA public certificate
+      description: |
+        Confirms NHA gateway client-credentials and ABHA encryption certificate
+        are reachable. Does not create an enrolment session.
+      tags: [M0-Gateway]
       parameters:
-        - { name: kind, in: query, required: false, schema: { $ref: "#/components/schemas/IntegrationKind" } }
-        - { name: status, in: query, required: false, schema: { $ref: "#/components/schemas/IntegrationStatus" } }
+        - $ref: "#/components/parameters/XTenantId"
+      security:
+        - TenantHeader: []
       responses:
         "200":
-          description: Integration list.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/IntegrationListResponse" }
-        "401": { $ref: "#/components/responses/Unauthorized" }
-        "403": { $ref: "#/components/responses/Forbidden" }
-    post:
-      operationId: createIntegration
-      summary: Register a new integration
-      tags: [Integrations]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/IntegrationCreate" }
-      responses:
-        "201":
-          description: Created.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/IntegrationSingleResponse" }
-        "400": { $ref: "#/components/responses/BadRequest" }
-        "401": { $ref: "#/components/responses/Unauthorized" }
-        "403": { $ref: "#/components/responses/Forbidden" }
-        "409": { $ref: "#/components/responses/Conflict" }
-  /api/v1/integrations/{id}:
-    get:
-      operationId: getIntegration
-      summary: Fetch one integration
-      tags: [Integrations]
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
-      responses:
-        "200":
-          description: Integration found.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/IntegrationSingleResponse" }
-        "404": { $ref: "#/components/responses/NotFound" }
-    patch:
-      operationId: updateIntegrationStatus
-      summary: Update integration status (active / paused / retired)
-      tags: [Integrations]
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/IntegrationStatusUpdate" }
-      responses:
-        "200":
-          description: Updated.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/IntegrationSingleResponse" }
-        "404": { $ref: "#/components/responses/NotFound" }
-  /api/v1/integrations/{id}/credentials:
-    post:
-      operationId: addIntegrationCredential
-      summary: Attach a credential reference to an integration
-      tags: [Integrations]
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/IntegrationCredentialCreate" }
-      responses:
-        "201":
-          description: Credential reference stored.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/IntegrationCredentialSingleResponse" }
-        "404": { $ref: "#/components/responses/NotFound" }
-        "409": { $ref: "#/components/responses/Conflict" }
-  /api/v1/workflows:
-    get:
-      operationId: listWorkflows
-      summary: List workflow instances
-      tags: [Workflows]
-      parameters:
-        - { name: definition_id, in: query, required: false, schema: { type: string } }
-        - { name: status, in: query, required: false, schema: { $ref: "#/components/schemas/WorkflowStatus" } }
-        - { name: patient_id, in: query, required: false, schema: { type: string, format: uuid } }
-        - { name: integration_id, in: query, required: false, schema: { type: string, format: uuid } }
-      responses:
-        "200":
-          description: Workflow list.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/WorkflowListResponse" }
-  /api/v1/workflows/{id}:
-    get:
-      operationId: getWorkflow
-      summary: Fetch one workflow instance
-      tags: [Workflows]
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
-      responses:
-        "200":
-          description: Workflow found.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/WorkflowSingleResponse" }
-        "404": { $ref: "#/components/responses/NotFound" }
-  /api/v1/workflows/{id}/transitions:
-    get:
-      operationId: listWorkflowTransitions
-      summary: Replay all FSM transitions for one workflow (state-change history)
-      tags: [Workflows]
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
-      responses:
-        "200":
-          description: Transitions in occurred_at order.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/WorkflowTransitionListResponse" }
-  /api/v1/admin/workflows/{id}/retry-current:
-    post:
-      operationId: retryWorkflowCurrent
-      summary: Retry the current state's outbound action (admin)
-      tags: [Workflows]
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
-      responses:
-        "202":
-          description: Retry scheduled.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/WorkflowSingleResponse" }
-        "404": { $ref: "#/components/responses/NotFound" }
-        "409": { $ref: "#/components/responses/Conflict" }
-  /api/v1/admin/workflows/{id}/cancel:
-    post:
-      operationId: cancelWorkflow
-      summary: Cancel a running workflow (admin)
-      tags: [Workflows]
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: false
-              properties:
-                reason: { type: string }
-      responses:
-        "200":
-          description: Cancelled.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/WorkflowSingleResponse" }
-        "404": { $ref: "#/components/responses/NotFound" }
-  /api/v1/abdm/abha/enroll:
-    post:
-      operationId: abdmAbhaEnroll
-      summary: Start ABDM M1 enrollment by mobile / Aadhaar
-      tags: [ABDM ABHA]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/AbhaEnrollRequest" }
-      responses:
-        "202":
-          description: Workflow created in OTP_REQUESTED state.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/AbhaWorkflowResponse" }
-        "400": { $ref: "#/components/responses/BadRequest" }
-  /api/v1/abdm/abha/{workflow_id}/verify-otp:
-    post:
-      operationId: abdmAbhaVerifyOtp
-      summary: Verify the M1 OTP and advance the workflow
-      tags: [ABDM ABHA]
-      parameters:
-        - { name: workflow_id, in: path, required: true, schema: { type: string, format: uuid } }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/AbhaOtpVerifyRequest" }
-      responses:
-        "200":
-          description: OTP verified — workflow advanced.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/AbhaWorkflowResponse" }
-        "400": { $ref: "#/components/responses/BadRequest" }
-        "404": { $ref: "#/components/responses/NotFound" }
-  /api/v1/abdm/abha/{workflow_id}/create-address:
-    post:
-      operationId: abdmAbhaCreateAddress
-      summary: Create the ABHA address (suffix) for a verified workflow
-      tags: [ABDM ABHA]
-      parameters:
-        - { name: workflow_id, in: path, required: true, schema: { type: string, format: uuid } }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/AbhaAddressCreateRequest" }
-      responses:
-        "200":
-          description: ABHA address created.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/AbhaWorkflowResponse" }
-  /api/v1/abdm/abha/find-by-mobile:
-    post:
-      operationId: abdmAbhaFindByMobile
-      summary: Look up an existing ABHA by mobile number
-      tags: [ABDM ABHA]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [mobile]
-              additionalProperties: false
-              properties:
-                mobile: { type: string, examples: ["+919000000000"] }
-      responses:
-        "200":
-          description: Found ABHA(s).
+          description: Upstream reachable
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items: { $ref: "#/components/schemas/AbhaProfileSummary" }
-  /api/v1/abdm/m2/hip-link:
+                $ref: "#/components/schemas/GatewaySessionProbeOk"
+        "400":
+          description: Missing tenant id header
+        "502":
+          description: NHA gateway or ABHA API error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GatewaySessionProbeFail"
+
+  /m1/enrol/aadhaar/otp:
     post:
-      operationId: abdmM2HipLink
-      summary: Start M2 HIP-side care-context linking for a patient
-      tags: [ABDM M2 Linking]
+      operationId: abdmM1EnrolAadhaarOtp
+      summary: Send Aadhaar OTP for ABHA enrolment
+      tags: [M1-Enrolment]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      security:
+        - TenantHeader: []
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/M2HipLinkRequest" }
+            schema:
+              $ref: "#/components/schemas/EnrolAadhaarOtpRequest"
+      responses:
+        "200":
+          description: OTP dispatched; platform session created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnrolAadhaarOtpResponse"
+        "400":
+          description: Invalid body (e.g. not 12-digit Aadhaar)
+        "401":
+          description: Missing or invalid auth (when ENABLE_AUTH=true)
+        "4XX":
+          description: Mapped NHA client error
+        "502":
+          description: NHA unavailable or unexpected response
+
+  /m1/enrol/aadhaar/otp/resend:
+    post:
+      operationId: abdmM1EnrolAadhaarOtpResend
+      summary: Resend Aadhaar OTP (same NHA contract with populated txnId)
+      tags: [M1-Enrolment]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      security:
+        - TenantHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrolAadhaarOtpResendRequest"
+      responses:
+        "200":
+          description: OTP resent; session txnId updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnrolAadhaarOtpResponse"
+        "400":
+          description: Invalid body or Aadhaar mismatch
+        "404":
+          description: Session not found
+        "409":
+          description: Session not in OTP_REQUESTED
+        "4XX":
+          description: Mapped NHA client error
+        "502":
+          description: NHA unavailable or unexpected response
+
+  /m1/enrol/aadhaar/verify:
+    post:
+      operationId: abdmM1EnrolAadhaarVerify
+      summary: Verify Aadhaar OTP and create ABHA (NHA byAadhaar)
+      tags: [M1-Enrolment]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      security:
+        - TenantHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrolAadhaarVerifyRequest"
+      responses:
+        "200":
+          description: ABHA created; session stores x_token + new txnId
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnrolAadhaarVerifyResponse"
+        "400":
+          description: Invalid OTP or body
+        "404":
+          description: Session not found
+        "409":
+          description: Session not in OTP_REQUESTED
+        "4XX":
+          description: Mapped NHA client error
+        "502":
+          description: NHA unavailable or unexpected response
+
+  /m1/enrol/mobile-verify/otp:
+    post:
+      operationId: abdmM1EnrolMobileVerifyOtp
+      summary: Send mobile OTP during Aadhaar enrolment chain
+      tags: [M1-Enrolment]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      security:
+        - TenantHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrolMobileVerifyOtpRequest"
+      responses:
+        "200":
+          description: OTP sent to mobile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnrolMobileVerifyOtpResponse"
+        "400":
+          description: Invalid mobile
+        "404":
+          description: Session not found
+        "409":
+          description: Session not in ABHA_CREATED
+        "4XX":
+          description: Mapped NHA client error
+        "502":
+          description: NHA unavailable or unexpected response
+
+  /m1/enrol/mobile-verify/verify:
+    post:
+      operationId: abdmM1EnrolMobileVerifyConfirm
+      summary: Verify mobile OTP (NHA auth/byAbdm)
+      tags: [M1-Enrolment]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      security:
+        - TenantHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrolMobileVerifyConfirmRequest"
+      responses:
+        "200":
+          description: Mobile verified; txnId updated for next enrolment step
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnrolMobileVerifyConfirmResponse"
+        "400":
+          description: Invalid OTP
+        "404":
+          description: Session not found
+        "409":
+          description: Session not in ABHA_CREATED
+        "4XX":
+          description: Mapped NHA client error
+        "502":
+          description: NHA unavailable or unexpected response
+
+  /m1/abha-address/suggestions:
+    get:
+      operationId: abdmM1AbhaAddressSuggestions
+      summary: List suggested ABHA addresses for the enrolment txn
+      tags: [M1-Enrolment]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+        - name: sessionId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security:
+        - TenantHeader: []
+      responses:
+        "200":
+          description: Suggestions returned; session txnId may advance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AbhaAddressSuggestionsResponse"
+        "400":
+          description: Missing or invalid sessionId
+        "404":
+          description: Session not found
+        "409":
+          description: Session not in ABHA_CREATED
+        "4XX":
+          description: Mapped NHA client error
+        "502":
+          description: NHA unavailable or unexpected response
+
+  /m1/abha-address:
+    post:
+      operationId: abdmM1AbhaAddressCreate
+      summary: Create preferred ABHA address
+      tags: [M1-Enrolment]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      security:
+        - TenantHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAbhaAddressRequest"
+      responses:
+        "200":
+          description: Address created; session transitions to ADDRESS_CREATED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateAbhaAddressResponse"
+        "400":
+          description: Invalid body
+        "404":
+          description: Session not found
+        "409":
+          description: Session not in ABHA_CREATED
+        "4XX":
+          description: Mapped NHA client error
+        "502":
+          description: NHA unavailable or unexpected response
+
+  /m1/profile:
+    get:
+      operationId: abdmM1ProfileAccount
+      summary: Fetch ABHA profile (requires session x_token)
+      tags: [M1-Profile]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+        - name: sessionId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security:
+        - TenantHeader: []
+      responses:
+        "200":
+          description: Profile JSON from NHA (passthrough subset)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileAccountResponse"
+        "400":
+          description: Missing or invalid sessionId
+        "404":
+          description: Session not found
+        "409":
+          description: Session state not ready for profile read
+        "4XX":
+          description: Mapped NHA client error
+        "502":
+          description: NHA unavailable or unexpected response
+
+  /m1/profile/abha-card:
+    get:
+      operationId: abdmM1ProfileAbhaCard
+      summary: Download ABHA card payload (requires session x_token)
+      tags: [M1-Profile]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+        - name: sessionId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security:
+        - TenantHeader: []
+      responses:
+        "200":
+          description: Card object from NHA (often base64 data)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileAbhaCardResponse"
+        "400":
+          description: Missing or invalid sessionId
+        "404":
+          description: Session not found
+        "409":
+          description: Session state not ready for profile read
+        "4XX":
+          description: Mapped NHA client error
+        "502":
+          description: NHA unavailable or unexpected response
+
+  /m1/sessions/{sessionId}:
+    get:
+      operationId: abdmM1SessionGet
+      summary: Read platform session state and next-step hint
+      tags: [M1-Enrolment]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Session snapshot for UI routing
+        "404":
+          description: Session not found
+
+  /m1/login/otp:
+    post:
+      operationId: abdmM1LoginAbhaNumberOtp
+      summary: Login via ABHA number OTP
+      tags: [M1-Login]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [abhaNumber]
+              properties:
+                abhaNumber:
+                  type: string
+                channel:
+                  type: string
+                  enum: [aadhaar, abha-otp]
+      responses:
+        "200":
+          description: OTP dispatched
+
+  /m1/login/aadhaar/otp:
+    post:
+      operationId: abdmM1LoginAadhaarOtp
+      summary: Login via Aadhaar OTP
+      tags: [M1-Login]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrolAadhaarOtpRequest"
+      responses:
+        "200":
+          description: OTP dispatched
+
+  /m1/login/mobile/otp:
+    post:
+      operationId: abdmM1LoginMobileOtp
+      summary: Login via mobile OTP (creates a new platform session)
+      tags: [M1-Login]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginMobileOtpRequest"
+            example:
+              mobile: "6789789078"
+      responses:
+        "200":
+          description: OTP dispatched; response includes new sessionId
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginOtpDispatchResponse"
+
+  /m1/login/verify:
+    post:
+      operationId: abdmM1LoginVerify
+      summary: Login OTP verify
+      tags: [M1-Login]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrolMobileVerifyConfirmRequest"
+      responses:
+        "200":
+          description: Login verified; x_token stored on session (or accounts list when mobile multi-ABHA)
+
+  /m1/login/verify/user:
+    post:
+      operationId: abdmM1LoginVerifyUser
+      summary: Login — select ABHA account after mobile OTP (NHA verify/user)
+      tags: [M1-Login]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginVerifyUserRequest"
+      responses:
+        "200":
+          description: Profile x_token stored on session
+
+  /m1/verify/abha-number/otp:
+    post:
+      operationId: abdmM1VerifyAbhaNumberOtp
+      summary: Frontdesk verify ABHA number — send OTP
+      tags: [M1-Verify]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [abhaNumber]
+              properties:
+                abhaNumber:
+                  type: string
+                channel:
+                  type: string
+                  enum: [aadhaar, abha-otp]
+      responses:
+        "200":
+          description: OTP dispatched
+
+  /m1/verify/abha-number/verify:
+    post:
+      operationId: abdmM1VerifyAbhaNumberConfirm
+      summary: Frontdesk verify ABHA number — confirm OTP
+      tags: [M1-Verify]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrolMobileVerifyConfirmRequest"
+      responses:
+        "200":
+          description: ABHA verified
+
+  /m1/verify/abha-address/otp:
+    post:
+      operationId: abdmM1VerifyAbhaAddressOtp
+      summary: Frontdesk verify ABHA address — send OTP
+      tags: [M1-Verify]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [abhaAddress]
+              properties:
+                abhaAddress:
+                  type: string
+                channel:
+                  type: string
+                  enum: [mobile, aadhaar]
+      responses:
+        "200":
+          description: OTP dispatched
+
+  /m1/verify/abha-number/verify/user:
+    post:
+      operationId: abdmM1VerifyAbhaNumberVerifyUser
+      summary: Frontdesk verify — select ABHA after mobile OTP (NHA verify/user)
+      tags: [M1-Verify]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginVerifyUserRequest"
+      responses:
+        "200":
+          description: Profile x_token stored on session
+
+  /m1/verify/abha-address/verify:
+    post:
+      operationId: abdmM1VerifyAbhaAddressConfirm
+      summary: Frontdesk verify ABHA address — confirm OTP
+      tags: [M1-Verify]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrolMobileVerifyConfirmRequest"
+      responses:
+        "200":
+          description: ABHA address verified
+
+  /m1/verify/abha-address/verify/user:
+    post:
+      operationId: abdmM1VerifyAbhaAddressVerifyUser
+      summary: Not used for ABHA address (PHR flow) — returns 409; use verify then GET profile
+      description: |
+        ABHA address login uses PHR `/v3/phr/web/login/abha/*` and returns profile tokens on verify.
+        Do not call this after `/m1/verify/abha-address/verify`. For mobile + multiple ABHAs on ABHA number, use `/m1/verify/abha-number/verify/user`.
+      tags: [M1-Verify]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginVerifyUserRequest"
+      responses:
+        "200":
+          description: Profile x_token stored on session
+
+  /m1/profile/mobile/update/otp:
+    post:
+      operationId: abdmM1ProfileMobileUpdateOtp
+      summary: Profile mobile update — request OTP
+      tags: [M1-Profile]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrolMobileVerifyOtpRequest"
+      responses:
+        "200":
+          description: OTP sent
+
+  /m1/profile/mobile/update/verify:
+    post:
+      operationId: abdmM1ProfileMobileUpdateVerify
+      summary: Profile mobile update — verify OTP
+      tags: [M1-Profile]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrolMobileVerifyConfirmRequest"
+      responses:
+        "200":
+          description: Mobile updated
+
+  /m1/profile/email/update/otp:
+    post:
+      operationId: abdmM1ProfileEmailUpdateOtp
+      summary: Profile email update — request OTP
+      tags: [M1-Profile]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sessionId, email]
+              properties:
+                sessionId:
+                  type: string
+                  format: uuid
+                email:
+                  type: string
+                  format: email
+      responses:
+        "200":
+          description: OTP sent
+
+  /m1/profile/email/update/verify:
+    post:
+      operationId: abdmM1ProfileEmailUpdateVerify
+      summary: Profile email update — verify OTP
+      tags: [M1-Profile]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrolMobileVerifyConfirmRequest"
+      responses:
+        "200":
+          description: Email updated
+
+  /m1/profile/phr-card:
+    get:
+      operationId: abdmM1ProfilePhrCard
+      summary: Download PHR card (requires session x_token)
+      tags: [M1-Profile]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+        - name: sessionId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: PHR card payload
+
+  /m1/profile/qr-code:
+    get:
+      operationId: abdmM1ProfileQrCode
+      summary: Download profile QR code (requires session x_token)
+      tags: [M1-Profile]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+        - name: sessionId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: QR code payload
+
+  /m2/link-token/acquire:
+    post:
+      operationId: abdmM2LinkTokenAcquire
+      summary: Pre-mint HIP link token (cache only; does not link care contexts)
+      tags: [M2-HIP-Linking]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LinkTokenAcquireRequest"
       responses:
         "202":
-          description: Linking workflow started.
+          description: Token acquired or acquisition started
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/AbhaWorkflowResponse" }
-  /api/v1/abdm/m2/links/{workflow_id}:
+              schema:
+                $ref: "#/components/schemas/LinkTokenAcquireResponse"
+        "503":
+          description: Token not available within timeout
+
+  /m2/link-token/status:
     get:
-      operationId: abdmM2GetLinks
-      summary: Inspect the link state for a workflow
-      tags: [ABDM M2 Linking]
+      operationId: abdmM2LinkTokenStatus
+      summary: Poll link-token pre-mint session or cache by ABHA address
+      tags: [M2-HIP-Linking]
       parameters:
-        - { name: workflow_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: "#/components/parameters/XTenantId"
+        - name: sessionId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: abhaAddress
+          in: query
+          schema:
+            type: string
       responses:
         "200":
-          description: Current link tokens and care-context references.
+          description: Token status
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/M2LinkStateResponse" }
-  /api/v1/abdm/m3/hiu-request:
+              schema:
+                $ref: "#/components/schemas/LinkTokenStatusResponse"
+        "404":
+          description: Session not found and no cached token
+
+  /m2/sessions/{sessionId}:
+    get:
+      operationId: abdmM2SessionGet
+      summary: Poll ABDM flow session state
+      tags: [M2-HIP-Linking]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Session status
+        "404":
+          description: Session not found
+
+  /m2/hip/initiated-link/start:
     post:
-      operationId: abdmM3HiuRequest
-      summary: Issue an HIU consent request (M3) on behalf of a clinician
-      tags: [ABDM M3 HIU]
+      operationId: abdmM2HipInitiatedLinkStart
+      summary: Staff-triggered HIP-initiated care context linking
+      tags: [M2-HIP-Linking]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/M3HiuRequest" }
+            schema:
+              $ref: "#/components/schemas/HipInitiatedLinkStartRequest"
       responses:
         "202":
-          description: HIU consent request created.
+          description: Link request accepted; session in CC_LINK_REQUESTED
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/AbhaWorkflowResponse" }
-  /api/v1/abdm/m3/sessions/{workflow_id}:
-    get:
-      operationId: abdmM3GetSession
-      summary: Inspect an M3 data-exchange session
-      tags: [ABDM M3 HIU]
+              schema:
+                $ref: "#/components/schemas/HipInitiatedLinkStartResponse"
+        "503":
+          description: Link token acquisition failed
+
+  /m2/add-contexts/publish:
+    post:
+      operationId: abdmM2AddContextsPublish
+      summary: Notify gateway of new care context for linked patient
+      tags: [M2-HIP-Linking]
       parameters:
-        - { name: workflow_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - abhaAddress
+                - patientReference
+                - careContextReference
+                - hiType
+              properties:
+                abhaAddress:
+                  type: string
+                patientReference:
+                  type: string
+                careContextReference:
+                  type: string
+                hiType:
+                  type: string
+                eventDate:
+                  type: string
+                  format: date-time
+      responses:
+        "202":
+          description: Context notify accepted
+
+  /m2/sms/notify:
+    post:
+      operationId: abdmM2SmsNotify
+      summary: HIP-initiated SMS deep link to patient
+      tags: [M2-HIP-Linking]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phoneNo]
+              properties:
+                phoneNo:
+                  type: string
+                hipName:
+                  type: string
+      responses:
+        "202":
+          description: SMS notify accepted
+
+  /m3/hiu/consent/request:
+    post:
+      operationId: abdmM3HiuConsentRequestStart
+      summary: Staff-triggered HIU consent request (doctor asks for records from another HIP)
+      tags: [M3-HIU-Consent]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/M3HiuConsentRequestStartBody"
+      responses:
+        "202":
+          description: Consent request accepted; session in CONSENT_INIT_REQUESTED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/M3HiuConsentRequestStartResponse"
+        "400":
+          description: Invalid request body (e.g. dataEraseAt not in future)
+
+  /m3/hiu/consent/request/{sessionId}:
+    get:
+      operationId: abdmM3HiuConsentRequestGet
+      summary: Poll HIU consent-request flow state
+      tags: [M3-HIU-Consent]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
       responses:
         "200":
-          description: Data-exchange session details.
+          description: Session state
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/M3SessionResponse" }
-        "404": { $ref: "#/components/responses/NotFound" }
-  /api/v1/abdm/consents:
-    get:
-      operationId: listConsents
-      summary: List consent artifacts
-      tags: [ABDM Consent]
+              schema:
+                $ref: "#/components/schemas/M3HiuConsentRequestState"
+        "404":
+          description: Session not found
+
+  /m3/hiu/data-request:
+    post:
+      operationId: abdmM3HiuDataRequestStart
+      summary: Staff-triggered HIU data request (fetch records on a granted consent)
+      tags: [M3-HIU-Data]
       parameters:
-        - { name: patient_id, in: query, required: false, schema: { type: string, format: uuid } }
-        - { name: status, in: query, required: false, schema: { $ref: "#/components/schemas/ConsentStatus" } }
-        - { name: role, in: query, required: false, schema: { type: string, enum: [hip, hiu] } }
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/M3HiuDataRequestStartBody"
+      responses:
+        "202":
+          description: Data request accepted; transfer in DATA_REQUESTED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/M3HiuDataRequestStartResponse"
+        "400":
+          description: Invalid consentId or consent not in GRANTED state
+        "404":
+          description: Consent artefact not found for this tenant
+
+  /m3/hiu/transfers/{transferId}:
+    get:
+      operationId: abdmM3HiuTransferGet
+      summary: Poll HIU data-fetch transfer state and read decrypted bundle once stored
+      tags: [M3-HIU-Data]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+        - name: transferId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
       responses:
         "200":
-          description: Consent list.
+          description: Transfer state (and bundle if state = COMPLETED)
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/ConsentArtifactListResponse" }
-  /api/v1/abdm/consents/{id}:
-    get:
-      operationId: getConsent
-      summary: Fetch one consent artifact
-      tags: [ABDM Consent]
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
-      responses:
-        "200":
-          description: Consent artifact.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/ConsentArtifactSingleResponse" }
-        "404": { $ref: "#/components/responses/NotFound" }
-  /api/v1/abdm/consents/active:
-    get:
-      operationId: listActiveConsents
-      summary: List active (granted, non-expired) consents for a patient
-      description: Used by Record Foundation projections to decide whether a care context is currently disclosable.
-      tags: [ABDM Consent]
-      parameters:
-        - { name: patient_id, in: query, required: true, schema: { type: string, format: uuid } }
-      responses:
-        "200":
-          description: Active consents.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/ConsentArtifactListResponse" }
-  /api/v1/abdm/scan-and-share/issuances:
-    get:
-      operationId: lookupScanAndShareIssuance
-      summary: Look up a scan-and-share token issuance by token number and date
-      description: Used by the registration desk to resolve a presented token to a patient.
-      tags: [Scan-and-Share]
-      parameters:
-        - { name: token_number, in: query, required: true, schema: { type: integer, minimum: 1 } }
-        - { name: date, in: query, required: true, schema: { type: string, format: date } }
-        - { name: facility_id_ref, in: query, required: false, schema: { type: string } }
-      responses:
-        "200":
-          description: Issuance found.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/ShareTokenIssuanceSingleResponse" }
-        "404": { $ref: "#/components/responses/NotFound" }
-  /v3/profile/on-share:
-    post:
-      operationId: gwProfileOnShare
-      summary: ABDM gateway scan-and-share profile callback
-      tags: [Gateway Callbacks]
-      x-internal-callback: true
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { type: object, additionalProperties: true }
-      responses:
-        "202": { description: Acknowledged. }
-  /v3/care-context/discover:
-    post:
-      operationId: gwCareContextDiscover
-      tags: [Gateway Callbacks]
-      x-internal-callback: true
-      security: []
-      summary: ABDM gateway HIP discovery callback
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { type: object, additionalProperties: true }
-      responses:
-        "202": { description: Acknowledged. }
-  /v3/care-context/init:
-    post:
-      operationId: gwCareContextInit
-      tags: [Gateway Callbacks]
-      x-internal-callback: true
-      security: []
-      summary: ABDM gateway HIP link init callback
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { type: object, additionalProperties: true }
-      responses:
-        "202": { description: Acknowledged. }
-  /v3/care-context/confirm:
-    post:
-      operationId: gwCareContextConfirm
-      tags: [Gateway Callbacks]
-      x-internal-callback: true
-      security: []
-      summary: ABDM gateway HIP link confirm callback
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { type: object, additionalProperties: true }
-      responses:
-        "202": { description: Acknowledged. }
-  /v3/consents/hip/notify:
-    post:
-      operationId: gwConsentHipNotify
-      tags: [Gateway Callbacks]
-      x-internal-callback: true
-      security: []
-      summary: ABDM gateway HIP consent notification
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { type: object, additionalProperties: true }
-      responses:
-        "202": { description: Acknowledged. }
-  /v3/consents/hiu/notify:
-    post:
-      operationId: gwConsentHiuNotify
-      tags: [Gateway Callbacks]
-      x-internal-callback: true
-      security: []
-      summary: ABDM gateway HIU consent notification
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { type: object, additionalProperties: true }
-      responses:
-        "202": { description: Acknowledged. }
-  /v3/health-information/hip/request:
-    post:
-      operationId: gwHealthInfoHipRequest
-      tags: [Gateway Callbacks]
-      x-internal-callback: true
-      security: []
-      summary: ABDM gateway HIP health-information request
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { type: object, additionalProperties: true }
-      responses:
-        "202": { description: Acknowledged. }
-  /v3/health-information/hiu/data-push:
-    post:
-      operationId: gwHealthInfoHiuDataPush
-      tags: [Gateway Callbacks]
-      x-internal-callback: true
-      security: []
-      summary: ABDM gateway HIU data-push (encrypted bundle delivery)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { type: object, additionalProperties: true }
-      responses:
-        "202": { description: Acknowledged. }
+              schema:
+                $ref: "#/components/schemas/M3HiuTransferState"
+        "404":
+          description: Transfer not found
+
 components:
+  parameters:
+    XTenantId:
+      name: x-tenant-id
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Hospital tenant UUID (required on every request).
+      example: "00000000-0000-4000-8000-0000000000aa"
+
   securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-  responses:
-    BadRequest:
-      description: Invalid request.
-      content:
-        application/problem+json:
-          schema: { $ref: "#/components/schemas/ProblemDetails" }
-    Unauthorized:
-      description: Missing or invalid bearer token.
-      content:
-        application/problem+json:
-          schema: { $ref: "#/components/schemas/ProblemDetails" }
-    Forbidden:
-      description: Principal is not authorized.
-      content:
-        application/problem+json:
-          schema: { $ref: "#/components/schemas/ProblemDetails" }
-    NotFound:
-      description: Resource not found.
-      content:
-        application/problem+json:
-          schema: { $ref: "#/components/schemas/ProblemDetails" }
-    Conflict:
-      description: State conflict.
-      content:
-        application/problem+json:
-          schema: { $ref: "#/components/schemas/ProblemDetails" }
+    TenantHeader:
+      type: apiKey
+      in: header
+      name: x-tenant-id
+      description: Hospital tenant UUID (`iq_tenant_id` is accepted as an alias).
+
   schemas:
-    ProblemDetails:
+    EnrolAadhaarOtpRequest:
       type: object
-      description: RFC 7807 problem+json error envelope.
-      required: [type, title, status]
+      required: [aadhaarNumber]
       properties:
-        type: { type: string, format: uri }
-        title: { type: string }
-        status: { type: integer }
-        detail: { type: string }
-        instance: { type: string }
-        code: { type: string, description: Stable application error code. }
-    IntegrationKind:
-      type: string
-      enum: [abdm, lab_analyzer, legacy_his, tpa, government_reporting, ris_pacs, custom]
-    IntegrationDirection:
-      type: string
-      enum: [inbound, outbound, bidirectional]
-    IntegrationProtocol:
-      type: string
-      enum: [fhir_r4, hl7v2, soap_xml, rest_json, flat_file, proprietary]
-    IntegrationAuthMethod:
-      type: string
-      enum: [api_key, mtls, oauth2_client_credentials, none]
-    IntegrationStatus:
-      type: string
-      enum: [active, paused, erroring, retired]
-    Integration:
+        aadhaarNumber:
+          type: string
+          pattern: "^\\d{12}$"
+          description: Twelve-digit Aadhaar (sandbox test value in SBX).
+
+    EnrolAadhaarOtpResponse:
       type: object
-      required: [id, iq_tenant_id, name, kind, direction, protocol, auth_method, status, registered_at, updated_at]
+      required: [sessionId, txnId, message]
       properties:
-        id: { type: string, format: uuid }
-        iq_tenant_id: { type: string, format: uuid }
-        name: { type: string }
-        kind: { $ref: "#/components/schemas/IntegrationKind" }
-        direction: { $ref: "#/components/schemas/IntegrationDirection" }
-        protocol: { $ref: "#/components/schemas/IntegrationProtocol" }
-        auth_method: { $ref: "#/components/schemas/IntegrationAuthMethod" }
-        status: { $ref: "#/components/schemas/IntegrationStatus" }
-        rate_limit_rpm: { type: integer, nullable: true }
-        config: { type: object, additionalProperties: true }
-        registered_by: { type: string, format: uuid, nullable: true }
-        registered_at: { type: string, format: date-time }
-        updated_at: { type: string, format: date-time }
-        updated_by: { type: string, format: uuid, nullable: true }
-    IntegrationCreate:
+        sessionId:
+          type: string
+          format: uuid
+        txnId:
+          type: string
+        message:
+          type: string
+
+    EnrolAadhaarOtpResendRequest:
       type: object
-      required: [name, kind, direction, protocol, auth_method]
+      required: [sessionId, aadhaarNumber]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        aadhaarNumber:
+          type: string
+          pattern: "^\\d{12}$"
+
+    EnrolAadhaarVerifyRequest:
+      type: object
+      required: [sessionId, otp, mobile]
       additionalProperties: false
       properties:
-        name: { type: string }
-        kind: { $ref: "#/components/schemas/IntegrationKind" }
-        direction: { $ref: "#/components/schemas/IntegrationDirection" }
-        protocol: { $ref: "#/components/schemas/IntegrationProtocol" }
-        auth_method: { $ref: "#/components/schemas/IntegrationAuthMethod" }
-        rate_limit_rpm: { type: integer, nullable: true }
-        config: { type: object, additionalProperties: true }
-    IntegrationStatusUpdate:
+        sessionId:
+          type: string
+          format: uuid
+        otp:
+          type: string
+          pattern: "^\\d{6}$"
+        mobile:
+          type: string
+          pattern: "^\\d{10}$"
+          description: Primary 10-digit mobile for ABHA (where Aadhaar OTP was received, or chosen primary number).
+        useAadhaarLinkedMobile:
+          type: boolean
+          description: >
+            When true, skip enrol mobile-verify after byAadhaar (user chose Aadhaar-linked primary mobile).
+            When false, require mobile-verify OTP before ABHA address. When omitted, inferred from NHA ABHAProfile.mobile.
+      example:
+        sessionId: "402851e2-9949-4371-9902-1e2954c3c412"
+        otp: "123456"
+        mobile: "6789789089"
+        useAadhaarLinkedMobile: true
+
+    EnrolAadhaarVerifyResponse:
       type: object
-      required: [status]
+      required: [sessionId, txnId, message]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        txnId:
+          type: string
+        healthIdNumber:
+          type: string
+        isNew:
+          type: boolean
+        mobileVerifySkipped:
+          type: boolean
+          description: True when mobile-verify OTP was bypassed (Aadhaar-linked primary mobile).
+        message:
+          type: string
+
+    LoginMobileOtpRequest:
+      type: object
+      required: [mobile]
       additionalProperties: false
       properties:
-        status: { $ref: "#/components/schemas/IntegrationStatus" }
-    IntegrationListResponse:
+        mobile:
+          type: string
+          pattern: "^\\d{10}$"
+
+    LoginOtpDispatchResponse:
       type: object
-      required: [data, total]
+      required: [sessionId, txnId, message]
       properties:
-        data:
+        sessionId:
+          type: string
+          format: uuid
+        txnId:
+          type: string
+        message:
+          type: string
+
+    EnrolMobileVerifyOtpRequest:
+      type: object
+      required: [sessionId, mobile]
+      additionalProperties: false
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        mobile:
+          type: string
+          pattern: "^\\d{10}$"
+
+    EnrolMobileVerifyOtpResponse:
+      type: object
+      required: [sessionId, txnId, message]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        txnId:
+          type: string
+        message:
+          type: string
+
+    EnrolMobileVerifyConfirmRequest:
+      type: object
+      required: [sessionId, otp]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        otp:
+          type: string
+          pattern: "^\\d{6}$"
+
+    EnrolMobileVerifyConfirmResponse:
+      type: object
+      required: [sessionId, txnId, message]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        txnId:
+          type: string
+        message:
+          type: string
+
+    LoginVerifyUserRequest:
+      type: object
+      required: [sessionId, abhaNumber]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        abhaNumber:
+          type: string
+          description: 14-digit ABHA number (hyphens optional)
+
+    LoginVerifyUserResponse:
+      type: object
+      required: [sessionId, txnId, message]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        txnId:
+          type: string
+        message:
+          type: string
+
+    AbhaAddressSuggestionsResponse:
+      type: object
+      required: [sessionId, txnId, suggestions]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        txnId:
+          type: string
+        suggestions:
           type: array
-          items: { $ref: "#/components/schemas/Integration" }
-        total: { type: integer, minimum: 0 }
-    IntegrationSingleResponse:
+          items:
+            type: string
+
+    CreateAbhaAddressRequest:
       type: object
-      required: [data]
+      required: [sessionId, abhaAddress]
       properties:
-        data: { $ref: "#/components/schemas/Integration" }
-    IntegrationCredentialKind:
-      type: string
-      enum: [client_id, client_secret, api_key, tls_cert, tls_private_key, oauth_token_endpoint, signing_key, encryption_pubkey]
-    IntegrationCredential:
+        sessionId:
+          type: string
+          format: uuid
+        abhaAddress:
+          type: string
+        preferred:
+          type: integer
+          enum: [1]
+          default: 1
+          description: NHA accepts only `1` for this enrolment step (omit to default to 1).
+
+    CreateAbhaAddressResponse:
       type: object
-      required: [id, integration_id, credential_kind, vault_ref, created_at]
+      required: [sessionId, txnId]
       properties:
-        id: { type: string, format: uuid }
-        integration_id: { type: string, format: uuid }
-        credential_kind: { $ref: "#/components/schemas/IntegrationCredentialKind" }
-        vault_ref: { type: string }
-        rotation_policy: { type: string, nullable: true }
-        expires_at: { type: string, format: date-time, nullable: true }
-        created_at: { type: string, format: date-time }
-        created_by: { type: string, format: uuid, nullable: true }
-    IntegrationCredentialCreate:
+        sessionId:
+          type: string
+          format: uuid
+        txnId:
+          type: string
+        healthIdNumber:
+          type: string
+        preferredAbhaAddress:
+          type: string
+
+    ProfileAccountResponse:
       type: object
-      required: [credential_kind, vault_ref]
-      additionalProperties: false
+      required: [sessionId, profile]
       properties:
-        credential_kind: { $ref: "#/components/schemas/IntegrationCredentialKind" }
-        vault_ref: { type: string }
-        rotation_policy: { type: string, nullable: true }
-        expires_at: { type: string, format: date-time, nullable: true }
-    IntegrationCredentialSingleResponse:
+        sessionId:
+          type: string
+          format: uuid
+        profile:
+          type: object
+          additionalProperties: true
+
+    ProfileAbhaCardResponse:
       type: object
-      required: [data]
+      required: [sessionId, card]
       properties:
-        data: { $ref: "#/components/schemas/IntegrationCredential" }
-    WorkflowStatus:
-      type: string
-      enum: [running, completed, failed, cancelled, timed_out]
-    Workflow:
+        sessionId:
+          type: string
+          format: uuid
+        card:
+          type: object
+          additionalProperties: true
+
+    GatewaySessionProbeOk:
       type: object
-      required: [id, iq_tenant_id, integration_id, definition_id, current_state, status, started_at, last_transition_at]
+      required: [ok, gateway, certificate]
       properties:
-        id: { type: string, format: uuid }
-        iq_tenant_id: { type: string, format: uuid }
-        integration_id: { type: string, format: uuid }
-        definition_id: { type: string, examples: ["abdm.m1.enrollment.v1"] }
-        current_state: { type: string }
-        status: { $ref: "#/components/schemas/WorkflowStatus" }
-        context: { type: object, additionalProperties: true }
-        external_correlation_id: { type: string, nullable: true }
-        patient_id: { type: string, format: uuid, nullable: true }
-        started_at: { type: string, format: date-time }
-        last_transition_at: { type: string, format: date-time }
-        completed_at: { type: string, format: date-time, nullable: true }
-        error: { type: string, nullable: true }
-    WorkflowListResponse:
+        ok:
+          type: boolean
+          const: true
+        gateway:
+          type: object
+          properties:
+            tokenValidUntilApprox:
+              type: string
+              format: date-time
+              nullable: true
+        certificate:
+          type: object
+          properties:
+            encryptionAlgorithm:
+              type: string
+            publicKeyFingerprint:
+              type: string
+            cacheValidUntilApprox:
+              type: string
+              format: date-time
+              nullable: true
+
+    GatewaySessionProbeFail:
       type: object
-      required: [data, total]
+      required: [ok, error]
       properties:
-        data:
-          type: array
-          items: { $ref: "#/components/schemas/Workflow" }
-        total: { type: integer, minimum: 0 }
-    WorkflowSingleResponse:
+        ok:
+          type: boolean
+          const: false
+        error:
+          type: object
+          properties:
+            message:
+              type: string
+            statusCode:
+              type: integer
+            code:
+              type: string
+              nullable: true
+
+    LinkTokenAcquireRequest:
       type: object
-      required: [data]
+      required: [abhaAddress, demographics]
       properties:
-        data: { $ref: "#/components/schemas/Workflow" }
-    WorkflowTransition:
+        abhaAddress:
+          type: string
+        abhaNumber:
+          type: string
+        timeoutMs:
+          type: integer
+        wait:
+          type: boolean
+          description: When true, blocks until token is in cache (tests only). Default is async 202 TOKEN_REQUESTED.
+        demographics:
+          type: object
+          required: [name, gender, yearOfBirth]
+          properties:
+            name:
+              type: string
+            gender:
+              type: string
+              enum: [M, F, O, D]
+            yearOfBirth:
+              type: integer
+
+    LinkTokenAcquireResponse:
       type: object
-      required: [id, workflow_id, to_state, trigger_kind, occurred_at]
+      required: [sessionId, state, abhaAddress]
       properties:
-        id: { type: integer, format: int64 }
-        workflow_id: { type: string, format: uuid }
-        from_state: { type: string, nullable: true }
-        to_state: { type: string }
-        trigger_kind: { type: string, enum: [start, event, timer, manual, retry] }
-        trigger_payload: { type: object, additionalProperties: true, nullable: true }
-        occurred_at: { type: string, format: date-time }
-        actor: { type: string, nullable: true }
-    WorkflowTransitionListResponse:
+        sessionId:
+          type: string
+          format: uuid
+        state:
+          type: string
+          enum: [TOKEN_REQUESTED, TOKEN_AVAILABLE, FAILED]
+        abhaAddress:
+          type: string
+        tokenReady:
+          type: boolean
+        message:
+          type: string
+
+    LinkTokenStatusResponse:
       type: object
-      required: [data]
+      required: [abhaAddress, state, tokenReady]
       properties:
-        data:
-          type: array
-          items: { $ref: "#/components/schemas/WorkflowTransition" }
-    AbhaEnrollRequest:
+        sessionId:
+          type: string
+          format: uuid
+        abhaAddress:
+          type: string
+        state:
+          type: string
+          enum: [TOKEN_REQUESTED, TOKEN_AVAILABLE, FAILED, NOT_FOUND]
+        tokenReady:
+          type: boolean
+        tokenExpiresAt:
+          type: string
+          format: date-time
+        message:
+          type: string
+
+    HipInitiatedLinkStartRequest:
       type: object
-      required: [integration_id, mode, identifier]
-      additionalProperties: false
+      required: [abhaAddress, patientName, gender, yearOfBirth, careContexts]
       properties:
-        integration_id: { type: string, format: uuid }
-        mode: { type: string, enum: [mobile, aadhaar] }
-        identifier: { type: string, description: Mobile or Aadhaar number. }
-    AbhaOtpVerifyRequest:
-      type: object
-      required: [otp]
-      additionalProperties: false
-      properties:
-        otp: { type: string }
-    AbhaAddressCreateRequest:
-      type: object
-      required: [address_suffix]
-      additionalProperties: false
-      properties:
-        address_suffix: { type: string, examples: [john.doe], description: Local part before the @abdm domain. }
-    AbhaProfileSummary:
-      type: object
-      properties:
-        abha_address: { type: string }
-        abha_number: { type: string }
-        full_name: { type: string }
-        gender: { type: string }
-        year_of_birth: { type: integer }
-    AbhaWorkflowResponse:
-      type: object
-      required: [data]
-      properties:
-        data: { $ref: "#/components/schemas/Workflow" }
-    M2HipLinkRequest:
-      type: object
-      required: [integration_id, patient_id]
-      additionalProperties: false
-      properties:
-        integration_id: { type: string, format: uuid }
-        patient_id: { type: string, format: uuid }
-        care_context_ids:
-          type: array
-          items: { type: string, format: uuid }
-          description: Optional explicit subset; if omitted server selects all linkable contexts.
-    M2LinkStateResponse:
-      type: object
-      required: [workflow]
-      properties:
-        workflow: { $ref: "#/components/schemas/Workflow" }
-        link_tokens:
+        abhaAddress:
+          type: string
+        abhaNumber:
+          type: string
+        patientName:
+          type: string
+        gender:
+          type: string
+          enum: [M, F, O, D]
+        yearOfBirth:
+          type: integer
+        careContexts:
           type: array
           items:
             type: object
+            required: [referenceNumber, display, hiType]
             properties:
-              id: { type: string, format: uuid }
-              abha_address: { type: string }
-              status: { type: string, enum: [active, revoked, expired] }
-              expires_at: { type: string, format: date-time, nullable: true }
-        care_context_refs:
+              referenceNumber:
+                type: string
+              display:
+                type: string
+              hiType:
+                type: string
+
+    HipInitiatedLinkStartResponse:
+      type: object
+      required: [sessionId, state]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        state:
+          type: string
+
+    M3HiuConsentRequestStartBody:
+      type: object
+      required: [patientAbhaAddress, purpose, hiTypes, dateRange]
+      properties:
+        patientAbhaAddress:
+          type: string
+          description: ABHA address of the patient whose records we want
+          example: "test.user@sbx"
+        hipId:
+          type: string
+          description: Optional — pin request to a specific HIP. Omit for any HIP holding the records.
+        purpose:
+          type: string
+          enum: [CAREMGT, BTG, PUBHLTH, HPAYMT, DSRCH, PATRQT]
+        hiTypes:
           type: array
           items:
-            type: object
-            properties:
-              care_context_id: { type: string, format: uuid }
-              abdm_reference_number: { type: string, nullable: true }
-    M3HiuRequest:
-      type: object
-      required: [integration_id, patient_id, hi_types, date_range, purpose_code]
-      additionalProperties: false
-      properties:
-        integration_id: { type: string, format: uuid }
-        patient_id: { type: string, format: uuid }
-        hi_types:
-          type: array
-          items: { type: string, examples: ["OPConsultation"] }
-        date_range:
+            type: string
+            enum: [OPConsultation, Prescription, DiagnosticReport, DischargeSummary, ImmunizationRecord, HealthDocumentRecord, WellnessRecord]
+        dateRange:
           type: object
           required: [from, to]
           properties:
             from: { type: string, format: date-time }
-            to: { type: string, format: date-time }
-        purpose_code: { type: string, examples: ["CAREMGT"] }
-    M3SessionResponse:
+            to:   { type: string, format: date-time }
+        dataEraseAt:
+          type: string
+          format: date-time
+          description: Optional — when CM should erase the artefact. Defaults to dateRange.to + 90 days.
+
+    M3HiuConsentRequestStartResponse:
       type: object
-      required: [workflow]
+      required: [sessionId, state]
       properties:
-        workflow: { $ref: "#/components/schemas/Workflow" }
-        session:
-          type: object
-          properties:
-            id: { type: string, format: uuid }
-            consent_artifact_id: { type: string, format: uuid }
-            direction: { type: string, enum: [hip_push, hiu_fetch] }
-            transaction_id: { type: string, nullable: true }
-            bundle_count: { type: integer }
-            status: { type: string, enum: [initiated, keys_exchanged, data_pushed, acknowledged, failed, expired] }
-            started_at: { type: string, format: date-time }
-            completed_at: { type: string, format: date-time, nullable: true }
-    ConsentStatus:
-      type: string
-      enum: [requested, granted, denied, revoked, expired, exhausted]
-    ConsentArtifact:
+        sessionId:
+          type: string
+          format: uuid
+        state:
+          type: string
+          enum: [CONSENT_INIT_REQUESTED]
+
+    M3HiuConsentRequestState:
       type: object
-      required: [id, consent_id, abha_address, role, status, hi_types, permissions, created_at, updated_at]
+      required: [sessionId, state]
       properties:
-        id: { type: string, format: uuid }
-        iq_tenant_id: { type: string, format: uuid }
-        integration_id: { type: string, format: uuid }
-        consent_id: { type: string }
-        patient_id: { type: string, format: uuid, nullable: true }
-        abha_address: { type: string }
-        role: { type: string, enum: [hip, hiu] }
-        status: { $ref: "#/components/schemas/ConsentStatus" }
-        purpose_code: { type: string, nullable: true }
-        hi_types:
+        sessionId:
+          type: string
+          format: uuid
+        consentRequestId:
+          type: string
+          description: CM-issued ID; populated after the on-init callback flips state to AWAITING_PATIENT_APPROVAL
+        state:
+          type: string
+          description: Member of M3_HIU_STATES (consent-request sub-flow subset)
+          enum: [CONSENT_INIT_REQUESTED, AWAITING_PATIENT_APPROVAL, CONSENT_GRANTED, CONSENT_DENIED, EXPIRED]
+        consentArtefactIds:
           type: array
           items: { type: string }
-        permissions:
+          description: Populated when state becomes CONSENT_GRANTED; one per HIP holding records
+        error:
           type: object
           properties:
-            accessMode: { type: string }
-            dateRange:
-              type: object
-              properties:
-                from: { type: string, format: date-time }
-                to: { type: string, format: date-time }
-            dataEraseAt: { type: string, format: date-time }
-            frequency:
-              type: object
-              properties:
-                unit: { type: string }
-                value: { type: integer }
-                repeats: { type: integer }
-        care_context_refs:
-          type: array
-          nullable: true
-          items: { type: object, additionalProperties: true }
-        data_erase_at: { type: string, format: date-time, nullable: true }
-        consent_artifact_storage_ref: { type: string, nullable: true }
-        granted_at: { type: string, format: date-time, nullable: true }
-        revoked_at: { type: string, format: date-time, nullable: true }
-        created_at: { type: string, format: date-time }
-        updated_at: { type: string, format: date-time }
-    ConsentArtifactListResponse:
+            code: { type: string }
+            message: { type: string }
+
+    M3HiuDataRequestStartBody:
       type: object
-      required: [data, total]
+      required: [consentId]
       properties:
-        data:
-          type: array
-          items: { $ref: "#/components/schemas/ConsentArtifact" }
-        total: { type: integer, minimum: 0 }
-    ConsentArtifactSingleResponse:
+        consentId:
+          type: string
+          description: Consent artefact ID from a granted consent request (state must be CONSENT_GRANTED)
+
+    M3HiuDataRequestStartResponse:
       type: object
-      required: [data]
+      required: [transferId, state]
       properties:
-        data: { $ref: "#/components/schemas/ConsentArtifact" }
-    ShareTokenIssuance:
+        transferId:
+          type: string
+          format: uuid
+        state:
+          type: string
+          enum: [DATA_REQUESTED]
+
+    M3HiuTransferState:
       type: object
-      required: [id, facility_id_ref, issue_date, token_number, abha_address, issued_at, expires_at]
+      required: [transferId, state]
       properties:
-        id: { type: string, format: uuid }
-        facility_id_ref: { type: string }
-        issue_date: { type: string, format: date }
-        token_number: { type: integer }
-        patient_id: { type: string, format: uuid, nullable: true }
-        abha_address: { type: string }
-        profile_storage_ref: { type: string, nullable: true }
-        issued_at: { type: string, format: date-time }
-        redeemed_at: { type: string, format: date-time, nullable: true }
-        expires_at: { type: string, format: date-time }
-    ShareTokenIssuanceSingleResponse:
-      type: object
-      required: [data]
-      properties:
-        data: { $ref: "#/components/schemas/ShareTokenIssuance" }
+        transferId:
+          type: string
+          format: uuid
+        state:
+          type: string
+          description: Member of M3_HIU_STATES (data-fetch sub-flow subset). EXPIRED is the catch-all non-success terminal (decryption fail / push timeout / etc.)
+          enum: [DATA_REQUESTED, AWAITING_PUSH, BUNDLES_RECEIVED, BUNDLES_DECRYPTED, RECORDS_INGESTED, ACKNOWLEDGED, EXPIRED]
+        consentId:
+          type: string
+        bundle:
+          type: object
+          description: Decrypted FHIR bundle; present only when state = ACKNOWLEDGED
+          additionalProperties: true
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }

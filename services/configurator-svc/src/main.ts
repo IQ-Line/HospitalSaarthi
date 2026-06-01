@@ -53,6 +53,20 @@ async function main() {
     version: "1.0.0",
     description: "Organization, tenant, and tenant-module provisioning.",
     apiPrefix: "/api/configurator/v1",
+    securitySchemes: {
+      bearerAuth: {
+        type: "http",
+        scheme: "bearer",
+        bearerFormat: "JWT",
+      },
+      internalServiceKey: {
+        type: "apiKey",
+        in: "header",
+        name: "x-configurator-internal-key",
+        description:
+          "Must match CONFIGURATOR_INTERNAL_API_KEY on configurator-svc (internal routes only).",
+      },
+    },
   });
 
   app.get("/healthz", async () => ({ status: "ok" }));

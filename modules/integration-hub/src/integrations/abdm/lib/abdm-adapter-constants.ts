@@ -1,4 +1,4 @@
-/** Shared literals for abdm-adapter wiring and future events. */
+/** Event source labels for ABDM (unchanged for protocol compatibility; runtime is integration-hub). */
 
 export const ABDM_ADAPTER_SOURCE_MODULE = "abdm-adapter" as const;
 

@@ -1,5 +1,5 @@
 /**
- * Drizzle table definitions for the `abdm_adapter` schema.
+ * Drizzle table definitions for the `integration_hub` schema (ABDM tables).
  *
  * Single table for Phase 0 — `abdm_sessions` — holds the per-flow state row
  * across milestones. Scalar columns are indexed lookup keys; `context JSONB`
@@ -30,9 +30,12 @@ import {
   tenantColumn,
 } from "@hims/ts-sdk-db";
 
-export const ABDM_ADAPTER_SCHEMA_NAME = "abdm_adapter" as const;
+export const INTEGRATION_HUB_SCHEMA_NAME = "integration_hub" as const;
 
-export const abdmAdapterSchema = pgSchema(ABDM_ADAPTER_SCHEMA_NAME);
+/** @deprecated Use {@link INTEGRATION_HUB_SCHEMA_NAME} — removed in Step 4 cleanup. */
+export const ABDM_ADAPTER_SCHEMA_NAME = INTEGRATION_HUB_SCHEMA_NAME;
+
+export const abdmAdapterSchema = pgSchema(INTEGRATION_HUB_SCHEMA_NAME);
 
 export const abdmSessions = abdmAdapterSchema.table(
   "abdm_sessions",
