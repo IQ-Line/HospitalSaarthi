@@ -8,6 +8,7 @@ const BASE = '/api/configurator/v1';
 export interface SequenceIdentifierSummary {
   is_custom: boolean;
   format_code: string;
+  prefix_value: string | null;
 }
 
 export interface SequenceConfigurationSummary {

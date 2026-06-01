@@ -144,15 +144,6 @@ export function moveSegmentInOrder(
   return next.map((segment, index) => ({ ...segment, order_index: index }));
 }
 
-export function prefixFromFormatCode(formatCode: string): string {
-  const token = formatCode.split(' - ')[0]?.trim() ?? '';
-  if (!token || token === 'PREFIX' || token.includes('X') || token === 'TTTTT') {
-    return '—';
-  }
-  if (DATE_FORMATS.includes(token as DateFormat)) return '—';
-  return token;
-}
-
 export function formatPreviewExampleNote(
   tenantNumericCode: string,
   asOfDate = new Date(),

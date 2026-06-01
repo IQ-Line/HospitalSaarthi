@@ -4,13 +4,11 @@ import { Badge } from '@pulse/ui/badge';
 import { Button } from '@pulse/ui/button';
 import { DataTable } from '@/components/data-table';
 import {
-  useSequenceConfigurationDetail,
   useSequenceConfigurations,
   type SequenceConfigurationSummary,
 } from '@/features/configurator/api/sequence-configuration';
 import { IDENTIFIER_TYPES } from '@/features/configurator/sequence-format';
 import { SEQUENCE_IDENTIFIER_META } from '@/features/configurator/sequence-constants';
-import { prefixFromFormatCode } from '@/features/configurator/sequence-format';
 import { SequenceIdentifiersDialog } from './sequence-identifiers-dialog';
 
 function provisioningLabel(status: string) {
@@ -20,38 +18,25 @@ function provisioningLabel(status: string) {
   return status;
 }
 
+function prefixCellValue(prefixValue: string | null | undefined): string {
+  const v = prefixValue?.trim();
+  return v ? v : '—';
+}
+
 interface SequenceConfigurationPanelProps {
   tenantId: string;
 }
 
 export function SequenceConfigurationPanel({ tenantId }: SequenceConfigurationPanelProps) {
   const [identifiersOpen, setIdentifiersOpen] = useState(false);
-  const { data: listRes, isLoading: listLoading } = useSequenceConfigurations(undefined, {
+  const { data: listRes, isLoading } = useSequenceConfigurations(undefined, {
     enabled: !!tenantId,
   });
-  const { data: detail, isLoading: detailLoading } = useSequenceConfigurationDetail(tenantId);
 
-  const summary = useMemo(() => {
-    const fromList = listRes?.data?.find((r) => r.iq_tenant_id === tenantId);
-    if (fromList) return fromList;
-    if (!detail) return null;
-    const identifiers = Object.fromEntries(
-      detail.identifiers.map((i) => [
-        i.identifier_type,
-        { is_custom: i.is_custom, format_code: i.format_code },
-      ]),
-    ) as SequenceConfigurationSummary['identifiers'];
-    const custom_count = detail.identifiers.filter((i) => i.is_custom).length;
-    return {
-      iq_tenant_id: detail.iq_tenant_id,
-      tenant_name: detail.tenant_name,
-      tenant_numeric_code: detail.tenant_numeric_code,
-      provisioning_status: 'active',
-      status: detail.status,
-      custom_count,
-      identifiers,
-    } satisfies SequenceConfigurationSummary;
-  }, [listRes?.data, tenantId, detail]);
+  const summary = useMemo(
+    () => listRes?.data?.find((r) => r.iq_tenant_id === tenantId) ?? null,
+    [listRes?.data, tenantId],
+  );
 
   const columns = useMemo<ColumnDef<SequenceConfigurationSummary, unknown>[]>(
     () => [
@@ -110,8 +95,9 @@ export function SequenceConfigurationPanel({ tenantId }: SequenceConfigurationPa
           header: SEQUENCE_IDENTIFIER_META[id].listColumn,
           cell: ({ row }) => {
             const entry = row.original.identifiers[id];
-            const prefix = prefixFromFormatCode(entry?.format_code ?? '');
-            return <span className="font-mono text-sm">{prefix}</span>;
+            return (
+              <span className="font-mono text-sm">{prefixCellValue(entry?.prefix_value)}</span>
+            );
           },
         }),
       ),
@@ -131,7 +117,6 @@ export function SequenceConfigurationPanel({ tenantId }: SequenceConfigurationPa
   );
 
   const tableData = summary ? [summary] : [];
-  const isLoading = listLoading || detailLoading;
 
   return (
     <>
