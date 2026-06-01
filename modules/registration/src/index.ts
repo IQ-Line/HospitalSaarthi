@@ -33,6 +33,9 @@ export type { RegistrationRepo, EmpiHttpPort } from "./ports.js";
 
 export { DrizzleRegistrationRepo } from "./data-access/registration.repo.js";
 export { HttpEmpiGateway } from "./lib/http-empi-gateway.js";
+export { HttpBillingGateway } from "./lib/http-billing-gateway.js";
+export { registerDocumentsHandler, type DocumentsHandlerDeps } from "./rest-handlers/documents.handler.js";
+export type { BillingReadPort, BillingBillSummary } from "./ports.js";
 
 export { registrationSchema, registrations } from "./schema/tables.js";
 export { applyRegistrationSchemaMigration } from "./schema/apply-migration.js";
