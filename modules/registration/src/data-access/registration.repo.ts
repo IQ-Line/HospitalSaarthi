@@ -3,28 +3,16 @@ import { and, eq, sql } from "@hims/ts-sdk-db";
 import { desc, ilike, or } from "drizzle-orm";
 import { registrations } from "../schema/tables.js";
 import type { RegistrationRepo } from "../ports.js";
-import type { DashboardRepoMetrics } from "../domain/dashboard.types.js";
 import type {
   CreateRegistrationInput,
   ListRegistrationsParams,
   RegistrationRecord,
-  RegistrationStatus,
 } from "../domain/registration.types.js";
-
-/** Normalized visit_type for dashboard buckets (strips punctuation / case). */
-const visitNorm = sql`regexp_replace(lower(trim(coalesce(${registrations.visit_type}, ''))), '[^a-z0-9]', '', 'g')`;
-/** Canonical codes from visit registration UI — no fuzzy substring matching. */
-const newVisitNorms = sql`${visitNorm} in ('opdfirst')`;
-const followUpVisitNorms = sql`${visitNorm} in ('opdfollowup')`;
-/** IST calendar boundaries — timezone must be a SQL literal (not a bind param). */
-const dayBucket = sql`date_trunc('day', ${registrations.created_at} AT TIME ZONE 'Asia/Kolkata')`;
-const todayStartIst = sql`(date_trunc('day', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata') AT TIME ZONE 'Asia/Kolkata')`;
 
 function mapRow(row: typeof registrations.$inferSelect): RegistrationRecord {
   return {
     ...row,
     patient_date_of_birth: row.patient_date_of_birth ?? null,
-    registration_status: row.registration_status as RegistrationStatus,
   };
 }
 
@@ -63,16 +51,37 @@ export class DrizzleRegistrationRepo implements RegistrationRepo {
     return rows[0] ? mapRow(rows[0]) : undefined;
   }
 
+  async findByPatientId(
+    tenantId: string,
+    patientId: string,
+  ): Promise<RegistrationRecord | undefined> {
+    const rows = await this.db
+      .select()
+      .from(registrations)
+      .where(
+        and(
+          eq(registrations.iq_tenant_id, tenantId),
+          eq(registrations.patient_id, patientId),
+        ),
+      )
+      .limit(1);
+    return rows[0] ? mapRow(rows[0]) : undefined;
+  }
+
   async insert(
     tenantId: string,
     input: CreateRegistrationInput,
     idempotencyKey: string,
     actorId: string,
-    registrationStatus: RegistrationStatus,
   ) {
     const existing = await this.findByIdempotencyKey(tenantId, idempotencyKey);
     if (existing) {
       return { record: existing, created: false as const };
+    }
+
+    const existingPatient = await this.findByPatientId(tenantId, input.patient_id);
+    if (existingPatient) {
+      return { record: existingPatient, created: false as const };
     }
 
     try {
@@ -82,13 +91,6 @@ export class DrizzleRegistrationRepo implements RegistrationRepo {
           iq_tenant_id: tenantId,
           patient_id: input.patient_id,
           ...snapshotValues(input),
-          facility_id: input.facility_id ?? null,
-          visit_type: input.visit_type ?? null,
-          department_id: input.department_id ?? null,
-          provider_id: input.provider_id ?? null,
-          appointment_id: input.appointment_id ?? null,
-          visit_id: null,
-          registration_status: registrationStatus,
           idempotency_key: idempotencyKey,
           created_by: actorId,
           updated_by: actorId,
@@ -101,7 +103,9 @@ export class DrizzleRegistrationRepo implements RegistrationRepo {
           ? String((err as { code: string }).code)
           : "";
       if (code === "23505") {
-        const replayed = await this.findByIdempotencyKey(tenantId, idempotencyKey);
+        const replayed =
+          (await this.findByIdempotencyKey(tenantId, idempotencyKey)) ??
+          (await this.findByPatientId(tenantId, input.patient_id));
         if (replayed) {
           return { record: replayed, created: false as const };
         }
@@ -136,20 +140,8 @@ export class DrizzleRegistrationRepo implements RegistrationRepo {
 
     const conditions = [eq(registrations.iq_tenant_id, tenantId)];
 
-    if (params.status) {
-      conditions.push(eq(registrations.registration_status, params.status));
-    }
     if (params.patient_id) {
       conditions.push(eq(registrations.patient_id, params.patient_id));
-    }
-    if (params.facility_id) {
-      conditions.push(eq(registrations.facility_id, params.facility_id));
-    }
-    if (params.department_id) {
-      conditions.push(eq(registrations.department_id, params.department_id));
-    }
-    if (params.provider_id) {
-      conditions.push(eq(registrations.provider_id, params.provider_id));
     }
 
     const q = params.q?.trim() || params.uhid?.trim() || params.mobile?.trim();
@@ -187,81 +179,6 @@ export class DrizzleRegistrationRepo implements RegistrationRepo {
     return {
       rows: data.map(mapRow),
       total: Number(countResult[0]?.count ?? 0),
-    };
-  }
-
-  async updateStatus(
-    tenantId: string,
-    registrationId: string,
-    toStatus: RegistrationStatus,
-    actorId: string,
-  ): Promise<RegistrationRecord | undefined> {
-    const rows = await this.db
-      .update(registrations)
-      .set({
-        registration_status: toStatus,
-        updated_by: actorId,
-        updated_at: new Date(),
-      })
-      .where(
-        and(
-          eq(registrations.iq_tenant_id, tenantId),
-          eq(registrations.registration_id, registrationId),
-        ),
-      )
-      .returning();
-    return rows[0] ? mapRow(rows[0]) : undefined;
-  }
-
-  async getDashboardMetrics(tenantId: string, days: number): Promise<DashboardRepoMetrics> {
-    const tenant = eq(registrations.iq_tenant_id, tenantId);
-    const footfallSince = sql`${registrations.created_at} >= ${todayStartIst} - (${days}::int - 1) * INTERVAL '1 day'`;
-    const todaySince = sql`${registrations.created_at} >= ${todayStartIst}`;
-
-    const [statsRow, footfallRows, todayRows] = await Promise.all([
-      this.db
-        .select({
-          total: sql<number>`count(*)::int`,
-          new_patients: sql<number>`count(*) filter (where ${newVisitNorms})::int`,
-          follow_ups: sql<number>`count(*) filter (where ${followUpVisitNorms})::int`,
-        })
-        .from(registrations)
-        .where(tenant),
-      this.db
-        .select({
-          date: sql<string>`to_char(${dayBucket}, 'YYYY-MM-DD')`,
-          count: sql<number>`count(*)::int`,
-        })
-        .from(registrations)
-        .where(and(tenant, footfallSince))
-        .groupBy(dayBucket)
-        .orderBy(dayBucket),
-      this.db
-        .select({
-          registration_id: registrations.registration_id,
-          patient_name: registrations.patient_full_name,
-          created_at: registrations.created_at,
-          registration_status: registrations.registration_status,
-        })
-        .from(registrations)
-        .where(and(tenant, todaySince))
-        .orderBy(desc(registrations.created_at))
-        .limit(50),
-    ]);
-
-    const todays_visits = todayRows.map((row) => ({
-      registration_id: row.registration_id,
-      patient_name: row.patient_name,
-      created_at: row.created_at,
-      registration_status: row.registration_status,
-    }));
-
-    return {
-      total: Number(statsRow[0]?.total ?? 0),
-      new_patients: Number(statsRow[0]?.new_patients ?? 0),
-      follow_ups: Number(statsRow[0]?.follow_ups ?? 0),
-      footfall: footfallRows.map((r) => ({ date: r.date, count: Number(r.count) })),
-      todays_visits,
     };
   }
 }

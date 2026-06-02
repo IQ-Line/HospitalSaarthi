@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import proxy from '@fastify/http-proxy';
+import { loadWorkspaceEnv } from './load-workspace-env.js';
 
 const PORT = Number(process.env['BFF_PORT'] ?? 3000);
 
@@ -10,43 +11,45 @@ interface UpstreamRoute {
   upstream: string;
 }
 
-const userManagementUrl =
-  process.env['USER_MANAGEMENT_URL'] ?? 'http://localhost:3005';
+function buildUpstreams(): UpstreamRoute[] {
+  const userManagementUrl =
+    process.env['USER_MANAGEMENT_URL'] ?? 'http://localhost:3005';
 
-const upstreams: UpstreamRoute[] = [
-  {
-    prefix: '/api/auth',
-    upstream: userManagementUrl,
-  },
-  {
-    prefix: '/api/user-management',
-    upstream: userManagementUrl,
-  },
-  {
-    prefix: '/api/v1/master-data',
-    upstream: process.env['MASTER_DATA_URL'] ?? 'http://localhost:8010',
-  },
-  {
-    prefix: '/api/configurator/v1',
-    upstream: process.env['CONFIGURATOR_URL'] ?? 'http://localhost:3001',
-  },
-  {
-    prefix: '/api/empi/v1',
-    upstream: process.env['EMPI_URL'] ?? 'http://localhost:3002',
-  },
-  {
-    prefix: '/api/billing/v1',
-    upstream: process.env['BILLING_URL'] ?? 'http://localhost:3003',
-  },
-  {
-    prefix: '/api/registration/v1',
-    upstream: process.env['REGISTRATION_URL'] ?? 'http://localhost:3006',
-  },
-  {
-    prefix: '/api/v1/opd',
-    upstream: process.env['OPD_URL'] ?? 'http://localhost:8020',
-  },
-];
+  return [
+    {
+      prefix: '/api/auth',
+      upstream: userManagementUrl,
+    },
+    {
+      prefix: '/api/user-management',
+      upstream: userManagementUrl,
+    },
+    {
+      prefix: '/api/v1/master-data',
+      upstream: process.env['MASTER_DATA_URL'] ?? 'http://localhost:8010',
+    },
+    {
+      prefix: '/api/configurator/v1',
+      upstream: process.env['CONFIGURATOR_URL'] ?? 'http://localhost:3001',
+    },
+    {
+      prefix: '/api/empi/v1',
+      upstream: process.env['EMPI_URL'] ?? 'http://localhost:3002',
+    },
+    {
+      prefix: '/api/billing/v1',
+      upstream: process.env['BILLING_URL'] ?? 'http://localhost:3003',
+    },
+    {
+      prefix: '/api/registration/v1',
+      upstream: process.env['REGISTRATION_URL'] ?? 'http://localhost:3006',
+    },
+    {
+      prefix: '/api/v1/opd',
+      upstream: process.env['OPD_URL'] ?? 'http://localhost:8020',
+    },
+  ];
+}
 
 const isProduction = process.env['NODE_ENV'] === 'production';
 
@@ -71,6 +74,8 @@ function isDevBrowserOrigin(origin: string | undefined): boolean {
 }
 
 async function main() {
+  loadWorkspaceEnv();
+  const upstreams = buildUpstreams();
   const app = Fastify({ logger: true });
 
   await app.register(cors, {
@@ -150,6 +155,10 @@ async function main() {
 
   await app.listen({ port: PORT, host: '0.0.0.0' });
   app.log.info(`BFF listening on http://localhost:${PORT}`);
+  const opdUpstream =
+    upstreams.find((r) => r.prefix === '/api/v1/opd')?.upstream ??
+    'http://localhost:8020';
+  app.log.info(`OPD upstream: ${opdUpstream}`);
 }
 
 main().catch((err) => {

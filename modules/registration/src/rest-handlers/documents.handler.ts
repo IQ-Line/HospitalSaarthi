@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { PdfRendererPort } from "@hims/pdf-client";
-import type { BillingReadPort, RegistrationRepo } from "../ports.js";
+import type { BillingReadPort, RegistrationRepo, VisitRepo } from "../ports.js";
 import {
   getOpdReceiptHtml,
   getOpdReceiptPdf,
@@ -12,6 +12,7 @@ import { paramsRegistrationIdSchema } from "./route-schemas.js";
 
 export interface DocumentsHandlerDeps {
   registrationRepo: RegistrationRepo;
+  visitRepo: VisitRepo;
   billingReadPort: BillingReadPort | undefined;
   pdfRenderer: PdfRendererPort | undefined;
   defaultReportWebOrigin?: string;
@@ -91,6 +92,7 @@ function sendDocumentError(
 export function registerDocumentsHandler(app: FastifyInstance, deps: DocumentsHandlerDeps): void {
   const handlerDeps = {
     registrationRepo: deps.registrationRepo,
+    visitRepo: deps.visitRepo,
     billingReadPort: deps.billingReadPort,
     pdfRenderer: deps.pdfRenderer,
   };

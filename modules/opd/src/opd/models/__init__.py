@@ -2,6 +2,7 @@
 
 from opd.models.base import Base
 from opd.models.prescription import Prescription
+from opd.models.registration_visit import RegistrationVisit
 from opd.models.visit import Visit
 
-__all__ = ["Base", "Visit", "Prescription"]
+__all__ = ["Base", "Visit", "Prescription", "RegistrationVisit"]

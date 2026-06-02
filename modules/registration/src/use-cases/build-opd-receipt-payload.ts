@@ -3,7 +3,6 @@ import {
   computeOPDBillingSummary,
   type OPDBillingReportPayload,
 } from "@hims/registration-reports";
-import type { RegistrationRecord } from "../domain/registration.types.js";
 import type { BillingBillDetail, BillingReadPort } from "../ports.js";
 import {
   buildReportLayoutConfig,
@@ -12,6 +11,8 @@ import {
   formatVisitNumberForSlip,
   type ReportDocumentContext,
 } from "../lib/report-document-context.js";
+import type { RegistrationDocumentSource } from "../lib/registration-document-source.js";
+import { documentVisitRef } from "../lib/registration-document-source.js";
 
 export interface BuildOpdReceiptPayloadDeps {
   billingReadPort: BillingReadPort | undefined;
@@ -37,13 +38,16 @@ function mapBillToLineItems(bill: BillingBillDetail) {
 export async function buildOpdReceiptPayload(
   deps: BuildOpdReceiptPayloadDeps,
   tenantId: string,
-  record: RegistrationRecord,
+  source: RegistrationDocumentSource,
   billId: string,
   context?: ReportDocumentContext,
 ): Promise<BuildOpdReceiptPayloadResult> {
   if (!deps.billingReadPort) {
     return { ok: false, code: "BILLING_UNAVAILABLE", message: "Billing service not configured" };
   }
+
+  const { registration: record } = source;
+  const visitRef = documentVisitRef(source);
 
   const billDetail = await deps.billingReadPort.getBill(tenantId, billId, {
     bearerToken: context?.bearerToken,
@@ -57,7 +61,7 @@ export async function buildOpdReceiptPayload(
   const receivedAmount = Number.parseFloat(billDetail.bill.paid_amount) || 0;
   const summary = computeOPDBillingSummary(lineItems, billLevelDiscount, receivedAmount);
 
-  const visitNumber = formatVisitNumberForSlip(record);
+  const visitNumber = formatVisitNumberForSlip(visitRef);
   const nameLine = buildOpdSlipPatientNameLine({
     firstName: record.patient_full_name,
     dateOfBirth: record.patient_date_of_birth ?? undefined,
@@ -70,7 +74,7 @@ export async function buildOpdReceiptPayload(
       name: record.patient_full_name,
       uhid: record.patient_uhid,
       phone: record.patient_phone_number,
-      visitDate: formatReceiptDateOfIssue(record.created_at),
+      visitDate: formatReceiptDateOfIssue(visitRef.created_at),
       visitNumber,
       abhaNo: record.patient_abha_number ?? undefined,
       abhaAddress: record.patient_abha_address ?? undefined,

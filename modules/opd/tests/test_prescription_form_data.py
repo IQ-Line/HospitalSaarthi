@@ -43,6 +43,7 @@ def test_effective_form_data_loads_legacy_chief_complaints() -> None:
         tenant_id=uuid.uuid4(),
         visit_id=uuid.uuid4(),
         patient_id=uuid.uuid4(),
+        doctor_id=uuid.uuid4(),
         status="final",
         form_data={},
         created_at=datetime.now(UTC),

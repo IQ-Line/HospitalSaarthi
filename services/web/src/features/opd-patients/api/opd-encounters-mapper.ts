@@ -3,8 +3,14 @@ import type { OpdPatientEncounterApi } from './opd-module-patients';
 import { opdVisitStatusToActionLabel } from '../lib/opd-visit-status';
 import type { OpdPatientVisitRow, OpdVisitStatus } from '../types';
 
-function mapEncounterStatus(visitStatus: string): OpdVisitStatus {
-  if (visitStatus === 'completed') return 'completed';
+function mapEncounterStatus(
+  visitStatus: string,
+  prescriptionStatus: string | null,
+): OpdVisitStatus {
+  if (prescriptionStatus === 'final') return 'completed';
+  if (prescriptionStatus === 'cancelled') return 'cancelled';
+  // Registration intake/billing complete — not doctor consulted until rx is final.
+  if (visitStatus === 'completed') return 'registered';
   if (visitStatus === 'cancelled') return 'cancelled';
   if (visitStatus === 'pre_consulted') return 'pre-consulted';
   if (visitStatus === 'in_progress') return 'in-progress';
@@ -15,7 +21,7 @@ export function mapOpdEncounterToVisitRow(
   encounter: OpdPatientEncounterApi,
   empi: EmpiPatient | undefined,
 ): OpdPatientVisitRow {
-  const status = mapEncounterStatus(encounter.visit_status);
+  const status = mapEncounterStatus(encounter.visit_status, encounter.prescription_status);
 
   return {
     id: encounter.visit_id,

@@ -6,6 +6,8 @@ requires-python = ">=3.12"
 dependencies = [
     "fastapi",
     "hims-opd",
+    "pydantic-settings",
+    "python-dotenv",
     "uvicorn[standard]",
 ]
 

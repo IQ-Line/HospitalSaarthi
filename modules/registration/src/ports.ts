@@ -5,21 +5,31 @@ import type {
   InsertRegistrationResult,
   ListRegistrationsParams,
   RegistrationRecord,
-  RegistrationStatus,
 } from "./domain/registration.types.js";
 import type { PatientDemographicsSnapshot } from "./domain/registration.types.js";
+import type {
+  CreateVisitInput,
+  InsertVisitResult,
+  ListVisitsParams,
+  UpdateVisitInput,
+  VisitRecord,
+} from "./domain/visit.types.js";
+import type { VisitStatus } from "./lib/visit-helpers.js";
 
 export interface RegistrationRepo {
   findByIdempotencyKey(
     tenantId: string,
     idempotencyKey: string,
   ): Promise<RegistrationRecord | undefined>;
+  findByPatientId(
+    tenantId: string,
+    patientId: string,
+  ): Promise<RegistrationRecord | undefined>;
   insert(
     tenantId: string,
     input: CreateRegistrationInput,
     idempotencyKey: string,
     actorId: string,
-    registrationStatus: RegistrationStatus,
   ): Promise<InsertRegistrationResult>;
   findById(
     tenantId: string,
@@ -29,12 +39,42 @@ export interface RegistrationRepo {
     tenantId: string,
     params: ListRegistrationsParams,
   ): Promise<{ rows: RegistrationRecord[]; total: number }>;
+}
+
+export interface VisitRepo {
+  findByIdempotencyKey(
+    tenantId: string,
+    idempotencyKey: string,
+  ): Promise<VisitRecord | undefined>;
+  insert(
+    tenantId: string,
+    input: CreateVisitInput,
+    idempotencyKey: string,
+    actorId: string,
+    status: VisitStatus,
+  ): Promise<InsertVisitResult>;
+  findById(tenantId: string, visitId: string): Promise<VisitRecord | undefined>;
+  listPage(
+    tenantId: string,
+    params: ListVisitsParams,
+  ): Promise<{ rows: VisitRecord[]; total: number }>;
+  update(
+    tenantId: string,
+    visitId: string,
+    input: UpdateVisitInput,
+    actorId: string,
+  ): Promise<VisitRecord | undefined>;
+  delete(tenantId: string, visitId: string): Promise<boolean>;
   updateStatus(
     tenantId: string,
-    registrationId: string,
-    toStatus: RegistrationStatus,
+    visitId: string,
+    toStatus: VisitStatus,
     actorId: string,
-  ): Promise<RegistrationRecord | undefined>;
+  ): Promise<VisitRecord | undefined>;
+  findLatestByPatientId(
+    tenantId: string,
+    patientId: string,
+  ): Promise<VisitRecord | undefined>;
   getDashboardMetrics(tenantId: string, days: number): Promise<DashboardRepoMetrics>;
 }
 
@@ -63,6 +103,16 @@ export interface EmpiHttpPort {
     body: Record<string, unknown>,
     bearerToken?: string,
   ): Promise<EmpiRegisterPatientResult>;
+}
+
+export interface OpdHttpPort {
+  ensureEncounter(
+    tenantId: string,
+    visitId: string,
+    patientId: string,
+    bearerToken?: string,
+    doctorId?: string | null,
+  ): Promise<{ ok: true } | { ok: false; status: number; body: string }>;
 }
 
 export interface BillingBillSummary {

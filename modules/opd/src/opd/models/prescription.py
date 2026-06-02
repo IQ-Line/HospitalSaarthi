@@ -4,10 +4,21 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Text, Uuid
+from sqlalchemy import JSON, DateTime, Enum as SAEnum, ForeignKey, SmallInteger, String, Uuid
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from opd.core.schemas import SCHEMA
 from opd.models.base import Base, TimestampMixin
+
+PRESCRIPTION_STATUS = SAEnum(
+    "draft",
+    "final",
+    "cancelled",
+    name="prescription_status",
+    schema=SCHEMA,
+    create_type=False,
+)
 
 
 class Prescription(Base, TimestampMixin):
@@ -22,8 +33,20 @@ class Prescription(Base, TimestampMixin):
         unique=True,
     )
     patient_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
-    status: Mapped[str] = mapped_column(Text, nullable=False, default="draft")
-    form_data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    doctor_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    vitals_schema_version: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=1)
+    status: Mapped[str] = mapped_column(
+        PRESCRIPTION_STATUS.with_variant(String(32), "sqlite"),
+        nullable=False,
+        default="draft",
+    )
+    form_data: Mapped[dict[str, Any]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"),
+        nullable=False,
+        default=dict,
+    )
     finalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     visit: Mapped["Visit"] = relationship("Visit", back_populates="prescription")

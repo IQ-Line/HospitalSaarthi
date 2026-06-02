@@ -17,18 +17,22 @@ import { HttpPdfPlatformRenderer } from "@hims/pdf-client";
 import {
   applyRegistrationSchemaMigration,
   DrizzleRegistrationRepo,
+  DrizzleVisitRepo,
   HttpBillingGateway,
   HttpEmpiGateway,
+  HttpOpdGateway,
   HttpPicklistGateway,
   createRegistrationAuthzTargetResolver,
   registerDocumentsHandler,
   registerRegistrationsHandler,
+  registerVisitsHandler,
 } from "@hims/registration";
 
 const PORT = Number(process.env["REGISTRATION_SVC_PORT"] ?? 3006);
 const DATABASE_URL = process.env["DATABASE_URL"] ?? "";
 const EMPI_URL = process.env["EMPI_URL"] ?? "http://localhost:3002";
 const BILLING_URL = process.env["BILLING_URL"] ?? "http://localhost:3003";
+const OPD_URL = process.env["OPD_URL"] ?? "http://localhost:8020";
 const MASTER_DATA_URL = process.env["MASTER_DATA_URL"] ?? "http://localhost:8010";
 const PDF_PLATFORM_URL = process.env["PDF_PLATFORM_URL"] ?? "http://localhost:8091";
 const PDF_PLATFORM_API_KEY = process.env["PDF_PLATFORM_API_KEY"];
@@ -100,6 +104,7 @@ async function main() {
 
   const db = createDb(DATABASE_URL);
   const registrationRepo = new DrizzleRegistrationRepo(db);
+  const visitRepo = new DrizzleVisitRepo(db);
   const empiGateway = new HttpEmpiGateway(EMPI_URL, {
     warn: (detail, message) => app.log.warn(detail, message),
   });
@@ -107,9 +112,13 @@ async function main() {
   await eventBus.connect();
 
   const billingReadPort = new HttpBillingGateway(BILLING_URL);
-  const picklistReadPort = new HttpPicklistGateway(MASTER_DATA_URL, {
+  const opdGateway = new HttpOpdGateway(OPD_URL, {
     warn: (detail, message) => app.log.warn(detail, message),
   });
+  const picklistReadPort = new HttpPicklistGateway(
+    MASTER_DATA_URL,
+    (detail, message) => app.log.warn(detail, message),
+  );
   const pdfRenderer = new HttpPdfPlatformRenderer({
     baseUrl: PDF_PLATFORM_URL,
     apiKey: PDF_PLATFORM_API_KEY,
@@ -117,13 +126,16 @@ async function main() {
 
   const handlerDeps = {
     registrationRepo,
+    visitRepo,
     empiGateway,
     eventBus,
+    opdGateway,
     picklistReadPort,
   };
 
   const documentDeps = {
     registrationRepo,
+    visitRepo,
     billingReadPort,
     pdfRenderer,
     defaultReportWebOrigin: process.env["REPORT_WEB_ORIGIN"] ?? "http://localhost:5173",
@@ -162,6 +174,7 @@ async function main() {
     });
     await api.register(tenantPlugin);
     registerRegistrationsHandler(api, handlerDeps);
+    registerVisitsHandler(api, { visitRepo, registrationRepo, eventBus, opdGateway });
     registerDocumentsHandler(api, documentDeps);
   }
 
