@@ -36,6 +36,20 @@ function isWriteHttpMethod(method: string | undefined): boolean {
   return m === 'POST' || m === 'PUT' || m === 'PATCH' || m === 'DELETE';
 }
 
+/** JWT `sub` for OPD doctor_id when the gateway does not inject x-user-id. */
+function jwtSubjectFromAccessToken(token: string): string | undefined {
+  const parts = token.split('.');
+  if (parts.length < 2) return undefined;
+  try {
+    const payload = JSON.parse(atob(parts[1]!.replace(/-/g, '+').replace(/_/g, '/'))) as {
+      sub?: unknown;
+    };
+    return typeof payload.sub === 'string' && payload.sub.trim() ? payload.sub.trim() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Tenant scope for this request.
  * - `tenantIdOverride: null` → omit tenant headers (platform catalog reads).
@@ -111,6 +125,12 @@ function buildRequestHeaders(
   const token = useAuthStore.getState().accessToken;
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
+    if (path.startsWith(OPD_API_PREFIX) && isWriteHttpMethod(options.method)) {
+      const userId = jwtSubjectFromAccessToken(token);
+      if (userId) {
+        headers.set('x-user-id', userId);
+      }
+    }
   }
 
   const skipTenantHeaders = shouldOmitTenantHeadersForPath(path, context);

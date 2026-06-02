@@ -8,6 +8,8 @@ export const nurseModuleManifest: ModuleManifest = {
   routePrefix: '/nurse',
   sortOrder: 30,
   requiredModulesAny: ['frontdesk', 'opd'],
+  requiredRolesAny: ['nurse'],
+  keepNavigationGroup: true,
   navigation: [
     {
       id: 'nurse-patients',

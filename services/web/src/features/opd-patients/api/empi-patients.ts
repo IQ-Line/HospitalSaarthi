@@ -83,6 +83,31 @@ export async function fetchEmpiPatientDetail(
   return apiClient<EmpiPatientDetailResponse>(`${EMPI_PATIENTS_BASE}/${encodeURIComponent(patientId)}`);
 }
 
+/** Resolve EMPI display fields per patient id (detail API; used when snapshot is insufficient). */
+export async function fetchEmpiPatientLookupMap(
+  patientIds: string[],
+): Promise<Map<string, EmpiPatient>> {
+  if (patientIds.length === 0) return new Map();
+
+  const map = new Map<string, EmpiPatient>();
+  const uniqueIds = [...new Set(patientIds)];
+
+  const results = await Promise.allSettled(
+    uniqueIds.map(async (id) => {
+      const detail = await fetchEmpiPatientDetail(id);
+      return { id, patient: detail.patient };
+    }),
+  );
+
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      map.set(result.value.id, result.value.patient);
+    }
+  }
+
+  return map;
+}
+
 export function empiPatientAgeYears(patient: EmpiPatient): number {
   if (patient.age_years != null && patient.age_years >= 0) {
     return patient.age_years;

@@ -87,6 +87,7 @@ async function main() {
       'Cookie',
       'iq_tenant_id',
       'x-tenant-id',
+      'x-user-id',
       'Idempotency-Key',
     ],
     origin: (origin, cb) => {

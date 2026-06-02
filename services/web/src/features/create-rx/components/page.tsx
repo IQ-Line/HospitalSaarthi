@@ -128,7 +128,10 @@ export function Page({
         opdPrescriptionId,
       );
       resetForVisit(
-        context,
+        {
+          ...context,
+          visit: { ...context.visit, id: saved.visit_id },
+        },
         useCreateRxStore.getState().isReadOnly,
         prepareCreateRxFormDataForSession(saved.form_data, saved.is_read_only),
         saved.prescription_id,

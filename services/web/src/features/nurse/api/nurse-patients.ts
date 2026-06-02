@@ -1,6 +1,6 @@
 import { listRegistrations } from '@/features/frontdesk/api/registrations';
 import type { RegistrationListItemResponse } from '@/features/frontdesk/types';
-import { fetchEmpiPatientLookupMap } from '@/features/opd-patients/api/opd-patients';
+import { fetchEmpiPatientLookupMap } from '@/features/opd-patients/api/empi-patients';
 import { mapOpdEncounterToVisitRow } from '@/features/opd-patients/api/opd-encounters-mapper';
 import {
   searchOpdModulePatients,
