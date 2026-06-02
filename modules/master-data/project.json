@@ -25,8 +25,7 @@
     "serve": {
       "command": "uv run uvicorn app.main:app --host 0.0.0.0 --port 8010 --reload",
       "options": {
-        "cwd": "modules/master-data",
-        "envFile": "{workspaceRoot}/.env"
+        "cwd": "modules/master-data"
       },
       "dependsOn": ["setup"]
     },
@@ -51,16 +50,14 @@
     "migrate": {
       "command": "uv run alembic upgrade heads",
       "options": {
-        "cwd": "modules/master-data",
-        "envFile": "{workspaceRoot}/.env"
+        "cwd": "modules/master-data"
       },
       "dependsOn": ["setup"]
     },
     "db-migrate": {
       "command": "uv run alembic upgrade heads",
       "options": {
-        "cwd": "modules/master-data",
-        "envFile": "{workspaceRoot}/.env"
+        "cwd": "modules/master-data"
       },
       "dependsOn": ["setup"]
     }

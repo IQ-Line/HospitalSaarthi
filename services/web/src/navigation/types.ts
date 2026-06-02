@@ -16,6 +16,8 @@ export type NavigationNode = {
   requiredModules?: readonly string[];
   /** At least one listed tenant module slug must be enabled. */
   requiredModulesAny?: readonly string[];
+  /** At least one JWT / principal role code must be present (UX gate; case-insensitive). */
+  requiredRolesAny?: readonly string[];
   /**
    * Master Data `modules.slug` for route-based capability matching when the URL segment
    * differs from the catalog slug (optional; usually inferred from `route`).
@@ -46,4 +48,6 @@ export type NavFilterContext = {
   hasAnyCapabilityForProduct?: (catalogProductSlugs: readonly string[]) => boolean;
   /** Built by `buildNavFilterContext`; used for catalog-driven route ↔ capability matching. */
   navAccess?: import('./nav-capability-access').NavCapabilityAccessInput;
+  /** Merged JWT + permissions-store role codes (normalized lowercase). */
+  principalRoles?: readonly string[];
 };

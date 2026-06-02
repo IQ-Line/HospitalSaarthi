@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from opd.core.deps import DbSession, TenantId
+from opd.core.principal import resolve_doctor_id
 from opd.core.schemas_api import (
     OpdEnsureEncounterRequest,
     OpdPatientEncounterSummary,
@@ -23,6 +25,8 @@ from opd.models.registration_visit import RegistrationVisit
 from opd.models.visit import Visit
 
 router = APIRouter(tags=["OpdPrescriptions"])
+
+DoctorId = Annotated[UUID, Depends(resolve_doctor_id)]
 
 
 def _visit_for_tenant(db: DbSession, tenant_id: TenantId, visit_id: UUID) -> Visit:
@@ -48,7 +52,7 @@ def _visit_for_tenant_or_ensure_registration(
     if reg is None:
         raise HTTPException(status_code=404, detail="No OPD visit found")
 
-    repo = PrescriptionRepository(db, tenant_id)
+    repo = PrescriptionRepository(db, tenant_id, reg.doctor_id)
     try:
         visit, _ = repo.ensure_registration_encounter(
             visit_id,
@@ -79,6 +83,7 @@ def _to_response(db: DbSession, bundle: PrescriptionBundle) -> OpdPrescriptionRe
 def list_patients(
     db: DbSession,
     tenant_id: TenantId,
+    doctor_id: DoctorId,
     status: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=50, ge=1, le=100),
@@ -109,9 +114,10 @@ def ensure_registration_encounter(
     body: OpdEnsureEncounterRequest,
     db: DbSession,
     tenant_id: TenantId,
+    doctor_id: DoctorId,
 ) -> OpdPrescriptionResponse:
     """Create OPD visit + draft prescription for a registration.visit id (idempotent)."""
-    repo = PrescriptionRepository(db, tenant_id)
+    repo = PrescriptionRepository(db, tenant_id, doctor_id)
     try:
         _visit, rx = repo.ensure_registration_encounter(
             visit_id,
@@ -133,11 +139,12 @@ def ensure_registration_encounter(
 def list_visits(
     db: DbSession,
     tenant_id: TenantId,
+    doctor_id: DoctorId,
     patient_id: UUID | None = Query(default=None),
     status: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=100),
 ) -> OpdVisitListResponse:
-    repo = PrescriptionRepository(db, tenant_id)
+    repo = PrescriptionRepository(db, tenant_id, doctor_id)
     visits = repo.list_visits(patient_id=patient_id, status=status, limit=limit)
     return OpdVisitListResponse(
         items=[
@@ -157,8 +164,9 @@ def get_visit_prescription(
     visit_id: UUID,
     db: DbSession,
     tenant_id: TenantId,
+    doctor_id: DoctorId,
 ) -> OpdPrescriptionResponse:
-    repo = PrescriptionRepository(db, tenant_id)
+    repo = PrescriptionRepository(db, tenant_id, doctor_id)
     bundle = repo.get_visit_with_prescription(visit_id)
     if bundle is None:
         raise HTTPException(status_code=404, detail="No OPD prescription found for visit")
@@ -171,8 +179,9 @@ def get_prescription_by_id(
     prescription_id: UUID,
     db: DbSession,
     tenant_id: TenantId,
+    doctor_id: DoctorId,
 ) -> OpdPrescriptionResponse:
-    repo = PrescriptionRepository(db, tenant_id)
+    repo = PrescriptionRepository(db, tenant_id, doctor_id)
     bundle = repo.get_prescription_by_id(prescription_id)
     if bundle is None:
         raise HTTPException(status_code=404, detail="No OPD prescription found")
@@ -185,8 +194,9 @@ def get_patient_prescription(
     patient_id: UUID,
     db: DbSession,
     tenant_id: TenantId,
+    doctor_id: DoctorId,
 ) -> OpdPrescriptionResponse:
-    repo = PrescriptionRepository(db, tenant_id)
+    repo = PrescriptionRepository(db, tenant_id, doctor_id)
     bundle = repo.get_latest_prescription(patient_id)
     if bundle is None:
         raise HTTPException(status_code=404, detail="No OPD prescription found for patient")
@@ -200,9 +210,10 @@ def upsert_visit_nurse_pre_consult(
     body: OpdPrescriptionUpsertRequest,
     db: DbSession,
     tenant_id: TenantId,
+    doctor_id: DoctorId,
 ) -> OpdPrescriptionResponse:
     visit = _visit_for_tenant_or_ensure_registration(db, tenant_id, visit_id)
-    repo = PrescriptionRepository(db, tenant_id)
+    repo = PrescriptionRepository(db, tenant_id, doctor_id)
     try:
         visit, rx = repo.save_nurse_pre_consult_for_visit(
             visit_id,
@@ -225,9 +236,10 @@ def upsert_visit_prescription(
     body: OpdPrescriptionUpsertRequest,
     db: DbSession,
     tenant_id: TenantId,
+    doctor_id: DoctorId,
 ) -> OpdPrescriptionResponse:
     visit = _visit_for_tenant_or_ensure_registration(db, tenant_id, visit_id)
-    repo = PrescriptionRepository(db, tenant_id)
+    repo = PrescriptionRepository(db, tenant_id, doctor_id)
     try:
         visit, rx = repo.save_draft_for_visit(visit_id, visit.patient_id, body.form_data)
     except LookupError as exc:
@@ -246,9 +258,10 @@ def end_visit_consultation(
     body: OpdPrescriptionUpsertRequest,
     db: DbSession,
     tenant_id: TenantId,
+    doctor_id: DoctorId,
 ) -> OpdPrescriptionResponse:
     visit = _visit_for_tenant_or_ensure_registration(db, tenant_id, visit_id)
-    repo = PrescriptionRepository(db, tenant_id)
+    repo = PrescriptionRepository(db, tenant_id, doctor_id)
     try:
         visit, rx = repo.end_consultation_for_visit(visit_id, visit.patient_id, body.form_data)
     except LookupError as exc:
@@ -267,8 +280,9 @@ def upsert_patient_prescription(
     body: OpdPrescriptionUpsertRequest,
     db: DbSession,
     tenant_id: TenantId,
+    doctor_id: DoctorId,
 ) -> OpdPrescriptionResponse:
-    repo = PrescriptionRepository(db, tenant_id)
+    repo = PrescriptionRepository(db, tenant_id, doctor_id)
     visit, rx = repo.save_draft(patient_id, body.form_data)
     db.commit()
     return _to_response(db, bundle_api.bundle_from_prescription(db, tenant_id, rx))
@@ -280,8 +294,9 @@ def end_patient_consultation(
     body: OpdPrescriptionUpsertRequest,
     db: DbSession,
     tenant_id: TenantId,
+    doctor_id: DoctorId,
 ) -> OpdPrescriptionResponse:
-    repo = PrescriptionRepository(db, tenant_id)
+    repo = PrescriptionRepository(db, tenant_id, doctor_id)
     visit, rx = repo.end_consultation(patient_id, body.form_data)
     db.commit()
     return _to_response(db, bundle_api.bundle_from_prescription(db, tenant_id, rx))

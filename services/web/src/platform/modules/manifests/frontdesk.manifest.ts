@@ -7,6 +7,7 @@ export const frontdeskModuleManifest: ModuleManifest = {
   routePrefix: '/frontdesk',
   sortOrder: 100,
   requiredModulesAny: ['frontdesk'],
+  requiredRolesAny: ['frontdesk', 'receptionist'],
   navigation: [
     {
       id: 'frontdesk-registration',
