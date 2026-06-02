@@ -39,7 +39,7 @@ export interface paths {
                         "application/json": components["schemas"]["User"];
                     };
                 };
-                /** @description Request validation error (including tenant header/JWT mismatch when header is provided). */
+                /** @description Request validation error. */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -195,7 +195,7 @@ export interface paths {
                         "application/json": components["schemas"]["Capability"][];
                     };
                 };
-                /** @description Request validation error (including tenant header/JWT mismatch when header is provided). */
+                /** @description Request validation error. */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -260,7 +260,7 @@ export interface paths {
                         "application/json": components["schemas"]["Capability"][];
                     };
                 };
-                /** @description Request validation error (including tenant header/JWT mismatch when header is provided). */
+                /** @description Request validation error. */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -408,7 +408,7 @@ export interface paths {
                         "application/json": components["schemas"]["Role"][];
                     };
                 };
-                /** @description Request validation error (including tenant header/JWT mismatch when header is provided). */
+                /** @description Request validation error. */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -448,8 +448,10 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        /** @description Canonical tenant-scoped role code. */
+                        /** @description Canonical tenant-scoped role code (unique per tenant). */
                         code: string;
+                        /** @description Role type from master-data role-types picklist; many roles may share the same type. */
+                        role_type: string;
                         /** @description Human-readable role label. */
                         display_name: string;
                         description?: string | null;
@@ -666,6 +668,8 @@ export interface paths {
                 content: {
                     "application/json": {
                         code?: string;
+                        /** @description Role type from master-data role-types picklist. */
+                        role_type?: string;
                         display_name?: string;
                         description?: string | null;
                         is_system?: boolean;
@@ -900,7 +904,7 @@ export interface paths {
                         "application/json": components["schemas"]["User"][];
                     };
                 };
-                /** @description Request validation error (including tenant header/JWT mismatch when header is provided). */
+                /** @description Request validation error. */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -1047,7 +1051,7 @@ export interface paths {
                         "application/json": components["schemas"]["User"];
                     };
                 };
-                /** @description Request validation error (including tenant header/JWT mismatch when header is provided). */
+                /** @description Request validation error. */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -1675,7 +1679,7 @@ export interface paths {
                         "application/json": components["schemas"]["User"];
                     };
                 };
-                /** @description Request validation error (including tenant header/JWT mismatch when header is provided). */
+                /** @description Request validation error. */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -1738,7 +1742,10 @@ export interface components {
         Role: {
             /** Format: uuid */
             id: string;
+            /** @description Tenant-unique short identifier. */
             code: string;
+            /** @description Role type from master-data role-types picklist (not unique per tenant). */
+            role_type: string;
             display_name: string;
             description?: string | null;
             is_system: boolean;
@@ -1855,7 +1862,7 @@ export interface components {
         };
     };
     responses: {
-        /** @description Cerbos PDP denied the action for this principal (PEP). */
+        /** @description Authorization denied — Cerbos PDP rejection (PEP) or tenant context mismatch (`TENANT_CONTEXT_MISMATCH` when optional `iq_tenant_id` header does not match the JWT tenant claim). */
         Forbidden: {
             headers: {
                 [name: string]: unknown;

@@ -101,6 +101,7 @@ export const roles = userManagementSchema.table(
     ...tenantColumn(),
     id: uuid("id").notNull().defaultRandom(),
     code: text("code").notNull(),
+    role_type: text("role_type").notNull(),
     display_name: text("display_name").notNull(),
     description: text("description"),
     is_system: boolean("is_system").notNull().default(false),
@@ -112,10 +113,13 @@ export const roles = userManagementSchema.table(
     primaryKey({ columns: [t.iq_tenant_id, t.id] }),
     check("roles_code_not_blank_chk", sql`length(btrim(${t.code})) > 0`),
     check("roles_code_canonical_chk", sql`${t.code} = lower(btrim(${t.code}))`),
+    check("roles_role_type_not_blank_chk", sql`length(btrim(${t.role_type})) > 0`),
+    check("roles_role_type_canonical_chk", sql`${t.role_type} = lower(btrim(${t.role_type}))`),
     check("roles_display_name_not_blank_chk", sql`length(btrim(${t.display_name})) > 0`),
     check("roles_status_chk", sql`${t.status} in ('active', 'inactive')`),
     unique("uq_roles_tenant_code").on(t.iq_tenant_id, t.code),
     index("idx_roles_tenant_status").on(t.iq_tenant_id, t.status),
+    index("idx_roles_tenant_role_type").on(t.iq_tenant_id, t.role_type),
   ],
 );
 

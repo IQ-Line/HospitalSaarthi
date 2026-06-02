@@ -64,6 +64,7 @@ function mapAppliedRoleTemplateRow(row: {
   assigned_by_user_id: string | null;
   assigned_at: Date;
   role_code: string;
+  role_type: string;
   role_display_name: string;
   role_description: string | null;
   role_is_system: boolean;
@@ -78,6 +79,7 @@ function mapAppliedRoleTemplateRow(row: {
     role: {
       id: row.role_id,
       code: row.role_code,
+      role_type: row.role_type,
       display_name: row.role_display_name,
       description: row.role_description,
       is_system: row.role_is_system,
@@ -100,6 +102,7 @@ async function selectRoleTemplateByUserAndRole(
       assigned_by_user_id: user_roles.assigned_by_user_id,
       assigned_at: user_roles.assigned_at,
       role_code: roles.code,
+      role_type: roles.role_type,
       role_display_name: roles.display_name,
       role_description: roles.description,
       role_is_system: roles.is_system,
@@ -213,6 +216,7 @@ export class DrizzleUserAccessRepository implements UserAccessRepository {
         assigned_by_user_id: user_roles.assigned_by_user_id,
         assigned_at: user_roles.assigned_at,
         role_code: roles.code,
+        role_type: roles.role_type,
         role_display_name: roles.display_name,
         role_description: roles.description,
         role_is_system: roles.is_system,

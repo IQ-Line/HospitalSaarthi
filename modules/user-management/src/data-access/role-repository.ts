@@ -11,6 +11,7 @@ import { roles } from "../schema/tables.js";
 function rowToRole(row: {
   id: string;
   code: string;
+  role_type: string;
   display_name: string;
   description: string | null;
   is_system: boolean;
@@ -19,6 +20,7 @@ function rowToRole(row: {
   return {
     id: row.id,
     code: row.code,
+    role_type: row.role_type,
     display_name: row.display_name,
     description: row.description,
     is_system: row.is_system,
@@ -47,6 +49,7 @@ function isPostgresForeignKeyViolation(error: unknown): boolean {
 const roleColumns = {
   id: roles.id,
   code: roles.code,
+  role_type: roles.role_type,
   display_name: roles.display_name,
   description: roles.description,
   is_system: roles.is_system,
@@ -98,6 +101,7 @@ export class DrizzleRoleRepository implements RoleRepository {
         .values({
           iq_tenant_id: tenantId,
           code: input.code,
+          role_type: input.role_type,
           display_name: input.display_name,
           description: input.description ?? null,
           is_system: input.is_system ?? false,
@@ -120,6 +124,7 @@ export class DrizzleRoleRepository implements RoleRepository {
   async updateRole(tenantId: string, roleId: string, input: UpdateRoleInput): Promise<Role | null> {
     const patch: Partial<{
       code: string;
+      role_type: string;
       display_name: string;
       description: string | null;
       is_system: boolean;
@@ -128,6 +133,7 @@ export class DrizzleRoleRepository implements RoleRepository {
     }> = {};
 
     if (input.code !== undefined) patch.code = input.code;
+    if (input.role_type !== undefined) patch.role_type = input.role_type;
     if (input.display_name !== undefined) patch.display_name = input.display_name;
     if (input.description !== undefined) patch.description = input.description;
     if (input.is_system !== undefined) patch.is_system = input.is_system;
