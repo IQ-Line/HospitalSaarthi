@@ -435,6 +435,7 @@ type RoleEditorDialogProps = {
   open: boolean;
   mode: 'create' | 'edit' | 'view';
   role: UmRole | null;
+  roleType: string;
   code: string;
   displayName: string;
   description: string;
@@ -455,6 +456,7 @@ type RoleEditorDialogProps = {
   capabilitySearch: string;
   capabilities: Capability[];
   onOpenChange: (open: boolean) => void;
+  onRoleTypeChange: (value: string) => void;
   onCodeChange: (value: string) => void;
   onDisplayNameChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
@@ -475,6 +477,7 @@ export function RoleEditorDialog({
   open,
   mode,
   role,
+  roleType,
   code,
   displayName,
   description,
@@ -494,6 +497,7 @@ export function RoleEditorDialog({
   capabilitySearch,
   capabilities,
   onOpenChange,
+  onRoleTypeChange,
   onCodeChange,
   onDisplayNameChange,
   onDescriptionChange,
@@ -619,9 +623,9 @@ export function RoleEditorDialog({
               <div className="space-y-2">
                 <Label htmlFor="role-editor-type">Role type</Label>
                 <Select
-                  value={code || undefined}
+                  value={roleType || undefined}
                   onValueChange={(value) => {
-                    onCodeChange(value);
+                    onRoleTypeChange(value);
                     const match = roleTypeOptions?.find((opt) => opt.value === value);
                     if (match && isCreate) {
                       onDisplayNameChange(match.label);
@@ -643,9 +647,9 @@ export function RoleEditorDialog({
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Selecting a type auto-fills the short ID{isCreate ? ' and name' : ''}. Platform
-                  operators see global types (Super Admin, Tenant Admin); hospital admins see
-                  clinical and staff types.
+                  Role type can be shared by many templates. The short ID below must be unique per
+                  tenant{isCreate ? '; it is suggested from the name' : ''}. Platform operators see
+                  global types; hospital admins see clinical and staff types.
                 </p>
               </div>
 

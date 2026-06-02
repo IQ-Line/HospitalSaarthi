@@ -46,6 +46,7 @@ async function ensureRole(
     iq_tenant_id: DEV_TENANT_ID,
     id: seedUser.roleId,
     code: seedUser.roleCode,
+    role_type: seedUser.roleCode,
     display_name: seedUser.name,
     description: `Dev seed role (${seedUser.roleCode}).`,
     is_system: seedUser.persona === "platformOperator",

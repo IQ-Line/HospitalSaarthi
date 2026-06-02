@@ -294,12 +294,17 @@ paths:
               additionalProperties: false
               required:
                 - code
+                - role_type
                 - display_name
               properties:
                 code:
                   type: string
                   minLength: 1
-                  description: Canonical tenant-scoped role code.
+                  description: Canonical tenant-scoped role code (unique per tenant).
+                role_type:
+                  type: string
+                  minLength: 1
+                  description: Role type from master-data role-types picklist; many roles may share the same type.
                 display_name:
                   type: string
                   minLength: 1
@@ -396,6 +401,10 @@ paths:
                 code:
                   type: string
                   minLength: 1
+                role_type:
+                  type: string
+                  minLength: 1
+                  description: Role type from master-data role-types picklist.
                 display_name:
                   type: string
                   minLength: 1
@@ -1311,6 +1320,7 @@ components:
       required:
         - id
         - code
+        - role_type
         - display_name
         - is_system
         - status
@@ -1320,6 +1330,10 @@ components:
           format: uuid
         code:
           type: string
+          description: Tenant-unique short identifier.
+        role_type:
+          type: string
+          description: Role type from master-data role-types picklist (not unique per tenant).
         display_name:
           type: string
         description:

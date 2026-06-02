@@ -42,6 +42,10 @@ export class InMemoryPrincipalRoleProjectionRepository implements PrincipalRoleP
       }
       if (role !== null) {
         codes.push(role.code);
+        const roleType = role.role_type.trim();
+        if (roleType.length > 0 && roleType !== role.code) {
+          codes.push(roleType);
+        }
       }
     }
 

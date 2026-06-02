@@ -1,3 +1,4 @@
+import { principalHasAnyRole } from '@/lib/principal-roles';
 import { catalogSlugVariants } from '@/platform/modules/catalog-slug-variants';
 import {
   catalogProductSlugsForNode,
@@ -48,20 +49,41 @@ type NavFilterParentContext = {
   /** Tenant module gates inherited from an ancestor group node. */
   requiredModules?: readonly string[];
   requiredModulesAny?: readonly string[];
+  requiredRolesAny?: readonly string[];
 };
 
 function nodeWithInheritedTenantGates(
   node: NavigationNode,
   parent?: NavFilterParentContext,
 ): NavigationNode {
-  if (!parent?.requiredModules?.length && !parent?.requiredModulesAny?.length) {
+  if (
+    !parent?.requiredModules?.length &&
+    !parent?.requiredModulesAny?.length &&
+    !parent?.requiredRolesAny?.length
+  ) {
     return node;
   }
   return {
     ...node,
     requiredModules: node.requiredModules ?? parent.requiredModules,
     requiredModulesAny: node.requiredModulesAny ?? parent.requiredModulesAny,
+    requiredRolesAny: node.requiredRolesAny ?? parent.requiredRolesAny,
   };
+}
+
+function passesRoleGate(
+  node: NavigationNode,
+  ctx: NavFilterContext,
+  parent?: NavFilterParentContext,
+): boolean {
+  if (ctx.bypassCapabilityGates || ctx.isSuperAdmin || ctx.isTenantAdmin) {
+    return true;
+  }
+  const requiredRoles = node.requiredRolesAny ?? parent?.requiredRolesAny;
+  if (!requiredRoles?.length) {
+    return true;
+  }
+  return principalHasAnyRole(ctx.principalRoles ?? [], requiredRoles);
 }
 
 function passesCapabilityGate(
@@ -107,6 +129,9 @@ export function isNavigationNodeVisible(
   if (node.superAdminOnly && !ctx.isSuperAdmin) {
     return false;
   }
+  if (!passesRoleGate(node, ctx, parent)) {
+    return false;
+  }
   if (catalogVisibilityScopeHidesNode(node, ctx)) {
     return false;
   }
@@ -147,14 +172,18 @@ function filterNavigationNode(
 ): NavigationNode | null {
   const productSlugs = catalogProductSlugsForNode(node);
   const tenantGate =
-    node.requiredModules?.length || node.requiredModulesAny?.length
+    node.requiredModules?.length ||
+    node.requiredModulesAny?.length ||
+    node.requiredRolesAny?.length
       ? {
           requiredModules: node.requiredModules,
           requiredModulesAny: node.requiredModulesAny,
+          requiredRolesAny: node.requiredRolesAny,
         }
       : {
           requiredModules: parent.requiredModules,
           requiredModulesAny: parent.requiredModulesAny,
+          requiredRolesAny: parent.requiredRolesAny,
         };
   const childParent: NavFilterParentContext = {
     parentProductSlugs:
