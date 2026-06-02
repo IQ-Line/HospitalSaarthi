@@ -97,6 +97,10 @@ import {
 import { userManagementKeys } from '@/features/user-management/api/keys';
 import type { UmRole } from '@/features/user-management/types';
 import {
+  suggestUniqueRoleCode,
+  toRoleCodeSlug,
+} from '@/features/user-management/lib/suggest-unique-role-code';
+import {
   RoleEditorDialog,
   RoleListSection,
 } from '@/features/user-management/components/role-management-sections';
@@ -630,8 +634,8 @@ type TenantRoleEditorMode = 'create' | 'edit' | 'view' | null;
 type TenantRoleState = {
   selectedRoleId: string;
   createCodeManuallyEdited: boolean;
-  createRoleForm: { code: string; displayName: string; description: string };
-  editRoleForm: { code: string; displayName: string; description: string };
+  createRoleForm: { roleType: string; code: string; displayName: string; description: string };
+  editRoleForm: { roleType: string; code: string; displayName: string; description: string };
   selectedCapabilityIds: string[];
 };
 
@@ -647,22 +651,20 @@ type TenantRoleAction =
 const tenantRoleInitialState: TenantRoleState = {
   selectedRoleId: '',
   createCodeManuallyEdited: false,
-  createRoleForm: { code: '', displayName: '', description: '' },
-  editRoleForm: { code: '', displayName: '', description: '' },
+  createRoleForm: { roleType: '', code: '', displayName: '', description: '' },
+  editRoleForm: { roleType: '', code: '', displayName: '', description: '' },
   selectedCapabilityIds: [],
 };
 
-function toRoleCode(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
-function normalizeRoleDraft(role: { code: string; displayName: string; description: string }) {
+function normalizeRoleDraft(role: {
+  roleType: string;
+  code: string;
+  displayName: string;
+  description: string;
+}) {
   return {
     code: role.code.trim(),
+    role_type: role.roleType.trim(),
     display_name: role.displayName.trim(),
     description: role.description.trim() === '' ? null : role.description.trim(),
   };
@@ -671,6 +673,7 @@ function normalizeRoleDraft(role: { code: string; displayName: string; descripti
 function normalizeExistingRole(role: UmRole) {
   return {
     code: role.code,
+    role_type: role.role_type,
     display_name: role.display_name,
     description: role.description ?? null,
   };
@@ -693,9 +696,6 @@ function tenantRoleReducer(state: TenantRoleState, action: TenantRoleAction): Te
           createRoleForm: {
             ...state.createRoleForm,
             displayName: action.value,
-            code: state.createCodeManuallyEdited
-              ? state.createRoleForm.code
-              : toRoleCode(action.value),
           },
         };
       }
@@ -721,6 +721,7 @@ function tenantRoleReducer(state: TenantRoleState, action: TenantRoleAction): Te
         ...state,
         editRoleForm: action.role
           ? {
+              roleType: action.role.role_type,
               code: action.role.code,
               displayName: action.role.display_name,
               description: action.role.description ?? '',
@@ -850,9 +851,11 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
   const editorOpen = editorMode !== null;
   const canModifyActiveEditor =
     isCreateMode ? umRoleCreate : isEditMode ? umRoleUpdate : false;
+  const existingRoleCodes = useMemo(() => roles.map((r) => r.code), [roles]);
   const activeForm = isCreateMode ? state.createRoleForm : state.editRoleForm;
   const activeDraft = normalizeRoleDraft(activeForm);
   const createHasDraft =
+    state.createRoleForm.roleType !== '' ||
     state.createRoleForm.code !== '' ||
     state.createRoleForm.displayName !== '' ||
     state.createRoleForm.description !== '' ||
@@ -868,7 +871,15 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
   const saveEnabled =
     canModifyActiveEditor &&
     activeDraft.code.length > 0 &&
+    activeDraft.role_type.length > 0 &&
     activeDraft.display_name.length > 0;
+
+  const suggestCodeForCreate = (roleType: string, displayName: string) =>
+    suggestUniqueRoleCode({
+      roleType,
+      displayName,
+      existingCodes: existingRoleCodes,
+    });
 
   const assignableCatalogBlocking =
     umCapabilityRead && editorMode !== null && (capabilitiesQuery.isPending || capabilitiesQuery.isError);
@@ -1021,6 +1032,7 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
           open={editorOpen}
           mode={editorMode}
           role={selectedRole}
+          roleType={activeForm.roleType}
           code={activeForm.code}
           displayName={activeForm.displayName}
           description={activeForm.description}
@@ -1051,20 +1063,41 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
           onOpenChange={(open) => {
             if (!open) closeEditor();
           }}
+          onRoleTypeChange={(value) => {
+            dispatch({
+              type: isCreateMode ? 'updateCreateField' : 'updateEditField',
+              field: 'roleType',
+              value,
+            });
+            if (isCreateMode && !state.createCodeManuallyEdited) {
+              dispatch({
+                type: 'updateCreateField',
+                field: 'code',
+                value: suggestCodeForCreate(value, activeForm.displayName),
+              });
+            }
+          }}
           onCodeChange={(value) =>
             dispatch({
               type: isCreateMode ? 'updateCreateField' : 'updateEditField',
               field: 'code',
-              value,
+              value: toRoleCodeSlug(value),
             })
           }
-          onDisplayNameChange={(value) =>
+          onDisplayNameChange={(value) => {
             dispatch({
               type: isCreateMode ? 'updateCreateField' : 'updateEditField',
               field: 'displayName',
               value,
-            })
-          }
+            });
+            if (isCreateMode && !state.createCodeManuallyEdited && state.createRoleForm.roleType !== '') {
+              dispatch({
+                type: 'updateCreateField',
+                field: 'code',
+                value: suggestCodeForCreate(state.createRoleForm.roleType, value),
+              });
+            }
+          }}
           onDescriptionChange={(value) =>
             dispatch({
               type: isCreateMode ? 'updateCreateField' : 'updateEditField',
