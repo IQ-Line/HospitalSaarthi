@@ -4,7 +4,7 @@ import type { Capability, UmRole, UmUser } from '@/features/user-management/type
 const UM_BASE = '/api/user-management';
 
 export const TENANT_ADMIN_ROLE_CODE = 'tenant-admin';
-export const TENANT_ADMIN_ROLE_TYPE = 'tenant_admin';
+export const TENANT_ADMIN_ROLE_TYPE = 'tenant-admin';
 export const TENANT_ADMIN_ROLE_DISPLAY_NAME = 'Tenant Administrator';
 
 export type ProvisionTenantAdminInput = {
