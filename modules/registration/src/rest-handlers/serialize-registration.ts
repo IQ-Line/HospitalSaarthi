@@ -16,17 +16,35 @@ export interface RegistrationResponse {
   patient_source_record_id: string;
   facility_id: string | null;
   visit_type: string | null;
+  visit_type_label: string | null;
   department_id: string | null;
   provider_id: string | null;
   appointment_id: string | null;
   registration_status: string;
+  registration_status_label: string | null;
   created_by: string | null;
   updated_by: string | null;
   created_at: string;
   updated_at: string;
 }
 
-export function serializeRegistration(row: RegistrationRecord): RegistrationResponse {
+export interface PicklistLabelMaps {
+  visitTypes: ReadonlyMap<string, string>;
+  registrationStatuses: ReadonlyMap<string, string>;
+}
+
+function resolveLabel(
+  slug: string | null | undefined,
+  map: ReadonlyMap<string, string>,
+): string | null {
+  if (!slug) return null;
+  return map.get(slug) ?? slug;
+}
+
+export function serializeRegistration(
+  row: RegistrationRecord,
+  labelMaps?: PicklistLabelMaps,
+): RegistrationResponse {
   return {
     registration_id: row.registration_id,
     iq_tenant_id: row.iq_tenant_id,
@@ -43,10 +61,16 @@ export function serializeRegistration(row: RegistrationRecord): RegistrationResp
     patient_source_record_id: row.patient_source_record_id,
     facility_id: row.facility_id,
     visit_type: row.visit_type,
+    visit_type_label: labelMaps
+      ? resolveLabel(row.visit_type, labelMaps.visitTypes)
+      : null,
     department_id: row.department_id,
     provider_id: row.provider_id,
     appointment_id: row.appointment_id,
     registration_status: row.registration_status,
+    registration_status_label: labelMaps
+      ? resolveLabel(row.registration_status, labelMaps.registrationStatuses)
+      : null,
     created_by: row.created_by,
     updated_by: row.updated_by,
     created_at: row.created_at.toISOString(),

@@ -11,6 +11,7 @@ import { masterDataKeys } from './query-keys';
 const BASE = '/api/v1/master-data/picklists';
 
 export const ROLE_TYPES_PICKLIST_SLUG = 'role-types';
+export const VISIT_TYPES_PICKLIST_SLUG = 'visit-types';
 
 export function usePicklistValues(picklistSlug: string, enabled = true) {
   return useQuery({
@@ -51,4 +52,9 @@ export function useRoleTypePicklistValues(enabled = true) {
   );
 
   return { ...query, data };
+}
+
+/** Visit types for frontdesk registration intake. */
+export function useVisitTypePicklistValues(enabled = true) {
+  return usePicklistValues(VISIT_TYPES_PICKLIST_SLUG, enabled);
 }

@@ -653,12 +653,12 @@ function VisitRegistrationRoute() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Registered</TableHead>
                           <TableHead>UHID</TableHead>
                           <TableHead>Patient</TableHead>
                           <TableHead>Phone</TableHead>
                           <TableHead>Status</TableHead>
                           <TableHead>Visit type</TableHead>
+                          <TableHead>Registered</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -675,16 +675,16 @@ function VisitRegistrationRoute() {
                               invoiceLookupRegistrationId === row.registration_id;
                             return (
                             <TableRow key={row.registration_id}>
-                              <TableCell className="whitespace-nowrap tabular-nums text-muted-foreground">
-                                {new Date(row.created_at).toLocaleString()}
-                              </TableCell>
                               <TableCell className="font-medium tabular-nums">
                                 {row.patient_uhid ?? '—'}
                               </TableCell>
                               <TableCell>{row.patient_full_name ?? '—'}</TableCell>
                               <TableCell className="tabular-nums">{row.patient_phone_number ?? '—'}</TableCell>
-                              <TableCell>{row.registration_status}</TableCell>
-                              <TableCell>{row.visit_type ?? '—'}</TableCell>
+                              <TableCell>{row.registration_status_label ?? row.registration_status}</TableCell>
+                              <TableCell>{row.visit_type_label ?? row.visit_type ?? '—'}</TableCell>
+                              <TableCell className="whitespace-nowrap tabular-nums text-muted-foreground">
+                                {new Date(row.created_at).toLocaleString()}
+                              </TableCell>
                               <TableCell className="relative text-right">
                                 <div className="flex flex-wrap justify-end gap-2">
                                   <Button
