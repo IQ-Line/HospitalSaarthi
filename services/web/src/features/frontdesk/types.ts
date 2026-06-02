@@ -135,6 +135,9 @@ export interface RegisterPatientResponse {
 export interface RegistrationListItemResponse {
   registration_id: string;
   iq_tenant_id: string;
+  /** Visit UUID for API routes and billing FK. */
+  id: string | null;
+  /** Formatted visit identifier from sequence configuration. */
   visit_id: string | null;
   patient_id: string;
   patient_uhid: string;

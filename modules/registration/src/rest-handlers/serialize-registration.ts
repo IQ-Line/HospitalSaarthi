@@ -2,6 +2,7 @@ import type { RegistrationRecord, RegistrationWithVisitRecord } from "../domain/
 import type { VisitRecord } from "../domain/visit.types.js";
 
 export interface VisitResponse {
+  id: string;
   visit_id: string;
   iq_tenant_id: string;
   patient_id: string;
@@ -20,6 +21,7 @@ export interface VisitResponse {
 export interface RegistrationResponse {
   registration_id: string;
   iq_tenant_id: string;
+  id: string | null;
   visit_id: string | null;
   patient_id: string;
   patient_uhid: string;
@@ -60,6 +62,7 @@ function resolveLabel(
 
 export function serializeVisit(row: VisitRecord): VisitResponse {
   return {
+    id: row.id,
     visit_id: row.visit_id,
     iq_tenant_id: row.iq_tenant_id,
     patient_id: row.patient_id,
@@ -84,6 +87,7 @@ export function serializeRegistration(
   return {
     registration_id: row.registration_id,
     iq_tenant_id: row.iq_tenant_id,
+    id: null,
     visit_id: null,
     patient_id: row.patient_id,
     patient_uhid: row.patient_uhid,
@@ -122,6 +126,7 @@ export function serializeRegistrationWithVisit(
     : {
         registration_id: "",
         iq_tenant_id: visit.iq_tenant_id,
+        id: visit.id,
         visit_id: visit.visit_id,
         patient_id: visit.patient_id,
         patient_uhid: "",
@@ -153,6 +158,7 @@ export function serializeRegistrationWithVisit(
 
   return {
     ...base,
+    id: visit.id,
     visit_id: visit.visit_id,
     facility_id: visit.facility_id,
     visit_type: visit.visit_type,

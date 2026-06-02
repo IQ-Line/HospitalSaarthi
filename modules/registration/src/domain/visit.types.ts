@@ -3,6 +3,7 @@ import type { IntakeCompletion, VisitStatus } from "../lib/visit-helpers.js";
 export type { IntakeCompletion, VisitStatus } from "../lib/visit-helpers.js";
 
 export interface VisitRecord {
+  id: string;
   visit_id: string;
   iq_tenant_id: string;
   patient_id: string;

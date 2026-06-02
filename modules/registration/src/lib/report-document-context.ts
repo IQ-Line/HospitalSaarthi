@@ -95,11 +95,10 @@ export function tokenNumberFromRegistrationId(registrationId: string): number {
 }
 
 export function formatVisitNumberForSlip(record: {
-  registration_id: string;
   visit_id: string | null;
 }): string {
-  const shortId = record.registration_id.slice(0, 8).toUpperCase();
-  return record.visit_id ? `VIS-${shortId}` : `REG-${shortId}`;
+  if (record.visit_id?.trim()) return record.visit_id.trim();
+  return "—";
 }
 
 export function formatReceiptDateOfIssue(iso: string | Date): string {

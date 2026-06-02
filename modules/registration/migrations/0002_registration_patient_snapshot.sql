@@ -46,16 +46,27 @@ ALTER TABLE registration.registration
 
 ALTER TABLE registration.registration DROP CONSTRAINT IF EXISTS registration_status_chk;
 
-ALTER TABLE registration.registration
-  ADD CONSTRAINT registration_status_chk CHECK (
-    registration_status IN (
-      'pending',
-      'routed',
-      'in_progress',
-      'completed',
-      'cancelled'
-    )
-  );
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'registration'
+      AND table_name = 'registration'
+      AND column_name = 'registration_status'
+  ) THEN
+    ALTER TABLE registration.registration
+      ADD CONSTRAINT registration_status_chk CHECK (
+        registration_status IN (
+          'pending',
+          'routed',
+          'in_progress',
+          'completed',
+          'cancelled'
+        )
+      );
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_registration_uhid
   ON registration.registration (iq_tenant_id, patient_uhid);

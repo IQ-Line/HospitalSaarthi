@@ -5,7 +5,6 @@ import type {
   PatientRepo,
   AddressRepo,
   IdentifierRepo,
-  SequenceRepo,
   SourceRecordRepo,
 } from "./ports.js";
 import { registerPatientsHandler } from "./rest-handlers/patients.handler.js";
@@ -14,10 +13,9 @@ export interface EmpiRouterOptions {
   patientRepo: PatientRepo;
   addressRepo: AddressRepo;
   identifierRepo: IdentifierRepo;
-  sequenceRepo: SequenceRepo;
   sourceRecordRepo: SourceRecordRepo;
   eventBus: EventBus;
-  getTenantNumericCode: (tenantId: string) => Promise<string>;
+  allocatePatientUhid: (tenantId: string) => Promise<string>;
 }
 
 async function empiRouter(
@@ -28,9 +26,8 @@ async function empiRouter(
     patientRepo: options.patientRepo,
     addressRepo: options.addressRepo,
     identifierRepo: options.identifierRepo,
-    sequenceRepo: options.sequenceRepo,
     eventBus: options.eventBus,
-    getTenantNumericCode: options.getTenantNumericCode,
+    allocatePatientUhid: options.allocatePatientUhid,
   });
 }
 
