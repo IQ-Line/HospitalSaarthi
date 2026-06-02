@@ -40,6 +40,12 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
 # Build via nx (driven by the service's project.json build target -> tsup)
 RUN npx nx build "${SERVICE_NAME}"
 
+# registration-reports reads this stylesheet at runtime via import.meta.url.
+# The bundled registration service therefore expects it beside dist/main.js.
+RUN if [ "${SERVICE_NAME}" = "registration-svc" ]; then \
+      cp packages/registration-reports/src/report-print.css services/registration-svc/dist/report-print.css; \
+    fi
+
 # --config.node-linker=hoisted forces a flat node_modules layout in /out
 # so the bundled dist/main.js can resolve npm deps directly. With pnpm's
 # default 'isolated' linker, transitive npm deps of workspace packages
@@ -56,6 +62,7 @@ ENV NODE_OPTIONS=--enable-source-maps
 
 WORKDIR /app
 COPY --from=builder /out .
+COPY specs/openapi /specs/openapi
 
 # Sanity: dist/main.js must exist
 RUN test -f dist/main.js || (echo "FATAL: dist/main.js missing for ${SERVICE_NAME}" && exit 1)
