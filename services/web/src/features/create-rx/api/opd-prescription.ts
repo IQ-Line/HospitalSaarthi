@@ -139,12 +139,33 @@ export async function ensureOpdRegistrationEncounter(
   return apiResponseToSession(response);
 }
 
+/**
+ * Create-rx opened from registration queue before an OPD visit exists — route param is
+ * the EMPI patient id, not `opd.visits.id`.
+ */
+export function isPatientScopedOpdRoute(visitId: string, patientId: string): boolean {
+  const visitKey = visitId.trim();
+  const patientKey = patientId.trim();
+  return visitKey.length > 0 && visitKey === patientKey;
+}
+
 export async function saveOpdPrescriptionDraft(
   visitId: string,
   patientId: string,
   formData: CreateRxFormData,
   _existingPrescriptionId: string | null,
 ): Promise<OpdPrescriptionSession> {
+  const patientKey = requirePatientId(patientId);
+  const body = persistFormDataBody(formData);
+
+  if (isPatientScopedOpdRoute(visitId, patientKey)) {
+    const response = await apiClient<OpdPrescriptionApiResponse>(
+      `${OPD_PREFIX}/patients/${encodeURIComponent(patientKey)}/prescription`,
+      { method: 'PUT', body },
+    );
+    return apiResponseToSession(response);
+  }
+
   const visitKey = visitId.trim();
   if (!visitKey) {
     throw new Error('Visit id is required for OPD');
@@ -152,10 +173,7 @@ export async function saveOpdPrescriptionDraft(
 
   const response = await apiClient<OpdPrescriptionApiResponse>(
     `${OPD_PREFIX}/visits/${encodeURIComponent(visitKey)}/prescription`,
-    {
-      method: 'PUT',
-      body: persistFormDataBody(formData),
-    },
+    { method: 'PUT', body },
   );
   return apiResponseToSession(response);
 }
@@ -170,28 +188,38 @@ export async function endOpdConsultation(
     throw new Error('Tenant context is missing');
   }
 
+  const patientKey = requirePatientId(patientId);
+  const body = persistFormDataBody(formData);
+
+  if (isPatientScopedOpdRoute(visitId, patientKey)) {
+    const response = await apiClient<OpdPrescriptionApiResponse>(
+      `${OPD_PREFIX}/patients/${encodeURIComponent(patientKey)}/prescription/end`,
+      { method: 'POST', body },
+    );
+    return apiResponseToSession(response);
+  }
+
   const visitKey = visitId.trim();
   if (!visitKey) {
     throw new Error('Visit id is required for OPD');
   }
 
-  void requirePatientId(patientId);
-
   const response = await apiClient<OpdPrescriptionApiResponse>(
     `${OPD_PREFIX}/visits/${encodeURIComponent(visitKey)}/prescription/end`,
-    {
-      method: 'POST',
-      body: persistFormDataBody(formData),
-    },
+    { method: 'POST', body },
   );
   return apiResponseToSession(response);
 }
+
+/** OPD `GET /visits` enforces `limit` ≤ 100 (see opd.v1.yaml). */
+export const OPD_VISITS_LIST_MAX = 100;
 
 /** List OPD visits (optional patient filter). Used for status overlay on /patients. */
 export async function listOpdVisits(
   options: { patientId?: string; limit?: number } = {},
 ): Promise<OpdVisitSummary[]> {
-  const search = new URLSearchParams({ limit: String(options.limit ?? 100) });
+  const limit = Math.min(Math.max(options.limit ?? OPD_VISITS_LIST_MAX, 1), OPD_VISITS_LIST_MAX);
+  const search = new URLSearchParams({ limit: String(limit) });
   if (options.patientId?.trim()) {
     search.set('patient_id', options.patientId.trim());
   }
@@ -213,6 +241,19 @@ export async function listOpdVisitsForPatient(
   limit = 50,
 ): Promise<OpdVisitSummary[]> {
   return listOpdVisits({ patientId: requirePatientId(patientId), limit });
+}
+
+/** Latest visit per patient for a registration page (one bounded call per patient). */
+export async function listOpdVisitsForPatients(
+  patientIds: readonly string[],
+): Promise<OpdVisitSummary[]> {
+  const unique = [...new Set(patientIds.map((id) => id.trim()).filter(Boolean))];
+  if (unique.length === 0) return [];
+
+  const batches = await Promise.all(
+    unique.map((patientId) => listOpdVisits({ patientId, limit: OPD_VISITS_LIST_MAX })),
+  );
+  return batches.flat();
 }
 
 /** Latest visit summary for a patient, or undefined if none. */

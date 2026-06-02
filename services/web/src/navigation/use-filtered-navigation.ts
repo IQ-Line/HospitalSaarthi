@@ -3,6 +3,7 @@ import { useComposedNavigationManifest } from '@/platform/modules/use-composed-n
 import { useModuleCatalog } from '@/platform/modules/module-catalog';
 import { useEnabledTenantModuleSlugs } from '@/platform/modules/use-enabled-tenant-modules';
 import { applyCatalogNavigationLabels } from './apply-catalog-navigation-labels';
+import { mergePrincipalRoleCodes } from '@/lib/principal-roles';
 import { normalizeCapabilityKey } from '@/lib/principal-capabilities';
 import { resolvePlatformSuperAdmin, resolveTenantAdmin } from '@/lib/platform-admin';
 import { resolveNavigationCapabilityBypass } from '@/lib/resolve-nav-bypass';
@@ -22,6 +23,7 @@ export function buildNavFilterContext(
     isSuperAdmin?: boolean;
     isTenantAdmin?: boolean;
     catalogIndex?: import('@/platform/modules/types').ModuleCatalogIndex | null;
+    principalRoles?: readonly string[];
   },
 ): NavFilterContext {
   const bypassCapabilityGates = options?.bypassCapabilityGates === true;
@@ -68,6 +70,7 @@ export function buildNavFilterContext(
     isSuperAdmin,
     isTenantAdmin,
     catalogIndex,
+    principalRoles: options?.principalRoles ?? [],
   };
 }
 
@@ -84,6 +87,11 @@ export function useFilteredNavigation() {
   const isSuperAdmin = resolvePlatformSuperAdmin({ principalRoles, authRoles, accessToken });
   const isTenantAdmin = resolveTenantAdmin({ principalRoles, authRoles, accessToken });
 
+  const principalRoleCodes = useMemo(
+    () => mergePrincipalRoleCodes(authRoles, principalRoles),
+    [authRoles, principalRoles],
+  );
+
   return useMemo(() => {
     const filtered = filterNavigationTree(
       manifest,
@@ -92,6 +100,7 @@ export function useFilteredNavigation() {
         isSuperAdmin,
         isTenantAdmin,
         catalogIndex: catalogIndex ?? null,
+        principalRoles: principalRoleCodes,
       }),
     );
     return applyCatalogNavigationLabels(filtered, catalogIndex);
@@ -107,5 +116,6 @@ export function useFilteredNavigation() {
     isSuperAdmin,
     isTenantAdmin,
     catalogIndex,
+    principalRoleCodes,
   ]);
 }

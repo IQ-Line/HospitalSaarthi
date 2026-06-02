@@ -46,7 +46,7 @@ export function manifestToNavigationNode(manifest: ModuleManifest): NavigationNo
             requiredModulesAny: undefined,
           };
 
-  if (nav.length === 1 && !nav[0].children?.length) {
+  if (nav.length === 1 && !nav[0].children?.length && !manifest.keepNavigationGroup) {
     const leaf = nav[0];
     return {
       ...leaf,
@@ -58,6 +58,7 @@ export function manifestToNavigationNode(manifest: ModuleManifest): NavigationNo
       requiredCapabilities: leaf.requiredCapabilities ?? manifest.requiredCapabilities,
       requiredModules: leaf.requiredModules ?? tenantGate.requiredModules,
       requiredModulesAny: leaf.requiredModulesAny ?? tenantGate.requiredModulesAny,
+      requiredRolesAny: leaf.requiredRolesAny ?? manifest.requiredRolesAny,
     };
   }
 
@@ -66,6 +67,7 @@ export function manifestToNavigationNode(manifest: ModuleManifest): NavigationNo
     label: manifest.name,
     icon: manifest.icon,
     requiredCapabilities: manifest.requiredCapabilities,
+    requiredRolesAny: manifest.requiredRolesAny,
     ...tenantGate,
     children: nav,
   };

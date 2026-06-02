@@ -49,9 +49,31 @@ def effective_encounter_status(visit: Visit | None, rx: Prescription | None) -> 
 
 
 class PrescriptionRepository:
-    def __init__(self, session: Session, tenant_id: UUID) -> None:
+    def __init__(self, session: Session, tenant_id: UUID, doctor_id: UUID) -> None:
         self._session = session
         self._tenant_id = tenant_id
+        self._doctor_id = doctor_id
+
+    def _new_prescription(
+        self,
+        *,
+        visit_id: UUID,
+        patient_id: UUID,
+        form_data: dict[str, Any] | None = None,
+        status: str = "draft",
+    ) -> Prescription:
+        now = datetime.now(UTC)
+        return Prescription(
+            tenant_id=self._tenant_id,
+            visit_id=visit_id,
+            patient_id=patient_id,
+            doctor_id=self._doctor_id,
+            vitals_schema_version=1,
+            status=status,
+            form_data=form_data if form_data is not None else {},
+            created_at=now,
+            updated_at=now,
+        )
 
     def list_visits(
         self,
@@ -347,20 +369,7 @@ class PrescriptionRepository:
         self._session.add(visit)
         self._session.flush()
 
-        doctor_id = self._doctor_id_for_patient(patient_id)
-        if doctor_id is None:
-            raise ValueError("doctor_id is required to create a prescription")
-
-        rx = Prescription(
-            tenant_id=self._tenant_id,
-            visit_id=visit.id,
-            patient_id=patient_id,
-            doctor_id=doctor_id,
-            status="draft",
-            form_data={},
-            created_at=now,
-            updated_at=now,
-        )
+        rx = self._new_prescription(visit_id=visit.id, patient_id=patient_id)
         self._session.add(rx)
         self._session.flush()
         return visit, rx
@@ -377,18 +386,10 @@ class PrescriptionRepository:
             )
             self._session.add(visit)
             self._session.flush()
-            doctor_id = self._doctor_id_for_patient(patient_id)
-            if doctor_id is None:
-                raise ValueError("doctor_id is required to create a prescription")
-            rx = Prescription(
-                tenant_id=self._tenant_id,
+            rx = self._new_prescription(
                 visit_id=visit.id,
                 patient_id=patient_id,
-                doctor_id=doctor_id,
-                status="draft",
                 form_data=form_data,
-                created_at=datetime.now(UTC),
-                updated_at=datetime.now(UTC),
             )
             self._session.add(rx)
         else:
