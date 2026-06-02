@@ -62,6 +62,7 @@ ENV NODE_OPTIONS=--enable-source-maps
 
 WORKDIR /app
 COPY --from=builder /out .
+COPY specs/openapi /specs/openapi
 
 # Sanity: dist/main.js must exist
 RUN test -f dist/main.js || (echo "FATAL: dist/main.js missing for ${SERVICE_NAME}" && exit 1)
