@@ -24,6 +24,22 @@ CREATE TABLE IF NOT EXISTS registration.registration (
   CONSTRAINT registration_status_chk CHECK (registration_status IN ('pending'))
 );
 
+-- Older dev/POC databases may already have registration.registration from a
+-- pre-0000 revision. CREATE TABLE IF NOT EXISTS will not backfill columns, so
+-- add the columns referenced by this baseline before creating indexes.
+ALTER TABLE registration.registration
+  ADD COLUMN IF NOT EXISTS visit_id uuid,
+  ADD COLUMN IF NOT EXISTS facility_id uuid,
+  ADD COLUMN IF NOT EXISTS visit_type text,
+  ADD COLUMN IF NOT EXISTS department_id uuid,
+  ADD COLUMN IF NOT EXISTS provider_id uuid,
+  ADD COLUMN IF NOT EXISTS appointment_id uuid,
+  ADD COLUMN IF NOT EXISTS registration_status varchar(32) NOT NULL DEFAULT 'pending',
+  ADD COLUMN IF NOT EXISTS created_by uuid,
+  ADD COLUMN IF NOT EXISTS updated_by uuid,
+  ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now(),
+  ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
+
 CREATE INDEX IF NOT EXISTS idx_registration_patient ON registration.registration (iq_tenant_id, patient_id);
 CREATE INDEX IF NOT EXISTS idx_registration_visit ON registration.registration (iq_tenant_id, visit_id);
 CREATE INDEX IF NOT EXISTS idx_registration_status ON registration.registration (iq_tenant_id, registration_status);
