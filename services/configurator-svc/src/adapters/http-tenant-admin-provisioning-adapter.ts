@@ -64,7 +64,12 @@ export class HttpTenantAdminProvisioningAdapter
 
   async createSystemRole(
     tenantId: string,
-    input: { code: string; display_name: string; is_system: boolean },
+    input: {
+      code: string;
+      role_type: string;
+      display_name: string;
+      is_system: boolean;
+    },
   ): Promise<{
     id: string;
     code: string;

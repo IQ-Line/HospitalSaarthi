@@ -4,6 +4,7 @@ import type { Capability, UmRole, UmUser } from '@/features/user-management/type
 const UM_BASE = '/api/user-management';
 
 export const TENANT_ADMIN_ROLE_CODE = 'tenant-admin';
+export const TENANT_ADMIN_ROLE_TYPE = 'tenant_admin';
 export const TENANT_ADMIN_ROLE_DISPLAY_NAME = 'Tenant Administrator';
 
 export type ProvisionTenantAdminInput = {
@@ -42,6 +43,7 @@ export async function provisionTenantAdministrator(
       method: 'POST',
       body: JSON.stringify({
         code: TENANT_ADMIN_ROLE_CODE,
+        role_type: TENANT_ADMIN_ROLE_TYPE,
         display_name: TENANT_ADMIN_ROLE_DISPLAY_NAME,
         is_system: true,
       }),
