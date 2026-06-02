@@ -54,7 +54,7 @@ spec:
        agentpool: himsv2
       containers:
         - name: cerbos
-          image: acriqline.azurecr.io/cerbos:latest
+          image: acriqline.azurecr.io/cerbos:dev-latest
           ports:
             - name: grpc
               containerPort: 3593
@@ -113,7 +113,7 @@ spec:
        agentpool: himsv2
       containers:
         - name: bff
-          image: acriqline.azurecr.io/bff:replace-me
+          image: acriqline.azurecr.io/bff:dev-latest
           ports:
             - name: http
               containerPort: 3000
@@ -175,7 +175,7 @@ spec:
        agentpool: himsv2
       containers:
         - name: web
-          image: acriqline.azurecr.io/web:replace-me
+          image: acriqline.azurecr.io/web:dev-latest
           ports:
             - name: http
               containerPort: 8080
@@ -229,7 +229,7 @@ spec:
        agentpool: himsv2
       containers:
         - name: configurator-svc
-          image: acriqline.azurecr.io/configurator-svc:replace-me
+          image: acriqline.azurecr.io/configurator-svc:dev-latest
           ports:
             - name: http
               containerPort: 3001
@@ -296,7 +296,7 @@ spec:
        agentpool: himsv2
       containers:
         - name: empi-svc
-          image: acriqline.azurecr.io/empi-svc:replace-me
+          image: acriqline.azurecr.io/empi-svc:dev-latest
           ports:
             - name: http
               containerPort: 3002
@@ -363,7 +363,7 @@ spec:
        agentpool: himsv2
       containers:
         - name: billing-svc
-          image: acriqline.azurecr.io/billing-svc:replace-me
+          image: acriqline.azurecr.io/billing-svc:dev-latest
           ports:
             - name: http
               containerPort: 3003
@@ -430,7 +430,7 @@ spec:
        agentpool: himsv2
       containers:
         - name: registration-svc
-          image: acriqline.azurecr.io/registration-svc:replace-me
+          image: acriqline.azurecr.io/registration-svc:dev-latest
           ports:
             - name: http
               containerPort: 3006
@@ -499,7 +499,7 @@ spec:
        agentpool: himsv2
       containers:
         - name: user-management-svc
-          image: acriqline.azurecr.io/user-management-svc:replace-me
+          image: acriqline.azurecr.io/user-management-svc:dev-latest
           ports:
             - name: http
               containerPort: 3005
@@ -553,88 +553,6 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: abdm-adapter-svc
-  namespace: himsv2
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: abdm-adapter-svc
-  template:
-    metadata:
-      labels:
-        app: abdm-adapter-svc
-    spec:
-      imagePullSecrets:
-        - name: gitlab-registry-secret
-      nodeSelector:
-       agentpool: himsv2
-      containers:
-        - name: abdm-adapter-svc
-          image: acriqline.azurecr.io/abdm-adapter-svc:replace-me
-          ports:
-            - name: http
-              containerPort: 3007
-          envFrom:
-            - configMapRef:
-                name: hims-config
-            - secretRef:
-                name: hims-secrets
-          env:
-            - name: ABDM_ADAPTER_SVC_PORT
-              value: "3007"
-            - name: ABDM_DATA_DATABASE_URL
-              valueFrom:
-                secretKeyRef:
-                  name: hims-secrets
-                  key: ABDM_DATA_DATABASE_URL
-            - name: ABDM_SANDBOX_CLIENT_ID
-              valueFrom:
-                secretKeyRef:
-                  name: hims-secrets
-                  key: ABDM_SANDBOX_CLIENT_ID
-            - name: ABDM_SANDBOX_CLIENT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: hims-secrets
-                  key: ABDM_SANDBOX_CLIENT_SECRET
-            - name: ABDM_TOKEN_ENCRYPTION_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: hims-secrets
-                  key: ABDM_TOKEN_ENCRYPTION_KEY
-          livenessProbe:
-            httpGet:
-              path: /healthz
-              port: http
-          readinessProbe:
-            httpGet:
-              path: /healthz
-              port: http
-          resources:
-            requests:
-              cpu: 75m
-              memory: 256Mi
-            limits:
-              cpu: 750m
-              memory: 768Mi
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: abdm-adapter-svc
-  namespace: himsv2
-spec:
-  selector:
-    app: abdm-adapter-svc
-  ports:
-    - name: http
-      port: 3007
-      targetPort: http
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
   name: master-data
   namespace: himsv2
 spec:
@@ -653,7 +571,7 @@ spec:
        agentpool: himsv2
       containers:
         - name: master-data
-          image: acriqline.azurecr.io/master-data:replace-me
+          image: acriqline.azurecr.io/master-data:dev-latest
           ports:
             - name: http
               containerPort: 8010
