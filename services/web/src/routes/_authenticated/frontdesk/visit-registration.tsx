@@ -134,7 +134,7 @@ function VisitRegistrationRoute() {
   const openInvoicePreview = async (row: RegistrationListItemResponse) => {
     setInvoiceLookupRegistrationId(row.registration_id);
     try {
-      const billId = await resolveRegistrationBillId(row.registration_id, row.visit_id);
+      const billId = await resolveRegistrationBillId(row.registration_id, row.id);
       if (!billId) {
         toast.error('No invoice found for this registration.');
         return;

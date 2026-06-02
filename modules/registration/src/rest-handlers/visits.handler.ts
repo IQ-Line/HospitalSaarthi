@@ -38,6 +38,7 @@ interface ListQuery {
 export interface VisitsHandlerDeps {
   visitRepo: VisitRepo;
   registrationRepo: RegistrationRepo;
+  allocateOpVisitId: (tenantId: string) => Promise<string>;
   eventBus: EventBus;
   opdGateway?: OpdHttpPort;
 }
@@ -98,7 +99,12 @@ export function registerVisitsHandler(app: FastifyInstance, deps: VisitsHandlerD
       const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
 
       const result = await createVisit(
-        { visitRepo: deps.visitRepo, eventBus: deps.eventBus, opdGateway: deps.opdGateway },
+        {
+          visitRepo: deps.visitRepo,
+          allocateOpVisitId: deps.allocateOpVisitId,
+          eventBus: deps.eventBus,
+          opdGateway: deps.opdGateway,
+        },
         request.tenantId,
         request.body,
         {

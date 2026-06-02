@@ -8,7 +8,8 @@
     "@hims/registration-reports": "workspace:*",
     "@hims/ts-sdk-authz": "workspace:*",
     "@hims/ts-sdk-db": "workspace:*",
-    "@hims/ts-sdk-events": "workspace:*"
+    "@hims/ts-sdk-events": "workspace:*",
+    "@hims/ts-sdk-sequence": "workspace:*"
   },
   "peerDependencies": {
     "drizzle-orm": "^0.45.2",

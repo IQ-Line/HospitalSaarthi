@@ -144,11 +144,11 @@ export async function executeCreateVisitFlow(
   const billing = await executeVisitRegistrationBilling(form, {
     patient_id: registration.patient_id,
     registration_id: registration.registration_id,
-    visit_id: registration.visit_id,
+    visit_id: registration.id,
     idempotencyKey: options.idempotencyKey,
   });
 
-  const completed = await completeVisitIntake(registration.visit_id!);
+  const completed = await completeVisitIntake(registration.id!);
   const patientAddress = formatPatientAddressForReport(
     form.residential_address?.line1?.trim()
       ? form.residential_address

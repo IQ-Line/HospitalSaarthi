@@ -53,6 +53,7 @@ interface ListQuery {
 export interface RegistrationsHandlerDeps {
   registrationRepo: RegistrationRepo;
   visitRepo: VisitRepo;
+  allocateOpVisitId: (tenantId: string) => Promise<string>;
   empiGateway: EmpiHttpPort | undefined;
   eventBus: EventBus;
   opdGateway?: OpdHttpPort;
@@ -169,7 +170,12 @@ export function registerRegistrationsHandler(
       const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
 
       const result = await createVisitForExistingPatient(
-        { visitRepo: deps.visitRepo, eventBus: deps.eventBus, opdGateway: deps.opdGateway },
+        {
+          visitRepo: deps.visitRepo,
+          allocateOpVisitId: deps.allocateOpVisitId,
+          eventBus: deps.eventBus,
+          opdGateway: deps.opdGateway,
+        },
         request.tenantId,
         request.body,
         {
@@ -224,6 +230,7 @@ export function registerRegistrationsHandler(
           registrationRepo: deps.registrationRepo,
           visitRepo: deps.visitRepo,
           empiGateway: deps.empiGateway,
+          allocateOpVisitId: deps.allocateOpVisitId,
           eventBus: deps.eventBus,
           opdGateway: deps.opdGateway,
         },

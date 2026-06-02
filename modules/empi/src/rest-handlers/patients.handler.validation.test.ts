@@ -7,7 +7,6 @@ import type {
   AddressRepo,
   IdentifierRepo,
   PatientRepo,
-  SequenceRepo,
 } from "../ports.js";
 import { registerPatientsHandler } from "./patients.handler.js";
 
@@ -56,9 +55,8 @@ function mockDeps(): {
   patientRepo: PatientRepo;
   addressRepo: AddressRepo;
   identifierRepo: IdentifierRepo;
-  sequenceRepo: SequenceRepo;
+  allocatePatientUhid: (tenantId: string) => Promise<string>;
   eventBus: EventBus;
-  getTenantNumericCode: (tenantId: string) => Promise<string>;
 } {
   const patient = samplePatient();
   return {
@@ -86,16 +84,13 @@ function mockDeps(): {
       create: vi.fn().mockResolvedValue({} as never),
       deactivate: vi.fn().mockResolvedValue(undefined),
     },
-    sequenceRepo: {
-      nextValue: vi.fn().mockResolvedValue(1),
-    },
+    allocatePatientUhid: vi.fn().mockResolvedValue("25010112345000001"),
     eventBus: {
       connect: vi.fn().mockResolvedValue(undefined),
       disconnect: vi.fn().mockResolvedValue(undefined),
       publish: vi.fn().mockResolvedValue(undefined),
       subscribe: vi.fn().mockResolvedValue({ unsubscribe: vi.fn() }),
     } as unknown as EventBus,
-    getTenantNumericCode: vi.fn().mockResolvedValue("12345"),
   };
 }
 
