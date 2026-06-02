@@ -197,6 +197,8 @@ source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
     { name = "hims-opd" },
+    { name = "pydantic-settings" },
+    { name = "python-dotenv" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -211,6 +213,8 @@ dev = [
 requires-dist = [
     { name = "fastapi" },
     { name = "hims-opd", editable = "../../modules/opd" },
+    { name = "pydantic-settings" },
+    { name = "python-dotenv" },
     { name = "uvicorn", extras = ["standard"] },
 ]
 

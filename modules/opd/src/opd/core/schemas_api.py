@@ -36,6 +36,13 @@ class OpdPatientListResponse(BaseModel):
     limit: int
 
 
+class OpdEnsureEncounterRequest(BaseModel):
+    """Link a registration.visit row to OPD visit + draft prescription (same visit_id)."""
+
+    patient_id: UUID
+    doctor_id: UUID | None = None
+
+
 class OpdPrescriptionUpsertRequest(BaseModel):
     form_data: dict[str, Any] = Field(default_factory=dict)
 

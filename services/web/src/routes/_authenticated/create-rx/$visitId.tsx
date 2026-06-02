@@ -6,6 +6,8 @@ const searchSchema = z.object({
   mode: z.enum(['edit', 'view']).optional(),
   /** When false, skip by-visit load (new consultation — no prescription yet). */
   loadPrescription: z.boolean().optional(),
+  /** EMPI / visit context when ``visitId`` is a registration visit id (Start RX). */
+  patientId: z.string().uuid().optional(),
 });
 
 export const Route = createFileRoute('/_authenticated/create-rx/$visitId')({
@@ -15,6 +17,13 @@ export const Route = createFileRoute('/_authenticated/create-rx/$visitId')({
 
 function VisitRoute() {
   const { visitId } = Route.useParams();
-  const { mode, loadPrescription } = Route.useSearch();
-  return <Page visitId={visitId} mode={mode} loadPrescription={loadPrescription} />;
+  const { mode, loadPrescription, patientId } = Route.useSearch();
+  return (
+    <Page
+      visitId={visitId}
+      patientId={patientId}
+      mode={mode}
+      loadPrescription={loadPrescription}
+    />
+  );
 }

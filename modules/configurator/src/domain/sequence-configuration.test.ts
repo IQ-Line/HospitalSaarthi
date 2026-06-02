@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildFormatCode,
   buildFormatPreview,
+  buildIdentifierSummaries,
   deriveConfigurationStatus,
   normalizeTenantNumericCode,
   resolveDefaultIdentifier,
@@ -60,6 +61,39 @@ describe("sequence-configuration", () => {
     expect(
       buildFormatPreview(segments, "00003", new Date(Date.UTC(2026, 2, 27))),
     ).toBe("2603270000001OP");
+  });
+
+  it("exposes enabled prefix_value in list identifier summaries", () => {
+    const summaries = buildIdentifierSummaries({
+      op_visit: {
+        is_custom: true,
+        format_code: "XXXX - OPA - DDMMYY",
+        segments: [
+          {
+            segment_type: "sequence",
+            enabled: true,
+            order_index: 0,
+            sequence_digits: 4,
+            sequence_starts_at: 1,
+          },
+          {
+            segment_type: "prefix_text",
+            enabled: true,
+            order_index: 1,
+            prefix_value: "OPA",
+          },
+          {
+            segment_type: "date_format",
+            enabled: true,
+            order_index: 2,
+            date_format: "DDMMYY",
+          },
+          { segment_type: "tenant_code", enabled: false, order_index: 3 },
+        ],
+      },
+    });
+    expect(summaries.op_visit.prefix_value).toBe("OPA");
+    expect(summaries.patient_uhid.prefix_value).toBeNull();
   });
 
   it("derives configured status only when a custom override exists", () => {

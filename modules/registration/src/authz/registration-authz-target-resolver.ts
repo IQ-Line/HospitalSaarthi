@@ -36,46 +36,78 @@ const REGISTRATION_DOCUMENT_PATHS = new Set([
   "/registrations/:registrationId/documents/opd-receipt.pdf",
 ]);
 
+function readTarget(
+  request: FastifyRequest,
+  id: string,
+  action: "registration.read" | "registration.create" | "registration.update",
+): AuthzTarget {
+  return { kind: "registration", id, action, attr: tenantAttr(request) };
+}
+
 export function createRegistrationAuthzTargetResolver(): AuthzTargetResolver {
   return (request): AuthzTarget | null => {
     const fullPath = resolveRoutePattern(request);
     const path = stripPrefix(fullPath);
     const method = request.method === "HEAD" ? "GET" : request.method;
+    const req = request as FastifyRequest;
 
     if (method === "GET" && REGISTRATION_DOCUMENT_PATHS.has(path)) {
       const id = resolvePathParam(request, "registrationId");
-      return {
-        kind: "registration",
-        id: id ?? "registration-document",
-        action: "registration.read",
-        attr: tenantAttr(request as FastifyRequest),
-      };
+      return readTarget(req, id ?? "registration-document", "registration.read");
     }
 
     if (method === "GET" && path === "/dashboard/stats") {
-      return { kind: "registration", id: "dashboard", action: "registration.read", attr: tenantAttr(request as FastifyRequest) };
+      return readTarget(req, "dashboard", "registration.read");
     }
 
     if (method === "GET" && path === "/registrations") {
-      return { kind: "registration", id: "list", action: "registration.read", attr: tenantAttr(request as FastifyRequest) };
+      return readTarget(req, "list", "registration.read");
     }
 
     if (method === "GET" && path === "/registrations/:registrationId") {
       const id = resolvePathParam(request, "registrationId");
-      return { kind: "registration", id: id ?? "detail", action: "registration.read", attr: tenantAttr(request as FastifyRequest) };
+      return readTarget(req, id ?? "detail", "registration.read");
+    }
+
+    if (method === "GET" && path === "/visits") {
+      return readTarget(req, "visits-list", "registration.read");
+    }
+
+    if (method === "GET" && path === "/visits/:visitId") {
+      const id = resolvePathParam(request, "visitId");
+      return readTarget(req, id ?? "visit-detail", "registration.read");
     }
 
     if (method === "POST" && path === "/workflows/new-patient/registrations") {
-      return { kind: "registration", id: "new", action: "registration.create", attr: tenantAttr(request as FastifyRequest) };
+      return readTarget(req, "new", "registration.create");
     }
 
     if (method === "POST" && path === "/workflows/existing-patient/registrations") {
-      return { kind: "registration", id: "new", action: "registration.create", attr: tenantAttr(request as FastifyRequest) };
+      return readTarget(req, "new-visit", "registration.create");
     }
 
-    if (method === "POST" && path === "/registrations/:registrationId/complete") {
-      const id = resolvePathParam(request, "registrationId");
-      return { kind: "registration", id: id ?? "complete", action: "registration.update", attr: tenantAttr(request as FastifyRequest) };
+    if (method === "POST" && path === "/visits") {
+      return readTarget(req, "new-visit", "registration.create");
+    }
+
+    if (method === "PATCH" && path === "/visits/:visitId") {
+      const id = resolvePathParam(request, "visitId");
+      return readTarget(req, id ?? "visit-update", "registration.update");
+    }
+
+    if (method === "DELETE" && path === "/visits/:visitId") {
+      const id = resolvePathParam(request, "visitId");
+      return readTarget(req, id ?? "visit-delete", "registration.update");
+    }
+
+    if (method === "POST" && path === "/visits/:visitId/status") {
+      const id = resolvePathParam(request, "visitId");
+      return readTarget(req, id ?? "visit-status", "registration.update");
+    }
+
+    if (method === "POST" && path === "/visits/:visitId/complete") {
+      const id = resolvePathParam(request, "visitId");
+      return readTarget(req, id ?? "visit-complete", "registration.update");
     }
 
     return null;

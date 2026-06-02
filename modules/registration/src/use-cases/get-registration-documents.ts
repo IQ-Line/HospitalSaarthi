@@ -1,6 +1,6 @@
 import type { PdfRendererPort } from "@hims/pdf-client";
 import { PdfPlatformRenderError } from "@hims/pdf-client";
-import type { RegistrationRepo, BillingReadPort } from "../ports.js";
+import type { RegistrationRepo, BillingReadPort, VisitRepo } from "../ports.js";
 import { getRegistration } from "./get-registration.js";
 import { buildOpdSlipPayload } from "./build-opd-slip-payload.js";
 import { buildOpdReceiptPayload } from "./build-opd-receipt-payload.js";
@@ -9,11 +9,10 @@ import {
   renderOpdSlipDocumentHtml,
 } from "../lib/registration-reports.js";
 import { inlineReportHtmlImagesForPdf } from "../lib/inline-report-html-images.js";
-import {
-  isRegistrationDocumentEligible,
-  parseRegistrationStatus,
-} from "../lib/registration-helpers.js";
+import { isRegistrationDocumentEligible } from "../lib/registration-helpers.js";
+import { parseVisitStatus } from "../lib/visit-helpers.js";
 import type { ReportDocumentContext } from "../lib/report-document-context.js";
+import type { RegistrationDocumentSource } from "../lib/registration-document-source.js";
 
 function pdfErrorMessage(err: unknown): string {
   if (err instanceof PdfPlatformRenderError) return err.message;
@@ -30,6 +29,7 @@ export type DocumentResult<T> =
 
 export interface RegistrationDocumentsDeps {
   registrationRepo: RegistrationRepo;
+  visitRepo: VisitRepo;
   billingReadPort: BillingReadPort | undefined;
   pdfRenderer: PdfRendererPort | undefined;
 }
@@ -38,32 +38,41 @@ async function loadRegistrationForDocuments(
   deps: RegistrationDocumentsDeps,
   tenantId: string,
   registrationId: string,
-) {
+): Promise<
+  | { ok: true; source: RegistrationDocumentSource }
+  | { ok: false; code: "NOT_FOUND" }
+  | { ok: false; code: "NOT_PRINTABLE"; message: string }
+> {
   const record = await getRegistration({ registrationRepo: deps.registrationRepo }, tenantId, registrationId);
   if (!record) {
-    return { ok: false as const, code: "NOT_FOUND" as const };
+    return { ok: false, code: "NOT_FOUND" };
   }
 
-  let status;
-  try {
-    status = parseRegistrationStatus(record.registration_status);
-  } catch {
-    return {
-      ok: false as const,
-      code: "NOT_PRINTABLE" as const,
-      message: "Registration status is invalid for document generation",
-    };
+  const visit =
+    (await deps.visitRepo.findLatestByPatientId(tenantId, record.patient_id)) ?? null;
+
+  if (visit) {
+    let status;
+    try {
+      status = parseVisitStatus(visit.status);
+    } catch {
+      return {
+        ok: false,
+        code: "NOT_PRINTABLE",
+        message: "Visit status is invalid for document generation",
+      };
+    }
+
+    if (!isRegistrationDocumentEligible(status)) {
+      return {
+        ok: false,
+        code: "NOT_PRINTABLE",
+        message: "Documents are not available for cancelled visits",
+      };
+    }
   }
 
-  if (!isRegistrationDocumentEligible(status)) {
-    return {
-      ok: false as const,
-      code: "NOT_PRINTABLE" as const,
-      message: "Documents are not available for cancelled registrations",
-    };
-  }
-
-  return { ok: true as const, record };
+  return { ok: true, source: { registration: record, visit } };
 }
 
 async function renderRegistrationPdf(
@@ -111,7 +120,7 @@ export async function getOpdSlipHtml(
   const payload = await buildOpdSlipPayload(
     { billingReadPort: deps.billingReadPort },
     tenantId,
-    loaded.record,
+    loaded.source,
     context,
   );
   return { ok: true, data: renderOpdSlipDocumentHtml(payload, context) };
@@ -130,7 +139,7 @@ export async function getOpdReceiptHtml(
   const built = await buildOpdReceiptPayload(
     { billingReadPort: deps.billingReadPort },
     tenantId,
-    loaded.record,
+    loaded.source,
     billId,
     context,
   );
