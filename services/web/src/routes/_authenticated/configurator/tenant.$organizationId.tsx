@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
 import {
@@ -30,6 +30,7 @@ import {
   useTenants,
 } from '@/features/configurator/api';
 import { CreateBranchWizard } from '@/features/configurator/components/create-branch-wizard';
+import { SequenceConfigurationPanel } from '@/features/configurator/components/sequence-configuration/sequence-configuration-panel';
 import { TenantModulesPanel } from '@/features/configurator/components/tenant-modules-panel';
 import {
   TenantBillingPanel,
@@ -48,12 +49,32 @@ import { useModules } from '@/features/master-data/api';
 import { ReadOnlyRow } from '@/features/master-data/components/read-only-row';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@pulse/ui/empty';
 
+const TENANT_DETAIL_TABS = [
+  'overview',
+  'branches',
+  'users',
+  'role-templates',
+  'department-templates',
+  'billing',
+  'modules',
+  'sequence',
+] as const;
+
+type TenantDetailTab = (typeof TENANT_DETAIL_TABS)[number];
+
+function parseTenantDetailTab(value: unknown): TenantDetailTab | undefined {
+  if (typeof value !== 'string') return undefined;
+  const tab = value.trim();
+  return (TENANT_DETAIL_TABS as readonly string[]).includes(tab) ? (tab as TenantDetailTab) : undefined;
+}
+
 export const Route = createFileRoute('/_authenticated/configurator/tenant/$organizationId')({
   validateSearch: (search: Record<string, unknown>) => ({
     tenantId:
       typeof search.tenantId === 'string' && search.tenantId.trim().length > 0
         ? search.tenantId.trim()
         : undefined,
+    tab: parseTenantDetailTab(search.tab),
   }),
   component: TenantOrganizationDetailPage,
 });
@@ -90,9 +111,21 @@ function TenantTabComingSoon({ title, body }: { title: string; body: string }) {
 
 function TenantOrganizationDetailPage() {
   const { organizationId } = Route.useParams();
-  const { tenantId: tenantIdFromSearch } = Route.useSearch();
-  const [tab, setTab] = useState('overview');
+  const { tenantId: tenantIdFromSearch, tab: tabFromSearch } = Route.useSearch();
+  const navigate = useNavigate({ from: Route.fullPath });
+  const tab = tabFromSearch ?? 'overview';
   const [addBranchOpen, setAddBranchOpen] = useState(false);
+
+  const setTab = (value: string) => {
+    const nextTab = parseTenantDetailTab(value);
+    void navigate({
+      search: (prev) => ({
+        ...prev,
+        tab: nextTab && nextTab !== 'overview' ? nextTab : undefined,
+      }),
+      replace: true,
+    });
+  };
 
   const { data: org, isLoading: orgLoading, error: orgError } = useOrganization(organizationId);
   /** List all tenants for the org; detail view is scoped to one tenant (from list eye link or org root). */
@@ -368,6 +401,9 @@ function TenantOrganizationDetailPage() {
             <TabsTrigger value="modules" className="shrink-0 text-xs sm:text-sm">
               Modules
             </TabsTrigger>
+            <TabsTrigger value="sequence" className="shrink-0 text-xs sm:text-sm">
+              Sequence
+            </TabsTrigger>
             {/* <TabsTrigger value="audit-logs" className="shrink-0 text-xs sm:text-sm">
               Audit logs
             </TabsTrigger> */}
@@ -589,6 +625,19 @@ function TenantOrganizationDetailPage() {
             isLoading={modulesCatalogLoading || tenantModsLoading}
             canEditModules={canEditTenantModules}
           />
+        </TabsContent>
+
+        <TabsContent value="sequence" className="mt-4 space-y-4">
+          <div>
+            <h2 className="text-base font-semibold tracking-tight">
+              Sequence &amp; ID format templates
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Configure identifier formats for {contextTenant.name}. Changes apply to this tenant
+              only.
+            </p>
+          </div>
+          <SequenceConfigurationPanel tenantId={contextTenant.iq_tenant_id} />
         </TabsContent>
 
         <TabsContent value="audit-logs" className="mt-4">

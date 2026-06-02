@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { requireCatalogRouteAccess } from '@/lib/require-catalog-route-access';
 import { useMemo, useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
@@ -78,6 +78,7 @@ function statusBadgeVariant(
 }
 
 function ConfiguratorTenantListPage() {
+  const navigate = useNavigate();
   const [tableSearch, setTableSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | 'all'>('all');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -301,9 +302,14 @@ function ConfiguratorTenantListPage() {
 
   const onCreateWizardComplete = async (input: TenantOnboardingInput) => {
     try {
-      await provisionMutation.mutateAsync(input);
+      const result = await provisionMutation.mutateAsync(input);
       toast.success('Tenant and administrator created successfully');
       setIsCreateOpen(false);
+      void navigate({
+        to: '/configurator/tenant/$organizationId',
+        params: { organizationId: result.organization.id },
+        search: { tenantId: result.tenant.iq_tenant_id, tab: 'sequence' },
+      });
     } catch (err) {
       toast.error(mutationErrorMessage(err));
     }

@@ -59,6 +59,8 @@ export interface SequenceConfiguration {
 export interface IdentifierSummary {
   is_custom: boolean;
   format_code: string;
+  /** Enabled prefix_text segment value, if any. */
+  prefix_value: string | null;
 }
 
 export interface SequenceConfigurationSummary {
@@ -250,6 +252,12 @@ export function resolveEffectiveIdentifier(
   return resolveDefaultIdentifier(identifierType);
 }
 
+function prefixValueFromSegments(segments: SequenceFormatSegment[]): string | null {
+  const prefix = segments.find((s) => s.segment_type === "prefix_text" && s.enabled);
+  const value = prefix?.prefix_value?.trim();
+  return value || null;
+}
+
 export function buildIdentifierSummaries(
   overrides: IdentifierOverrides | null | undefined,
 ): Record<IdentifierType, IdentifierSummary> {
@@ -261,6 +269,7 @@ export function buildIdentifierSummaries(
         {
           is_custom: Boolean(overrides?.[identifierType]?.is_custom),
           format_code: effective.format_code,
+          prefix_value: prefixValueFromSegments(effective.segments),
         },
       ];
     }),

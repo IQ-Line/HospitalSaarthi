@@ -1747,11 +1747,16 @@ components:
       required:
         - is_custom
         - format_code
+        - prefix_value
       properties:
         is_custom:
           type: boolean
         format_code:
           type: string
+        prefix_value:
+          type: string
+          nullable: true
+          description: Enabled prefix_text segment value when present.
     SequenceConfigurationSummary:
       type: object
       required:
