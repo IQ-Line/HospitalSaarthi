@@ -10,6 +10,8 @@ const MIGRATION_FILES = [
   "0001_registration_hardening.sql",
   "0002_registration_patient_snapshot.sql",
   "0003_registration_status_simplify.sql",
+  "0004_visit_split.sql",
+  "0005_visit_provider_to_doctor.sql",
 ] as const;
 
 /**

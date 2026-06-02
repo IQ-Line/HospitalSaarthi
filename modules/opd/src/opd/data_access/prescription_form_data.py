@@ -417,8 +417,10 @@ def persist_normalized_from_form_data(
 ) -> None:
     """Sync legacy normalized child tables from Create-RX form_data (phase-0 subset)."""
     try:
-        _persist_normalized_from_form_data_impl(session, tenant_id, prescription_id, form_data)
+        with session.begin_nested():
+            _persist_normalized_from_form_data_impl(session, tenant_id, prescription_id, form_data)
     except (OperationalError, ProgrammingError):
+        # Child-table sync is best-effort; rollback savepoint only (keep outer txn valid).
         return
 
 
@@ -451,10 +453,10 @@ def _persist_normalized_from_form_data_impl(
             text(
                 f"""
                 INSERT INTO {vitals_table} (
-                    id, tenant_id, prescription_id, {columns}, created_at, updated_at
+                    prescription_id, tenant_id, {columns}, created_at, updated_at
                 )
                 VALUES (
-                    gen_random_uuid(), :tenant, :pid, {placeholders}, :now, :now
+                    :pid, :tenant, {placeholders}, :now, :now
                 )
                 """
             ),
@@ -479,7 +481,7 @@ def _persist_normalized_from_form_data_impl(
                 )
                 VALUES (
                     gen_random_uuid(), :tenant, :pid, :line_no, :vaccine_code, :name,
-                    :due_by, :instructions, :status, :now, :now
+                    :due_by, :instructions, CAST(:status AS opd.order_item_status), :now, :now
                 )
                 """
             ),

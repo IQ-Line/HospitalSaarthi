@@ -118,6 +118,27 @@ function persistFormDataBody(formData: CreateRxFormData): string {
   return JSON.stringify({ form_data: sanitizeCreateRxFormDataForPersist(formData) });
 }
 
+/** Idempotent: OPD visit + draft rx for a registration visit id (desk may skip this). */
+export async function ensureOpdRegistrationEncounter(
+  visitId: string,
+  patientId: string,
+  doctorId?: string,
+): Promise<OpdPrescriptionSession> {
+  const visitKey = visitId.trim();
+  const patientKey = requirePatientId(patientId);
+  const response = await apiClient<OpdPrescriptionApiResponse>(
+    `${OPD_PREFIX}/visits/${encodeURIComponent(visitKey)}/encounter`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({
+        patient_id: patientKey,
+        ...(doctorId?.trim() ? { doctor_id: doctorId.trim() } : {}),
+      }),
+    },
+  );
+  return apiResponseToSession(response);
+}
+
 export async function saveOpdPrescriptionDraft(
   visitId: string,
   patientId: string,

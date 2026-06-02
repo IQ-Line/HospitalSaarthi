@@ -150,7 +150,7 @@ export interface RegistrationListItemResponse {
   visit_type: string | null;
   visit_type_label?: string | null;
   department_id: string | null;
-  provider_id: string | null;
+  doctor_id: string | null;
   appointment_id: string | null;
   registration_status: string;
   registration_status_label?: string | null;

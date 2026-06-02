@@ -91,6 +91,7 @@ export function OpdPatientsTable({
                 search={{
                   mode: isView ? 'view' : 'edit',
                   loadPrescription: !isStart,
+                  patientId: row.original.patientId,
                 }}
                 onClick={stopRowClick}
               >

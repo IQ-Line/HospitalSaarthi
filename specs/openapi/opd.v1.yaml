@@ -4,7 +4,7 @@ info:
   version: 1.0.0
   description: |
     OPD clinical encounter API. Persists visit lifecycle and prescription form data
-  for Create RX / Visitpad until normalized child tables are introduced.
+    for Create RX / Visitpad until normalized child tables are introduced.
 
 servers:
   - url: http://localhost:8020/api/v1/opd
@@ -14,7 +14,10 @@ paths:
   /patients:
     get:
       operationId: listOpdPatients
-      summary: List patients with latest OPD encounter for the active tenant
+      summary: List patients with latest registration visit for the active tenant
+      description: |
+        Patients queue sourced from ``registration.visit`` (filtered by ``iq_tenant_id``).
+        ``prescription_status`` is overlaid from ``opd.prescriptions`` when a clinical row exists.
       tags: [OpdPatients]
       parameters:
         - name: status
@@ -76,7 +79,79 @@ paths:
                     items:
                       $ref: '#/components/schemas/OpdVisitSummary'
 
-<<<<<<< HEAD
+  /visits/{visitId}/encounter:
+    put:
+      operationId: ensureRegistrationEncounter
+      summary: Create OPD visit and draft prescription for a registration visit id
+      description: |
+        Idempotent link from ``registration.visit`` to ``opd.visits`` + ``opd.prescriptions``
+        using the same ``visit_id``. Called from registration desk and Create RX when the
+        clinical row does not exist yet.
+      tags: [OpdPrescriptions]
+      parameters:
+        - name: visitId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpdEnsureEncounterRequest'
+      responses:
+        '200':
+          description: Visit + draft prescription (existing or newly created)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpdPrescriptionResponse'
+        '400':
+          description: Missing doctor_id or patient mismatch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Tenant mismatch on existing OPD visit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /visits/{visitId}/prescription/pre-consult:
+    put:
+      operationId: upsertVisitNursePreConsult
+      summary: Save nurse pre-consult vitals and notes for a visit
+      description: |
+        Creates OPD visit + prescription from ``registration.visit`` when the desk flow
+        skipped ``PUT /visits/{visitId}/encounter``.
+      tags: [OpdPrescriptions]
+      parameters:
+        - name: visitId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpdPrescriptionUpsertRequest'
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpdPrescriptionResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Visit prescription is read-only
+
   /visits/{visitId}/prescription:
     get:
       operationId: getVisitPrescription
@@ -175,12 +250,6 @@ paths:
     get:
       operationId: getPatientPrescription
       summary: Latest visit prescription for a patient (visit must have a prescription row)
-=======
-  /patients/{patientId}/prescription:
-    get:
-      operationId: getPatientPrescription
-      summary: Latest visit prescription for a patient
->>>>>>> 6db9cb2488c8e7bf49b4bfeea2ddff25b87bb9ea
       tags: [OpdPrescriptions]
       parameters:
         - $ref: '#/components/parameters/PatientId'
@@ -268,7 +337,6 @@ components:
           enum: [registered, in_progress, completed, cancelled]
         updated_at: { type: string, format: date-time }
 
-<<<<<<< HEAD
     OpdPatientEncounterSummary:
       type: object
       required: [patient_id, visit_id, visit_status, updated_at, created_at]
@@ -284,24 +352,33 @@ components:
         updated_at: { type: string, format: date-time }
         created_at: { type: string, format: date-time }
 
-=======
->>>>>>> 6db9cb2488c8e7bf49b4bfeea2ddff25b87bb9ea
+    OpdEnsureEncounterRequest:
+      type: object
+      required: [patient_id]
+      additionalProperties: false
+      properties:
+        patient_id:
+          type: string
+          format: uuid
+        doctor_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Optional; resolved from registration.visit when omitted.
+
     OpdPrescriptionUpsertRequest:
       type: object
-      required: [form_data]
       properties:
         form_data:
           type: object
           additionalProperties: true
+          default: {}
           description: Create RX form payload (vitals, chief complaints, etc.)
 
     OpdPrescriptionResponse:
       type: object
       required:
-<<<<<<< HEAD
         - prescription_id
-=======
->>>>>>> 6db9cb2488c8e7bf49b4bfeea2ddff25b87bb9ea
         - visit_id
         - patient_id
         - visit_status
@@ -309,10 +386,7 @@ components:
         - is_read_only
         - form_data
       properties:
-<<<<<<< HEAD
         prescription_id: { type: string, format: uuid }
-=======
->>>>>>> 6db9cb2488c8e7bf49b4bfeea2ddff25b87bb9ea
         visit_id: { type: string, format: uuid }
         patient_id: { type: string, format: uuid }
         visit_status:

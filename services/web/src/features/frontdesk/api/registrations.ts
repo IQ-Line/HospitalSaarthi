@@ -129,7 +129,7 @@ export interface CreateVisitFlowResult extends CreateNewPatientRegistrationRespo
  * 1. registration-svc — `POST .../workflows/new-patient/registrations` (real)
  * 2. appointment-svc — stub
  * 3. billing-svc — charges, discount, finalize, payment (real)
- * 4. registration-svc — `POST .../registrations/:id/complete` (real)
+ * 4. registration-svc — `POST .../visits/:id/complete` (real)
  */
 export async function executeCreateVisitFlow(
   form: CreateVisitRequestBody,
@@ -148,7 +148,7 @@ export async function executeCreateVisitFlow(
     idempotencyKey: options.idempotencyKey,
   });
 
-  const completed = await completeRegistrationIntake(registration.registration_id);
+  const completed = await completeVisitIntake(registration.visit_id!);
   const patientAddress = formatPatientAddressForReport(
     form.residential_address?.line1?.trim()
       ? form.residential_address
@@ -171,12 +171,12 @@ export async function executeCreateVisitFlow(
   };
 }
 
-/** After appointment + billing succeed, mark the registration row completed. */
-export async function completeRegistrationIntake(
-  registrationId: string,
+/** After appointment + billing succeed, mark the visit row completed. */
+export async function completeVisitIntake(
+  visitId: string,
 ): Promise<CreateNewPatientRegistrationResponse> {
   return apiClient<CreateNewPatientRegistrationResponse>(
-    `${registrationApiBase()}/registrations/${registrationId}/complete`,
+    `${registrationApiBase()}/visits/${visitId}/complete`,
     { method: 'POST', body: JSON.stringify({}) },
   );
 }
