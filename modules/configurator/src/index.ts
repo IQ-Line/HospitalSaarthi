@@ -110,5 +110,6 @@ export type {
 } from "./domain/onboarding.types.js";
 export {
   TENANT_ADMIN_ROLE_CODE,
+  TENANT_ADMIN_ROLE_TYPE,
   TENANT_ADMIN_ROLE_DISPLAY_NAME,
 } from "./domain/onboarding.types.js";
