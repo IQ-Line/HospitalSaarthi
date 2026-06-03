@@ -12,7 +12,10 @@ from sqlalchemy.pool import StaticPool
 
 from opd.core.database import get_db_session
 from opd.main import create_app
+import opd.models.prescription_row  # noqa: F401 — registers phase-0 prescriptions on LegacyBase
+
 from opd.models import Base
+from opd.models.legacy_base import LegacyBase
 from opd.models.registration_visit import RegistrationVisit
 
 TENANT = "550e8400-e29b-41d4-a716-446655440000"
@@ -28,9 +31,14 @@ def client() -> Generator[TestClient, None, None]:
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    for table in Base.metadata.tables.values():
+    phase0_base_tables = (
+        Base.metadata.tables[f"opd.visits"],
+        Base.metadata.tables["registration.visit"],
+    )
+    for table in (*phase0_base_tables, *LegacyBase.metadata.tables.values()):
         table.schema = None
-    Base.metadata.create_all(engine, checkfirst=True)
+    Base.metadata.create_all(engine, tables=list(phase0_base_tables), checkfirst=True)
+    LegacyBase.metadata.create_all(engine, checkfirst=True)
     session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
     def override_db() -> Generator[Session, None, None]:
@@ -365,6 +373,7 @@ def test_nurse_pre_consult_sets_visit_status(client: TestClient) -> None:
             updated_at=now,
         )
         db.add(visit)
+        db.flush()
         db.add(
             RegistrationVisit(
                 visit_id=visit.id,

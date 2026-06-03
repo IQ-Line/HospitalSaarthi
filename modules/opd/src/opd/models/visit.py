@@ -17,8 +17,3 @@ class Visit(Base, TimestampMixin):
     patient_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
     status: Mapped[str] = mapped_column(Text, nullable=False, default="in_progress")
 
-    prescription: Mapped["Prescription | None"] = relationship(
-        "Prescription",
-        back_populates="visit",
-        uselist=False,
-    )

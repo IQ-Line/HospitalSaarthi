@@ -7,12 +7,15 @@ Create Date: 2026-06-01
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
 from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from schema_names import SCHEMA
 
 revision: str = "0001_opd_visits_prescriptions"

@@ -1,19 +1,23 @@
 """Prescription aggregate tables in the ``opd`` schema.
 
 Revision ID: 001_prescription_schema
-Revises:
+Revises: 0001_opd_visits_prescriptions
 """
 
+import sys
 from collections.abc import Sequence
+from pathlib import Path
 
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 from alembic import op
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from schema_names import SCHEMA
 
 revision: str = "001_prescription_schema"
-down_revision: str | Sequence[str] | None = None
+down_revision: str | Sequence[str] | None = "0001_opd_visits_prescriptions"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -67,6 +71,9 @@ def _prescription_fk() -> sa.ForeignKeyConstraint:
 def upgrade() -> None:
     _PRESCRIPTION_STATUS.create(op.get_bind(), checkfirst=True)
     _ORDER_ITEM_STATUS.create(op.get_bind(), checkfirst=True)
+
+    # Phase-0 ``prescriptions`` (revision 0001) uses a different shape; replace it.
+    op.drop_table("prescriptions", schema=SCHEMA)
 
     op.create_table(
         "prescriptions",

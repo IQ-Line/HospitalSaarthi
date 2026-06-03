@@ -50,8 +50,10 @@ def db_engine() -> Iterator[Engine]:
 
 @pytest.fixture()
 def db_session(db_engine: Engine) -> Iterator[Session]:
-    translate = {SCHEMA: None}
+    translate = {SCHEMA: None, "registration": None}
     with db_engine.connect().execution_options(schema_translate_map=translate) as setup_conn:
+        for table in Base.metadata.tables.values():
+            table.schema = None
         Base.metadata.create_all(bind=setup_conn)
         setup_conn.commit()
 
