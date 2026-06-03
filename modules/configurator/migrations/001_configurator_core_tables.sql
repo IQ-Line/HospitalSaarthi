@@ -1,13 +1,6 @@
 -- Configurator module — organizations & tenants (see modules/configurator/src/schema/tables.ts)
 
-DO $do$
-BEGIN
-  CREATE EXTENSION IF NOT EXISTS pgcrypto;
-EXCEPTION
-  WHEN OTHERS THEN
-    RAISE NOTICE 'pgcrypto extension skipped: %', SQLERRM;
-END
-$do$;
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE SCHEMA IF NOT EXISTS configurator;
 
