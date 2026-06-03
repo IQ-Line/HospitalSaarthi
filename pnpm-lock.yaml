@@ -756,6 +756,9 @@ importers:
       fastify-plugin:
         specifier: ^5.0.1
         version: 5.1.0
+      jose:
+        specifier: ^6.2.3
+        version: 6.2.3
     devDependencies:
       tsx:
         specifier: ^4.20.5
