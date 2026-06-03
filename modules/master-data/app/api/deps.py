@@ -1,11 +1,15 @@
 from collections.abc import Generator
 from typing import Annotated
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
-from app.core.catalog_scope import CATALOG_TENANT_HEADER, CatalogScope
-from app.core.catalog_tenant_id import CatalogTenantIdError, try_parse_iq_tenant_id
+from app.core.catalog_scope import CatalogScope
+from app.core.catalog_tenant_id import (
+    CatalogTenantIdError,
+    resolve_catalog_tenant_header_raw,
+    try_parse_iq_tenant_id,
+)
 from app.core.database import get_db_session
 from app.repositories.department_repository import DepartmentRepository
 from app.repositories.module_permission_repository import ModulePermissionRepository
@@ -32,14 +36,8 @@ def get_session() -> Generator[Session, None, None]:
     yield from get_db_session()
 
 
-def get_catalog_scope(
-    catalog_tenant_header: Annotated[str | None, Header(alias=CATALOG_TENANT_HEADER)] = None,
-) -> CatalogScope:
-    """Resolve where catalog CRUD goes for this request.
-
-    - No / blank header → ``CatalogScope(iq_tenant_id=None)`` → ORM uses ``global_master`` models (**no** ``iq_tenant_id`` column).
-    - Valid UUID string → ``CatalogScope(iq_tenant_id=…)`` → ORM uses ``tenant_master`` models (**every** row carries ``iq_tenant_id``).
-    """
+def catalog_scope_from_tenant_header_raw(catalog_tenant_header: str | None) -> CatalogScope:
+    """Build :class:`CatalogScope` from a resolved raw tenant header string."""
     try:
         tid = try_parse_iq_tenant_id(catalog_tenant_header)
     except CatalogTenantIdError as exc:
@@ -55,6 +53,16 @@ def get_catalog_scope(
             detail = "Invalid iq_tenant_id. Omit the header for the shared global catalog."
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail) from exc
     return CatalogScope(iq_tenant_id=tid)
+
+
+def get_catalog_scope(request: Request) -> CatalogScope:
+    """Resolve where catalog CRUD goes for this request.
+
+    - No / blank tenant header → ``CatalogScope(iq_tenant_id=None)`` → ``global_master`` models.
+    - Valid UUID in ``iq_tenant_id`` or ``x-tenant-id`` → ``tenant_master`` models.
+    """
+    raw = resolve_catalog_tenant_header_raw(request.headers)
+    return catalog_scope_from_tenant_header_raw(raw)
 
 
 def get_department_repository(
