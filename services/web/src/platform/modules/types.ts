@@ -15,6 +15,8 @@ export type ModuleManifest = {
   routePrefix: string;
   /** Child nav nodes; may be a single leaf (dashboard) or a group. */
   navigation: NavigationNode[];
+  /** When true, a single nav child stays under a labeled group (sidebar dropdown). */
+  keepNavigationGroup?: boolean;
   /** Any listed capability grants visibility for the module root. */
   requiredCapabilities?: readonly string[];
   /**
@@ -27,6 +29,8 @@ export type ModuleManifest = {
    * Used when multiple catalog rows satisfy one product area (e.g. visitpad).
    */
   requiredModulesAny?: readonly string[];
+  /** At least one JWT role code required to show this module in the sidebar. */
+  requiredRolesAny?: readonly string[];
   /** Lower numbers appear earlier in the sidebar (after dashboard). */
   sortOrder?: number;
 };
@@ -41,6 +45,9 @@ export type ModuleCatalogEntry = {
   /** Tree depth from Master Data (`1` = L1 product module). */
   level: number;
   parent_id: string | null;
+  module_kind?: 'platform' | 'foundation' | 'product';
+  display_order?: number;
+  visibility_scope?: 'superadmin' | 'tenant';
 };
 
 export type ModuleCatalogIndex = {

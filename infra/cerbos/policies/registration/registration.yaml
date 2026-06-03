@@ -1,0 +1,92 @@
+---
+# Registration — encounter intake / patient registration.
+# Capabilities: registration:registration:{create,read,update}
+# Clinical read: OPD/nurse patient queues enrich from registration snapshots — allow when the
+# principal can already read OPD patients/visits (same tenant).
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "registration"
+  version: default
+  rules:
+    - actions:
+        - "registration.read"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "registration:registration:read" in request.principal.attr.capabilities ||
+              "registration:registration:read" in request.principal.attr.delegated_capabilities ||
+              "opd:patient:read" in request.principal.attr.capabilities ||
+              "opd:patient:read" in request.principal.attr.delegated_capabilities ||
+              "opd:visit:read" in request.principal.attr.capabilities ||
+              "opd:visit:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "registration.read"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "registration:registration:read" in request.principal.attr.capabilities ||
+              "registration:registration:read" in request.principal.attr.delegated_capabilities ||
+              "opd:patient:read" in request.principal.attr.capabilities ||
+              "opd:patient:read" in request.principal.attr.delegated_capabilities ||
+              "opd:visit:read" in request.principal.attr.capabilities ||
+              "opd:visit:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "registration.create"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "registration:registration:create" in request.principal.attr.capabilities ||
+              "registration:registration:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "registration.create"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "registration:registration:create" in request.principal.attr.capabilities ||
+              "registration:registration:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "registration.update"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "registration:registration:update" in request.principal.attr.capabilities ||
+              "registration:registration:update" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "registration.update"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "registration:registration:update" in request.principal.attr.capabilities ||
+              "registration:registration:update" in request.principal.attr.delegated_capabilities
+            )

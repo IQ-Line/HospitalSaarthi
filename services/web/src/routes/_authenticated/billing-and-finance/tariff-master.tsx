@@ -29,7 +29,7 @@ import {
   useUpdateTariffService,
 } from '@/features/billing/api';
 import { useDepartments } from '@/features/master-data/api';
-import { BillingMockNotice } from '@/features/billing/components/billing-mock-notice';
+import { useProviderList } from '@/features/user-management/api/queries';
 import { BillingPageShell } from '@/features/billing/components/billing-page-shell';
 import {
   TariffServiceCreateFormFields,
@@ -41,7 +41,6 @@ import {
   formToCreatePayload,
   formToUpdatePayload,
   serviceToEditFormValues,
-  tariffTypeLabel,
 } from '@/features/billing/lib/form-mappers';
 import type { TariffService } from '@/features/billing/types';
 import {
@@ -56,6 +55,7 @@ import { EntityFormDialog } from '@/components/entity-table/entity-form-dialog';
 import { EntityRowActions } from '@/components/entity-table/entity-row-actions';
 import { EntityTableToolbar } from '@/components/entity-table/entity-table-toolbar';
 import { TableActiveToggle } from '@/components/entity-table/table-active-toggle';
+import { ApiError } from '@/lib/api-client';
 import { mutationErrorMessage } from '@/lib/mutation-error';
 
 const EMPTY_SERVICES: TariffService[] = [];
@@ -65,7 +65,7 @@ export const Route = createFileRoute('/_authenticated/billing-and-finance/tariff
 });
 
 function BillingServicesPage() {
-  const { canCreate, canUpdate, canDelete } = useCatalogModuleCrud('tariff-master', {
+  const { canCreate, canRead, canUpdate, canDelete } = useCatalogModuleCrud('tariff-master', {
     productModuleSlug: 'billing-and-finance',
   });
   const [search, setSearch] = useState('');
@@ -86,12 +86,28 @@ function BillingServicesPage() {
     [search, category, activeFilter],
   );
 
-  const { data, isLoading, isFetching, error, refetch } = useTariffServices(listParams);
+  const { data, isLoading, isFetching, error, refetch } = useTariffServices(listParams, { enabled: canRead });
   const services = data?.data ?? EMPTY_SERVICES;
+  const providersQuery = useProviderList(null, { enabled: canRead });
+  const providerNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const provider of providersQuery.data ?? []) {
+      map.set(provider.id, provider.full_name);
+    }
+    return map;
+  }, [providersQuery.data]);
+
+  const departmentsQuery = useDepartments(undefined, { enabled: canRead, formCatalog: true });
+  const departmentNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const dept of departmentsQuery.data?.data ?? []) {
+      map.set(dept.id, dept.name);
+    }
+    return map;
+  }, [departmentsQuery.data]);
 
   const createMutation = useCreateTariffService();
   const updateMutation = useUpdateTariffService();
-  const departmentsQuery = useDepartments(undefined, { enabled: isCreateOpen });
 
   const createForm = useForm<TariffServiceCreateFormValues>({
     resolver: zodResolver(tariffServiceCreateSchema),
@@ -147,11 +163,29 @@ function BillingServicesPage() {
       },
       { accessorKey: 'service_name', header: 'Name' },
       {
+        id: 'department',
+        header: 'Department',
+        cell: ({ row }) => {
+          const id = row.original.department_id;
+          if (!id) return '—';
+          return departmentNameById.get(id) ?? '—';
+        },
+      },
+      {
         accessorKey: 'category',
         header: 'Category',
         cell: ({ getValue }) => {
           const v = getValue<string | null>();
           return v ? <Badge variant="secondary">{v}</Badge> : '—';
+        },
+      },
+      {
+        id: 'doctor',
+        header: 'Doctor',
+        cell: ({ row }) => {
+          const providerId = row.original.provider_id;
+          if (!providerId) return '—';
+          return providerNameById.get(providerId) ?? '—';
         },
       },
       {
@@ -197,7 +231,7 @@ function BillingServicesPage() {
         ),
       },
     ],
-    [canDelete, canUpdate, editForm, handleActiveChange, updateMutation.isPending],
+    [canDelete, canUpdate, departmentNameById, editForm, handleActiveChange, providerNameById, updateMutation.isPending],
   );
 
   return (
@@ -218,8 +252,8 @@ function BillingServicesPage() {
         ) : undefined
       }
     >
-      <BillingMockNotice />
-
+      {canRead ? (
+      <>
       <div className="flex flex-wrap items-center gap-3">
         <EntityTableToolbar
           value={search}
@@ -263,9 +297,9 @@ function BillingServicesPage() {
         </Button>
       </div>
 
-      {error ? (
+      {error && !(error instanceof ApiError && error.status === 403) ? (
         <p className="text-sm text-destructive">{mutationErrorMessage(error)}</p>
-      ) : (
+      ) : error ? null : (
         <DataTable
           columns={columns}
           data={services}
@@ -288,10 +322,7 @@ function BillingServicesPage() {
             submitLabel="Create"
             isSubmitting={createMutation.isPending}
             onSubmit={createForm.handleSubmit((values) => {
-              const departmentName =
-                departmentsQuery.data?.data.find((d) => d.id === values.department_id)?.name ??
-                null;
-              createMutation.mutate(formToCreatePayload(values, departmentName), {
+              createMutation.mutate(formToCreatePayload(values), {
                 onSuccess: () => {
                   toast.success('Tariff created');
                   setIsCreateOpen(false);
@@ -362,9 +393,13 @@ function BillingServicesPage() {
                 {formatMoneyDisplay(viewing.tax_percentage)}% · {viewing.tax_type ?? '—'}
               </dd>
               <dt className="text-muted-foreground">Tariff type</dt>
-              <dd>{tariffTypeLabel(viewing.category)}</dd>
+              <dd>{viewing.category ?? '—'}</dd>
               <dt className="text-muted-foreground">Department</dt>
-              <dd>{viewing.department ?? '—'}</dd>
+              <dd>
+                {viewing.department_id
+                  ? (departmentNameById.get(viewing.department_id) ?? '—')
+                  : '—'}
+              </dd>
               <dt className="text-muted-foreground">Effective</dt>
               <dd>
                 {formatDateTime(viewing.effective_from)}
@@ -376,6 +411,8 @@ function BillingServicesPage() {
           )}
         </DialogContent>
       </Dialog>
+      </>
+      ) : null}
     </BillingPageShell>
   );
 }

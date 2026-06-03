@@ -9,39 +9,32 @@ import type { ServiceCreateInput, ServiceUpdateInput } from '../types';
 
 export function useTariffServices(
   params: Parameters<typeof listTariffServices>[0],
-  options?: { enabled?: boolean; iqTenantId?: string; forceLive?: boolean },
+  options?: { enabled?: boolean; iqTenantId?: string },
 ) {
   const iqTenantId = options?.iqTenantId;
-  const forceLive = options?.forceLive;
   return useQuery({
-    queryKey: [...billingKeys.servicesList(params), iqTenantId ?? 'session', forceLive ?? false],
-    queryFn: () => listTariffServices(params, iqTenantId, { forceLive }),
+    queryKey: [...billingKeys.servicesList(params), iqTenantId ?? 'session'],
+    queryFn: () => listTariffServices(params, iqTenantId),
     enabled: options?.enabled ?? true,
   });
 }
 
-export function useCreateTariffService(
-  iqTenantId?: string,
-  options?: { forceLive?: boolean },
-) {
+export function useCreateTariffService(iqTenantId?: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: ServiceCreateInput) =>
-      createTariffService(input, iqTenantId, { forceLive: options?.forceLive }),
+      createTariffService(input, iqTenantId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: billingKeys.servicesRoot() });
     },
   });
 }
 
-export function useUpdateTariffService(
-  iqTenantId?: string,
-  options?: { forceLive?: boolean },
-) {
+export function useUpdateTariffService(iqTenantId?: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: ServiceUpdateInput }) =>
-      updateTariffService(id, input, iqTenantId, { forceLive: options?.forceLive }),
+      updateTariffService(id, input, iqTenantId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: billingKeys.servicesRoot() });
     },

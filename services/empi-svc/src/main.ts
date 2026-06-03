@@ -1,31 +1,26 @@
 import Fastify from "fastify";
+import { validateAuthConfig } from "@hims/ts-sdk-identity";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import { tenantPlugin } from "@hims/ts-sdk-tenant";
 import { createDb } from "@hims/ts-sdk-db";
 import { InProcessEventBus } from "@hims/ts-sdk-events";
+import { allocateIdentifier } from "@hims/ts-sdk-sequence";
 import {
   createRouter,
   DrizzlePatientRepo,
   DrizzleAddressRepo,
   DrizzleIdentifierRepo,
-  DrizzleSequenceRepo,
   DrizzleSourceRecordRepo,
 } from "@hims/empi";
-import { createTenantNumericCodeLookup } from "./tenant-numeric-code.js";
 
 const PORT = Number(
   process.env["EMPI_PORT"] ?? process.env["EMPI_SVC_PORT"] ?? 3002,
 );
 const DATABASE_URL = process.env["DATABASE_URL"] ?? "";
-const JWKS_URL =
-  process.env["JWKS_URL"] ??
-  "http://localhost:3000/api/auth/.well-known/jwks.json";
 const ENABLE_AUTH = process.env["ENABLE_AUTH"] === "true";
 
 const fastifyAjv = {
   customOptions: {
-    // Default Fastify Ajv uses removeAdditional: true, which strips unknown keys
-    // instead of failing when additionalProperties: false — clients must get 400.
     removeAdditional: false as const,
     coerceTypes: true,
     useDefaults: true,
@@ -46,30 +41,25 @@ async function main() {
   app.get("/healthz", async () => ({ status: "ok" }));
 
   const db = createDb(DATABASE_URL);
-  const getTenantNumericCode = createTenantNumericCodeLookup(db);
   const eventBus = new InProcessEventBus();
   await eventBus.connect();
 
-  const patientRepo = new DrizzlePatientRepo(db);
-  const addressRepo = new DrizzleAddressRepo(db);
-  const identifierRepo = new DrizzleIdentifierRepo(db);
-  const sequenceRepo = new DrizzleSequenceRepo(db);
-  const sourceRecordRepo = new DrizzleSourceRecordRepo(db);
+  const allocatePatientUhid = (tenantId: string) =>
+    allocateIdentifier(db, { tenantId, identifierType: "patient_uhid" });
 
   const empiRouter = createRouter({
-    patientRepo,
-    addressRepo,
-    identifierRepo,
-    sequenceRepo,
-    sourceRecordRepo,
+    patientRepo: new DrizzlePatientRepo(db),
+    addressRepo: new DrizzleAddressRepo(db),
+    identifierRepo: new DrizzleIdentifierRepo(db),
+    sourceRecordRepo: new DrizzleSourceRecordRepo(db),
     eventBus,
-    getTenantNumericCode,
+    allocatePatientUhid,
   });
 
   await app.register(async (api) => {
     if (ENABLE_AUTH) {
       const { identityPlugin } = await import("@hims/ts-sdk-identity");
-      await api.register(identityPlugin, { jwksUrl: JWKS_URL });
+      await api.register(identityPlugin, validateAuthConfig());
     }
     await api.register(tenantPlugin);
 

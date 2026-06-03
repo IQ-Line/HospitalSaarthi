@@ -13,7 +13,7 @@ import {
 import { Switch } from '@pulse/ui/switch';
 import { Textarea } from '@pulse/ui/textarea';
 import { useTariffCreateLookups } from '../hooks/use-tariff-create-lookups';
-import type { TariffFormType } from '../lib/tariff-type';
+import { TARIFF_PICKLIST_REGISTRATION_FEE, tariffTypeRequiresProvider } from '../lib/tariff-type';
 import type { TariffServiceCreateFormValues, TariffServiceEditFormValues } from '../validation';
 
 const TAX_TYPES = ['EXEMPT', 'CGST_SGST', 'IGST'] as const;
@@ -52,6 +52,7 @@ function FormSelect<T extends FieldValues>({
           return (
             <>
               <Select
+                modal={false}
                 value={value}
                 disabled={disabled}
                 onValueChange={(v) => {
@@ -63,7 +64,12 @@ function FormSelect<T extends FieldValues>({
                 <SelectTrigger>
                   <SelectValue placeholder={placeholder} />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent
+                  position="popper"
+                  side="bottom"
+                  sideOffset={4}
+                  avoidCollisions={false}
+                >
                   <SelectItem value={NONE}>{placeholder ?? 'Select'}</SelectItem>
                   {options.map((o) => (
                     <SelectItem key={o.value} value={o.value}>
@@ -231,9 +237,10 @@ export function TariffServiceCreateFormFields({
   iqTenantId?: string;
   lookupsEnabled?: boolean;
 }) {
-  const tariffType = (useWatch({ control, name: 'tariff_type' }) ?? 'registration') as TariffFormType;
+  const tariffType = useWatch({ control, name: 'tariff_type' }) ?? TARIFF_PICKLIST_REGISTRATION_FEE;
   const departmentId = useWatch({ control, name: 'department_id' }) ?? null;
   const lookups = useTariffCreateLookups(lookupsEnabled, tariffType, departmentId, iqTenantId);
+  const showProviderFields = tariffTypeRequiresProvider(tariffType);
 
   return (
     <SharedFields control={control}>
@@ -269,7 +276,7 @@ export function TariffServiceCreateFormFields({
           setValue('provider_id', null);
         }}
       />
-      {tariffType === 'opd' ? (
+      {showProviderFields ? (
         <>
           <FormSelect
             control={control}
@@ -330,13 +337,13 @@ export function TariffServiceEditFormFields({
         options={TAX_TYPES.map((t) => ({ value: t, label: t }))}
       />
       <div className="space-y-2">
-        <Label htmlFor="department">Department</Label>
+        <Label htmlFor="department_id">Department ID</Label>
         <Controller
-          name="department"
+          name="department_id"
           control={control}
           render={({ field, fieldState }) => (
             <>
-              <Input id="department" value={field.value ?? ''} onChange={field.onChange} />
+              <Input id="department_id" value={field.value ?? ''} onChange={field.onChange} />
               <FieldError message={fieldState.error?.message} />
             </>
           )}

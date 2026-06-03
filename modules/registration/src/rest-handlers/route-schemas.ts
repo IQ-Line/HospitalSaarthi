@@ -15,9 +15,25 @@ export const paramsRegistrationIdSchema = {
   },
 };
 
-const registrationStatusEnum = ["pending", "in_progress", "completed", "cancelled"] as const;
+export const paramsVisitIdSchema = {
+  type: "object" as const,
+  required: ["visitId"],
+  additionalProperties: false,
+  properties: {
+    visitId: uuidParam,
+  },
+};
 
+const visitStatusEnum = ["pending", "in_progress", "completed", "cancelled"] as const;
 const intakeCompletionEnum = ["pending", "partial", "complete"] as const;
+
+export const dashboardStatsQuerySchema = {
+  type: "object" as const,
+  additionalProperties: false,
+  properties: {
+    days: { type: "string", pattern: "^[1-9][0-9]*$" },
+  },
+};
 
 export const listRegistrationsQuerySchema = {
   type: "object" as const,
@@ -29,29 +45,23 @@ export const listRegistrationsQuerySchema = {
     uhid: { type: "string" },
     mobile: { type: "string" },
     name: { type: "string" },
-    status: { type: "string", enum: [...registrationStatusEnum] },
     patient_id: uuidParam,
-    facility_id: uuidParam,
-    department_id: uuidParam,
-    provider_id: uuidParam,
   },
 };
 
-const patientSnapshotSchema = {
+export const listVisitsQuerySchema = {
   type: "object" as const,
-  required: ["uhid", "full_name", "phone_number"],
   additionalProperties: false,
   properties: {
-    uhid: { type: "string", minLength: 1 },
-    abha_number: { type: "string" },
-    abha_address: { type: "string" },
-    full_name: { type: "string", minLength: 1 },
-    phone_number: { type: "string", minLength: 1 },
-    gender: { type: "string" },
-    date_of_birth: { type: "string" },
-    year_of_birth: { type: "integer" },
+    page: { type: "string", pattern: "^[1-9][0-9]*$" },
+    limit: { type: "string", pattern: "^[1-9][0-9]*$" },
+    status: { type: "string", enum: [...visitStatusEnum] },
+    patient_id: uuidParam,
+    facility_id: uuidParam,
+    department_id: uuidParam,
+    doctor_id: uuidParam,
   },
-} as const;
+};
 
 const demographicsSchema = {
   type: "object" as const,
@@ -88,20 +98,22 @@ const nullableUuid = {
   anyOf: [uuidParam, { type: "null" as const }],
 } as const;
 
-export const existingPatientRegistrationBodySchema = {
+const visitEncounterFields = {
+  facility_id: nullableUuid,
+  visit_type: { type: "string" },
+  department_id: nullableUuid,
+  doctor_id: nullableUuid,
+  appointment_id: nullableUuid,
+  intake_completion: { type: "string", enum: [...intakeCompletionEnum] },
+} as const;
+
+export const existingPatientVisitBodySchema = {
   type: "object" as const,
-  required: ["patient_id", "patient_source_record_id", "patient_snapshot"],
+  required: ["patient_id"],
   additionalProperties: false,
   properties: {
     patient_id: uuidParam,
-    patient_source_record_id: uuidParam,
-    patient_snapshot: patientSnapshotSchema,
-    facility_id: nullableUuid,
-    visit_type: { type: "string" },
-    department_id: nullableUuid,
-    provider_id: nullableUuid,
-    appointment_id: nullableUuid,
-    intake_completion: { type: "string", enum: [...intakeCompletionEnum] },
+    ...visitEncounterFields,
   },
 } as const;
 
@@ -111,11 +123,37 @@ export const newPatientIntakeBodySchema = {
   additionalProperties: false,
   properties: {
     patient: demographicsSchema,
-    facility_id: nullableUuid,
+    ...visitEncounterFields,
+  },
+} as const;
+
+export const createVisitBodySchema = {
+  type: "object" as const,
+  required: ["patient_id"],
+  additionalProperties: false,
+  properties: {
+    patient_id: uuidParam,
+    ...visitEncounterFields,
+  },
+} as const;
+
+export const patchVisitBodySchema = {
+  type: "object" as const,
+  additionalProperties: false,
+  properties: {
     visit_type: { type: "string" },
+    facility_id: nullableUuid,
     department_id: nullableUuid,
-    provider_id: nullableUuid,
+    doctor_id: nullableUuid,
     appointment_id: nullableUuid,
-    intake_completion: { type: "string", enum: [...intakeCompletionEnum] },
+  },
+} as const;
+
+export const updateVisitStatusBodySchema = {
+  type: "object" as const,
+  required: ["status"],
+  additionalProperties: false,
+  properties: {
+    status: { type: "string", enum: [...visitStatusEnum] },
   },
 } as const;

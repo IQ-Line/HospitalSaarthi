@@ -1,4 +1,4 @@
-# ABDM M2 — Simple reference (read this first)
+# ABDM M2 — Simple reference
 
 Easy overview for **HIP linking**, **consent**, and **record fetch**.  
 Technical detail stays in the other guides (linked below).
@@ -9,12 +9,14 @@ Technical detail stays in the other guides (linked below).
 
 | Document | Read when you want… |
 |----------|-------------------|
-| **This file** (`abdm-m2-simple-reference.md`) | One-page map: what is static, env vars, old LIMS vs new adapter, which flow does what |
-| [abdm-adapter-m2-hands-on-walkthrough.md](./abdm-adapter-m2-hands-on-walkthrough.md) | **Step-by-step sandbox testing** (ngrok, Postman order, curl, Swagger) |
-| [abdm-adapter-m2-runbook.md](./abdm-adapter-m2-runbook.md) | **Dev checklist**, smoke scripts, implementation status |
-| [abdm-adapter-e2e-and-production.md](./abdm-adapter-e2e-and-production.md) | **Full M1→M2→M3** + **production cutover** matrix |
+| **[E2E + production](./abdm-adapter-e2e-and-production.md)** | **Default entry** — M1/M2/M3, env, production §10 |
+| **This file** | M2-only map: env vars, link token, old LIMS vs adapter |
+| [M1 runbook](./abdm-adapter-m1-runbook.md) | ABHA enrolment |
+| [M2 hands-on](./abdm-adapter-m2-hands-on-walkthrough.md) | ngrok + Postman HIP link |
+| [M2 runbook](./abdm-adapter-m2-runbook.md) | Dev checklist |
+| [M3 developer](./abdm-adapter-m3-developer-and-e2e.md) | Mock loop + TC-01–34 |
 
-You do **not** need to read all four every time. Use this page to choose.
+See [E2E pick-your-task](./abdm-adapter-e2e-and-production.md#pick-your-task-avoid-confusion) when unsure.
 
 ---
 

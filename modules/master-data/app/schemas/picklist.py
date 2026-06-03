@@ -35,7 +35,7 @@ class PicklistValueResponse(BaseModel):
     description: str | None = None
     metadata: dict[str, Any] | None = Field(default=None, validation_alias="metadata_")
     is_active: bool
-    is_default: bool
+    is_global: bool
     display_order: int
     created_at: datetime
     updated_at: datetime

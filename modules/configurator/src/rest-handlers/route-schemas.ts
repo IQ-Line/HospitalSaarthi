@@ -47,16 +47,6 @@ export const uuidParamSchema = {
   },
 } as const;
 
-const tenantModuleEnablementItemSchema = {
-  type: "object",
-  required: ["module_id", "is_active"],
-  additionalProperties: false,
-  properties: {
-    module_id: uuidString,
-    is_active: { type: "boolean" },
-  },
-} as const;
-
 export const postOrganizationBodySchema = {
   type: "object",
   required: ["name", "slug", "type"],
@@ -66,15 +56,11 @@ export const postOrganizationBodySchema = {
     slug: { type: "string", minLength: 3 },
     type: organizationTypeSchema,
     status: organizationStatusSchema,
-    contact_email: { type: "string" },
+    contact_email: { anyOf: [{ type: "string", format: "email" }, { type: "null" }] },
+    website: { anyOf: [{ type: "string" }, { type: "null" }] },
     contact_phone: { type: "string" },
     address: { type: "string" },
     metadata: { type: "object" },
-    tenant_modules: {
-      type: "array",
-      maxItems: 2000,
-      items: tenantModuleEnablementItemSchema,
-    },
   },
 } as const;
 
@@ -86,7 +72,8 @@ export const patchOrganizationBodySchema = {
     slug: { type: "string", minLength: 3 },
     type: organizationTypeSchema,
     status: organizationStatusSchema,
-    contact_email: { anyOf: [{ type: "string" }, { type: "null" }] },
+    contact_email: { anyOf: [{ type: "string", format: "email" }, { type: "null" }] },
+    website: { anyOf: [{ type: "string" }, { type: "null" }] },
     contact_phone: { anyOf: [{ type: "string" }, { type: "null" }] },
     address: { anyOf: [{ type: "string" }, { type: "null" }] },
     metadata: { anyOf: [{ type: "object" }, { type: "null" }] },
@@ -172,6 +159,67 @@ export const patchTenantModuleBodySchema = {
   properties: {
     is_active: { type: "boolean" },
     is_core_override: { type: "boolean" },
+    updated_by: { anyOf: [uuidString, { type: "null" }] },
+  },
+} as const;
+
+export const integrationKindSchema = {
+  type: "string",
+  enum: ["abdm"],
+} as const;
+
+export const gatewayEnvironmentSchema = {
+  type: "string",
+  enum: ["sandbox", "production"],
+} as const;
+
+export const tenantIntegrationProfileParamsSchema = {
+  type: "object",
+  required: ["tenantId", "profileId"],
+  properties: {
+    tenantId: uuidString,
+    profileId: uuidString,
+  },
+} as const;
+
+export const postTenantIntegrationProfileBodySchema = {
+  type: "object",
+  required: ["integration_kind", "hip_id", "hiu_id"],
+  additionalProperties: false,
+  properties: {
+    integration_kind: integrationKindSchema,
+    is_active: { type: "boolean" },
+    hip_id: { type: "string", minLength: 1 },
+    hiu_id: { type: "string", minLength: 1 },
+    cm_id: { type: "string" },
+    client_id: { anyOf: [{ type: "string" }, { type: "null" }] },
+    client_secret: { anyOf: [{ type: "string" }, { type: "null" }] },
+    default_sms_phone: { anyOf: [{ type: "string" }, { type: "null" }] },
+    hip_display_name: { anyOf: [{ type: "string" }, { type: "null" }] },
+    callback_base_url: { anyOf: [{ type: "string" }, { type: "null" }] },
+    sms_provider: { anyOf: [{ type: "string" }, { type: "null" }] },
+    sms_config: { type: "object" },
+    gateway_environment: gatewayEnvironmentSchema,
+    created_by: { anyOf: [uuidString, { type: "null" }] },
+  },
+} as const;
+
+export const patchTenantIntegrationProfileBodySchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    is_active: { type: "boolean" },
+    hip_id: { type: "string", minLength: 1 },
+    hiu_id: { type: "string", minLength: 1 },
+    cm_id: { type: "string" },
+    client_id: { anyOf: [{ type: "string" }, { type: "null" }] },
+    client_secret: { anyOf: [{ type: "string" }, { type: "null" }] },
+    default_sms_phone: { anyOf: [{ type: "string" }, { type: "null" }] },
+    hip_display_name: { anyOf: [{ type: "string" }, { type: "null" }] },
+    callback_base_url: { anyOf: [{ type: "string" }, { type: "null" }] },
+    sms_provider: { anyOf: [{ type: "string" }, { type: "null" }] },
+    sms_config: { type: "object" },
+    gateway_environment: gatewayEnvironmentSchema,
     updated_by: { anyOf: [uuidString, { type: "null" }] },
   },
 } as const;

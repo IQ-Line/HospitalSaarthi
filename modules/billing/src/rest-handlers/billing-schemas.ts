@@ -31,10 +31,35 @@ export const captureChargeRouteSchema = {
       unit_price_override: { type: "number", exclusiveMinimum: 0, nullable: true },
       tax_percentage_override: { ...money, nullable: true },
       line_discount_amount: { ...money, nullable: true },
+      line_discount_percentage: { type: 'number', minimum: 0, maximum: 100, nullable: true },
       performed_by: { ...uuid, nullable: true },
       performed_date: { type: "string", format: "date-time", nullable: true },
       department: { type: "string", nullable: true },
       notes: { type: "string", nullable: true },
+    },
+  },
+} as const;
+
+export const listBillsRouteSchema = {
+  ...tag,
+  summary: "List bills (invoices)",
+  querystring: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      patient_id: uuid,
+      visit_id: uuid,
+      source_module: { type: "string" },
+      source_ref: uuid,
+      status: {
+        type: "string",
+        enum: ["DRAFT", "FINALIZED", "PARTIALLY_PAID", "PAID", "CLOSED", "CANCELLED", "REPLACED"],
+      },
+      bill_type: { type: "string", enum: ["INTERIM", "FINAL", "STANDALONE"] },
+      from_date: { type: "string", format: "date" },
+      to_date: { type: "string", format: "date" },
+      limit: { type: "integer", minimum: 1, maximum: 200 },
+      cursor: { type: "string" },
     },
   },
 } as const;

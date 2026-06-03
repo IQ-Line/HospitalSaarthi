@@ -61,13 +61,22 @@ export function isPlatformSuperAdminPrincipal(
   return persistedRoles.some(isPlatformSuperAdminRole);
 }
 
-function pickHeaderTenantId(request: FastifyRequest): string | undefined {
-  const raw = request.headers?.["iq_tenant_id"];
+function asSingleHeaderValue(value: string | string[] | undefined): string | undefined {
+  const raw = Array.isArray(value) ? value[0] : value;
   if (typeof raw !== "string") {
     return undefined;
   }
   const trimmed = raw.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+/** Matches {@link packages/ts-sdk-tenant} — proxies may send `string[]` or `x-tenant-id`. */
+function pickHeaderTenantId(request: FastifyRequest): string | undefined {
+  const headers = request.headers;
+  return (
+    asSingleHeaderValue(headers?.["iq_tenant_id"] as string | string[] | undefined) ??
+    asSingleHeaderValue(headers?.["x-tenant-id"] as string | string[] | undefined)
+  );
 }
 
 /**

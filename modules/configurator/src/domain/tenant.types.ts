@@ -31,6 +31,7 @@ export interface Tenant {
   pin_code: string | null;
   contact_phone: string | null;
   contact_email: string | null;
+  tenant_numeric_code: string | null;
   created_at: Date;
   updated_at: Date;
   created_by: string | null;

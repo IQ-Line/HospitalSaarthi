@@ -1,30 +1,44 @@
-/// <reference path="../fastify.d.ts" />
 import type { FastifyInstance } from "fastify";
 import type { EventBus } from "@hims/ts-sdk-events";
-import type { EmpiHttpPort, RegistrationRepo } from "../ports.js";
 import type {
-  CreateRegistrationInput,
+  EmpiHttpPort,
+  OpdHttpPort,
+  PicklistReadPort,
+  RegistrationRepo,
+  VisitRepo,
+} from "../ports.js";
+import type {
+  ExistingPatientVisitInput,
   NewPatientIntakeInput,
-  RegistrationStatus,
 } from "../domain/registration.types.js";
-import { createRegistration } from "../use-cases/create-registration.js";
 import { getRegistration } from "../use-cases/get-registration.js";
 import { listRegistrations } from "../use-cases/list-registrations.js";
-import { createIntakeForNewPatient } from "../use-cases/create-intake-for-new-patient.js";
-import { completeRegistrationIntake } from "../use-cases/complete-registration-intake.js";
 import {
-  existingPatientRegistrationBodySchema,
+  createIntakeForNewPatient,
+  createVisitForExistingPatient,
+} from "../use-cases/create-intake-for-new-patient.js";
+import {
+  dashboardStatsQuerySchema,
+  existingPatientVisitBodySchema,
   listRegistrationsQuerySchema,
   newPatientIntakeBodySchema,
   paramsRegistrationIdSchema,
 } from "./route-schemas.js";
-import { serializeRegistration } from "./serialize-registration.js";
+import { getDashboardMetrics } from "../use-cases/get-dashboard-metrics.js";
+import {
+  serializeRegistration,
+  serializeRegistrationWithVisit,
+  type PicklistLabelMaps,
+} from "./serialize-registration.js";
 import {
   idempotencyKeyRequiredResponse,
   readIdempotencyKey,
-  registrationStatusFromIntakeCompletion,
   resolveActorId,
 } from "../lib/registration-helpers.js";
+
+interface DashboardStatsQuery {
+  days?: string;
+}
 
 interface ListQuery {
   page?: string;
@@ -33,26 +47,54 @@ interface ListQuery {
   uhid?: string;
   mobile?: string;
   name?: string;
-  status?: string;
   patient_id?: string;
-  facility_id?: string;
-  department_id?: string;
-  provider_id?: string;
 }
 
 export interface RegistrationsHandlerDeps {
   registrationRepo: RegistrationRepo;
+  visitRepo: VisitRepo;
+  allocateOpVisitId: (tenantId: string) => Promise<string>;
   empiGateway: EmpiHttpPort | undefined;
   eventBus: EventBus;
+  opdGateway?: OpdHttpPort;
+  picklistReadPort?: PicklistReadPort;
+}
+
+async function loadPicklistLabelMaps(
+  picklistReadPort: PicklistReadPort | undefined,
+): Promise<PicklistLabelMaps | undefined> {
+  if (!picklistReadPort) return undefined;
+  const maps = await picklistReadPort.getLabelMaps();
+  return {
+    visitTypes: maps.visitTypes,
+    registrationStatuses: maps.registrationStatuses,
+  };
 }
 
 export function registerRegistrationsHandler(
   app: FastifyInstance,
   deps: RegistrationsHandlerDeps,
 ): void {
+  app.get<{ Querystring: DashboardStatsQuery }>(
+    "/dashboard/stats",
+    {
+      config: { authMode: "protected" as const },
+      schema: { querystring: dashboardStatsQuerySchema },
+    },
+    async (request, reply) => {
+      const days = request.query.days ? Number(request.query.days) : undefined;
+      const payload = await getDashboardMetrics(
+        { visitRepo: deps.visitRepo },
+        request.tenantId,
+        { days },
+      );
+      return reply.send(payload);
+    },
+  );
+
   app.get<{ Querystring: ListQuery }>(
     "/registrations",
-    { schema: { querystring: listRegistrationsQuerySchema } },
+    { config: { authMode: "protected" as const }, schema: { querystring: listRegistrationsQuerySchema } },
     async (request, reply) => {
       const q = request.query;
       const page = Math.max(1, q.page ? Number(q.page) : 1);
@@ -69,16 +111,13 @@ export function registerRegistrationsHandler(
             uhid: q.uhid,
             mobile: q.mobile,
             name: q.name,
-            status: q.status as RegistrationStatus | undefined,
             patient_id: q.patient_id,
-            facility_id: q.facility_id,
-            department_id: q.department_id,
-            provider_id: q.provider_id,
           },
         );
+        const labelMaps = await loadPicklistLabelMaps(deps.picklistReadPort);
         return reply.send({
           ...result,
-          data: result.data.map(serializeRegistration),
+          data: result.data.map((row) => serializeRegistration(row, labelMaps)),
         });
       } catch (err) {
         if (err instanceof Error && err.message === "name_search_too_short") {
@@ -105,7 +144,7 @@ export function registerRegistrationsHandler(
 
   app.get<{ Params: { registrationId: string } }>(
     "/registrations/:registrationId",
-    { schema: { params: paramsRegistrationIdSchema } },
+    { config: { authMode: "protected" as const }, schema: { params: paramsRegistrationIdSchema } },
     async (request, reply) => {
       const row = await getRegistration(
         { registrationRepo: deps.registrationRepo },
@@ -113,42 +152,61 @@ export function registerRegistrationsHandler(
         request.params.registrationId,
       );
       if (!row) return reply.code(404).send({ error: "Registration not found" });
-      return reply.send(serializeRegistration(row));
+      const labelMaps = await loadPicklistLabelMaps(deps.picklistReadPort);
+      return reply.send(serializeRegistration(row, labelMaps));
     },
   );
 
-  app.post<{ Body: CreateRegistrationInput }>(
+  app.post<{ Body: ExistingPatientVisitInput }>(
     "/workflows/existing-patient/registrations",
-    { schema: { body: existingPatientRegistrationBodySchema } },
+    { config: { authMode: "protected" as const }, schema: { body: existingPatientVisitBodySchema } },
     async (request, reply) => {
       const idempotencyKey = readIdempotencyKey(request);
       if (!idempotencyKey) {
         return reply.code(400).send(idempotencyKeyRequiredResponse());
       }
 
-      const result = await createRegistration(
+      const authHeader = request.headers.authorization;
+      const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
+
+      const result = await createVisitForExistingPatient(
         {
-          registrationRepo: deps.registrationRepo,
+          visitRepo: deps.visitRepo,
+          allocateOpVisitId: deps.allocateOpVisitId,
           eventBus: deps.eventBus,
+          opdGateway: deps.opdGateway,
         },
         request.tenantId,
         request.body,
         {
           idempotencyKey,
           actorId: resolveActorId(request),
-          initialStatus: registrationStatusFromIntakeCompletion(
-            request.body.intake_completion ?? "partial",
-          ),
+          bearerToken,
         },
       );
+
+      const registration = await deps.registrationRepo.findByPatientId(
+        request.tenantId,
+        request.body.patient_id,
+      );
+
       const status = result.created ? 201 : 200;
-      return reply.code(status).send(serializeRegistration(result.record));
+      const labelMaps = await loadPicklistLabelMaps(deps.picklistReadPort);
+      return reply.code(status).send(
+        serializeRegistrationWithVisit(
+          {
+            registration: registration ?? null,
+            visit: result.record,
+          },
+          labelMaps,
+        ),
+      );
     },
   );
 
   app.post<{ Body: NewPatientIntakeInput }>(
     "/workflows/new-patient/registrations",
-    { schema: { body: newPatientIntakeBodySchema } },
+    { config: { authMode: "protected" as const }, schema: { body: newPatientIntakeBodySchema } },
     async (request, reply) => {
       const idempotencyKey = readIdempotencyKey(request);
       if (!idempotencyKey) {
@@ -164,20 +222,24 @@ export function registerRegistrationsHandler(
         });
       }
 
+      const authHeader = request.headers.authorization;
+      const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
+
       const intake = await createIntakeForNewPatient(
         {
           registrationRepo: deps.registrationRepo,
+          visitRepo: deps.visitRepo,
           empiGateway: deps.empiGateway,
+          allocateOpVisitId: deps.allocateOpVisitId,
           eventBus: deps.eventBus,
+          opdGateway: deps.opdGateway,
         },
         request.tenantId,
         request.body,
         {
           idempotencyKey,
           actorId: resolveActorId(request),
-          initialStatus: registrationStatusFromIntakeCompletion(
-            request.body.intake_completion ?? "partial",
-          ),
+          bearerToken,
         },
       );
 
@@ -200,25 +262,11 @@ export function registerRegistrationsHandler(
         });
       }
 
-      const status = intake.result.created ? 201 : 200;
-      return reply.code(status).send(serializeRegistration(intake.result.record));
-    },
-  );
-
-  app.post<{ Params: { registrationId: string } }>(
-    "/registrations/:registrationId/complete",
-    { schema: { params: paramsRegistrationIdSchema } },
-    async (request, reply) => {
-      const updated = await completeRegistrationIntake(
-        { registrationRepo: deps.registrationRepo },
-        request.tenantId,
-        request.params.registrationId,
-        resolveActorId(request),
+      const status = intake.created ? 201 : 200;
+      const labelMaps = await loadPicklistLabelMaps(deps.picklistReadPort);
+      return reply.code(status).send(
+        serializeRegistrationWithVisit(intake.result, labelMaps),
       );
-      if (!updated) {
-        return reply.code(404).send({ error: "Registration not found" });
-      }
-      return reply.send(serializeRegistration(updated));
     },
   );
 }

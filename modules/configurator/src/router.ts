@@ -1,21 +1,42 @@
 import type { FastifyInstance } from "fastify";
+import type { EventBus } from "@hims/ts-sdk-events";
 import fp from "fastify-plugin";
 import type {
   OrganizationRepo,
   TenantRepo,
   TenantModuleRepo,
+  TenantIntegrationProfilesRepo,
+  SequenceConfigurationRepo,
   RunConfiguratorTransaction,
+  InfrastructureModuleCatalogPort,
+  ModuleCapabilityResolverPort,
+  TenantAdminProvisioningPort,
 } from "./ports.js";
 import { ConfiguratorError } from "./errors.js";
 import { registerOrganizationsHandler } from "./rest-handlers/organizations.handler.js";
 import { registerTenantsHandler } from "./rest-handlers/tenants.handler.js";
 import { registerTenantModulesHandler } from "./rest-handlers/tenant-modules.handler.js";
+import { registerTenantIntegrationProfilesHandler } from "./rest-handlers/tenant-integration-profiles.handler.js";
+import { registerTenantOnboardingHandler } from "./rest-handlers/tenant-onboarding.handler.js";
+import { registerSequenceConfigurationHandler } from "./rest-handlers/sequence-configuration.handler.js";
 
 export interface ConfiguratorRouterOptions {
   organizationRepo: OrganizationRepo;
   tenantRepo: TenantRepo;
   tenantModuleRepo: TenantModuleRepo;
+  tenantIntegrationProfilesRepo: TenantIntegrationProfilesRepo;
+  sequenceConfigurationRepo: SequenceConfigurationRepo;
   runConfiguratorTransaction: RunConfiguratorTransaction;
+  createInfrastructureCatalog?: (
+    authorization?: string,
+  ) => InfrastructureModuleCatalogPort;
+  createModuleCapabilityResolver?: (
+    authorization?: string,
+  ) => ModuleCapabilityResolverPort;
+  createAdminProvisioner?: (
+    authorization?: string,
+  ) => TenantAdminProvisioningPort;
+  eventBus?: EventBus;
 }
 
 async function configuratorRouter(
@@ -27,6 +48,19 @@ async function configuratorRouter(
       return reply.status(error.statusCode).send({
         error: error.message,
         ...(error.code ? { code: error.code } : {}),
+      });
+    }
+    const pgCode =
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      typeof (error as { code: unknown }).code === "string"
+        ? (error as { code: string }).code
+        : undefined;
+    if (pgCode === "23505") {
+      return reply.status(409).send({
+        error: "A record with the same unique key already exists",
+        code: "CONFLICT",
       });
     }
     throw error;
@@ -44,6 +78,29 @@ async function configuratorRouter(
     tenantModuleRepo: options.tenantModuleRepo,
     tenantRepo: options.tenantRepo,
   });
+  registerTenantIntegrationProfilesHandler(app, {
+    tenantIntegrationProfilesRepo: options.tenantIntegrationProfilesRepo,
+    tenantRepo: options.tenantRepo,
+  });
+  registerSequenceConfigurationHandler(app, {
+    tenantRepo: options.tenantRepo,
+    sequenceConfigurationRepo: options.sequenceConfigurationRepo,
+  });
+
+  if (
+    options.createInfrastructureCatalog &&
+    options.createModuleCapabilityResolver &&
+    options.createAdminProvisioner &&
+    options.eventBus
+  ) {
+    registerTenantOnboardingHandler(app, {
+      runConfiguratorTransaction: options.runConfiguratorTransaction,
+      createInfrastructureCatalog: options.createInfrastructureCatalog,
+      createModuleCapabilityResolver: options.createModuleCapabilityResolver,
+      createAdminProvisioner: options.createAdminProvisioner,
+      eventBus: options.eventBus,
+    });
+  }
 }
 
 export function createRouter(options: ConfiguratorRouterOptions) {

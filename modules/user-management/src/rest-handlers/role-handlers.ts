@@ -67,18 +67,22 @@ export function registerRoleHandlers(fastify: FastifyInstance, deps: RoleHandler
     },
   );
 
-  fastify.get(
+  fastify.get<{ Querystring: { product_only?: string } }>(
     "/capabilities/assignable",
     { config: { authMode: "protected" } },
     async (request, reply) => {
       const tenantId = deps.getTenantId(request);
       const cid = request.correlationId ?? request.id;
       const authorization = request.headers.authorization;
+      const productOnly = request.query.product_only === "true";
       try {
         return reply.send(
-          await listAssignableRuntimeCapabilities(deps.listAssignableRuntimeCapabilitiesDeps, tenantId, {
-            authorization: typeof authorization === "string" ? authorization : undefined,
-          }),
+          await listAssignableRuntimeCapabilities(
+            deps.listAssignableRuntimeCapabilitiesDeps,
+            tenantId,
+            { authorization: typeof authorization === "string" ? authorization : undefined },
+            { productOnly },
+          ),
         );
       } catch (err) {
         return replyWithUserManagementError(reply, err, cid);
@@ -211,8 +215,9 @@ export function registerRoleHandlers(fastify: FastifyInstance, deps: RoleHandler
     { config: { authMode: "protected" } },
     async (request, reply) => {
       const cid = request.correlationId ?? request.id;
+      const tenantId = deps.getTenantId(request);
+      const authorization = request.headers.authorization;
       try {
-        const tenantId = deps.getTenantId(request);
         const roleId = requireUuidRouteId(request.params.id);
         return reply.send(
           await replaceRoleCapabilities(
@@ -220,6 +225,7 @@ export function registerRoleHandlers(fastify: FastifyInstance, deps: RoleHandler
             tenantId,
             roleId,
             request.body,
+            { authorization: typeof authorization === "string" ? authorization : undefined },
           ),
         );
       } catch (err) {

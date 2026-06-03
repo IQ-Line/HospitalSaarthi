@@ -1,8 +1,28 @@
 openapi: 3.1.0
 info:
   title: HIMS Configurator API
-  version: 1.0.0
-  description: Configurator module — tenant registry, module enablement, feature flag overrides, configuration management.
+  version: 1.2.1
+  description: |
+    Configurator module — tenant registry, module enablement, feature flag overrides, configuration management.
+
+    ## Changelog
+
+    ### 1.2.0
+    - Tenant integration profiles (ABDM Phase 1a): CRUD under `/tenants/{tenantId}/integration-profiles`.
+    - Internal route `GET /integration-profiles/by-hip/{hipId}` for service-to-service credential lookup
+      (requires `x-configurator-internal-key` when `CONFIGURATOR_INTERNAL_API_KEY` is set).
+    ### 1.2.1
+    - Revert identifier to platform default via PUT with `is_custom: false` (DELETE endpoint removed).
+    - `sequence_configuration` rows are never hard-deleted when overrides are cleared.
+
+    ### 1.2.0
+    - Sequence configuration APIs for tenant-wise identifier format templates (`/sequence-configurations`, `/tenants/{tenantId}/sequence-configuration/*`).
+
+    ### 1.1.0 (breaking)
+    - POST /tenant-onboarding: `tenant` is now a required top-level field separate from `organization`.
+      Old payloads that embedded tenant fields inside `organization` will fail schema validation.
+    - POST /organizations: response is the `Organization` schema directly (includes `created_by`).
+      The legacy `OrganizationWithDefaultTenantResponse` shape is deprecated.
 servers:
   - url: /api/configurator/v1
 security:
@@ -39,9 +59,8 @@ paths:
       operationId: createOrganization
       summary: Create organization
       description: >
-        Atomically creates the organization, a root default tenant (same name/slug,
-        full_platform, provisioning, shared isolation; cerbos_scope_key is tenant:{organization.id}),
-        and optional tenant_modules rows for that default tenant when `tenant_modules` is supplied.
+        Creates an organization record only. Tenants are provisioned separately via
+        POST /tenant-onboarding (or POST /tenants under an existing organization).
       tags:
         - Organizations
       requestBody:
@@ -52,11 +71,11 @@ paths:
               $ref: "#/components/schemas/OrganizationCreateRequest"
       responses:
         "201":
-          description: Organization and default tenant created.
+          description: Organization created.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/OrganizationWithDefaultTenantResponse"
+                $ref: "#/components/schemas/Organization"
         "400":
           description: Validation or business rule failure.
           content:
@@ -455,12 +474,344 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /integration-profiles/by-hip/{hipId}:
+    get:
+      operationId: getActiveIntegrationProfileByHipId
+      summary: Resolve active integration profile by HIP id (internal)
+      description: >
+        **Internal / service-to-service only.** Returns the active integration profile for callback
+        routing and gateway credential resolution (includes `client_secret` in plaintext for Phase 1a).
+        Not for browser or public clients. When `CONFIGURATOR_INTERNAL_API_KEY` is configured on the
+        service, callers must send matching `x-configurator-internal-key`. In local dev the check is
+        skipped if the env var is unset.
+      tags:
+        - Integration Profiles
+      security:
+        - internalServiceKey: []
+      parameters:
+        - name: hipId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - name: integration_kind
+  /sequence-configurations:
+    get:
+      operationId: listSequenceConfigurations
+      summary: List tenants with sequence configuration summaries
+      tags:
+        - Sequence Configuration
+      parameters:
+        - name: org_id
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [abdm]
+            default: abdm
+      responses:
+        "200":
+          description: Active profile for the HIP.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantIntegrationProfile"
+        "403":
+          description: Missing or invalid internal service key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No active profile for this HIP.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /tenants/{tenantId}/integration-profiles:
+    get:
+      operationId: listTenantIntegrationProfiles
+      summary: List tenant integration profiles
+      tags:
+        - Integration Profiles
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: integration_kind
+          in: query
+          schema:
+            type: string
+            enum: [abdm]
+        - name: is_active
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Profile list.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantIntegrationProfileListResponse"
+    post:
+      operationId: createTenantIntegrationProfile
+      summary: Create tenant integration profile
+      tags:
+        - Integration Profiles
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TenantIntegrationProfileCreateRequest"
+      responses:
+        "201":
+          description: Profile created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantIntegrationProfile"
+        "409":
+          description: Duplicate tenant + integration_kind or active HIP.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /tenants/{tenantId}/integration-profiles/{profileId}:
+    get:
+      operationId: getTenantIntegrationProfileById
+      summary: Get tenant integration profile
+      tags:
+        - Integration Profiles
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Profile found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantIntegrationProfile"
+        "404":
+          description: Profile not found.
+            format: uuid
+        - name: provisioning_status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/ProvisioningStatus"
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/SequenceConfigurationStatus"
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Substring match on tenant name or tenant numeric code.
+      responses:
+        "200":
+          description: Tenant sequence configuration summaries.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SequenceConfigurationListResponse"
+  /tenants/{tenantId}/sequence-configuration:
+    get:
+      operationId: getSequenceConfiguration
+      summary: Get sequence configuration for a tenant
+      tags:
+        - Sequence Configuration
+      parameters:
+        - $ref: "#/components/parameters/TenantIdPath"
+      responses:
+        "200":
+          description: Effective sequence configuration for all identifier types.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SequenceConfigurationDetail"
+        "404":
+          description: Tenant not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateTenantIntegrationProfile
+      summary: Update tenant integration profile
+      tags:
+        - Integration Profiles
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+  /tenants/{tenantId}/sequence-configuration/identifiers/{identifierType}:
+    put:
+      operationId: upsertSequenceIdentifier
+      summary: Customize or revert an identifier format for a tenant
+      description: >
+        Set a custom format with `is_custom: true` and `segments`, or revert to the
+        platform default with `is_custom: false` (no segments required).
+      tags:
+        - Sequence Configuration
+      parameters:
+        - $ref: "#/components/parameters/TenantIdPath"
+        - $ref: "#/components/parameters/IdentifierTypePath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TenantIntegrationProfilePatchRequest"
+      responses:
+        "200":
+          description: Profile updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantIntegrationProfile"
+        "404":
+          description: Profile not found.
+              $ref: "#/components/schemas/SequenceIdentifierUpsertRequest"
+      responses:
+        "200":
+          description: Identifier configuration saved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SequenceIdentifierConfig"
+        "400":
+          description: Validation failure.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteTenantIntegrationProfile
+      summary: Delete tenant integration profile
+      tags:
+        - Integration Profiles
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Profile deleted.
+        "404":
+          description: Profile not found.
+        "404":
+          description: Tenant not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /tenant-onboarding:
+    post:
+      operationId: provisionTenant
+      summary: Full tenant onboarding
+      description: >
+        One-shot endpoint that creates/reuses an organization, provisions a tenant,
+        enables modules, provisions the admin role/user, and publishes domain events.
+      tags:
+        - Tenant Onboarding
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProvisionTenantInput"
+      responses:
+        "201":
+          description: Tenant successfully provisioned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProvisionTenantResult"
+        "400":
+          description: Validation failure.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Organization or tenant slug conflict.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    internalServiceKey:
+      type: apiKey
+      in: header
+      name: x-configurator-internal-key
+      description: >
+        Shared secret for internal routes (e.g. by-hip profile lookup). Must match
+        CONFIGURATOR_INTERNAL_API_KEY on configurator-svc.
+  parameters:
+    TenantIdPath:
+      name: tenantId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Tenant primary key (`iq_tenant_id`).
+    IdentifierTypePath:
+      name: identifierType
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/IdentifierType"
   schemas:
     ErrorResponse:
       type: object
@@ -510,6 +861,10 @@ components:
         - shared
         - isolated
     OrganizationWithDefaultTenantResponse:
+      deprecated: true
+      description: >
+        Legacy response shape. POST /organizations now returns Organization only;
+        use POST /tenant-onboarding to provision a tenant and modules.
       type: object
       required:
         - organization
@@ -555,24 +910,6 @@ components:
             Optional structured fields (e.g. gstin, pan, website, address_detail,
             provisioning with plan_slug, module_override_ids, trial_end_date, limits).
             Persisted as JSON; schema may evolve before dedicated columns exist.
-        tenant_modules:
-          type: array
-          description: >
-            Modules to attach to the new default tenant: one tenant_modules row per item (typically
-            only user-selected modules). Each row uses the given is_active flag. Omitted or empty skips
-            module inserts. Applied in the same database transaction as the organization and tenant.
-          maxItems: 2000
-          items:
-            type: object
-            required:
-              - module_id
-              - is_active
-            properties:
-              module_id:
-                type: string
-                format: uuid
-              is_active:
-                type: boolean
     OrganizationPatchRequest:
       type: object
       properties:
@@ -856,6 +1193,10 @@ components:
         contact_email:
           type: string
           nullable: true
+        tenant_numeric_code:
+          type: string
+          nullable: true
+          description: Five-digit tenant code used in identifier segments.
         created_at:
           type: string
           format: date-time
@@ -959,3 +1300,580 @@ components:
         total:
           type: integer
           minimum: 0
+    TenantIntegrationProfile:
+      type: object
+      description: >
+        Per-tenant integration credentials (Phase 1a stores secrets in plaintext; not for public APIs).
+      required:
+        - id
+        - iq_tenant_id
+        - integration_kind
+        - is_active
+        - hip_id
+        - hiu_id
+        - cm_id
+        - gateway_environment
+        - sms_config
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        iq_tenant_id:
+          type: string
+          format: uuid
+        integration_kind:
+          type: string
+          enum: [abdm]
+        is_active:
+          type: boolean
+        hip_id:
+          type: string
+        hiu_id:
+          type: string
+        cm_id:
+          type: string
+        client_id:
+          type: string
+          nullable: true
+        client_secret:
+          type: string
+          nullable: true
+          description: Plaintext Phase 1a; internal consumers only.
+        default_sms_phone:
+          type: string
+          nullable: true
+        hip_display_name:
+          type: string
+          nullable: true
+        callback_base_url:
+          type: string
+          nullable: true
+        sms_provider:
+          type: string
+          nullable: true
+        sms_config:
+          type: object
+          additionalProperties: true
+        gateway_environment:
+          type: string
+          enum: [sandbox, production]
+          default: sandbox
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+    TenantIntegrationProfileListResponse:
+      type: object
+      required:
+        - data
+        - total
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/TenantIntegrationProfile"
+        total:
+          type: integer
+          minimum: 0
+    TenantIntegrationProfileCreateRequest:
+      type: object
+      required:
+        - integration_kind
+        - hip_id
+        - hiu_id
+      properties:
+        integration_kind:
+          type: string
+          enum: [abdm]
+        is_active:
+          type: boolean
+        hip_id:
+          type: string
+        hiu_id:
+          type: string
+        cm_id:
+          type: string
+        client_id:
+          type: string
+          nullable: true
+        client_secret:
+          type: string
+          nullable: true
+        default_sms_phone:
+          type: string
+          nullable: true
+        hip_display_name:
+          type: string
+          nullable: true
+        callback_base_url:
+          type: string
+          nullable: true
+        sms_provider:
+          type: string
+          nullable: true
+        sms_config:
+          type: object
+          additionalProperties: true
+        gateway_environment:
+          type: string
+          enum: [sandbox, production]
+    TenantIntegrationProfilePatchRequest:
+      type: object
+      properties:
+        is_active:
+          type: boolean
+        hip_id:
+          type: string
+        hiu_id:
+          type: string
+        cm_id:
+          type: string
+        client_id:
+          type: string
+          nullable: true
+        client_secret:
+          type: string
+          nullable: true
+        default_sms_phone:
+          type: string
+          nullable: true
+        hip_display_name:
+          type: string
+          nullable: true
+        callback_base_url:
+          type: string
+          nullable: true
+        sms_provider:
+          type: string
+          nullable: true
+        sms_config:
+          type: object
+          additionalProperties: true
+        gateway_environment:
+          type: string
+          enum: [sandbox, production]
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+    ProvisionTenantInput:
+      type: object
+      required:
+        - organization
+        - tenant
+        - plan
+        - modules
+        - admin
+      properties:
+        organization:
+          type: object
+          required:
+            - name
+            - slug
+            - type
+          properties:
+            id:
+              type: string
+              format: uuid
+              description: If provided, reuses existing organization instead of creating one.
+            name:
+              type: string
+              minLength: 1
+            slug:
+              type: string
+              minLength: 3
+            type:
+              $ref: "#/components/schemas/OrganizationType"
+            contact_email:
+              type: string
+              nullable: true
+            website:
+              type: string
+              nullable: true
+            metadata:
+              type: object
+              nullable: true
+        tenant:
+          type: object
+          required:
+            - name
+            - slug
+          properties:
+            name:
+              type: string
+              minLength: 1
+            slug:
+              type: string
+              minLength: 3
+            metadata:
+              type: object
+              nullable: true
+        plan:
+          type: object
+          required:
+            - slug
+          properties:
+            slug:
+              type: string
+              minLength: 1
+              description: Plan identifier (e.g. "starter", "professional").
+            trial_end_date:
+              type: string
+              format: date
+              nullable: true
+            max_users_override:
+              type: integer
+              nullable: true
+            max_branches_override:
+              type: integer
+              nullable: true
+        modules:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required:
+              - module_id
+              - is_active
+            properties:
+              module_id:
+                type: string
+                format: uuid
+              is_active:
+                type: boolean
+        admin:
+          type: object
+          required:
+            - first_name
+            - last_name
+            - email
+            - password
+          properties:
+            first_name:
+              type: string
+              minLength: 1
+            last_name:
+              type: string
+              minLength: 1
+            email:
+              type: string
+              format: email
+            password:
+              type: string
+              minLength: 8
+            phone:
+              type: string
+              nullable: true
+            username:
+              type: string
+              nullable: true
+    ProvisionTenantResult:
+      type: object
+      required:
+        - organization
+        - tenant
+        - tenant_modules
+        - admin_role
+        - admin_user
+        - provisioning_status
+        - correlation_id
+      properties:
+        organization:
+          type: object
+          required:
+            - id
+            - name
+            - slug
+            - type
+            - status
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            slug:
+              type: string
+            type:
+              type: string
+            status:
+              type: string
+        tenant:
+          type: object
+          required:
+            - iq_tenant_id
+            - org_id
+            - name
+            - slug
+            - provisioning_status
+          properties:
+            iq_tenant_id:
+              type: string
+              format: uuid
+            org_id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            slug:
+              type: string
+            provisioning_status:
+              type: string
+        tenant_modules:
+          type: array
+          items:
+            type: object
+            required:
+              - iq_tenant_id
+              - module_id
+              - is_active
+            properties:
+              iq_tenant_id:
+                type: string
+                format: uuid
+              module_id:
+                type: string
+                format: uuid
+              is_active:
+                type: boolean
+        admin_role:
+          type: object
+          required:
+            - id
+            - code
+            - display_name
+            - is_system
+          properties:
+            id:
+              type: string
+              format: uuid
+            code:
+              type: string
+            display_name:
+              type: string
+            is_system:
+              type: boolean
+        admin_user:
+          type: object
+          required:
+            - id
+            - email
+            - full_name
+          properties:
+            id:
+              type: string
+              format: uuid
+            email:
+              type: string
+              format: email
+            full_name:
+              type: string
+        provisioning_status:
+          type: string
+          enum:
+            - completed
+        correlation_id:
+          type: string
+          format: uuid
+    IdentifierType:
+      type: string
+      enum:
+        - patient_uhid
+        - op_visit
+        - ip_visit
+        - emergency_visit
+        - op_bill
+        - ip_bill
+        - emergency_bill
+    SegmentType:
+      type: string
+      enum:
+        - date_format
+        - sequence
+        - tenant_code
+        - prefix_text
+    DateFormat:
+      type: string
+      enum:
+        - YYMMDD
+        - YYYYMMDD
+        - MMDDYY
+        - DDMMYY
+    SequenceConfigurationStatus:
+      type: string
+      enum:
+        - default
+        - configured
+    SequenceFormatSegment:
+      type: object
+      required:
+        - segment_type
+        - enabled
+        - order_index
+      properties:
+        segment_type:
+          $ref: "#/components/schemas/SegmentType"
+        enabled:
+          type: boolean
+        order_index:
+          type: integer
+          minimum: 0
+        date_format:
+          $ref: "#/components/schemas/DateFormat"
+        sequence_digits:
+          type: integer
+          minimum: 1
+          maximum: 12
+        sequence_starts_at:
+          type: integer
+          minimum: 1
+        prefix_value:
+          type: string
+          nullable: true
+    SequenceIdentifierSummary:
+      type: object
+      required:
+        - is_custom
+        - format_code
+        - prefix_value
+      properties:
+        is_custom:
+          type: boolean
+        format_code:
+          type: string
+        prefix_value:
+          type: string
+          nullable: true
+          description: Enabled prefix_text segment value when present.
+    SequenceConfigurationSummary:
+      type: object
+      required:
+        - iq_tenant_id
+        - tenant_name
+        - provisioning_status
+        - status
+        - custom_count
+        - identifiers
+      properties:
+        iq_tenant_id:
+          type: string
+          format: uuid
+        tenant_name:
+          type: string
+        tenant_numeric_code:
+          type: string
+          nullable: true
+        provisioning_status:
+          $ref: "#/components/schemas/ProvisioningStatus"
+        status:
+          $ref: "#/components/schemas/SequenceConfigurationStatus"
+        custom_count:
+          type: integer
+          minimum: 0
+        identifiers:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/SequenceIdentifierSummary"
+    SequenceConfigurationListResponse:
+      type: object
+      required:
+        - data
+        - total
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/SequenceConfigurationSummary"
+        total:
+          type: integer
+          minimum: 0
+    SequenceIdentifierConfig:
+      type: object
+      required:
+        - identifier_type
+        - is_custom
+        - format_code
+        - segments
+      properties:
+        identifier_type:
+          $ref: "#/components/schemas/IdentifierType"
+        is_custom:
+          type: boolean
+        format_code:
+          type: string
+        segments:
+          type: array
+          items:
+            $ref: "#/components/schemas/SequenceFormatSegment"
+    SequenceConfigurationDetail:
+      type: object
+      required:
+        - iq_tenant_id
+        - tenant_name
+        - status
+        - configured_at
+        - identifiers
+      properties:
+        iq_tenant_id:
+          type: string
+          format: uuid
+        tenant_name:
+          type: string
+        tenant_numeric_code:
+          type: string
+          nullable: true
+        status:
+          $ref: "#/components/schemas/SequenceConfigurationStatus"
+        configured_at:
+          type: string
+          format: date-time
+          nullable: true
+        identifiers:
+          type: array
+          items:
+            $ref: "#/components/schemas/SequenceIdentifierConfig"
+    SequenceIdentifierUpsertRequest:
+      type: object
+      required:
+        - is_custom
+      properties:
+        is_custom:
+          type: boolean
+        segments:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/SequenceFormatSegment"
+      allOf:
+        - if:
+            properties:
+              is_custom:
+                const: true
+            required:
+              - is_custom
+          then:
+            required:
+              - is_custom
+              - segments
+        - if:
+            properties:
+              is_custom:
+                const: false
+            required:
+              - is_custom
+          then:
+            not:
+              required:
+                - segments

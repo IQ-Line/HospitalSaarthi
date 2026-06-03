@@ -9,6 +9,7 @@ export {
 } from './platform-import';
 export {
   VISITPAD_CATALOG_DEFAULT_PAGE_SIZE,
+  VISITPAD_CATALOG_FORM_PAGE,
   VISITPAD_CATALOG_PAGE_SIZES,
   buildVisitpadCatalogListUrl,
   type VisitpadCatalogPageParams,

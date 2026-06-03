@@ -5,12 +5,13 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.catalog.platform_table_models import department_model
 from app.core.catalog_scope import CatalogScope
+from app.repositories.paged_window import fetch_page_with_window_total
 from app.schemas.department import DepartmentType
 
 
@@ -48,16 +49,39 @@ class DepartmentRepository:
     def list_departments(
         self,
         *,
+        search: str | None = None,
         department_type: DepartmentType | None = None,
-    ) -> list[Any]:
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[Any], int]:
         M = self._M()
         filters = [M.is_deleted.is_(False)]
         if self._scope.is_tenant:
             filters.append(M.iq_tenant_id == self._scope.iq_tenant_id)
         if department_type is not None:
             filters.append(M.type == department_type.value)
-        statement: Select[tuple[Any]] = select(M).where(*filters).order_by(M.name)
-        return list(self._session.scalars(statement).all())
+        if search:
+            term = f"%{search.strip()}%"
+            filters.append(
+                or_(
+                    M.name.ilike(term),
+                    M.code.ilike(term),
+                    M.type.ilike(term),
+                )
+            )
+
+        cnt = func.count().over().label("_page_total")
+        page_stmt = (
+            select(M, cnt).where(*filters).order_by(M.name).offset(offset).limit(limit)
+        )
+        empty_total_stmt: Select[tuple[int]] = select(func.count()).select_from(M)
+        for condition in filters:
+            empty_total_stmt = empty_total_stmt.where(condition)
+        return fetch_page_with_window_total(
+            self._session,
+            page_stmt=page_stmt,
+            empty_total_stmt=empty_total_stmt,
+        )
 
     def get_department_by_id(
         self,
@@ -74,6 +98,15 @@ class DepartmentRepository:
         if not include_deleted and row.is_deleted:
             return None
         return row
+
+    def list_import_key_strings(self) -> list[str]:
+        """Lowercase codes in the current catalog scope (tenant import UI)."""
+        M = self._M()
+        filters = [M.is_deleted.is_(False)]
+        if self._scope.is_tenant:
+            filters.append(M.iq_tenant_id == self._scope.iq_tenant_id)
+        stmt = select(func.lower(M.code)).where(*filters).order_by(func.lower(M.code))
+        return [str(c) for (c,) in self._session.execute(stmt).all()]
 
     def get_department_by_code(self, code: str) -> Any | None:
         M = self._M()

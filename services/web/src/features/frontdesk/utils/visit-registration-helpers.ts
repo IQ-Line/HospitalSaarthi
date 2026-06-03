@@ -15,16 +15,6 @@ export const EMPI_BLOOD_GROUP_OPTIONS = [
 
 const EMPI_BLOOD_GROUP_SET = new Set<string>(EMPI_BLOOD_GROUP_OPTIONS);
 
-export const VISIT_REGISTRATION_PROVIDERS: ReadonlyArray<{ id: string; name: string }> = [];
-
-export const VISIT_REGISTRATION_VISIT_TYPES = [
-  { value: 'opd_first', label: 'OPD — First visit' },
-  { value: 'opd_follow_up', label: 'OPD — Follow-up' },
-  { value: 'ipd_admission', label: 'IPD admission' },
-  { value: 'emergency', label: 'Emergency' },
-  { value: 'daycare', label: 'Day care' },
-] as const;
-
 export const VISIT_REGISTRATION_RIS_MODALITIES = [
   { value: 'xray', label: 'X-Ray' },
   { value: 'ct', label: 'CT' },
@@ -93,14 +83,50 @@ export const VISIT_REGISTRATION_TEXTAREA_CLASS =
 
 // ─── Billing helpers ───────────────────────────────────────────────────────────
 
-export function billingLineNetPrice(line: VisitRegistrationBillingFeeLine): number {
-  const unit = line.unit_price ?? 0;
-  const tax = line.tax_percent ?? 0;
-  return Math.round(unit * (1 + tax / 100));
+/** Resolved line discount in rupees (explicit ₹ amount, or derived from %). */
+export function billingLineDiscountAmount(line: VisitRegistrationBillingFeeLine): number {
+  const discountRs = line.discount ?? 0;
+  if (discountRs > 0) return discountRs;
+  const pct = line.discount_percent ?? 0;
+  if (pct > 0) return Math.round((line.unit_price ?? 0) * pct / 100);
+  return 0;
 }
 
+/** Pre-tax net after line discount (unit − discount). */
+export function billingLineNetPrice(line: VisitRegistrationBillingFeeLine): number {
+  const unit = line.unit_price ?? 0;
+  return Math.max(0, unit - billingLineDiscountAmount(line));
+}
+
+/** Tax computed on full unit price (matches billing-svc desk line math). */
+export function billingLineTaxAmount(line: VisitRegistrationBillingFeeLine): number {
+  const unit = line.unit_price ?? 0;
+  const tax = line.tax_percent ?? 0;
+  return Math.round(unit * tax / 100);
+}
+
+/** Line total: (unit + tax) − discount — aligned with billing-svc `computeDeskLineAmounts`. */
 export function billingLineTotal(line: VisitRegistrationBillingFeeLine): number {
-  return billingLineNetPrice(line) - (line.discount ?? 0);
+  const unit = line.unit_price ?? 0;
+  const tax = billingLineTaxAmount(line);
+  const discount = billingLineDiscountAmount(line);
+  return Math.max(0, unit + tax - discount);
+}
+
+const AMOUNT_PAID_EPSILON = 0.001;
+
+/** Accept exact grand total, floor, or ceiling (e.g. 109.5 → 109, 109.5, or 110). */
+export function isVisitRegistrationAmountPaidValid(
+  amountPaid: number | null | undefined,
+  grandTotal: number,
+): boolean {
+  if (!Number.isFinite(amountPaid) || (amountPaid ?? 0) <= 0) return false;
+  if (!Number.isFinite(grandTotal) || grandTotal <= 0) return false;
+  const paid = amountPaid as number;
+  const floor = Math.floor(grandTotal + AMOUNT_PAID_EPSILON);
+  const ceil = Math.ceil(grandTotal - AMOUNT_PAID_EPSILON);
+  const exact = Math.abs(paid - grandTotal) < AMOUNT_PAID_EPSILON;
+  return exact || paid === floor || paid === ceil;
 }
 
 export function computeBillingGrandTotal(
@@ -126,9 +152,15 @@ export type VisitRegistrationFormGateInput = {
   phone: string | undefined;
   firstName: string | undefined;
   grandTotal: number;
+  amountPaid: number | null | undefined;
   paymentMode: string | undefined;
+  departmentId?: string;
+  providerId?: string;
+  visitTypeCode?: string;
   hasProvider?: boolean;
   consultationUnitPrice?: number;
+  registrationItemCode?: string;
+  consultationItemCode?: string;
 };
 
 export function visitRegistrationFormBlockers(
@@ -137,10 +169,23 @@ export function visitRegistrationFormBlockers(
   const missing: string[] = [];
   if (!VISIT_REG_PHONE_RE.test((args.phone ?? '').trim())) missing.push('10-digit phone');
   if (!args.firstName?.trim()) missing.push('first name');
+  if (!args.departmentId?.trim()) missing.push('department');
+  if (!args.providerId?.trim()) missing.push('doctor');
+  if (!args.visitTypeCode?.trim()) missing.push('visit type');
   if (!isVisitRegistrationGrandTotalPositive(args.grandTotal)) missing.push('billing total above ₹0');
-  if (args.hasProvider && (args.consultationUnitPrice ?? 0) <= 0) {
-    missing.push('consultation fee above ₹0');
+  if (!isVisitRegistrationAmountPaidValid(args.amountPaid, args.grandTotal)) {
+    missing.push('valid amount paid (exact, floor, or ceiling of total)');
   }
+  // TODO: re-enable tariff gates after Tariff Master rows exist (API integration testing).
+  // if (args.hasProvider && (args.consultationUnitPrice ?? 0) <= 0) {
+  //   missing.push('consultation fee above ₹0');
+  // }
+  // if (!args.registrationItemCode?.trim()) {
+  //   missing.push('registration tariff');
+  // }
+  // if (args.hasProvider && !args.consultationItemCode?.trim()) {
+  //   missing.push('consultation tariff');
+  // }
   if (!args.paymentMode?.trim()) missing.push('payment mode');
   return missing;
 }
@@ -156,6 +201,18 @@ export function visitRegistrationBlockHint(args: VisitRegistrationFormGateInput)
 
 export function formatInr(amount: number): string {
   return `₹${amount.toLocaleString('en-IN')}`;
+}
+
+/** Invoice / line deduction preview — avoids showing "-₹0" when amount is zero. */
+export function formatBillingDeduction(amount: number): string {
+  if (!Number.isFinite(amount) || amount <= 0) return '—';
+  return `-${formatInr(amount)}`;
+}
+
+/** Tax column in summary rows — matches data rows (0 vs ₹ amount). */
+export function formatBillingTaxSummary(taxAmount: number): string {
+  if (!Number.isFinite(taxAmount) || taxAmount <= 0) return '0';
+  return formatInr(taxAmount);
 }
 
 // ─── Date of birth → age ─────────────────────────────────────────────────────
@@ -191,6 +248,47 @@ export function ageYmdSinceBirth(
     mo += 12;
   }
   return { years: y, months: mo, days: d };
+}
+
+export function formatDateOnlyLocal(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/** Derive DOB from age parts relative to today (desk registration convention). */
+export function birthDateFromAgeYmd(
+  years: number,
+  months: number,
+  days: number,
+  referenceLocal: Date = startOfLocalDay(new Date()),
+): string {
+  const y = Math.max(0, Math.min(125, Math.floor(years) || 0));
+  const mo = Math.max(0, Math.min(11, Math.floor(months) || 0));
+  const d = Math.max(0, Math.min(30, Math.floor(days) || 0));
+  const ref = new Date(referenceLocal);
+  ref.setFullYear(ref.getFullYear() - y);
+  ref.setMonth(ref.getMonth() - mo);
+  ref.setDate(ref.getDate() - d);
+  return formatDateOnlyLocal(ref);
+}
+
+export function hasEnteredAgeYmd(
+  years: number | null | undefined,
+  months: number | null | undefined,
+  days: number | null | undefined,
+): boolean {
+  return [years, months, days].some(
+    (v) => typeof v === 'number' && !Number.isNaN(v),
+  );
+}
+
+/** RHF `setValueAs` for optional age inputs — empty string → null, not NaN. */
+export function coerceAgePartValue(value: unknown): number | null {
+  if (value === '' || value === null || value === undefined) return null;
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isNaN(n) ? null : n;
 }
 
 // ─── API payload mapping ─────────────────────────────────────────────────────
@@ -274,8 +372,8 @@ export function mapVisitRegistrationToNewPatientIntakeBody(
   const departmentId = optionalUuid(apt?.department_id);
   if (departmentId) body.department_id = departmentId;
 
-  const providerId = optionalUuid(apt?.provider_id);
-  if (providerId) body.provider_id = providerId;
+  const doctorId = optionalUuid(apt?.provider_id);
+  if (doctorId) body.doctor_id = doctorId;
 
   return body;
 }

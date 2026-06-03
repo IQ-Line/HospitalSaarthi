@@ -20,6 +20,7 @@ import {
 import { CapabilityGate } from '@/components/capability-gate';
 import { useCapability } from '@/hooks/use-capability';
 import { UM_ROLE_ASSIGN, UM_ROLE_READ } from '@/lib/runtime-capability-keys';
+import { useDepartments } from '@/features/master-data/api';
 import type { Capability, UmRole } from '../types';
 import { MasterDataCapabilityPermissionTree } from './master-data-capability-permission-tree';
 import { UserManagementSectionCard } from './user-management-section-card';
@@ -29,6 +30,14 @@ export type CreateUserAccessOptions = {
   requireRoleTemplate: boolean;
 };
 
+const doctorTariffRowSchema = z.object({
+  department_id: z.string(),
+  room_number: z.string().default(''),
+  base_price: z.coerce.number().min(0).max(3000),
+  tax_percentage: z.coerce.number().min(0).max(100),
+  opd_days: z.array(z.string()).default([]),
+});
+
 export function buildCreateUserFormSchema(options: CreateUserAccessOptions) {
   return z.object({
     full_name: z.string().min(1, 'Required'),
@@ -37,6 +46,7 @@ export function buildCreateUserFormSchema(options: CreateUserAccessOptions) {
     phone: z.string(),
     username: z.string(),
     department: z.string(),
+    doctor_tariffs: z.array(doctorTariffRowSchema).default([]),
     clearance_tier_required: z.coerce.number().int().min(0).max(3),
     role_template_ids: options.requireRoleTemplate
       ? z.array(z.string().uuid()).length(1, 'Select a role.')
@@ -106,6 +116,9 @@ export function CreateUserIdentitySection({ register, errors }: SharedFormSectio
 
 type CreateUserWorkplaceSectionProps = SharedFormSectionProps & {
   control: Control<CreateUserFormValues>;
+  /** When provided, fetches departments from this tenant's catalog instead of the session tenant. */
+  iqTenantId?: string;
+  isDoctor: boolean;
 };
 
 /** Department and clearance — org/tenant come from Configurator (super-admin) or session tenant. */
@@ -113,18 +126,52 @@ export function CreateUserWorkplaceSection({
   register,
   errors,
   control,
+  iqTenantId,
+  isDoctor,
 }: CreateUserWorkplaceSectionProps) {
+  const { data: deptData, isLoading: deptLoading } = useDepartments(undefined, {
+    iqTenantId,
+    formCatalog: true,
+  });
+  const departments = (deptData?.data ?? []).filter((d) => d.is_active);
+
   return (
     <UserManagementSectionCard
       title="Workplace details"
-      description="Department and access level for this user."
+      description="Access level for this user."
       contentClassName="space-y-4"
     >
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="c_department">Department</Label>
-          <Input id="c_department" {...register('department')} />
-        </div>
+        {!isDoctor ? (
+          <div className="space-y-2">
+            <Label htmlFor="c_department">Department</Label>
+            <Controller
+              control={control}
+              name="department"
+              render={({ field }) => (
+                <Select
+                  value={field.value || undefined}
+                  onValueChange={field.onChange}
+                  disabled={deptLoading}
+                >
+                  <SelectTrigger id="c_department">
+                    <SelectValue
+                      placeholder={deptLoading ? 'Loading…' : 'Select department'}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {departments.map((dept) => (
+                      <SelectItem key={dept.id} value={dept.name}>
+                        {dept.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            <FieldError message={errors.department?.message?.toString()} />
+          </div>
+        ) : null}
 
         <div className="space-y-2">
           <Label htmlFor="c_clearance">Access level</Label>

@@ -18,7 +18,7 @@ svc="${1:?usage: $0 <service-name>}"
 
 case "$svc" in
   # TS backend services + bff — all use the shared template, context = repo root
-  abdm-adapter-svc|billing-svc|configurator-svc|empi-svc|registration-svc|user-management-svc|bff)
+  integration-hub-svc|billing-svc|configurator-svc|empi-svc|registration-svc|user-management-svc|bff)
     echo "infra/docker/node-svc.Dockerfile ."
     ;;
   web)
@@ -30,6 +30,10 @@ case "$svc" in
   master-data|master-data-svc)
     # Python service — repo-root context, same as TS services.
     echo "infra/docker/master-data.Dockerfile ."
+    ;;
+  opd-svc)
+    # Python OPD wrapper — dedicated Dockerfile, repo-root context.
+    echo "services/opd-svc/Dockerfile ."
     ;;
   *)
     echo "ERROR: no Dockerfile mapping for service '$svc'" >&2

@@ -16,7 +16,12 @@ export const queryClient = new QueryClient({
     queries: {
       staleTime: 1000 * 60,
       gcTime: 1000 * 60 * 5,
-      retry: 1,
+      retry: (failureCount, error) => {
+        if (error instanceof ApiError && (error.status === 403 || error.status === 401)) {
+          return false;
+        }
+        return failureCount < 1;
+      },
       refetchOnWindowFocus: false,
     },
   },

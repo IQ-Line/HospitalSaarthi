@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { useModules } from '@/features/master-data/api';
 import { filterRootModulesForEnabledSelection } from '@/features/configurator/components/create-tenant-wizard/wizard-module-tree';
 import { WizardPermissionModuleTree } from '@/features/configurator/components/create-tenant-wizard/wizard-permission-module-tree';
-import { buildMasterDataPermissionTreeContext } from '../lib/role-capability-md-tree';
+import { resolvePlatformSuperAdmin } from '@/lib/platform-admin';
+import { useAuthStore } from '@/stores/auth.store';
+import { usePermissionsStore } from '@/stores/permissions.store';
+import { buildMasterDataPermissionTreeContext, resolveCapabilityCatalogModuleSlug } from '../lib/role-capability-md-tree';
 import type { Capability } from '../types';
 import {
   buildCapabilityTree,
@@ -10,11 +13,19 @@ import {
   treeBranchIds,
 } from './role-management-sections';
 
+const PLATFORM_MODULE_SLUGS: ReadonlySet<string> = new Set([
+  'user-management',
+  'configurator',
+  'master-data',
+]);
+
 export type MasterDataCapabilityPermissionTreeProps = {
   capabilities: Capability[];
   selectedCapabilityIds: string[];
   onSelectedCapabilityIdsChange: (ids: string[]) => void;
   editable?: boolean;
+  /** When true, always exclude platform modules regardless of admin status. */
+  productOnly?: boolean;
 };
 
 /**
@@ -27,16 +38,40 @@ export function MasterDataCapabilityPermissionTree({
   selectedCapabilityIds,
   onSelectedCapabilityIdsChange,
   editable = true,
+  productOnly = false,
 }: MasterDataCapabilityPermissionTreeProps) {
+  const principalRoles = usePermissionsStore((s) => s.roles);
+  const authRoles = useAuthStore((s) => s.roles);
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const isSuperAdmin = resolvePlatformSuperAdmin({ principalRoles, authRoles, accessToken });
+
   const modulesQuery = useModules(undefined, { globalCatalog: true });
-  const modules = useMemo(
+
+  const allModules = useMemo(
     () => (modulesQuery.data?.data ?? []).filter((module) => module.is_active && !module.is_deleted),
     [modulesQuery.data?.data],
   );
 
+  const modules = useMemo(
+    () => productOnly
+      ? allModules.filter((m) => m.module_kind === 'product')
+      : isSuperAdmin
+        ? allModules
+        : allModules.filter((m) => m.module_kind !== 'platform'),
+    [isSuperAdmin, productOnly, allModules],
+  );
+
+  const visibleCapabilities = useMemo(() => {
+    if (isSuperAdmin && !productOnly) return capabilities;
+    return capabilities.filter((cap) => {
+      const slug = resolveCapabilityCatalogModuleSlug(cap, allModules);
+      return slug === null || !PLATFORM_MODULE_SLUGS.has(slug);
+    });
+  }, [isSuperAdmin, productOnly, capabilities, allModules]);
+
   const tree = useMemo(
-    () => buildMasterDataPermissionTreeContext(modules, capabilities),
-    [modules, capabilities],
+    () => buildMasterDataPermissionTreeContext(modules, visibleCapabilities),
+    [modules, visibleCapabilities],
   );
 
   const filteredRoots = useMemo(
@@ -53,7 +88,7 @@ export function MasterDataCapabilityPermissionTree({
   const useCatalogTree = filteredRoots.length > 0;
 
   const [expandedBranchIds, setExpandedBranchIds] = useState<Set<string>>(new Set());
-  const capabilityTree = useMemo(() => buildCapabilityTree(capabilities), [capabilities]);
+  const capabilityTree = useMemo(() => buildCapabilityTree(visibleCapabilities), [visibleCapabilities]);
 
   useEffect(() => {
     if (useCatalogTree) return;
@@ -77,7 +112,7 @@ export function MasterDataCapabilityPermissionTree({
     return <p className="text-sm text-destructive">Could not load the module catalog.</p>;
   }
 
-  if (capabilities.length === 0) {
+  if (visibleCapabilities.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">This role has no permissions set up yet.</p>
     );
@@ -155,7 +190,7 @@ export function MasterDataCapabilityPermissionTree({
       selectedCapabilityIds={selectedSet}
       onToggleCapability={toggleCapability}
       onToggleModuleCapabilities={toggleModuleCapabilities}
-      moduleCheckboxes={false}
+      moduleCheckboxes={editable}
       defaultExpandedModuleIds={[]}
     />
   );

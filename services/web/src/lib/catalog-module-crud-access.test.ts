@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { MD_VISITPAD_CREATE, MD_VISITPAD_VIEW } from './runtime-capability-keys';
 import { catalogModuleCrudAccess } from './catalog-module-crud-access';
 
 /** Subset of role `ntn` without registration create (matches reported principal). */
@@ -43,5 +44,31 @@ describe('catalogModuleCrudAccess', () => {
     const access = catalogModuleCrudAccess(keys, 'allergens');
     expect(access.canCreate).toBe(false);
     expect(access.canUpdate).toBe(true);
+  });
+
+  it('grants visitpad L3 CRUD from visitpad-master shell keys (demo tenant-admin seed)', () => {
+    const shellOnly = new Set([MD_VISITPAD_VIEW, MD_VISITPAD_CREATE]);
+    const units = catalogModuleCrudAccess(shellOnly, 'units');
+    expect(units.canRead).toBe(true);
+    expect(units.canCreate).toBe(true);
+    expect(units.canUpdate).toBe(true);
+    expect(units.canDelete).toBe(true);
+    expect(units.canMutate).toBe(true);
+  });
+
+  it('does not apply visitpad shell fallback to non-visitpad catalog modules', () => {
+    const shellOnly = new Set([MD_VISITPAD_VIEW, MD_VISITPAD_CREATE]);
+    const users = catalogModuleCrudAccess(shellOnly, 'users');
+    expect(users.canRead).toBe(false);
+    expect(users.canCreate).toBe(false);
+  });
+
+  it('grants departments CRUD from visitpad-master shell keys (tenant-admin parity)', () => {
+    const shellOnly = new Set([MD_VISITPAD_VIEW, MD_VISITPAD_CREATE]);
+    const departments = catalogModuleCrudAccess(shellOnly, 'departments');
+    expect(departments.canRead).toBe(true);
+    expect(departments.canCreate).toBe(true);
+    expect(departments.canUpdate).toBe(true);
+    expect(departments.canDelete).toBe(true);
   });
 });

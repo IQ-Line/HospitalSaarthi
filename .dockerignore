@@ -20,6 +20,9 @@ node_modules
 docs
 agent-reviews
 specs
+!specs/
+!specs/openapi/
+!specs/openapi/*.yaml
 tests/load
 
 # Local environment files (must be injected via k8s secrets at runtime)

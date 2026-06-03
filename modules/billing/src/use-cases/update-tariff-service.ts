@@ -14,7 +14,7 @@ import {
 const SCALAR_KEYS = [
   "service_name",
   "description",
-  "department",
+  "department_id",
   "category",
   "sub_category",
   "tax_type",

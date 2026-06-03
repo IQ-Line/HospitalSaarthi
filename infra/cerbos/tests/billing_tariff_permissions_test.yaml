@@ -1,0 +1,73 @@
+# yaml-language-server: $schema=https://api.cerbos.dev/latest/cerbos/policy/v1/TestSuite.schema.json
+---
+name: billing_tariff_permissions_test
+description: >-
+  Billing tariff_master — list/create require runtime capability keys and tenant alignment.
+
+principals:
+  tariff_reader:
+    id: billing-user
+    roles:
+      - "receptionist"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities:
+        - "tariff-master:tariff-master:read"
+      delegated_capabilities: []
+
+  tariff_creator:
+    id: billing-user
+    roles:
+      - "receptionist"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities:
+        - "tariff-master:tariff-master:create"
+      delegated_capabilities: []
+
+resources:
+  tariff_list_ok:
+    id: list
+    kind: tariff_master
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+
+  tariff_list_wrong_tenant:
+    id: list
+    kind: tariff_master
+    attr:
+      iq_tenant_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+
+tests:
+  - name: tariff-master.read — allowed with read capability and matching tenant
+    input:
+      principals: [tariff_reader]
+      resources: [tariff_list_ok]
+      actions: [tariff-master.read]
+    expected:
+      - principal: tariff_reader
+        resource: tariff_list_ok
+        actions:
+          tariff-master.read: EFFECT_ALLOW
+
+  - name: tariff-master.create — allowed with create capability and matching tenant
+    input:
+      principals: [tariff_creator]
+      resources: [tariff_list_ok]
+      actions: [tariff-master.create]
+    expected:
+      - principal: tariff_creator
+        resource: tariff_list_ok
+        actions:
+          tariff-master.create: EFFECT_ALLOW
+
+  - name: tariff-master.read — denied when tenant mismatches
+    input:
+      principals: [tariff_reader]
+      resources: [tariff_list_wrong_tenant]
+      actions: [tariff-master.read]
+    expected:
+      - principal: tariff_reader
+        resource: tariff_list_wrong_tenant
+        actions:
+          tariff-master.read: EFFECT_DENY

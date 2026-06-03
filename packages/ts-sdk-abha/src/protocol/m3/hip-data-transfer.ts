@@ -18,6 +18,8 @@ export interface HipHealthInformationRequest {
     dateRange?: { from: string; to: string };
     dataPushUrl?: string;
     keyMaterial?: HipHiRequestKeyMaterial;
+    /** CM-issued at on-request; must be echoed on push + notify (ABDM-1017 if wrong). */
+    transactionId?: string;
   };
   transactionId?: string;
   consentId?: string;
@@ -31,7 +33,7 @@ export interface HipHealthInformationAckRequest {
     sessionStatus: 'ACKNOWLEDGED' | 'FAILED';
   };
   response: AbdmGatewayResponseRef;
-  error?: { code: string; message: string };
+  error?: { code: string; message: string } | null;
 }
 
 /** §6.3.5 — HIP push to HIU dataPushUrl. */
@@ -55,6 +57,8 @@ export interface HipDataFlowNotifyRequest {
   notification: {
     consentId?: string;
     transactionId?: string;
+    doneAt?: string;
+    notifier?: { type: 'HIP'; id: string };
     statusNotification: {
       sessionStatus: 'TRANSFERRED' | 'FAILED';
       hipId?: string;

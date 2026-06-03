@@ -3,8 +3,11 @@ import { useComposedNavigationManifest } from '@/platform/modules/use-composed-n
 import { useModuleCatalog } from '@/platform/modules/module-catalog';
 import { useEnabledTenantModuleSlugs } from '@/platform/modules/use-enabled-tenant-modules';
 import { applyCatalogNavigationLabels } from './apply-catalog-navigation-labels';
+import { mergePrincipalRoleCodes } from '@/lib/principal-roles';
 import { normalizeCapabilityKey } from '@/lib/principal-capabilities';
+import { resolvePlatformSuperAdmin, resolveTenantAdmin } from '@/lib/platform-admin';
 import { resolveNavigationCapabilityBypass } from '@/lib/resolve-nav-bypass';
+import { useAuthStore } from '@/stores/auth.store';
 import { usePermissionsStore } from '@/stores/permissions.store';
 import { capabilityKeysGrantProductAccess } from './module-product-access';
 import { buildNavCapabilityAccessInput } from './nav-capability-access';
@@ -17,10 +20,15 @@ export function buildNavFilterContext(
   enabledModuleSlugs: ReadonlySet<string> | null,
   options?: {
     bypassCapabilityGates?: boolean;
+    isSuperAdmin?: boolean;
+    isTenantAdmin?: boolean;
     catalogIndex?: import('@/platform/modules/types').ModuleCatalogIndex | null;
+    principalRoles?: readonly string[];
   },
 ): NavFilterContext {
   const bypassCapabilityGates = options?.bypassCapabilityGates === true;
+  const isSuperAdmin = options?.isSuperAdmin === true;
+  const isTenantAdmin = options?.isTenantAdmin === true;
   const catalogIndex = options?.catalogIndex ?? null;
 
   const hasAnyCapabilityForProduct = (catalogProductSlugs: readonly string[]) =>
@@ -59,6 +67,10 @@ export function buildNavFilterContext(
     navAccess,
     enabledModuleSlugs,
     bypassCapabilityGates,
+    isSuperAdmin,
+    isTenantAdmin,
+    catalogIndex,
+    principalRoles: options?.principalRoles ?? [],
   };
 }
 
@@ -67,16 +79,28 @@ export function useFilteredNavigation() {
   const capabilityKeys = usePermissionsStore((s) => s.capabilityKeys);
   const principalRoles = usePermissionsStore((s) => s.roles);
   const permissionsLoaded = usePermissionsStore((s) => s.isLoaded);
+  const authRoles = useAuthStore((s) => s.roles);
+  const accessToken = useAuthStore((s) => s.accessToken);
   const enabledModuleSlugs = useEnabledTenantModuleSlugs();
   const { index: catalogIndex } = useModuleCatalog();
   const bypassCapabilityGates = resolveNavigationCapabilityBypass();
+  const isSuperAdmin = resolvePlatformSuperAdmin({ principalRoles, authRoles, accessToken });
+  const isTenantAdmin = resolveTenantAdmin({ principalRoles, authRoles, accessToken });
+
+  const principalRoleCodes = useMemo(
+    () => mergePrincipalRoleCodes(authRoles, principalRoles),
+    [authRoles, principalRoles],
+  );
 
   return useMemo(() => {
     const filtered = filterNavigationTree(
       manifest,
       buildNavFilterContext(capabilityKeys, enabledModuleSlugs, {
         bypassCapabilityGates,
+        isSuperAdmin,
+        isTenantAdmin,
         catalogIndex: catalogIndex ?? null,
+        principalRoles: principalRoleCodes,
       }),
     );
     return applyCatalogNavigationLabels(filtered, catalogIndex);
@@ -84,9 +108,14 @@ export function useFilteredNavigation() {
     manifest,
     capabilityKeys,
     principalRoles,
+    authRoles,
+    accessToken,
     permissionsLoaded,
     enabledModuleSlugs,
     bypassCapabilityGates,
+    isSuperAdmin,
+    isTenantAdmin,
     catalogIndex,
+    principalRoleCodes,
   ]);
 }

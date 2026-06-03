@@ -21,7 +21,7 @@ down_revision: str | Sequence[str] | None = "032_picklist_values_catalog"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
-# (picklist_slug, value, label, display_order, is_default)
+# (picklist_slug, value, label, display_order, is_global)
 _PICKLIST_VALUE_SEEDS: tuple[tuple[str, str, str, int, bool], ...] = (
     # gender — matches modules/empi patient gender enum
     ("gender", "male", "Male", 1, False),
@@ -36,15 +36,16 @@ _PICKLIST_VALUE_SEEDS: tuple[tuple[str, str, str, int, bool], ...] = (
     ("blood-group", "AB-", "AB-", 6, False),
     ("blood-group", "O+", "O+", 7, False),
     ("blood-group", "O-", "O-", 8, False),
-    # role-types — common hospital staff role codes (User Management role.code)
+    # role-types — tenant staff (User Management role.code); platform roles in migration 038
     ("role-types", "doctor", "Doctor", 1, False),
     ("role-types", "nurse", "Nurse", 2, False),
     ("role-types", "pharmacist", "Pharmacist", 3, False),
     ("role-types", "lab-technician", "Lab Technician", 4, False),
-    ("role-types", "admin", "Administrator", 5, False),
+    ("role-types", "admin", "Administrator", 5, True),
     ("role-types", "receptionist", "Receptionist", 6, False),
     ("role-types", "radiologist", "Radiologist", 7, False),
-    ("role-types", "superadmin", "Super Admin", 8, False),
+    ("role-types", "super-admin", "Super Admin", 8, True),
+    ("role-types", "tenant-admin", "Tenant Admin", 9, False),
     # tariff-type — frontdesk / tariff catalog service categories
     ("tariff-type", "consultation-fee", "Consultation fee", 1, False),
     ("tariff-type", "registration-fee", "Registration fee", 2, False),
@@ -60,9 +61,9 @@ def _insert_picklist_value(
     value: str,
     label: str,
     display_order: int,
-    is_default: bool,
+    is_global: bool,
 ) -> None:
-    default_sql = "true" if is_default else "false"
+    global_sql = "true" if is_global else "false"
     op.execute(
         f"""
         INSERT INTO global_master.picklist_values (
@@ -77,7 +78,7 @@ def _insert_picklist_value(
             NULL,
             NULL,
             true,
-            {default_sql},
+            {global_sql},
             {display_order},
             now(),
             now()
@@ -98,8 +99,8 @@ def upgrade() -> None:
     if bind.dialect.name != "postgresql":
         return
 
-    for picklist_slug, value, label, display_order, is_default in _PICKLIST_VALUE_SEEDS:
-        _insert_picklist_value(picklist_slug, value, label, display_order, is_default)
+    for picklist_slug, value, label, display_order, is_global in _PICKLIST_VALUE_SEEDS:
+        _insert_picklist_value(picklist_slug, value, label, display_order, is_global)
 
 
 def downgrade() -> None:

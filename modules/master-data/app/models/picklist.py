@@ -57,5 +57,5 @@ class PicklistValueModel(TimestampMixin, Base):
     description: Mapped[str | None] = mapped_column(Text(), nullable=True)
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSON, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=True)
-    is_default: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
+    is_global: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
     display_order: Mapped[int] = mapped_column(Integer(), nullable=False, default=0)

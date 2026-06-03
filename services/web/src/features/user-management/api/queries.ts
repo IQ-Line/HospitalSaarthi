@@ -19,12 +19,20 @@ import { userManagementKeys } from './keys';
 
 const BASE = '/api/user-management';
 
-export function userListOptions(tenantScope?: string | null) {
+export function userListOptions(tenantScope?: string | null, filter?: { department?: string }) {
+  const params = new URLSearchParams();
+  if (filter?.department) params.set('department', filter.department);
+  const qs = params.toString();
+  const url = qs ? `${BASE}/users?${qs}` : `${BASE}/users`;
   return queryOptions({
-    queryKey: [...userManagementKeys.userList(), tenantScope ?? 'active-tenant'] as const,
+    queryKey: [
+      ...userManagementKeys.userList(),
+      tenantScope ?? 'active-tenant',
+      filter?.department ?? null,
+    ] as const,
     queryFn: () =>
       apiClient<UmUser[]>(
-        `${BASE}/users`,
+        url,
         { method: 'GET' },
         tenantScope ? { tenantIdOverride: tenantScope } : undefined,
       ),
@@ -57,11 +65,26 @@ export function runtimeCapabilityCatalogOptions() {
 }
 
 /** Tenant-enabled module slugs → assignable runtime capabilities for role editors. */
-export function assignableCapabilityCatalogOptions() {
+export function assignableCapabilityCatalogOptions(
+  tenantScope?: string | null,
+  options?: { productOnly?: boolean },
+) {
+  const productOnly = options?.productOnly === true;
+  const url = productOnly
+    ? `${BASE}/capabilities/assignable?product_only=true`
+    : `${BASE}/capabilities/assignable`;
   return queryOptions({
-    queryKey: userManagementKeys.assignableCapabilities(),
+    queryKey: [
+      ...userManagementKeys.assignableCapabilities(),
+      tenantScope ?? 'active-tenant',
+      productOnly ? 'product' : 'all',
+    ] as const,
     queryFn: () =>
-      apiClient<Capability[]>(`${BASE}/capabilities/assignable`, { method: 'GET' }),
+      apiClient<Capability[]>(
+        url,
+        { method: 'GET' },
+        tenantScope ? { tenantIdOverride: tenantScope } : undefined,
+      ),
   });
 }
 
@@ -131,14 +154,58 @@ export function userRoleTemplatesOptions(userId: string, tenantScope?: string | 
   });
 }
 
-export function useUserList(
+export type Provider = {
+  id: string;
+  full_name: string;
+  department: string | null;
+  status: string;
+};
+
+export function providerListOptions(
   tenantScope?: string | null,
-  options?: { enabled?: boolean },
+  filter?: { department?: string },
+) {
+  const params = new URLSearchParams();
+  if (filter?.department) params.set('department', filter.department);
+  const qs = params.toString();
+  const url = qs ? `${BASE}/providers?${qs}` : `${BASE}/providers`;
+  return queryOptions({
+    queryKey: [
+      ...userManagementKeys.providerList(),
+      tenantScope ?? 'active-tenant',
+      filter?.department ?? null,
+    ] as const,
+    queryFn: () =>
+      apiClient<Provider[]>(
+        url,
+        { method: 'GET' },
+        tenantScope ? { tenantIdOverride: tenantScope } : undefined,
+      ),
+  });
+}
+
+export function useProviderList(
+  tenantScope?: string | null,
+  options?: { enabled?: boolean; department?: string },
 ) {
   const activeTenantId = useTenantStore((s) => s.tenantId);
   const scope = tenantScope ?? activeTenantId;
+  const filter = options?.department ? { department: options.department } : undefined;
   return useQuery({
-    ...userListOptions(scope),
+    ...providerListOptions(scope, filter),
+    enabled: options?.enabled ?? true,
+  });
+}
+
+export function useUserList(
+  tenantScope?: string | null,
+  options?: { enabled?: boolean; department?: string },
+) {
+  const activeTenantId = useTenantStore((s) => s.tenantId);
+  const scope = tenantScope ?? activeTenantId;
+  const filter = options?.department ? { department: options.department } : undefined;
+  return useQuery({
+    ...userListOptions(scope, filter),
     enabled: options?.enabled ?? true,
   });
 }
@@ -168,9 +235,9 @@ export function useRolesSuspense() {
   return useSuspenseQuery(roleListOptions());
 }
 
-export function useRoleCapabilities(roleId: string, enabled: boolean) {
+export function useRoleCapabilities(roleId: string, enabled: boolean, tenantScope?: string | null) {
   return useQuery({
-    ...roleCapabilitiesOptions(roleId),
+    ...roleCapabilitiesOptions(roleId, tenantScope),
     enabled: enabled && roleId.length > 0,
   });
 }

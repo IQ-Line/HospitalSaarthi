@@ -2,6 +2,8 @@ import type {
   BillItemRow,
   BillRow,
   BillWithItems,
+  ListBillsQuery,
+  ListBillsResult,
   PaymentRow,
 } from "./domain/bill.types.js";
 import type {
@@ -48,6 +50,7 @@ export interface BillingRepo {
     patch: Partial<BillRow>,
   ): Promise<BillRow | undefined>;
   listActiveItems(tenantId: string, billId: string): Promise<BillItemRow[]>;
+  listBills(tenantId: string, query: ListBillsQuery): Promise<ListBillsResult>;
   insertPayment(row: NewPaymentRow): Promise<PaymentRow>;
 }
 

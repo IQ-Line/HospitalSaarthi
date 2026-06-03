@@ -7,14 +7,20 @@ from uuid import UUID
 
 from app.catalog.platform_table_models import module_model
 from app.repositories.module_repository import ModuleRepository
-from app.schemas.module import ModuleCategory, ModuleCreate, ModuleUpdate
+from app.schemas.module import ModuleCategory, ModuleCreate, ModuleKind, ModuleUpdate, VisibilityScope
 
 # Deepest allowed stored ``level`` (root = 1). Raise migration + model check if this changes.
 MAX_MODULE_TREE_LEVEL = 10
 
 
 class ModuleReader(Protocol):
-    def list_modules(self, *, category: ModuleCategory | None = None) -> list[Any]: ...
+    def list_modules(
+        self,
+        *,
+        category: ModuleCategory | None = None,
+        module_kinds: list[ModuleKind] | None = None,
+        visibility: VisibilityScope | None = None,
+    ) -> list[Any]: ...
 
     def get_module_by_id(
         self,
@@ -46,13 +52,19 @@ def list_modules(
     repository: ModuleReader,
     *,
     category: ModuleCategory | None = None,
+    module_kinds: list[ModuleKind] | None = None,
+    visibility: VisibilityScope | None = None,
 ) -> list[Any]:
-    return repository.list_modules(category=category)
+    return repository.list_modules(category=category, module_kinds=module_kinds, visibility=visibility)
 
 
-def list_modules_for_nav(repository: ModuleRepository) -> list[Any]:
+def list_modules_for_nav(
+    repository: ModuleRepository,
+    *,
+    visibility: VisibilityScope | None = None,
+) -> list[Any]:
     """Return all active, non-deleted modules for shell navigation (no pagination)."""
-    return repository.list_modules_for_nav()
+    return repository.list_modules_for_nav(visibility=visibility)
 
 
 def list_submodules(repository: ModuleRepository, parent_id: UUID) -> list[Any]:
@@ -105,6 +117,16 @@ def _would_create_cycle(
     return False
 
 
+def _kind_from_parent(repository: ModuleRepository, parent_id: UUID | None, fallback: str) -> str:
+    """Children inherit ``module_kind`` from their parent; root modules use the payload value."""
+    if parent_id is None:
+        return fallback
+    parent = repository.get_module_by_id(parent_id, include_deleted=True)
+    if parent is None:
+        return fallback
+    return parent.module_kind
+
+
 def create_module(
     repository: ModuleRepository,
     payload: ModuleCreate,
@@ -124,6 +146,8 @@ def create_module(
     else:
         level = 1
 
+    module_kind = _kind_from_parent(repository, parent_id, payload.module_kind.value)
+
     M = module_model(repository.scope)
     kwargs: dict[str, Any] = dict(
         name=payload.name,
@@ -132,6 +156,8 @@ def create_module(
         category=payload.category.value,
         version=payload.version,
         level=level,
+        module_kind=module_kind,
+        display_order=payload.display_order,
         parent_id=parent_id,
         icon=payload.icon,
         is_active=payload.is_active,
@@ -184,6 +210,8 @@ def update_module(
         module.version = data["version"]
     if "icon" in data:
         module.icon = data["icon"]
+    if "display_order" in data:
+        module.display_order = data["display_order"]
     if "is_active" in data:
         module.is_active = data["is_active"]
     if "is_deleted" in data:
@@ -191,6 +219,8 @@ def update_module(
 
     # ``level`` always follows ``parent_id`` (ignore a bare ``level`` that disagrees with the tree).
     module.level = _level_from_parent_id(repository, module.parent_id)
+    # ``module_kind`` re-derived on parent change, same as ``level``.
+    module.module_kind = _kind_from_parent(repository, module.parent_id, module.module_kind)
 
     module.updated_by = actor_id
     return repository.update_module(module)

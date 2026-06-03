@@ -17,11 +17,12 @@ export const UM_ROLE_ASSIGN = 'user-roles:role:assign' as const;
 
 export const UM_CAPABILITY_READ = 'user-capabilities:user-capabilities:read' as const;
 
-export const MD_VISITPAD_VIEW = 'visitpad-templates:visitpad:view' as const;
-export const MD_VISITPAD_CREATE = 'visitpad-templates:visitpad:create' as const;
-export const MD_VISITPAD_CATALOG_READ = 'visitpad-templates:catalog:read' as const;
-export const MD_VISITPAD_UPDATE = 'visitpad-templates:catalog:update' as const;
-export const MD_VISITPAD_DELETE = 'visitpad-templates:catalog:delete' as const;
+export const MD_VISITPAD_VIEW = 'visitpad-master:visitpad:view' as const;
+export const MD_VISITPAD_CREATE = 'visitpad-master:visitpad:create' as const;
+/** Retired L1 ``visitpad-templates:catalog:*`` keys — remap only (see legacy-capability-key-remap). */
+export const MD_VISITPAD_CATALOG_READ = 'visitpad-master:visitpad:view' as const;
+export const MD_VISITPAD_UPDATE = 'visitpad-master:visitpad:create' as const;
+export const MD_VISITPAD_DELETE = 'visitpad-master:visitpad:create' as const;
 
 /** Visitpad shell: view catalog or create entries (matches nav manifest OR gate). */
 export const MD_VISITPAD_ACCESS_ANY = [MD_VISITPAD_VIEW, MD_VISITPAD_CREATE] as const;

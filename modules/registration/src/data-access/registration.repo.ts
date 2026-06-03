@@ -7,14 +7,12 @@ import type {
   CreateRegistrationInput,
   ListRegistrationsParams,
   RegistrationRecord,
-  RegistrationStatus,
 } from "../domain/registration.types.js";
 
 function mapRow(row: typeof registrations.$inferSelect): RegistrationRecord {
   return {
     ...row,
     patient_date_of_birth: row.patient_date_of_birth ?? null,
-    registration_status: row.registration_status as RegistrationStatus,
   };
 }
 
@@ -53,16 +51,37 @@ export class DrizzleRegistrationRepo implements RegistrationRepo {
     return rows[0] ? mapRow(rows[0]) : undefined;
   }
 
+  async findByPatientId(
+    tenantId: string,
+    patientId: string,
+  ): Promise<RegistrationRecord | undefined> {
+    const rows = await this.db
+      .select()
+      .from(registrations)
+      .where(
+        and(
+          eq(registrations.iq_tenant_id, tenantId),
+          eq(registrations.patient_id, patientId),
+        ),
+      )
+      .limit(1);
+    return rows[0] ? mapRow(rows[0]) : undefined;
+  }
+
   async insert(
     tenantId: string,
     input: CreateRegistrationInput,
     idempotencyKey: string,
     actorId: string,
-    registrationStatus: RegistrationStatus,
   ) {
     const existing = await this.findByIdempotencyKey(tenantId, idempotencyKey);
     if (existing) {
       return { record: existing, created: false as const };
+    }
+
+    const existingPatient = await this.findByPatientId(tenantId, input.patient_id);
+    if (existingPatient) {
+      return { record: existingPatient, created: false as const };
     }
 
     try {
@@ -72,13 +91,6 @@ export class DrizzleRegistrationRepo implements RegistrationRepo {
           iq_tenant_id: tenantId,
           patient_id: input.patient_id,
           ...snapshotValues(input),
-          facility_id: input.facility_id ?? null,
-          visit_type: input.visit_type ?? null,
-          department_id: input.department_id ?? null,
-          provider_id: input.provider_id ?? null,
-          appointment_id: input.appointment_id ?? null,
-          visit_id: null,
-          registration_status: registrationStatus,
           idempotency_key: idempotencyKey,
           created_by: actorId,
           updated_by: actorId,
@@ -91,7 +103,9 @@ export class DrizzleRegistrationRepo implements RegistrationRepo {
           ? String((err as { code: string }).code)
           : "";
       if (code === "23505") {
-        const replayed = await this.findByIdempotencyKey(tenantId, idempotencyKey);
+        const replayed =
+          (await this.findByIdempotencyKey(tenantId, idempotencyKey)) ??
+          (await this.findByPatientId(tenantId, input.patient_id));
         if (replayed) {
           return { record: replayed, created: false as const };
         }
@@ -126,20 +140,8 @@ export class DrizzleRegistrationRepo implements RegistrationRepo {
 
     const conditions = [eq(registrations.iq_tenant_id, tenantId)];
 
-    if (params.status) {
-      conditions.push(eq(registrations.registration_status, params.status));
-    }
     if (params.patient_id) {
       conditions.push(eq(registrations.patient_id, params.patient_id));
-    }
-    if (params.facility_id) {
-      conditions.push(eq(registrations.facility_id, params.facility_id));
-    }
-    if (params.department_id) {
-      conditions.push(eq(registrations.department_id, params.department_id));
-    }
-    if (params.provider_id) {
-      conditions.push(eq(registrations.provider_id, params.provider_id));
     }
 
     const q = params.q?.trim() || params.uhid?.trim() || params.mobile?.trim();
@@ -178,28 +180,5 @@ export class DrizzleRegistrationRepo implements RegistrationRepo {
       rows: data.map(mapRow),
       total: Number(countResult[0]?.count ?? 0),
     };
-  }
-
-  async updateStatus(
-    tenantId: string,
-    registrationId: string,
-    toStatus: RegistrationStatus,
-    actorId: string,
-  ): Promise<RegistrationRecord | undefined> {
-    const rows = await this.db
-      .update(registrations)
-      .set({
-        registration_status: toStatus,
-        updated_by: actorId,
-        updated_at: new Date(),
-      })
-      .where(
-        and(
-          eq(registrations.iq_tenant_id, tenantId),
-          eq(registrations.registration_id, registrationId),
-        ),
-      )
-      .returning();
-    return rows[0] ? mapRow(rows[0]) : undefined;
   }
 }

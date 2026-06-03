@@ -5,7 +5,7 @@ export const masterDataModuleManifest: ModuleManifest = {
   name: 'Master Data',
   icon: 'database',
   routePrefix: '/master-data',
-  sortOrder: 10,
+  sortOrder: 30,
   requiredModulesAny: ['master-data'],
   navigation: [
     {
@@ -13,19 +13,16 @@ export const masterDataModuleManifest: ModuleManifest = {
       label: 'Modules',
       icon: 'database',
       route: '/master-data/modules',
+      catalogModuleSlug: 'modules',
+      superAdminOnly: true,
     },
     {
       id: 'master-data-permissions',
       label: 'Permissions',
       icon: 'shield-check',
       route: '/master-data/permissions',
-    },
-    {
-      id: 'master-data-system-roles',
-      label: 'System Roles',
-      icon: 'users',
-      route: '/master-data/system-roles',
-      catalogModuleSlug: 'role-capabilities',
+      catalogModuleSlug: 'permissions',
+      superAdminOnly: true,
     },
     {
       id: 'master-data-module-permissions',
@@ -33,6 +30,14 @@ export const masterDataModuleManifest: ModuleManifest = {
       icon: 'link',
       route: '/master-data/module-permissions',
       catalogModuleSlug: 'permissions',
+      superAdminOnly: true,
+    },
+    {
+      id: 'master-data-departments',
+      label: 'Departments',
+      icon: 'building-2',
+      route: '/master-data/departments',
+      catalogModuleSlug: 'departments',
     },
   ],
 };

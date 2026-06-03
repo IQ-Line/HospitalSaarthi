@@ -77,6 +77,7 @@ async function ensureSuperAdminRole(db: DbInstance): Promise<string> {
     iq_tenant_id: DEV_TENANT_ID,
     id: seedUser.roleId,
     code: seedUser.roleCode,
+    role_type: seedUser.roleCode,
     display_name: seedUser.name,
     description: "Platform super-admin (all catalog capabilities).",
     is_system: true,

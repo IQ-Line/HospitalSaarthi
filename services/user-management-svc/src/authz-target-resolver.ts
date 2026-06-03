@@ -261,6 +261,10 @@ export function createUserManagementAuthzTargetResolver(
       };
     }
 
+    if (method === "GET" && path === "/providers") {
+      return { kind: "auth", id: "provider-list", action: "auth.read", attr: tenantAttr(request) };
+    }
+
     if (
       method === "GET" &&
       (path === "/auth/me" || path === "/auth/principal")

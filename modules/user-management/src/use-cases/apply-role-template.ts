@@ -14,6 +14,7 @@ import type {
   UserAccessRepository,
   UserRepository,
 } from "../ports/index.js";
+import type { ModuleEntitlementRequestContext } from "../ports/module-integration-ports.js";
 import { assertRuntimeCapabilitiesEntitledForTenant } from "./assert-runtime-capabilities-entitled-for-tenant.js";
 
 const UUID_RE =
@@ -45,6 +46,7 @@ export async function applyRoleTemplate(
     /** When set, only these capabilities are granted (each must belong to the role). */
     role_template_capability_ids?: string[];
   },
+  entitlementContext?: ModuleEntitlementRequestContext,
 ): Promise<AppliedRoleTemplate> {
   if (!UUID_RE.test(input.user_id) || !UUID_RE.test(input.role_id)) {
     throw new ValidationError("apply_role_template_ids_invalid");
@@ -93,7 +95,7 @@ export async function applyRoleTemplate(
     },
     ctx.tenantId,
     capabilityIdsToApply,
-    { cachePolicy: "bypass-cache" },
+    { cachePolicy: "bypass-cache", authorization: entitlementContext?.authorization },
   );
 
   const applied = await deps.userAccessRepository.applyRoleTemplate(ctx.tenantId, {

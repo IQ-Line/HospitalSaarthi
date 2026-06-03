@@ -3,12 +3,17 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { Button } from '@pulse/ui/button';
+import { createDoctorConsultationTariffs } from '@/features/billing/lib/doctor-consultation-tariff';
+import { useDepartments } from '@/features/master-data/api';
+import { mutationErrorMessage } from '@/lib/mutation-error';
 import type { CreateUserBody } from '../types';
 import { useCapability } from '@/hooks/use-capability';
 import { UM_ROLE_ASSIGN, UM_ROLE_READ } from '@/lib/runtime-capability-keys';
 import { useCreateUser } from '../api/mutations';
 import { roleCapabilitiesOptions, roleListOptions } from '../api/queries';
+import { isDoctorRole, validateDoctorTariffs } from '../lib/is-doctor-role';
 import { useTenantStore } from '@/stores/tenant.store';
 import { CreateUserTenantField } from './create-user-tenant-field';
 import {
@@ -18,6 +23,10 @@ import {
   CreateUserWorkplaceSection,
   type CreateUserFormValues,
 } from './create-user-form-sections';
+import {
+  CreateUserDoctorOpdSection,
+  EMPTY_DOCTOR_TARIFF_ROW,
+} from './create-user-doctor-departments';
 
 /** Maps form values to `POST /users` body. Exported for unit tests. */
 export function buildCreateUserRequestBody(
@@ -26,6 +35,8 @@ export function buildCreateUserRequestBody(
   allRoleCapabilityIds: string[],
   /** Configurator organization id when super-admin picked org/tenant. */
   configuratorOrgId?: string | null,
+  /** Primary department name (doctor: first tariff row). */
+  primaryDepartmentName?: string | null,
 ): CreateUserBody {
   const roleIds = assignRoles ? values.role_template_ids : [];
   let role_template_capability_ids: string[] | undefined;
@@ -47,7 +58,12 @@ export function buildCreateUserRequestBody(
     phone: values.phone === '' ? null : values.phone,
     username: values.username === '' ? null : values.username,
     org_id: values.org_id === '' ? null : values.org_id,
-    department: values.department === '' ? null : values.department,
+    department:
+      primaryDepartmentName !== undefined
+        ? primaryDepartmentName
+        : values.department === ''
+          ? null
+          : values.department,
     clearance_tier_required: values.clearance_tier_required,
     capability_ids: [],
     role_template_ids: roleIds,
@@ -58,6 +74,9 @@ export function buildCreateUserRequestBody(
 type CreateUserFormProps = {
   /** Platform super-admin: pick target hospital tenant for POST /users. */
   canSelectTargetTenant?: boolean;
+  /** Configurator tenant detail: scope UM APIs and POST /users to this tenant. */
+  fixedTargetTenantId?: string;
+  fixedConfiguratorOrgId?: string | null;
   layout?: 'page' | 'dialog';
   /** When false, stay on the form after create (e.g. create-only admins without user.read). Default true. */
   navigateToProfileOnSuccess?: boolean;
@@ -67,6 +86,8 @@ type CreateUserFormProps = {
 
 export function CreateUserForm({
   canSelectTargetTenant = false,
+  fixedTargetTenantId,
+  fixedConfiguratorOrgId,
   layout = 'page',
   navigateToProfileOnSuccess = true,
   onCancel,
@@ -77,15 +98,23 @@ export function CreateUserForm({
   const navigate = useNavigate();
   const create = useCreateUser();
   const activeTenantId = useTenantStore((s) => s.tenantId);
-  const [targetTenantId, setTargetTenantId] = useState(activeTenantId ?? '');
-  const [configuratorOrgId, setConfiguratorOrgId] = useState<string | null>(null);
+  const fixedTenant = fixedTargetTenantId?.trim() ?? '';
+  const [targetTenantId, setTargetTenantId] = useState(fixedTenant || activeTenantId || '');
+  const [configuratorOrgId, setConfiguratorOrgId] = useState<string | null>(
+    fixedConfiguratorOrgId ?? null,
+  );
   const requireRoleTemplate = umRoleAssign;
   /** Non–super-admin: always scope APIs to the signed-in tenant. Super-admin: selected catalog tenant. */
-  const effectiveTenantId = canSelectTargetTenant
-    ? targetTenantId || activeTenantId || ''
-    : activeTenantId ?? '';
-  const apiTenantScope =
-    canSelectTargetTenant && targetTenantId ? targetTenantId : activeTenantId ?? undefined;
+  const effectiveTenantId = fixedTenant
+    ? fixedTenant
+    : canSelectTargetTenant
+      ? targetTenantId || activeTenantId || ''
+      : activeTenantId ?? '';
+  const apiTenantScope = fixedTenant
+    ? fixedTenant
+    : canSelectTargetTenant && targetTenantId
+      ? targetTenantId
+      : activeTenantId ?? undefined;
 
   useEffect(() => {
     if (!canSelectTargetTenant && activeTenantId) {
@@ -118,6 +147,7 @@ export function CreateUserForm({
       phone: '',
       username: '',
       department: '',
+      doctor_tariffs: [],
       clearance_tier_required: 0,
       role_template_ids: [],
       role_capability_selection_ids: [],
@@ -145,6 +175,23 @@ export function CreateUserForm({
 
   const selectedRoleTemplateIds = form.watch('role_template_ids');
   const selectedRoleId = selectedRoleTemplateIds[0] ?? '';
+  const isDoctor = isDoctorRole(selectedRoleId, availableRoles);
+
+  const departmentsQuery = useDepartments(undefined, {
+    iqTenantId: apiTenantScope,
+    formCatalog: true,
+    enabled: isDoctor,
+  });
+  const activeDepartments = useMemo(
+    () => (departmentsQuery.data?.data ?? []).filter((d) => d.is_active),
+    [departmentsQuery.data],
+  );
+
+  useEffect(() => {
+    if (isDoctor && form.getValues('doctor_tariffs').length === 0) {
+      form.setValue('doctor_tariffs', [{ ...EMPTY_DOCTOR_TARIFF_ROW }], { shouldDirty: false });
+    }
+  }, [isDoctor, form]);
 
   const roleCapabilitiesQueryEnabled = Boolean(selectedRoleId) && umRoleRead;
 
@@ -198,8 +245,11 @@ export function CreateUserForm({
         caps.map((c) => c.id),
         { shouldDirty: true, shouldValidate: true },
       );
+      if (!isDoctorRole(selectedRoleId, availableRoles)) {
+        form.setValue('doctor_tariffs', [], { shouldDirty: true });
+      }
     }
-  }, [selectedRoleId, roleCapabilitiesQuery.data, form]);
+  }, [selectedRoleId, roleCapabilitiesQuery.data, availableRoles, form]);
 
   const roleAssignmentBlocked =
     requireRoleTemplate &&
@@ -223,20 +273,51 @@ export function CreateUserForm({
       });
       return;
     }
-    const tenantForCreate =
-      canSelectTargetTenant && targetTenantId.trim() ? targetTenantId.trim() : undefined;
+    const doctorRole = isDoctorRole(values.role_template_ids[0], availableRoles);
+    if (doctorRole) {
+      const tariffError = validateDoctorTariffs(values.doctor_tariffs);
+      if (tariffError) {
+        form.setError('doctor_tariffs', { type: 'custom', message: tariffError });
+        return;
+      }
+    }
+    const tenantForCreate = fixedTenant
+      ? fixedTenant
+      : canSelectTargetTenant && targetTenantId.trim()
+        ? targetTenantId.trim()
+        : undefined;
+    const orgForCreate =
+      fixedConfiguratorOrgId ?? (canSelectTargetTenant ? configuratorOrgId : null);
+    const primaryDeptName = doctorRole
+      ? (activeDepartments.find((d) => d.id === values.doctor_tariffs[0]?.department_id)?.name ??
+        null)
+      : undefined;
     create.mutate(
       {
         body: buildCreateUserRequestBody(
           values,
           umRoleAssign,
           allRoleCapabilityIds,
-          canSelectTargetTenant ? configuratorOrgId : null,
+          orgForCreate,
+          primaryDeptName,
         ),
         targetTenantId: tenantForCreate,
       },
       {
-        onSuccess: (user) => {
+        onSuccess: async (user) => {
+          if (doctorRole && values.doctor_tariffs.length > 0) {
+            try {
+              await createDoctorConsultationTariffs(
+                user.id,
+                values.full_name,
+                values.doctor_tariffs,
+                activeDepartments,
+                tenantForCreate,
+              );
+            } catch (err) {
+              toast.error(`User created but consultation tariffs failed: ${mutationErrorMessage(err)}`);
+            }
+          }
           if (navigateToProfileOnSuccess) {
             void navigate({
               to: '/user-management/$userId',
@@ -275,12 +356,6 @@ export function CreateUserForm({
           />
         ) : null}
 
-        <CreateUserWorkplaceSection
-          register={form.register}
-          errors={form.formState.errors}
-          control={form.control}
-        />
-
         <CreateUserAccessSection
           roleTemplates={availableRoles}
           roleTemplatesPending={roleTemplatesPending}
@@ -291,6 +366,22 @@ export function CreateUserForm({
           control={form.control}
           errors={form.formState.errors}
         />
+
+        <CreateUserWorkplaceSection
+          register={form.register}
+          errors={form.formState.errors}
+          control={form.control}
+          iqTenantId={apiTenantScope}
+          isDoctor={isDoctor}
+        />
+
+        {isDoctor ? (
+          <CreateUserDoctorOpdSection
+            control={form.control}
+            errors={form.formState.errors}
+            iqTenantId={apiTenantScope}
+          />
+        ) : null}
       </div>
 
       <div

@@ -1,9 +1,13 @@
 import { decodeAccessTokenPayload } from '@/lib/access-token';
+import { resolvePlatformSuperAdmin } from '@/lib/platform-admin';
 import {
   DEVELOPMENT_BOOTSTRAP_TENANT_ID,
   DEVELOPMENT_EMPI_PLACEHOLDER_TENANT_ID,
   DEVELOPMENT_VISITPAD_CATALOG_TENANT_UUID,
 } from '../../../../packages/dev-bootstrap/src/dev-tenant-ids.ts';
+
+const VISITPAD_CATALOG_API_PATH_PREFIX = '/api/v1/master-data/visitpad';
+const DEPARTMENTS_CATALOG_API_PATH_PREFIX = '/api/v1/master-data/departments';
 
 /**
  * Visitpad / master-data catalog sends `iq_tenant_id` when the active tenant id is a
@@ -37,8 +41,57 @@ export function catalogIqTenantHeaderValue(tenantId: string | null | undefined):
   return s.toLowerCase();
 }
 
+export function isVisitpadCatalogApiPath(path: string): boolean {
+  return path.startsWith(VISITPAD_CATALOG_API_PATH_PREFIX);
+}
+
+/** Visitpad + departments catalogs use ``global_master`` / ``tenant_master`` dual schemas. */
+export function isMasterDataDualSchemaCatalogApiPath(path: string): boolean {
+  return (
+    path.startsWith(VISITPAD_CATALOG_API_PATH_PREFIX) ||
+    path.startsWith(DEPARTMENTS_CATALOG_API_PATH_PREFIX)
+  );
+}
+
+/** Platform super-admin edits dual-schema catalogs via `global_master` — omit `iq_tenant_id`. */
+export function visitpadCatalogOmitsIqTenantHeader(input: {
+  path: string;
+  authRoles?: readonly string[];
+  principalRoles?: readonly string[];
+}): boolean {
+  if (!isMasterDataDualSchemaCatalogApiPath(input.path)) {
+    return false;
+  }
+  return resolvePlatformSuperAdmin({
+    authRoles: input.authRoles,
+    principalRoles: input.principalRoles,
+  });
+}
+
 export function isVisitpadTenantCatalogScope(tenantId: string | null | undefined): boolean {
   return catalogIqTenantHeaderValue(tenantId) != null;
+}
+
+/** React Query / UI scope: `global` for platform super-admin, else tenant UUID or `global`. */
+export function resolveVisitpadCatalogScopeKey(
+  tenantId: string | null | undefined,
+  authRoles?: readonly string[],
+): string {
+  if (resolvePlatformSuperAdmin({ authRoles })) {
+    return 'global';
+  }
+  return catalogIqTenantHeaderValue(tenantId) ?? 'global';
+}
+
+/** Tenant-scoped Visitpad UX (import from platform library) — false for platform super-admin. */
+export function isVisitpadTenantCatalogScopeForPrincipal(
+  tenantId: string | null | undefined,
+  authRoles?: readonly string[],
+): boolean {
+  if (resolvePlatformSuperAdmin({ authRoles })) {
+    return false;
+  }
+  return isVisitpadTenantCatalogScope(tenantId);
 }
 
 /**

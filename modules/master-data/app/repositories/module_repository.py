@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.catalog.platform_table_models import module_model
 from app.core.catalog_scope import CatalogScope
-from app.schemas.module import ModuleCategory
+from app.schemas.module import ModuleCategory, ModuleKind, VisibilityScope
 
 
 class DuplicateModuleKeyError(Exception):
@@ -48,18 +48,32 @@ class ModuleRepository:
     def _M(self) -> Any:
         return module_model(self._scope)
 
-    def list_modules(self, *, category: ModuleCategory | None = None) -> list[Any]:
+    def list_modules(
+        self,
+        *,
+        category: ModuleCategory | None = None,
+        module_kinds: list[ModuleKind] | None = None,
+        visibility: VisibilityScope | None = None,
+    ) -> list[Any]:
         M = self._M()
         filters = [M.is_deleted.is_(False)]
         if self._scope.is_tenant:
             filters.append(M.iq_tenant_id == self._scope.iq_tenant_id)
         if category is not None:
             filters.append(M.category == category.value)
+        if module_kinds:
+            filters.append(M.module_kind.in_([k.value for k in module_kinds]))
+        if visibility is not None:
+            filters.append(M.visibility_scope == visibility.value)
 
-        statement: Select[tuple[Any]] = select(M).where(*filters).order_by(M.name)
+        statement: Select[tuple[Any]] = select(M).where(*filters).order_by(M.display_order, M.name)
         return list(self._session.scalars(statement).all())
 
-    def list_modules_for_nav(self) -> list[Any]:
+    def list_modules_for_nav(
+        self,
+        *,
+        visibility: VisibilityScope | None = None,
+    ) -> list[Any]:
         """Active, non-deleted rows for shell navigation (full list; no pagination)."""
         M = self._M()
         filters = [
@@ -68,9 +82,11 @@ class ModuleRepository:
         ]
         if self._scope.is_tenant:
             filters.append(M.iq_tenant_id == self._scope.iq_tenant_id)
+        if visibility is not None:
+            filters.append(M.visibility_scope == visibility.value)
 
         statement: Select[tuple[Any]] = (
-            select(M).where(*filters).order_by(M.level, M.name)
+            select(M).where(*filters).order_by(M.level, M.display_order, M.name)
         )
         return list(self._session.scalars(statement).all())
 
@@ -82,7 +98,7 @@ class ModuleRepository:
         ]
         if self._scope.is_tenant:
             filters.append(M.iq_tenant_id == self._scope.iq_tenant_id)
-        statement = select(M).where(*filters).order_by(M.name)
+        statement = select(M).where(*filters).order_by(M.display_order, M.name)
         return list(self._session.scalars(statement).all())
 
     def get_module_by_id(

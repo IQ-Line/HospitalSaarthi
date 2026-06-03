@@ -35,8 +35,7 @@
                 "exec": [
                   "if (pm.response.code === 201) {",
                   "  const json = pm.response.json();",
-                  "  pm.collectionVariables.set('orgId', json.organization.id);",
-                  "  pm.collectionVariables.set('tenantId', json.default_tenant.iq_tenant_id);",
+                  "  pm.collectionVariables.set('orgId', json.id);",
                   "}"
                 ]
               }

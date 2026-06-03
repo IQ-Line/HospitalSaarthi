@@ -1,5 +1,22 @@
 import type { NavigationNode } from '@/navigation/types';
+import { visitpadModuleManifest } from './manifests/visitpad.manifest';
 import type { ModuleManifest } from './types';
+
+/** Stable children list — avoids new array refs on every compose cache rebuild. */
+const VISITPAD_MASTER_NAV_CHILDREN: readonly NavigationNode[] = visitpadModuleManifest.navigation;
+
+/** Catalog L2 group nested under Master Data (not a separate sidebar root). */
+export function visitpadMasterNavigationGroup(
+  manifest: ModuleManifest = visitpadModuleManifest,
+): NavigationNode {
+  return {
+    id: 'visitpad-master',
+    label: 'Visitpad Master',
+    icon: manifest.icon ?? 'layers',
+    requiredModulesAny: manifest.requiredModulesAny,
+    children: VISITPAD_MASTER_NAV_CHILDREN,
+  };
+}
 
 let composedCache: NavigationNode[] | null = null;
 let composedCacheKey = '';
@@ -29,7 +46,7 @@ export function manifestToNavigationNode(manifest: ModuleManifest): NavigationNo
             requiredModulesAny: undefined,
           };
 
-  if (nav.length === 1 && !nav[0].children?.length) {
+  if (nav.length === 1 && !nav[0].children?.length && !manifest.keepNavigationGroup) {
     const leaf = nav[0];
     return {
       ...leaf,
@@ -41,6 +58,7 @@ export function manifestToNavigationNode(manifest: ModuleManifest): NavigationNo
       requiredCapabilities: leaf.requiredCapabilities ?? manifest.requiredCapabilities,
       requiredModules: leaf.requiredModules ?? tenantGate.requiredModules,
       requiredModulesAny: leaf.requiredModulesAny ?? tenantGate.requiredModulesAny,
+      requiredRolesAny: leaf.requiredRolesAny ?? manifest.requiredRolesAny,
     };
   }
 
@@ -49,6 +67,7 @@ export function manifestToNavigationNode(manifest: ModuleManifest): NavigationNo
     label: manifest.name,
     icon: manifest.icon,
     requiredCapabilities: manifest.requiredCapabilities,
+    requiredRolesAny: manifest.requiredRolesAny,
     ...tenantGate,
     children: nav,
   };
@@ -64,7 +83,24 @@ export function composeNavigationManifest(manifests: readonly ModuleManifest[]):
     return composedCache;
   }
 
-  const nodes = manifests.map((manifest) => manifestToNavigationNode(manifest));
+  const visitpadManifest = manifests.find((m) => m.slug === 'visitpad');
+  const nodes: NavigationNode[] = [];
+
+  for (const manifest of manifests) {
+    if (manifest.slug === 'visitpad') {
+      continue;
+    }
+
+    let node = manifestToNavigationNode(manifest);
+    if (manifest.slug === 'master-data' && visitpadManifest) {
+      node = {
+        ...node,
+        children: [...(node.children ?? []), visitpadMasterNavigationGroup(visitpadManifest)],
+      };
+    }
+    nodes.push(node);
+  }
+
   composedCache = nodes;
   composedCacheKey = key;
   return nodes;

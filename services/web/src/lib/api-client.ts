@@ -4,19 +4,21 @@ import { refreshAccessToken } from '@/lib/auth-session';
 import {
   billingIqTenantHeaderValue,
   catalogIqTenantHeaderValue,
+  isMasterDataDualSchemaCatalogApiPath,
   serviceIqTenantHeaderValue,
+  visitpadCatalogOmitsIqTenantHeader,
 } from '@/lib/catalog-tenant';
 import { useAuthStore } from '@/stores/auth.store';
+import { usePermissionsStore } from '@/stores/permissions.store';
 import { useTenantStore } from '@/stores/tenant.store';
 
 const BASE_URL = resolveBrowserApiBaseUrl();
-
-const VISITPAD_CATALOG_API_PREFIX = '/api/v1/master-data/visitpad/';
 const EMPI_API_PREFIX = '/api/empi/v1/';
 const REGISTRATION_API_PREFIX = '/api/registration/v1/';
-const USER_MANAGEMENT_API_PREFIX = '/api/user-management/v1';
+const USER_MANAGEMENT_API_PREFIX = '/api/user-management';
 const CONFIGURATOR_API_PREFIX = '/api/configurator/v1';
 const BILLING_API_PREFIX = '/api/billing/v1/';
+const OPD_API_PREFIX = '/api/v1/opd/';
 
 function isRegistrationApiPath(path: string): boolean {
   return (
@@ -32,6 +34,20 @@ function resolveRequestUrl(path: string): string {
 function isWriteHttpMethod(method: string | undefined): boolean {
   const m = (method ?? 'GET').toUpperCase();
   return m === 'POST' || m === 'PUT' || m === 'PATCH' || m === 'DELETE';
+}
+
+/** JWT `sub` for OPD doctor_id when the gateway does not inject x-user-id. */
+function jwtSubjectFromAccessToken(token: string): string | undefined {
+  const parts = token.split('.');
+  if (parts.length < 2) return undefined;
+  try {
+    const payload = JSON.parse(atob(parts[1]!.replace(/-/g, '+').replace(/_/g, '/'))) as {
+      sub?: unknown;
+    };
+    return typeof payload.sub === 'string' && payload.sub.trim() ? payload.sub.trim() : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -55,7 +71,8 @@ function pathRequiresTenantHeader(path: string): boolean {
     path.startsWith(USER_MANAGEMENT_API_PREFIX) ||
     path.startsWith(EMPI_API_PREFIX) ||
     isRegistrationApiPath(path) ||
-    path.startsWith(CONFIGURATOR_API_PREFIX)
+    path.startsWith(CONFIGURATOR_API_PREFIX) ||
+    path.startsWith(OPD_API_PREFIX)
   );
 }
 
@@ -83,6 +100,19 @@ function shouldOmitTenantHeaders(context?: ApiClientContext): boolean {
   return context?.tenantIdOverride === null;
 }
 
+function visitpadOmitsTenantHeaderForPath(path: string): boolean {
+  const { roles } = useAuthStore.getState();
+  const { roles: principalRoles } = usePermissionsStore.getState();
+  return visitpadCatalogOmitsIqTenantHeader({ path, authRoles: roles, principalRoles });
+}
+
+function shouldOmitTenantHeadersForPath(path: string, context?: ApiClientContext): boolean {
+  if (shouldOmitTenantHeaders(context)) {
+    return true;
+  }
+  return visitpadOmitsTenantHeaderForPath(path);
+}
+
 function buildRequestHeaders(
   path: string,
   options: RequestInit,
@@ -95,15 +125,24 @@ function buildRequestHeaders(
   const token = useAuthStore.getState().accessToken;
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
+    if (path.startsWith(OPD_API_PREFIX) && isWriteHttpMethod(options.method)) {
+      const userId = jwtSubjectFromAccessToken(token);
+      if (userId) {
+        headers.set('x-user-id', userId);
+      }
+    }
   }
 
-  if (!shouldOmitTenantHeaders(context) && !path.startsWith(BILLING_API_PREFIX)) {
+  const skipTenantHeaders = shouldOmitTenantHeadersForPath(path, context);
+
+  if (!skipTenantHeaders && !path.startsWith(BILLING_API_PREFIX)) {
     applyTenantHeaders(headers, path, tenantId);
   }
 
   if (
     isWriteHttpMethod(options.method) &&
-    path.startsWith(VISITPAD_CATALOG_API_PREFIX) &&
+    isMasterDataDualSchemaCatalogApiPath(path) &&
+    !skipTenantHeaders &&
     tenantId != null &&
     tenantId.trim() !== '' &&
     catalogIqTenantHeaderValue(tenantId) == null
@@ -124,6 +163,54 @@ export async function apiClient<T>(
   return parseJsonResponse<T>(
     await fetchWithAuthRetry(path, options, context, true),
   );
+}
+
+/** Binary response (e.g. PDF) with the same auth and tenant headers as {@link apiClient}. */
+export async function apiClientBlob(
+  path: string,
+  options: RequestInit = {},
+  context?: ApiClientContext,
+): Promise<Blob> {
+  const headers = buildRequestHeaders(path, options, context);
+  headers.delete('Content-Type');
+  headers.set('Accept', 'application/pdf');
+
+  const response = await fetchWithAuthRetry(
+    path,
+    { ...options, method: options.method ?? 'GET', headers },
+    context,
+    true,
+  );
+
+  if (!response.ok) {
+    throw new ApiError(response.status, await response.text());
+  }
+
+  return response.blob();
+}
+
+/** HTML/text response with the same auth and tenant headers as {@link apiClient}. */
+export async function apiClientText(
+  path: string,
+  options: RequestInit = {},
+  context?: ApiClientContext,
+): Promise<string> {
+  const headers = buildRequestHeaders(path, options, context);
+  headers.delete('Content-Type');
+  headers.set('Accept', 'text/html');
+
+  const response = await fetchWithAuthRetry(
+    path,
+    { ...options, method: options.method ?? 'GET', headers },
+    context,
+    true,
+  );
+
+  if (!response.ok) {
+    throw new ApiError(response.status, await response.text());
+  }
+
+  return response.text();
 }
 
 /** Master-data / UM / billing calls scoped to a specific tenant (configurator tenant detail). */
@@ -171,7 +258,7 @@ async function fetchWithAuthRetry(
   const tenantId = resolveEffectiveTenantId(context);
   const accessToken = useAuthStore.getState().accessToken;
   const catalogTenant = catalogIqTenantHeaderValue(tenantId);
-  const omitTenantHeaders = shouldOmitTenantHeaders(context);
+  const omitTenantHeaders = shouldOmitTenantHeadersForPath(path, context);
 
   if (!omitTenantHeaders) {
     if (
@@ -198,7 +285,7 @@ async function fetchWithAuthRetry(
     ) {
       headers.set('x-tenant-id', serviceIqTenantHeaderValue(tenantId));
     }
-    /** Billing tariffs are tenant-scoped — JWT/home tenant; never stale EMPI placeholder. */
+    /** Billing tariffs are tenant-scoped — always normalize (caller may pass stale EMPI placeholder). */
     if (path.startsWith(BILLING_API_PREFIX)) {
       const billingTenant = billingIqTenantHeaderValue(tenantId, accessToken);
       headers.set('iq_tenant_id', billingTenant);

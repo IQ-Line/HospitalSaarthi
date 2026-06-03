@@ -5,7 +5,6 @@ import {
 } from '@/navigation/nav-capability-access';
 import { capabilityKeysGrantProductAccess } from '@/navigation/module-product-access';
 import { getModuleCatalogIndexFromCache } from '@/platform/modules/module-catalog';
-import { canonicalizeRuntimeCapabilityKey } from '@/lib/legacy-capability-key-remap';
 import { normalizeCapabilityKey } from '@/lib/principal-capabilities';
 import { catalogSlugVariants } from '@/platform/modules/catalog-slug-variants';
 import type { NavigationNode } from '@/navigation/types';
@@ -69,7 +68,7 @@ export function principalHasCatalogModuleAction(
   const segments = new Set<string>();
 
   for (const rawKey of capabilityKeys) {
-    const parts = canonicalizeRuntimeCapabilityKey(normalizeCapabilityKey(rawKey)).split(':');
+    const parts = normalizeCapabilityKey(rawKey).split(':');
     if (parts.length < 3) {
       continue;
     }

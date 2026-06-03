@@ -12,12 +12,14 @@ from app.repositories.module_repository import ModuleRepository
 from app.schemas.module import (
     ModuleCategory,
     ModuleCreate,
+    ModuleKind,
     ModuleListResponse,
     ModuleNavListResponse,
     ModuleNavResponse,
     ModuleResponse,
     ModuleSingleResponse,
     ModuleUpdate,
+    VisibilityScope,
 )
 from app.services.module_service import (
     create_module,
@@ -37,8 +39,22 @@ router = APIRouter(prefix="/modules", tags=["Modules"])
 def get_modules(
     repository: Annotated[ModuleRepository, Depends(get_module_repository)],
     category: Annotated[ModuleCategory | None, Query()] = None,
+    module_kind: Annotated[str | None, Query(
+        description="Filter by module kind(s). Comma-separated: ?module_kind=product,foundation",
+    )] = None,
+    visibility: Annotated[VisibilityScope | None, Query(
+        description="Filter by visibility scope: 'tenant' (default for tenant admins) or 'superadmin'. Omit to return all.",
+    )] = None,
 ) -> ModuleListResponse:
-    modules = list_modules(repository, category=category)
+    kinds: list[ModuleKind] | None = None
+    if module_kind is not None:
+        raw = [v.strip() for v in module_kind.split(",") if v.strip()]
+        try:
+            kinds = [ModuleKind(v) for v in raw]
+        except ValueError:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=422, detail=f"Invalid module_kind value(s): {module_kind}")
+    modules = list_modules(repository, category=category, module_kinds=kinds, visibility=visibility)
     data = [ModuleResponse.model_validate(module) for module in modules]
     return ModuleListResponse(data=data, total=len(data))
 
@@ -54,8 +70,11 @@ def get_modules(
 )
 def get_modules_for_nav(
     repository: Annotated[ModuleRepository, Depends(get_module_repository)],
+    visibility: Annotated[VisibilityScope | None, Query(
+        description="Filter by visibility scope. Tenant admins should pass 'tenant'; superadmins omit to see all.",
+    )] = None,
 ) -> ModuleNavListResponse:
-    modules = list_modules_for_nav(repository)
+    modules = list_modules_for_nav(repository, visibility=visibility)
     data = [ModuleNavResponse.model_validate(module) for module in modules]
     return ModuleNavListResponse(data=data)
 

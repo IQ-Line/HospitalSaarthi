@@ -1,3 +1,5 @@
+import { VISITPAD_CATALOG_SECTIONS } from '@/lib/visitpad-catalog-slugs';
+
 export const visitpadKeys = {
   all: ['visitpad'] as const,
   units: () => [...visitpadKeys.all, 'units'] as const,
@@ -19,35 +21,90 @@ export const visitpadKeys = {
 const tenantCatalogKeysPrefix = (listPath: string) =>
   [...visitpadKeys.all, 'tenant-catalog-keys', listPath] as const;
 
+type VisitpadListInvalidationEntry = {
+  listPath: string;
+  listKey: readonly unknown[];
+  listKeyPrefix?: readonly unknown[];
+};
+
+const VISITPAD_LIST_KEY_BY_PATH: Record<string, () => readonly unknown[]> = {
+  '/units': visitpadKeys.units,
+  '/unit-conversions': visitpadKeys.conversions,
+  '/vitals': visitpadKeys.vitals,
+  '/chief-complaints': visitpadKeys.chiefComplaints,
+  '/diagnoses': visitpadKeys.diagnoses,
+  '/allergens': visitpadKeys.allergens,
+  '/allergy-reactions': visitpadKeys.reactions,
+  '/rx-columns': visitpadKeys.rxColumns,
+  '/medicines': visitpadKeys.medicines,
+  '/chronic-illnesses': visitpadKeys.chronicIllnesses,
+  '/procedures': visitpadKeys.procedures,
+  '/vaccines': visitpadKeys.vaccines,
+  '/manufacturers': visitpadKeys.manufacturers,
+};
+
+const VISITPAD_LIST_INVALIDATION: readonly VisitpadListInvalidationEntry[] =
+  VISITPAD_CATALOG_SECTIONS.map((section) => {
+    const listKey = VISITPAD_LIST_KEY_BY_PATH[section.listPath]();
+    return {
+      listPath: section.listPath,
+      listKey,
+      ...(section.listPath === '/rx-columns'
+        ? { listKeyPrefix: [...visitpadKeys.all, 'rx-columns'] as const }
+        : {}),
+    };
+  });
+
+/** `/api/v1/master-data/visitpad/vitals` → `/vitals`. */
+export function visitpadCatalogListPathFromBasePath(basePath: string): string | null {
+  const trimmed = basePath.replace(/\/+$/, '');
+  const marker = '/visitpad/';
+  const idx = trimmed.indexOf(marker);
+  if (idx === -1) {
+    return null;
+  }
+  const segment = trimmed.slice(idx + marker.length).split('/')[0]?.trim();
+  if (!segment) {
+    return null;
+  }
+  return `/${segment}`;
+}
+
+function visitpadInvalidationKeysForListPath(listPath: string): readonly (readonly unknown[])[] {
+  const entry = VISITPAD_LIST_INVALIDATION.find((row) => row.listPath === listPath);
+  if (!entry) {
+    return [[...visitpadKeys.all]];
+  }
+  const keys: (readonly unknown[])[] = [entry.listKey, tenantCatalogKeysPrefix(listPath)];
+  if (entry.listKeyPrefix) {
+    keys.push(entry.listKeyPrefix);
+  }
+  return keys;
+}
+
+/**
+ * Query keys to invalidate after POST/PATCH/DELETE on a Visitpad catalog collection.
+ */
+export function visitpadInvalidationKeysForCatalogBasePath(
+  basePath: string,
+): readonly (readonly unknown[])[] {
+  const listPath = visitpadCatalogListPathFromBasePath(basePath);
+  if (!listPath) {
+    return [[...visitpadKeys.all]];
+  }
+  return visitpadInvalidationKeysForListPath(listPath);
+}
+
 /**
  * Query key roots to invalidate after `POST …/visitpad/…/import-from-platform` succeeds.
- * Prefer this over `visitpadKeys.all` to avoid refetching unrelated Visitpad lists.
  */
 export function visitpadInvalidationKeysAfterPlatformImport(
   importPath: string,
 ): readonly (readonly unknown[])[] {
   const pathPart = importPath.split('?')[0];
-  const section = new URLSearchParams(importPath.split('?')[1] ?? '').get('section') ?? undefined;
-
-  const pairs: [readonly unknown[], readonly unknown[]][] = [
-    ['/units/import-from-platform', [visitpadKeys.units(), tenantCatalogKeysPrefix('/units')]],
-    ['/unit-conversions/import-from-platform', [visitpadKeys.conversions(), tenantCatalogKeysPrefix('/unit-conversions')]],
-    ['/vitals/import-from-platform', [visitpadKeys.vitals(), tenantCatalogKeysPrefix('/vitals')]],
-    ['/chief-complaints/import-from-platform', [visitpadKeys.chiefComplaints(), tenantCatalogKeysPrefix('/chief-complaints')]],
-    ['/diagnoses/import-from-platform', [visitpadKeys.diagnoses(), tenantCatalogKeysPrefix('/diagnoses')]],
-    ['/allergens/import-from-platform', [visitpadKeys.allergens(), tenantCatalogKeysPrefix('/allergens')]],
-    ['/allergy-reactions/import-from-platform', [visitpadKeys.reactions(), tenantCatalogKeysPrefix('/allergy-reactions')]],
-    ['/rx-columns/import-from-platform', [visitpadKeys.rxColumns(section), tenantCatalogKeysPrefix('/rx-columns')]],
-    ['/medicines/import-from-platform', [visitpadKeys.medicines(), tenantCatalogKeysPrefix('/medicines')]],
-    ['/chronic-illnesses/import-from-platform', [visitpadKeys.chronicIllnesses(), tenantCatalogKeysPrefix('/chronic-illnesses')]],
-    ['/procedures/import-from-platform', [visitpadKeys.procedures(), tenantCatalogKeysPrefix('/procedures')]],
-    ['/vaccines/import-from-platform', [visitpadKeys.vaccines(), tenantCatalogKeysPrefix('/vaccines')]],
-    ['/manufacturers/import-from-platform', [visitpadKeys.manufacturers(), tenantCatalogKeysPrefix('/manufacturers')]],
-  ];
-
-  for (const [suffix, keys] of pairs) {
-    if (pathPart.endsWith(suffix)) {
-      return [keys[0], keys[1]];
+  for (const entry of VISITPAD_LIST_INVALIDATION) {
+    if (pathPart.endsWith(`${entry.listPath}/import-from-platform`)) {
+      return visitpadInvalidationKeysForListPath(entry.listPath);
     }
   }
   return [[...visitpadKeys.all]];

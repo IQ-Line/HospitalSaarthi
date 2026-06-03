@@ -17,6 +17,7 @@ import type {
   UserCapabilitiesSnapshot,
   UserRepository,
 } from "../ports/index.js";
+import type { ModuleEntitlementRequestContext } from "../ports/module-integration-ports.js";
 import { assertRuntimeCapabilitiesEntitledForTenant } from "./assert-runtime-capabilities-entitled-for-tenant.js";
 import { getUserCapabilities } from "./get-user-capabilities.js";
 
@@ -42,6 +43,7 @@ export async function replaceUserCapabilities(
   ctx: ReplaceUserCapabilitiesContext,
   userId: string,
   input: ReplaceUserCapabilitiesInput,
+  entitlementContext?: ModuleEntitlementRequestContext,
 ): Promise<UserCapabilitiesSnapshot> {
   const user = await deps.userRepository.getUserById(ctx.tenantId, userId);
   if (user === null) {
@@ -78,7 +80,7 @@ export async function replaceUserCapabilities(
       },
       ctx.tenantId,
       capabilityIds,
-      { cachePolicy: "bypass-cache" },
+      { cachePolicy: "bypass-cache", authorization: entitlementContext?.authorization },
     );
   }
 

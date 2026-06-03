@@ -230,6 +230,7 @@ async function ensureBootstrapRole(db: DbInstance): Promise<string> {
     await db
       .update(roles)
       .set({
+        role_type: DEVELOPMENT_BOOTSTRAP_ROLE_CODE,
         display_name: "Super Admin",
         description: "Bootstrap super-admin role for development initialization.",
         is_system: true,
@@ -249,6 +250,7 @@ async function ensureBootstrapRole(db: DbInstance): Promise<string> {
     iq_tenant_id: DEVELOPMENT_BOOTSTRAP_TENANT_ID,
     id: DEVELOPMENT_BOOTSTRAP_ROLE_ID,
     code: DEVELOPMENT_BOOTSTRAP_ROLE_CODE,
+    role_type: DEVELOPMENT_BOOTSTRAP_ROLE_CODE,
     display_name: "Super Admin",
     description: "Bootstrap super-admin role for development initialization.",
     is_system: true,

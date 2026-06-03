@@ -12,18 +12,26 @@ import type {
   VisitRegistrationBillingFeeLine,
 } from '@/features/frontdesk/types';
 
-function deskPricing(
+function lineDiscountFields(
   line: VisitRegistrationBillingFeeLine | undefined,
-): Pick<
-  CaptureChargeInput,
-  'unit_price_override' | 'tax_percentage_override' | 'line_discount_amount'
-> {
-  const fee = line ?? { unit_price: 0, tax_percent: 0, discount: 0 };
-  return {
-    unit_price_override: fee.unit_price,
-    tax_percentage_override: fee.tax_percent,
-    line_discount_amount: fee.discount ?? 0,
-  };
+): Pick<CaptureChargeInput, 'line_discount_amount' | 'line_discount_percentage'> {
+  const fields: Pick<CaptureChargeInput, 'line_discount_amount' | 'line_discount_percentage'> = {};
+  const discountPct = line?.discount_percent ?? 0;
+  const discountAmt = line?.discount ?? 0;
+  if (discountPct > 0) fields.line_discount_percentage = discountPct;
+  if (discountAmt > 0) fields.line_discount_amount = discountAmt;
+  return fields;
+}
+
+function requireItemCode(
+  line: VisitRegistrationBillingFeeLine | undefined,
+  label: string,
+): string {
+  const code = line?.item_code?.trim();
+  if (!code) {
+    throw new Error(`${label}: no tariff service code — check tariff master for this tenant.`);
+  }
+  return code;
 }
 
 export interface VisitRegistrationBillingResult {
@@ -31,9 +39,8 @@ export interface VisitRegistrationBillingResult {
 }
 
 /**
- * Registration desk billing: charges → optional discount → finalize → optional payment.
- * Rack `CONS_GENERAL` (`provider_id: null`) until provider-specific tariffs exist.
- * TODO: hydrate consultation_fee from tariff_master when provider is selected (follow-up issue).
+ * Registration desk billing: catalog-backed charges → optional discount → finalize → optional payment.
+ * Prices come from tariff_master; only line discounts are sent as desk overrides when &gt; 0.
  */
 export async function executeVisitRegistrationBilling(
   form: CreateVisitRequestBody,
@@ -45,8 +52,10 @@ export async function executeVisitRegistrationBilling(
   },
 ): Promise<VisitRegistrationBillingResult> {
   const billing = form.billing;
-  const hasProvider = Boolean(form.appointment?.provider_id?.trim());
-  // visits-svc not wired yet — group draft bill by registration id when visit_id is null
+  const appointment = form.appointment;
+  const providerId = appointment?.provider_id?.trim() || null;
+  const departmentName = appointment?.department_name?.trim() || null;
+  const hasProvider = Boolean(providerId);
   const visitRef = ctx.visit_id ?? ctx.registration_id;
 
   const chargeBase = {
@@ -55,27 +64,48 @@ export async function executeVisitRegistrationBilling(
     visit_type: 'OPD' as const,
     source_module: BILLING_SOURCE_MODULE.REGISTRATION,
     source_ref: ctx.registration_id,
-    provider_id: null,
   };
 
-  const regCharge = await captureCharge(
-    { ...chargeBase, item_code: 'REG_FEE', ...deskPricing(billing?.registration_fee) },
-    `${ctx.idempotencyKey}:reg-fee`,
-  );
+  // TODO: re-enable requireItemCode for registration when registration-fee tariff exists.
+  const regItemCode = billing?.registration_fee?.item_code?.trim() || null;
+  let billId: string | null = null;
 
-  let billId = regCharge.bill_id;
+  if (regItemCode) {
+    const regCharge = await captureCharge(
+      {
+        ...chargeBase,
+        item_code: regItemCode,
+        provider_id: null,
+        ...lineDiscountFields(billing?.registration_fee),
+      },
+      `${ctx.idempotencyKey}:reg-fee`,
+    );
+    billId = regCharge.bill_id;
+  }
 
-  if (hasProvider) {
+  const consultItemCode = billing?.consultation_fee?.item_code?.trim() || null;
+  if (hasProvider && consultItemCode) {
     const consultCharge = await captureCharge(
-      { ...chargeBase, item_code: 'CONS_GENERAL', ...deskPricing(billing?.consultation_fee) },
+      {
+        ...chargeBase,
+        item_code: consultItemCode,
+        provider_id: providerId,
+        department: departmentName,
+        ...lineDiscountFields(billing?.consultation_fee),
+      },
       `${ctx.idempotencyKey}:consult`,
     );
-    if (consultCharge.bill_id !== regCharge.bill_id) {
+    if (billId && consultCharge.bill_id !== billId) {
       throw new Error(
-        `Registration billing: charges on different bills (${regCharge.bill_id} vs ${consultCharge.bill_id})`,
+        `Registration billing: charges on different bills (${billId} vs ${consultCharge.bill_id})`,
       );
     }
     billId = consultCharge.bill_id;
+  }
+
+  // TODO: re-enable throw when tariff gates are restored.
+  if (!billId) {
+    return { bill_id: '' };
   }
 
   const invoiceDiscount = billing?.invoice_discount ?? 0;

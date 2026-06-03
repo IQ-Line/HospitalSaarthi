@@ -12,7 +12,8 @@ function hasDeskPricingOverrides(input: CaptureChargeInput): boolean {
   return (
     input.unit_price_override != null ||
     input.tax_percentage_override != null ||
-    (input.line_discount_amount != null && Number(input.line_discount_amount) > 0)
+    (input.line_discount_amount != null && Number(input.line_discount_amount) > 0) ||
+    (input.line_discount_percentage != null && Number(input.line_discount_percentage) > 0)
   );
 }
 
@@ -40,23 +41,49 @@ const toResponse = (
   replayed,
 });
 
+function resolveLineDiscount(
+  input: CaptureChargeInput,
+  unitPrice: string,
+  qty: number,
+): { discount_amount: string; discount_percentage: string } {
+  const pct = Number(input.line_discount_percentage ?? 0);
+  const explicitAmt = Number(input.line_discount_amount ?? 0);
+  let discountAmt = explicitAmt;
+  if (discountAmt <= 0 && pct > 0) {
+    const gross = Number(unitPrice) * qty;
+    discountAmt = Math.round(gross * pct / 100);
+  }
+  return {
+    discount_amount: money(discountAmt),
+    discount_percentage: pct > 0 ? money(pct) : "0.0000",
+  };
+}
+
 function lineAmounts(input: CaptureChargeInput, tariff: { base_price: string; tax_percentage: string }, qty: number) {
   const unitPrice =
     input.unit_price_override != null ? money(input.unit_price_override) : tariff.base_price;
   const taxPct =
     input.tax_percentage_override != null ? money(input.tax_percentage_override) : tariff.tax_percentage;
+  const { discount_amount: resolvedDiscount, discount_percentage } = resolveLineDiscount(
+    input,
+    unitPrice,
+    qty,
+  );
   const desk =
     input.unit_price_override != null ||
     input.tax_percentage_override != null ||
-    Number(input.line_discount_amount ?? 0) > 0;
-  const amounts = desk
-    ? computeDeskLineAmounts(unitPrice, qty, taxPct, input.line_discount_amount ?? 0)
-    : computeLineAmounts(unitPrice, qty, taxPct);
+    Number(resolvedDiscount) > 0 ||
+    Number(discount_percentage) > 0;
+  const deskAmounts = desk
+    ? computeDeskLineAmounts(unitPrice, qty, taxPct, resolvedDiscount)
+    : null;
+  const amounts = deskAmounts ?? computeLineAmounts(unitPrice, qty, taxPct);
   return {
     unitPrice,
     taxPct,
     amounts,
-    discount_amount: amounts.discount_amount ?? "0.0000",
+    discount_amount: deskAmounts?.discount_amount ?? resolvedDiscount,
+    discount_percentage,
   };
 }
 
@@ -98,7 +125,11 @@ export async function captureCharge(
       newDraftBill(tenantId, input.patient_id, visitId, input.visit_type ?? "OPD"),
     ));
 
-  const { unitPrice, taxPct, amounts, discount_amount } = lineAmounts(input, tariff, qty);
+  const { unitPrice, taxPct, amounts, discount_amount, discount_percentage } = lineAmounts(
+    input,
+    tariff,
+    qty,
+  );
 
   const item = await deps.billingRepo.insertItem({
     iq_tenant_id: tenantId,
@@ -109,7 +140,7 @@ export async function captureCharge(
     description: tariff.service_name,
     quantity: qty.toFixed(2),
     unit_price: unitPrice,
-    discount_percentage: "0.0000",
+    discount_percentage,
     discount_amount,
     ...amounts,
     tax_percentage: taxPct,
@@ -117,7 +148,7 @@ export async function captureCharge(
     source_ref: input.source_ref ?? null,
     performed_date: input.performed_date ?? new Date().toISOString(),
     performed_by: input.performed_by ?? providerId,
-    department: input.department ?? tariff.department,
+    department: input.department ?? tariff.department_id,
     status: "ACTIVE",
     idempotency_key: idempotencyKey ?? null,
     notes: input.notes ?? null,

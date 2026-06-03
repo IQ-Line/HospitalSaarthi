@@ -1,0 +1,119 @@
+---
+# Billing — tariff / service catalog CRUD.
+# Capabilities: tariff-master:tariff-master:{create,read,update,delete}
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "tariff_master"
+  version: default
+  rules:
+    - actions:
+        - "tariff-master.read"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "tariff-master:tariff-master:read" in request.principal.attr.capabilities ||
+              "tariff-master:tariff-master:read" in request.principal.attr.delegated_capabilities ||
+              "tariff-master:tariff-master:create" in request.principal.attr.capabilities ||
+              "tariff-master:tariff-master:create" in request.principal.attr.delegated_capabilities ||
+              "tariff-master:tariff-master:update" in request.principal.attr.capabilities ||
+              "tariff-master:tariff-master:update" in request.principal.attr.delegated_capabilities ||
+              "billing-and-finance:shell:access" in request.principal.attr.capabilities ||
+              "billing-and-finance:shell:access" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "tariff-master.read"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "tariff-master:tariff-master:read" in request.principal.attr.capabilities ||
+              "tariff-master:tariff-master:read" in request.principal.attr.delegated_capabilities ||
+              "tariff-master:tariff-master:create" in request.principal.attr.capabilities ||
+              "tariff-master:tariff-master:create" in request.principal.attr.delegated_capabilities ||
+              "tariff-master:tariff-master:update" in request.principal.attr.capabilities ||
+              "tariff-master:tariff-master:update" in request.principal.attr.delegated_capabilities ||
+              "billing-and-finance:shell:access" in request.principal.attr.capabilities ||
+              "billing-and-finance:shell:access" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "tariff-master.create"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "tariff-master:tariff-master:create" in request.principal.attr.capabilities ||
+              "tariff-master:tariff-master:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "tariff-master.create"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "tariff-master:tariff-master:create" in request.principal.attr.capabilities ||
+              "tariff-master:tariff-master:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "tariff-master.update"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "tariff-master:tariff-master:update" in request.principal.attr.capabilities ||
+              "tariff-master:tariff-master:update" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "tariff-master.update"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "tariff-master:tariff-master:update" in request.principal.attr.capabilities ||
+              "tariff-master:tariff-master:update" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "tariff-master.delete"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "tariff-master:tariff-master:delete" in request.principal.attr.capabilities ||
+              "tariff-master:tariff-master:delete" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "tariff-master.delete"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "tariff-master:tariff-master:delete" in request.principal.attr.capabilities ||
+              "tariff-master:tariff-master:delete" in request.principal.attr.delegated_capabilities
+            )

@@ -1,20 +1,42 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
-import { validateAuthConfig } from "@hims/ts-sdk-identity";
+import { identityPlugin, validateAuthConfig } from "@hims/ts-sdk-identity";
+import { assertCerbosReachable, authzPlugin } from "@hims/ts-sdk-authz";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import { tenantPlugin } from "@hims/ts-sdk-tenant";
 import { createDb } from "@hims/ts-sdk-db";
 import { InProcessEventBus } from "@hims/ts-sdk-events";
+import { allocateIdentifier } from "@hims/ts-sdk-sequence";
+import {
+  DrizzleUserRepository,
+  DrizzlePrincipalRoleProjectionRepository,
+  DrizzlePrincipalAuthorizationRepository,
+  createDefaultPrincipalService,
+  principalRoleEnricherPlugin,
+} from "@hims/user-management";
+import { HttpPdfPlatformRenderer } from "@hims/pdf-client";
 import {
   applyRegistrationSchemaMigration,
   DrizzleRegistrationRepo,
+  DrizzleVisitRepo,
+  HttpBillingGateway,
   HttpEmpiGateway,
+  HttpOpdGateway,
+  HttpPicklistGateway,
+  createRegistrationAuthzTargetResolver,
+  registerDocumentsHandler,
   registerRegistrationsHandler,
+  registerVisitsHandler,
 } from "@hims/registration";
 
 const PORT = Number(process.env["REGISTRATION_SVC_PORT"] ?? 3006);
 const DATABASE_URL = process.env["DATABASE_URL"] ?? "";
 const EMPI_URL = process.env["EMPI_URL"] ?? "http://localhost:3002";
+const BILLING_URL = process.env["BILLING_URL"] ?? "http://localhost:3003";
+const OPD_URL = process.env["OPD_URL"] ?? "http://localhost:8020";
+const MASTER_DATA_URL = process.env["MASTER_DATA_URL"] ?? "http://localhost:8010";
+const PDF_PLATFORM_URL = process.env["PDF_PLATFORM_URL"] ?? "http://localhost:8091";
+const PDF_PLATFORM_API_KEY = process.env["PDF_PLATFORM_API_KEY"];
 
 const fastifyAjv = {
   customOptions: {
@@ -76,12 +98,6 @@ async function main() {
     throw new Error("DATABASE_URL is required for registration-svc");
   }
 
-  const isProduction = process.env["NODE_ENV"] === "production";
-  const enableAuth = process.env["ENABLE_AUTH"] === "true";
-  if (isProduction && !enableAuth) {
-    throw new Error("ENABLE_AUTH=true is required when NODE_ENV=production");
-  }
-
   if (process.env["REGISTRATION_SKIP_MIGRATE"] !== "true") {
     await applyRegistrationSchemaMigration(DATABASE_URL);
     app.log.info("Registration schema migration applied (or already up to date)");
@@ -89,27 +105,87 @@ async function main() {
 
   const db = createDb(DATABASE_URL);
   const registrationRepo = new DrizzleRegistrationRepo(db);
+  const visitRepo = new DrizzleVisitRepo(db);
+  const allocateOpVisitId = (tenantId: string) =>
+    allocateIdentifier(db, { tenantId, identifierType: "op_visit" });
   const empiGateway = new HttpEmpiGateway(EMPI_URL, {
     warn: (detail, message) => app.log.warn(detail, message),
   });
   const eventBus = new InProcessEventBus();
   await eventBus.connect();
 
+  const billingReadPort = new HttpBillingGateway(BILLING_URL);
+  const opdGateway = new HttpOpdGateway(OPD_URL, {
+    warn: (detail, message) => app.log.warn(detail, message),
+  });
+  const picklistReadPort = new HttpPicklistGateway(
+    MASTER_DATA_URL,
+    (detail, message) => app.log.warn(detail, message),
+  );
+  const pdfRenderer = new HttpPdfPlatformRenderer({
+    baseUrl: PDF_PLATFORM_URL,
+    apiKey: PDF_PLATFORM_API_KEY,
+  });
+
   const handlerDeps = {
     registrationRepo,
+    visitRepo,
+    allocateOpVisitId,
     empiGateway,
     eventBus,
+    opdGateway,
+    picklistReadPort,
   };
 
-  const identityAuth = enableAuth ? validateAuthConfig() : undefined;
+  const documentDeps = {
+    registrationRepo,
+    visitRepo,
+    billingReadPort,
+    pdfRenderer,
+    defaultReportWebOrigin: process.env["REPORT_WEB_ORIGIN"] ?? "http://localhost:5173",
+    defaultReportLogoUrl: process.env["REPORT_LOGO_URL"] ?? "/reportLogo.svg",
+  };
+
+  const identityAuth = validateAuthConfig();
+
+  if (!process.env["CERBOS_URL"] || process.env["CERBOS_URL"].trim() === "") {
+    throw new Error("CERBOS_URL is required for authorization service");
+  }
+  const cerbosUrl = process.env["CERBOS_URL"].trim();
+  await assertCerbosReachable(cerbosUrl);
+
+  const userRepository = new DrizzleUserRepository(db);
+  const principalRoleProjectionRepository = new DrizzlePrincipalRoleProjectionRepository(db);
+  const principalAuthorizationRepository = new DrizzlePrincipalAuthorizationRepository(db);
+  const principalService = createDefaultPrincipalService({
+    userRepository,
+    principalRoleProjectionRepository,
+    principalAuthorizationRepository,
+  });
 
   async function registerRegistrationApi(api: FastifyInstance): Promise<void> {
-    if (identityAuth) {
-      const { identityPlugin } = await import("@hims/ts-sdk-identity");
-      await api.register(identityPlugin, identityAuth);
-    }
+    await api.register(identityPlugin, {
+      ...identityAuth,
+      skipPathPrefixes: ["/docs"],
+    });
+    await api.register(principalRoleEnricherPlugin, {
+      principalService,
+      userRepository,
+    });
+    await api.register(authzPlugin, {
+      cerbosUrl,
+      resolveTarget: createRegistrationAuthzTargetResolver(),
+    });
     await api.register(tenantPlugin);
     registerRegistrationsHandler(api, handlerDeps);
+    registerVisitsHandler(api, {
+      visitRepo,
+      registrationRepo,
+      allocateOpVisitId,
+      eventBus,
+      opdGateway,
+    });
+    registerDocumentsHandler(api, documentDeps);
   }
 
   await app.register(registerRegistrationApi, { prefix: "/api/registration/v1" });

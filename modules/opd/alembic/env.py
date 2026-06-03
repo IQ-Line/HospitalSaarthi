@@ -12,6 +12,8 @@ from opd.core.config import get_settings
 from opd.core.schemas import SCHEMA
 from opd.models import Base
 
+from schema_names import VERSION_TABLE
+
 config = context.config
 
 if config.config_file_name is not None:
@@ -36,7 +38,8 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         include_schemas=True,
-        version_table_schema="public",
+        version_table=SCHEMA,
+        version_table_schema=SCHEMA,
     )
 
     with context.begin_transaction():
@@ -59,7 +62,8 @@ def run_migrations_online() -> None:
             connection=connection,
             target_metadata=target_metadata,
             include_schemas=True,
-            version_table_schema="public",
+            version_table=VERSION_TABLE,
+            version_table_schema=SCHEMA,
         )
 
         with context.begin_transaction():

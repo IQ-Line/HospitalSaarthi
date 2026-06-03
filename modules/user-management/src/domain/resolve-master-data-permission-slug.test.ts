@@ -21,8 +21,8 @@ describe("resolveMasterDataPermissionSlugForMapping", () => {
   it("maps hyphenated product permission slugs under module prefix", () => {
     expect(
       resolveMasterDataPermissionSlugForMapping(
-        "visitpad-templates",
-        "visitpad-templates-catalog-write",
+        "visitpad-master",
+        "units:create",
       ),
     ).toBe("catalog.write");
   });

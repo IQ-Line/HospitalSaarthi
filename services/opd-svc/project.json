@@ -22,11 +22,11 @@
       "outputs": ["{projectRoot}/.venv"]
     },
     "serve": {
-      "command": "uv run uvicorn opd_svc.main:app --host 0.0.0.0 --port 8020 --reload",
+      "command": "uv run uvicorn opd_svc.main:app --host 0.0.0.0 --port 8020 --reload --reload-dir src --reload-dir ../../modules/opd/src/opd",
       "options": {
         "cwd": "services/opd-svc"
       },
-      "dependsOn": ["setup"]
+      "dependsOn": ["opd:db-migrate", "setup"]
     },
     "lint": {
       "command": "uv run ruff check .",

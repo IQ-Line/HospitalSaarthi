@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router';
+import { Circle } from 'lucide-react';
 import type { ComponentType } from 'react';
 
 export function SidebarNavLink({
@@ -7,6 +8,7 @@ export function SidebarNavLink({
   icon: Icon,
   collapsed,
   nested = false,
+  depth = 0,
   indentLevel = 0,
   search,
 }: {
@@ -15,6 +17,7 @@ export function SidebarNavLink({
   icon?: ComponentType<{ className?: string }>;
   collapsed: boolean;
   nested?: boolean;
+  depth?: number;
   /** Extra nesting depth for dynamic module trees (each level adds 1.5rem). */
   indentLevel?: number;
   search?: Record<string, unknown>;
@@ -28,23 +31,34 @@ export function SidebarNavLink({
   const indentStyle =
     !collapsed && indentLevel > 0 ? { marginLeft: `${indentLevel * 1.5}rem` } : undefined;
 
+  const weightClass =
+    depth === 0 ? 'font-semibold' : depth === 1 ? 'font-medium' : '';
+  const colorClass =
+    depth === 0 ? 'text-foreground' : depth === 1 ? 'text-foreground/80' : 'text-foreground/70';
+
+  const iconElement = Icon ? (
+    <Icon className="size-4 shrink-0" />
+  ) : (
+    <Circle className="size-4 shrink-0 opacity-40" />
+  );
+
   return (
     <Link
       to={to}
       {...(search !== undefined ? { search } : {})}
       style={indentStyle}
-      className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-foreground/70 hover:bg-sidebar-accent transition-colors ${indentClass} ${
+      className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-sm ${weightClass} ${colorClass} hover:bg-sidebar-primary/10 transition-colors ${indentClass} ${
         collapsed ? 'justify-center' : ''
       }`}
       activeProps={{
-        className: `flex items-center gap-2 rounded-md px-2 py-1.5 text-sm bg-sidebar-accent font-semibold text-foreground ${indentClass} ${
+        className: `flex items-center gap-2 rounded-md px-2 py-1.5 text-sm ${weightClass} bg-sidebar-primary/15 text-foreground ${indentClass} ${
           collapsed ? 'justify-center' : ''
         }`,
         style: indentStyle,
       }}
       title={collapsed ? label : undefined}
     >
-      {Icon && <Icon className="size-4 shrink-0" />}
+      {iconElement}
       {!collapsed && <span className="truncate">{label}</span>}
     </Link>
   );

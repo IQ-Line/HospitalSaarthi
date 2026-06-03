@@ -13,6 +13,7 @@ export interface Organization {
   type: OrganizationType;
   status: OrganizationStatus;
   contact_email: string | null;
+  website: string | null;
   contact_phone: string | null;
   address: string | null;
   metadata: Record<string, unknown> | null;
@@ -33,11 +34,10 @@ export interface OrganizationCreateInput {
   type: OrganizationType;
   status?: OrganizationStatus;
   contact_email?: string | null;
+  website?: string | null;
   contact_phone?: string | null;
   address?: string | null;
   metadata?: Record<string, unknown> | null;
-  /** Selected master-data module IDs to attach to the default tenant (same transaction as org create). */
-  tenant_modules?: Array<{ module_id: string; is_active: boolean }>;
 }
 
 export interface TenantModule {
@@ -51,39 +51,13 @@ export interface TenantModule {
   updated_by: string | null;
 }
 
-export interface OrganizationCreateResponse {
-  organization: Organization;
-  default_tenant: {
-    iq_tenant_id: string;
-    org_id: string;
-    name: string;
-    slug: string;
-    provisioning_status: string;
-  };
-  tenant_modules: TenantModule[];
-}
-
-/** Step 3 role fields provisioned via user-management after org create. */
-export interface TenantWizardRoleSnapshot {
-  code: string;
-  displayName: string;
-  capabilityIds: string[];
-}
-
-/** Step 4 admin fields provisioned via user-management after org create. */
-export interface TenantWizardAdminSnapshot {
-  adminFirstName: string;
-  adminLastName: string;
-  adminEmail: string;
-  adminUsername?: string;
-  adminMobile?: string;
-  password: string;
-}
+/** POST /organizations returns the created organisation row only. */
+export type OrganizationCreateResponse = Organization;
 
 export type OrganizationUpdateInput = Partial<
   Pick<
     OrganizationCreateInput,
-    'name' | 'slug' | 'type' | 'status' | 'contact_email' | 'contact_phone' | 'address' | 'metadata'
+    'name' | 'slug' | 'type' | 'status' | 'contact_email' | 'website' | 'contact_phone' | 'address' | 'metadata'
   >
 >;
 

@@ -1,4 +1,5 @@
-import Fastify from "fastify";
+import Fastify, { type FastifyInstance } from "fastify";
+import { validateAuthConfig } from "@hims/ts-sdk-identity";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import {
   assertConfiguratorDatabaseIsolation,
@@ -6,17 +7,22 @@ import {
   resolveDatabaseUrl,
   type DbInstance,
 } from "@hims/ts-sdk-db";
+import { createEventBus } from "@hims/ts-sdk-events";
 import {
   createRouter,
   DrizzleOrganizationRepo,
   DrizzleTenantRepo,
   DrizzleTenantModuleRepo,
+  DrizzleTenantIntegrationProfilesRepo,
+  DrizzleSequenceConfigurationRepo,
   type RunConfiguratorTransaction,
 } from "@hims/configurator";
 import {
   runConfiguratorDevelopmentBootstrap,
   shouldRunDevelopmentBootstrap,
 } from "./bootstrap/development-bootstrap.js";
+import { HttpModuleCapabilityResolverAdapter } from "./adapters/http-module-capability-resolver-adapter.js";
+import { HttpTenantAdminProvisioningAdapter } from "./adapters/http-tenant-admin-provisioning-adapter.js";
 
 const PORT = Number(
   process.env["CONFIGURATOR_PORT"] ??
@@ -24,8 +30,22 @@ const PORT = Number(
     3001,
 );
 
+function requireUpstreamBaseUrl(envKey: string, fallback: string): string {
+  const raw = process.env[envKey]?.trim();
+  if (raw && raw.length > 0) return raw.replace(/\/+$/, "");
+  return fallback;
+}
+
 async function main() {
-  const app = Fastify({ logger: true });
+  const app = Fastify({
+    logger: true,
+    ajv: {
+      customOptions: {
+        // Default removeAdditional strips nested keys when oneOf/if-then schemas are used.
+        removeAdditional: false as const,
+      },
+    },
+  });
 
   await registerOpenApiDocs(app, {
     serviceId: "configurator",
@@ -33,6 +53,20 @@ async function main() {
     version: "1.0.0",
     description: "Organization, tenant, and tenant-module provisioning.",
     apiPrefix: "/api/configurator/v1",
+    securitySchemes: {
+      bearerAuth: {
+        type: "http",
+        scheme: "bearer",
+        bearerFormat: "JWT",
+      },
+      internalServiceKey: {
+        type: "apiKey",
+        in: "header",
+        name: "x-configurator-internal-key",
+        description:
+          "Must match CONFIGURATOR_INTERNAL_API_KEY on configurator-svc (internal routes only).",
+      },
+    },
   });
 
   app.get("/healthz", async () => ({ status: "ok" }));
@@ -62,6 +96,8 @@ async function main() {
   const organizationRepo = new DrizzleOrganizationRepo(db);
   const tenantRepo = new DrizzleTenantRepo(db);
   const tenantModuleRepo = new DrizzleTenantModuleRepo(db);
+  const tenantIntegrationProfilesRepo = new DrizzleTenantIntegrationProfilesRepo(db);
+  const sequenceConfigurationRepo = new DrizzleSequenceConfigurationRepo(db);
 
   const runConfiguratorTransaction: RunConfiguratorTransaction = (fn) =>
     db.transaction(async (tx) =>
@@ -72,18 +108,71 @@ async function main() {
       }),
     );
 
-  // No tenantPlugin: organizations/tenants are platform bootstrap APIs (list all
-  // tenants for provisioning). Tenant scope is carried in path params where needed
-  // (e.g. GET /tenants/:tenantId/modules). EMPI/registration keep stricter headers.
-  await app.register(
-    createRouter({
-      organizationRepo,
-      tenantRepo,
-      tenantModuleRepo,
-      runConfiguratorTransaction,
-    }),
-    { prefix: "/api/configurator/v1" },
+  const eventBus = createEventBus({ type: "in-process" });
+  await eventBus.connect();
+
+  app.addHook("onClose", async () => {
+    await eventBus.disconnect();
+  });
+
+  const isProduction = process.env["NODE_ENV"] === "production";
+  const enableAuth = process.env["ENABLE_AUTH"] === "true";
+  if (isProduction && !enableAuth) {
+    throw new Error("ENABLE_AUTH=true is required when NODE_ENV=production");
+  }
+  const identityAuth = enableAuth ? validateAuthConfig() : undefined;
+
+  const userManagementBaseUrl = requireUpstreamBaseUrl(
+    "USER_MANAGEMENT_URL",
+    "http://localhost:3005",
   );
+  const masterDataBaseUrl = requireUpstreamBaseUrl(
+    "MASTER_DATA_URL",
+    "http://localhost:8010",
+  );
+
+  const logFn = (event: Record<string, unknown>, message: string) =>
+    app.log.info(event, message);
+
+  async function registerConfiguratorApi(api: FastifyInstance): Promise<void> {
+    if (identityAuth) {
+      const { identityPlugin } = await import("@hims/ts-sdk-identity");
+      await api.register(identityPlugin, identityAuth);
+    }
+    await api.register(
+      createRouter({
+        organizationRepo,
+        tenantRepo,
+        tenantModuleRepo,
+        tenantIntegrationProfilesRepo,
+        sequenceConfigurationRepo,
+        runConfiguratorTransaction,
+        eventBus,
+        createInfrastructureCatalog: (authorization) =>
+          new HttpModuleCapabilityResolverAdapter({
+            userManagementBaseUrl,
+            masterDataBaseUrl,
+            authorization,
+            log: logFn,
+          }),
+        createModuleCapabilityResolver: (authorization) =>
+          new HttpModuleCapabilityResolverAdapter({
+            userManagementBaseUrl,
+            masterDataBaseUrl,
+            authorization,
+            log: logFn,
+          }),
+        createAdminProvisioner: (authorization) =>
+          new HttpTenantAdminProvisioningAdapter({
+            userManagementBaseUrl,
+            authorization,
+            log: logFn,
+          }),
+      }),
+    );
+  }
+
+  await app.register(registerConfiguratorApi, { prefix: "/api/configurator/v1" });
 
   await app.listen({ port: PORT, host: "0.0.0.0" });
   app.log.info(`Configurator service listening on http://localhost:${PORT}`);

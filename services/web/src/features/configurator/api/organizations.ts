@@ -5,7 +5,6 @@ import { configuratorKeys } from './query-keys';
 import type {
   Organization,
   OrganizationCreateInput,
-  OrganizationCreateResponse,
   OrganizationStatus,
   OrganizationType,
   OrganizationUpdateInput,
@@ -15,18 +14,24 @@ const BASE = '/api/configurator/v1/organizations';
 
 export { fetchOrganizations };
 
-export function useOrganizations(filters: {
-  status?: OrganizationStatus;
-  type?: OrganizationType;
-}) {
-  return useQuery(organizationsQueryOptions(filters));
+export function useOrganizations(
+  filters: {
+    status?: OrganizationStatus;
+    type?: OrganizationType;
+  },
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    ...organizationsQueryOptions(filters),
+    enabled: options?.enabled ?? true,
+  });
 }
 
-export function useOrganization(id: string) {
+export function useOrganization(id: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: configuratorKeys.organizationDetail(id),
     queryFn: () => apiClient<Organization>(`${BASE}/${id}`),
-    enabled: !!id,
+    enabled: (options?.enabled ?? true) && !!id,
   });
 }
 
@@ -34,7 +39,7 @@ export function useCreateOrganization() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: OrganizationCreateInput) =>
-      apiClient<OrganizationCreateResponse>(BASE, {
+      apiClient<Organization>(BASE, {
         method: 'POST',
         body: JSON.stringify(input),
       }),

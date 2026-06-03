@@ -98,6 +98,14 @@ paths:
         - $ref: "#/components/parameters/TenantIdHeader"
         - { name: patient_id, in: query, required: false, schema: { type: string, format: uuid } }
         - { name: visit_id, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: source_module, in: query, required: false, schema: { $ref: "#/components/schemas/SourceModule" } }
+        - {
+            name: source_ref,
+            in: query,
+            required: false,
+            schema: { type: string, format: uuid },
+            description: Returns bills that have at least one line item with this source reference.
+          }
         - { name: status, in: query, required: false, schema: { $ref: "#/components/schemas/BillStatus" } }
         - { name: bill_type, in: query, required: false, schema: { $ref: "#/components/schemas/BillType" } }
         - { name: from_date, in: query, required: false, schema: { type: string, format: date } }
@@ -628,7 +636,8 @@ paths:
         - $ref: "#/components/parameters/TenantIdHeader"
         - { name: q, in: query, required: false, schema: { type: string }, description: Substring match on service_name or service_code. }
         - { name: category, in: query, required: false, schema: { type: string } }
-        - { name: department, in: query, required: false, schema: { type: string } }
+        - { name: department_id, in: query, required: false, schema: { type: string, format: uuid }, description: Filter by master-data department id. }
+        - { name: department, in: query, required: false, schema: { type: string, format: uuid }, description: Alias for department_id. }
         - { name: is_active, in: query, required: false, schema: { type: boolean } }
         - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
         - { name: cursor, in: query, required: false, schema: { type: string } }
@@ -1253,7 +1262,8 @@ components:
         service_code: { type: string, maxLength: 64 }
         service_name: { type: string }
         description: { type: string, nullable: true }
-        department: { type: string, nullable: true }
+        provider_id: { type: string, format: uuid, nullable: true }
+        department_id: { type: string, format: uuid, nullable: true }
         category: { type: string, nullable: true }
         sub_category: { type: string, nullable: true }
         tax_type: { type: string, nullable: true, description: "Tax classification (e.g. CGST_SGST, IGST, EXEMPT). }
@@ -1437,7 +1447,8 @@ components:
         service_code: { type: string, maxLength: 64 }
         service_name: { type: string }
         description: { type: string, nullable: true }
-        department: { type: string, nullable: true }
+        provider_id: { type: string, format: uuid, nullable: true }
+        department_id: { type: string, format: uuid, nullable: true }
         category: { type: string, nullable: true }
         sub_category: { type: string, nullable: true }
         tax_type: { type: string, nullable: true }
@@ -1456,6 +1467,26 @@ components:
         is_emergency_service: { type: boolean, default: false }
         effective_from: { type: string, format: date-time, nullable: true }
         effective_to: { type: string, format: date-time, nullable: true }
+        department_tariffs:
+          type: array
+          description: With provider_id — create one consultation tariff per department (bulk).
+          items:
+            type: object
+            required: [department_id, base_price]
+            additionalProperties: false
+            properties:
+              department_id: { type: string, format: uuid }
+              base_price: { $ref: "#/components/schemas/Money" }
+              tax_percentage: { type: string, format: decimal, pattern: "^[0-9]+(\\.[0-9]{1,4})?$" }
+              service_code: { type: string, maxLength: 64 }
+              service_name: { type: string }
+    ServiceMasterBulkCreateResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/ServiceMaster" }
     ServiceMasterUpdate:
       type: object
       additionalProperties: false

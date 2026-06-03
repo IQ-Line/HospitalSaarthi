@@ -1,3 +1,4 @@
+import { principalHasAnyRole } from '@/lib/principal-roles';
 import { catalogSlugVariants } from '@/platform/modules/catalog-slug-variants';
 import {
   catalogProductSlugsForNode,
@@ -48,20 +49,41 @@ type NavFilterParentContext = {
   /** Tenant module gates inherited from an ancestor group node. */
   requiredModules?: readonly string[];
   requiredModulesAny?: readonly string[];
+  requiredRolesAny?: readonly string[];
 };
 
 function nodeWithInheritedTenantGates(
   node: NavigationNode,
   parent?: NavFilterParentContext,
 ): NavigationNode {
-  if (!parent?.requiredModules?.length && !parent?.requiredModulesAny?.length) {
+  if (
+    !parent?.requiredModules?.length &&
+    !parent?.requiredModulesAny?.length &&
+    !parent?.requiredRolesAny?.length
+  ) {
     return node;
   }
   return {
     ...node,
     requiredModules: node.requiredModules ?? parent.requiredModules,
     requiredModulesAny: node.requiredModulesAny ?? parent.requiredModulesAny,
+    requiredRolesAny: node.requiredRolesAny ?? parent.requiredRolesAny,
   };
+}
+
+function passesRoleGate(
+  node: NavigationNode,
+  ctx: NavFilterContext,
+  parent?: NavFilterParentContext,
+): boolean {
+  if (ctx.bypassCapabilityGates || ctx.isSuperAdmin || ctx.isTenantAdmin) {
+    return true;
+  }
+  const requiredRoles = node.requiredRolesAny ?? parent?.requiredRolesAny;
+  if (!requiredRoles?.length) {
+    return true;
+  }
+  return principalHasAnyRole(ctx.principalRoles ?? [], requiredRoles);
 }
 
 function passesCapabilityGate(
@@ -72,11 +94,47 @@ function passesCapabilityGate(
   return principalGrantsNavNodeAccess(access, node, parent);
 }
 
+function catalogVisibilityScopeHidesNode(
+  node: NavigationNode,
+  ctx: NavFilterContext,
+): boolean {
+  if (!ctx.catalogIndex) {
+    return false;
+  }
+  const slug = node.catalogModuleSlug ?? resolveSlugFromRoute(node.route);
+  if (!slug) {
+    return false;
+  }
+  const entry = ctx.catalogIndex.bySlug.get(slug);
+  if (!entry) {
+    return false;
+  }
+  if (ctx.isSuperAdmin || ctx.isTenantAdmin) {
+    return entry.module_kind === 'product';
+  }
+  return entry.visibility_scope === 'superadmin';
+}
+
+function resolveSlugFromRoute(route: string | undefined): string | null {
+  if (!route) return null;
+  const segments = route.split('/').filter(Boolean);
+  return segments.length >= 2 ? (segments[segments.length - 1] ?? null) : null;
+}
+
 export function isNavigationNodeVisible(
   node: NavigationNode,
   ctx: NavFilterContext,
   parent?: NavFilterParentContext,
 ): boolean {
+  if (node.superAdminOnly && !ctx.isSuperAdmin) {
+    return false;
+  }
+  if (!passesRoleGate(node, ctx, parent)) {
+    return false;
+  }
+  if (catalogVisibilityScopeHidesNode(node, ctx)) {
+    return false;
+  }
   const gatedNode = nodeWithInheritedTenantGates(node, parent);
   if (!passesTenantModuleGate(gatedNode, ctx.enabledModuleSlugs)) {
     return false;
@@ -114,14 +172,18 @@ function filterNavigationNode(
 ): NavigationNode | null {
   const productSlugs = catalogProductSlugsForNode(node);
   const tenantGate =
-    node.requiredModules?.length || node.requiredModulesAny?.length
+    node.requiredModules?.length ||
+    node.requiredModulesAny?.length ||
+    node.requiredRolesAny?.length
       ? {
           requiredModules: node.requiredModules,
           requiredModulesAny: node.requiredModulesAny,
+          requiredRolesAny: node.requiredRolesAny,
         }
       : {
           requiredModules: parent.requiredModules,
           requiredModulesAny: parent.requiredModulesAny,
+          requiredRolesAny: parent.requiredRolesAny,
         };
   const childParent: NavFilterParentContext = {
     parentProductSlugs:

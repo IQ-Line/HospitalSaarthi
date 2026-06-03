@@ -18,20 +18,19 @@ import {
   SelectValue,
 } from '@pulse/ui/select';
 import { INDIAN_STATE_OPTIONS, type WizardFormValues } from '@/features/configurator/create-tenant-wizard-schema';
-import { organizationTypeOptions } from '@/features/configurator/validation';
 
 export interface WizardStep1OrgFieldsProps {
   register: UseFormRegister<WizardFormValues>;
   control: Control<WizardFormValues>;
   errors: FieldErrors<WizardFormValues>;
-  slugInputProps: ComponentProps<'input'>;
+  tenantSlugInputProps: ComponentProps<'input'>;
 }
 
 export function WizardStep1OrgFields({
   register,
   control,
   errors,
-  slugInputProps,
+  tenantSlugInputProps,
 }: WizardStep1OrgFieldsProps) {
   return (
     <FieldGroup className="@container/field-group mx-auto max-w-none gap-4">
@@ -59,41 +58,13 @@ export function WizardStep1OrgFields({
               id="wiz-slug"
               className="h-9 font-mono text-sm"
               placeholder="e.g., city-diagnostics"
-              {...slugInputProps}
+              {...tenantSlugInputProps}
             />
             <FieldDescription>
               Fills with the first letter or digit from the tenant name; edit freely (minimum 3
               characters).
             </FieldDescription>
-            <FieldError errors={errors.slug ? [errors.slug] : undefined} />
-          </FieldContent>
-        </Field>
-        <Field>
-          <FieldLabel id="wiz-tenant-type-label">
-            Tenant type <span className="text-destructive">*</span>
-          </FieldLabel>
-          <FieldContent>
-            <Controller
-              name="tenantType"
-              control={control}
-              render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger
-                    className="h-9 w-full min-w-0 text-sm"
-                    aria-labelledby="wiz-tenant-type-label"
-                  >
-                    <SelectValue placeholder="Select type" className="truncate" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {organizationTypeOptions.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>
-                        {o.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
+            <FieldError errors={errors.tenantSlug ? [errors.tenantSlug] : undefined} />
           </FieldContent>
         </Field>
         <Field>
@@ -114,19 +85,8 @@ export function WizardStep1OrgFields({
           </FieldContent>
         </Field>
         <Field className="md:col-span-2">
-          <FieldLabel htmlFor="wiz-website">Website (optional)</FieldLabel>
-          <FieldContent>
-            <Input
-              id="wiz-website"
-              className="h-9 text-sm"
-              placeholder="https://example.com"
-              {...register('website')}
-            />
-          </FieldContent>
-        </Field>
-        <Field className="md:col-span-2">
           <FieldLabel htmlFor="wiz-hq">
-            HQ address line 1 <span className="text-destructive">*</span>
+            Address <span className="text-destructive">*</span>
           </FieldLabel>
           <FieldContent>
             <Input

@@ -3,7 +3,8 @@
 Use this doc when you want **every click and curl** for sandbox M2.
 
 > **Easy overview first:** [abdm-adapter-m2-simple-reference.md](./abdm-adapter-m2-simple-reference.md)  
-> **Production env matrix:** [abdm-adapter-e2e-and-production.md](./abdm-adapter-e2e-and-production.md) §10
+> **Production env matrix:** [abdm-adapter-e2e-and-production.md](./abdm-adapter-e2e-and-production.md) §10  
+> **Live M3 E2E (Path A + env + fresh run):** same doc §0.1.1, §6A, §12
 
 ---
 
@@ -170,9 +171,10 @@ You need a real **sandbox ABHA address** before M2.
 | Step | Swagger / curl |
 |------|----------------|
 | 1 | `POST /m1/enrol/aadhaar/otp` — body: 12-digit sandbox Aadhaar |
-| 2 | `POST /m1/enrol/aadhaar/verify` — OTP from sandbox SMS |
-| 3 | `POST /m1/abha-address` — pick address |
-| 4 | `GET /m1/profile?sessionId=...` — confirm ABHA |
+| 2 | `POST /m1/enrol/aadhaar/verify` — `{ sessionId, otp, mobile, useAadhaarLinkedMobile: true }` if using Aadhaar-linked mobile (skips mobile-verify) |
+| 3 | `GET /m1/abha-address/suggestions?sessionId=...` — if linked mobile; **or** `mobile-verify/otp` + `mobile-verify/verify` first if different mobile |
+| 4 | `POST /m1/abha-address` — pick address |
+| 5 | `GET /m1/profile?sessionId=...` — confirm ABHA |
 
 Copy **`abhaAddress`** (e.g. `kamalxxx@sbx`).
 

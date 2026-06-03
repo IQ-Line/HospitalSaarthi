@@ -29,7 +29,7 @@ export class DrizzlePrincipalRoleProjectionRepository implements PrincipalRolePr
     }
 
     const rows = await this.db
-      .select({ code: roles.code })
+      .select({ code: roles.code, role_type: roles.role_type })
       .from(user_roles)
       .innerJoin(
         roles,
@@ -45,7 +45,14 @@ export class DrizzlePrincipalRoleProjectionRepository implements PrincipalRolePr
         ),
       );
 
-    const codes = rows.map((r) => r.code);
+    const codes: string[] = [];
+    for (const row of rows) {
+      codes.push(row.code);
+      const roleType = row.role_type?.trim() ?? "";
+      if (roleType.length > 0 && roleType !== row.code) {
+        codes.push(roleType);
+      }
+    }
     this.projectionCache.set(key, [...codes]);
     return [...codes];
   }

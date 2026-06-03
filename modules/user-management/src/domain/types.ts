@@ -24,6 +24,7 @@ export interface User {
    */
   clearance_tier_required?: number;
   status: UserStatus;
+  role_display_names?: string[];
 }
 
 /** Canonical machine-readable authorization primitive managed as data and consumed by Cerbos. */
@@ -50,6 +51,8 @@ export interface Capability {
 export interface Role {
   id: string;
   code: string;
+  /** Master-data role-types picklist value; not unique per tenant. */
+  role_type: string;
   display_name: string;
   description?: string | null;
   is_system: boolean;
@@ -93,6 +96,7 @@ export interface UpdateUserInput {
 
 export interface CreateRoleInput {
   code: string;
+  role_type: string;
   display_name: string;
   description?: string | null;
   is_system?: boolean;
@@ -101,6 +105,7 @@ export interface CreateRoleInput {
 
 export interface UpdateRoleInput {
   code?: string;
+  role_type?: string;
   display_name?: string;
   description?: string | null;
   is_system?: boolean;

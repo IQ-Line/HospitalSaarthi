@@ -131,7 +131,7 @@ describe("PrincipalRoleProjectionRepository instance cache", () => {
         innerJoin: () => chain,
         where: async () => {
           queryCount += 1;
-          return [{ code: "doctor" }];
+          return [{ code: "doctor", role_type: "doctor" }];
         },
       };
       const db = {

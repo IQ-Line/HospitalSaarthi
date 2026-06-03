@@ -2,7 +2,7 @@
 ARG NODE_VERSION=24
 ARG PNPM_VERSION=10.33.0
 
-FROM node:${NODE_VERSION}-bookworm-slim AS builder
+FROM acriqline.azurecr.io/node:24-bookworm-slim AS builder
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 WORKDIR /repo
 

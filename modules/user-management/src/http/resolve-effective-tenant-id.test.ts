@@ -40,6 +40,20 @@ describe("resolveEffectiveTenantId", () => {
     expect(assertTenantHeaderAllowedForPrincipal(request).ok).toBe(true);
   });
 
+  it("reads iq_tenant_id when the header value is a string array (proxy/ingress)", () => {
+    const request = mockRequest({ tenantId: "tenant-home", roles: ["super-admin"] });
+    request.headers["iq_tenant_id"] = ["tenant-other"];
+    expect(resolveEffectiveTenantId(request)).toBe("tenant-other");
+    expect(assertTenantHeaderAllowedForPrincipal(request).ok).toBe(true);
+  });
+
+  it("falls back to x-tenant-id when iq_tenant_id is absent", () => {
+    const request = mockRequest({ tenantId: "tenant-home", roles: ["super-admin"] });
+    request.headers["x-tenant-id"] = "tenant-other";
+    expect(resolveEffectiveTenantId(request)).toBe("tenant-other");
+    expect(assertTenantHeaderAllowedForPrincipal(request).ok).toBe(true);
+  });
+
   it("allows cross-tenant header when super-admin is only in cerbosPrincipal.attributes.role_codes", () => {
     const request = mockRequest({ tenantId: "tenant-home", roles: [] });
     (

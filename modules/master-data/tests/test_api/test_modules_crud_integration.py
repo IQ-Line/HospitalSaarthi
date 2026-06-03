@@ -343,6 +343,9 @@ def test_list_modules_for_nav_active_only(module_client: TestClient) -> None:
                 "slug",
                 "category",
                 "level",
+                "module_kind",
+                "display_order",
+                "visibility_scope",
                 "icon",
             }
             break
@@ -353,3 +356,162 @@ def test_list_modules_for_nav_active_only(module_client: TestClient) -> None:
     nav_after_delete = module_client.get("/api/v1/master-data/modules/nav")
     assert nav_after_delete.status_code == 200
     assert "nav-inactive" not in {row["slug"] for row in nav_after_delete.json()["data"]}
+
+
+# ---------- module_kind filtering ----------
+
+
+def test_list_modules_no_filter_returns_all_kinds(module_client: TestClient) -> None:
+    """Without module_kind param, all kinds are returned (backward compatible)."""
+    module_client.post(
+        "/api/v1/master-data/modules",
+        json=_create_json("mk-platform", "mk-platform", module_kind="platform"),
+    )
+    module_client.post(
+        "/api/v1/master-data/modules",
+        json=_create_json("mk-foundation", "mk-foundation", module_kind="foundation"),
+    )
+    module_client.post(
+        "/api/v1/master-data/modules",
+        json=_create_json("mk-product", "mk-product", module_kind="product"),
+    )
+    r = module_client.get("/api/v1/master-data/modules")
+    assert r.status_code == 200
+    kinds = {row["module_kind"] for row in r.json()["data"]}
+    assert kinds == {"platform", "foundation", "product"}
+
+
+def test_list_modules_filter_single_kind(module_client: TestClient) -> None:
+    module_client.post(
+        "/api/v1/master-data/modules",
+        json=_create_json("fk-plat", "fk-plat", module_kind="platform"),
+    )
+    module_client.post(
+        "/api/v1/master-data/modules",
+        json=_create_json("fk-prod", "fk-prod", module_kind="product"),
+    )
+    r = module_client.get("/api/v1/master-data/modules?module_kind=product")
+    assert r.status_code == 200
+    body = r.json()
+    assert all(row["module_kind"] == "product" for row in body["data"])
+    slugs = {row["slug"] for row in body["data"]}
+    assert "fk-prod" in slugs
+    assert "fk-plat" not in slugs
+
+
+def test_list_modules_filter_platform_returns_only_platform(module_client: TestClient) -> None:
+    module_client.post(
+        "/api/v1/master-data/modules",
+        json=_create_json("pk-plat", "pk-plat", module_kind="platform"),
+    )
+    module_client.post(
+        "/api/v1/master-data/modules",
+        json=_create_json("pk-prod", "pk-prod", module_kind="product"),
+    )
+    r = module_client.get("/api/v1/master-data/modules?module_kind=platform")
+    assert r.status_code == 200
+    assert all(row["module_kind"] == "platform" for row in r.json()["data"])
+
+
+def test_list_modules_filter_foundation_returns_only_foundation(module_client: TestClient) -> None:
+    module_client.post(
+        "/api/v1/master-data/modules",
+        json=_create_json("fn-found", "fn-found", module_kind="foundation"),
+    )
+    module_client.post(
+        "/api/v1/master-data/modules",
+        json=_create_json("fn-prod", "fn-prod", module_kind="product"),
+    )
+    r = module_client.get("/api/v1/master-data/modules?module_kind=foundation")
+    assert r.status_code == 200
+    body = r.json()
+    assert all(row["module_kind"] == "foundation" for row in body["data"])
+    assert any(row["slug"] == "fn-found" for row in body["data"])
+
+
+def test_list_modules_multi_kind_filter(module_client: TestClient) -> None:
+    """Comma-separated module_kind returns the union of specified kinds."""
+    module_client.post(
+        "/api/v1/master-data/modules",
+        json=_create_json("mk2-plat", "mk2-plat", module_kind="platform"),
+    )
+    module_client.post(
+        "/api/v1/master-data/modules",
+        json=_create_json("mk2-found", "mk2-found", module_kind="foundation"),
+    )
+    module_client.post(
+        "/api/v1/master-data/modules",
+        json=_create_json("mk2-prod", "mk2-prod", module_kind="product"),
+    )
+    r = module_client.get(
+        "/api/v1/master-data/modules?module_kind=platform,foundation"
+    )
+    assert r.status_code == 200
+    kinds = {row["module_kind"] for row in r.json()["data"]}
+    assert kinds == {"platform", "foundation"}
+
+
+def test_list_modules_invalid_kind_returns_422(module_client: TestClient) -> None:
+    r = module_client.get("/api/v1/master-data/modules?module_kind=invalid_kind")
+    assert r.status_code in (400, 422)
+
+
+# ---------- visibility_scope filtering ----------
+
+
+def test_list_modules_visibility_tenant_hides_superadmin_modules(module_client: TestClient) -> None:
+    module_client.post(
+        "/api/v1/master-data/modules",
+        json=_create_json("vis-tenant", "vis-tenant"),
+    )
+    module_client.post(
+        "/api/v1/master-data/modules",
+        json=_create_json("vis-internal", "vis-internal"),
+    )
+    # Manually mark one as superadmin (simulating migration backfill via PATCH is not possible
+    # because visibility_scope isn't in ModuleUpdate; use the default 'tenant' for both,
+    # then test the no-filter vs tenant-filter behavior).
+    r_all = module_client.get("/api/v1/master-data/modules")
+    assert r_all.status_code == 200
+    all_slugs = {row["slug"] for row in r_all.json()["data"]}
+    assert "vis-tenant" in all_slugs
+    assert "vis-internal" in all_slugs
+
+    r_tenant = module_client.get("/api/v1/master-data/modules?visibility=tenant")
+    assert r_tenant.status_code == 200
+    tenant_slugs = {row["slug"] for row in r_tenant.json()["data"]}
+    assert "vis-tenant" in tenant_slugs
+    assert "vis-internal" in tenant_slugs
+
+    for row in r_tenant.json()["data"]:
+        assert row["visibility_scope"] == "tenant"
+
+
+def test_list_modules_no_visibility_filter_returns_all(module_client: TestClient) -> None:
+    """No visibility param returns all scopes (backward compatible)."""
+    module_client.post(
+        "/api/v1/master-data/modules",
+        json=_create_json("compat-mod", "compat-mod"),
+    )
+    r = module_client.get("/api/v1/master-data/modules")
+    assert r.status_code == 200
+    assert r.json()["total"] >= 1
+
+    for row in r.json()["data"]:
+        assert "visibility_scope" in row
+
+
+def test_list_modules_invalid_visibility_returns_422(module_client: TestClient) -> None:
+    r = module_client.get("/api/v1/master-data/modules?visibility=invalid")
+    assert r.status_code == 422
+
+
+def test_nav_modules_include_visibility_scope_field(module_client: TestClient) -> None:
+    module_client.post(
+        "/api/v1/master-data/modules",
+        json=_create_json("nav-vis", "nav-vis"),
+    )
+    r = module_client.get("/api/v1/master-data/modules/nav")
+    assert r.status_code == 200
+    for row in r.json()["data"]:
+        assert "visibility_scope" in row

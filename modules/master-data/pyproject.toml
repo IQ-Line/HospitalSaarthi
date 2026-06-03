@@ -12,6 +12,7 @@ dependencies = [
     "pyjwt",
     "sqlalchemy",
     "uvicorn[standard]",
+    "python-dotenv>=1.2.2",
 ]
 
 [dependency-groups]
