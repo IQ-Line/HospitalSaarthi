@@ -48,6 +48,7 @@ export class DrizzleVisitRepo implements VisitRepo {
   async insert(
     tenantId: string,
     input: CreateVisitInput,
+    formattedVisitId: string,
     idempotencyKey: string,
     actorId: string,
     status: VisitStatus,
@@ -62,6 +63,7 @@ export class DrizzleVisitRepo implements VisitRepo {
         .insert(visits)
         .values({
           iq_tenant_id: tenantId,
+          visit_id: formattedVisitId,
           patient_id: input.patient_id,
           visit_type: input.visit_type ?? null,
           facility_id: input.facility_id ?? null,
@@ -94,7 +96,7 @@ export class DrizzleVisitRepo implements VisitRepo {
     const rows = await this.db
       .select()
       .from(visits)
-      .where(and(eq(visits.iq_tenant_id, tenantId), eq(visits.visit_id, visitId)));
+      .where(and(eq(visits.iq_tenant_id, tenantId), eq(visits.id, visitId)));
     return rows[0] ? mapRow(rows[0]) : undefined;
   }
 
@@ -166,7 +168,7 @@ export class DrizzleVisitRepo implements VisitRepo {
     const rows = await this.db
       .update(visits)
       .set(patch)
-      .where(and(eq(visits.iq_tenant_id, tenantId), eq(visits.visit_id, visitId)))
+      .where(and(eq(visits.iq_tenant_id, tenantId), eq(visits.id, visitId)))
       .returning();
     return rows[0] ? mapRow(rows[0]) : undefined;
   }
@@ -174,8 +176,8 @@ export class DrizzleVisitRepo implements VisitRepo {
   async delete(tenantId: string, visitId: string): Promise<boolean> {
     const rows = await this.db
       .delete(visits)
-      .where(and(eq(visits.iq_tenant_id, tenantId), eq(visits.visit_id, visitId)))
-      .returning({ visit_id: visits.visit_id });
+      .where(and(eq(visits.iq_tenant_id, tenantId), eq(visits.id, visitId)))
+      .returning({ id: visits.id });
     return rows.length > 0;
   }
 
@@ -192,7 +194,7 @@ export class DrizzleVisitRepo implements VisitRepo {
         updated_by: actorId,
         updated_at: new Date(),
       })
-      .where(and(eq(visits.iq_tenant_id, tenantId), eq(visits.visit_id, visitId)))
+      .where(and(eq(visits.iq_tenant_id, tenantId), eq(visits.id, visitId)))
       .returning();
     return rows[0] ? mapRow(rows[0]) : undefined;
   }

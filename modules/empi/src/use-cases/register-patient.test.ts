@@ -1,18 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import type { EventBus } from "@hims/ts-sdk-events";
-import type { PatientRepo, SequenceRepo } from "../ports.js";
+import type { PatientRepo } from "../ports.js";
 import type { Patient } from "../domain/patient.types.js";
-import { isValidUhidFormat } from "../domain/uhid.js";
 import { registerPatient } from "./register-patient.js";
 
 describe("registerPatient", () => {
-  it("publishes empi.patient.created with a valid UHID and payload", async () => {
+  it("publishes empi.patient.created with allocated UHID and payload", async () => {
     const publish = vi.fn().mockResolvedValue(undefined);
     const eventBus = { publish } as unknown as EventBus;
-
-    const sequenceRepo = {
-      nextValue: vi.fn().mockResolvedValue(7),
-    } as unknown as SequenceRepo;
+    const allocatePatientUhid = vi.fn().mockResolvedValue("260327000010000007");
 
     const created: Patient = {
       id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
@@ -59,12 +55,7 @@ describe("registerPatient", () => {
     } as unknown as PatientRepo;
 
     await registerPatient(
-      {
-        patientRepo,
-        sequenceRepo,
-        eventBus,
-        getTenantNumericCode: vi.fn().mockResolvedValue("00001"),
-      },
+      { patientRepo, allocatePatientUhid, eventBus },
       {
         iq_tenant_id: "11111111-2222-4333-8444-555555555555",
         first_name: "A",
@@ -74,11 +65,12 @@ describe("registerPatient", () => {
       },
     );
 
-    expect(sequenceRepo.nextValue).toHaveBeenCalled();
+    expect(allocatePatientUhid).toHaveBeenCalledWith("11111111-2222-4333-8444-555555555555");
     expect(patientRepo.create).toHaveBeenCalled();
-    const createdArg = (patientRepo.create as ReturnType<typeof vi.fn>).mock
-      .calls[0][0] as { uhid: string };
-    expect(isValidUhidFormat(createdArg.uhid)).toBe(true);
+    const createdArg = (patientRepo.create as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
+      uhid: string;
+    };
+    expect(createdArg.uhid).toBe("260327000010000007");
 
     expect(publish).toHaveBeenCalledTimes(1);
     const envelope = publish.mock.calls[0][0] as {
@@ -86,6 +78,6 @@ describe("registerPatient", () => {
       payload: { uhid: string };
     };
     expect(envelope.event_type).toBe("empi.patient.created");
-    expect(isValidUhidFormat(envelope.payload.uhid)).toBe(true);
+    expect(envelope.payload.uhid).toBe("260327000010000007");
   });
 });

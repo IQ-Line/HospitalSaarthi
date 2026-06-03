@@ -49,6 +49,7 @@ export interface VisitRepo {
   insert(
     tenantId: string,
     input: CreateVisitInput,
+    formattedVisitId: string,
     idempotencyKey: string,
     actorId: string,
     status: VisitStatus,

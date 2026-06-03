@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { EventBus } from "@hims/ts-sdk-events";
-import type { PatientRepo, SequenceRepo } from "../ports.js";
+import type { PatientRepo } from "../ports.js";
 import type { Patient } from "../domain/patient.types.js";
 import { registerPatient } from "./register-patient.js";
 import { isDuplicateRegistrationResult } from "./register-patient.types.js";
@@ -51,9 +51,7 @@ describe("registerPatient deduplication (Phase 2)", () => {
     const existing = basePatient();
     const publish = vi.fn().mockResolvedValue(undefined);
     const eventBus = { publish } as unknown as EventBus;
-    const sequenceRepo = {
-      nextValue: vi.fn().mockResolvedValue(1),
-    } as unknown as SequenceRepo;
+    const allocatePatientUhid = vi.fn().mockResolvedValue("25010100001000001");
 
     const patientRepo = {
       findDedupCandidates: vi.fn().mockResolvedValue([existing]),
@@ -63,9 +61,8 @@ describe("registerPatient deduplication (Phase 2)", () => {
     const result = await registerPatient(
       {
         patientRepo,
-        sequenceRepo,
+        allocatePatientUhid,
         eventBus,
-        getTenantNumericCode: vi.fn().mockResolvedValue("00001"),
       },
       {
         iq_tenant_id: TENANT,
@@ -87,7 +84,7 @@ describe("registerPatient deduplication (Phase 2)", () => {
       );
     }
     expect(patientRepo.create).not.toHaveBeenCalled();
-    expect(sequenceRepo.nextValue).not.toHaveBeenCalled();
+    expect(allocatePatientUhid).not.toHaveBeenCalled();
     expect(publish).not.toHaveBeenCalled();
   });
 
@@ -99,9 +96,7 @@ describe("registerPatient deduplication (Phase 2)", () => {
     });
     const publish = vi.fn().mockResolvedValue(undefined);
     const eventBus = { publish } as unknown as EventBus;
-    const sequenceRepo = {
-      nextValue: vi.fn().mockResolvedValue(1),
-    } as unknown as SequenceRepo;
+    const allocatePatientUhid = vi.fn().mockResolvedValue("25010100001000001");
 
     const patientRepo = {
       findDedupCandidates: vi.fn().mockResolvedValue([existing]),
@@ -118,9 +113,8 @@ describe("registerPatient deduplication (Phase 2)", () => {
     const result = await registerPatient(
       {
         patientRepo,
-        sequenceRepo,
+        allocatePatientUhid,
         eventBus,
-        getTenantNumericCode: vi.fn().mockResolvedValue("00001"),
       },
       {
         iq_tenant_id: TENANT,
@@ -141,9 +135,7 @@ describe("registerPatient deduplication (Phase 2)", () => {
     const existing = basePatient();
     const publish = vi.fn().mockResolvedValue(undefined);
     const eventBus = { publish } as unknown as EventBus;
-    const sequenceRepo = {
-      nextValue: vi.fn().mockResolvedValue(1),
-    } as unknown as SequenceRepo;
+    const allocatePatientUhid = vi.fn().mockResolvedValue("25010100001000001");
 
     const patientRepo = {
       findDedupCandidates: vi.fn(),
@@ -157,9 +149,8 @@ describe("registerPatient deduplication (Phase 2)", () => {
     const result = await registerPatient(
       {
         patientRepo,
-        sequenceRepo,
+        allocatePatientUhid,
         eventBus,
-        getTenantNumericCode: vi.fn().mockResolvedValue("00001"),
       },
       {
         iq_tenant_id: TENANT,

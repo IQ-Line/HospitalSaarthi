@@ -39,7 +39,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         include_schemas=True,
-        version_table_schema="public",
+        version_table_schema=GLOBAL_SCHEMA,
     )
 
     with context.begin_transaction():
@@ -62,7 +62,7 @@ def run_migrations_online() -> None:
             connection=connection,
             target_metadata=target_metadata,
             include_schemas=True,
-            version_table_schema="public",
+            version_table_schema=GLOBAL_SCHEMA,
         )
 
         with context.begin_transaction():

@@ -96,4 +96,6 @@ export interface ProvisionTenantResult {
 }
 
 export const TENANT_ADMIN_ROLE_CODE = "tenant-admin" as const;
+/** Master-data role-types picklist value (distinct from tenant-unique `code`). */
+export const TENANT_ADMIN_ROLE_TYPE = "tenant-admin" as const;
 export const TENANT_ADMIN_ROLE_DISPLAY_NAME = "Tenant Administrator" as const;

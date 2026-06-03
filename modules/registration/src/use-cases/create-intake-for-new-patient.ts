@@ -22,6 +22,7 @@ export async function createIntakeForNewPatient(
     visitRepo: VisitRepo;
     empiGateway: EmpiHttpPort;
     eventBus: EventBus;
+    allocateOpVisitId: (tenantId: string) => Promise<string>;
     opdGateway?: OpdHttpPort;
   },
   tenantId: string,
@@ -148,6 +149,7 @@ export async function createIntakeForNewPatient(
 export async function createVisitForExistingPatient(
   deps: {
     visitRepo: VisitRepo;
+    allocateOpVisitId: (tenantId: string) => Promise<string>;
     eventBus: EventBus;
     opdGateway?: OpdHttpPort;
   },

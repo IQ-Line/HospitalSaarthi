@@ -17,6 +17,7 @@ import type {
 } from "../domain/onboarding.types.js";
 import {
   TENANT_ADMIN_ROLE_CODE,
+  TENANT_ADMIN_ROLE_TYPE,
   TENANT_ADMIN_ROLE_DISPLAY_NAME,
 } from "../domain/onboarding.types.js";
 import { buildTenantCerbosScopeKey } from "../domain/tenant-cerbos-scope.js";
@@ -124,6 +125,7 @@ export async function provisionTenant(
       coreData.tenant.iq_tenant_id,
       {
         code: TENANT_ADMIN_ROLE_CODE,
+        role_type: TENANT_ADMIN_ROLE_TYPE,
         display_name: TENANT_ADMIN_ROLE_DISPLAY_NAME,
         is_system: true,
       },

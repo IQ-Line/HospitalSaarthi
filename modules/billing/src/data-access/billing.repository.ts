@@ -16,8 +16,8 @@ import {
   decodeBillListCursor,
   encodeBillListCursor,
 } from "../lib/bill-list-pagination.js";
+import { allocateIdentifier } from "@hims/ts-sdk-sequence";
 import {
-  allocateBillNumber,
   allocatePaymentNumber,
   allocateReceiptNumber,
 } from "../lib/allocate-sequence-number.js";
@@ -70,7 +70,10 @@ class DrizzleBillingRepo implements BillingRepo {
   }
 
   async createBill(input: NewBillRow) {
-    const bill_number = await allocateBillNumber(this.db, input.iq_tenant_id);
+    const bill_number = await allocateIdentifier(this.db, {
+      tenantId: input.iq_tenant_id,
+      identifierType: "op_bill",
+    });
     const [row] = await this.db.insert(bills).values({ ...input, bill_number }).returning();
     if (!row) throw new Error("createBill insert failed");
     return toBillRow(row);
