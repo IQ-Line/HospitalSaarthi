@@ -1,5 +1,6 @@
 -- Reform legacy registration.visit (uuid visit_id PK) → id (uuid PK) + visit_id (text).
 -- No-op when visit_id is already text (fresh 0004 or prior successful run).
+-- Same logic runs in 0004_visit_split.sql before the registration backfill INSERT.
 
 DO $$
 BEGIN
