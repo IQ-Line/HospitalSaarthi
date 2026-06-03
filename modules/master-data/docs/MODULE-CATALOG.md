@@ -34,7 +34,7 @@ Cross-cutting HLD: [HLD 02 §4.2 — Owns (platform module registry)](../../../d
 | `025_visitpad_templates_catalog_manage` | Optional: `visitpad-templates-catalog-manage` (`action` = `manage`) + junction row for coarse superadmin-style Cerbos bindings (does not remove 024 rows). |
 | `035_retire_visitpad_templates_catalog` | Soft-deletes legacy `visitpad-templates` L1; re-homes shell permissions on `visitpad-master`; adds `unit-conversions` L3; remaps `configurator.tenant_modules` and UM capability keys. |
 
-All catalog tables are created in the PostgreSQL **`global_master`** schema (`tenant_master` for per-tenant copies). The shared database also holds other modules’ schemas (`configurator`, `empi`, …) and `public.alembic_version` for Alembic.
+All catalog tables are created in the PostgreSQL **`global_master`** schema (`tenant_master` for per-tenant copies). Alembic revision history lives in **`global_master.alembic_version`**. The shared database also holds other modules’ schemas (`configurator`, `empi`, …).
 
 **Local development:** treat the database as disposable. Drop `global_master` and `tenant_master` (and any stray `public` catalog leftovers), then run `alembic upgrade head` on an empty `hims_dev` — no in-place migration from legacy `public` or `master_data` schemas.
 

@@ -10,7 +10,7 @@ After `alembic upgrade head` on PostgreSQL:
 
 - **`global_master`:** Global catalog tables (platform + Visitpad) **without** `iq_tenant_id`.
 - **`tenant_master`:** Parallel catalog tables with **`iq_tenant_id UUID NOT NULL`** on every tenant-scoped row.
-- **`public.alembic_version`:** Alembic revision tracking only.
+- **`global_master.alembic_version`:** Alembic revision tracking only (not `public` — production DB roles often cannot CREATE there).
 
 ## 2. Fresh database (recommended)
 
@@ -20,7 +20,7 @@ No in-place migration from legacy `public` or `master_data` schemas. Drop and re
 psql "$MASTER_DATA_DATABASE_URL" -c "
   DROP SCHEMA IF EXISTS global_master CASCADE;
   DROP SCHEMA IF EXISTS tenant_master CASCADE;
-  DROP TABLE IF EXISTS public.alembic_version CASCADE;
+  DROP TABLE IF EXISTS global_master.alembic_version CASCADE;
 "
 cd modules/master-data && uv run alembic upgrade head
 ```
@@ -29,7 +29,7 @@ Revisions **`013_tm_tenant_id_int`**, **`019_tm_iq_tenant_id_col`**, and **`022_
 
 ## 3. After upgrade — verification
 
-1. **Alembic version:** `SELECT version_num FROM public.alembic_version;` — expect head (e.g. **`025_visitpad_templates_catalog_manage`**).
+1. **Alembic version:** `SELECT version_num FROM global_master.alembic_version;` — expect head (e.g. **`039_registration_picklists_seed`**).
 2. **Column type:**
 
    ```sql

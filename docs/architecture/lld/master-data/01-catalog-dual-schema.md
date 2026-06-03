@@ -56,7 +56,7 @@ So: all **foundational** `global_master` migrations run first; **dual-schema** m
 
 ## SQLite / tests
 
-Integration tests attach in-memory databases as **`global_master`** and **`tenant_master`** so SQLAlchemy can create both schemas. Alembic revision history is stored in **`public.alembic_version`** only. Production uses PostgreSQL for dual-schema migrations **`011`** onward.
+Integration tests attach in-memory databases as **`global_master`** and **`tenant_master`** so SQLAlchemy can create both schemas. Alembic revision history is stored in **`global_master.alembic_version`**. Production uses PostgreSQL for dual-schema migrations **`011`** onward.
 
 ## Fresh database (drop and re-run)
 

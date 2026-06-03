@@ -29,7 +29,11 @@ def upgrade() -> None:
     bind = op.get_bind()
     if bind.dialect.name != "postgresql":
         return
-    op.execute(text("ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR(128)"))
+    op.execute(
+        text(
+            f"ALTER TABLE {_GM}.alembic_version ALTER COLUMN version_num TYPE VARCHAR(128)"
+        )
+    )
 
 
 def downgrade() -> None:
@@ -38,11 +42,13 @@ def downgrade() -> None:
         return
     op.execute(
         text(
-            """
-            UPDATE alembic_version
+            f"""
+            UPDATE {_GM}.alembic_version
             SET version_num = left(version_num, 32)
             WHERE char_length(version_num) > 32
             """
         )
     )
-    op.execute(text("ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR(32)"))
+    op.execute(
+        text(f"ALTER TABLE {_GM}.alembic_version ALTER COLUMN version_num TYPE VARCHAR(32)")
+    )

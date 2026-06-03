@@ -101,7 +101,7 @@ Master Data uses the **same operational database** as every other module (`hims_
 - **`global_master`** — platform catalog (modules, permissions, …)
 - **`tenant_master`** — tenant-scoped master rows
 
-`MASTER_DATA_DATABASE_URL` must point at **`hims_dev`** (with the `postgresql+psycopg://` driver prefix). Alembic keeps `include_schemas=True` and `version_table_schema="public"`; do not rename or collapse those schemas.
+`MASTER_DATA_DATABASE_URL` must point at **`hims_dev`** (with the `postgresql+psycopg://` driver prefix). Alembic keeps `include_schemas=True` and stores revisions in **`global_master.alembic_version`** (not `public` — managed Postgres often denies CREATE on `public`). Do not rename or collapse `global_master` / `tenant_master`.
 
 Use port **5432** instead of **5433** only if `docker ps` shows Postgres mapped to **5432** on the host.
 
