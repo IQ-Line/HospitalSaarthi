@@ -2,35 +2,68 @@ openapi: 3.1.0
 info:
   title: OPD — Visits and prescriptions
   version: 1.0.0
-  description: |
-    OPD clinical encounter API. Persists visit lifecycle and prescription form data
-    for Create RX / Visitpad until normalized child tables are introduced.
+  description: 'OPD module API: visit lifecycle (Create RX / Visitpad) and normalized prescription aggregate.
 
+
+    **Visit-centric routes** persist encounter state and form_data for the active UI flows.
+
+
+    **REST /prescriptions routes** expose tenant-scoped draft/final/cancel lifecycle with normalized clinical child tables.
+    Prescriptions are 1:1 with a registration visit_id (logical ref; no cross-schema FK).
+
+
+    **Distribution:** All prescription tables use tenant_id in primary/unique keys for Citus.
+
+
+    **Visit uniqueness:** At most one active prescription per (tenant_id, visit_id); soft-deleted rows do not block a new
+    prescription for the same visit.'
+tags:
+- name: OpdPatients
+  description: Patient queue sourced from registration visits.
+- name: OpdVisits
+  description: OPD visit lifecycle rows.
+- name: OpdPrescriptions
+  description: Visit-scoped prescription form_data upserts.
+- name: Prescriptions
+  description: Normalized prescription REST aggregate.
 servers:
-  - url: http://localhost:8020/api/v1/opd
-    description: Local opd-svc (OPD_SVC_PORT; default 8020)
-
+- url: http://localhost:8020/api/v1/opd
+  description: Local opd-svc (OPD_SVC_PORT; default 8020)
 paths:
   /patients:
     get:
       operationId: listOpdPatients
       summary: List patients with latest registration visit for the active tenant
-      description: |
-        Patients queue sourced from ``registration.visit`` (filtered by ``iq_tenant_id``).
+      description: 'Patients queue sourced from ``registration.visit`` (filtered by ``iq_tenant_id``).
+
         ``prescription_status`` is overlaid from ``opd.prescriptions`` when a clinical row exists.
-      tags: [OpdPatients]
+
+        '
+      tags:
+      - OpdPatients
       parameters:
-        - name: status
-          in: query
-          schema:
-            type: string
-            enum: [registered, in_progress, completed, cancelled]
-        - name: page
-          in: query
-          schema: { type: integer, minimum: 1, default: 1 }
-        - name: limit
-          in: query
-          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      - name: status
+        in: query
+        schema:
+          type: string
+          enum:
+          - registered
+          - in_progress
+          - completed
+          - cancelled
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 50
       responses:
         '200':
           description: Latest encounter per patient
@@ -38,33 +71,50 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [items, total, page, limit]
+                required:
+                - items
+                - total
+                - page
+                - limit
                 properties:
                   items:
                     type: array
                     items:
                       $ref: '#/components/schemas/OpdPatientEncounterSummary'
-                  total: { type: integer }
-                  page: { type: integer }
-                  limit: { type: integer }
-
+                  total:
+                    type: integer
+                  page:
+                    type: integer
+                  limit:
+                    type: integer
   /visits:
     get:
       operationId: listOpdVisits
       summary: List OPD visits for the active tenant
-      tags: [OpdVisits]
+      tags:
+      - OpdVisits
       parameters:
-        - name: patient_id
-          in: query
-          schema: { type: string, format: uuid }
-        - name: status
-          in: query
-          schema:
-            type: string
-            enum: [registered, in_progress, completed, cancelled]
-        - name: limit
-          in: query
-          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      - name: patient_id
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - name: status
+        in: query
+        schema:
+          type: string
+          enum:
+          - registered
+          - in_progress
+          - completed
+          - cancelled
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 50
       responses:
         '200':
           description: Visit rows
@@ -72,27 +122,33 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [items]
+                required:
+                - items
                 properties:
                   items:
                     type: array
                     items:
                       $ref: '#/components/schemas/OpdVisitSummary'
-
   /visits/{visitId}/encounter:
     put:
       operationId: ensureRegistrationEncounter
       summary: Create OPD visit and draft prescription for a registration visit id
-      description: |
-        Idempotent link from ``registration.visit`` to ``opd.visits`` + ``opd.prescriptions``
+      description: 'Idempotent link from ``registration.visit`` to ``opd.visits`` + ``opd.prescriptions``
+
         using the same ``visit_id``. Called from registration desk and Create RX when the
+
         clinical row does not exist yet.
-      tags: [OpdPrescriptions]
+
+        '
+      tags:
+      - OpdPrescriptions
       parameters:
-        - name: visitId
-          in: path
-          required: true
-          schema: { type: string, format: uuid }
+      - name: visitId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       requestBody:
         required: true
         content:
@@ -120,20 +176,24 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-
   /visits/{visitId}/prescription/pre-consult:
     put:
       operationId: upsertVisitNursePreConsult
       summary: Save nurse pre-consult vitals and notes for a visit
-      description: |
-        Creates OPD visit + prescription from ``registration.visit`` when the desk flow
+      description: 'Creates OPD visit + prescription from ``registration.visit`` when the desk flow
+
         skipped ``PUT /visits/{visitId}/encounter``.
-      tags: [OpdPrescriptions]
+
+        '
+      tags:
+      - OpdPrescriptions
       parameters:
-        - name: visitId
-          in: path
-          required: true
-          schema: { type: string, format: uuid }
+      - name: visitId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       requestBody:
         required: true
         content:
@@ -151,17 +211,19 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           description: Visit prescription is read-only
-
   /visits/{visitId}/prescription:
     get:
       operationId: getVisitPrescription
       summary: Prescription for a specific OPD visit
-      tags: [OpdPrescriptions]
+      tags:
+      - OpdPrescriptions
       parameters:
-        - name: visitId
-          in: path
-          required: true
-          schema: { type: string, format: uuid }
+      - name: visitId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       responses:
         '200':
           description: Visit + prescription payload
@@ -174,12 +236,15 @@ paths:
     put:
       operationId: upsertVisitPrescription
       summary: Save prescription draft for a specific visit
-      tags: [OpdPrescriptions]
+      tags:
+      - OpdPrescriptions
       parameters:
-        - name: visitId
-          in: path
-          required: true
-          schema: { type: string, format: uuid }
+      - name: visitId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       requestBody:
         required: true
         content:
@@ -197,17 +262,19 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           description: Visit prescription is read-only
-
   /visits/{visitId}/prescription/end:
     post:
       operationId: endVisitConsultation
       summary: Finalize consultation for a specific visit
-      tags: [OpdPrescriptions]
+      tags:
+      - OpdPrescriptions
       parameters:
-        - name: visitId
-          in: path
-          required: true
-          schema: { type: string, format: uuid }
+      - name: visitId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       requestBody:
         required: true
         content:
@@ -225,34 +292,14 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           description: Visit prescription is read-only
-
-  /prescriptions/{prescriptionId}:
-    get:
-      operationId: getPrescriptionById
-      summary: Prescription by prescription row id
-      tags: [OpdPrescriptions]
-      parameters:
-        - name: prescriptionId
-          in: path
-          required: true
-          schema: { type: string, format: uuid }
-      responses:
-        '200':
-          description: Visit + prescription payload
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OpdPrescriptionResponse'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
   /patients/{patientId}/prescription:
     get:
       operationId: getPatientPrescription
       summary: Latest visit prescription for a patient (visit must have a prescription row)
-      tags: [OpdPrescriptions]
+      tags:
+      - OpdPrescriptions
       parameters:
-        - $ref: '#/components/parameters/PatientId'
+      - $ref: '#/components/parameters/PatientId'
       responses:
         '200':
           description: Visit + prescription payload
@@ -265,9 +312,10 @@ paths:
     put:
       operationId: upsertPatientPrescription
       summary: Save prescription draft (creates visit when needed)
-      tags: [OpdPrescriptions]
+      tags:
+      - OpdPrescriptions
       parameters:
-        - $ref: '#/components/parameters/PatientId'
+      - $ref: '#/components/parameters/PatientId'
       requestBody:
         required: true
         content:
@@ -281,14 +329,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OpdPrescriptionResponse'
-
   /patients/{patientId}/prescription/end:
     post:
       operationId: endPatientConsultation
       summary: Finalize consultation and prescription
-      tags: [OpdPrescriptions]
+      tags:
+      - OpdPrescriptions
       parameters:
-        - $ref: '#/components/parameters/PatientId'
+      - $ref: '#/components/parameters/PatientId'
       requestBody:
         required: true
         content:
@@ -302,15 +350,215 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OpdPrescriptionResponse'
-
+  /prescriptions:
+    get:
+      operationId: listPrescriptions
+      summary: List prescriptions for a patient
+      tags:
+      - Prescriptions
+      parameters:
+      - $ref: '#/components/parameters/TenantIdQuery'
+      - name: patient_id
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 200
+          default: 50
+      - name: offset
+        in: query
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      responses:
+        '200':
+          description: Paginated prescription list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrescriptionListResponse'
+    post:
+      operationId: createPrescription
+      summary: Create a draft prescription for a registration visit_id
+      tags:
+      - Prescriptions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrescriptionCreate'
+      responses:
+        '201':
+          description: Prescription created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrescriptionSingleResponse'
+        '409':
+          description: Active prescription already exists for visit_id
+  /prescriptions/by-visit/{visit_id}:
+    get:
+      operationId: getPrescriptionByVisit
+      summary: Get prescription by registration visit_id (1:1)
+      tags:
+      - Prescriptions
+      parameters:
+      - $ref: '#/components/parameters/TenantIdQuery'
+      - name: visit_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Prescription detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrescriptionSingleResponse'
+        '404':
+          description: Not found
+  /prescriptions/{prescription_id}:
+    get:
+      operationId: getPrescription
+      summary: Get prescription by id
+      tags:
+      - Prescriptions
+      parameters:
+      - $ref: '#/components/parameters/TenantIdQuery'
+      - $ref: '#/components/parameters/PrescriptionId'
+      responses:
+        '200':
+          description: Prescription detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrescriptionSingleResponse'
+        '404':
+          description: Not found
+    put:
+      operationId: updatePrescription
+      summary: Replace draft prescription clinical content
+      tags:
+      - Prescriptions
+      parameters:
+      - $ref: '#/components/parameters/TenantIdQuery'
+      - $ref: '#/components/parameters/PrescriptionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrescriptionUpdate'
+      responses:
+        '200':
+          description: Updated prescription
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrescriptionSingleResponse'
+        '404':
+          description: Not found
+        '409':
+          description: Not draft or conflict
+    delete:
+      operationId: deletePrescription
+      summary: Soft-delete a prescription
+      tags:
+      - Prescriptions
+      parameters:
+      - $ref: '#/components/parameters/TenantIdQuery'
+      - $ref: '#/components/parameters/PrescriptionId'
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          description: Not found
+  /prescriptions/{prescription_id}/finalize:
+    post:
+      operationId: finalizePrescription
+      summary: Finalize a draft prescription
+      tags:
+      - Prescriptions
+      parameters:
+      - $ref: '#/components/parameters/TenantIdQuery'
+      - $ref: '#/components/parameters/PrescriptionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrescriptionFinalizeRequest'
+      responses:
+        '200':
+          description: Finalized prescription
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrescriptionSingleResponse'
+        '404':
+          description: Not found
+        '409':
+          description: Not draft
+  /prescriptions/{prescription_id}/cancel:
+    post:
+      operationId: cancelPrescription
+      summary: Cancel a draft prescription
+      tags:
+      - Prescriptions
+      parameters:
+      - $ref: '#/components/parameters/TenantIdQuery'
+      - $ref: '#/components/parameters/PrescriptionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrescriptionCancelRequest'
+      responses:
+        '200':
+          description: Cancelled prescription
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrescriptionSingleResponse'
+        '404':
+          description: Not found
+        '409':
+          description: Already cancelled or finalized
 components:
   parameters:
     PatientId:
       name: patientId
       in: path
       required: true
-      schema: { type: string, format: uuid }
-
+      schema:
+        type: string
+        format: uuid
+    TenantIdQuery:
+      name: tenant_id
+      in: query
+      required: true
+      description: Tenant isolation key (Citus distribution column).
+      schema:
+        type: string
+        format: uuid
+    PrescriptionId:
+      name: prescription_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
   responses:
     NotFound:
       description: Resource not found
@@ -318,43 +566,76 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
-
   schemas:
     ErrorResponse:
       type: object
-      required: [detail]
+      required:
+      - detail
       properties:
-        detail: { type: string }
-
+        detail:
+          type: string
     OpdVisitSummary:
       type: object
-      required: [visit_id, patient_id, status, updated_at]
+      required:
+      - visit_id
+      - patient_id
+      - status
+      - updated_at
       properties:
-        visit_id: { type: string, format: uuid }
-        patient_id: { type: string, format: uuid }
+        visit_id:
+          type: string
+          format: uuid
+        patient_id:
+          type: string
+          format: uuid
         status:
           type: string
-          enum: [registered, in_progress, completed, cancelled]
-        updated_at: { type: string, format: date-time }
-
+          enum:
+          - registered
+          - in_progress
+          - completed
+          - cancelled
+        updated_at:
+          type: string
+          format: date-time
     OpdPatientEncounterSummary:
       type: object
-      required: [patient_id, visit_id, visit_status, updated_at, created_at]
+      required:
+      - patient_id
+      - visit_id
+      - visit_status
+      - updated_at
+      - created_at
       properties:
-        patient_id: { type: string, format: uuid }
-        visit_id: { type: string, format: uuid }
+        patient_id:
+          type: string
+          format: uuid
+        visit_id:
+          type: string
+          format: uuid
         visit_status:
           type: string
-          enum: [registered, in_progress, completed, cancelled]
+          enum:
+          - registered
+          - in_progress
+          - completed
+          - cancelled
         prescription_status:
           type: string
-          enum: [draft, final, cancelled]
-        updated_at: { type: string, format: date-time }
-        created_at: { type: string, format: date-time }
-
+          enum:
+          - draft
+          - final
+          - cancelled
+        updated_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
     OpdEnsureEncounterRequest:
       type: object
-      required: [patient_id]
+      required:
+      - patient_id
       additionalProperties: false
       properties:
         patient_id:
@@ -365,7 +646,6 @@ components:
           format: uuid
           nullable: true
           description: Optional; resolved from registration.visit when omitted.
-
     OpdPrescriptionUpsertRequest:
       type: object
       properties:
@@ -374,28 +654,672 @@ components:
           additionalProperties: true
           default: {}
           description: Create RX form payload (vitals, chief complaints, etc.)
-
     OpdPrescriptionResponse:
       type: object
       required:
-        - prescription_id
-        - visit_id
-        - patient_id
-        - visit_status
-        - prescription_status
-        - is_read_only
-        - form_data
+      - prescription_id
+      - visit_id
+      - patient_id
+      - visit_status
+      - prescription_status
+      - is_read_only
+      - form_data
       properties:
-        prescription_id: { type: string, format: uuid }
-        visit_id: { type: string, format: uuid }
-        patient_id: { type: string, format: uuid }
+        prescription_id:
+          type: string
+          format: uuid
+        visit_id:
+          type: string
+          format: uuid
+        patient_id:
+          type: string
+          format: uuid
         visit_status:
           type: string
-          enum: [registered, in_progress, completed, cancelled]
+          enum:
+          - registered
+          - in_progress
+          - completed
+          - cancelled
         prescription_status:
           type: string
-          enum: [draft, final, cancelled]
-        is_read_only: { type: boolean }
+          enum:
+          - draft
+          - final
+          - cancelled
+        is_read_only:
+          type: boolean
         form_data:
           type: object
           additionalProperties: true
+    PrescriptionStatus:
+      type: string
+      enum:
+      - draft
+      - final
+      - cancelled
+    OrderItemStatus:
+      type: string
+      enum:
+      - pending
+      - completed
+      - cancelled
+    PrescriptionLegacyVitals:
+      type: object
+      properties:
+        height_cm:
+          type: number
+          nullable: true
+        weight_kg:
+          type: number
+          nullable: true
+        bmi:
+          type: number
+          nullable: true
+        temperature_c:
+          type: number
+          nullable: true
+        pulse_bpm:
+          type: integer
+          nullable: true
+        bp_systolic:
+          type: integer
+          nullable: true
+        bp_diastolic:
+          type: integer
+          nullable: true
+        respiratory_rate:
+          type: integer
+          nullable: true
+        spo2_percent:
+          type: integer
+          nullable: true
+        blood_sugar_mg_dl:
+          type: number
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+    PrescriptionVitalObservation:
+      type: object
+      required:
+      - line_no
+      - vital_code
+      - value_text
+      - recorded_at
+      properties:
+        line_no:
+          type: integer
+        vital_code:
+          type: string
+        vital_global_id:
+          type: string
+          format: uuid
+          nullable: true
+        value_text:
+          type: string
+        unit_code:
+          type: string
+          nullable: true
+        recorded_at:
+          type: string
+          format: date-time
+    PrescriptionChiefComplaint:
+      type: object
+      required:
+      - line_no
+      - complaint_text
+      properties:
+        line_no:
+          type: integer
+        complaint_text:
+          type: string
+        duration_value:
+          type: string
+          nullable: true
+        duration_unit:
+          type: string
+          nullable: true
+        severity:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+    PrescriptionDiagnosis:
+      type: object
+      required:
+      - line_no
+      properties:
+        line_no:
+          type: integer
+        notes:
+          type: string
+          nullable: true
+        certainty:
+          type: string
+          nullable: true
+        diagnosis_id:
+          type: string
+          format: uuid
+          nullable: true
+    PrescriptionSymptom:
+      type: object
+      required:
+      - line_no
+      - symptom_text
+      properties:
+        line_no:
+          type: integer
+        symptom_text:
+          type: string
+    PrescriptionMedicalHistory:
+      type: object
+      properties:
+        smoking_status:
+          type: string
+          nullable: true
+        alcohol_status:
+          type: string
+          nullable: true
+        other_notes:
+          type: string
+          nullable: true
+    PrescriptionMedicineSubstitution:
+      type: object
+      required:
+      - issued_name
+      properties:
+        issued_medicine_id:
+          type: string
+          format: uuid
+          nullable: true
+        issued_name:
+          type: string
+        item_code:
+          type: string
+          nullable: true
+        quantity:
+          type: number
+          nullable: true
+        form:
+          type: string
+          nullable: true
+        volume:
+          type: string
+          nullable: true
+        category:
+          type: string
+          nullable: true
+        reason:
+          type: string
+          nullable: true
+    PrescriptionMedicine:
+      type: object
+      required:
+      - line_no
+      - name
+      properties:
+        line_no:
+          type: integer
+        medicine_id:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+        medicine_type:
+          type: string
+          nullable: true
+        strength:
+          type: string
+          nullable: true
+        sos:
+          type: string
+          nullable: true
+        dosage:
+          type: string
+          nullable: true
+        duration:
+          type: string
+          nullable: true
+        frequency:
+          type: string
+          nullable: true
+        quantity:
+          type: number
+          nullable: true
+        route:
+          type: string
+          nullable: true
+        method:
+          type: string
+          nullable: true
+        status:
+          type: string
+          nullable: true
+        substitution:
+          $ref: '#/components/schemas/PrescriptionMedicineSubstitution'
+    PrescriptionOrderedTest:
+      type: object
+      required:
+      - line_no
+      - name
+      properties:
+        line_no:
+          type: integer
+        test_id:
+          type: string
+          format: uuid
+          nullable: true
+        external_id:
+          type: string
+          nullable: true
+        name:
+          type: string
+        due_by:
+          type: string
+          format: date-time
+          nullable: true
+        instructions:
+          type: string
+          nullable: true
+        status:
+          $ref: '#/components/schemas/OrderItemStatus'
+    PrescriptionOrderedImaging:
+      type: object
+      required:
+      - line_no
+      - name
+      properties:
+        line_no:
+          type: integer
+        external_id:
+          type: string
+          nullable: true
+        name:
+          type: string
+        due_by:
+          type: string
+          format: date-time
+          nullable: true
+        instructions:
+          type: string
+          nullable: true
+        status:
+          $ref: '#/components/schemas/OrderItemStatus'
+    PrescriptionVaccineRequired:
+      type: object
+      required:
+      - line_no
+      - name
+      properties:
+        line_no:
+          type: integer
+        vaccine_id:
+          type: string
+          format: uuid
+          nullable: true
+        vaccine_code:
+          type: string
+          nullable: true
+        name:
+          type: string
+        due_by:
+          type: string
+          format: date-time
+          nullable: true
+        instructions:
+          type: string
+          nullable: true
+        status:
+          $ref: '#/components/schemas/OrderItemStatus'
+    PrescriptionAdvisedProcedure:
+      type: object
+      required:
+      - line_no
+      - procedure_name
+      properties:
+        line_no:
+          type: integer
+        procedure_id:
+          type: string
+          format: uuid
+          nullable: true
+        procedure_name:
+          type: string
+        advised_date:
+          type: string
+          format: date
+          nullable: true
+    PrescriptionPhysicalActivity:
+      type: object
+      required:
+      - line_no
+      properties:
+        line_no:
+          type: integer
+        steps_count:
+          type: integer
+          nullable: true
+        sleep_duration_min:
+          type: integer
+          nullable: true
+        calories_burned:
+          type: integer
+          nullable: true
+        exercise_types:
+          type: array
+          items:
+            type: string
+    PrescriptionCarePlan:
+      type: object
+      properties:
+        advice:
+          type: string
+          nullable: true
+        next_visit_value:
+          type: integer
+          nullable: true
+        next_visit_unit:
+          type: string
+          nullable: true
+        refer_to:
+          type: string
+          nullable: true
+    PrescriptionClinical:
+      type: object
+      properties:
+        legacy_vitals:
+          $ref: '#/components/schemas/PrescriptionLegacyVitals'
+        vital_observations:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrescriptionVitalObservation'
+        chief_complaints:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrescriptionChiefComplaint'
+        diagnoses:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrescriptionDiagnosis'
+        symptoms:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrescriptionSymptom'
+        medical_history:
+          $ref: '#/components/schemas/PrescriptionMedicalHistory'
+        medical_history_allergies:
+          type: array
+          items:
+            type: object
+            required:
+            - line_no
+            - allergen_text
+            properties:
+              line_no:
+                type: integer
+              allergen_text:
+                type: string
+              reaction_text:
+                type: string
+                nullable: true
+              severity:
+                type: string
+                nullable: true
+              notes:
+                type: string
+                nullable: true
+        medical_history_chronic_illnesses:
+          type: array
+          items:
+            type: object
+            required:
+            - line_no
+            - illness_text
+            properties:
+              line_no:
+                type: integer
+              illness_text:
+                type: string
+              since_text:
+                type: string
+                nullable: true
+              notes:
+                type: string
+                nullable: true
+        medicines:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrescriptionMedicine'
+        ordered_tests:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrescriptionOrderedTest'
+        ordered_imaging:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrescriptionOrderedImaging'
+        vaccines_required:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrescriptionVaccineRequired'
+        advised_procedures:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrescriptionAdvisedProcedure'
+        physical_activities:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrescriptionPhysicalActivity'
+        care_plan:
+          $ref: '#/components/schemas/PrescriptionCarePlan'
+    PrescriptionCreate:
+      type: object
+      required:
+      - tenant_id
+      - visit_id
+      - patient_id
+      - doctor_id
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+        visit_id:
+          type: string
+          format: uuid
+        patient_id:
+          type: string
+          format: uuid
+        doctor_id:
+          type: string
+          format: uuid
+        vitals_schema_version:
+          type: integer
+          default: 1
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+        clinical:
+          $ref: '#/components/schemas/PrescriptionClinical'
+    PrescriptionUpdate:
+      type: object
+      properties:
+        doctor_id:
+          type: string
+          format: uuid
+          nullable: true
+        vitals_schema_version:
+          type: integer
+          nullable: true
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+        clinical:
+          $ref: '#/components/schemas/PrescriptionClinical'
+    PrescriptionFinalizeRequest:
+      type: object
+      properties:
+        changed_by:
+          type: string
+          format: uuid
+          nullable: true
+    PrescriptionCancelRequest:
+      type: object
+      properties:
+        changed_by:
+          type: string
+          format: uuid
+          nullable: true
+        reason:
+          type: string
+          nullable: true
+    PrescriptionStatusHistory:
+      type: object
+      required:
+      - id
+      - to_status
+      - changed_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        from_status:
+          $ref: '#/components/schemas/PrescriptionStatus'
+        to_status:
+          $ref: '#/components/schemas/PrescriptionStatus'
+        changed_at:
+          type: string
+          format: date-time
+        changed_by:
+          type: string
+          format: uuid
+          nullable: true
+        reason:
+          type: string
+          nullable: true
+    PrescriptionDetail:
+      type: object
+      required:
+      - id
+      - tenant_id
+      - visit_id
+      - patient_id
+      - doctor_id
+      - vitals_schema_version
+      - status
+      - created_at
+      - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        visit_id:
+          type: string
+          format: uuid
+        patient_id:
+          type: string
+          format: uuid
+        doctor_id:
+          type: string
+          format: uuid
+        vitals_schema_version:
+          type: integer
+        status:
+          $ref: '#/components/schemas/PrescriptionStatus'
+        finalized_at:
+          type: string
+          format: date-time
+          nullable: true
+        cancelled_at:
+          type: string
+          format: date-time
+          nullable: true
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+        status_history:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrescriptionStatusHistory'
+        clinical:
+          $ref: '#/components/schemas/PrescriptionClinical'
+    PrescriptionListItem:
+      type: object
+      required:
+      - id
+      - tenant_id
+      - visit_id
+      - patient_id
+      - doctor_id
+      - status
+      - created_at
+      - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        visit_id:
+          type: string
+          format: uuid
+        patient_id:
+          type: string
+          format: uuid
+        doctor_id:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/PrescriptionStatus'
+        finalized_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    PrescriptionListResponse:
+      type: object
+      required:
+      - data
+      - total
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrescriptionListItem'
+        total:
+          type: integer
+    PrescriptionSingleResponse:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/PrescriptionDetail'

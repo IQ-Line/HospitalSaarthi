@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from opd.data_access.prescription_repo import effective_encounter_status
-from opd.models.prescription import Prescription
+from opd.models.prescription_row import Prescription
 from opd.models.visit import Visit
 
 

@@ -295,7 +295,7 @@ def test_patient_prescription_skips_visit_without_prescription_row(
     client: TestClient,
 ) -> None:
     from opd.core.database import get_db_session
-    from opd.models.prescription import Prescription
+    from opd.models.prescription_row import Prescription
     from opd.models.visit import Visit
 
     tenant = uuid.UUID(TENANT)
@@ -401,7 +401,7 @@ def test_nurse_pre_consult_sets_visit_status(client: TestClient) -> None:
 
 def test_get_patient_prescription_without_visit_row(client: TestClient) -> None:
     from opd.core.database import get_db_session
-    from opd.models.prescription import Prescription
+    from opd.models.prescription_row import Prescription
 
     tenant = uuid.UUID(TENANT)
     patient = uuid.UUID("770e8400-e29b-41d4-a716-446655440099")

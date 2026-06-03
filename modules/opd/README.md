@@ -37,3 +37,7 @@ uv run alembic upgrade heads
 ## Database schema
 
 This module owns the `opd` PostgreSQL schema. See `alembic/schema_names.py`.
+
+**Visit identity** is not modeled here. `prescriptions.visit_id` references the same UUID as
+`registration.registration.visit_id` in the [registration module](../registration/src/schema/tables.ts)
+(one prescription per visit, unique constraint). There is no cross-schema foreign key.

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from opd.data_access import prescription_bundle as bundle_api
 from opd.data_access.prescription_form_data import persist_normalized_from_form_data
-from opd.models.prescription import Prescription
+from opd.models.prescription_row import Prescription
 from opd.models.visit import Visit
 
 

@@ -11,7 +11,7 @@ from opd.data_access.prescription_form_data import (
     effective_form_data,
     persist_normalized_from_form_data,
 )
-from opd.models.prescription import Prescription
+from opd.models.prescription_row import Prescription
 
 
 def test_legacy_columns_to_form_vitals_maps_create_rx_codes() -> None:
