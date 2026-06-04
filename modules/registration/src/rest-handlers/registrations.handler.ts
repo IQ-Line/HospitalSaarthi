@@ -102,7 +102,7 @@ export function registerRegistrationsHandler(
 
       try {
         const result = await listRegistrations(
-          { registrationRepo: deps.registrationRepo },
+          { registrationRepo: deps.registrationRepo, visitRepo: deps.visitRepo },
           request.tenantId,
           {
             page,
@@ -117,7 +117,7 @@ export function registerRegistrationsHandler(
         const labelMaps = await loadPicklistLabelMaps(deps.picklistReadPort);
         return reply.send({
           ...result,
-          data: result.data.map((row) => serializeRegistration(row, labelMaps)),
+          data: result.data.map((row) => serializeRegistrationWithVisit(row, labelMaps)),
         });
       } catch (err) {
         if (err instanceof Error && err.message === "name_search_too_short") {
@@ -152,8 +152,11 @@ export function registerRegistrationsHandler(
         request.params.registrationId,
       );
       if (!row) return reply.code(404).send({ error: "Registration not found" });
+      const visit = await deps.visitRepo.findLatestByPatientId(request.tenantId, row.patient_id);
       const labelMaps = await loadPicklistLabelMaps(deps.picklistReadPort);
-      return reply.send(serializeRegistration(row, labelMaps));
+      return reply.send(
+        serializeRegistrationWithVisit({ registration: row, visit: visit ?? null }, labelMaps),
+      );
     },
   );
 

@@ -1,5 +1,9 @@
-import type { RegistrationRepo } from "../ports.js";
-import type { ListRegistrationsParams, RegistrationListPage } from "../domain/registration.types.js";
+import type { RegistrationRepo, VisitRepo } from "../ports.js";
+import type {
+  ListRegistrationsParams,
+  RegistrationListPage,
+  RegistrationWithVisitRecord,
+} from "../domain/registration.types.js";
 
 function totalPages(total: number, limit: number): number {
   if (total === 0) return 0;
@@ -8,7 +12,7 @@ function totalPages(total: number, limit: number): number {
 
 /** Local query only — no EMPI calls (ADR-0029 snapshot model). */
 export async function listRegistrations(
-  deps: { registrationRepo: RegistrationRepo },
+  deps: { registrationRepo: RegistrationRepo; visitRepo: VisitRepo },
   tenantId: string,
   params: ListRegistrationsParams,
 ): Promise<RegistrationListPage> {
@@ -24,9 +28,18 @@ export async function listRegistrations(
   }
 
   const { rows, total } = await deps.registrationRepo.listPage(tenantId, params);
+  const visitsByPatient = await deps.visitRepo.findLatestByPatientIds(
+    tenantId,
+    rows.map((row) => row.patient_id),
+  );
+
+  const data: RegistrationWithVisitRecord[] = rows.map((registration) => ({
+    registration,
+    visit: visitsByPatient.get(registration.patient_id) ?? null,
+  }));
 
   return {
-    data: rows,
+    data,
     total,
     page: params.page,
     limit: params.limit,
