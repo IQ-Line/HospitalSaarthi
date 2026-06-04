@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Plus, X } from 'lucide-react';
-import { Controller, useFieldArray, type Control, type FieldErrors } from 'react-hook-form';
+import { Controller, useFieldArray, type Control, type FieldErrors, type FieldValues, type Path } from 'react-hook-form';
 import { Button } from '@pulse/ui/button';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
@@ -14,16 +14,10 @@ import {
 import { ToggleGroup, ToggleGroupItem } from '@pulse/ui/toggle-group';
 import { cn } from '@pulse/utils';
 import { useDepartments } from '@/features/master-data/api';
-import type { CreateUserFormValues } from './create-user-form-sections';
+import { EMPTY_DOCTOR_TARIFF_ROW, type DoctorTariffFormRow } from '../lib/doctor-tariff-form';
 import { UserManagementSectionCard } from './user-management-section-card';
 
-export const EMPTY_DOCTOR_TARIFF_ROW = {
-  department_id: '',
-  room_number: '',
-  base_price: 0,
-  tax_percentage: 0,
-  opd_days: [] as string[],
-};
+export { EMPTY_DOCTOR_TARIFF_ROW };
 
 const CONSULTATION_MAX = 3000;
 
@@ -37,29 +31,37 @@ const OPD_DAYS = [
   { value: 'sun', label: 'Su' },
 ] as const;
 
-type Props = {
-  control: Control<CreateUserFormValues>;
-  errors: FieldErrors<CreateUserFormValues>;
+type DoctorTariffFieldValues = FieldValues & { doctor_tariffs: DoctorTariffFormRow[] };
+
+type Props<T extends DoctorTariffFieldValues> = {
+  control: Control<T>;
+  errors: FieldErrors<T>;
   iqTenantId?: string;
+  /** Minimum department rows (default 1 for doctors). */
+  minRows?: number;
 };
 
 function FieldHint({ children }: { children: ReactNode }) {
   return <p className="text-xs text-muted-foreground">{children}</p>;
 }
 
-function DepartmentBlock({
+function DepartmentBlock<T extends DoctorTariffFieldValues>({
   index,
   control,
   departments,
   deptLoading,
+  canRemove,
   onRemove,
 }: {
   index: number;
-  control: Control<CreateUserFormValues>;
+  control: Control<T>;
   departments: { id: string; name: string }[];
   deptLoading: boolean;
+  canRemove: boolean;
   onRemove: () => void;
 }) {
+  const namePrefix = `doctor_tariffs.${index}` as Path<T>;
+
   return (
     <div className="rounded-lg border border-border/80 bg-card p-4 shadow-sm">
       <div className="mb-4 flex items-center justify-between gap-2">
@@ -70,6 +72,7 @@ function DepartmentBlock({
           size="icon"
           className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
           onClick={onRemove}
+          disabled={!canRemove}
           aria-label={`Remove department ${index + 1}`}
         >
           <X className="size-4" />
@@ -81,10 +84,10 @@ function DepartmentBlock({
           <Label>Department</Label>
           <Controller
             control={control}
-            name={`doctor_tariffs.${index}.department_id`}
+            name={`${namePrefix}.department_id` as Path<T>}
             render={({ field }) => (
               <Select
-                value={field.value || undefined}
+                value={(field.value as string) || undefined}
                 onValueChange={field.onChange}
                 disabled={deptLoading}
               >
@@ -107,12 +110,12 @@ function DepartmentBlock({
           <Label htmlFor={`room_${index}`}>Room Number</Label>
           <Controller
             control={control}
-            name={`doctor_tariffs.${index}.room_number`}
+            name={`${namePrefix}.room_number` as Path<T>}
             render={({ field }) => (
               <Input
                 id={`room_${index}`}
                 placeholder="Enter Room Number"
-                value={field.value ?? ''}
+                value={(field.value as string) ?? ''}
                 onChange={field.onChange}
               />
             )}
@@ -123,7 +126,7 @@ function DepartmentBlock({
           <Label htmlFor={`fee_${index}`}>Consultation (₹)</Label>
           <Controller
             control={control}
-            name={`doctor_tariffs.${index}.base_price`}
+            name={`${namePrefix}.base_price` as Path<T>}
             render={({ field }) => (
               <Input
                 id={`fee_${index}`}
@@ -132,7 +135,7 @@ function DepartmentBlock({
                 max={CONSULTATION_MAX}
                 step="1"
                 placeholder="0"
-                value={Number.isFinite(field.value) ? field.value : ''}
+                value={Number.isFinite(field.value as number) ? (field.value as number) : ''}
                 onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
               />
             )}
@@ -144,7 +147,7 @@ function DepartmentBlock({
           <Label htmlFor={`tax_${index}`}>Consultation tax (%)</Label>
           <Controller
             control={control}
-            name={`doctor_tariffs.${index}.tax_percentage`}
+            name={`${namePrefix}.tax_percentage` as Path<T>}
             render={({ field }) => (
               <Input
                 id={`tax_${index}`}
@@ -153,7 +156,7 @@ function DepartmentBlock({
                 max={100}
                 step="0.01"
                 placeholder="0"
-                value={Number.isFinite(field.value) ? field.value : ''}
+                value={Number.isFinite(field.value as number) ? (field.value as number) : ''}
                 onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
               />
             )}
@@ -165,11 +168,11 @@ function DepartmentBlock({
           <Label>OPD Days</Label>
           <Controller
             control={control}
-            name={`doctor_tariffs.${index}.opd_days`}
+            name={`${namePrefix}.opd_days` as Path<T>}
             render={({ field }) => (
               <ToggleGroup
                 type="multiple"
-                value={field.value ?? []}
+                value={(field.value as string[]) ?? []}
                 onValueChange={field.onChange}
                 className="flex flex-wrap gap-2"
               >
@@ -195,14 +198,22 @@ function DepartmentBlock({
   );
 }
 
-export function CreateUserDoctorOpdSection({ control, errors, iqTenantId }: Props) {
+export function CreateUserDoctorOpdSection<T extends DoctorTariffFieldValues>({
+  control,
+  errors,
+  iqTenantId,
+  minRows = 1,
+}: Props<T>) {
   const { data: deptData, isLoading: deptLoading } = useDepartments(undefined, {
     iqTenantId,
     formCatalog: true,
   });
   const departments = (deptData?.data ?? []).filter((d) => d.is_active);
-  const { fields, append, remove } = useFieldArray({ control, name: 'doctor_tariffs' });
-  const rootError = errors.doctor_tariffs?.message ?? errors.doctor_tariffs?.root?.message;
+  const { fields, append, remove } = useFieldArray({ control, name: 'doctor_tariffs' as Path<T> });
+  const rootError =
+    (errors.doctor_tariffs as { message?: string; root?: { message?: string } } | undefined)
+      ?.message ??
+    (errors.doctor_tariffs as { root?: { message?: string } } | undefined)?.root?.message;
 
   return (
     <UserManagementSectionCard
@@ -214,7 +225,7 @@ export function CreateUserDoctorOpdSection({ control, errors, iqTenantId }: Prop
           variant="outline"
           size="sm"
           disabled={deptLoading}
-          onClick={() => append({ ...EMPTY_DOCTOR_TARIFF_ROW })}
+          onClick={() => append({ ...EMPTY_DOCTOR_TARIFF_ROW } as never)}
         >
           <Plus className="mr-1 size-4" />
           Add Department
@@ -224,7 +235,7 @@ export function CreateUserDoctorOpdSection({ control, errors, iqTenantId }: Prop
     >
       {fields.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          Add departments where this doctor consults, with fees and OPD schedule.
+          Add at least one department where this doctor consults, with fees and OPD schedule.
         </p>
       ) : null}
       {fields.map((field, index) => (
@@ -234,7 +245,11 @@ export function CreateUserDoctorOpdSection({ control, errors, iqTenantId }: Prop
           control={control}
           departments={departments}
           deptLoading={deptLoading}
-          onRemove={() => remove(index)}
+          canRemove={fields.length > minRows}
+          onRemove={() => {
+            if (fields.length <= minRows) return;
+            remove(index);
+          }}
         />
       ))}
       {rootError ? <p className="text-sm text-destructive">{String(rootError)}</p> : null}
