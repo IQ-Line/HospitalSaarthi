@@ -9,13 +9,23 @@ import {
   BreadcrumbSeparator,
 } from '@pulse/ui/breadcrumb';
 import { PageHeader } from '@/components/page-header';
+import { resolvePlatformSuperAdmin } from '@/lib/platform-admin';
+import { useAuthStore } from '@/stores/auth.store';
+import { usePermissionsStore } from '@/stores/permissions.store';
 
 type MasterDataSection = 'modules' | 'permissions' | 'module-permissions' | 'departments';
 
-const sectionConfig: Record<MasterDataSection, { label: string; to: string }> = {
-  modules: { label: 'Modules', to: '/master-data/modules' },
-  permissions: { label: 'Permissions', to: '/master-data/permissions' },
-  'module-permissions': { label: 'Module Permissions', to: '/master-data/module-permissions' },
+const sectionConfig: Record<
+  MasterDataSection,
+  { label: string; to: string; superAdminOnly?: boolean }
+> = {
+  modules: { label: 'Modules', to: '/master-data/modules', superAdminOnly: true },
+  permissions: { label: 'Permissions', to: '/master-data/permissions', superAdminOnly: true },
+  'module-permissions': {
+    label: 'Module Permissions',
+    to: '/master-data/module-permissions',
+    superAdminOnly: true,
+  },
   departments: { label: 'Departments', to: '/master-data/departments' },
 };
 
@@ -34,6 +44,15 @@ export function MasterDataPageShell({
   actions,
   children,
 }: MasterDataPageShellProps) {
+  const authRoles = useAuthStore((s) => s.roles);
+  const principalRoles = usePermissionsStore((s) => s.roles);
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const isSuperAdmin = resolvePlatformSuperAdmin({ principalRoles, authRoles, accessToken });
+
+  const visibleSections = (
+    Object.entries(sectionConfig) as Array<[MasterDataSection, (typeof sectionConfig)[MasterDataSection]]>
+  ).filter(([, item]) => !item.superAdminOnly || isSuperAdmin);
+
   const activeItem = sectionConfig[section];
 
   return (
@@ -58,7 +77,7 @@ export function MasterDataPageShell({
 
       <div className="border-b">
         <nav className="flex items-center gap-1 -mb-px overflow-x-auto">
-          {Object.entries(sectionConfig).map(([value, item]) => (
+          {visibleSections.map(([value, item]) => (
             <Link
               key={value}
               to={item.to}
