@@ -135,12 +135,10 @@ export function EditUserDialog({ open, onOpenChange, user, tenantScope }: EditUs
   const rolesQuery = useQuery({
     ...roleListOptions(tenantScope),
     enabled: open,
-    staleTime: 30_000,
   });
   const capabilitiesQuery = useQuery({
     ...userCapabilitiesOptions(user.id, tenantScope),
     enabled: open,
-    staleTime: 30_000,
   });
 
   const accessContextReady =

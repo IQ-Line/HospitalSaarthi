@@ -63,7 +63,6 @@ export function RoleTemplateCapabilityPicker({
   const roleCapabilitiesQuery = useQuery({
     ...roleCapabilitiesOptions(roleId, tenantScope),
     enabled: Boolean(roleId) && umRoleRead,
-    staleTime: 30_000,
   });
 
   const roleCapabilities = roleCapabilitiesQuery.data ?? EMPTY_ROLE_CAPABILITIES;
