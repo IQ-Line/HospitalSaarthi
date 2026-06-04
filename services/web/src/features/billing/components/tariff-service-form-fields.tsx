@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import type { Control, FieldPath, FieldValues, UseFormSetValue } from 'react-hook-form';
 import { Controller, useWatch } from 'react-hook-form';
 import { Input } from '@pulse/ui/input';
+import { FormNumberInput } from '@/lib/form-number-input';
 import { Label } from '@pulse/ui/label';
 import {
   Select,
@@ -117,16 +118,15 @@ function SharedFields<T extends TariffServiceCreateFormValues | TariffServiceEdi
           control={control}
           render={({ field, fieldState }) => (
             <>
-              <Input
+              <FormNumberInput
                 id="base_price"
-                type="number"
                 min={0}
                 step="0.01"
                 name={field.name}
                 onBlur={field.onBlur}
-                onChange={field.onChange}
                 ref={field.ref}
-                value={field.value as number}
+                value={typeof field.value === 'number' ? field.value : Number(field.value) || 0}
+                onChange={field.onChange}
               />
               <FieldError message={fieldState.error?.message} />
             </>
@@ -140,17 +140,16 @@ function SharedFields<T extends TariffServiceCreateFormValues | TariffServiceEdi
           control={control}
           render={({ field, fieldState }) => (
             <>
-              <Input
+              <FormNumberInput
                 id="tax_percentage"
-                type="number"
                 min={0}
                 max={100}
                 step="0.01"
                 name={field.name}
                 onBlur={field.onBlur}
-                onChange={field.onChange}
                 ref={field.ref}
-                value={field.value as number}
+                value={typeof field.value === 'number' ? field.value : Number(field.value) || 0}
+                onChange={field.onChange}
               />
               <FieldError message={fieldState.error?.message} />
             </>
