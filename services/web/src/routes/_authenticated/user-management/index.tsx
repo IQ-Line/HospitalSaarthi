@@ -16,8 +16,6 @@ import { CapabilityGate } from '@/components/capability-gate';
 import { useCapability } from '@/hooks/use-capability';
 import { isPlatformSuperAdminFromAccessToken } from '@/lib/platform-admin';
 import {
-  UM_CAPABILITY_READ,
-  UM_ROLE_READ,
   UM_ROLES_ADMIN_ANY,
   UM_USER_CREATE,
   UM_USER_READ,
@@ -28,19 +26,13 @@ import {
   platformDirectoryQueryOptions,
   platformDirectoryTenantErrors,
 } from '@/features/user-management/api/platform-directory';
-import {
-  capabilityListOptions,
-  roleListOptions,
-  userListOptions,
-  useUserListSuspense,
-} from '@/features/user-management/api/queries';
+import { userListOptions, useUserListSuspense } from '@/features/user-management/api/queries';
 import { CreateUserForm } from '@/features/user-management/components/create-user-form';
 import { UserListTable } from '@/features/user-management/components/user-list-table';
 import { UserManagementPageShell } from '@/features/user-management/components/user-management-page-shell';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePermissionsStore } from '@/stores/permissions.store';
 import { useTenantStore } from '@/stores/tenant.store';
-import { globalModulesCatalogQueryOptions } from '@/features/master-data/api';
 
 export const Route = createFileRoute('/_authenticated/user-management/')({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -71,13 +63,6 @@ export const Route = createFileRoute('/_authenticated/user-management/')({
       } else {
         loads.push(context.queryClient.ensureQueryData(userListOptions(tenantScope)));
       }
-    }
-    if (p.hasCapability(UM_ROLE_READ)) {
-      loads.push(context.queryClient.ensureQueryData(roleListOptions(tenantScope)));
-      loads.push(context.queryClient.ensureQueryData(globalModulesCatalogQueryOptions()));
-    }
-    if (p.hasCapability(UM_CAPABILITY_READ)) {
-      loads.push(context.queryClient.ensureQueryData(capabilityListOptions()));
     }
     await Promise.all(loads);
   },

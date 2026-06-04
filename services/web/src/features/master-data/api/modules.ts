@@ -12,6 +12,9 @@ import type {
   NavModuleListResponse,
 } from '../types';
 
+/** Shared with `@/platform/modules/module-catalog` (avoid circular imports). */
+export const MODULE_CATALOG_STALE_MS = 5 * 60 * 1000;
+
 const BASE = '/api/v1/master-data/modules';
 const NAV_MODULES_PATH = `${BASE}/nav`;
 
@@ -26,7 +29,7 @@ export function globalModulesCatalogQueryOptions(moduleKinds?: ModuleKind[]) {
   return queryOptions({
     queryKey: [...masterDataKeys.globalModules(), ...(moduleKinds ?? [])],
     queryFn: () => platformCatalogClient<ModuleListResponse>(`${BASE}${params}`),
-    staleTime: 60_000,
+    staleTime: MODULE_CATALOG_STALE_MS,
   });
 }
 

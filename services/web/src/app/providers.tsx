@@ -42,9 +42,10 @@ function CerbosPrincipalBridge({ children }: { children: ReactNode }): ReactElem
   const tenantId = useTenantStore((s) => s.tenantId);
   const activeBranch = useTenantStore((s) => s.activeBranch);
 
+  /** Reads principal from React Query cache only — `refreshAuthorizationContext` is the network writer. */
   const principalQuery = useQuery({
     ...authPrincipalQueryOptions({ userId, tenantId, activeBranch }),
-    enabled: Boolean(isAuthenticated && userId && tenantId && accessToken?.trim()),
+    enabled: false,
     select: authPrincipalToCerbosPrincipal,
   });
 
