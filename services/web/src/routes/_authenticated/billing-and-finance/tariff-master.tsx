@@ -21,7 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@pulse/ui/select';
-import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import {
   useCreateTariffService,
@@ -65,7 +64,7 @@ export const Route = createFileRoute('/_authenticated/billing-and-finance/tariff
 });
 
 function BillingServicesPage() {
-  const { canCreate, canRead, canUpdate, canDelete } = useCatalogModuleCrud('tariff-master', {
+  const { canCreate, canRead, canUpdate } = useCatalogModuleCrud('tariff-master', {
     productModuleSlug: 'billing-and-finance',
   });
   const [search, setSearch] = useState('');
@@ -74,8 +73,6 @@ function BillingServicesPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editing, setEditing] = useState<TariffService | null>(null);
   const [viewing, setViewing] = useState<TariffService | null>(null);
-  const [deactivating, setDeactivating] = useState<TariffService | null>(null);
-
   const listParams = useMemo(
     () => ({
       q: search || undefined,
@@ -131,20 +128,6 @@ function BillingServicesPage() {
     },
     [canUpdate, updateMutation],
   );
-
-  const handleDeactivate = useCallback(async () => {
-    if (!deactivating || !canDelete) return;
-    try {
-      await updateMutation.mutateAsync({
-        id: deactivating.id,
-        input: { is_active: false },
-      });
-      toast.success('Service deactivated');
-      setDeactivating(null);
-    } catch (err) {
-      toast.error(mutationErrorMessage(err));
-    }
-  }, [canDelete, deactivating, updateMutation]);
 
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -224,14 +207,14 @@ function BillingServicesPage() {
               setEditing(row.original);
               editForm.reset(serviceToEditFormValues(row.original));
             }}
-            onDelete={() => setDeactivating(row.original)}
+            onDelete={() => {}}
             canEdit={canUpdate}
-            canDelete={canDelete}
+            canDelete={false}
           />
         ),
       },
     ],
-    [canDelete, canUpdate, departmentNameById, editForm, handleActiveChange, providerNameById, updateMutation.isPending],
+    [canUpdate, departmentNameById, editForm, handleActiveChange, providerNameById, updateMutation.isPending],
   );
 
   return (
@@ -364,18 +347,6 @@ function BillingServicesPage() {
           >
             <TariffServiceEditFormFields control={editForm.control} />
         </EntityFormDialog>
-      ) : null}
-
-      {canDelete ? (
-        <ConfirmDialog
-          open={deactivating !== null}
-          onOpenChange={(open) => !open && setDeactivating(null)}
-          title="Deactivate service?"
-          description="Inactive services cannot be charged. You can re-activate from the table."
-          confirmLabel="Deactivate"
-          destructive
-          onConfirm={() => void handleDeactivate()}
-        />
       ) : null}
 
       <Dialog open={viewing !== null} onOpenChange={(open) => !open && setViewing(null)}>
