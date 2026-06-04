@@ -81,21 +81,21 @@ class VisitpadVitalSingleResponse(BaseModel):
 class VisitpadVitalCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    code: str = Field(min_length=1, max_length=64)
-    name: str = Field(min_length=1, max_length=256)
-    short_name: str = Field(min_length=1, max_length=64)
-    category: VisitpadVitalCategory
-    data_type: VisitpadVitalDataType
-    unit: str = Field(min_length=1, max_length=128)
-    default_unit_code: str = Field(min_length=1, max_length=64)
+    code: str = Field(min_length=3, max_length=9, pattern=r"^[A-Za-z0-9_]{3,9}$")
+    name: str | None = Field(default=None, max_length=256)
+    short_name: str | None = Field(default=None, max_length=64)
+    category: VisitpadVitalCategory | None = None
+    data_type: VisitpadVitalDataType | None = None
+    unit: str | None = Field(default=None, max_length=128)
+    default_unit_code: str | None = Field(default=None, max_length=64)
     allowed_units: list[str] = Field(default_factory=list, max_length=32)
     critical_low: float | None = None
     critical_high: float | None = None
-    reference_kind: VisitpadVitalReferenceKind
+    reference_kind: VisitpadVitalReferenceKind | None = None
     reference_json: dict[str, Any] = Field(default_factory=dict)
     normal_range_adult: dict[str, Any] = Field(default_factory=dict)
     normal_range_paediatric: dict[str, Any] = Field(default_factory=dict)
-    input_method: VisitpadVitalInputMethod
+    input_method: VisitpadVitalInputMethod | None = None
     is_paired: bool = False
     pair_code: str | None = Field(default=None, max_length=64)
     display_order: int = 0
@@ -104,7 +104,25 @@ class VisitpadVitalCreate(BaseModel):
     snomed_observable_code: str | None = Field(default=None, max_length=64)
 
     @model_validator(mode="after")
-    def _critical_order(self) -> Self:
+    def _defaults_and_critical_order(self) -> Self:
+        code = self.code.strip()
+        name = (self.name or "").strip() or code
+        short = (self.short_name or "").strip() or name[:64]
+        object.__setattr__(self, "code", code)
+        object.__setattr__(self, "name", name)
+        object.__setattr__(self, "short_name", short)
+        if self.category is None:
+            object.__setattr__(self, "category", VisitpadVitalCategory.vital_signs)
+        if self.data_type is None:
+            object.__setattr__(self, "data_type", VisitpadVitalDataType.numeric)
+        unit = (self.unit or "").strip() or "—"
+        object.__setattr__(self, "unit", unit)
+        default_uc = (self.default_unit_code or "").strip() or code
+        object.__setattr__(self, "default_unit_code", default_uc)
+        if self.reference_kind is None:
+            object.__setattr__(self, "reference_kind", VisitpadVitalReferenceKind.none)
+        if self.input_method is None:
+            object.__setattr__(self, "input_method", VisitpadVitalInputMethod.manual)
         if self.critical_low is not None and self.critical_high is not None:
             if self.critical_low > self.critical_high:
                 raise ValueError("critical_low must be less than or equal to critical_high.")

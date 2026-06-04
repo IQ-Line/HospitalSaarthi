@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-_MANUFACTURER_CODE_PATTERN = r"^[A-Za-z0-9_]{3,9}$"
+from app.schemas.visitpad._code import VISITPAD_CATALOG_CODE_PATTERN
 
 
 class VisitpadManufacturerResponse(BaseModel):
@@ -37,7 +37,7 @@ class VisitpadManufacturerSingleResponse(BaseModel):
 class VisitpadManufacturerCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    code: str = Field(min_length=3, max_length=9, pattern=_MANUFACTURER_CODE_PATTERN)
+    code: str = Field(min_length=3, max_length=9, pattern=VISITPAD_CATALOG_CODE_PATTERN)
     display_name: str = Field(min_length=1, max_length=512)
     short_name: str | None = Field(default=None, max_length=120)
     display_order: int = 0

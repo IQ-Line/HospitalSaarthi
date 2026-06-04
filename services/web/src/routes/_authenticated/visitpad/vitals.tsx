@@ -8,12 +8,15 @@ import { Badge } from '@pulse/ui/badge';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@pulse/ui/select';
-import { Switch } from '@pulse/ui/switch';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
-import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
+import { CatalogActiveSwitch } from '@/features/visitpad/components/catalog-active-switch';
+import { FormToggleRow } from '@/features/visitpad/components/form-toggle-row';
+import { RequiredLabel, VISITPAD_CODE_HELPER_TEXT } from '@/features/visitpad/components/required-label';
+import { useCatalogActiveToggleConfirm } from '@/features/visitpad/hooks/use-catalog-active-toggle-confirm';
+import { nextDisplayOrder } from '@/features/visitpad/lib/next-display-order';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import {
   useVisitpadDelete,
@@ -36,7 +39,6 @@ import {
   VISITPAD_VITAL_CATEGORIES,
   VISITPAD_VITAL_DATA_TYPES,
   VISITPAD_VITAL_INPUT_METHODS,
-  VISITPAD_VITAL_REFERENCE_KINDS,
 } from '@/features/visitpad/openapi-constants';
 import { visitpadActiveTotal } from '@/features/visitpad/tab-count';
 import type { VisitpadUnit, VisitpadVital } from '@/features/visitpad/types';
@@ -54,6 +56,9 @@ import {
 } from '@/features/visitpad/validation';
 
 const VITALS_BASE = '/api/v1/master-data/visitpad/vitals';
+
+const VITAL_SELECT_UNSET = '__unset__';
+const VITAL_PARTNER_UNSET = '__unset__';
 
 function summarizeJson(o: Record<string, unknown> | undefined | null): string {
   if (!o || Object.keys(o).length === 0) return '—';
@@ -186,6 +191,18 @@ function VisitpadVitalsPage() {
     [],
   );
 
+  const activeToggle = useCatalogActiveToggleConfirm({
+    disabled: patch.isPending || !canUpdate,
+    onConfirm: async (id, next) => {
+      try {
+        await patch.mutateAsync({ id, body: { is_active: next } });
+        toast.success(next ? 'Vital enabled' : 'Vital disabled');
+      } catch (e) {
+        toast.error(mutationErrorMessage(e));
+      }
+    },
+  });
+
   const runVitalImport = async (selection: VisitpadVital[]) => {
     try {
       const res = await platformImport.mutateAsync(selection.map((r) => r.id));
@@ -219,19 +236,6 @@ function VisitpadVitalsPage() {
         meta: { label: 'Type' },
       },
       { accessorKey: 'unit', header: 'Unit', meta: { label: 'Unit' } },
-      {
-        accessorKey: 'loinc_code',
-        header: 'LOINC',
-        meta: { label: 'LOINC' },
-        cell: ({ getValue }) => {
-          const v = getValue<string | null | undefined>();
-          return v ? (
-            <span className="font-mono text-xs">{v}</span>
-          ) : (
-            <span className="text-muted-foreground">—</span>
-          );
-        },
-      },
       {
         accessorKey: 'snomed_observable_code',
         header: 'SNOMED',
@@ -279,20 +283,12 @@ function VisitpadVitalsPage() {
         accessorKey: 'is_active',
         header: 'Active',
         meta: { label: 'Active' },
-        cell: ({ row }) => (
-          <TableActiveToggle
-            active={row.original.is_active}
-            disabled={patch.isPending || !canUpdate}
-            onCheckedChange={async (next) => {
-              try {
-                await patch.mutateAsync({ id: row.original.id, body: { is_active: next } });
-                toast.success(next ? 'Vital activated' : 'Vital deactivated');
-              } catch (e) {
-                toast.error(mutationErrorMessage(e));
-              }
-            }}
-          />
-        ),
+        cell: ({ row }) =>
+          activeToggle.renderToggle({
+            id: row.original.id,
+            displayName: row.original.name || row.original.code,
+            isActive: row.original.is_active,
+          }),
       },
       visitpadActionsColumn<VisitpadVital>({
         onEdit: setEditing,
@@ -302,7 +298,7 @@ function VisitpadVitalsPage() {
         canDelete,
       }),
     ],
-    [patch, busy, canUpdate, canDelete],
+    [activeToggle, busy, canUpdate, canDelete],
   );
 
   return (
@@ -379,10 +375,12 @@ function VisitpadVitalsPage() {
         )}
       </div>
 
+      {activeToggle.renderConfirmDialog()}
+
       <VitalCreateDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
-        pairOptions={rows.map((r) => ({ code: r.code, name: r.name }))}
+        nextOrder={nextDisplayOrder(rows)}
         isSubmitting={create.isPending}
         onSubmit={async (payload) => {
           try {
@@ -467,48 +465,55 @@ function VisitpadVitalsPage() {
 function VitalCreateDialog({
   open,
   onOpenChange,
-  pairOptions,
+  nextOrder,
   isSubmitting,
   onSubmit,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  pairOptions: { code: string; name: string }[];
+  nextOrder: number;
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const [category, setCategory] = useState('vital_signs');
-  const [dataType, setDataType] = useState('numeric');
-  const [refKind, setRefKind] = useState('none');
-  const [inputMethod, setInputMethod] = useState('manual');
+  const [category, setCategory] = useState(VITAL_SELECT_UNSET);
+  const [dataType, setDataType] = useState(VITAL_SELECT_UNSET);
+  const [inputMethod, setInputMethod] = useState(VITAL_SELECT_UNSET);
   const [isPaired, setIsPaired] = useState(false);
   const [isActive, setIsActive] = useState(true);
   const [unitLabel, setUnitLabel] = useState('');
   const [defaultUnitCode, setDefaultUnitCode] = useState('');
+  const [pairCode, setPairCode] = useState(VITAL_PARTNER_UNSET);
+  const [displayOrder, setDisplayOrder] = useState(nextOrder);
 
   const { data: unitsRes, isLoading: unitsLoading } = useVisitpadUnits(undefined, undefined, { pageIndex: 0, pageSize: 200 });
+  const { data: vitalsRes, isLoading: vitalsLoading } = useVisitpadVitals(undefined, undefined, {
+    pageIndex: 0,
+    pageSize: 500,
+  });
   const unitRows = useMemo(() => visitpadActiveUnitRows(unitsRes?.data), [unitsRes?.data]);
+  const pairOptions = useMemo(() => vitalsRes?.data ?? [], [vitalsRes?.data]);
   const hasCatalogUnits = unitRows.length > 0;
 
   useEffect(() => {
-    if (!open) {
-      setCategory('vital_signs');
-      setDataType('numeric');
-      setRefKind('none');
-      setInputMethod('manual');
+    if (open) {
+      setCategory(VITAL_SELECT_UNSET);
+      setDataType(VITAL_SELECT_UNSET);
+      setInputMethod(VITAL_SELECT_UNSET);
       setIsPaired(false);
       setIsActive(true);
       setUnitLabel('');
       setDefaultUnitCode('');
+      setPairCode(VITAL_PARTNER_UNSET);
+      setDisplayOrder(nextOrder);
     }
-  }, [open]);
+  }, [open, nextOrder]);
 
   return (
     <EntityFormDialog
       open={open}
       onOpenChange={onOpenChange}
       title="Add vital"
-      description="Create a vital catalog entry. Optional codes, ranges, critical thresholds, alternate unit codes (comma-separated), and partner vital when paired capture is on."
+      description="Create a vital catalog entry. Only code, name, and display order are required; other fields use sensible defaults."
       submitLabel="Add vital"
       isSubmitting={isSubmitting}
       onSubmit={async (e: FormEvent<HTMLFormElement>) => {
@@ -520,23 +525,25 @@ function VitalCreateDialog({
           code: String(fd.get('code') ?? '').trim(),
           name: String(fd.get('name') ?? '').trim(),
           short_name: String(fd.get('short_name') ?? '').trim(),
-          category,
-          data_type: dataType,
+          category: category === VITAL_SELECT_UNSET ? undefined : category,
+          data_type: dataType === VITAL_SELECT_UNSET ? undefined : dataType,
           unit: unitLabel.trim(),
           default_unit_code: defaultUnitCode.trim(),
           allowed_units: fdAllowedUnits(fd),
           critical_low: fdOptNum(fd, 'critical_low'),
           critical_high: fdOptNum(fd, 'critical_high'),
-          reference_kind: refKind,
+          reference_kind: 'none',
           reference_json: {},
           normal_range_adult: normalAdult,
           normal_range_paediatric: normalPaed,
-          input_method: inputMethod,
+          input_method: inputMethod === VITAL_SELECT_UNSET ? undefined : inputMethod,
           is_paired: isPaired,
-          pair_code: isPaired ? fdOptStr(fd, 'pair_code') : null,
-          display_order: Number(fd.get('display_order') ?? 0) || 0,
+          pair_code:
+            isPaired && pairCode !== VITAL_PARTNER_UNSET && pairCode.trim()
+              ? pairCode.trim()
+              : null,
+          display_order: displayOrder,
           is_active: isActive,
-          loinc_code: fdOptStr(fd, 'loinc_code'),
           snomed_observable_code: fdOptStr(fd, 'snomed_observable_code'),
         });
         if (!parsed.success) {
@@ -547,25 +554,37 @@ function VitalCreateDialog({
       }}
     >
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="vp-v-code">Code</Label>
-          <Input id="vp-v-code" name="code" required maxLength={64} />
+        <div className="space-y-2 sm:col-span-2">
+          <RequiredLabel htmlFor="vp-v-code">Code</RequiredLabel>
+          <Input id="vp-v-code" name="code" maxLength={9} autoComplete="off" />
+          <p className="text-xs text-muted-foreground">{VISITPAD_CODE_HELPER_TEXT}</p>
         </div>
         <div className="space-y-2">
           <Label htmlFor="vp-v-short">Short name</Label>
-          <Input id="vp-v-short" name="short_name" required maxLength={64} />
+          <Input id="vp-v-short" name="short_name" maxLength={64} />
+        </div>
+        <div className="space-y-2">
+          <RequiredLabel htmlFor="vp-v-order">Display order</RequiredLabel>
+          <Input
+            id="vp-v-order"
+            name="display_order"
+            type="number"
+            value={displayOrder}
+            onChange={(e) => setDisplayOrder(Number(e.target.value) || 0)}
+          />
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-v-name">Name</Label>
-          <Input id="vp-v-name" name="name" required maxLength={256} />
+          <RequiredLabel htmlFor="vp-v-name">Name</RequiredLabel>
+          <Input id="vp-v-name" name="name" maxLength={256} />
         </div>
         <div className="space-y-2">
           <Label>Category</Label>
           <Select value={category} onValueChange={setCategory}>
             <SelectTrigger>
-              <SelectValue />
+              <SelectValue placeholder="Select category" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value={VITAL_SELECT_UNSET}>Select category</SelectItem>
               {VISITPAD_VITAL_CATEGORIES.map((c) => (
                 <SelectItem key={c.value} value={c.value}>
                   {c.label}
@@ -578,9 +597,10 @@ function VitalCreateDialog({
           <Label>Data type</Label>
           <Select value={dataType} onValueChange={setDataType}>
             <SelectTrigger>
-              <SelectValue />
+              <SelectValue placeholder="Select data type" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value={VITAL_SELECT_UNSET}>Select data type</SelectItem>
               {VISITPAD_VITAL_DATA_TYPES.map((c) => (
                 <SelectItem key={c.value} value={c.value}>
                   {c.label}
@@ -593,8 +613,12 @@ function VitalCreateDialog({
           <Label>Default unit code</Label>
           {hasCatalogUnits ? (
             <Select
-              value={defaultUnitCode || undefined}
+              value={defaultUnitCode.trim() ? defaultUnitCode : VITAL_SELECT_UNSET}
               onValueChange={(code) => {
+                if (code === VITAL_SELECT_UNSET) {
+                  setDefaultUnitCode('');
+                  return;
+                }
                 setDefaultUnitCode(code);
                 const row = unitRows.find((u) => u.code === code);
                 if (row) setUnitLabel(row.display_name);
@@ -605,6 +629,7 @@ function VitalCreateDialog({
                 <SelectValue placeholder={unitsLoading ? 'Loading units…' : 'Select unit code…'} />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value={VITAL_SELECT_UNSET}>Select unit code…</SelectItem>
                 {unitRows.map((u) => (
                   <SelectItem key={u.id} value={u.code}>
                     {u.display_name} ({u.code})
@@ -617,7 +642,6 @@ function VitalCreateDialog({
               id="vp-v-def"
               value={defaultUnitCode}
               onChange={(e) => setDefaultUnitCode(e.target.value)}
-              required
               maxLength={64}
               placeholder="No units in catalog — type a code"
               disabled={unitsLoading}
@@ -635,33 +659,18 @@ function VitalCreateDialog({
             id="vp-v-unit"
             value={unitLabel}
             onChange={(e) => setUnitLabel(e.target.value)}
-            required
             maxLength={128}
             placeholder="Filled when you pick a default unit; editable"
           />
         </div>
         <div className="space-y-2">
-          <Label>Reference kind</Label>
-          <Select value={refKind} onValueChange={setRefKind}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {VISITPAD_VITAL_REFERENCE_KINDS.map((c) => (
-                <SelectItem key={c.value} value={c.value}>
-                  {c.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
           <Label>Input method</Label>
           <Select value={inputMethod} onValueChange={setInputMethod}>
             <SelectTrigger>
-              <SelectValue />
+              <SelectValue placeholder="Select input method" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value={VITAL_SELECT_UNSET}>Select input method</SelectItem>
               {VISITPAD_VITAL_INPUT_METHODS.map((c) => (
                 <SelectItem key={c.value} value={c.value}>
                   {c.label}
@@ -669,10 +678,6 @@ function VitalCreateDialog({
               ))}
             </SelectContent>
           </Select>
-        </div>
-        <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-v-loinc">LOINC code</Label>
-          <Input id="vp-v-loinc" name="loinc_code" maxLength={32} placeholder="e.g. 8867-4" />
         </div>
         <div className="space-y-2 sm:col-span-2">
           <Label htmlFor="vp-v-snomed">SNOMED observable code</Label>
@@ -726,38 +731,39 @@ function VitalCreateDialog({
           <Label htmlFor="vp-v-chigh">Critical high</Label>
           <Input id="vp-v-chigh" name="critical_high" type="number" step="any" />
         </div>
-        <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-v-order">Display order</Label>
-          <Input id="vp-v-order" name="display_order" type="number" defaultValue={0} />
-        </div>
-        <div className="flex items-center justify-between gap-4 rounded-md border p-3 sm:col-span-2">
-          <div>
-            <Label htmlFor="vp-v-paired">Paired capture</Label>
-            <p className="text-muted-foreground text-xs">Partner vital code is required when on.</p>
-          </div>
-          <Switch id="vp-v-paired" checked={isPaired} onCheckedChange={setIsPaired} />
+        <div className="sm:col-span-2">
+          <FormToggleRow
+            id="vp-v-paired"
+            label="Paired capture"
+            description="Partner vital is required when on."
+            checked={isPaired}
+            onCheckedChange={setIsPaired}
+          />
         </div>
         {isPaired ? (
           <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="vp-v-pair">Partner vital code</Label>
-            <Input
-              id="vp-v-pair"
-              name="pair_code"
-              list="vp-vital-pair-datalist"
-              maxLength={64}
-              placeholder="Existing vital code (e.g. bp_dia)"
-              autoComplete="off"
-            />
-            <datalist id="vp-vital-pair-datalist">
-              {pairOptions.map((o) => (
-                <option key={o.code} value={o.code} label={o.name} />
-              ))}
-            </datalist>
+            <Label htmlFor="vp-v-pair">Partner vital</Label>
+            <Select
+              value={pairCode.trim() && pairCode !== VITAL_PARTNER_UNSET ? pairCode : VITAL_PARTNER_UNSET}
+              onValueChange={setPairCode}
+              disabled={vitalsLoading}
+            >
+              <SelectTrigger id="vp-v-pair">
+                <SelectValue placeholder={vitalsLoading ? 'Loading vitals…' : 'Select partner vital…'} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={VITAL_PARTNER_UNSET}>Select partner vital…</SelectItem>
+                {pairOptions.map((v) => (
+                  <SelectItem key={v.id} value={v.code}>
+                    {v.name} ({v.code})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         ) : null}
-        <div className="flex items-center justify-between gap-4 rounded-md border p-3 sm:col-span-2">
-          <Label htmlFor="vp-v-act">Active</Label>
-          <Switch id="vp-v-act" checked={isActive} onCheckedChange={setIsActive} />
+        <div className="sm:col-span-2">
+          <CatalogActiveSwitch id="vp-v-act" checked={isActive} onCheckedChange={setIsActive} />
         </div>
       </div>
     </EntityFormDialog>
@@ -778,7 +784,15 @@ function VitalEditDialog({
   onSave: (body: Record<string, unknown>) => Promise<void>;
 }) {
   const { data: unitsRes, isLoading: unitsLoading } = useVisitpadUnits(undefined, undefined, { pageIndex: 0, pageSize: 200 });
+  const { data: vitalsRes, isLoading: vitalsLoading } = useVisitpadVitals(undefined, undefined, {
+    pageIndex: 0,
+    pageSize: 500,
+  });
   const unitRows = useMemo(() => visitpadActiveUnitRows(unitsRes?.data), [unitsRes?.data]);
+  const pairOptions = useMemo(
+    () => (vitalsRes?.data ?? []).filter((v) => v.code !== vital?.code),
+    [vitalsRes?.data, vital?.code],
+  );
   const defaultUnitOptions = useMemo(
     () =>
       vital
@@ -799,7 +813,6 @@ function VitalEditDialog({
       data_type: 'numeric',
       unit: '',
       default_unit_code: '',
-      reference_kind: 'none',
       input_method: 'manual',
       is_paired: false,
       pair_code: null,
@@ -807,7 +820,6 @@ function VitalEditDialog({
       critical_high: null,
       display_order: 0,
       is_active: true,
-      loinc_code: null,
       snomed_observable_code: null,
     },
   });
@@ -821,8 +833,6 @@ function VitalEditDialog({
         data_type: vital.data_type as VisitpadVitalEditFormSchema['data_type'],
         unit: vital.unit,
         default_unit_code: vital.default_unit_code,
-        reference_kind: (vital.reference_kind ??
-          'none') as VisitpadVitalEditFormSchema['reference_kind'],
         input_method: (vital.input_method ??
           'manual') as VisitpadVitalEditFormSchema['input_method'],
         is_paired: !!vital.is_paired,
@@ -831,14 +841,12 @@ function VitalEditDialog({
         critical_high: vital.critical_high ?? null,
         display_order: vital.display_order,
         is_active: vital.is_active,
-        loinc_code: vital.loinc_code ?? null,
         snomed_observable_code: vital.snomed_observable_code ?? null,
       });
     }
   }, [open, vital, form]);
 
   const submit: SubmitHandler<VisitpadVitalEditFormSchema> = async (v) => {
-    const loinc = v.loinc_code?.trim();
     const snomed = v.snomed_observable_code?.trim();
     const pair = v.pair_code?.trim();
     await onSave({
@@ -848,7 +856,6 @@ function VitalEditDialog({
       data_type: v.data_type,
       unit: v.unit,
       default_unit_code: v.default_unit_code,
-      reference_kind: v.reference_kind,
       input_method: v.input_method,
       is_paired: v.is_paired,
       pair_code: pair && pair.length > 0 ? pair : null,
@@ -856,7 +863,6 @@ function VitalEditDialog({
       critical_high: v.critical_high,
       display_order: v.display_order,
       is_active: v.is_active,
-      loinc_code: loinc && loinc.length > 0 ? loinc : null,
       snomed_observable_code: snomed && snomed.length > 0 ? snomed : null,
     });
   };
@@ -969,26 +975,6 @@ function VitalEditDialog({
             <Input id="vp-ve-unit" maxLength={128} {...form.register('unit')} />
           </div>
           <div className="space-y-2">
-            <Label>Reference kind</Label>
-            <Select
-              value={form.watch('reference_kind')}
-              onValueChange={(x) =>
-                form.setValue('reference_kind', x as VisitpadVitalEditFormSchema['reference_kind'])
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {VISITPAD_VITAL_REFERENCE_KINDS.map((c) => (
-                  <SelectItem key={c.value} value={c.value}>
-                    {c.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
             <Label>Input method</Label>
             <Select
               value={form.watch('input_method')}
@@ -1008,11 +994,7 @@ function VitalEditDialog({
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="vp-ve-loinc">LOINC</Label>
-            <Input id="vp-ve-loinc" maxLength={32} {...form.register('loinc_code')} />
-          </div>
-          <div className="space-y-2">
+          <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="vp-ve-snomed">SNOMED observable</Label>
             <Input id="vp-ve-snomed" maxLength={64} {...form.register('snomed_observable_code')} />
           </div>
@@ -1046,29 +1028,63 @@ function VitalEditDialog({
               })}
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="vp-ve-pair">Pair code</Label>
-            <Input id="vp-ve-pair" maxLength={64} {...form.register('pair_code')} />
+          <div className="sm:col-span-2">
+            <FormToggleRow
+              id="vp-ve-paired"
+              label="Paired capture"
+              description="Partner vital is required when on."
+              checked={!!form.watch('is_paired')}
+              onCheckedChange={(c) => form.setValue('is_paired', c)}
+            />
           </div>
+          {form.watch('is_paired') ? (
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="vp-ve-pair">Partner vital</Label>
+              <Select
+                value={
+                  form.watch('pair_code')?.trim()
+                    ? (form.watch('pair_code') as string)
+                    : VITAL_PARTNER_UNSET
+                }
+                onValueChange={(code) =>
+                  form.setValue(
+                    'pair_code',
+                    code === VITAL_PARTNER_UNSET ? null : code,
+                    { shouldDirty: true },
+                  )
+                }
+                disabled={vitalsLoading}
+              >
+                <SelectTrigger id="vp-ve-pair">
+                  <SelectValue placeholder={vitalsLoading ? 'Loading vitals…' : 'Select partner vital…'} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={VITAL_PARTNER_UNSET}>Select partner vital…</SelectItem>
+                  {pairOptions.map((v) => (
+                    <SelectItem key={v.id} value={v.code}>
+                      {v.name} ({v.code})
+                    </SelectItem>
+                  ))}
+                  {vital.pair_code &&
+                  !pairOptions.some((v) => v.code === vital.pair_code) ? (
+                    <SelectItem value={vital.pair_code}>
+                      {vital.pair_code} — not in current list
+                    </SelectItem>
+                  ) : null}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
           <div className="space-y-2">
-            <Label htmlFor="vp-ve-order">Display order</Label>
+            <RequiredLabel htmlFor="vp-ve-order">Display order</RequiredLabel>
             <Input
               id="vp-ve-order"
               type="number"
               {...form.register('display_order', { valueAsNumber: true })}
             />
           </div>
-          <div className="flex items-center justify-between rounded-md border p-3 sm:col-span-2">
-            <Label htmlFor="vp-ve-paired">Paired vital</Label>
-            <Switch
-              id="vp-ve-paired"
-              checked={!!form.watch('is_paired')}
-              onCheckedChange={(c) => form.setValue('is_paired', c)}
-            />
-          </div>
-          <div className="flex items-center justify-between rounded-md border p-3 sm:col-span-2">
-            <Label htmlFor="vp-ve-act">Active</Label>
-            <Switch
+          <div className="sm:col-span-2">
+            <CatalogActiveSwitch
               id="vp-ve-act"
               checked={!!form.watch('is_active')}
               onCheckedChange={(c) => form.setValue('is_active', c)}
