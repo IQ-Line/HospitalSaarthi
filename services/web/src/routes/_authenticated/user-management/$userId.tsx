@@ -15,7 +15,6 @@ import {
 } from '@/lib/runtime-capability-keys';
 import { useDeactivateUser } from '@/features/user-management/api/mutations';
 import {
-  roleListOptions,
   userCapabilitiesOptions,
   userDetailOptions,
   useUserDetailSuspense,
@@ -44,9 +43,6 @@ export const Route = createFileRoute('/_authenticated/user-management/$userId')(
       loads.push(
         context.queryClient.ensureQueryData(userCapabilitiesOptions(params.userId, tenantScope)),
       );
-    }
-    if (p.hasCapability(UM_ROLE_READ)) {
-      loads.push(context.queryClient.ensureQueryData(roleListOptions(tenantScope)));
     }
     await Promise.all(loads);
   },

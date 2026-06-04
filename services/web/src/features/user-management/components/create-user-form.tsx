@@ -72,6 +72,8 @@ export function buildCreateUserRequestBody(
 }
 
 type CreateUserFormProps = {
+  /** When false, defer role/capability/department queries (dialog closed / not mounted). Default true. */
+  formActive?: boolean;
   /** Platform super-admin: pick target hospital tenant for POST /users. */
   canSelectTargetTenant?: boolean;
   /** Configurator tenant detail: scope UM APIs and POST /users to this tenant. */
@@ -85,6 +87,7 @@ type CreateUserFormProps = {
 };
 
 export function CreateUserForm({
+  formActive = true,
   canSelectTargetTenant = false,
   fixedTargetTenantId,
   fixedConfiguratorOrgId,
@@ -134,8 +137,7 @@ export function CreateUserForm({
 
   const rolesQuery = useQuery({
     ...roleListOptions(apiTenantScope),
-    enabled: umRoleRead && Boolean(effectiveTenantId),
-    staleTime: 30_000,
+    enabled: formActive && umRoleRead && Boolean(effectiveTenantId),
   });
 
   const form = useForm<CreateUserFormValues>({
@@ -184,7 +186,7 @@ export function CreateUserForm({
   const departmentsQuery = useDepartments(undefined, {
     iqTenantId: apiTenantScope,
     formCatalog: true,
-    enabled: isDoctor,
+    enabled: formActive && isDoctor,
   });
   const activeDepartments = useMemo(
     () => (departmentsQuery.data?.data ?? []).filter((d) => d.is_active),
@@ -201,8 +203,7 @@ export function CreateUserForm({
 
   const roleCapabilitiesQuery = useQuery({
     ...roleCapabilitiesOptions(selectedRoleId, apiTenantScope),
-    enabled: roleCapabilitiesQueryEnabled,
-    staleTime: 30_000,
+    enabled: formActive && roleCapabilitiesQueryEnabled,
   });
 
   const prevRoleIdRef = useRef<string | undefined>(undefined);

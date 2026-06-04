@@ -2,9 +2,6 @@ import { queryOptions, useQuery, useMutation, useQueryClient } from '@tanstack/r
 import { apiClient } from '@/lib/api-client';
 import { platformCatalogClient } from './platform-catalog-client';
 import { masterDataKeys } from './query-keys';
-
-/** Shared with `@/platform/modules/module-catalog` (avoid circular imports). */
-export const MODULE_CATALOG_STALE_MS = 5 * 60 * 1000;
 import type {
   ModuleCategory,
   ModuleCreateInput,
@@ -14,6 +11,9 @@ import type {
   ModuleUpdateInput,
   NavModuleListResponse,
 } from '../types';
+
+/** Shared with `@/platform/modules/module-catalog` (avoid circular imports). */
+export const MODULE_CATALOG_STALE_MS = 5 * 60 * 1000;
 
 const BASE = '/api/v1/master-data/modules';
 const NAV_MODULES_PATH = `${BASE}/nav`;
