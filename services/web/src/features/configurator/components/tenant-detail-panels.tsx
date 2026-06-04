@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useReducer, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, Controller, type UseFormReturn } from 'react-hook-form';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -41,8 +42,10 @@ import {
   UM_ROLE_UPDATE,
   UM_ROLES_ADMIN_ANY,
   UM_USER_CREATE,
+  UM_USER_READ,
 } from '@/lib/runtime-capability-keys';
 import { CreateUserForm } from '@/features/user-management/components/create-user-form';
+import { UserProfileNameLink } from '@/features/user-management/components/user-list-table';
 import type { Capability, UmUser } from '@/features/user-management/types';
 import {
   useCreateTariffService,
@@ -132,14 +135,35 @@ export function TenantUsersPanel({
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const qc = useQueryClient();
+  const navigate = useNavigate();
+  const umUserRead = useCapability(UM_USER_READ);
   const { data, isLoading, error } = useTenantUsers(iqTenantId);
+
+  const openUserProfile = useCallback(
+    (user: UmUser) => {
+      if (!umUserRead) return;
+      void navigate({
+        to: '/user-management/$userId',
+        params: { userId: user.id },
+        search: { tenant: iqTenantId },
+      });
+    },
+    [iqTenantId, navigate, umUserRead],
+  );
 
   const columns = useMemo<ColumnDef<UmUser, unknown>[]>(
     () => [
       {
         accessorKey: 'full_name',
         header: 'Name',
-        cell: ({ getValue }) => <span className="font-medium">{getValue<string>()}</span>,
+        cell: ({ row }) => (
+          <UserProfileNameLink
+            userId={row.original.id}
+            fullName={row.original.full_name}
+            tenantScope={iqTenantId}
+            linkToProfile={umUserRead}
+          />
+        ),
       },
       {
         accessorKey: 'email',
@@ -183,7 +207,7 @@ export function TenantUsersPanel({
         ),
       },
     ],
-    [],
+    [iqTenantId, umUserRead],
   );
 
   const rows = useMemo(() => {
@@ -219,6 +243,7 @@ export function TenantUsersPanel({
           isLoading={isLoading}
           emptyTitle="No users"
           emptyDescription="No directory users for this tenant yet."
+          onRowClick={umUserRead ? openUserProfile : undefined}
         />
       </div>
       <CapabilityGate capability={UM_USER_CREATE}>
@@ -234,20 +259,22 @@ export function TenantUsersPanel({
               </DialogHeader>
             </div>
             <div className="flex min-h-0 flex-1 overflow-hidden p-4">
-              <CreateUserForm
-                fixedTargetTenantId={iqTenantId}
-                fixedConfiguratorOrgId={organizationId}
-                layout="dialog"
-                navigateToProfileOnSuccess={false}
-                onCancel={() => setCreateOpen(false)}
-                onCreated={(user) => {
-                  void qc.invalidateQueries({
-                    queryKey: configuratorKeys.tenantUsers(iqTenantId),
-                  });
-                  toast.success(`User ${user.full_name} created`);
-                  setCreateOpen(false);
-                }}
-              />
+              {createOpen ? (
+                <CreateUserForm
+                  fixedTargetTenantId={iqTenantId}
+                  fixedConfiguratorOrgId={organizationId}
+                  layout="dialog"
+                  navigateToProfileOnSuccess={false}
+                  onCancel={() => setCreateOpen(false)}
+                  onCreated={(user) => {
+                    void qc.invalidateQueries({
+                      queryKey: configuratorKeys.tenantUsers(iqTenantId),
+                    });
+                    toast.success(`User ${user.full_name} created`);
+                    setCreateOpen(false);
+                  }}
+                />
+              ) : null}
             </div>
           </DialogContent>
         </Dialog>

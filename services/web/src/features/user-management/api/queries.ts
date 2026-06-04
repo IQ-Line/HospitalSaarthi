@@ -19,6 +19,14 @@ import { userManagementKeys } from './keys';
 
 const BASE = '/api/user-management';
 
+/** Shared React Query stale windows for UM reads (mutations still invalidate). */
+export const UM_USER_LIST_STALE_MS = 60_000;
+export const UM_USER_DETAIL_STALE_MS = 30_000;
+export const UM_ROLE_LIST_STALE_MS = 120_000;
+export const UM_ROLE_CAPABILITIES_STALE_MS = 30_000;
+export const UM_USER_CAPABILITIES_STALE_MS = 30_000;
+export const UM_PLATFORM_DIRECTORY_STALE_MS = 30_000;
+
 export function userListOptions(tenantScope?: string | null, filter?: { department?: string }) {
   const params = new URLSearchParams();
   if (filter?.department) params.set('department', filter.department);
@@ -36,6 +44,7 @@ export function userListOptions(tenantScope?: string | null, filter?: { departme
         { method: 'GET' },
         tenantScope ? { tenantIdOverride: tenantScope } : undefined,
       ),
+    staleTime: UM_USER_LIST_STALE_MS,
   });
 }
 
@@ -49,6 +58,7 @@ export function userDetailOptions(userId: string, tenantScope?: string | null) {
         { method: 'GET' },
         userTenantApiContext(tenantScope),
       ),
+    staleTime: UM_USER_DETAIL_STALE_MS,
   });
 }
 
@@ -100,6 +110,7 @@ export function roleListOptions(tenantScope?: string | null) {
         { method: 'GET' },
         tenantScope ? { tenantIdOverride: tenantScope } : undefined,
       ),
+    staleTime: UM_ROLE_LIST_STALE_MS,
   });
 }
 
@@ -112,6 +123,7 @@ export function roleCapabilitiesOptions(roleId: string, tenantScope?: string | n
         { method: 'GET' },
         tenantScope ? { tenantIdOverride: tenantScope } : undefined,
       ),
+    staleTime: UM_ROLE_CAPABILITIES_STALE_MS,
   });
 }
 
@@ -125,6 +137,7 @@ export function userCapabilitiesOptions(userId: string, tenantScope?: string | n
         { method: 'GET' },
         userTenantApiContext(tenantScope),
       ),
+    staleTime: UM_USER_CAPABILITIES_STALE_MS,
   });
 }
 

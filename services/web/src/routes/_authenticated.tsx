@@ -1,16 +1,26 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import {
   createFileRoute,
   Outlet,
   redirect,
 } from '@tanstack/react-router';
-import { refreshAuthorizationContext } from '@/lib/authorization-context';
+import {
+  isAuthorizationHydratedForScope,
+  refreshAuthorizationContext,
+} from '@/lib/authorization-context';
+import {
+  isSameAuthPrincipalScope,
+  type AuthPrincipalQueryScope,
+} from '@/lib/auth-principal-query';
 import { queryClient } from '@/lib/query-client';
 import { AppHeader } from '@/components/layout/app-header';
 import { AppSidebar } from '@/components/layout/app-sidebar';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePermissionsStore } from '@/stores/permissions.store';
 import { useTenantStore } from '@/stores/tenant.store';
+
+const EMPTY_CAPABILITY_RETRY_MAX = 3;
+const EMPTY_CAPABILITY_RETRY_INTERVAL_MS = 3000;
 
 export const Route = createFileRoute('/_authenticated')({
   beforeLoad: () => {
@@ -32,8 +42,25 @@ function AuthenticatedLayout() {
   const capabilityKeys = usePermissionsStore((s) => s.capabilityKeys);
   const hasEmptyFallback = isLoaded && capabilityKeys.size === 0;
 
+  const lastLayoutScopeRef = useRef<AuthPrincipalQueryScope | null>(null);
+
   useEffect(() => {
+    const scope: AuthPrincipalQueryScope = { userId, tenantId, activeBranch };
+    const scopeChanged =
+      lastLayoutScopeRef.current === null ||
+      !isSameAuthPrincipalScope(lastLayoutScopeRef.current, scope);
+
+    if (isAuthorizationHydratedForScope(scope)) {
+      lastLayoutScopeRef.current = scope;
+      return;
+    }
+
+    if (isLoaded && !scopeChanged) {
+      return;
+    }
+
     let cancelled = false;
+    let retryCount = 0;
     let retryTimer: ReturnType<typeof setInterval> | undefined;
 
     const hydrate = async () => {
@@ -47,11 +74,19 @@ function AuthenticatedLayout() {
     };
 
     void hydrate();
+    lastLayoutScopeRef.current = scope;
 
     if (hasEmptyFallback) {
       retryTimer = setInterval(() => {
+        if (cancelled || retryCount >= EMPTY_CAPABILITY_RETRY_MAX) {
+          if (retryTimer !== undefined) {
+            clearInterval(retryTimer);
+          }
+          return;
+        }
+        retryCount += 1;
         void hydrate();
-      }, 3000);
+      }, EMPTY_CAPABILITY_RETRY_INTERVAL_MS);
     }
 
     return () => {
@@ -60,7 +95,7 @@ function AuthenticatedLayout() {
         clearInterval(retryTimer);
       }
     };
-  }, [userId, tenantId, activeBranch, hasEmptyFallback]);
+  }, [userId, tenantId, activeBranch, isLoaded, hasEmptyFallback]);
 
   if (!isLoaded) {
     return (

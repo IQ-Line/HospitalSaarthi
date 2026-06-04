@@ -1,5 +1,6 @@
 export { masterDataKeys } from './query-keys';
 export {
+  globalModulesCatalogQueryOptions,
   useModules,
   useNavModules,
   useModule,

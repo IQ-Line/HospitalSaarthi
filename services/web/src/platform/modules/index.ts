@@ -16,6 +16,7 @@ export {
   moduleCatalogQueryOptions,
   useModuleCatalog,
 } from './module-catalog';
+export { globalModulesCatalogQueryOptions, MODULE_CATALOG_STALE_MS } from '@/features/master-data/api/modules';
 export { registerBuiltinModuleManifests } from './register-builtin-modules';
 export {
   catalogSlugSetFromIndex,

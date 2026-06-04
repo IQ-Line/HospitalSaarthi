@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
@@ -72,6 +72,8 @@ export function buildCreateUserRequestBody(
 }
 
 type CreateUserFormProps = {
+  /** When false, defer role/capability/department queries (dialog closed / not mounted). Default true. */
+  formActive?: boolean;
   /** Platform super-admin: pick target hospital tenant for POST /users. */
   canSelectTargetTenant?: boolean;
   /** Configurator tenant detail: scope UM APIs and POST /users to this tenant. */
@@ -85,6 +87,7 @@ type CreateUserFormProps = {
 };
 
 export function CreateUserForm({
+  formActive = true,
   canSelectTargetTenant = false,
   fixedTargetTenantId,
   fixedConfiguratorOrgId,
@@ -134,8 +137,7 @@ export function CreateUserForm({
 
   const rolesQuery = useQuery({
     ...roleListOptions(apiTenantScope),
-    enabled: umRoleRead && Boolean(effectiveTenantId),
-    staleTime: 30_000,
+    enabled: formActive && umRoleRead && Boolean(effectiveTenantId),
   });
 
   const form = useForm<CreateUserFormValues>({
@@ -156,7 +158,7 @@ export function CreateUserForm({
 
   const availableRoles = (rolesQuery.data ?? []).filter((role) => role.status === 'active');
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (!requireRoleTemplate) {
       return;
     }
@@ -173,14 +175,18 @@ export function CreateUserForm({
     }
   }, [requireRoleTemplate, umRoleRead, rolesQuery.data, form]);
 
-  const selectedRoleTemplateIds = form.watch('role_template_ids');
-  const selectedRoleId = selectedRoleTemplateIds[0] ?? '';
+  const selectedRoleTemplateIds = useWatch({
+    control: form.control,
+    name: 'role_template_ids',
+    defaultValue: [],
+  });
+  const selectedRoleId = (selectedRoleTemplateIds ?? [])[0] ?? '';
   const isDoctor = isDoctorRole(selectedRoleId, availableRoles);
 
   const departmentsQuery = useDepartments(undefined, {
     iqTenantId: apiTenantScope,
     formCatalog: true,
-    enabled: isDoctor,
+    enabled: formActive && isDoctor,
   });
   const activeDepartments = useMemo(
     () => (departmentsQuery.data?.data ?? []).filter((d) => d.is_active),
@@ -197,8 +203,7 @@ export function CreateUserForm({
 
   const roleCapabilitiesQuery = useQuery({
     ...roleCapabilitiesOptions(selectedRoleId, apiTenantScope),
-    enabled: roleCapabilitiesQueryEnabled,
-    staleTime: 30_000,
+    enabled: formActive && roleCapabilitiesQueryEnabled,
   });
 
   const prevRoleIdRef = useRef<string | undefined>(undefined);
@@ -240,14 +245,16 @@ export function CreateUserForm({
     }
     if (prevRoleIdRef.current !== selectedRoleId) {
       prevRoleIdRef.current = selectedRoleId;
-      form.setValue(
-        'role_capability_selection_ids',
-        caps.map((c) => c.id),
-        { shouldDirty: true, shouldValidate: true },
-      );
-      if (!isDoctorRole(selectedRoleId, availableRoles)) {
-        form.setValue('doctor_tariffs', [], { shouldDirty: true });
-      }
+      const capIds = caps.map((c) => c.id);
+      startTransition(() => {
+        form.setValue('role_capability_selection_ids', capIds, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+        if (!isDoctorRole(selectedRoleId, availableRoles)) {
+          form.setValue('doctor_tariffs', [], { shouldDirty: true });
+        }
+      });
     }
   }, [selectedRoleId, roleCapabilitiesQuery.data, availableRoles, form]);
 

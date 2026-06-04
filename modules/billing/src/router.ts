@@ -32,10 +32,19 @@ type ListQuery = {
   /** Filters `department_id` (uuid). Alias: `department_id`. */
   department?: string;
   department_id?: string;
+  /** Doctor / provider uuid — consultation tariffs for a user. */
+  provider_id?: string;
   is_active?: string;
   limit?: string;
   cursor?: string;
 };
+
+function isBillingSchemaDriftError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /department_id|billing\.["']?tariff_master|relation .* does not exist|Failed query/i.test(
+    msg,
+  );
+}
 
 type Cursor = { created_at: string; id: string };
 
@@ -292,6 +301,8 @@ function listMock(tenantId: string, q: ListQuery, limit: number) {
   if (category) rows = rows.filter((r) => r.category === category);
   const departmentId = listDepartmentFilter(q);
   if (departmentId) rows = rows.filter((r) => r.department_id === departmentId);
+  const providerId = q.provider_id?.trim();
+  if (providerId) rows = rows.filter((r) => r.provider_id === providerId);
   if (active !== undefined) rows = rows.filter((r) => r.is_active === active);
   if (cursor) {
     rows = rows.filter((r) => isBeforeCursor(r, cursor));
@@ -347,6 +358,8 @@ async function billingRouter(
       if (q.category?.trim()) conditions.push(eq(billingMaster.category, q.category.trim()));
       const departmentId = listDepartmentFilter(q);
       if (departmentId) conditions.push(eq(billingMaster.department_id, departmentId));
+      const providerId = q.provider_id?.trim();
+      if (providerId) conditions.push(eq(billingMaster.provider_id, providerId));
       const active = parseBool(q.is_active);
       if (active !== undefined) conditions.push(eq(billingMaster.is_active, active));
       if (cursor) {
@@ -355,12 +368,25 @@ async function billingRouter(
         );
       }
 
-      const rows = await db
-        .select()
-        .from(billingMaster)
-        .where(and(...conditions))
-        .orderBy(desc(billingMaster.created_at), desc(billingMaster.id))
-        .limit(limit + 1);
+      let rows: (typeof billingMaster.$inferSelect)[];
+      try {
+        rows = await db
+          .select()
+          .from(billingMaster)
+          .where(and(...conditions))
+          .orderBy(desc(billingMaster.created_at), desc(billingMaster.id))
+          .limit(limit + 1);
+      } catch (err) {
+        if (isBillingSchemaDriftError(err)) {
+          return reply.code(503).send({
+            statusCode: 503,
+            error: "Service Unavailable",
+            message:
+              "Billing schema is out of date. Run: npx nx run billing:db-migrate (or make db-migrate)",
+          });
+        }
+        throw err;
+      }
 
       const hasMore = rows.length > limit;
       const pageRows = hasMore ? rows.slice(0, limit) : rows;

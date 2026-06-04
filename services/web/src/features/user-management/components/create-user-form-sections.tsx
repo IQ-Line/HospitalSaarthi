@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { startTransition, type ReactNode } from 'react';
 import {
   Controller,
   type Control,
@@ -23,20 +23,13 @@ import { UM_ROLE_ASSIGN, UM_ROLE_READ } from '@/lib/runtime-capability-keys';
 import { useDepartments } from '@/features/master-data/api';
 import type { Capability, UmRole } from '../types';
 import { MasterDataCapabilityPermissionTree } from './master-data-capability-permission-tree';
+import { doctorTariffRowSchema } from '../lib/doctor-tariff-form';
 import { UserManagementSectionCard } from './user-management-section-card';
 
 export type CreateUserAccessOptions = {
   /** When true, exactly one role id is required to submit. */
   requireRoleTemplate: boolean;
 };
-
-const doctorTariffRowSchema = z.object({
-  department_id: z.string(),
-  room_number: z.string().default(''),
-  base_price: z.coerce.number().min(0).max(3000),
-  tax_percentage: z.coerce.number().min(0).max(100),
-  opd_days: z.array(z.string()).default([]),
-});
 
 export function buildCreateUserFormSchema(options: CreateUserAccessOptions) {
   return z.object({
@@ -320,7 +313,7 @@ export function CreateUserAccessSection({
                     size="sm"
                     onClick={() => {
                       const all = roleCapabilities.map((c) => c.id);
-                      field.onChange(all);
+                      startTransition(() => field.onChange(all));
                     }}
                   >
                     Select all

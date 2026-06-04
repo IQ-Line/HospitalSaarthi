@@ -48,7 +48,6 @@ export function UserAccessPanel({ userId, tenantScope }: UserAccessPanelProps) {
   const rolesQuery = useQuery({
     ...roleListOptions(tenantScope),
     enabled: umRoleRead,
-    staleTime: 30_000,
   });
   const capabilitiesSnapshotQuery = useUserCapabilities(userId, true, tenantScope);
   const detachRole = useDetachRoleTemplate(userId, tenantScope);
