@@ -6,6 +6,7 @@ import {
   billingLineTotal,
   computeBillingGrandTotal,
   formatBillingDeduction,
+  formatBillingTaxLine,
   formatBillingTaxSummary,
   isVisitRegistrationAmountPaidValid,
   visitRegistrationFormBlockers,
@@ -76,9 +77,24 @@ describe('formatBillingTaxSummary', () => {
     expect(formatBillingTaxSummary(0)).toBe('0');
   });
 });
+
+describe('formatBillingTaxLine', () => {
+  it('combines rate and amount on one line', () => {
+    expect(formatBillingTaxLine(5, 10)).toBe('5% · ₹10');
+  });
+
+  it('shows 0 when rate is zero', () => {
+    expect(formatBillingTaxLine(0, 0)).toBe('0');
+  });
+});
+
+describe('visitRegistrationFormBlockers', () => {
   const complete = {
     phone: '9876543210',
     firstName: 'Test',
+    departmentId: 'dept-1',
+    providerId: 'doc-1',
+    visitTypeCode: 'opd_first',
     grandTotal: 100,
     amountPaid: 100,
     paymentMode: 'cash',

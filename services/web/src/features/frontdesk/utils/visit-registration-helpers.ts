@@ -209,6 +209,13 @@ export function formatBillingDeduction(amount: number): string {
   return `-${formatInr(amount)}`;
 }
 
+/** Per-line tax column — rate plus amount on one line (summary rows use {@link formatBillingTaxSummary}). */
+export function formatBillingTaxLine(taxPercent: number, taxAmount: number): string {
+  if (!Number.isFinite(taxPercent) || taxPercent <= 0) return '0';
+  if (!Number.isFinite(taxAmount) || taxAmount <= 0) return `${taxPercent}%`;
+  return `${taxPercent}% · ${formatInr(taxAmount)}`;
+}
+
 /** Tax column in summary rows — matches data rows (0 vs ₹ amount). */
 export function formatBillingTaxSummary(taxAmount: number): string {
   if (!Number.isFinite(taxAmount) || taxAmount <= 0) return '0';

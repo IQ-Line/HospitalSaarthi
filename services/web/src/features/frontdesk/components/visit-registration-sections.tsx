@@ -53,6 +53,7 @@ import {
   billingLineTotal,
   computeBillingGrandTotal,
   formatBillingDeduction,
+  formatBillingTaxLine,
   formatBillingTaxSummary,
   formatInr,
   isVisitRegistrationAmountPaidValid,
@@ -407,7 +408,7 @@ export function VisitRegistrationBillingSection({
         <p className="text-sm text-muted-foreground">Loading charges from tariff catalog…</p>
       ) : null}
 
-      <div className="rounded-md border border-border">
+      <div className="overflow-x-auto rounded-md border border-border">
         <Table className={`${BILLING_TABLE_CLASS} [&_th]:!text-center [&_td]:text-center`}>
           <BillingTableColGroup />
           <TableHeader>
@@ -865,7 +866,7 @@ function BillingTableColGroup() {
       <col style={{ width: '9%' }} />
       <col style={{ width: '11%' }} />
       <col style={{ width: '11%' }} />
-      <col style={{ width: '13%' }} />
+      <col style={{ width: '15%' }} />
       <col style={{ width: '15%' }} />
     </colgroup>
   );
@@ -955,15 +956,8 @@ function BillingFeeRow({
         />
       </BillingNumericInputCell>
       <TableCell className={BILLING_NUM_CELL}>{formatInr(netPrice)}</TableCell>
-      <TableCell className={BILLING_NUM_CELL}>
-        {taxPercent > 0 ? (
-          <span className="inline-flex flex-col items-center justify-center gap-0.5 leading-none">
-            <span>{taxPercent}%</span>
-            <span className="text-xs text-muted-foreground">{formatInr(taxAmount)}</span>
-          </span>
-        ) : (
-          '0'
-        )}
+      <TableCell className={`${BILLING_NUM_CELL} whitespace-nowrap`}>
+        {formatBillingTaxLine(taxPercent, taxAmount)}
       </TableCell>
       <TableCell className={`${BILLING_NUM_CELL} font-medium`}>{formatInr(total)}</TableCell>
     </TableRow>
