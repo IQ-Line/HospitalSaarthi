@@ -42,6 +42,12 @@ vi.mock("@/stores/permissions.store", () => ({
   },
 }));
 
+const invalidateModuleRegistration = vi.hoisted(() => vi.fn());
+
+vi.mock("@/platform/modules/module-catalog", () => ({
+  invalidateModuleRegistration,
+}));
+
 const scope = {
   userId: "user-1",
   tenantId: "tenant-a",
@@ -104,6 +110,7 @@ describe("refreshAuthorizationContext", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetAuthorizationHydrationTracker();
+    invalidateModuleRegistration.mockClear();
     permissionsGetState.mockReturnValue({
       clearPermissions,
       isLoaded: false,
@@ -265,6 +272,36 @@ describe("refreshAuthorizationContext", () => {
         ),
     ).toBe(false);
     expect(hydrateCapabilitiesFromPrincipal).toHaveBeenCalledWith(principal);
+  });
+
+  it("invalidates module registration only when tenant changes between refreshes", async () => {
+    mockAuthenticatedSession();
+    permissionsGetState.mockReturnValue({
+      clearPermissions,
+      isLoaded: false,
+    });
+
+    const queryClient = createQueryClient();
+
+    await refreshAuthorizationContext(queryClient);
+    expect(invalidateModuleRegistration).toHaveBeenCalledTimes(1);
+    expect(invalidateModuleRegistration).toHaveBeenCalledWith(queryClient, "tenant-a");
+
+    invalidateModuleRegistration.mockClear();
+    permissionsGetState.mockReturnValue({
+      clearPermissions,
+      isLoaded: true,
+    });
+    vi.mocked(queryClient.getQueryData).mockImplementation((key: readonly unknown[]) => {
+      if (isPrincipalQueryKey(key)) {
+        return principal;
+      }
+      return { data: [] };
+    });
+
+    await refreshAuthorizationContext(queryClient);
+
+    expect(invalidateModuleRegistration).not.toHaveBeenCalled();
   });
 
   it("invalidates and refetches principal when auth scope changes", async () => {

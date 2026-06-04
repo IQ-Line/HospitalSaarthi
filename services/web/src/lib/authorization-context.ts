@@ -49,6 +49,7 @@ export async function refreshAuthorizationContext(queryClient: QueryClient): Pro
   if (!auth.isAuthenticated || !auth.userId || !auth.accessToken?.trim()) {
     usePermissionsStore.getState().clearPermissions();
     lastHydratedPrincipalScope = null;
+    lastModulesBootstrappedTenantId = null;
     await queryClient.invalidateQueries({ queryKey: authPrincipalQueryKeys.all });
     return;
   }
@@ -56,6 +57,7 @@ export async function refreshAuthorizationContext(queryClient: QueryClient): Pro
   if (!tenant.tenantId?.trim()) {
     usePermissionsStore.getState().clearPermissions();
     lastHydratedPrincipalScope = null;
+    lastModulesBootstrappedTenantId = null;
     await queryClient.invalidateQueries({ queryKey: authPrincipalQueryKeys.all });
     return;
   }
