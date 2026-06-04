@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { useComposedNavigationManifest } from '@/platform/modules/use-composed-navigation';
-import { useModuleCatalog } from '@/platform/modules/module-catalog';
-import { useEnabledTenantModuleSlugs } from '@/platform/modules/use-enabled-tenant-modules';
+import { useTenantModuleNavContext } from '@/platform/modules/use-enabled-tenant-modules';
 import { applyCatalogNavigationLabels } from './apply-catalog-navigation-labels';
 import { mergePrincipalRoleCodes } from '@/lib/principal-roles';
 import { normalizeCapabilityKey } from '@/lib/principal-capabilities';
@@ -81,8 +80,7 @@ export function useFilteredNavigation() {
   const permissionsLoaded = usePermissionsStore((s) => s.isLoaded);
   const authRoles = useAuthStore((s) => s.roles);
   const accessToken = useAuthStore((s) => s.accessToken);
-  const enabledModuleSlugs = useEnabledTenantModuleSlugs();
-  const { index: catalogIndex } = useModuleCatalog();
+  const { enabledModuleSlugs, catalogIndex } = useTenantModuleNavContext();
   const bypassCapabilityGates = resolveNavigationCapabilityBypass();
   const isSuperAdmin = resolvePlatformSuperAdmin({ principalRoles, authRoles, accessToken });
   const isTenantAdmin = resolveTenantAdmin({ principalRoles, authRoles, accessToken });

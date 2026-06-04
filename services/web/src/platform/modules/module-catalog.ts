@@ -1,15 +1,17 @@
 import { useMemo } from 'react';
 import { useQuery, type QueryClient } from '@tanstack/react-query';
+import {
+  globalModulesCatalogQueryOptions,
+  MODULE_CATALOG_STALE_MS,
+} from '@/features/master-data/api/modules';
 import { queryClient } from '@/lib/query-client';
-import { platformCatalogClient } from '@/features/master-data/api/platform-catalog-client';
 import { masterDataKeys } from '@/features/master-data/api/query-keys';
 import type { Module, ModuleListResponse } from '@/features/master-data/types';
 import { configuratorKeys } from '@/features/configurator/api/query-keys';
 import { invalidateComposedNavigationCache } from './module-manifest-loader';
 import type { ModuleCatalogEntry, ModuleCatalogIndex } from './types';
 
-/** Platform `global_master.modules` React Query stale window (use {@link invalidateModuleRegistration} after edits). */
-export const MODULE_CATALOG_STALE_MS = 5 * 60 * 1000;
+export { MODULE_CATALOG_STALE_MS };
 
 export function buildCatalogIndex(modules: readonly Module[]): ModuleCatalogIndex | null {
   const byId = new Map<string, ModuleCatalogEntry>();
@@ -46,12 +48,7 @@ export function buildCatalogIndex(modules: readonly Module[]): ModuleCatalogInde
  */
 export function useModuleCatalog() {
   const query = useQuery({
-    queryKey: masterDataKeys.globalModules(),
-    queryFn: () =>
-      platformCatalogClient<ModuleListResponse>('/api/v1/master-data/modules', {
-        method: 'GET',
-      }),
-    staleTime: MODULE_CATALOG_STALE_MS,
+    ...globalModulesCatalogQueryOptions(),
     gcTime: MODULE_CATALOG_STALE_MS * 2,
     retry: 1,
   });
@@ -76,11 +73,9 @@ export function getModuleCatalogIndexFromCache(
   return data?.data ? buildCatalogIndex(data.data) : null;
 }
 
+/** @deprecated Use {@link globalModulesCatalogQueryOptions} from `@/features/master-data/api/modules`. */
 export function moduleCatalogQueryOptions() {
-  return {
-    queryKey: masterDataKeys.globalModules(),
-    staleTime: MODULE_CATALOG_STALE_MS,
-  } as const;
+  return globalModulesCatalogQueryOptions();
 }
 
 /**
