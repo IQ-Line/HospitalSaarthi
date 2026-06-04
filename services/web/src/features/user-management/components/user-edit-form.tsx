@@ -1,18 +1,10 @@
 import { useEffect } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@pulse/ui/button';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@pulse/ui/select';
-import { useDepartments } from '@/features/master-data/api';
 import type { UmUser, UpdateUserBody } from '../types';
 import { useUpdateUser } from '../api/mutations';
 import { UserManagementSectionCard } from './user-management-section-card';
@@ -43,8 +35,6 @@ function toPatch(values: FormValues): UpdateUserBody {
 
 export function UserEditForm({ user }: { user: UmUser }) {
   const update = useUpdateUser(user.id);
-  const { data: deptData, isLoading: deptLoading } = useDepartments(undefined, { formCatalog: true });
-  const departments = (deptData?.data ?? []).filter((d) => d.is_active);
   const { reset, handleSubmit, register, control, formState } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -111,33 +101,6 @@ export function UserEditForm({ user }: { user: UmUser }) {
           <div className="space-y-2">
             <Label htmlFor="username">Username</Label>
             <Input id="username" {...register('username')} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="department">Department</Label>
-            <Controller
-              control={control}
-              name="department"
-              render={({ field }) => (
-                <Select
-                  value={field.value || undefined}
-                  onValueChange={field.onChange}
-                  disabled={deptLoading}
-                >
-                  <SelectTrigger id="department">
-                    <SelectValue
-                      placeholder={deptLoading ? 'Loading…' : 'Select department'}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {departments.map((dept) => (
-                      <SelectItem key={dept.id} value={dept.name}>
-                        {dept.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
           </div>
           <div className="space-y-2 md:col-span-2">
             <Label htmlFor="org_id">Organization id (UUID)</Label>

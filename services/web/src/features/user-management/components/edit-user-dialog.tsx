@@ -229,9 +229,7 @@ export function EditUserDialog({ open, onOpenChange, user, tenantScope }: EditUs
     const primaryDeptName = isDoctor
       ? (activeDepartments.find((d) => d.id === values.doctor_tariffs[0]?.department_id)?.name ??
         null)
-      : values.department === ''
-        ? null
-        : values.department;
+      : (user.department ?? null);
 
     try {
       const updatedUser = await update.mutateAsync(toPatch(values, primaryDeptName));
@@ -324,12 +322,7 @@ export function EditUserDialog({ open, onOpenChange, user, tenantScope }: EditUs
                     minRows={1}
                   />
                 </>
-              ) : (
-                <div className="space-y-2">
-                  <Label htmlFor="edit_department">Department</Label>
-                  <Input id="edit_department" {...register('department')} />
-                </div>
-              )}
+              ) : null}
             </div>
           )}
 
