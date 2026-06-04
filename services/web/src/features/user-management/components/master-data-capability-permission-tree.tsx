@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useModules } from '@/features/master-data/api';
+import { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { globalModulesCatalogQueryOptions } from '@/features/master-data/api';
 import { filterRootModulesForEnabledSelection } from '@/features/configurator/components/create-tenant-wizard/wizard-module-tree';
 import { WizardPermissionModuleTree } from '@/features/configurator/components/create-tenant-wizard/wizard-permission-module-tree';
 import { resolvePlatformSuperAdmin } from '@/lib/platform-admin';
@@ -45,7 +46,9 @@ export function MasterDataCapabilityPermissionTree({
   const accessToken = useAuthStore((s) => s.accessToken);
   const isSuperAdmin = resolvePlatformSuperAdmin({ principalRoles, authRoles, accessToken });
 
-  const modulesQuery = useModules(undefined, { globalCatalog: true });
+  const modulesQuery = useQuery(globalModulesCatalogQueryOptions());
+  const deferredSelectedIds = useDeferredValue(selectedCapabilityIds);
+  const selectionPending = deferredSelectedIds !== selectedCapabilityIds;
 
   const allModules = useMemo(
     () => (modulesQuery.data?.data ?? []).filter((module) => module.is_active && !module.is_deleted),
@@ -84,7 +87,7 @@ export function MasterDataCapabilityPermissionTree({
     [tree.rootModules, tree.childMap, tree.enabledModuleIds],
   );
 
-  const selectedSet = useMemo(() => new Set(selectedCapabilityIds), [selectedCapabilityIds]);
+  const selectedSet = useMemo(() => new Set(deferredSelectedIds), [deferredSelectedIds]);
   const useCatalogTree = filteredRoots.length > 0;
 
   const [expandedBranchIds, setExpandedBranchIds] = useState<Set<string>>(new Set());
@@ -182,16 +185,21 @@ export function MasterDataCapabilityPermissionTree({
   };
 
   return (
-    <WizardPermissionModuleTree
-      roots={filteredRoots}
-      childMap={tree.childMap}
-      enabledModuleIds={tree.enabledModuleIds}
-      optionsByModuleId={tree.optionsByModuleId}
-      selectedCapabilityIds={selectedSet}
-      onToggleCapability={toggleCapability}
-      onToggleModuleCapabilities={toggleModuleCapabilities}
-      moduleCheckboxes={editable}
-      defaultExpandedModuleIds={[]}
-    />
+    <div
+      className={selectionPending ? 'pointer-events-none opacity-70' : undefined}
+      aria-busy={selectionPending}
+    >
+      <WizardPermissionModuleTree
+        roots={filteredRoots}
+        childMap={tree.childMap}
+        enabledModuleIds={tree.enabledModuleIds}
+        optionsByModuleId={tree.optionsByModuleId}
+        selectedCapabilityIds={selectedSet}
+        onToggleCapability={toggleCapability}
+        onToggleModuleCapabilities={toggleModuleCapabilities}
+        moduleCheckboxes={editable}
+        defaultExpandedModuleIds={[]}
+      />
+    </div>
   );
 }

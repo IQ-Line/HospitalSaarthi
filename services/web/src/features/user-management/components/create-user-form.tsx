@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
@@ -156,7 +156,7 @@ export function CreateUserForm({
 
   const availableRoles = (rolesQuery.data ?? []).filter((role) => role.status === 'active');
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (!requireRoleTemplate) {
       return;
     }
@@ -173,8 +173,12 @@ export function CreateUserForm({
     }
   }, [requireRoleTemplate, umRoleRead, rolesQuery.data, form]);
 
-  const selectedRoleTemplateIds = form.watch('role_template_ids');
-  const selectedRoleId = selectedRoleTemplateIds[0] ?? '';
+  const selectedRoleTemplateIds = useWatch({
+    control: form.control,
+    name: 'role_template_ids',
+    defaultValue: [],
+  });
+  const selectedRoleId = (selectedRoleTemplateIds ?? [])[0] ?? '';
   const isDoctor = isDoctorRole(selectedRoleId, availableRoles);
 
   const departmentsQuery = useDepartments(undefined, {
@@ -240,14 +244,16 @@ export function CreateUserForm({
     }
     if (prevRoleIdRef.current !== selectedRoleId) {
       prevRoleIdRef.current = selectedRoleId;
-      form.setValue(
-        'role_capability_selection_ids',
-        caps.map((c) => c.id),
-        { shouldDirty: true, shouldValidate: true },
-      );
-      if (!isDoctorRole(selectedRoleId, availableRoles)) {
-        form.setValue('doctor_tariffs', [], { shouldDirty: true });
-      }
+      const capIds = caps.map((c) => c.id);
+      startTransition(() => {
+        form.setValue('role_capability_selection_ids', capIds, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+        if (!isDoctorRole(selectedRoleId, availableRoles)) {
+          form.setValue('doctor_tariffs', [], { shouldDirty: true });
+        }
+      });
     }
   }, [selectedRoleId, roleCapabilitiesQuery.data, availableRoles, form]);
 
