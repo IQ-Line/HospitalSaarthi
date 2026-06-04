@@ -6,6 +6,13 @@ import { DataTable } from '@/components/data-table';
 import type { PlatformDirectoryUserRow } from '../api/platform-directory';
 import type { UmUser } from '../types';
 
+export type UserListLinkOptions = {
+  /** Passed as `?tenant=` on profile links (onboarding / platform directory). */
+  tenantScope?: string;
+  /** When false, names are plain text and row navigation is disabled. */
+  linkToProfile?: boolean;
+};
+
 type UserListRow = UmUser | PlatformDirectoryUserRow;
 
 function isPlatformDirectoryRow(row: UserListRow): row is PlatformDirectoryUserRow {
@@ -21,7 +28,38 @@ function TenantCell({ name, slug }: { name: string; slug: string }) {
   );
 }
 
-export function buildUserListColumns(crossTenant: boolean): ColumnDef<UserListRow, unknown>[] {
+export function UserProfileNameLink({
+  userId,
+  fullName,
+  tenantScope,
+  linkToProfile = true,
+}: {
+  userId: string;
+  fullName: string;
+  tenantScope?: string;
+  linkToProfile?: boolean;
+}) {
+  if (!linkToProfile) {
+    return <span className="font-medium">{fullName}</span>;
+  }
+  return (
+    <Link
+      to="/user-management/$userId"
+      params={{ userId }}
+      search={tenantScope ? { tenant: tenantScope } : {}}
+      className="font-medium text-primary hover:underline"
+      onClick={(event) => event.stopPropagation()}
+    >
+      {fullName}
+    </Link>
+  );
+}
+
+export function buildUserListColumns(
+  crossTenant: boolean,
+  linkOptions: UserListLinkOptions = {},
+): ColumnDef<UserListRow, unknown>[] {
+  const linkToProfile = linkOptions.linkToProfile ?? true;
   const cols: ColumnDef<UserListRow, unknown>[] = [];
 
   if (crossTenant) {
@@ -61,17 +99,16 @@ export function buildUserListColumns(crossTenant: boolean): ColumnDef<UserListRo
       header: 'Name',
       cell: ({ row }) => {
         const r = row.original;
-        const tenant =
-          crossTenant && isPlatformDirectoryRow(r) ? r.iq_tenant_id : undefined;
+        const tenantScope =
+          linkOptions.tenantScope ??
+          (crossTenant && isPlatformDirectoryRow(r) ? r.iq_tenant_id : undefined);
         return (
-          <Link
-            to="/user-management/$userId"
-            params={{ userId: r.id }}
-            search={tenant ? { tenant } : {}}
-            className="font-medium text-primary hover:underline"
-          >
-            {r.full_name}
-          </Link>
+          <UserProfileNameLink
+            userId={r.id}
+            fullName={r.full_name}
+            tenantScope={tenantScope}
+            linkToProfile={linkToProfile}
+          />
         );
       },
     },
@@ -112,6 +149,8 @@ type UserListTableProps = {
   data: UserListRow[];
   emptyTitle: string;
   emptyDescription: string;
+  linkOptions?: UserListLinkOptions;
+  onOpenProfile?: (row: UserListRow) => void;
 };
 
 export function UserListTable({
@@ -119,8 +158,14 @@ export function UserListTable({
   data,
   emptyTitle,
   emptyDescription,
+  linkOptions,
+  onOpenProfile,
 }: UserListTableProps) {
-  const columns = useMemo(() => buildUserListColumns(crossTenant), [crossTenant]);
+  const columns = useMemo(
+    () => buildUserListColumns(crossTenant, linkOptions),
+    [crossTenant, linkOptions],
+  );
+  const linkToProfile = linkOptions?.linkToProfile ?? true;
 
   return (
     <DataTable
@@ -128,6 +173,11 @@ export function UserListTable({
       data={data}
       emptyTitle={emptyTitle}
       emptyDescription={emptyDescription}
+      onRowClick={
+        linkToProfile && onOpenProfile
+          ? (row) => onOpenProfile(row)
+          : undefined
+      }
     />
   );
 }

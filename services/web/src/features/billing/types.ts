@@ -72,6 +72,8 @@ export type ServicesListParams = {
   /** Master-data department uuid (`department_id` on tariff row). */
   department?: string;
   department_id?: string;
+  /** User-management user id for doctor consultation rows. */
+  provider_id?: string;
   is_active?: boolean;
   limit?: number;
   cursor?: string;
