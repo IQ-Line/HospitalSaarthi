@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { DbInstance } from "@hims/ts-sdk-db";
 import { and, eq, sql } from "@hims/ts-sdk-db";
 import { desc } from "drizzle-orm";
@@ -62,6 +63,7 @@ export class DrizzleVisitRepo implements VisitRepo {
       const rows = await this.db
         .insert(visits)
         .values({
+          id: randomUUID(),
           iq_tenant_id: tenantId,
           visit_id: formattedVisitId,
           patient_id: input.patient_id,

@@ -654,6 +654,10 @@ components:
           additionalProperties: true
           default: {}
           description: Create RX form payload (vitals, chief complaints, etc.)
+        finalize:
+          type: boolean
+          default: false
+          description: When true on PUT, marks the prescription final (consultation clinical save). Visit lifecycle status is owned by registration.
     OpdPrescriptionResponse:
       type: object
       required:

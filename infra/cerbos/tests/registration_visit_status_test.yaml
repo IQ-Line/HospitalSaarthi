@@ -1,0 +1,106 @@
+# yaml-language-server: $schema=https://api.cerbos.dev/latest/cerbos/policy/v1/TestSuite.schema.json
+---
+name: registration_visit_status_test
+description: >-
+  Doctors may POST /visits/{id}/status when they have OPD queue read capability,
+  without full registration:registration:update (desk-only).
+
+principals:
+  doctor_opd_read:
+    id: doctor-1
+    roles:
+      - "doctor"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: "Cardio"
+      capabilities:
+        - "opd:patient:read"
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  doctor_no_caps:
+    id: doctor-2
+    roles:
+      - "doctor"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: null
+      capabilities: []
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  desk_update:
+    id: desk-1
+    roles:
+      - "receptionist"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: null
+      capabilities:
+        - "registration:registration:update"
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+resources:
+  visit_ok:
+    id: visit-status
+    kind: registration
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+
+  visit_wrong_tenant:
+    id: visit-status
+    kind: registration
+    attr:
+      iq_tenant_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+
+tests:
+  - name: registration.update_status — doctor with opd:patient:read
+    input:
+      principals: [doctor_opd_read]
+      resources: [visit_ok]
+      actions: [registration.update_status]
+    expected:
+      - principal: doctor_opd_read
+        resource: visit_ok
+        actions:
+          registration.update_status: EFFECT_ALLOW
+
+  - name: registration.update_status — denied without OPD or registration update cap
+    input:
+      principals: [doctor_no_caps]
+      resources: [visit_ok]
+      actions: [registration.update_status]
+    expected:
+      - principal: doctor_no_caps
+        resource: visit_ok
+        actions:
+          registration.update_status: EFFECT_DENY
+
+  - name: registration.update_status — desk with registration:registration:update
+    input:
+      principals: [desk_update]
+      resources: [visit_ok]
+      actions: [registration.update_status]
+    expected:
+      - principal: desk_update
+        resource: visit_ok
+        actions:
+          registration.update_status: EFFECT_ALLOW
+
+  - name: registration.update_status — tenant mismatch
+    input:
+      principals: [doctor_opd_read]
+      resources: [visit_wrong_tenant]
+      actions: [registration.update_status]
+    expected:
+      - principal: doctor_opd_read
+        resource: visit_wrong_tenant
+        actions:
+          registration.update_status: EFFECT_DENY

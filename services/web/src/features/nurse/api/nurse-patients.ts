@@ -1,12 +1,9 @@
-import { listRegistrations } from '@/features/frontdesk/api/registrations';
-import type { RegistrationListItemResponse } from '@/features/frontdesk/types';
+import { listRegistrationVisits } from '@/features/frontdesk/api/registrations';
+import { fetchPrescriptionStatusesByVisitIds } from '@/features/create-rx/api/opd-prescription';
 import { fetchEmpiPatientLookupMap } from '@/features/opd-patients/api/empi-patients';
-import { mapOpdEncounterToVisitRow } from '@/features/opd-patients/api/opd-encounters-mapper';
-import {
-  searchOpdModulePatients,
-  type OpdPatientEncounterApi,
-} from '@/features/opd-patients/api/opd-module-patients';
+import { mapRegistrationVisitToOpdPatientRow } from '@/features/opd-patients/api/registration-patients-mapper';
 import { matchesAgeGroup } from '@/features/opd-patients/lib/opd-patients-list-utils';
+import { opdUiStatusToRegistrationVisitQuery } from '@/features/opd-patients/lib/registration-visit-status';
 import type {
   OpdPatientsFilters,
   OpdPatientsListParams,
@@ -24,39 +21,19 @@ function nurseVitalsActionLabel(
   return 'Add Vitals';
 }
 
-function vitalsLikelyRecorded(encounter: OpdPatientEncounterApi): boolean {
-  if (encounter.visit_status === 'pre_consulted') return true;
-  return encounter.prescription_status != null && encounter.visit_status !== 'registered';
+function vitalsLikelyRecorded(visitStatus: string): boolean {
+  const normalized = visitStatus.trim().toLowerCase().replace(/-/g, '_');
+  return normalized === 'in_progress' || normalized === 'completed';
 }
 
 function formatConsultationType(visitType: string | null | undefined): string {
   if (!visitType) return '—';
   const normalized = visitType.toLowerCase().replace(/_/g, '-');
   if (normalized.includes('follow')) return 'Follow-up';
-  if (normalized === 'new' || normalized.includes('new')) return 'New';
+  if (normalized === 'new' || normalized.includes('new') || normalized.includes('first')) {
+    return 'New';
+  }
   return visitType;
-}
-
-function latestRegistrationByPatient(
-  registrations: RegistrationListItemResponse[],
-): Map<string, RegistrationListItemResponse> {
-  const map = new Map<string, RegistrationListItemResponse>();
-  for (const reg of registrations) {
-    const existing = map.get(reg.patient_id);
-    if (!existing || reg.updated_at > existing.updated_at) {
-      map.set(reg.patient_id, reg);
-    }
-  }
-  return map;
-}
-
-async function loadRegistrationLookup(): Promise<Map<string, RegistrationListItemResponse>> {
-  try {
-    const page = await listRegistrations({ page: 1, limit: 500 });
-    return latestRegistrationByPatient(page.data);
-  } catch {
-    return new Map();
-  }
 }
 
 function filterNurseRows(
@@ -78,43 +55,43 @@ function filterNurseRows(
   });
 }
 
-function toOpdStatusQuery(status: string): string | undefined {
-  if (!status) return undefined;
-  if (status === 'in-progress') return 'in_progress';
-  if (status === 'pre-consulted') return 'pre_consulted';
-  return status;
-}
-
 export async function fetchNursePatientsList(
   params: OpdPatientsListParams,
 ): Promise<NursePatientsListResponse> {
-  const statusForOpd = toOpdStatusQuery(params.filters.status);
-  const opdPage = await searchOpdModulePatients(params.page, params.limit, statusForOpd ?? '');
+  const statusQuery = opdUiStatusToRegistrationVisitQuery(params.filters.status);
 
-  const empiById = await fetchEmpiPatientLookupMap(
-    opdPage.items.map((row) => row.patient_id),
-  );
+  const visitPage = await listRegistrationVisits({
+    page: params.page,
+    limit: params.limit,
+    ...(statusQuery ? { status: statusQuery } : {}),
+  });
 
-  const registrationByPatient = await loadRegistrationLookup();
+  const [empiById, rxByVisitId] = await Promise.all([
+    fetchEmpiPatientLookupMap(visitPage.data.map((visit) => visit.patient_id)),
+    fetchPrescriptionStatusesByVisitIds(visitPage.data.map((visit) => visit.id)),
+  ]);
 
-  let items: NursePatientVisitRow[] = opdPage.items.map((encounter) => {
-    const row = mapOpdEncounterToVisitRow(encounter, empiById.get(encounter.patient_id));
-    const registration = registrationByPatient.get(encounter.patient_id);
-    const vitalsRecorded = vitalsLikelyRecorded(encounter);
-    const empi = empiById.get(encounter.patient_id);
+  let items: NursePatientVisitRow[] = visitPage.data.map((visit) => {
+    const row = mapRegistrationVisitToOpdPatientRow(
+      visit,
+      empiById.get(visit.patient_id),
+      rxByVisitId.get(visit.id),
+    );
+    const empi = empiById.get(visit.patient_id);
+    const vitalsRecorded = vitalsLikelyRecorded(visit.status);
 
     return {
       id: row.id,
-      visitNumber: registration?.visit_id?.trim() || row.visitNumber,
-      uhid: registration?.patient_uhid?.trim() || empi?.uhid || '—',
+      visitNumber: row.visitNumber,
+      uhid: empi?.uhid?.trim() || '—',
       patientId: row.patientId,
-      patientName: registration?.patient_full_name?.trim() || row.patientName,
+      patientName: row.patientName,
       age: row.age,
       gender: row.gender,
       doctorName: 'Dr. Demo DoctorOne',
-      visitCreatedAt: registration?.created_at?.slice(0, 10) ?? row.visitCreatedAt,
+      visitCreatedAt: row.visitCreatedAt,
       status: row.status,
-      consultationType: formatConsultationType(registration?.visit_type),
+      consultationType: formatConsultationType(visit.visit_type),
       vitalsRecorded,
       vitalsActionLabel: nurseVitalsActionLabel(row.status, vitalsRecorded),
     };
@@ -125,13 +102,14 @@ export async function fetchNursePatientsList(
     !!params.filters.ageGroup ||
     !!params.filters.startDate ||
     !!params.filters.endDate ||
-    params.filters.search.trim().length > 0;
+    params.filters.search.trim().length > 0 ||
+    (!!params.filters.status && !statusQuery);
 
   if (hasClientFilters) {
     items = filterNurseRows(items, params.filters);
   }
 
-  const total = hasClientFilters ? items.length : opdPage.total;
+  const total = hasClientFilters ? items.length : visitPage.total;
 
   return {
     items,

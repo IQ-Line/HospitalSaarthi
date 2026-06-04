@@ -77,7 +77,7 @@ class RegistrationVisitRepository:
 
         rows: list[PatientEncounterRow] = []
         for visit in latest.values():
-            rx = rx_by_visit.get(visit.visit_id)
+            rx = rx_by_visit.get(visit.id)
             rx_status = rx.status if rx is not None else None
             opd_status = effective_visit_status(visit.status, rx_status)
             if status is not None:
@@ -88,7 +88,7 @@ class RegistrationVisitRepository:
             rows.append(
                 PatientEncounterRow(
                     patient_id=visit.patient_id,
-                    visit_id=visit.visit_id,
+                    visit_id=visit.id,
                     visit_status=opd_status,
                     prescription_status=rx.status if rx is not None else None,
                     updated_at=visit.updated_at,

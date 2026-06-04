@@ -36,10 +36,16 @@ const REGISTRATION_DOCUMENT_PATHS = new Set([
   "/registrations/:registrationId/documents/opd-receipt.pdf",
 ]);
 
+type RegistrationAuthzAction =
+  | "registration.read"
+  | "registration.create"
+  | "registration.update"
+  | "registration.update_status";
+
 function readTarget(
   request: FastifyRequest,
   id: string,
-  action: "registration.read" | "registration.create" | "registration.update",
+  action: RegistrationAuthzAction,
 ): AuthzTarget {
   return { kind: "registration", id, action, attr: tenantAttr(request) };
 }
@@ -102,7 +108,7 @@ export function createRegistrationAuthzTargetResolver(): AuthzTargetResolver {
 
     if (method === "POST" && path === "/visits/:visitId/status") {
       const id = resolvePathParam(request, "visitId");
-      return readTarget(req, id ?? "visit-status", "registration.update");
+      return readTarget(req, id ?? "visit-status", "registration.update_status");
     }
 
     if (method === "POST" && path === "/visits/:visitId/complete") {
