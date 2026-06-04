@@ -7,9 +7,10 @@ import { Button } from '@pulse/ui/button';
 import { Skeleton } from '@pulse/ui/skeleton';
 import { opdPatientsQueryKeys } from '@/features/opd-patients/api/query-keys';
 import { resolveOpdConsultationTenantId } from '@/features/opd-patients/lib/opd-consultation-tenant';
+import { updateRegistrationVisitStatus } from '@/features/frontdesk/api/registrations';
 import {
-  endOpdConsultation,
-  ensureOpdRegistrationEncounter,
+  bootstrapOpdPrescriptionForVisit,
+  endConsultation,
   fetchOpdPrescriptionSession,
   saveOpdPrescriptionDraft,
 } from '../api/opd-prescription';
@@ -71,9 +72,17 @@ export function Page({
         const patientKey = prescription?.patient_id ?? patientId?.trim() ?? visitId;
         if (!prescription && patientId?.trim()) {
           try {
-            prescription = await ensureOpdRegistrationEncounter(visitId, patientId);
+            prescription = await bootstrapOpdPrescriptionForVisit(visitId, patientId);
           } catch {
             /* End/save will auto-ensure on server; ignore if OPD unreachable here */
+          }
+        }
+
+        if (mode === 'edit' && visitId.trim()) {
+          try {
+            await updateRegistrationVisitStatus(visitId.trim(), 'in_progress');
+          } catch {
+            /* Non-blocking — save/end will still attempt status updates */
           }
         }
         const ctx = await fetchCreateRxVisitContext(patientKey);
@@ -155,12 +164,14 @@ export function Page({
 
     try {
       const formData = sanitizeCreateRxFormDataForPersist(rawFormData);
-      await endOpdConsultation(visit.id, patientId, formData, opdPrescriptionId);
+      await endConsultation(visit.id, patientId, formData, opdPrescriptionId);
       void queryClient.invalidateQueries({ queryKey: opdPatientsQueryKeys.all });
       toast.success('Consultation ended. Patient status updated to Consulted.');
       void navigate({ to: '/patients' });
-    } catch {
-      toast.error('Failed to end consultation.');
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to end consultation.';
+      toast.error(message);
     }
   };
 

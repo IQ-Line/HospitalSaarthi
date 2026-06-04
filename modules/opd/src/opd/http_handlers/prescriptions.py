@@ -48,7 +48,7 @@ def _visit_for_tenant_or_ensure_registration(
             raise HTTPException(status_code=404, detail="No OPD visit found")
         return visit
 
-    reg = db.get(RegistrationVisit, (visit_id, tenant_id))
+    reg = db.get(RegistrationVisit, (tenant_id, visit_id))
     if reg is None:
         raise HTTPException(status_code=404, detail="No OPD visit found")
 
@@ -174,21 +174,6 @@ def get_visit_prescription(
     return _to_response(db, bundle)
 
 
-@router.get("/prescriptions/{prescription_id}", response_model=OpdPrescriptionResponse)
-def get_prescription_by_id(
-    prescription_id: UUID,
-    db: DbSession,
-    tenant_id: TenantId,
-    doctor_id: DoctorId,
-) -> OpdPrescriptionResponse:
-    repo = PrescriptionRepository(db, tenant_id, doctor_id)
-    bundle = repo.get_prescription_by_id(prescription_id)
-    if bundle is None:
-        raise HTTPException(status_code=404, detail="No OPD prescription found")
-    db.commit()
-    return _to_response(db, bundle)
-
-
 @router.get("/patients/{patient_id}/prescription", response_model=OpdPrescriptionResponse)
 def get_patient_prescription(
     patient_id: UUID,
@@ -241,7 +226,14 @@ def upsert_visit_prescription(
     visit = _visit_for_tenant_or_ensure_registration(db, tenant_id, visit_id)
     repo = PrescriptionRepository(db, tenant_id, doctor_id)
     try:
-        visit, rx = repo.save_draft_for_visit(visit_id, visit.patient_id, body.form_data)
+        if body.finalize:
+            visit, rx = repo.finalize_prescription_for_visit(
+                visit_id,
+                visit.patient_id,
+                body.form_data,
+            )
+        else:
+            visit, rx = repo.save_draft_for_visit(visit_id, visit.patient_id, body.form_data)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PermissionError as exc:
@@ -283,7 +275,15 @@ def upsert_patient_prescription(
     doctor_id: DoctorId,
 ) -> OpdPrescriptionResponse:
     repo = PrescriptionRepository(db, tenant_id, doctor_id)
-    visit, rx = repo.save_draft(patient_id, body.form_data)
+    try:
+        if body.finalize:
+            visit, rx = repo.end_consultation(patient_id, body.form_data)
+        else:
+            visit, rx = repo.save_draft(patient_id, body.form_data)
+    except PermissionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     db.commit()
     return _to_response(db, bundle_api.bundle_from_prescription(db, tenant_id, rx))
 

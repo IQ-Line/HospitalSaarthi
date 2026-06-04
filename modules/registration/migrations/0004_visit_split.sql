@@ -54,6 +54,7 @@ BEGIN
   UPDATE registration.visit SET id = visit_id WHERE id IS NULL;
 
   ALTER TABLE registration.visit ALTER COLUMN id SET NOT NULL;
+  ALTER TABLE registration.visit ALTER COLUMN id SET DEFAULT gen_random_uuid();
 
   ALTER TABLE registration.visit ADD COLUMN IF NOT EXISTS visit_number text;
 

@@ -3,6 +3,8 @@
 # Capabilities: registration:registration:{create,read,update}
 # Clinical read: OPD/nurse patient queues enrich from registration snapshots — allow when the
 # principal can already read OPD patients/visits (same tenant).
+# Clinical status: doctors/nurses may set visit lifecycle (e.g. in_progress, completed) when they
+# can read the OPD queue — without full desk `registration:registration:update`.
 apiVersion: api.cerbos.dev/v1
 resourcePolicy:
   resource: "registration"
@@ -89,4 +91,37 @@ resourcePolicy:
             (
               "registration:registration:update" in request.principal.attr.capabilities ||
               "registration:registration:update" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "registration.update_status"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "registration:registration:update" in request.principal.attr.capabilities ||
+              "registration:registration:update" in request.principal.attr.delegated_capabilities ||
+              "opd:patient:read" in request.principal.attr.capabilities ||
+              "opd:patient:read" in request.principal.attr.delegated_capabilities ||
+              "opd:visit:read" in request.principal.attr.capabilities ||
+              "opd:visit:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "registration.update_status"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "registration:registration:update" in request.principal.attr.capabilities ||
+              "registration:registration:update" in request.principal.attr.delegated_capabilities ||
+              "opd:patient:read" in request.principal.attr.capabilities ||
+              "opd:patient:read" in request.principal.attr.delegated_capabilities ||
+              "opd:visit:read" in request.principal.attr.capabilities ||
+              "opd:visit:read" in request.principal.attr.delegated_capabilities
             )

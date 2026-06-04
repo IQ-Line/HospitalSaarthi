@@ -8,7 +8,7 @@ from opd.http_handlers.prescriptions import router as prescriptions_router
 
 router = APIRouter()
 router.include_router(health_router)
-# Phase-0 JSONB routes must register before the normalized ``/prescriptions`` router
-# (both expose ``GET /prescriptions/{id}``).
-router.include_router(prescriptions_router)
+# Normalized ``/prescriptions`` REST API (create-rx; see specs/openapi/opd.v1.yaml).
 router.include_router(prescription_router)
+# Phase-0 visit-scoped JSONB routes (nurse pre-consult, legacy clients).
+router.include_router(prescriptions_router)

@@ -171,5 +171,33 @@ export interface RegistrationListPageResponse {
   total_pages: number;
 }
 
+/** `GET /api/registration/v1/visits` — encounter row from registration.visit. */
+export interface RegistrationVisitResponse {
+  /** Visit UUID for API routes (create-rx, nurse vitals). */
+  id: string;
+  /** Formatted visit number from sequence configuration. */
+  visit_id: string;
+  iq_tenant_id: string;
+  patient_id: string;
+  visit_type: string | null;
+  status: string;
+  facility_id: string | null;
+  department_id: string | null;
+  doctor_id: string | null;
+  appointment_id: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RegistrationVisitListPageResponse {
+  data: RegistrationVisitResponse[];
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+}
+
 /** `POST .../workflows/new-patient/registrations` — registration row with patient snapshot. */
 export type CreateNewPatientRegistrationResponse = RegistrationListItemResponse;

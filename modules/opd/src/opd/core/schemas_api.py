@@ -45,6 +45,7 @@ class OpdEnsureEncounterRequest(BaseModel):
 
 class OpdPrescriptionUpsertRequest(BaseModel):
     form_data: dict[str, Any] = Field(default_factory=dict)
+    finalize: bool = False
 
 
 class OpdPrescriptionResponse(BaseModel):
