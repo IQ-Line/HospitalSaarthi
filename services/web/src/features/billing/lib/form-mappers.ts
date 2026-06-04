@@ -1,4 +1,8 @@
 import { fromDatetimeLocalValue, toDatetimeLocalValue } from './format';
+import {
+  isDoctorTariffMetadataDescription,
+  userVisibleTariffDescription,
+} from './doctor-tariff-meta';
 import { TARIFF_PICKLIST_REGISTRATION_FEE } from './tariff-type';
 import type { ServiceCreateInput, ServiceUpdateInput, TariffService } from '../types';
 import {
@@ -10,10 +14,11 @@ import {
 
 function sharedEditFields(service: TariffService) {
   return {
+    tariff_category: service.category,
     service_name: service.service_name,
     base_price: Number(service.base_price),
     tax_percentage: Number(service.tax_percentage),
-    description: service.description,
+    description: userVisibleTariffDescription(service.description),
     department_id: service.department_id,
     tax_type: service.tax_type,
     is_active: service.is_active,
@@ -46,18 +51,24 @@ export function formToCreatePayload(values: TariffServiceCreateFormValues): Serv
   };
 }
 
-export function formToUpdatePayload(values: TariffServiceEditFormValues): ServiceUpdateInput {
+export function formToUpdatePayload(
+  values: TariffServiceEditFormValues,
+  service: TariffService,
+): ServiceUpdateInput {
   const v = tariffServiceEditSchema.parse(values);
-  return {
+  const payload: ServiceUpdateInput = {
     service_name: v.service_name,
     base_price: v.base_price,
     tax_percentage: v.tax_percentage,
-    description: v.description,
     department_id: v.department_id,
     tax_type: v.tax_type,
     is_active: v.is_active,
     effective_from: fromDatetimeLocalValue(v.effective_from),
     effective_to: v.effective_to ? (fromDatetimeLocalValue(v.effective_to) ?? null) : null,
   };
+  if (!isDoctorTariffMetadataDescription(service.description)) {
+    payload.description = v.description;
+  }
+  return payload;
 }
 

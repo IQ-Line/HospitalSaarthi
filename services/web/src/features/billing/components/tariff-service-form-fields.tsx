@@ -13,8 +13,15 @@ import {
 } from '@pulse/ui/select';
 import { Switch } from '@pulse/ui/switch';
 import { Textarea } from '@pulse/ui/textarea';
+import { useProviderList } from '@/features/user-management/api/queries';
 import { useTariffCreateLookups } from '../hooks/use-tariff-create-lookups';
 import { TARIFF_PICKLIST_REGISTRATION_FEE, tariffTypeRequiresProvider } from '../lib/tariff-type';
+import {
+  decodeDoctorTariffDescription,
+  formatDoctorTariffMetaSummary,
+  isDoctorTariffMetadataDescription,
+} from '../lib/doctor-tariff-meta';
+import type { TariffService } from '../types';
 import type { TariffServiceCreateFormValues, TariffServiceEditFormValues } from '../validation';
 
 const TAX_TYPES = ['EXEMPT', 'CGST_SGST', 'IGST'] as const;
@@ -22,6 +29,15 @@ const NONE = '__none__';
 
 function FieldError({ message }: { message?: string }) {
   return message ? <p className="text-xs text-destructive">{message}</p> : null;
+}
+
+function ReadOnlyField({ id, label, value }: { id: string; label: string; value: string }) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>{label}</Label>
+      <Input id={id} value={value} readOnly disabled className="bg-muted/50" />
+    </div>
+  );
 }
 
 function FormSelect<T extends FieldValues>({
@@ -91,9 +107,13 @@ function FormSelect<T extends FieldValues>({
 function SharedFields<T extends TariffServiceCreateFormValues | TariffServiceEditFormValues>({
   control,
   children,
+  showDescription = true,
+  descriptionAside,
 }: {
   control: Control<T>;
   children?: ReactNode;
+  showDescription?: boolean;
+  descriptionAside?: ReactNode;
 }) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
@@ -156,24 +176,29 @@ function SharedFields<T extends TariffServiceCreateFormValues | TariffServiceEdi
           )}
         />
       </div>
-      <div className="space-y-2 sm:col-span-2">
-        <Label htmlFor="description">Description</Label>
-        <Controller
-          name={'description' as FieldPath<T>}
-          control={control}
-          render={({ field, fieldState }) => (
-            <>
-              <Textarea
-                id="description"
-                value={(field.value as string | null) ?? ''}
-                onChange={field.onChange}
-                rows={2}
-              />
-              <FieldError message={fieldState.error?.message} />
-            </>
-          )}
-        />
-      </div>
+      {showDescription ? (
+        <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor="description">Description</Label>
+          <Controller
+            name={'description' as FieldPath<T>}
+            control={control}
+            render={({ field, fieldState }) => (
+              <>
+                <Textarea
+                  id="description"
+                  value={(field.value as string | null) ?? ''}
+                  onChange={field.onChange}
+                  rows={2}
+                  placeholder="Optional notes for this charge"
+                />
+                <FieldError message={fieldState.error?.message} />
+              </>
+            )}
+          />
+        </div>
+      ) : (
+        descriptionAside
+      )}
       <div className="space-y-2">
         <Label htmlFor="effective_from">Effective from</Label>
         <Controller
@@ -323,11 +348,60 @@ export function TariffServiceCreateFormFields({
 
 export function TariffServiceEditFormFields({
   control,
+  service,
+  iqTenantId,
+  lookupsEnabled = true,
 }: {
   control: Control<TariffServiceEditFormValues>;
+  service: TariffService;
+  /** Configurator tenant detail only; tariff-master uses session tenant via api-client. */
+  iqTenantId?: string;
+  lookupsEnabled?: boolean;
 }) {
+  const tariffType = service.category ?? TARIFF_PICKLIST_REGISTRATION_FEE;
+  const departmentId = useWatch({ control, name: 'department_id' }) ?? service.department_id;
+  const lookups = useTariffCreateLookups(lookupsEnabled, tariffType, departmentId, iqTenantId);
+  const showProviderFields = tariffTypeRequiresProvider(tariffType);
+
+  const providersQuery = useProviderList(iqTenantId ?? null, {
+    enabled: lookupsEnabled && Boolean(service.provider_id),
+  });
+  const doctorLabel =
+    service.provider_id == null
+      ? '—'
+      : (providersQuery.data?.find((p) => p.id === service.provider_id)?.full_name ??
+        service.provider_id);
+
+  const tariffTypeLabel =
+    lookups.tariffTypeOptions.find((o) => o.value === tariffType)?.label ?? (tariffType || '—');
+
+  const doctorMeta = isDoctorTariffMetadataDescription(service.description)
+    ? decodeDoctorTariffDescription(service.description)
+    : null;
+
   return (
-    <SharedFields control={control}>
+    <SharedFields
+      control={control}
+      showDescription={doctorMeta === null}
+      descriptionAside={
+        doctorMeta ? (
+          <div className="space-y-2 sm:col-span-2">
+            <Label>OPD schedule (from doctor profile)</Label>
+            <Input
+              readOnly
+              disabled
+              className="bg-muted/50"
+              value={formatDoctorTariffMetaSummary(doctorMeta)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Room and OPD days are saved when you add or edit the doctor in User Management, not
+              here.
+            </p>
+          </div>
+        ) : null
+      }
+    >
+      <ReadOnlyField id="service_code" label="Service code" value={service.service_code} />
       <FormSelect
         control={control}
         name="tax_type"
@@ -335,19 +409,30 @@ export function TariffServiceEditFormFields({
         placeholder="Select tax type"
         options={TAX_TYPES.map((t) => ({ value: t, label: t }))}
       />
-      <div className="space-y-2">
-        <Label htmlFor="department_id">Department ID</Label>
-        <Controller
-          name="department_id"
-          control={control}
-          render={({ field, fieldState }) => (
-            <>
-              <Input id="department_id" value={field.value ?? ''} onChange={field.onChange} />
-              <FieldError message={fieldState.error?.message} />
-            </>
-          )}
-        />
-      </div>
+      <ReadOnlyField id="tariff_type" label="Tariff type" value={tariffTypeLabel} />
+      {showProviderFields ? (
+        <>
+          <FormSelect
+            control={control}
+            name="department_id"
+            label="Department"
+            placeholder={
+              lookups.isLoadingDepartments
+                ? 'Loading…'
+                : lookups.departmentsError
+                  ? 'Failed to load departments'
+                  : 'Select department'
+            }
+            disabled={lookups.isLoadingDepartments || lookups.departmentsError}
+            options={lookups.departmentOptions}
+          />
+          <ReadOnlyField id="provider_id" label="Doctor" value={doctorLabel} />
+          <p className="text-xs text-muted-foreground sm:col-span-2">
+            Service code and doctor cannot be changed after creation. Change department if this
+            doctor moved.
+          </p>
+        </>
+      ) : null}
     </SharedFields>
   );
 }
@@ -362,7 +447,13 @@ export function TariffServiceFormFields(
       iqTenantId?: string;
       lookupsEnabled?: boolean;
     }
-    | { mode: 'edit'; control: Control<TariffServiceEditFormValues> },
+    | {
+        mode: 'edit';
+        control: Control<TariffServiceEditFormValues>;
+        service: TariffService;
+        iqTenantId?: string;
+        lookupsEnabled?: boolean;
+      },
 ) {
   return props.mode === 'create' ? (
     <TariffServiceCreateFormFields
@@ -372,6 +463,11 @@ export function TariffServiceFormFields(
       lookupsEnabled={props.lookupsEnabled}
     />
   ) : (
-    <TariffServiceEditFormFields control={props.control} />
+    <TariffServiceEditFormFields
+      control={props.control}
+      service={props.service}
+      iqTenantId={props.iqTenantId}
+      lookupsEnabled={props.lookupsEnabled}
+    />
   );
 }

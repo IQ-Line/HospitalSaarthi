@@ -1329,7 +1329,7 @@ export function TenantBillingPanel({ iqTenantId }: { iqTenantId: string }) {
         onSubmit={editForm.handleSubmit((values) => {
           if (!editing) return;
           updateMutation.mutate(
-            { id: editing.id, input: formToUpdatePayload(values) },
+            { id: editing.id, input: formToUpdatePayload(values, editing) },
             {
               onSuccess: () => {
                 toast.success('Service updated');
@@ -1340,7 +1340,14 @@ export function TenantBillingPanel({ iqTenantId }: { iqTenantId: string }) {
           );
         })}
       >
-        <TariffServiceEditFormFields control={editForm.control} />
+        {editing ? (
+          <TariffServiceEditFormFields
+            control={editForm.control}
+            service={editing}
+            iqTenantId={iqTenantId}
+            lookupsEnabled={Boolean(editing)}
+          />
+        ) : null}
       </EntityFormDialog>
     </div>
   );

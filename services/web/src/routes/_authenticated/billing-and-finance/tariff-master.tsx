@@ -334,7 +334,7 @@ function BillingServicesPage() {
             onSubmit={editForm.handleSubmit((values) => {
               if (!editing) return;
               updateMutation.mutate(
-                { id: editing.id, input: formToUpdatePayload(values) },
+                { id: editing.id, input: formToUpdatePayload(values, editing) },
                 {
                   onSuccess: () => {
                     toast.success('Service updated');
@@ -345,7 +345,13 @@ function BillingServicesPage() {
               );
             })}
           >
-            <TariffServiceEditFormFields control={editForm.control} />
+            {editing ? (
+              <TariffServiceEditFormFields
+                control={editForm.control}
+                service={editing}
+                lookupsEnabled={editing !== null}
+              />
+            ) : null}
         </EntityFormDialog>
       ) : null}
 
