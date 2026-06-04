@@ -22,7 +22,7 @@ export function EntityRowActions({
   canDelete,
 }: EntityRowActionsProps) {
   const allowEdit = !readOnly && (canEdit ?? true);
-  const allowDelete = !readOnly && (canDelete ?? true);
+  const showDelete = !readOnly && canDelete !== false;
   return (
     <div className="flex items-center justify-end gap-1">
       <Button
@@ -43,16 +43,18 @@ export function EntityRowActions({
       >
         <Pencil className="size-4" />
       </Button>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        onClick={onDelete}
-        disabled={disabled || !allowDelete}
-        className="text-destructive hover:text-destructive"
-        aria-label="Delete record"
-      >
-        <Trash2 className="size-4" />
-      </Button>
+      {showDelete ? (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={onDelete}
+          disabled={disabled}
+          className="text-destructive hover:text-destructive"
+          aria-label="Delete record"
+        >
+          <Trash2 className="size-4" />
+        </Button>
+      ) : null}
     </div>
   );
 }

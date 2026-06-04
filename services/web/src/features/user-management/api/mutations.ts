@@ -71,9 +71,6 @@ export function useCreateUser() {
       qc.invalidateQueries({ queryKey: userManagementKeys.userList() }).catch(() => {
         /* cache invalidation is best-effort */
       });
-      qc.invalidateQueries({ queryKey: userManagementKeys.platformDirectory() }).catch(() => {
-        /* cache invalidation is best-effort */
-      });
     },
   });
 }
@@ -93,9 +90,6 @@ export function useUpdateUser(userId: string, tenantScope?: string | null) {
       qc.invalidateQueries({ queryKey: userManagementKeys.userList() }).catch(() => {
         /* best-effort */
       });
-      qc.invalidateQueries({ queryKey: userManagementKeys.platformDirectory() }).catch(() => {
-        /* best-effort */
-      });
     },
   });
 }
@@ -113,9 +107,6 @@ export function useDeactivateUser(userId: string, tenantScope?: string | null) {
     onSuccess: (user) => {
       qc.setQueryData(userManagementKeys.userDetail(userId, scopeKey), user);
       qc.invalidateQueries({ queryKey: userManagementKeys.userList() }).catch(() => {
-        /* best-effort */
-      });
-      qc.invalidateQueries({ queryKey: userManagementKeys.platformDirectory() }).catch(() => {
         /* best-effort */
       });
     },

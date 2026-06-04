@@ -33,3 +33,49 @@ export function decodeDoctorTariffDescription(description: string | null | undef
     return { room_number: '', opd_days: [] };
   }
 }
+
+/** True when description holds UM-synced doctor room/OPD metadata (not a human note). */
+export function isDoctorTariffMetadataDescription(
+  description: string | null | undefined,
+): boolean {
+  if (!description?.trim()) return false;
+  try {
+    const parsed = JSON.parse(description) as { _doctor?: unknown };
+    return parsed !== null && typeof parsed === 'object' && '_doctor' in parsed;
+  } catch {
+    return false;
+  }
+}
+
+/** Description shown in billing forms — hides encoded doctor metadata. */
+export function userVisibleTariffDescription(
+  description: string | null | undefined,
+): string | null {
+  if (isDoctorTariffMetadataDescription(description)) return null;
+  const trimmed = description?.trim();
+  return trimmed === '' ? null : trimmed;
+}
+
+const OPD_DAY_LABELS: Record<string, string> = {
+  mon: 'Mon',
+  tue: 'Tue',
+  wed: 'Wed',
+  thu: 'Thu',
+  fri: 'Fri',
+  sat: 'Sat',
+  sun: 'Sun',
+};
+
+export function formatDoctorTariffMetaSummary(meta: DoctorTariffMeta): string {
+  const parts: string[] = [];
+  if (meta.room_number.trim()) {
+    parts.push(`Room ${meta.room_number.trim()}`);
+  }
+  if (meta.opd_days.length > 0) {
+    const days = meta.opd_days
+      .map((d) => OPD_DAY_LABELS[d.toLowerCase()] ?? d)
+      .join(', ');
+    parts.push(`OPD ${days}`);
+  }
+  return parts.join(' · ') || '—';
+}

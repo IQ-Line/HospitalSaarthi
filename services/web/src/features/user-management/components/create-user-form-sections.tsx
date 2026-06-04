@@ -20,7 +20,6 @@ import {
 import { CapabilityGate } from '@/components/capability-gate';
 import { useCapability } from '@/hooks/use-capability';
 import { UM_ROLE_ASSIGN, UM_ROLE_READ } from '@/lib/runtime-capability-keys';
-import { useDepartments } from '@/features/master-data/api';
 import type { Capability, UmRole } from '../types';
 import { MasterDataCapabilityPermissionTree } from './master-data-capability-permission-tree';
 import { doctorTariffRowSchema } from '../lib/doctor-tariff-form';
@@ -109,63 +108,20 @@ export function CreateUserIdentitySection({ register, errors }: SharedFormSectio
 
 type CreateUserWorkplaceSectionProps = SharedFormSectionProps & {
   control: Control<CreateUserFormValues>;
-  /** When provided, fetches departments from this tenant's catalog instead of the session tenant. */
-  iqTenantId?: string;
-  isDoctor: boolean;
 };
 
-/** Department and clearance — org/tenant come from Configurator (super-admin) or session tenant. */
+/** Clearance tier — department assignment is only for doctor roles (see Department & OPD section). */
 export function CreateUserWorkplaceSection({
-  register,
   errors,
   control,
-  iqTenantId,
-  isDoctor,
 }: CreateUserWorkplaceSectionProps) {
-  const { data: deptData, isLoading: deptLoading } = useDepartments(undefined, {
-    iqTenantId,
-    formCatalog: true,
-  });
-  const departments = (deptData?.data ?? []).filter((d) => d.is_active);
-
   return (
     <UserManagementSectionCard
       title="Workplace details"
-      description="Access level for this user."
+      description="Access level for this user. Doctors configure departments under Department and OPD details."
       contentClassName="space-y-4"
     >
       <div className="grid gap-4 md:grid-cols-2">
-        {!isDoctor ? (
-          <div className="space-y-2">
-            <Label htmlFor="c_department">Department</Label>
-            <Controller
-              control={control}
-              name="department"
-              render={({ field }) => (
-                <Select
-                  value={field.value || undefined}
-                  onValueChange={field.onChange}
-                  disabled={deptLoading}
-                >
-                  <SelectTrigger id="c_department">
-                    <SelectValue
-                      placeholder={deptLoading ? 'Loading…' : 'Select department'}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {departments.map((dept) => (
-                      <SelectItem key={dept.id} value={dept.name}>
-                        {dept.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-            <FieldError message={errors.department?.message?.toString()} />
-          </div>
-        ) : null}
-
         <div className="space-y-2">
           <Label htmlFor="c_clearance">Access level</Label>
           <Controller

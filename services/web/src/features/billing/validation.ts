@@ -42,13 +42,26 @@ export const tariffServiceCreateSchema = z
     }
   });
 
-export const tariffServiceEditSchema = z.object({
-  department_id: z
-    .union([z.string().uuid(), z.literal(''), z.null()])
-    .optional()
-    .transform((v) => (v === '' || v === undefined ? null : v)),
-  ...baseTariffFields,
-});
+export const tariffServiceEditSchema = z
+  .object({
+    /** Mirrored from service.category for validation only (immutable in UI). */
+    tariff_category: z.string().nullable().optional(),
+    department_id: z
+      .union([z.string().uuid(), z.literal(''), z.null()])
+      .optional()
+      .transform((v) => (v === '' || v === undefined ? null : v)),
+    ...baseTariffFields,
+  })
+  .superRefine((v, ctx) => {
+    if (!tariffTypeRequiresProvider(v.tariff_category ?? '')) return;
+    if (!v.department_id) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['department_id'],
+        message: 'Department is required',
+      });
+    }
+  });
 
 export type TariffServiceCreateFormValues = z.input<typeof tariffServiceCreateSchema>;
 export type TariffServiceEditFormValues = z.input<typeof tariffServiceEditSchema>;
@@ -69,6 +82,7 @@ export const EMPTY_TARIFF_CREATE_VALUES: TariffServiceCreateFormValues = {
 };
 
 export const EMPTY_TARIFF_EDIT_VALUES: TariffServiceEditFormValues = {
+  tariff_category: null,
   service_name: '',
   base_price: 0,
   tax_percentage: 0,

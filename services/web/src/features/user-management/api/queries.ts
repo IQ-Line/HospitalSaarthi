@@ -14,7 +14,12 @@ import type {
   UserCapabilitiesSnapshot,
   UserEffectiveCapabilities,
 } from '../types';
-import { userTenantApiContext, userTenantScopeKey } from '../lib/user-tenant-scope';
+import {
+  resolveUserManagementListTenantScope,
+  userTenantApiContext,
+  userTenantScopeKey,
+} from '../lib/user-tenant-scope';
+import { isPlatformSuperAdminFromAccessToken } from '@/lib/platform-admin';
 import { userManagementKeys } from './keys';
 
 const BASE = '/api/user-management';
@@ -197,12 +202,23 @@ export function providerListOptions(
   });
 }
 
+function useUserManagementListTenantScope(): string | null {
+  const homeTenantId = useTenantStore((s) => s.homeTenantId);
+  const activeTenantId = useTenantStore((s) => s.tenantId);
+  const accessToken = useAuthStore((s) => s.accessToken);
+  return resolveUserManagementListTenantScope({
+    isPlatformSuperAdmin: isPlatformSuperAdminFromAccessToken(accessToken),
+    homeTenantId,
+    activeTenantId,
+  });
+}
+
 export function useProviderList(
   tenantScope?: string | null,
   options?: { enabled?: boolean; department?: string },
 ) {
-  const activeTenantId = useTenantStore((s) => s.tenantId);
-  const scope = tenantScope ?? activeTenantId;
+  const listScope = useUserManagementListTenantScope();
+  const scope = tenantScope ?? listScope;
   const filter = options?.department ? { department: options.department } : undefined;
   return useQuery({
     ...providerListOptions(scope, filter),
@@ -214,8 +230,8 @@ export function useUserList(
   tenantScope?: string | null,
   options?: { enabled?: boolean; department?: string },
 ) {
-  const activeTenantId = useTenantStore((s) => s.tenantId);
-  const scope = tenantScope ?? activeTenantId;
+  const listScope = useUserManagementListTenantScope();
+  const scope = tenantScope ?? listScope;
   const filter = options?.department ? { department: options.department } : undefined;
   return useQuery({
     ...userListOptions(scope, filter),
@@ -224,8 +240,8 @@ export function useUserList(
 }
 
 export function useUserListSuspense(tenantScope?: string | null) {
-  const activeTenantId = useTenantStore((s) => s.tenantId);
-  const scope = tenantScope ?? activeTenantId;
+  const listScope = useUserManagementListTenantScope();
+  const scope = tenantScope ?? listScope;
   return useSuspenseQuery(userListOptions(scope));
 }
 
@@ -237,15 +253,19 @@ export function useRuntimeCapabilityCatalogSuspense() {
   return useSuspenseQuery(runtimeCapabilityCatalogOptions());
 }
 
-export function useAssignableCapabilityCatalogSuspense() {
-  return useSuspenseQuery(assignableCapabilityCatalogOptions());
+export function useAssignableCapabilityCatalogSuspense(tenantScope?: string | null) {
+  const listScope = useUserManagementListTenantScope();
+  const scope = tenantScope ?? listScope;
+  return useSuspenseQuery(assignableCapabilityCatalogOptions(scope));
 }
 
 /** @deprecated Use {@link useRuntimeCapabilityCatalogSuspense}. */
 export const useCapabilitiesSuspense = useRuntimeCapabilityCatalogSuspense;
 
-export function useRolesSuspense() {
-  return useSuspenseQuery(roleListOptions());
+export function useRolesSuspense(tenantScope?: string | null) {
+  const listScope = useUserManagementListTenantScope();
+  const scope = tenantScope ?? listScope;
+  return useSuspenseQuery(roleListOptions(scope));
 }
 
 export function useRoleCapabilities(roleId: string, enabled: boolean, tenantScope?: string | null) {
