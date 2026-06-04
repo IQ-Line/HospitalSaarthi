@@ -58,7 +58,6 @@ export function ManageRolePermissionsDialog({
   const roleCapabilitiesQuery = useQuery({
     ...roleCapabilitiesOptions(roleId, tenantScope),
     enabled: open && Boolean(roleId) && umRoleRead,
-    staleTime: 30_000,
   });
 
   const allRoleCapabilityIds = useMemo(

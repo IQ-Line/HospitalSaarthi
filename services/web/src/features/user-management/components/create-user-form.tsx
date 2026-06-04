@@ -138,7 +138,6 @@ export function CreateUserForm({
   const rolesQuery = useQuery({
     ...roleListOptions(apiTenantScope),
     enabled: formActive && umRoleRead && Boolean(effectiveTenantId),
-    staleTime: 30_000,
   });
 
   const form = useForm<CreateUserFormValues>({
@@ -205,7 +204,6 @@ export function CreateUserForm({
   const roleCapabilitiesQuery = useQuery({
     ...roleCapabilitiesOptions(selectedRoleId, apiTenantScope),
     enabled: formActive && roleCapabilitiesQueryEnabled,
-    staleTime: 30_000,
   });
 
   const prevRoleIdRef = useRef<string | undefined>(undefined);
