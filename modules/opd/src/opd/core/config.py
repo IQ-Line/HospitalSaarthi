@@ -48,14 +48,37 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:4200,http://localhost:5173"
 
 
+class AzureBlobSettings(BaseSettings):
+    """Azure Blob Storage for patient health documents (workspace-root AZURE_* vars)."""
+
+    model_config = SettingsConfigDict(
+        env_file=_opd_env_files(),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    connection_string: str = Field(default="", validation_alias="AZURE_STORAGE_CONNECTION_STRING")
+    account_name: str = Field(default="", validation_alias="AZURE_STORAGE_ACCOUNT")
+    account_key: str = Field(default="", validation_alias="AZURE_STORAGE_ACCOUNT_KEY")
+    container_name: str = Field(default="hmis-patient-docs", validation_alias="AZURE_BLOB_CONTAINER")
+
+
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
 
 
+@lru_cache
+def get_azure_blob_settings() -> AzureBlobSettings:
+    return AzureBlobSettings()
+
+
 def reset_settings_cache_for_tests() -> None:
     """Clear cached settings (tests / after `.env` changes in long-lived shells)."""
     get_settings.cache_clear()
+    get_azure_blob_settings.cache_clear()
     from opd.core.database import reset_database_engine
+    from opd.lib import azure_blob_storage
 
+    azure_blob_storage._blob_service_client.cache_clear()
     reset_database_engine()
