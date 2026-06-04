@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { queryOptions, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { platformCatalogClient } from './platform-catalog-client';
 import { masterDataKeys } from './query-keys';
@@ -14,6 +14,21 @@ import type {
 
 const BASE = '/api/v1/master-data/modules';
 const NAV_MODULES_PATH = `${BASE}/nav`;
+
+/** Platform-wide module catalog (used by UM permission trees). Prefetch from route loaders. */
+export function globalModulesCatalogQueryOptions(moduleKinds?: ModuleKind[]) {
+  const search = new URLSearchParams();
+  if (moduleKinds?.length) {
+    search.set('module_kind', moduleKinds.join(','));
+  }
+  const qs = search.toString();
+  const params = qs ? `?${qs}` : '';
+  return queryOptions({
+    queryKey: [...masterDataKeys.globalModules(), ...(moduleKinds ?? [])],
+    queryFn: () => platformCatalogClient<ModuleListResponse>(`${BASE}${params}`),
+    staleTime: 60_000,
+  });
+}
 
 export function useNavModules(options?: { enabled?: boolean }) {
   return useQuery({

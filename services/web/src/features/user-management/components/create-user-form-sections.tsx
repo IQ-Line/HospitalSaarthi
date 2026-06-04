@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { startTransition, type ReactNode } from 'react';
 import {
   Controller,
   type Control,
@@ -313,7 +313,7 @@ export function CreateUserAccessSection({
                     size="sm"
                     onClick={() => {
                       const all = roleCapabilities.map((c) => c.id);
-                      field.onChange(all);
+                      startTransition(() => field.onChange(all));
                     }}
                   >
                     Select all

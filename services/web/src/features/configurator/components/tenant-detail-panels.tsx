@@ -259,20 +259,22 @@ export function TenantUsersPanel({
               </DialogHeader>
             </div>
             <div className="flex min-h-0 flex-1 overflow-hidden p-4">
-              <CreateUserForm
-                fixedTargetTenantId={iqTenantId}
-                fixedConfiguratorOrgId={organizationId}
-                layout="dialog"
-                navigateToProfileOnSuccess={false}
-                onCancel={() => setCreateOpen(false)}
-                onCreated={(user) => {
-                  void qc.invalidateQueries({
-                    queryKey: configuratorKeys.tenantUsers(iqTenantId),
-                  });
-                  toast.success(`User ${user.full_name} created`);
-                  setCreateOpen(false);
-                }}
-              />
+              {createOpen ? (
+                <CreateUserForm
+                  fixedTargetTenantId={iqTenantId}
+                  fixedConfiguratorOrgId={organizationId}
+                  layout="dialog"
+                  navigateToProfileOnSuccess={false}
+                  onCancel={() => setCreateOpen(false)}
+                  onCreated={(user) => {
+                    void qc.invalidateQueries({
+                      queryKey: configuratorKeys.tenantUsers(iqTenantId),
+                    });
+                    toast.success(`User ${user.full_name} created`);
+                    setCreateOpen(false);
+                  }}
+                />
+              ) : null}
             </div>
           </DialogContent>
         </Dialog>
