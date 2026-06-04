@@ -2,13 +2,12 @@
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Any
+from typing import Any, Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-
-_MEDICINE_CODE_PATTERN = r"^[A-Za-z0-9_]{3,8}$"
+from app.schemas.visitpad._code import VISITPAD_CATALOG_CODE_PATTERN
 
 
 class VisitpadMedicineSchedule(StrEnum):
@@ -96,14 +95,14 @@ class VisitpadMedicineSingleResponse(BaseModel):
 class VisitpadMedicineCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    code: str = Field(min_length=3, max_length=8, pattern=_MEDICINE_CODE_PATTERN)
+    code: str = Field(min_length=3, max_length=9, pattern=VISITPAD_CATALOG_CODE_PATTERN)
     display_name: str = Field(min_length=1, max_length=512)
-    generic_name: str = Field(min_length=1, max_length=512)
+    generic_name: str | None = Field(default=None, max_length=512)
     short_name: str | None = Field(default=None, max_length=256)
     brand_names: list[str] = Field(default_factory=list, max_length=50)
-    drug_class: str = Field(min_length=1, max_length=256)
+    drug_class: str | None = Field(default=None, max_length=256)
     drug_subclass: str | None = Field(default=None, max_length=256)
-    dosage_form: str = Field(min_length=1, max_length=128)
+    dosage_form: str | None = Field(default=None, max_length=128)
     route_of_admin: list[str] = Field(default_factory=list, max_length=20)
     strength_value: float | None = None
     strength_unit: str | None = Field(default=None, max_length=32)
@@ -119,7 +118,7 @@ class VisitpadMedicineCreate(BaseModel):
     storage_condition: str | None = Field(default=None, max_length=64)
     expiry_tracking: bool = False
     is_dispensable: bool = True
-    schedule: VisitpadMedicineSchedule
+    schedule: VisitpadMedicineSchedule = VisitpadMedicineSchedule.otc
     is_controlled_substance: bool = False
     is_narcotic: bool = False
     requires_prescription: bool = False
@@ -155,6 +154,17 @@ class VisitpadMedicineCreate(BaseModel):
         if isinstance(v, str):
             return v.strip()
         return v
+
+    @model_validator(mode="after")
+    def _apply_create_defaults(self) -> Self:
+        dn = self.display_name.strip()
+        if not (self.generic_name or "").strip():
+            object.__setattr__(self, "generic_name", dn)
+        if not (self.drug_class or "").strip():
+            object.__setattr__(self, "drug_class", "")
+        if not (self.dosage_form or "").strip():
+            object.__setattr__(self, "dosage_form", "")
+        return self
 
 
 class VisitpadMedicineUpdate(BaseModel):

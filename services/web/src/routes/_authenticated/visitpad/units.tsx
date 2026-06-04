@@ -14,12 +14,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@pulse/ui/select';
-import { Switch } from '@pulse/ui/switch';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
-import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
+import { CatalogActiveSwitch } from '@/features/visitpad/components/catalog-active-switch';
+import { RequiredLabel, VISITPAD_CODE_HELPER_TEXT } from '@/features/visitpad/components/required-label';
+import { useCatalogActiveToggleConfirm } from '@/features/visitpad/hooks/use-catalog-active-toggle-confirm';
+import { nextDisplayOrder } from '@/features/visitpad/lib/next-display-order';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import {
   useVisitpadDelete,
@@ -108,9 +110,21 @@ function VisitpadUnitsPage() {
   const globalLibTotal = globalLib?.total ?? 0;
 
   const importSearchParts = useCallback(
-    (r: VisitpadUnit) => [r.code, r.display_name, r.dimension, r.ucum_code ?? ''],
+    (r: VisitpadUnit) => [r.code, r.display_name, r.dimension],
     [],
   );
+
+  const activeToggle = useCatalogActiveToggleConfirm({
+    disabled: patch.isPending || !canUpdate,
+    onConfirm: async (id, next) => {
+      try {
+        await patch.mutateAsync({ id, body: { is_active: next } });
+        toast.success(next ? 'Unit enabled' : 'Unit disabled');
+      } catch (e) {
+        toast.error(mutationErrorMessage(e));
+      }
+    },
+  });
 
   const importColumns = useMemo(
     () => [
@@ -148,32 +162,17 @@ function VisitpadUnitsPage() {
         meta: { label: 'Dimension' },
         cell: ({ getValue }) => <Badge variant="secondary">{getValue<string>()}</Badge>,
       },
-      {
-        accessorKey: 'is_canonical',
-        header: 'Canonical',
-        meta: { label: 'Canonical' },
-        cell: ({ getValue }) =>
-          getValue<boolean>() ? <span>Yes</span> : <span className="text-muted-foreground">—</span>,
-      },
       { accessorKey: 'display_order', header: 'Order', meta: { label: 'Order' } },
       {
         accessorKey: 'is_active',
         header: 'Enabled',
         meta: { label: 'Enabled' },
-        cell: ({ row }) => (
-          <TableActiveToggle
-            active={row.original.is_active}
-            disabled={patch.isPending || !canUpdate}
-            onCheckedChange={async (next) => {
-              try {
-                await patch.mutateAsync({ id: row.original.id, body: { is_active: next } });
-                toast.success(next ? 'Unit enabled' : 'Unit disabled');
-              } catch (e) {
-                toast.error(mutationErrorMessage(e));
-              }
-            }}
-          />
-        ),
+        cell: ({ row }) =>
+          activeToggle.renderToggle({
+            id: row.original.id,
+            displayName: row.original.display_name || row.original.code,
+            isActive: row.original.is_active,
+          }),
       },
       visitpadActionsColumn<VisitpadUnit>({
         onEdit: setEditing,
@@ -183,7 +182,7 @@ function VisitpadUnitsPage() {
         canDelete,
       }),
     ],
-    [patch, busy, canUpdate, canDelete],
+    [activeToggle, busy, canUpdate, canDelete],
   );
 
   return (
@@ -195,7 +194,7 @@ function VisitpadUnitsPage() {
       description={
         tenantCatalog
           ? 'Tenant unit catalog: import from the platform library or add local-only units.'
-          : 'Platform unit definitions (dimensions, UCUM, canonical flags).'
+          : 'Platform unit definitions for visit forms and vitals.'
       }
       secondaryNav={<VisitpadUnitsSecondaryNav />}
       actions={
@@ -217,7 +216,7 @@ function VisitpadUnitsPage() {
                 setSearch(v);
                 setPageIndex(0);
               }}
-              placeholder="Search code, label, UCUM…"
+              placeholder="Search code, label…"
             />
             <Select
               value={dimension}
@@ -261,9 +260,12 @@ function VisitpadUnitsPage() {
         )}
       </div>
 
+      {activeToggle.renderConfirmDialog()}
+
       <UnitCreateDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
+        nextOrder={nextDisplayOrder(rows)}
         isSubmitting={create.isPending}
         onSubmit={async (payload) => {
           try {
@@ -345,14 +347,18 @@ function VisitpadUnitsPage() {
   );
 }
 
+const UNIT_DIMENSION_UNSET = '__unset__';
+
 function UnitCreateDialog({
   open,
   onOpenChange,
+  nextOrder,
   isSubmitting,
   onSubmit,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  nextOrder: number;
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
@@ -361,34 +367,29 @@ function UnitCreateDialog({
     defaultValues: {
       code: '',
       display_name: '',
-      dimension: 'length',
-      ucum_code: null,
-      is_canonical: false,
-      display_order: 0,
+      display_order: nextOrder,
       is_active: true,
     },
   });
 
   useEffect(() => {
-    if (!open) {
+    if (open) {
       form.reset({
         code: '',
         display_name: '',
-        dimension: 'length',
-        ucum_code: null,
-        is_canonical: false,
-        display_order: 0,
+        display_order: nextOrder,
         is_active: true,
       });
     }
-  }, [open, form]);
+  }, [open, nextOrder, form]);
 
   const submit: SubmitHandler<VisitpadUnitCreateSchema> = async (values) => {
-    const ucum = values.ucum_code?.trim();
     await onSubmit({
-      ...values,
-      ucum_code: ucum && ucum.length > 0 ? ucum : null,
-      display_order: values.display_order ?? 0,
+      code: values.code,
+      display_name: values.display_name,
+      dimension: values.dimension ?? 'other',
+      display_order: values.display_order,
+      is_active: values.is_active ?? true,
     });
   };
 
@@ -404,32 +405,36 @@ function UnitCreateDialog({
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-unit-code">Code (required)</Label>
-          <Input id="vp-unit-code" maxLength={64} autoComplete="off" {...form.register('code')} />
-          <p className="text-xs text-muted-foreground">
-            Lowercased on save; 1–64 characters; unique among active units (immutable after create).
-          </p>
+          <RequiredLabel htmlFor="vp-unit-code">Code</RequiredLabel>
+          <Input id="vp-unit-code" maxLength={9} autoComplete="off" {...form.register('code')} />
+          <p className="text-xs text-muted-foreground">{VISITPAD_CODE_HELPER_TEXT}</p>
           {form.formState.errors.code ? (
             <p className="text-xs text-destructive">{form.formState.errors.code.message}</p>
           ) : null}
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-unit-label">Display label (required)</Label>
+          <RequiredLabel htmlFor="vp-unit-label">Display name</RequiredLabel>
           <Input id="vp-unit-label" maxLength={256} {...form.register('display_name')} />
           {form.formState.errors.display_name ? (
             <p className="text-xs text-destructive">{form.formState.errors.display_name.message}</p>
           ) : null}
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-unit-dimension">Dimension (required)</Label>
+          <Label htmlFor="vp-unit-dimension">Dimension</Label>
           <Select
-            value={form.watch('dimension')}
-            onValueChange={(v) => form.setValue('dimension', v as VisitpadUnitCreateSchema['dimension'])}
+            value={form.watch('dimension') ?? UNIT_DIMENSION_UNSET}
+            onValueChange={(v) =>
+              form.setValue(
+                'dimension',
+                v === UNIT_DIMENSION_UNSET ? undefined : (v as VisitpadUnitCreateSchema['dimension']),
+              )
+            }
           >
             <SelectTrigger id="vp-unit-dimension">
               <SelectValue placeholder="Select dimension" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value={UNIT_DIMENSION_UNSET}>Select dimension</SelectItem>
               {VISITPAD_UNIT_DIMENSIONS.map((d) => (
                 <SelectItem key={d.value} value={d.value}>
                   {d.label}
@@ -438,32 +443,14 @@ function UnitCreateDialog({
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-unit-ucum">UCUM code (optional)</Label>
-          <Input id="vp-unit-ucum" maxLength={64} {...form.register('ucum_code')} />
-        </div>
         <div className="space-y-2">
-          <Label htmlFor="vp-unit-order">Display order (required)</Label>
+          <RequiredLabel htmlFor="vp-unit-order">Display order</RequiredLabel>
           <Input id="vp-unit-order" type="number" {...form.register('display_order', { valueAsNumber: true })} />
         </div>
-        <div className="flex items-center justify-between gap-4 rounded-md border p-3 sm:col-span-2">
-          <div className="space-y-0.5">
-            <Label htmlFor="vp-unit-canonical">Canonical for dimension</Label>
-            <p className="text-xs text-muted-foreground">Mark as the preferred base unit when applicable.</p>
-          </div>
-          <Switch
-            id="vp-unit-canonical"
-            checked={!!form.watch('is_canonical')}
-            onCheckedChange={(c) => form.setValue('is_canonical', c)}
-          />
-        </div>
-        <div className="flex items-center justify-between gap-4 rounded-md border p-3 sm:col-span-2">
-          <div className="space-y-0.5">
-            <Label htmlFor="vp-unit-active">Enabled</Label>
-            <p className="text-xs text-muted-foreground">Inactive units stay in the catalog but are hidden from pickers.</p>
-          </div>
-          <Switch
+        <div className="sm:col-span-2">
+          <CatalogActiveSwitch
             id="vp-unit-active"
+            entityKind="unit"
             checked={!!form.watch('is_active')}
             onCheckedChange={(c) => form.setValue('is_active', c)}
           />
@@ -490,9 +477,7 @@ function UnitEditDialog({
     resolver: zodResolver(visitpadUnitEditFormSchema),
     defaultValues: {
       display_name: '',
-      dimension: 'length',
-      ucum_code: '',
-      is_canonical: false,
+      dimension: 'other',
       display_order: 0,
       is_active: true,
     },
@@ -503,8 +488,6 @@ function UnitEditDialog({
       form.reset({
         display_name: unit.display_name,
         dimension: unit.dimension as VisitpadUnitEditFormSchema['dimension'],
-        ucum_code: unit.ucum_code ?? '',
-        is_canonical: unit.is_canonical,
         display_order: unit.display_order,
         is_active: unit.is_active,
       });
@@ -512,12 +495,9 @@ function UnitEditDialog({
   }, [open, unit, form]);
 
   const submit: SubmitHandler<VisitpadUnitEditFormSchema> = async (values) => {
-    const ucum = values.ucum_code?.trim();
     await onSave({
       display_name: values.display_name,
-      dimension: values.dimension,
-      ucum_code: ucum && ucum.length > 0 ? ucum : null,
-      is_canonical: values.is_canonical,
+      dimension: values.dimension ?? 'other',
       display_order: values.display_order,
       is_active: values.is_active,
     });
@@ -528,7 +508,7 @@ function UnitEditDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={unit ? `Edit unit — ${unit.code}` : 'Edit unit'}
-      description="Unit code is immutable. Update label, dimension, UCUM, and flags."
+      description="Unit code is immutable. Update label, dimension, and display order."
       submitLabel="Save changes"
       isSubmitting={isSubmitting}
       onSubmit={form.handleSubmit(submit)}
@@ -540,7 +520,7 @@ function UnitEditDialog({
             <Input value={unit.code} readOnly className="bg-muted" />
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="vp-unit-edit-label">Display label</Label>
+            <RequiredLabel htmlFor="vp-unit-edit-label">Display name</RequiredLabel>
             <Input id="vp-unit-edit-label" maxLength={256} {...form.register('display_name')} />
           </div>
           <div className="space-y-2 sm:col-span-2">
@@ -550,7 +530,7 @@ function UnitEditDialog({
               onValueChange={(v) => form.setValue('dimension', v as VisitpadUnitEditFormSchema['dimension'])}
             >
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue placeholder="Select dimension" />
               </SelectTrigger>
               <SelectContent>
                 {VISITPAD_UNIT_DIMENSIONS.map((d) => (
@@ -561,26 +541,14 @@ function UnitEditDialog({
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="vp-unit-edit-ucum">UCUM code</Label>
-            <Input id="vp-unit-edit-ucum" maxLength={64} {...form.register('ucum_code')} />
-          </div>
           <div className="space-y-2">
-            <Label htmlFor="vp-unit-edit-order">Display order</Label>
+            <RequiredLabel htmlFor="vp-unit-edit-order">Display order</RequiredLabel>
             <Input id="vp-unit-edit-order" type="number" {...form.register('display_order', { valueAsNumber: true })} />
           </div>
-          <div className="flex items-center justify-between gap-4 rounded-md border p-3 sm:col-span-2">
-            <Label htmlFor="vp-unit-edit-canonical">Canonical</Label>
-            <Switch
-              id="vp-unit-edit-canonical"
-              checked={!!form.watch('is_canonical')}
-              onCheckedChange={(c) => form.setValue('is_canonical', c)}
-            />
-          </div>
-          <div className="flex items-center justify-between gap-4 rounded-md border p-3 sm:col-span-2">
-            <Label htmlFor="vp-unit-edit-active">Enabled</Label>
-            <Switch
+          <div className="sm:col-span-2">
+            <CatalogActiveSwitch
               id="vp-unit-edit-active"
+              entityKind="unit"
               checked={!!form.watch('is_active')}
               onCheckedChange={(c) => form.setValue('is_active', c)}
             />

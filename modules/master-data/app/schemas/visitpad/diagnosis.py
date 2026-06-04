@@ -7,6 +7,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.schemas.visitpad._code import VISITPAD_CATALOG_CODE_PATTERN
+
 
 class VisitpadDiagnosisCategory(StrEnum):
     general = "general"
@@ -21,9 +23,6 @@ class VisitpadDiagnosisCategory(StrEnum):
 class VisitpadIcdVersion(StrEnum):
     ICD_10 = "ICD-10"
     ICD_11 = "ICD-11"
-
-
-_DIAGNOSIS_CODE_PATTERN = r"^[A-Za-z0-9_]{3,12}$"
 
 
 class VisitpadDiagnosisResponse(BaseModel):
@@ -64,7 +63,7 @@ class VisitpadDiagnosisCreate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    code: str = Field(min_length=3, max_length=12, pattern=_DIAGNOSIS_CODE_PATTERN)
+    code: str = Field(min_length=3, max_length=9, pattern=VISITPAD_CATALOG_CODE_PATTERN)
     display_name: str = Field(min_length=1, max_length=512)
     short_name: str | None = Field(default=None, max_length=120)
     snomed_code: str | None = Field(default=None, max_length=64)
