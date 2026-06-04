@@ -19,6 +19,7 @@ setup: ## Full bootstrap: env, deps, infra, migrate, seed
 	@$(MAKE) env-init
 	@echo "==> Installing dependencies..."
 	@pnpm install
+	@pnpm exec puppeteer browsers install chrome 2>/dev/null || true
 	@echo "==> Starting infrastructure..."
 	@$(MAKE) infra
 	@echo "==> Waiting for services to be healthy..."

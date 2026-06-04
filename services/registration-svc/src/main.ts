@@ -14,7 +14,7 @@ import {
   createDefaultPrincipalService,
   principalRoleEnricherPlugin,
 } from "@hims/user-management";
-import { HttpPdfPlatformRenderer } from "@hims/pdf-client";
+import { createPdfRenderer } from "@hims/pdf-client";
 import {
   applyRegistrationSchemaMigration,
   DrizzleRegistrationRepo,
@@ -35,6 +35,7 @@ const EMPI_URL = process.env["EMPI_URL"] ?? "http://localhost:3002";
 const BILLING_URL = process.env["BILLING_URL"] ?? "http://localhost:3003";
 const OPD_URL = process.env["OPD_URL"] ?? "http://localhost:8020";
 const MASTER_DATA_URL = process.env["MASTER_DATA_URL"] ?? "http://localhost:8010";
+const PDF_RENDERER = process.env["PDF_RENDERER"] ?? "local";
 const PDF_PLATFORM_URL = process.env["PDF_PLATFORM_URL"] ?? "http://localhost:8091";
 const PDF_PLATFORM_API_KEY = process.env["PDF_PLATFORM_API_KEY"];
 
@@ -122,7 +123,8 @@ async function main() {
     MASTER_DATA_URL,
     (detail, message) => app.log.warn(detail, message),
   );
-  const pdfRenderer = new HttpPdfPlatformRenderer({
+  const pdfRenderer = createPdfRenderer({
+    mode: PDF_RENDERER,
     baseUrl: PDF_PLATFORM_URL,
     apiKey: PDF_PLATFORM_API_KEY,
   });
