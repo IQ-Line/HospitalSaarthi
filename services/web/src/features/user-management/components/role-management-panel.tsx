@@ -256,6 +256,8 @@ export function RoleManagementPanel() {
   const [roleSearch, setRoleSearch] = useState('');
   const [capabilitySearch, setCapabilitySearch] = useState('');
   const [dialogSavePending, setDialogSavePending] = useState(false);
+  /** Bumps on create reset so Radix Select remounts (avoids stale role type after Reset). */
+  const [createFormSession, setCreateFormSession] = useState(0);
 
   const createRole = useCreateRole();
   const deleteRole = useDeleteRole();
@@ -376,13 +378,18 @@ export function RoleManagementPanel() {
     setCapabilitySearch('');
   };
 
+  const resetCreateEditorState = () => {
+    dispatch({ type: 'resetCreateForm' });
+    dispatch({ type: 'setSelectedCapabilityIds', capabilityIds: [] });
+    resetCapabilityFilters();
+    setCreateFormSession((session) => session + 1);
+  };
+
   const openCreateEditor = () => {
     if (!umRoleCreate) {
       return;
     }
-    dispatch({ type: 'resetCreateForm' });
-    dispatch({ type: 'setSelectedCapabilityIds', capabilityIds: [] });
-    resetCapabilityFilters();
+    resetCreateEditorState();
     setEditorMode('create');
   };
 
@@ -415,8 +422,7 @@ export function RoleManagementPanel() {
   const closeEditor = () => {
     resetCapabilityFilters();
     if (editorMode === 'create') {
-      dispatch({ type: 'resetCreateForm' });
-      dispatch({ type: 'setSelectedCapabilityIds', capabilityIds: [] });
+      resetCreateEditorState();
     } else if (selectedRole) {
       dispatch({ type: 'hydrateEditForm', role: selectedRole });
       dispatch({ type: 'setSelectedCapabilityIds', capabilityIds: assignedCapabilityIds });
@@ -459,8 +465,7 @@ export function RoleManagementPanel() {
 
   const handleResetEditor = () => {
     if (isCreateMode) {
-      dispatch({ type: 'resetCreateForm' });
-      dispatch({ type: 'setSelectedCapabilityIds', capabilityIds: [] });
+      resetCreateEditorState();
       return;
     }
 
@@ -531,6 +536,7 @@ export function RoleManagementPanel() {
 
       {editorMode ? (
         <RoleEditorDialog
+          key={isCreateMode ? `create-${createFormSession}` : `role-${selectedRole?.id ?? 'none'}`}
           open={editorOpen}
           mode={editorMode}
           role={selectedRole}

@@ -378,8 +378,6 @@ export function CreateUserForm({
           register={form.register}
           errors={form.formState.errors}
           control={form.control}
-          iqTenantId={apiTenantScope}
-          isDoctor={isDoctor}
         />
 
         {isDoctor ? (

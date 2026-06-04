@@ -13,6 +13,7 @@ import {
 } from '@pulse/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@pulse/ui/toggle-group';
 import { cn } from '@pulse/utils';
+import { FormNumberInput } from '@/lib/form-number-input';
 import { useDepartments } from '@/features/master-data/api';
 import { EMPTY_DOCTOR_TARIFF_ROW, type DoctorTariffFormRow } from '../lib/doctor-tariff-form';
 import { UserManagementSectionCard } from './user-management-section-card';
@@ -128,15 +129,17 @@ function DepartmentBlock<T extends DoctorTariffFieldValues>({
             control={control}
             name={`${namePrefix}.base_price` as Path<T>}
             render={({ field }) => (
-              <Input
+              <FormNumberInput
                 id={`fee_${index}`}
-                type="number"
                 min={0}
                 max={CONSULTATION_MAX}
                 step="1"
                 placeholder="0"
-                value={Number.isFinite(field.value as number) ? (field.value as number) : ''}
-                onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
+                value={typeof field.value === 'number' ? field.value : 0}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+                name={field.name}
+                ref={field.ref}
               />
             )}
           />
@@ -149,15 +152,17 @@ function DepartmentBlock<T extends DoctorTariffFieldValues>({
             control={control}
             name={`${namePrefix}.tax_percentage` as Path<T>}
             render={({ field }) => (
-              <Input
+              <FormNumberInput
                 id={`tax_${index}`}
-                type="number"
                 min={0}
                 max={100}
                 step="0.01"
                 placeholder="0"
-                value={Number.isFinite(field.value as number) ? (field.value as number) : ''}
-                onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
+                value={typeof field.value === 'number' ? field.value : 0}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+                name={field.name}
+                ref={field.ref}
               />
             )}
           />

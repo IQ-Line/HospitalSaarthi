@@ -3,6 +3,7 @@ import { useMemo, type ReactNode } from 'react';
 import type { UseFormRegister, UseFormSetValue, UseFormWatch } from 'react-hook-form';
 import { Button } from '@pulse/ui/button';
 import { Input } from '@pulse/ui/input';
+import { FormNumberInput } from '@/lib/form-number-input';
 import { Label } from '@pulse/ui/label';
 import {
   RegistrationFieldLabel,
@@ -52,6 +53,7 @@ import {
   billingLineTotal,
   computeBillingGrandTotal,
   formatBillingDeduction,
+  formatBillingTaxLine,
   formatBillingTaxSummary,
   formatInr,
   isVisitRegistrationAmountPaidValid,
@@ -299,13 +301,18 @@ export function VisitRegistrationBillingSection({
             <RegistrationFieldLabel htmlFor="visit-reg-discount-pct">
               Discount (%)
             </RegistrationFieldLabel>
-            <Input
+            <FormNumberInput
               id="visit-reg-discount-pct"
-              type="number"
               min={0}
               max={100}
               className="h-10 tabular-nums"
-              {...register('billing.invoice_discount', { valueAsNumber: true })}
+              value={watch('billing.invoice_discount') ?? 0}
+              onChange={(v) =>
+                setValue('billing.invoice_discount', v, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+              }
             />
           </Field>
           <Field>
@@ -338,12 +345,17 @@ export function VisitRegistrationBillingSection({
             <RegistrationFieldLabel htmlFor="visit-reg-amount-paid">
               Amount paid
             </RegistrationFieldLabel>
-            <Input
+            <FormNumberInput
               id="visit-reg-amount-paid"
-              type="number"
               min={0}
               className="h-10 tabular-nums"
-              {...register('billing.amount_paid', { valueAsNumber: true })}
+              value={watch('billing.amount_paid') ?? 0}
+              onChange={(v) =>
+                setValue('billing.amount_paid', v, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+              }
             />
           </Field>
         </div>
@@ -396,7 +408,7 @@ export function VisitRegistrationBillingSection({
         <p className="text-sm text-muted-foreground">Loading charges from tariff catalog…</p>
       ) : null}
 
-      <div className="rounded-md border border-border">
+      <div className="overflow-x-auto rounded-md border border-border">
         <Table className={`${BILLING_TABLE_CLASS} [&_th]:!text-center [&_td]:text-center`}>
           <BillingTableColGroup />
           <TableHeader>
@@ -417,9 +429,10 @@ export function VisitRegistrationBillingSection({
               serviceName={registrationFee.service_name ?? 'Registration fee'}
               unitPrice={registrationFee.unit_price}
               taxPercent={registrationFee.tax_percent}
+              discountPercent={registrationFee.discount_percent}
+              discountRs={registrationFee.discount}
               discountPercentPath="billing.registration_fee.discount_percent"
               discountRsPath="billing.registration_fee.discount"
-              register={register}
               setValue={setValue}
               netPrice={regNet}
               taxAmount={regTax}
@@ -435,9 +448,10 @@ export function VisitRegistrationBillingSection({
                 }
                 unitPrice={consultationFee.unit_price}
                 taxPercent={consultationFee.tax_percent}
+                discountPercent={consultationFee.discount_percent}
+                discountRs={consultationFee.discount}
                 discountPercentPath="billing.consultation_fee.discount_percent"
                 discountRsPath="billing.consultation_fee.discount"
-                register={register}
                 setValue={setValue}
                 netPrice={consultNet}
                 taxAmount={consultTax}
@@ -474,11 +488,16 @@ export function VisitRegistrationBillingSection({
               <TableCell className={BILLING_EMPTY_CELL}>—</TableCell>
               <TableCell className={BILLING_EMPTY_CELL}>—</TableCell>
               <BillingNumericInputCell>
-                <Input
-                  type="number"
+                <FormNumberInput
                   min={0}
                   className={BILLING_INPUT_CLASS}
-                  {...register('billing.invoice_discount', { valueAsNumber: true })}
+                  value={invoiceDiscount}
+                  onChange={(v) =>
+                    setValue('billing.invoice_discount', v, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }
                 />
               </BillingNumericInputCell>
               <TableCell className={BILLING_EMPTY_CELL}>—</TableCell>
@@ -535,14 +554,19 @@ export function VisitRegistrationBillingSection({
           <RegistrationFieldLabel htmlFor="visit-reg-amount-paid-detailed" required>
             Amount paid
           </RegistrationFieldLabel>
-          <Input
+          <FormNumberInput
             id="visit-reg-amount-paid-detailed"
-            type="number"
             min={0}
             step="any"
             className="h-10 tabular-nums"
             aria-invalid={amountPaidHint ? true : undefined}
-            {...register('billing.amount_paid', { valueAsNumber: true })}
+            value={amountPaid ?? 0}
+            onChange={(v) =>
+              setValue('billing.amount_paid', v, {
+                shouldDirty: true,
+                shouldValidate: true,
+              })
+            }
           />
           {amountPaidHint ? (
             <p className="text-xs text-destructive">{amountPaidHint}</p>
@@ -842,7 +866,7 @@ function BillingTableColGroup() {
       <col style={{ width: '9%' }} />
       <col style={{ width: '11%' }} />
       <col style={{ width: '11%' }} />
-      <col style={{ width: '13%' }} />
+      <col style={{ width: '15%' }} />
       <col style={{ width: '15%' }} />
     </colgroup>
   );
@@ -865,9 +889,10 @@ function BillingFeeRow({
   serviceName,
   unitPrice,
   taxPercent,
+  discountPercent,
+  discountRs,
   discountPercentPath,
   discountRsPath,
-  register,
   setValue,
   netPrice,
   taxAmount,
@@ -878,20 +903,18 @@ function BillingFeeRow({
   serviceName: string;
   unitPrice: number;
   taxPercent: number;
+  discountPercent: number;
+  discountRs: number;
   discountPercentPath:
     | 'billing.registration_fee.discount_percent'
     | 'billing.consultation_fee.discount_percent';
   discountRsPath: 'billing.registration_fee.discount' | 'billing.consultation_fee.discount';
-  register: UseFormRegister<CreateVisitRequestBody>;
   setValue: UseFormSetValue<CreateVisitRequestBody>;
   netPrice: number;
   taxAmount: number;
   total: number;
   muted?: boolean;
 }) {
-  const discountPercentReg = register(discountPercentPath, { valueAsNumber: true });
-  const discountRsReg = register(discountRsPath, { valueAsNumber: true });
-
   return (
     <TableRow className={muted ? 'opacity-60' : undefined}>
       <TableCell className={BILLING_LABEL_CELL}>{tariffTypeLabel}</TableCell>
@@ -900,16 +923,17 @@ function BillingFeeRow({
       </TableCell>
       <TableCell className={BILLING_NUM_CELL}>{formatInr(unitPrice)}</TableCell>
       <BillingNumericInputCell>
-        <Input
-          type="number"
+        <FormNumberInput
           min={0}
           max={100}
           className={BILLING_INPUT_CLASS}
-          {...discountPercentReg}
-          onChange={(e) => {
-            void discountPercentReg.onChange(e);
-            const pct = Number(e.target.value);
-            if (Number.isFinite(pct) && pct >= 0) {
+          value={discountPercent}
+          onChange={(pct) => {
+            setValue(discountPercentPath, pct, {
+              shouldDirty: true,
+              shouldValidate: true,
+            });
+            if (pct >= 0) {
               setValue(discountRsPath, Math.round(unitPrice * pct / 100), {
                 shouldDirty: true,
                 shouldValidate: true,
@@ -919,18 +943,21 @@ function BillingFeeRow({
         />
       </BillingNumericInputCell>
       <BillingNumericInputCell>
-        <Input type="number" min={0} className={BILLING_INPUT_CLASS} {...discountRsReg} />
+        <FormNumberInput
+          min={0}
+          className={BILLING_INPUT_CLASS}
+          value={discountRs}
+          onChange={(rs) =>
+            setValue(discountRsPath, rs, {
+              shouldDirty: true,
+              shouldValidate: true,
+            })
+          }
+        />
       </BillingNumericInputCell>
       <TableCell className={BILLING_NUM_CELL}>{formatInr(netPrice)}</TableCell>
-      <TableCell className={BILLING_NUM_CELL}>
-        {taxPercent > 0 ? (
-          <span className="inline-flex flex-col items-center justify-center gap-0.5 leading-none">
-            <span>{taxPercent}%</span>
-            <span className="text-xs text-muted-foreground">{formatInr(taxAmount)}</span>
-          </span>
-        ) : (
-          '0'
-        )}
+      <TableCell className={`${BILLING_NUM_CELL} whitespace-nowrap`}>
+        {formatBillingTaxLine(taxPercent, taxAmount)}
       </TableCell>
       <TableCell className={`${BILLING_NUM_CELL} font-medium`}>{formatInr(total)}</TableCell>
     </TableRow>

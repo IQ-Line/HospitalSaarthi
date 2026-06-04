@@ -1,17 +1,19 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Controller, useForm, type SubmitHandler } from 'react-hook-form';
+import { useForm, type SubmitHandler } from 'react-hook-form';
 import { type ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
-import { Switch } from '@pulse/ui/switch';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
-import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
+import { CatalogActiveSwitch } from '@/features/visitpad/components/catalog-active-switch';
+import { RequiredLabel, VISITPAD_CODE_HELPER_TEXT } from '@/features/visitpad/components/required-label';
+import { useCatalogActiveToggleConfirm } from '@/features/visitpad/hooks/use-catalog-active-toggle-confirm';
+import { nextDisplayOrder } from '@/features/visitpad/lib/next-display-order';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import {
   useVisitpadDelete,
@@ -106,6 +108,18 @@ function VisitpadVaccinesPage() {
     [],
   );
 
+  const activeToggle = useCatalogActiveToggleConfirm({
+    disabled: patch.isPending || !canUpdate,
+    onConfirm: async (id, next) => {
+      try {
+        await patch.mutateAsync({ id, body: { is_active: next } });
+        toast.success(next ? 'Vaccine enabled' : 'Vaccine disabled');
+      } catch (e) {
+        toast.error(mutationErrorMessage(e));
+      }
+    },
+  });
+
   const runVaccineImport = async (selection: VisitpadVaccine[]) => {
     try {
       const res = await platformImport.mutateAsync(selection.map((r) => r.id));
@@ -137,20 +151,12 @@ function VisitpadVaccinesPage() {
         accessorKey: 'is_active',
         header: 'Enabled',
         meta: { label: 'Enabled' },
-        cell: ({ row }) => (
-          <TableActiveToggle
-            active={row.original.is_active}
-            disabled={patch.isPending || !canUpdate}
-            onCheckedChange={async (next) => {
-              try {
-                await patch.mutateAsync({ id: row.original.id, body: { is_active: next } });
-                toast.success(next ? 'Enabled' : 'Disabled');
-              } catch (e) {
-                toast.error(mutationErrorMessage(e));
-              }
-            }}
-          />
-        ),
+        cell: ({ row }) =>
+          activeToggle.renderToggle({
+            id: row.original.id,
+            displayName: row.original.display_name || row.original.code,
+            isActive: row.original.is_active,
+          }),
       },
       visitpadActionsColumn<VisitpadVaccine>({
         onEdit: setEditing,
@@ -160,7 +166,7 @@ function VisitpadVaccinesPage() {
         canDelete,
       }),
     ],
-    [patch, busy, canUpdate, canDelete],
+    [activeToggle, busy, canUpdate, canDelete],
   );
 
   return (
@@ -211,6 +217,8 @@ function VisitpadVaccinesPage() {
         )}
       </div>
 
+      {activeToggle.renderConfirmDialog()}
+
       <ImportFromPlatformCatalogDialog<VisitpadVaccine>
         open={importOpen}
         onOpenChange={setImportOpen}
@@ -240,6 +248,7 @@ function VisitpadVaccinesPage() {
       <VaccineCreateDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
+        nextOrder={nextDisplayOrder(rows)}
         isSubmitting={create.isPending}
         onSubmit={async (payload) => {
           try {
@@ -298,31 +307,45 @@ function VisitpadVaccinesPage() {
 function VaccineCreateDialog({
   open,
   onOpenChange,
+  nextOrder,
   isSubmitting,
   onSubmit,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  nextOrder: number;
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
   const form = useForm<VisitpadVaccineCreateFormSchema>({
     resolver: zodResolver(visitpadVaccineCreateFormSchema),
-    defaultValues: { code: '', display_name: '', short_name: '', is_active: true },
+    defaultValues: {
+      code: '',
+      display_name: '',
+      short_name: '',
+      display_order: nextOrder,
+      is_active: true,
+    },
   });
 
   useEffect(() => {
     if (open) {
-      form.reset({ code: '', display_name: '', short_name: '', is_active: true });
+      form.reset({
+        code: '',
+        display_name: '',
+        short_name: '',
+        display_order: nextOrder,
+        is_active: true,
+      });
     }
-  }, [open, form]);
+  }, [open, nextOrder, form]);
 
   const submit: SubmitHandler<VisitpadVaccineCreateFormSchema> = async (v) => {
     await onSubmit({
       code: v.code,
       display_name: v.display_name.trim(),
       short_name: v.short_name?.trim() ? v.short_name.trim() : null,
-      display_order: 0,
+      display_order: v.display_order,
       is_active: v.is_active,
     });
   };
@@ -332,26 +355,22 @@ function VaccineCreateDialog({
       open={open}
       onOpenChange={onOpenChange}
       title="Add vaccine"
-      description="Code is immutable after save. Use letters, digits, or underscore (1–64 characters). Stored lowercase."
+      description="Code is immutable after save."
       submitLabel="Add"
       isSubmitting={isSubmitting}
       onSubmit={form.handleSubmit(submit)}
     >
       <div className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="vaccine-code">Vaccine code *</Label>
-          <Input id="vaccine-code" placeholder="e.g. cov_mrna" {...form.register('code')} />
+          <RequiredLabel htmlFor="vaccine-code">Vaccine code</RequiredLabel>
+          <Input id="vaccine-code" maxLength={9} placeholder="e.g. cov_mrna" {...form.register('code')} />
+          <p className="text-xs text-muted-foreground">{VISITPAD_CODE_HELPER_TEXT}</p>
           {form.formState.errors.code ? (
             <p className="text-sm text-destructive">{form.formState.errors.code.message}</p>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              Code must be 1–64 characters: letters, digits, and underscore. Saved lowercase. Unique
-              per catalog scope.
-            </p>
-          )}
+          ) : null}
         </div>
         <div className="space-y-2">
-          <Label htmlFor="vaccine-display">Vaccine display name *</Label>
+          <RequiredLabel htmlFor="vaccine-display">Vaccine display name</RequiredLabel>
           <Input
             id="vaccine-display"
             placeholder="e.g. COVID-19 mRNA vaccine"
@@ -366,21 +385,22 @@ function VaccineCreateDialog({
           <Input id="vaccine-short" {...form.register('short_name')} />
           <p className="text-xs text-muted-foreground">Optional.</p>
         </div>
-        <div className="flex items-center justify-between gap-4 rounded-md border p-3">
-          <div>
-            <p className="text-sm font-medium">Active</p>
-            <p className="text-xs text-muted-foreground">
-              Inactive items are hidden from visit-pad pick lists.
-            </p>
-          </div>
-          <Controller
-            name="is_active"
-            control={form.control}
-            render={({ field }) => (
-              <Switch checked={field.value} onCheckedChange={field.onChange} />
-            )}
+        <div className="space-y-2">
+          <RequiredLabel htmlFor="vaccine-order">Display order</RequiredLabel>
+          <Input
+            id="vaccine-order"
+            type="number"
+            {...form.register('display_order', { valueAsNumber: true })}
           />
+          {form.formState.errors.display_order ? (
+            <p className="text-sm text-destructive">{form.formState.errors.display_order.message}</p>
+          ) : null}
         </div>
+        <CatalogActiveSwitch
+          id="vaccine-active"
+          checked={!!form.watch('is_active')}
+          onCheckedChange={(c) => form.setValue('is_active', c)}
+        />
       </div>
     </EntityFormDialog>
   );
@@ -443,7 +463,7 @@ function VaccineEditDialog({
     >
       <div className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="edit-vaccine-display">Vaccine display name *</Label>
+          <RequiredLabel htmlFor="edit-vaccine-display">Vaccine display name</RequiredLabel>
           <Input id="edit-vaccine-display" {...form.register('display_name')} />
           {form.formState.errors.display_name ? (
             <p className="text-sm text-destructive">{form.formState.errors.display_name.message}</p>
@@ -454,23 +474,18 @@ function VaccineEditDialog({
           <Input id="edit-vaccine-short" {...form.register('short_name')} />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="edit-vaccine-order">Display order</Label>
+          <RequiredLabel htmlFor="edit-vaccine-order">Display order</RequiredLabel>
           <Input
             id="edit-vaccine-order"
             type="number"
             {...form.register('display_order', { valueAsNumber: true })}
           />
         </div>
-        <div className="flex items-center justify-between gap-4 rounded-md border p-3">
-          <p className="text-sm font-medium">Active</p>
-          <Controller
-            name="is_active"
-            control={form.control}
-            render={({ field }) => (
-              <Switch checked={field.value} onCheckedChange={field.onChange} />
-            )}
-          />
-        </div>
+        <CatalogActiveSwitch
+          id="edit-vaccine-active"
+          checked={!!form.watch('is_active')}
+          onCheckedChange={(c) => form.setValue('is_active', c)}
+        />
       </div>
     </EntityFormDialog>
   );

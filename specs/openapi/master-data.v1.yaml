@@ -4906,7 +4906,7 @@ components:
           type: string
           maxLength: 8
           minLength: 3
-          pattern: ^[A-Za-z0-9_]{3,8}$
+          pattern: ^[A-Za-z0-9_]{3,9}$
           title: Code
           description: >-
             Stable allergy/allergen code (letters, digits, underscore). Unique per catalog scope;
@@ -5110,7 +5110,7 @@ components:
           type: string
           maxLength: 8
           minLength: 3
-          pattern: ^[A-Za-z0-9_]{3,8}$
+          pattern: ^[A-Za-z0-9_]{3,9}$
           title: Code
           description: >-
             Reaction code (letters, digits, underscore). Unique per catalog scope; immutable after create.
@@ -5567,7 +5567,7 @@ components:
           type: string
           maxLength: 8
           minLength: 3
-          pattern: '^[A-Za-z0-9_]{3,8}$'
+          pattern: '^[A-Za-z0-9_]{3,9}$'
           title: Chronic illness code
           description: >-
             Tenant-stable catalog code (letters, digits, underscore). Stored in column ``icd10_code`` for
@@ -5752,7 +5752,7 @@ components:
           type: string
           maxLength: 12
           minLength: 3
-          pattern: ^[A-Za-z0-9_]{3,12}$
+          pattern: ^[A-Za-z0-9_]{3,9}$
           title: Code
           description: >-
             Tenant-stable diagnosis code (letters, digits, underscore). Unique per catalog scope;
@@ -6018,7 +6018,7 @@ components:
           type: string
           maxLength: 8
           minLength: 3
-          pattern: '^[A-Za-z0-9_]{3,8}$'
+          pattern: '^[A-Za-z0-9_]{3,9}$'
           title: Code
         display_name:
           type: string
@@ -6465,7 +6465,7 @@ components:
           type: string
           minLength: 1
           maxLength: 64
-          pattern: ^[A-Za-z0-9_]{1,64}$
+          pattern: ^[A-Za-z0-9_]{3,9}$
           title: Code
           description: Trimmed and stored lowercase; uniqueness applies to the normalized value.
         display_name:
@@ -7257,7 +7257,7 @@ components:
           type: string
           maxLength: 8
           minLength: 3
-          pattern: ^[A-Za-z0-9_]{3,8}$
+          pattern: ^[A-Za-z0-9_]{3,9}$
           title: Procedure catalog code
           description: Tenant-unique catalog code (legacy Integrator “procedure code”; stored as cpt_code). Immutable after create.
         short_name:
@@ -7525,7 +7525,7 @@ components:
           type: string
           maxLength: 8
           minLength: 2
-          pattern: '^[A-Za-z0-9_]{2,8}$'
+          pattern: '^[A-Za-z0-9_]{3,9}$'
           title: Code
         extra_unit:
           anyOf:

@@ -6,12 +6,14 @@ import { type ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
-import { Switch } from '@pulse/ui/switch';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
-import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
+import { CatalogActiveSwitch } from '@/features/visitpad/components/catalog-active-switch';
+import { RequiredLabel, VISITPAD_CODE_HELPER_TEXT } from '@/features/visitpad/components/required-label';
+import { useCatalogActiveToggleConfirm } from '@/features/visitpad/hooks/use-catalog-active-toggle-confirm';
+import { nextDisplayOrder } from '@/features/visitpad/lib/next-display-order';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import {
   useVisitpadAllergyReactions,
@@ -107,6 +109,18 @@ function VisitpadReactionsPage() {
     [],
   );
 
+  const activeToggle = useCatalogActiveToggleConfirm({
+    disabled: patch.isPending || !canUpdate,
+    onConfirm: async (id, next) => {
+      try {
+        await patch.mutateAsync({ id, body: { is_active: next } });
+        toast.success(next ? 'Reaction enabled' : 'Reaction disabled');
+      } catch (e) {
+        toast.error(mutationErrorMessage(e));
+      }
+    },
+  });
+
   const runReactionImport = async (selection: VisitpadAllergyReaction[]) => {
     try {
       const res = await platformImport.mutateAsync(selection.map((r) => r.id));
@@ -147,20 +161,12 @@ function VisitpadReactionsPage() {
         accessorKey: 'is_active',
         header: 'Status',
         meta: { label: 'Status' },
-        cell: ({ row }) => (
-          <TableActiveToggle
-            active={row.original.is_active}
-            disabled={patch.isPending || !canUpdate}
-            onCheckedChange={async (next) => {
-              try {
-                await patch.mutateAsync({ id: row.original.id, body: { is_active: next } });
-                toast.success(next ? 'Enabled' : 'Disabled');
-              } catch (e) {
-                toast.error(mutationErrorMessage(e));
-              }
-            }}
-          />
-        ),
+        cell: ({ row }) =>
+          activeToggle.renderToggle({
+            id: row.original.id,
+            displayName: row.original.display_name || row.original.code,
+            isActive: row.original.is_active,
+          }),
       },
       visitpadActionsColumn<VisitpadAllergyReaction>({
         onEdit: setEditing,
@@ -170,7 +176,7 @@ function VisitpadReactionsPage() {
         canDelete,
       }),
     ],
-    [patch, busy, canUpdate, canDelete],
+    [activeToggle, busy, canUpdate, canDelete],
   );
 
   return (
@@ -223,6 +229,8 @@ function VisitpadReactionsPage() {
         )}
       </div>
 
+      {activeToggle.renderConfirmDialog()}
+
       <ImportFromPlatformCatalogDialog<VisitpadAllergyReaction>
         open={importOpen}
         onOpenChange={setImportOpen}
@@ -252,6 +260,7 @@ function VisitpadReactionsPage() {
       <ReactionCreateDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
+        nextOrder={nextDisplayOrder(rows)}
         isSubmitting={create.isPending}
         onSubmit={async (payload) => {
           try {
@@ -310,11 +319,13 @@ function VisitpadReactionsPage() {
 function ReactionCreateDialog({
   open,
   onOpenChange,
+  nextOrder,
   isSubmitting,
   onSubmit,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  nextOrder: number;
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
@@ -325,21 +336,23 @@ function ReactionCreateDialog({
       display_name: '',
       short_name: '',
       snomed_code: null,
+      display_order: nextOrder,
       is_active: true,
     },
   });
 
   useEffect(() => {
-    if (!open) {
+    if (open) {
       form.reset({
         code: '',
         display_name: '',
         short_name: '',
         snomed_code: null,
+        display_order: nextOrder,
         is_active: true,
       });
     }
-  }, [open, form]);
+  }, [open, nextOrder, form]);
 
   const submit: SubmitHandler<VisitpadAllergyReactionCreateFormSchema> = async (v) => {
     await onSubmit({
@@ -347,7 +360,7 @@ function ReactionCreateDialog({
       display_name: v.display_name.trim(),
       short_name: v.short_name?.trim() ? v.short_name.trim() : null,
       snomed_code: v.snomed_code?.trim() ? v.snomed_code.trim() : null,
-      display_order: 0,
+      display_order: v.display_order,
       is_active: v.is_active,
     });
   };
@@ -364,23 +377,21 @@ function ReactionCreateDialog({
     >
       <div className="grid gap-4">
         <div className="space-y-2">
-          <Label htmlFor="vp-rxn-code">Reaction code *</Label>
+          <RequiredLabel htmlFor="vp-rxn-code">Reaction code</RequiredLabel>
           <Input
             id="vp-rxn-code"
-            maxLength={8}
+            maxLength={9}
             autoComplete="off"
             placeholder="e.g. rash_loc"
             {...form.register('code')}
           />
-          <p className="text-xs text-muted-foreground">
-            3–8 characters: letters, digits, underscore. Unique and cannot be edited after save.
-          </p>
+          <p className="text-xs text-muted-foreground">{VISITPAD_CODE_HELPER_TEXT}</p>
           {form.formState.errors.code ? (
             <p className="text-xs text-destructive">{form.formState.errors.code.message}</p>
           ) : null}
         </div>
         <div className="space-y-2">
-          <Label htmlFor="vp-rxn-name">Display name *</Label>
+          <RequiredLabel htmlFor="vp-rxn-name">Display name</RequiredLabel>
           <Input
             id="vp-rxn-name"
             maxLength={256}
@@ -404,19 +415,18 @@ function ReactionCreateDialog({
             {...form.register('snomed_code')}
           />
         </div>
-        <div className="flex flex-col gap-1 rounded-md border p-3">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <Label htmlFor="vp-rxn-act">Active</Label>
-              <p className="text-xs text-muted-foreground">Inactive items are hidden from visit-pad pick lists.</p>
-            </div>
-            <Switch
-              id="vp-rxn-act"
-              checked={!!form.watch('is_active')}
-              onCheckedChange={(c) => form.setValue('is_active', c)}
-            />
-          </div>
+        <div className="space-y-2">
+          <RequiredLabel htmlFor="vp-rxn-order">Display order</RequiredLabel>
+          <Input id="vp-rxn-order" type="number" {...form.register('display_order', { valueAsNumber: true })} />
+          {form.formState.errors.display_order ? (
+            <p className="text-xs text-destructive">{form.formState.errors.display_order.message}</p>
+          ) : null}
         </div>
+        <CatalogActiveSwitch
+          id="vp-rxn-act"
+          checked={!!form.watch('is_active')}
+          onCheckedChange={(c) => form.setValue('is_active', c)}
+        />
       </div>
     </EntityFormDialog>
   );
@@ -487,7 +497,7 @@ function ReactionEditDialog({
             <Input value={row.code} readOnly className="bg-muted/40" />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="vp-re-name">Display name *</Label>
+            <RequiredLabel htmlFor="vp-re-name">Display name</RequiredLabel>
             <Input id="vp-re-name" maxLength={256} {...form.register('display_name')} />
           </div>
           <div className="space-y-2">
@@ -499,22 +509,14 @@ function ReactionEditDialog({
             <Input id="vp-re-snomed" maxLength={64} {...form.register('snomed_code')} />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="vp-re-order">Display order</Label>
+            <RequiredLabel htmlFor="vp-re-order">Display order</RequiredLabel>
             <Input id="vp-re-order" type="number" {...form.register('display_order', { valueAsNumber: true })} />
           </div>
-          <div className="flex flex-col gap-1 rounded-md border p-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <Label htmlFor="vp-re-act">Active</Label>
-                <p className="text-xs text-muted-foreground">Inactive items are hidden from visit-pad pick lists.</p>
-              </div>
-              <Switch
-                id="vp-re-act"
-                checked={!!form.watch('is_active')}
-                onCheckedChange={(c) => form.setValue('is_active', c)}
-              />
-            </div>
-          </div>
+          <CatalogActiveSwitch
+            id="vp-re-act"
+            checked={!!form.watch('is_active')}
+            onCheckedChange={(c) => form.setValue('is_active', c)}
+          />
         </div>
       ) : null}
     </EntityFormDialog>

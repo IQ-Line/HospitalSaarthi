@@ -802,6 +802,8 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
   const [roleSearch, setRoleSearch] = useState('');
   const [capabilitySearch, setCapabilitySearch] = useState('');
   const [dialogSavePending, setDialogSavePending] = useState(false);
+  /** Bumps on create reset so Radix Select remounts (avoids stale role type after Reset). */
+  const [createFormSession, setCreateFormSession] = useState(0);
 
   const createRole = useCreateRole(iqTenantId);
   const deleteRole = useDeleteRole(iqTenantId);
@@ -927,11 +929,16 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
 
   const resetCapabilityFilters = () => setCapabilitySearch('');
 
-  const openCreateEditor = () => {
-    if (!umRoleCreate) return;
+  const resetCreateEditorState = () => {
     dispatch({ type: 'resetCreateForm' });
     dispatch({ type: 'setSelectedCapabilityIds', capabilityIds: [] });
     resetCapabilityFilters();
+    setCreateFormSession((session) => session + 1);
+  };
+
+  const openCreateEditor = () => {
+    if (!umRoleCreate) return;
+    resetCreateEditorState();
     setEditorMode('create');
   };
 
@@ -954,8 +961,7 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
   const closeEditor = () => {
     resetCapabilityFilters();
     if (isCreateMode) {
-      dispatch({ type: 'resetCreateForm' });
-      dispatch({ type: 'setSelectedCapabilityIds', capabilityIds: [] });
+      resetCreateEditorState();
     } else if (selectedRole) {
       dispatch({ type: 'hydrateEditForm', role: selectedRole });
       dispatch({ type: 'setSelectedCapabilityIds', capabilityIds: assignedCapabilityIds });
@@ -989,8 +995,7 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
 
   const handleResetEditor = () => {
     if (isCreateMode) {
-      dispatch({ type: 'resetCreateForm' });
-      dispatch({ type: 'setSelectedCapabilityIds', capabilityIds: [] });
+      resetCreateEditorState();
       return;
     }
     dispatch({ type: 'hydrateEditForm', role: selectedRole });
@@ -1056,6 +1061,7 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
 
       {editorMode ? (
         <RoleEditorDialog
+          key={isCreateMode ? `create-${createFormSession}` : `role-${selectedRole?.id ?? 'none'}`}
           open={editorOpen}
           mode={editorMode}
           role={selectedRole}
@@ -1323,7 +1329,7 @@ export function TenantBillingPanel({ iqTenantId }: { iqTenantId: string }) {
         onSubmit={editForm.handleSubmit((values) => {
           if (!editing) return;
           updateMutation.mutate(
-            { id: editing.id, input: formToUpdatePayload(values) },
+            { id: editing.id, input: formToUpdatePayload(values, editing) },
             {
               onSuccess: () => {
                 toast.success('Service updated');
@@ -1334,7 +1340,14 @@ export function TenantBillingPanel({ iqTenantId }: { iqTenantId: string }) {
           );
         })}
       >
-        <TariffServiceEditFormFields control={editForm.control} />
+        {editing ? (
+          <TariffServiceEditFormFields
+            control={editForm.control}
+            service={editing}
+            iqTenantId={iqTenantId}
+            lookupsEnabled={Boolean(editing)}
+          />
+        ) : null}
       </EntityFormDialog>
     </div>
   );

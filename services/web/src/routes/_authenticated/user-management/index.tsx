@@ -1,7 +1,6 @@
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import type { ChangeEvent } from 'react';
 import { useEffect, useMemo, useState } from 'react';
-import { useSuspenseQuery } from '@tanstack/react-query';
 import { Alert, AlertDescription, AlertTitle } from '@pulse/ui/alert';
 import { Button } from '@pulse/ui/button';
 import {
@@ -22,10 +21,7 @@ import {
   UM_USERS_SECTION_ANY,
 } from '@/lib/runtime-capability-keys';
 import {
-  flattenPlatformDirectoryUsers,
-  platformDirectoryQueryOptions,
-  platformDirectoryTenantErrors,
-} from '@/features/user-management/api/platform-directory';
+  resolveUserManagementListTenantScope } from '@/features/user-management/lib/user-tenant-scope';
 import { userListOptions, useUserListSuspense } from '@/features/user-management/api/queries';
 import { CreateUserForm } from '@/features/user-management/components/create-user-form';
 import { UserListTable } from '@/features/user-management/components/user-list-table';
@@ -52,17 +48,18 @@ export const Route = createFileRoute('/_authenticated/user-management/')({
   loaderDeps: () => ({}),
   loader: async ({ context }) => {
     const p = usePermissionsStore.getState();
-    const tenantScope = useTenantStore.getState().tenantId;
+    const tenantStore = useTenantStore.getState();
     const isSuperAdmin = isPlatformSuperAdminFromAccessToken(
       useAuthStore.getState().accessToken,
     );
+    const tenantScope = resolveUserManagementListTenantScope({
+      isPlatformSuperAdmin: isSuperAdmin,
+      homeTenantId: tenantStore.homeTenantId,
+      activeTenantId: tenantStore.tenantId,
+    });
     const loads: Array<Promise<unknown>> = [];
     if (p.hasCapability(UM_USER_READ)) {
-      if (isSuperAdmin) {
-        loads.push(context.queryClient.ensureQueryData(platformDirectoryQueryOptions()));
-      } else {
-        loads.push(context.queryClient.ensureQueryData(userListOptions(tenantScope)));
-      }
+      loads.push(context.queryClient.ensureQueryData(userListOptions(tenantScope)));
     }
     await Promise.all(loads);
   },
@@ -128,12 +125,6 @@ function CreateUserOnlyPage() {
 }
 
 function UserManagementListPage() {
-  const isPlatformSuperAdmin = isPlatformSuperAdminFromAccessToken(
-    useAuthStore((s) => s.accessToken),
-  );
-  if (isPlatformSuperAdmin) {
-    return <PlatformSuperAdminUserListPage />;
-  }
   return <TenantScopedUserListPage />;
 }
 
@@ -151,6 +142,9 @@ function filterUserRows<
 function TenantScopedUserListPage() {
   const { q, createUser: createUserSearch } = Route.useSearch();
   const navigate = useNavigate();
+  const isPlatformSuperAdmin = isPlatformSuperAdminFromAccessToken(
+    useAuthStore((s) => s.accessToken),
+  );
   const { data: users } = useUserListSuspense();
   const umUserRead = useCapability(UM_USER_READ);
   const filtered = useMemo(() => filterUserRows(users, q), [users, q]);
@@ -173,8 +167,12 @@ function TenantScopedUserListPage() {
     <>
       <UserManagementPageShell
         section="users"
-        title="People"
-        description="Find someone, open their profile, or add a new user."
+        title={isPlatformSuperAdmin ? 'Platform users' : 'People'}
+        description={
+          isPlatformSuperAdmin
+            ? 'Users on your platform tenant. Hospital users are managed per tenant in Configurator.'
+            : 'Find someone, open their profile, or add a new user.'
+        }
         actions={
           <CapabilityGate capability={UM_USER_CREATE}>
             <Button type="button" onClick={() => setCreateUserOpen(true)}>
@@ -198,77 +196,7 @@ function TenantScopedUserListPage() {
       <CreateUserDialog
         open={createOpen}
         onOpenChange={setCreateUserOpen}
-        canSelectTargetTenant={false}
-        navigateToProfileOnSuccess={umUserRead}
-      />
-    </>
-  );
-}
-
-function PlatformSuperAdminUserListPage() {
-  const { q, createUser: createUserSearch } = Route.useSearch();
-  const navigate = useNavigate();
-  const { data: directorySnapshot } = useSuspenseQuery(platformDirectoryQueryOptions());
-  const umUserRead = useCapability(UM_USER_READ);
-  const users = flattenPlatformDirectoryUsers(directorySnapshot);
-  const tenantErrors = platformDirectoryTenantErrors(directorySnapshot);
-  const filtered = useMemo(
-    () =>
-      filterUserRows(users, q, (row) => [
-        row.tenant_name,
-        row.tenant_slug,
-        row.organization_name,
-      ]),
-    [users, q],
-  );
-  const [createOpen, setCreateOpen] = useState(createUserSearch);
-
-  useEffect(() => {
-    if (createUserSearch) setCreateOpen(true);
-  }, [createUserSearch]);
-
-  const setCreateUserOpen = (open: boolean) => {
-    setCreateOpen(open);
-    void navigate({
-      to: '/user-management',
-      search: { q, ...(open ? { createUser: true } : {}) },
-      replace: true,
-    });
-  };
-
-  return (
-    <>
-      <UserManagementPageShell
-        section="users"
-        title="People"
-        description="All users across hospital tenants. Open a profile or add someone to a tenant."
-        actions={
-          <CapabilityGate capability={UM_USER_CREATE}>
-            <Button type="button" onClick={() => setCreateUserOpen(true)}>
-              Add user
-            </Button>
-          </CapabilityGate>
-        }
-      >
-        <UserListPageBody
-          crossTenant
-          q={q}
-          filtered={filtered}
-          tenantCount={directorySnapshot.tenants.length}
-          totalUsers={users.length}
-          tenantErrors={tenantErrors}
-          onSearchChange={(value) =>
-            void navigate({
-              to: '/user-management',
-              search: { q: value, ...(createOpen ? { createUser: true } : {}) },
-            })
-          }
-        />
-      </UserManagementPageShell>
-      <CreateUserDialog
-        open={createOpen}
-        onOpenChange={setCreateUserOpen}
-        canSelectTargetTenant
+        canSelectTargetTenant={isPlatformSuperAdmin}
         navigateToProfileOnSuccess={umUserRead}
       />
     </>
