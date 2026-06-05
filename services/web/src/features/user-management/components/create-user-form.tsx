@@ -201,8 +201,8 @@ export function CreateUserForm({
     if (!canSelectTargetTenant) {
       return;
     }
-    form.setValue('role_template_ids', [], { shouldValidate: true });
-    form.setValue('role_capability_selection_ids', [], { shouldValidate: true });
+    form.setValue('role_template_ids', [], { shouldValidate: false });
+    form.setValue('role_capability_selection_ids', [], { shouldValidate: false });
     prevRoleIdRef.current = undefined;
   }, [targetTenantId, canSelectTargetTenant, form]);
 
