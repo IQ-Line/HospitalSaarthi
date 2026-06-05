@@ -37,6 +37,8 @@ export type {
   UserAccessRepository,
   UserProvisioningRepository,
   ProvisionUserWithAccessInput,
+  PartnerPrincipalRepository,
+  ProvisionPartnerPrincipalInput,
   RoleTemplateGrantPlan,
   UserCapabilitiesSnapshot,
   UserCapabilityGrant,
@@ -68,6 +70,7 @@ export {
   AuthAccountProvisioningError,
   AuthEmailConflictError,
   DuplicateUsernameError,
+  PartnerPrincipalAlreadyExistsError,
   CerbosPrincipalUnavailableError,
   DuplicateUserRoleTemplateError,
   DuplicateRoleCodeError,
@@ -117,6 +120,8 @@ export { DrizzleUserAccessRepository } from "./data-access/user-access-repositor
 export { DrizzlePrincipalRoleProjectionRepository } from "./data-access/drizzle-principal-role-projection-repository.js";
 export { DrizzleRoleRepository } from "./data-access/role-repository.js";
 export { DrizzleUserRepository } from "./data-access/user-repository.js";
+export { DrizzlePartnerPrincipalRepository } from "./data-access/partner-principal-repository.js";
+export { InMemoryPartnerPrincipalRepository } from "./data-access/in-memory-partner-principal-repository.js";
 export { DrizzleUserProvisioningRepository } from "./data-access/user-provisioning-repository.js";
 export { InMemoryUserProvisioningRepository } from "./data-access/in-memory-user-provisioning-repository.js";
 export { InMemoryCapabilityRepository } from "./data-access/in-memory-capability-repository.js";
@@ -156,6 +161,17 @@ export type { CreateRoleDeps } from "./use-cases/create-role.js";
 export { applyRoleTemplate } from "./use-cases/apply-role-template.js";
 export type { ApplyRoleTemplateDeps } from "./use-cases/apply-role-template.js";
 export { deactivateUser } from "./use-cases/deactivate-user.js";
+export { provisionPartnerPrincipal } from "./use-cases/provision-partner-principal.js";
+export type {
+  ProvisionPartnerPrincipalDeps,
+  ProvisionPartnerPrincipalContext,
+  ProvisionPartnerPrincipalInput,
+} from "./use-cases/provision-partner-principal.js";
+export { deactivatePartnerPrincipal } from "./use-cases/deactivate-partner-principal.js";
+export type {
+  DeactivatePartnerPrincipalDeps,
+  DeactivatePartnerPrincipalContext,
+} from "./use-cases/deactivate-partner-principal.js";
 export type { DeactivateUserDeps } from "./use-cases/deactivate-user.js";
 export { deleteRole } from "./use-cases/delete-role.js";
 export type { DeleteRoleDeps } from "./use-cases/delete-role.js";

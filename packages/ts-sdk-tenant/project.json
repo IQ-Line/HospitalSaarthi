@@ -9,10 +9,10 @@
       "executor": "@nx/eslint:lint"
     },
     "test": {
-      "executor": "@nx/js:node",
+      "executor": "nx:run-commands",
       "options": {
-        "args": ["--run"],
-        "runtimeExecutable": "vitest"
+        "command": "pnpm exec vitest run",
+        "cwd": "packages/ts-sdk-tenant"
       }
     }
   }

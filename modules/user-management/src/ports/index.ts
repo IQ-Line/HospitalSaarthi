@@ -49,6 +49,11 @@ export type {
 
 export type { UserReadListResourceAbac };
 
+export type {
+  PartnerPrincipalRepository,
+  ProvisionPartnerPrincipalInput,
+} from "./partner-principal-repository.js";
+
 export type ListUsersOptions = {
   /** When set, repository applies SQL/in-memory resource ABAC aligned with `user.read` (department + clearance). */
   userReadResourceAbac?: UserReadListResourceAbac;

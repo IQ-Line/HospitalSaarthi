@@ -1,7 +1,13 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { validateAuthConfig } from "@hims/ts-sdk-identity";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { validateAuthConfig } from "./validate-auth-config.js";
 
-const ENV_KEYS = ["JWKS_URL", "JWT_ISSUER", "JWT_AUDIENCE"] as const;
+const ENV_KEYS = [
+  "JWKS_URL",
+  "JWT_ISSUER",
+  "JWT_AUDIENCE",
+  "PARTNER_JWKS_URL",
+  "PARTNER_JWT_ISSUER",
+] as const;
 
 function expectedJwksForIssuer(issuer: string): string {
   return `${issuer.replace(/\/+$/, "")}/api/auth/.well-known/jwks.json`;
@@ -14,6 +20,12 @@ function setAuthEnv(issuer: string, jwksUrl?: string): void {
 }
 
 describe("validateAuthConfig", () => {
+  beforeEach(() => {
+    for (const key of ENV_KEYS) {
+      delete process.env[key];
+    }
+  });
+
   afterEach(() => {
     for (const key of ENV_KEYS) {
       delete process.env[key];

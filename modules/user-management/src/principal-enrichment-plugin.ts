@@ -36,6 +36,31 @@ function mergePrincipalRoleCodes(jwtRoles: string[], persistedRoles: string[]): 
   return [...roleCodeSet].sort(compareCanonicalRoleCodes);
 }
 
+function isJwtTrustedPrincipalKind(kind: string | undefined): boolean {
+  return kind === "partner" || kind === "service";
+}
+
+function buildCerbosPrincipalFromJwt(identity: IdentityPrincipal): CerbosPrincipalPayload {
+  const jwtRoles = Array.isArray(identity.roles) ? identity.roles : [];
+  const roleCodes = mergePrincipalRoleCodes(jwtRoles, []);
+  const orgTrim = identity.orgId?.trim() ?? "";
+  const deptTrim = identity.department?.trim() ?? "";
+  return {
+    id: identity.userId,
+    roles: roleCodes,
+    attributes: {
+      iq_tenant_id: identity.tenantId,
+      org_id: orgTrim.length > 0 ? orgTrim : null,
+      department: deptTrim.length > 0 ? deptTrim : null,
+      role_codes: roleCodes,
+      capabilities: identity.capabilities ?? [],
+      delegated_capabilities: identity.delegatedCapabilities ?? [],
+      clearances: identity.clearances ?? {},
+      um_clearance_effective_tier: identity.umClearanceEffectiveTier ?? 0,
+    },
+  };
+}
+
 function applyCerbosPayloadToIdentity(
   identity: IdentityPrincipal,
   payload: CerbosPrincipalPayload,
@@ -73,6 +98,14 @@ const principalEnrichmentPluginImpl: FastifyPluginAsync<PrincipalEnricherPluginO
   fastify.addHook("onRequest", async (request, reply) => {
     const identity = asIdentityPrincipal((request as RequestWithOptionalUser).user);
     if (identity === null) return;
+
+    if (isJwtTrustedPrincipalKind(identity.kind)) {
+      const payload = buildCerbosPrincipalFromJwt(identity);
+      request.cerbosPrincipal = payload;
+      applyCerbosPayloadToIdentity(identity, payload);
+      (request as RequestWithOptionalUser).user = identity;
+      return;
+    }
 
     // Principal rows are tenant-scoped: cross-tenant `iq_tenant_id` scopes persistence,
     // but enrichment must load the signed-in user from their JWT home tenant.

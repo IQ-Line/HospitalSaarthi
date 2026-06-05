@@ -1,0 +1,57 @@
+---
+# Integration Hub — partner principal lifecycle (UM orchestration).
+# Capabilities: integration:partner:{provision,deactivate}
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "integration_partner"
+  version: default
+  rules:
+    - actions:
+        - "partner.provision"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "integration:partner:provision" in request.principal.attr.capabilities ||
+              "integration:partner:provision" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "partner.provision"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "integration:partner:provision" in request.principal.attr.capabilities ||
+              "integration:partner:provision" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "partner.deactivate"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "integration:partner:deactivate" in request.principal.attr.capabilities ||
+              "integration:partner:deactivate" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "partner.deactivate"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "integration:partner:deactivate" in request.principal.attr.capabilities ||
+              "integration:partner:deactivate" in request.principal.attr.delegated_capabilities
+            )

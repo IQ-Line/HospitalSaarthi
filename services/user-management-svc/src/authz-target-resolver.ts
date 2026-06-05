@@ -265,6 +265,25 @@ export function createUserManagementAuthzTargetResolver(
       return { kind: "auth", id: "provider-list", action: "auth.read", attr: tenantAttr(request) };
     }
 
+    if (method === "POST" && path === "/partner-principals") {
+      return {
+        kind: "integration_partner",
+        id: "new",
+        action: "partner.provision",
+        attr: tenantAttr(request),
+      };
+    }
+
+    if (method === "POST" && path === "/partner-principals/:integrationId/deactivate") {
+      const integrationId = resolvePathParam(request, "integrationId");
+      return {
+        kind: "integration_partner",
+        id: integrationId ?? "deactivate",
+        action: "partner.deactivate",
+        attr: tenantAttr(request),
+      };
+    }
+
     if (
       method === "GET" &&
       (path === "/auth/me" || path === "/auth/principal")

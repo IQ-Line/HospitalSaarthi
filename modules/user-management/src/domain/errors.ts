@@ -281,6 +281,15 @@ export class DuplicateUsernameError extends UserManagementError {
   }
 }
 
+export class PartnerPrincipalAlreadyExistsError extends UserManagementError {
+  constructor(public readonly integrationId?: string) {
+    super(
+      "PARTNER_PRINCIPAL_ALREADY_EXISTS",
+      "A partner principal already exists for this integration.",
+    );
+  }
+}
+
 export class UserRoleTemplateNotFoundError extends UserManagementError {
   constructor() {
     super("USER_ROLE_TEMPLATE_NOT_FOUND", "Role template association not found for this tenant.");

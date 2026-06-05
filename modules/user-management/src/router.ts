@@ -23,7 +23,9 @@ import {
 import { registerAuthHandlers } from "./rest-handlers/auth-handlers.js";
 import { registerInternalDiagnosticsHandlers } from "./rest-handlers/internal-diagnostics-handlers.js";
 import { registerRoleHandlers } from "./rest-handlers/role-handlers.js";
+import { registerPartnerPrincipalHandlers } from "./rest-handlers/partner-principal-handlers.js";
 import { registerUserHandlers } from "./rest-handlers/user-handlers.js";
+import type { PartnerPrincipalRepository } from "./ports/partner-principal-repository.js";
 import { createDefaultRuntimeCapabilityCatalogPort } from "./services/default-runtime-capability-catalog-port.js";
 import type { UserProvisioningRepository } from "./ports/user-provisioning-repository.js";
 
@@ -67,6 +69,7 @@ export interface UserManagementPluginOptions {
   principalRoleProjectionRepository: PrincipalRoleProjectionRepository;
   principalAuthorizationRepository: PrincipalAuthorizationRepository;
   authAccountProvisioner: AuthAccountProvisioner;
+  partnerPrincipalRepository: PartnerPrincipalRepository;
   eventBus: EventBus;
   tenantModuleEntitlementPort: TenantModuleEntitlementPort;
   masterDataModuleCatalogPort: MasterDataModuleCatalogPort;
@@ -88,6 +91,7 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
     principalRoleProjectionRepository,
     principalAuthorizationRepository,
     authAccountProvisioner,
+    partnerPrincipalRepository,
     eventBus,
     tenantModuleEntitlementPort,
     masterDataModuleCatalogPort,
@@ -177,6 +181,20 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
       roleCapabilityRepository,
       tenantModuleEntitlementPort,
       masterDataModuleCatalogPort,
+    },
+  });
+
+  registerPartnerPrincipalHandlers(fastify, {
+    getTenantId,
+    getActorId,
+    provisionPartnerPrincipalDeps: {
+      partnerPrincipalRepository,
+      capabilityRepository,
+    },
+    deactivatePartnerPrincipalDeps: {
+      partnerPrincipalRepository,
+      userRepository,
+      eventBus,
     },
   });
 

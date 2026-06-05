@@ -16,6 +16,13 @@ export interface HimsJwtPayload extends JoseJWTPayload {
    */
   org_id?: string | null;
   roles: string[];
+  /** Principal class: `human` (default), `partner`, or `service`. */
+  kind?: string;
+  /** Partner/service JWT: mint-time capability snapshot (UM is authoritative at mint). */
+  capabilities?: string[];
+  integration_id?: string;
+  partner_principal_id?: string;
+  api_key_id?: string;
   /**
    * Auth-provider session identifier. Intentionally optional — better-auth relies on `jti` +
    * short-lived JWTs for token identity; resource services should validate identity claims
@@ -79,6 +86,11 @@ export interface IdentityPluginOptions {
    * Allowed asymmetric JWT algorithms. Defaults to RS256.
    */
   allowedAlgorithms?: readonly string[];
+  /** Optional second issuer (Integration Hub partner JWT). Both URL and issuer required together. */
+  partnerJwksUrl?: string;
+  partnerIssuer?: string;
+  /** Max age for partner JWTs (default 120s). Human tokens use maxTokenAgeSeconds. */
+  partnerMaxTokenAgeSeconds?: number;
 }
 
 declare module "fastify" {

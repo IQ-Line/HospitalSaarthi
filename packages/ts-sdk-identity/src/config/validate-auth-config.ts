@@ -31,13 +31,38 @@ function readJwtAuthEnv(): {
   return { jwksUrl, issuer, audience };
 }
 
+function readPartnerJwtEnv(): {
+  partnerJwksUrl?: string;
+  partnerIssuer?: string;
+  partnerMaxTokenAgeSeconds?: number;
+} {
+  const partnerJwksUrl = process.env.PARTNER_JWKS_URL?.trim();
+  const partnerIssuer = process.env.PARTNER_JWT_ISSUER?.trim();
+  if (!partnerJwksUrl && !partnerIssuer) {
+    return {};
+  }
+  if (!partnerJwksUrl || !partnerIssuer) {
+    throw new Error(
+      "AUTH_CONFIG_INVALID: PARTNER_JWKS_URL and PARTNER_JWT_ISSUER must both be set when partner JWT verification is enabled",
+    );
+  }
+  return {
+    partnerJwksUrl,
+    partnerIssuer,
+    partnerMaxTokenAgeSeconds: 120,
+  };
+}
+
 /** Validates JWKS_URL, JWT_ISSUER, JWT_AUDIENCE (no defaults). */
 export function validateAuthConfig(): {
   jwksUrl: string;
   issuer: string;
   audience: string;
+  partnerJwksUrl?: string;
+  partnerIssuer?: string;
+  partnerMaxTokenAgeSeconds?: number;
 } {
-  return readJwtAuthEnv();
+  return { ...readJwtAuthEnv(), ...readPartnerJwtEnv() };
 }
 
 /** Validates JWT env vars plus CERBOS_URL for services that register authz/Cerbos. */

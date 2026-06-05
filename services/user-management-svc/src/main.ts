@@ -28,6 +28,7 @@ import {
   DrizzleRoleCapabilityRepository,
   DrizzleRoleRepository,
   DrizzleUserAccessRepository,
+  DrizzlePartnerPrincipalRepository,
   DrizzleUserProvisioningRepository,
   DrizzleUserRepository,
   createDefaultPrincipalService,
@@ -133,6 +134,7 @@ async function createApp(): Promise<FastifyInstance> {
 
   const userRepository = new DrizzleUserRepository(pgDb);
   const userProvisioningRepository = new DrizzleUserProvisioningRepository(pgDb);
+  const partnerPrincipalRepository = new DrizzlePartnerPrincipalRepository(pgDb);
   const capabilityRepository = new DrizzleCapabilityRepository(pgDb);
   const roleRepository = new DrizzleRoleRepository(pgDb);
   const roleCapabilityRepository = new DrizzleRoleCapabilityRepository(pgDb);
@@ -276,6 +278,7 @@ async function createApp(): Promise<FastifyInstance> {
     principalRoleProjectionRepository,
     principalAuthorizationRepository,
     authAccountProvisioner,
+    partnerPrincipalRepository,
     tenantModuleEntitlementPort,
     masterDataModuleCatalogPort,
   });

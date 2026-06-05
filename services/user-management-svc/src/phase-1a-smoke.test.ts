@@ -14,6 +14,7 @@ import {
   InMemoryRoleCapabilityRepository,
   InMemoryRoleRepository,
   InMemoryUserAccessRepository,
+  InMemoryPartnerPrincipalRepository,
   InMemoryUserProvisioningRepository,
   InMemoryUserRepository,
   buildCerbosUserMgmtResourceAttr,
@@ -179,6 +180,7 @@ describe("Phase 1A.12 smoke", () => {
               return { authUserId: input.platformUserId };
             },
           },
+          partnerPrincipalRepository: new InMemoryPartnerPrincipalRepository(),
           tenantModuleEntitlementPort: {
             async listTenantEnabledModuleIds() {
               return [];

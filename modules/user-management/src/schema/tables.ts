@@ -44,16 +44,41 @@ export const users = userManagementSchema.table(
     department: text("department"),
     /** Minimum effective clearance tier required for sensitive user resources. */
     clearance_tier_required: integer("clearance_tier_required").notNull().default(0),
+    /** Principal class: human (default), partner, or service. */
+    kind: text("kind").notNull().default("human"),
+    /** Integration Hub integration id — required and unique per tenant for kind=partner. */
+    integration_id: uuid("integration_id"),
     ...auditColumns(),
   },
   (t) => [
     primaryKey({ columns: [t.iq_tenant_id, t.id] }),
+    check("users_kind_chk", sql`${t.kind} in ('human', 'partner', 'service')`),
+    check(
+      "users_partner_non_loginable_chk",
+      sql`${t.kind} != 'partner' or (
+        ${t.integration_id} is not null and
+        ${t.auth_user_id} is null and
+        ${t.email} is null and
+        ${t.username} is null and
+        ${t.phone} is null
+      )`,
+    ),
+    check(
+      "users_partner_integration_required_chk",
+      sql`${t.kind} != 'partner' or ${t.integration_id} is not null`,
+    ),
+    check(
+      "users_human_no_integration_chk",
+      sql`${t.kind} != 'human' or ${t.integration_id} is null`,
+    ),
     check("users_status_chk", sql`${t.status} in ('active', 'inactive', 'suspended')`),
     check(
       "users_clearance_tier_chk",
       sql`${t.clearance_tier_required} >= 0 and ${t.clearance_tier_required} <= 3`,
     ),
     unique("uq_users_tenant_username").on(t.iq_tenant_id, t.username),
+    unique("uq_users_tenant_integration_partner").on(t.iq_tenant_id, t.integration_id),
+    index("idx_users_tenant_kind").on(t.iq_tenant_id, t.kind),
   ],
 );
 

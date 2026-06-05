@@ -1,4 +1,5 @@
 export { createRouter } from "./router.js";
+export { createEmpiAuthzTargetResolver } from "./authz/empi-authz-target-resolver.js";
 export type { EmpiRouterOptions } from "./router.js";
 
 export type {

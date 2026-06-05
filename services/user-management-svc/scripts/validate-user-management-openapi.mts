@@ -268,6 +268,17 @@ async function main(): Promise<void> {
             return { authUserId: input.platformUserId };
           },
         },
+        partnerPrincipalRepository: {
+          async findByIntegrationId() {
+            return null;
+          },
+          async provisionPartnerPrincipal() {
+            throw new Error("PARTNER_PROVISIONING_NOT_IMPLEMENTED");
+          },
+          async reactivatePartnerPrincipal() {
+            return null;
+          },
+        },
         tenantModuleEntitlementPort: noopTenantModuleEntitlementPort,
         masterDataModuleCatalogPort: noopMasterDataModuleCatalogPort,
       });
