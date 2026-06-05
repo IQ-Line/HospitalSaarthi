@@ -113,7 +113,7 @@ async function main() {
    */
   const visitsStub = process.env['VISITS_STUB'] === 'true';
   const visitsUpstream =
-    process.env['VISITS_SERVICE_URL'] ?? 'http://localhost:8020';
+    process.env['OPD_URL'] ?? 'http://localhost:8020';
   if (visitsStub) {
     app.post('/api/v1/visits', async (_req, reply) => {
       return reply.code(201).send({ id: randomUUID(), status: 'stub' });
