@@ -29,7 +29,7 @@ tags:
 - name: OpdHealthDocuments
   description: Patient health documents (Azure Blob Storage).
 servers:
-- url: http://localhost:8020/api/v1/opd
+- url: /api/v1/opd
   description: Local opd-svc (OPD_SVC_PORT; default 8020)
 paths:
   /patients:
