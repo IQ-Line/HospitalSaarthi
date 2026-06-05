@@ -1,4 +1,5 @@
 import type { CreateVisitRequestBody, VisitRegistrationBillingFeeLine } from '@/features/frontdesk/types';
+import { isValidIndianMobile } from '@/lib/indian-mobile';
 
 // ─── Dropdown / catalog options (visit registration UI) ─────────────────────
 
@@ -146,8 +147,6 @@ export function isVisitRegistrationPaymentModeSelected(paymentMode: string | und
   return Boolean(paymentMode?.trim());
 }
 
-const VISIT_REG_PHONE_RE = /^\d{10}$/;
-
 export type VisitRegistrationFormGateInput = {
   phone: string | undefined;
   firstName: string | undefined;
@@ -167,7 +166,7 @@ export function visitRegistrationFormBlockers(
   args: VisitRegistrationFormGateInput,
 ): string[] {
   const missing: string[] = [];
-  if (!VISIT_REG_PHONE_RE.test((args.phone ?? '').trim())) missing.push('10-digit phone');
+  if (!isValidIndianMobile(args.phone)) missing.push('10-digit phone');
   if (!args.firstName?.trim()) missing.push('first name');
   if (!args.departmentId?.trim()) missing.push('department');
   if (!args.providerId?.trim()) missing.push('doctor');

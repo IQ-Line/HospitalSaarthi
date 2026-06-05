@@ -110,4 +110,16 @@ describe('visitRegistrationFormBlockers', () => {
       visitRegistrationFormBlockers({ ...complete, grandTotal: 109.5, amountPaid: 109 }),
     ).toEqual([]);
   });
+
+  it('rejects phone numbers starting with 0', () => {
+    expect(
+      visitRegistrationFormBlockers({ ...complete, phone: '0765432156' }),
+    ).toContain('10-digit phone');
+  });
+
+  it('rejects phone numbers starting with 1–5', () => {
+    expect(
+      visitRegistrationFormBlockers({ ...complete, phone: '2345677888' }),
+    ).toContain('10-digit phone');
+  });
 });
