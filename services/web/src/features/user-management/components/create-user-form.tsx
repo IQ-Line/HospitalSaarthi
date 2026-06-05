@@ -14,6 +14,7 @@ import { UM_ROLE_ASSIGN, UM_ROLE_READ } from '@/lib/runtime-capability-keys';
 import { useCreateUser } from '../api/mutations';
 import { roleCapabilitiesOptions, roleListOptions } from '../api/queries';
 import { isDoctorRole, validateDoctorTariffs } from '../lib/is-doctor-role';
+import type { Capability } from '../types';
 import { useTenantStore } from '@/stores/tenant.store';
 import { CreateUserTenantField } from './create-user-tenant-field';
 import {
@@ -27,6 +28,8 @@ import {
   CreateUserDoctorOpdSection,
   EMPTY_DOCTOR_TARIFF_ROW,
 } from './create-user-doctor-departments';
+
+const EMPTY_ROLE_CAPABILITIES: Capability[] = [];
 
 /** Maps form values to `POST /users` body. Exported for unit tests. */
 export function buildCreateUserRequestBody(
@@ -156,24 +159,10 @@ export function CreateUserForm({
     },
   });
 
-  const availableRoles = (rolesQuery.data ?? []).filter((role) => role.status === 'active');
-
-  useEffect(() => {
-    if (!requireRoleTemplate) {
-      return;
-    }
-    if (!umRoleRead) {
-      return;
-    }
-    const roles = (rolesQuery.data ?? []).filter((role) => role.status === 'active');
-    if (roles.length === 0) {
-      return;
-    }
-    const current = form.getValues('role_template_ids');
-    if (current.length !== 1) {
-      form.setValue('role_template_ids', [roles[0].id], { shouldValidate: true });
-    }
-  }, [requireRoleTemplate, umRoleRead, rolesQuery.data, form]);
+  const availableRoles = useMemo(
+    () => (rolesQuery.data ?? []).filter((role) => role.status === 'active'),
+    [rolesQuery.data],
+  );
 
   const selectedRoleTemplateIds = useWatch({
     control: form.control,
@@ -224,7 +213,7 @@ export function CreateUserForm({
     roleCapabilitiesQuery.isFetching &&
     roleCapabilitiesQuery.data === undefined;
 
-  const roleCapabilities = roleCapabilitiesQuery.data ?? [];
+  const roleCapabilities = roleCapabilitiesQuery.data ?? EMPTY_ROLE_CAPABILITIES;
   const allRoleCapabilityIds = useMemo(
     () => roleCapabilities.map((capability) => capability.id),
     [roleCapabilities],
@@ -232,10 +221,12 @@ export function CreateUserForm({
 
   useEffect(() => {
     if (!selectedRoleId) {
-      form.setValue('role_capability_selection_ids', [], {
-        shouldDirty: true,
-        shouldValidate: true,
-      });
+      if (form.getValues('role_capability_selection_ids').length > 0) {
+        form.setValue('role_capability_selection_ids', [], {
+          shouldDirty: true,
+          shouldValidate: false,
+        });
+      }
       prevRoleIdRef.current = undefined;
       return;
     }
@@ -367,6 +358,7 @@ export function CreateUserForm({
           roleTemplates={availableRoles}
           roleTemplatesPending={roleTemplatesPending}
           roleTemplatesError={rolesQuery.isError}
+          selectedRoleId={selectedRoleId}
           roleCapabilities={roleCapabilities}
           roleCapabilitiesPending={roleCapabilitiesPending}
           roleCapabilitiesError={roleCapabilitiesQuery.isError}

@@ -23,6 +23,7 @@ import {
   RegistrationSection,
   RegistrationSubsectionLabel,
 } from '@/features/frontdesk/components/registration-form-chrome';
+import { sanitizeIndianMobileInput } from '@/lib/indian-mobile';
 import type { CreateVisitRequestBody } from '@/features/frontdesk/types';
 import { coerceAgePartValue } from '@/features/frontdesk/utils/visit-registration-helpers';
 import {
@@ -99,8 +100,7 @@ export function RegistrationPatientSection({
               ref={patientPhoneRef}
               onBlur={patientPhoneOnBlur}
               onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                const el = e.target;
-                el.value = el.value.replace(/\D/g, '').slice(0, 10);
+                e.target.value = sanitizeIndianMobileInput(e.target.value);
                 void patientPhoneRhfOnChange(e);
               }}
               className="mt-1.5 h-9 w-full"

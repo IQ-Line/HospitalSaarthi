@@ -16,6 +16,7 @@ import {
   TableRow,
 } from '@pulse/ui/table';
 import { executeCreateVisitFlow, listRegistrations } from '@/features/frontdesk/api/registrations';
+import { indianMobileRegisterOptions } from '@/lib/indian-mobile';
 import type { RegistrationReportQueryContext } from '@/features/frontdesk/api/registration-documents';
 import { resolveRegistrationBillId } from '@/features/frontdesk/api/registration-bill';
 import {
@@ -356,13 +357,7 @@ function VisitRegistrationRoute() {
     onChange: patientPhoneRhfOnChange,
     onBlur: patientPhoneOnBlur,
     name: patientPhoneName,
-  } = form.register('patient.phone', {
-    required: 'Phone number is required',
-    pattern: {
-      value: /^\d{10}$/,
-      message: 'Enter a 10-digit mobile number (digits only)',
-    },
-  });
+  } = form.register('patient.phone', indianMobileRegisterOptions());
 
   const submitIdempotencyKeyRef = useRef<string | undefined>(undefined);
   const pendingAbhaDistrictRef = useRef<string | null>(null);
@@ -528,7 +523,7 @@ function VisitRegistrationRoute() {
       if (blockers.includes('10-digit phone')) {
         form.setError('patient.phone', {
           type: 'required',
-          message: 'Enter a 10-digit mobile number',
+          message: 'Enter a valid 10-digit mobile number (must start with 6, 7, 8, or 9)',
         });
       }
       if (blockers.includes('first name')) {

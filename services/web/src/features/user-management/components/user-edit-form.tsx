@@ -1,10 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, type ChangeEvent } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@pulse/ui/button';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
+import { indianMobileZodFieldOptional, sanitizeIndianMobileInput } from '@/lib/indian-mobile';
 import type { UmUser, UpdateUserBody } from '../types';
 import { useUpdateUser } from '../api/mutations';
 import { UserManagementSectionCard } from './user-management-section-card';
@@ -12,7 +13,7 @@ import { UserManagementSectionCard } from './user-management-section-card';
 const schema = z.object({
   full_name: z.string().min(1, 'Required'),
   email: z.union([z.literal(''), z.string().email()]),
-  phone: z.string(),
+  phone: indianMobileZodFieldOptional(),
   username: z.string(),
   org_id: z.union([z.literal(''), z.string().uuid()]),
   department: z.string(),
@@ -96,7 +97,21 @@ export function UserEditForm({ user }: { user: UmUser }) {
           </div>
           <div className="space-y-2">
             <Label htmlFor="phone">Phone</Label>
-            <Input id="phone" {...register('phone')} />
+            <Input
+              id="phone"
+              inputMode="numeric"
+              autoComplete="tel-national"
+              maxLength={10}
+              placeholder="Enter 10-digit number"
+              {...register('phone', {
+                onChange: (e: ChangeEvent<HTMLInputElement>) => {
+                  e.target.value = sanitizeIndianMobileInput(e.target.value);
+                },
+              })}
+            />
+            {formState.errors.phone ? (
+              <p className="text-sm text-destructive">{formState.errors.phone.message}</p>
+            ) : null}
           </div>
           <div className="space-y-2">
             <Label htmlFor="username">Username</Label>
