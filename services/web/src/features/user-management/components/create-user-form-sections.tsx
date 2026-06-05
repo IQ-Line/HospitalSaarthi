@@ -217,36 +217,42 @@ export function CreateUserAccessSection({
         <Controller
           control={control}
           name="role_template_ids"
-          render={({ field }) => {
+          render={({ field, fieldState, formState }) => {
             const selectedId = field.value[0] ?? '';
+            const showRoleError =
+              Boolean(fieldState.error) && (fieldState.isTouched || formState.isSubmitted);
             return (
-              <Select
-                disabled={!umRoleAssign}
-                value={selectedId || undefined}
-                onValueChange={(value) => {
-                  field.onChange([value]);
-                }}
-              >
-                <SelectTrigger id="c_role_template" aria-invalid={errors.role_template_ids ? true : undefined}>
-                  <SelectValue placeholder="Select a role" />
-                </SelectTrigger>
-                <SelectContent>
-                  {roleTemplates.map((role) => (
-                    <SelectItem key={role.id} value={role.id}>
-                      {role.display_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <>
+                <Select
+                  disabled={!umRoleAssign}
+                  value={selectedId || undefined}
+                  onValueChange={(value) => {
+                    field.onChange([value]);
+                  }}
+                >
+                  <SelectTrigger id="c_role_template" aria-invalid={showRoleError ? true : undefined}>
+                    <SelectValue placeholder="Select a role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roleTemplates.map((role) => (
+                      <SelectItem key={role.id} value={role.id}>
+                        {role.display_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {umRoleAssign
+                    ? 'Choose a role, then tick the permissions they should have.'
+                    : 'You can review the role but cannot change it.'}
+                </p>
+                <FieldError
+                  message={showRoleError ? fieldState.error?.message?.toString() : undefined}
+                />
+              </>
             );
           }}
         />
-        <p className="text-xs text-muted-foreground">
-          {umRoleAssign
-            ? 'Choose a role, then tick the permissions they should have.'
-            : 'You can review the role but cannot change it.'}
-        </p>
-        <FieldError message={errors.role_template_ids?.message?.toString()} />
       </div>
     );
   }
