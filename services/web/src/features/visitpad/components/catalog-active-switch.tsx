@@ -30,10 +30,10 @@ export function CatalogActiveSwitch({
         <p className="text-sm text-muted-foreground">{activeHelperCopy(entityKind)}</p>
       </div>
       <Switch
-        id={id}
         checked={checked}
         onCheckedChange={onCheckedChange}
         aria-label={checked ? 'Active' : 'Inactive'}
+        data-testid={id}
       />
     </div>
   );

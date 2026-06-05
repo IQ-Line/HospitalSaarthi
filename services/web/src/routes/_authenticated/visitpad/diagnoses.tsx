@@ -14,12 +14,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@pulse/ui/select';
-import { Switch } from '@pulse/ui/switch';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
 import { CatalogActiveSwitch } from '@/features/visitpad/components/catalog-active-switch';
+import { FormToggleRow } from '@/features/visitpad/components/form-toggle-row';
 import { RequiredLabel, VISITPAD_CODE_HELPER_TEXT } from '@/features/visitpad/components/required-label';
 import { useCatalogActiveToggleConfirm } from '@/features/visitpad/hooks/use-catalog-active-toggle-confirm';
 import { nextDisplayOrder } from '@/features/visitpad/lib/next-display-order';
@@ -473,35 +473,23 @@ function DiagnosisCreateDialog({
             {...form.register('snomed_code')}
           />
         </div>
-        <div className="flex flex-col gap-1 rounded-md border p-3 sm:col-span-2">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <Label htmlFor="vp-dx-chr">Chronic illness prompt</Label>
-              <p className="text-xs text-muted-foreground">
-                When selected in a visit, doctors can be prompted to add this to chronic illness history.
-              </p>
-            </div>
-            <Switch
-              id="vp-dx-chr"
-              checked={!!form.watch('is_chronic_flag')}
-              onCheckedChange={(c) => form.setValue('is_chronic_flag', c)}
-            />
-          </div>
+        <div className="sm:col-span-2">
+          <FormToggleRow
+            id="vp-dx-chr"
+            label="Chronic illness prompt"
+            description="When selected in a visit, doctors can be prompted to add this to chronic illness history."
+            checked={!!form.watch('is_chronic_flag')}
+            onCheckedChange={(c) => form.setValue('is_chronic_flag', c)}
+          />
         </div>
-        <div className="flex flex-col gap-1 rounded-md border p-3 sm:col-span-2">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <Label htmlFor="vp-dx-not">Notifiable condition</Label>
-              <p className="text-xs text-muted-foreground">
-                Marks diagnoses that may require public health notification workflows.
-              </p>
-            </div>
-            <Switch
-              id="vp-dx-not"
-              checked={!!form.watch('is_notifiable')}
-              onCheckedChange={(c) => form.setValue('is_notifiable', c)}
-            />
-          </div>
+        <div className="sm:col-span-2">
+          <FormToggleRow
+            id="vp-dx-not"
+            label="Notifiable condition"
+            description="Marks diagnoses that may require public health notification workflows."
+            checked={!!form.watch('is_notifiable')}
+            onCheckedChange={(c) => form.setValue('is_notifiable', c)}
+          />
         </div>
         <div className="sm:col-span-2">
           <CatalogActiveSwitch
@@ -599,35 +587,23 @@ function DiagnosisEditDialog({
             <RequiredLabel htmlFor="vp-de-order">Display order</RequiredLabel>
             <Input id="vp-de-order" type="number" {...form.register('display_order', { valueAsNumber: true })} />
           </div>
-          <div className="flex flex-col gap-1 rounded-md border p-3 sm:col-span-2">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <Label htmlFor="vp-de-chr">Chronic illness prompt</Label>
-                <p className="text-xs text-muted-foreground">
-                  When selected in a visit, doctors can be prompted to add this to chronic illness history.
-                </p>
-              </div>
-              <Switch
-                id="vp-de-chr"
-                checked={!!form.watch('is_chronic_flag')}
-                onCheckedChange={(c) => form.setValue('is_chronic_flag', c)}
-              />
-            </div>
+          <div className="sm:col-span-2">
+            <FormToggleRow
+              id="vp-de-chr"
+              label="Chronic illness prompt"
+              description="When selected in a visit, doctors can be prompted to add this to chronic illness history."
+              checked={!!form.watch('is_chronic_flag')}
+              onCheckedChange={(c) => form.setValue('is_chronic_flag', c)}
+            />
           </div>
-          <div className="flex flex-col gap-1 rounded-md border p-3 sm:col-span-2">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <Label htmlFor="vp-de-not">Notifiable condition</Label>
-                <p className="text-xs text-muted-foreground">
-                  Marks diagnoses that may require public health notification workflows.
-                </p>
-              </div>
-              <Switch
-                id="vp-de-not"
-                checked={!!form.watch('is_notifiable')}
-                onCheckedChange={(c) => form.setValue('is_notifiable', c)}
-              />
-            </div>
+          <div className="sm:col-span-2">
+            <FormToggleRow
+              id="vp-de-not"
+              label="Notifiable condition"
+              description="Marks diagnoses that may require public health notification workflows."
+              checked={!!form.watch('is_notifiable')}
+              onCheckedChange={(c) => form.setValue('is_notifiable', c)}
+            />
           </div>
           <div className="sm:col-span-2">
             <CatalogActiveSwitch

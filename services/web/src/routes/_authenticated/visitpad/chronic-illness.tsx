@@ -14,7 +14,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@pulse/ui/select';
-import { Switch } from '@pulse/ui/switch';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
@@ -615,20 +614,14 @@ function ChronicIllnessEditDialog({
             <Label htmlFor="vp-cie-snomed">SNOMED CT (clinical finding)</Label>
             <Input id="vp-cie-snomed" maxLength={64} {...form.register('snomed_code')} />
           </div>
-          <div className="flex flex-col gap-2 rounded-md border p-3 sm:col-span-2">
-            <div className="flex items-center justify-between gap-4">
-              <Label htmlFor="vp-cie-prompt">Chronic illness prompt</Label>
-              <Controller
-                control={form.control}
-                name="chronic_illness_prompt"
-                render={({ field }) => (
-                  <Switch id="vp-cie-prompt" checked={field.value} onCheckedChange={field.onChange} />
-                )}
-              />
-            </div>
-            <p className="text-sm text-muted-foreground">
-              When enabled, visit workflows may surface a chronic follow-up prompt for this entry.
-            </p>
+          <div className="sm:col-span-2">
+            <FormToggleRow
+              id="vp-cie-prompt"
+              label="Chronic illness prompt"
+              description="When enabled, visit workflows may surface a chronic follow-up prompt for this entry."
+              checked={!!form.watch('chronic_illness_prompt')}
+              onCheckedChange={(c) => form.setValue('chronic_illness_prompt', c)}
+            />
           </div>
           <div className="sm:col-span-2">
             <CatalogActiveSwitch
