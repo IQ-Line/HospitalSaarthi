@@ -1,3 +1,7 @@
+import {
+  useInvalidCellsForSection,
+  useSectionHasErrors,
+} from '../../hooks/use-visitpad-field-errors';
 import { useCreateRxStore } from '../../create-rx.store';
 import type { PhysicalActivityRow } from '../../types';
 import { FormTable, type FormTableColumn } from '../form-table';
@@ -19,6 +23,8 @@ export function PhysicalActivity() {
   const add = useCreateRxStore((s) => s.addPhysicalActivityRow);
   const remove = useCreateRxStore((s) => s.removePhysicalActivityRow);
   const update = useCreateRxStore((s) => s.updatePhysicalActivityRow);
+  const invalidCells = useInvalidCellsForSection('physicalActivity');
+  const hasErrors = useSectionHasErrors('physicalActivity');
 
   return (
     <div className="p-4">
@@ -28,6 +34,8 @@ export function PhysicalActivity() {
         columns={COLUMNS}
         rows={rows}
         readOnly={isReadOnly}
+        invalidCells={invalidCells}
+        highlightSection={hasErrors}
         emptyMessage="No physical activity added"
         onAdd={add}
         onRemove={remove}

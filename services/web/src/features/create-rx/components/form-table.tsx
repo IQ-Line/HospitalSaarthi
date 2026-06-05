@@ -1,4 +1,5 @@
 import { Plus, Trash2 } from 'lucide-react';
+import { cn } from '@pulse/utils';
 import { Button } from '@pulse/ui/button';
 import { Input } from '@pulse/ui/input';
 import {
@@ -40,6 +41,10 @@ interface FormTableProps<T extends { id: string }> {
   hideTitle?: boolean;
   /** Disables catalog-backed selects while tenant Visitpad masters are loading. */
   catalogLoading?: boolean;
+  /** `${rowId}:${fieldKey}` keys for cells that failed validation. */
+  invalidCells?: ReadonlySet<string>;
+  /** Highlights the whole table block when the section has validation errors. */
+  highlightSection?: boolean;
   onAdd: () => void;
   onRemove: (index: number) => void;
   onUpdate: (index: number, field: keyof T & string, value: string) => void;
@@ -68,6 +73,8 @@ export function FormTable<T extends { id: string }>({
   hideAdd = false,
   hideTitle = false,
   catalogLoading = false,
+  invalidCells,
+  highlightSection = false,
   onAdd,
   onRemove,
   onUpdate,
@@ -76,11 +83,26 @@ export function FormTable<T extends { id: string }>({
     emptyMessage ??
     (hideAdd ? `No ${title.toLowerCase()} added` : `No ${title.toLowerCase()} added. Click '${addButtonLabel}' to begin.`);
 
+  const isCellInvalid = (rowId: string, field: string) =>
+    invalidCells?.has(`${rowId}:${field}`) ?? false;
+
   return (
-    <div>
+    <div
+      className={cn(
+        'rounded-md transition-colors',
+        highlightSection && 'ring-2 ring-red-400 ring-offset-2',
+      )}
+    >
       {!hideTitle ? (
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-base font-medium text-gray-700">{title}</h3>
+          <h3
+            className={cn(
+              'text-base font-medium text-gray-700',
+              highlightSection && 'text-red-700',
+            )}
+          >
+            {title}
+          </h3>
           {!readOnly && !hideAdd ? (
           <Button
             type="button"
@@ -153,7 +175,14 @@ export function FormTable<T extends { id: string }>({
                           }
                           disabled={catalogLoading}
                         >
-                          <SelectTrigger className="h-8 text-sm">
+                          <SelectTrigger
+                            className={cn(
+                              'h-8 text-sm',
+                              isCellInvalid(row.id, col.key) &&
+                                'border-red-500 ring-1 ring-red-500 focus:ring-red-500',
+                            )}
+                            aria-invalid={isCellInvalid(row.id, col.key)}
+                          >
                             <SelectValue
                               placeholder={
                                 catalogLoading ? 'Loading catalog…' : col.placeholder
@@ -175,7 +204,12 @@ export function FormTable<T extends { id: string }>({
                           value={(row[col.key] as string) ?? ''}
                           placeholder={col.placeholder}
                           onChange={(e) => onUpdate(index, col.key, e.target.value)}
-                          className="h-8 text-sm"
+                          aria-invalid={isCellInvalid(row.id, col.key)}
+                          className={cn(
+                            'h-8 text-sm',
+                            isCellInvalid(row.id, col.key) &&
+                              'border-red-500 ring-1 ring-red-500 focus-visible:ring-red-500',
+                          )}
                         />
                       )}
                     </TableCell>

@@ -1,6 +1,6 @@
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { TwoColumnLayout } from '@pulse/layouts/two-column-layout';
 import { Button } from '@pulse/ui/button';
@@ -15,13 +15,17 @@ import {
   saveOpdPrescriptionDraft,
 } from '../api/opd-prescription';
 import { fetchCreateRxVisitContext } from '../api/visit-context';
-import { hasAtLeastOneChiefComplaint } from '../lib/chief-complaint-validation';
 import {
   prepareCreateRxFormDataForSession,
   sanitizeCreateRxFormDataForPersist,
 } from '../lib/form-data-session';
+import {
+  validateVisitpadForm,
+  VISITPAD_SECTION_LABELS,
+} from '../lib/visitpad-validation';
 import { resolveCreateRxSession } from '../lib/resolve-create-rx-session';
 import { useCreateRxStore } from '../create-rx.store';
+import { ConsultationStatusModal } from './consultation-status-modal';
 import { DocumentsTab } from './documents-tab';
 import { Header } from './header';
 import { MainTabs } from './main-tabs';
@@ -52,6 +56,11 @@ export function Page({
   const activeMainTab = useCreateRxStore((s) => s.activeMainTab);
   const resetForVisit = useCreateRxStore((s) => s.resetForVisit);
   const setLoading = useCreateRxStore((s) => s.setLoading);
+  const setActiveSectionTab = useCreateRxStore((s) => s.setActiveSectionTab);
+  const setVisitpadFieldErrors = useCreateRxStore((s) => s.setVisitpadFieldErrors);
+  const clearVisitpadFieldErrors = useCreateRxStore((s) => s.clearVisitpadFieldErrors);
+  const [consultationModalOpen, setConsultationModalOpen] = useState(false);
+  const [endingConsultation, setEndingConsultation] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -123,10 +132,10 @@ export function Page({
     };
   }, [visitId, mode, loadPrescription, resetForVisit, setLoading, queryClient]);
 
-  const handleSave = async () => {
+  const persistDraft = async () => {
     const visit = context?.visit;
     const patientId = context?.patient.id;
-    if (!visit?.id || !patientId) return;
+    if (!visit?.id || !patientId) return false;
 
     try {
       const formData = sanitizeCreateRxFormDataForPersist(useCreateRxStore.getState().formData);
@@ -146,15 +155,42 @@ export function Page({
         saved.prescription_id,
       );
       toast.success('Prescription draft saved');
+      return true;
     } catch {
       toast.error('Failed to save prescription draft.');
+      return false;
+    }
+  };
+
+  const applyVisitpadValidationErrors = () => {
+    const rawFormData = useCreateRxStore.getState().formData;
+    const validation = validateVisitpadForm(rawFormData, { requireChiefComplaint: true });
+    if (validation.isValid) {
+      clearVisitpadFieldErrors();
+      return true;
+    }
+
+    setVisitpadFieldErrors(validation.errors);
+    if (validation.firstSectionTab) {
+      setActiveSectionTab(validation.firstSectionTab);
+    }
+    const sectionNames = validation.invalidSections
+      .map((section) => VISITPAD_SECTION_LABELS[section])
+      .join(', ');
+    toast.error(`Complete required fields in: ${sectionNames}`);
+    return false;
+  };
+
+  const handleContinueConsultation = async () => {
+    const saved = await persistDraft();
+    if (saved) {
+      setConsultationModalOpen(false);
     }
   };
 
   const handleEndConsultation = async () => {
-    const rawFormData = useCreateRxStore.getState().formData;
-    if (!hasAtLeastOneChiefComplaint(rawFormData.chiefComplaints)) {
-      toast.error('Add at least one chief complaint before ending consultation.');
+    if (!applyVisitpadValidationErrors()) {
+      setConsultationModalOpen(false);
       return;
     }
 
@@ -162,16 +198,20 @@ export function Page({
     const patientId = context?.patient.id;
     if (!visit?.id || !patientId) return;
 
+    setEndingConsultation(true);
     try {
-      const formData = sanitizeCreateRxFormDataForPersist(rawFormData);
+      const formData = sanitizeCreateRxFormDataForPersist(useCreateRxStore.getState().formData);
       await endConsultation(visit.id, patientId, formData, opdPrescriptionId);
       void queryClient.invalidateQueries({ queryKey: opdPatientsQueryKeys.all });
+      setConsultationModalOpen(false);
       toast.success('Consultation ended. Patient status updated to Consulted.');
       void navigate({ to: '/patients' });
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Failed to end consultation.';
       toast.error(message);
+    } finally {
+      setEndingConsultation(false);
     }
   };
 
@@ -198,7 +238,7 @@ export function Page({
 
   const centerContent =
     activeMainTab === 'visitpad' ? (
-      <VisitPad onSave={handleSave} onEndConsultation={handleEndConsultation} />
+      <VisitPad onSaveClick={() => setConsultationModalOpen(true)} />
     ) : activeMainTab === 'documents' ? (
       <DocumentsTab />
     ) : (
@@ -227,6 +267,13 @@ export function Page({
           rightBodyClassName="h-full overflow-hidden"
         />
       </div>
+      <ConsultationStatusModal
+        open={consultationModalOpen}
+        onOpenChange={setConsultationModalOpen}
+        onContinue={() => void handleContinueConsultation()}
+        onEndConsultation={() => void handleEndConsultation()}
+        ending={endingConsultation}
+      />
     </div>
   );
 }
