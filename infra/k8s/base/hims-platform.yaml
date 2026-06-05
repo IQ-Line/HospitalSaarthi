@@ -25,6 +25,11 @@ data:
   EMPI_URL: "http://empi-svc.himsv2.svc.cluster.local:3002"
   BILLING_URL: "http://billing-svc.himsv2.svc.cluster.local:3003"
   REGISTRATION_URL: "http://registration-svc.himsv2.svc.cluster.local:3006"
+  # registration-svc OPD slip/receipt PDFs (internal pdf-worker; not exposed via Ingress)
+  PDF_PLATFORM_URL: "http://pdf-worker.himsv2.svc.cluster.local:8091"
+  # Public web origin for report assets (logo) inlined before PDF render — match AUTH_BASE_URL host
+  REPORT_WEB_ORIGIN: "https://hims.example.com"
+  REPORT_LOGO_URL: "/reportLogo.svg"
   MASTER_DATA_URL: "http://master-data.himsv2.svc.cluster.local:8010"
   VISITS_STUB: "true"
   MASTER_DATA_API_PREFIX: "/api/v1/master-data"
