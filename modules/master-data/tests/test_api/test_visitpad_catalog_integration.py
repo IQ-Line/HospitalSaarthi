@@ -159,10 +159,12 @@ def test_visitpad_medicine_bulk_import_from_platform(visitpad_catalog_client: Te
         "drug_class": "NSAID",
         "dosage_form": "tablet",
         "schedule": "otc",
+        "price": 42.5,
     }
     r = visitpad_catalog_client.post("/api/v1/master-data/visitpad/medicines", json=body)
     assert r.status_code == 201, r.text
     mid = r.json()["data"]["id"]
+    assert r.json()["data"]["price"] == 42.5
     imp = visitpad_catalog_client.post(
         "/api/v1/master-data/visitpad/medicines/import-from-platform",
         headers={"iq_tenant_id": TENANT_IMPORT},
@@ -172,6 +174,13 @@ def test_visitpad_medicine_bulk_import_from_platform(visitpad_catalog_client: Te
     out = imp.json()["data"]
     assert len(out["created"]) == 1
     assert out["errors"] == []
+    tenant_id = out["created"][0]
+    g = visitpad_catalog_client.get(
+        f"/api/v1/master-data/visitpad/medicines/{tenant_id}",
+        headers={"iq_tenant_id": TENANT_IMPORT},
+    )
+    assert g.status_code == 200
+    assert g.json()["data"]["price"] == 42.5
 
 
 def test_visitpad_rx_column_bulk_import_from_platform(visitpad_catalog_client: TestClient) -> None:
