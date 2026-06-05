@@ -98,12 +98,16 @@ export function MasterDataCapabilityPermissionTree({
     const branchIds = treeBranchIds(capabilityTree);
     setExpandedBranchIds((current) => {
       const next = new Set(current);
+      let changed = false;
       branchIds.forEach((branchId) => {
         if (branchId.replace(/^branch:/, '').split('/').filter(Boolean).length <= 1) {
-          next.add(branchId);
+          if (!next.has(branchId)) {
+            next.add(branchId);
+            changed = true;
+          }
         }
       });
-      return next;
+      return changed ? next : current;
     });
   }, [useCatalogTree, capabilityTree]);
 
