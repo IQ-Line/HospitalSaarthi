@@ -21,7 +21,12 @@ import type {
   User,
   RoleStatus,
   UserStatus,
+  UserKind,
+  PartnerPrincipal,
+  ProvisionPartnerPrincipalInput,
 } from "../domain/types.js";
+
+export type { PartnerPrincipalRepository } from "./partner-principal-repository.js";
 
 import type { UserReadListResourceAbac } from "../domain/user-read-list-resource-filter.js";
 
@@ -45,6 +50,9 @@ export type {
   UserEffectiveCapabilities,
   User,
   UserStatus,
+  UserKind,
+  PartnerPrincipal,
+  ProvisionPartnerPrincipalInput,
 } from "../domain/types.js";
 
 export type { UserReadListResourceAbac };

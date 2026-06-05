@@ -1,8 +1,10 @@
+import { assertLoginablePlatformUser } from "../domain/assert-loginable-platform-user.js";
 import {
   RoleNotFoundError,
   UserNotFoundError,
   ValidationError,
 } from "../domain/errors.js";
+import { isUuid } from "../domain/uuid.js";
 import type {
   AppliedRoleTemplate,
   CapabilityRepository,
@@ -16,9 +18,6 @@ import type {
 } from "../ports/index.js";
 import type { ModuleEntitlementRequestContext } from "../ports/module-integration-ports.js";
 import { assertRuntimeCapabilitiesEntitledForTenant } from "./assert-runtime-capabilities-entitled-for-tenant.js";
-
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type ApplyRoleTemplateDeps = {
   userRepository: UserRepository;
@@ -48,7 +47,7 @@ export async function applyRoleTemplate(
   },
   entitlementContext?: ModuleEntitlementRequestContext,
 ): Promise<AppliedRoleTemplate> {
-  if (!UUID_RE.test(input.user_id) || !UUID_RE.test(input.role_id)) {
+  if (!isUuid(input.user_id) || !isUuid(input.role_id)) {
     throw new ValidationError("apply_role_template_ids_invalid");
   }
 
@@ -56,6 +55,7 @@ export async function applyRoleTemplate(
   if (user === null) {
     throw new UserNotFoundError(input.user_id);
   }
+  assertLoginablePlatformUser(user);
 
   const role = await deps.roleRepository.getRoleById(ctx.tenantId, input.role_id);
   if (role === null) {
@@ -75,7 +75,7 @@ export async function applyRoleTemplate(
       throw new ValidationError("apply_role_template_capability_ids_empty");
     }
     for (const capabilityId of unique) {
-      if (!UUID_RE.test(capabilityId)) {
+      if (!isUuid(capabilityId)) {
         throw new ValidationError("apply_role_template_capability_ids_invalid");
       }
       if (!allowedIds.has(capabilityId)) {

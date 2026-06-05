@@ -103,6 +103,122 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorMessage"
+  /partner-principals:
+    post:
+      tags:
+        - Partner Principals
+      summary: Provision partner principal for an integration
+      description: >
+        Called by Integration Hub on activate. Creates a non-loginable `users.kind = partner` row,
+        binds `integration_id`, and writes `user_capabilities` from `suggested_capability_keys`
+        (validated against the tenant assignable catalog). Idempotent per `(tenant, integration_id)`.
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProvisionPartnerPrincipalRequest"
+      responses:
+        "201":
+          description: Partner principal provisioned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartnerPrincipal"
+        "400":
+          description: Invalid capability keys or entitlement failure.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /partner-principals/{integrationId}/deactivate:
+    post:
+      tags:
+        - Partner Principals
+      summary: Deactivate partner principal
+      description: >
+        Sets partner status to inactive and soft-revokes `grant_source = system` capability rows.
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+        - name: integrationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Partner principal deactivated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartnerPrincipal"
+        "404":
+          description: Partner principal not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /partner-principals/{integrationId}/reactivate:
+    post:
+      tags:
+        - Partner Principals
+      summary: Reactivate partner principal
+      description: >
+        Sets partner status to active and restores previously revoked system capability grants.
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+        - name: integrationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Partner principal reactivated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartnerPrincipal"
+        "404":
+          description: Partner principal not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /capabilities:
     get:
       tags:
@@ -1491,6 +1607,47 @@ components:
         correlation_id:
           type: string
           description: Request correlation identifier.
+    ProvisionPartnerPrincipalRequest:
+      type: object
+      required:
+        - integration_id
+        - integration_display_name
+        - suggested_capability_keys
+      properties:
+        integration_id:
+          type: string
+          format: uuid
+        integration_display_name:
+          type: string
+        suggested_capability_keys:
+          type: array
+          minItems: 1
+          items:
+            type: string
+          description: UX defaults from Integration Hub; validated and persisted as UM grants only.
+    PartnerPrincipal:
+      type: object
+      required:
+        - id
+        - full_name
+        - kind
+        - integration_id
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        full_name:
+          type: string
+        kind:
+          type: string
+          enum: [partner]
+        integration_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [active, inactive, suspended]
     User:
       type: object
       required:
@@ -1503,6 +1660,15 @@ components:
           format: uuid
         full_name:
           type: string
+        kind:
+          type: string
+          enum: [user, partner, service]
+          description: Principal class; partner rows are non-loginable.
+        integration_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Integration Hub registry id when kind is partner.
         email:
           type: string
           nullable: true
@@ -1562,6 +1728,7 @@ components:
           type: object
           required:
             - iq_tenant_id
+            - kind
             - department
             - org_id
             - capabilities
@@ -1571,6 +1738,9 @@ components:
           properties:
             iq_tenant_id:
               type: string
+            kind:
+              type: string
+              enum: [user, partner, service]
             department:
               type: string
               nullable: true

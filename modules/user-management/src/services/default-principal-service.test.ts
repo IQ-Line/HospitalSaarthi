@@ -72,4 +72,29 @@ describe("DefaultPrincipalService — capability resolution", () => {
     expect(principal.attributes.delegated_capabilities).toEqual([]);
     expect(principal.attributes.capabilities).toEqual(["users:users:create"]);
   });
+
+  it("exposes kind=partner and empty role_codes for partner principals", async () => {
+    const userRepo = new InMemoryUserRepository();
+    const partnerId = "partner-principal-1";
+    userRepo.insertPartnerPrincipal(T, {
+      id: partnerId,
+      integrationId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      fullName: "Smart Report",
+    });
+
+    const authorization = new InMemoryPrincipalAuthorizationRepository();
+    authorization.seedCapability(T, partnerId, "registration:registration:read");
+
+    const service = new DefaultPrincipalService({
+      userRepository: userRepo,
+      principalRoleProjectionRepository: new StubRoleProjection(["doctor"]),
+      principalAuthorizationRepository: authorization,
+    });
+
+    const principal = await service.getPrincipal({ tenantId: T, userId: partnerId });
+
+    expect(principal.attributes.kind).toBe("partner");
+    expect(principal.roles).toEqual([]);
+    expect(principal.attributes.capabilities).toEqual(["registration:registration:read"]);
+  });
 });

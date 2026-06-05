@@ -24,7 +24,11 @@ export type ValidationIssue =
   | "role_type_empty"
   | "role_display_name_invalid_type"
   | "role_display_name_empty"
-  | "replace_role_capabilities_invalid";
+  | "replace_role_capabilities_invalid"
+  | "partner_integration_id_invalid"
+  | "partner_display_name_empty"
+  | "partner_capability_keys_invalid"
+  | "partner_principal_admin_surface_forbidden";
 
 const VALIDATION_ISSUE_META: Record<ValidationIssue, { code: string; message: string }> = {
   full_name_invalid_type: {
@@ -128,6 +132,22 @@ const VALIDATION_ISSUE_META: Record<ValidationIssue, { code: string; message: st
     code: "INVALID_INPUT",
     message: "capability_ids must be an array of non-empty UUID strings.",
   },
+  partner_integration_id_invalid: {
+    code: "INVALID_INPUT",
+    message: "integration_id must be a UUID string.",
+  },
+  partner_display_name_empty: {
+    code: "INVALID_INPUT",
+    message: "integration_display_name must be a non-empty string.",
+  },
+  partner_capability_keys_invalid: {
+    code: "INVALID_INPUT",
+    message: "suggested_capability_keys must be a non-empty array of capability key strings.",
+  },
+  partner_principal_admin_surface_forbidden: {
+    code: "PLATFORM_USER_MUTATION_FORBIDDEN",
+    message: "This operation applies only to loginable platform users.",
+  },
 };
 
 /**
@@ -159,6 +179,22 @@ export class ValidationError extends UserManagementError {
 export class UserNotFoundError extends UserManagementError {
   constructor(public readonly userId?: string) {
     super("USER_NOT_FOUND", "User not found for this tenant.");
+  }
+}
+
+export class PartnerPrincipalNotFoundError extends UserManagementError {
+  constructor(public readonly integrationId?: string) {
+    super("PARTNER_PRINCIPAL_NOT_FOUND", "Partner principal not found for this integration.");
+  }
+}
+
+/** Human admin APIs must not mutate partner principals (ADR-0032 amendment B). */
+export class PlatformUserMutationForbiddenError extends UserManagementError {
+  constructor(public readonly principalKind: string) {
+    super(
+      "PLATFORM_USER_MUTATION_FORBIDDEN",
+      "This operation applies only to loginable platform users.",
+    );
   }
 }
 

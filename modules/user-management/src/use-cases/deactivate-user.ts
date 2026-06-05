@@ -1,3 +1,4 @@
+import { assertLoginablePlatformUser } from "../domain/assert-loginable-platform-user.js";
 import type { User } from "../ports/index.js";
 import type { UpdateUserContext, UpdateUserDeps } from "./update-user.js";
 import { updateUser } from "./update-user.js";
@@ -19,6 +20,7 @@ export async function deactivateUser(
   if (previous === null) {
     return null;
   }
+  assertLoginablePlatformUser(previous);
   if (previous.status === "inactive") {
     return previous;
   }

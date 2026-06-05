@@ -99,13 +99,16 @@ export class DefaultPrincipalService implements PrincipalService {
       throw new UserNotFoundError(context.userId);
     }
 
-    const roles = await projectPrincipalRoles(
-      {
-        principalRoleProjectionRepository: this.deps.principalRoleProjectionRepository,
-      },
-      context.tenantId,
-      context.userId,
-    );
+    const isPartnerPrincipal = user.kind === "partner";
+    const roles = isPartnerPrincipal
+      ? []
+      : await projectPrincipalRoles(
+          {
+            principalRoleProjectionRepository: this.deps.principalRoleProjectionRepository,
+          },
+          context.tenantId,
+          context.userId,
+        );
 
     const [capabilityKeys, clearances, delegatedRaw] = await Promise.all([
       this.deps.principalAuthorizationRepository.listEffectiveCapabilityKeys(
@@ -165,11 +168,14 @@ export class DefaultPrincipalService implements PrincipalService {
     const capabilities = canonicalizeRuntimeCapabilityKeys(capabilityKeys);
     const um_clearance_effective_tier = effectiveUmClearanceTierFromClearances(clearances);
 
+    const kind = user.kind === "partner" ? "partner" : "user";
+
     return {
       id: context.userId,
       roles,
       attributes: {
         iq_tenant_id: context.tenantId,
+        kind,
         department,
         org_id: orgIdAttr,
         role_codes: roles,

@@ -86,6 +86,33 @@ export function createUserManagementAuthzTargetResolver(
     const path = resolveRoutePattern(request);
     const method = request.method === "HEAD" ? "GET" : request.method;
 
+    if (method === "POST" && path === "/partner-principals") {
+      return {
+        kind: "partner_principal",
+        id: "new",
+        action: "partner_principal.provision",
+        attr: tenantAttr(request),
+      };
+    }
+
+    if (method === "POST" && path === "/partner-principals/:integrationId/deactivate") {
+      return {
+        kind: "partner_principal",
+        id: "deactivate",
+        action: "partner_principal.deactivate",
+        attr: tenantAttr(request),
+      };
+    }
+
+    if (method === "POST" && path === "/partner-principals/:integrationId/reactivate") {
+      return {
+        kind: "partner_principal",
+        id: "reactivate",
+        action: "partner_principal.reactivate",
+        attr: tenantAttr(request),
+      };
+    }
+
     if (method === "GET" && path === "/users") {
       return { kind: "user", id: "list", action: "user.read", attr: tenantAttr(request) };
     }

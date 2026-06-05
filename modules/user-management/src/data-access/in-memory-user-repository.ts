@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { userMatchesReadListResourceAbac } from "../domain/user-read-list-resource-filter.js";
 import { clampClearanceTierRequired } from "../domain/um-clearance-tier.js";
+import type { UserKind } from "../domain/types.js";
 import type {
   CreateUserInput,
   ListUsersOptions,
@@ -14,6 +15,9 @@ import type {
 type StoredUser = {
   id: string;
   full_name: string;
+  kind: UserKind;
+  integration_id: string | null;
+  deactivated_at: Date | null;
   email: string | null;
   phone: string | null;
   auth_user_id: string | null;
@@ -41,6 +45,8 @@ export class InMemoryUserRepository implements UserRepository {
     return {
       id: row.id,
       full_name: row.full_name,
+      kind: row.kind,
+      integration_id: row.integration_id,
       email: row.email,
       phone: row.phone,
       auth_user_id: row.auth_user_id,
@@ -61,6 +67,9 @@ export class InMemoryUserRepository implements UserRepository {
     const row: StoredUser = {
       id: userId,
       full_name: input.full_name,
+      kind: "user",
+      integration_id: null,
+      deactivated_at: null,
       email: input.email ?? null,
       phone: input.phone ?? null,
       auth_user_id: null,
@@ -77,12 +86,47 @@ export class InMemoryUserRepository implements UserRepository {
     return this.toUser(row);
   }
 
+  /** Test helper for partner principal rows (ADR-0032). */
+  insertPartnerPrincipal(
+    tenantId: string,
+    input: {
+      id?: string;
+      integrationId: string;
+      fullName: string;
+      status?: UserStatus;
+      deactivatedAt?: Date | null;
+    },
+  ): User {
+    const id = input.id ?? randomUUID();
+    const key = rowKey(tenantId, id);
+    const row: StoredUser = {
+      id,
+      full_name: input.fullName,
+      kind: "partner",
+      integration_id: input.integrationId,
+      deactivated_at: input.deactivatedAt ?? null,
+      email: null,
+      phone: null,
+      auth_user_id: null,
+      status: input.status ?? "active",
+      username: null,
+      org_id: null,
+      department: null,
+      clearance_tier_required: 0,
+    };
+    this.users.set(key, row);
+    return this.toUser(row);
+  }
+
   async createUser(tenantId: string, input: CreateUserInput): Promise<User> {
     const id = randomUUID();
     const key = rowKey(tenantId, id);
     const row: StoredUser = {
       id,
       full_name: input.full_name,
+      kind: "user",
+      integration_id: null,
+      deactivated_at: null,
       email: input.email ?? null,
       phone: input.phone ?? null,
       auth_user_id: null,
@@ -117,7 +161,7 @@ export class InMemoryUserRepository implements UserRepository {
     const prefix = `${tenantId}:`;
     let out: User[] = [];
     for (const [key, row] of this.users) {
-      if (key.startsWith(prefix)) {
+      if (key.startsWith(prefix) && row.kind !== "partner") {
         out.push(this.toUser(row));
       }
     }

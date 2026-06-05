@@ -76,21 +76,39 @@ const principalEnrichmentPluginImpl: FastifyPluginAsync<PrincipalEnricherPluginO
 
     // Principal rows are tenant-scoped: cross-tenant `iq_tenant_id` scopes persistence,
     // but enrichment must load the signed-in user from their JWT home tenant.
-    const located = await options.userRepository.findUserByGlobalId(identity.userId);
+    const isPartnerIdentity = identity.kind === "partner";
+    const located = isPartnerIdentity
+      ? null
+      : await options.userRepository.findUserByGlobalId(identity.userId);
     const platformUserId = located?.id ?? identity.userId;
     const context: AuthContext = {
-      tenantId: located?.iq_tenant_id ?? resolveJwtTenantIdFromRequest(request),
+      tenantId: isPartnerIdentity
+        ? identity.tenantId
+        : (located?.iq_tenant_id ?? resolveJwtTenantIdFromRequest(request)),
       userId: platformUserId,
       requestUser: identity,
     };
 
     try {
       const payload = await getPrincipal({ principalService: options.principalService }, context);
-      const jwtRoles = Array.isArray(identity.roles) ? identity.roles : [];
-      payload.roles = mergePrincipalRoleCodes(jwtRoles, payload.roles);
+      if (!isPartnerIdentity) {
+        const jwtRoles = Array.isArray(identity.roles) ? identity.roles : [];
+        payload.roles = mergePrincipalRoleCodes(jwtRoles, payload.roles);
+      } else {
+        payload.roles = [];
+      }
       payload.attributes.role_codes = payload.roles;
       request.cerbosPrincipal = payload;
-      applyCerbosPayloadToIdentity(identity, payload);
+      if (isPartnerIdentity) {
+        identity.roles = [];
+        identity.capabilities = payload.attributes.capabilities;
+        identity.delegatedCapabilities = payload.attributes.delegated_capabilities;
+        identity.clearances = payload.attributes.clearances;
+        identity.umClearanceEffectiveTier = payload.attributes.um_clearance_effective_tier;
+        identity.kind = "partner";
+      } else {
+        applyCerbosPayloadToIdentity(identity, payload);
+      }
       (request as RequestWithOptionalUser).user = identity;
     } catch (err) {
       if (reply.sent) return;

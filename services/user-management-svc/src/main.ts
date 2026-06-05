@@ -29,6 +29,7 @@ import {
   DrizzleRoleRepository,
   DrizzleUserAccessRepository,
   DrizzleUserProvisioningRepository,
+  DrizzlePartnerPrincipalRepository,
   DrizzleUserRepository,
   createDefaultPrincipalService,
   formatRuntimeAuthorizationStartupFailure,
@@ -132,6 +133,7 @@ async function createApp(): Promise<FastifyInstance> {
   const masterDataUrl = requireUpstreamBaseUrl("MASTER_DATA_URL");
 
   const userRepository = new DrizzleUserRepository(pgDb);
+  const partnerPrincipalRepository = new DrizzlePartnerPrincipalRepository(pgDb);
   const userProvisioningRepository = new DrizzleUserProvisioningRepository(pgDb);
   const capabilityRepository = new DrizzleCapabilityRepository(pgDb);
   const roleRepository = new DrizzleRoleRepository(pgDb);
@@ -278,6 +280,7 @@ async function createApp(): Promise<FastifyInstance> {
     authAccountProvisioner,
     tenantModuleEntitlementPort,
     masterDataModuleCatalogPort,
+    partnerPrincipalRepository,
   });
 
   return app;

@@ -42,6 +42,7 @@ export type {
   UserCapabilityGrant,
   UserEffectiveCapabilities,
   UserWithTenant,
+  PartnerPrincipalRepository,
 } from "./ports/index.js";
 export {
   loadIdentityJwtClaims,
@@ -86,6 +87,8 @@ export {
   UnexpectedPersistenceError,
   UserRoleTemplateNotFoundError,
   UserManagementError,
+  PartnerPrincipalNotFoundError,
+  PlatformUserMutationForbiddenError,
   UserNotFoundError,
   ValidationError,
 } from "./domain/errors.js";
@@ -116,6 +119,7 @@ export { DrizzleRoleCapabilityRepository } from "./data-access/role-capability-r
 export { DrizzleUserAccessRepository } from "./data-access/user-access-repository.js";
 export { DrizzlePrincipalRoleProjectionRepository } from "./data-access/drizzle-principal-role-projection-repository.js";
 export { DrizzleRoleRepository } from "./data-access/role-repository.js";
+export { DrizzlePartnerPrincipalRepository } from "./data-access/partner-principal-repository.js";
 export { DrizzleUserRepository } from "./data-access/user-repository.js";
 export { DrizzleUserProvisioningRepository } from "./data-access/user-provisioning-repository.js";
 export { InMemoryUserProvisioningRepository } from "./data-access/in-memory-user-provisioning-repository.js";
@@ -284,6 +288,13 @@ export { listUserRoles } from "./use-cases/list-user-roles.js";
 export type { ListUserRolesDeps } from "./use-cases/list-user-roles.js";
 export { replaceRoleCapabilities } from "./use-cases/replace-role-capabilities.js";
 export type { ReplaceRoleCapabilitiesDeps } from "./use-cases/replace-role-capabilities.js";
+export { provisionPartnerPrincipal } from "./use-cases/provision-partner-principal.js";
+export type { ProvisionPartnerPrincipalDeps } from "./use-cases/provision-partner-principal.js";
+export { deactivatePartnerPrincipal } from "./use-cases/deactivate-partner-principal.js";
+export type { DeactivatePartnerPrincipalDeps } from "./use-cases/deactivate-partner-principal.js";
+export { reactivatePartnerPrincipal } from "./use-cases/reactivate-partner-principal.js";
+export type { ReactivatePartnerPrincipalDeps } from "./use-cases/reactivate-partner-principal.js";
+export { assertRuntimeCapabilityKeysEntitledForTenant } from "./use-cases/assert-runtime-capability-keys-entitled-for-tenant.js";
 export { replaceUserCapabilities } from "./use-cases/replace-user-capabilities.js";
 export type { ReplaceUserCapabilitiesDeps } from "./use-cases/replace-user-capabilities.js";
 export { updateRole } from "./use-cases/update-role.js";

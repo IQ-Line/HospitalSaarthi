@@ -9,5 +9,9 @@ export async function getUserById(
   tenantId: string,
   userId: string,
 ): Promise<User | null> {
-  return deps.userRepository.getUserById(tenantId, userId);
+  const user = await deps.userRepository.getUserById(tenantId, userId);
+  if (user === null || user.kind === "partner") {
+    return null;
+  }
+  return user;
 }

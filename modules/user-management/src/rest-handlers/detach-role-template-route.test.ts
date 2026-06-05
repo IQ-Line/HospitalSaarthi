@@ -14,6 +14,7 @@ import { InMemoryUserProvisioningRepository } from "../data-access/in-memory-use
 import type { Capability, Role } from "../ports/index.js";
 import { userManagementPlugin } from "../router.js";
 import { createMasterDataModuleCatalogPortStub } from "../test-support/master-data-catalog-port-stub.js";
+import { NoopPartnerPrincipalRepository } from "../test-support/noop-partner-principal-repository.js";
 
 const apps: Array<ReturnType<typeof Fastify>> = [];
 
@@ -186,6 +187,7 @@ async function createTestApp() {
           },
         },
         masterDataModuleCatalogPort: createMasterDataModuleCatalogPortStub(),
+        partnerPrincipalRepository: new NoopPartnerPrincipalRepository(),
       });
     },
     { prefix: "/api/user-management" },

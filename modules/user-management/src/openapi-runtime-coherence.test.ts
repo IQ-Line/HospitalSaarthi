@@ -24,6 +24,7 @@ import type {
   UserWithTenant,
 } from "./ports/index.js";
 import { userManagementPlugin } from "./router.js";
+import { NoopPartnerPrincipalRepository } from "./test-support/noop-partner-principal-repository.js";
 import { NoopUserProvisioningRepository } from "./test-support/noop-user-provisioning-repository.js";
 import { createMasterDataModuleCatalogPortStub } from "./test-support/master-data-catalog-port-stub.js";
 import { publishUserManagementEvent } from "./events/publish-user-management-event.js";
@@ -418,6 +419,7 @@ describe("OpenAPI/runtime coherence", () => {
           authAccountProvisioner: noopAuthAccountProvisioner,
           tenantModuleEntitlementPort: noopTenantModuleEntitlementPort,
           masterDataModuleCatalogPort: noopMasterDataModuleCatalogPort,
+          partnerPrincipalRepository: new NoopPartnerPrincipalRepository(),
         });
       },
       { prefix: "/api/user-management" },
@@ -462,6 +464,7 @@ describe("OpenAPI/runtime coherence", () => {
           authAccountProvisioner: noopAuthAccountProvisioner,
           tenantModuleEntitlementPort: noopTenantModuleEntitlementPort,
           masterDataModuleCatalogPort: noopMasterDataModuleCatalogPort,
+          partnerPrincipalRepository: new NoopPartnerPrincipalRepository(),
         });
       },
       { prefix: "/api/user-management" },
@@ -527,6 +530,7 @@ describe("OpenAPI/runtime coherence", () => {
           authAccountProvisioner: noopAuthAccountProvisioner,
           tenantModuleEntitlementPort: noopTenantModuleEntitlementPort,
           masterDataModuleCatalogPort: noopMasterDataModuleCatalogPort,
+          partnerPrincipalRepository: new NoopPartnerPrincipalRepository(),
         });
       },
       { prefix: "/api/user-management" },
@@ -550,6 +554,9 @@ describe("OpenAPI/runtime coherence", () => {
         "/users/:id/capabilities",
         "/users/:id/effective-capabilities",
         "/users/:id/deactivate",
+        "/partner-principals",
+        "/partner-principals/:integrationId/deactivate",
+        "/partner-principals/:integrationId/reactivate",
         "/roles",
         "/roles/:id",
         "/roles/:id/capabilities",

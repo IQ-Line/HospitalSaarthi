@@ -3,7 +3,7 @@ import { DuplicateUsernameError, UnexpectedPersistenceError } from "../domain/er
 import { isPostgresUniqueViolation } from "./postgres-errors.js";
 import type { UserReadListResourceAbac } from "../domain/user-read-list-resource-filter.js";
 import { clampClearanceTierRequired } from "../domain/um-clearance-tier.js";
-import { and, eq, gt, isNull, lte, or, sql } from "drizzle-orm";
+import { and, eq, gt, isNull, lte, ne, or, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import type {
   CreateUserInput,
@@ -37,6 +37,8 @@ function drizzleUserReadResourceAbacWhere(f: UserReadListResourceAbac): SQL {
 function rowToUser(row: {
   id: string;
   full_name: string;
+  kind?: string;
+  integration_id?: string | null;
   email: string | null;
   phone: string | null;
   auth_user_id: string | null;
@@ -59,6 +61,8 @@ function rowToUser(row: {
   return {
     id: row.id,
     full_name: row.full_name,
+    ...(row.kind !== undefined ? { kind: row.kind as User["kind"] } : {}),
+    ...(row.integration_id !== undefined ? { integration_id: row.integration_id } : {}),
     email: row.email,
     phone: row.phone,
     auth_user_id: row.auth_user_id,
@@ -86,6 +90,8 @@ function parsePgTextArray(raw: string): string[] {
 const userColumns = {
   id: users.id,
   full_name: users.full_name,
+  kind: users.kind,
+  integration_id: users.integration_id,
   email: users.email,
   phone: users.phone,
   auth_user_id: users.auth_user_id,
@@ -145,6 +151,8 @@ export class DrizzleUserRepository implements UserRepository {
       .select({
         id: users.id,
         full_name: users.full_name,
+        kind: users.kind,
+        integration_id: users.integration_id,
         email: users.email,
         phone: users.phone,
         auth_user_id: users.auth_user_id,
@@ -165,7 +173,10 @@ export class DrizzleUserRepository implements UserRepository {
   }
 
   async listUsers(tenantId: string, options?: ListUsersOptions): Promise<User[]> {
-    const conditions: SQL[] = [eq(users.iq_tenant_id, tenantId)];
+    const conditions: SQL[] = [
+      eq(users.iq_tenant_id, tenantId),
+      ne(users.kind, "partner"),
+    ];
 
     if (options?.userReadResourceAbac !== undefined) {
       conditions.push(drizzleUserReadResourceAbacWhere(options.userReadResourceAbac));

@@ -11,6 +11,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -31,6 +32,14 @@ export const users = userManagementSchema.table(
     ...tenantColumn(),
     id: uuid("id").notNull().defaultRandom(),
     full_name: text("full_name").notNull(),
+    /** Principal class: loginable humans vs integration partners (ADR-0032). */
+    kind: text("kind").notNull().default("user"),
+    /** Integration Hub registry id when `kind = partner`. */
+    integration_id: uuid("integration_id"),
+    /** Set when a partner principal is deactivated; used to scope grant restore on reactivate. */
+    deactivated_at: timestamp("deactivated_at", { withTimezone: true }),
+    /** `user_capabilities.id` rows revoked during the latest partner deactivate (scoped restore). */
+    partner_deactivation_grant_ids: uuid("partner_deactivation_grant_ids").array(),
     email: text("email"),
     phone: text("phone"),
     /** better-auth / external identity anchor (nullable until linked). */
@@ -49,11 +58,29 @@ export const users = userManagementSchema.table(
   (t) => [
     primaryKey({ columns: [t.iq_tenant_id, t.id] }),
     check("users_status_chk", sql`${t.status} in ('active', 'inactive', 'suspended')`),
+    check("users_kind_chk", sql`${t.kind} in ('user', 'partner')`),
+    check(
+      "users_partner_non_loginable_chk",
+      sql`${t.kind} <> 'partner' or (
+        ${t.auth_user_id} is null
+        and ${t.email} is null
+        and ${t.username} is null
+        and ${t.phone} is null
+      )`,
+    ),
+    check(
+      "users_partner_integration_chk",
+      sql`${t.kind} <> 'partner' or ${t.integration_id} is not null`,
+    ),
     check(
       "users_clearance_tier_chk",
       sql`${t.clearance_tier_required} >= 0 and ${t.clearance_tier_required} <= 3`,
     ),
     unique("uq_users_tenant_username").on(t.iq_tenant_id, t.username),
+    uniqueIndex("uq_users_tenant_partner_integration")
+      .on(t.iq_tenant_id, t.integration_id)
+      .where(sql`${t.kind} = 'partner' and ${t.integration_id} is not null`),
+    index("idx_users_tenant_kind").on(t.iq_tenant_id, t.kind),
   ],
 );
 

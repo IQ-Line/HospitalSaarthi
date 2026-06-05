@@ -1,3 +1,4 @@
+import { assertLoginablePlatformUser } from "../domain/assert-loginable-platform-user.js";
 import type { EventBus } from "@hims/ts-sdk-events";
 import {
   USER_MANAGEMENT_EVENT_USER_DEACTIVATED,
@@ -25,6 +26,10 @@ export async function updateUser(
   input: UpdateUserInput,
 ): Promise<User | null> {
   const previous = await deps.userRepository.getUserById(ctx.tenantId, userId);
+  if (previous === null) {
+    return null;
+  }
+  assertLoginablePlatformUser(previous);
   const user = await deps.userRepository.updateUser(ctx.tenantId, userId, input);
   if (!user) {
     return null;

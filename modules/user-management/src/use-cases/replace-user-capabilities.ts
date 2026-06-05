@@ -1,8 +1,10 @@
+import { assertLoginablePlatformUser } from "../domain/assert-loginable-platform-user.js";
 import {
   CapabilityNotFoundError,
   UserNotFoundError,
   ValidationError,
 } from "../domain/errors.js";
+import { isUuid } from "../domain/uuid.js";
 import {
   RUNTIME_AUTH_LIMITS,
   assertWithinLimit,
@@ -20,9 +22,6 @@ import type {
 import type { ModuleEntitlementRequestContext } from "../ports/module-integration-ports.js";
 import { assertRuntimeCapabilitiesEntitledForTenant } from "./assert-runtime-capabilities-entitled-for-tenant.js";
 import { getUserCapabilities } from "./get-user-capabilities.js";
-
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type ReplaceUserCapabilitiesDeps = {
   userRepository: UserRepository;
@@ -49,10 +48,11 @@ export async function replaceUserCapabilities(
   if (user === null) {
     throw new UserNotFoundError(userId);
   }
+  assertLoginablePlatformUser(user);
 
   if (
     !Array.isArray(input.capability_ids) ||
-    input.capability_ids.some((capabilityId) => typeof capabilityId !== "string" || !UUID_RE.test(capabilityId))
+    input.capability_ids.some((capabilityId) => typeof capabilityId !== "string" || !isUuid(capabilityId))
   ) {
     throw new ValidationError("replace_user_capabilities_invalid");
   }

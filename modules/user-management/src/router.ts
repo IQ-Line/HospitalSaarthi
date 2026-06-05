@@ -23,7 +23,9 @@ import {
 import { registerAuthHandlers } from "./rest-handlers/auth-handlers.js";
 import { registerInternalDiagnosticsHandlers } from "./rest-handlers/internal-diagnostics-handlers.js";
 import { registerRoleHandlers } from "./rest-handlers/role-handlers.js";
+import { registerPartnerPrincipalHandlers } from "./rest-handlers/partner-principal-handlers.js";
 import { registerUserHandlers } from "./rest-handlers/user-handlers.js";
+import type { PartnerPrincipalRepository } from "./ports/partner-principal-repository.js";
 import { createDefaultRuntimeCapabilityCatalogPort } from "./services/default-runtime-capability-catalog-port.js";
 import type { UserProvisioningRepository } from "./ports/user-provisioning-repository.js";
 
@@ -70,6 +72,7 @@ export interface UserManagementPluginOptions {
   eventBus: EventBus;
   tenantModuleEntitlementPort: TenantModuleEntitlementPort;
   masterDataModuleCatalogPort: MasterDataModuleCatalogPort;
+  partnerPrincipalRepository: PartnerPrincipalRepository;
   getTenantId?: (request: FastifyRequest) => string;
   getUserId?: (request: FastifyRequest) => string;
 }
@@ -91,6 +94,7 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
     eventBus,
     tenantModuleEntitlementPort,
     masterDataModuleCatalogPort,
+    partnerPrincipalRepository,
   } = options;
 
   const getTenantId = options.getTenantId ?? ((request) => resolveEffectiveTenantId(request));
@@ -178,6 +182,19 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
       tenantModuleEntitlementPort,
       masterDataModuleCatalogPort,
     },
+  });
+
+  registerPartnerPrincipalHandlers(fastify, {
+    getTenantId,
+    getActorId,
+    provisionPartnerPrincipalDeps: {
+      partnerPrincipalRepository,
+      capabilityRepository,
+      tenantModuleEntitlementPort,
+      masterDataModuleCatalogPort,
+    },
+    deactivatePartnerPrincipalDeps: { partnerPrincipalRepository },
+    reactivatePartnerPrincipalDeps: { partnerPrincipalRepository },
   });
 
   registerAuthHandlers(fastify, {

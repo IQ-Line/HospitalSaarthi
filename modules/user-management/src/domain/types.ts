@@ -4,6 +4,10 @@
 
 /** Lifecycle state for platform user rows (LLD MVP). */
 export type UserStatus = "active" | "inactive" | "suspended";
+
+/** Principal class stored on `users.kind` (ADR-0032). */
+/** Loginable humans and integration partners (ADR-0032). `service` deferred per amendment C. */
+export type UserKind = "user" | "partner";
 export type RoleStatus = "active" | "inactive";
 export type UserCapabilityGrantSource = "manual" | "role_template" | "delegated" | "system";
 
@@ -11,6 +15,8 @@ export type UserCapabilityGrantSource = "manual" | "role_template" | "delegated"
 export interface User {
   id: string;
   full_name: string;
+  kind?: UserKind;
+  integration_id?: string | null;
   email?: string | null;
   phone?: string | null;
   auth_user_id?: string | null;
@@ -174,6 +180,8 @@ export interface AuthContext {
 /** GET /auth/principal `attributes` object. */
 export interface PrincipalAttributes {
   iq_tenant_id: string;
+  /** `users.kind` when resolved from persistence (defaults to `user`). */
+  kind: UserKind;
   department: string | null;
   org_id: string | null;
   /**
@@ -193,4 +201,19 @@ export interface Principal {
   id: string;
   roles: string[];
   attributes: PrincipalAttributes;
+}
+
+/** Integration Hub orchestration — partner principal row returned to control plane. */
+export interface PartnerPrincipal {
+  id: string;
+  full_name: string;
+  kind: "partner";
+  integration_id: string;
+  status: UserStatus;
+}
+
+export interface ProvisionPartnerPrincipalInput {
+  integration_id: string;
+  integration_display_name: string;
+  suggested_capability_keys: string[];
 }
