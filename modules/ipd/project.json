@@ -1,0 +1,19 @@
+{
+  "name": "ipd",
+  "tags": ["type:module", "scope:ipd", "language:typescript"],
+  "targets": {
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "options": {
+        "lintFilePatterns": ["modules/ipd/src/**/*.ts"]
+      }
+    },
+    "db-migrate": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsx scripts/apply-migration.ts",
+        "cwd": "modules/ipd"
+      }
+    }
+  }
+}

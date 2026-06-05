@@ -1,0 +1,505 @@
+openapi: 3.1.0
+info:
+  title: IPD — Admission intake
+  version: 1.0.0
+  description: |
+    Phase 1 admission APIs: create, queue list, get by id, update.
+    Table: `ipd.admission`.
+
+tags:
+  - name: Admissions
+    description: Admission queue and CRUD
+
+servers:
+  - url: http://localhost:3008/api/ipd/v1
+    description: Local ipd-svc (IPD_SVC_PORT; default 3008)
+
+paths:
+  /admissions:
+    get:
+      operationId: listAdmissions
+      summary: Admission queue and search
+      description: |
+        Default queue: `status=draft,pending,active` (newest `updated_at` first).
+        Free-text `q` matches admission_number, patient_uhid, patient_full_name, patient_phone.
+      tags: [Admissions]
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: status
+          in: query
+          description: Comma-separated AdmissionStatus values
+          schema: { type: string, example: "draft,pending,active" }
+        - name: admission_source
+          in: query
+          schema: { $ref: "#/components/schemas/AdmissionSource" }
+        - name: admission_type
+          in: query
+          schema: { $ref: "#/components/schemas/AdmissionType" }
+        - name: facility_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: intended_ward_code
+          in: query
+          schema: { type: string }
+        - name: q
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Paginated admission list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdmissionListPage"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+    post:
+      operationId: createAdmission
+      summary: Create admission
+      description: |
+        Allocates `admission_number` via Configurator `ip_visit` sequence.
+        Returns `status=draft`.
+      tags: [Admissions]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAdmissionRequest"
+      responses:
+        "201":
+          description: Admission created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Admission"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Idempotency conflict
+
+  /admissions/{admissionId}:
+    get:
+      operationId: getAdmission
+      summary: Get admission by id
+      tags: [Admissions]
+      parameters:
+        - $ref: "#/components/parameters/AdmissionId"
+      responses:
+        "200":
+          description: Admission detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Admission"
+        "404":
+          description: Not found
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+    patch:
+      operationId: updateAdmission
+      summary: Update admission
+      description: Allowed while `status` is `draft`, `pending`, or `active`.
+      tags: [Admissions]
+      parameters:
+        - $ref: "#/components/parameters/AdmissionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAdmissionRequest"
+      responses:
+        "200":
+          description: Updated admission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Admission"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          description: Not found
+        "409":
+          description: Invalid status for edit
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+components:
+  parameters:
+    AdmissionId:
+      name: admissionId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      schema: { type: string }
+
+  responses:
+    Unauthorized:
+      description: Unauthorized
+    Forbidden:
+      description: Forbidden
+    BadRequest:
+      description: Validation error
+
+  schemas:
+    AdmissionType:
+      type: string
+      enum: [IPD, DAYCARE]
+
+    AdmissionSource:
+      type: string
+      enum: [OPD, EMERGENCY, DIRECT, BABY_CRADLE]
+
+    AdmissionStatus:
+      type: string
+      enum: [draft, pending, active, cancelled, discharged]
+
+    PayerType:
+      type: string
+      enum: [self, insurance, corporate, government]
+
+    CreateAdmissionRequest:
+      type: object
+      required:
+        - admission_source
+        - admission_type
+        - patient_id
+        - facility_id
+        - patient_uhid
+        - patient_full_name
+      additionalProperties: false
+      properties:
+        admission_source:
+          $ref: "#/components/schemas/AdmissionSource"
+        admission_type:
+          $ref: "#/components/schemas/AdmissionType"
+        patient_id:
+          type: string
+          format: uuid
+        registration_visit_id:
+          type: string
+          format: uuid
+          nullable: true
+        source_visit_id:
+          type: string
+          format: uuid
+          nullable: true
+        facility_id:
+          type: string
+          format: uuid
+        department_id:
+          type: string
+          format: uuid
+          nullable: true
+        intended_ward_code:
+          type: string
+          nullable: true
+        admitting_doctor_id:
+          type: string
+          format: uuid
+          nullable: true
+        attending_doctor_id:
+          type: string
+          format: uuid
+          nullable: true
+        chief_complaint:
+          type: string
+          nullable: true
+        provisional_diagnosis:
+          type: string
+          nullable: true
+        payer_type:
+          $ref: "#/components/schemas/PayerType"
+        insurance_reference:
+          type: string
+          nullable: true
+        companion_name:
+          type: string
+          nullable: true
+        companion_phone:
+          type: string
+          nullable: true
+        remarks:
+          type: string
+          nullable: true
+        mother_admission_id:
+          type: string
+          format: uuid
+          nullable: true
+        deposit_required:
+          type: boolean
+          default: false
+        deposit_amount:
+          type: number
+          format: double
+          nullable: true
+        patient_uhid:
+          type: string
+        patient_full_name:
+          type: string
+        patient_phone:
+          type: string
+          nullable: true
+        patient_gender:
+          type: string
+          nullable: true
+        patient_date_of_birth:
+          type: string
+          format: date
+          nullable: true
+
+    UpdateAdmissionRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        department_id:
+          type: string
+          format: uuid
+          nullable: true
+        intended_ward_code:
+          type: string
+          nullable: true
+        admitting_doctor_id:
+          type: string
+          format: uuid
+          nullable: true
+        attending_doctor_id:
+          type: string
+          format: uuid
+          nullable: true
+        expected_discharge_date:
+          type: string
+          format: date
+          nullable: true
+        chief_complaint:
+          type: string
+          nullable: true
+        provisional_diagnosis:
+          type: string
+          nullable: true
+        payer_type:
+          $ref: "#/components/schemas/PayerType"
+        insurance_reference:
+          type: string
+          nullable: true
+        companion_name:
+          type: string
+          nullable: true
+        companion_phone:
+          type: string
+          nullable: true
+        remarks:
+          type: string
+          nullable: true
+        deposit_required:
+          type: boolean
+        deposit_amount:
+          type: number
+          format: double
+          nullable: true
+        ward_code:
+          type: string
+          nullable: true
+        ward_name:
+          type: string
+          nullable: true
+        bed_label:
+          type: string
+          nullable: true
+
+    Admission:
+      type: object
+      required:
+        - admission_id
+        - iq_tenant_id
+        - admission_number
+        - patient_id
+        - admission_type
+        - admission_source
+        - facility_id
+        - status
+        - payer_type
+        - deposit_required
+        - patient_uhid
+        - patient_full_name
+        - created_at
+        - updated_at
+      additionalProperties: false
+      properties:
+        admission_id:
+          type: string
+          format: uuid
+        iq_tenant_id:
+          type: string
+          format: uuid
+        admission_number:
+          type: string
+        patient_id:
+          type: string
+          format: uuid
+        registration_visit_id:
+          type: string
+          format: uuid
+          nullable: true
+        source_visit_id:
+          type: string
+          format: uuid
+          nullable: true
+        admission_type:
+          $ref: "#/components/schemas/AdmissionType"
+        admission_source:
+          $ref: "#/components/schemas/AdmissionSource"
+        facility_id:
+          type: string
+          format: uuid
+        department_id:
+          type: string
+          format: uuid
+          nullable: true
+        intended_ward_code:
+          type: string
+          nullable: true
+        admitting_doctor_id:
+          type: string
+          format: uuid
+          nullable: true
+        attending_doctor_id:
+          type: string
+          format: uuid
+          nullable: true
+        status:
+          $ref: "#/components/schemas/AdmissionStatus"
+        admission_datetime:
+          type: string
+          format: date-time
+          nullable: true
+        expected_discharge_date:
+          type: string
+          format: date
+          nullable: true
+        chief_complaint:
+          type: string
+          nullable: true
+        provisional_diagnosis:
+          type: string
+          nullable: true
+        payer_type:
+          $ref: "#/components/schemas/PayerType"
+        insurance_reference:
+          type: string
+          nullable: true
+        companion_name:
+          type: string
+          nullable: true
+        companion_phone:
+          type: string
+          nullable: true
+        remarks:
+          type: string
+          nullable: true
+        mother_admission_id:
+          type: string
+          format: uuid
+          nullable: true
+        deposit_required:
+          type: boolean
+        deposit_amount:
+          type: number
+          format: double
+          nullable: true
+        deposit_bill_id:
+          type: string
+          format: uuid
+          nullable: true
+        deposit_collected_at:
+          type: string
+          format: date-time
+          nullable: true
+        ward_code:
+          type: string
+          nullable: true
+        ward_name:
+          type: string
+          nullable: true
+        bed_label:
+          type: string
+          nullable: true
+        bed_assigned_at:
+          type: string
+          format: date-time
+          nullable: true
+        patient_uhid:
+          type: string
+        patient_full_name:
+          type: string
+        patient_phone:
+          type: string
+          nullable: true
+        patient_gender:
+          type: string
+          nullable: true
+        patient_date_of_birth:
+          type: string
+          format: date
+          nullable: true
+        cancel_reason:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    AdmissionListItem:
+      allOf:
+        - $ref: "#/components/schemas/Admission"
+        - type: object
+          properties:
+            deposit_collected:
+              type: boolean
+
+    AdmissionListPage:
+      type: object
+      required: [data, total, page, limit, total_pages]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdmissionListItem"
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        limit:
+          type: integer
+          minimum: 1
+        total_pages:
+          type: integer
+          minimum: 0
