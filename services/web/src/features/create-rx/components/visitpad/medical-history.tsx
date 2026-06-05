@@ -9,6 +9,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@pulse/ui/select';
+import {
+  useInvalidCellsForSection,
+  useSectionHasErrors,
+} from '../../hooks/use-visitpad-field-errors';
 import { useVisitpadMasters } from '../../hooks/use-visitpad-masters';
 import { useCreateRxStore } from '../../create-rx.store';
 import type { AllergyRow } from '../../types';
@@ -43,6 +47,8 @@ export function MedicalHistory() {
   const addAllergy = useCreateRxStore((s) => s.addAllergyRow);
   const removeAllergy = useCreateRxStore((s) => s.removeAllergyRow);
   const updateAllergy = useCreateRxStore((s) => s.updateAllergyRow);
+  const allergyInvalidCells = useInvalidCellsForSection('allergyDetails');
+  const allergiesHasErrors = useSectionHasErrors('allergyDetails');
 
   const allergyColumns = useMemo<FormTableColumn<AllergyRow>[]>(
     () => [
@@ -153,7 +159,7 @@ export function MedicalHistory() {
         </div>
       </SectionCard>
 
-      <SectionCard>
+      <SectionCard hasError={allergiesHasErrors}>
         <FormTable
           title="Allergy Details"
           addButtonLabel="Add Allergy"
@@ -162,6 +168,8 @@ export function MedicalHistory() {
           rows={allergies}
           readOnly={isReadOnly}
           catalogLoading={catalogLoading}
+          invalidCells={allergyInvalidCells}
+          highlightSection={allergiesHasErrors}
           emptyMessage="No data found"
           onAdd={addAllergy}
           onRemove={removeAllergy}

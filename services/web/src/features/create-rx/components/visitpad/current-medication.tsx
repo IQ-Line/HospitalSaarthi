@@ -1,5 +1,9 @@
 import { useCallback, useMemo } from 'react';
 import { findVisitpadMedicineByDisplayName } from '../../lib/visitpad-catalog-options';
+import {
+  useInvalidCellsForSection,
+  useSectionHasErrors,
+} from '../../hooks/use-visitpad-field-errors';
 import { useVisitpadMasters } from '../../hooks/use-visitpad-masters';
 import { useCreateRxStore } from '../../create-rx.store';
 import type {
@@ -43,6 +47,14 @@ export function CurrentMedication() {
   const addProcedure = useCreateRxStore((s) => s.addProcedureRow);
   const removeProcedure = useCreateRxStore((s) => s.removeProcedureRow);
   const updateProcedure = useCreateRxStore((s) => s.updateProcedureRow);
+  const diagnosisInvalidCells = useInvalidCellsForSection('diagnosis');
+  const medicineInvalidCells = useInvalidCellsForSection('medicines');
+  const testInvalidCells = useInvalidCellsForSection('testsRequired');
+  const procedureInvalidCells = useInvalidCellsForSection('procedures');
+  const diagnosisHasErrors = useSectionHasErrors('diagnosis');
+  const medicinesHasErrors = useSectionHasErrors('medicines');
+  const testsHasErrors = useSectionHasErrors('testsRequired');
+  const proceduresHasErrors = useSectionHasErrors('procedures');
 
   const diagnosisColumns = useMemo<FormTableColumn<DiagnosisRow>[]>(
     () => [
@@ -152,6 +164,8 @@ export function CurrentMedication() {
               rows={diagnosis}
               readOnly={isReadOnly}
               catalogLoading={catalogLoading}
+              invalidCells={diagnosisInvalidCells}
+              highlightSection={diagnosisHasErrors}
               hideTitle
               hideAdd
               emptyMessage="No diagnoses added. Click 'Add Diagnosis' to begin."
@@ -171,6 +185,8 @@ export function CurrentMedication() {
             rows={medicinesRows}
             readOnly={isReadOnly}
             catalogLoading={catalogLoading}
+            invalidCells={medicineInvalidCells}
+            highlightSection={medicinesHasErrors}
             emptyMessage="No medications added. Click 'Add Medicine' to begin."
             onAdd={addMedicine}
             onRemove={removeMedicine}
@@ -186,6 +202,8 @@ export function CurrentMedication() {
             columns={testColumns}
             rows={tests}
             readOnly={isReadOnly}
+            invalidCells={testInvalidCells}
+            highlightSection={testsHasErrors}
             emptyMessage="No laboratory tests added."
             onAdd={addTest}
             onRemove={removeTest}
@@ -201,6 +219,8 @@ export function CurrentMedication() {
             columns={procedureColumns}
             rows={procedures}
             readOnly={isReadOnly}
+            invalidCells={procedureInvalidCells}
+            highlightSection={proceduresHasErrors}
             emptyMessage="No procedures added."
             onAdd={addProcedure}
             onRemove={removeProcedure}

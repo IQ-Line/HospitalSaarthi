@@ -1,4 +1,8 @@
 import { useMemo } from 'react';
+import {
+  useInvalidCellsForSection,
+  useSectionHasErrors,
+} from '../hooks/use-visitpad-field-errors';
 import { useVisitpadMasters } from '../hooks/use-visitpad-masters';
 import { useCreateRxStore } from '../create-rx.store';
 import type { ChiefComplaintRow, ImmunizationRow } from '../types';
@@ -35,6 +39,10 @@ export function PreConsult() {
   const addImmunizationRow = useCreateRxStore((s) => s.addImmunizationRow);
   const removeImmunizationRow = useCreateRxStore((s) => s.removeImmunizationRow);
   const updateImmunizationRow = useCreateRxStore((s) => s.updateImmunizationRow);
+  const chiefComplaintInvalidCells = useInvalidCellsForSection('chiefComplaints');
+  const immunizationInvalidCells = useInvalidCellsForSection('immunizations');
+  const chiefComplaintsHasErrors = useSectionHasErrors('chiefComplaints');
+  const immunizationsHasErrors = useSectionHasErrors('immunizations');
 
   const complaintColumns = useMemo<FormTableColumn<ChiefComplaintRow>[]>(
     () => [
@@ -96,7 +104,7 @@ export function PreConsult() {
         <VitalsGrid />
       </SectionCard>
 
-      <SectionCard>
+      <SectionCard hasError={chiefComplaintsHasErrors}>
         <FormTable
           title="Chief Complaints"
           addButtonLabel="Add Complaint"
@@ -104,6 +112,8 @@ export function PreConsult() {
           rows={chiefComplaints}
           readOnly={isReadOnly}
           catalogLoading={catalogLoading}
+          invalidCells={chiefComplaintInvalidCells}
+          highlightSection={chiefComplaintsHasErrors}
           onAdd={addComplaintRow}
           onRemove={removeComplaintRow}
           onUpdate={(i, field, value) =>
@@ -112,7 +122,7 @@ export function PreConsult() {
         />
       </SectionCard>
 
-      <SectionCard>
+      <SectionCard hasError={immunizationsHasErrors}>
         <FormTable
           title="Immunisation Details"
           addButtonLabel="Add Immunisation"
@@ -120,6 +130,8 @@ export function PreConsult() {
           rows={immunizations}
           readOnly={isReadOnly}
           catalogLoading={catalogLoading}
+          invalidCells={immunizationInvalidCells}
+          highlightSection={immunizationsHasErrors}
           onAdd={addImmunizationRow}
           onRemove={removeImmunizationRow}
           onUpdate={(i, field, value) =>
