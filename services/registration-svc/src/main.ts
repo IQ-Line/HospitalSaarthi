@@ -1,3 +1,4 @@
+import "./load-env.js";
 import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import { identityPlugin, validateAuthConfig } from "@hims/ts-sdk-identity";
