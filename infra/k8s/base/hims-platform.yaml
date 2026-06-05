@@ -650,6 +650,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: hims-secrets
+                  key: OPD_DATABASE_URL
             - name: AZURE_STORAGE_CONNECTION_STRING
               valueFrom:
                 secretKeyRef:
