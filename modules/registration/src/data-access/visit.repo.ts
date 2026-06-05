@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { DbInstance } from "@hims/ts-sdk-db";
-import { and, eq, sql } from "@hims/ts-sdk-db";
-import { desc } from "drizzle-orm";
+import { and, eq, inArray, sql } from "@hims/ts-sdk-db";
+import { asc, desc } from "drizzle-orm";
 import { registrations, visits } from "../schema/tables.js";
 import type { VisitRepo } from "../ports.js";
 import type { DashboardRepoMetrics } from "../domain/dashboard.types.js";
@@ -214,6 +214,30 @@ export class DrizzleVisitRepo implements VisitRepo {
       .orderBy(desc(visits.created_at))
       .limit(1);
     return rows[0] ? mapRow(rows[0]) : undefined;
+  }
+
+  async findLatestByPatientIds(
+    tenantId: string,
+    patientIds: readonly string[],
+  ): Promise<Map<string, VisitRecord>> {
+    const uniqueIds = [...new Set(patientIds.filter(Boolean))];
+    if (uniqueIds.length === 0) {
+      return new Map();
+    }
+
+    const rows = await this.db
+      .select()
+      .from(visits)
+      .where(and(eq(visits.iq_tenant_id, tenantId), inArray(visits.patient_id, uniqueIds)))
+      .orderBy(asc(visits.patient_id), desc(visits.created_at));
+
+    const latestByPatient = new Map<string, VisitRecord>();
+    for (const row of rows) {
+      if (!latestByPatient.has(row.patient_id)) {
+        latestByPatient.set(row.patient_id, mapRow(row));
+      }
+    }
+    return latestByPatient;
   }
 
   async getDashboardMetrics(tenantId: string, days: number): Promise<DashboardRepoMetrics> {

@@ -76,6 +76,10 @@ export interface VisitRepo {
     tenantId: string,
     patientId: string,
   ): Promise<VisitRecord | undefined>;
+  findLatestByPatientIds(
+    tenantId: string,
+    patientIds: readonly string[],
+  ): Promise<Map<string, VisitRecord>>;
   getDashboardMetrics(tenantId: string, days: number): Promise<DashboardRepoMetrics>;
 }
 

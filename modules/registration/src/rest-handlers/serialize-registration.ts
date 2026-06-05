@@ -121,6 +121,14 @@ export function serializeRegistrationWithVisit(
   labelMaps?: PicklistLabelMaps,
 ): RegistrationResponse {
   const { registration, visit } = input;
+
+  if (!visit) {
+    if (!registration) {
+      throw new Error("serializeRegistrationWithVisit requires registration or visit");
+    }
+    return serializeRegistration(registration, labelMaps);
+  }
+
   const base = registration
     ? serializeRegistration(registration, labelMaps)
     : {

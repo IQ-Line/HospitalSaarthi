@@ -69,7 +69,7 @@ export interface ListRegistrationsParams {
   patient_id?: string;
 }
 
-export type RegistrationListItem = RegistrationRecord;
+export type RegistrationListItem = RegistrationWithVisitRecord;
 
 export interface RegistrationListPage {
   data: RegistrationListItem[];
@@ -86,5 +86,5 @@ export interface InsertRegistrationResult {
 
 export interface RegistrationWithVisitRecord {
   registration: RegistrationRecord | null;
-  visit: import("./visit.types.js").VisitRecord;
+  visit: import("./visit.types.js").VisitRecord | null;
 }
