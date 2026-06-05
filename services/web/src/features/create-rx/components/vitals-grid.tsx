@@ -1,6 +1,11 @@
+import { useMemo } from 'react';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
-import { CREATE_RX_VITAL_FIELDS } from '../lib/vitals-config';
+import { useVisitpadVitalsCatalog } from '@/features/visitpad/api';
+import {
+  vitalPairGroupLabel,
+  visitpadVitalsToFieldDefs,
+} from '../lib/visitpad-vitals-fields';
 import { useCreateRxStore } from '../create-rx.store';
 import type { VitalFieldDef } from '../types';
 
@@ -37,22 +42,44 @@ function VitalInput({
 }
 
 export function VitalsGrid() {
+  const { data: vitalsRes, isLoading } = useVisitpadVitalsCatalog();
   const vitals = useCreateRxStore((s) => s.formData.vitals);
   const isReadOnly = useCreateRxStore((s) => s.isReadOnly);
   const setVital = useCreateRxStore((s) => s.setVital);
 
+  const vitalFields = useMemo(
+    () => visitpadVitalsToFieldDefs(vitalsRes?.data),
+    [vitalsRes?.data],
+  );
+
+  if (isLoading) {
+    return (
+      <p className="text-sm text-muted-foreground">Loading vitals from Visitpad masters…</p>
+    );
+  }
+
+  if (vitalFields.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        No vitals configured. Add active vitals under Visitpad → Vitals.
+      </p>
+    );
+  }
+
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-      {CREATE_RX_VITAL_FIELDS.map((field) => {
-        const isPairPrimary = CREATE_RX_VITAL_FIELDS.some((f) => f.pairedWith === field.code);
+      {vitalFields.map((field) => {
+        const isPairPrimary = vitalFields.some((f) => f.pairedWith === field.code);
         if (isPairPrimary) return null;
 
         if (field.pairedWith) {
-          const primary = CREATE_RX_VITAL_FIELDS.find((f) => f.code === field.pairedWith);
+          const primary = vitalFields.find((f) => f.code === field.pairedWith);
           if (!primary) return null;
           return (
             <div key={field.code} className="space-y-1.5 sm:col-span-2">
-              <Label className="text-xs text-muted-foreground">Blood Pressure</Label>
+              <Label className="text-xs text-muted-foreground">
+                {vitalPairGroupLabel(primary, field)}
+              </Label>
               <div className="grid grid-cols-2 gap-2">
                 <VitalInput
                   field={primary}

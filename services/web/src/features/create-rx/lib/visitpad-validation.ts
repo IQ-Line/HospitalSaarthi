@@ -154,8 +154,20 @@ export function validateVisitpadForm(
     ),
     ...validatePartialRows<MedicineRow>(
       formData.medicines,
-      ['medicine', 'dosageForm', 'route', 'strength', 'dosage', 'days', 'frequency', 'quantity'],
-      ['medicine', 'dosage', 'days', 'frequency'],
+      [
+        'medicine',
+        'dosageForm',
+        'route',
+        'strength',
+        'dosageMorning',
+        'dosageAfternoon',
+        'dosageNight',
+        'days',
+        'frequency',
+        'toa',
+        'quantity',
+      ],
+      ['medicine', 'dosageMorning', 'dosageAfternoon', 'dosageNight', 'days', 'frequency'],
       'medicines',
     ),
     ...validatePartialRows<TestRow>(
