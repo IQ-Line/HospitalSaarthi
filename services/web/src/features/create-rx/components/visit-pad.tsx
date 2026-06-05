@@ -1,8 +1,8 @@
 import { Button } from '@pulse/ui/button';
 import { cn } from '@pulse/utils';
-import { hasAtLeastOneChiefComplaint } from '../lib/chief-complaint-validation';
 import { useCreateRxStore } from '../create-rx.store';
 import type { CreateRxSectionTab } from '../types';
+import { VISITPAD_SECTION_TAB, type VisitpadTableSection } from '../lib/visitpad-validation';
 import { CarePlan } from './visitpad/care-plan';
 import { CurrentMedication } from './visitpad/current-medication';
 import { MedicalHistory } from './visitpad/medical-history';
@@ -17,17 +17,25 @@ const SECTION_TABS: { key: CreateRxSectionTab; label: string }[] = [
   { key: 'care-plan', label: 'Care Plan' },
 ];
 
-interface VisitPadProps {
-  onSave: () => void;
-  onEndConsultation: () => void;
+function sectionTabHasErrors(
+  tab: CreateRxSectionTab,
+  invalidSections: VisitpadTableSection[],
+): boolean {
+  return invalidSections.some((section) => VISITPAD_SECTION_TAB[section] === tab);
 }
 
-export function VisitPad({ onSave, onEndConsultation }: VisitPadProps) {
+interface VisitPadProps {
+  onSaveClick: () => void;
+}
+
+export function VisitPad({ onSaveClick }: VisitPadProps) {
   const activeSectionTab = useCreateRxStore((s) => s.activeSectionTab);
   const setActiveSectionTab = useCreateRxStore((s) => s.setActiveSectionTab);
   const isReadOnly = useCreateRxStore((s) => s.isReadOnly);
-  const chiefComplaints = useCreateRxStore((s) => s.formData.chiefComplaints);
-  const canEndConsultation = hasAtLeastOneChiefComplaint(chiefComplaints);
+  const visitpadFieldErrors = useCreateRxStore((s) => s.visitpadFieldErrors);
+  const invalidSections = [
+    ...new Set(visitpadFieldErrors.map((error) => error.section)),
+  ] as VisitpadTableSection[];
 
   const renderSection = () => {
     switch (activeSectionTab) {
@@ -55,6 +63,7 @@ export function VisitPad({ onSave, onEndConsultation }: VisitPadProps) {
         >
           {SECTION_TABS.map((tab) => {
             const selected = tab.key === activeSectionTab;
+            const hasErrors = sectionTabHasErrors(tab.key, invalidSections);
             return (
               <button
                 key={tab.key}
@@ -65,6 +74,8 @@ export function VisitPad({ onSave, onEndConsultation }: VisitPadProps) {
                   selected
                     ? 'border-l-blue-600 bg-blue-50 font-semibold text-blue-600'
                     : 'border-l-transparent font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-800',
+                  hasErrors && !selected && 'border-l-red-500 bg-red-50 text-red-700',
+                  hasErrors && selected && 'border-l-red-600 bg-red-50 text-red-700',
                 )}
               >
                 {tab.label}
@@ -75,37 +86,15 @@ export function VisitPad({ onSave, onEndConsultation }: VisitPadProps) {
         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-gray-50">{renderSection()}</div>
       </div>
       {!isReadOnly ? (
-        <div className="flex shrink-0 flex-col items-end gap-1 border-t border-gray-200 bg-white px-4 py-3">
-          <div className="flex w-full justify-end gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="border-blue-600 text-blue-600"
-              onClick={onSave}
-            >
-              Save
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              className="bg-[#0d9488] text-white hover:bg-[#0f766e] disabled:opacity-50"
-              onClick={onEndConsultation}
-              disabled={!canEndConsultation}
-              title={
-                canEndConsultation
-                  ? 'End consultation for this patient'
-                  : 'Add at least one chief complaint before ending consultation'
-              }
-            >
-              End Consultation
-            </Button>
-          </div>
-          {!canEndConsultation ? (
-            <p className="text-xs text-muted-foreground">
-              Select at least one chief complaint from Visitpad masters to end consultation.
-            </p>
-          ) : null}
+        <div className="flex shrink-0 justify-end border-t border-gray-200 bg-white px-4 py-3">
+          <Button
+            type="button"
+            size="sm"
+            className="bg-[#0d9488] text-white hover:bg-[#0f766e]"
+            onClick={onSaveClick}
+          >
+            Save
+          </Button>
         </div>
       ) : null}
     </div>

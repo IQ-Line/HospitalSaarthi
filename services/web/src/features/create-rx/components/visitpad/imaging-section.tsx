@@ -1,3 +1,7 @@
+import {
+  useInvalidCellsForSection,
+  useSectionHasErrors,
+} from '../../hooks/use-visitpad-field-errors';
 import { useCreateRxStore } from '../../create-rx.store';
 import type { ImagingRow } from '../../types';
 import { FormTable, type FormTableColumn } from '../form-table';
@@ -26,6 +30,8 @@ export function ImagingSection() {
   const add = useCreateRxStore((s) => s.addImagingRow);
   const remove = useCreateRxStore((s) => s.removeImagingRow);
   const update = useCreateRxStore((s) => s.updateImagingRow);
+  const invalidCells = useInvalidCellsForSection('imagingRequired');
+  const hasErrors = useSectionHasErrors('imagingRequired');
 
   const addChip = (name: string) => {
     if (rows.some((r) => r.testName === name)) return;
@@ -61,6 +67,8 @@ export function ImagingSection() {
         columns={COLUMNS}
         rows={rows}
         readOnly={isReadOnly}
+        invalidCells={invalidCells}
+        highlightSection={hasErrors}
         hideTitle
         hideAdd
         emptyMessage="No radiology tests added."
