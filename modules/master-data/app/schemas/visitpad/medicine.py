@@ -73,6 +73,7 @@ class VisitpadMedicineResponse(BaseModel):
     default_route: str | None = None
     default_instructions: str | None = None
     typical_quantity: float | None = None
+    price: float | None = None
     notes: str | None = None
     display_order: int
     is_active: bool
@@ -144,6 +145,7 @@ class VisitpadMedicineCreate(BaseModel):
     default_route: str | None = Field(default=None, max_length=64)
     default_instructions: str | None = Field(default=None, max_length=1024)
     typical_quantity: float | None = None
+    price: float | None = Field(default=None, ge=0)
     notes: str | None = Field(default=None, max_length=2048)
     display_order: int = 0
     is_active: bool = True
@@ -218,6 +220,7 @@ class VisitpadMedicineUpdate(BaseModel):
     default_route: str | None = Field(default=None, max_length=64)
     default_instructions: str | None = Field(default=None, max_length=1024)
     typical_quantity: float | None = None
+    price: float | None = Field(default=None, ge=0)
     notes: str | None = Field(default=None, max_length=2048)
     display_order: int | None = None
     is_active: bool | None = None
