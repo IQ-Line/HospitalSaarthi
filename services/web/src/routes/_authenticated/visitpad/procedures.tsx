@@ -13,12 +13,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@pulse/ui/select';
-import { Switch } from '@pulse/ui/switch';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
 import { CatalogActiveSwitch } from '@/features/visitpad/components/catalog-active-switch';
+import {
+  ControlledFormToggleRow,
+  FormToggleRow,
+} from '@/features/visitpad/components/form-toggle-row';
 import { RequiredLabel, VISITPAD_CODE_HELPER_TEXT } from '@/features/visitpad/components/required-label';
 import { useCatalogActiveToggleConfirm } from '@/features/visitpad/hooks/use-catalog-active-toggle-confirm';
 import { nextDisplayOrder } from '@/features/visitpad/lib/next-display-order';
@@ -608,21 +611,13 @@ function ProcedureCreateDialog({
             {...form.register('snomed_code')}
           />
         </div>
-        <div className="flex flex-col gap-2 rounded-md border p-3 sm:col-span-2">
-          <div className="flex items-center justify-between gap-4">
-            <Label htmlFor="vp-pr-consent">Requires patient consent</Label>
-            <Controller
-              control={form.control}
-              name="requires_consent"
-              render={({ field }) => (
-                <Switch id="vp-pr-consent" checked={field.value} onCheckedChange={field.onChange} />
-              )}
-            />
-          </div>
-          <p className="text-sm text-muted-foreground">
-            A consent stage is triggered before the procedure can be started.
-          </p>
-        </div>
+        <ControlledFormToggleRow
+          control={form.control}
+          name="requires_consent"
+          id="vp-pr-consent"
+          label="Requires patient consent"
+          description="A consent stage is triggered before the procedure can be started."
+        />
         <div className="sm:col-span-2">
           <CatalogActiveSwitch
             id="vp-pr-act"
@@ -794,18 +789,14 @@ function ProcedureEditDialog({
             <Label htmlFor="vp-pe-snomed">SNOMED CT (procedure)</Label>
             <Input id="vp-pe-snomed" maxLength={64} {...form.register('snomed_code')} />
           </div>
-          <div className="flex flex-col gap-2 rounded-md border p-3 sm:col-span-2">
-            <div className="flex items-center justify-between gap-4">
-              <Label htmlFor="vp-pe-consent">Requires patient consent</Label>
-              <Switch
-                id="vp-pe-consent"
-                checked={!!form.watch('requires_consent')}
-                onCheckedChange={(c) => form.setValue('requires_consent', c)}
-              />
-            </div>
-            <p className="text-sm text-muted-foreground">
-              A consent stage is triggered before the procedure can be started.
-            </p>
+          <div className="sm:col-span-2">
+            <FormToggleRow
+              id="vp-pe-consent"
+              label="Requires patient consent"
+              description="A consent stage is triggered before the procedure can be started."
+              checked={!!form.watch('requires_consent')}
+              onCheckedChange={(c) => form.setValue('requires_consent', c)}
+            />
           </div>
           <div className="sm:col-span-2">
             <CatalogActiveSwitch
