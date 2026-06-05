@@ -1,4 +1,5 @@
 import { Switch } from '@pulse/ui/switch';
+import { Controller, type Control, type FieldPath, type FieldValues } from 'react-hook-form';
 
 interface FormToggleRowProps {
   id: string;
@@ -25,12 +26,47 @@ export function FormToggleRow({
         {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
       </div>
       <Switch
-        id={id}
         checked={checked}
         onCheckedChange={onCheckedChange}
         disabled={disabled}
         aria-label={label}
+        data-testid={id}
       />
     </div>
+  );
+}
+
+/** react-hook-form field wired to {@link FormToggleRow} (switch-only interaction). */
+export function ControlledFormToggleRow<T extends FieldValues>({
+  control,
+  name,
+  id,
+  label,
+  description,
+  className = 'sm:col-span-2',
+}: {
+  control: Control<T>;
+  name: FieldPath<T>;
+  id: string;
+  label: string;
+  description?: string;
+  className?: string;
+}) {
+  return (
+    <Controller
+      control={control}
+      name={name}
+      render={({ field }) => (
+        <div className={className}>
+          <FormToggleRow
+            id={id}
+            label={label}
+            description={description}
+            checked={!!field.value}
+            onCheckedChange={field.onChange}
+          />
+        </div>
+      )}
+    />
   );
 }

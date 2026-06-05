@@ -8,13 +8,13 @@ import { Badge } from '@pulse/ui/badge';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@pulse/ui/select';
-import { Switch } from '@pulse/ui/switch';
 import { Textarea } from '@pulse/ui/textarea';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
 import { CatalogActiveSwitch } from '@/features/visitpad/components/catalog-active-switch';
+import { FormToggleRow } from '@/features/visitpad/components/form-toggle-row';
 import { RequiredLabel, VISITPAD_CODE_HELPER_TEXT } from '@/features/visitpad/components/required-label';
 import { useCatalogActiveToggleConfirm } from '@/features/visitpad/hooks/use-catalog-active-toggle-confirm';
 import { nextDisplayOrder } from '@/features/visitpad/lib/next-display-order';
@@ -635,13 +635,11 @@ function ChiefComplaintCreateDialog({
             Stored as an array on the API (max 50 terms).
           </p>
         </div>
-        <div className="flex items-center justify-between rounded-md border p-3 sm:col-span-2">
-          <div>
-            <Label htmlFor="vp-cc-paed">Paediatric relevant</Label>
-            <p className="text-muted-foreground text-xs">Show in paediatric triage flows.</p>
-          </div>
-          <Switch
+        <div className="sm:col-span-2">
+          <FormToggleRow
             id="vp-cc-paed"
+            label="Paediatric relevant"
+            description="Show in paediatric triage flows."
             checked={!!form.watch('is_paediatric_relevant')}
             onCheckedChange={(c) => form.setValue('is_paediatric_relevant', c)}
           />
@@ -822,10 +820,11 @@ function ChiefComplaintEditDialog({
               {...form.register('display_order', { valueAsNumber: true })}
             />
           </div>
-          <div className="flex items-center justify-between rounded-md border p-3 sm:col-span-2">
-            <Label htmlFor="vp-ce-paed">Paediatric relevant</Label>
-            <Switch
+          <div className="sm:col-span-2">
+            <FormToggleRow
               id="vp-ce-paed"
+              label="Paediatric relevant"
+              description="Show in paediatric triage flows."
               checked={!!form.watch('is_paediatric_relevant')}
               onCheckedChange={(c) => form.setValue('is_paediatric_relevant', c)}
             />

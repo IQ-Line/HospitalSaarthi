@@ -38,6 +38,8 @@ import { isDoctorRole, validateDoctorTariffs } from '../lib/is-doctor-role';
 import { userTenantScopeKey } from '../lib/user-tenant-scope';
 import { CreateUserDoctorOpdSection } from './create-user-doctor-departments';
 
+const EMPTY_TARIFF_LIST: Awaited<ReturnType<typeof listDoctorConsultationTariffs>> = [];
+
 const schema = z.object({
   full_name: z.string().min(1, 'Name is required'),
   email: z.union([z.literal(''), z.string().email('Enter a valid email')]),
@@ -178,7 +180,10 @@ export function EditUserDialog({ open, onOpenChange, user, tenantScope }: EditUs
 
   const formReady = open && accessContextReady && doctorDataReady;
 
-  const doctorTariffsForForm = doctorTariffsFailed ? [] : (tariffsQuery.data ?? []);
+  const doctorTariffsForForm = useMemo(() => {
+    if (!isDoctor || doctorTariffsFailed) return EMPTY_TARIFF_LIST;
+    return tariffsQuery.data ?? EMPTY_TARIFF_LIST;
+  }, [isDoctor, doctorTariffsFailed, tariffsQuery.data]);
 
   const { reset, handleSubmit, register, control, setError, formState } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -205,9 +210,8 @@ export function EditUserDialog({ open, onOpenChange, user, tenantScope }: EditUs
     resolvedUser.username,
     resolvedUser.department,
     isDoctor,
-    doctorTariffsForForm,
-    activeDepartments,
     doctorSectionKey,
+    activeDepartments,
   ]);
 
   const showDoctorLoading =

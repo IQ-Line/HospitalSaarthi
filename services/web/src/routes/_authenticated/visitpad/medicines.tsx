@@ -14,13 +14,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@pulse/ui/select';
-import { Switch } from '@pulse/ui/switch';
 import { Textarea } from '@pulse/ui/textarea';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
 import { CatalogActiveSwitch } from '@/features/visitpad/components/catalog-active-switch';
+import { ControlledFormToggleRow } from '@/features/visitpad/components/form-toggle-row';
 
 const MED_SCHEDULE_UNSET = '__unset__';
 const MED_DOSAGE_FORM_UNSET = '__unset__';
@@ -610,20 +610,25 @@ function MedicineCreateDialog({
                 )}
               />
             </div>
-            <ToggleRow
+            <ControlledFormToggleRow
               control={form.control}
               name="requires_prescription"
               id="vp-mc-rx"
               label="Requires prescription"
             />
-            <ToggleRow
+            <ControlledFormToggleRow
               control={form.control}
               name="is_controlled_substance"
               id="vp-mc-cs"
               label="Controlled substance"
             />
-            <ToggleRow control={form.control} name="is_narcotic" id="vp-mc-ndps" label="Narcotic (NDPS)" />
-            <ToggleRow
+            <ControlledFormToggleRow
+              control={form.control}
+              name="is_narcotic"
+              id="vp-mc-ndps"
+              label="Narcotic (NDPS)"
+            />
+            <ControlledFormToggleRow
               control={form.control}
               name="is_restricted_antibiotic"
               id="vp-mc-h1"
@@ -668,7 +673,12 @@ function MedicineCreateDialog({
               <Label htmlFor="vp-mc-mxdu">Max dose / day unit</Label>
               <Input id="vp-mc-mxdu" maxLength={32} {...form.register('max_dose_per_day_unit')} />
             </div>
-            <ToggleRow control={form.control} name="black_box_warning" id="vp-mc-bbw" label="Black box warning" />
+            <ControlledFormToggleRow
+              control={form.control}
+              name="black_box_warning"
+              id="vp-mc-bbw"
+              label="Black box warning"
+            />
             {blackBoxOn ? (
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="vp-mc-bbw-text">Black box warning text</Label>
@@ -751,29 +761,6 @@ function MedicineCreateDialog({
         />
       </div>
     </EntityFormDialog>
-  );
-}
-
-function ToggleRow<T extends FieldValues>({
-  control,
-  name,
-  id,
-  label,
-}: {
-  control: Control<T>;
-  name: FieldPath<T>;
-  id: string;
-  label: string;
-}) {
-  return (
-    <div className="flex items-center justify-between rounded-md border p-3 sm:col-span-2">
-      <Label htmlFor={id}>{label}</Label>
-      <Controller
-        control={control}
-        name={name}
-        render={({ field }) => <Switch id={id} checked={field.value} onCheckedChange={field.onChange} />}
-      />
-    </div>
   );
 }
 
@@ -979,20 +966,25 @@ function MedicineEditDialog({
                   )}
                 />
               </div>
-              <ToggleRow
+              <ControlledFormToggleRow
                 control={form.control}
                 name="requires_prescription"
                 id="vp-me-rx"
                 label="Requires prescription"
               />
-              <ToggleRow
+              <ControlledFormToggleRow
                 control={form.control}
                 name="is_controlled_substance"
                 id="vp-me-cs"
                 label="Controlled substance"
               />
-              <ToggleRow control={form.control} name="is_narcotic" id="vp-me-ndps" label="Narcotic (NDPS)" />
-              <ToggleRow
+              <ControlledFormToggleRow
+                control={form.control}
+                name="is_narcotic"
+                id="vp-me-ndps"
+                label="Narcotic (NDPS)"
+              />
+              <ControlledFormToggleRow
                 control={form.control}
                 name="is_restricted_antibiotic"
                 id="vp-me-h1"
@@ -1037,7 +1029,12 @@ function MedicineEditDialog({
                 <Label htmlFor="vp-me-mxdu">Max dose / day unit</Label>
                 <Input id="vp-me-mxdu" maxLength={32} {...form.register('max_dose_per_day_unit')} />
               </div>
-              <ToggleRow control={form.control} name="black_box_warning" id="vp-me-bbw" label="Black box warning" />
+              <ControlledFormToggleRow
+                control={form.control}
+                name="black_box_warning"
+                id="vp-me-bbw"
+                label="Black box warning"
+              />
               {blackBoxOn ? (
                 <div className="space-y-2 sm:col-span-2">
                   <Label htmlFor="vp-me-bbw-text">Black box warning text</Label>
