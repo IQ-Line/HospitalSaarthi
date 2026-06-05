@@ -6277,6 +6277,12 @@ components:
           - type: number
           - type: 'null'
           title: Typical Quantity
+        price:
+          anyOf:
+          - type: number
+            minimum: 0
+          - type: 'null'
+          title: Price
         notes:
           anyOf:
           - type: string
@@ -6843,6 +6849,12 @@ components:
           - type: number
           - type: 'null'
           title: Typical Quantity
+        price:
+          anyOf:
+          - type: number
+            minimum: 0
+          - type: 'null'
+          title: Price
         notes:
           anyOf:
           - type: string
@@ -7209,6 +7221,12 @@ components:
           - type: number
           - type: 'null'
           title: Typical Quantity
+        price:
+          anyOf:
+          - type: number
+            minimum: 0
+          - type: 'null'
+          title: Price
         notes:
           anyOf:
           - type: string

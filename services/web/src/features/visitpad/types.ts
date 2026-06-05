@@ -209,6 +209,7 @@ export interface VisitpadMedicine {
   default_route?: string | null;
   default_instructions?: string | null;
   typical_quantity?: number | null;
+  price?: number | null;
   notes?: string | null;
   display_order: number;
   is_active: boolean;

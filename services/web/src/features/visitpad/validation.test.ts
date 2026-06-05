@@ -101,10 +101,24 @@ describe('visitpadMedicineCreateFormSchema', () => {
       dosage_form: 'tablet',
       schedule: 'otc',
       display_order: 0,
+      price: '99.5',
       black_box_warning: true,
       black_box_warning_text: 'Risk text',
     });
     expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.price).toBe(99.5);
+    }
+  });
+
+  it('rejects negative price', () => {
+    const r = visitpadMedicineCreateFormSchema.safeParse({
+      code: 'para500',
+      display_name: 'Paracetamol 500mg',
+      display_order: 0,
+      price: '-1',
+    });
+    expect(r.success).toBe(false);
   });
 });
 

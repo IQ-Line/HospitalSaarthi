@@ -77,13 +77,28 @@ def test_visitpad_medicine_create_and_get(visitpad_catalog_client: TestClient) -
         "drug_class": "NSAID",
         "dosage_form": "tablet",
         "schedule": "otc",
+        "price": 12.5,
     }
     r = visitpad_catalog_client.post("/api/v1/master-data/visitpad/medicines", json=body)
     assert r.status_code == 201, r.text
     mid = r.json()["data"]["id"]
     g = visitpad_catalog_client.get(f"/api/v1/master-data/visitpad/medicines/{mid}")
     assert g.status_code == 200
-    assert g.json()["data"]["code"] == "asp500tb"
+    data = g.json()["data"]
+    assert data["code"] == "asp500tb"
+    assert data["price"] == 12.5
+
+    lst = visitpad_catalog_client.get("/api/v1/master-data/visitpad/medicines")
+    assert lst.status_code == 200
+    codes = {row["code"]: row for row in lst.json()["data"]}
+    assert codes["asp500tb"]["price"] == 12.5
+
+    patch = visitpad_catalog_client.patch(
+        f"/api/v1/master-data/visitpad/medicines/{mid}",
+        json={"price": 15.0},
+    )
+    assert patch.status_code == 200, patch.text
+    assert patch.json()["data"]["price"] == 15.0
 
 
 def test_visitpad_chronic_illness_create_and_get(visitpad_catalog_client: TestClient) -> None:
