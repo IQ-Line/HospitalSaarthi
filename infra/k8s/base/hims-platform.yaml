@@ -615,6 +615,71 @@ spec:
       port: 8010
       targetPort: http
 ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opd-svc
+  namespace: himsv2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: opd-svc
+  template:
+    metadata:
+      labels:
+        app: opd-svc
+    spec:
+      imagePullSecrets:
+        - name: gitlab-registry-secret
+      nodeSelector:
+       agentpool: himsv2
+      containers:
+        - name: opd-svc
+          image: acriqline.azurecr.io/opd-svc:dev-latest
+          ports:
+            - name: http
+              containerPort: 8020
+          envFrom:
+            - configMapRef:
+                name: hims-config
+            - secretRef:
+                name: hims-secrets
+          env:
+            - name: OPD_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: OPD_DATABASE_URL
+          livenessProbe:
+            httpGet:
+              path: /api/v1/opd/health
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /api/v1/opd/health
+              port: http
+          resources:
+            requests:
+              cpu: 75m
+              memory: 256Mi
+            limits:
+              cpu: 750m
+              memory: 768Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opd-svc
+  namespace: himsv2
+spec:
+  selector:
+    app: opd-svc
+  ports:
+    - name: http
+      port: 8020
+      targetPort: http
+---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
