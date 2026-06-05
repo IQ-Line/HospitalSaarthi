@@ -79,3 +79,24 @@ export const UM_ROLES_ADMIN_ANY = [
   UM_ROLE_UPDATE,
   UM_ROLE_DELETE,
 ] as const;
+
+/** Integration Hub control plane (ADR-0032). */
+export const IH_INTEGRATION_READ = 'integration:integration:read' as const;
+export const IH_INTEGRATION_CREATE = 'integration:integration:create' as const;
+export const IH_INTEGRATION_UPDATE = 'integration:integration:update' as const;
+export const IH_INTEGRATION_DELETE = 'integration:integration:delete' as const;
+export const IH_INTEGRATION_ACTIVATE = 'integration:integration:activate' as const;
+export const IH_INTEGRATION_DISABLE = 'integration:integration:disable' as const;
+export const IH_INTEGRATION_REACTIVATE = 'integration:integration:reactivate' as const;
+export const IH_API_KEY_READ = 'integration:api-key:read' as const;
+export const IH_API_KEY_ISSUE = 'integration:api-key:issue' as const;
+export const IH_API_KEY_REVOKE = 'integration:api-key:revoke' as const;
+
+export const IH_CONTROL_PLANE_ANY = [
+  IH_INTEGRATION_READ,
+  IH_INTEGRATION_CREATE,
+  IH_INTEGRATION_UPDATE,
+  IH_INTEGRATION_ACTIVATE,
+  IH_API_KEY_READ,
+  IH_API_KEY_ISSUE,
+] as const;
