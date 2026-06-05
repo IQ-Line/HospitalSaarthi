@@ -127,6 +127,13 @@ async function main() {
     baseUrl: PDF_PLATFORM_URL,
     apiKey: PDF_PLATFORM_API_KEY,
   });
+  app.log.info(
+    {
+      pdfPlatformUrl: PDF_PLATFORM_URL,
+      reportWebOrigin: process.env["REPORT_WEB_ORIGIN"] ?? "http://localhost:5173",
+    },
+    "Registration PDF platform configured",
+  );
 
   const handlerDeps = {
     registrationRepo,
