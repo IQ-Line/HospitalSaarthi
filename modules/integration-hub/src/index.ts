@@ -138,3 +138,12 @@ export {
   type ResolvedCallbackTenant,
 } from "./integrations/abdm/lib/resolve-callback-tenant.js";
 export type { BuildAbdmDepsOptions } from "./lib/build-abdm-deps.js";
+
+export { PARTNER_EXPOSED_OPERATIONS } from "./control-plane/domain/partner-exposed-operations.js";
+export type { PartnerExposedOperation } from "./control-plane/domain/partner-exposed-operations.js";
+export { createControlPlaneRouter } from "./control-plane/router.js";
+export type { ControlPlaneRouterOptions } from "./control-plane/control-plane.types.js";
+export { createIntegrationAuthzTargetResolver } from "./control-plane/authz/integration-authz-target-resolver.js";
+export { DrizzleIntegrationsRepository } from "./control-plane/data-access/integrations.repo.js";
+export { DrizzleIntegrationApiKeysRepository } from "./control-plane/data-access/integration-api-keys.repo.js";
+export { HttpUserManagementPartnerGateway } from "./control-plane/gateways/http-user-management-partner-gateway.js";

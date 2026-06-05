@@ -1,10 +1,19 @@
 import "./load-env.js";
 import path from "node:path";
-import Fastify from "fastify";
+import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
+import { assertCerbosReachable, authzPlugin } from "@hims/ts-sdk-authz";
+import { identityPlugin, validateAuthConfig } from "@hims/ts-sdk-identity";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import { tenantPlugin } from "@hims/ts-sdk-tenant";
 import { createDb, sql } from "@hims/ts-sdk-db";
 import { InProcessEventBus } from "@hims/ts-sdk-events";
+import {
+  DrizzleUserRepository,
+  DrizzlePrincipalRoleProjectionRepository,
+  DrizzlePrincipalAuthorizationRepository,
+  createDefaultPrincipalService,
+  principalRoleEnricherPlugin,
+} from "@hims/user-management";
 import {
   ConfiguratorHttpIntegrationProfileRepo,
   createRouter,
@@ -34,6 +43,11 @@ import {
   requireCallbackSecurityInProd,
   requireSessionTokenCryptoInProd,
   type IntegrationHubSharedInfra,
+  createControlPlaneRouter,
+  createIntegrationAuthzTargetResolver,
+  DrizzleIntegrationsRepository,
+  DrizzleIntegrationApiKeysRepository,
+  HttpUserManagementPartnerGateway,
 } from "@hims/integration-hub";
 import {
   normalizeIntegrationHubEnvAliases,
@@ -226,6 +240,65 @@ async function main() {
       await scopedApp.register(abdmRouter);
     }, { prefix: "/abdm/v1" });
   }, { prefix: "/api" });
+
+  const identityAuth = validateAuthConfig();
+  if (!process.env["CERBOS_URL"] || process.env["CERBOS_URL"].trim() === "") {
+    throw new Error("CERBOS_URL is required for integration hub control plane");
+  }
+  const cerbosUrl = process.env["CERBOS_URL"].trim();
+  await assertCerbosReachable(cerbosUrl);
+
+  const userRepository = new DrizzleUserRepository(db);
+  const principalRoleProjectionRepository = new DrizzlePrincipalRoleProjectionRepository(db);
+  const principalAuthorizationRepository = new DrizzlePrincipalAuthorizationRepository(db);
+  const principalService = createDefaultPrincipalService({
+    userRepository,
+    principalRoleProjectionRepository,
+    principalAuthorizationRepository,
+  });
+
+  const integrationsRepository = new DrizzleIntegrationsRepository(db);
+  const integrationApiKeysRepository = new DrizzleIntegrationApiKeysRepository(db);
+  const partnerPrincipalGateway = HttpUserManagementPartnerGateway.fromEnv();
+
+  const getTenantId = (request: FastifyRequest) => request.user.tenantId;
+  const getActorId = (request: FastifyRequest) => request.user.userId;
+  const getAuthorizationHeader = (request: FastifyRequest) => {
+    const header = request.headers.authorization;
+    if (!header) {
+      throw new Error("Authorization header is required for partner orchestration");
+    }
+    return header;
+  };
+
+  async function registerControlPlaneApi(api: FastifyInstance): Promise<void> {
+    await api.register(identityPlugin, {
+      ...identityAuth,
+      skipPathPrefixes: ["/docs"],
+    });
+    await api.register(principalRoleEnricherPlugin, {
+      principalService,
+      userRepository,
+    });
+    await api.register(authzPlugin, {
+      cerbosUrl,
+      resolveTarget: createIntegrationAuthzTargetResolver(),
+    });
+    await api.register(tenantPlugin, { tenantSource: "jwt" });
+    await api.register(
+      createControlPlaneRouter({
+        integrationsRepository,
+        integrationApiKeysRepository,
+        partnerPrincipalGateway,
+        getTenantId,
+        getActorId,
+        getAuthorizationHeader,
+      }),
+    );
+  }
+
+  await app.register(registerControlPlaneApi, { prefix: "/api/integration-hub/v1" });
+  app.get("/api/integration-hub/v1/healthz", async () => ({ status: "ok" as const }));
 
   await app.listen({ port: PORT, host: "0.0.0.0" });
 

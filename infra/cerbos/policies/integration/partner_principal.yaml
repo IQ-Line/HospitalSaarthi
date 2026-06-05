@@ -55,3 +55,28 @@ resourcePolicy:
               "integration:partner:deactivate" in request.principal.attr.capabilities ||
               "integration:partner:deactivate" in request.principal.attr.delegated_capabilities
             )
+
+    - actions:
+        - "partner.reactivate"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "integration:partner:reactivate" in request.principal.attr.capabilities ||
+              "integration:partner:reactivate" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "partner.reactivate"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "integration:partner:reactivate" in request.principal.attr.capabilities ||
+              "integration:partner:reactivate" in request.principal.attr.delegated_capabilities
+            )

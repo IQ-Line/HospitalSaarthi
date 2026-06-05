@@ -12,7 +12,7 @@ Cross-references: [HLD 04 — AuthN/AuthZ](../hld/04-authn-authz-flow.md), [HLD 
 
 ## Decision drivers
 
-- User Management role capabilities are the sole permission source.
+- User Management role capabilities are the sole permission source (synced from Master Data `module_permissions` via `pnpm sync:capabilities`).
 - Integration Hub is the system of record for integrations and API keys.
 - Modules must never see API keys.
 - Partner principals are non-loginable (`kind=partner`).
@@ -44,7 +44,7 @@ Cross-references: [HLD 04 — AuthN/AuthZ](../hld/04-authn-authz-flow.md), [HLD 
 **Follow-up actions:**
 
 - [x] PR-1: Security foundation (this ADR, tenantSource=jwt, partner principal model)
-- [ ] PR-2: Integration control plane
+- [x] PR-2: Integration control plane
 - [ ] PR-3: Smart Report inbound MVP
 - [ ] PR-4: Outbound, S2S tokens, UI
 

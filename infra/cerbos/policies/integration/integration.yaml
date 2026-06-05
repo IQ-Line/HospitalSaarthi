@@ -1,0 +1,108 @@
+---
+# Integration Hub control plane — integration registry + API keys.
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "integration"
+  version: default
+  rules:
+    - actions: ["integration.read"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "integration:integration:read" in request.principal.attr.capabilities ||
+              "integration:integration:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions: ["integration.create"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "integration:integration:create" in request.principal.attr.capabilities ||
+              "integration:integration:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions: ["integration.update", "integration.delete"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "integration:integration:update" in request.principal.attr.capabilities ||
+              "integration:integration:update" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions: ["integration.activate", "integration.reactivate"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "integration:integration:activate" in request.principal.attr.capabilities ||
+              "integration:integration:activate" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions: ["integration.disable"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "integration:integration:disable" in request.principal.attr.capabilities ||
+              "integration:integration:disable" in request.principal.attr.delegated_capabilities
+            )
+
+---
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "integration_api_key"
+  version: default
+  rules:
+    - actions: ["api_key.read"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "integration:api-key:read" in request.principal.attr.capabilities ||
+              "integration:api-key:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions: ["api_key.issue"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "integration:api-key:issue" in request.principal.attr.capabilities ||
+              "integration:api-key:issue" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions: ["api_key.revoke"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "integration:api-key:revoke" in request.principal.attr.capabilities ||
+              "integration:api-key:revoke" in request.principal.attr.delegated_capabilities
+            )

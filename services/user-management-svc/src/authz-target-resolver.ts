@@ -284,6 +284,16 @@ export function createUserManagementAuthzTargetResolver(
       };
     }
 
+    if (method === "POST" && path === "/partner-principals/:integrationId/reactivate") {
+      const integrationId = resolvePathParam(request, "integrationId");
+      return {
+        kind: "integration_partner",
+        id: integrationId ?? "reactivate",
+        action: "partner.reactivate",
+        attr: tenantAttr(request),
+      };
+    }
+
     if (
       method === "GET" &&
       (path === "/auth/me" || path === "/auth/principal")

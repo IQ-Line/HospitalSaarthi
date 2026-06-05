@@ -196,6 +196,9 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
       userRepository,
       eventBus,
     },
+    reactivatePartnerPrincipalDeps: {
+      partnerPrincipalRepository,
+    },
   });
 
   registerAuthHandlers(fastify, {

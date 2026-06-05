@@ -19,7 +19,8 @@
     "lint": "nx affected -t lint",
     "test": "nx affected -t test",
     "build": "nx run-many -t build",
-    "ci:pr": "nx affected -t lint typecheck test"
+    "ci:pr": "pnpm ci:partner-operations && nx affected -t lint typecheck test",
+    "ci:partner-operations": "tsx scripts/ci/check-partner-operation-id-immutability.ts"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

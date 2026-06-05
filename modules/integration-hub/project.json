@@ -14,8 +14,16 @@
       "options": {
         "lintFilePatterns": [
           "modules/integration-hub/src/index.ts",
-          "modules/integration-hub/src/lib/**/*.ts"
+          "modules/integration-hub/src/lib/**/*.ts",
+          "modules/integration-hub/src/control-plane/**/*.ts"
         ]
+      }
+    },
+    "ci:partner-operations": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm ci:partner-operations",
+        "cwd": "."
       }
     }
   }

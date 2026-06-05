@@ -8,9 +8,11 @@
   },
   "dependencies": {
     "@hims/ts-sdk-abha": "workspace:*",
+    "@hims/ts-sdk-authz": "workspace:*",
     "@hims/ts-sdk-db": "workspace:*",
     "@hims/ts-sdk-events": "workspace:*",
     "@hims/ts-sdk-tenant": "workspace:*",
+    "@node-rs/argon2": "^2.0.2",
     "@noble/curves": "^1.9.0",
     "@noble/hashes": "^1.8.0",
     "canonicalize": "^2.1.0",

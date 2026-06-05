@@ -104,4 +104,40 @@ describe("mapMasterDataPermissionToRuntimeCapability", () => {
       "visitpad-master.visitpad.view",
     );
   });
+
+  it("maps Integration Hub catalog permissions from Master Data", () => {
+    expect(
+      mapMasterDataPermissionToRuntimeCapability({
+        moduleSlug: "integration",
+        permissionSlug: "integration.create",
+      }),
+    ).toMatchObject({
+      capability_key: "integration:integration:create",
+      source_catalog: "master_data",
+    });
+
+    expect(
+      mapMasterDataPermissionToRuntimeCapability({
+        moduleSlug: "integration",
+        permissionSlug: "integration.activate",
+        catalogAction: "manage",
+      }).capability_key,
+    ).toBe("integration:integration:activate");
+
+    expect(
+      mapMasterDataPermissionToRuntimeCapability({
+        moduleSlug: "integration",
+        permissionSlug: "api-key.issue",
+        catalogAction: "create",
+      }).capability_key,
+    ).toBe("integration:api-key:issue");
+
+    expect(
+      mapMasterDataPermissionToRuntimeCapability({
+        moduleSlug: "integration",
+        permissionSlug: "partner.provision",
+        catalogAction: "create",
+      }).capability_key,
+    ).toBe("integration:partner:provision");
+  });
 });

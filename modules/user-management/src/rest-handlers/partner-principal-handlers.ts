@@ -3,6 +3,8 @@ import { replyWithUserManagementError } from "../http/map-user-management-error.
 import { UserManagementError } from "../domain/errors.js";
 import { deactivatePartnerPrincipal } from "../use-cases/deactivate-partner-principal.js";
 import type { DeactivatePartnerPrincipalDeps } from "../use-cases/deactivate-partner-principal.js";
+import { reactivatePartnerPrincipal } from "../use-cases/reactivate-partner-principal.js";
+import type { ReactivatePartnerPrincipalDeps } from "../use-cases/reactivate-partner-principal.js";
 import { provisionPartnerPrincipal } from "../use-cases/provision-partner-principal.js";
 import type { ProvisionPartnerPrincipalDeps } from "../use-cases/provision-partner-principal.js";
 
@@ -11,6 +13,7 @@ export type PartnerPrincipalHandlersDeps = {
   getActorId: (request: FastifyRequest) => string;
   provisionPartnerPrincipalDeps: ProvisionPartnerPrincipalDeps;
   deactivatePartnerPrincipalDeps: DeactivatePartnerPrincipalDeps;
+  reactivatePartnerPrincipalDeps: ReactivatePartnerPrincipalDeps;
 };
 
 const UUID_RE =
@@ -99,6 +102,44 @@ export function registerPartnerPrincipalHandlers(
             tenantId: deps.getTenantId(request),
             actorId: deps.getActorId(request),
           },
+          integrationId,
+        );
+        if (user === null) {
+          return reply.code(404).send({
+            code: "PARTNER_PRINCIPAL_NOT_FOUND",
+            message: "No partner principal exists for this integration.",
+          });
+        }
+        return reply.send(user);
+      } catch (err) {
+        if (err instanceof UserManagementError) {
+          return replyWithUserManagementError(
+            reply,
+            err,
+            request.correlationId ?? request.id,
+          );
+        }
+        throw err;
+      }
+    },
+  );
+
+  app.post<{ Params: { integrationId: string } }>(
+    "/partner-principals/:integrationId/reactivate",
+    { config: { authMode: "protected" } },
+    async (request, reply) => {
+      const { integrationId } = request.params;
+      if (!UUID_RE.test(integrationId)) {
+        return reply.code(400).send({
+          code: "INVALID_INPUT",
+          message: "integrationId must be a UUID.",
+        });
+      }
+
+      try {
+        const user = await reactivatePartnerPrincipal(
+          deps.reactivatePartnerPrincipalDeps,
+          { tenantId: deps.getTenantId(request) },
           integrationId,
         );
         if (user === null) {
