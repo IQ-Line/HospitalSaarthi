@@ -26,7 +26,7 @@ function isRegistrationApiPath(path: string): boolean {
   );
 }
 
-function resolveRequestUrl(path: string): string {
+export function resolveRequestUrl(path: string): string {
   if (path.startsWith('http://') || path.startsWith('https://')) return path;
   return `${BASE_URL}${path}`;
 }
@@ -120,7 +120,10 @@ function buildRequestHeaders(
 ): Headers {
   const tenantId = resolveEffectiveTenantId(context);
   const headers = new Headers(options.headers);
-  headers.set('Content-Type', 'application/json');
+  // FormData uploads must omit Content-Type so the browser sets multipart boundary.
+  if (!(options.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json');
+  }
 
   const token = useAuthStore.getState().accessToken;
   if (token) {
@@ -165,6 +168,30 @@ export async function apiClient<T>(
   );
 }
 
+/** Multipart upload — omits Content-Type so the browser sets the boundary. */
+export async function apiClientFormData<T>(
+  path: string,
+  formData: FormData,
+  options: Omit<RequestInit, 'body'> = {},
+  context?: ApiClientContext,
+): Promise<T> {
+  const headers = buildRequestHeaders(path, options, context);
+  headers.delete('Content-Type');
+
+  const response = await fetchWithAuthRetry(
+    path,
+    { ...options, method: options.method ?? 'POST', headers, body: formData },
+    context,
+    true,
+  );
+
+  if (!response.ok) {
+    throw new ApiError(response.status, await response.text());
+  }
+
+  return parseJsonResponse<T>(response);
+}
+
 /** Binary response (e.g. PDF) with the same auth and tenant headers as {@link apiClient}. */
 export async function apiClientBlob(
   path: string,
@@ -173,7 +200,9 @@ export async function apiClientBlob(
 ): Promise<Blob> {
   const headers = buildRequestHeaders(path, options, context);
   headers.delete('Content-Type');
-  headers.set('Accept', 'application/pdf');
+  if (!headers.has('Accept')) {
+    headers.set('Accept', 'application/octet-stream');
+  }
 
   const response = await fetchWithAuthRetry(
     path,

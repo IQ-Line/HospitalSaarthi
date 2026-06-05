@@ -26,6 +26,8 @@ tags:
   description: Visit-scoped prescription form_data upserts.
 - name: Prescriptions
   description: Normalized prescription REST aggregate.
+- name: OpdHealthDocuments
+  description: Patient health documents (Azure Blob Storage).
 servers:
 - url: http://localhost:8020/api/v1/opd
   description: Local opd-svc (OPD_SVC_PORT; default 8020)
@@ -535,6 +537,112 @@ paths:
           description: Not found
         '409':
           description: Already cancelled or finalized
+
+  /patients/{patientId}/health-documents:
+    post:
+      operationId: uploadPatientHealthDocument
+      summary: Upload a patient health document to Azure Blob Storage
+      tags: [OpdHealthDocuments]
+      parameters:
+        - $ref: '#/components/parameters/PatientId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, hi_type, document_title]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                hi_type:
+                  type: string
+                  description: ABDM HI type label (e.g. Diagnostic Report Record)
+                document_title:
+                  type: string
+                visit_id:
+                  type: string
+                  format: uuid
+                  description: Optional visit to associate the document with
+      responses:
+        '201':
+          description: Document uploaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthDocumentUploadResponse'
+        '400':
+          description: Validation error (file type, size, or missing fields)
+        '503':
+          description: Azure Blob Storage unavailable
+    get:
+      operationId: listPatientHealthDocuments
+      summary: List patient health documents
+      tags: [OpdHealthDocuments]
+      parameters:
+        - $ref: '#/components/parameters/PatientId'
+        - name: visit_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 10 }
+      responses:
+        '200':
+          description: Paginated document list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthDocumentListResponse'
+
+  /health-documents/{documentId}/download:
+    get:
+      operationId: downloadHealthDocument
+      summary: Time-limited SAS URL for document download (JSON or redirect)
+      description: >-
+        SPA clients send Accept application/pdf (or image/*) and receive the file bytes
+        from opd-svc (same-origin; avoids Azure CORS). Accept application/json only
+        returns { url } (SAS). Other clients may receive HTTP 302 to the SAS URL.
+      tags: [OpdHealthDocuments]
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: File bytes (SPA) or SAS JSON (Accept application/json only)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthDocumentDownloadResponse'
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '302':
+          description: Redirect to Azure Blob SAS URL
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          description: Azure Blob Storage unavailable
+
 components:
   parameters:
     PatientId:
@@ -1327,3 +1435,69 @@ components:
       properties:
         data:
           $ref: '#/components/schemas/PrescriptionDetail'
+
+    HealthDocumentSummary:
+      type: object
+      required:
+        - id
+        - patient_id
+        - file_name
+        - file_type
+        - document_title
+        - hi_type
+        - uploaded_at
+        - download_url
+      properties:
+        id: { type: string, format: uuid }
+        patient_id: { type: string, format: uuid }
+        visit_id: { type: string, format: uuid, nullable: true }
+        file_name: { type: string }
+        file_type: { type: string }
+        document_title: { type: string }
+        hi_type: { type: string }
+        uploaded_at: { type: string, format: date-time }
+        download_url: { type: string }
+
+    HealthDocumentUploadResponse:
+      type: object
+      required:
+        - id
+        - patient_id
+        - file_name
+        - file_type
+        - document_title
+        - hi_type
+        - uploaded_at
+      properties:
+        id: { type: string, format: uuid }
+        patient_id: { type: string, format: uuid }
+        visit_id: { type: string, format: uuid, nullable: true }
+        file_name: { type: string }
+        file_type: { type: string }
+        document_title: { type: string }
+        hi_type: { type: string }
+        uploaded_at: { type: string, format: date-time }
+
+    HealthDocumentDownloadResponse:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          format: uri
+          description: Time-limited Azure Blob SAS URL
+
+    HealthDocumentListResponse:
+      type: object
+      required: [success, count, total, total_pages, current_page, limit, data]
+      properties:
+        success: { type: boolean }
+        count: { type: integer }
+        total: { type: integer }
+        total_pages: { type: integer }
+        current_page: { type: integer }
+        limit: { type: integer }
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/HealthDocumentSummary'

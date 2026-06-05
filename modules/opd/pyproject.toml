@@ -5,11 +5,13 @@ description = "OPD module for the HIMS platform."
 requires-python = ">=3.12"
 dependencies = [
     "alembic",
+    "azure-storage-blob",
     "fastapi",
     "pydantic",
     "pydantic-settings",
     "psycopg[binary]",
     "pyjwt",
+    "python-multipart",
     "sqlalchemy",
 ]
 
