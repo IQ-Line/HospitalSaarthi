@@ -1,0 +1,17 @@
+{
+  "name": "@hims/ipd-svc",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@hims/ipd": "workspace:*",
+    "@hims/ts-sdk-db": "workspace:*",
+    "@hims/ts-sdk-openapi": "workspace:*",
+    "@hims/ts-sdk-tenant": "workspace:*",
+    "fastify": "^5.3.3",
+    "fastify-plugin": "^5.0.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.5"
+  }
+}

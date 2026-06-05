@@ -155,6 +155,19 @@ importers:
         specifier: ^3.1.3
         version: 3.2.4(@types/node@25.6.0)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.8.4)
 
+  modules/ipd:
+    dependencies:
+      '@hims/ts-sdk-db':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-db
+    devDependencies:
+      fastify:
+        specifier: ^5.3.3
+        version: 5.8.5
+      fastify-plugin:
+        specifier: ^5.0.1
+        version: 5.1.0
+
   modules/registration:
     dependencies:
       '@hims/pdf-client':
@@ -763,6 +776,31 @@ importers:
       jose:
         specifier: ^6.2.3
         version: 6.2.3
+    devDependencies:
+      tsx:
+        specifier: ^4.20.5
+        version: 4.21.0
+
+  services/ipd-svc:
+    dependencies:
+      '@hims/ipd':
+        specifier: workspace:*
+        version: link:../../modules/ipd
+      '@hims/ts-sdk-db':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-db
+      '@hims/ts-sdk-openapi':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-openapi
+      '@hims/ts-sdk-tenant':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-tenant
+      fastify:
+        specifier: ^5.3.3
+        version: 5.8.5
+      fastify-plugin:
+        specifier: ^5.0.1
+        version: 5.1.0
     devDependencies:
       tsx:
         specifier: ^4.20.5
