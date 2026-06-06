@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, type ChangeEvent } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -25,6 +25,7 @@ import {
 import { useDepartments } from '@/features/master-data/api';
 import type { Department } from '@/features/master-data/types';
 import { mutationErrorMessage } from '@/lib/mutation-error';
+import { indianMobileZodFieldOptional, sanitizeIndianMobileInput } from '@/lib/indian-mobile';
 import type { UmUser, UpdateUserBody } from '../types';
 import { useUpdateUser } from '../api/mutations';
 import { roleListOptions, userCapabilitiesOptions, userDetailOptions } from '../api/queries';
@@ -43,7 +44,7 @@ const EMPTY_TARIFF_LIST: Awaited<ReturnType<typeof listDoctorConsultationTariffs
 const schema = z.object({
   full_name: z.string().min(1, 'Name is required'),
   email: z.union([z.literal(''), z.string().email('Enter a valid email')]),
-  phone: z.string(),
+  phone: indianMobileZodFieldOptional(),
   username: z.string(),
   department: z.string(),
   doctor_tariffs: z.array(doctorTariffRowSchema).default([]),
@@ -292,7 +293,21 @@ export function EditUserDialog({ open, onOpenChange, user, tenantScope }: EditUs
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="edit_phone">Phone</Label>
-                  <Input id="edit_phone" {...register('phone')} />
+                  <Input
+                    id="edit_phone"
+                    inputMode="numeric"
+                    autoComplete="tel-national"
+                    maxLength={10}
+                    placeholder="Enter 10-digit number"
+                    {...register('phone', {
+                      onChange: (e: ChangeEvent<HTMLInputElement>) => {
+                        e.target.value = sanitizeIndianMobileInput(e.target.value);
+                      },
+                    })}
+                  />
+                  {formState.errors.phone ? (
+                    <p className="text-sm text-destructive">{formState.errors.phone.message}</p>
+                  ) : null}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit_username">Username</Label>

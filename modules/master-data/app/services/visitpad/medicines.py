@@ -91,6 +91,7 @@ def create_visitpad_medicine(
         default_route=_norm_opt_str(payload.default_route),
         default_instructions=_norm_opt_str(payload.default_instructions),
         typical_quantity=payload.typical_quantity,
+        price=payload.price,
         notes=_norm_opt_str(payload.notes),
         display_order=payload.display_order,
         is_active=payload.is_active,
@@ -221,6 +222,8 @@ def update_visitpad_medicine(
         row.default_instructions = _norm_opt_str(payload.default_instructions)
     if "typical_quantity" in dump:
         row.typical_quantity = payload.typical_quantity
+    if "price" in dump:
+        row.price = payload.price
     if "notes" in dump:
         row.notes = _norm_opt_str(payload.notes)
     if "display_order" in dump and payload.display_order is not None:

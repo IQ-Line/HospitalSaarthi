@@ -16,6 +16,7 @@ import {
   TableRow,
 } from '@pulse/ui/table';
 import { executeCreateVisitFlow, listRegistrations } from '@/features/frontdesk/api/registrations';
+import { indianMobileRegisterOptions } from '@/lib/indian-mobile';
 import type { RegistrationReportQueryContext } from '@/features/frontdesk/api/registration-documents';
 import { resolveRegistrationBillId } from '@/features/frontdesk/api/registration-bill';
 import {
@@ -162,7 +163,7 @@ function VisitRegistrationRoute() {
         first_name: '',
         middle_name: '',
         last_name: '',
-        gender: 'male',
+        gender: '',
         date_of_birth: '',
         age_years: null,
         age_months: null,
@@ -233,6 +234,7 @@ function VisitRegistrationRoute() {
     billingAmountPaid,
     patientPhone,
     patientFirstName,
+    patientGender,
     appointmentProviderId,
     appointmentDepartmentId,
     appointmentVisitTypeCode,
@@ -251,6 +253,7 @@ function VisitRegistrationRoute() {
       'billing.amount_paid',
       'patient.phone',
       'patient.first_name',
+      'patient.gender',
       'appointment.provider_id',
       'appointment.department_id',
       'appointment.visit_type_code',
@@ -280,6 +283,7 @@ function VisitRegistrationRoute() {
   const formGate = {
     phone: patientPhone,
     firstName: patientFirstName,
+    gender: patientGender,
     departmentId: appointmentDepartmentId,
     providerId: appointmentProviderId,
     visitTypeCode: appointmentVisitTypeCode,
@@ -356,13 +360,7 @@ function VisitRegistrationRoute() {
     onChange: patientPhoneRhfOnChange,
     onBlur: patientPhoneOnBlur,
     name: patientPhoneName,
-  } = form.register('patient.phone', {
-    required: 'Phone number is required',
-    pattern: {
-      value: /^\d{10}$/,
-      message: 'Enter a 10-digit mobile number (digits only)',
-    },
-  });
+  } = form.register('patient.phone', indianMobileRegisterOptions());
 
   const submitIdempotencyKeyRef = useRef<string | undefined>(undefined);
   const pendingAbhaDistrictRef = useRef<string | null>(null);
@@ -510,6 +508,7 @@ function VisitRegistrationRoute() {
     const gate = {
       phone: data.patient?.phone,
       firstName: data.patient?.first_name,
+      gender: data.patient?.gender,
       departmentId: data.appointment?.department_id,
       providerId: data.appointment?.provider_id,
       visitTypeCode: data.appointment?.visit_type_code,
@@ -528,13 +527,19 @@ function VisitRegistrationRoute() {
       if (blockers.includes('10-digit phone')) {
         form.setError('patient.phone', {
           type: 'required',
-          message: 'Enter a 10-digit mobile number',
+          message: 'Enter a valid 10-digit mobile number (must start with 6, 7, 8, or 9)',
         });
       }
       if (blockers.includes('first name')) {
         form.setError('patient.first_name', {
           type: 'required',
           message: 'First name is required',
+        });
+      }
+      if (blockers.includes('gender')) {
+        form.setError('patient.gender', {
+          type: 'required',
+          message: 'Gender is required',
         });
       }
       if (blockers.includes('department')) {
@@ -573,6 +578,7 @@ function VisitRegistrationRoute() {
     form.clearErrors([
       'patient.phone',
       'patient.first_name',
+      'patient.gender',
       'appointment.department_id',
       'appointment.provider_id',
       'appointment.visit_type_code',

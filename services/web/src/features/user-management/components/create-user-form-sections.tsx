@@ -1,4 +1,4 @@
-import { startTransition, type ReactNode } from 'react';
+import { startTransition, type ChangeEvent, type ReactNode } from 'react';
 import {
   Controller,
   type Control,
@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from '@pulse/ui/select';
 import { CapabilityGate } from '@/components/capability-gate';
+import { indianMobileZodField, sanitizeIndianMobileInput } from '@/lib/indian-mobile';
 import { useCapability } from '@/hooks/use-capability';
 import { UM_ROLE_ASSIGN, UM_ROLE_READ } from '@/lib/runtime-capability-keys';
 import type { Capability, UmRole } from '../types';
@@ -35,13 +36,13 @@ export function buildCreateUserFormSchema(options: CreateUserAccessOptions) {
     full_name: z.string().min(1, 'Required'),
     email: z.string().email('Enter a valid email'),
     password: z.string().min(8, 'Password must be at least 8 characters'),
-    phone: z.string(),
+    phone: indianMobileZodField(),
     username: z.string(),
     department: z.string(),
     doctor_tariffs: z.array(doctorTariffRowSchema).default([]),
     clearance_tier_required: z.coerce.number().int().min(0).max(3),
     role_template_ids: options.requireRoleTemplate
-      ? z.array(z.string().uuid()).length(1, 'Select a role.')
+      ? z.array(z.string().uuid()).min(1, 'Required')
       : z.array(z.string().uuid()).max(1).default([]),
     role_capability_selection_ids: z.array(z.string().uuid()).default([]),
   });
@@ -58,6 +59,23 @@ function FieldError({ message }: { message?: string }) {
   return message ? <p className="text-sm text-destructive">{message}</p> : null;
 }
 
+function FieldLabel({
+  htmlFor,
+  required,
+  children,
+}: {
+  htmlFor?: string;
+  required?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <Label htmlFor={htmlFor}>
+      {children}
+      {required ? <span className="text-destructive"> *</span> : null}
+    </Label>
+  );
+}
+
 export function CreateUserIdentitySection({ register, errors }: SharedFormSectionProps) {
   return (
     <UserManagementSectionCard
@@ -67,13 +85,17 @@ export function CreateUserIdentitySection({ register, errors }: SharedFormSectio
     >
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="c_full_name">Full name</Label>
+          <FieldLabel htmlFor="c_full_name" required>
+            Full name
+          </FieldLabel>
           <Input id="c_full_name" {...register('full_name')} />
           <FieldError message={errors.full_name?.message?.toString()} />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="c_email">Email</Label>
+          <FieldLabel htmlFor="c_email" required>
+            Email
+          </FieldLabel>
           <Input id="c_email" type="email" autoComplete="email" {...register('email')} />
           <p className="text-xs text-muted-foreground">
             The user will sign in with this email address.
@@ -82,7 +104,9 @@ export function CreateUserIdentitySection({ register, errors }: SharedFormSectio
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="c_password">Password</Label>
+          <FieldLabel htmlFor="c_password" required>
+            Password
+          </FieldLabel>
           <Input
             id="c_password"
             type="password"
@@ -93,8 +117,22 @@ export function CreateUserIdentitySection({ register, errors }: SharedFormSectio
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="c_phone">Phone</Label>
-          <Input id="c_phone" {...register('phone')} />
+          <FieldLabel htmlFor="c_phone" required>
+            Phone
+          </FieldLabel>
+          <Input
+            id="c_phone"
+            inputMode="numeric"
+            autoComplete="tel-national"
+            maxLength={10}
+            placeholder="Enter 10-digit number"
+            {...register('phone', {
+              onChange: (e: ChangeEvent<HTMLInputElement>) => {
+                e.target.value = sanitizeIndianMobileInput(e.target.value);
+              },
+            })}
+          />
+          <FieldError message={errors.phone?.message?.toString()} />
         </div>
 
         <div className="space-y-2">
@@ -158,6 +196,7 @@ type CreateUserAccessSectionProps = {
   roleTemplates: UmRole[];
   roleTemplatesPending: boolean;
   roleTemplatesError: boolean;
+  selectedRoleId: string;
   roleCapabilities: Capability[];
   roleCapabilitiesPending: boolean;
   roleCapabilitiesError: boolean;
@@ -169,6 +208,7 @@ export function CreateUserAccessSection({
   roleTemplates,
   roleTemplatesPending,
   roleTemplatesError,
+  selectedRoleId,
   roleCapabilities,
   roleCapabilitiesPending,
   roleCapabilitiesError,
@@ -196,47 +236,56 @@ export function CreateUserAccessSection({
   } else {
     roleBlock = (
       <div className="space-y-2">
-        <Label htmlFor="c_role_template">
-          {umRoleAssign ? 'Role (required)' : 'Role'}
-        </Label>
+        <FieldLabel htmlFor="c_role_template" required={umRoleAssign}>
+          Role
+        </FieldLabel>
         <Controller
           control={control}
           name="role_template_ids"
-          render={({ field }) => {
-            const selectedId = field.value[0] ?? roleTemplates[0]?.id ?? '';
+          render={({ field, fieldState, formState }) => {
+            const selectedId = field.value[0] ?? '';
+            const showRoleError =
+              Boolean(fieldState.error) && (fieldState.isTouched || formState.isSubmitted);
             return (
-              <Select
-                disabled={!umRoleAssign}
-                value={selectedId}
-                onValueChange={(value) => {
-                  field.onChange([value]);
-                }}
-              >
-                <SelectTrigger id="c_role_template">
-                  <SelectValue placeholder="Select a role" />
-                </SelectTrigger>
-                <SelectContent>
-                  {roleTemplates.map((role) => (
-                    <SelectItem key={role.id} value={role.id}>
-                      {role.display_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <>
+                <Select
+                  disabled={!umRoleAssign}
+                  value={selectedId || undefined}
+                  onValueChange={(value) => {
+                    field.onChange([value]);
+                  }}
+                >
+                  <SelectTrigger id="c_role_template" aria-invalid={showRoleError ? true : undefined}>
+                    <SelectValue placeholder="Select a role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roleTemplates.map((role) => (
+                      <SelectItem key={role.id} value={role.id}>
+                        {role.display_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {umRoleAssign
+                    ? 'Choose a role, then tick the permissions they should have.'
+                    : 'You can review the role but cannot change it.'}
+                </p>
+                <FieldError
+                  message={showRoleError ? fieldState.error?.message?.toString() : undefined}
+                />
+              </>
             );
           }}
         />
-        <p className="text-xs text-muted-foreground">
-          {umRoleAssign
-            ? 'Choose a role, then tick the permissions they should have.'
-            : 'You can review the role but cannot change it.'}
-        </p>
       </div>
     );
   }
 
   let treeBlock: ReactNode;
-  if (!umRoleRead) {
+  if (!selectedRoleId) {
+    treeBlock = null;
+  } else if (!umRoleRead) {
     treeBlock = (
       <p className="text-sm text-muted-foreground">
         You do not have permission to view this role&apos;s permissions.
@@ -309,7 +358,6 @@ export function CreateUserAccessSection({
     >
       {roleBlock}
       {treeBlock}
-      <FieldError message={errors.role_template_ids?.message?.toString()} />
       <FieldError message={errors.role_capability_selection_ids?.message?.toString()} />
     </UserManagementSectionCard>
   );

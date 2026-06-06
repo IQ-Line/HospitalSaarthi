@@ -92,6 +92,7 @@ describe('visitRegistrationFormBlockers', () => {
   const complete = {
     phone: '9876543210',
     firstName: 'Test',
+    gender: 'male' as const,
     departmentId: 'dept-1',
     providerId: 'doc-1',
     visitTypeCode: 'opd_first',
@@ -109,5 +110,22 @@ describe('visitRegistrationFormBlockers', () => {
     expect(
       visitRegistrationFormBlockers({ ...complete, grandTotal: 109.5, amountPaid: 109 }),
     ).toEqual([]);
+  });
+
+  it('rejects phone numbers starting with 0', () => {
+    expect(
+      visitRegistrationFormBlockers({ ...complete, phone: '0765432156' }),
+    ).toContain('10-digit phone');
+  });
+
+  it('rejects phone numbers starting with 1–5', () => {
+    expect(
+      visitRegistrationFormBlockers({ ...complete, phone: '2345677888' }),
+    ).toContain('10-digit phone');
+  });
+
+  it('requires gender selection', () => {
+    expect(visitRegistrationFormBlockers({ ...complete, gender: '' })).toContain('gender');
+    expect(visitRegistrationFormBlockers({ ...complete, gender: undefined })).toContain('gender');
   });
 });

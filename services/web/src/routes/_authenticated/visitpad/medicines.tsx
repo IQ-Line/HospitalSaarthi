@@ -261,6 +261,17 @@ function VisitpadMedicinesPage() {
         cell: ({ getValue }) => <Badge variant="secondary">{getValue<string>()}</Badge>,
       },
       {
+        accessorKey: 'price',
+        header: 'Price',
+        meta: { label: 'Price' },
+        cell: ({ row }) =>
+          row.original.price != null ? (
+            String(row.original.price)
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+      {
         accessorKey: 'is_active',
         header: 'Active',
         meta: { label: 'Active' },
@@ -532,6 +543,20 @@ function MedicineCreateDialog({
             <div className="space-y-2">
               <RequiredLabel htmlFor="vp-mc-ord">Display order</RequiredLabel>
               <Input id="vp-mc-ord" type="number" {...form.register('display_order', { valueAsNumber: true })} />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="vp-mc-price">Price</Label>
+              <Input
+                id="vp-mc-price"
+                type="number"
+                min={0}
+                step="any"
+                placeholder="Optional unit price"
+                {...form.register('price')}
+              />
+              {form.formState.errors.price ? (
+                <p className="text-xs text-destructive">{form.formState.errors.price.message}</p>
+              ) : null}
             </div>
           </div>
         </FieldSection>
@@ -892,11 +917,25 @@ function MedicineEditDialog({
                 <Label htmlFor="vp-me-ord">Display order</Label>
                 <Input id="vp-me-ord" type="number" {...form.register('display_order', { valueAsNumber: true })} />
               </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="vp-me-price">Price</Label>
+                <Input
+                  id="vp-me-price"
+                  type="number"
+                  min={0}
+                  step="any"
+                  placeholder="Optional unit price"
+                  {...form.register('price')}
+                />
+                {form.formState.errors.price ? (
+                  <p className="text-xs text-destructive">{form.formState.errors.price.message}</p>
+                ) : null}
+              </div>
             </div>
           </FieldSection>
 
           <FieldSection title="Formulation">
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:col-span-2">
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="vp-me-form">Dosage form</Label>
                 <DosageFormSelect

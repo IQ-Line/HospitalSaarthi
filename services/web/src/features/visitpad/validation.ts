@@ -232,6 +232,10 @@ export const visitpadMedicineCreateFormSchema = z.object({
   default_duration_days: optionalIntString('Default duration (days)'),
   default_route: z.string().max(64).optional(),
   typical_quantity: optionalFiniteNumberString('Typical quantity'),
+  price: optionalFiniteNumberString('Price').refine(
+    (n) => n === null || n === undefined || n >= 0,
+    { message: 'Price must be empty or zero or greater' },
+  ),
   default_instructions: z.string().max(1024).optional(),
   notes: z.string().max(2048).optional(),
   is_active: z.boolean().optional().default(true),
