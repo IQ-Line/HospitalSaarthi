@@ -82,7 +82,7 @@ export interface CreateVisitRequestBody {
     first_name: string;
     middle_name?: string | null;
     last_name?: string | null;
-    gender: 'male' | 'female' | 'other';
+    gender: 'male' | 'female' | 'other' | '';
     date_of_birth?: string | null;
     age_years?: number | null;
     age_months?: number | null;
