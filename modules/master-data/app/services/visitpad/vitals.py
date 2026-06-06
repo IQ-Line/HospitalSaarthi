@@ -34,12 +34,14 @@ def list_visitpad_vitals(
     *,
     search: str | None,
     category: str | None,
+    is_active: bool | None = None,
     limit: int,
     offset: int,
 ) -> tuple[list[Any], int]:
     return repository.list_vitals(
         search=search,
         category=category,
+        is_active=is_active,
         limit=limit,
         offset=offset,
     )

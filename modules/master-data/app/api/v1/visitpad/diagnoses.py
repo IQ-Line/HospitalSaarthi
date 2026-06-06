@@ -42,11 +42,13 @@ def get_diagnoses(
     offset: Annotated[int, Query(ge=0)] = 0,
     search: Annotated[str | None, Query()] = None,
     category: Annotated[VisitpadDiagnosisCategory | None, Query()] = None,
+    is_active: Annotated[bool | None, Query()] = None,
 ) -> VisitpadDiagnosisListResponse:
     rows, total = list_visitpad_diagnoses(
         repository,
         search=search,
         category=category.value if category is not None else None,
+        is_active=is_active,
         limit=limit,
         offset=offset,
     )

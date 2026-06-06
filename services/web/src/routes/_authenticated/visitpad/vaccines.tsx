@@ -87,7 +87,10 @@ function VisitpadVaccinesPage() {
   const del = useVisitpadDelete(VA_BASE);
   const create = useVisitpadPost(VA_BASE);
   const platformImport = useVisitpadPlatformImport('/vaccines/import-from-platform');
-  const { data: tenantCodeKeys } = useVisitpadTenantImportKeys('/vaccines', importOpen && tenantCatalog);
+  const { data: tenantCodeKeys, isLoading: tenantCodeKeysLoading } = useVisitpadTenantImportKeys(
+    '/vaccines',
+    importOpen && tenantCatalog,
+  );
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);
@@ -182,7 +185,7 @@ function VisitpadVaccinesPage() {
       actions={
         <VisitpadHeaderActions
           catalogModuleSlug={catalogModuleSlug}
-          addLabel={tenantCatalog ? 'Add local vaccine' : 'Add vaccine'}
+          addLabel="Add vaccine"
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
           importFromLibraryPending={platformImport.isPending}
@@ -229,6 +232,7 @@ function VisitpadVaccinesPage() {
         isLoading={globalLibLoading}
         getRowKey={getRowKey}
         importedKeys={importedKeys}
+        importedKeysLoading={tenantCodeKeysLoading}
         columns={importColumns}
         searchParts={importSearchParts}
         isSubmitting={platformImport.isPending || create.isPending}

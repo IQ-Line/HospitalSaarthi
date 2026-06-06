@@ -21,6 +21,8 @@ export interface PlatformCatalogImportColumn<T> {
   cell: (row: T) => ReactNode;
 }
 
+type RowWithActive = { is_active?: boolean };
+
 export interface ImportFromPlatformCatalogDialogProps<T> {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -29,6 +31,8 @@ export interface ImportFromPlatformCatalogDialogProps<T> {
   searchPlaceholder: string;
   rows: T[];
   isLoading: boolean;
+  /** While tenant import keys are loading, status/import checkboxes stay disabled. */
+  importedKeysLoading?: boolean;
   /** Stable key per row (e.g. `code`, or `from→to` for conversions). */
   getRowKey: (row: T) => string;
   /** First column header (defaults to “Code”). */
@@ -40,6 +44,8 @@ export interface ImportFromPlatformCatalogDialogProps<T> {
   searchParts: (row: T) => string[];
   isSubmitting: boolean;
   onImportRows: (rows: T[]) => Promise<void>;
+  /** When set, inactive platform rows are hidden from the list (default: row.is_active !== false). */
+  getRowActive?: (row: T) => boolean;
   /** Paginate platform library fetch (optional). */
   libraryPagination?: {
     pageIndex: number;
@@ -59,6 +65,17 @@ export interface ImportFromPlatformCatalogDialogProps<T> {
   maxImportBatch?: number;
 }
 
+function defaultGetRowActive<T>(row: T): boolean {
+  const active = (row as RowWithActive).is_active;
+  return active !== false;
+}
+
+function renderStatusCell(tableLoading: boolean, done: boolean): ReactNode {
+  if (tableLoading) return '…';
+  if (done) return 'Imported';
+  return 'Active';
+}
+
 export function ImportFromPlatformCatalogDialog<T>({
   open,
   onOpenChange,
@@ -67,6 +84,7 @@ export function ImportFromPlatformCatalogDialog<T>({
   searchPlaceholder,
   rows,
   isLoading,
+  importedKeysLoading = false,
   getRowKey,
   rowKeyHeader = 'Code',
   importedKeys,
@@ -74,6 +92,7 @@ export function ImportFromPlatformCatalogDialog<T>({
   searchParts,
   isSubmitting,
   onImportRows,
+  getRowActive = defaultGetRowActive,
   libraryPagination,
   librarySearchControl,
   maxImportBatch = 200,
@@ -83,6 +102,7 @@ export function ImportFromPlatformCatalogDialog<T>({
 
   const searchDraft = librarySearchControl?.draft ?? localSearch;
   const setSearchDraft = librarySearchControl?.onDraftChange ?? setLocalSearch;
+  const tableLoading = isLoading || importedKeysLoading;
 
   useEffect(() => {
     if (!open) {
@@ -99,9 +119,14 @@ export function ImportFromPlatformCatalogDialog<T>({
     [rows, localSearch, searchParts, librarySearchControl],
   );
 
+  const visibleRows = useMemo(
+    () => filtered.filter((r) => getRowActive(r)),
+    [filtered, getRowActive],
+  );
+
   const importableFiltered = useMemo(
-    () => filtered.filter((r) => !importedKeys.has(getRowKey(r))),
-    [filtered, importedKeys, getRowKey],
+    () => visibleRows.filter((r) => !importedKeys.has(getRowKey(r))),
+    [visibleRows, importedKeys, getRowKey],
   );
 
   const selectedImportable = useMemo(
@@ -152,7 +177,7 @@ export function ImportFromPlatformCatalogDialog<T>({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain border-y px-4 py-2">
-          {isLoading ? (
+          {tableLoading ? (
             <div className="space-y-2 py-2">
               {Array.from({ length: 6 }).map((_, i) => (
                 <Skeleton key={i} className="h-10 w-full" />
@@ -171,7 +196,7 @@ export function ImportFromPlatformCatalogDialog<T>({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((row) => {
+                {visibleRows.map((row) => {
                   const key = getRowKey(row);
                   const done = importedKeys.has(key);
                   const checked = done || selected.has(key);
@@ -190,7 +215,7 @@ export function ImportFromPlatformCatalogDialog<T>({
                         <TableCell key={c.id}>{c.cell(row)}</TableCell>
                       ))}
                       <TableCell className="text-xs text-muted-foreground">
-                        {done ? '✓ Imported' : ''}
+                        {renderStatusCell(tableLoading, done)}
                       </TableCell>
                     </TableRow>
                   );
@@ -251,7 +276,7 @@ export function ImportFromPlatformCatalogDialog<T>({
               variant="outline"
               size="sm"
               className="gap-1.5"
-              disabled={isSubmitting || importableFiltered.length === 0}
+              disabled={isSubmitting || tableLoading || importableFiltered.length === 0}
               onClick={() => void runImport(importableFiltered)}
             >
               <Download className="size-4" aria-hidden />
@@ -262,7 +287,7 @@ export function ImportFromPlatformCatalogDialog<T>({
               variant="ghost"
               size="sm"
               onClick={selectAllInView}
-              disabled={isSubmitting}
+              disabled={isSubmitting || tableLoading}
             >
               Select all in view
             </Button>
@@ -287,7 +312,7 @@ export function ImportFromPlatformCatalogDialog<T>({
             </Button>
             <Button
               type="button"
-              disabled={isSubmitting || selectedImportable.length === 0}
+              disabled={isSubmitting || tableLoading || selectedImportable.length === 0}
               className="gap-1.5"
               onClick={() => void runImport(selectedImportable)}
             >

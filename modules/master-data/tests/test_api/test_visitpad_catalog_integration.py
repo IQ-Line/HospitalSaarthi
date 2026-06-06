@@ -210,3 +210,50 @@ def test_visitpad_rx_column_bulk_import_from_platform(visitpad_catalog_client: T
     assert wrong.status_code == 200
     err = wrong.json()["data"]["errors"]
     assert len(err) == 1
+
+
+def test_visitpad_vital_bulk_import_long_code_from_platform(visitpad_catalog_client: TestClient) -> None:
+    body = {
+        "code": "systolic_bp",
+        "name": "Systolic BP",
+        "short_name": "SBP",
+        "category": "vital_signs",
+        "data_type": "numeric",
+        "unit": "mmHg",
+        "default_unit_code": "mmhg",
+        "display_order": 0,
+        "is_active": True,
+    }
+    r = visitpad_catalog_client.post("/api/v1/master-data/visitpad/vitals", json=body)
+    assert r.status_code == 201, r.text
+    vid = r.json()["data"]["id"]
+    imp = visitpad_catalog_client.post(
+        "/api/v1/master-data/visitpad/vitals/import-from-platform",
+        headers={"iq_tenant_id": TENANT_IMPORT},
+        json={"platform_row_ids": [vid]},
+    )
+    assert imp.status_code == 200, imp.text
+    out = imp.json()["data"]
+    assert len(out["created"]) == 1
+    assert out["errors"] == []
+
+
+def test_visitpad_import_rejects_inactive_platform_row(visitpad_catalog_client: TestClient) -> None:
+    body = {
+        "code": "inact_med",
+        "display_name": "Inactive Med",
+        "is_active": False,
+    }
+    r = visitpad_catalog_client.post("/api/v1/master-data/visitpad/medicines", json=body)
+    assert r.status_code == 201, r.text
+    mid = r.json()["data"]["id"]
+    imp = visitpad_catalog_client.post(
+        "/api/v1/master-data/visitpad/medicines/import-from-platform",
+        headers={"iq_tenant_id": TENANT_IMPORT},
+        json={"platform_row_ids": [mid]},
+    )
+    assert imp.status_code == 200, imp.text
+    out = imp.json()["data"]
+    assert out["created"] == []
+    assert len(out["errors"]) == 1
+    assert "inactive" in out["errors"][0]["message"].lower()

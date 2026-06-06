@@ -100,7 +100,10 @@ function VisitpadChiefComplaintsPage() {
   const del = useVisitpadDelete(CC_BASE);
   const create = useVisitpadPost(CC_BASE);
   const platformImport = useVisitpadPlatformImport('/chief-complaints/import-from-platform');
-  const { data: tenantCodeKeys } = useVisitpadTenantImportKeys('/chief-complaints', importOpen && tenantCatalog);
+  const { data: tenantCodeKeys, isLoading: tenantCodeKeysLoading } = useVisitpadTenantImportKeys(
+    '/chief-complaints',
+    importOpen && tenantCatalog,
+  );
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);
@@ -278,7 +281,7 @@ function VisitpadChiefComplaintsPage() {
       actions={
         <VisitpadHeaderActions
           catalogModuleSlug={catalogModuleSlug}
-          addLabel={tenantCatalog ? 'Add local complaint' : 'Add complaint'}
+          addLabel="Add complaint"
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
           importFromLibraryPending={platformImport.isPending}
@@ -373,6 +376,7 @@ function VisitpadChiefComplaintsPage() {
         isLoading={globalLibLoading}
         getRowKey={getRowKey}
         importedKeys={importedKeys}
+        importedKeysLoading={tenantCodeKeysLoading}
         columns={importColumns}
         searchParts={importSearchParts}
         isSubmitting={platformImport.isPending || create.isPending}

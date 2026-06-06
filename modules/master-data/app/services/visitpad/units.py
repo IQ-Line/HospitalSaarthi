@@ -38,12 +38,14 @@ def list_visitpad_units(
     *,
     search: str | None,
     dimension: str | None,
+    is_active: bool | None = None,
     limit: int,
     offset: int,
 ) -> tuple[list[Any], int]:
     return repository.list_units(
         search=search,
         dimension=dimension,
+        is_active=is_active,
         limit=limit,
         offset=offset,
     )

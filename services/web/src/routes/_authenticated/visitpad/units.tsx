@@ -95,7 +95,10 @@ function VisitpadUnitsPage() {
     },
     librarySearch || undefined,
   );
-  const { data: tenantCodeKeys } = useVisitpadTenantImportKeys('/units', importOpen && tenantCatalog);
+  const { data: tenantCodeKeys, isLoading: tenantCodeKeysLoading } = useVisitpadTenantImportKeys(
+    '/units',
+    importOpen && tenantCatalog,
+  );
   const patch = useVisitpadPatch(UNITS_BASE);
   const del = useVisitpadDelete(UNITS_BASE);
   const create = useVisitpadPost(UNITS_BASE);
@@ -200,7 +203,7 @@ function VisitpadUnitsPage() {
       actions={
         <VisitpadHeaderActions
           catalogModuleSlug={catalogModuleSlug}
-          addLabel={tenantCatalog ? 'Add local unit' : 'Add unit'}
+          addLabel="Add unit"
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
           importFromLibraryPending={platformImport.isPending}
@@ -288,6 +291,7 @@ function VisitpadUnitsPage() {
         isLoading={globalLibLoading}
         getRowKey={getRowKey}
         importedKeys={importedKeys}
+        importedKeysLoading={tenantCodeKeysLoading}
         columns={importColumns}
         searchParts={importSearchParts}
         isSubmitting={platformImport.isPending || create.isPending}

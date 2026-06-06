@@ -110,9 +110,13 @@ function VisitpadRxColumnsPage() {
   const del = useVisitpadDelete(RX_BASE);
   const create = useVisitpadPost(RX_BASE);
   const platformImport = useVisitpadRxColumnsPlatformImport(section);
-  const { data: tenantRxKeys } = useVisitpadTenantImportKeys('/rx-columns', importOpen && tenantCatalog, {
-    section,
-  });
+  const { data: tenantRxKeys, isLoading: tenantRxKeysLoading } = useVisitpadTenantImportKeys(
+    '/rx-columns',
+    importOpen && tenantCatalog,
+    {
+      section,
+    },
+  );
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);
@@ -217,7 +221,7 @@ function VisitpadRxColumnsPage() {
       actions={
         <VisitpadHeaderActions
           catalogModuleSlug={catalogModuleSlug}
-          addLabel={tenantCatalog ? `Add local ${sectionLabel}` : `Add ${sectionLabel}`}
+          addLabel={`Add ${sectionLabel}`}
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
           importFromLibraryPending={platformImport.isPending}
@@ -282,6 +286,7 @@ function VisitpadRxColumnsPage() {
         isLoading={globalLibLoading}
         getRowKey={getRowKey}
         importedKeys={importedKeys}
+        importedKeysLoading={tenantRxKeysLoading}
         columns={importColumns}
         searchParts={importSearchParts}
         isSubmitting={platformImport.isPending || create.isPending}

@@ -24,6 +24,7 @@ def list_visitpad_procedures(
     search: str | None,
     category: str | None,
     billing_category: str | None,
+    is_active: bool | None = None,
     limit: int,
     offset: int,
 ) -> tuple[list[Any], int]:
@@ -31,6 +32,7 @@ def list_visitpad_procedures(
         search=search,
         category=category,
         billing_category=billing_category,
+        is_active=is_active,
         limit=limit,
         offset=offset,
     )

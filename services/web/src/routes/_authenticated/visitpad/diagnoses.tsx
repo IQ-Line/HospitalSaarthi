@@ -99,7 +99,10 @@ function VisitpadDiagnosesPage() {
   const del = useVisitpadDelete(DX_BASE);
   const create = useVisitpadPost(DX_BASE);
   const platformImport = useVisitpadPlatformImport('/diagnoses/import-from-platform');
-  const { data: tenantCodeKeys } = useVisitpadTenantImportKeys('/diagnoses', importOpen && tenantCatalog);
+  const { data: tenantCodeKeys, isLoading: tenantCodeKeysLoading } = useVisitpadTenantImportKeys(
+    '/diagnoses',
+    importOpen && tenantCatalog,
+  );
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);
@@ -230,7 +233,7 @@ function VisitpadDiagnosesPage() {
       actions={
         <VisitpadHeaderActions
           catalogModuleSlug={catalogModuleSlug}
-          addLabel={tenantCatalog ? 'Add local diagnosis' : 'Add diagnosis'}
+          addLabel="Add diagnosis"
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
           importFromLibraryPending={platformImport.isPending}
@@ -294,6 +297,7 @@ function VisitpadDiagnosesPage() {
         isLoading={globalLibLoading}
         getRowKey={getRowKey}
         importedKeys={importedKeys}
+        importedKeysLoading={tenantCodeKeysLoading}
         columns={importColumns}
         searchParts={importSearchParts}
         isSubmitting={platformImport.isPending || create.isPending}

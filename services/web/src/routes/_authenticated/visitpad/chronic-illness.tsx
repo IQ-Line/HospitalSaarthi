@@ -133,7 +133,10 @@ function VisitpadChronicIllnessPage() {
   const del = useVisitpadDelete(CI_BASE);
   const create = useVisitpadPost(CI_BASE);
   const platformImport = useVisitpadPlatformImport('/chronic-illnesses/import-from-platform');
-  const { data: tenantIcdKeys } = useVisitpadTenantImportKeys('/chronic-illnesses', importOpen && tenantCatalog);
+  const { data: tenantIcdKeys, isLoading: tenantIcdKeysLoading } = useVisitpadTenantImportKeys(
+    '/chronic-illnesses',
+    importOpen && tenantCatalog,
+  );
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);
@@ -239,7 +242,7 @@ function VisitpadChronicIllnessPage() {
       actions={
         <VisitpadHeaderActions
           catalogModuleSlug={catalogModuleSlug}
-          addLabel={tenantCatalog ? 'Add local chronic illness' : 'Add chronic illness'}
+          addLabel="Add chronic illness"
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
           importFromLibraryPending={platformImport.isPending}
@@ -304,6 +307,7 @@ function VisitpadChronicIllnessPage() {
         getRowKey={getRowKey}
         rowKeyHeader="ICD-10"
         importedKeys={importedKeys}
+        importedKeysLoading={tenantIcdKeysLoading}
         columns={importColumns}
         searchParts={importSearchParts}
         isSubmitting={platformImport.isPending || create.isPending}

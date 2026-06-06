@@ -81,7 +81,7 @@ class VisitpadVitalSingleResponse(BaseModel):
 class VisitpadVitalCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    code: str = Field(min_length=3, max_length=9, pattern=r"^[A-Za-z0-9_]{3,9}$")
+    code: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_]{1,64}$")
     name: str | None = Field(default=None, max_length=256)
     short_name: str | None = Field(default=None, max_length=64)
     category: VisitpadVitalCategory | None = None

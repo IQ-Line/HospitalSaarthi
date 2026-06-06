@@ -19,6 +19,32 @@ export const visitpadCatalogCodeSchema = z
 
 export const visitpadCatalogCodeLowerSchema = visitpadCatalogCodeSchema.transform(visitpadTrimLower);
 
+/** Rx column codes: 2–64 alnum + underscore (platform seed may use 2-char codes). */
+export const VISITPAD_RX_COLUMN_CODE_REGEX = /^[A-Za-z0-9_]{2,64}$/;
+
+export const visitpadRxColumnCodeSchema = z
+  .string()
+  .trim()
+  .min(2)
+  .max(64)
+  .regex(
+    VISITPAD_RX_COLUMN_CODE_REGEX,
+    'Code must be 2–64 characters: letters, digits, or underscores only.',
+  );
+
+/** Vital codes: 1–64 alnum + underscore (OPD integration slugs). */
+export const VISITPAD_VITAL_CODE_REGEX = /^[A-Za-z0-9_]{1,64}$/;
+
+export const visitpadVitalCodeSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(64)
+  .regex(
+    VISITPAD_VITAL_CODE_REGEX,
+    'Code must be 1–64 characters: letters, digits, or underscores only.',
+  );
+
 /** OpenAPI `VisitpadUnitDimension` */
 export const visitpadUnitDimensionSchema = z.enum([
   'length',
@@ -104,7 +130,7 @@ export const visitpadVitalInputMethodSchema = z.enum(['manual', 'device', 'calcu
 
 export const visitpadVitalCreateSchema = z
   .object({
-    code: visitpadCatalogCodeSchema,
+    code: visitpadVitalCodeSchema,
     name: z.string().max(256).optional(),
     short_name: z.string().max(64).optional(),
     category: visitpadVitalCategorySchema.optional(),
@@ -415,7 +441,7 @@ export const visitpadAllergyReactionEditFormSchema = z.object({
 
 export const visitpadRxColumnCreateFormSchema = z.object({
   display_name: z.string().trim().min(1).max(256),
-  code: visitpadCatalogCodeSchema,
+  code: visitpadRxColumnCodeSchema,
   extra_unit: z.string().max(128).optional(),
   display_order: z.coerce.number().int(),
   is_active: z.boolean().optional().default(true),

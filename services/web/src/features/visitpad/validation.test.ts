@@ -5,6 +5,8 @@ import {
   visitpadMedicineCreateFormSchema,
   visitpadProcedureCreateFormSchema,
   visitpadAllergenCreateFormSchema,
+  visitpadRxColumnCreateFormSchema,
+  visitpadVitalCreateSchema,
 } from './validation';
 
 describe('visitpadUnitCreateSchema', () => {
@@ -146,6 +148,39 @@ describe('visitpadProcedureCreateFormSchema', () => {
     expect(r.success).toBe(true);
     if (r.success) {
       expect(r.data.duration_minutes).toBe(0);
+    }
+  });
+});
+
+describe('visitpadRxColumnCreateFormSchema', () => {
+  it('accepts 2-character rx column code', () => {
+    const r = visitpadRxColumnCreateFormSchema.safeParse({
+      display_name: 'Once daily',
+      code: 'od',
+      display_order: 1,
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('rejects 1-character rx column code', () => {
+    const r = visitpadRxColumnCreateFormSchema.safeParse({
+      display_name: 'x',
+      code: 'o',
+      display_order: 1,
+    });
+    expect(r.success).toBe(false);
+  });
+});
+
+describe('visitpadVitalCreateSchema', () => {
+  it('accepts long vital slug codes', () => {
+    const r = visitpadVitalCreateSchema.safeParse({
+      code: 'respiratory_rate',
+      display_order: 1,
+    });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.code).toBe('respiratory_rate');
     }
   });
 });

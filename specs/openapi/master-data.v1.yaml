@@ -1326,6 +1326,7 @@ paths:
           - $ref: '#/components/schemas/VisitpadUnitDimension'
           - type: 'null'
           title: Dimension
+      - $ref: '#/components/parameters/VisitpadCatalogIsActiveFilter'
       responses:
         '200':
           description: Successful Response
@@ -1750,6 +1751,7 @@ paths:
           - $ref: '#/components/schemas/VisitpadVitalCategory'
           - type: 'null'
           title: Category
+      - $ref: '#/components/parameters/VisitpadCatalogIsActiveFilter'
       responses:
         '200':
           description: Successful Response
@@ -1970,6 +1972,7 @@ paths:
           - $ref: '#/components/schemas/VisitpadTriagePriority'
           - type: 'null'
           title: Triage Priority
+      - $ref: '#/components/parameters/VisitpadCatalogIsActiveFilter'
       responses:
         '200':
           description: Successful Response
@@ -2203,6 +2206,7 @@ paths:
           - $ref: '#/components/schemas/VisitpadDiagnosisCategory'
           - type: 'null'
           title: Category
+      - $ref: '#/components/parameters/VisitpadCatalogIsActiveFilter'
       responses:
         '200':
           description: Successful Response
@@ -2415,6 +2419,7 @@ paths:
           - $ref: '#/components/schemas/VisitpadAllergenType'
           - type: 'null'
           title: Allergen Type
+      - $ref: '#/components/parameters/VisitpadCatalogIsActiveFilter'
       responses:
         '200':
           description: Successful Response
@@ -2619,6 +2624,7 @@ paths:
           - type: string
           - type: 'null'
           title: Search
+      - $ref: '#/components/parameters/VisitpadCatalogIsActiveFilter'
       responses:
         '200':
           description: Successful Response
@@ -2831,6 +2837,7 @@ paths:
           - $ref: '#/components/schemas/VisitpadRxColumnSection'
           - type: 'null'
           title: Section
+      - $ref: '#/components/parameters/VisitpadCatalogIsActiveFilter'
       responses:
         '200':
           description: Successful Response
@@ -3057,6 +3064,7 @@ paths:
           - $ref: '#/components/schemas/VisitpadMedicineSchedule'
           - type: 'null'
           title: Schedule
+      - $ref: '#/components/parameters/VisitpadCatalogIsActiveFilter'
       responses:
         '200':
           description: Successful Response
@@ -3269,6 +3277,7 @@ paths:
           - $ref: '#/components/schemas/VisitpadChronicIllnessCategory'
           - type: 'null'
           title: Category
+      - $ref: '#/components/parameters/VisitpadCatalogIsActiveFilter'
       responses:
         '200':
           description: Successful Response
@@ -3473,6 +3482,7 @@ paths:
           - type: string
           - type: 'null'
           title: Search
+      - $ref: '#/components/parameters/VisitpadCatalogIsActiveFilter'
       responses:
         '200':
           description: Successful Response
@@ -3677,6 +3687,7 @@ paths:
           - type: string
           - type: 'null'
           title: Search
+      - $ref: '#/components/parameters/VisitpadCatalogIsActiveFilter'
       responses:
         '200':
           description: Successful Response
@@ -3897,6 +3908,7 @@ paths:
           - $ref: '#/components/schemas/VisitpadProcedureBillingCategory'
           - type: 'null'
           title: Billing Category
+      - $ref: '#/components/parameters/VisitpadCatalogIsActiveFilter'
       responses:
         '200':
           description: Successful Response
@@ -4075,6 +4087,17 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+  parameters:
+    VisitpadCatalogIsActiveFilter:
+      name: is_active
+      in: query
+      required: false
+      schema:
+        anyOf:
+        - type: boolean
+        - type: 'null'
+      title: Is Active
+      description: When set, return only rows matching this active flag.
   schemas:
     ErrorResponse:
       type: object
@@ -7541,9 +7564,9 @@ components:
           title: Display Name
         code:
           type: string
-          maxLength: 8
+          maxLength: 64
           minLength: 2
-          pattern: '^[A-Za-z0-9_]{3,9}$'
+          pattern: '^[A-Za-z0-9_]{2,64}$'
           title: Code
         extra_unit:
           anyOf:
@@ -8141,6 +8164,7 @@ components:
           type: string
           maxLength: 64
           minLength: 1
+          pattern: '^[A-Za-z0-9_]{1,64}$'
           title: Code
         name:
           type: string

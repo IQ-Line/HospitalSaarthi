@@ -42,11 +42,13 @@ def get_visitpad_rx_columns(
     offset: Annotated[int, Query(ge=0)] = 0,
     search: Annotated[str | None, Query()] = None,
     section: Annotated[VisitpadRxColumnSection | None, Query()] = None,
+    is_active: Annotated[bool | None, Query()] = None,
 ) -> VisitpadRxColumnListResponse:
     rows, total = list_visitpad_rx_columns(
         repository,
         search=search,
         section=section.value if section is not None else None,
+        is_active=is_active,
         limit=limit,
         offset=offset,
     )

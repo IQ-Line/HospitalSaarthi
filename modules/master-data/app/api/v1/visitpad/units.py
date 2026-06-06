@@ -64,11 +64,13 @@ def get_visitpad_units(
     offset: Annotated[int, Query(ge=0)] = 0,
     search: Annotated[str | None, Query()] = None,
     dimension: Annotated[VisitpadUnitDimension | None, Query()] = None,
+    is_active: Annotated[bool | None, Query()] = None,
 ) -> VisitpadUnitListResponse:
     rows, total = list_visitpad_units(
         repository,
         search=search,
         dimension=dimension.value if dimension is not None else None,
+        is_active=is_active,
         limit=limit,
         offset=offset,
     )

@@ -23,12 +23,14 @@ def list_visitpad_rx_columns(
     *,
     search: str | None,
     section: str | None,
+    is_active: bool | None = None,
     limit: int,
     offset: int,
 ) -> tuple[list[Any], int]:
     return repository.list_rx_columns(
         search=search,
         section=section,
+        is_active=is_active,
         limit=limit,
         offset=offset,
     )
