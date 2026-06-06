@@ -153,7 +153,10 @@ function VisitpadProceduresPage() {
   const del = useVisitpadDelete(PROC_BASE);
   const create = useVisitpadPost(PROC_BASE);
   const platformImport = useVisitpadPlatformImport('/procedures/import-from-platform');
-  const { data: tenantCptKeys } = useVisitpadTenantImportKeys('/procedures', importOpen && tenantCatalog);
+  const { data: tenantCptKeys, isLoading: tenantCptKeysLoading } = useVisitpadTenantImportKeys(
+    '/procedures',
+    importOpen && tenantCatalog,
+  );
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);
@@ -267,7 +270,7 @@ function VisitpadProceduresPage() {
       actions={
         <VisitpadHeaderActions
           catalogModuleSlug={catalogModuleSlug}
-          addLabel={tenantCatalog ? 'Add local procedure' : 'Add procedure'}
+          addLabel="Add procedure"
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
           importFromLibraryPending={platformImport.isPending}
@@ -345,6 +348,7 @@ function VisitpadProceduresPage() {
         getRowKey={getRowKey}
         rowKeyHeader="CPT"
         importedKeys={importedKeys}
+        importedKeysLoading={tenantCptKeysLoading}
         columns={importColumns}
         searchParts={importSearchParts}
         isSubmitting={platformImport.isPending || create.isPending}

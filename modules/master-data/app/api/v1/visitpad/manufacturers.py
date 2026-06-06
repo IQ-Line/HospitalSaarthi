@@ -40,8 +40,15 @@ def get_manufacturers(
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     search: Annotated[str | None, Query()] = None,
+    is_active: Annotated[bool | None, Query()] = None,
 ) -> VisitpadManufacturerListResponse:
-    rows, total = list_visitpad_manufacturers(repository, search=search, limit=limit, offset=offset)
+    rows, total = list_visitpad_manufacturers(
+        repository,
+        search=search,
+        is_active=is_active,
+        limit=limit,
+        offset=offset,
+    )
     return VisitpadManufacturerListResponse(
         data=[VisitpadManufacturerResponse.model_validate(r) for r in rows],
         total=total,

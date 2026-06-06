@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.catalog.visitpad.table_models import visitpad_medicine_model
 from app.core.catalog_scope import CatalogScope
 from app.repositories.paged_window import fetch_page_with_window_total
+from app.repositories.visitpad._list_filters import append_is_active_filter
 from app.repositories.visitpad.integrity import DuplicateVisitpadCatalogKeyError, is_unique_violation
 
 
@@ -32,6 +33,7 @@ class VisitpadMedicineRepository:
         *,
         search: str | None,
         schedule: str | None,
+        is_active: bool | None = None,
         limit: int,
         offset: int,
     ) -> tuple[list[Any], int]:
@@ -50,6 +52,7 @@ class VisitpadMedicineRepository:
                     M.generic_name.ilike(term),
                 )
             )
+        append_is_active_filter(filters, M, is_active)
         cnt = func.count().over().label("_page_total")
         page_stmt = (
             select(M, cnt)

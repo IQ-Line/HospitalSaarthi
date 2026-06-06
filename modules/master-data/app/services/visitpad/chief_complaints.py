@@ -24,6 +24,7 @@ def list_visitpad_chief_complaints(
     search: str | None,
     body_system: str | None,
     triage_priority: str | None,
+    is_active: bool | None = None,
     limit: int,
     offset: int,
 ) -> tuple[list[Any], int]:
@@ -31,6 +32,7 @@ def list_visitpad_chief_complaints(
         search=search,
         body_system=body_system,
         triage_priority=triage_priority,
+        is_active=is_active,
         limit=limit,
         offset=offset,
     )

@@ -88,7 +88,10 @@ function VisitpadReactionsPage() {
   const del = useVisitpadDelete(RXN_BASE);
   const create = useVisitpadPost(RXN_BASE);
   const platformImport = useVisitpadPlatformImport('/allergy-reactions/import-from-platform');
-  const { data: tenantCodeKeys } = useVisitpadTenantImportKeys('/allergy-reactions', importOpen && tenantCatalog);
+  const { data: tenantCodeKeys, isLoading: tenantCodeKeysLoading } = useVisitpadTenantImportKeys(
+    '/allergy-reactions',
+    importOpen && tenantCatalog,
+  );
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);
@@ -194,7 +197,7 @@ function VisitpadReactionsPage() {
       actions={
         <VisitpadHeaderActions
           catalogModuleSlug={catalogModuleSlug}
-          addLabel={tenantCatalog ? 'Add local reaction' : 'Add reaction'}
+          addLabel="Add reaction"
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
           importFromLibraryPending={platformImport.isPending}
@@ -241,6 +244,7 @@ function VisitpadReactionsPage() {
         isLoading={globalLibLoading}
         getRowKey={getRowKey}
         importedKeys={importedKeys}
+        importedKeysLoading={tenantCodeKeysLoading}
         columns={importColumns}
         searchParts={importSearchParts}
         isSubmitting={platformImport.isPending || create.isPending}

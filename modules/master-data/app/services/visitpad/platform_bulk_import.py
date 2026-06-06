@@ -180,6 +180,25 @@ def _sqlite_insert_skip_duplicates(
     return created, skipped
 
 
+def _require_active_platform_row(_pid: UUID, pub: Any) -> str | None:
+    if not getattr(pub, "is_active", True):
+        return "Cannot import inactive platform catalog rows."
+    return None
+
+
+def _chain_before_parse(
+    *fns: Callable[[UUID, Any], str | None],
+) -> Callable[[UUID, Any], str | None]:
+    def _combined(pid: UUID, pub: Any) -> str | None:
+        for fn in fns:
+            result = fn(pid, pub)
+            if result is not None:
+                return result
+        return None
+
+    return _combined
+
+
 def _vital_critical_range_after_parse(_pid: UUID, payload: VisitpadVitalCreate) -> str | None:
     try:
         _ensure_critical(low=payload.critical_low, high=payload.critical_high)
@@ -203,6 +222,7 @@ def import_visitpad_units_from_platform(
         by_id,
         response_cls=VisitpadUnitResponse,
         create_cls=VisitpadUnitCreate,
+        before_parse=_require_active_platform_row,
     )
     if not valid:
         return VisitpadPlatformImportData(created=[], skipped=[], errors=errors)
@@ -270,6 +290,7 @@ def import_visitpad_vitals_from_platform(
         by_id,
         response_cls=VisitpadVitalResponse,
         create_cls=VisitpadVitalCreate,
+        before_parse=_require_active_platform_row,
         after_parse=_vital_critical_range_after_parse,
     )
     if not valid:
@@ -306,6 +327,7 @@ def import_visitpad_chief_complaints_from_platform(
         by_id,
         response_cls=VisitpadChiefComplaintResponse,
         create_cls=VisitpadChiefComplaintCreate,
+        before_parse=_require_active_platform_row,
     )
     if not valid:
         return VisitpadPlatformImportData(created=[], skipped=[], errors=errors)
@@ -336,6 +358,7 @@ def import_visitpad_diagnoses_from_platform(
         by_id,
         response_cls=VisitpadDiagnosisResponse,
         create_cls=VisitpadDiagnosisCreate,
+        before_parse=_require_active_platform_row,
     )
     if not valid:
         return VisitpadPlatformImportData(created=[], skipped=[], errors=errors)
@@ -366,6 +389,7 @@ def import_visitpad_allergens_from_platform(
         by_id,
         response_cls=VisitpadAllergenResponse,
         create_cls=VisitpadAllergenCreate,
+        before_parse=_require_active_platform_row,
     )
     if not valid:
         return VisitpadPlatformImportData(created=[], skipped=[], errors=errors)
@@ -396,6 +420,7 @@ def import_visitpad_allergy_reactions_from_platform(
         by_id,
         response_cls=VisitpadAllergyReactionResponse,
         create_cls=VisitpadAllergyReactionCreate,
+        before_parse=_require_active_platform_row,
     )
     if not valid:
         return VisitpadPlatformImportData(created=[], skipped=[], errors=errors)
@@ -433,7 +458,7 @@ def import_visitpad_rx_columns_from_platform(
         by_id,
         response_cls=VisitpadRxColumnResponse,
         create_cls=VisitpadRxColumnCreate,
-        before_parse=_rx_section_ok,
+        before_parse=_chain_before_parse(_require_active_platform_row, _rx_section_ok),
     )
     if not valid:
         return VisitpadPlatformImportData(created=[], skipped=[], errors=errors)
@@ -464,6 +489,7 @@ def import_visitpad_medicines_from_platform(
         by_id,
         response_cls=VisitpadMedicineResponse,
         create_cls=VisitpadMedicineCreate,
+        before_parse=_require_active_platform_row,
     )
     if not valid:
         return VisitpadPlatformImportData(created=[], skipped=[], errors=errors)
@@ -494,6 +520,7 @@ def import_visitpad_chronic_illnesses_from_platform(
         by_id,
         response_cls=VisitpadChronicIllnessResponse,
         create_cls=VisitpadChronicIllnessCreate,
+        before_parse=_require_active_platform_row,
     )
     if not valid:
         return VisitpadPlatformImportData(created=[], skipped=[], errors=errors)
@@ -524,6 +551,7 @@ def import_visitpad_procedures_from_platform(
         by_id,
         response_cls=VisitpadProcedureResponse,
         create_cls=VisitpadProcedureCreate,
+        before_parse=_require_active_platform_row,
     )
     if not valid:
         return VisitpadPlatformImportData(created=[], skipped=[], errors=errors)
@@ -554,6 +582,7 @@ def import_visitpad_vaccines_from_platform(
         by_id,
         response_cls=VisitpadVaccineResponse,
         create_cls=VisitpadVaccineCreate,
+        before_parse=_require_active_platform_row,
     )
     if not valid:
         return VisitpadPlatformImportData(created=[], skipped=[], errors=errors)
@@ -584,6 +613,7 @@ def import_visitpad_manufacturers_from_platform(
         by_id,
         response_cls=VisitpadManufacturerResponse,
         create_cls=VisitpadManufacturerCreate,
+        before_parse=_require_active_platform_row,
     )
     if not valid:
         return VisitpadPlatformImportData(created=[], skipped=[], errors=errors)

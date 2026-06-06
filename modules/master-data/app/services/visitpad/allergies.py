@@ -29,12 +29,14 @@ def list_visitpad_allergens(
     *,
     search: str | None,
     allergen_type: str | None,
+    is_active: bool | None = None,
     limit: int,
     offset: int,
 ) -> tuple[list[Any], int]:
     return repository.list_allergens(
         search=search,
         allergen_type=allergen_type,
+        is_active=is_active,
         limit=limit,
         offset=offset,
     )
@@ -120,11 +122,13 @@ def list_visitpad_allergy_reactions(
     repository: VisitpadAllergyReactionRepository,
     *,
     search: str | None,
+    is_active: bool | None = None,
     limit: int,
     offset: int,
 ) -> tuple[list[Any], int]:
     return repository.list_reactions(
         search=search,
+        is_active=is_active,
         limit=limit,
         offset=offset,
     )

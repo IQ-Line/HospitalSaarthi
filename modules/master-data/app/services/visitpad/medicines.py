@@ -23,12 +23,14 @@ def list_visitpad_medicines(
     *,
     search: str | None,
     schedule: str | None,
+    is_active: bool | None = None,
     limit: int,
     offset: int,
 ) -> tuple[list[Any], int]:
     return repository.list_medicines(
         search=search,
         schedule=schedule,
+        is_active=is_active,
         limit=limit,
         offset=offset,
     )

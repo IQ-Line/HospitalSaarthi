@@ -101,7 +101,10 @@ function VisitpadAllergensPage() {
   const del = useVisitpadDelete(AG_BASE);
   const create = useVisitpadPost(AG_BASE);
   const platformImport = useVisitpadPlatformImport('/allergens/import-from-platform');
-  const { data: tenantCodeKeys } = useVisitpadTenantImportKeys('/allergens', importOpen && tenantCatalog);
+  const { data: tenantCodeKeys, isLoading: tenantCodeKeysLoading } = useVisitpadTenantImportKeys(
+    '/allergens',
+    importOpen && tenantCatalog,
+  );
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);
@@ -227,7 +230,7 @@ function VisitpadAllergensPage() {
       actions={
         <VisitpadHeaderActions
           catalogModuleSlug={catalogModuleSlug}
-          addLabel={tenantCatalog ? 'Add local allergen' : 'Add allergen'}
+          addLabel="Add allergen"
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
           importFromLibraryPending={platformImport.isPending}
@@ -291,6 +294,7 @@ function VisitpadAllergensPage() {
         isLoading={globalLibLoading}
         getRowKey={getRowKey}
         importedKeys={importedKeys}
+        importedKeysLoading={tenantCodeKeysLoading}
         columns={importColumns}
         searchParts={importSearchParts}
         isSubmitting={platformImport.isPending || create.isPending}

@@ -170,7 +170,10 @@ function VisitpadVitalsPage() {
   const tabCount = visitpadActiveTotal(rows, total);
   const busy = patch.isPending || del.isPending || platformImport.isPending;
 
-  const { data: tenantCodes } = useVisitpadTenantImportKeys('/vitals', importOpen && tenantCatalog);
+  const { data: tenantCodes, isLoading: tenantCodesLoading } = useVisitpadTenantImportKeys(
+    '/vitals',
+    importOpen && tenantCatalog,
+  );
   const importedKeys = useMemo(() => tenantCodes ?? new Set<string>(), [tenantCodes]);
   const globalRows = globalLib?.data ?? [];
   const globalLibTotal = globalLib?.total ?? 0;
@@ -314,7 +317,7 @@ function VisitpadVitalsPage() {
       actions={
         <VisitpadHeaderActions
           catalogModuleSlug={catalogModuleSlug}
-          addLabel={tenantCatalog ? 'Add local vital' : 'Add vital'}
+          addLabel="Add vital"
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
           importFromLibraryPending={platformImport.isPending}
@@ -403,6 +406,7 @@ function VisitpadVitalsPage() {
         isLoading={globalLibLoading}
         getRowKey={getRowKey}
         importedKeys={importedKeys}
+        importedKeysLoading={tenantCodesLoading}
         columns={importColumns}
         searchParts={importSearchParts}
         isSubmitting={platformImport.isPending || create.isPending}

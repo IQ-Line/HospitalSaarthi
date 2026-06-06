@@ -63,7 +63,7 @@ export function useCatalogActiveToggleConfirm({
         description={
           activating
             ? `${name} will be visible in catalogue reads for users who can access active entries.`
-            : `${name} will be hidden from non-admin catalogue reads. You can activate it again later.`
+            : `${name} will be hidden from catalogue reads for non-Admin users. Admin views can still manage inactive entries.`
         }
         confirmLabel={activating ? 'Activate' : 'Deactivate'}
         destructive={!activating}

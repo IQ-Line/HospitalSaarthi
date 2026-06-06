@@ -51,12 +51,14 @@ def get_chief_complaints(
     search: Annotated[str | None, Query()] = None,
     body_system: Annotated[VisitpadBodySystem | None, Query()] = None,
     triage_priority: Annotated[VisitpadTriagePriority | None, Query()] = None,
+    is_active: Annotated[bool | None, Query()] = None,
 ) -> VisitpadChiefComplaintListResponse:
     rows, total = list_visitpad_chief_complaints(
         repository,
         search=search,
         body_system=body_system.value if body_system is not None else None,
         triage_priority=triage_priority.value if triage_priority is not None else None,
+        is_active=is_active,
         limit=limit,
         offset=offset,
     )

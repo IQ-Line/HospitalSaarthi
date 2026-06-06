@@ -119,7 +119,10 @@ function VisitpadConversionsPage() {
     [],
   );
 
-  const { data: tenantConvKeys } = useVisitpadTenantImportKeys('/unit-conversions', importOpen && tenantCatalog);
+  const { data: tenantConvKeys, isLoading: tenantConvKeysLoading } = useVisitpadTenantImportKeys(
+    '/unit-conversions',
+    importOpen && tenantCatalog,
+  );
   const importedKeys = useMemo(() => tenantConvKeys ?? new Set<string>(), [tenantConvKeys]);
   const globalRows = globalLib?.data ?? [];
   const globalLibTotal = globalLib?.total ?? 0;
@@ -226,7 +229,7 @@ function VisitpadConversionsPage() {
       actions={
         <VisitpadHeaderActions
           catalogModuleSlug={catalogModuleSlug}
-          addLabel={tenantCatalog ? 'Add local conversion' : 'Add conversion'}
+          addLabel="Add conversion"
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
           importFromLibraryPending={platformImport.isPending}
@@ -278,6 +281,7 @@ function VisitpadConversionsPage() {
         getRowKey={getRowKey}
         rowKeyHeader="Pair"
         importedKeys={importedKeys}
+        importedKeysLoading={tenantConvKeysLoading}
         columns={importColumns}
         searchParts={importSearchParts}
         isSubmitting={platformImport.isPending || create.isPending}

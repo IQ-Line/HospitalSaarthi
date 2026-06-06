@@ -87,7 +87,10 @@ function VisitpadManufacturersPage() {
   const del = useVisitpadDelete(MF_BASE);
   const create = useVisitpadPost(MF_BASE);
   const platformImport = useVisitpadPlatformImport('/manufacturers/import-from-platform');
-  const { data: tenantKeys } = useVisitpadTenantImportKeys('/manufacturers', importOpen && tenantCatalog);
+  const { data: tenantKeys, isLoading: tenantKeysLoading } = useVisitpadTenantImportKeys(
+    '/manufacturers',
+    importOpen && tenantCatalog,
+  );
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);
@@ -182,7 +185,7 @@ function VisitpadManufacturersPage() {
       actions={
         <VisitpadHeaderActions
           catalogModuleSlug={catalogModuleSlug}
-          addLabel={tenantCatalog ? 'Add local manufacturer' : 'Add manufacturer'}
+          addLabel="Add manufacturer"
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
           importFromLibraryPending={platformImport.isPending}
@@ -229,6 +232,7 @@ function VisitpadManufacturersPage() {
         isLoading={globalLibLoading}
         getRowKey={getRowKey}
         importedKeys={importedKeys}
+        importedKeysLoading={tenantKeysLoading}
         columns={importColumns}
         searchParts={importSearchParts}
         isSubmitting={platformImport.isPending || create.isPending}

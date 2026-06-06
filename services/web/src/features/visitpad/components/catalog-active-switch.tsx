@@ -10,7 +10,7 @@ interface CatalogActiveSwitchProps {
 
 function activeHelperCopy(entityKind: 'unit' | 'item'): string {
   const noun = entityKind === 'unit' ? 'units' : 'items';
-  return `Inactive ${noun} are hidden from non-admin catalogue reads.`;
+  return `Inactive ${noun} are hidden from catalogue reads for non-Admin users.`;
 }
 
 /**

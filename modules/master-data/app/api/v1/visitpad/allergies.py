@@ -64,11 +64,13 @@ def get_allergens(
     offset: Annotated[int, Query(ge=0)] = 0,
     search: Annotated[str | None, Query()] = None,
     allergen_type: Annotated[VisitpadAllergenType | None, Query()] = None,
+    is_active: Annotated[bool | None, Query()] = None,
 ) -> VisitpadAllergenListResponse:
     rows, total = list_visitpad_allergens(
         repository,
         search=search,
         allergen_type=allergen_type.value if allergen_type is not None else None,
+        is_active=is_active,
         limit=limit,
         offset=offset,
     )
@@ -180,10 +182,12 @@ def get_reactions(
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     search: Annotated[str | None, Query()] = None,
+    is_active: Annotated[bool | None, Query()] = None,
 ) -> VisitpadAllergyReactionListResponse:
     rows, total = list_visitpad_allergy_reactions(
         repository,
         search=search,
+        is_active=is_active,
         limit=limit,
         offset=offset,
     )
