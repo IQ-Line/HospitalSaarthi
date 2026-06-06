@@ -59,6 +59,23 @@ function FieldError({ message }: { message?: string }) {
   return message ? <p className="text-sm text-destructive">{message}</p> : null;
 }
 
+function FieldLabel({
+  htmlFor,
+  required,
+  children,
+}: {
+  htmlFor?: string;
+  required?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <Label htmlFor={htmlFor}>
+      {children}
+      {required ? <span className="text-destructive"> *</span> : null}
+    </Label>
+  );
+}
+
 export function CreateUserIdentitySection({ register, errors }: SharedFormSectionProps) {
   return (
     <UserManagementSectionCard
@@ -68,13 +85,17 @@ export function CreateUserIdentitySection({ register, errors }: SharedFormSectio
     >
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="c_full_name">Full name</Label>
+          <FieldLabel htmlFor="c_full_name" required>
+            Full name
+          </FieldLabel>
           <Input id="c_full_name" {...register('full_name')} />
           <FieldError message={errors.full_name?.message?.toString()} />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="c_email">Email</Label>
+          <FieldLabel htmlFor="c_email" required>
+            Email
+          </FieldLabel>
           <Input id="c_email" type="email" autoComplete="email" {...register('email')} />
           <p className="text-xs text-muted-foreground">
             The user will sign in with this email address.
@@ -83,7 +104,9 @@ export function CreateUserIdentitySection({ register, errors }: SharedFormSectio
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="c_password">Password</Label>
+          <FieldLabel htmlFor="c_password" required>
+            Password
+          </FieldLabel>
           <Input
             id="c_password"
             type="password"
@@ -94,7 +117,9 @@ export function CreateUserIdentitySection({ register, errors }: SharedFormSectio
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="c_phone">Phone</Label>
+          <FieldLabel htmlFor="c_phone" required>
+            Phone
+          </FieldLabel>
           <Input
             id="c_phone"
             inputMode="numeric"
@@ -211,9 +236,9 @@ export function CreateUserAccessSection({
   } else {
     roleBlock = (
       <div className="space-y-2">
-        <Label htmlFor="c_role_template">
-          {umRoleAssign ? 'Role (required)' : 'Role'}
-        </Label>
+        <FieldLabel htmlFor="c_role_template" required={umRoleAssign}>
+          Role
+        </FieldLabel>
         <Controller
           control={control}
           name="role_template_ids"
