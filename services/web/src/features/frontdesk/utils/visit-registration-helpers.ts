@@ -147,9 +147,16 @@ export function isVisitRegistrationPaymentModeSelected(paymentMode: string | und
   return Boolean(paymentMode?.trim());
 }
 
+export function isValidRegistrationGender(
+  value: string | undefined | null,
+): value is 'male' | 'female' | 'other' {
+  return value === 'male' || value === 'female' || value === 'other';
+}
+
 export type VisitRegistrationFormGateInput = {
   phone: string | undefined;
   firstName: string | undefined;
+  gender: string | undefined;
   grandTotal: number;
   amountPaid: number | null | undefined;
   paymentMode: string | undefined;
@@ -168,6 +175,7 @@ export function visitRegistrationFormBlockers(
   const missing: string[] = [];
   if (!isValidIndianMobile(args.phone)) missing.push('10-digit phone');
   if (!args.firstName?.trim()) missing.push('first name');
+  if (!isValidRegistrationGender(args.gender)) missing.push('gender');
   if (!args.departmentId?.trim()) missing.push('department');
   if (!args.providerId?.trim()) missing.push('doctor');
   if (!args.visitTypeCode?.trim()) missing.push('visit type');

@@ -163,7 +163,7 @@ function VisitRegistrationRoute() {
         first_name: '',
         middle_name: '',
         last_name: '',
-        gender: 'male',
+        gender: '',
         date_of_birth: '',
         age_years: null,
         age_months: null,
@@ -234,6 +234,7 @@ function VisitRegistrationRoute() {
     billingAmountPaid,
     patientPhone,
     patientFirstName,
+    patientGender,
     appointmentProviderId,
     appointmentDepartmentId,
     appointmentVisitTypeCode,
@@ -252,6 +253,7 @@ function VisitRegistrationRoute() {
       'billing.amount_paid',
       'patient.phone',
       'patient.first_name',
+      'patient.gender',
       'appointment.provider_id',
       'appointment.department_id',
       'appointment.visit_type_code',
@@ -281,6 +283,7 @@ function VisitRegistrationRoute() {
   const formGate = {
     phone: patientPhone,
     firstName: patientFirstName,
+    gender: patientGender,
     departmentId: appointmentDepartmentId,
     providerId: appointmentProviderId,
     visitTypeCode: appointmentVisitTypeCode,
@@ -505,6 +508,7 @@ function VisitRegistrationRoute() {
     const gate = {
       phone: data.patient?.phone,
       firstName: data.patient?.first_name,
+      gender: data.patient?.gender,
       departmentId: data.appointment?.department_id,
       providerId: data.appointment?.provider_id,
       visitTypeCode: data.appointment?.visit_type_code,
@@ -530,6 +534,12 @@ function VisitRegistrationRoute() {
         form.setError('patient.first_name', {
           type: 'required',
           message: 'First name is required',
+        });
+      }
+      if (blockers.includes('gender')) {
+        form.setError('patient.gender', {
+          type: 'required',
+          message: 'Gender is required',
         });
       }
       if (blockers.includes('department')) {
@@ -568,6 +578,7 @@ function VisitRegistrationRoute() {
     form.clearErrors([
       'patient.phone',
       'patient.first_name',
+      'patient.gender',
       'appointment.department_id',
       'appointment.provider_id',
       'appointment.visit_type_code',
