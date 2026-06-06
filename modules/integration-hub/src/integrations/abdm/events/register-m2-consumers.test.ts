@@ -45,7 +45,14 @@ describe("registerM2EventConsumers", () => {
       m3DataTransfers: {} as IntegrationHubSharedInfra["m3DataTransfers"],
       empi: {
         findAbhaAddressByPatientId: vi.fn(async () => undefined),
+        findM2PatientProfile: vi.fn(async () => null),
       } as IntegrationHubSharedInfra["empi"],
+      registration: {
+        findM2PatientProfile: vi.fn(async () => null),
+      } as IntegrationHubSharedInfra["registration"],
+      gateway: {
+        post: vi.fn(async () => ({})),
+      } as IntegrationHubSharedInfra["gateway"],
       recordFoundation: {} as IntegrationHubSharedInfra["recordFoundation"],
       fidelius: {} as IntegrationHubSharedInfra["fidelius"],
       payloadEncryptor: {} as IntegrationHubSharedInfra["payloadEncryptor"],
@@ -70,9 +77,10 @@ describe("registerM2EventConsumers", () => {
       iq_tenant_id: tenantId,
       event_type: "record-foundation.care-context.registered",
       payload: {
-        requestId: "req-1",
-        abhaAddress: "user@sbx",
-        careContexts: [],
+        care_context_id: "visit-001",
+        patient_id: "patient-001",
+        source_record_type: "OPCONSULTATION",
+        display: "OP visit",
       },
     });
 

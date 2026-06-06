@@ -52,6 +52,7 @@ export const hipInitiatedLinkStartBodySchema = {
   properties: {
     abhaAddress: { type: "string", minLength: 1 },
     abhaNumber: { type: "string", minLength: 1 },
+    patientReference: { type: "string", minLength: 1 },
     patientName: { type: "string", minLength: 1 },
     gender: { type: "string", enum: [...m2GenderEnum] },
     yearOfBirth: { type: "integer", minimum: 1900, maximum: 2100 },
@@ -83,6 +84,30 @@ export const addContextsPublishBodySchema = {
     careContextReference: { type: "string", minLength: 1 },
     hiType: { type: "string", minLength: 1 },
     eventDate: { type: "string", minLength: 1 },
+  },
+};
+
+export const orchestrateM2AfterCareContextsBodySchema = {
+  type: "object" as const,
+  required: ["patientId", "careContexts"],
+  additionalProperties: false,
+  properties: {
+    patientId: { type: "string", minLength: 1 },
+    eventDate: { type: "string", minLength: 1 },
+    careContexts: {
+      type: "array",
+      minItems: 1,
+      items: {
+        type: "object",
+        required: ["referenceNumber", "display", "hiType"],
+        additionalProperties: false,
+        properties: {
+          referenceNumber: { type: "string", minLength: 1 },
+          display: { type: "string", minLength: 1 },
+          hiType: { type: "string", minLength: 1 },
+        },
+      },
+    },
   },
 };
 
