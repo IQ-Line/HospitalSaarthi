@@ -6,6 +6,7 @@ import {
   vaccinePayloadToImmunizationRow,
 } from './opd-immunization-meta';
 import { formVitalsToLegacyVitals, legacyVitalsToFormVitals } from './opd-legacy-vitals';
+import { formatMedicineDosageMan, parseMedicineDosageMan } from './medicine-dosage';
 import { emptyComplaintRow, emptyImmunizationRow } from './row-factories';
 
 function lineItems<T, R>(rows: T[], map: (row: T, index: number) => R): R[] {
@@ -56,12 +57,18 @@ export function createRxFormDataToClinical(formData: CreateRxFormData): OpdPresc
     medicines: lineItems(data.medicines, (row, index) => ({
       line_no: index + 1,
       name: row.medicine,
+      medicine_type: row.dosageForm || null,
       strength: row.strength || null,
-      dosage: row.dosage || null,
+      dosage: formatMedicineDosageMan({
+        morning: row.dosageMorning,
+        afternoon: row.dosageAfternoon,
+        night: row.dosageNight,
+      }),
       duration: row.days || null,
       frequency: row.frequency || null,
       quantity: row.quantity || null,
       route: row.route || null,
+      method: row.toa || null,
     })),
     ordered_tests: lineItems(data.testsRequired, (row, index) => ({
       line_no: index + 1,
@@ -151,22 +158,28 @@ export function clinicalToCreateRxFormData(
       c.medicines?.map((row) => {
         const med = row as {
           name: string;
+          medicine_type?: string;
           strength?: string;
           dosage?: string;
           duration?: string;
           frequency?: string;
           quantity?: string;
           route?: string;
+          method?: string;
         };
+        const dosageParts = parseMedicineDosageMan(med.dosage);
         return {
           id: crypto.randomUUID(),
           medicine: med.name,
-          dosageForm: '',
+          dosageForm: med.medicine_type ?? '',
           route: med.route ?? '',
           strength: med.strength ?? '',
-          dosage: med.dosage ?? '',
+          dosageMorning: dosageParts.morning,
+          dosageAfternoon: dosageParts.afternoon,
+          dosageNight: dosageParts.night,
           days: med.duration ?? '',
           frequency: med.frequency ?? '',
+          toa: med.method ?? '',
           quantity: med.quantity != null ? String(med.quantity) : '',
         };
       }) ?? [],

@@ -18,7 +18,13 @@ import {
   TableRow,
 } from '@pulse/ui/table';
 
-export type FormTableColumnType = 'text' | 'number' | 'select' | 'date';
+export type FormTableColumnType = 'text' | 'number' | 'select' | 'date' | 'dosage-man';
+
+export interface DosageManSubKeys<T> {
+  morning: keyof T & string;
+  afternoon: keyof T & string;
+  night: keyof T & string;
+}
 
 export interface FormTableColumn<T> {
   key: keyof T & string;
@@ -26,7 +32,10 @@ export interface FormTableColumn<T> {
   type?: FormTableColumnType;
   width?: string;
   placeholder?: string;
+  /** Label for the empty select option (defaults to "—"). */
+  emptyOptionLabel?: string;
   options?: { label: string; value: string }[];
+  dosageManSubKeys?: DosageManSubKeys<T>;
 }
 
 interface FormTableProps<T extends { id: string }> {
@@ -50,10 +59,26 @@ interface FormTableProps<T extends { id: string }> {
   onUpdate: (index: number, field: keyof T & string, value: string) => void;
 }
 
-function formatReadOnlyCellValue(
-  raw: string,
-  col: FormTableColumn<{ id: string }>,
+function formatReadOnlyDosageMan<T extends { id: string }>(
+  row: T,
+  subKeys: DosageManSubKeys<T>,
 ): string {
+  const morning = String(row[subKeys.morning] ?? '').trim() || '0';
+  const afternoon = String(row[subKeys.afternoon] ?? '').trim() || '0';
+  const night = String(row[subKeys.night] ?? '').trim() || '0';
+  if (morning === '0' && afternoon === '0' && night === '0') return '—';
+  return `${morning}-${afternoon}-${night}`;
+}
+
+function formatReadOnlyCellValue<T extends { id: string }>(
+  row: T,
+  col: FormTableColumn<T>,
+): string {
+  if (col.type === 'dosage-man' && col.dosageManSubKeys) {
+    return formatReadOnlyDosageMan(row, col.dosageManSubKeys);
+  }
+
+  const raw = String(row[col.key] ?? '');
   const value = raw.trim();
   if (!value) return '—';
   if (col.type === 'select' && col.options) {
@@ -165,8 +190,37 @@ export function FormTable<T extends { id: string }>({
                     <TableCell key={col.key}>
                       {readOnly ? (
                         <span className="block min-h-8 py-1.5 text-sm text-gray-900">
-                          {formatReadOnlyCellValue(String(row[col.key] ?? ''), col)}
+                          {formatReadOnlyCellValue(row, col)}
                         </span>
+                      ) : col.type === 'dosage-man' && col.dosageManSubKeys ? (
+                        <div className="flex items-center gap-0.5">
+                          {(
+                            [
+                              { key: col.dosageManSubKeys.morning, placeholder: 'M' },
+                              { key: col.dosageManSubKeys.afternoon, placeholder: 'A' },
+                              { key: col.dosageManSubKeys.night, placeholder: 'N' },
+                            ] as const
+                          ).map((part, partIndex) => (
+                            <div key={part.key} className="flex items-center gap-0.5">
+                              {partIndex > 0 ? (
+                                <span className="text-sm text-muted-foreground">-</span>
+                              ) : null}
+                              <Input
+                                type="text"
+                                inputMode="numeric"
+                                value={(row[part.key] as string) ?? ''}
+                                placeholder={part.placeholder}
+                                onChange={(e) => onUpdate(index, part.key, e.target.value)}
+                                aria-invalid={isCellInvalid(row.id, part.key)}
+                                className={cn(
+                                  'h-8 w-10 px-1 text-center text-sm placeholder:text-muted-foreground/60',
+                                  isCellInvalid(row.id, part.key) &&
+                                    'border-red-500 ring-1 ring-red-500 focus-visible:ring-red-500',
+                                )}
+                              />
+                            </div>
+                          ))}
+                        </div>
                       ) : col.type === 'select' && col.options ? (
                         <Select
                           value={(row[col.key] as string) || '__none__'}
@@ -190,7 +244,9 @@ export function FormTable<T extends { id: string }>({
                             />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="__none__">—</SelectItem>
+                            <SelectItem value="__none__">
+                              {col.emptyOptionLabel ?? '—'}
+                            </SelectItem>
                             {col.options.map((opt) => (
                               <SelectItem key={opt.value} value={opt.value}>
                                 {opt.label}

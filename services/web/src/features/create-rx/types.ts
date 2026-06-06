@@ -37,7 +37,10 @@ export interface VitalFieldDef {
   code: string;
   label: string;
   unit?: string;
+  /** Visitpad unit catalog code for the selected display unit. */
+  defaultUnitCode?: string;
   placeholder?: string;
+  /** Partner vital code when this row is the secondary half of a paired capture. */
   pairedWith?: string;
 }
 
@@ -96,9 +99,12 @@ export interface MedicineRow {
   dosageForm: string;
   route: string;
   strength: string;
-  dosage: string;
+  dosageMorning: string;
+  dosageAfternoon: string;
+  dosageNight: string;
   days: string;
   frequency: string;
+  toa: string;
   quantity: string;
 }
 

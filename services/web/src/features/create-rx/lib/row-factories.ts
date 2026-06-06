@@ -49,9 +49,12 @@ export function emptyMedicineRow(): MedicineRow {
     dosageForm: '',
     route: '',
     strength: '',
-    dosage: '',
-    days: '',
+    dosageMorning: '',
+    dosageAfternoon: '',
+    dosageNight: '',
+    days: '0',
     frequency: '',
+    toa: '',
     quantity: '',
   };
 }
