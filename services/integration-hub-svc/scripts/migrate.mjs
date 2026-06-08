@@ -47,6 +47,7 @@ const migrations = [
   "0001_integration_hub_m2_schema.sql",
   "0002_abdm_link_otps.sql",
   "0003_integration_hub_m3_schema.sql",
+  "0004_integration_hub_control_plane.sql",
 ].map((name) =>
   path.resolve(serviceRoot, "../../modules/integration-hub/migrations", name),
 );

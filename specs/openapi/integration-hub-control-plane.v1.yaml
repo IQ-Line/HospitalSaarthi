@@ -1,0 +1,345 @@
+openapi: 3.1.0
+info:
+  title: Integration Hub Control Plane API
+  version: 1.0.0
+  description: |
+    Partner integration registry, lifecycle orchestration, and API key administration (ADR-0032).
+    Authorization is enforced by Cerbos on enriched human principals — API keys have no scopes.
+servers:
+  - url: /api/integration-hub/v1
+tags:
+  - name: Integrations
+  - name: IntegrationTypes
+  - name: ApiKeys
+paths:
+  /integration-types:
+    get:
+      operationId: integrationHub.listIntegrationTypes
+      tags: [IntegrationTypes]
+      summary: List supported integration type catalog entries
+      responses:
+        "200":
+          description: Catalog entries
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/IntegrationTypeCatalogEntry"
+  /integrations:
+    get:
+      operationId: integrationHub.listIntegrations
+      tags: [Integrations]
+      summary: List integrations for the tenant
+      responses:
+        "200":
+          description: Integration list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Integration"
+    post:
+      operationId: integrationHub.createIntegration
+      tags: [Integrations]
+      summary: Create a draft integration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateIntegrationRequest"
+      responses:
+        "201":
+          description: Created integration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Integration"
+  /integrations/{integrationId}:
+    parameters:
+      - $ref: "#/components/parameters/integrationId"
+    get:
+      operationId: integrationHub.getIntegration
+      tags: [Integrations]
+      summary: Get integration by id
+      responses:
+        "200":
+          description: Integration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Integration"
+    patch:
+      operationId: integrationHub.updateIntegration
+      tags: [Integrations]
+      summary: Update integration configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateIntegrationRequest"
+      responses:
+        "200":
+          description: Updated integration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Integration"
+    delete:
+      operationId: integrationHub.deleteIntegration
+      tags: [Integrations]
+      summary: Delete draft integration
+      responses:
+        "204":
+          description: Deleted
+  /integrations/{integrationId}/activate:
+    parameters:
+      - $ref: "#/components/parameters/integrationId"
+    post:
+      operationId: integrationHub.activateIntegration
+      tags: [Integrations]
+      summary: Activate integration and provision partner principal in User Management
+      responses:
+        "200":
+          description: Activated integration (suggestedCapabilityKeys stripped from config)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Integration"
+  /integrations/{integrationId}/disable:
+    parameters:
+      - $ref: "#/components/parameters/integrationId"
+    post:
+      operationId: integrationHub.disableIntegration
+      tags: [Integrations]
+      summary: Disable integration, revoke API keys, deactivate partner principal
+      responses:
+        "200":
+          description: Disabled integration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Integration"
+  /integrations/{integrationId}/reactivate:
+    parameters:
+      - $ref: "#/components/parameters/integrationId"
+    post:
+      operationId: integrationHub.reactivateIntegration
+      tags: [Integrations]
+      summary: Reactivate disabled integration and partner principal
+      responses:
+        "200":
+          description: Reactivated integration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Integration"
+  /integrations/{integrationId}/api-keys:
+    parameters:
+      - $ref: "#/components/parameters/integrationId"
+    get:
+      operationId: integrationHub.listApiKeys
+      tags: [ApiKeys]
+      summary: List API keys for an integration
+      responses:
+        "200":
+          description: API key list (no secret material)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/IntegrationApiKey"
+    post:
+      operationId: integrationHub.issueApiKey
+      tags: [ApiKeys]
+      summary: Issue a new API key (plaintext returned once)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                expires_at:
+                  type: string
+                  format: date-time
+                  nullable: true
+      responses:
+        "201":
+          description: Issued API key with one-time plaintext_secret
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IssuedIntegrationApiKey"
+  /integrations/{integrationId}/api-keys/{apiKeyId}/revoke:
+    parameters:
+      - $ref: "#/components/parameters/integrationId"
+      - $ref: "#/components/parameters/apiKeyId"
+    post:
+      operationId: integrationHub.revokeApiKey
+      tags: [ApiKeys]
+      summary: Revoke an active API key
+      responses:
+        "200":
+          description: Revoked API key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntegrationApiKey"
+components:
+  parameters:
+    integrationId:
+      name: integrationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    apiKeyId:
+      name: apiKeyId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    IntegrationTypeCatalogEntry:
+      type: object
+      required:
+        - type
+        - display_name
+        - default_allowed_operations
+        - default_suggested_capability_keys
+      properties:
+        type:
+          type: string
+        display_name:
+          type: string
+        default_allowed_operations:
+          type: array
+          items:
+            type: string
+        default_suggested_capability_keys:
+          type: array
+          items:
+            type: string
+    IntegrationConfig:
+      type: object
+      required: [allowedOperations]
+      properties:
+        allowedOperations:
+          type: array
+          items:
+            type: string
+          description: OpenAPI operationId allowlist for routing only
+        suggestedCapabilityKeys:
+          type: array
+          items:
+            type: string
+          description: UX defaults for activation; stripped after successful provision
+    Integration:
+      type: object
+      required:
+        - integration_id
+        - integration_type
+        - display_name
+        - status
+        - config
+      properties:
+        integration_id:
+          type: string
+          format: uuid
+        integration_type:
+          type: string
+        display_name:
+          type: string
+        status:
+          type: string
+          enum: [draft, active, disabled]
+        partner_principal_id:
+          type: string
+          format: uuid
+          nullable: true
+        config:
+          $ref: "#/components/schemas/IntegrationConfig"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    CreateIntegrationRequest:
+      type: object
+      required: [integration_type, display_name]
+      properties:
+        integration_type:
+          type: string
+        display_name:
+          type: string
+        config:
+          $ref: "#/components/schemas/IntegrationConfig"
+    UpdateIntegrationRequest:
+      type: object
+      properties:
+        display_name:
+          type: string
+        config:
+          $ref: "#/components/schemas/IntegrationConfig"
+    IntegrationApiKey:
+      type: object
+      required:
+        - api_key_id
+        - integration_id
+        - key_prefix
+        - status
+      properties:
+        api_key_id:
+          type: string
+          format: uuid
+        integration_id:
+          type: string
+          format: uuid
+        key_prefix:
+          type: string
+        status:
+          type: string
+          enum: [active, revoked]
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_used_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        revoked_at:
+          type: string
+          format: date-time
+          nullable: true
+    IssuedIntegrationApiKey:
+      allOf:
+        - $ref: "#/components/schemas/IntegrationApiKey"
+        - type: object
+          required: [plaintext_secret]
+          properties:
+            plaintext_secret:
+              type: string
+              description: Returned once at issue time; never stored

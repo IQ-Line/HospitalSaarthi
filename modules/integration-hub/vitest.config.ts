@@ -6,6 +6,7 @@ export default defineConfig({
     include: [
       "src/integrations/abdm/**/*.test.ts",
       "src/lib/**/*.test.ts",
+      "src/control-plane/**/*.test.ts",
     ],
     exclude: ["**/*.sandbox.integration.test.ts"],
   },

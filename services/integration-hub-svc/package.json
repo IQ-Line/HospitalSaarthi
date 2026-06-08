@@ -5,7 +5,9 @@
   "type": "module",
   "dependencies": {
     "@hims/integration-hub": "workspace:*",
+    "@hims/ts-sdk-authz": "workspace:*",
     "@hims/ts-sdk-db": "workspace:*",
+    "@hims/user-management": "workspace:*",
     "@hims/ts-sdk-events": "workspace:*",
     "@hims/ts-sdk-openapi": "workspace:*",
     "@hims/ts-sdk-identity": "workspace:*",

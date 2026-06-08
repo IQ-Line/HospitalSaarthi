@@ -41,6 +41,7 @@ import {
   serviceRoot,
 } from "./load-env.js";
 import { registerHttpErrorHandler } from "./http-errors.js";
+import { registerControlPlane } from "./register-control-plane.js";
 
 normalizeIntegrationHubEnvAliases();
 requireSessionTokenCryptoInProd();
@@ -53,6 +54,10 @@ const DATABASE_URL = resolveDatabaseUrlFromEnv();
 const JWKS_URL =
   process.env["JWKS_URL"] ?? "http://localhost:3000/.well-known/jwks.json";
 const ENABLE_AUTH = process.env["ENABLE_AUTH"] === "true";
+const CERBOS_URL = process.env["CERBOS_URL"] ?? "";
+const USER_MANAGEMENT_URL =
+  process.env["USER_MANAGEMENT_URL"] ?? "http://localhost:3000";
+const CONTROL_PLANE_ENABLED = process.env["INTEGRATION_HUB_CONTROL_PLANE"] !== "false";
 
 const GATEWAY_BASE_URL =
   process.env["INTEGRATION_HUB_ABDM_GATEWAY_BASE_URL"] ??
@@ -116,6 +121,20 @@ async function main() {
       baseDir: repoRoot,
     },
   });
+
+  if (CONTROL_PLANE_ENABLED) {
+    await registerOpenApiDocs(app, {
+      serviceId: "integration-hub-control-plane",
+      title: "Integration Hub Control Plane API",
+      version: "1.0.0",
+      description: "Partner integration registry, lifecycle, and API key administration.",
+      apiPrefix: "/api/integration-hub/v1",
+      staticSpec: {
+        path: "specs/openapi/integration-hub-control-plane.v1.yaml",
+        baseDir: repoRoot,
+      },
+    });
+  }
 
   const healthzHandler = async () => ({ status: "ok" as const });
   app.get("/healthz", healthzHandler);
@@ -226,6 +245,28 @@ async function main() {
       await scopedApp.register(abdmRouter);
     }, { prefix: "/abdm/v1" });
   }, { prefix: "/api" });
+
+  if (CONTROL_PLANE_ENABLED) {
+    if (!CERBOS_URL.trim()) {
+      throw new Error(
+        "CERBOS_URL is required when INTEGRATION_HUB_CONTROL_PLANE is enabled (set INTEGRATION_HUB_CONTROL_PLANE=false to skip)",
+      );
+    }
+    const nodeEnv = process.env["NODE_ENV"] ?? "development";
+    const apiKeyEnvironment = nodeEnv === "production" ? "live" : "test";
+    await registerControlPlane(app, {
+      db,
+      umDb: createDb(DATABASE_URL),
+      userManagementUrl: USER_MANAGEMENT_URL,
+      cerbosUrl: CERBOS_URL,
+      enableAuth: ENABLE_AUTH,
+      apiKeyEnvironment,
+    });
+    app.log.info(
+      { enableAuth: ENABLE_AUTH, apiKeyEnvironment },
+      "Integration Hub control plane mounted at /api/integration-hub/v1",
+    );
+  }
 
   await app.listen({ port: PORT, host: "0.0.0.0" });
 
