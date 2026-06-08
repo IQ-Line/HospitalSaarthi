@@ -37,6 +37,7 @@
       "@hims/integration-hub": ["./modules/integration-hub/src/index.ts"],
       "@hims/empi": ["./modules/empi/src/index.ts"],
       "@hims/billing": ["./modules/billing/src/index.ts"],
+      "@hims/ipd": ["./modules/ipd/src/index.ts"],
       "@hims/registration": ["./modules/registration/src/index.ts"],
       "@hims/master-data": ["./modules/master-data/src/index.ts"]
     }

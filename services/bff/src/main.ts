@@ -45,6 +45,10 @@ function buildUpstreams(): UpstreamRoute[] {
       upstream: process.env['REGISTRATION_URL'] ?? 'http://localhost:3006',
     },
     {
+      prefix: '/api/ipd/v1',
+      upstream: process.env['IPD_URL'] ?? 'http://localhost:3008',
+    },
+    {
       prefix: '/api/v1/opd',
       upstream: process.env['OPD_URL'] ?? 'http://localhost:8020',
     },
