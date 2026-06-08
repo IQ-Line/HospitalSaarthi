@@ -3,14 +3,16 @@
   "tags": ["type:module", "scope:integration-hub", "language:typescript"],
   "targets": {
     "db:migrate": {
-      "command": "tsx scripts/apply-migration.ts",
+      "executor": "nx:run-commands",
       "options": {
+        "command": "tsx scripts/apply-migration.ts",
         "cwd": "modules/integration-hub"
       }
     },
     "db-migrate": {
-      "command": "tsx scripts/apply-migration.ts",
+      "executor": "nx:run-commands",
       "options": {
+        "command": "tsx scripts/apply-migration.ts",
         "cwd": "modules/integration-hub"
       }
     },
