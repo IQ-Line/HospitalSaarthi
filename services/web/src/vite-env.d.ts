@@ -8,4 +8,5 @@ interface ImportMetaEnv {
   readonly VITE_ABDM_ADAPTER_ORIGIN?: string;
   readonly VITE_CREATE_RX_USE_MOCK?: string;
   readonly VITE_OPD_PATIENTS_USE_MOCK?: string;
+  readonly VITE_IPD_USE_MOCK?: string;
 }
