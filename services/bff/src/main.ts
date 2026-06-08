@@ -89,6 +89,7 @@ async function main() {
       'x-tenant-id',
       'x-user-id',
       'Idempotency-Key',
+      'x-bypass-entitlement-cache',
     ],
     origin: (origin, cb) => {
       if (!isProduction) {

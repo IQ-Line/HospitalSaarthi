@@ -167,6 +167,9 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
             deps.getUserEffectiveCapabilitiesDeps,
             tenantId,
             request.params.id,
+            typeof request.headers.authorization === "string"
+              ? { authorization: request.headers.authorization }
+              : undefined,
           ),
         );
       } catch (err) {

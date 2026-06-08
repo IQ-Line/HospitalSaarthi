@@ -1,8 +1,13 @@
-import type { FastifyInstance } from "fastify";
-import { assertPlatformSuperAdmin } from "../http/request-auth-context.js";
+import type { FastifyInstance, FastifyRequest } from "fastify";
+import {
+  assertPlatformSuperAdmin,
+  getRequestAuthContext,
+} from "../http/request-auth-context.js";
+import type { EventBus } from "@hims/ts-sdk-events";
 import type { TenantModuleRepo, TenantRepo } from "../ports.js";
 import type {
   CreateTenantModuleData,
+  TenantModule,
   UpdateTenantModuleData,
 } from "../domain/tenant-module.types.js";
 import { listTenantModules } from "../use-cases/list-tenant-modules.js";
@@ -10,6 +15,11 @@ import { createTenantModule } from "../use-cases/create-tenant-module.js";
 import { getTenantModuleByKey } from "../use-cases/get-tenant-module-by-key.js";
 import { updateTenantModule } from "../use-cases/update-tenant-module.js";
 import { deleteTenantModule } from "../use-cases/delete-tenant-module.js";
+import {
+  MODULE_DISABLED_EVENT,
+  MODULE_ENABLED_EVENT,
+  publishTenantModuleLifecycleEvent,
+} from "../events/publish-tenant-module-lifecycle-event.js";
 import {
   patchTenantModuleBodySchema,
   postTenantModuleBodySchema,
@@ -20,9 +30,53 @@ interface TenantModulesListQuery {
   is_active?: boolean;
 }
 
+export type TenantModuleEntitlementCacheInvalidator = {
+  invalidateTenantEntitlementCache(tenantId: string): Promise<void>;
+};
+
 export interface TenantModulesHandlerDeps {
   tenantModuleRepo: TenantModuleRepo;
   tenantRepo: TenantRepo;
+  eventBus?: EventBus;
+  entitlementCacheInvalidator?: TenantModuleEntitlementCacheInvalidator;
+}
+
+async function notifyTenantModuleLifecycle(
+  deps: TenantModulesHandlerDeps,
+  request: FastifyRequest,
+  row: TenantModule,
+  previousIsActive: boolean | undefined,
+): Promise<void> {
+  const becameEnabled = row.is_active && previousIsActive !== true;
+  const becameDisabled = !row.is_active && previousIsActive !== false;
+  const eventType =
+    becameEnabled ? MODULE_ENABLED_EVENT : becameDisabled ? MODULE_DISABLED_EVENT : undefined;
+
+  if (eventType !== undefined && deps.eventBus !== undefined) {
+    const correlationId =
+      typeof (request as FastifyRequest & { correlationId?: string }).correlationId ===
+      "string"
+        ? (request as FastifyRequest & { correlationId?: string }).correlationId
+        : undefined;
+    const actorId = getRequestAuthContext(request).userId ?? undefined;
+    void publishTenantModuleLifecycleEvent(deps.eventBus, {
+      eventType,
+      iqTenantId: row.iq_tenant_id,
+      moduleId: row.module_id,
+      isActive: row.is_active,
+      isCoreOverride: row.is_core_override,
+      updatedAt: row.updated_at,
+      correlationId,
+      actorId,
+    }).catch((err) => {
+      request.log.warn({ err, eventType }, "tenant module lifecycle event publish failed");
+    });
+  }
+
+  // Do not block PATCH/POST/DELETE on UM cache bust (avoids up to 5s wait when UM is slow/down).
+  if ((becameEnabled || becameDisabled) && deps.entitlementCacheInvalidator !== undefined) {
+    void deps.entitlementCacheInvalidator.invalidateTenantEntitlementCache(row.iq_tenant_id);
+  }
 }
 
 export function registerTenantModulesHandler(
@@ -72,6 +126,7 @@ export function registerTenantModulesHandler(
         iq_tenant_id: request.params.tenantId,
         ...request.body,
       });
+      void notifyTenantModuleLifecycle(deps, request, created, undefined);
       return reply.code(201).send(created);
     },
   );
@@ -105,21 +160,25 @@ export function registerTenantModulesHandler(
         params: tenantModuleParamsSchema,
         body: patchTenantModuleBodySchema,
       },
-      preHandler: (request) => { assertPlatformSuperAdmin(request); },
     },
     async (request, reply) => {
-      const updated = await updateTenantModule(
-        tenantModuleRepo,
-        {
-          iq_tenant_id: request.params.tenantId,
-          module_id: request.params.moduleId,
-        },
-        request.body,
-      );
-      if (!updated) {
+      // Auth after schema validation: sync preHandler + PATCH body schema can stall Fastify 5.
+      assertPlatformSuperAdmin(request);
+      const key = {
+        iq_tenant_id: request.params.tenantId,
+        module_id: request.params.moduleId,
+      };
+      const result = await updateTenantModule(tenantModuleRepo, key, request.body);
+      if (!result) {
         return reply.code(404).send({ error: "tenant module not found" });
       }
-      return updated;
+      void notifyTenantModuleLifecycle(
+        deps,
+        request,
+        result.updated,
+        result.previousIsActive,
+      );
+      return result.updated;
     },
   );
 
@@ -129,15 +188,25 @@ export function registerTenantModulesHandler(
       schema: {
         params: tenantModuleParamsSchema,
       },
-      preHandler: (request) => { assertPlatformSuperAdmin(request); },
     },
     async (request, reply) => {
-      const deleted = await deleteTenantModule(tenantModuleRepo, {
+      assertPlatformSuperAdmin(request);
+      const key = {
         iq_tenant_id: request.params.tenantId,
         module_id: request.params.moduleId,
-      });
+      };
+      const existing = await getTenantModuleByKey(tenantModuleRepo, key);
+      const deleted = await deleteTenantModule(tenantModuleRepo, key);
       if (!deleted) {
         return reply.code(404).send({ error: "tenant module not found" });
+      }
+      if (existing !== undefined) {
+        void notifyTenantModuleLifecycle(
+          deps,
+          request,
+          { ...existing, is_active: false },
+          existing.is_active,
+        );
       }
       return reply.code(204).send();
     },

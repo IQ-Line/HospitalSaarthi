@@ -1,7 +1,7 @@
 import type { Principal as IdentityPrincipal } from "@hims/ts-sdk-identity";
 import type { FastifyInstance, FastifyPluginAsync, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
-import { UserManagementError } from "./domain/errors.js";
+import { ModuleEntitlementLookupError, UserManagementError } from "./domain/errors.js";
 import {
   compareCanonicalRoleCodes,
   normalizeRoleCode,
@@ -66,6 +66,16 @@ declare module "fastify" {
   }
 }
 
+function readRequestAuthorization(request: FastifyRequest): string | undefined {
+  const header = request.headers.authorization;
+  return typeof header === "string" && header.trim().length > 0 ? header : undefined;
+}
+
+function readBypassEntitlementCache(request: FastifyRequest): boolean {
+  const header = request.headers["x-bypass-entitlement-cache"];
+  return header === "true" || header === "1";
+}
+
 const principalEnrichmentPluginImpl: FastifyPluginAsync<PrincipalEnricherPluginOptions> = async (
   fastify,
   options,
@@ -82,6 +92,8 @@ const principalEnrichmentPluginImpl: FastifyPluginAsync<PrincipalEnricherPluginO
       tenantId: located?.iq_tenant_id ?? resolveJwtTenantIdFromRequest(request),
       userId: platformUserId,
       requestUser: identity,
+      authorization: readRequestAuthorization(request),
+      entitlementCachePolicy: readBypassEntitlementCache(request) ? "bypass-cache" : undefined,
     };
 
     try {
@@ -94,6 +106,17 @@ const principalEnrichmentPluginImpl: FastifyPluginAsync<PrincipalEnricherPluginO
       (request as RequestWithOptionalUser).user = identity;
     } catch (err) {
       if (reply.sent) return;
+      if (err instanceof ModuleEntitlementLookupError) {
+        request.log.error(
+          {
+            err,
+            source: err.source,
+            tenantId: context.tenantId,
+            authorizationPresent: Boolean(context.authorization),
+          },
+          "tenant entitlement lookup failed during principal enrichment",
+        );
+      }
       if (err instanceof UserManagementError) {
         return replyWithUserManagementError(
           reply,
