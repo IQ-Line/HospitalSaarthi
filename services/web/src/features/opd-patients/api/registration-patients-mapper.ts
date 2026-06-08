@@ -28,8 +28,9 @@ export function mapRegistrationVisitToOpdPatientRow(
   visit: RegistrationVisitResponse,
   empi: EmpiPatient | undefined,
   prescriptionStatus?: OpdPrescriptionStatus | null,
+  opdVisitStatus?: string | null,
 ): OpdPatientVisitRow {
-  const status = effectiveOpdQueueStatus(visit.status, prescriptionStatus);
+  const status = effectiveOpdQueueStatus(visit.status, prescriptionStatus, opdVisitStatus);
 
   return {
     id: visit.id,

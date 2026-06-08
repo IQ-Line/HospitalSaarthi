@@ -25,6 +25,28 @@ class PatientEncounterRow:
     created_at: datetime
 
 
+def resolve_visit_status_for_prescription(
+    session: Session,
+    tenant_id: UUID,
+    visit_id: UUID,
+    prescription_status: str,
+) -> str:
+    """Queue status for normalized prescription reads (joins opd.visits when present)."""
+    visit = session.get(Visit, visit_id)
+    if visit is None or visit.tenant_id != tenant_id:
+        if prescription_status == "final":
+            return "completed"
+        if prescription_status == "cancelled":
+            return "cancelled"
+        return "registered"
+
+    class _RxStatusShim:
+        def __init__(self, status: str) -> None:
+            self.status = status
+
+    return effective_encounter_status(visit, _RxStatusShim(prescription_status))
+
+
 def effective_encounter_status(visit: Visit | None, rx: Prescription | None) -> str:
     """Resolve UI status from visit row and/or prescription row (handles legacy rows)."""
     if visit is not None:
@@ -216,7 +238,12 @@ class PrescriptionRepository:
                 raise PermissionError("visit tenant mismatch")
             if visit.patient_id != patient_id:
                 raise ValueError("visit patient mismatch")
-            if visit.status not in ("completed", "cancelled"):
+            if visit.status not in (
+                "completed",
+                "cancelled",
+                "pre_consulted",
+                "in_progress",
+            ):
                 visit.status = "registered"
                 visit.updated_at = now
                 self._session.flush()

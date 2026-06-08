@@ -30,13 +30,31 @@ class PrescriptionService:
         row = self._repository.create(payload)
         return prescription_to_detail(row)
 
+    def _with_visit_status(
+        self,
+        tenant_id: UUID,
+        visit_id: UUID,
+        detail: PrescriptionDetailResponse,
+    ) -> PrescriptionDetailResponse:
+        from opd.data_access.prescription_repo import resolve_visit_status_for_prescription
+
+        visit_status = resolve_visit_status_for_prescription(
+            self._repository._session,
+            tenant_id,
+            visit_id,
+            detail.status,
+        )
+        return detail.model_copy(update={"visit_status": visit_status})
+
     def get_by_id(self, tenant_id: UUID, prescription_id: UUID) -> PrescriptionDetailResponse:
         row = self._repository.get_by_id(tenant_id, prescription_id)
-        return prescription_to_detail(row)
+        detail = prescription_to_detail(row)
+        return self._with_visit_status(tenant_id, row.visit_id, detail)
 
     def get_by_visit_id(self, tenant_id: UUID, visit_id: UUID) -> PrescriptionDetailResponse:
         row = self._repository.get_by_visit_id(tenant_id, visit_id)
-        return prescription_to_detail(row)
+        detail = prescription_to_detail(row)
+        return self._with_visit_status(tenant_id, visit_id, detail)
 
     def list_by_patient(
         self,

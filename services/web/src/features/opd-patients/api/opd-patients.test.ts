@@ -14,12 +14,12 @@ vi.mock('./empi-patients', async (importOriginal) => {
   };
 });
 
-vi.mock('@/features/create-rx/api/opd-prescription', () => ({
-  fetchPrescriptionStatusesByVisitIds: vi.fn(),
+vi.mock('./opd-encounter-overlay', () => ({
+  fetchOpdEncounterOverlaysByVisitIds: vi.fn(),
 }));
 
 import { listRegistrationVisits } from '@/features/frontdesk/api/registrations';
-import { fetchPrescriptionStatusesByVisitIds } from '@/features/create-rx/api/opd-prescription';
+import { fetchOpdEncounterOverlaysByVisitIds } from './opd-encounter-overlay';
 import { fetchEmpiPatientLookupMap } from './empi-patients';
 
 const baseParams: OpdPatientsListParams = {
@@ -58,7 +58,7 @@ const sampleVisit = {
 describe('fetchOpdPatientsList', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(fetchPrescriptionStatusesByVisitIds).mockResolvedValue(new Map());
+    vi.mocked(fetchOpdEncounterOverlaysByVisitIds).mockResolvedValue(new Map());
     vi.mocked(fetchEmpiPatientLookupMap).mockResolvedValue(
       new Map([
         [
@@ -103,11 +103,11 @@ describe('fetchOpdPatientsList', () => {
     expect(result.items[0]?.id).toBe(sampleVisit.id);
     expect(result.items[0]?.visitNumber).toBe('VIS-ABC12345');
     expect(result.items[0]?.status).toBe('registered');
-    expect(result.items[0]?.actionLabel).toBe('Start RX');
+    expect(result.items[0]?.actionLabel).toBe('Create Rx');
     expect(result.total).toBe(1);
   });
 
-  it('maps desk-completed visit without final RX as registered / Start RX', async () => {
+  it('maps desk-completed visit without final RX as registered / Create Rx', async () => {
     vi.mocked(listRegistrationVisits).mockResolvedValue({
       data: [{ ...sampleVisit, status: 'completed' }],
       total: 1,
@@ -119,7 +119,30 @@ describe('fetchOpdPatientsList', () => {
     const result = await fetchOpdPatientsList(baseParams);
 
     expect(result.items[0]?.status).toBe('registered');
-    expect(result.items[0]?.actionLabel).toBe('Start RX');
+    expect(result.items[0]?.actionLabel).toBe('Create Rx');
+  });
+
+  it('maps nurse pre-consulted OPD overlay to Pre Consulted queue status', async () => {
+    vi.mocked(listRegistrationVisits).mockResolvedValue({
+      data: [{ ...sampleVisit, status: 'completed' }],
+      total: 1,
+      page: 1,
+      limit: 10,
+      total_pages: 1,
+    });
+    vi.mocked(fetchOpdEncounterOverlaysByVisitIds).mockResolvedValue(
+      new Map([
+        [
+          sampleVisit.id,
+          { prescriptionStatus: 'draft', visitStatus: 'pre_consulted' },
+        ],
+      ]),
+    );
+
+    const result = await fetchOpdPatientsList(baseParams);
+
+    expect(result.items[0]?.status).toBe('pre-consulted');
+    expect(result.items[0]?.actionLabel).toBe('Create Rx');
   });
 
   it('maps cancelled registration visits', async () => {
@@ -134,6 +157,6 @@ describe('fetchOpdPatientsList', () => {
     const result = await fetchOpdPatientsList(baseParams);
 
     expect(result.items[0]?.status).toBe('cancelled');
-    expect(result.items[0]?.actionLabel).toBe('Start RX');
+    expect(result.items[0]?.actionLabel).toBe('Create Rx');
   });
 });

@@ -111,6 +111,9 @@ export function FormTable<T extends { id: string }>({
   const isCellInvalid = (rowId: string, field: string) =>
     invalidCells?.has(`${rowId}:${field}`) ?? false;
 
+  const columnStyle = (width: string | undefined) =>
+    width ? { width, minWidth: width } : undefined;
+
   return (
     <div
       className={cn(
@@ -164,7 +167,7 @@ export function FormTable<T extends { id: string }>({
                 <TableHead
                   key={col.key}
                   className="text-xs font-semibold text-muted-foreground"
-                  style={col.width ? { width: col.width } : undefined}
+                  style={columnStyle(col.width)}
                 >
                   {col.label}
                 </TableHead>
@@ -187,7 +190,7 @@ export function FormTable<T extends { id: string }>({
                 <TableRow key={row.id}>
                   <TableCell className="text-sm text-muted-foreground">{index + 1}</TableCell>
                   {columns.map((col) => (
-                    <TableCell key={col.key}>
+                    <TableCell key={col.key} style={columnStyle(col.width)}>
                       {readOnly ? (
                         <span className="block min-h-8 py-1.5 text-sm text-gray-900">
                           {formatReadOnlyCellValue(row, col)}
@@ -263,6 +266,8 @@ export function FormTable<T extends { id: string }>({
                           aria-invalid={isCellInvalid(row.id, col.key)}
                           className={cn(
                             'h-8 text-sm',
+                            col.width && 'w-full min-w-0',
+                            col.type === 'number' && 'tabular-nums',
                             isCellInvalid(row.id, col.key) &&
                               'border-red-500 ring-1 ring-red-500 focus-visible:ring-red-500',
                           )}

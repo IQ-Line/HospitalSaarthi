@@ -236,6 +236,8 @@ class PrescriptionDetailResponse(BaseModel):
     doctor_id: UUID
     vitals_schema_version: int
     status: PrescriptionStatus
+    # OPD visit queue status from opd.visits (e.g. pre_consulted, in_progress).
+    visit_status: str | None = None
     finalized_at: datetime | None
     cancelled_at: datetime | None
     deleted_at: datetime | None

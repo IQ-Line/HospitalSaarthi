@@ -75,7 +75,7 @@ export function OpdPatientsTable({
         header: () => <span className="text-xs font-semibold tracking-wide text-muted-foreground">ACTIONS</span>,
         cell: ({ row }) => {
           const isView = row.original.actionLabel === 'View RX';
-          const isStart = row.original.actionLabel === 'Start RX';
+          const isCreate = row.original.actionLabel === 'Create Rx';
           return (
             <Button
               type="button"
@@ -90,7 +90,7 @@ export function OpdPatientsTable({
                 params={{ visitId: row.original.id }}
                 search={{
                   mode: isView ? 'view' : 'edit',
-                  loadPrescription: !isStart,
+                  loadPrescription: !isCreate,
                   patientId: row.original.patientId,
                 }}
                 onClick={stopRowClick}

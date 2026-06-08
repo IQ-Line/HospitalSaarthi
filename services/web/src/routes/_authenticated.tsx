@@ -8,6 +8,7 @@ import {
   isAuthorizationHydratedForScope,
   refreshAuthorizationContext,
 } from '@/lib/authorization-context';
+import type { RouterContext } from '@/routes/__root';
 import {
   isSameAuthPrincipalScope,
   type AuthPrincipalQueryScope,
@@ -23,11 +24,13 @@ const EMPTY_CAPABILITY_RETRY_MAX = 3;
 const EMPTY_CAPABILITY_RETRY_INTERVAL_MS = 3000;
 
 export const Route = createFileRoute('/_authenticated')({
-  beforeLoad: () => {
+  beforeLoad: async ({ context }: { context: RouterContext }) => {
     const { isAuthenticated } = useAuthStore.getState();
     if (!isAuthenticated) {
       throw redirect({ to: '/login' });
     }
+    // Hydrate capabilities before child route guards (e.g. create-rx) run on hard refresh.
+    await refreshAuthorizationContext(context.queryClient);
   },
   component: AuthenticatedLayout,
 });

@@ -28,6 +28,7 @@ def test_create_get_finalize_cancel_delete_flow(prescription_client: TestClient)
     by_visit = prescription_client.get(f"{API_PREFIX}/by-visit/{visit_id}", params=_tenant_q())
     assert by_visit.status_code == 200
     assert by_visit.json()["data"]["id"] == rx_id
+    assert by_visit.json()["data"]["visit_status"] is not None
 
     duplicate = prescription_client.post(API_PREFIX, json=create_body)
     assert duplicate.status_code == 409
