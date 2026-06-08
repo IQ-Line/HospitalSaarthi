@@ -95,6 +95,8 @@ export interface DiagnosisRow {
 
 export interface MedicineRow {
   id: string;
+  /** Master-data visitpad medicine UUID when selected from catalog. */
+  medicineId: string;
   medicine: string;
   dosageForm: string;
   route: string;
