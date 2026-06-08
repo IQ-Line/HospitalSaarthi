@@ -1,5 +1,13 @@
-export type AdmissionStatus = 'requested' | 'pending_clearance' | 'approved';
-export type AdmissionType = 'planned' | 'emergency';
+/** LLD episode lifecycle — matches backend `ipd.episodes.status`. */
+export type EpisodeStatus =
+  | 'scheduled'
+  | 'admitted'
+  | 'discharge_planning'
+  | 'pending_clearance'
+  | 'discharged'
+  | 'cancelled';
+
+export type AdmissionType = 'planned' | 'emergency' | 'direct' | 'daycare' | 'transfer_in';
 
 export type AdmissionRow = {
   id: string;
@@ -7,14 +15,14 @@ export type AdmissionRow = {
   patientName: string;
   uhid: string;
   type: AdmissionType;
-  status: AdmissionStatus;
+  status: EpisodeStatus;
   specialty: string;
   requestedAt: string;
 };
 
 export type AdmissionsFilters = {
   search: string;
-  status: AdmissionStatus | '';
+  status: EpisodeStatus | '';
   type: AdmissionType | '';
 };
 
@@ -43,7 +51,7 @@ export type AdmissionFormInput = {
   dayCare: boolean;
   mlc: boolean;
   provisionalDiagnosis: string;
-  expectedLosDays: string;
+  expectedLosDays: number | null;
   wardPreference: string;
   flags: string[];
   bedId: string;
@@ -54,3 +62,6 @@ export type AdmissionFormInput = {
 export type CreateAdmissionInput = AdmissionFormInput;
 
 export type AdmissionDetail = AdmissionRow & AdmissionFormInput;
+
+/** @deprecated Use EpisodeStatus */
+export type AdmissionStatus = EpisodeStatus;

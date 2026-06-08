@@ -103,7 +103,7 @@ export function AdmissionsPage() {
         header: '',
         enableHiding: false,
         cell: ({ row }) =>
-          row.original.status !== 'requested' ? (
+          row.original.status === 'scheduled' ? (
             <Button
               type="button"
               variant="outline"
@@ -164,9 +164,11 @@ export function AdmissionsPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={NONE}>All Status</SelectItem>
-            <SelectItem value="requested">Requested</SelectItem>
+            <SelectItem value="scheduled">Scheduled</SelectItem>
             <SelectItem value="pending_clearance">Pending clearance</SelectItem>
-            <SelectItem value="approved">Approved</SelectItem>
+            <SelectItem value="admitted">Admitted</SelectItem>
+            <SelectItem value="discharge_planning">Discharge planning</SelectItem>
+            <SelectItem value="discharged">Discharged</SelectItem>
           </SelectContent>
         </Select>
         <Select
