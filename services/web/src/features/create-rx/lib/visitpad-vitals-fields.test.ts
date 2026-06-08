@@ -56,6 +56,8 @@ describe('visitpadVitalsToFieldDefs', () => {
         unit: 'mmHg',
         defaultUnitCode: 'mmhg',
         pairedWith: undefined,
+        normalRange: undefined,
+        rangeLabel: undefined,
       },
       {
         code: 'diastolic_bp',
@@ -63,6 +65,8 @@ describe('visitpadVitalsToFieldDefs', () => {
         unit: 'mmHg',
         defaultUnitCode: 'mmhg',
         pairedWith: 'systolic_bp',
+        normalRange: undefined,
+        rangeLabel: undefined,
       },
       {
         code: 'pulse_rate',
@@ -70,8 +74,23 @@ describe('visitpadVitalsToFieldDefs', () => {
         unit: 'bpm',
         defaultUnitCode: 'bpm',
         pairedWith: undefined,
+        normalRange: undefined,
+        rangeLabel: undefined,
       },
     ]);
+  });
+
+  it('includes configured normal range labels', () => {
+    const fields = visitpadVitalsToFieldDefs([
+      vital({
+        code: 'vc_02',
+        name: 'Pulse Rate',
+        normal_range_adult: { min: 90, max: 120 },
+      }),
+    ]);
+
+    expect(fields[0]?.rangeLabel).toBe('90–120');
+    expect(fields[0]?.normalRange).toEqual({ min: 90, max: 120 });
   });
 });
 

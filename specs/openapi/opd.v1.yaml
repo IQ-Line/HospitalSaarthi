@@ -429,6 +429,30 @@ paths:
                 $ref: '#/components/schemas/PrescriptionSingleResponse'
         '404':
           description: Not found
+  /prescriptions/by-visits:
+    get:
+      operationId: getPrescriptionOverlaysByVisits
+      summary: Batch prescription and visit queue status by registration visit_ids
+      tags:
+      - Prescriptions
+      parameters:
+      - $ref: '#/components/parameters/TenantIdQuery'
+      - name: visit_ids
+        in: query
+        required: false
+        description: Comma-separated registration visit UUIDs (max 100)
+        schema:
+          type: string
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6,550e8400-e29b-41d4-a716-446655440000
+      responses:
+        '200':
+          description: Visit-id keyed overlay map (omits visits without prescriptions)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrescriptionEncounterOverlayBatchResponse'
+        '400':
+          description: Too many visit_ids
   /prescriptions/{prescription_id}:
     get:
       operationId: getPrescription
@@ -1435,6 +1459,29 @@ components:
       properties:
         data:
           $ref: '#/components/schemas/PrescriptionDetail'
+
+    PrescriptionEncounterOverlay:
+      type: object
+      required:
+      - status
+      - visit_status
+      properties:
+        status:
+          $ref: '#/components/schemas/PrescriptionStatus'
+        visit_status:
+          type: string
+          description: OPD visit queue status from opd.visits (e.g. pre_consulted, in_progress)
+
+    PrescriptionEncounterOverlayBatchResponse:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/PrescriptionEncounterOverlay'
+          description: Map keyed by registration visit_id (UUID string)
 
     HealthDocumentSummary:
       type: object

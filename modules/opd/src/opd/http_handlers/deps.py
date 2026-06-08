@@ -23,5 +23,6 @@ def get_prescription_repository(
 
 def get_prescription_service(
     repository: Annotated[PrescriptionRepository, Depends(get_prescription_repository)],
+    session: Annotated[Session, Depends(get_session)],
 ) -> PrescriptionService:
-    return PrescriptionService(repository)
+    return PrescriptionService(repository, session)
