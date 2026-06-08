@@ -6,6 +6,7 @@ import { dashboardModuleManifest } from './manifests/dashboard.manifest';
 import { frontdeskModuleManifest } from './manifests/frontdesk.manifest';
 import { nurseModuleManifest } from './manifests/nurse.manifest';
 import { patientsModuleManifest } from './manifests/patients.manifest';
+import { pharmacyModuleManifest } from './manifests/pharmacy.manifest';
 import { masterDataModuleManifest } from './manifests/master-data.manifest';
 import { userManagementModuleManifest } from './manifests/user-management.manifest';
 import { visitpadModuleManifest } from './manifests/visitpad.manifest';
@@ -16,6 +17,7 @@ const BUILTIN_MODULE_MANIFESTS = [
   userManagementModuleManifest,
   patientsModuleManifest,
   nurseModuleManifest,
+  pharmacyModuleManifest,
   frontdeskModuleManifest,
   billingAndFinanceModuleManifest,
   visitpadModuleManifest,

@@ -1,0 +1,70 @@
+import {
+  boolean,
+  date,
+  numeric,
+  pgSchema,
+  primaryKey,
+  text,
+  timestamp,
+  uuid,
+  tenantColumn,
+} from "@hims/ts-sdk-db";
+
+export const PHARMACY_SCHEMA_NAME = "pharmacy" as const;
+export const pharmacySchema = pgSchema(PHARMACY_SCHEMA_NAME);
+
+export const walkInPatients = pharmacySchema.table(
+  "walk_in_patients",
+  {
+    id: uuid("id").defaultRandom().notNull(),
+    ...tenantColumn(),
+    first_name: text("first_name").notNull(),
+    last_name: text("last_name"),
+    phone: text("phone"),
+    gender: text("gender").notNull(),
+    date_of_birth: date("date_of_birth"),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.iq_tenant_id, t.id] })],
+);
+
+export const dispenseRecords = pharmacySchema.table(
+  "dispense_records",
+  {
+    id: uuid("id").defaultRandom().notNull(),
+    ...tenantColumn(),
+    walk_in_order: boolean("walk_in_order").notNull().default(false),
+    walk_in_patient_id: uuid("walk_in_patient_id"),
+    visit_id: uuid("visit_id"),
+    patient_id: uuid("patient_id"),
+    opd_prescription_id: uuid("opd_prescription_id"),
+    subtotal: numeric("subtotal", { precision: 18, scale: 4 }).notNull().default("0"),
+    discount: numeric("discount", { precision: 18, scale: 4 }).notNull().default("0"),
+    total_amount: numeric("total_amount", { precision: 18, scale: 4 }).notNull().default("0"),
+    notes: text("notes"),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    created_by: uuid("created_by"),
+  },
+  (t) => [primaryKey({ columns: [t.iq_tenant_id, t.id] })],
+);
+
+export const dispenseLineItems = pharmacySchema.table(
+  "dispense_line_items",
+  {
+    id: uuid("id").defaultRandom().notNull(),
+    ...tenantColumn(),
+    dispense_record_id: uuid("dispense_record_id").notNull(),
+    medicine_display_name: text("medicine_display_name").notNull(),
+    prescribed_quantity: numeric("prescribed_quantity", { precision: 12, scale: 4 }),
+    quantity_dispensed: numeric("quantity_dispensed", { precision: 12, scale: 4 })
+      .notNull()
+      .default("0"),
+    unit_amount: numeric("unit_amount", { precision: 18, scale: 4 }).notNull().default("0"),
+    line_discount: numeric("line_discount", { precision: 18, scale: 4 }).notNull().default("0"),
+    tax_percent: numeric("tax_percent", { precision: 8, scale: 4 }).notNull().default("0"),
+    tax_amount: numeric("tax_amount", { precision: 18, scale: 4 }).notNull().default("0"),
+    line_total: numeric("line_total", { precision: 18, scale: 4 }).notNull().default("0"),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.iq_tenant_id, t.id] })],
+);

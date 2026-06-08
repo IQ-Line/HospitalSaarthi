@@ -18,6 +18,27 @@ class OpdVisitListResponse(BaseModel):
     items: list[OpdVisitSummary]
 
 
+class OpdCompletedVisitSummary(BaseModel):
+    """OPD visit with joined prescription metadata (pharmacy queue source)."""
+
+    visit_id: UUID
+    patient_id: UUID
+    prescription_id: UUID | None = None
+    doctor_id: UUID | None = None
+    visit_status: str
+    prescription_status: str | None = None
+    updated_at: datetime
+    finalized_at: datetime | None = None
+    medicine_count: int = 0
+
+
+class OpdCompletedVisitListResponse(BaseModel):
+    items: list[OpdCompletedVisitSummary]
+    total: int
+    page: int
+    limit: int
+
+
 class OpdPatientEncounterSummary(BaseModel):
     """Latest OPD encounter per patient for the active tenant (patients queue)."""
 

@@ -1,0 +1,149 @@
+import type {
+  DispenseForVisitResponse,
+  DispenseLineItemRecord,
+  DispenseRecord,
+  OpdPrescriptionSnapshot,
+  SaveDispenseForVisitInput,
+} from "../domain/pharmacy.types.js";
+import {
+  computeLineBilling,
+  computeRecordAmounts,
+  multiplyDecimal,
+  normalizeDiscount,
+} from "../lib/dispense-amounts.js";
+import type { DispenseRecordRepo, OpdGatewayPort } from "../ports.js";
+import { DispenseVisitNotFoundError } from "./get-dispense-for-visit.js";
+
+export type SaveDispenseForVisitCommand = SaveDispenseForVisitInput & {
+  visitId: string;
+  bearerToken?: string;
+  createdBy?: string | null;
+};
+
+export class DispensePatientMismatchError extends Error {
+  constructor() {
+    super("patient_id does not match OPD prescription for this visit");
+    this.name = "DispensePatientMismatchError";
+  }
+}
+
+export class DispenseValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "DispenseValidationError";
+  }
+}
+
+export function assertLine(line: SaveDispenseForVisitInput["lines"][number], index: number): void {
+  if (!line.medicine_display_name?.trim()) {
+    throw new DispenseValidationError(`lines[${index}].medicine_display_name is required`);
+  }
+  const qty = Number(line.quantity_dispensed);
+  const unit = Number(line.unit_amount);
+  if (!Number.isFinite(qty) || qty < 0) {
+    throw new DispenseValidationError(`lines[${index}].quantity_dispensed must be a non-negative number`);
+  }
+  if (!Number.isFinite(unit) || unit < 0) {
+    throw new DispenseValidationError(`lines[${index}].unit_amount must be a non-negative number`);
+  }
+
+  const gross = multiplyDecimal(line.quantity_dispensed, line.unit_amount);
+  if (line.line_discount != null && line.line_discount !== "") {
+    const lineDiscount = Number(line.line_discount);
+    if (!Number.isFinite(lineDiscount) || lineDiscount < 0) {
+      throw new DispenseValidationError(`lines[${index}].line_discount must be a non-negative number`);
+    }
+    if (lineDiscount > Number(gross)) {
+      throw new DispenseValidationError(`lines[${index}].line_discount cannot exceed line gross amount`);
+    }
+  }
+
+  if (line.tax_percent != null && line.tax_percent !== "") {
+    const taxPercent = Number(line.tax_percent);
+    if (!Number.isFinite(taxPercent) || taxPercent < 0) {
+      throw new DispenseValidationError(`lines[${index}].tax_percent must be a non-negative number`);
+    }
+  }
+}
+
+function toResponse(
+  visitId: string,
+  opdPrescription: OpdPrescriptionSnapshot,
+  record: DispenseRecord,
+  lines: DispenseLineItemRecord[],
+): DispenseForVisitResponse {
+  return {
+    visit_id: visitId,
+    patient_id: record.patient_id,
+    opd_prescription_id: record.opd_prescription_id,
+    subtotal: record.subtotal,
+    discount: record.discount,
+    total_amount: record.total_amount,
+    notes: record.notes,
+    has_dispense: true,
+    record_id: record.id,
+    created_at: record.created_at.toISOString(),
+    lines,
+    opd_prescription: opdPrescription,
+  };
+}
+
+export async function saveDispenseForVisit(
+  deps: { opdGateway: OpdGatewayPort; dispenseRecordRepo: DispenseRecordRepo },
+  tenantId: string,
+  command: SaveDispenseForVisitCommand,
+): Promise<DispenseForVisitResponse> {
+  if (!command.lines?.length) {
+    throw new DispenseValidationError("lines must contain at least one dispense line");
+  }
+  command.lines.forEach((line, index) => assertLine(line, index));
+
+  if (command.discount != null && command.discount !== "") {
+    const discount = Number(command.discount);
+    if (!Number.isFinite(discount) || discount < 0) {
+      throw new DispenseValidationError("discount must be a non-negative number");
+    }
+  }
+
+  const prescription = await deps.opdGateway.getVisitPrescription(
+    tenantId,
+    command.visitId,
+    command.bearerToken,
+  );
+  if (prescription == null) {
+    throw new DispenseVisitNotFoundError(command.visitId);
+  }
+  if (command.patient_id !== prescription.patient_id) {
+    throw new DispensePatientMismatchError();
+  }
+
+  const opdPrescriptionId =
+    command.opd_prescription_id ?? prescription.prescription_id;
+
+  const previewAmounts = computeRecordAmounts(
+    command.lines.map((line) =>
+      computeLineBilling({
+        quantity_dispensed: line.quantity_dispensed,
+        unit_amount: line.unit_amount,
+        line_discount: line.line_discount,
+        tax_percent: line.tax_percent,
+      }),
+    ),
+    command.discount,
+  );
+  if (Number(previewAmounts.discount) > Number(previewAmounts.subtotal)) {
+    throw new DispenseValidationError("discount cannot exceed subtotal");
+  }
+
+  const { record, lines } = await deps.dispenseRecordRepo.upsertForVisit(tenantId, {
+    visit_id: command.visitId,
+    patient_id: command.patient_id,
+    opd_prescription_id: opdPrescriptionId,
+    notes: command.notes ?? null,
+    discount: normalizeDiscount(command.discount),
+    lines: command.lines,
+    created_by: command.createdBy ?? null,
+  });
+
+  return toResponse(command.visitId, prescription, record, lines);
+}

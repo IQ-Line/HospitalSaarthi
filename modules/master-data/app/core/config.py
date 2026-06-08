@@ -123,12 +123,14 @@ def _resolve_database_url_from_env_files() -> str | None:
     except ImportError:
         return None
 
+    # Last file wins (matches pydantic_settings env_file merge: package overrides root).
+    resolved: str | None = None
     for path in _master_data_env_files() or ():
         values = dotenv_values(path)
         url = (values.get("MASTER_DATA_DATABASE_URL") or "").strip()
         if url:
-            return url
-    return None
+            resolved = url
+    return resolved
 
 
 @lru_cache

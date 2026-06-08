@@ -33,6 +33,12 @@
       "options": {
         "cwd": "modules/empi"
       }
+    },
+    "seed-pharmacy-dev": {
+      "command": "tsx scripts/seed_dev_pharmacy_patients.ts",
+      "options": {
+        "cwd": "modules/empi"
+      }
     }
   }
 }

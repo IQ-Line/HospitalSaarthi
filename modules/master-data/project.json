@@ -48,14 +48,14 @@
       "cache": true
     },
     "migrate": {
-      "command": "uv run alembic upgrade heads",
+      "command": "bash scripts/run-migrations.sh",
       "options": {
         "cwd": "modules/master-data"
       },
       "dependsOn": ["setup"]
     },
     "db-migrate": {
-      "command": "uv run alembic upgrade heads",
+      "command": "bash scripts/run-migrations.sh",
       "options": {
         "cwd": "modules/master-data"
       },

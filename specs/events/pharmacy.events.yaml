@@ -1,0 +1,5 @@
+# Pharmacy module events (v1 — async integration deferred; OPD on-demand REST for prescriptions).
+# Future publishers: pharmacy.dispense.session_recorded
+# Future consumers: none in v1 custom counter scope
+
+events: []

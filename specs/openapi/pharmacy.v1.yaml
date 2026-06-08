@@ -1,0 +1,409 @@
+openapi: 3.1.0
+info:
+  title: Pharmacy API
+  version: 1.0.0
+  description: >
+    Pharmacy counter module — OPD visit queue (including in-progress consults with
+    prescriptions), walk-in counter orders, free-text prescription lines from OPD,
+    manual quantity and amount billing stored in pharmacy schema. One dispense record
+    per visit (no draft/finalize sessions). No payment or Billing module in v1.
+servers:
+  - url: https://api.{tenant_slug}.hims.example/api/pharmacy/v1
+    variables:
+      tenant_slug:
+        default: demo
+security:
+  - bearerAuth: []
+tags:
+  - name: Queue
+    description: OPD visits with prescriptions and walk-in dispense orders.
+  - name: Dispense
+    description: Per-visit dispense record and line items.
+paths:
+  /queue:
+    get:
+      operationId: listPharmacyQueue
+      summary: List pharmacy queue rows (OPD visits with Rx and walk-in orders)
+      tags: [Queue]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+        - name: queued_from
+          in: query
+          schema: { type: string, format: date }
+          description: Filter by queue date (visit updated_at) — start of range, inclusive.
+        - name: queued_to
+          in: query
+          schema: { type: string, format: date }
+          description: Filter by queue date (visit updated_at) — end of range, inclusive.
+        - name: q
+          in: query
+          schema: { type: string }
+          description: >
+            Case-insensitive search across patient name, UHID, visit id, prescription id,
+            formatted Rx token, and doctor name.
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [all, pending, issued]
+            default: all
+          description: Filter by dispense status (pending = no saved dispense, issued = has dispense).
+      responses:
+        "200":
+          description: Queue page
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PharmacyQueueResponse" }
+        "502":
+          description: Upstream OPD unavailable
+  /visits/{visitId}/dispense-order:
+    get:
+      operationId: getDispenseForVisit
+      summary: Get OPD prescription and saved dispense lines for a visit
+      tags: [Dispense]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: visitId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Dispense detail with OPD prescription context
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DispenseForVisitResponse" }
+        "404":
+          description: Visit has no OPD prescription
+        "502":
+          description: Upstream failure
+    put:
+      operationId: saveDispenseForVisit
+      summary: Save dispense lines and totals for a visit (upsert record, replace lines)
+      tags: [Dispense]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: visitId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SaveDispenseForVisitRequest" }
+      responses:
+        "200":
+          description: Saved dispense record
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DispenseForVisitResponse" }
+        "400":
+          description: Validation or patient mismatch
+        "404":
+          description: Visit has no OPD prescription
+        "502":
+          description: Upstream or persistence failure
+  /walk-in-dispense-orders:
+    post:
+      operationId: createWalkInDispenseOrder
+      summary: Create a walk-in dispense order with pharmacy-local patient details
+      tags: [Dispense]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SaveWalkInDispenseRequest" }
+      responses:
+        "201":
+          description: Created walk-in dispense order
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WalkInDispenseResponse" }
+        "400":
+          description: Validation error
+  /walk-in-dispense-orders/{recordId}:
+    get:
+      operationId: getWalkInDispenseOrder
+      summary: Get a walk-in dispense order by record id
+      tags: [Dispense]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: recordId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Walk-in dispense order
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WalkInDispenseResponse" }
+        "404":
+          description: Order not found
+    put:
+      operationId: updateWalkInDispenseOrder
+      summary: Update walk-in patient details and replace dispense lines
+      tags: [Dispense]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: recordId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SaveWalkInDispenseRequest" }
+      responses:
+        "200":
+          description: Updated walk-in dispense order
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WalkInDispenseResponse" }
+        "400":
+          description: Validation error
+        "404":
+          description: Order not found
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    TenantIdHeader:
+      name: iq_tenant_id
+      in: header
+      required: true
+      schema: { type: string, format: uuid }
+  schemas:
+    PharmacyQueueItem:
+      type: object
+      required:
+        - walk_in_order
+        - visit_status
+        - updated_at
+        - has_dispense
+        - medicine_count
+      properties:
+        walk_in_order:
+          type: boolean
+          description: True for counter walk-in dispense orders without an OPD visit.
+        record_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Pharmacy dispense record id for walk-in orders.
+        visit_id:
+          type: string
+          format: uuid
+          nullable: true
+        patient_id:
+          type: string
+          format: uuid
+          nullable: true
+        walk_in_patient_id:
+          type: string
+          format: uuid
+          nullable: true
+        prescription_id: { type: string, format: uuid, nullable: true }
+        doctor_id: { type: string, format: uuid, nullable: true }
+        visit_status: { type: string }
+        prescription_status: { type: string, nullable: true }
+        updated_at: { type: string, format: date-time }
+        finalized_at: { type: string, format: date-time, nullable: true }
+        medicine_count:
+          type: integer
+          minimum: 0
+        patient_name: { type: string, nullable: true }
+        uhid: { type: string, nullable: true }
+        phone:
+          type: string
+          nullable: true
+          description: Walk-in patient phone when walk_in_order is true.
+        age_years: { type: integer, nullable: true }
+        gender: { type: string, nullable: true }
+        doctor_name:
+          type: string
+          nullable: true
+          description: Prescribing doctor display name from user management.
+        has_dispense:
+          type: boolean
+          description: True when medicines have been issued for this queue row.
+    PharmacyQueueResponse:
+      type: object
+      required: [items, total, page, limit]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/PharmacyQueueItem" }
+        total: { type: integer }
+        page: { type: integer }
+        limit: { type: integer }
+    OpdPrescriptionMedicineLine:
+      type: object
+      required: [line_no, name]
+      properties:
+        line_no: { type: integer }
+        name: { type: string }
+        strength: { type: string, nullable: true }
+        dosage: { type: string, nullable: true }
+        duration: { type: string, nullable: true }
+        frequency: { type: string, nullable: true }
+        quantity: { type: string, nullable: true }
+        route: { type: string, nullable: true }
+    OpdPrescriptionSnapshot:
+      type: object
+      required:
+        - prescription_id
+        - visit_id
+        - patient_id
+        - visit_status
+        - prescription_status
+        - medicines
+      properties:
+        prescription_id: { type: string, format: uuid }
+        visit_id: { type: string, format: uuid }
+        patient_id: { type: string, format: uuid }
+        visit_status: { type: string }
+        prescription_status: { type: string }
+        medicines:
+          type: array
+          items: { $ref: "#/components/schemas/OpdPrescriptionMedicineLine" }
+    SaveDispenseLineInput:
+      type: object
+      required: [medicine_display_name, quantity_dispensed, unit_amount]
+      properties:
+        medicine_display_name: { type: string }
+        prescribed_quantity: { type: string, nullable: true }
+        quantity_dispensed: { type: string }
+        unit_amount: { type: string }
+        line_discount:
+          type: string
+          nullable: true
+          description: Line-level discount amount (₹); defaults to 0.
+        tax_percent:
+          type: string
+          nullable: true
+          description: Tax rate as percent (e.g. 12 for 12%); defaults to 0.
+    SaveDispenseForVisitRequest:
+      type: object
+      required: [patient_id, lines]
+      properties:
+        patient_id: { type: string, format: uuid }
+        opd_prescription_id: { type: string, format: uuid, nullable: true }
+        discount:
+          type: string
+          nullable: true
+          description: Bill-level discount amount; defaults to 0. total_amount = subtotal - discount.
+        notes: { type: string, nullable: true }
+        lines:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/SaveDispenseLineInput" }
+    DispenseLineItem:
+      type: object
+      required:
+        - id
+        - medicine_display_name
+        - quantity_dispensed
+        - unit_amount
+        - line_discount
+        - tax_percent
+        - tax_amount
+        - line_total
+      properties:
+        id: { type: string, format: uuid }
+        medicine_display_name: { type: string }
+        prescribed_quantity: { type: string, nullable: true }
+        quantity_dispensed: { type: string }
+        unit_amount: { type: string }
+        line_discount: { type: string }
+        tax_percent: { type: string }
+        tax_amount: { type: string }
+        line_total: { type: string }
+        created_at: { type: string, format: date-time }
+    DispenseForVisitResponse:
+      type: object
+      required:
+        - visit_id
+        - patient_id
+        - subtotal
+        - discount
+        - total_amount
+        - has_dispense
+        - lines
+        - opd_prescription
+      properties:
+        visit_id: { type: string, format: uuid }
+        patient_id: { type: string, format: uuid }
+        opd_prescription_id: { type: string, format: uuid, nullable: true }
+        subtotal:
+          type: string
+          description: Sum of line totals (after line discount and tax).
+        discount:
+          type: string
+          description: Bill-level discount subtracted from subtotal.
+        total_amount:
+          type: string
+          description: max(0, subtotal - discount).
+        notes: { type: string, nullable: true }
+        has_dispense: { type: boolean }
+        record_id: { type: string, format: uuid, nullable: true }
+        created_at: { type: string, format: date-time, nullable: true }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/DispenseLineItem" }
+        opd_prescription:
+          nullable: true
+          allOf: [{ $ref: "#/components/schemas/OpdPrescriptionSnapshot" }]
+    WalkInPatient:
+      type: object
+      required: [id, first_name, gender, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        first_name: { type: string }
+        last_name: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        gender: { type: string, enum: [male, female, other] }
+        date_of_birth: { type: string, format: date, nullable: true }
+        created_at: { type: string, format: date-time }
+    SaveWalkInPatientInput:
+      type: object
+      required: [first_name, gender]
+      properties:
+        first_name: { type: string }
+        last_name: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        gender: { type: string, enum: [male, female, other] }
+        date_of_birth: { type: string, format: date, nullable: true }
+    SaveWalkInDispenseRequest:
+      type: object
+      required: [walk_in_patient, lines]
+      properties:
+        walk_in_patient: { $ref: "#/components/schemas/SaveWalkInPatientInput" }
+        discount: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        lines:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/SaveDispenseLineInput" }
+    WalkInDispenseResponse:
+      type: object
+      required:
+        - record_id
+        - walk_in_order
+        - walk_in_patient
+        - subtotal
+        - discount
+        - total_amount
+        - has_dispense
+        - created_at
+        - lines
+      properties:
+        record_id: { type: string, format: uuid }
+        walk_in_order: { type: boolean, enum: [true] }
+        walk_in_patient: { $ref: "#/components/schemas/WalkInPatient" }
+        subtotal: { type: string }
+        discount: { type: string }
+        total_amount: { type: string }
+        notes: { type: string, nullable: true }
+        has_dispense: { type: boolean }
+        created_at: { type: string, format: date-time }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/DispenseLineItem" }

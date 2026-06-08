@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -23,6 +23,28 @@ class PatientEncounterRow:
     prescription_status: str | None
     updated_at: datetime
     created_at: datetime
+
+
+@dataclass(frozen=True)
+class CompletedVisitRow:
+    visit_id: UUID
+    patient_id: UUID
+    prescription_id: UUID | None
+    doctor_id: UUID | None
+    visit_status: str
+    prescription_status: str | None
+    updated_at: datetime
+    finalized_at: datetime | None
+    medicine_count: int
+
+
+def _medicine_count_from_form_data(form_data: dict[str, Any] | None) -> int:
+    if not isinstance(form_data, dict):
+        return 0
+    medicines = form_data.get("medicines")
+    if not isinstance(medicines, list):
+        return 0
+    return len(medicines)
 
 
 def effective_encounter_status(visit: Visit | None, rx: Prescription | None) -> str:
@@ -71,6 +93,146 @@ class PrescriptionRepository:
             stmt = stmt.where(Visit.status == status)
         stmt = stmt.order_by(Visit.updated_at.desc()).limit(limit)
         return list(self._session.scalars(stmt).all())
+
+    def _visit_date_filters(
+        self,
+        *,
+        queued_from: date | None,
+        queued_to: date | None,
+        column,
+    ) -> list[Any]:
+        filters: list[Any] = []
+        if queued_from is not None:
+            start = datetime.combine(queued_from, datetime.min.time(), tzinfo=UTC)
+            filters.append(column >= start)
+        if queued_to is not None:
+            end_exclusive = datetime.combine(
+                queued_to + timedelta(days=1),
+                datetime.min.time(),
+                tzinfo=UTC,
+            )
+            filters.append(column < end_exclusive)
+        return filters
+
+    def _collect_visits_with_prescriptions(
+        self,
+        *,
+        queued_from: date | None = None,
+        queued_to: date | None = None,
+    ) -> list[CompletedVisitRow]:
+        visit_filters = [
+            Visit.tenant_id == self._tenant_id,
+            Prescription.tenant_id == self._tenant_id,
+            Visit.status != "cancelled",
+            Prescription.status != "cancelled",
+            *self._visit_date_filters(
+                queued_from=queued_from,
+                queued_to=queued_to,
+                column=Visit.updated_at,
+            ),
+        ]
+
+        stmt = (
+            select(Visit)
+            .join(Prescription, Prescription.visit_id == Visit.id)
+            .options(joinedload(Visit.prescription))
+            .where(*visit_filters)
+            .order_by(Visit.updated_at.desc())
+        )
+        visits = list(self._session.scalars(stmt).unique().all())
+
+        rows: list[CompletedVisitRow] = []
+        for visit in visits:
+            rx = visit.prescription
+            if rx is None:
+                continue
+            rows.append(
+                CompletedVisitRow(
+                    visit_id=visit.id,
+                    patient_id=visit.patient_id,
+                    prescription_id=rx.id,
+                    doctor_id=rx.doctor_id,
+                    visit_status=visit.status,
+                    prescription_status=rx.status,
+                    updated_at=visit.updated_at,
+                    finalized_at=rx.finalized_at,
+                    medicine_count=_medicine_count_from_form_data(rx.form_data),
+                )
+            )
+        return rows
+
+    def _collect_registration_visits_without_prescription(
+        self,
+        *,
+        queued_from: date | None = None,
+        queued_to: date | None = None,
+        exclude_visit_ids: set[UUID],
+    ) -> list[CompletedVisitRow]:
+        from opd.data_access.registration_visit_repo import effective_visit_status
+        from opd.models.registration_visit import RegistrationVisit
+
+        reg_filters = [
+            RegistrationVisit.tenant_id == self._tenant_id,
+            RegistrationVisit.status != "cancelled",
+            *self._visit_date_filters(
+                queued_from=queued_from,
+                queued_to=queued_to,
+                column=RegistrationVisit.updated_at,
+            ),
+        ]
+
+        stmt = (
+            select(RegistrationVisit)
+            .where(*reg_filters)
+            .order_by(RegistrationVisit.updated_at.desc())
+        )
+        visits = list(self._session.scalars(stmt).all())
+
+        rows: list[CompletedVisitRow] = []
+        for visit in visits:
+            if visit.visit_id in exclude_visit_ids:
+                continue
+            rows.append(
+                CompletedVisitRow(
+                    visit_id=visit.visit_id,
+                    patient_id=visit.patient_id,
+                    prescription_id=None,
+                    doctor_id=visit.doctor_id,
+                    visit_status=effective_visit_status(visit.status, None),
+                    prescription_status=None,
+                    updated_at=visit.updated_at,
+                    finalized_at=None,
+                    medicine_count=0,
+                )
+            )
+        return rows
+
+    def list_completed_visits(
+        self,
+        *,
+        page: int = 1,
+        limit: int = 50,
+        queued_from: date | None = None,
+        queued_to: date | None = None,
+    ) -> tuple[list[CompletedVisitRow], int]:
+        """Paginated pharmacy queue visits — OPD Rx rows plus registered intake without Rx."""
+        rx_rows = self._collect_visits_with_prescriptions(
+            queued_from=queued_from,
+            queued_to=queued_to,
+        )
+        reg_rows = self._collect_registration_visits_without_prescription(
+            queued_from=queued_from,
+            queued_to=queued_to,
+            exclude_visit_ids={row.visit_id for row in rx_rows},
+        )
+        merged = sorted(
+            [*rx_rows, *reg_rows],
+            key=lambda row: row.updated_at,
+            reverse=True,
+        )
+        total = len(merged)
+        offset = max(page - 1, 0) * limit
+        return merged[offset : offset + limit], total
 
     def list_patient_encounters(
         self,

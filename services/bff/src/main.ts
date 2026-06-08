@@ -48,6 +48,10 @@ function buildUpstreams(): UpstreamRoute[] {
       prefix: '/api/v1/opd',
       upstream: process.env['OPD_URL'] ?? 'http://localhost:8020',
     },
+    {
+      prefix: '/api/pharmacy/v1',
+      upstream: process.env['PHARMACY_URL'] ?? 'http://localhost:3004',
+    },
   ];
 }
 

@@ -443,3 +443,91 @@ def test_get_patient_prescription_without_visit_row(client: TestClient) -> None:
     body = loaded.json()
     assert body["visit_status"] == "completed"
     assert body["form_data"]["chiefComplaints"][0]["complaint"] == "Legacy cough"
+
+
+def test_list_completed_visits_includes_registered_visit_without_prescription(
+    client: TestClient,
+) -> None:
+    listed = client.get("/api/v1/opd/visits/completed?page=1&limit=10", headers=_headers())
+    assert listed.status_code == 200
+    row = next(item for item in listed.json()["items"] if item["visit_id"] == VISIT)
+    assert row["patient_id"] == PATIENT
+    assert row["prescription_id"] is None
+    assert row["prescription_status"] is None
+    assert row["visit_status"] == "registered"
+    assert row["medicine_count"] == 0
+
+
+def test_list_completed_visits_includes_in_progress_draft_prescription(client: TestClient) -> None:
+    ensure = client.put(
+        f"/api/v1/opd/visits/{VISIT}/encounter",
+        json={"patient_id": PATIENT, "doctor_id": DOCTOR},
+        headers=_headers(),
+    )
+    assert ensure.status_code == 200
+
+    draft = client.put(
+        f"/api/v1/opd/patients/{PATIENT}/prescription",
+        json={
+            "form_data": {
+                "vitals": {},
+                "chiefComplaints": [],
+                "medicines": [
+                    {
+                        "id": "1",
+                        "medicine": "Cetirizine",
+                        "strength": "10mg",
+                        "dosage": "1 tab",
+                        "frequency": "OD",
+                        "days": "5",
+                        "quantity": "5",
+                    },
+                ],
+            }
+        },
+        headers=_headers(),
+    )
+    assert draft.status_code == 200
+    assert draft.json()["prescription_status"] == "draft"
+
+    listed = client.get("/api/v1/opd/visits/completed?page=1&limit=10", headers=_headers())
+    assert listed.status_code == 200
+    row = next(item for item in listed.json()["items"] if item["visit_id"] == VISIT)
+    assert row["patient_id"] == PATIENT
+    assert row["prescription_status"] == "draft"
+    assert row["visit_status"] == "in_progress"
+    assert row["medicine_count"] == 1
+
+
+def test_list_completed_visits_returns_paginated_prescription_metadata(client: TestClient) -> None:
+    payload = {
+        "form_data": {
+            "vitals": {},
+            "chiefComplaints": [{"id": "1", "complaint": "Fever", "severity": "mild", "duration": "2", "durationUnit": "days", "notes": ""}],
+            "medicines": [
+                {"id": "1", "medicine": "Paracetamol", "strength": "500mg", "dosage": "1 tab", "frequency": "TDS", "days": "3", "quantity": "9"},
+            ],
+        }
+    }
+    end = client.post(
+        f"/api/v1/opd/patients/{PATIENT}/prescription/end",
+        json=payload,
+        headers=_headers(),
+    )
+    assert end.status_code == 200
+    visit_id = end.json()["visit_id"]
+    prescription_id = end.json()["prescription_id"]
+
+    listed = client.get("/api/v1/opd/visits/completed?page=1&limit=10", headers=_headers())
+    assert listed.status_code == 200
+    body = listed.json()
+    assert body["total"] >= 1
+    assert body["page"] == 1
+    assert body["limit"] == 10
+    row = next(item for item in body["items"] if item["visit_id"] == visit_id)
+    assert row["patient_id"] == PATIENT
+    assert row["prescription_id"] == prescription_id
+    assert row["doctor_id"] == DOCTOR
+    assert row["visit_status"] == "completed"
+    assert row["prescription_status"] == "final"
+    assert row["medicine_count"] == 1
