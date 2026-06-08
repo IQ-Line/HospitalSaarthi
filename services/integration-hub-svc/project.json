@@ -20,16 +20,10 @@
       }
     },
     "db:migrate": {
-      "command": "node scripts/migrate.mjs",
-      "options": {
-        "cwd": "services/integration-hub-svc"
-      }
+      "dependsOn": ["integration-hub:db-migrate"]
     },
     "db-migrate": {
-      "command": "node scripts/migrate.mjs",
-      "options": {
-        "cwd": "services/integration-hub-svc"
-      }
+      "dependsOn": ["integration-hub:db-migrate"]
     }
   }
 }
