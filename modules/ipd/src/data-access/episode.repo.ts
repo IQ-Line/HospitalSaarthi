@@ -235,6 +235,7 @@ export class DrizzleEpisodeRepo implements EpisodeRepo {
     return r ? fromDb(r) : null;
   }
 
+  // TODO(Phase 1): push dashboard aggregates to SQL (COUNT … GROUP BY status) — avoid SELECT * per tenant.
   async dashboardStats(tenantId: string) {
     const rows = await this.db
       .select()

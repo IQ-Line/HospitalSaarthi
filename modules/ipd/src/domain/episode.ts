@@ -89,6 +89,14 @@ export const ALLOWED_PATCH_FIELDS = [
 
 export type EpisodePatch = Partial<Pick<Episode, (typeof ALLOWED_PATCH_FIELDS)[number]>>;
 
-export function toApi(row: Episode): Episode {
-  return row;
+/** API response shape — numeric fields coerced for OpenAPI (`deposit_amount` as number). */
+export type EpisodeApi = Omit<Episode, "deposit_amount"> & {
+  deposit_amount: number | null;
+};
+
+export function toApi(row: Episode): EpisodeApi {
+  return {
+    ...row,
+    deposit_amount: row.deposit_amount !== null ? Number(row.deposit_amount) : null,
+  };
 }
