@@ -79,6 +79,7 @@ describe('medicine prescription mapping', () => {
       medicines: [
         {
           id: '1',
+          medicineId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
           medicine: 'Paracetamol',
           dosageForm: 'Tablet',
           route: 'Oral',
@@ -101,6 +102,7 @@ describe('medicine prescription mapping', () => {
     const clinical = createRxFormDataToClinical(formData);
     expect(clinical.medicines?.[0]).toEqual({
       line_no: 1,
+      medicine_id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
       name: 'Paracetamol',
       medicine_type: 'Tablet',
       strength: '500mg',
@@ -114,6 +116,7 @@ describe('medicine prescription mapping', () => {
 
     const restored = clinicalToCreateRxFormData(clinical);
     expect(restored.medicines[0]).toMatchObject({
+      medicineId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
       medicine: 'Paracetamol',
       dosageForm: 'Tablet',
       route: 'Oral',

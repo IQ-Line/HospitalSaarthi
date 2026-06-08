@@ -1,5 +1,4 @@
-import { ChevronDown } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Label } from '@pulse/ui/label';
 import { Textarea } from '@pulse/ui/textarea';
 import {
@@ -33,7 +32,6 @@ const LIFESTYLE_OPTIONS = [
 ] as const;
 
 export function MedicalHistory() {
-  const [showMore, setShowMore] = useState(false);
   const {
     isLoading: catalogLoading,
     allergenOptions,
@@ -176,15 +174,6 @@ export function MedicalHistory() {
           onUpdate={(i, field, value) => updateAllergy(i, field as keyof AllergyRow, value)}
         />
       </SectionCard>
-
-      <button
-        type="button"
-        className="flex items-center gap-1 text-sm font-medium text-blue-600 hover:underline"
-        onClick={() => setShowMore((v) => !v)}
-      >
-        <ChevronDown className={`size-4 transition-transform ${showMore ? 'rotate-180' : ''}`} />
-        {showMore ? 'Show Less' : 'Show More Details'}
-      </button>
     </div>
   );
 }

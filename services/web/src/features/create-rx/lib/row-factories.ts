@@ -45,6 +45,7 @@ export function emptyDiagnosisRow(): DiagnosisRow {
 export function emptyMedicineRow(): MedicineRow {
   return {
     id: newRowId(),
+    medicineId: '',
     medicine: '',
     dosageForm: '',
     route: '',
