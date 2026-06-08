@@ -25,6 +25,12 @@ data:
   EMPI_URL: "http://empi-svc.himsv2.svc.cluster.local:3002"
   BILLING_URL: "http://billing-svc.himsv2.svc.cluster.local:3003"
   REGISTRATION_URL: "http://registration-svc.himsv2.svc.cluster.local:3006"
+  OPD_URL: "http://opd-svc.himsv2.svc.cluster.local:8020"
+  INTEGRATION_HUB_URL: "http://integration-hub-svc.himsv2.svc.cluster.local:3007"
+  EMPI_BASE_URL: "http://empi-svc.himsv2.svc.cluster.local:3002"
+  RECORD_FOUNDATION_BASE_URL: "http://opd-svc.himsv2.svc.cluster.local:8020"
+  # Public origin for NHA callbacks (/api/v3) and M3 dataPushUrl — match AUTH_BASE_URL host
+  INTEGRATION_HUB_PUBLIC_BASE_URL: "https://hims.example.com"
   # registration-svc OPD slip/receipt PDFs (internal pdf-worker; not exposed via Ingress)
   PDF_PLATFORM_URL: "http://pdf-worker.himsv2.svc.cluster.local:8091"
   # Public web origin for report assets (logo) inlined before PDF render — match AUTH_BASE_URL host
@@ -481,6 +487,84 @@ spec:
   ports:
     - name: http
       port: 3006
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: integration-hub-svc
+  namespace: himsv2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: integration-hub-svc
+  template:
+    metadata:
+      labels:
+        app: integration-hub-svc
+    spec:
+      imagePullSecrets:
+        - name: gitlab-registry-secret
+      nodeSelector:
+       agentpool: himsv2
+      containers:
+        - name: integration-hub-svc
+          image: acriqline.azurecr.io/integration-hub-svc:dev-latest
+          ports:
+            - name: http
+              containerPort: 3007
+          envFrom:
+            - configMapRef:
+                name: hims-config
+            - secretRef:
+                name: hims-secrets
+          env:
+            - name: INTEGRATION_HUB_SVC_PORT
+              value: "3007"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: DATABASE_URL
+            - name: ABDM_TOKEN_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: ABDM_TOKEN_ENCRYPTION_KEY
+            - name: CONFIGURATOR_INTERNAL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: CONFIGURATOR_INTERNAL_API_KEY
+                  optional: true
+          livenessProbe:
+            httpGet:
+              path: /api/abdm/v1/healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /api/abdm/v1/healthz
+              port: http
+          resources:
+            requests:
+              cpu: 75m
+              memory: 256Mi
+            limits:
+              cpu: 750m
+              memory: 768Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: integration-hub-svc
+  namespace: himsv2
+spec:
+  selector:
+    app: integration-hub-svc
+  ports:
+    - name: http
+      port: 3007
       targetPort: http
 ---
 apiVersion: apps/v1

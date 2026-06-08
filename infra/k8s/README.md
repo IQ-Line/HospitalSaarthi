@@ -7,7 +7,7 @@ PDF platform sidecar. Apply directly, or use as input for Helm/Kustomize/ArgoCD.
 
 **HIMS monorepo (`HospitalSaarthi`):**
 
-- `hims.azurecr.io/abdm-adapter-svc:<sha>`
+- `hims.azurecr.io/integration-hub-svc:<sha>`
 - `hims.azurecr.io/bff:<sha>`
 - `hims.azurecr.io/billing-svc:<sha>`
 - `hims.azurecr.io/cerbos:<sha>` from Nx project `cerbos-policies`
@@ -85,6 +85,45 @@ kubectl -n himsv2 exec deploy/registration-svc -- wget -qO- http://pdf-worker.hi
 kubectl -n himsv2 logs deploy/registration-svc | grep "Registration PDF platform configured"
 ```
 
+## ABDM (integration-hub) routing
+
+Browser and NHA callbacks use the same public host; BFF proxies to `integration-hub-svc`:
+
+```text
+Browser  → Ingress /api → BFF → integration-hub-svc:3007  (/api/abdm/v1/*)
+NHA CM   → Ingress /api → BFF → integration-hub-svc:3007  (/api/v3/*)
+```
+
+| Config key | Set on | Example (cluster) |
+| --- | --- | --- |
+| `INTEGRATION_HUB_URL` | `hims-config` ConfigMap | `http://integration-hub-svc.himsv2.svc.cluster.local:3007` |
+| `EMPI_BASE_URL` | `hims-config` ConfigMap | `http://empi-svc.himsv2.svc.cluster.local:3002` |
+| `RECORD_FOUNDATION_BASE_URL` | `hims-config` ConfigMap | `http://opd-svc.himsv2.svc.cluster.local:8020` |
+| `INTEGRATION_HUB_PUBLIC_BASE_URL` | `hims-config` ConfigMap | `https://dev.v2.hospitalsaarthi.com` (match public web host) |
+| `ABDM_TOKEN_ENCRYPTION_KEY` | `hims-secrets` | 32-byte key (hex or base64) — required in production |
+| `CONFIGURATOR_INTERNAL_API_KEY` | `hims-secrets` (optional in dev) | Same value as configurator-svc |
+
+**Dev (`dev.v2.hospitalsaarthi.com`)** — also set in `hims-config`:
+
+```yaml
+INTEGRATION_HUB_PUBLIC_BASE_URL: "https://dev.v2.hospitalsaarthi.com"
+```
+
+Apply manifests, run `integration_hub` migrations once against cluster `DATABASE_URL`, then restart:
+
+```bash
+kubectl apply -f infra/k8s/base/hims-platform.yaml
+kubectl -n himsv2 rollout restart deployment/bff deployment/integration-hub-svc
+kubectl -n himsv2 rollout status deployment/integration-hub-svc
+```
+
+**Verify:**
+
+```bash
+curl -sS "https://dev.v2.hospitalsaarthi.com/api/abdm/v1/healthz"
+# {"status":"ok"}
+```
+
 ## Port Strategy
 
 The Node Dockerfile exposes `3000`, but the services themselves listen on their
@@ -98,7 +137,7 @@ own runtime ports unless overridden. These manifests use the service defaults:
 | `billing-svc` | `3003` |
 | `user-management-svc` | `3005` |
 | `registration-svc` | `3006` |
-| `abdm-adapter-svc` | `3007` |
+| `integration-hub-svc` | `3007` |
 | `master-data` | `8010` |
 | `web` | `8080` |
 | `cerbos` | `3593` gRPC, `3592` HTTP |
