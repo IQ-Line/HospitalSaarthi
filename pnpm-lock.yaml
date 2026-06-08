@@ -785,12 +785,18 @@ importers:
       '@hims/ts-sdk-db':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-db
+      '@hims/ts-sdk-identity':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-identity
       '@hims/ts-sdk-openapi':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-openapi
       '@hims/ts-sdk-tenant':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-tenant
+      dotenv:
+        specifier: ^16.6.1
+        version: 16.6.1
       fastify:
         specifier: ^5.3.3
         version: 5.8.5
