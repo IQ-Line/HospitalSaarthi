@@ -27,6 +27,7 @@ const row: PharmacyQueueItem = {
   gender: 'female',
   doctor_name: 'Dr. Demo DoctorOne',
   has_dispense: false,
+  dispense_status: 'pending',
 };
 
 describe('pharmacy-queue-display', () => {
@@ -42,7 +43,15 @@ describe('pharmacy-queue-display', () => {
 
   it('filters by pending status', () => {
     expect(matchesPharmacyQueueStatus(row, 'pending')).toBe(true);
-    expect(matchesPharmacyQueueStatus({ ...row, has_dispense: true }, 'pending')).toBe(false);
+    expect(
+      matchesPharmacyQueueStatus({ ...row, has_dispense: true, dispense_status: 'issued' }, 'pending'),
+    ).toBe(false);
+    expect(
+      matchesPharmacyQueueStatus(
+        { ...row, has_dispense: true, dispense_status: 'partial_issue' },
+        'partial_issue',
+      ),
+    ).toBe(true);
   });
 
   it('matches search on patient name and uhid', () => {

@@ -3,6 +3,8 @@ import type {
   OpdPrescriptionMedicineLine,
   OpdPrescriptionSnapshot,
 } from "../domain/pharmacy.types.js";
+import { clinicalSummaryFromFormData } from "./opd-clinical-summary.js";
+import { extractPrescriptionMedicineId } from "./filter-tenant-catalog-medicines.js";
 import type { OpdGatewayPort } from "../ports.js";
 
 function joinUrl(base: string, path: string): string {
@@ -46,9 +48,9 @@ type OpdPrescriptionResponse = {
   patient_id: string;
   visit_status: string;
   prescription_status: string;
-  form_data?: {
-    medicines?: Array<Record<string, unknown>>;
-  };
+  doctor_id?: string | null;
+  finalized_at?: string | null;
+  form_data?: Record<string, unknown>;
 };
 
 function mapMedicineLine(row: Record<string, unknown>, index: number): OpdPrescriptionMedicineLine {
@@ -61,6 +63,7 @@ function mapMedicineLine(row: Record<string, unknown>, index: number): OpdPrescr
 
   return {
     line_no: index + 1,
+    medicine_id: extractPrescriptionMedicineId(row),
     name: String(row.medicine ?? row.name ?? ""),
     strength: row.strength != null ? String(row.strength) : null,
     dosage: row.dosage != null ? String(row.dosage) : null,
@@ -193,10 +196,12 @@ export class HttpOpdGateway implements OpdGatewayPort {
     }
 
     const payload = (await response.json()) as OpdPrescriptionResponse;
-    const rawMedicines = payload.form_data?.medicines ?? [];
-    const medicines = rawMedicines
+    const formData = payload.form_data ?? {};
+    const rawMedicines = formData.medicines ?? [];
+    const medicines = (Array.isArray(rawMedicines) ? rawMedicines : [])
       .filter((row): row is Record<string, unknown> => row != null && typeof row === "object")
       .map(mapMedicineLine);
+    const clinical = clinicalSummaryFromFormData(formData);
 
     return {
       prescription_id: payload.prescription_id,
@@ -204,6 +209,17 @@ export class HttpOpdGateway implements OpdGatewayPort {
       patient_id: payload.patient_id,
       visit_status: payload.visit_status,
       prescription_status: payload.prescription_status,
+      doctor_id: payload.doctor_id ?? null,
+      doctor_name: null,
+      finalized_at:
+        payload.finalized_at == null
+          ? null
+          : typeof payload.finalized_at === "string"
+            ? payload.finalized_at
+            : new Date(payload.finalized_at).toISOString(),
+      vitals_summary: clinical.vitals_summary,
+      complaints_summary: clinical.complaints_summary,
+      diagnosis_summary: clinical.diagnosis_summary,
       medicines,
     };
   }

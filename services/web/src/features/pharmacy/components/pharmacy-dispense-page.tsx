@@ -15,6 +15,13 @@ import {
   formatDispenseDecimalInput,
   formatInrAmount,
 } from '../lib/dispense-billing';
+import { dispenseSaveStatusLabel } from '../lib/pharmacy-queue-display';
+import {
+  buildSaveDispenseLinesFromDraft,
+  firstDispenseValidationMessage,
+  validateDispenseDraft,
+  type DispenseLineFieldErrors,
+} from '../lib/validate-dispense-draft';
 import { formatShortVisitId } from '../lib/pharmacy-queue-display';
 import type { DispenseLineDraft } from '../types';
 import { PharmacyDispenseLinesTable } from './pharmacy-dispense-lines-table';
@@ -36,6 +43,8 @@ export function PharmacyDispensePage({ visitId }: PharmacyDispensePageProps) {
   const saveMutation = useSaveDispenseForVisit(visitId);
 
   const [lines, setLines] = useState<DispenseLineDraft[]>([]);
+  const [lineErrors, setLineErrors] = useState<Record<string, DispenseLineFieldErrors>>({});
+  const [discountError, setDiscountError] = useState<string | undefined>();
   const [discount, setDiscount] = useState('0');
   const [notes, setNotes] = useState('');
   const [initialized, setInitialized] = useState(false);
@@ -51,6 +60,7 @@ export function PharmacyDispensePage({ visitId }: PharmacyDispensePageProps) {
           : [
               {
                 key: 'empty-1',
+                medicine_id: null,
                 medicine_display_name: '',
                 prescribed_quantity: '',
                 quantity_dispensed: '1',
@@ -60,12 +70,13 @@ export function PharmacyDispensePage({ visitId }: PharmacyDispensePageProps) {
               },
             ],
       );
-    } else if (data.opd_prescription?.medicines?.length) {
-      setLines(draftLinesFromPrescription(data.opd_prescription.medicines));
+    } else if (data.dispensable_medicines?.length) {
+      setLines(draftLinesFromPrescription(data.dispensable_medicines));
     } else {
       setLines([
         {
           key: 'empty-1',
+          medicine_id: null,
           medicine_display_name: '',
           prescribed_quantity: '',
           quantity_dispensed: '1',
@@ -107,24 +118,32 @@ export function PharmacyDispensePage({ visitId }: PharmacyDispensePageProps) {
 
   const totals = useMemo(() => computeDispenseTotals(lines, discount), [lines, discount]);
 
+  const handleLinesChange = (nextLines: DispenseLineDraft[]) => {
+    setLines(nextLines);
+    setLineErrors((prev) => {
+      if (Object.keys(prev).length === 0) return prev;
+      const next = { ...prev };
+      for (const key of Object.keys(prev)) {
+        if (!nextLines.some((line) => line.key === key)) {
+          delete next[key];
+        }
+      }
+      return next;
+    });
+  };
+
   const handleSave = async () => {
     if (!data?.patient_id) return;
 
-    const payloadLines = lines
-      .map((line) => ({
-        medicine_display_name: line.medicine_display_name.trim(),
-        prescribed_quantity: line.prescribed_quantity.trim() || null,
-        quantity_dispensed: line.quantity_dispensed.trim(),
-        unit_amount: line.unit_amount.trim(),
-        line_discount: line.line_discount.trim() || '0',
-        tax_percent: line.tax_percent.trim() || '0',
-      }))
-      .filter((line) => line.medicine_display_name.length > 0);
-
-    if (payloadLines.length === 0) {
-      toast.error('Add at least one medicine line.');
+    const validation = validateDispenseDraft(lines, discount);
+    setLineErrors(validation.lineErrors);
+    setDiscountError(validation.discountError);
+    if (!validation.isValid) {
+      toast.error(firstDispenseValidationMessage(validation));
       return;
     }
+
+    const payloadLines = buildSaveDispenseLinesFromDraft(lines);
 
     try {
       await saveMutation.mutateAsync({
@@ -135,6 +154,8 @@ export function PharmacyDispensePage({ visitId }: PharmacyDispensePageProps) {
         lines: payloadLines,
       });
       toast.success('Dispense saved.');
+      setLineErrors({});
+      setDiscountError(undefined);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save dispense.');
     }
@@ -163,8 +184,6 @@ export function PharmacyDispensePage({ visitId }: PharmacyDispensePageProps) {
     );
   }
 
-  const medicines = data.opd_prescription.medicines;
-
   return (
     <div className="min-h-full bg-[#F5F5F5] px-2 pb-24 pt-4 md:px-4">
       <div className="mb-4">
@@ -191,8 +210,9 @@ export function PharmacyDispensePage({ visitId }: PharmacyDispensePageProps) {
           </h2>
           <PharmacyDispenseLinesTable
             lines={lines}
-            onChange={setLines}
+            onChange={handleLinesChange}
             disabled={saveMutation.isPending}
+            lineErrors={lineErrors}
           />
 
           <div className="mt-6 grid max-w-md gap-3">
@@ -201,8 +221,13 @@ export function PharmacyDispensePage({ visitId }: PharmacyDispensePageProps) {
               <Input
                 value={discount}
                 disabled={saveMutation.isPending}
-                onChange={(event) => setDiscount(event.target.value)}
+                aria-invalid={Boolean(discountError)}
+                onChange={(event) => {
+                  setDiscount(event.target.value);
+                  setDiscountError(undefined);
+                }}
               />
+              {discountError ? <p className="text-sm text-destructive">{discountError}</p> : null}
             </label>
             <label className="grid gap-1 text-sm">
               <span className="text-muted-foreground">Notes</span>
@@ -231,14 +256,18 @@ export function PharmacyDispensePage({ visitId }: PharmacyDispensePageProps) {
           </div>
         </section>
 
-        <PharmacyPrescriptionSidebar medicines={medicines} />
+        <PharmacyPrescriptionSidebar
+          prescription={data.opd_prescription}
+          dispenseStatus={data.dispense_status}
+        />
       </div>
 
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-white/95 px-4 py-3 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
           <p className="text-sm text-muted-foreground">
             {formatInrAmount(totals.total_amount)} · {lines.length} line{lines.length === 1 ? '' : 's'}
-            {data.has_dispense ? ' · Saved' : ' · Unsaved'}
+            {' · '}
+            {dispenseSaveStatusLabel(data.dispense_status)}
           </p>
           <Button
             type="button"

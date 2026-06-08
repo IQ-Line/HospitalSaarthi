@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { DispenseLineItemRecord, DispenseRecord, OpdPrescriptionSnapshot } from "../domain/pharmacy.types.js";
-import type { DispenseRecordRepo, OpdGatewayPort } from "../ports.js";
+import type { DispenseRecordRepo, MasterDataGatewayPort, OpdGatewayPort } from "../ports.js";
 import { DispenseVisitNotFoundError, getDispenseForVisit } from "./get-dispense-for-visit.js";
 
 const TENANT = "00000000-0000-0000-0000-000000000001";
@@ -12,9 +12,16 @@ const prescription: OpdPrescriptionSnapshot = {
   patient_id: "patient-1",
   visit_status: "completed",
   prescription_status: "final",
+  doctor_id: null,
+  doctor_name: null,
+  finalized_at: null,
+  vitals_summary: null,
+  complaints_summary: null,
+  diagnosis_summary: null,
   medicines: [
     {
       line_no: 1,
+      medicine_id: "med-1",
       name: "Paracetamol",
       strength: "500mg",
       dosage: null,
@@ -23,11 +30,40 @@ const prescription: OpdPrescriptionSnapshot = {
       quantity: "10",
       route: null,
     },
+    {
+      line_no: 2,
+      medicine_id: "missing",
+      name: "Unknown",
+      strength: null,
+      dosage: null,
+      duration: null,
+      frequency: null,
+      quantity: "1",
+      route: null,
+    },
   ],
 };
 
+const masterDataGateway: MasterDataGatewayPort = {
+  getMedicineById: vi.fn(async (_tenantId, medicineId) =>
+    medicineId === "med-1"
+      ? {
+          display_name: "Paracetamol",
+          strength_display: "500mg",
+          price: 10,
+          is_active: true,
+          is_deleted: false,
+        }
+      : null,
+  ),
+};
+
+const userLookup = {
+  resolveDoctorNames: vi.fn(async () => new Map<string, string>()),
+};
+
 describe("getDispenseForVisit", () => {
-  it("returns OPD prescription and empty lines when no record exists", async () => {
+  it("returns full OPD prescription and filtered dispensable medicines when no record exists", async () => {
     const opdGateway: OpdGatewayPort = {
       listCompletedVisits: vi.fn(),
       getVisitPrescription: vi.fn(async () => prescription),
@@ -40,7 +76,7 @@ describe("getDispenseForVisit", () => {
     };
 
     const result = await getDispenseForVisit(
-      { opdGateway, dispenseRecordRepo },
+      { opdGateway, dispenseRecordRepo, masterDataGateway, userLookup },
       TENANT,
       { visitId: VISIT },
     );
@@ -48,10 +84,12 @@ describe("getDispenseForVisit", () => {
     expect(result.has_dispense).toBe(false);
     expect(result.record_id).toBeNull();
     expect(result.lines).toEqual([]);
-    expect(result.opd_prescription?.prescription_id).toBe("rx-1");
+    expect(result.opd_prescription?.medicines).toHaveLength(2);
+    expect(result.dispensable_medicines).toHaveLength(1);
+    expect(result.dispensable_medicines[0]?.medicine_id).toBe("med-1");
   });
 
-  it("returns saved record and line items", async () => {
+  it("returns saved record and filtered line items", async () => {
     const saved: DispenseRecord = {
       id: "rec-1",
       iq_tenant_id: TENANT,
@@ -64,6 +102,7 @@ describe("getDispenseForVisit", () => {
       discount: "0.0000",
       total_amount: "50.0000",
       notes: "counter",
+      dispense_status: "issued",
       created_at: new Date("2026-06-02T08:00:00.000Z"),
       created_by: null,
     };
@@ -72,6 +111,7 @@ describe("getDispenseForVisit", () => {
         id: "line-1",
         iq_tenant_id: TENANT,
         dispense_record_id: "rec-1",
+        medicine_id: "med-1",
         medicine_display_name: "Paracetamol 500mg",
         prescribed_quantity: "10",
         quantity_dispensed: "5",
@@ -96,7 +136,7 @@ describe("getDispenseForVisit", () => {
     };
 
     const result = await getDispenseForVisit(
-      { opdGateway, dispenseRecordRepo },
+      { opdGateway, dispenseRecordRepo, masterDataGateway, userLookup },
       TENANT,
       { visitId: VISIT },
     );
@@ -120,7 +160,11 @@ describe("getDispenseForVisit", () => {
     };
 
     await expect(
-      getDispenseForVisit({ opdGateway, dispenseRecordRepo }, TENANT, { visitId: VISIT }),
+      getDispenseForVisit(
+        { opdGateway, dispenseRecordRepo, masterDataGateway, userLookup },
+        TENANT,
+        { visitId: VISIT },
+      ),
     ).rejects.toBeInstanceOf(DispenseVisitNotFoundError);
   });
 });

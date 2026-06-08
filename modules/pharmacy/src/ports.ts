@@ -1,6 +1,7 @@
 import type {
   DispenseLineItemRecord,
   DispenseRecord,
+  DispenseFulfillmentStatus,
   OpdCompletedVisitSummary,
   OpdPrescriptionSnapshot,
   SaveDispenseForVisitInput,
@@ -56,6 +57,7 @@ export interface UserLookupPort {
 
 export type UpsertDispensePayload = SaveDispenseForVisitInput & {
   visit_id: string;
+  dispense_status: DispenseFulfillmentStatus;
   created_by?: string | null;
 };
 
@@ -78,6 +80,7 @@ export type WalkInDispenseDetail = {
 };
 
 export type UpsertWalkInDispensePayload = SaveWalkInDispenseInput & {
+  dispense_status: DispenseFulfillmentStatus;
   created_by?: string | null;
 };
 

@@ -19,6 +19,7 @@ function mapRecord(row: typeof dispenseRecords.$inferSelect): DispenseRecord {
     discount: row.discount,
     total_amount: row.total_amount,
     notes: row.notes,
+    dispense_status: row.dispense_status as DispenseRecord["dispense_status"],
     created_at: row.created_at,
     created_by: row.created_by,
   };
@@ -29,6 +30,7 @@ function mapLine(row: typeof dispenseLineItems.$inferSelect): DispenseLineItemRe
     id: row.id,
     iq_tenant_id: row.iq_tenant_id,
     dispense_record_id: row.dispense_record_id,
+    medicine_id: row.medicine_id ?? null,
     medicine_display_name: row.medicine_display_name,
     prescribed_quantity: row.prescribed_quantity,
     quantity_dispensed: row.quantity_dispensed,
@@ -120,6 +122,7 @@ export class DrizzleDispenseRecordRepo implements DispenseRecordRepo {
             discount: amounts.discount,
             total_amount: amounts.total_amount,
             notes: payload.notes ?? null,
+            dispense_status: payload.dispense_status,
           })
           .where(
             and(
@@ -155,6 +158,7 @@ export class DrizzleDispenseRecordRepo implements DispenseRecordRepo {
             discount: amounts.discount,
             total_amount: amounts.total_amount,
             notes: payload.notes ?? null,
+            dispense_status: payload.dispense_status,
             created_by: payload.created_by ?? null,
           })
           .returning();

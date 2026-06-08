@@ -96,10 +96,7 @@ export function formatDispenseDecimalInput(value: string | null | undefined): st
 }
 
 export function medicineDisplayLabel(medicine: OpdPrescriptionMedicineLine): string {
-  const parts = [medicine.name, medicine.strength].filter(
-    (part): part is string => typeof part === 'string' && part.trim().length > 0,
-  );
-  return parts.join(' ').trim() || medicine.name;
+  return medicine.name.trim();
 }
 
 const emptyLineDraftFields = {
@@ -112,16 +109,18 @@ export function draftLinesFromPrescription(
 ): DispenseLineDraft[] {
   return medicines.map((medicine, index) => ({
     key: `rx-${medicine.line_no}-${index}`,
+    medicine_id: medicine.medicine_id,
     medicine_display_name: medicineDisplayLabel(medicine),
     prescribed_quantity: medicine.quantity ?? '',
     quantity_dispensed: medicine.quantity ?? '1',
-    unit_amount: '0',
+    unit_amount: formatDispenseDecimalInput(medicine.catalog_unit_price) || '0',
     ...emptyLineDraftFields,
   }));
 }
 
 export function draftLinesFromSaved(
   lines: Array<{
+    medicine_id?: string | null;
     medicine_display_name: string;
     prescribed_quantity: string | null;
     quantity_dispensed: string;
@@ -132,6 +131,7 @@ export function draftLinesFromSaved(
 ): DispenseLineDraft[] {
   return lines.map((line, index) => ({
     key: `saved-${index}`,
+    medicine_id: line.medicine_id ?? null,
     medicine_display_name: line.medicine_display_name,
     prescribed_quantity: formatDispenseDecimalInput(line.prescribed_quantity),
     quantity_dispensed: formatDispenseDecimalInput(line.quantity_dispensed),

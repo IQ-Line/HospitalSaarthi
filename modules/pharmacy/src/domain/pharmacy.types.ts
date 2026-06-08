@@ -1,5 +1,9 @@
 export const PHARMACY_MODULE_KEY = "pharmacy" as const;
 
+export type DispenseFulfillmentStatus = "issued" | "partial_issue";
+
+export type PharmacyDispenseStatus = "pending" | DispenseFulfillmentStatus;
+
 export type DispenseRecord = {
   id: string;
   iq_tenant_id: string;
@@ -12,6 +16,7 @@ export type DispenseRecord = {
   discount: string;
   total_amount: string;
   notes: string | null;
+  dispense_status: DispenseFulfillmentStatus;
   created_at: Date;
   created_by: string | null;
 };
@@ -31,6 +36,7 @@ export type DispenseLineItemRecord = {
   id: string;
   iq_tenant_id: string;
   dispense_record_id: string;
+  medicine_id: string | null;
   medicine_display_name: string;
   prescribed_quantity: string | null;
   quantity_dispensed: string;
@@ -65,6 +71,7 @@ export type WalkInQueueSummary = {
   created_at: Date;
   medicine_count: number;
   has_dispense: boolean;
+  dispense_status: PharmacyDispenseStatus;
 };
 
 export type PharmacyQueueItem = {
@@ -87,10 +94,12 @@ export type PharmacyQueueItem = {
   gender: string | null;
   doctor_name: string | null;
   has_dispense: boolean;
+  dispense_status: PharmacyDispenseStatus;
 };
 
 export type OpdPrescriptionMedicineLine = {
   line_no: number;
+  medicine_id: string | null;
   name: string;
   strength: string | null;
   dosage: string | null;
@@ -98,6 +107,7 @@ export type OpdPrescriptionMedicineLine = {
   frequency: string | null;
   quantity: string | null;
   route: string | null;
+  catalog_unit_price?: string | null;
 };
 
 export type OpdPrescriptionSnapshot = {
@@ -106,10 +116,17 @@ export type OpdPrescriptionSnapshot = {
   patient_id: string;
   visit_status: string;
   prescription_status: string;
+  doctor_id: string | null;
+  doctor_name: string | null;
+  finalized_at: string | null;
+  vitals_summary: string | null;
+  complaints_summary: string | null;
+  diagnosis_summary: string | null;
   medicines: OpdPrescriptionMedicineLine[];
 };
 
 export type SaveDispenseLineInput = {
+  medicine_id: string;
   medicine_display_name: string;
   prescribed_quantity?: string | null;
   quantity_dispensed: string;
@@ -150,6 +167,7 @@ export type WalkInDispenseResponse = {
   total_amount: string;
   notes: string | null;
   has_dispense: boolean;
+  dispense_status: PharmacyDispenseStatus;
   created_at: string;
   lines: DispenseLineItemRecord[];
 };
@@ -163,8 +181,12 @@ export type DispenseForVisitResponse = {
   total_amount: string;
   notes: string | null;
   has_dispense: boolean;
+  dispense_status: PharmacyDispenseStatus;
   record_id: string | null;
   created_at: string | null;
   lines: DispenseLineItemRecord[];
+  /** Full OPD prescription for sidebar display (all prescribed medicines). */
   opd_prescription: OpdPrescriptionSnapshot | null;
+  /** Catalog-backed medicines eligible for the dispense billing table. */
+  dispensable_medicines: OpdPrescriptionMedicineLine[];
 };

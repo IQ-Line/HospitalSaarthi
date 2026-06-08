@@ -47,9 +47,9 @@ paths:
           in: query
           schema:
             type: string
-            enum: [all, pending, issued]
+            enum: [all, pending, partial_issue, issued]
             default: all
-          description: Filter by dispense status (pending = no saved dispense, issued = has dispense).
+          description: Filter by dispense status (pending = no saved dispense, partial_issue = incomplete fulfillment, issued = fully dispensed).
       responses:
         "200":
           description: Queue page
@@ -178,6 +178,7 @@ components:
         - visit_status
         - updated_at
         - has_dispense
+        - dispense_status
         - medicine_count
       properties:
         walk_in_order:
@@ -223,7 +224,12 @@ components:
           description: Prescribing doctor display name from user management.
         has_dispense:
           type: boolean
-          description: True when medicines have been issued for this queue row.
+          description: True when a dispense record exists for this queue row.
+        dispense_status:
+          $ref: "#/components/schemas/PharmacyDispenseStatus"
+    PharmacyDispenseStatus:
+      type: string
+      enum: [pending, issued, partial_issue]
     PharmacyQueueResponse:
       type: object
       required: [items, total, page, limit]
@@ -236,9 +242,10 @@ components:
         limit: { type: integer }
     OpdPrescriptionMedicineLine:
       type: object
-      required: [line_no, name]
+      required: [line_no, name, medicine_id]
       properties:
         line_no: { type: integer }
+        medicine_id: { type: string, format: uuid, nullable: true }
         name: { type: string }
         strength: { type: string, nullable: true }
         dosage: { type: string, nullable: true }
@@ -246,6 +253,7 @@ components:
         frequency: { type: string, nullable: true }
         quantity: { type: string, nullable: true }
         route: { type: string, nullable: true }
+        catalog_unit_price: { type: string, nullable: true }
     OpdPrescriptionSnapshot:
       type: object
       required:
@@ -261,13 +269,20 @@ components:
         patient_id: { type: string, format: uuid }
         visit_status: { type: string }
         prescription_status: { type: string }
+        doctor_id: { type: string, format: uuid, nullable: true }
+        doctor_name: { type: string, nullable: true }
+        finalized_at: { type: string, format: date-time, nullable: true }
+        vitals_summary: { type: string, nullable: true }
+        complaints_summary: { type: string, nullable: true }
+        diagnosis_summary: { type: string, nullable: true }
         medicines:
           type: array
           items: { $ref: "#/components/schemas/OpdPrescriptionMedicineLine" }
     SaveDispenseLineInput:
       type: object
-      required: [medicine_display_name, quantity_dispensed, unit_amount]
+      required: [medicine_id, medicine_display_name, quantity_dispensed, unit_amount]
       properties:
+        medicine_id: { type: string, format: uuid }
         medicine_display_name: { type: string }
         prescribed_quantity: { type: string, nullable: true }
         quantity_dispensed: { type: string }
@@ -308,6 +323,7 @@ components:
         - line_total
       properties:
         id: { type: string, format: uuid }
+        medicine_id: { type: string, format: uuid, nullable: true }
         medicine_display_name: { type: string }
         prescribed_quantity: { type: string, nullable: true }
         quantity_dispensed: { type: string }
@@ -326,8 +342,10 @@ components:
         - discount
         - total_amount
         - has_dispense
+        - dispense_status
         - lines
         - opd_prescription
+        - dispensable_medicines
       properties:
         visit_id: { type: string, format: uuid }
         patient_id: { type: string, format: uuid }
@@ -343,6 +361,7 @@ components:
           description: max(0, subtotal - discount).
         notes: { type: string, nullable: true }
         has_dispense: { type: boolean }
+        dispense_status: { $ref: "#/components/schemas/PharmacyDispenseStatus" }
         record_id: { type: string, format: uuid, nullable: true }
         created_at: { type: string, format: date-time, nullable: true }
         lines:
@@ -351,6 +370,10 @@ components:
         opd_prescription:
           nullable: true
           allOf: [{ $ref: "#/components/schemas/OpdPrescriptionSnapshot" }]
+        dispensable_medicines:
+          type: array
+          description: Prescription medicines that exist in the tenant master catalog (dispense table seed).
+          items: { $ref: "#/components/schemas/OpdPrescriptionMedicineLine" }
     WalkInPatient:
       type: object
       required: [id, first_name, gender, created_at]
@@ -392,6 +415,7 @@ components:
         - discount
         - total_amount
         - has_dispense
+        - dispense_status
         - created_at
         - lines
       properties:
@@ -403,6 +427,7 @@ components:
         total_amount: { type: string }
         notes: { type: string, nullable: true }
         has_dispense: { type: boolean }
+        dispense_status: { $ref: "#/components/schemas/PharmacyDispenseStatus" }
         created_at: { type: string, format: date-time }
         lines:
           type: array

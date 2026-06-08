@@ -14,6 +14,12 @@ import {
   formatInrAmount,
 } from '../lib/dispense-billing';
 import {
+  buildSaveDispenseLinesFromDraft,
+  firstDispenseValidationMessage,
+  validateDispenseDraft,
+  type DispenseLineFieldErrors,
+} from '../lib/validate-dispense-draft';
+import {
   saveWalkInPatientInputFromDraft,
   walkInPatientDraftFromRecord,
 } from '../lib/walk-in-patient-map';
@@ -31,6 +37,7 @@ type PharmacyWalkInDispensePageProps = {
 
 const emptyLine = (): DispenseLineDraft => ({
   key: `new-${Date.now()}`,
+  medicine_id: null,
   medicine_display_name: '',
   prescribed_quantity: '',
   quantity_dispensed: '1',
@@ -50,6 +57,8 @@ export function PharmacyWalkInDispensePage({ recordId }: PharmacyWalkInDispenseP
     Partial<Record<keyof WalkInPatientDraft, string>>
   >({});
   const [lines, setLines] = useState<DispenseLineDraft[]>([emptyLine()]);
+  const [lineErrors, setLineErrors] = useState<Record<string, DispenseLineFieldErrors>>({});
+  const [discountError, setDiscountError] = useState<string | undefined>();
   const [discount, setDiscount] = useState('0');
   const [notes, setNotes] = useState('');
   const [initialized, setInitialized] = useState(!isEdit);
@@ -81,6 +90,20 @@ export function PharmacyWalkInDispensePage({ recordId }: PharmacyWalkInDispenseP
     });
   };
 
+  const handleLinesChange = (nextLines: DispenseLineDraft[]) => {
+    setLines(nextLines);
+    setLineErrors((prev) => {
+      if (Object.keys(prev).length === 0) return prev;
+      const next = { ...prev };
+      for (const key of Object.keys(prev)) {
+        if (!nextLines.some((line) => line.key === key)) {
+          delete next[key];
+        }
+      }
+      return next;
+    });
+  };
+
   const handleSave = async () => {
     const nextPatientErrors = validateWalkInPatientDraft(patient);
     setPatientErrors(nextPatientErrors);
@@ -89,21 +112,15 @@ export function PharmacyWalkInDispensePage({ recordId }: PharmacyWalkInDispenseP
       return;
     }
 
-    const payloadLines = lines
-      .map((line) => ({
-        medicine_display_name: line.medicine_display_name.trim(),
-        prescribed_quantity: line.prescribed_quantity.trim() || null,
-        quantity_dispensed: line.quantity_dispensed.trim(),
-        unit_amount: line.unit_amount.trim(),
-        line_discount: line.line_discount.trim() || '0',
-        tax_percent: line.tax_percent.trim() || '0',
-      }))
-      .filter((line) => line.medicine_display_name.length > 0);
-
-    if (payloadLines.length === 0) {
-      toast.error('Add at least one medicine line.');
+    const validation = validateDispenseDraft(lines, discount);
+    setLineErrors(validation.lineErrors);
+    setDiscountError(validation.discountError);
+    if (!validation.isValid) {
+      toast.error(firstDispenseValidationMessage(validation));
       return;
     }
+
+    const payloadLines = buildSaveDispenseLinesFromDraft(lines);
 
     try {
       const saved = await saveMutation.mutateAsync({
@@ -113,6 +130,8 @@ export function PharmacyWalkInDispensePage({ recordId }: PharmacyWalkInDispenseP
         lines: payloadLines,
       });
       toast.success('Walk-in dispense saved.');
+      setLineErrors({});
+      setDiscountError(undefined);
       if (!isEdit) {
         await navigate({
           to: '/pharmacy/walk-in-orders/$recordId',
@@ -186,8 +205,9 @@ export function PharmacyWalkInDispensePage({ recordId }: PharmacyWalkInDispenseP
           </h2>
           <PharmacyDispenseLinesTable
             lines={lines}
-            onChange={setLines}
+            onChange={handleLinesChange}
             disabled={saveMutation.isPending}
+            lineErrors={lineErrors}
           />
 
           <div className="mt-6 grid max-w-md gap-3">
@@ -196,8 +216,13 @@ export function PharmacyWalkInDispensePage({ recordId }: PharmacyWalkInDispenseP
               <Input
                 value={discount}
                 disabled={saveMutation.isPending}
-                onChange={(event) => setDiscount(event.target.value)}
+                aria-invalid={Boolean(discountError)}
+                onChange={(event) => {
+                  setDiscount(event.target.value);
+                  setDiscountError(undefined);
+                }}
               />
+              {discountError ? <p className="text-sm text-destructive">{discountError}</p> : null}
             </label>
             <label className="grid gap-1 text-sm">
               <span className="text-muted-foreground">Notes</span>

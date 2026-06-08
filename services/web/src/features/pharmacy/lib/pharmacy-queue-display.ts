@@ -1,4 +1,4 @@
-import type { PharmacyQueueItem } from '../types';
+import type { PharmacyDispenseStatus, PharmacyQueueItem } from '../types';
 
 export function formatPharmacyQueuedAt(isoDate: string): string {
   const date = new Date(isoDate);
@@ -51,14 +51,16 @@ export function formatPatientDisplay(row: PharmacyQueueItem): string {
   return name;
 }
 
-export function pharmacyQueueStatusLabel(hasDispense: boolean): string {
-  return hasDispense ? 'Issued' : 'Pending';
+export function pharmacyQueueStatusLabel(status: PharmacyDispenseStatus): string {
+  if (status === 'partial_issue') return 'Partial issue';
+  if (status === 'issued') return 'Issued';
+  return 'Pending';
 }
 
-export function pharmacyQueueStatusBadgeClass(hasDispense: boolean): string {
-  return hasDispense
-    ? 'bg-green-100 text-green-800'
-    : 'bg-orange-100 text-orange-800';
+export function pharmacyQueueStatusBadgeClass(status: PharmacyDispenseStatus): string {
+  if (status === 'partial_issue') return 'bg-amber-100 text-amber-900';
+  if (status === 'issued') return 'bg-green-100 text-green-800';
+  return 'bg-orange-100 text-orange-800';
 }
 
 export function matchesPharmacyQueueSearch(row: PharmacyQueueItem, query: string): boolean {
@@ -92,9 +94,14 @@ export function matchesPharmacyQueueSearch(row: PharmacyQueueItem, query: string
 
 export function matchesPharmacyQueueStatus(
   row: PharmacyQueueItem,
-  filter: 'all' | 'pending' | 'issued',
+  filter: 'all' | 'pending' | 'partial_issue' | 'issued',
 ): boolean {
   if (filter === 'all') return true;
-  if (filter === 'pending') return !row.has_dispense;
-  return row.has_dispense;
+  return row.dispense_status === filter;
+}
+
+export function dispenseSaveStatusLabel(status: PharmacyDispenseStatus): string {
+  if (status === 'partial_issue') return 'Partial issue';
+  if (status === 'issued') return 'Saved';
+  return 'Unsaved';
 }

@@ -17,6 +17,7 @@ export function buildDispenseLineRows(
     return {
       iq_tenant_id: tenantId,
       dispense_record_id: recordId,
+      medicine_id: line.medicine_id ?? null,
       medicine_display_name: line.medicine_display_name.trim(),
       prescribed_quantity: line.prescribed_quantity ?? null,
       quantity_dispensed: line.quantity_dispensed,

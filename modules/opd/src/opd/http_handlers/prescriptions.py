@@ -78,6 +78,8 @@ def _to_response(db: DbSession, bundle: PrescriptionBundle) -> OpdPrescriptionRe
         visit_status=bundle.visit_status,
         prescription_status=rx.status,
         is_read_only=bundle.is_read_only,
+        doctor_id=rx.doctor_id,
+        finalized_at=rx.finalized_at,
         form_data=effective_form_data(db, rx),
     )
 

@@ -10,6 +10,8 @@ const MIGRATION_FILES = [
   "0001_dispense_subtotal_discount.sql",
   "0002_line_discount_tax.sql",
   "0003_walk_in_patients.sql",
+  "0004_dispense_line_medicine_id.sql",
+  "0005_dispense_status.sql",
 ] as const;
 
 /** Applies `pharmacy` schema DDL (idempotent — safe to run on every dev boot). */

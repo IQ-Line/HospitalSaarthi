@@ -15,6 +15,7 @@
     "seed-abdm-profile": "tsx scripts/seed-abdm-profile-from-env.mts",
     "copy-abdm-schema": "tsx scripts/copy-abdm-adapter-schema-to-integration-hub.mts",
     "seed:user-management-dev": "tsx tools/seed-user-management-dev/run.mts",
+    "seed:demo-tenant-pharmacist": "tsx tools/seed-user-management-dev/seed-demo-tenant-pharmacist.mts",
     "seed:opd-dev": "nx run opd:seed-dev",
     "seed:pharmacy-demo": "nx run empi:seed-pharmacy-dev && nx run opd:seed-dev",
     "seed:platform": "nx run user-management:seed-platform",

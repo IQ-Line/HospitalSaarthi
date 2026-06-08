@@ -90,6 +90,8 @@ export function registerPharmacyHandlers(app: FastifyInstance, deps: PharmacyHan
           {
             opdGateway: deps.opdGateway,
             dispenseRecordRepo: deps.dispenseRecordRepo,
+            masterDataGateway: deps.masterDataGateway,
+            userLookup: deps.userLookup,
           },
           request.tenantId,
           {
@@ -125,6 +127,7 @@ export function registerPharmacyHandlers(app: FastifyInstance, deps: PharmacyHan
           {
             opdGateway: deps.opdGateway,
             dispenseRecordRepo: deps.dispenseRecordRepo,
+            masterDataGateway: deps.masterDataGateway,
           },
           request.tenantId,
           {
@@ -177,11 +180,12 @@ export function registerPharmacyHandlers(app: FastifyInstance, deps: PharmacyHan
     async (request, reply) => {
       try {
         const result = await saveWalkInDispense(
-          { walkInDispenseRepo: deps.walkInDispenseRepo },
+          { walkInDispenseRepo: deps.walkInDispenseRepo, masterDataGateway: deps.masterDataGateway },
           request.tenantId,
           {
             ...request.body,
             createdBy: actorIdFromRequest(request),
+            bearerToken: bearerTokenFromHeaders(request.headers),
           },
         );
         return reply.code(201).send(result);
@@ -209,9 +213,13 @@ export function registerPharmacyHandlers(app: FastifyInstance, deps: PharmacyHan
     async (request, reply) => {
       try {
         const result = await getWalkInDispense(
-          { walkInDispenseRepo: deps.walkInDispenseRepo },
+          {
+            walkInDispenseRepo: deps.walkInDispenseRepo,
+            masterDataGateway: deps.masterDataGateway,
+          },
           request.tenantId,
           request.params.recordId,
+          bearerTokenFromHeaders(request.headers),
         );
         return reply.send(result);
       } catch (error) {
@@ -238,11 +246,12 @@ export function registerPharmacyHandlers(app: FastifyInstance, deps: PharmacyHan
     async (request, reply) => {
       try {
         const result = await updateWalkInDispense(
-          { walkInDispenseRepo: deps.walkInDispenseRepo },
+          { walkInDispenseRepo: deps.walkInDispenseRepo, masterDataGateway: deps.masterDataGateway },
           request.tenantId,
           {
             recordId: request.params.recordId,
             ...request.body,
+            bearerToken: bearerTokenFromHeaders(request.headers),
           },
         );
         return reply.send(result);

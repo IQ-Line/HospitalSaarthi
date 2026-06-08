@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { OpdPrescriptionSnapshot } from "../domain/pharmacy.types.js";
-import type { DispenseRecordRepo, OpdGatewayPort } from "../ports.js";
+import type { DispenseRecordRepo, MasterDataGatewayPort, OpdGatewayPort } from "../ports.js";
 import { DispenseVisitNotFoundError } from "./get-dispense-for-visit.js";
 import {
   DispensePatientMismatchError,
@@ -10,6 +10,7 @@ import {
 
 const TENANT = "00000000-0000-0000-0000-000000000001";
 const VISIT = "00000000-0000-0000-0000-0000000000bb";
+const MED_ID = "11111111-1111-4111-8111-111111111111";
 
 const prescription: OpdPrescriptionSnapshot = {
   prescription_id: "rx-2",
@@ -17,7 +18,34 @@ const prescription: OpdPrescriptionSnapshot = {
   patient_id: "patient-2",
   visit_status: "completed",
   prescription_status: "final",
+  doctor_id: null,
+  doctor_name: null,
+  finalized_at: null,
+  vitals_summary: null,
+  complaints_summary: null,
+  diagnosis_summary: null,
   medicines: [],
+};
+
+const masterDataGateway: MasterDataGatewayPort = {
+  getMedicineById: vi.fn(async (_tenantId, medicineId) =>
+    medicineId === MED_ID
+      ? {
+          display_name: "Tab A",
+          strength_display: "",
+          price: 10,
+          is_active: true,
+          is_deleted: false,
+        }
+      : null,
+  ),
+};
+
+const sampleLine = {
+  medicine_id: MED_ID,
+  medicine_display_name: "Tab A",
+  quantity_dispensed: "2",
+  unit_amount: "10",
 };
 
 describe("saveDispenseForVisit", () => {
@@ -43,6 +71,7 @@ describe("saveDispenseForVisit", () => {
           discount: "0.0000",
           total_amount: "20.0000",
           notes: null,
+          dispense_status: "issued",
           created_at: new Date("2026-06-02T09:00:00.000Z"),
           created_by: "user-1",
         },
@@ -51,6 +80,7 @@ describe("saveDispenseForVisit", () => {
             id: "line-2",
             iq_tenant_id: TENANT,
             dispense_record_id: "rec-2",
+            medicine_id: MED_ID,
             medicine_display_name: "Tab A",
             prescribed_quantity: null,
             quantity_dispensed: "2",
@@ -66,18 +96,12 @@ describe("saveDispenseForVisit", () => {
     };
 
     const result = await saveDispenseForVisit(
-      { opdGateway, dispenseRecordRepo },
+      { opdGateway, dispenseRecordRepo, masterDataGateway },
       TENANT,
       {
         visitId: VISIT,
         patient_id: "patient-2",
-        lines: [
-          {
-            medicine_display_name: "Tab A",
-            quantity_dispensed: "2",
-            unit_amount: "10",
-          },
-        ],
+        lines: [sampleLine],
         createdBy: "user-1",
       },
     );
@@ -119,6 +143,7 @@ describe("saveDispenseForVisit", () => {
           discount: "10.0000",
           total_amount: "90.0000",
           notes: null,
+          dispense_status: "issued",
           created_at: new Date("2026-06-02T10:00:00.000Z"),
           created_by: null,
         },
@@ -127,7 +152,7 @@ describe("saveDispenseForVisit", () => {
     };
 
     const result = await saveDispenseForVisit(
-      { opdGateway, dispenseRecordRepo },
+      { opdGateway, dispenseRecordRepo, masterDataGateway },
       TENANT,
       {
         visitId: VISIT,
@@ -135,6 +160,7 @@ describe("saveDispenseForVisit", () => {
         discount: "10",
         lines: [
           {
+            medicine_id: MED_ID,
             medicine_display_name: "Tab B",
             quantity_dispensed: "10",
             unit_amount: "10",
@@ -166,7 +192,7 @@ describe("saveDispenseForVisit", () => {
 
     await expect(
       saveDispenseForVisit(
-        { opdGateway, dispenseRecordRepo },
+        { opdGateway, dispenseRecordRepo, masterDataGateway },
         TENANT,
         {
           visitId: VISIT,
@@ -174,6 +200,7 @@ describe("saveDispenseForVisit", () => {
           discount: "50",
           lines: [
             {
+              medicine_id: MED_ID,
               medicine_display_name: "Tab A",
               quantity_dispensed: "1",
               unit_amount: "10",
@@ -198,18 +225,12 @@ describe("saveDispenseForVisit", () => {
 
     await expect(
       saveDispenseForVisit(
-        { opdGateway, dispenseRecordRepo },
+        { opdGateway, dispenseRecordRepo, masterDataGateway },
         TENANT,
         {
           visitId: VISIT,
           patient_id: "wrong-patient",
-          lines: [
-            {
-              medicine_display_name: "Tab A",
-              quantity_dispensed: "1",
-              unit_amount: "1",
-            },
-          ],
+          lines: [sampleLine],
         },
       ),
     ).rejects.toBeInstanceOf(DispensePatientMismatchError);
@@ -229,9 +250,40 @@ describe("saveDispenseForVisit", () => {
 
     await expect(
       saveDispenseForVisit(
-        { opdGateway, dispenseRecordRepo },
+        { opdGateway, dispenseRecordRepo, masterDataGateway },
         TENANT,
         { visitId: VISIT, patient_id: "patient-2", lines: [] },
+      ),
+    ).rejects.toBeInstanceOf(DispenseValidationError);
+  });
+
+  it("rejects free-text lines without catalog medicine_id", async () => {
+    const opdGateway: OpdGatewayPort = {
+      listCompletedVisits: vi.fn(),
+      getVisitPrescription: vi.fn(async () => prescription),
+    };
+    const dispenseRecordRepo: DispenseRecordRepo = {
+      findByVisit: vi.fn(),
+      listByVisitIds: vi.fn(),
+      findLinesByRecordId: vi.fn(),
+      upsertForVisit: vi.fn(),
+    };
+
+    await expect(
+      saveDispenseForVisit(
+        { opdGateway, dispenseRecordRepo, masterDataGateway },
+        TENANT,
+        {
+          visitId: VISIT,
+          patient_id: "patient-2",
+          lines: [
+            {
+              medicine_display_name: "Free text only",
+              quantity_dispensed: "1",
+              unit_amount: "10",
+            } as typeof sampleLine,
+          ],
+        },
       ),
     ).rejects.toBeInstanceOf(DispenseValidationError);
   });
@@ -250,18 +302,12 @@ describe("saveDispenseForVisit", () => {
 
     await expect(
       saveDispenseForVisit(
-        { opdGateway, dispenseRecordRepo },
+        { opdGateway, dispenseRecordRepo, masterDataGateway },
         TENANT,
         {
           visitId: VISIT,
           patient_id: "patient-2",
-          lines: [
-            {
-              medicine_display_name: "Tab A",
-              quantity_dispensed: "1",
-              unit_amount: "1",
-            },
-          ],
+          lines: [sampleLine],
         },
       ),
     ).rejects.toBeInstanceOf(DispenseVisitNotFoundError);

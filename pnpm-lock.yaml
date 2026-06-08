@@ -788,9 +788,6 @@ importers:
 
   services/pharmacy-svc:
     dependencies:
-      '@hims/dev-bootstrap':
-        specifier: workspace:*
-        version: link:../../packages/dev-bootstrap
       '@hims/pharmacy':
         specifier: workspace:*
         version: link:../../modules/pharmacy

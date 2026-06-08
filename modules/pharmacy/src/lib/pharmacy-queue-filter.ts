@@ -1,29 +1,27 @@
-import type { PharmacyQueueItem } from "../domain/pharmacy.types.js";
+import type { PharmacyDispenseStatus, PharmacyQueueItem } from "../domain/pharmacy.types.js";
 
-export type PharmacyQueueStatusFilter = "all" | "pending" | "issued";
+export type PharmacyQueueStatusFilter = "all" | "pending" | "partial_issue" | "issued";
 
 export function normalizePharmacyQueueStatus(
   raw: string | null | undefined,
 ): PharmacyQueueStatusFilter {
-  if (raw === "pending" || raw === "issued" || raw === "all") {
+  if (raw === "pending" || raw === "partial_issue" || raw === "issued" || raw === "all") {
     return raw;
   }
   return "all";
 }
 
 export function normalizePharmacyQueueSearch(raw: string | null | undefined): string {
-  return raw?.trim() ?? "";
-}
-
-function formatRxNumberSearchToken(prescriptionId: string | null): string {
-  if (!prescriptionId) return "";
-  const compact = prescriptionId.replace(/-/g, "");
-  return `rx-${compact.slice(-12)}`;
+  return raw?.trim().toLowerCase() ?? "";
 }
 
 export function matchesPharmacyQueueSearch(row: PharmacyQueueItem, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
+
+  const rxToken = row.prescription_id
+    ? `rx-${row.prescription_id.replace(/-/g, "").slice(-12)}`
+    : "";
 
   const haystack = [
     row.patient_name,
@@ -34,7 +32,7 @@ export function matchesPharmacyQueueSearch(row: PharmacyQueueItem, query: string
     row.visit_id,
     row.visit_id?.slice(0, 8),
     row.prescription_id,
-    formatRxNumberSearchToken(row.prescription_id),
+    rxToken,
     row.patient_id,
     row.walk_in_patient_id,
     row.doctor_name,
@@ -46,13 +44,16 @@ export function matchesPharmacyQueueSearch(row: PharmacyQueueItem, query: string
   return haystack.includes(q);
 }
 
+export function queueDispenseStatus(row: PharmacyQueueItem): PharmacyDispenseStatus {
+  return row.dispense_status;
+}
+
 export function matchesPharmacyQueueStatus(
   row: PharmacyQueueItem,
   filter: PharmacyQueueStatusFilter,
 ): boolean {
   if (filter === "all") return true;
-  if (filter === "pending") return !row.has_dispense;
-  return row.has_dispense;
+  return queueDispenseStatus(row) === filter;
 }
 
 export function pharmacyQueueNeedsFilteredScan(

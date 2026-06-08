@@ -40,7 +40,12 @@ describe('medicine-suggestions', () => {
   it('formats suggestion and stored display names', () => {
     const row = medicine({});
     expect(formatMedicineSuggestionLabel(row)).toBe('Paracetamol — 500mg');
-    expect(medicineDisplayNameFromCatalog(row)).toBe('Paracetamol 500mg');
+    expect(medicineDisplayNameFromCatalog(row)).toBe('Paracetamol');
+  });
+
+  it('includes short name in suggestion label', () => {
+    const row = medicine({ short_name: 'PCM' });
+    expect(formatMedicineSuggestionLabel(row)).toBe('Paracetamol — 500mg (PCM)');
   });
 
   it('omits strength suffix when absent', () => {

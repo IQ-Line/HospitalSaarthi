@@ -20,9 +20,12 @@ type PanelPosition = {
 
 type PharmacyMedicineSearchInputProps = {
   value: string;
-  onChange: (value: string) => void;
+  medicineId?: string | null;
+  onMedicineSelect: (medicine: { id: string; displayName: string; unitPrice: string | null }) => void;
+  onClearSelection?: () => void;
   disabled?: boolean;
   placeholder?: string;
+  error?: string;
 };
 
 function SuggestionPanelBody({
@@ -34,7 +37,7 @@ function SuggestionPanelBody({
   isFetching: boolean;
   suggestions: ReturnType<typeof activeMedicineSuggestions>;
   activeIndex: number;
-  onSelect: (displayName: string) => void;
+  onSelect: (displayName: string, medicine: { id: string; price?: number | null }) => void;
 }) {
   if (isFetching) {
     return (
@@ -48,7 +51,7 @@ function SuggestionPanelBody({
   if (suggestions.length === 0) {
     return (
       <p className="px-3 py-2 text-sm text-muted-foreground">
-        No catalog matches — keep your typed name.
+        No catalog matches — choose a medicine from the master list.
       </p>
     );
   }
@@ -65,7 +68,7 @@ function SuggestionPanelBody({
             index === activeIndex ? 'bg-accent text-accent-foreground' : ''
           }`}
           onMouseDown={(event) => event.preventDefault()}
-          onClick={() => onSelect(medicineDisplayNameFromCatalog(medicine))}
+          onClick={() => onSelect(medicineDisplayNameFromCatalog(medicine), medicine)}
         >
           <span className="font-medium">{formatMedicineSuggestionLabel(medicine)}</span>
           {medicine.generic_name ? (
@@ -79,18 +82,23 @@ function SuggestionPanelBody({
 
 export function PharmacyMedicineSearchInput({
   value,
-  onChange,
+  medicineId,
+  onMedicineSelect,
+  onClearSelection,
   disabled = false,
-  placeholder = 'Search or type medicine',
+  placeholder = 'Search catalog medicines',
+  error,
 }: PharmacyMedicineSearchInputProps) {
   const listboxId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(-1);
   const [panelPosition, setPanelPosition] = useState<PanelPosition | null>(null);
 
-  const debouncedSearch = useDebouncedValue(value.trim(), 300);
+  const debouncedSearch = useDebouncedValue(query.trim(), 300);
   const searchReady = debouncedSearch.length >= PHARMACY_MEDICINE_SEARCH_MIN_CHARS;
 
   const { data, isFetching } = useVisitpadMedicines(
@@ -101,6 +109,9 @@ export function PharmacyMedicineSearchInput({
   );
 
   const suggestions = activeMedicineSuggestions(data?.data);
+  const inputValue = focused ? query : value;
+  const needsSelection = focused && query.trim().length > 0 && !medicineId;
+  const showInvalid = Boolean(error) || needsSelection;
 
   const updatePanelPosition = useCallback(() => {
     const anchor = containerRef.current;
@@ -150,14 +161,27 @@ export function PharmacyMedicineSearchInput({
     return () => document.removeEventListener('mousedown', handlePointerDown);
   }, [open]);
 
-  const selectSuggestion = (displayName: string) => {
-    onChange(displayName);
+  const selectSuggestion = (
+    displayName: string,
+    medicine: { id: string; price?: number | null },
+  ) => {
+    const unitPrice =
+      medicine.price != null && Number.isFinite(medicine.price) && medicine.price >= 0
+        ? medicine.price.toFixed(4)
+        : null;
+    onMedicineSelect({ id: medicine.id, displayName, unitPrice });
+    setQuery(displayName);
     setOpen(false);
+    setFocused(false);
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (!showPanel || suggestions.length === 0) {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key === 'Escape') {
+        setOpen(false);
+        setFocused(false);
+        setQuery('');
+      }
       return;
     }
 
@@ -173,17 +197,21 @@ export function PharmacyMedicineSearchInput({
       return;
     }
 
-    if (event.key === 'Enter' && activeIndex >= 0 && activeIndex < suggestions.length) {
+    if (event.key === 'Enter') {
       event.preventDefault();
-      const medicine = suggestions[activeIndex];
-      if (medicine) {
-        selectSuggestion(medicineDisplayNameFromCatalog(medicine));
+      if (activeIndex >= 0 && activeIndex < suggestions.length) {
+        const medicine = suggestions[activeIndex];
+        if (medicine) {
+          selectSuggestion(medicineDisplayNameFromCatalog(medicine), medicine);
+        }
       }
       return;
     }
 
     if (event.key === 'Escape') {
       setOpen(false);
+      setFocused(false);
+      setQuery('');
     }
   };
 
@@ -216,19 +244,32 @@ export function PharmacyMedicineSearchInput({
   return (
     <div ref={containerRef} className="min-w-[200px]">
       <Input
-        value={value}
+        value={inputValue}
         disabled={disabled}
         placeholder={placeholder}
         role="combobox"
         aria-expanded={showPanel}
         aria-controls={showPanel ? listboxId : undefined}
         aria-autocomplete="list"
+        aria-invalid={showInvalid || undefined}
+        className={showInvalid ? 'border-destructive focus-visible:ring-destructive/30' : undefined}
         onFocus={() => {
+          setFocused(true);
+          setQuery(value);
           setOpen(true);
           updatePanelPosition();
         }}
+        onBlur={() => {
+          setFocused(false);
+          setOpen(false);
+          setQuery('');
+        }}
         onChange={(event) => {
-          onChange(event.target.value);
+          const next = event.target.value;
+          setQuery(next);
+          if (medicineId) {
+            onClearSelection?.();
+          }
           setOpen(true);
           updatePanelPosition();
         }}

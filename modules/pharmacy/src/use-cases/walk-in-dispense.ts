@@ -12,6 +12,12 @@ import {
   assertLine,
 } from "./save-dispense-for-visit.js";
 import { computeRecordAmounts, computeLineBilling } from "../lib/dispense-amounts.js";
+import { computeWalkInDispenseFulfillmentStatus } from "../lib/dispense-completion.js";
+import {
+  filterDispenseLineRecordsForTenantCatalog,
+  normalizeSaveDispenseLinesForCatalog,
+} from "../lib/filter-tenant-catalog-medicines.js";
+import type { MasterDataGatewayPort } from "../ports.js";
 
 export class WalkInDispenseNotFoundError extends Error {
   constructor(recordId: string) {
@@ -30,12 +36,18 @@ function toResponse(detail: WalkInDispenseDetail): WalkInDispenseResponse {
     total_amount: detail.record.total_amount,
     notes: detail.record.notes,
     has_dispense: true,
+    dispense_status: detail.record.dispense_status,
     created_at: detail.record.created_at.toISOString(),
     lines: detail.lines,
   };
 }
 
-function validatePayload(body: SaveWalkInDispenseInput): SaveWalkInDispenseInput {
+function validatePayload(
+  body: SaveWalkInDispenseInput,
+  masterDataGateway: MasterDataGatewayPort,
+  tenantId: string,
+  bearerToken?: string,
+): Promise<SaveWalkInDispenseInput> {
   if (!body.lines?.length) {
     throw new DispenseValidationError("lines must contain at least one dispense line");
   }
@@ -55,39 +67,57 @@ function validatePayload(body: SaveWalkInDispenseInput): SaveWalkInDispenseInput
     }
   }
 
-  const previewAmounts = computeRecordAmounts(
-    body.lines.map((line) =>
-      computeLineBilling({
-        quantity_dispensed: line.quantity_dispensed,
-        unit_amount: line.unit_amount,
-        line_discount: line.line_discount,
-        tax_percent: line.tax_percent,
-      }),
-    ),
-    body.discount,
-  );
-  if (Number(previewAmounts.discount) > Number(previewAmounts.subtotal)) {
-    throw new DispenseValidationError("discount cannot exceed subtotal");
-  }
+  return normalizeSaveDispenseLinesForCatalog(
+    masterDataGateway,
+    tenantId,
+    body.lines,
+    bearerToken,
+    (index, detail) => {
+      throw new DispenseValidationError(`lines[${index}].${detail}`);
+    },
+  ).then((catalogLines) => {
+    const previewAmounts = computeRecordAmounts(
+      catalogLines.map((line) =>
+        computeLineBilling({
+          quantity_dispensed: line.quantity_dispensed,
+          unit_amount: line.unit_amount,
+          line_discount: line.line_discount,
+          tax_percent: line.tax_percent,
+        }),
+      ),
+      body.discount,
+    );
+    if (Number(previewAmounts.discount) > Number(previewAmounts.subtotal)) {
+      throw new DispenseValidationError("discount cannot exceed subtotal");
+    }
 
-  return {
-    ...body,
-    walk_in_patient: normalizeWalkInPatientInput(body.walk_in_patient),
-  };
+    return {
+      ...body,
+      walk_in_patient: normalizeWalkInPatientInput(body.walk_in_patient),
+      lines: catalogLines,
+    };
+  });
 }
 
 export type SaveWalkInDispenseCommand = SaveWalkInDispenseInput & {
   createdBy?: string | null;
+  bearerToken?: string;
 };
 
 export async function saveWalkInDispense(
-  deps: { walkInDispenseRepo: WalkInDispenseRepo },
+  deps: { walkInDispenseRepo: WalkInDispenseRepo; masterDataGateway: MasterDataGatewayPort },
   tenantId: string,
   command: SaveWalkInDispenseCommand,
 ): Promise<WalkInDispenseResponse> {
-  const payload = validatePayload(command);
+  const payload = await validatePayload(
+    command,
+    deps.masterDataGateway,
+    tenantId,
+    command.bearerToken,
+  );
   const detail = await deps.walkInDispenseRepo.create(tenantId, {
     ...payload,
+    dispense_status: computeWalkInDispenseFulfillmentStatus(payload.lines),
     created_by: command.createdBy ?? null,
   });
   return toResponse(detail);
@@ -95,31 +125,52 @@ export async function saveWalkInDispense(
 
 export type UpdateWalkInDispenseCommand = SaveWalkInDispenseInput & {
   recordId: string;
+  bearerToken?: string;
 };
 
 export async function updateWalkInDispense(
-  deps: { walkInDispenseRepo: WalkInDispenseRepo },
+  deps: { walkInDispenseRepo: WalkInDispenseRepo; masterDataGateway: MasterDataGatewayPort },
   tenantId: string,
   command: UpdateWalkInDispenseCommand,
 ): Promise<WalkInDispenseResponse> {
-  const payload = validatePayload(command);
+  const payload = await validatePayload(
+    command,
+    deps.masterDataGateway,
+    tenantId,
+    command.bearerToken,
+  );
   const existing = await deps.walkInDispenseRepo.findByRecordId(tenantId, command.recordId);
   if (!existing) {
     throw new WalkInDispenseNotFoundError(command.recordId);
   }
 
-  const detail = await deps.walkInDispenseRepo.upsert(tenantId, command.recordId, payload);
+  const detail = await deps.walkInDispenseRepo.upsert(tenantId, command.recordId, {
+    ...payload,
+    dispense_status: computeWalkInDispenseFulfillmentStatus(payload.lines),
+  });
   return toResponse(detail);
 }
 
 export async function getWalkInDispense(
-  deps: { walkInDispenseRepo: WalkInDispenseRepo },
+  deps: { walkInDispenseRepo: WalkInDispenseRepo; masterDataGateway: MasterDataGatewayPort },
   tenantId: string,
   recordId: string,
+  bearerToken?: string,
 ): Promise<WalkInDispenseResponse> {
   const detail = await deps.walkInDispenseRepo.findByRecordId(tenantId, recordId);
   if (!detail) {
     throw new WalkInDispenseNotFoundError(recordId);
   }
-  return toResponse(detail);
+
+  const lines = await filterDispenseLineRecordsForTenantCatalog(
+    deps.masterDataGateway,
+    tenantId,
+    detail.lines,
+    bearerToken,
+  );
+
+  return toResponse({
+    ...detail,
+    lines,
+  });
 }

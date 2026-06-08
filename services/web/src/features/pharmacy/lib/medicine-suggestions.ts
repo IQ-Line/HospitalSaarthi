@@ -8,19 +8,18 @@ export const PHARMACY_MEDICINE_SUGGESTIONS_PAGE = {
   pageSize: 15,
 } as const;
 
-/** Dropdown label — includes strength when present. */
+/** Dropdown label — includes strength and short name when present. */
 export function formatMedicineSuggestionLabel(medicine: VisitpadMedicine): string {
-  return medicine.strength_display
+  const base = medicine.strength_display
     ? `${medicine.display_name} — ${medicine.strength_display}`
     : medicine.display_name;
+  const short = medicine.short_name?.trim();
+  return short ? `${base} (${short})` : base;
 }
 
-/** Value stored on dispense lines when a catalog row is picked. */
+/** Value stored on dispense line inputs when a catalog row is picked. */
 export function medicineDisplayNameFromCatalog(medicine: VisitpadMedicine): string {
-  const name = medicine.display_name.trim();
-  const strength = medicine.strength_display.trim();
-  if (!strength) return name;
-  return `${name} ${strength}`;
+  return medicine.display_name.trim();
 }
 
 export function activeMedicineSuggestions(items: VisitpadMedicine[] | undefined): VisitpadMedicine[] {

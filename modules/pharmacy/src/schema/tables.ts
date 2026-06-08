@@ -42,6 +42,7 @@ export const dispenseRecords = pharmacySchema.table(
     discount: numeric("discount", { precision: 18, scale: 4 }).notNull().default("0"),
     total_amount: numeric("total_amount", { precision: 18, scale: 4 }).notNull().default("0"),
     notes: text("notes"),
+    dispense_status: text("dispense_status").notNull().default("issued"),
     created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     created_by: uuid("created_by"),
   },
@@ -54,6 +55,7 @@ export const dispenseLineItems = pharmacySchema.table(
     id: uuid("id").defaultRandom().notNull(),
     ...tenantColumn(),
     dispense_record_id: uuid("dispense_record_id").notNull(),
+    medicine_id: uuid("medicine_id"),
     medicine_display_name: text("medicine_display_name").notNull(),
     prescribed_quantity: numeric("prescribed_quantity", { precision: 12, scale: 4 }),
     quantity_dispensed: numeric("quantity_dispensed", { precision: 12, scale: 4 })

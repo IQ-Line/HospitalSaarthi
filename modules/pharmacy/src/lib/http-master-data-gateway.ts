@@ -21,7 +21,7 @@ export class HttpMasterDataGateway implements MasterDataGatewayPort {
   ): Promise<Record<string, unknown> | null> {
     const url = joinUrl(
       this.baseUrl,
-      `/api/master-data/v1/visitpad/medicines/${encodeURIComponent(medicineId)}`,
+      `/api/v1/master-data/visitpad/medicines/${encodeURIComponent(medicineId)}`,
     );
     const headers: Record<string, string> = {
       iq_tenant_id: tenantId,

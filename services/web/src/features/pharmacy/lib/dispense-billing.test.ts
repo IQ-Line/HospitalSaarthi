@@ -16,6 +16,7 @@ describe('dispense-billing', () => {
         [
           {
             key: '1',
+            medicine_id: null,
             medicine_display_name: 'Paracetamol',
             prescribed_quantity: '9',
             quantity_dispensed: '9',
@@ -51,6 +52,7 @@ describe('dispense-billing', () => {
         [
           {
             key: '1',
+            medicine_id: null,
             medicine_display_name: 'Tab B',
             prescribed_quantity: '',
             quantity_dispensed: '10',
@@ -72,6 +74,7 @@ describe('dispense-billing', () => {
     const drafts = draftLinesFromPrescription([
       {
         line_no: 1,
+        medicine_id: 'med-1',
         name: 'Paracetamol',
         strength: '500mg',
         dosage: '1 tab',
@@ -79,11 +82,14 @@ describe('dispense-billing', () => {
         frequency: 'TDS',
         quantity: '9',
         route: 'oral',
+        catalog_unit_price: '12.5000',
       },
     ]);
     expect(drafts).toHaveLength(1);
-    expect(drafts[0]?.medicine_display_name).toBe('Paracetamol 500mg');
+    expect(drafts[0]?.medicine_id).toBe('med-1');
+    expect(drafts[0]?.medicine_display_name).toBe('Paracetamol');
     expect(drafts[0]?.quantity_dispensed).toBe('9');
+    expect(drafts[0]?.unit_amount).toBe('12.5');
     expect(drafts[0]?.line_discount).toBe('0');
     expect(drafts[0]?.tax_percent).toBe('0');
   });
@@ -96,6 +102,7 @@ describe('dispense-billing', () => {
 
     const drafts = draftLinesFromSaved([
       {
+        medicine_id: 'med-1',
         medicine_display_name: 'Tab A',
         prescribed_quantity: '21.0000',
         quantity_dispensed: '1.0000',

@@ -41,6 +41,7 @@ function record(visitId: string): DispenseRecord {
     discount: "0.0000",
     total_amount: "100.0000",
     notes: null,
+    dispense_status: "issued",
     created_at: new Date("2026-06-01T10:00:00.000Z"),
     created_by: null,
   };
@@ -129,6 +130,7 @@ describe("listPharmacyQueue", () => {
           created_at: new Date("2026-06-03T12:00:00.000Z"),
           medicine_count: 1,
           has_dispense: true,
+          dispense_status: "issued",
         },
       ]),
       TENANT,
@@ -258,6 +260,7 @@ describe("listPharmacyQueue", () => {
           created_at: new Date("2026-06-03T12:00:00.000Z"),
           medicine_count: 0,
           has_dispense: false,
+          dispense_status: "pending",
         },
       ]),
       TENANT,

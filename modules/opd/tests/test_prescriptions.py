@@ -510,7 +510,7 @@ def test_list_completed_visits_returns_paginated_prescription_metadata(client: T
     end = client.post(
         f"/api/v1/opd/patients/{PATIENT}/prescription/end",
         json=payload,
-        headers=_headers(),
+        headers={**_headers(), "x-user-id": DOCTOR},
     )
     assert end.status_code == 200
     visit_id = end.json()["visit_id"]

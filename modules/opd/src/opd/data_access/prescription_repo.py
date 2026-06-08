@@ -71,7 +71,12 @@ def effective_encounter_status(visit: Visit | None, rx: Prescription | None) -> 
 
 
 class PrescriptionRepository:
-    def __init__(self, session: Session, tenant_id: UUID, doctor_id: UUID) -> None:
+    def __init__(
+        self,
+        session: Session,
+        tenant_id: UUID,
+        doctor_id: UUID | None = None,
+    ) -> None:
         self._session = session
         self._tenant_id = tenant_id
         self._doctor_id = doctor_id
@@ -84,6 +89,8 @@ class PrescriptionRepository:
         form_data: dict[str, Any] | None = None,
         status: str = "draft",
     ) -> Prescription:
+        if self._doctor_id is None:
+            raise ValueError("doctor_id is required to create prescriptions")
         now = datetime.now(UTC)
         return Prescription(
             tenant_id=self._tenant_id,
@@ -160,19 +167,15 @@ class PrescriptionRepository:
         ]
 
         stmt = (
-            select(Visit)
+            select(Visit, Prescription)
             .join(Prescription, Prescription.visit_id == Visit.id)
-            .options(joinedload(Visit.prescription))
             .where(*visit_filters)
             .order_by(Visit.updated_at.desc())
         )
-        visits = list(self._session.scalars(stmt).unique().all())
+        pairs = self._session.execute(stmt).all()
 
         rows: list[CompletedVisitRow] = []
-        for visit in visits:
-            rx = visit.prescription
-            if rx is None:
-                continue
+        for visit, rx in pairs:
             rows.append(
                 CompletedVisitRow(
                     visit_id=visit.id,
@@ -214,14 +217,22 @@ class PrescriptionRepository:
             .order_by(RegistrationVisit.updated_at.desc())
         )
         visits = list(self._session.scalars(stmt).all())
+        if not visits:
+            return []
+
+        prescription_visit_ids = set(
+            self._session.scalars(
+                select(Prescription.visit_id).where(Prescription.tenant_id == self._tenant_id),
+            ).all(),
+        )
 
         rows: list[CompletedVisitRow] = []
         for visit in visits:
-            if visit.visit_id in exclude_visit_ids:
+            if visit.id in exclude_visit_ids or visit.id in prescription_visit_ids:
                 continue
             rows.append(
                 CompletedVisitRow(
-                    visit_id=visit.visit_id,
+                    visit_id=visit.id,
                     patient_id=visit.patient_id,
                     prescription_id=None,
                     doctor_id=visit.doctor_id,

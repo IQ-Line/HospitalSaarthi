@@ -8,6 +8,10 @@ import type {
 } from "../ports.js";
 import { mapEmpiPayloadToQueuePatientFields } from "../lib/empi-patient-summary.js";
 import {
+  hasPharmacyDispenseRecord,
+  pharmacyDispenseStatusFromRecord,
+} from "../lib/dispense-completion.js";
+import {
   matchesPharmacyQueueSearch,
   matchesPharmacyQueueStatus,
   normalizePharmacyQueueSearch,
@@ -108,7 +112,8 @@ function mapWalkInRows(rows: WalkInQueueSummary[]): PharmacyQueueItem[] {
     age_years: ageYearsFromDateOfBirth(row.date_of_birth),
     gender: row.gender,
     doctor_name: null,
-    has_dispense: row.has_dispense,
+    has_dispense: hasPharmacyDispenseRecord(row.dispense_status),
+    dispense_status: row.dispense_status,
   }));
 }
 
@@ -132,10 +137,12 @@ async function enrichOpdRows(
     loadDoctorNamesById(deps.userLookup, tenantId, doctorIds),
   ]);
 
-  const hasDispenseByVisit = new Set(records.map((record) => record.visit_id));
+  const recordByVisit = new Map(records.map((record) => [record.visit_id, record]));
 
   return rows.map((row) => {
     const patientFields = patientFieldsById.get(row.patient_id);
+    const record = recordByVisit.get(row.visit_id);
+    const dispense_status = pharmacyDispenseStatusFromRecord(record);
     return {
       walk_in_order: false,
       record_id: null,
@@ -156,7 +163,8 @@ async function enrichOpdRows(
       gender: patientFields?.gender ?? null,
       doctor_name:
         row.doctor_id != null ? (doctorNamesById.get(row.doctor_id) ?? null) : null,
-      has_dispense: hasDispenseByVisit.has(row.visit_id),
+      has_dispense: hasPharmacyDispenseRecord(dispense_status),
+      dispense_status,
     };
   });
 }

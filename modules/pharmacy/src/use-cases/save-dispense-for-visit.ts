@@ -11,8 +11,16 @@ import {
   multiplyDecimal,
   normalizeDiscount,
 } from "../lib/dispense-amounts.js";
-import type { DispenseRecordRepo, OpdGatewayPort } from "../ports.js";
+import {
+  filterPrescriptionMedicinesForTenantCatalog,
+  normalizeSaveDispenseLinesForCatalog,
+} from "../lib/filter-tenant-catalog-medicines.js";
+import { computeOpdDispenseFulfillmentStatus } from "../lib/dispense-completion.js";
+import type { DispenseRecordRepo, MasterDataGatewayPort, OpdGatewayPort } from "../ports.js";
 import { DispenseVisitNotFoundError } from "./get-dispense-for-visit.js";
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export type SaveDispenseForVisitCommand = SaveDispenseForVisitInput & {
   visitId: string;
@@ -35,6 +43,12 @@ export class DispenseValidationError extends Error {
 }
 
 export function assertLine(line: SaveDispenseForVisitInput["lines"][number], index: number): void {
+  const medicineId = line.medicine_id?.trim();
+  if (!medicineId || !UUID_RE.test(medicineId)) {
+    throw new DispenseValidationError(
+      `lines[${index}].medicine_id is required — choose a medicine from the tenant catalog`,
+    );
+  }
   if (!line.medicine_display_name?.trim()) {
     throw new DispenseValidationError(`lines[${index}].medicine_display_name is required`);
   }
@@ -81,15 +95,21 @@ function toResponse(
     total_amount: record.total_amount,
     notes: record.notes,
     has_dispense: true,
+    dispense_status: record.dispense_status,
     record_id: record.id,
     created_at: record.created_at.toISOString(),
     lines,
     opd_prescription: opdPrescription,
+    dispensable_medicines: [],
   };
 }
 
 export async function saveDispenseForVisit(
-  deps: { opdGateway: OpdGatewayPort; dispenseRecordRepo: DispenseRecordRepo },
+  deps: {
+    opdGateway: OpdGatewayPort;
+    dispenseRecordRepo: DispenseRecordRepo;
+    masterDataGateway: MasterDataGatewayPort;
+  },
   tenantId: string,
   command: SaveDispenseForVisitCommand,
 ): Promise<DispenseForVisitResponse> {
@@ -120,8 +140,26 @@ export async function saveDispenseForVisit(
   const opdPrescriptionId =
     command.opd_prescription_id ?? prescription.prescription_id;
 
+  const catalogLines = await normalizeSaveDispenseLinesForCatalog(
+    deps.masterDataGateway,
+    tenantId,
+    command.lines,
+    command.bearerToken,
+    (index, detail) => {
+      throw new DispenseValidationError(`lines[${index}].${detail}`);
+    },
+  );
+
+  const dispensableMedicines = await filterPrescriptionMedicinesForTenantCatalog(
+    deps.masterDataGateway,
+    tenantId,
+    prescription.medicines,
+    command.bearerToken,
+  );
+  const dispense_status = computeOpdDispenseFulfillmentStatus(dispensableMedicines, catalogLines);
+
   const previewAmounts = computeRecordAmounts(
-    command.lines.map((line) =>
+    catalogLines.map((line) =>
       computeLineBilling({
         quantity_dispensed: line.quantity_dispensed,
         unit_amount: line.unit_amount,
@@ -141,7 +179,8 @@ export async function saveDispenseForVisit(
     opd_prescription_id: opdPrescriptionId,
     notes: command.notes ?? null,
     discount: normalizeDiscount(command.discount),
-    lines: command.lines,
+    lines: catalogLines,
+    dispense_status,
     created_by: command.createdBy ?? null,
   });
 

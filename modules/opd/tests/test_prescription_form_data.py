@@ -83,6 +83,85 @@ def test_effective_form_data_loads_legacy_chief_complaints() -> None:
     assert form["chiefComplaints"][0]["durationUnit"] == "days"
 
 
+def test_effective_form_data_loads_medicine_catalog_ids() -> None:
+    med_id = uuid.uuid4()
+    rx_id = uuid.uuid4()
+    rx = Prescription(
+        id=rx_id,
+        tenant_id=uuid.uuid4(),
+        visit_id=uuid.uuid4(),
+        patient_id=uuid.uuid4(),
+        doctor_id=uuid.uuid4(),
+        status="final",
+        form_data={},
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+    session = MagicMock()
+
+    def execute_side_effect(*_args, **_kwargs):
+        result = MagicMock()
+        sql = str(_args[0]) if _args else ""
+        if "prescription_medicines" in sql:
+            result.mappings.return_value.all.return_value = [
+                {
+                    "line_no": 1,
+                    "medicine_id": med_id,
+                    "name": "Paracetamol",
+                    "strength": "500mg",
+                    "dosage": "1-0-1",
+                    "duration": "5",
+                    "frequency": "BD",
+                    "quantity": 10,
+                    "route": "Oral",
+                }
+            ]
+            result.mappings.return_value.first.return_value = None
+        else:
+            result.mappings.return_value.all.return_value = []
+            result.mappings.return_value.first.return_value = None
+        return result
+
+    session.execute.side_effect = execute_side_effect
+
+    form = effective_form_data(session, rx)
+
+    assert form["medicines"][0]["medicine"] == "Paracetamol"
+    assert form["medicines"][0]["medicineId"] == str(med_id)
+    assert form["medicines"][0]["medicine_id"] == str(med_id)
+
+
+def test_merge_enriches_stored_medicines_missing_catalog_ids() -> None:
+    from opd.data_access.prescription_form_data import _merge_form_data
+
+    med_id = uuid.uuid4()
+    merged = _merge_form_data(
+        {
+            "medicines": [
+                {
+                    "id": "row-1",
+                    "medicineId": str(med_id),
+                    "medicine_id": str(med_id),
+                    "medicine": "Paracetamol",
+                }
+            ]
+        },
+        {
+            "medicines": [
+                {
+                    "id": "stored-1",
+                    "medicine": "Paracetamol",
+                    "strength": "500mg",
+                }
+            ],
+        },
+    )
+
+    assert merged["medicines"][0]["medicineId"] == str(med_id)
+    assert merged["medicines"][0]["medicine_id"] == str(med_id)
+
+
 def test_effective_form_data_loads_vaccines_required_as_immunizations() -> None:
     row = _vaccine_db_to_immunization_row(
         {

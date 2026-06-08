@@ -198,6 +198,8 @@ class PrescriptionRepository:
 
         if payload.clinical is not None:
             self._clear_clinical_children(rx)
+            # Flush deletes before inserts — same line_no would violate *_line_key constraints.
+            self._session.flush()
             self._apply_clinical(rx, payload.clinical)
 
         self._session.flush()

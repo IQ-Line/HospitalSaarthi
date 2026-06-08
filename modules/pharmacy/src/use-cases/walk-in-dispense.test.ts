@@ -1,9 +1,24 @@
 import { describe, expect, it, vi } from "vitest";
-import type { WalkInDispenseRepo } from "../ports.js";
+import type { MasterDataGatewayPort, WalkInDispenseRepo } from "../ports.js";
 import { DispenseValidationError } from "./save-dispense-for-visit.js";
 import { saveWalkInDispense } from "./walk-in-dispense.js";
 
 const TENANT = "00000000-0000-0000-0000-000000000001";
+const MED_ID = "11111111-1111-4111-8111-111111111111";
+
+const masterDataGateway: MasterDataGatewayPort = {
+  getMedicineById: vi.fn(async (_tenantId, medicineId) =>
+    medicineId === MED_ID
+      ? {
+          display_name: "Paracetamol",
+          strength_display: "500mg",
+          price: 10,
+          is_active: true,
+          is_deleted: false,
+        }
+      : null,
+  ),
+};
 
 describe("saveWalkInDispense", () => {
   it("creates walk-in order with patient and lines", async () => {
@@ -42,7 +57,7 @@ describe("saveWalkInDispense", () => {
     };
 
     const result = await saveWalkInDispense(
-      { walkInDispenseRepo },
+      { walkInDispenseRepo, masterDataGateway },
       TENANT,
       {
         walk_in_patient: {
@@ -54,6 +69,7 @@ describe("saveWalkInDispense", () => {
         },
         lines: [
           {
+            medicine_id: MED_ID,
             medicine_display_name: "Paracetamol",
             quantity_dispensed: "10",
             unit_amount: "10",
@@ -79,7 +95,7 @@ describe("saveWalkInDispense", () => {
 
     await expect(
       saveWalkInDispense(
-        { walkInDispenseRepo },
+        { walkInDispenseRepo, masterDataGateway },
         TENANT,
         {
           walk_in_patient: {
@@ -88,6 +104,7 @@ describe("saveWalkInDispense", () => {
           },
           lines: [
             {
+              medicine_id: MED_ID,
               medicine_display_name: "Tab A",
               quantity_dispensed: "1",
               unit_amount: "1",

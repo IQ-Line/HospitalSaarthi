@@ -102,9 +102,9 @@ export function PharmacyQueueTable({
         ),
         cell: ({ row }) => (
           <span
-            className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap ${pharmacyQueueStatusBadgeClass(row.original.has_dispense)}`}
+            className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap ${pharmacyQueueStatusBadgeClass(row.original.dispense_status)}`}
           >
-            {pharmacyQueueStatusLabel(row.original.has_dispense)}
+            {pharmacyQueueStatusLabel(row.original.dispense_status)}
           </span>
         ),
       },
