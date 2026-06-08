@@ -1,0 +1,7 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "../../dist/services/ipd-svc"
+  },
+  "include": ["src/**/*.ts"]
+}

@@ -1,0 +1,392 @@
+openapi: 3.1.0
+info:
+  title: IPD — Admission intake
+  version: 1.0.0
+  description: |
+    Phase 0 admission APIs backed by LLD-aligned `ipd.episodes`, `ipd.wards`, and `ipd.beds`.
+    Path `/admissions/:admissionId` uses the episode `id`.
+
+tags:
+  - name: Admissions
+    description: Admission queue and CRUD (episode row)
+
+servers:
+  - url: http://localhost:3008/api/ipd/v1
+    description: Local ipd-svc (IPD_SVC_PORT; default 3008)
+
+paths:
+  /admissions:
+    get:
+      operationId: listAdmissions
+      summary: Admission queue and search
+      description: |
+        Default queue: `status=scheduled,admitted` (newest `updated_at` first).
+        Free-text `q` matches `episode_number` and `patient_name`.
+      tags: [Admissions]
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: status
+          in: query
+          description: Comma-separated EpisodeStatus values
+          schema: { type: string, example: "scheduled,admitted" }
+        - name: admission_source
+          in: query
+          schema: { $ref: "#/components/schemas/AdmissionSource" }
+        - name: admission_type
+          in: query
+          schema: { $ref: "#/components/schemas/AdmissionType" }
+        - name: ward_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: q
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Paginated episode list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EpisodeListPage"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+    post:
+      operationId: createAdmission
+      summary: Create admission (episode)
+      description: |
+        Allocates `episode_number` as `IPD-YYYYMMDD-XXXX`.
+        Returns `status=scheduled`.
+      tags: [Admissions]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAdmissionRequest"
+      responses:
+        "201":
+          description: Episode created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Episode"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Idempotency conflict
+
+  /admissions/{admissionId}:
+    get:
+      operationId: getAdmission
+      summary: Get episode by id
+      tags: [Admissions]
+      parameters:
+        - $ref: "#/components/parameters/AdmissionId"
+      responses:
+        "200":
+          description: Episode detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Episode"
+        "404":
+          description: Not found
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+    patch:
+      operationId: updateAdmission
+      summary: Update episode
+      description: Allowed while `status` is `scheduled`.
+      tags: [Admissions]
+      parameters:
+        - $ref: "#/components/parameters/AdmissionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAdmissionRequest"
+      responses:
+        "200":
+          description: Updated episode
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Episode"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          description: Not found
+        "409":
+          description: Invalid status for edit
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+components:
+  parameters:
+    AdmissionId:
+      name: admissionId
+      in: path
+      required: true
+      description: Episode UUID (`ipd.episodes.id`)
+      schema: { type: string, format: uuid }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      schema: { type: string }
+
+  responses:
+    Unauthorized:
+      description: Unauthorized
+    Forbidden:
+      description: Forbidden
+    BadRequest:
+      description: Validation error
+
+  schemas:
+    AdmissionType:
+      type: string
+      enum: [planned, emergency, direct, transfer_in, daycare]
+
+    AdmissionSource:
+      type: string
+      enum: [opd, emergency, referral, walk_in]
+
+    EpisodeStatus:
+      type: string
+      enum:
+        - scheduled
+        - admitted
+        - discharge_planning
+        - pending_clearance
+        - discharged
+        - cancelled
+
+    ClosureType:
+      type: string
+      enum: [normal, lama, dama, abscond, death]
+
+    FinancialClass:
+      type: string
+      enum: [general, private, insurance, sponsored]
+
+    CreateAdmissionRequest:
+      type: object
+      required:
+        - admission_source
+        - admission_type
+        - patient_id
+        - patient_name
+      additionalProperties: false
+      example:
+        admission_source: walk_in
+        admission_type: planned
+        patient_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        patient_name: "Rajesh Kumar"
+      properties:
+        admission_source:
+          $ref: "#/components/schemas/AdmissionSource"
+        admission_type:
+          $ref: "#/components/schemas/AdmissionType"
+        patient_id:
+          type: string
+          format: uuid
+        patient_name:
+          type: string
+        visit_id:
+          type: string
+          format: uuid
+          nullable: true
+        specialty_id:
+          type: string
+          format: uuid
+          nullable: true
+        attending_consultant_id:
+          type: string
+          format: uuid
+          nullable: true
+        provisional_diagnosis:
+          type: string
+          nullable: true
+        financial_class:
+          $ref: "#/components/schemas/FinancialClass"
+        deposit_amount:
+          type: number
+          format: double
+          nullable: true
+        expected_los_days:
+          type: integer
+          nullable: true
+        ward_id:
+          type: string
+          format: uuid
+          nullable: true
+        bed_id:
+          type: string
+          format: uuid
+          nullable: true
+
+    UpdateAdmissionRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        specialty_id:
+          type: string
+          format: uuid
+          nullable: true
+        attending_consultant_id:
+          type: string
+          format: uuid
+          nullable: true
+        provisional_diagnosis:
+          type: string
+          nullable: true
+        financial_class:
+          $ref: "#/components/schemas/FinancialClass"
+        deposit_amount:
+          type: number
+          format: double
+          nullable: true
+        expected_los_days:
+          type: integer
+          nullable: true
+        ward_id:
+          type: string
+          format: uuid
+          nullable: true
+        bed_id:
+          type: string
+          format: uuid
+          nullable: true
+
+    Episode:
+      type: object
+      required:
+        - id
+        - iq_tenant_id
+        - episode_number
+        - patient_id
+        - patient_name
+        - admission_type
+        - admission_source
+        - status
+        - financial_class
+        - created_at
+        - updated_at
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        iq_tenant_id:
+          type: string
+          format: uuid
+        episode_number:
+          type: string
+        visit_id:
+          type: string
+          format: uuid
+          nullable: true
+        patient_id:
+          type: string
+          format: uuid
+        patient_name:
+          type: string
+        admission_type:
+          $ref: "#/components/schemas/AdmissionType"
+        admission_source:
+          $ref: "#/components/schemas/AdmissionSource"
+        status:
+          $ref: "#/components/schemas/EpisodeStatus"
+        ward_id:
+          type: string
+          format: uuid
+          nullable: true
+        bed_id:
+          type: string
+          format: uuid
+          nullable: true
+        specialty_id:
+          type: string
+          format: uuid
+          nullable: true
+        attending_consultant_id:
+          type: string
+          format: uuid
+          nullable: true
+        provisional_diagnosis:
+          type: string
+          nullable: true
+        financial_class:
+          $ref: "#/components/schemas/FinancialClass"
+        deposit_amount:
+          type: number
+          format: double
+          nullable: true
+        expected_los_days:
+          type: integer
+          nullable: true
+        admitted_at:
+          type: string
+          format: date-time
+          nullable: true
+        discharged_at:
+          type: string
+          format: date-time
+          nullable: true
+        closure_type:
+          allOf:
+            - $ref: "#/components/schemas/ClosureType"
+          nullable: true
+        closure_reason:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    EpisodeListItem:
+      $ref: "#/components/schemas/Episode"
+
+    EpisodeListPage:
+      type: object
+      required: [data, total, page, limit, total_pages]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/EpisodeListItem"
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        limit:
+          type: integer
+          minimum: 1
+        total_pages:
+          type: integer
+          minimum: 0

@@ -7,6 +7,21 @@
 
 ---
 
+## Phase 0 scaffold vs LLD (`01-schema-design.md`)
+
+Phase 0 ships **`ipd.wards`**, **`ipd.beds`**, and **`ipd.episodes`** with column names and enums aligned to the LLD. Nine clinical tables (`clinical_notes`, `vital_signs`, etc.) are deferred to Phase 1.
+
+| Topic | Phase 0 | LLD target |
+|---|---|---|
+| Table inventory | `wards`, `beds`, `episodes` | Same three + nine clinical tables |
+| Episode columns | LLD-aligned (`id`, `episode_number`, `visit_id`, `ward_id`, `bed_id`, …) | `01-schema-design.md` §3 |
+| Patient denorm | `patient_name` only | Same |
+| REST paths | `/admissions` (product term; row is an episode) | Same intake workflow |
+
+Ward/bed CRUD APIs and bed status machine handlers are Phase 1 — schema exists for FK targets on episodes.
+
+---
+
 ## What this module does
 
 IPD Lite covers the inpatient/day-care lifecycle for small clinics and nursing homes: admission, bed allocation, clinical charting (notes, vitals, orders, medications), nursing tasks, transfers, discharge, and running-charge capture.
