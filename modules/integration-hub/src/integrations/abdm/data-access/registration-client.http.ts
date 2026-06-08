@@ -3,6 +3,20 @@ import { abdmWarn } from "../lib/abdm-adapter-log.js";
 import type { M2PatientProfile, RegistrationClient } from "../ports.js";
 
 const REGISTRATION_API_PREFIX = "/api/registration/v1";
+const REGISTRATION_INTERNAL_KEY_HEADER = "x-registration-internal-key";
+
+function registrationInternalHeaders(iqTenantId: string): Record<string, string> {
+  const headers: Record<string, string> = {
+    "x-tenant-id": iqTenantId,
+    iq_tenant_id: iqTenantId,
+    Accept: "application/json",
+  };
+  const internalKey = process.env["REGISTRATION_INTERNAL_API_KEY"]?.trim();
+  if (internalKey) {
+    headers[REGISTRATION_INTERNAL_KEY_HEADER] = internalKey;
+  }
+  return headers;
+}
 
 function mapGender(gender: string | null | undefined): M2PatientProfile["gender"] {
   const g = (gender ?? "").toLowerCase();
@@ -24,11 +38,7 @@ export class HttpRegistrationClient implements RegistrationClient {
     try {
       const res = await fetchWithTimeout(url, {
         method: "GET",
-        headers: {
-          "x-tenant-id": input.iqTenantId,
-          iq_tenant_id: input.iqTenantId,
-          Accept: "application/json",
-        },
+        headers: registrationInternalHeaders(input.iqTenantId),
       });
       if (res.status === 404) return null;
       if (!res.ok) {

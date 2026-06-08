@@ -4,7 +4,8 @@ import { EmpiClientError } from "../lib/empi-client-error.js";
 import { parseEmpiPatientDetail } from "../lib/parse-empi-m2-patient.js";
 import type { EmpiClient, M2PatientProfile } from "../ports.js";
 
-const EMPI_API_PREFIX = "/api/empi/v1";
+const EMPI_API_PREFIX =
+  process.env["EMPI_API_PREFIX"]?.trim().replace(/\/+$/, "") || "/api/empi/v1";
 
 function isClientError(status: number): boolean {
   return status >= 400 && status < 500;

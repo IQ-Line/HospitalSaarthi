@@ -1,7 +1,26 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { RegistrationRecord } from "../domain/registration.types.js";
 import type { RegistrationRepo } from "../ports.js";
 import { uuidParam } from "./route-schemas.js";
+
+const REGISTRATION_INTERNAL_KEY_HEADER = "x-registration-internal-key";
+
+/** Service-to-service guard; skipped in dev when unset (mirrors configurator internal routes). */
+function assertRegistrationInternalAccess(request: FastifyRequest): void {
+  const expected = process.env["REGISTRATION_INTERNAL_API_KEY"]?.trim();
+  if (!expected) {
+    if (process.env["NODE_ENV"] === "production") {
+      throw Object.assign(new Error("REGISTRATION_INTERNAL_API_KEY is required in production"), {
+        statusCode: 503,
+      });
+    }
+    return;
+  }
+  const provided = request.headers[REGISTRATION_INTERNAL_KEY_HEADER];
+  if (typeof provided !== "string" || provided !== expected) {
+    throw Object.assign(new Error("x-registration-internal-key required"), { statusCode: 403 });
+  }
+}
 
 export type InternalHandlerDeps = {
   registrationRepo: RegistrationRepo;
@@ -70,6 +89,16 @@ export function registerInternalHandlers(
       },
     },
     async (request, reply) => {
+      try {
+        assertRegistrationInternalAccess(request);
+      } catch (e) {
+        const statusCode =
+          e && typeof e === "object" && "statusCode" in e && typeof e.statusCode === "number"
+            ? e.statusCode
+            : 403;
+        return reply.code(statusCode).send({ error: e instanceof Error ? e.message : "Forbidden" });
+      }
+
       const tenantId = request.tenantId;
       const { patientId } = request.params;
       const row = await deps.registrationRepo.findByPatientId(tenantId, patientId);

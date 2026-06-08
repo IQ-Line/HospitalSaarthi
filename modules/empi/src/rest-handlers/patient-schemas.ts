@@ -42,6 +42,36 @@ export const searchPatientsQuerySchema = {
   },
 };
 
+export const findPatientByAbhaQuerySchema = {
+  type: "object" as const,
+  required: ["abha_address"],
+  additionalProperties: false,
+  properties: {
+    abha_address: { type: "string", minLength: 1 },
+  },
+};
+
+export const findPatientByDemographicsBodySchema = {
+  type: "object" as const,
+  required: ["identifiers"],
+  additionalProperties: false,
+  properties: {
+    identifiers: {
+      type: "array",
+      minItems: 1,
+      items: {
+        type: "object",
+        required: ["type", "value"],
+        additionalProperties: false,
+        properties: {
+          type: { type: "string", minLength: 1 },
+          value: { type: "string", minLength: 1 },
+        },
+      },
+    },
+  },
+};
+
 export const paramsPatientIdSchema = {
   type: "object" as const,
   required: ["id"],

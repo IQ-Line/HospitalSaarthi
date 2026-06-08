@@ -13,6 +13,17 @@ type ProjectedCareContextInput = {
 };
 
 const projectedUnlinkedByPatient = new Map<string, CareContextRef[]>();
+let devProjectionWarned = false;
+
+function warnDevMemoryProjectionOnce(): void {
+  if (devProjectionWarned) return;
+  devProjectionWarned = true;
+  abdmWarn("abdm.rf.dev_memory_projection", {
+    message:
+      "Care contexts stored in-process only (Record Foundation ingest not wired). " +
+      "Not safe for multi-instance or production — restart clears discover projection.",
+  });
+}
 
 function projectionKey(iqTenantId: string, patientId: string): string {
   return `${iqTenantId}:${patientId}`;
@@ -73,10 +84,8 @@ export class HttpRecordFoundationClient implements RecordFoundationClient {
     contexts: ProjectedCareContextInput[];
   }): Promise<void> {
     if (!this.baseUrl) {
-      registerProjectedContexts(input);
-      return;
+      warnDevMemoryProjectionOnce();
     }
-    // Record Foundation HTTP ingest is not wired yet; keep local projection for discover.
     registerProjectedContexts(input);
   }
 

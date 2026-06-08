@@ -32,4 +32,13 @@ describe("parseEmpiPatientDetail", () => {
       }),
     ).toBeNull();
   });
+
+  it("returns null when year of birth cannot be resolved", () => {
+    expect(
+      parseEmpiPatientDetail({
+        patient: { full_name: "No YOB", gender: "male" },
+        identifiers: [{ identifier_type: "abha_address", identifier_value: "user@sbx" }],
+      }),
+    ).toBeNull();
+  });
 });

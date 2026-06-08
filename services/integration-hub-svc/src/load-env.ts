@@ -83,6 +83,7 @@ export function normalizeIntegrationHubEnvAliases(): void {
   if (!process.env["REGISTRATION_BASE_URL"]?.trim() && process.env["REGISTRATION_URL"]?.trim()) {
     process.env["REGISTRATION_BASE_URL"] = process.env["REGISTRATION_URL"];
   }
+  syncEnvPair("REGISTRATION_INTERNAL_API_KEY", "INTEGRATION_HUB_REGISTRATION_INTERNAL_API_KEY");
 }
 
 export function resolveDatabaseUrlFromEnv(): string {

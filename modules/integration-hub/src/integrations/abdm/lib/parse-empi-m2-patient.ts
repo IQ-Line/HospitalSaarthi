@@ -23,15 +23,15 @@ function mapGender(gender: string | undefined): M2PatientProfile["gender"] {
   return "O";
 }
 
-function resolveYearOfBirth(patient: NonNullable<EmpiPatientJson["patient"]>): number {
-  if (typeof patient.year_of_birth === "number" && patient.year_of_birth > 0) {
+function resolveYearOfBirth(patient: NonNullable<EmpiPatientJson["patient"]>): number | null {
+  if (typeof patient.year_of_birth === "number" && patient.year_of_birth > 1900) {
     return patient.year_of_birth;
   }
   if (patient.date_of_birth) {
     const y = new Date(patient.date_of_birth).getFullYear();
     if (!Number.isNaN(y) && y > 1900) return y;
   }
-  return new Date().getUTCFullYear();
+  return null;
 }
 
 function resolveAbhaAddress(json: EmpiPatientJson): string | null {
@@ -59,12 +59,14 @@ export function parseEmpiPatientDetail(json: EmpiPatientJson): M2PatientProfile 
   if (!abhaAddress) return null;
   const patientName = resolvePatientName(patient);
   if (!patientName) return null;
+  const yearOfBirth = resolveYearOfBirth(patient);
+  if (yearOfBirth === null) return null;
   return {
     abhaAddress,
     abhaNumber: patient.abha_number?.trim() || undefined,
     patientName,
     gender: mapGender(patient.gender),
-    yearOfBirth: resolveYearOfBirth(patient),
+    yearOfBirth,
     phoneNo: patient.phone_number?.trim() || undefined,
   };
 }

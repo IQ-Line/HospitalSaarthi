@@ -51,7 +51,7 @@ def trigger_m2_after_end_consultation(
             {
                 "referenceNumber": care_ref,
                 "display": f"OP consultation {care_ref}",
-                "hiType": "OPConsultation",
+                "hiType": "OPCONSULTATION",
             }
         ],
     }
