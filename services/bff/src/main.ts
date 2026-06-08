@@ -45,6 +45,13 @@ function buildUpstreams(): UpstreamRoute[] {
       upstream: process.env['REGISTRATION_URL'] ?? 'http://localhost:3006',
     },
     {
+      prefix: '/api/integration-hub/v1',
+      upstream:
+        process.env['INTEGRATION_HUB_URL'] ??
+        process.env['INTEGRATION_HUB_SVC_URL'] ??
+        'http://localhost:3007',
+    },
+    {
       prefix: '/api/v1/opd',
       upstream: process.env['OPD_URL'] ?? 'http://localhost:8020',
     },
