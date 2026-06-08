@@ -36,11 +36,28 @@
 2. Priority defaulted to urgent
 3. Proceed to admission form
 
+### US-02.5: Edit existing admission
+**Actor:** Frontdesk  
+**Route:** `/ipd/admissions/:id/edit`  
+**From:** Admission Queue or patient list
+
+**What they see:** Same form as US-03, pre-filled with existing data
+- Patient context bar (read-only): name, UHID, episode number
+- Patient search area is replaced by read-only patient identity — patient cannot be changed after creation
+
+**Branch A — Pre-admission edit (status = `scheduled`)**
+- All fields editable: diagnosis, consultant, financial class, deposit, expected LOS, bed
+- Save updates in place
+
+**Branch B — Post-admission edit (status = `admitted` or beyond)**
+- Immutable fields locked: admission type, admission source, patient identity
+- Mutable fields: diagnosis, consultant, notes, bed transfer (redirects to transfer workflow)
+
 ---
 
 ### US-03: Fill admission details
 **Actor:** Frontdesk  
-**From:** Any branch of US-02
+**From:** Any branch of US-02 or US-02.5
 
 **Form fields:**
 - Admission type: `planned` / `emergency` / `direct` / `daycare` / `transfer_in`
@@ -221,8 +238,6 @@
 | medication | Tablet Paracetamol 500mg | Pharmacy |
 | consumable | Syringe, gloves | Store |
 | nursing_service | Bed bath, position change | Nurse |
-| diet | Diabetic diet, soft diet | Deferred (no dietary queue) |
-| consult | Cardiology refer | Consults (deferred) |
 
 **Order state machine:** `placed → acknowledged → in_progress → completed → cancelled`
 - `placed`: initial state, not yet actioned
@@ -264,35 +279,39 @@
 
 ### US-14: Record medication administration (eMAR)
 **Actor:** Nurse  
-**Route:** `/ipd/episodes/:episodeId/emar`
+**Route:** `/ipd/episodes/:episodeId/emar` (episode sub-screen)
 
-**Workflow:**
-1. See medication schedule grid: time slots (6AM, 8AM, 12PM, 6PM, 10PM) × active medications
-2. For each scheduled dose:
-   - **Branch A — Administered:** Record time, dose given, route. Status → `administered`
-   - **Branch B — Held:** Record hold reason (e.g., NBM, patient refused). Status → `held`
-   - **Branch C — Missed:** Auto-marked if not recorded within window. Status → `missed`
-   - **Branch D — PRN:** Record PRN administration with indication. Status → `administered`
+**Note on scope:** The handoff's Section 6 strikes through eMAR as a standalone screen to lift. However, Section 7 lists "Medications" as an episode sub-screen at this exact route. In V1, the eMAR exists as a **basic medication view/record tab** within the episode shell — not as a feature-rich standalone page. Full standalone eMAR with scheduling grid, PRN, auto-miss, etc. is deferred to post-V1 if the grid complexity warrants a dedicated page.
+
+**Basic V1 workflow:**
+1. See active medication orders for the episode
+2. Record administration for each: time, dose given, route
+3. Status: `administered` / `held` / `missed`
+
+**Post-V1 enhancement (when lifted as standalone page):**
+- Time-slot grid: 6AM, 8AM, 12PM, 6PM, 10PM × active medications
+- PRN administration with indication recording
+- Auto-missed if not recorded within window
 
 ---
 
-### US-15: Manage nursing tasks
+### US-15: Complete nursing actions via episode workflow
 **Actor:** Nurse  
-**Route:** `/ipd/workbench/nursing/tasks` (deferred to post-V1; accessible through episode in V1)
+**Availability:** No standalone task board in V1 (handoff Row 9 struck through). Nursing actions are done through their respective episode sub-screens.
 
-**Workflow:**
-1. View pending tasks for shift (morning/evening/night)
-2. Filter by ward, priority
-3. Complete task → record who completed, when
+**Workflow (V1):**
+- Record vitals → use Vitals tab (US-11)
+- Administer medication → use Medications tab (US-14)
+- Complete ordered nursing service → mark order as in_progress via Orders tab
+- Write nursing note → use Notes tab (US-10, Branch C)
 
-**Task sources:**
-- Scheduled vitals checks (auto-generated from order frequency)
-- Medication rounds (from eMAR schedule)
-- Orders requiring nursing action
+**Nursing task table** (`nursing_tasks`) exists in the DB schema for future use but has no dedicated UI in V1. The standalone task board (`/ipd/workbench/nursing/tasks`) is deferred to post-V1.
+
+**Post-V1 task board scope (when added):**
+- View pending tasks grouped by shift (morning/evening/night)
+- Filter by ward, priority
+- Carry-forward uncompleted tasks to next shift
 - Manual task creation
-
-**State:** `pending → in_progress → completed`
-**Carry-forward:** Uncompleted tasks can be carried to next shift (`carried_forward`)
 
 ---
 
@@ -417,7 +436,8 @@
 **State machine:** `draft → signed`
 - Draft: doctor can edit
 - Signed: read-only, `signed_at` + `signed_by` recorded
-- ABDM linkage: if enabled, summary pushed to ABDM (deferred)
+- ABDM-ready fields: summary structure includes all fields required for ABDM linking
+- ABDM push: actual API submission to ABDM is recommended for V1 (handoff Section 9); if ABDM integration is not ready at go-live, the summary is stored locally and can be linked later
 
 ---
 
@@ -502,6 +522,8 @@
 ---
 
 ## Cross-Cutting: Episode States Summary
+
+**Design decision (handoff Section 15):** No approval workflow in V1. The handoff defaults to "No by default; optional toggle for larger clinics." Consequently, the episode model has no `requested` / `approved` states — `scheduled` covers both "intake data entered" and "awaiting confirmation." A nullable `confirmed_at` timestamp distinguishes newly created vs. reviewed episodes on the same `scheduled` status.
 
 ```
                     ┌──────────┐
