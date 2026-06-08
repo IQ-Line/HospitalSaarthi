@@ -6,66 +6,19 @@ import { Skeleton } from '@pulse/ui/skeleton';
 import { Button } from '@pulse/ui/button';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
-import { cn } from '@pulse/utils';
+import {
+  FormField as RegistrationField,
+  FormFieldLabel as RegistrationFieldLabel,
+  FormSection as RegistrationSection,
+  FormSubsectionLabel as RegistrationSubsectionLabel,
+} from '@/components/form-chrome';
 
-/** Section shell matching registration mock — cyan header band + white body. */
-export function RegistrationSection({
-  title,
-  children,
-  className,
-}: {
-  title: string;
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <section className={cn('overflow-hidden rounded-md border border-border bg-card', className)}>
-      <div className="border-b border-border bg-muted/40 px-4 py-2.5 text-sm font-medium text-foreground">
-        {title}
-      </div>
-      <div className="space-y-3 p-3 md:p-4">{children}</div>
-    </section>
-  );
-}
-
-/** Subsection label with trailing rule (e.g. "Patient Details", "Address"). */
-export function RegistrationSubsectionLabel({ children }: { children: ReactNode }) {
-  return (
-    <div className="flex items-center gap-3 pt-1">
-      <span className="shrink-0 text-xs text-muted-foreground">{children}</span>
-      <div className="h-px flex-1 bg-border" aria-hidden />
-    </div>
-  );
-}
-
-/** Field label with optional required asterisk. */
-export function RegistrationFieldLabel({
-  htmlFor,
-  required,
-  children,
-}: {
-  htmlFor?: string;
-  required?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <Label htmlFor={htmlFor} className="text-sm font-normal text-foreground">
-      {children}
-      {required ? <span className="text-destructive"> *</span> : null}
-    </Label>
-  );
-}
-
-/** Standard vertical field stack used across registration grids. */
-export function RegistrationField({
-  className,
-  children,
-}: {
-  className?: string;
-  children: ReactNode;
-}) {
-  return <div className={cn('space-y-1.5', className)}>{children}</div>;
-}
+export {
+  RegistrationSection,
+  RegistrationSubsectionLabel,
+  RegistrationFieldLabel,
+  RegistrationField,
+};
 
 /** Right-rail counters from Registration dashboard stats API. */
 export function RegistrationTodayStatsSidebar() {
