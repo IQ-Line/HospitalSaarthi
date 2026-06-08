@@ -103,7 +103,7 @@ Integration templates may expose `suggestedCapabilityKeys` as **UX defaults only
 - [ ] PR-2 — Partner principals in User Management
 - [x] PR-3 — `tenantSource=jwt`, multi-issuer partner JWT verify
 - [x] PR-4 — Integration Hub control plane wiring + OpenAPI
-- [ ] PR-5 — Inbound data plane MVP (Smart Report)
+- [x] PR-5 — Inbound data plane MVP (Smart Report)
 
 ## Links
 

@@ -42,6 +42,7 @@ import {
 } from "./load-env.js";
 import { registerHttpErrorHandler } from "./http-errors.js";
 import { registerControlPlane } from "./register-control-plane.js";
+import { registerInbound } from "./register-inbound.js";
 
 normalizeIntegrationHubEnvAliases();
 requireSessionTokenCryptoInProd();
@@ -58,6 +59,11 @@ const CERBOS_URL = process.env["CERBOS_URL"] ?? "";
 const USER_MANAGEMENT_URL =
   process.env["USER_MANAGEMENT_URL"] ?? "http://localhost:3000";
 const CONTROL_PLANE_ENABLED = process.env["INTEGRATION_HUB_CONTROL_PLANE"] !== "false";
+const INBOUND_ENABLED = process.env["INTEGRATION_HUB_INBOUND"] !== "false";
+const REGISTRATION_BASE_URL =
+  process.env["REGISTRATION_SVC_URL"] ?? process.env["REGISTRATION_URL"] ?? "http://localhost:3006";
+const EMPI_BASE_URL =
+  process.env["EMPI_SVC_URL"] ?? process.env["EMPI_URL"] ?? "http://localhost:3002";
 
 const GATEWAY_BASE_URL =
   process.env["INTEGRATION_HUB_ABDM_GATEWAY_BASE_URL"] ??
@@ -266,6 +272,15 @@ async function main() {
       { enableAuth: ENABLE_AUTH, apiKeyEnvironment },
       "Integration Hub control plane mounted at /api/integration-hub/v1",
     );
+  }
+
+  if (INBOUND_ENABLED) {
+    await registerInbound(app, {
+      db,
+      registrationBaseUrl: REGISTRATION_BASE_URL,
+      empiBaseUrl: EMPI_BASE_URL,
+    });
+    app.log.info("Integration Hub inbound data plane mounted at /api/integration-hub/v1/inbound");
   }
 
   await app.listen({ port: PORT, host: "0.0.0.0" });

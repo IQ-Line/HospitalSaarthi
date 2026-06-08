@@ -70,6 +70,20 @@ export interface IntegrationApiKeyRepository {
     integrationId: string,
     actorId: string,
   ): Promise<number>;
+
+  /** Data plane — prefix is globally unique per issued key. */
+  findActiveByPrefix(prefix: string): Promise<ApiKeyAuthRecord | null>;
+
+  touchLastUsedAt(tenantId: string, apiKeyId: string): Promise<void>;
+}
+
+/** API key row fields required for inbound authentication. */
+export interface ApiKeyAuthRecord {
+  api_key_id: string;
+  iq_tenant_id: string;
+  integration_id: string;
+  key_hash: string;
+  expires_at: string | null;
 }
 
 export interface ProvisionPartnerPrincipalResult {

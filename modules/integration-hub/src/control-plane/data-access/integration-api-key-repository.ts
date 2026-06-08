@@ -1,7 +1,7 @@
 import type { DbInstance } from "@hims/ts-sdk-db";
 import { and, eq, isNull } from "drizzle-orm";
 import type { ApiKeyStatus, IntegrationApiKey } from "../domain/integration.types.js";
-import type { IntegrationApiKeyRepository } from "../ports.js";
+import type { ApiKeyAuthRecord, IntegrationApiKeyRepository } from "../ports.js";
 import { integrationApiKeys } from "../schema/tables.js";
 
 function rowToApiKey(row: {
@@ -124,5 +124,50 @@ export class DrizzleIntegrationApiKeyRepository implements IntegrationApiKeyRepo
         ),
       );
     return result.rowCount ?? 0;
+  }
+
+  async findActiveByPrefix(prefix: string): Promise<ApiKeyAuthRecord | null> {
+    const [row] = await this.db
+      .select({
+        api_key_id: integrationApiKeys.api_key_id,
+        iq_tenant_id: integrationApiKeys.iq_tenant_id,
+        integration_id: integrationApiKeys.integration_id,
+        key_hash: integrationApiKeys.key_hash,
+        expires_at: integrationApiKeys.expires_at,
+        status: integrationApiKeys.status,
+      })
+      .from(integrationApiKeys)
+      .where(
+        and(
+          eq(integrationApiKeys.key_prefix, prefix),
+          eq(integrationApiKeys.status, "active"),
+        ),
+      )
+      .limit(1);
+
+    if (!row) return null;
+    if (row.expires_at !== null && row.expires_at.getTime() <= Date.now()) {
+      return null;
+    }
+
+    return {
+      api_key_id: row.api_key_id,
+      iq_tenant_id: row.iq_tenant_id,
+      integration_id: row.integration_id,
+      key_hash: row.key_hash,
+      expires_at: row.expires_at?.toISOString() ?? null,
+    };
+  }
+
+  async touchLastUsedAt(tenantId: string, apiKeyId: string): Promise<void> {
+    await this.db
+      .update(integrationApiKeys)
+      .set({ last_used_at: new Date() })
+      .where(
+        and(
+          eq(integrationApiKeys.iq_tenant_id, tenantId),
+          eq(integrationApiKeys.api_key_id, apiKeyId),
+        ),
+      );
   }
 }

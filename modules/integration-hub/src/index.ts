@@ -140,6 +140,9 @@ export {
 export type { BuildAbdmDepsOptions } from "./lib/build-abdm-deps.js";
 
 export { createControlPlaneRouter, type ControlPlaneRouterOptions } from "./control-plane/router.js";
+export { createInboundRouter, type InboundRouterOptions } from "./data-plane/inbound-router.js";
+export { loadPartnerJwtSignerFromEnv } from "./data-plane/partner-jwt.js";
+export type { PartnerJwtSignerConfig } from "./data-plane/partner-jwt.js";
 export { createIntegrationAuthzTargetResolver } from "./control-plane/authz/integration-authz-target-resolver.js";
 export { HttpUserManagementPartnerGateway } from "./control-plane/gateways/http-user-management-partner-gateway.js";
 export { PARTNER_EXPOSED_OPERATIONS } from "./control-plane/domain/partner-exposed-operations.js";

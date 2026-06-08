@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { IntegrationApiKey } from "../domain/integration.types.js";
-import type { IntegrationApiKeyRepository } from "../ports.js";
+import type { ApiKeyAuthRecord, IntegrationApiKeyRepository } from "../ports.js";
 
 export class InMemoryIntegrationApiKeyRepository implements IntegrationApiKeyRepository {
   private readonly rows = new Map<string, IntegrationApiKey & { key_hash: string }>();
@@ -90,5 +90,30 @@ export class InMemoryIntegrationApiKeyRepository implements IntegrationApiKeyRep
       }
     }
     return count;
+  }
+
+  async findActiveByPrefix(prefix: string): Promise<ApiKeyAuthRecord | null> {
+    for (const row of this.rows.values()) {
+      if (row.key_prefix !== prefix || row.status !== "active") continue;
+      if (row.expires_at !== null && Date.parse(row.expires_at) <= Date.now()) {
+        return null;
+      }
+      return {
+        api_key_id: row.api_key_id,
+        iq_tenant_id: "tenant-from-prefix-lookup",
+        integration_id: row.integration_id,
+        key_hash: row.key_hash,
+        expires_at: row.expires_at,
+      };
+    }
+    return null;
+  }
+
+  async touchLastUsedAt(_tenantId: string, apiKeyId: string): Promise<void> {
+    const entry = [...this.rows.entries()].find(([, row]) => row.api_key_id === apiKeyId);
+    if (entry) {
+      const [key, row] = entry;
+      this.rows.set(key, { ...row, last_used_at: new Date().toISOString() });
+    }
   }
 }
