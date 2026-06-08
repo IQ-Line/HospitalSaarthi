@@ -3,12 +3,12 @@ info:
   title: IPD — Admission intake
   version: 1.0.0
   description: |
-    Phase 1 admission APIs: create, queue list, get by id, update.
-    Table: `ipd.admission`.
+    Phase 0 admission APIs backed by LLD-aligned `ipd.episodes`, `ipd.wards`, and `ipd.beds`.
+    Path `/admissions/:admissionId` uses the episode `id`.
 
 tags:
   - name: Admissions
-    description: Admission queue and CRUD
+    description: Admission queue and CRUD (episode row)
 
 servers:
   - url: http://localhost:3008/api/ipd/v1
@@ -20,8 +20,8 @@ paths:
       operationId: listAdmissions
       summary: Admission queue and search
       description: |
-        Default queue: `status=draft,pending,active` (newest `updated_at` first).
-        Free-text `q` matches admission_number, patient_uhid, patient_full_name, patient_phone.
+        Default queue: `status=scheduled,admitted` (newest `updated_at` first).
+        Free-text `q` matches `episode_number` and `patient_name`.
       tags: [Admissions]
       parameters:
         - name: page
@@ -32,30 +32,27 @@ paths:
           schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
         - name: status
           in: query
-          description: Comma-separated AdmissionStatus values
-          schema: { type: string, example: "draft,pending,active" }
+          description: Comma-separated EpisodeStatus values
+          schema: { type: string, example: "scheduled,admitted" }
         - name: admission_source
           in: query
           schema: { $ref: "#/components/schemas/AdmissionSource" }
         - name: admission_type
           in: query
           schema: { $ref: "#/components/schemas/AdmissionType" }
-        - name: facility_id
+        - name: ward_id
           in: query
           schema: { type: string, format: uuid }
-        - name: intended_ward_code
-          in: query
-          schema: { type: string }
         - name: q
           in: query
           schema: { type: string }
       responses:
         "200":
-          description: Paginated admission list
+          description: Paginated episode list
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AdmissionListPage"
+                $ref: "#/components/schemas/EpisodeListPage"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -63,10 +60,10 @@ paths:
 
     post:
       operationId: createAdmission
-      summary: Create admission
+      summary: Create admission (episode)
       description: |
-        Allocates `admission_number` via Configurator `ip_visit` sequence.
-        Returns `status=draft`.
+        Allocates `episode_number` as `IPD-YYYYMMDD-XXXX`.
+        Returns `status=scheduled`.
       tags: [Admissions]
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
@@ -78,11 +75,11 @@ paths:
               $ref: "#/components/schemas/CreateAdmissionRequest"
       responses:
         "201":
-          description: Admission created
+          description: Episode created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Admission"
+                $ref: "#/components/schemas/Episode"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -95,17 +92,17 @@ paths:
   /admissions/{admissionId}:
     get:
       operationId: getAdmission
-      summary: Get admission by id
+      summary: Get episode by id
       tags: [Admissions]
       parameters:
         - $ref: "#/components/parameters/AdmissionId"
       responses:
         "200":
-          description: Admission detail
+          description: Episode detail
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Admission"
+                $ref: "#/components/schemas/Episode"
         "404":
           description: Not found
         "401":
@@ -115,8 +112,8 @@ paths:
 
     patch:
       operationId: updateAdmission
-      summary: Update admission
-      description: Allowed while `status` is `draft`, `pending`, or `active`.
+      summary: Update episode
+      description: Allowed while `status` is `scheduled`.
       tags: [Admissions]
       parameters:
         - $ref: "#/components/parameters/AdmissionId"
@@ -128,11 +125,11 @@ paths:
               $ref: "#/components/schemas/UpdateAdmissionRequest"
       responses:
         "200":
-          description: Updated admission
+          description: Updated episode
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Admission"
+                $ref: "#/components/schemas/Episode"
         "400":
           $ref: "#/components/responses/BadRequest"
         "404":
@@ -150,6 +147,7 @@ components:
       name: admissionId
       in: path
       required: true
+      description: Episode UUID (`ipd.episodes.id`)
       schema: { type: string, format: uuid }
     IdempotencyKey:
       name: Idempotency-Key
@@ -167,19 +165,29 @@ components:
   schemas:
     AdmissionType:
       type: string
-      enum: [IPD, DAYCARE]
+      enum: [planned, emergency, direct, transfer_in, daycare]
 
     AdmissionSource:
       type: string
-      enum: [OPD, EMERGENCY, DIRECT, BABY_CRADLE]
+      enum: [opd, emergency, referral, walk_in]
 
-    AdmissionStatus:
+    EpisodeStatus:
       type: string
-      enum: [draft, pending, active, cancelled, discharged]
+      enum:
+        - scheduled
+        - admitted
+        - discharge_planning
+        - pending_clearance
+        - discharged
+        - cancelled
 
-    PayerType:
+    ClosureType:
       type: string
-      enum: [self, insurance, corporate, government]
+      enum: [normal, lama, dama, abscond, death]
+
+    FinancialClass:
+      type: string
+      enum: [general, private, insurance, sponsored]
 
     CreateAdmissionRequest:
       type: object
@@ -187,10 +195,13 @@ components:
         - admission_source
         - admission_type
         - patient_id
-        - facility_id
-        - patient_uhid
-        - patient_full_name
+        - patient_name
       additionalProperties: false
+      example:
+        admission_source: walk_in
+        admission_type: planned
+        patient_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        patient_name: "Rajesh Kumar"
       properties:
         admission_source:
           $ref: "#/components/schemas/AdmissionSource"
@@ -199,273 +210,154 @@ components:
         patient_id:
           type: string
           format: uuid
-        registration_visit_id:
+        patient_name:
+          type: string
+        visit_id:
           type: string
           format: uuid
           nullable: true
-        source_visit_id:
+        specialty_id:
           type: string
           format: uuid
           nullable: true
-        facility_id:
+        attending_consultant_id:
           type: string
           format: uuid
-        department_id:
-          type: string
-          format: uuid
-          nullable: true
-        intended_ward_code:
-          type: string
-          nullable: true
-        admitting_doctor_id:
-          type: string
-          format: uuid
-          nullable: true
-        attending_doctor_id:
-          type: string
-          format: uuid
-          nullable: true
-        chief_complaint:
-          type: string
           nullable: true
         provisional_diagnosis:
           type: string
           nullable: true
-        payer_type:
-          $ref: "#/components/schemas/PayerType"
-        insurance_reference:
-          type: string
-          nullable: true
-        companion_name:
-          type: string
-          nullable: true
-        companion_phone:
-          type: string
-          nullable: true
-        remarks:
-          type: string
-          nullable: true
-        mother_admission_id:
-          type: string
-          format: uuid
-          nullable: true
-        deposit_required:
-          type: boolean
-          default: false
+        financial_class:
+          $ref: "#/components/schemas/FinancialClass"
         deposit_amount:
           type: number
           format: double
           nullable: true
-        patient_uhid:
-          type: string
-        patient_full_name:
-          type: string
-        patient_phone:
-          type: string
+        expected_los_days:
+          type: integer
           nullable: true
-        patient_gender:
+        ward_id:
           type: string
+          format: uuid
           nullable: true
-        patient_date_of_birth:
+        bed_id:
           type: string
-          format: date
+          format: uuid
           nullable: true
 
     UpdateAdmissionRequest:
       type: object
       additionalProperties: false
       properties:
-        department_id:
+        specialty_id:
           type: string
           format: uuid
           nullable: true
-        intended_ward_code:
-          type: string
-          nullable: true
-        admitting_doctor_id:
+        attending_consultant_id:
           type: string
           format: uuid
-          nullable: true
-        attending_doctor_id:
-          type: string
-          format: uuid
-          nullable: true
-        expected_discharge_date:
-          type: string
-          format: date
-          nullable: true
-        chief_complaint:
-          type: string
           nullable: true
         provisional_diagnosis:
           type: string
           nullable: true
-        payer_type:
-          $ref: "#/components/schemas/PayerType"
-        insurance_reference:
-          type: string
-          nullable: true
-        companion_name:
-          type: string
-          nullable: true
-        companion_phone:
-          type: string
-          nullable: true
-        remarks:
-          type: string
-          nullable: true
-        deposit_required:
-          type: boolean
+        financial_class:
+          $ref: "#/components/schemas/FinancialClass"
         deposit_amount:
           type: number
           format: double
           nullable: true
-        ward_code:
-          type: string
+        expected_los_days:
+          type: integer
           nullable: true
-        ward_name:
+        ward_id:
           type: string
+          format: uuid
           nullable: true
-        bed_label:
+        bed_id:
           type: string
+          format: uuid
           nullable: true
 
-    Admission:
+    Episode:
       type: object
       required:
-        - admission_id
+        - id
         - iq_tenant_id
-        - admission_number
+        - episode_number
         - patient_id
+        - patient_name
         - admission_type
         - admission_source
-        - facility_id
         - status
-        - payer_type
-        - deposit_required
-        - patient_uhid
-        - patient_full_name
+        - financial_class
         - created_at
         - updated_at
       additionalProperties: false
       properties:
-        admission_id:
+        id:
           type: string
           format: uuid
         iq_tenant_id:
           type: string
           format: uuid
-        admission_number:
+        episode_number:
           type: string
+        visit_id:
+          type: string
+          format: uuid
+          nullable: true
         patient_id:
           type: string
           format: uuid
-        registration_visit_id:
+        patient_name:
           type: string
-          format: uuid
-          nullable: true
-        source_visit_id:
-          type: string
-          format: uuid
-          nullable: true
         admission_type:
           $ref: "#/components/schemas/AdmissionType"
         admission_source:
           $ref: "#/components/schemas/AdmissionSource"
-        facility_id:
-          type: string
-          format: uuid
-        department_id:
-          type: string
-          format: uuid
-          nullable: true
-        intended_ward_code:
-          type: string
-          nullable: true
-        admitting_doctor_id:
-          type: string
-          format: uuid
-          nullable: true
-        attending_doctor_id:
-          type: string
-          format: uuid
-          nullable: true
         status:
-          $ref: "#/components/schemas/AdmissionStatus"
-        admission_datetime:
+          $ref: "#/components/schemas/EpisodeStatus"
+        ward_id:
           type: string
-          format: date-time
+          format: uuid
           nullable: true
-        expected_discharge_date:
+        bed_id:
           type: string
-          format: date
+          format: uuid
           nullable: true
-        chief_complaint:
+        specialty_id:
           type: string
+          format: uuid
+          nullable: true
+        attending_consultant_id:
+          type: string
+          format: uuid
           nullable: true
         provisional_diagnosis:
           type: string
           nullable: true
-        payer_type:
-          $ref: "#/components/schemas/PayerType"
-        insurance_reference:
-          type: string
-          nullable: true
-        companion_name:
-          type: string
-          nullable: true
-        companion_phone:
-          type: string
-          nullable: true
-        remarks:
-          type: string
-          nullable: true
-        mother_admission_id:
-          type: string
-          format: uuid
-          nullable: true
-        deposit_required:
-          type: boolean
+        financial_class:
+          $ref: "#/components/schemas/FinancialClass"
         deposit_amount:
           type: number
           format: double
           nullable: true
-        deposit_bill_id:
-          type: string
-          format: uuid
+        expected_los_days:
+          type: integer
           nullable: true
-        deposit_collected_at:
+        admitted_at:
           type: string
           format: date-time
           nullable: true
-        ward_code:
-          type: string
-          nullable: true
-        ward_name:
-          type: string
-          nullable: true
-        bed_label:
-          type: string
-          nullable: true
-        bed_assigned_at:
+        discharged_at:
           type: string
           format: date-time
           nullable: true
-        patient_uhid:
-          type: string
-        patient_full_name:
-          type: string
-        patient_phone:
-          type: string
+        closure_type:
+          allOf:
+            - $ref: "#/components/schemas/ClosureType"
           nullable: true
-        patient_gender:
-          type: string
-          nullable: true
-        patient_date_of_birth:
-          type: string
-          format: date
-          nullable: true
-        cancel_reason:
+        closure_reason:
           type: string
           nullable: true
         created_at:
@@ -475,22 +367,17 @@ components:
           type: string
           format: date-time
 
-    AdmissionListItem:
-      allOf:
-        - $ref: "#/components/schemas/Admission"
-        - type: object
-          properties:
-            deposit_collected:
-              type: boolean
+    EpisodeListItem:
+      $ref: "#/components/schemas/Episode"
 
-    AdmissionListPage:
+    EpisodeListPage:
       type: object
       required: [data, total, page, limit, total_pages]
       properties:
         data:
           type: array
           items:
-            $ref: "#/components/schemas/AdmissionListItem"
+            $ref: "#/components/schemas/EpisodeListItem"
         total:
           type: integer
           minimum: 0
