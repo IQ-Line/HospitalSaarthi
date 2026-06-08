@@ -6,7 +6,7 @@ import { resolveDatabaseUrl } from "./resolve-database-url.js";
 const serviceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = path.resolve(serviceRoot, "../..");
 
-// Root `.env` (DATABASE_URL, etc.) then service `.env` wins — same layering as other services.
+// Root `.env` first, then service `.env` may override service-specific values.
 config({ path: path.join(repoRoot, ".env") });
 config({ path: path.join(serviceRoot, ".env"), override: true });
 

@@ -9,6 +9,9 @@ import { fileURLToPath } from "node:url";
 import { config } from "dotenv";
 
 const serviceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const repoRoot = path.resolve(serviceRoot, "../..");
+// Root `.env` first, then service `.env` may override service-specific values.
+config({ path: path.join(repoRoot, ".env") });
 config({ path: path.join(serviceRoot, ".env"), override: true });
 
 const raw = (
