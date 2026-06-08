@@ -60,8 +60,10 @@ async function main() {
     if (ENABLE_AUTH) {
       const { identityPlugin } = await import("@hims/ts-sdk-identity");
       await api.register(identityPlugin, validateAuthConfig());
+      await api.register(tenantPlugin, { tenantSource: "jwt" });
+    } else {
+      await api.register(tenantPlugin, { tenantSource: "header-or-jwt" });
     }
-    await api.register(tenantPlugin);
 
     await api.register(async (scopedApp) => {
       await scopedApp.register(empiRouter);

@@ -177,7 +177,7 @@ async function main() {
       cerbosUrl,
       resolveTarget: createRegistrationAuthzTargetResolver(),
     });
-    await api.register(tenantPlugin);
+    await api.register(tenantPlugin, { tenantSource: "jwt" });
     registerRegistrationsHandler(api, handlerDeps);
     registerVisitsHandler(api, {
       visitRepo,

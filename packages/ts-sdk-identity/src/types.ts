@@ -1,6 +1,6 @@
 import type { JWTPayload as JoseJWTPayload } from "jose";
 
-/** HLD-04 identity claims on the access JWT (authorization lives in PrincipalService / Cerbos, not here). */
+/** HLD-04 identity claims on human access JWTs (authorization lives in PrincipalService / Cerbos, not here). */
 export interface HimsJwtPayload extends JoseJWTPayload {
   sub: string;
   jti: string;
@@ -23,9 +23,31 @@ export interface HimsJwtPayload extends JoseJWTPayload {
    */
   session_id?: string;
   department?: string;
+  kind?: string;
   iat: number;
   exp: number;
   iss: string;
+}
+
+/**
+ * ADR-0032 partner JWT claim set — identity only; no authorization vocabulary in the token.
+ */
+export interface PartnerJwtPayload extends JoseJWTPayload {
+  sub: string;
+  jti: string;
+  iq_tenant_id: string;
+  kind: "partner";
+  iat: number;
+  exp: number;
+  iss: string;
+}
+
+export interface PartnerJwtConfig {
+  jwksUrl: string;
+  issuer: string;
+  audience: string;
+  /** Defaults to 60s; capped at 120s for inbound partner tokens. */
+  maxTokenAgeSeconds?: number;
 }
 
 export interface Principal {
@@ -59,6 +81,8 @@ export interface IdentityPluginOptions {
   issuer: string | string[];
   /** Strict allowlist: token `aud` must contain one configured value exactly. */
   audience: string | string[];
+  /** Optional Integration Hub partner JWT issuer (ADR-0032 PR-3). */
+  partner?: PartnerJwtConfig;
   /**
    * URL path prefixes (e.g. `/api/auth`) for which JWT verification is skipped.
    * Use for better-auth (or other IdP) routes mounted on the same Fastify instance.

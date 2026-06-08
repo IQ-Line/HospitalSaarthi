@@ -101,7 +101,7 @@ Integration templates may expose `suggestedCapabilityKeys` as **UX defaults only
 
 - [ ] PR-1 — ADR, MD catalog, UM capability seed, Cerbos policies (this ADR)
 - [ ] PR-2 — Partner principals in User Management
-- [ ] PR-3 — `tenantSource=jwt`, multi-issuer partner JWT verify
+- [x] PR-3 — `tenantSource=jwt`, multi-issuer partner JWT verify
 - [ ] PR-4 — Integration Hub control plane wiring + OpenAPI
 - [ ] PR-5 — Inbound data plane MVP (Smart Report)
 

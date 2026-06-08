@@ -1,12 +1,82 @@
-import type { FastifyInstance, FastifyPluginOptions } from "fastify";
+import { forbidden } from "@hims/ts-sdk-http";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
 import { tenantStorage } from "./context.js";
+import type { TenantPluginOptions, TenantSource } from "./types.js";
 
 function asSingleHeaderValue(
   value: string | string[] | undefined,
 ): string | undefined {
   if (Array.isArray(value)) return value[0];
   return value;
+}
+
+function isTenantBypassPath(path: string): boolean {
+  if (path === "/healthz" || path.endsWith("/healthz")) {
+    return true;
+  }
+
+  return (
+    /\/configurator\/v1\/organizations\/?$/.test(path) ||
+    /\/configurator\/v1\/organizations\/[^/]+\/?$/.test(path) ||
+    /\/configurator\/v1\/tenants\/?$/.test(path) ||
+    /\/configurator\/v1\/tenants\/[^/]+\/?$/.test(path)
+  );
+}
+
+function readHeaderTenantId(request: FastifyRequest): string | undefined {
+  return (
+    asSingleHeaderValue(
+      request.headers["iq_tenant_id"] as string | string[] | undefined,
+    ) ??
+    asSingleHeaderValue(
+      request.headers["x-tenant-id"] as string | string[] | undefined,
+    )
+  );
+}
+
+function readJwtTenantId(request: FastifyRequest): string | undefined {
+  const user = (request as FastifyRequest & { user?: { tenantId?: string } }).user;
+  const tenantId = user?.tenantId;
+  return typeof tenantId === "string" && tenantId.trim().length > 0
+    ? tenantId.trim()
+    : undefined;
+}
+
+function resolveTenantId(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  tenantSource: TenantSource,
+): string | undefined {
+  const headerTenantId = readHeaderTenantId(request);
+  const jwtTenantId = readJwtTenantId(request);
+
+  if (tenantSource === "jwt") {
+    if (jwtTenantId === undefined) {
+      reply.code(400).send({
+        statusCode: 400,
+        error: "Bad Request",
+        message: "Missing tenant id from verified JWT (iq_tenant_id claim)",
+      });
+      return undefined;
+    }
+    if (headerTenantId !== undefined && headerTenantId !== jwtTenantId) {
+      forbidden(reply, request, "AUTH_TENANT_MISMATCH", "Tenant header does not match JWT tenant");
+      return undefined;
+    }
+    return jwtTenantId;
+  }
+
+  const tenantId = headerTenantId ?? jwtTenantId;
+  if (tenantId === undefined) {
+    reply.code(400).send({
+      statusCode: 400,
+      error: "Bad Request",
+      message: "Missing tenant id (iq_tenant_id header, x-tenant-id header, or JWT claim)",
+    });
+    return undefined;
+  }
+  return tenantId;
 }
 
 declare module "fastify" {
@@ -17,50 +87,22 @@ declare module "fastify" {
 
 function tenantPluginImpl(
   app: FastifyInstance,
-  _opts: FastifyPluginOptions,
+  opts: TenantPluginOptions,
   done: (err?: Error) => void,
 ) {
+  const tenantSource: TenantSource = opts.tenantSource ?? "header-or-jwt";
+
   app.decorateRequest("tenantId", "");
 
-  // enterWith() transitions the current async context into the store,
-  // so all downstream hooks and the route handler inherit it automatically.
   app.addHook("onRequest", async (request, reply) => {
     const path = request.url.split("?")[0] ?? "";
-    if (path === "/healthz" || path.endsWith("/healthz")) {
+    if (isTenantBypassPath(path)) {
       return;
     }
 
-    // Platform discovery: organization/tenant registry reads (Configurator admin catalog).
-    if (
-      /\/configurator\/v1\/organizations\/?$/.test(path) ||
-      /\/configurator\/v1\/organizations\/[^/]+\/?$/.test(path) ||
-      /\/configurator\/v1\/tenants\/?$/.test(path) ||
-      /\/configurator\/v1\/tenants\/[^/]+\/?$/.test(path)
-    ) {
+    const tenantId = resolveTenantId(request, reply, tenantSource);
+    if (tenantId === undefined) {
       return;
-    }
-
-    const user = (request as unknown as Record<string, unknown>).user as
-      | Record<string, unknown>
-      | undefined;
-
-    const headerTenantId =
-      asSingleHeaderValue(
-        request.headers["iq_tenant_id"] as string | string[] | undefined,
-      ) ??
-      asSingleHeaderValue(
-        request.headers["x-tenant-id"] as string | string[] | undefined,
-      );
-
-    const tenantId =
-      headerTenantId ?? ((user?.iq_tenant_id as string) || undefined);
-
-    if (!tenantId) {
-      return reply.code(400).send({
-        statusCode: 400,
-        error: "Bad Request",
-        message: "Missing tenant id (iq_tenant_id header or x-tenant-id header)",
-      });
     }
 
     request.tenantId = tenantId;

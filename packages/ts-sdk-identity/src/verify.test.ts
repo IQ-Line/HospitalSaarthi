@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { clearJwksCache } from "./jwks.js";
-import { IdentityVerificationError, verifyToken } from "./verify.js";
+import { IdentityVerificationError } from "./errors.js";
+import { verifyToken } from "./verify.js";
 import type { IdentityPluginOptions } from "./types.js";
 
 const ISSUER = "https://auth.hims.local";

@@ -1,20 +1,24 @@
 import { decodeProtectedHeader, jwtVerify } from "jose";
 import type { JWTVerifyOptions } from "jose";
 import { getJwksKeyFn } from "./jwks.js";
-import type { HimsJwtPayload, IdentityPluginOptions, Principal } from "./types.js";
+import { resolveTokenVerificationProfile } from "./token-profile.js";
+import { IdentityVerificationError } from "./errors.js";
+import type { HimsJwtPayload, IdentityPluginOptions, PartnerJwtPayload, Principal } from "./types.js";
 
 const DEFAULT_MAX_TOKEN_AGE_SECONDS = 300;
 const MAX_ALLOWED_TOKEN_AGE_SECONDS = 900;
+const DEFAULT_PARTNER_MAX_TOKEN_AGE_SECONDS = 60;
+const MAX_ALLOWED_PARTNER_TOKEN_AGE_SECONDS = 120;
 const DEFAULT_CLOCK_SKEW_SECONDS = 60;
 const MAX_CLOCK_SKEW_SECONDS = 60;
 const DEFAULT_ALLOWED_ALGORITHMS = ["RS256"] as const;
 
-export class IdentityVerificationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "IdentityVerificationError";
-  }
-}
+const PARTNER_FORBIDDEN_CLAIMS = [
+  "capabilities",
+  "scopes",
+  "permissions",
+  "roles",
+] as const;
 
 function sanitizeRoles(raw: unknown): string[] {
   if (!Array.isArray(raw)) {
@@ -33,26 +37,6 @@ function asNonEmptyString(value: unknown, field: string): string {
   return value.trim();
 }
 
-function normalizeAllowlist(
-  value: string | string[],
-  field: "issuer" | "audience",
-): string[] {
-  const values = Array.isArray(value) ? value : [value];
-  if (values.length === 0) {
-    throw new IdentityVerificationError(`${field} allowlist cannot be empty`);
-  }
-
-  const normalized = values
-    .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
-    .filter((entry) => entry.length > 0);
-
-  if (normalized.length === 0) {
-    throw new IdentityVerificationError(`${field} allowlist cannot be empty`);
-  }
-
-  return [...new Set(normalized)];
-}
-
 function resolveMaxTokenAgeSeconds(options: IdentityPluginOptions): number {
   const maxTokenAgeSeconds = options.maxTokenAgeSeconds ?? DEFAULT_MAX_TOKEN_AGE_SECONDS;
   if (
@@ -65,6 +49,20 @@ function resolveMaxTokenAgeSeconds(options: IdentityPluginOptions): number {
     );
   }
   return maxTokenAgeSeconds;
+}
+
+function resolvePartnerMaxTokenAgeSeconds(maxTokenAgeSeconds?: number): number {
+  const resolved = maxTokenAgeSeconds ?? DEFAULT_PARTNER_MAX_TOKEN_AGE_SECONDS;
+  if (
+    !Number.isFinite(resolved) ||
+    resolved <= 0 ||
+    resolved > MAX_ALLOWED_PARTNER_TOKEN_AGE_SECONDS
+  ) {
+    throw new IdentityVerificationError(
+      `partner maxTokenAgeSeconds must be within 1-${MAX_ALLOWED_PARTNER_TOKEN_AGE_SECONDS}`,
+    );
+  }
+  return resolved;
 }
 
 function resolveClockSkewSeconds(options: IdentityPluginOptions): number {
@@ -129,7 +127,15 @@ function resolveOrgIdForPrincipal(tenantId: string, raw: unknown): string {
   return trimmed;
 }
 
-function toPrincipal(payload: HimsJwtPayload): Principal {
+function assertPartnerIdentityClaimsOnly(payload: Record<string, unknown>): void {
+  for (const claim of PARTNER_FORBIDDEN_CLAIMS) {
+    if (claim in payload && payload[claim] !== undefined) {
+      throw new IdentityVerificationError(`Partner JWT must not contain ${claim} claim`);
+    }
+  }
+}
+
+function toHumanPrincipal(payload: HimsJwtPayload): Principal {
   const userId = asNonEmptyString(payload.sub, "sub");
   const tenantId = asNonEmptyString(payload.iq_tenant_id, "iq_tenant_id");
   const orgId = resolveOrgIdForPrincipal(tenantId, payload.org_id);
@@ -146,12 +152,18 @@ function toPrincipal(payload: HimsJwtPayload): Principal {
       ? payload.session_id.trim()
       : "";
 
+  const kind =
+    typeof payload.kind === "string" && payload.kind.trim().length > 0
+      ? payload.kind.trim()
+      : undefined;
+
   return {
     userId,
     tenantId,
     orgId,
     roles: sanitizeRoles(payload.roles),
     sessionId,
+    kind,
     department: payload.department,
     iat: payload.iat,
     exp: payload.exp,
@@ -159,38 +171,58 @@ function toPrincipal(payload: HimsJwtPayload): Principal {
   };
 }
 
-export async function verifyToken(
+function toPartnerPrincipal(payload: PartnerJwtPayload): Principal {
+  assertPartnerIdentityClaimsOnly(payload as unknown as Record<string, unknown>);
+
+  const userId = asNonEmptyString(payload.sub, "sub");
+  const tenantId = asNonEmptyString(payload.iq_tenant_id, "iq_tenant_id");
+  const iss = asNonEmptyString(payload.iss, "iss");
+  const kind = asNonEmptyString(payload.kind, "kind");
+  if (kind !== "partner") {
+    throw new IdentityVerificationError('kind claim must be "partner"');
+  }
+  if (typeof payload.iat !== "number") {
+    throw new IdentityVerificationError("iat claim is required");
+  }
+  if (typeof payload.exp !== "number") {
+    throw new IdentityVerificationError("exp claim is required");
+  }
+
+  return {
+    userId,
+    tenantId,
+    orgId: "",
+    roles: [],
+    sessionId: "",
+    kind: "partner",
+    iat: payload.iat,
+    exp: payload.exp,
+    iss,
+  };
+}
+
+async function verifyHumanToken(
   token: string,
   options: IdentityPluginOptions,
+  profile: { jwksUrl: string; issuers: string[]; audiences: string[] },
 ): Promise<Principal> {
-  const issuerAllowlist = normalizeAllowlist(options.issuer, "issuer");
-  const audienceAllowlist = normalizeAllowlist(options.audience, "audience");
-
   const allowedAlgorithms = resolveAllowedAlgorithms(options);
-  validateProtectedHeader(token, allowedAlgorithms);
-
-  const keyFn = getJwksKeyFn(options.jwksUrl, options.cacheTtlMs);
+  const keyFn = getJwksKeyFn(profile.jwksUrl, options.cacheTtlMs);
   const maxTokenAgeSeconds = resolveMaxTokenAgeSeconds(options);
   const clockSkewSeconds = resolveClockSkewSeconds(options);
 
-  const verifyOpts: JWTVerifyOptions = {};
-  verifyOpts.issuer = issuerAllowlist;
-  verifyOpts.audience = audienceAllowlist;
-  verifyOpts.algorithms = [...allowedAlgorithms];
-  // session_id is intentionally NOT a required claim:
-  // - better-auth issues short-lived JWTs identified by `jti`; session state lives server-side
-  //   in the `auth.session` table, not inside the access token.
-  // - Resource services validate *identity* (sub, tenant, roles) — not auth-provider session
-  //   lifecycle. Coupling to session_id would make every service a session-state consumer.
-  // - If session-binding is needed later, it should be enforced at the auth gateway, not here.
-  verifyOpts.requiredClaims = ["sub", "iq_tenant_id", "roles", "jti", "exp", "iat"];
-  verifyOpts.maxTokenAge = `${maxTokenAgeSeconds}s`;
-  verifyOpts.clockTolerance = `${clockSkewSeconds}s`;
+  const verifyOpts: JWTVerifyOptions = {
+    issuer: profile.issuers,
+    audience: profile.audiences,
+    algorithms: [...allowedAlgorithms],
+    requiredClaims: ["sub", "iq_tenant_id", "roles", "jti", "exp", "iat"],
+    maxTokenAge: `${maxTokenAgeSeconds}s`,
+    clockTolerance: `${clockSkewSeconds}s`,
+  };
 
-  let payload: HimsJwtPayload;
   try {
     const verified = await jwtVerify<HimsJwtPayload>(token, keyFn, verifyOpts);
-    payload = verified.payload;
+    return toHumanPrincipal(verified.payload);
   } catch (error) {
     if (
       error instanceof Error &&
@@ -200,6 +232,51 @@ export async function verifyToken(
     }
     throw error;
   }
+}
 
-  return toPrincipal(payload);
+async function verifyPartnerToken(
+  token: string,
+  options: IdentityPluginOptions,
+  partner: NonNullable<IdentityPluginOptions["partner"]>,
+): Promise<Principal> {
+  const allowedAlgorithms = resolveAllowedAlgorithms(options);
+  const keyFn = getJwksKeyFn(partner.jwksUrl, options.cacheTtlMs);
+  const maxTokenAgeSeconds = resolvePartnerMaxTokenAgeSeconds(partner.maxTokenAgeSeconds);
+  const clockSkewSeconds = resolveClockSkewSeconds(options);
+
+  const verifyOpts: JWTVerifyOptions = {
+    issuer: partner.issuer,
+    audience: partner.audience,
+    algorithms: [...allowedAlgorithms],
+    requiredClaims: ["sub", "iq_tenant_id", "kind", "jti", "exp", "iat"],
+    maxTokenAge: `${maxTokenAgeSeconds}s`,
+    clockTolerance: `${clockSkewSeconds}s`,
+  };
+
+  try {
+    const verified = await jwtVerify<PartnerJwtPayload>(token, keyFn, verifyOpts);
+    return toPartnerPrincipal(verified.payload);
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.name === "JWKSNoMatchingKey" || error.name === "JWKSInvalid")
+    ) {
+      throw new IdentityVerificationError(error.message);
+    }
+    throw error;
+  }
+}
+
+export async function verifyToken(
+  token: string,
+  options: IdentityPluginOptions,
+): Promise<Principal> {
+  const allowedAlgorithms = resolveAllowedAlgorithms(options);
+  validateProtectedHeader(token, allowedAlgorithms);
+
+  const profile = resolveTokenVerificationProfile(token, options);
+  if (profile.kind === "partner") {
+    return verifyPartnerToken(token, options, profile.config);
+  }
+  return verifyHumanToken(token, options, profile);
 }
