@@ -56,6 +56,7 @@ export function createRxFormDataToClinical(formData: CreateRxFormData): OpdPresc
     })),
     medicines: lineItems(data.medicines, (row, index) => ({
       line_no: index + 1,
+      medicine_id: row.medicineId || null,
       name: row.medicine,
       medicine_type: row.dosageForm || null,
       strength: row.strength || null,
@@ -158,6 +159,7 @@ export function clinicalToCreateRxFormData(
       c.medicines?.map((row) => {
         const med = row as {
           name: string;
+          medicine_id?: string | null;
           medicine_type?: string;
           strength?: string;
           dosage?: string;
@@ -170,6 +172,7 @@ export function clinicalToCreateRxFormData(
         const dosageParts = parseMedicineDosageMan(med.dosage);
         return {
           id: crypto.randomUUID(),
+          medicineId: med.medicine_id ?? '',
           medicine: med.name,
           dosageForm: med.medicine_type ?? '',
           route: med.route ?? '',

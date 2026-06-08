@@ -172,6 +172,7 @@ export function CurrentMedication() {
       if (field !== 'medicine') return;
 
       const catalogMedicine = findVisitpadMedicineByDisplayName(medicines, value);
+      updateMedicine(index, 'medicineId', catalogMedicine?.id ?? '');
       if (!catalogMedicine) return;
 
       updateMedicine(
