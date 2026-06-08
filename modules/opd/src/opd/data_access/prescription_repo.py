@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from opd.data_access import prescription_bundle as bundle_api
 from opd.data_access.prescription_form_data import persist_normalized_from_form_data
+from opd.data_access.visit_status import effective_encounter_status
 from opd.models.prescription_row import Prescription
 from opd.models.visit import Visit
 
@@ -23,51 +24,6 @@ class PatientEncounterRow:
     prescription_status: str | None
     updated_at: datetime
     created_at: datetime
-
-
-def resolve_visit_status_for_prescription(
-    session: Session,
-    tenant_id: UUID,
-    visit_id: UUID,
-    prescription_status: str,
-) -> str:
-    """Queue status for normalized prescription reads (joins opd.visits when present)."""
-    visit = session.get(Visit, visit_id)
-    if visit is None or visit.tenant_id != tenant_id:
-        if prescription_status == "final":
-            return "completed"
-        if prescription_status == "cancelled":
-            return "cancelled"
-        return "registered"
-
-    class _RxStatusShim:
-        def __init__(self, status: str) -> None:
-            self.status = status
-
-    return effective_encounter_status(visit, _RxStatusShim(prescription_status))
-
-
-def effective_encounter_status(visit: Visit | None, rx: Prescription | None) -> str:
-    """Resolve UI status from visit row and/or prescription row (handles legacy rows)."""
-    if visit is not None:
-        if visit.status == "completed":
-            return "completed"
-        if rx is not None and rx.status == "final":
-            return "completed"
-        if visit.status == "cancelled":
-            return "cancelled"
-        if visit.status == "pre_consulted":
-            return "pre_consulted"
-        if visit.status in ("in_progress", "registered"):
-            return "in_progress"
-        return visit.status
-    if rx is not None:
-        if rx.status == "final":
-            return "completed"
-        if rx.status == "cancelled":
-            return "cancelled"
-        return "in_progress"
-    return "registered"
 
 
 class PrescriptionRepository:

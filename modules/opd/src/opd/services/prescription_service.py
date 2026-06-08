@@ -6,6 +6,10 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from opd.data_access.visit_status import (
+    resolve_visit_status_for_prescription,
+    resolve_visit_statuses_for_prescriptions,
+)
 from opd.data_access.prescription_repository import (
     PrescriptionConflictError,
     PrescriptionNotFoundError,
@@ -15,6 +19,7 @@ from opd.schemas.prescription.prescription import (
     PrescriptionCancelRequest,
     PrescriptionCreate,
     PrescriptionDetailResponse,
+    PrescriptionEncounterOverlay,
     PrescriptionFinalizeRequest,
     PrescriptionListItem,
     PrescriptionUpdate,
@@ -23,8 +28,9 @@ from opd.services.prescription_mapper import prescription_to_detail
 
 
 class PrescriptionService:
-    def __init__(self, repository: PrescriptionRepository) -> None:
+    def __init__(self, repository: PrescriptionRepository, session: Session) -> None:
         self._repository = repository
+        self._session = session
 
     def create(self, payload: PrescriptionCreate) -> PrescriptionDetailResponse:
         row = self._repository.create(payload)
@@ -36,13 +42,11 @@ class PrescriptionService:
         visit_id: UUID,
         detail: PrescriptionDetailResponse,
     ) -> PrescriptionDetailResponse:
-        from opd.data_access.prescription_repo import resolve_visit_status_for_prescription
-
         visit_status = resolve_visit_status_for_prescription(
-            self._repository._session,
+            self._session,
             tenant_id,
             visit_id,
-            detail.status,
+            str(detail.status),
         )
         return detail.model_copy(update={"visit_status": visit_status})
 
@@ -55,6 +59,28 @@ class PrescriptionService:
         row = self._repository.get_by_visit_id(tenant_id, visit_id)
         detail = prescription_to_detail(row)
         return self._with_visit_status(tenant_id, visit_id, detail)
+
+    def get_overlays_by_visit_ids(
+        self,
+        tenant_id: UUID,
+        visit_ids: list[UUID],
+    ) -> dict[str, PrescriptionEncounterOverlay]:
+        rows = self._repository.list_status_by_visit_ids(tenant_id, visit_ids)
+        if not rows:
+            return {}
+
+        visit_status_by_id = resolve_visit_statuses_for_prescriptions(
+            self._session,
+            tenant_id,
+            [(row.visit_id, str(row.status)) for row in rows],
+        )
+        return {
+            str(row.visit_id): PrescriptionEncounterOverlay(
+                status=row.status,
+                visit_status=visit_status_by_id.get(row.visit_id, "registered"),
+            )
+            for row in rows
+        }
 
     def list_by_patient(
         self,
@@ -106,7 +132,8 @@ class PrescriptionService:
 
 
 def get_prescription_service(session: Session) -> PrescriptionService:
-    return PrescriptionService(PrescriptionRepository(session))
+    repository = PrescriptionRepository(session)
+    return PrescriptionService(repository, session)
 
 
 __all__ = [

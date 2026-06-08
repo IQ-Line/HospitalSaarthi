@@ -270,3 +270,12 @@ class PrescriptionListResponse(BaseModel):
 
 class PrescriptionSingleResponse(BaseModel):
     data: PrescriptionDetailResponse
+
+
+class PrescriptionEncounterOverlay(BaseModel):
+    status: PrescriptionStatus
+    visit_status: str
+
+
+class PrescriptionEncounterOverlayBatchResponse(BaseModel):
+    data: dict[str, PrescriptionEncounterOverlay]

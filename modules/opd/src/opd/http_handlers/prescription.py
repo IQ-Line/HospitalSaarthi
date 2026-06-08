@@ -16,6 +16,7 @@ from opd.http_handlers.deps import get_prescription_service, get_session
 from opd.schemas.prescription import (
     PrescriptionCancelRequest,
     PrescriptionCreate,
+    PrescriptionEncounterOverlayBatchResponse,
     PrescriptionFinalizeRequest,
     PrescriptionListResponse,
     PrescriptionSingleResponse,
@@ -24,6 +25,18 @@ from opd.schemas.prescription import (
 from opd.services.prescription_service import PrescriptionService
 
 router = APIRouter(prefix="/prescriptions", tags=["Prescriptions"])
+
+_MAX_BATCH_VISIT_IDS = 100
+
+
+def _parse_visit_ids_param(raw: str | None) -> list[UUID]:
+    if not raw or not raw.strip():
+        return []
+    parsed: list[UUID] = []
+    for part in raw.replace(" ", "").split(","):
+        if part:
+            parsed.append(UUID(part))
+    return list(dict.fromkeys(parsed))
 
 
 def _not_found(exc: PrescriptionNotFoundError) -> HTTPException:
@@ -80,6 +93,31 @@ def get_prescription_by_visit(
     except PrescriptionNotFoundError as exc:
         raise _not_found(exc) from exc
     return PrescriptionSingleResponse(data=data)
+
+
+@router.get(
+    "/by-visits",
+    response_model=PrescriptionEncounterOverlayBatchResponse,
+    summary="Batch prescription + visit queue status by registration visit_ids",
+)
+def get_prescription_overlays_by_visits(
+    tenant_id: Annotated[UUID, Query(description="Tenant isolation key")],
+    service: Annotated[PrescriptionService, Depends(get_prescription_service)],
+    visit_ids: Annotated[
+        str | None,
+        Query(description="Comma-separated registration visit identifiers"),
+    ] = None,
+) -> PrescriptionEncounterOverlayBatchResponse:
+    unique_visit_ids = _parse_visit_ids_param(visit_ids)
+    if not unique_visit_ids:
+        return PrescriptionEncounterOverlayBatchResponse(data={})
+    if len(unique_visit_ids) > _MAX_BATCH_VISIT_IDS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"At most {_MAX_BATCH_VISIT_IDS} visit_ids per request",
+        )
+    data = service.get_overlays_by_visit_ids(tenant_id, unique_visit_ids)
+    return PrescriptionEncounterOverlayBatchResponse(data=data)
 
 
 @router.get(

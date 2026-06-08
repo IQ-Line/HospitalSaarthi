@@ -1,4 +1,4 @@
-import { ApiError, apiClient } from '@/lib/api-client';
+import { apiClient } from '@/lib/api-client';
 import type { OpdPrescriptionStatus } from '@/features/create-rx/api/opd-prescription-types';
 import { resolveOpdConsultationTenantId } from '../lib/opd-consultation-tenant';
 
@@ -10,34 +10,17 @@ export interface OpdEncounterOverlay {
   visitStatus: string;
 }
 
-interface NormalizedPrescriptionByVisitResponse {
-  data: {
-    status: OpdPrescriptionStatus;
-    visit_status?: string | null;
-  };
+interface PrescriptionEncounterOverlayDto {
+  status: OpdPrescriptionStatus;
+  visit_status: string;
+}
+
+interface PrescriptionEncounterOverlayBatchResponse {
+  data: Record<string, PrescriptionEncounterOverlayDto>;
 }
 
 function tenantQueryParam(tenantId: string): string {
   return `tenant_id=${encodeURIComponent(tenantId)}`;
-}
-
-async function fetchNormalizedPrescriptionByVisit(
-  visitId: string,
-  tenantId: string,
-): Promise<NormalizedPrescriptionByVisitResponse['data'] | null> {
-  const visitKey = visitId.trim();
-  if (!visitKey) return null;
-  try {
-    const response = await apiClient<NormalizedPrescriptionByVisitResponse>(
-      `${PRESCRIPTIONS_PREFIX}/by-visit/${encodeURIComponent(visitKey)}?${tenantQueryParam(tenantId)}`,
-    );
-    return response.data;
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 404) {
-      return null;
-    }
-    throw error;
-  }
 }
 
 /**
@@ -53,23 +36,17 @@ export async function fetchOpdEncounterOverlaysByVisitIds(
   const unique = [...new Set(visitIds.map((id) => id.trim()).filter(Boolean))];
   if (unique.length === 0) return new Map();
 
-  const pairs = await Promise.all(
-    unique.map(async (visitId) => {
-      const row = await fetchNormalizedPrescriptionByVisit(visitId, tenantId);
-      if (!row) return null;
-      return [
-        visitId,
-        {
-          prescriptionStatus: row.status,
-          visitStatus: row.visit_status?.trim() || 'registered',
-        },
-      ] as const;
-    }),
+  const visitIdsParam = encodeURIComponent(unique.join(','));
+  const response = await apiClient<PrescriptionEncounterOverlayBatchResponse>(
+    `${PRESCRIPTIONS_PREFIX}/by-visits?${tenantQueryParam(tenantId)}&visit_ids=${visitIdsParam}`,
   );
 
   const map = new Map<string, OpdEncounterOverlay>();
-  for (const pair of pairs) {
-    if (pair) map.set(pair[0], pair[1]);
+  for (const [visitId, row] of Object.entries(response.data)) {
+    map.set(visitId, {
+      prescriptionStatus: row.status,
+      visitStatus: row.visit_status?.trim() || 'registered',
+    });
   }
   return map;
 }
