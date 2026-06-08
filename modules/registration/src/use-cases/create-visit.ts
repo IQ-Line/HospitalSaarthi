@@ -13,7 +13,12 @@ export type CreateVisitContext = {
 };
 
 export async function createVisit(
-  deps: { visitRepo: VisitRepo; eventBus: EventBus; opdGateway?: OpdHttpPort },
+  deps: {
+    visitRepo: VisitRepo;
+    allocateOpVisitId: (tenantId: string) => Promise<string>;
+    eventBus: EventBus;
+    opdGateway?: OpdHttpPort;
+  },
   tenantId: string,
   input: CreateVisitInput,
   ctx: CreateVisitContext,
@@ -21,9 +26,12 @@ export async function createVisit(
   const initialStatus =
     ctx.initialStatus ?? visitStatusFromIntakeCompletion(input.intake_completion);
 
+  const formattedVisitId = await deps.allocateOpVisitId(tenantId);
+
   const result = await deps.visitRepo.insert(
     tenantId,
     input,
+    formattedVisitId,
     ctx.idempotencyKey,
     ctx.actorId,
     initialStatus,
@@ -34,7 +42,7 @@ export async function createVisit(
     if (deps.opdGateway) {
       await deps.opdGateway.ensureEncounter(
         tenantId,
-        result.record.visit_id,
+        result.record.id,
         result.record.patient_id,
         ctx.bearerToken,
         result.record.doctor_id,

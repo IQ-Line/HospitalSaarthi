@@ -27,7 +27,7 @@ function isRegistrationApiPath(path: string): boolean {
   );
 }
 
-function resolveRequestUrl(path: string): string {
+export function resolveRequestUrl(path: string): string {
   if (path.startsWith('http://') || path.startsWith('https://')) return path;
   return `${BASE_URL}${path}`;
 }
@@ -35,6 +35,20 @@ function resolveRequestUrl(path: string): string {
 function isWriteHttpMethod(method: string | undefined): boolean {
   const m = (method ?? 'GET').toUpperCase();
   return m === 'POST' || m === 'PUT' || m === 'PATCH' || m === 'DELETE';
+}
+
+/** JWT `sub` for OPD doctor_id when the gateway does not inject x-user-id. */
+function jwtSubjectFromAccessToken(token: string): string | undefined {
+  const parts = token.split('.');
+  if (parts.length < 2) return undefined;
+  try {
+    const payload = JSON.parse(atob(parts[1]!.replace(/-/g, '+').replace(/_/g, '/'))) as {
+      sub?: unknown;
+    };
+    return typeof payload.sub === 'string' && payload.sub.trim() ? payload.sub.trim() : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -108,11 +122,20 @@ function buildRequestHeaders(
 ): Headers {
   const tenantId = resolveEffectiveTenantId(context);
   const headers = new Headers(options.headers);
-  headers.set('Content-Type', 'application/json');
+  // FormData uploads must omit Content-Type so the browser sets multipart boundary.
+  if (!(options.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json');
+  }
 
   const token = useAuthStore.getState().accessToken;
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
+    if (path.startsWith(OPD_API_PREFIX) && isWriteHttpMethod(options.method)) {
+      const userId = jwtSubjectFromAccessToken(token);
+      if (userId) {
+        headers.set('x-user-id', userId);
+      }
+    }
   }
 
   const skipTenantHeaders = shouldOmitTenantHeadersForPath(path, context);
@@ -147,6 +170,30 @@ export async function apiClient<T>(
   );
 }
 
+/** Multipart upload — omits Content-Type so the browser sets the boundary. */
+export async function apiClientFormData<T>(
+  path: string,
+  formData: FormData,
+  options: Omit<RequestInit, 'body'> = {},
+  context?: ApiClientContext,
+): Promise<T> {
+  const headers = buildRequestHeaders(path, options, context);
+  headers.delete('Content-Type');
+
+  const response = await fetchWithAuthRetry(
+    path,
+    { ...options, method: options.method ?? 'POST', headers, body: formData },
+    context,
+    true,
+  );
+
+  if (!response.ok) {
+    throw new ApiError(response.status, await response.text());
+  }
+
+  return parseJsonResponse<T>(response);
+}
+
 /** Binary response (e.g. PDF) with the same auth and tenant headers as {@link apiClient}. */
 export async function apiClientBlob(
   path: string,
@@ -155,7 +202,9 @@ export async function apiClientBlob(
 ): Promise<Blob> {
   const headers = buildRequestHeaders(path, options, context);
   headers.delete('Content-Type');
-  headers.set('Accept', 'application/pdf');
+  if (!headers.has('Accept')) {
+    headers.set('Accept', 'application/octet-stream');
+  }
 
   const response = await fetchWithAuthRetry(
     path,

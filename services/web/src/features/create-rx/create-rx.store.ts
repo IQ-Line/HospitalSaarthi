@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { VisitpadFieldError } from './lib/visitpad-validation';
 import {
   emptyAllergyRow,
   emptyComplaintRow,
@@ -68,6 +69,7 @@ interface CreateRxState {
   activeSectionTab: CreateRxSectionTab;
   activeRightTab: CreateRxRightTab;
   formData: CreateRxFormData;
+  visitpadFieldErrors: VisitpadFieldError[];
 
   resetForVisit: (
     ctx: CreateRxVisitContext | null,
@@ -79,6 +81,8 @@ interface CreateRxState {
   setActiveMainTab: (tab: CreateRxMainTab) => void;
   setActiveSectionTab: (tab: CreateRxSectionTab) => void;
   setActiveRightTab: (tab: CreateRxRightTab) => void;
+  setVisitpadFieldErrors: (errors: VisitpadFieldError[]) => void;
+  clearVisitpadFieldErrors: () => void;
   setVital: (code: string, value: string) => void;
   patchMedicalHistory: (patch: Partial<MedicalHistoryData>) => void;
   patchCarePlan: (patch: Partial<CarePlanData>) => void;
@@ -120,6 +124,7 @@ export const useCreateRxStore = create<CreateRxState>((set) => ({
   activeSectionTab: 'pre-consult',
   activeRightTab: 'ai-prescription',
   formData: defaultFormData(),
+  visitpadFieldErrors: [],
 
   resetForVisit: (ctx, isReadOnly, initialFormData, opdPrescriptionId = null) =>
     set({
@@ -131,9 +136,12 @@ export const useCreateRxStore = create<CreateRxState>((set) => ({
       activeSectionTab: 'pre-consult',
       activeRightTab: 'ai-prescription',
       formData: initialFormData ?? defaultFormData(),
+      visitpadFieldErrors: [],
     }),
 
   setLoading: (loading) => set({ loading }),
+  setVisitpadFieldErrors: (errors) => set({ visitpadFieldErrors: errors }),
+  clearVisitpadFieldErrors: () => set({ visitpadFieldErrors: [] }),
   setActiveMainTab: (tab) => set({ activeMainTab: tab }),
   setActiveSectionTab: (tab) => set({ activeSectionTab: tab }),
   setActiveRightTab: (tab) => set({ activeRightTab: tab }),
@@ -172,6 +180,7 @@ export const useCreateRxStore = create<CreateRxState>((set) => ({
     })),
   updateComplaintRow: (index, field, value) =>
     set((s) => ({
+      visitpadFieldErrors: [],
       formData: {
         ...s.formData,
         chiefComplaints: s.formData.chiefComplaints.map((row, i) =>
@@ -196,6 +205,7 @@ export const useCreateRxStore = create<CreateRxState>((set) => ({
     })),
   updateImmunizationRow: (index, field, value) =>
     set((s) => ({
+      visitpadFieldErrors: [],
       formData: {
         ...s.formData,
         immunizations: s.formData.immunizations.map((row, i) =>
@@ -220,6 +230,7 @@ export const useCreateRxStore = create<CreateRxState>((set) => ({
     })),
   updatePhysicalActivityRow: (index, field, value) =>
     set((s) => ({
+      visitpadFieldErrors: [],
       formData: {
         ...s.formData,
         physicalActivity: s.formData.physicalActivity.map((row, i) =>
@@ -244,6 +255,7 @@ export const useCreateRxStore = create<CreateRxState>((set) => ({
     })),
   updateAllergyRow: (index, field, value) =>
     set((s) => ({
+      visitpadFieldErrors: [],
       formData: {
         ...s.formData,
         allergyDetails: s.formData.allergyDetails.map((row, i) =>
@@ -262,6 +274,7 @@ export const useCreateRxStore = create<CreateRxState>((set) => ({
     })),
   updateDiagnosisRow: (index, field, value) =>
     set((s) => ({
+      visitpadFieldErrors: [],
       formData: {
         ...s.formData,
         diagnosis: s.formData.diagnosis.map((row, i) =>
@@ -280,6 +293,7 @@ export const useCreateRxStore = create<CreateRxState>((set) => ({
     })),
   updateMedicineRow: (index, field, value) =>
     set((s) => ({
+      visitpadFieldErrors: [],
       formData: {
         ...s.formData,
         medicines: s.formData.medicines.map((row, i) =>
@@ -301,6 +315,7 @@ export const useCreateRxStore = create<CreateRxState>((set) => ({
     })),
   updateTestRow: (index, field, value) =>
     set((s) => ({
+      visitpadFieldErrors: [],
       formData: {
         ...s.formData,
         testsRequired: s.formData.testsRequired.map((row, i) =>
@@ -325,6 +340,7 @@ export const useCreateRxStore = create<CreateRxState>((set) => ({
     })),
   updateImagingRow: (index, field, value) =>
     set((s) => ({
+      visitpadFieldErrors: [],
       formData: {
         ...s.formData,
         imagingRequired: s.formData.imagingRequired.map((row, i) =>
@@ -343,6 +359,7 @@ export const useCreateRxStore = create<CreateRxState>((set) => ({
     })),
   updateProcedureRow: (index, field, value) =>
     set((s) => ({
+      visitpadFieldErrors: [],
       formData: {
         ...s.formData,
         procedures: s.formData.procedures.map((row, i) =>

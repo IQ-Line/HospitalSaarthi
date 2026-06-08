@@ -25,6 +25,10 @@ import {
   UM_ROLES_ADMIN_ANY,
 } from '@/lib/runtime-capability-keys';
 import {
+  suggestUniqueRoleCode,
+  toRoleCodeSlug,
+} from '../lib/suggest-unique-role-code';
+import {
   RoleEditorDialog,
   RoleListSection,
 } from './role-management-sections';
@@ -35,11 +39,13 @@ type RoleManagementState = {
   selectedRoleId: string;
   createCodeManuallyEdited: boolean;
   createRoleForm: {
+    roleType: string;
     code: string;
     displayName: string;
     description: string;
   };
   editRoleForm: {
+    roleType: string;
     code: string;
     displayName: string;
     description: string;
@@ -60,11 +66,13 @@ const initialState: RoleManagementState = {
   selectedRoleId: '',
   createCodeManuallyEdited: false,
   createRoleForm: {
+    roleType: '',
     code: '',
     displayName: '',
     description: '',
   },
   editRoleForm: {
+    roleType: '',
     code: '',
     displayName: '',
     description: '',
@@ -90,25 +98,20 @@ function mutationErrorMessage(err: unknown): string {
   return 'Request failed';
 }
 
-function toRoleCode(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
 function normalizeRoleDraft(role: {
+  roleType: string;
   code: string;
   displayName: string;
   description: string;
 }): {
   code: string;
+  role_type: string;
   display_name: string;
   description: string | null;
 } {
   return {
     code: role.code.trim(),
+    role_type: role.roleType.trim(),
     display_name: role.displayName.trim(),
     description: role.description.trim() === '' ? null : role.description.trim(),
   };
@@ -116,11 +119,13 @@ function normalizeRoleDraft(role: {
 
 function normalizeExistingRole(role: UmRole): {
   code: string;
+  role_type: string;
   display_name: string;
   description: string | null;
 } {
   return {
     code: role.code,
+    role_type: role.role_type,
     display_name: role.display_name,
     description: role.description ?? null,
   };
@@ -174,7 +179,6 @@ function roleManagementReducer(
           createRoleForm: {
             ...state.createRoleForm,
             displayName: action.value,
-            code: state.createCodeManuallyEdited ? state.createRoleForm.code : toRoleCode(action.value),
           },
         };
       }
@@ -208,6 +212,7 @@ function roleManagementReducer(
         ...state,
         editRoleForm: action.role
           ? {
+              roleType: action.role.role_type,
               code: action.role.code,
               displayName: action.role.display_name,
               description: action.role.description ?? '',
@@ -251,6 +256,8 @@ export function RoleManagementPanel() {
   const [roleSearch, setRoleSearch] = useState('');
   const [capabilitySearch, setCapabilitySearch] = useState('');
   const [dialogSavePending, setDialogSavePending] = useState(false);
+  /** Bumps on create reset so Radix Select remounts (avoids stale role type after Reset). */
+  const [createFormSession, setCreateFormSession] = useState(0);
 
   const createRole = useCreateRole();
   const deleteRole = useDeleteRole();
@@ -314,7 +321,9 @@ export function RoleManagementPanel() {
     editorMode === 'create' ? umRoleCreate : editorMode === 'edit' ? umRoleUpdate : false;
   const activeForm = isCreateMode ? state.createRoleForm : state.editRoleForm;
   const activeDraft = normalizeRoleDraft(activeForm);
+  const existingRoleCodes = useMemo(() => roles.map((r) => r.code), [roles]);
   const createHasDraft =
+    state.createRoleForm.roleType !== '' ||
     state.createRoleForm.code !== '' ||
     state.createRoleForm.displayName !== '' ||
     state.createRoleForm.description !== '' ||
@@ -331,7 +340,15 @@ export function RoleManagementPanel() {
   const saveDisabled =
     canModifyActiveEditor &&
     activeDraft.code.length > 0 &&
+    activeDraft.role_type.length > 0 &&
     activeDraft.display_name.length > 0;
+
+  const suggestCodeForCreate = (roleType: string, displayName: string) =>
+    suggestUniqueRoleCode({
+      roleType,
+      displayName,
+      existingCodes: existingRoleCodes,
+    });
 
   const assignableCatalogBlocking =
     umCapabilityRead &&
@@ -361,13 +378,18 @@ export function RoleManagementPanel() {
     setCapabilitySearch('');
   };
 
+  const resetCreateEditorState = () => {
+    dispatch({ type: 'resetCreateForm' });
+    dispatch({ type: 'setSelectedCapabilityIds', capabilityIds: [] });
+    resetCapabilityFilters();
+    setCreateFormSession((session) => session + 1);
+  };
+
   const openCreateEditor = () => {
     if (!umRoleCreate) {
       return;
     }
-    dispatch({ type: 'resetCreateForm' });
-    dispatch({ type: 'setSelectedCapabilityIds', capabilityIds: [] });
-    resetCapabilityFilters();
+    resetCreateEditorState();
     setEditorMode('create');
   };
 
@@ -400,8 +422,7 @@ export function RoleManagementPanel() {
   const closeEditor = () => {
     resetCapabilityFilters();
     if (editorMode === 'create') {
-      dispatch({ type: 'resetCreateForm' });
-      dispatch({ type: 'setSelectedCapabilityIds', capabilityIds: [] });
+      resetCreateEditorState();
     } else if (selectedRole) {
       dispatch({ type: 'hydrateEditForm', role: selectedRole });
       dispatch({ type: 'setSelectedCapabilityIds', capabilityIds: assignedCapabilityIds });
@@ -444,8 +465,7 @@ export function RoleManagementPanel() {
 
   const handleResetEditor = () => {
     if (isCreateMode) {
-      dispatch({ type: 'resetCreateForm' });
-      dispatch({ type: 'setSelectedCapabilityIds', capabilityIds: [] });
+      resetCreateEditorState();
       return;
     }
 
@@ -516,9 +536,11 @@ export function RoleManagementPanel() {
 
       {editorMode ? (
         <RoleEditorDialog
+          key={isCreateMode ? `create-${createFormSession}` : `role-${selectedRole?.id ?? 'none'}`}
           open={editorOpen}
           mode={editorMode}
           role={selectedRole}
+          roleType={activeForm.roleType}
           code={activeForm.code}
           displayName={activeForm.displayName}
           description={activeForm.description}
@@ -550,20 +572,42 @@ export function RoleManagementPanel() {
               closeEditor();
             }
           }}
+          onRoleTypeChange={(value) => {
+            dispatch({
+              type: isCreateMode ? 'updateCreateField' : 'updateEditField',
+              field: 'roleType',
+              value,
+            });
+            if (isCreateMode && !state.createCodeManuallyEdited) {
+              const displayName = activeForm.displayName;
+              dispatch({
+                type: 'updateCreateField',
+                field: 'code',
+                value: suggestCodeForCreate(value, displayName),
+              });
+            }
+          }}
           onCodeChange={(value) =>
             dispatch({
               type: isCreateMode ? 'updateCreateField' : 'updateEditField',
               field: 'code',
-              value,
+              value: toRoleCodeSlug(value),
             })
           }
-          onDisplayNameChange={(value) =>
+          onDisplayNameChange={(value) => {
             dispatch({
               type: isCreateMode ? 'updateCreateField' : 'updateEditField',
               field: 'displayName',
               value,
-            })
-          }
+            });
+            if (isCreateMode && !state.createCodeManuallyEdited && state.createRoleForm.roleType !== '') {
+              dispatch({
+                type: 'updateCreateField',
+                field: 'code',
+                value: suggestCodeForCreate(state.createRoleForm.roleType, value),
+              });
+            }
+          }}
           onDescriptionChange={(value) =>
             dispatch({
               type: isCreateMode ? 'updateCreateField' : 'updateEditField',

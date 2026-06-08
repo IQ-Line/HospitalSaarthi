@@ -1,18 +1,11 @@
-import { useEffect } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useEffect, type ChangeEvent } from 'react';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@pulse/ui/button';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@pulse/ui/select';
-import { useDepartments } from '@/features/master-data/api';
+import { indianMobileZodFieldOptional, sanitizeIndianMobileInput } from '@/lib/indian-mobile';
 import type { UmUser, UpdateUserBody } from '../types';
 import { useUpdateUser } from '../api/mutations';
 import { UserManagementSectionCard } from './user-management-section-card';
@@ -20,7 +13,7 @@ import { UserManagementSectionCard } from './user-management-section-card';
 const schema = z.object({
   full_name: z.string().min(1, 'Required'),
   email: z.union([z.literal(''), z.string().email()]),
-  phone: z.string(),
+  phone: indianMobileZodFieldOptional(),
   username: z.string(),
   org_id: z.union([z.literal(''), z.string().uuid()]),
   department: z.string(),
@@ -43,8 +36,6 @@ function toPatch(values: FormValues): UpdateUserBody {
 
 export function UserEditForm({ user }: { user: UmUser }) {
   const update = useUpdateUser(user.id);
-  const { data: deptData, isLoading: deptLoading } = useDepartments(undefined, { formCatalog: true });
-  const departments = (deptData?.data ?? []).filter((d) => d.is_active);
   const { reset, handleSubmit, register, control, formState } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -106,38 +97,25 @@ export function UserEditForm({ user }: { user: UmUser }) {
           </div>
           <div className="space-y-2">
             <Label htmlFor="phone">Phone</Label>
-            <Input id="phone" {...register('phone')} />
+            <Input
+              id="phone"
+              inputMode="numeric"
+              autoComplete="tel-national"
+              maxLength={10}
+              placeholder="Enter 10-digit number"
+              {...register('phone', {
+                onChange: (e: ChangeEvent<HTMLInputElement>) => {
+                  e.target.value = sanitizeIndianMobileInput(e.target.value);
+                },
+              })}
+            />
+            {formState.errors.phone ? (
+              <p className="text-sm text-destructive">{formState.errors.phone.message}</p>
+            ) : null}
           </div>
           <div className="space-y-2">
             <Label htmlFor="username">Username</Label>
             <Input id="username" {...register('username')} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="department">Department</Label>
-            <Controller
-              control={control}
-              name="department"
-              render={({ field }) => (
-                <Select
-                  value={field.value || undefined}
-                  onValueChange={field.onChange}
-                  disabled={deptLoading}
-                >
-                  <SelectTrigger id="department">
-                    <SelectValue
-                      placeholder={deptLoading ? 'Loading…' : 'Select department'}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {departments.map((dept) => (
-                      <SelectItem key={dept.id} value={dept.name}>
-                        {dept.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
           </div>
           <div className="space-y-2 md:col-span-2">
             <Label htmlFor="org_id">Organization id (UUID)</Label>

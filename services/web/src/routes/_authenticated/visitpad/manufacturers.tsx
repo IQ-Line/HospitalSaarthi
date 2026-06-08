@@ -1,17 +1,19 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Controller, useForm, type SubmitHandler } from 'react-hook-form';
+import { useForm, type SubmitHandler } from 'react-hook-form';
 import { type ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
-import { Switch } from '@pulse/ui/switch';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
-import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
+import { CatalogActiveSwitch } from '@/features/visitpad/components/catalog-active-switch';
+import { RequiredLabel, VISITPAD_CODE_HELPER_TEXT } from '@/features/visitpad/components/required-label';
+import { useCatalogActiveToggleConfirm } from '@/features/visitpad/hooks/use-catalog-active-toggle-confirm';
+import { nextDisplayOrder } from '@/features/visitpad/lib/next-display-order';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import {
   useVisitpadDelete,
@@ -85,7 +87,10 @@ function VisitpadManufacturersPage() {
   const del = useVisitpadDelete(MF_BASE);
   const create = useVisitpadPost(MF_BASE);
   const platformImport = useVisitpadPlatformImport('/manufacturers/import-from-platform');
-  const { data: tenantKeys } = useVisitpadTenantImportKeys('/manufacturers', importOpen && tenantCatalog);
+  const { data: tenantKeys, isLoading: tenantKeysLoading } = useVisitpadTenantImportKeys(
+    '/manufacturers',
+    importOpen && tenantCatalog,
+  );
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);
@@ -105,6 +110,18 @@ function VisitpadManufacturersPage() {
     () => [{ id: 'name', header: 'Display name', cell: (r: VisitpadManufacturer) => r.display_name }],
     [],
   );
+
+  const activeToggle = useCatalogActiveToggleConfirm({
+    disabled: patch.isPending || !canUpdate,
+    onConfirm: async (id, next) => {
+      try {
+        await patch.mutateAsync({ id, body: { is_active: next } });
+        toast.success(next ? 'Manufacturer enabled' : 'Manufacturer disabled');
+      } catch (e) {
+        toast.error(mutationErrorMessage(e));
+      }
+    },
+  });
 
   const runManufacturerImport = async (selection: VisitpadManufacturer[]) => {
     try {
@@ -137,20 +154,12 @@ function VisitpadManufacturersPage() {
         accessorKey: 'is_active',
         header: 'Enabled',
         meta: { label: 'Enabled' },
-        cell: ({ row }) => (
-          <TableActiveToggle
-            active={row.original.is_active}
-            disabled={patch.isPending || !canUpdate}
-            onCheckedChange={async (next) => {
-              try {
-                await patch.mutateAsync({ id: row.original.id, body: { is_active: next } });
-                toast.success(next ? 'Enabled' : 'Disabled');
-              } catch (e) {
-                toast.error(mutationErrorMessage(e));
-              }
-            }}
-          />
-        ),
+        cell: ({ row }) =>
+          activeToggle.renderToggle({
+            id: row.original.id,
+            displayName: row.original.display_name || row.original.code,
+            isActive: row.original.is_active,
+          }),
       },
       visitpadActionsColumn<VisitpadManufacturer>({
         onEdit: setEditing,
@@ -160,7 +169,7 @@ function VisitpadManufacturersPage() {
         canDelete,
       }),
     ],
-    [patch, busy, canUpdate, canDelete],
+    [activeToggle, busy, canUpdate, canDelete],
   );
 
   return (
@@ -176,7 +185,7 @@ function VisitpadManufacturersPage() {
       actions={
         <VisitpadHeaderActions
           catalogModuleSlug={catalogModuleSlug}
-          addLabel={tenantCatalog ? 'Add local manufacturer' : 'Add manufacturer'}
+          addLabel="Add manufacturer"
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
           importFromLibraryPending={platformImport.isPending}
@@ -211,6 +220,8 @@ function VisitpadManufacturersPage() {
         )}
       </div>
 
+      {activeToggle.renderConfirmDialog()}
+
       <ImportFromPlatformCatalogDialog<VisitpadManufacturer>
         open={importOpen}
         onOpenChange={setImportOpen}
@@ -221,6 +232,7 @@ function VisitpadManufacturersPage() {
         isLoading={globalLibLoading}
         getRowKey={getRowKey}
         importedKeys={importedKeys}
+        importedKeysLoading={tenantKeysLoading}
         columns={importColumns}
         searchParts={importSearchParts}
         isSubmitting={platformImport.isPending || create.isPending}
@@ -240,6 +252,7 @@ function VisitpadManufacturersPage() {
       <ManufacturerCreateDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
+        nextOrder={nextDisplayOrder(rows)}
         isSubmitting={create.isPending}
         onSubmit={async (payload) => {
           try {
@@ -298,31 +311,45 @@ function VisitpadManufacturersPage() {
 function ManufacturerCreateDialog({
   open,
   onOpenChange,
+  nextOrder,
   isSubmitting,
   onSubmit,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  nextOrder: number;
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
   const form = useForm<VisitpadManufacturerCreateFormSchema>({
     resolver: zodResolver(visitpadManufacturerCreateFormSchema),
-    defaultValues: { code: '', display_name: '', short_name: '', is_active: true },
+    defaultValues: {
+      code: '',
+      display_name: '',
+      short_name: '',
+      display_order: nextOrder,
+      is_active: true,
+    },
   });
 
   useEffect(() => {
     if (open) {
-      form.reset({ code: '', display_name: '', short_name: '', is_active: true });
+      form.reset({
+        code: '',
+        display_name: '',
+        short_name: '',
+        display_order: nextOrder,
+        is_active: true,
+      });
     }
-  }, [open, form]);
+  }, [open, nextOrder, form]);
 
   const submit: SubmitHandler<VisitpadManufacturerCreateFormSchema> = async (v) => {
     await onSubmit({
-      code: v.code.trim().toLowerCase(),
+      code: v.code,
       display_name: v.display_name.trim(),
       short_name: v.short_name && v.short_name.trim() ? v.short_name.trim() : null,
-      display_order: 0,
+      display_order: v.display_order,
       is_active: v.is_active,
     });
   };
@@ -332,31 +359,28 @@ function ManufacturerCreateDialog({
       open={open}
       onOpenChange={onOpenChange}
       title="Add manufacturer"
-      description="Manufacturer code is 3–9 characters (letters, digits, underscore), unique in this catalog scope, and cannot be changed after save."
+      description="Manufacturer code cannot be changed after save."
       submitLabel="Add"
       isSubmitting={isSubmitting}
       onSubmit={form.handleSubmit(submit)}
     >
       <div className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="mfr-code">Manufacturer code *</Label>
+          <RequiredLabel htmlFor="mfr-code">Manufacturer code</RequiredLabel>
           <Input
             id="mfr-code"
+            maxLength={9}
             placeholder="e.g. pfz_inc"
             autoComplete="off"
             {...form.register('code')}
           />
+          <p className="text-xs text-muted-foreground">{VISITPAD_CODE_HELPER_TEXT}</p>
           {form.formState.errors.code ? (
             <p className="text-sm text-destructive">{form.formState.errors.code.message}</p>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              Code must be 3–9 characters (letters, digits, underscore). Unique in this catalog
-              scope; stored lowercase.
-            </p>
-          )}
+          ) : null}
         </div>
         <div className="space-y-2">
-          <Label htmlFor="mfr-display">Display name *</Label>
+          <RequiredLabel htmlFor="mfr-display">Display name</RequiredLabel>
           <Input
             id="mfr-display"
             placeholder="e.g. Pfizer Inc."
@@ -369,28 +393,25 @@ function ManufacturerCreateDialog({
         </div>
         <div className="space-y-2">
           <Label htmlFor="mfr-short">Short name</Label>
-          <Input
-            id="mfr-short"
-            autoComplete="off"
-            {...form.register('short_name', { required: false })}
-          />
+          <Input id="mfr-short" autoComplete="off" {...form.register('short_name')} />
           <p className="text-xs text-muted-foreground">Optional.</p>
         </div>
-        <div className="flex items-center justify-between gap-4 rounded-md border p-3">
-          <div>
-            <p className="text-sm font-medium">Active</p>
-            <p className="text-xs text-muted-foreground">
-              Inactive items are hidden from visit-pad pick lists.
-            </p>
-          </div>
-          <Controller
-            name="is_active"
-            control={form.control}
-            render={({ field }) => (
-              <Switch checked={field.value} onCheckedChange={field.onChange} />
-            )}
+        <div className="space-y-2">
+          <RequiredLabel htmlFor="mfr-order">Display order</RequiredLabel>
+          <Input
+            id="mfr-order"
+            type="number"
+            {...form.register('display_order', { valueAsNumber: true })}
           />
+          {form.formState.errors.display_order ? (
+            <p className="text-sm text-destructive">{form.formState.errors.display_order.message}</p>
+          ) : null}
         </div>
+        <CatalogActiveSwitch
+          id="mfr-active"
+          checked={!!form.watch('is_active')}
+          onCheckedChange={(c) => form.setValue('is_active', c)}
+        />
       </div>
     </EntityFormDialog>
   );
@@ -453,7 +474,7 @@ function ManufacturerEditDialog({
     >
       <div className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="edit-mfr-display">Display name *</Label>
+          <RequiredLabel htmlFor="edit-mfr-display">Display name</RequiredLabel>
           <Input id="edit-mfr-display" {...form.register('display_name')} />
           {form.formState.errors.display_name ? (
             <p className="text-sm text-destructive">{form.formState.errors.display_name.message}</p>
@@ -461,30 +482,21 @@ function ManufacturerEditDialog({
         </div>
         <div className="space-y-2">
           <Label htmlFor="edit-mfr-short">Short name</Label>
-          <Input
-            id="edit-mfr-short"
-            autoComplete="off"
-            {...form.register('short_name', { required: false })}
-          />
+          <Input id="edit-mfr-short" autoComplete="off" {...form.register('short_name')} />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="edit-mfr-order">Display order</Label>
+          <RequiredLabel htmlFor="edit-mfr-order">Display order</RequiredLabel>
           <Input
             id="edit-mfr-order"
             type="number"
             {...form.register('display_order', { valueAsNumber: true })}
           />
         </div>
-        <div className="flex items-center justify-between gap-4 rounded-md border p-3">
-          <p className="text-sm font-medium">Active</p>
-          <Controller
-            name="is_active"
-            control={form.control}
-            render={({ field }) => (
-              <Switch checked={field.value} onCheckedChange={field.onChange} />
-            )}
-          />
-        </div>
+        <CatalogActiveSwitch
+          id="edit-mfr-active"
+          checked={!!form.watch('is_active')}
+          onCheckedChange={(c) => form.setValue('is_active', c)}
+        />
       </div>
     </EntityFormDialog>
   );

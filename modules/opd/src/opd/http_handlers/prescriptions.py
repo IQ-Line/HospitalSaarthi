@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from datetime import date
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from opd.core.deps import DbSession, TenantId
+from opd.core.principal import resolve_doctor_id
 from opd.core.schemas_api import (
     OpdCompletedVisitListResponse,
     OpdCompletedVisitSummary,
@@ -27,6 +29,8 @@ from opd.models.visit import Visit
 
 router = APIRouter(tags=["OpdPrescriptions"])
 
+DoctorId = Annotated[UUID, Depends(resolve_doctor_id)]
+
 
 def _visit_for_tenant(db: DbSession, tenant_id: TenantId, visit_id: UUID) -> Visit:
     visit = db.get(Visit, visit_id)
@@ -47,11 +51,11 @@ def _visit_for_tenant_or_ensure_registration(
             raise HTTPException(status_code=404, detail="No OPD visit found")
         return visit
 
-    reg = db.get(RegistrationVisit, (visit_id, tenant_id))
+    reg = db.get(RegistrationVisit, (tenant_id, visit_id))
     if reg is None:
         raise HTTPException(status_code=404, detail="No OPD visit found")
 
-    repo = PrescriptionRepository(db, tenant_id)
+    repo = PrescriptionRepository(db, tenant_id, reg.doctor_id)
     try:
         visit, _ = repo.ensure_registration_encounter(
             visit_id,
@@ -82,6 +86,7 @@ def _to_response(db: DbSession, bundle: PrescriptionBundle) -> OpdPrescriptionRe
 def list_patients(
     db: DbSession,
     tenant_id: TenantId,
+    doctor_id: DoctorId,
     status: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=50, ge=1, le=100),
@@ -112,9 +117,10 @@ def ensure_registration_encounter(
     body: OpdEnsureEncounterRequest,
     db: DbSession,
     tenant_id: TenantId,
+    doctor_id: DoctorId,
 ) -> OpdPrescriptionResponse:
     """Create OPD visit + draft prescription for a registration.visit id (idempotent)."""
-    repo = PrescriptionRepository(db, tenant_id)
+    repo = PrescriptionRepository(db, tenant_id, doctor_id)
     try:
         _visit, rx = repo.ensure_registration_encounter(
             visit_id,
@@ -173,11 +179,12 @@ def list_completed_visits(
 def list_visits(
     db: DbSession,
     tenant_id: TenantId,
+    doctor_id: DoctorId,
     patient_id: UUID | None = Query(default=None),
     status: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=100),
 ) -> OpdVisitListResponse:
-    repo = PrescriptionRepository(db, tenant_id)
+    repo = PrescriptionRepository(db, tenant_id, doctor_id)
     visits = repo.list_visits(patient_id=patient_id, status=status, limit=limit)
     return OpdVisitListResponse(
         items=[
@@ -197,25 +204,12 @@ def get_visit_prescription(
     visit_id: UUID,
     db: DbSession,
     tenant_id: TenantId,
+    doctor_id: DoctorId,
 ) -> OpdPrescriptionResponse:
-    repo = PrescriptionRepository(db, tenant_id)
+    repo = PrescriptionRepository(db, tenant_id, doctor_id)
     bundle = repo.get_visit_with_prescription(visit_id)
     if bundle is None:
         raise HTTPException(status_code=404, detail="No OPD prescription found for visit")
-    db.commit()
-    return _to_response(db, bundle)
-
-
-@router.get("/prescriptions/{prescription_id}", response_model=OpdPrescriptionResponse)
-def get_prescription_by_id(
-    prescription_id: UUID,
-    db: DbSession,
-    tenant_id: TenantId,
-) -> OpdPrescriptionResponse:
-    repo = PrescriptionRepository(db, tenant_id)
-    bundle = repo.get_prescription_by_id(prescription_id)
-    if bundle is None:
-        raise HTTPException(status_code=404, detail="No OPD prescription found")
     db.commit()
     return _to_response(db, bundle)
 
@@ -225,8 +219,9 @@ def get_patient_prescription(
     patient_id: UUID,
     db: DbSession,
     tenant_id: TenantId,
+    doctor_id: DoctorId,
 ) -> OpdPrescriptionResponse:
-    repo = PrescriptionRepository(db, tenant_id)
+    repo = PrescriptionRepository(db, tenant_id, doctor_id)
     bundle = repo.get_latest_prescription(patient_id)
     if bundle is None:
         raise HTTPException(status_code=404, detail="No OPD prescription found for patient")
@@ -240,9 +235,10 @@ def upsert_visit_nurse_pre_consult(
     body: OpdPrescriptionUpsertRequest,
     db: DbSession,
     tenant_id: TenantId,
+    doctor_id: DoctorId,
 ) -> OpdPrescriptionResponse:
     visit = _visit_for_tenant_or_ensure_registration(db, tenant_id, visit_id)
-    repo = PrescriptionRepository(db, tenant_id)
+    repo = PrescriptionRepository(db, tenant_id, doctor_id)
     try:
         visit, rx = repo.save_nurse_pre_consult_for_visit(
             visit_id,
@@ -265,11 +261,19 @@ def upsert_visit_prescription(
     body: OpdPrescriptionUpsertRequest,
     db: DbSession,
     tenant_id: TenantId,
+    doctor_id: DoctorId,
 ) -> OpdPrescriptionResponse:
     visit = _visit_for_tenant_or_ensure_registration(db, tenant_id, visit_id)
-    repo = PrescriptionRepository(db, tenant_id)
+    repo = PrescriptionRepository(db, tenant_id, doctor_id)
     try:
-        visit, rx = repo.save_draft_for_visit(visit_id, visit.patient_id, body.form_data)
+        if body.finalize:
+            visit, rx = repo.finalize_prescription_for_visit(
+                visit_id,
+                visit.patient_id,
+                body.form_data,
+            )
+        else:
+            visit, rx = repo.save_draft_for_visit(visit_id, visit.patient_id, body.form_data)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PermissionError as exc:
@@ -286,9 +290,10 @@ def end_visit_consultation(
     body: OpdPrescriptionUpsertRequest,
     db: DbSession,
     tenant_id: TenantId,
+    doctor_id: DoctorId,
 ) -> OpdPrescriptionResponse:
     visit = _visit_for_tenant_or_ensure_registration(db, tenant_id, visit_id)
-    repo = PrescriptionRepository(db, tenant_id)
+    repo = PrescriptionRepository(db, tenant_id, doctor_id)
     try:
         visit, rx = repo.end_consultation_for_visit(visit_id, visit.patient_id, body.form_data)
     except LookupError as exc:
@@ -307,9 +312,18 @@ def upsert_patient_prescription(
     body: OpdPrescriptionUpsertRequest,
     db: DbSession,
     tenant_id: TenantId,
+    doctor_id: DoctorId,
 ) -> OpdPrescriptionResponse:
-    repo = PrescriptionRepository(db, tenant_id)
-    visit, rx = repo.save_draft(patient_id, body.form_data)
+    repo = PrescriptionRepository(db, tenant_id, doctor_id)
+    try:
+        if body.finalize:
+            visit, rx = repo.end_consultation(patient_id, body.form_data)
+        else:
+            visit, rx = repo.save_draft(patient_id, body.form_data)
+    except PermissionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     db.commit()
     return _to_response(db, bundle_api.bundle_from_prescription(db, tenant_id, rx))
 
@@ -320,8 +334,9 @@ def end_patient_consultation(
     body: OpdPrescriptionUpsertRequest,
     db: DbSession,
     tenant_id: TenantId,
+    doctor_id: DoctorId,
 ) -> OpdPrescriptionResponse:
-    repo = PrescriptionRepository(db, tenant_id)
+    repo = PrescriptionRepository(db, tenant_id, doctor_id)
     visit, rx = repo.end_consultation(patient_id, body.form_data)
     db.commit()
     return _to_response(db, bundle_api.bundle_from_prescription(db, tenant_id, rx))

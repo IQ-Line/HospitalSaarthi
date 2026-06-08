@@ -4,6 +4,47 @@ function visitpadTrimLower(code: string): string {
   return code.trim().toLowerCase();
 }
 
+/** Unified Visitpad catalog code: 3–9 alnum + underscore. */
+export const VISITPAD_CATALOG_CODE_REGEX = /^[A-Za-z0-9_]{3,9}$/;
+
+export const visitpadCatalogCodeSchema = z
+  .string()
+  .trim()
+  .min(3)
+  .max(9)
+  .regex(
+    VISITPAD_CATALOG_CODE_REGEX,
+    'Code must be 3–9 characters: letters, digits, or underscores only.',
+  );
+
+export const visitpadCatalogCodeLowerSchema = visitpadCatalogCodeSchema.transform(visitpadTrimLower);
+
+/** Rx column codes: 2–64 alnum + underscore (platform seed may use 2-char codes). */
+export const VISITPAD_RX_COLUMN_CODE_REGEX = /^[A-Za-z0-9_]{2,64}$/;
+
+export const visitpadRxColumnCodeSchema = z
+  .string()
+  .trim()
+  .min(2)
+  .max(64)
+  .regex(
+    VISITPAD_RX_COLUMN_CODE_REGEX,
+    'Code must be 2–64 characters: letters, digits, or underscores only.',
+  );
+
+/** Vital codes: 1–64 alnum + underscore (OPD integration slugs). */
+export const VISITPAD_VITAL_CODE_REGEX = /^[A-Za-z0-9_]{1,64}$/;
+
+export const visitpadVitalCodeSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(64)
+  .regex(
+    VISITPAD_VITAL_CODE_REGEX,
+    'Code must be 1–64 characters: letters, digits, or underscores only.',
+  );
+
 /** OpenAPI `VisitpadUnitDimension` */
 export const visitpadUnitDimensionSchema = z.enum([
   'length',
@@ -19,12 +60,12 @@ export const visitpadUnitDimensionSchema = z.enum([
 ]);
 
 export const visitpadUnitCreateSchema = z.object({
-  code: z.string().min(1).max(64).transform(visitpadTrimLower),
+  code: visitpadCatalogCodeLowerSchema,
   display_name: z.string().min(1).max(256),
-  dimension: visitpadUnitDimensionSchema,
+  dimension: visitpadUnitDimensionSchema.optional().default('other'),
   ucum_code: z.string().max(64).nullable().optional(),
   is_canonical: z.boolean().optional(),
-  display_order: z.coerce.number().int().optional(),
+  display_order: z.coerce.number().int(),
   is_active: z.boolean().optional(),
 });
 
@@ -42,9 +83,7 @@ export const visitpadUnitUpdateSchema = z
 /** Edit form (all fields shown in dialog — maps to `VisitpadUnitUpdate` on save). */
 export const visitpadUnitEditFormSchema = z.object({
   display_name: z.string().min(1).max(256),
-  dimension: visitpadUnitDimensionSchema,
-  ucum_code: z.string().max(64).optional(),
-  is_canonical: z.boolean(),
+  dimension: visitpadUnitDimensionSchema.optional().default('other'),
   display_order: z.coerce.number().int(),
   is_active: z.boolean(),
 });
@@ -91,15 +130,15 @@ export const visitpadVitalInputMethodSchema = z.enum(['manual', 'device', 'calcu
 
 export const visitpadVitalCreateSchema = z
   .object({
-    code: z.string().min(1).max(64),
-    name: z.string().min(1).max(256),
-    short_name: z.string().min(1).max(64),
-    category: visitpadVitalCategorySchema,
-    data_type: visitpadVitalDataTypeSchema,
-    unit: z.string().min(1).max(128),
-    default_unit_code: z.string().min(1).max(64),
-    reference_kind: visitpadVitalReferenceKindSchema,
-    input_method: visitpadVitalInputMethodSchema,
+    code: visitpadVitalCodeSchema,
+    name: z.string().max(256).optional(),
+    short_name: z.string().max(64).optional(),
+    category: visitpadVitalCategorySchema.optional(),
+    data_type: visitpadVitalDataTypeSchema.optional(),
+    unit: z.string().max(128).optional(),
+    default_unit_code: z.string().max(64).optional(),
+    reference_kind: visitpadVitalReferenceKindSchema.optional(),
+    input_method: visitpadVitalInputMethodSchema.optional(),
     allowed_units: z.array(z.string()).optional(),
     reference_json: z.record(z.unknown()).optional(),
     normal_range_adult: z.record(z.unknown()).optional(),
@@ -108,10 +147,30 @@ export const visitpadVitalCreateSchema = z
     pair_code: z.string().max(64).nullable().optional(),
     critical_low: z.number().nullable().optional(),
     critical_high: z.number().nullable().optional(),
-    display_order: z.coerce.number().int().optional(),
+    display_order: z.coerce.number().int(),
     is_active: z.boolean().optional(),
     loinc_code: z.string().max(32).nullable().optional(),
     snomed_observable_code: z.string().max(64).nullable().optional(),
+  })
+  .transform((data) => {
+    const code = data.code.trim();
+    const name = (data.name?.trim() ?? '') || code;
+    const short = (data.short_name?.trim() ?? '') || name.slice(0, 64);
+    return {
+      ...data,
+      code,
+      name,
+      short_name: short,
+      category: data.category ?? 'vital_signs',
+      data_type: data.data_type ?? 'numeric',
+      unit: (data.unit?.trim() ?? '') || '—',
+      default_unit_code: (data.default_unit_code?.trim() ?? '') || code,
+      reference_kind: data.reference_kind ?? 'none',
+      input_method: data.input_method ?? 'manual',
+      reference_json: data.reference_json ?? {},
+      normal_range_adult: data.normal_range_adult ?? {},
+      normal_range_paediatric: data.normal_range_paediatric ?? {},
+    };
   })
   .superRefine((data, ctx) => {
     if (data.is_paired) {
@@ -119,15 +178,12 @@ export const visitpadVitalCreateSchema = z
       if (!p) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: 'Partner vital code is required when paired capture is on.',
+          message: 'Partner vital is required when paired capture is on.',
           path: ['pair_code'],
         });
       }
     }
   });
-
-/** Legacy Integrator medicine code: 3–8 letters, digits, underscore; immutable after create in HIMS. */
-const MEDICINE_CODE_REGEX = /^[A-Za-z0-9_]{3,8}$/;
 
 const visitpadMedicineScheduleFormEnum = z.enum(['otc', 'h', 'h1', 's', 'x', 'unscheduled']);
 
@@ -164,22 +220,17 @@ function optionalIntString(fieldLabel: string) {
 }
 
 export const visitpadMedicineCreateFormSchema = z.object({
-  code: z
-    .string()
-    .trim()
-    .min(3)
-    .max(8)
-    .regex(MEDICINE_CODE_REGEX, 'Use 3–8 letters, digits, or underscores.'),
-  generic_name: z.string().trim().min(1).max(512),
+  code: visitpadCatalogCodeSchema,
+  generic_name: z.string().trim().max(512).optional(),
   display_name: z.string().trim().min(1).max(512),
   short_name: z.string().max(256).optional(),
-  drug_class: z.string().trim().min(1).max(256),
+  drug_class: z.string().trim().max(256).optional(),
   drug_subclass: z.string().max(256).optional(),
   brand_names_csv: z.string().optional(),
   snomed_substance_code: z.string().max(64).optional(),
   snomed_product_code: z.string().max(64).optional(),
   display_order: z.coerce.number().int(),
-  dosage_form: z.string().trim().min(1).max(128),
+  dosage_form: z.string().trim().max(128).optional(),
   routes_csv: z.string().optional(),
   strength_value: optionalFiniteNumberString('Strength value'),
   strength_unit: z.string().max(32).optional(),
@@ -187,28 +238,33 @@ export const visitpadMedicineCreateFormSchema = z.object({
   concentration_value: optionalFiniteNumberString('Concentration value'),
   concentration_unit: z.string().max(32).optional(),
   volume_per_unit: optionalFiniteNumberString('Volume per unit (ml)'),
-  schedule: visitpadMedicineScheduleFormEnum,
-  requires_prescription: z.boolean(),
-  is_controlled_substance: z.boolean(),
-  is_narcotic: z.boolean(),
-  is_restricted_antibiotic: z.boolean(),
+  schedule: visitpadMedicineScheduleFormEnum.optional(),
+  requires_prescription: z.boolean().optional().default(false),
+  is_controlled_substance: z.boolean().optional().default(false),
+  is_narcotic: z.boolean().optional().default(false),
+  is_restricted_antibiotic: z.boolean().optional().default(false),
   allergen_classes_csv: z.string().optional(),
   contraindications_csv: z.string().optional(),
-  pregnancy_category: z.enum(['not_set', 'a', 'b', 'c', 'd', 'x']),
-  lactation_safety: z.enum(['not_set', 'compatible', 'caution', 'avoid']),
-  pediatric_use: z.enum(['not_set', 'approved', 'caution', 'avoid']),
+  pregnancy_category: z.enum(['not_set', 'a', 'b', 'c', 'd', 'x']).optional(),
+  lactation_safety: z.enum(['not_set', 'compatible', 'caution', 'avoid']).optional(),
+  pediatric_use: z.enum(['not_set', 'approved', 'caution', 'avoid']).optional(),
   max_dose_per_day_value: optionalFiniteNumberString('Max dose / day value'),
   max_dose_per_day_unit: z.string().max(32).optional(),
-  black_box_warning: z.boolean(),
+  black_box_warning: z.boolean().optional().default(false),
+  black_box_warning_text: z.string().max(2048).optional(),
   default_dose_value: optionalFiniteNumberString('Default dose value'),
   default_dose_unit: z.string().max(32).optional(),
   default_frequency: z.string().max(64).optional(),
   default_duration_days: optionalIntString('Default duration (days)'),
   default_route: z.string().max(64).optional(),
   typical_quantity: optionalFiniteNumberString('Typical quantity'),
+  price: optionalFiniteNumberString('Price').refine(
+    (n) => n === null || n === undefined || n >= 0,
+    { message: 'Price must be empty or zero or greater' },
+  ),
   default_instructions: z.string().max(1024).optional(),
   notes: z.string().max(2048).optional(),
-  is_active: z.boolean(),
+  is_active: z.boolean().optional().default(true),
 });
 
 export const visitpadMedicineEditFormSchema = visitpadMedicineCreateFormSchema.omit({ code: true });
@@ -221,24 +277,35 @@ const finiteNumberOrNull = z.custom<number | null>(
   { message: 'Must be a finite number or empty' },
 );
 
-export const visitpadVitalEditFormSchema = z.object({
-  name: z.string().min(1).max(256),
-  short_name: z.string().min(1).max(64),
-  category: visitpadVitalCategorySchema,
-  data_type: visitpadVitalDataTypeSchema,
-  unit: z.string().min(1).max(128),
-  default_unit_code: z.string().min(1).max(64),
-  reference_kind: visitpadVitalReferenceKindSchema,
-  input_method: visitpadVitalInputMethodSchema,
-  is_paired: z.boolean(),
-  pair_code: z.string().max(64).nullable().optional(),
-  critical_low: finiteNumberOrNull.optional(),
-  critical_high: finiteNumberOrNull.optional(),
-  display_order: z.coerce.number().int(),
-  is_active: z.boolean(),
-  loinc_code: z.string().max(32).nullable().optional(),
-  snomed_observable_code: z.string().max(64).nullable().optional(),
-});
+export const visitpadVitalEditFormSchema = z
+  .object({
+    name: z.string().max(256).optional(),
+    short_name: z.string().max(64).optional(),
+    category: visitpadVitalCategorySchema.optional(),
+    data_type: visitpadVitalDataTypeSchema.optional(),
+    unit: z.string().max(128).optional(),
+    default_unit_code: z.string().max(64).optional(),
+    input_method: visitpadVitalInputMethodSchema.optional(),
+    is_paired: z.boolean(),
+    pair_code: z.string().max(64).nullable().optional(),
+    critical_low: finiteNumberOrNull.optional(),
+    critical_high: finiteNumberOrNull.optional(),
+    display_order: z.coerce.number().int(),
+    is_active: z.boolean(),
+    snomed_observable_code: z.string().max(64).nullable().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.is_paired) {
+      const p = data.pair_code?.trim();
+      if (!p) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Partner vital is required when paired capture is on.',
+          path: ['pair_code'],
+        });
+      }
+    }
+  });
 
 const CHIEF_COMPLAINT_BODY_SYSTEMS = [
   'cardiovascular',
@@ -269,15 +336,15 @@ export const visitpadChiefComplaintBodySystemSchema = z.enum(CHIEF_COMPLAINT_BOD
 export const visitpadChiefComplaintTriagePrioritySchema = z.enum(CHIEF_COMPLAINT_TRIAGE_PRIORITIES);
 
 export const visitpadChiefComplaintCreateFormSchema = z.object({
-  code: z.string().min(1).max(64),
+  code: visitpadCatalogCodeSchema,
   display_name: z.string().min(1).max(256),
   short_name: z.string().max(120).optional(),
-  body_system: visitpadChiefComplaintBodySystemSchema,
-  triage_priority: visitpadChiefComplaintTriagePrioritySchema,
+  body_system: visitpadChiefComplaintBodySystemSchema.optional().default('general'),
+  triage_priority: visitpadChiefComplaintTriagePrioritySchema.optional().default('routine'),
   synonyms_text: z.string().max(8000).optional(),
-  is_paediatric_relevant: z.boolean(),
+  is_paediatric_relevant: z.boolean().optional().default(false),
   display_order: z.coerce.number().int(),
-  is_active: z.boolean(),
+  is_active: z.boolean().optional().default(true),
   snomed_code: z.string().max(64).optional().nullable(),
 });
 
@@ -286,127 +353,57 @@ export type VisitpadChiefComplaintCreateFormSchema = z.infer<
 >;
 
 export const visitpadChiefComplaintEditFormSchema = z.object({
-  code: z.string().min(1).max(64),
+  code: visitpadCatalogCodeSchema,
   display_name: z.string().min(1).max(256),
   short_name: z.string().max(120).optional(),
-  body_system: visitpadChiefComplaintBodySystemSchema,
-  triage_priority: visitpadChiefComplaintTriagePrioritySchema,
+  body_system: visitpadChiefComplaintBodySystemSchema.optional().default('general'),
+  triage_priority: visitpadChiefComplaintTriagePrioritySchema.optional().default('routine'),
   snomed_code: z.string().max(64).nullable().optional(),
-  is_paediatric_relevant: z.boolean(),
+  is_paediatric_relevant: z.boolean().optional().default(false),
   display_order: z.coerce.number().int(),
   is_active: z.boolean(),
   /** One synonym per line (max 50 non-empty lines). */
   synonyms_text: z.string().max(8000).optional(),
 });
 
-const DIAGNOSIS_CODE_PATTERN = /^[A-Za-z0-9_]{3,12}$/;
-
-const visitpadDiagnosisIcdCategorySchema = z.enum([
-  'general',
-  'infectious',
-  'neoplastic',
-  'metabolic',
-  'psychiatric',
-  'injury',
-  'other',
-]);
-
-export const visitpadDiagnosisCreateFormSchema = z
-  .object({
-    code: z
-      .string()
-      .min(3)
-      .max(12)
-      .regex(DIAGNOSIS_CODE_PATTERN, 'Use 3–12 letters, digits, or underscore only.'),
-    display_name: z.string().min(1).max(512),
-    short_name: z.string().max(120).optional(),
-    snomed_code: z.string().max(64).optional().nullable(),
-    is_chronic_flag: z.boolean(),
-    is_notifiable: z.boolean(),
-    display_order: z.coerce.number().int(),
-    is_active: z.boolean(),
-    icd10_code: z.string().max(16).optional(),
-    icd_version: z.enum(['ICD-10', 'ICD-11']).optional(),
-    official_descriptor: z.string().max(512).optional(),
-    category: visitpadDiagnosisIcdCategorySchema.optional(),
-  })
-  .superRefine((data, ctx) => {
-    const hasIcd =
-      (data.icd10_code?.trim() ?? '') !== '' ||
-      data.icd_version != null ||
-      (data.official_descriptor?.trim() ?? '') !== '' ||
-      data.category != null;
-    const completeIcd =
-      (data.icd10_code?.trim() ?? '') !== '' &&
-      data.icd_version != null &&
-      (data.official_descriptor?.trim() ?? '') !== '' &&
-      data.category != null;
-    if (hasIcd && !completeIcd) {
-      ctx.addIssue({
-        code: 'custom',
-        message:
-          'ICD enrichment needs ICD-10 code, version, official descriptor, and category together.',
-        path: ['icd10_code'],
-      });
-    }
-  });
+export const visitpadDiagnosisCreateFormSchema = z.object({
+  code: visitpadCatalogCodeSchema,
+  display_name: z.string().min(1).max(512),
+  short_name: z.string().max(120).optional(),
+  snomed_code: z.string().max(64).optional().nullable(),
+  is_chronic_flag: z.boolean().optional().default(false),
+  is_notifiable: z.boolean().optional().default(false),
+  display_order: z.coerce.number().int(),
+  is_active: z.boolean().optional().default(true),
+});
 
 export type VisitpadDiagnosisCreateFormSchema = z.infer<typeof visitpadDiagnosisCreateFormSchema>;
 
-export const visitpadDiagnosisEditFormSchema = z
-  .object({
-    display_name: z.string().min(1).max(512),
-    short_name: z.string().max(120).optional().nullable(),
-    icd10_code: z.string().max(16).optional(),
-    icd_version: z.enum(['ICD-10', 'ICD-11']).nullable().optional(),
-    official_descriptor: z.string().max(512).optional(),
-    category: visitpadDiagnosisIcdCategorySchema.nullable().optional(),
-    is_chronic_flag: z.boolean(),
-    is_notifiable: z.boolean(),
-    snomed_code: z.string().max(64).nullable().optional(),
-    display_order: z.coerce.number().int(),
-    is_active: z.boolean(),
-  })
-  .superRefine((data, ctx) => {
-    const hasIcd =
-      (data.icd10_code?.trim() ?? '') !== '' ||
-      data.icd_version != null ||
-      (data.official_descriptor?.trim() ?? '') !== '' ||
-      data.category != null;
-    const completeIcd =
-      (data.icd10_code?.trim() ?? '') !== '' &&
-      data.icd_version != null &&
-      (data.official_descriptor?.trim() ?? '') !== '' &&
-      data.category != null;
-    const allExplicitlyClear =
-      (data.icd10_code?.trim() ?? '') === '' &&
-      data.icd_version == null &&
-      (data.official_descriptor?.trim() ?? '') === '' &&
-      data.category == null;
-    if (hasIcd && !completeIcd && !allExplicitlyClear) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'Set all ICD fields together, or clear all of them.',
-        path: ['icd10_code'],
-      });
-    }
-  });
-
-const ALLERGEN_CODE_PATTERN = /^[A-Za-z0-9_]{3,8}$/;
+export const visitpadDiagnosisEditFormSchema = z.object({
+  display_name: z.string().min(1).max(512),
+  short_name: z.string().max(120).optional().nullable(),
+  is_chronic_flag: z.boolean(),
+  is_notifiable: z.boolean(),
+  snomed_code: z.string().max(64).nullable().optional(),
+  display_order: z.coerce.number().int(),
+  is_active: z.boolean(),
+});
 
 export const visitpadAllergenCreateFormSchema = z.object({
-  code: z
-    .string()
-    .min(3)
-    .max(8)
-    .regex(ALLERGEN_CODE_PATTERN, 'Use 3–8 letters, digits, or underscore only.'),
+  code: visitpadCatalogCodeSchema,
   display_name: z.string().min(1).max(256),
   allergen_type: z
     .enum(['__none__', 'drug', 'food', 'environmental', 'other'])
-    .refine((v) => v !== '__none__', { message: 'Select allergen type.', path: ['allergen_type'] }),
-  reaction_severity_default: z.enum(['mild', 'moderate', 'severe', 'unknown']),
+    .optional()
+    .default('other')
+    .transform((v) => (v === '__none__' ? 'other' : v)),
+  reaction_severity_default: z
+    .enum(['__unset__', 'mild', 'moderate', 'severe', 'unknown'])
+    .optional()
+    .transform((v) => (!v || v === '__unset__' ? 'unknown' : v)),
   snomed_code: z.string().max(64).optional().nullable(),
-  is_active: z.boolean(),
+  display_order: z.coerce.number().int(),
+  is_active: z.boolean().optional().default(true),
 });
 
 export type VisitpadAllergenCreateFormSchema = z.infer<typeof visitpadAllergenCreateFormSchema>;
@@ -421,18 +418,13 @@ export const visitpadAllergenEditFormSchema = z.object({
   is_active: z.boolean(),
 });
 
-const ALLERGY_REACTION_CODE_PATTERN = /^[A-Za-z0-9_]{3,8}$/;
-
 export const visitpadAllergyReactionCreateFormSchema = z.object({
-  code: z
-    .string()
-    .min(3)
-    .max(8)
-    .regex(ALLERGY_REACTION_CODE_PATTERN, 'Use 3–8 letters, digits, or underscore only.'),
+  code: visitpadCatalogCodeSchema,
   display_name: z.string().min(1).max(256),
   short_name: z.string().max(120).optional(),
   snomed_code: z.string().max(64).optional().nullable(),
-  is_active: z.boolean(),
+  display_order: z.coerce.number().int(),
+  is_active: z.boolean().optional().default(true),
 });
 
 export type VisitpadAllergyReactionCreateFormSchema = z.infer<
@@ -447,18 +439,12 @@ export const visitpadAllergyReactionEditFormSchema = z.object({
   is_active: z.boolean(),
 });
 
-/** Matches backend `VisitpadRxColumnCreate.code` (2–8, letters, digits, underscore). */
-const RX_COLUMN_CODE_REGEX = /^[A-Za-z0-9_]{2,8}$/;
-
 export const visitpadRxColumnCreateFormSchema = z.object({
   display_name: z.string().trim().min(1).max(256),
-  code: z
-    .string()
-    .trim()
-    .min(2)
-    .max(8)
-    .regex(RX_COLUMN_CODE_REGEX, 'Use 2–8 letters, digits, or underscores.'),
-  is_active: z.boolean(),
+  code: visitpadRxColumnCodeSchema,
+  extra_unit: z.string().max(128).optional(),
+  display_order: z.coerce.number().int(),
+  is_active: z.boolean().optional().default(true),
 });
 
 export const visitpadRxColumnEditFormSchema = z.object({
@@ -467,8 +453,6 @@ export const visitpadRxColumnEditFormSchema = z.object({
   display_order: z.coerce.number().int(),
   is_active: z.boolean(),
 });
-
-const CHRONIC_ILLNESS_CODE_REGEX = /^[A-Za-z0-9_]{3,8}$/;
 
 const visitpadChronicIllnessCategorySchema = z.enum([
   'autoimmune',
@@ -482,28 +466,23 @@ const visitpadChronicIllnessCategorySchema = z.enum([
 ]);
 
 export const visitpadChronicIllnessCreateFormSchema = z.object({
-  icd10_code: z
-    .string()
-    .trim()
-    .min(3)
-    .max(8)
-    .regex(CHRONIC_ILLNESS_CODE_REGEX, 'Use 3–8 letters, digits, or underscores.'),
+  icd10_code: visitpadCatalogCodeSchema,
   display_name: z.string().trim().min(1).max(512),
-  category: visitpadChronicIllnessCategorySchema,
+  category: visitpadChronicIllnessCategorySchema.optional().default('other'),
   snomed_code: z.string().max(64).nullable().optional(),
-  chronic_illness_prompt: z.boolean(),
-  is_active: z.boolean(),
+  chronic_illness_prompt: z.boolean().optional().default(false),
+  display_order: z.coerce.number().int(),
+  is_active: z.boolean().optional().default(true),
 });
 
 export const visitpadChronicIllnessEditFormSchema = z.object({
   display_name: z.string().trim().min(1).max(512),
-  category: visitpadChronicIllnessCategorySchema,
+  category: visitpadChronicIllnessCategorySchema.optional().default('other'),
   snomed_code: z.string().max(64).nullable().optional(),
-  chronic_illness_prompt: z.boolean(),
+  chronic_illness_prompt: z.boolean().optional().default(false),
+  display_order: z.coerce.number().int(),
   is_active: z.boolean(),
 });
-
-const PROCEDURE_CODE_REGEX = /^[A-Za-z0-9_]{3,8}$/;
 
 const visitpadProcedureCategorySchema = z.enum([
   'diagnostic',
@@ -521,51 +500,51 @@ const visitpadProcedureBillingCategorySchema = z.enum([
   'other',
 ]);
 
+/** Empty or NaN duration → omitted; API defaults to 0 on create. */
+const visitpadOptionalDurationMinutesSchema = z.preprocess(
+  (val) => {
+    if (val === '' || val === undefined || val === null) return undefined;
+    if (typeof val === 'number' && Number.isNaN(val)) return undefined;
+    return val;
+  },
+  z.coerce.number().int().min(0).max(1440).optional().default(0),
+);
+
 export const visitpadProcedureCreateFormSchema = z.object({
-  cpt_code: z
-    .string()
-    .trim()
-    .min(3)
-    .max(8)
-    .regex(PROCEDURE_CODE_REGEX, 'Use 3–8 letters, digits, or underscores.'),
-  short_name: z.string().max(64),
-  official_descriptor: z.string().trim().min(1).max(512),
+  cpt_code: visitpadCatalogCodeSchema,
+  short_name: z.string().max(64).optional(),
+  official_descriptor: z.string().trim().max(512).optional(),
   display_name: z.string().trim().min(1).max(512),
-  category: visitpadProcedureCategorySchema,
-  billing_category: visitpadProcedureBillingCategorySchema,
-  duration_minutes: z.coerce.number().int().min(0).max(1440),
-  requires_consent: z.boolean(),
+  category: visitpadProcedureCategorySchema.optional().default('other'),
+  billing_category: visitpadProcedureBillingCategorySchema.optional().default('other'),
+  duration_minutes: visitpadOptionalDurationMinutesSchema,
+  requires_consent: z.boolean().optional().default(false),
   type_modality: z.string().max(128).nullable().optional(),
   snomed_code: z.string().max(64).nullable().optional(),
-  is_active: z.boolean(),
+  display_order: z.coerce.number().int(),
+  is_active: z.boolean().optional().default(true),
 });
 
 export const visitpadProcedureEditFormSchema = z.object({
-  short_name: z.string().max(64),
+  short_name: z.string().max(64).optional(),
   display_name: z.string().min(1).max(512),
-  official_descriptor: z.string().min(1).max(512),
-  category: visitpadProcedureCategorySchema,
-  billing_category: visitpadProcedureBillingCategorySchema,
-  duration_minutes: z.coerce.number().int().min(0).max(1440),
-  requires_consent: z.boolean(),
+  official_descriptor: z.string().max(512).optional(),
+  category: visitpadProcedureCategorySchema.optional().default('other'),
+  billing_category: visitpadProcedureBillingCategorySchema.optional().default('other'),
+  duration_minutes: visitpadOptionalDurationMinutesSchema,
+  requires_consent: z.boolean().optional().default(false),
   snomed_code: z.string().max(64).nullable().optional(),
   type_modality: z.string().max(128).nullable().optional(),
+  display_order: z.coerce.number().int(),
   is_active: z.boolean(),
 });
 
-const VISITPAD_CATALOG_CODE_1_64 = /^[A-Za-z0-9_]{1,64}$/;
-
 export const visitpadVaccineCreateFormSchema = z.object({
-  code: z
-    .string()
-    .trim()
-    .min(1)
-    .max(64)
-    .regex(VISITPAD_CATALOG_CODE_1_64, 'Use 1–64 letters, digits, or underscores.')
-    .transform((s) => s.toLowerCase()),
+  code: visitpadCatalogCodeLowerSchema,
   display_name: z.string().trim().min(1).max(512),
   short_name: z.string().max(120).optional(),
-  is_active: z.boolean(),
+  display_order: z.coerce.number().int(),
+  is_active: z.boolean().optional().default(true),
 });
 
 export const visitpadVaccineEditFormSchema = z.object({
@@ -575,18 +554,12 @@ export const visitpadVaccineEditFormSchema = z.object({
   is_active: z.boolean(),
 });
 
-const MANUFACTURER_CODE_REGEX = /^[A-Za-z0-9_]{3,9}$/;
-
 export const visitpadManufacturerCreateFormSchema = z.object({
-  code: z
-    .string()
-    .trim()
-    .min(3)
-    .max(9)
-    .regex(MANUFACTURER_CODE_REGEX, 'Use 3–9 letters, digits, or underscores only.'),
+  code: visitpadCatalogCodeLowerSchema,
   display_name: z.string().trim().min(1).max(512),
   short_name: z.union([z.string().max(120), z.literal('')]).optional(),
-  is_active: z.boolean(),
+  display_order: z.coerce.number().int(),
+  is_active: z.boolean().optional().default(true),
 });
 
 export const visitpadManufacturerEditFormSchema = z.object({

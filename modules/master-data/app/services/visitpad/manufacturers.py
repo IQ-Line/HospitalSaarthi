@@ -22,10 +22,16 @@ def list_visitpad_manufacturers(
     repository: VisitpadManufacturerRepository,
     *,
     search: str | None,
+    is_active: bool | None = None,
     limit: int,
     offset: int,
 ) -> tuple[list[Any], int]:
-    return repository.list_manufacturers(search=search, limit=limit, offset=offset)
+    return repository.list_manufacturers(
+        search=search,
+        is_active=is_active,
+        limit=limit,
+        offset=offset,
+    )
 
 
 def create_visitpad_manufacturer(

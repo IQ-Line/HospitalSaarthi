@@ -1,45 +1,11 @@
+import { listRegistrationVisits } from '@/features/frontdesk/api/registrations';
+import { fetchPrescriptionStatusesByVisitIds } from '@/features/create-rx/api/opd-prescription';
+import { fetchEmpiPatientLookupMap } from './empi-patients';
 import { computeOpdPatientsStats, filterOpdPatientRows } from '../lib/opd-patients-list-utils';
+import { opdUiStatusToRegistrationVisitQuery } from '../lib/registration-visit-status';
 import { getMockOpdPatientsList } from '../mock/opd-patients.mock';
-import { mapOpdEncounterToVisitRow } from './opd-encounters-mapper';
-import {
-  fetchEmpiPatientDetail,
-  searchEmpiPatients,
-  type EmpiPatient,
-} from './empi-patients';
-import { searchOpdModulePatients } from './opd-module-patients';
+import { mapRegistrationVisitToOpdPatientRow } from './registration-patients-mapper';
 import type { OpdDoctorScope, OpdPatientsListParams, OpdPatientsListResponse } from '../types';
-
-function toOpdStatusQuery(status: string): string | undefined {
-  if (!status) return undefined;
-  if (status === 'in-progress') return 'in_progress';
-  if (status === 'pre-consulted') return 'pre_consulted';
-  return status;
-}
-
-/** Resolve EMPI display fields per patient id (search API requires name/phone/uhid criteria). */
-export async function fetchEmpiPatientLookupMap(
-  patientIds: string[],
-): Promise<Map<string, EmpiPatient>> {
-  if (patientIds.length === 0) return new Map();
-
-  const map = new Map<string, EmpiPatient>();
-  const uniqueIds = [...new Set(patientIds)];
-
-  const results = await Promise.allSettled(
-    uniqueIds.map(async (id) => {
-      const detail = await fetchEmpiPatientDetail(id);
-      return { id, patient: detail.patient };
-    }),
-  );
-
-  for (const result of results) {
-    if (result.status === 'fulfilled') {
-      map.set(result.value.id, result.value.patient);
-    }
-  }
-
-  return map;
-}
 
 function hasClientOnlyFilters(
   filters: OpdPatientsListParams['filters'],
@@ -49,10 +15,24 @@ function hasClientOnlyFilters(
     doctorScope !== 'all' ||
     !!filters.gender ||
     !!filters.ageGroup ||
+    !!filters.visitType ||
+    !!filters.status ||
     !!filters.doctorId ||
     !!filters.startDate ||
-    !!filters.endDate
+    !!filters.endDate ||
+    !!filters.search.trim()
   );
+}
+
+function matchesVisitSearch(
+  row: ReturnType<typeof mapRegistrationVisitToOpdPatientRow>,
+  empiUhid: string | undefined,
+  query: string,
+): boolean {
+  const q = query.trim().toLowerCase();
+  if (q.length < 2) return true;
+  const hay = `${row.visitNumber} ${row.patientName} ${row.patientId} ${empiUhid ?? ''}`.toLowerCase();
+  return hay.includes(q);
 }
 
 /** Opt-in mock data — set `VITE_OPD_PATIENTS_USE_MOCK=true` for UI-only development. */
@@ -60,6 +40,10 @@ export function opdPatientsUseMock(): boolean {
   return import.meta.env.VITE_OPD_PATIENTS_USE_MOCK === 'true';
 }
 
+/**
+ * Doctor patients queue — one row per registration.visit (front-desk encounter).
+ * Patient demographics come from EMPI; clinical RX still uses OPD APIs when opened.
+ */
 export async function fetchOpdPatientsList(
   params: OpdPatientsListParams,
 ): Promise<OpdPatientsListResponse> {
@@ -68,36 +52,43 @@ export async function fetchOpdPatientsList(
     return getMockOpdPatientsList(params);
   }
 
-  const statusForOpd = toOpdStatusQuery(params.filters.status);
+  const statusQuery = opdUiStatusToRegistrationVisitQuery(params.filters.status);
 
-  let opdPage = await searchOpdModulePatients(params.page, params.limit, statusForOpd ?? '');
+  const visitPage = await listRegistrationVisits({
+    page: params.page,
+    limit: params.limit,
+    ...(statusQuery ? { status: statusQuery } : {}),
+    ...(params.filters.doctorId.trim() ? { doctor_id: params.filters.doctorId.trim() } : {}),
+  });
 
-  if (params.filters.search.trim().length >= 2) {
-    const empiMatches = await searchEmpiPatients(params.filters, 1, 200);
-    const matchIds = new Set(empiMatches.data.map((p) => p.id));
-    const filtered = opdPage.items.filter((row) => matchIds.has(row.patient_id));
-    opdPage = {
-      ...opdPage,
-      items: filtered,
-      total: filtered.length,
-    };
-  }
+  const [empiById, rxByVisitId] = await Promise.all([
+    fetchEmpiPatientLookupMap(visitPage.data.map((visit) => visit.patient_id)),
+    fetchPrescriptionStatusesByVisitIds(visitPage.data.map((visit) => visit.id)),
+  ]);
 
-  const empiById = await fetchEmpiPatientLookupMap(opdPage.items.map((row) => row.patient_id));
-
-  let items = opdPage.items.map((encounter) =>
-    mapOpdEncounterToVisitRow(encounter, empiById.get(encounter.patient_id)),
+  let items = visitPage.data.map((visit) =>
+    mapRegistrationVisitToOpdPatientRow(
+      visit,
+      empiById.get(visit.patient_id),
+      rxByVisitId.get(visit.id),
+    ),
   );
+
+  const search = params.filters.search.trim();
+  if (search.length >= 2) {
+    items = items.filter((row) =>
+      matchesVisitSearch(row, empiById.get(row.patientId)?.uhid, search),
+    );
+  }
 
   if (hasClientOnlyFilters(params.filters, params.doctorScope)) {
     items = filterOpdPatientRows(items, params.filters, params.doctorScope);
   }
 
   const total =
-    hasClientOnlyFilters(params.filters, params.doctorScope) ||
-    params.filters.search.trim().length >= 2
+    hasClientOnlyFilters(params.filters, params.doctorScope) || search.length >= 2
       ? items.length
-      : opdPage.total;
+      : visitPage.total;
 
   return {
     items,

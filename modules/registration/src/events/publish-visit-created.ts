@@ -8,6 +8,7 @@ import {
 export const VISIT_EVENT_VISIT_CREATED = "registration.visit.created" as const;
 
 export type VisitCreatedPayload = {
+  id: string;
   visit_id: string;
   iq_tenant_id: string;
   patient_id: string;
@@ -24,6 +25,7 @@ export type VisitCreatedPayload = {
 
 function toCreatedPayload(record: VisitRecord): VisitCreatedPayload {
   return {
+    id: record.id,
     visit_id: record.visit_id,
     iq_tenant_id: record.iq_tenant_id,
     patient_id: record.patient_id,

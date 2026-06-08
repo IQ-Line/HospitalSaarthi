@@ -13,12 +13,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@pulse/ui/select';
-import { Switch } from '@pulse/ui/switch';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
-import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
+import { CatalogActiveSwitch } from '@/features/visitpad/components/catalog-active-switch';
+import {
+  ControlledFormToggleRow,
+  FormToggleRow,
+} from '@/features/visitpad/components/form-toggle-row';
+import { RequiredLabel, VISITPAD_CODE_HELPER_TEXT } from '@/features/visitpad/components/required-label';
+import { useCatalogActiveToggleConfirm } from '@/features/visitpad/hooks/use-catalog-active-toggle-confirm';
+import { nextDisplayOrder } from '@/features/visitpad/lib/next-display-order';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import {
   useVisitpadDelete,
@@ -59,21 +65,25 @@ import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad
 
 const PROC_BASE = '/api/v1/master-data/visitpad/procedures';
 
+const PROC_CATEGORY_UNSET = '__unset__';
+const PROC_BILLING_UNSET = '__unset__';
+
 const PROC_CATEGORY_VALUES = new Set(VISITPAD_PROCEDURE_CATEGORIES.map((c) => c.value));
 const PROC_BILLING_VALUES = new Set(VISITPAD_PROCEDURE_BILLING_CATEGORIES.map((c) => c.value));
 
-function emptyProcedureCreateForm(): VisitpadProcedureCreateFormInput {
+function emptyProcedureCreateForm(displayOrder: number): VisitpadProcedureCreateFormInput {
   return {
     cpt_code: '',
     short_name: '',
     official_descriptor: '',
     display_name: '',
-    category: 'diagnostic',
-    billing_category: 'professional',
-    duration_minutes: 15,
+    category: undefined,
+    billing_category: undefined,
+    duration_minutes: undefined,
     requires_consent: false,
     type_modality: null,
     snomed_code: null,
+    display_order: displayOrder,
     is_active: true,
   };
 }
@@ -95,6 +105,7 @@ function procedureEditDefaults(row: VisitpadProcedure): VisitpadProcedureEditFor
     requires_consent: !!row.requires_consent,
     snomed_code: row.snomed_code ?? null,
     type_modality: row.type_modality ?? null,
+    display_order: row.display_order,
     is_active: row.is_active,
   };
 }
@@ -142,7 +153,10 @@ function VisitpadProceduresPage() {
   const del = useVisitpadDelete(PROC_BASE);
   const create = useVisitpadPost(PROC_BASE);
   const platformImport = useVisitpadPlatformImport('/procedures/import-from-platform');
-  const { data: tenantCptKeys } = useVisitpadTenantImportKeys('/procedures', importOpen && tenantCatalog);
+  const { data: tenantCptKeys, isLoading: tenantCptKeysLoading } = useVisitpadTenantImportKeys(
+    '/procedures',
+    importOpen && tenantCatalog,
+  );
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);
@@ -170,6 +184,18 @@ function VisitpadProceduresPage() {
     ],
     [],
   );
+
+  const activeToggle = useCatalogActiveToggleConfirm({
+    disabled: patch.isPending || !canUpdate,
+    onConfirm: async (id, next) => {
+      try {
+        await patch.mutateAsync({ id, body: { is_active: next } });
+        toast.success(next ? 'Procedure enabled' : 'Procedure disabled');
+      } catch (e) {
+        toast.error(mutationErrorMessage(e));
+      }
+    },
+  });
 
   const runProcedureImport = async (selection: VisitpadProcedure[]) => {
     try {
@@ -213,20 +239,12 @@ function VisitpadProceduresPage() {
         accessorKey: 'is_active',
         header: 'Enabled',
         meta: { label: 'Enabled' },
-        cell: ({ row }) => (
-          <TableActiveToggle
-            active={row.original.is_active}
-            disabled={patch.isPending || !canUpdate}
-            onCheckedChange={async (next) => {
-              try {
-                await patch.mutateAsync({ id: row.original.id, body: { is_active: next } });
-                toast.success(next ? 'Enabled' : 'Disabled');
-              } catch (e) {
-                toast.error(mutationErrorMessage(e));
-              }
-            }}
-          />
-        ),
+        cell: ({ row }) =>
+          activeToggle.renderToggle({
+            id: row.original.id,
+            displayName: row.original.display_name || row.original.cpt_code,
+            isActive: row.original.is_active,
+          }),
       },
       visitpadActionsColumn<VisitpadProcedure>({
         onEdit: setEditing,
@@ -236,7 +254,7 @@ function VisitpadProceduresPage() {
         canDelete,
       }),
     ],
-    [patch, busy, canUpdate, canDelete],
+    [activeToggle, busy, canUpdate, canDelete],
   );
 
   return (
@@ -252,7 +270,7 @@ function VisitpadProceduresPage() {
       actions={
         <VisitpadHeaderActions
           catalogModuleSlug={catalogModuleSlug}
-          addLabel={tenantCatalog ? 'Add local procedure' : 'Add procedure'}
+          addLabel="Add procedure"
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
           importFromLibraryPending={platformImport.isPending}
@@ -317,6 +335,8 @@ function VisitpadProceduresPage() {
         )}
       </div>
 
+      {activeToggle.renderConfirmDialog()}
+
       <ImportFromPlatformCatalogDialog<VisitpadProcedure>
         open={importOpen}
         onOpenChange={setImportOpen}
@@ -328,6 +348,7 @@ function VisitpadProceduresPage() {
         getRowKey={getRowKey}
         rowKeyHeader="CPT"
         importedKeys={importedKeys}
+        importedKeysLoading={tenantCptKeysLoading}
         columns={importColumns}
         searchParts={importSearchParts}
         isSubmitting={platformImport.isPending || create.isPending}
@@ -347,6 +368,7 @@ function VisitpadProceduresPage() {
       <ProcedureCreateDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
+        nextOrder={nextDisplayOrder(rows)}
         isSubmitting={create.isPending}
         onSubmit={async (payload) => {
           try {
@@ -405,24 +427,26 @@ function VisitpadProceduresPage() {
 function ProcedureCreateDialog({
   open,
   onOpenChange,
+  nextOrder,
   isSubmitting,
   onSubmit,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  nextOrder: number;
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
   const form = useForm<VisitpadProcedureCreateFormInput>({
     resolver: zodResolver(visitpadProcedureCreateFormSchema),
-    defaultValues: emptyProcedureCreateForm(),
+    defaultValues: emptyProcedureCreateForm(nextOrder),
   });
 
   useEffect(() => {
     if (open) {
-      form.reset(emptyProcedureCreateForm());
+      form.reset(emptyProcedureCreateForm(nextOrder));
     }
-  }, [open, form]);
+  }, [open, nextOrder, form]);
 
   const submit: SubmitHandler<VisitpadProcedureCreateFormSchema> = async (v) => {
     const snomed = v.snomed_code?.trim();
@@ -438,7 +462,7 @@ function ProcedureCreateDialog({
       duration_minutes: v.duration_minutes,
       requires_consent: v.requires_consent,
       type_modality: mod && mod.length > 0 ? mod : null,
-      display_order: 0,
+      display_order: v.display_order,
       is_active: v.is_active,
       snomed_code: snomed && snomed.length > 0 ? snomed : null,
     });
@@ -456,17 +480,15 @@ function ProcedureCreateDialog({
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-pr-code">Procedure code *</Label>
+          <RequiredLabel htmlFor="vp-pr-code">Procedure code</RequiredLabel>
           <Input
             id="vp-pr-code"
             placeholder="e.g. ecg_12"
-            maxLength={8}
+            maxLength={9}
             className="font-mono"
             {...form.register('cpt_code')}
           />
-          <p className="text-sm text-muted-foreground">
-            Code must be 3–8 characters, letters, digits, or underscores; unique; cannot be edited after save.
-          </p>
+          <p className="text-sm text-muted-foreground">{VISITPAD_CODE_HELPER_TEXT}</p>
           {form.formState.errors.cpt_code ? (
             <p className="text-sm text-destructive">{form.formState.errors.cpt_code.message}</p>
           ) : null}
@@ -476,17 +498,23 @@ function ProcedureCreateDialog({
           <Input id="vp-pr-short" placeholder="e.g. 93000" maxLength={64} {...form.register('short_name')} />
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-pr-dur">Duration (minutes) *</Label>
+          <Label htmlFor="vp-pr-dur">Duration (minutes)</Label>
           <Input
             id="vp-pr-dur"
             type="number"
             min={0}
             max={1440}
-            {...form.register('duration_minutes', { valueAsNumber: true })}
+            {...form.register('duration_minutes', {
+              setValueAs: (v) => {
+                if (v === '' || v === null || v === undefined) return undefined;
+                const n = typeof v === 'number' ? v : Number(v);
+                return Number.isFinite(n) ? Math.trunc(n) : undefined;
+              },
+            })}
           />
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-pr-off">Official descriptor *</Label>
+          <Label htmlFor="vp-pr-off">Official descriptor</Label>
           <Input
             id="vp-pr-off"
             placeholder="Full clinical description of the procedure"
@@ -498,25 +526,45 @@ function ProcedureCreateDialog({
           ) : null}
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-pr-disp">Display name *</Label>
+          <RequiredLabel htmlFor="vp-pr-disp">Display name</RequiredLabel>
           <Input
             id="vp-pr-disp"
             placeholder="Friendly name shown to staff"
             maxLength={512}
             {...form.register('display_name')}
           />
+          {form.formState.errors.display_name ? (
+            <p className="text-sm text-destructive">{form.formState.errors.display_name.message}</p>
+          ) : null}
+        </div>
+        <div className="space-y-2">
+          <RequiredLabel htmlFor="vp-pr-order">Display order</RequiredLabel>
+          <Input
+            id="vp-pr-order"
+            type="number"
+            {...form.register('display_order', { valueAsNumber: true })}
+          />
+          {form.formState.errors.display_order ? (
+            <p className="text-sm text-destructive">{form.formState.errors.display_order.message}</p>
+          ) : null}
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label>Category *</Label>
+          <Label>Category</Label>
           <Controller
             control={form.control}
             name="category"
             render={({ field }) => (
-              <Select value={field.value} onValueChange={field.onChange}>
+              <Select
+                value={field.value ?? PROC_CATEGORY_UNSET}
+                onValueChange={(v) =>
+                  field.onChange(v === PROC_CATEGORY_UNSET ? undefined : v)
+                }
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select category…" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value={PROC_CATEGORY_UNSET}>Select category…</SelectItem>
                   {VISITPAD_PROCEDURE_CATEGORIES.map((c) => (
                     <SelectItem key={c.value} value={c.value}>
                       {c.label}
@@ -528,16 +576,22 @@ function ProcedureCreateDialog({
           />
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label>Billing category *</Label>
+          <Label>Billing category</Label>
           <Controller
             control={form.control}
             name="billing_category"
             render={({ field }) => (
-              <Select value={field.value} onValueChange={field.onChange}>
+              <Select
+                value={field.value ?? PROC_BILLING_UNSET}
+                onValueChange={(v) =>
+                  field.onChange(v === PROC_BILLING_UNSET ? undefined : v)
+                }
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select billing category…" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value={PROC_BILLING_UNSET}>Select billing category…</SelectItem>
                   {VISITPAD_PROCEDURE_BILLING_CATEGORIES.map((c) => (
                     <SelectItem key={c.value} value={c.value}>
                       {c.label}
@@ -561,32 +615,19 @@ function ProcedureCreateDialog({
             {...form.register('snomed_code')}
           />
         </div>
-        <div className="flex flex-col gap-2 rounded-md border p-3 sm:col-span-2">
-          <div className="flex items-center justify-between gap-4">
-            <Label htmlFor="vp-pr-consent">Requires patient consent</Label>
-            <Controller
-              control={form.control}
-              name="requires_consent"
-              render={({ field }) => (
-                <Switch id="vp-pr-consent" checked={field.value} onCheckedChange={field.onChange} />
-              )}
-            />
-          </div>
-          <p className="text-sm text-muted-foreground">
-            A consent stage is triggered before the procedure can be started.
-          </p>
-        </div>
-        <div className="flex flex-col gap-2 rounded-md border p-3 sm:col-span-2">
-          <div className="flex items-center justify-between gap-4">
-            <Label htmlFor="vp-pr-act">Enabled (visible in library)</Label>
-            <Controller
-              control={form.control}
-              name="is_active"
-              render={({ field }) => (
-                <Switch id="vp-pr-act" checked={field.value} onCheckedChange={field.onChange} />
-              )}
-            />
-          </div>
+        <ControlledFormToggleRow
+          control={form.control}
+          name="requires_consent"
+          id="vp-pr-consent"
+          label="Requires patient consent"
+          description="A consent stage is triggered before the procedure can be started."
+        />
+        <div className="sm:col-span-2">
+          <CatalogActiveSwitch
+            id="vp-pr-act"
+            checked={!!form.watch('is_active')}
+            onCheckedChange={(c) => form.setValue('is_active', c)}
+          />
         </div>
       </div>
     </EntityFormDialog>
@@ -649,6 +690,7 @@ function ProcedureEditDialog({
       requires_consent: v.requires_consent,
       snomed_code: snomed && snomed.length > 0 ? snomed : null,
       type_modality: mod && mod.length > 0 ? mod : null,
+      display_order: v.display_order,
       is_active: v.is_active,
     });
   };
@@ -680,7 +722,13 @@ function ProcedureEditDialog({
               type="number"
               min={0}
               max={1440}
-              {...form.register('duration_minutes', { valueAsNumber: true })}
+              {...form.register('duration_minutes', {
+                setValueAs: (v) => {
+                  if (v === '' || v === null || v === undefined) return undefined;
+                  const n = typeof v === 'number' ? v : Number(v);
+                  return Number.isFinite(n) ? Math.trunc(n) : undefined;
+                },
+              })}
             />
           </div>
           <div className="space-y-2 sm:col-span-2">
@@ -688,8 +736,16 @@ function ProcedureEditDialog({
             <Input id="vp-pe-off" maxLength={512} {...form.register('official_descriptor')} />
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="vp-pe-disp">Display name</Label>
+            <RequiredLabel htmlFor="vp-pe-disp">Display name</RequiredLabel>
             <Input id="vp-pe-disp" maxLength={512} {...form.register('display_name')} />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <RequiredLabel htmlFor="vp-pe-order">Display order</RequiredLabel>
+            <Input
+              id="vp-pe-order"
+              type="number"
+              {...form.register('display_order', { valueAsNumber: true })}
+            />
           </div>
           <div className="space-y-2">
             <Label>Category</Label>
@@ -737,28 +793,21 @@ function ProcedureEditDialog({
             <Label htmlFor="vp-pe-snomed">SNOMED CT (procedure)</Label>
             <Input id="vp-pe-snomed" maxLength={64} {...form.register('snomed_code')} />
           </div>
-          <div className="flex flex-col gap-2 rounded-md border p-3 sm:col-span-2">
-            <div className="flex items-center justify-between gap-4">
-              <Label htmlFor="vp-pe-consent">Requires patient consent</Label>
-              <Switch
-                id="vp-pe-consent"
-                checked={!!form.watch('requires_consent')}
-                onCheckedChange={(c) => form.setValue('requires_consent', c)}
-              />
-            </div>
-            <p className="text-sm text-muted-foreground">
-              A consent stage is triggered before the procedure can be started.
-            </p>
+          <div className="sm:col-span-2">
+            <FormToggleRow
+              id="vp-pe-consent"
+              label="Requires patient consent"
+              description="A consent stage is triggered before the procedure can be started."
+              checked={!!form.watch('requires_consent')}
+              onCheckedChange={(c) => form.setValue('requires_consent', c)}
+            />
           </div>
-          <div className="flex flex-col gap-2 rounded-md border p-3 sm:col-span-2">
-            <div className="flex items-center justify-between gap-4">
-              <Label htmlFor="vp-pe-act">Enabled (visible in library)</Label>
-              <Switch
-                id="vp-pe-act"
-                checked={!!form.watch('is_active')}
-                onCheckedChange={(c) => form.setValue('is_active', c)}
-              />
-            </div>
+          <div className="sm:col-span-2">
+            <CatalogActiveSwitch
+              id="vp-pe-act"
+              checked={!!form.watch('is_active')}
+              onCheckedChange={(c) => form.setValue('is_active', c)}
+            />
           </div>
         </div>
       ) : null}

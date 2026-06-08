@@ -1,5 +1,6 @@
 import type { EventBus } from "@hims/ts-sdk-events";
 import { normalizeRoleCode } from "../domain/normalize-role-code.js";
+import { normalizeRoleType } from "../domain/normalize-role-type.js";
 import { ValidationError } from "../domain/errors.js";
 import type { CreateRoleInput, Role, RoleRepository } from "../ports/index.js";
 
@@ -20,15 +21,19 @@ export async function createRole(
   input: CreateRoleInput,
 ): Promise<Role> {
   if (typeof input.code !== "string") throw new ValidationError("role_code_invalid_type");
+  if (typeof input.role_type !== "string") throw new ValidationError("role_type_invalid_type");
   if (typeof input.display_name !== "string") {
     throw new ValidationError("role_display_name_invalid_type");
   }
   const code = normalizeRoleCode(input.code);
+  const role_type = normalizeRoleType(input.role_type);
   if (code.length === 0) throw new ValidationError("role_code_empty");
+  if (role_type.length === 0) throw new ValidationError("role_type_empty");
   if (input.display_name.trim().length === 0) throw new ValidationError("role_display_name_empty");
   return deps.roleRepository.createRole(_ctx.tenantId, {
     ...input,
     code,
+    role_type,
     display_name: input.display_name.trim(),
   });
 }

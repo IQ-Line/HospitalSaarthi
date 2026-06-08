@@ -6,8 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-
-_RX_COLUMN_CODE_PATTERN = r"^[A-Za-z0-9_]{2,8}$"
+VISITPAD_RX_COLUMN_CODE_PATTERN = r"^[A-Za-z0-9_]{2,64}$"
 
 
 class VisitpadRxColumnSection(StrEnum):
@@ -52,7 +51,7 @@ class VisitpadRxColumnCreate(BaseModel):
 
     section: VisitpadRxColumnSection
     display_name: str = Field(min_length=1, max_length=256)
-    code: str = Field(min_length=2, max_length=8, pattern=_RX_COLUMN_CODE_PATTERN)
+    code: str = Field(min_length=2, max_length=64, pattern=VISITPAD_RX_COLUMN_CODE_PATTERN)
     extra_unit: str | None = Field(default=None, max_length=128)
     display_order: int = 0
     is_active: bool = True

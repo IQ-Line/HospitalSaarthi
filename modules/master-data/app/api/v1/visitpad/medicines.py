@@ -42,11 +42,13 @@ def get_medicines(
     offset: Annotated[int, Query(ge=0)] = 0,
     search: Annotated[str | None, Query()] = None,
     schedule: Annotated[VisitpadMedicineSchedule | None, Query()] = None,
+    is_active: Annotated[bool | None, Query()] = None,
 ) -> VisitpadMedicineListResponse:
     rows, total = list_visitpad_medicines(
         repository,
         search=search,
         schedule=schedule.value if schedule is not None else None,
+        is_active=is_active,
         limit=limit,
         offset=offset,
     )

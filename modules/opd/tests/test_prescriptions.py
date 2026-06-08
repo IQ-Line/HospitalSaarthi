@@ -12,7 +12,10 @@ from sqlalchemy.pool import StaticPool
 
 from opd.core.database import get_db_session
 from opd.main import create_app
+import opd.models.prescription_row  # noqa: F401 — registers phase-0 prescriptions on LegacyBase
+
 from opd.models import Base
+from opd.models.legacy_base import LegacyBase
 from opd.models.registration_visit import RegistrationVisit
 
 TENANT = "550e8400-e29b-41d4-a716-446655440000"
@@ -28,9 +31,14 @@ def client() -> Generator[TestClient, None, None]:
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    for table in Base.metadata.tables.values():
+    phase0_base_tables = (
+        Base.metadata.tables[f"opd.visits"],
+        Base.metadata.tables["registration.visit"],
+    )
+    for table in (*phase0_base_tables, *LegacyBase.metadata.tables.values()):
         table.schema = None
-    Base.metadata.create_all(engine, checkfirst=True)
+    Base.metadata.create_all(engine, tables=list(phase0_base_tables), checkfirst=True)
+    LegacyBase.metadata.create_all(engine, checkfirst=True)
     session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
     def override_db() -> Generator[Session, None, None]:
@@ -48,8 +56,9 @@ def client() -> Generator[TestClient, None, None]:
         try:
             session.add(
                 RegistrationVisit(
-                    visit_id=uuid.UUID(VISIT),
+                    id=uuid.UUID(VISIT),
                     tenant_id=uuid.UUID(TENANT),
+                    formatted_visit_id="VIS-TEST0001",
                     patient_id=uuid.UUID(PATIENT),
                     doctor_id=uuid.UUID(DOCTOR),
                     status="pending",
@@ -182,18 +191,11 @@ def test_end_consultation_persists_form_data(client: TestClient) -> None:
     assert by_visit.status_code == 200
     assert by_visit.json()["prescription_id"] == body["prescription_id"]
 
-    by_rx = client.get(
-        f"/api/v1/opd/prescriptions/{body['prescription_id']}",
-        headers=_headers(),
-    )
-    assert by_rx.status_code == 200
-    assert by_rx.json()["visit_id"] == body["visit_id"]
-
 
 def test_end_visit_without_opd_row_ensures_from_registration(client: TestClient) -> None:
-    """Desk registration may skip PUT /encounter; end consultation must still work."""
-    end = client.post(
-        f"/api/v1/opd/visits/{VISIT}/prescription/end",
+    """Desk registration may skip bootstrap; finalize via prescription PUT must still work."""
+    end = client.put(
+        f"/api/v1/opd/visits/{VISIT}/prescription",
         json={
             "form_data": {
                 "vitals": {"spo2": "99"},
@@ -207,7 +209,8 @@ def test_end_visit_without_opd_row_ensures_from_registration(client: TestClient)
                         "notes": "",
                     }
                 ],
-            }
+            },
+            "finalize": True,
         },
         headers=_headers(),
     )
@@ -246,17 +249,10 @@ def test_list_patients_returns_completed_encounter(client: TestClient) -> None:
     db_gen = client.app.dependency_overrides[get_db_session]()
     db = next(db_gen)
     try:
-        db.add(
-            RegistrationVisit(
-                visit_id=visit,
-                tenant_id=tenant,
-                patient_id=patient,
-                doctor_id=uuid.UUID(DOCTOR),
-                status="completed",
-                created_at=now,
-                updated_at=now,
-            )
-        )
+        reg = db.get(RegistrationVisit, (tenant, visit))
+        assert reg is not None
+        reg.status = "completed"
+        reg.updated_at = now
         db.commit()
     finally:
         db.close()
@@ -277,7 +273,7 @@ def test_list_patients_returns_completed_encounter(client: TestClient) -> None:
         }
     }
     client.post(
-        f"/api/v1/opd/patients/{PATIENT}/prescription/end",
+        f"/api/v1/opd/visits/{VISIT}/prescription/end",
         json=payload,
         headers=_headers(),
     )
@@ -295,7 +291,7 @@ def test_patient_prescription_skips_visit_without_prescription_row(
     client: TestClient,
 ) -> None:
     from opd.core.database import get_db_session
-    from opd.models.prescription import Prescription
+    from opd.models.prescription_row import Prescription
     from opd.models.visit import Visit
 
     tenant = uuid.UUID(TENANT)
@@ -365,10 +361,12 @@ def test_nurse_pre_consult_sets_visit_status(client: TestClient) -> None:
             updated_at=now,
         )
         db.add(visit)
+        db.flush()
         db.add(
             RegistrationVisit(
-                visit_id=visit.id,
+                id=visit.id,
                 tenant_id=tenant,
+                formatted_visit_id="VIS-TEST0003",
                 patient_id=patient,
                 doctor_id=uuid.UUID(DOCTOR),
                 status="pending",
@@ -401,7 +399,7 @@ def test_nurse_pre_consult_sets_visit_status(client: TestClient) -> None:
 
 def test_get_patient_prescription_without_visit_row(client: TestClient) -> None:
     from opd.core.database import get_db_session
-    from opd.models.prescription import Prescription
+    from opd.models.prescription_row import Prescription
 
     tenant = uuid.UUID(TENANT)
     patient = uuid.UUID("770e8400-e29b-41d4-a716-446655440099")

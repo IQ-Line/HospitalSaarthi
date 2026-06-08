@@ -1,3 +1,4 @@
+import "./load-env.js";
 import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import { identityPlugin, validateAuthConfig } from "@hims/ts-sdk-identity";
@@ -6,6 +7,7 @@ import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import { tenantPlugin } from "@hims/ts-sdk-tenant";
 import { createDb } from "@hims/ts-sdk-db";
 import { InProcessEventBus } from "@hims/ts-sdk-events";
+import { allocateIdentifier } from "@hims/ts-sdk-sequence";
 import {
   DrizzleUserRepository,
   DrizzlePrincipalRoleProjectionRepository,
@@ -105,6 +107,8 @@ async function main() {
   const db = createDb(DATABASE_URL);
   const registrationRepo = new DrizzleRegistrationRepo(db);
   const visitRepo = new DrizzleVisitRepo(db);
+  const allocateOpVisitId = (tenantId: string) =>
+    allocateIdentifier(db, { tenantId, identifierType: "op_visit" });
   const empiGateway = new HttpEmpiGateway(EMPI_URL, {
     warn: (detail, message) => app.log.warn(detail, message),
   });
@@ -123,10 +127,18 @@ async function main() {
     baseUrl: PDF_PLATFORM_URL,
     apiKey: PDF_PLATFORM_API_KEY,
   });
+  app.log.info(
+    {
+      pdfPlatformUrl: PDF_PLATFORM_URL,
+      reportWebOrigin: process.env["REPORT_WEB_ORIGIN"] ?? "http://localhost:5173",
+    },
+    "Registration PDF platform configured",
+  );
 
   const handlerDeps = {
     registrationRepo,
     visitRepo,
+    allocateOpVisitId,
     empiGateway,
     eventBus,
     opdGateway,
@@ -174,7 +186,13 @@ async function main() {
     });
     await api.register(tenantPlugin);
     registerRegistrationsHandler(api, handlerDeps);
-    registerVisitsHandler(api, { visitRepo, registrationRepo, eventBus, opdGateway });
+    registerVisitsHandler(api, {
+      visitRepo,
+      registrationRepo,
+      allocateOpVisitId,
+      eventBus,
+      opdGateway,
+    });
     registerDocumentsHandler(api, documentDeps);
   }
 

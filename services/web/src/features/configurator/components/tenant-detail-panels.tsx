@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useReducer, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, Controller, type UseFormReturn } from 'react-hook-form';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -41,8 +42,10 @@ import {
   UM_ROLE_UPDATE,
   UM_ROLES_ADMIN_ANY,
   UM_USER_CREATE,
+  UM_USER_READ,
 } from '@/lib/runtime-capability-keys';
 import { CreateUserForm } from '@/features/user-management/components/create-user-form';
+import { UserProfileNameLink } from '@/features/user-management/components/user-list-table';
 import type { Capability, UmUser } from '@/features/user-management/types';
 import {
   useCreateTariffService,
@@ -97,6 +100,10 @@ import {
 import { userManagementKeys } from '@/features/user-management/api/keys';
 import type { UmRole } from '@/features/user-management/types';
 import {
+  suggestUniqueRoleCode,
+  toRoleCodeSlug,
+} from '@/features/user-management/lib/suggest-unique-role-code';
+import {
   RoleEditorDialog,
   RoleListSection,
 } from '@/features/user-management/components/role-management-sections';
@@ -128,14 +135,35 @@ export function TenantUsersPanel({
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const qc = useQueryClient();
+  const navigate = useNavigate();
+  const umUserRead = useCapability(UM_USER_READ);
   const { data, isLoading, error } = useTenantUsers(iqTenantId);
+
+  const openUserProfile = useCallback(
+    (user: UmUser) => {
+      if (!umUserRead) return;
+      void navigate({
+        to: '/user-management/$userId',
+        params: { userId: user.id },
+        search: { tenant: iqTenantId },
+      });
+    },
+    [iqTenantId, navigate, umUserRead],
+  );
 
   const columns = useMemo<ColumnDef<UmUser, unknown>[]>(
     () => [
       {
         accessorKey: 'full_name',
         header: 'Name',
-        cell: ({ getValue }) => <span className="font-medium">{getValue<string>()}</span>,
+        cell: ({ row }) => (
+          <UserProfileNameLink
+            userId={row.original.id}
+            fullName={row.original.full_name}
+            tenantScope={iqTenantId}
+            linkToProfile={umUserRead}
+          />
+        ),
       },
       {
         accessorKey: 'email',
@@ -179,7 +207,7 @@ export function TenantUsersPanel({
         ),
       },
     ],
-    [],
+    [iqTenantId, umUserRead],
   );
 
   const rows = useMemo(() => {
@@ -215,6 +243,7 @@ export function TenantUsersPanel({
           isLoading={isLoading}
           emptyTitle="No users"
           emptyDescription="No directory users for this tenant yet."
+          onRowClick={umUserRead ? openUserProfile : undefined}
         />
       </div>
       <CapabilityGate capability={UM_USER_CREATE}>
@@ -230,20 +259,22 @@ export function TenantUsersPanel({
               </DialogHeader>
             </div>
             <div className="flex min-h-0 flex-1 overflow-hidden p-4">
-              <CreateUserForm
-                fixedTargetTenantId={iqTenantId}
-                fixedConfiguratorOrgId={organizationId}
-                layout="dialog"
-                navigateToProfileOnSuccess={false}
-                onCancel={() => setCreateOpen(false)}
-                onCreated={(user) => {
-                  void qc.invalidateQueries({
-                    queryKey: configuratorKeys.tenantUsers(iqTenantId),
-                  });
-                  toast.success(`User ${user.full_name} created`);
-                  setCreateOpen(false);
-                }}
-              />
+              {createOpen ? (
+                <CreateUserForm
+                  fixedTargetTenantId={iqTenantId}
+                  fixedConfiguratorOrgId={organizationId}
+                  layout="dialog"
+                  navigateToProfileOnSuccess={false}
+                  onCancel={() => setCreateOpen(false)}
+                  onCreated={(user) => {
+                    void qc.invalidateQueries({
+                      queryKey: configuratorKeys.tenantUsers(iqTenantId),
+                    });
+                    toast.success(`User ${user.full_name} created`);
+                    setCreateOpen(false);
+                  }}
+                />
+              ) : null}
             </div>
           </DialogContent>
         </Dialog>
@@ -630,8 +661,8 @@ type TenantRoleEditorMode = 'create' | 'edit' | 'view' | null;
 type TenantRoleState = {
   selectedRoleId: string;
   createCodeManuallyEdited: boolean;
-  createRoleForm: { code: string; displayName: string; description: string };
-  editRoleForm: { code: string; displayName: string; description: string };
+  createRoleForm: { roleType: string; code: string; displayName: string; description: string };
+  editRoleForm: { roleType: string; code: string; displayName: string; description: string };
   selectedCapabilityIds: string[];
 };
 
@@ -647,22 +678,20 @@ type TenantRoleAction =
 const tenantRoleInitialState: TenantRoleState = {
   selectedRoleId: '',
   createCodeManuallyEdited: false,
-  createRoleForm: { code: '', displayName: '', description: '' },
-  editRoleForm: { code: '', displayName: '', description: '' },
+  createRoleForm: { roleType: '', code: '', displayName: '', description: '' },
+  editRoleForm: { roleType: '', code: '', displayName: '', description: '' },
   selectedCapabilityIds: [],
 };
 
-function toRoleCode(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
-function normalizeRoleDraft(role: { code: string; displayName: string; description: string }) {
+function normalizeRoleDraft(role: {
+  roleType: string;
+  code: string;
+  displayName: string;
+  description: string;
+}) {
   return {
     code: role.code.trim(),
+    role_type: role.roleType.trim(),
     display_name: role.displayName.trim(),
     description: role.description.trim() === '' ? null : role.description.trim(),
   };
@@ -671,6 +700,7 @@ function normalizeRoleDraft(role: { code: string; displayName: string; descripti
 function normalizeExistingRole(role: UmRole) {
   return {
     code: role.code,
+    role_type: role.role_type,
     display_name: role.display_name,
     description: role.description ?? null,
   };
@@ -693,9 +723,6 @@ function tenantRoleReducer(state: TenantRoleState, action: TenantRoleAction): Te
           createRoleForm: {
             ...state.createRoleForm,
             displayName: action.value,
-            code: state.createCodeManuallyEdited
-              ? state.createRoleForm.code
-              : toRoleCode(action.value),
           },
         };
       }
@@ -721,6 +748,7 @@ function tenantRoleReducer(state: TenantRoleState, action: TenantRoleAction): Te
         ...state,
         editRoleForm: action.role
           ? {
+              roleType: action.role.role_type,
               code: action.role.code,
               displayName: action.role.display_name,
               description: action.role.description ?? '',
@@ -774,6 +802,8 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
   const [roleSearch, setRoleSearch] = useState('');
   const [capabilitySearch, setCapabilitySearch] = useState('');
   const [dialogSavePending, setDialogSavePending] = useState(false);
+  /** Bumps on create reset so Radix Select remounts (avoids stale role type after Reset). */
+  const [createFormSession, setCreateFormSession] = useState(0);
 
   const createRole = useCreateRole(iqTenantId);
   const deleteRole = useDeleteRole(iqTenantId);
@@ -850,9 +880,11 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
   const editorOpen = editorMode !== null;
   const canModifyActiveEditor =
     isCreateMode ? umRoleCreate : isEditMode ? umRoleUpdate : false;
+  const existingRoleCodes = useMemo(() => roles.map((r) => r.code), [roles]);
   const activeForm = isCreateMode ? state.createRoleForm : state.editRoleForm;
   const activeDraft = normalizeRoleDraft(activeForm);
   const createHasDraft =
+    state.createRoleForm.roleType !== '' ||
     state.createRoleForm.code !== '' ||
     state.createRoleForm.displayName !== '' ||
     state.createRoleForm.description !== '' ||
@@ -868,7 +900,15 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
   const saveEnabled =
     canModifyActiveEditor &&
     activeDraft.code.length > 0 &&
+    activeDraft.role_type.length > 0 &&
     activeDraft.display_name.length > 0;
+
+  const suggestCodeForCreate = (roleType: string, displayName: string) =>
+    suggestUniqueRoleCode({
+      roleType,
+      displayName,
+      existingCodes: existingRoleCodes,
+    });
 
   const assignableCatalogBlocking =
     umCapabilityRead && editorMode !== null && (capabilitiesQuery.isPending || capabilitiesQuery.isError);
@@ -889,11 +929,16 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
 
   const resetCapabilityFilters = () => setCapabilitySearch('');
 
-  const openCreateEditor = () => {
-    if (!umRoleCreate) return;
+  const resetCreateEditorState = () => {
     dispatch({ type: 'resetCreateForm' });
     dispatch({ type: 'setSelectedCapabilityIds', capabilityIds: [] });
     resetCapabilityFilters();
+    setCreateFormSession((session) => session + 1);
+  };
+
+  const openCreateEditor = () => {
+    if (!umRoleCreate) return;
+    resetCreateEditorState();
     setEditorMode('create');
   };
 
@@ -916,8 +961,7 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
   const closeEditor = () => {
     resetCapabilityFilters();
     if (isCreateMode) {
-      dispatch({ type: 'resetCreateForm' });
-      dispatch({ type: 'setSelectedCapabilityIds', capabilityIds: [] });
+      resetCreateEditorState();
     } else if (selectedRole) {
       dispatch({ type: 'hydrateEditForm', role: selectedRole });
       dispatch({ type: 'setSelectedCapabilityIds', capabilityIds: assignedCapabilityIds });
@@ -951,8 +995,7 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
 
   const handleResetEditor = () => {
     if (isCreateMode) {
-      dispatch({ type: 'resetCreateForm' });
-      dispatch({ type: 'setSelectedCapabilityIds', capabilityIds: [] });
+      resetCreateEditorState();
       return;
     }
     dispatch({ type: 'hydrateEditForm', role: selectedRole });
@@ -1018,9 +1061,11 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
 
       {editorMode ? (
         <RoleEditorDialog
+          key={isCreateMode ? `create-${createFormSession}` : `role-${selectedRole?.id ?? 'none'}`}
           open={editorOpen}
           mode={editorMode}
           role={selectedRole}
+          roleType={activeForm.roleType}
           code={activeForm.code}
           displayName={activeForm.displayName}
           description={activeForm.description}
@@ -1051,20 +1096,41 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
           onOpenChange={(open) => {
             if (!open) closeEditor();
           }}
+          onRoleTypeChange={(value) => {
+            dispatch({
+              type: isCreateMode ? 'updateCreateField' : 'updateEditField',
+              field: 'roleType',
+              value,
+            });
+            if (isCreateMode && !state.createCodeManuallyEdited) {
+              dispatch({
+                type: 'updateCreateField',
+                field: 'code',
+                value: suggestCodeForCreate(value, activeForm.displayName),
+              });
+            }
+          }}
           onCodeChange={(value) =>
             dispatch({
               type: isCreateMode ? 'updateCreateField' : 'updateEditField',
               field: 'code',
-              value,
+              value: toRoleCodeSlug(value),
             })
           }
-          onDisplayNameChange={(value) =>
+          onDisplayNameChange={(value) => {
             dispatch({
               type: isCreateMode ? 'updateCreateField' : 'updateEditField',
               field: 'displayName',
               value,
-            })
-          }
+            });
+            if (isCreateMode && !state.createCodeManuallyEdited && state.createRoleForm.roleType !== '') {
+              dispatch({
+                type: 'updateCreateField',
+                field: 'code',
+                value: suggestCodeForCreate(state.createRoleForm.roleType, value),
+              });
+            }
+          }}
           onDescriptionChange={(value) =>
             dispatch({
               type: isCreateMode ? 'updateCreateField' : 'updateEditField',
@@ -1263,7 +1329,7 @@ export function TenantBillingPanel({ iqTenantId }: { iqTenantId: string }) {
         onSubmit={editForm.handleSubmit((values) => {
           if (!editing) return;
           updateMutation.mutate(
-            { id: editing.id, input: formToUpdatePayload(values) },
+            { id: editing.id, input: formToUpdatePayload(values, editing) },
             {
               onSuccess: () => {
                 toast.success('Service updated');
@@ -1274,7 +1340,14 @@ export function TenantBillingPanel({ iqTenantId }: { iqTenantId: string }) {
           );
         })}
       >
-        <TariffServiceEditFormFields control={editForm.control} />
+        {editing ? (
+          <TariffServiceEditFormFields
+            control={editForm.control}
+            service={editing}
+            iqTenantId={iqTenantId}
+            lookupsEnabled={Boolean(editing)}
+          />
+        ) : null}
       </EntityFormDialog>
     </div>
   );

@@ -5,7 +5,6 @@ import type {
   PatientRepo,
   AddressRepo,
   IdentifierRepo,
-  SequenceRepo,
 } from "../ports.js";
 import type { PatientFilters, PatientStatus } from "../domain/patient.types.js";
 import type {
@@ -50,9 +49,8 @@ interface HandlerDeps {
   patientRepo: PatientRepo;
   addressRepo: AddressRepo;
   identifierRepo: IdentifierRepo;
-  sequenceRepo: SequenceRepo;
   eventBus: EventBus;
-  getTenantNumericCode: (tenantId: string) => Promise<string>;
+  allocatePatientUhid: (tenantId: string) => Promise<string>;
 }
 
 export function registerPatientsHandler(
@@ -74,9 +72,8 @@ export function registerPatientsHandler(
         const result = await registerPatient(
           {
             patientRepo: deps.patientRepo,
-            sequenceRepo: deps.sequenceRepo,
+            allocatePatientUhid: deps.allocatePatientUhid,
             eventBus: deps.eventBus,
-            getTenantNumericCode: deps.getTenantNumericCode,
           },
           { ...body, iq_tenant_id: tenantId },
         );

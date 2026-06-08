@@ -1,4 +1,5 @@
 import type { CreateVisitRequestBody, VisitRegistrationBillingFeeLine } from '@/features/frontdesk/types';
+import { isValidIndianMobile } from '@/lib/indian-mobile';
 
 // ─── Dropdown / catalog options (visit registration UI) ─────────────────────
 
@@ -146,11 +147,16 @@ export function isVisitRegistrationPaymentModeSelected(paymentMode: string | und
   return Boolean(paymentMode?.trim());
 }
 
-const VISIT_REG_PHONE_RE = /^\d{10}$/;
+export function isValidRegistrationGender(
+  value: string | undefined | null,
+): value is 'male' | 'female' | 'other' {
+  return value === 'male' || value === 'female' || value === 'other';
+}
 
 export type VisitRegistrationFormGateInput = {
   phone: string | undefined;
   firstName: string | undefined;
+  gender: string | undefined;
   grandTotal: number;
   amountPaid: number | null | undefined;
   paymentMode: string | undefined;
@@ -167,8 +173,9 @@ export function visitRegistrationFormBlockers(
   args: VisitRegistrationFormGateInput,
 ): string[] {
   const missing: string[] = [];
-  if (!VISIT_REG_PHONE_RE.test((args.phone ?? '').trim())) missing.push('10-digit phone');
+  if (!isValidIndianMobile(args.phone)) missing.push('10-digit phone');
   if (!args.firstName?.trim()) missing.push('first name');
+  if (!isValidRegistrationGender(args.gender)) missing.push('gender');
   if (!args.departmentId?.trim()) missing.push('department');
   if (!args.providerId?.trim()) missing.push('doctor');
   if (!args.visitTypeCode?.trim()) missing.push('visit type');
@@ -207,6 +214,13 @@ export function formatInr(amount: number): string {
 export function formatBillingDeduction(amount: number): string {
   if (!Number.isFinite(amount) || amount <= 0) return '—';
   return `-${formatInr(amount)}`;
+}
+
+/** Per-line tax column — rate plus amount on one line (summary rows use {@link formatBillingTaxSummary}). */
+export function formatBillingTaxLine(taxPercent: number, taxAmount: number): string {
+  if (!Number.isFinite(taxPercent) || taxPercent <= 0) return '0';
+  if (!Number.isFinite(taxAmount) || taxAmount <= 0) return `${taxPercent}%`;
+  return `${taxPercent}% · ${formatInr(taxAmount)}`;
 }
 
 /** Tax column in summary rows — matches data rows (0 vs ₹ amount). */

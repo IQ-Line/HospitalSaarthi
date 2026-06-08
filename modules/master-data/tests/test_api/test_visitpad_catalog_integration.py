@@ -77,13 +77,28 @@ def test_visitpad_medicine_create_and_get(visitpad_catalog_client: TestClient) -
         "drug_class": "NSAID",
         "dosage_form": "tablet",
         "schedule": "otc",
+        "price": 12.5,
     }
     r = visitpad_catalog_client.post("/api/v1/master-data/visitpad/medicines", json=body)
     assert r.status_code == 201, r.text
     mid = r.json()["data"]["id"]
     g = visitpad_catalog_client.get(f"/api/v1/master-data/visitpad/medicines/{mid}")
     assert g.status_code == 200
-    assert g.json()["data"]["code"] == "asp500tb"
+    data = g.json()["data"]
+    assert data["code"] == "asp500tb"
+    assert data["price"] == 12.5
+
+    lst = visitpad_catalog_client.get("/api/v1/master-data/visitpad/medicines")
+    assert lst.status_code == 200
+    codes = {row["code"]: row for row in lst.json()["data"]}
+    assert codes["asp500tb"]["price"] == 12.5
+
+    patch = visitpad_catalog_client.patch(
+        f"/api/v1/master-data/visitpad/medicines/{mid}",
+        json={"price": 15.0},
+    )
+    assert patch.status_code == 200, patch.text
+    assert patch.json()["data"]["price"] == 15.0
 
 
 def test_visitpad_chronic_illness_create_and_get(visitpad_catalog_client: TestClient) -> None:
@@ -144,10 +159,12 @@ def test_visitpad_medicine_bulk_import_from_platform(visitpad_catalog_client: Te
         "drug_class": "NSAID",
         "dosage_form": "tablet",
         "schedule": "otc",
+        "price": 42.5,
     }
     r = visitpad_catalog_client.post("/api/v1/master-data/visitpad/medicines", json=body)
     assert r.status_code == 201, r.text
     mid = r.json()["data"]["id"]
+    assert r.json()["data"]["price"] == 42.5
     imp = visitpad_catalog_client.post(
         "/api/v1/master-data/visitpad/medicines/import-from-platform",
         headers={"iq_tenant_id": TENANT_IMPORT},
@@ -157,6 +174,13 @@ def test_visitpad_medicine_bulk_import_from_platform(visitpad_catalog_client: Te
     out = imp.json()["data"]
     assert len(out["created"]) == 1
     assert out["errors"] == []
+    tenant_id = out["created"][0]
+    g = visitpad_catalog_client.get(
+        f"/api/v1/master-data/visitpad/medicines/{tenant_id}",
+        headers={"iq_tenant_id": TENANT_IMPORT},
+    )
+    assert g.status_code == 200
+    assert g.json()["data"]["price"] == 42.5
 
 
 def test_visitpad_rx_column_bulk_import_from_platform(visitpad_catalog_client: TestClient) -> None:
@@ -186,3 +210,50 @@ def test_visitpad_rx_column_bulk_import_from_platform(visitpad_catalog_client: T
     assert wrong.status_code == 200
     err = wrong.json()["data"]["errors"]
     assert len(err) == 1
+
+
+def test_visitpad_vital_bulk_import_long_code_from_platform(visitpad_catalog_client: TestClient) -> None:
+    body = {
+        "code": "systolic_bp",
+        "name": "Systolic BP",
+        "short_name": "SBP",
+        "category": "vital_signs",
+        "data_type": "numeric",
+        "unit": "mmHg",
+        "default_unit_code": "mmhg",
+        "display_order": 0,
+        "is_active": True,
+    }
+    r = visitpad_catalog_client.post("/api/v1/master-data/visitpad/vitals", json=body)
+    assert r.status_code == 201, r.text
+    vid = r.json()["data"]["id"]
+    imp = visitpad_catalog_client.post(
+        "/api/v1/master-data/visitpad/vitals/import-from-platform",
+        headers={"iq_tenant_id": TENANT_IMPORT},
+        json={"platform_row_ids": [vid]},
+    )
+    assert imp.status_code == 200, imp.text
+    out = imp.json()["data"]
+    assert len(out["created"]) == 1
+    assert out["errors"] == []
+
+
+def test_visitpad_import_rejects_inactive_platform_row(visitpad_catalog_client: TestClient) -> None:
+    body = {
+        "code": "inact_med",
+        "display_name": "Inactive Med",
+        "is_active": False,
+    }
+    r = visitpad_catalog_client.post("/api/v1/master-data/visitpad/medicines", json=body)
+    assert r.status_code == 201, r.text
+    mid = r.json()["data"]["id"]
+    imp = visitpad_catalog_client.post(
+        "/api/v1/master-data/visitpad/medicines/import-from-platform",
+        headers={"iq_tenant_id": TENANT_IMPORT},
+        json={"platform_row_ids": [mid]},
+    )
+    assert imp.status_code == 200, imp.text
+    out = imp.json()["data"]
+    assert out["created"] == []
+    assert len(out["errors"]) == 1
+    assert "inactive" in out["errors"][0]["message"].lower()

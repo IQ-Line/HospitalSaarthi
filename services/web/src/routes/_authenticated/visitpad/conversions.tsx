@@ -53,6 +53,10 @@ import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
 import { requireVisitpadLeafRouteAccess } from '@/lib/visitpad-route-access';
 import { useVisitpadImportLibrarySearch } from '@/features/visitpad/hooks/use-visitpad-import-library-search';
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
+import { RequiredLabel } from '@/features/visitpad/components/required-label';
+import { nextDisplayOrder } from '@/features/visitpad/lib/next-display-order';
+
+const CONV_UNIT_UNSET = '__unset__';
 
 const CONV_BASE = '/api/v1/master-data/visitpad/unit-conversions';
 
@@ -115,7 +119,10 @@ function VisitpadConversionsPage() {
     [],
   );
 
-  const { data: tenantConvKeys } = useVisitpadTenantImportKeys('/unit-conversions', importOpen && tenantCatalog);
+  const { data: tenantConvKeys, isLoading: tenantConvKeysLoading } = useVisitpadTenantImportKeys(
+    '/unit-conversions',
+    importOpen && tenantCatalog,
+  );
   const importedKeys = useMemo(() => tenantConvKeys ?? new Set<string>(), [tenantConvKeys]);
   const globalRows = globalLib?.data ?? [];
   const globalLibTotal = globalLib?.total ?? 0;
@@ -222,7 +229,7 @@ function VisitpadConversionsPage() {
       actions={
         <VisitpadHeaderActions
           catalogModuleSlug={catalogModuleSlug}
-          addLabel={tenantCatalog ? 'Add local conversion' : 'Add conversion'}
+          addLabel="Add conversion"
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
           importFromLibraryPending={platformImport.isPending}
@@ -274,6 +281,7 @@ function VisitpadConversionsPage() {
         getRowKey={getRowKey}
         rowKeyHeader="Pair"
         importedKeys={importedKeys}
+        importedKeysLoading={tenantConvKeysLoading}
         columns={importColumns}
         searchParts={importSearchParts}
         isSubmitting={platformImport.isPending || create.isPending}
@@ -293,6 +301,7 @@ function VisitpadConversionsPage() {
       <ConversionCreateDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
+        nextOrder={nextDisplayOrder(rows)}
         unitRows={unitRows}
         unitsLoading={unitsLoading}
         isSubmitting={create.isPending}
@@ -355,6 +364,7 @@ function VisitpadConversionsPage() {
 function ConversionCreateDialog({
   open,
   onOpenChange,
+  nextOrder,
   unitRows,
   unitsLoading,
   isSubmitting,
@@ -362,6 +372,7 @@ function ConversionCreateDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  nextOrder: number;
   unitRows: VisitpadUnit[];
   unitsLoading: boolean;
   isSubmitting: boolean;
@@ -374,7 +385,7 @@ function ConversionCreateDialog({
       to_unit_code: '',
       factor: 1,
       offset_value: 0,
-      display_order: 0,
+      display_order: nextOrder,
     },
   });
 
@@ -391,10 +402,10 @@ function ConversionCreateDialog({
   const hasCatalogUnits = unitRows.length > 0;
 
   useEffect(() => {
-    if (!open) {
-      form.reset({ from_unit_code: '', to_unit_code: '', factor: 1, offset_value: 0, display_order: 0 });
+    if (open) {
+      form.reset({ from_unit_code: '', to_unit_code: '', factor: 1, offset_value: 0, display_order: nextOrder });
     }
-  }, [open, form]);
+  }, [open, nextOrder, form]);
 
   const submit: SubmitHandler<VisitpadUnitConversionCreateSchema> = async (v) => {
     await onSubmit({
@@ -416,17 +427,20 @@ function ConversionCreateDialog({
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="vp-c-from">From unit *</Label>
+          <RequiredLabel htmlFor="vp-c-from">From unit</RequiredLabel>
           {hasCatalogUnits ? (
             <Select
-              value={fromCode || undefined}
-              onValueChange={(v) => form.setValue('from_unit_code', v, { shouldValidate: true })}
+              value={fromCode?.trim() ? fromCode : CONV_UNIT_UNSET}
+              onValueChange={(v) =>
+                form.setValue('from_unit_code', v === CONV_UNIT_UNSET ? '' : v, { shouldValidate: true })
+              }
               disabled={unitsLoading}
             >
               <SelectTrigger id="vp-c-from">
-                <SelectValue placeholder={unitsLoading ? 'Loading units…' : 'Select…'} />
+                <SelectValue placeholder={unitsLoading ? 'Loading units…' : 'Select from unit'} />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value={CONV_UNIT_UNSET}>Select from unit</SelectItem>
                 {fromOptions.map((o) => (
                   <SelectItem key={o.code} value={o.code}>
                     {o.label}
@@ -451,17 +465,20 @@ function ConversionCreateDialog({
           ) : null}
         </div>
         <div className="space-y-2">
-          <Label htmlFor="vp-c-to">To unit *</Label>
+          <RequiredLabel htmlFor="vp-c-to">To unit</RequiredLabel>
           {hasCatalogUnits ? (
             <Select
-              value={toCode || undefined}
-              onValueChange={(v) => form.setValue('to_unit_code', v, { shouldValidate: true })}
+              value={toCode?.trim() ? toCode : CONV_UNIT_UNSET}
+              onValueChange={(v) =>
+                form.setValue('to_unit_code', v === CONV_UNIT_UNSET ? '' : v, { shouldValidate: true })
+              }
               disabled={unitsLoading}
             >
               <SelectTrigger id="vp-c-to">
-                <SelectValue placeholder={unitsLoading ? 'Loading units…' : 'Select…'} />
+                <SelectValue placeholder={unitsLoading ? 'Loading units…' : 'Select to unit'} />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value={CONV_UNIT_UNSET}>Select to unit</SelectItem>
                 {toOptions.map((o) => (
                   <SelectItem key={o.code} value={o.code}>
                     {o.label}
@@ -477,17 +494,17 @@ function ConversionCreateDialog({
           ) : null}
         </div>
         <div className="space-y-2">
-          <Label htmlFor="vp-c-factor">Factor *</Label>
+          <RequiredLabel htmlFor="vp-c-factor">Factor</RequiredLabel>
           <Input id="vp-c-factor" type="number" step="any" {...form.register('factor', { valueAsNumber: true })} />
-          <p className="text-xs text-muted-foreground">Stored as sent (including 0). Default in this form is 1.</p>
+          <p className="text-xs text-muted-foreground">Default 1 if unchanged.</p>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="vp-c-off">Offset *</Label>
+          <Label htmlFor="vp-c-off">Offset</Label>
           <Input id="vp-c-off" type="number" step="any" {...form.register('offset_value', { valueAsNumber: true })} />
-          <p className="text-xs text-muted-foreground">Sent as offset_value on the API.</p>
+          <p className="text-xs text-muted-foreground">Optional; defaults to 0.</p>
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-c-order">Display order *</Label>
+          <RequiredLabel htmlFor="vp-c-order">Display order</RequiredLabel>
           <Input id="vp-c-order" type="number" {...form.register('display_order', { valueAsNumber: true })} />
         </div>
       </div>
@@ -570,7 +587,7 @@ function ConversionEditDialog({
       {row ? (
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="vp-ce-from">From unit *</Label>
+            <RequiredLabel htmlFor="vp-ce-from">From unit</RequiredLabel>
             {hasCatalogUnits ? (
               <Select
                 value={fromCode || undefined}
@@ -596,7 +613,7 @@ function ConversionEditDialog({
             ) : null}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="vp-ce-to">To unit *</Label>
+            <RequiredLabel htmlFor="vp-ce-to">To unit</RequiredLabel>
             {hasCatalogUnits ? (
               <Select
                 value={toCode || undefined}
@@ -622,15 +639,15 @@ function ConversionEditDialog({
             ) : null}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="vp-ce-factor">Factor *</Label>
+            <RequiredLabel htmlFor="vp-ce-factor">Factor</RequiredLabel>
             <Input id="vp-ce-factor" type="number" step="any" {...form.register('factor', { valueAsNumber: true })} />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="vp-ce-off">Offset *</Label>
+            <Label htmlFor="vp-ce-off">Offset</Label>
             <Input id="vp-ce-off" type="number" step="any" {...form.register('offset_value', { valueAsNumber: true })} />
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="vp-ce-order">Display order *</Label>
+            <RequiredLabel htmlFor="vp-ce-order">Display order</RequiredLabel>
             <Input id="vp-ce-order" type="number" {...form.register('display_order', { valueAsNumber: true })} />
           </div>
         </div>

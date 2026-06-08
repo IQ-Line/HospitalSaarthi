@@ -4,14 +4,23 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Controller, useForm, type SubmitHandler } from 'react-hook-form';
 import { type ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@pulse/ui/select';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
-import { Switch } from '@pulse/ui/switch';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
-import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
+import { CatalogActiveSwitch } from '@/features/visitpad/components/catalog-active-switch';
+import { RequiredLabel, VISITPAD_CODE_HELPER_TEXT } from '@/features/visitpad/components/required-label';
+import { useCatalogActiveToggleConfirm } from '@/features/visitpad/hooks/use-catalog-active-toggle-confirm';
+import { nextDisplayOrder } from '@/features/visitpad/lib/next-display-order';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import {
   useVisitpadDelete,
@@ -101,14 +110,39 @@ function VisitpadRxColumnsPage() {
   const del = useVisitpadDelete(RX_BASE);
   const create = useVisitpadPost(RX_BASE);
   const platformImport = useVisitpadRxColumnsPlatformImport(section);
-  const { data: tenantRxKeys } = useVisitpadTenantImportKeys('/rx-columns', importOpen && tenantCatalog, {
-    section,
-  });
+  const { data: tenantRxKeys, isLoading: tenantRxKeysLoading } = useVisitpadTenantImportKeys(
+    '/rx-columns',
+    importOpen && tenantCatalog,
+    {
+      section,
+    },
+  );
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);
   const sectionLabel = sectionLabelFor(section);
   const busy = patch.isPending || del.isPending || platformImport.isPending;
+
+  const activeToggle = useCatalogActiveToggleConfirm({
+    disabled: patch.isPending || !canUpdate,
+    onConfirm: async (id, next) => {
+      try {
+        await patch.mutateAsync({ id, body: { is_active: next } });
+        toast.success(next ? 'Enabled' : 'Disabled');
+      } catch (e) {
+        toast.error(mutationErrorMessage(e));
+      }
+    },
+  });
+
+  const { data: rxUnitOptionsRes } = useVisitpadRxColumns(undefined, 'unit', {
+    pageIndex: 0,
+    pageSize: 200,
+  });
+  const rxUnitOptions = useMemo(
+    () => (rxUnitOptionsRes?.data ?? []).filter((r) => r.is_active && !r.is_deleted),
+    [rxUnitOptionsRes?.data],
+  );
 
   const rxColumnKey = useCallback((r: Pick<VisitpadRxColumn, 'section' | 'code'>) => `${r.section}::${r.code}`, []);
 
@@ -156,20 +190,12 @@ function VisitpadRxColumnsPage() {
         accessorKey: 'is_active',
         header: 'Enabled',
         meta: { label: 'Enabled' },
-        cell: ({ row }) => (
-          <TableActiveToggle
-            active={row.original.is_active}
-            disabled={patch.isPending || !canUpdate}
-            onCheckedChange={async (next) => {
-              try {
-                await patch.mutateAsync({ id: row.original.id, body: { is_active: next } });
-                toast.success(next ? 'Enabled' : 'Disabled');
-              } catch (e) {
-                toast.error(mutationErrorMessage(e));
-              }
-            }}
-          />
-        ),
+        cell: ({ row }) =>
+          activeToggle.renderToggle({
+            id: row.original.id,
+            displayName: row.original.display_name || row.original.code,
+            isActive: row.original.is_active,
+          }),
       },
       visitpadActionsColumn<VisitpadRxColumn>({
         onEdit: setEditing,
@@ -179,7 +205,7 @@ function VisitpadRxColumnsPage() {
         canDelete,
       }),
     ],
-    [patch, busy, canUpdate, canDelete],
+    [activeToggle, busy, canUpdate, canDelete],
   );
 
   return (
@@ -195,7 +221,7 @@ function VisitpadRxColumnsPage() {
       actions={
         <VisitpadHeaderActions
           catalogModuleSlug={catalogModuleSlug}
-          addLabel={tenantCatalog ? `Add local ${sectionLabel}` : `Add ${sectionLabel}`}
+          addLabel={`Add ${sectionLabel}`}
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
           importFromLibraryPending={platformImport.isPending}
@@ -260,6 +286,7 @@ function VisitpadRxColumnsPage() {
         isLoading={globalLibLoading}
         getRowKey={getRowKey}
         importedKeys={importedKeys}
+        importedKeysLoading={tenantRxKeysLoading}
         columns={importColumns}
         searchParts={importSearchParts}
         isSubmitting={platformImport.isPending || create.isPending}
@@ -276,11 +303,15 @@ function VisitpadRxColumnsPage() {
         }}
       />
 
+      {activeToggle.renderConfirmDialog()}
+
       <RxColumnCreateDialog
         section={section}
         sectionLabel={sectionLabel}
         open={createOpen}
         onOpenChange={setCreateOpen}
+        nextOrder={nextDisplayOrder(rows)}
+        rxUnitOptions={rxUnitOptions}
         isSubmitting={create.isPending}
         onSubmit={async (payload) => {
           try {
@@ -295,6 +326,7 @@ function VisitpadRxColumnsPage() {
 
       <RxColumnEditDialog
         row={editing}
+        rxUnitOptions={rxUnitOptions}
         open={!!editing}
         onOpenChange={(o) => !o && setEditing(null)}
         isSubmitting={patch.isPending}
@@ -336,11 +368,15 @@ function VisitpadRxColumnsPage() {
   );
 }
 
+const RX_DOSE_UNIT_UNSET = '__unset__';
+
 function RxColumnCreateDialog({
   section,
   sectionLabel,
   open,
   onOpenChange,
+  nextOrder,
+  rxUnitOptions,
   isSubmitting,
   onSubmit,
 }: {
@@ -348,30 +384,52 @@ function RxColumnCreateDialog({
   sectionLabel: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  nextOrder: number;
+  rxUnitOptions: VisitpadRxColumn[];
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
+  const isMethodStrength = section === 'method_strength';
   const form = useForm<VisitpadRxColumnCreateFormSchema>({
     resolver: zodResolver(visitpadRxColumnCreateFormSchema),
-    defaultValues: { display_name: '', code: '', is_active: true },
+    defaultValues: {
+      display_name: '',
+      code: '',
+      extra_unit: undefined,
+      display_order: nextOrder,
+      is_active: true,
+    },
   });
 
   useEffect(() => {
     if (open) {
-      form.reset({ display_name: '', code: '', is_active: true });
+      form.reset({
+        display_name: '',
+        code: '',
+        extra_unit: undefined,
+        display_order: nextOrder,
+        is_active: true,
+      });
     }
-  }, [open, section, form]);
+  }, [open, section, nextOrder, form]);
 
   const submit: SubmitHandler<VisitpadRxColumnCreateFormSchema> = async (v) => {
+    const extra = v.extra_unit?.trim();
+    if (isMethodStrength && !extra) {
+      form.setError('extra_unit', { message: 'Select a dosage unit.' });
+      return;
+    }
     await onSubmit({
       section,
       display_name: v.display_name,
       code: v.code,
-      extra_unit: null,
-      display_order: 0,
-      is_active: v.is_active,
+      extra_unit: extra && extra.length > 0 ? extra : null,
+      display_order: v.display_order,
+      is_active: v.is_active ?? true,
     });
   };
+
+  const displayLabel = isMethodStrength ? 'Strength name' : 'Display name';
 
   return (
     <EntityFormDialog
@@ -379,49 +437,82 @@ function RxColumnCreateDialog({
       onOpenChange={onOpenChange}
       title={`Add ${sectionLabel}`}
       description="Picklist value for visit forms."
-      submitLabel="Save"
+      submitLabel="Add"
       isSubmitting={isSubmitting}
       onSubmit={form.handleSubmit(submit)}
     >
       <div className="grid gap-4">
         <div className="space-y-2">
-          <Label htmlFor="vp-rx-name">Display name</Label>
-          <Input id="vp-rx-name" maxLength={256} {...form.register('display_name')} />
-          <p className="text-sm text-muted-foreground">Name shown in visit forms.</p>
+          <RequiredLabel htmlFor="vp-rx-name">{displayLabel}</RequiredLabel>
+          <Input
+            id="vp-rx-name"
+            maxLength={256}
+            placeholder={isMethodStrength ? 'e.g. 100' : undefined}
+            {...form.register('display_name')}
+          />
           {form.formState.errors.display_name ? (
             <p className="text-sm text-destructive">{form.formState.errors.display_name.message}</p>
           ) : null}
         </div>
+        {isMethodStrength ? (
+          <div className="space-y-2">
+            <RequiredLabel htmlFor="vp-rx-dose-unit">Dose unit</RequiredLabel>
+            <Controller
+              control={form.control}
+              name="extra_unit"
+              render={({ field }) => (
+                <Select
+                  value={field.value && field.value.length > 0 ? field.value : RX_DOSE_UNIT_UNSET}
+                  onValueChange={(x) =>
+                    field.onChange(x === RX_DOSE_UNIT_UNSET ? undefined : x)
+                  }
+                >
+                  <SelectTrigger id="vp-rx-dose-unit">
+                    <SelectValue placeholder="Select dosage unit" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={RX_DOSE_UNIT_UNSET}>Select dosage unit</SelectItem>
+                    {rxUnitOptions.map((u) => (
+                      <SelectItem key={u.code} value={u.code}>
+                        {u.display_name} ({u.code})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            {form.formState.errors.extra_unit ? (
+              <p className="text-sm text-destructive">{form.formState.errors.extra_unit.message}</p>
+            ) : null}
+          </div>
+        ) : null}
         <div className="space-y-2">
-          <Label htmlFor="vp-rx-code">Code</Label>
+          <RequiredLabel htmlFor="vp-rx-code">Code</RequiredLabel>
           <Input
             id="vp-rx-code"
-            maxLength={8}
-            placeholder="e.g. bid_qd"
+            maxLength={9}
+            placeholder={isMethodStrength ? 'e.g. 100_mg' : 'e.g. bid_qd'}
             className="font-mono"
             {...form.register('code')}
           />
-          <p className="text-sm text-muted-foreground">
-            Code must be 2–8 characters, letters, digits, or underscores; unique within this section; cannot be
-            changed after save.
-          </p>
+          <p className="text-sm text-muted-foreground">{VISITPAD_CODE_HELPER_TEXT}</p>
           {form.formState.errors.code ? (
             <p className="text-sm text-destructive">{form.formState.errors.code.message}</p>
           ) : null}
         </div>
-        <div className="flex items-center justify-between gap-4 rounded-md border p-3">
-          <div className="space-y-1">
-            <Label htmlFor="vp-rx-act">Active</Label>
-            <p className="text-sm text-muted-foreground">Inactive items stay hidden from new visits.</p>
-          </div>
-          <Controller
-            control={form.control}
-            name="is_active"
-            render={({ field }) => (
-              <Switch id="vp-rx-act" checked={field.value} onCheckedChange={field.onChange} />
-            )}
+        <div className="space-y-2">
+          <RequiredLabel htmlFor="vp-rx-order">Display order</RequiredLabel>
+          <Input
+            id="vp-rx-order"
+            type="number"
+            {...form.register('display_order', { valueAsNumber: true })}
           />
         </div>
+        <CatalogActiveSwitch
+          id="vp-rx-act"
+          checked={!!form.watch('is_active')}
+          onCheckedChange={(c) => form.setValue('is_active', c)}
+        />
       </div>
     </EntityFormDialog>
   );
@@ -429,17 +520,20 @@ function RxColumnCreateDialog({
 
 function RxColumnEditDialog({
   row,
+  rxUnitOptions,
   open,
   onOpenChange,
   isSubmitting,
   onSave,
 }: {
   row: VisitpadRxColumn | null;
+  rxUnitOptions: VisitpadRxColumn[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   isSubmitting: boolean;
   onSave: (body: Record<string, unknown>) => Promise<void>;
 }) {
+  const isMethodStrength = row?.section === 'method_strength';
   const form = useForm<VisitpadRxColumnEditFormSchema>({
     resolver: zodResolver(visitpadRxColumnEditFormSchema),
     defaultValues: {
@@ -490,31 +584,53 @@ function RxColumnEditDialog({
             <Input id="vp-rxe-code" value={row.code} readOnly className="bg-muted font-mono text-sm" />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="vp-rxe-name">Display name</Label>
+            <RequiredLabel htmlFor="vp-rxe-name">
+              {isMethodStrength ? 'Strength name' : 'Display name'}
+            </RequiredLabel>
             <Input id="vp-rxe-name" maxLength={256} {...form.register('display_name')} />
-            <p className="text-sm text-muted-foreground">Name shown in visit forms.</p>
           </div>
+          {isMethodStrength ? (
+            <div className="space-y-2">
+              <RequiredLabel htmlFor="vp-rxe-extra">Dose unit</RequiredLabel>
+              <Controller
+                control={form.control}
+                name="extra_unit"
+                render={({ field }) => (
+                  <Select
+                    value={
+                      field.value && String(field.value).length > 0
+                        ? String(field.value)
+                        : RX_DOSE_UNIT_UNSET
+                    }
+                    onValueChange={(x) =>
+                      field.onChange(x === RX_DOSE_UNIT_UNSET ? null : x)
+                    }
+                  >
+                    <SelectTrigger id="vp-rxe-extra">
+                      <SelectValue placeholder="Select dosage unit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={RX_DOSE_UNIT_UNSET}>Select dosage unit</SelectItem>
+                      {rxUnitOptions.map((u) => (
+                        <SelectItem key={u.code} value={u.code}>
+                          {u.display_name} ({u.code})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+          ) : null}
           <div className="space-y-2">
-            <Label htmlFor="vp-rxe-extra">Extra unit (optional)</Label>
-            <Input id="vp-rxe-extra" maxLength={128} {...form.register('extra_unit')} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="vp-rxe-order">Display order</Label>
+            <RequiredLabel htmlFor="vp-rxe-order">Display order</RequiredLabel>
             <Input id="vp-rxe-order" type="number" {...form.register('display_order', { valueAsNumber: true })} />
           </div>
-          <div className="flex items-center justify-between gap-4 rounded-md border p-3">
-            <div className="space-y-1">
-              <Label htmlFor="vp-rxe-act">Active</Label>
-              <p className="text-sm text-muted-foreground">Inactive items stay hidden from new visits.</p>
-            </div>
-            <Controller
-              control={form.control}
-              name="is_active"
-              render={({ field }) => (
-                <Switch id="vp-rxe-act" checked={field.value} onCheckedChange={field.onChange} />
-              )}
-            />
-          </div>
+          <CatalogActiveSwitch
+            id="vp-rxe-act"
+            checked={!!form.watch('is_active')}
+            onCheckedChange={(c) => form.setValue('is_active', c)}
+          />
         </div>
       ) : null}
     </EntityFormDialog>

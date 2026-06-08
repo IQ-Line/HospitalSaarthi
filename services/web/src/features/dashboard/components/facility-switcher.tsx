@@ -78,7 +78,7 @@ export function FacilitySwitcher({
         >
           {facilities.map((facility) => (
             <SelectItem key={facility.tenantId} value={facility.tenantId}>
-              {facility.name} [{facility.facilityId}]
+              {facility.name} ({facility.facilityId})
             </SelectItem>
           ))}
         </SelectContent>

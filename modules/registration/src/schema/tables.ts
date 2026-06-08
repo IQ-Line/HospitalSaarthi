@@ -48,8 +48,9 @@ export const registrations = registrationSchema.table(
 export const visits = registrationSchema.table(
   "visit",
   {
-    visit_id: uuid("visit_id").defaultRandom().notNull(),
+    id: uuid("id").defaultRandom().notNull(),
     ...tenantColumn(),
+    visit_id: text("visit_id").notNull(),
     patient_id: uuid("patient_id").notNull(),
     visit_type: text("visit_type"),
     status: varchar("status", { length: 32 }).notNull().default("pending"),
@@ -61,7 +62,8 @@ export const visits = registrationSchema.table(
     ...auditColumns(),
   },
   (t) => [
-    primaryKey({ columns: [t.iq_tenant_id, t.visit_id] }),
+    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
+    uniqueIndex("uq_visit_tenant_visit_id").on(t.iq_tenant_id, t.visit_id),
     index("idx_visit_patient").on(t.iq_tenant_id, t.patient_id),
     index("idx_visit_status").on(t.iq_tenant_id, t.status),
     uniqueIndex("uq_visit_idempotency")

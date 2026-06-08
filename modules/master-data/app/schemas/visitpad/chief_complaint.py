@@ -113,11 +113,11 @@ class VisitpadChiefComplaintSingleResponse(BaseModel):
 class VisitpadChiefComplaintCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    code: str = Field(min_length=1, max_length=64)
+    code: str = Field(min_length=3, max_length=9, pattern=r"^[A-Za-z0-9_]{3,9}$")
     display_name: str = Field(min_length=1, max_length=256)
     short_name: str | None = Field(default=None, max_length=120)
-    body_system: VisitpadBodySystem
-    triage_priority: VisitpadTriagePriority
+    body_system: VisitpadBodySystem = VisitpadBodySystem.general
+    triage_priority: VisitpadTriagePriority = VisitpadTriagePriority.routine
     synonyms: list[str] = Field(default_factory=list, max_length=50)
     is_paediatric_relevant: bool = False
     display_order: int = 0

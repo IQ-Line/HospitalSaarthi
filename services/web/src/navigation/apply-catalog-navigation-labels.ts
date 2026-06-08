@@ -30,24 +30,6 @@ export function catalogDisplayNameForModuleRoot(
     }
   }
 
-  for (const gateSlug of node.requiredModulesAny ?? []) {
-    for (const variant of catalogSlugVariants(gateSlug)) {
-      const name = l1NamesBySlug.get(variant);
-      if (name) {
-        return name;
-      }
-    }
-  }
-
-  for (const gateSlug of node.requiredModules ?? []) {
-    for (const variant of catalogSlugVariants(gateSlug)) {
-      const name = l1NamesBySlug.get(variant);
-      if (name) {
-        return name;
-      }
-    }
-  }
-
   return undefined;
 }
 

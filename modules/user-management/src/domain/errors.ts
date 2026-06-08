@@ -20,6 +20,8 @@ export type ValidationIssue =
   | "replace_user_capabilities_invalid"
   | "role_code_invalid_type"
   | "role_code_empty"
+  | "role_type_invalid_type"
+  | "role_type_empty"
   | "role_display_name_invalid_type"
   | "role_display_name_empty"
   | "replace_role_capabilities_invalid";
@@ -105,6 +107,14 @@ const VALIDATION_ISSUE_META: Record<ValidationIssue, { code: string; message: st
   role_code_empty: {
     code: "ROLE_CODE_REQUIRED",
     message: "code is required.",
+  },
+  role_type_invalid_type: {
+    code: "INVALID_INPUT",
+    message: "role_type must be a non-empty string.",
+  },
+  role_type_empty: {
+    code: "ROLE_TYPE_REQUIRED",
+    message: "role_type is required.",
   },
   role_display_name_invalid_type: {
     code: "INVALID_INPUT",

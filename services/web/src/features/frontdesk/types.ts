@@ -82,7 +82,7 @@ export interface CreateVisitRequestBody {
     first_name: string;
     middle_name?: string | null;
     last_name?: string | null;
-    gender: 'male' | 'female' | 'other';
+    gender: 'male' | 'female' | 'other' | '';
     date_of_birth?: string | null;
     age_years?: number | null;
     age_months?: number | null;
@@ -135,6 +135,9 @@ export interface RegisterPatientResponse {
 export interface RegistrationListItemResponse {
   registration_id: string;
   iq_tenant_id: string;
+  /** Visit UUID for API routes and billing FK. */
+  id: string | null;
+  /** Formatted visit identifier from sequence configuration. */
   visit_id: string | null;
   patient_id: string;
   patient_uhid: string;
@@ -162,6 +165,34 @@ export interface RegistrationListItemResponse {
 
 export interface RegistrationListPageResponse {
   data: RegistrationListItemResponse[];
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+}
+
+/** `GET /api/registration/v1/visits` — encounter row from registration.visit. */
+export interface RegistrationVisitResponse {
+  /** Visit UUID for API routes (create-rx, nurse vitals). */
+  id: string;
+  /** Formatted visit number from sequence configuration. */
+  visit_id: string;
+  iq_tenant_id: string;
+  patient_id: string;
+  visit_type: string | null;
+  status: string;
+  facility_id: string | null;
+  department_id: string | null;
+  doctor_id: string | null;
+  appointment_id: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RegistrationVisitListPageResponse {
+  data: RegistrationVisitResponse[];
   total: number;
   page: number;
   limit: number;

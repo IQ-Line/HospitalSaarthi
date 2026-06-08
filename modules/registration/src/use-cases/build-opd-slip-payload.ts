@@ -34,7 +34,7 @@ export async function buildOpdSlipPayload(
       ? []
       : await deps.billingReadPort.listBillsForRegistration(tenantId, record.registration_id, {
           bearerToken: context?.bearerToken,
-          visitId: visitRef.visit_id,
+          visitId: visitRef.id,
         });
 
   const netTotal = bills.reduce(

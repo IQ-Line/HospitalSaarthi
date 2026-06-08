@@ -44,12 +44,14 @@ def get_procedures(
     search: Annotated[str | None, Query()] = None,
     category: Annotated[VisitpadProcedureCategory | None, Query()] = None,
     billing_category: Annotated[VisitpadProcedureBillingCategory | None, Query()] = None,
+    is_active: Annotated[bool | None, Query()] = None,
 ) -> VisitpadProcedureListResponse:
     rows, total = list_visitpad_procedures(
         repository,
         search=search,
         category=category.value if category is not None else None,
         billing_category=billing_category.value if billing_category is not None else None,
+        is_active=is_active,
         limit=limit,
         offset=offset,
     )

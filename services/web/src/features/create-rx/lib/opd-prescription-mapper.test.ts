@@ -60,6 +60,75 @@ describe('opd legacy vitals', () => {
   });
 });
 
+describe('medicine prescription mapping', () => {
+  it('maps dosage form, M-A-N dosage, frequency, route, and TOA to clinical payload', () => {
+    const formData: CreateRxFormData = {
+      vitals: {},
+      chiefComplaints: [],
+      immunizations: [],
+      physicalActivity: [],
+      medicalHistory: {
+        chronicIllness: '',
+        smokingStatus: '',
+        alcoholStatus: '',
+        dietType: '',
+        historyOfPresentIllness: '',
+      },
+      allergyDetails: [],
+      diagnosis: [],
+      medicines: [
+        {
+          id: '1',
+          medicine: 'Paracetamol',
+          dosageForm: 'Tablet',
+          route: 'Oral',
+          strength: '500mg',
+          dosageMorning: '1',
+          dosageAfternoon: '0',
+          dosageNight: '1',
+          days: '5',
+          frequency: 'Once Daily',
+          toa: 'After Meals',
+          quantity: '10',
+        },
+      ],
+      testsRequired: [],
+      imagingRequired: [],
+      procedures: [],
+      carePlan: { advice: '', referTo: '', nextVisit: '', nextVisitUnit: 'days' },
+    };
+
+    const clinical = createRxFormDataToClinical(formData);
+    expect(clinical.medicines?.[0]).toEqual({
+      line_no: 1,
+      name: 'Paracetamol',
+      medicine_type: 'Tablet',
+      strength: '500mg',
+      dosage: '1-0-1',
+      duration: '5',
+      frequency: 'Once Daily',
+      quantity: '10',
+      route: 'Oral',
+      method: 'After Meals',
+    });
+
+    const restored = clinicalToCreateRxFormData(clinical);
+    expect(restored.medicines[0]).toMatchObject({
+      medicine: 'Paracetamol',
+      dosageForm: 'Tablet',
+      route: 'Oral',
+      strength: '500mg',
+      dosageMorning: '1',
+      dosageAfternoon: '0',
+      dosageNight: '1',
+      days: '5',
+      frequency: 'Once Daily',
+      toa: 'After Meals',
+      quantity: '10',
+    });
+  });
+});
+
 describe('createRxFormDataToClinical', () => {
   it('includes immunization meta in vaccines_required', () => {
     const formData: CreateRxFormData = {

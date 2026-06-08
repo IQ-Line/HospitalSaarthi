@@ -23,6 +23,7 @@ import {
   RegistrationSection,
   RegistrationSubsectionLabel,
 } from '@/features/frontdesk/components/registration-form-chrome';
+import { sanitizeIndianMobileInput } from '@/lib/indian-mobile';
 import type { CreateVisitRequestBody } from '@/features/frontdesk/types';
 import { coerceAgePartValue } from '@/features/frontdesk/utils/visit-registration-helpers';
 import {
@@ -69,7 +70,7 @@ export function RegistrationPatientSection({
   patientPhoneOnBlur,
   patientPhoneRhfOnChange,
 }: PatientSectionProps) {
-  const gender = form.watch('patient.gender') ?? 'male';
+  const gender = form.watch('patient.gender') ?? '';
   const stateCode = form.watch('permanent_address.state') ?? '';
   const districtCode = form.watch('permanent_address.district') ?? '';
   const formAbhaNumber = form.watch('patient.abha_number') ?? '';
@@ -99,8 +100,7 @@ export function RegistrationPatientSection({
               ref={patientPhoneRef}
               onBlur={patientPhoneOnBlur}
               onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                const el = e.target;
-                el.value = el.value.replace(/\D/g, '').slice(0, 10);
+                e.target.value = sanitizeIndianMobileInput(e.target.value);
                 void patientPhoneRhfOnChange(e);
               }}
               className="mt-1.5 h-9 w-full"
@@ -220,10 +220,10 @@ export function RegistrationPatientSection({
             type="single"
             variant="outline"
             spacing={0}
-            value={gender}
+            value={gender || undefined}
             onValueChange={(v) => {
               if (v === 'male' || v === 'female' || v === 'other') {
-                form.setValue('patient.gender', v);
+                form.setValue('patient.gender', v, { shouldValidate: true });
               }
             }}
             className="w-full"
@@ -238,6 +238,11 @@ export function RegistrationPatientSection({
               </ToggleGroupItem>
             ))}
           </ToggleGroup>
+          {form.formState.errors.patient?.gender ? (
+            <p className="text-sm text-destructive" role="alert">
+              {form.formState.errors.patient.gender.message}
+            </p>
+          ) : null}
         </RegistrationField>
         <RegistrationField className="lg:col-span-3">
           <RegistrationFieldLabel htmlFor="visit-reg-dob">Date of Birth</RegistrationFieldLabel>

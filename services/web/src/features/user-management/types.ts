@@ -61,6 +61,7 @@ export type Capability = {
 export type UmRole = {
   id: string;
   code: string;
+  role_type: string;
   display_name: string;
   description?: string | null;
   is_system: boolean;
@@ -69,6 +70,7 @@ export type UmRole = {
 
 export type CreateRoleBody = {
   code: string;
+  role_type: string;
   display_name: string;
   description?: string | null;
   is_system?: boolean;
@@ -77,6 +79,7 @@ export type CreateRoleBody = {
 
 export type UpdateRoleBody = {
   code?: string;
+  role_type?: string;
   display_name?: string;
   description?: string | null;
   is_system?: boolean;

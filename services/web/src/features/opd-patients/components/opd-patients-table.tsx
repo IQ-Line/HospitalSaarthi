@@ -161,7 +161,7 @@ export function OpdPatientsTable({
         isLoading={isLoading}
         onRowClick={onPatientRowClick}
         emptyTitle="No data available"
-        emptyDescription="No registered patients match the current filters."
+        emptyDescription="No front-desk registrations match the current filters."
         manualPagination={{
           pageIndex: page - 1,
           pageSize,

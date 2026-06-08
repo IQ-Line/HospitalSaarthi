@@ -7,9 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-
-_ALLERGEN_CODE_PATTERN = r"^[A-Za-z0-9_]{3,8}$"
-_REACTION_CODE_PATTERN = r"^[A-Za-z0-9_]{3,8}$"
+from app.schemas.visitpad._code import VISITPAD_CATALOG_CODE_PATTERN
 
 
 class VisitpadAllergenType(StrEnum):
@@ -58,9 +56,9 @@ class VisitpadAllergenSingleResponse(BaseModel):
 class VisitpadAllergenCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    code: str = Field(min_length=3, max_length=8, pattern=_ALLERGEN_CODE_PATTERN)
+    code: str = Field(min_length=3, max_length=9, pattern=VISITPAD_CATALOG_CODE_PATTERN)
     display_name: str = Field(min_length=1, max_length=256)
-    allergen_type: VisitpadAllergenType
+    allergen_type: VisitpadAllergenType = VisitpadAllergenType.other
     drug_class: str | None = Field(default=None, max_length=256)
     reaction_severity_default: VisitpadReactionSeverityDefault = VisitpadReactionSeverityDefault.unknown
     snomed_code: str | None = Field(default=None, max_length=64)
@@ -119,7 +117,7 @@ class VisitpadAllergyReactionCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     display_name: str = Field(min_length=1, max_length=256)
-    code: str = Field(min_length=3, max_length=8, pattern=_REACTION_CODE_PATTERN)
+    code: str = Field(min_length=3, max_length=9, pattern=VISITPAD_CATALOG_CODE_PATTERN)
     short_name: str | None = Field(default=None, max_length=120)
     snomed_code: str | None = Field(default=None, max_length=64)
     display_order: int = 0

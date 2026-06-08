@@ -5,7 +5,7 @@ import { configuratorModuleManifest } from './manifests/configurator.manifest';
 import { dashboardModuleManifest } from './manifests/dashboard.manifest';
 import { frontdeskModuleManifest } from './manifests/frontdesk.manifest';
 import { nurseModuleManifest } from './manifests/nurse.manifest';
-import { patientsModuleManifest } from './manifests/patients.manifest';
+import { doctorModuleManifest } from './manifests/doctor.manifest';
 import { pharmacyModuleManifest } from './manifests/pharmacy.manifest';
 import { masterDataModuleManifest } from './manifests/master-data.manifest';
 import { userManagementModuleManifest } from './manifests/user-management.manifest';
@@ -15,7 +15,7 @@ const BUILTIN_MODULE_MANIFESTS = [
   dashboardModuleManifest,
   masterDataModuleManifest,
   userManagementModuleManifest,
-  patientsModuleManifest,
+  doctorModuleManifest,
   nurseModuleManifest,
   pharmacyModuleManifest,
   frontdeskModuleManifest,

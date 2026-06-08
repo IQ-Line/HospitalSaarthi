@@ -40,8 +40,15 @@ def get_vaccines(
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     search: Annotated[str | None, Query()] = None,
+    is_active: Annotated[bool | None, Query()] = None,
 ) -> VisitpadVaccineListResponse:
-    rows, total = list_visitpad_vaccines(repository, search=search, limit=limit, offset=offset)
+    rows, total = list_visitpad_vaccines(
+        repository,
+        search=search,
+        is_active=is_active,
+        limit=limit,
+        offset=offset,
+    )
     return VisitpadVaccineListResponse(
         data=[VisitpadVaccineResponse.model_validate(r) for r in rows],
         total=total,

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { InvalidRoleSeedError } from "../domain/errors.js";
 import { normalizeRoleCode } from "../domain/normalize-role-code.js";
+import { normalizeRoleType } from "../domain/normalize-role-type.js";
 import type { CreateRoleInput, Role, RoleRepository, UpdateRoleInput } from "../ports/index.js";
 
 type SeedRole = {
@@ -19,7 +20,8 @@ export class InMemoryRoleRepository implements RoleRepository {
   constructor(seedRoles: SeedRole[] = []) {
     for (const seed of seedRoles) {
       const code = normalizeRoleCode(seed.role.code);
-      if (code.length === 0) {
+      const role_type = normalizeRoleType(seed.role.role_type ?? seed.role.code);
+      if (code.length === 0 || role_type.length === 0) {
         throw new InvalidRoleSeedError();
       }
       this.roles.set(roleKey(seed.tenantId, seed.role.id), {
@@ -28,6 +30,7 @@ export class InMemoryRoleRepository implements RoleRepository {
         status: "active",
         ...seed.role,
         code,
+        role_type,
       });
     }
   }
@@ -52,6 +55,7 @@ export class InMemoryRoleRepository implements RoleRepository {
     const role: Role = {
       id: randomUUID(),
       code: normalizeRoleCode(input.code),
+      role_type: normalizeRoleType(input.role_type),
       display_name: input.display_name,
       description: input.description ?? null,
       is_system: input.is_system ?? false,
@@ -67,6 +71,7 @@ export class InMemoryRoleRepository implements RoleRepository {
     const next: Role = {
       ...role,
       ...(input.code !== undefined ? { code: normalizeRoleCode(input.code) } : {}),
+      ...(input.role_type !== undefined ? { role_type: normalizeRoleType(input.role_type) } : {}),
       ...(input.display_name !== undefined ? { display_name: input.display_name } : {}),
       ...(input.description !== undefined ? { description: input.description } : {}),
       ...(input.is_system !== undefined ? { is_system: input.is_system } : {}),

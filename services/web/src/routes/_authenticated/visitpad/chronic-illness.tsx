@@ -14,12 +14,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@pulse/ui/select';
-import { Switch } from '@pulse/ui/switch';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
-import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
+import { CatalogActiveSwitch } from '@/features/visitpad/components/catalog-active-switch';
+import { FormToggleRow } from '@/features/visitpad/components/form-toggle-row';
+import { RequiredLabel, VISITPAD_CODE_HELPER_TEXT } from '@/features/visitpad/components/required-label';
+import { useCatalogActiveToggleConfirm } from '@/features/visitpad/hooks/use-catalog-active-toggle-confirm';
+import { nextDisplayOrder } from '@/features/visitpad/lib/next-display-order';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import {
   useVisitpadChronicIllnesses,
@@ -57,17 +60,20 @@ import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad
 
 const CI_BASE = '/api/v1/master-data/visitpad/chronic-illnesses';
 
+const CI_CATEGORY_UNSET = '__unset__';
+
 const CHRONIC_CATEGORY_VALUES = new Set(
   VISITPAD_CHRONIC_ILLNESS_CATEGORIES.map((c) => c.value),
 );
 
-function emptyChronicIllnessCreateForm(): VisitpadChronicIllnessCreateFormInput {
+function emptyChronicIllnessCreateForm(displayOrder: number): VisitpadChronicIllnessCreateFormInput {
   return {
     icd10_code: '',
     display_name: '',
-    category: 'cardiovascular',
+    category: undefined,
     snomed_code: null,
     chronic_illness_prompt: false,
+    display_order: displayOrder,
     is_active: true,
   };
 }
@@ -81,6 +87,7 @@ function chronicIllnessEditDefaults(row: VisitpadChronicIllness): VisitpadChroni
     category: cat,
     snomed_code: row.snomed_code ?? null,
     chronic_illness_prompt: row.chronic_illness_prompt ?? false,
+    display_order: row.display_order,
     is_active: row.is_active,
   };
 }
@@ -126,7 +133,10 @@ function VisitpadChronicIllnessPage() {
   const del = useVisitpadDelete(CI_BASE);
   const create = useVisitpadPost(CI_BASE);
   const platformImport = useVisitpadPlatformImport('/chronic-illnesses/import-from-platform');
-  const { data: tenantIcdKeys } = useVisitpadTenantImportKeys('/chronic-illnesses', importOpen && tenantCatalog);
+  const { data: tenantIcdKeys, isLoading: tenantIcdKeysLoading } = useVisitpadTenantImportKeys(
+    '/chronic-illnesses',
+    importOpen && tenantCatalog,
+  );
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);
@@ -149,6 +159,18 @@ function VisitpadChronicIllnessPage() {
     ],
     [],
   );
+
+  const activeToggle = useCatalogActiveToggleConfirm({
+    disabled: patch.isPending || !canUpdate,
+    onConfirm: async (id, next) => {
+      try {
+        await patch.mutateAsync({ id, body: { is_active: next } });
+        toast.success(next ? 'Chronic illness enabled' : 'Chronic illness disabled');
+      } catch (e) {
+        toast.error(mutationErrorMessage(e));
+      }
+    },
+  });
 
   const runChronicIllnessImport = async (selection: VisitpadChronicIllness[]) => {
     try {
@@ -189,20 +211,12 @@ function VisitpadChronicIllnessPage() {
         accessorKey: 'is_active',
         header: 'Enabled',
         meta: { label: 'Enabled' },
-        cell: ({ row }) => (
-          <TableActiveToggle
-            active={row.original.is_active}
-            disabled={patch.isPending || !canUpdate}
-            onCheckedChange={async (next) => {
-              try {
-                await patch.mutateAsync({ id: row.original.id, body: { is_active: next } });
-                toast.success(next ? 'Enabled' : 'Disabled');
-              } catch (e) {
-                toast.error(mutationErrorMessage(e));
-              }
-            }}
-          />
-        ),
+        cell: ({ row }) =>
+          activeToggle.renderToggle({
+            id: row.original.id,
+            displayName: row.original.display_name || row.original.icd10_code,
+            isActive: row.original.is_active,
+          }),
       },
       visitpadActionsColumn<VisitpadChronicIllness>({
         onEdit: setEditing,
@@ -212,7 +226,7 @@ function VisitpadChronicIllnessPage() {
         canDelete,
       }),
     ],
-    [patch, busy, canUpdate, canDelete],
+    [activeToggle, busy, canUpdate, canDelete],
   );
 
   return (
@@ -228,7 +242,7 @@ function VisitpadChronicIllnessPage() {
       actions={
         <VisitpadHeaderActions
           catalogModuleSlug={catalogModuleSlug}
-          addLabel={tenantCatalog ? 'Add local chronic illness' : 'Add chronic illness'}
+          addLabel="Add chronic illness"
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
           importFromLibraryPending={platformImport.isPending}
@@ -280,6 +294,8 @@ function VisitpadChronicIllnessPage() {
         )}
       </div>
 
+      {activeToggle.renderConfirmDialog()}
+
       <ImportFromPlatformCatalogDialog<VisitpadChronicIllness>
         open={importOpen}
         onOpenChange={setImportOpen}
@@ -291,6 +307,7 @@ function VisitpadChronicIllnessPage() {
         getRowKey={getRowKey}
         rowKeyHeader="ICD-10"
         importedKeys={importedKeys}
+        importedKeysLoading={tenantIcdKeysLoading}
         columns={importColumns}
         searchParts={importSearchParts}
         isSubmitting={platformImport.isPending || create.isPending}
@@ -310,6 +327,7 @@ function VisitpadChronicIllnessPage() {
       <ChronicIllnessCreateDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
+        nextOrder={nextDisplayOrder(rows)}
         isSubmitting={create.isPending}
         onSubmit={async (payload) => {
           try {
@@ -368,24 +386,26 @@ function VisitpadChronicIllnessPage() {
 function ChronicIllnessCreateDialog({
   open,
   onOpenChange,
+  nextOrder,
   isSubmitting,
   onSubmit,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  nextOrder: number;
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
   const form = useForm<VisitpadChronicIllnessCreateFormInput>({
     resolver: zodResolver(visitpadChronicIllnessCreateFormSchema),
-    defaultValues: emptyChronicIllnessCreateForm(),
+    defaultValues: emptyChronicIllnessCreateForm(nextOrder),
   });
 
   useEffect(() => {
     if (open) {
-      form.reset(emptyChronicIllnessCreateForm());
+      form.reset(emptyChronicIllnessCreateForm(nextOrder));
     }
-  }, [open, form]);
+  }, [open, nextOrder, form]);
 
   const submit: SubmitHandler<VisitpadChronicIllnessCreateFormSchema> = async (v) => {
     const sn = v.snomed_code?.trim();
@@ -395,7 +415,7 @@ function ChronicIllnessCreateDialog({
       category: v.category,
       snomed_code: sn && sn.length > 0 ? sn : null,
       chronic_illness_prompt: v.chronic_illness_prompt,
-      display_order: 0,
+      display_order: v.display_order,
       is_active: v.is_active,
     });
   };
@@ -412,23 +432,21 @@ function ChronicIllnessCreateDialog({
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-ci-code">Chronic illness code *</Label>
+          <RequiredLabel htmlFor="vp-ci-code">Chronic illness code</RequiredLabel>
           <Input
             id="vp-ci-code"
             placeholder="e.g. dm2"
-            maxLength={8}
+            maxLength={9}
             className="font-mono"
             {...form.register('icd10_code')}
           />
-          <p className="text-sm text-muted-foreground">
-            Code must be 3–8 characters, letters, digits, or underscores; unique; cannot be edited after save.
-          </p>
+          <p className="text-sm text-muted-foreground">{VISITPAD_CODE_HELPER_TEXT}</p>
           {form.formState.errors.icd10_code ? (
             <p className="text-sm text-destructive">{form.formState.errors.icd10_code.message}</p>
           ) : null}
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-ci-name">Display name *</Label>
+          <RequiredLabel htmlFor="vp-ci-name">Display name</RequiredLabel>
           <Input
             id="vp-ci-name"
             placeholder="Clinical label"
@@ -436,17 +454,34 @@ function ChronicIllnessCreateDialog({
             {...form.register('display_name')}
           />
         </div>
+        <div className="space-y-2">
+          <RequiredLabel htmlFor="vp-ci-order">Display order</RequiredLabel>
+          <Input
+            id="vp-ci-order"
+            type="number"
+            {...form.register('display_order', { valueAsNumber: true })}
+          />
+          {form.formState.errors.display_order ? (
+            <p className="text-sm text-destructive">{form.formState.errors.display_order.message}</p>
+          ) : null}
+        </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label>Category *</Label>
+          <Label>Category</Label>
           <Controller
             control={form.control}
             name="category"
             render={({ field }) => (
-              <Select value={field.value} onValueChange={field.onChange}>
+              <Select
+                value={field.value ?? CI_CATEGORY_UNSET}
+                onValueChange={(v) =>
+                  field.onChange(v === CI_CATEGORY_UNSET ? undefined : v)
+                }
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select category…" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value={CI_CATEGORY_UNSET}>Select category…</SelectItem>
                   {VISITPAD_CHRONIC_ILLNESS_CATEGORIES.map((c) => (
                     <SelectItem key={c.value} value={c.value}>
                       {c.label}
@@ -466,33 +501,21 @@ function ChronicIllnessCreateDialog({
             {...form.register('snomed_code')}
           />
         </div>
-        <div className="flex flex-col gap-2 rounded-md border p-3 sm:col-span-2">
-          <div className="flex items-center justify-between gap-4">
-            <Label htmlFor="vp-ci-prompt">Chronic illness prompt</Label>
-            <Controller
-              control={form.control}
-              name="chronic_illness_prompt"
-              render={({ field }) => (
-                <Switch id="vp-ci-prompt" checked={field.value} onCheckedChange={field.onChange} />
-              )}
-            />
-          </div>
-          <p className="text-sm text-muted-foreground">
-            When enabled, visit workflows may surface a chronic follow-up prompt for this entry.
-          </p>
+        <div className="sm:col-span-2">
+          <FormToggleRow
+            id="vp-ci-prompt"
+            label="Chronic illness prompt"
+            description="When enabled, visit workflows may surface a chronic follow-up prompt for this entry."
+            checked={!!form.watch('chronic_illness_prompt')}
+            onCheckedChange={(c) => form.setValue('chronic_illness_prompt', c)}
+          />
         </div>
-        <div className="flex flex-col gap-2 rounded-md border p-3 sm:col-span-2">
-          <div className="flex items-center justify-between gap-4">
-            <Label htmlFor="vp-ci-act">Active</Label>
-            <Controller
-              control={form.control}
-              name="is_active"
-              render={({ field }) => (
-                <Switch id="vp-ci-act" checked={field.value} onCheckedChange={field.onChange} />
-              )}
-            />
-          </div>
-          <p className="text-sm text-muted-foreground">Inactive entries are hidden from tenant record lists.</p>
+        <div className="sm:col-span-2">
+          <CatalogActiveSwitch
+            id="vp-ci-act"
+            checked={!!form.watch('is_active')}
+            onCheckedChange={(c) => form.setValue('is_active', c)}
+          />
         </div>
       </div>
     </EntityFormDialog>
@@ -519,6 +542,7 @@ function ChronicIllnessEditDialog({
       category: 'other',
       snomed_code: null,
       chronic_illness_prompt: false,
+      display_order: 0,
       is_active: true,
     },
   });
@@ -536,6 +560,7 @@ function ChronicIllnessEditDialog({
       category: v.category,
       snomed_code: snomed && snomed.length > 0 ? snomed : null,
       chronic_illness_prompt: v.chronic_illness_prompt,
+      display_order: v.display_order,
       is_active: v.is_active,
     });
   };
@@ -557,11 +582,19 @@ function ChronicIllnessEditDialog({
             <Input id="vp-cie-code-ro" value={row.icd10_code} readOnly className="bg-muted font-mono text-sm" />
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="vp-cie-name">Display name *</Label>
+            <RequiredLabel htmlFor="vp-cie-name">Display name</RequiredLabel>
             <Input id="vp-cie-name" maxLength={512} {...form.register('display_name')} />
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <Label>Category *</Label>
+            <RequiredLabel htmlFor="vp-cie-order">Display order</RequiredLabel>
+            <Input
+              id="vp-cie-order"
+              type="number"
+              {...form.register('display_order', { valueAsNumber: true })}
+            />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label>Category</Label>
             <Controller
               control={form.control}
               name="category"
@@ -585,33 +618,21 @@ function ChronicIllnessEditDialog({
             <Label htmlFor="vp-cie-snomed">SNOMED CT (clinical finding)</Label>
             <Input id="vp-cie-snomed" maxLength={64} {...form.register('snomed_code')} />
           </div>
-          <div className="flex flex-col gap-2 rounded-md border p-3 sm:col-span-2">
-            <div className="flex items-center justify-between gap-4">
-              <Label htmlFor="vp-cie-prompt">Chronic illness prompt</Label>
-              <Controller
-                control={form.control}
-                name="chronic_illness_prompt"
-                render={({ field }) => (
-                  <Switch id="vp-cie-prompt" checked={field.value} onCheckedChange={field.onChange} />
-                )}
-              />
-            </div>
-            <p className="text-sm text-muted-foreground">
-              When enabled, visit workflows may surface a chronic follow-up prompt for this entry.
-            </p>
+          <div className="sm:col-span-2">
+            <FormToggleRow
+              id="vp-cie-prompt"
+              label="Chronic illness prompt"
+              description="When enabled, visit workflows may surface a chronic follow-up prompt for this entry."
+              checked={!!form.watch('chronic_illness_prompt')}
+              onCheckedChange={(c) => form.setValue('chronic_illness_prompt', c)}
+            />
           </div>
-          <div className="flex flex-col gap-2 rounded-md border p-3 sm:col-span-2">
-            <div className="flex items-center justify-between gap-4">
-              <Label htmlFor="vp-cie-act">Active</Label>
-              <Controller
-                control={form.control}
-                name="is_active"
-                render={({ field }) => (
-                  <Switch id="vp-cie-act" checked={field.value} onCheckedChange={field.onChange} />
-                )}
-              />
-            </div>
-            <p className="text-sm text-muted-foreground">Inactive entries are hidden from tenant record lists.</p>
+          <div className="sm:col-span-2">
+            <CatalogActiveSwitch
+              id="vp-cie-act"
+              checked={!!form.watch('is_active')}
+              onCheckedChange={(c) => form.setValue('is_active', c)}
+            />
           </div>
         </div>
       ) : null}

@@ -1,4 +1,5 @@
 import { Plus, Trash2 } from 'lucide-react';
+import { cn } from '@pulse/utils';
 import { Button } from '@pulse/ui/button';
 import { Input } from '@pulse/ui/input';
 import {
@@ -17,7 +18,13 @@ import {
   TableRow,
 } from '@pulse/ui/table';
 
-export type FormTableColumnType = 'text' | 'number' | 'select' | 'date';
+export type FormTableColumnType = 'text' | 'number' | 'select' | 'date' | 'dosage-man';
+
+export interface DosageManSubKeys<T> {
+  morning: keyof T & string;
+  afternoon: keyof T & string;
+  night: keyof T & string;
+}
 
 export interface FormTableColumn<T> {
   key: keyof T & string;
@@ -25,7 +32,10 @@ export interface FormTableColumn<T> {
   type?: FormTableColumnType;
   width?: string;
   placeholder?: string;
+  /** Label for the empty select option (defaults to "—"). */
+  emptyOptionLabel?: string;
   options?: { label: string; value: string }[];
+  dosageManSubKeys?: DosageManSubKeys<T>;
 }
 
 interface FormTableProps<T extends { id: string }> {
@@ -40,15 +50,35 @@ interface FormTableProps<T extends { id: string }> {
   hideTitle?: boolean;
   /** Disables catalog-backed selects while tenant Visitpad masters are loading. */
   catalogLoading?: boolean;
+  /** `${rowId}:${fieldKey}` keys for cells that failed validation. */
+  invalidCells?: ReadonlySet<string>;
+  /** Highlights the whole table block when the section has validation errors. */
+  highlightSection?: boolean;
   onAdd: () => void;
   onRemove: (index: number) => void;
   onUpdate: (index: number, field: keyof T & string, value: string) => void;
 }
 
-function formatReadOnlyCellValue(
-  raw: string,
-  col: FormTableColumn<{ id: string }>,
+function formatReadOnlyDosageMan<T extends { id: string }>(
+  row: T,
+  subKeys: DosageManSubKeys<T>,
 ): string {
+  const morning = String(row[subKeys.morning] ?? '').trim() || '0';
+  const afternoon = String(row[subKeys.afternoon] ?? '').trim() || '0';
+  const night = String(row[subKeys.night] ?? '').trim() || '0';
+  if (morning === '0' && afternoon === '0' && night === '0') return '—';
+  return `${morning}-${afternoon}-${night}`;
+}
+
+function formatReadOnlyCellValue<T extends { id: string }>(
+  row: T,
+  col: FormTableColumn<T>,
+): string {
+  if (col.type === 'dosage-man' && col.dosageManSubKeys) {
+    return formatReadOnlyDosageMan(row, col.dosageManSubKeys);
+  }
+
+  const raw = String(row[col.key] ?? '');
   const value = raw.trim();
   if (!value) return '—';
   if (col.type === 'select' && col.options) {
@@ -68,6 +98,8 @@ export function FormTable<T extends { id: string }>({
   hideAdd = false,
   hideTitle = false,
   catalogLoading = false,
+  invalidCells,
+  highlightSection = false,
   onAdd,
   onRemove,
   onUpdate,
@@ -76,11 +108,26 @@ export function FormTable<T extends { id: string }>({
     emptyMessage ??
     (hideAdd ? `No ${title.toLowerCase()} added` : `No ${title.toLowerCase()} added. Click '${addButtonLabel}' to begin.`);
 
+  const isCellInvalid = (rowId: string, field: string) =>
+    invalidCells?.has(`${rowId}:${field}`) ?? false;
+
   return (
-    <div>
+    <div
+      className={cn(
+        'rounded-md transition-colors',
+        highlightSection && 'ring-2 ring-red-400 ring-offset-2',
+      )}
+    >
       {!hideTitle ? (
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-base font-medium text-gray-700">{title}</h3>
+          <h3
+            className={cn(
+              'text-base font-medium text-gray-700',
+              highlightSection && 'text-red-700',
+            )}
+          >
+            {title}
+          </h3>
           {!readOnly && !hideAdd ? (
           <Button
             type="button"
@@ -143,8 +190,37 @@ export function FormTable<T extends { id: string }>({
                     <TableCell key={col.key}>
                       {readOnly ? (
                         <span className="block min-h-8 py-1.5 text-sm text-gray-900">
-                          {formatReadOnlyCellValue(String(row[col.key] ?? ''), col)}
+                          {formatReadOnlyCellValue(row, col)}
                         </span>
+                      ) : col.type === 'dosage-man' && col.dosageManSubKeys ? (
+                        <div className="flex items-center gap-0.5">
+                          {(
+                            [
+                              { key: col.dosageManSubKeys.morning, placeholder: 'M' },
+                              { key: col.dosageManSubKeys.afternoon, placeholder: 'A' },
+                              { key: col.dosageManSubKeys.night, placeholder: 'N' },
+                            ] as const
+                          ).map((part, partIndex) => (
+                            <div key={part.key} className="flex items-center gap-0.5">
+                              {partIndex > 0 ? (
+                                <span className="text-sm text-muted-foreground">-</span>
+                              ) : null}
+                              <Input
+                                type="text"
+                                inputMode="numeric"
+                                value={(row[part.key] as string) ?? ''}
+                                placeholder={part.placeholder}
+                                onChange={(e) => onUpdate(index, part.key, e.target.value)}
+                                aria-invalid={isCellInvalid(row.id, part.key)}
+                                className={cn(
+                                  'h-8 w-10 px-1 text-center text-sm placeholder:text-muted-foreground/60',
+                                  isCellInvalid(row.id, part.key) &&
+                                    'border-red-500 ring-1 ring-red-500 focus-visible:ring-red-500',
+                                )}
+                              />
+                            </div>
+                          ))}
+                        </div>
                       ) : col.type === 'select' && col.options ? (
                         <Select
                           value={(row[col.key] as string) || '__none__'}
@@ -153,7 +229,14 @@ export function FormTable<T extends { id: string }>({
                           }
                           disabled={catalogLoading}
                         >
-                          <SelectTrigger className="h-8 text-sm">
+                          <SelectTrigger
+                            className={cn(
+                              'h-8 text-sm',
+                              isCellInvalid(row.id, col.key) &&
+                                'border-red-500 ring-1 ring-red-500 focus:ring-red-500',
+                            )}
+                            aria-invalid={isCellInvalid(row.id, col.key)}
+                          >
                             <SelectValue
                               placeholder={
                                 catalogLoading ? 'Loading catalog…' : col.placeholder
@@ -161,7 +244,9 @@ export function FormTable<T extends { id: string }>({
                             />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="__none__">—</SelectItem>
+                            <SelectItem value="__none__">
+                              {col.emptyOptionLabel ?? '—'}
+                            </SelectItem>
                             {col.options.map((opt) => (
                               <SelectItem key={opt.value} value={opt.value}>
                                 {opt.label}
@@ -175,7 +260,12 @@ export function FormTable<T extends { id: string }>({
                           value={(row[col.key] as string) ?? ''}
                           placeholder={col.placeholder}
                           onChange={(e) => onUpdate(index, col.key, e.target.value)}
-                          className="h-8 text-sm"
+                          aria-invalid={isCellInvalid(row.id, col.key)}
+                          className={cn(
+                            'h-8 text-sm',
+                            isCellInvalid(row.id, col.key) &&
+                              'border-red-500 ring-1 ring-red-500 focus-visible:ring-red-500',
+                          )}
                         />
                       )}
                     </TableCell>

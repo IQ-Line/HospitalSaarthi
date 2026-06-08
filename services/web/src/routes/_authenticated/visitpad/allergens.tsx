@@ -14,12 +14,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@pulse/ui/select';
-import { Switch } from '@pulse/ui/switch';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
-import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
+import { CatalogActiveSwitch } from '@/features/visitpad/components/catalog-active-switch';
+import { RequiredLabel, VISITPAD_CODE_HELPER_TEXT } from '@/features/visitpad/components/required-label';
+import { useCatalogActiveToggleConfirm } from '@/features/visitpad/hooks/use-catalog-active-toggle-confirm';
+import { nextDisplayOrder } from '@/features/visitpad/lib/next-display-order';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import {
   useVisitpadAllergens,
@@ -55,6 +57,8 @@ import { useVisitpadImportLibrarySearch } from '@/features/visitpad/hooks/use-vi
 import { useVisitpadTenantCatalog } from '@/features/visitpad/hooks/use-visitpad-tenant-catalog';
 
 const AG_BASE = '/api/v1/master-data/visitpad/allergens';
+
+const ALLERGEN_SEVERITY_UNSET = '__unset__';
 
 export const Route = createFileRoute('/_authenticated/visitpad/allergens')({
   beforeLoad: requireVisitpadLeafRouteAccess('/visitpad/allergens'),
@@ -97,7 +101,10 @@ function VisitpadAllergensPage() {
   const del = useVisitpadDelete(AG_BASE);
   const create = useVisitpadPost(AG_BASE);
   const platformImport = useVisitpadPlatformImport('/allergens/import-from-platform');
-  const { data: tenantCodeKeys } = useVisitpadTenantImportKeys('/allergens', importOpen && tenantCatalog);
+  const { data: tenantCodeKeys, isLoading: tenantCodeKeysLoading } = useVisitpadTenantImportKeys(
+    '/allergens',
+    importOpen && tenantCatalog,
+  );
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);
@@ -120,6 +127,18 @@ function VisitpadAllergensPage() {
     ],
     [],
   );
+
+  const activeToggle = useCatalogActiveToggleConfirm({
+    disabled: patch.isPending || !canUpdate,
+    onConfirm: async (id, next) => {
+      try {
+        await patch.mutateAsync({ id, body: { is_active: next } });
+        toast.success(next ? 'Allergen enabled' : 'Allergen disabled');
+      } catch (e) {
+        toast.error(mutationErrorMessage(e));
+      }
+    },
+  });
 
   const runAllergenImport = async (selection: VisitpadAllergen[]) => {
     try {
@@ -178,20 +197,12 @@ function VisitpadAllergensPage() {
         accessorKey: 'is_active',
         header: 'Status',
         meta: { label: 'Status' },
-        cell: ({ row }) => (
-          <TableActiveToggle
-            active={row.original.is_active}
-            disabled={patch.isPending || !canUpdate}
-            onCheckedChange={async (next) => {
-              try {
-                await patch.mutateAsync({ id: row.original.id, body: { is_active: next } });
-                toast.success(next ? 'Enabled' : 'Disabled');
-              } catch (e) {
-                toast.error(mutationErrorMessage(e));
-              }
-            }}
-          />
-        ),
+        cell: ({ row }) =>
+          activeToggle.renderToggle({
+            id: row.original.id,
+            displayName: row.original.display_name || row.original.code,
+            isActive: row.original.is_active,
+          }),
       },
       visitpadActionsColumn<VisitpadAllergen>({
         onEdit: setEditing,
@@ -201,7 +212,7 @@ function VisitpadAllergensPage() {
         canDelete,
       }),
     ],
-    [patch, busy, canUpdate, canDelete],
+    [activeToggle, busy, canUpdate, canDelete],
   );
 
   return (
@@ -219,7 +230,7 @@ function VisitpadAllergensPage() {
       actions={
         <VisitpadHeaderActions
           catalogModuleSlug={catalogModuleSlug}
-          addLabel={tenantCatalog ? 'Add local allergen' : 'Add allergen'}
+          addLabel="Add allergen"
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
           importFromLibraryPending={platformImport.isPending}
@@ -271,6 +282,8 @@ function VisitpadAllergensPage() {
         )}
       </div>
 
+      {activeToggle.renderConfirmDialog()}
+
       <ImportFromPlatformCatalogDialog<VisitpadAllergen>
         open={importOpen}
         onOpenChange={setImportOpen}
@@ -281,6 +294,7 @@ function VisitpadAllergensPage() {
         isLoading={globalLibLoading}
         getRowKey={getRowKey}
         importedKeys={importedKeys}
+        importedKeysLoading={tenantCodeKeysLoading}
         columns={importColumns}
         searchParts={importSearchParts}
         isSubmitting={platformImport.isPending || create.isPending}
@@ -300,6 +314,7 @@ function VisitpadAllergensPage() {
       <AllergenCreateDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
+        nextOrder={nextDisplayOrder(rows)}
         isSubmitting={create.isPending}
         onSubmit={async (payload) => {
           try {
@@ -358,11 +373,13 @@ function VisitpadAllergensPage() {
 function AllergenCreateDialog({
   open,
   onOpenChange,
+  nextOrder,
   isSubmitting,
   onSubmit,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  nextOrder: number;
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
@@ -372,35 +389,35 @@ function AllergenCreateDialog({
       code: '',
       display_name: '',
       allergen_type: '__none__',
-      reaction_severity_default: 'unknown',
+      reaction_severity_default: ALLERGEN_SEVERITY_UNSET,
       snomed_code: null,
+      display_order: nextOrder,
       is_active: true,
     },
   });
 
   useEffect(() => {
-    if (!open) {
+    if (open) {
       form.reset({
         code: '',
         display_name: '',
         allergen_type: '__none__',
-        reaction_severity_default: 'unknown',
+        reaction_severity_default: ALLERGEN_SEVERITY_UNSET,
         snomed_code: null,
+        display_order: nextOrder,
         is_active: true,
       });
     }
-  }, [open, form]);
+  }, [open, nextOrder, form]);
 
   const submit: SubmitHandler<VisitpadAllergenCreateFormSchema> = async (v) => {
-    const at = v.allergen_type === '__none__' ? undefined : v.allergen_type;
-    if (!at) return;
     await onSubmit({
       code: v.code.trim(),
       display_name: v.display_name.trim(),
-      allergen_type: at,
+      allergen_type: v.allergen_type,
       drug_class: null,
       reaction_severity_default: v.reaction_severity_default,
-      display_order: 0,
+      display_order: v.display_order,
       is_active: v.is_active,
       snomed_code: v.snomed_code?.trim() ? v.snomed_code.trim() : null,
     });
@@ -420,23 +437,21 @@ function AllergenCreateDialog({
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-ag-code">Allergy code *</Label>
+          <RequiredLabel htmlFor="vp-ag-code">Allergy code</RequiredLabel>
           <Input
             id="vp-ag-code"
-            maxLength={8}
+            maxLength={9}
             autoComplete="off"
             placeholder="e.g. pen_allergy"
             {...form.register('code')}
           />
-          <p className="text-xs text-muted-foreground">
-            3–8 characters: letters, digits, underscore. Unique and cannot be edited after save.
-          </p>
+          <p className="text-xs text-muted-foreground">{VISITPAD_CODE_HELPER_TEXT}</p>
           {form.formState.errors.code ? (
             <p className="text-xs text-destructive">{form.formState.errors.code.message}</p>
           ) : null}
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-ag-name">Display name *</Label>
+          <RequiredLabel htmlFor="vp-ag-name">Display name</RequiredLabel>
           <Input
             id="vp-ag-name"
             maxLength={256}
@@ -448,9 +463,9 @@ function AllergenCreateDialog({
           ) : null}
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label>Allergen type *</Label>
+          <Label>Allergen type</Label>
           <Select
-            value={typeVal}
+            value={typeVal ?? '__none__'}
             onValueChange={(x) =>
               form.setValue(
                 'allergen_type',
@@ -478,15 +493,19 @@ function AllergenCreateDialog({
         <div className="space-y-2 sm:col-span-2">
           <Label>Default severity</Label>
           <Select
-            value={form.watch('reaction_severity_default')}
+            value={form.watch('reaction_severity_default') ?? ALLERGEN_SEVERITY_UNSET}
             onValueChange={(x) =>
-              form.setValue('reaction_severity_default', x as VisitpadAllergenCreateFormSchema['reaction_severity_default'])
+              form.setValue(
+                'reaction_severity_default',
+                x as VisitpadAllergenCreateFormSchema['reaction_severity_default'],
+              )
             }
           >
             <SelectTrigger>
               <SelectValue placeholder="Select severity…" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value={ALLERGEN_SEVERITY_UNSET}>Select severity…</SelectItem>
               {VISITPAD_REACTION_SEVERITY_DEFAULTS.map((t) => (
                 <SelectItem key={t.value} value={t.value}>
                   {t.label}
@@ -504,18 +523,19 @@ function AllergenCreateDialog({
             {...form.register('snomed_code')}
           />
         </div>
-        <div className="flex flex-col gap-1 rounded-md border p-3 sm:col-span-2">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <Label htmlFor="vp-ag-act">Active</Label>
-              <p className="text-xs text-muted-foreground">Inactive items hidden from clinical forms.</p>
-            </div>
-            <Switch
-              id="vp-ag-act"
-              checked={!!form.watch('is_active')}
-              onCheckedChange={(c) => form.setValue('is_active', c)}
-            />
-          </div>
+        <div className="space-y-2">
+          <RequiredLabel htmlFor="vp-ag-order">Display order</RequiredLabel>
+          <Input id="vp-ag-order" type="number" {...form.register('display_order', { valueAsNumber: true })} />
+          {form.formState.errors.display_order ? (
+            <p className="text-xs text-destructive">{form.formState.errors.display_order.message}</p>
+          ) : null}
+        </div>
+        <div className="sm:col-span-2">
+          <CatalogActiveSwitch
+            id="vp-ag-act"
+            checked={!!form.watch('is_active')}
+            onCheckedChange={(c) => form.setValue('is_active', c)}
+          />
         </div>
       </div>
     </EntityFormDialog>
@@ -594,11 +614,11 @@ function AllergenEditDialog({
             <Input value={row.code} readOnly className="bg-muted/40" />
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="vp-ae-name">Display name *</Label>
+            <RequiredLabel htmlFor="vp-ae-name">Display name</RequiredLabel>
             <Input id="vp-ae-name" maxLength={256} {...form.register('display_name')} />
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <Label>Allergen type *</Label>
+            <Label>Allergen type</Label>
             <Select
               value={form.watch('allergen_type')}
               onValueChange={(x) => form.setValue('allergen_type', x as VisitpadAllergenEditFormSchema['allergen_type'])}
@@ -647,21 +667,15 @@ function AllergenEditDialog({
             <Input id="vp-ae-snomed" maxLength={64} {...form.register('snomed_code')} />
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="vp-ae-order">Display order</Label>
+            <RequiredLabel htmlFor="vp-ae-order">Display order</RequiredLabel>
             <Input id="vp-ae-order" type="number" {...form.register('display_order', { valueAsNumber: true })} />
           </div>
-          <div className="flex flex-col gap-1 rounded-md border p-3 sm:col-span-2">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <Label htmlFor="vp-ae-act">Active</Label>
-                <p className="text-xs text-muted-foreground">Inactive items hidden from clinical forms.</p>
-              </div>
-              <Switch
-                id="vp-ae-act"
-                checked={!!form.watch('is_active')}
-                onCheckedChange={(c) => form.setValue('is_active', c)}
-              />
-            </div>
+          <div className="sm:col-span-2">
+            <CatalogActiveSwitch
+              id="vp-ae-act"
+              checked={!!form.watch('is_active')}
+              onCheckedChange={(c) => form.setValue('is_active', c)}
+            />
           </div>
         </div>
       ) : null}

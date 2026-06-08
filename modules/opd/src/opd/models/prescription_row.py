@@ -4,12 +4,13 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, Enum as SAEnum, ForeignKey, SmallInteger, String, Uuid
+from sqlalchemy import JSON, DateTime, Enum as SAEnum, SmallInteger, String, Uuid
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from opd.core.schemas import SCHEMA
-from opd.models.base import Base, TimestampMixin
+from opd.models.base import TimestampMixin
+from opd.models.legacy_base import LegacyBase
 
 PRESCRIPTION_STATUS = SAEnum(
     "draft",
@@ -21,16 +22,16 @@ PRESCRIPTION_STATUS = SAEnum(
 )
 
 
-class Prescription(Base, TimestampMixin):
+class Prescription(LegacyBase, TimestampMixin):
     __tablename__ = "prescriptions"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
     visit_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("visits.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
+        doc="Logical ref opd.visits.id; PostgreSQL FK is created in Alembic revision 0001",
     )
     patient_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
     doctor_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
@@ -48,5 +49,3 @@ class Prescription(Base, TimestampMixin):
     finalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-
-    visit: Mapped["Visit"] = relationship("Visit", back_populates="prescription")

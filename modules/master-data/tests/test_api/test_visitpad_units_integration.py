@@ -72,7 +72,7 @@ def visitpad_client(visitpad_sqlite_session: Session) -> Generator[TestClient, N
 
 @pytest.fixture()
 def visitpad_api_client(visitpad_sqlite_session: Session) -> Generator[TestClient, None, None]:
-    """Full app wiring: catalog scope comes from ``iq_tenant_id`` header (not overridden)."""
+    """Full app wiring: catalog scope from ``iq_tenant_id`` or ``x-tenant-id`` header."""
     app = create_app()
 
     def _session() -> Generator[Session, None, None]:
@@ -93,6 +93,21 @@ def test_iq_tenant_id_header_sets_tenant_scope(visitpad_api_client: TestClient) 
             "display_name": "Kilogram",
             "dimension": "mass",
             "is_canonical": True,
+        },
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["data"]["iq_tenant_id"] == TENANT_HDR
+
+
+def test_x_tenant_id_header_sets_tenant_scope(visitpad_api_client: TestClient) -> None:
+    r = visitpad_api_client.post(
+        "/api/v1/master-data/visitpad/units",
+        headers={"x-tenant-id": TENANT_HDR},
+        json={
+            "code": "lb",
+            "display_name": "Pound",
+            "dimension": "mass",
+            "is_canonical": False,
         },
     )
     assert r.status_code == 201, r.text

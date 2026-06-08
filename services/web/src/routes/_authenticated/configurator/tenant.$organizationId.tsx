@@ -38,8 +38,9 @@ import {
   TenantRoleTemplatesPanel,
   TenantUsersPanel,
 } from '@/features/configurator/components/tenant-detail-panels';
-import { isPlatformSuperAdminFromAccessToken, isTenantAdminFromAccessToken } from '@/lib/platform-admin';
+import { resolvePlatformSuperAdmin } from '@/lib/platform-admin';
 import { useAuthStore } from '@/stores/auth.store';
+import { usePermissionsStore } from '@/stores/permissions.store';
 import {
   buildDescendantBranchTreeRows,
   type TenantTreeRow,
@@ -277,9 +278,15 @@ function TenantOrganizationDetailPage() {
   );
 
   const accessToken = useAuthStore((s) => s.accessToken);
-  const canEditTenantModules =
-    isPlatformSuperAdminFromAccessToken(accessToken) ||
-    isTenantAdminFromAccessToken(accessToken);
+  const authRoles = useAuthStore((s) => s.roles);
+  const principalRoles = usePermissionsStore((s) => s.roles);
+  const isPlatformSuperAdmin = resolvePlatformSuperAdmin({
+    principalRoles,
+    authRoles,
+    accessToken,
+  });
+  /** Module on/off toggles are platform-operator only; tenant admins see read-only status. */
+  const canEditTenantModules = isPlatformSuperAdmin;
 
   if (orgError) {
     return (
@@ -576,7 +583,7 @@ function TenantOrganizationDetailPage() {
         </TabsContent>
 
         <TabsContent value="branches" className="mt-4 space-y-4">
-          {isPlatformSuperAdminFromAccessToken(accessToken) ? (
+          {isPlatformSuperAdmin ? (
             <div className="flex justify-end">
               <Button
                 type="button"

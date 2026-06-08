@@ -10,6 +10,8 @@ import type {
   CreateNewPatientRegistrationResponse,
   CreateVisitRequestBody,
   RegistrationListPageResponse,
+  RegistrationVisitListPageResponse,
+  RegistrationVisitResponse,
 } from '@/features/frontdesk/types';
 
 /**
@@ -40,6 +42,16 @@ export interface ListRegistrationsParams {
   patient_id?: string;
 }
 
+export interface ListRegistrationVisitsParams {
+  page?: number;
+  limit?: number;
+  status?: string;
+  patient_id?: string;
+  facility_id?: string;
+  department_id?: string;
+  doctor_id?: string;
+}
+
 export async function listRegistrations(
   params: ListRegistrationsParams,
 ): Promise<RegistrationListPageResponse> {
@@ -51,6 +63,24 @@ export async function listRegistrations(
   const qs = sp.toString();
   return apiClient<RegistrationListPageResponse>(
     `${registrationApiBase()}/registrations${qs ? `?${qs}` : ''}`,
+  );
+}
+
+/** Paginated encounters from registration.visit (doctor/nurse patient queues). */
+export async function listRegistrationVisits(
+  params: ListRegistrationVisitsParams,
+): Promise<RegistrationVisitListPageResponse> {
+  const sp = new URLSearchParams();
+  if (params.page != null) sp.set('page', String(params.page));
+  if (params.limit != null) sp.set('limit', String(params.limit));
+  if (params.status?.trim()) sp.set('status', params.status.trim());
+  if (params.patient_id?.trim()) sp.set('patient_id', params.patient_id.trim());
+  if (params.facility_id?.trim()) sp.set('facility_id', params.facility_id.trim());
+  if (params.department_id?.trim()) sp.set('department_id', params.department_id.trim());
+  if (params.doctor_id?.trim()) sp.set('doctor_id', params.doctor_id.trim());
+  const qs = sp.toString();
+  return apiClient<RegistrationVisitListPageResponse>(
+    `${registrationApiBase()}/visits${qs ? `?${qs}` : ''}`,
   );
 }
 
@@ -144,11 +174,11 @@ export async function executeCreateVisitFlow(
   const billing = await executeVisitRegistrationBilling(form, {
     patient_id: registration.patient_id,
     registration_id: registration.registration_id,
-    visit_id: registration.visit_id,
+    visit_id: registration.id,
     idempotencyKey: options.idempotencyKey,
   });
 
-  const completed = await completeVisitIntake(registration.visit_id!);
+  const completed = await completeVisitIntake(registration.id!);
   const patientAddress = formatPatientAddressForReport(
     form.residential_address?.line1?.trim()
       ? form.residential_address
@@ -176,7 +206,21 @@ export async function completeVisitIntake(
   visitId: string,
 ): Promise<CreateNewPatientRegistrationResponse> {
   return apiClient<CreateNewPatientRegistrationResponse>(
-    `${registrationApiBase()}/visits/${visitId}/complete`,
+    `${registrationApiBase()}/visits/${encodeURIComponent(visitId)}/complete`,
     { method: 'POST', body: JSON.stringify({}) },
+  );
+}
+
+/** Update registration.visit lifecycle (e.g. doctor end consultation → `completed`). */
+export async function updateRegistrationVisitStatus(
+  visitId: string,
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled',
+): Promise<RegistrationVisitResponse> {
+  return apiClient<RegistrationVisitResponse>(
+    `${registrationApiBase()}/visits/${encodeURIComponent(visitId)}/status`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ status }),
+    },
   );
 }

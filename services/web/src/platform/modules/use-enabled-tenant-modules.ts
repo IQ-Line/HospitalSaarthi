@@ -121,7 +121,11 @@ export function buildEnabledModuleSlugsFromCatalog(
  * - Platform super-admin: all active Master Data catalog L1 modules (not Configurator tenant_modules).
  * - Everyone else: Configurator `tenant_modules` resolved via catalog `module_id` → `slug`.
  */
-export function useEnabledTenantModuleSlugs(): ReadonlySet<string> | null {
+/** Nav inputs: one module-catalog query + tenant modules (avoids duplicate global modules fetches). */
+export function useTenantModuleNavContext(): {
+  enabledModuleSlugs: ReadonlySet<string> | null;
+  catalogIndex: ModuleCatalogIndex | null;
+} {
   const tenantId = useTenantStore((s) => s.tenantId);
   const capabilityKeys = usePermissionsStore((s) => s.capabilityKeys);
   const principalRoles = usePermissionsStore((s) => s.roles);
@@ -144,7 +148,7 @@ export function useEnabledTenantModuleSlugs(): ReadonlySet<string> | null {
     enabled: Boolean(tenantId) && !isSuperAdmin,
   });
 
-  return useMemo((): ReadonlySet<string> | null => {
+  const enabledModuleSlugs = useMemo((): ReadonlySet<string> | null => {
     if (!tenantId) {
       return null;
     }
@@ -204,6 +208,12 @@ export function useEnabledTenantModuleSlugs(): ReadonlySet<string> | null {
     catalogError,
     index,
   ]);
+
+  return { enabledModuleSlugs, catalogIndex: index };
+}
+
+export function useEnabledTenantModuleSlugs(): ReadonlySet<string> | null {
+  return useTenantModuleNavContext().enabledModuleSlugs;
 }
 
 

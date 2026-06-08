@@ -5,9 +5,10 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from typing import Self
 
-_PROCEDURE_CATALOG_CODE = re.compile(r"^[A-Za-z0-9_]{3,8}$")
+_PROCEDURE_CATALOG_CODE = re.compile(r"^[A-Za-z0-9_]{3,9}$")
 
 
 class VisitpadProcedureCategory(StrEnum):
@@ -66,16 +67,22 @@ class VisitpadProcedureCreate(BaseModel):
         description="Tenant-unique procedure catalog code (legacy Integrator “procedure code”; not AMA CPT).",
     )
     short_name: str | None = Field(default=None, max_length=64)
-    official_descriptor: str = Field(min_length=1, max_length=512)
+    official_descriptor: str | None = Field(default=None, max_length=512)
     display_name: str = Field(min_length=1, max_length=512)
-    category: VisitpadProcedureCategory
-    billing_category: VisitpadProcedureBillingCategory
-    duration_minutes: int = Field(ge=0, le=24 * 60)
+    category: VisitpadProcedureCategory = VisitpadProcedureCategory.other
+    billing_category: VisitpadProcedureBillingCategory = VisitpadProcedureBillingCategory.other
+    duration_minutes: int = Field(default=0, ge=0, le=24 * 60)
     requires_consent: bool = False
     type_modality: str | None = Field(default=None, max_length=128)
     display_order: int = 0
     is_active: bool = True
     snomed_code: str | None = Field(default=None, max_length=64)
+
+    @model_validator(mode="after")
+    def _descriptor_default(self) -> Self:
+        if not (self.official_descriptor or "").strip():
+            object.__setattr__(self, "official_descriptor", self.display_name.strip())
+        return self
 
     @field_validator("cpt_code", mode="before")
     @classmethod
@@ -85,7 +92,7 @@ class VisitpadProcedureCreate(BaseModel):
             raise TypeError(msg)
         s = v.strip()
         if not _PROCEDURE_CATALOG_CODE.fullmatch(s):
-            msg = "Procedure code must be 3–8 characters: letters, digits, or underscores."
+            msg = "Procedure code must be 3–9 characters: letters, digits, or underscores."
             raise ValueError(msg)
         return s
 

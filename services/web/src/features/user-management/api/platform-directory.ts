@@ -3,6 +3,7 @@ import { apiClient } from '@/lib/api-client';
 import { fetchOrganizations, fetchTenants } from '@/features/configurator/api/catalog';
 import type { ConfiguratorTenant, Organization } from '@/features/configurator/types';
 import type { UmRole, UmUser } from '../types';
+import { UM_PLATFORM_DIRECTORY_STALE_MS } from './queries';
 import { userManagementKeys } from './keys';
 
 const UM_BASE = '/api/user-management';
@@ -106,7 +107,7 @@ export function platformDirectoryQueryOptions() {
   return queryOptions({
     queryKey: userManagementKeys.platformDirectory(),
     queryFn: fetchPlatformDirectory,
-    staleTime: 30_000,
+    staleTime: UM_PLATFORM_DIRECTORY_STALE_MS,
   });
 }
 

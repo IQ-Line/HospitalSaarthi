@@ -3,7 +3,9 @@ import type { UmRole } from '../types';
 export function isDoctorRole(roleId: string | undefined, roles: UmRole[]): boolean {
   if (!roleId) return false;
   const role = roles.find((r) => r.id === roleId);
-  return role?.code.trim().toLowerCase() === 'doctor';
+  const type = role?.role_type?.trim().toLowerCase();
+  const code = role?.code.trim().toLowerCase();
+  return type === 'doctor' || code === 'doctor';
 }
 
 export function validateDoctorTariffs(

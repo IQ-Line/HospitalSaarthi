@@ -6,8 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-
-_CHRONIC_ILLNESS_CODE_PATTERN = r"^[A-Za-z0-9_]{3,8}$"
+from app.schemas.visitpad._code import VISITPAD_CATALOG_CODE_PATTERN
 
 
 class VisitpadChronicIllnessCategory(StrEnum):
@@ -55,11 +54,11 @@ class VisitpadChronicIllnessCreate(BaseModel):
     display_name: str = Field(min_length=1, max_length=512)
     icd10_code: str = Field(
         min_length=3,
-        max_length=8,
-        pattern=_CHRONIC_ILLNESS_CODE_PATTERN,
+        max_length=9,
+        pattern=VISITPAD_CATALOG_CODE_PATTERN,
         description="Tenant-stable chronic illness code (legacy ``code`` / e.g. dm2). Stored in ``icd10_code`` column.",
     )
-    category: VisitpadChronicIllnessCategory
+    category: VisitpadChronicIllnessCategory = VisitpadChronicIllnessCategory.other
     snomed_code: str | None = Field(default=None, max_length=64)
     chronic_illness_prompt: bool = False
     display_order: int = 0

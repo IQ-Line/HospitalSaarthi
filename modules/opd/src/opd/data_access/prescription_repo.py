@@ -7,11 +7,11 @@ from uuid import UUID
 from dataclasses import dataclass
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from opd.data_access import prescription_bundle as bundle_api
 from opd.data_access.prescription_form_data import persist_normalized_from_form_data
-from opd.models.prescription import Prescription
+from opd.models.prescription_row import Prescription
 from opd.models.visit import Visit
 
 
@@ -71,9 +71,40 @@ def effective_encounter_status(visit: Visit | None, rx: Prescription | None) -> 
 
 
 class PrescriptionRepository:
-    def __init__(self, session: Session, tenant_id: UUID) -> None:
+    def __init__(self, session: Session, tenant_id: UUID, doctor_id: UUID) -> None:
         self._session = session
         self._tenant_id = tenant_id
+        self._doctor_id = doctor_id
+
+    def _new_prescription(
+        self,
+        *,
+        visit_id: UUID,
+        patient_id: UUID,
+        form_data: dict[str, Any] | None = None,
+        status: str = "draft",
+    ) -> Prescription:
+        now = datetime.now(UTC)
+        return Prescription(
+            tenant_id=self._tenant_id,
+            visit_id=visit_id,
+            patient_id=patient_id,
+            doctor_id=self._doctor_id,
+            vitals_schema_version=1,
+            status=status,
+            form_data=form_data if form_data is not None else {},
+            created_at=now,
+            updated_at=now,
+        )
+
+    def _prescriptions_by_visit_id(self, visit_ids: list[UUID]) -> dict[UUID, Prescription]:
+        if not visit_ids:
+            return {}
+        stmt = select(Prescription).where(
+            Prescription.tenant_id == self._tenant_id,
+            Prescription.visit_id.in_(visit_ids),
+        )
+        return {rx.visit_id: rx for rx in self._session.scalars(stmt).all()}
 
     def list_visits(
         self,
@@ -82,11 +113,7 @@ class PrescriptionRepository:
         status: str | None = None,
         limit: int = 50,
     ) -> list[Visit]:
-        stmt = (
-            select(Visit)
-            .options(joinedload(Visit.prescription))
-            .where(Visit.tenant_id == self._tenant_id)
-        )
+        stmt = select(Visit).where(Visit.tenant_id == self._tenant_id)
         if patient_id is not None:
             stmt = stmt.where(Visit.patient_id == patient_id)
         if status is not None:
@@ -243,10 +270,11 @@ class PrescriptionRepository:
     ) -> tuple[list[PatientEncounterRow], int]:
         """Latest encounter per patient for the tenant (visits + prescriptions)."""
         visits = self.list_visits(limit=1000)
+        rx_by_visit_id = self._prescriptions_by_visit_id([v.id for v in visits])
         latest: dict[UUID, PatientEncounterRow] = {}
 
         for visit in visits:
-            rx = visit.prescription
+            rx = rx_by_visit_id.get(visit.id)
             row = PatientEncounterRow(
                 patient_id=visit.patient_id,
                 visit_id=visit.id,
@@ -318,7 +346,7 @@ class PrescriptionRepository:
             return doctor_id
         from opd.models.registration_visit import RegistrationVisit
 
-        reg = self._session.get(RegistrationVisit, (visit_id, self._tenant_id))
+        reg = self._session.get(RegistrationVisit, (self._tenant_id, visit_id))
         if reg is not None and reg.doctor_id is not None:
             return reg.doctor_id
         raise ValueError("doctor_id is required to create a prescription")
@@ -471,16 +499,30 @@ class PrescriptionRepository:
         self._session.flush()
         return visit, rx
 
-    def end_consultation_for_visit(
+    def finalize_prescription_for_visit(
         self,
         visit_id: UUID,
         patient_id: UUID,
         form_data: dict[str, Any],
     ) -> tuple[Visit, Prescription]:
-        visit, rx = self.save_draft_for_visit(visit_id, patient_id, form_data)
+        """Persist final prescription for a registration encounter id (OPD visit id = registration visit id)."""
+        visit = self._session.get(Visit, visit_id)
+        if visit is None:
+            visit, rx = self.ensure_registration_encounter(visit_id, patient_id)
+        else:
+            if visit.tenant_id != self._tenant_id:
+                raise PermissionError("visit tenant mismatch")
+            if visit.patient_id != patient_id:
+                raise ValueError("visit patient mismatch")
+            visit, rx = self._get_or_create_prescription_for_visit(visit_id, patient_id)
+
+        if rx.status in ("final", "cancelled"):
+            raise PermissionError("prescription is read-only")
+
         now = datetime.now(UTC)
-        visit.status = "completed"
-        visit.updated_at = now
+        if visit.status not in ("completed", "cancelled"):
+            visit.status = "in_progress"
+            visit.updated_at = now
         rx.form_data = form_data
         rx.status = "final"
         rx.finalized_at = now
@@ -489,6 +531,14 @@ class PrescriptionRepository:
         persist_normalized_from_form_data(self._session, self._tenant_id, rx.id, form_data)
         self._session.flush()
         return visit, rx
+
+    def end_consultation_for_visit(
+        self,
+        visit_id: UUID,
+        patient_id: UUID,
+        form_data: dict[str, Any],
+    ) -> tuple[Visit, Prescription]:
+        return self.finalize_prescription_for_visit(visit_id, patient_id, form_data)
 
     def get_or_create_active_visit(self, patient_id: UUID) -> tuple[Visit, Prescription]:
         existing = self.get_latest_prescription(patient_id)
@@ -509,20 +559,7 @@ class PrescriptionRepository:
         self._session.add(visit)
         self._session.flush()
 
-        doctor_id = self._doctor_id_for_patient(patient_id)
-        if doctor_id is None:
-            raise ValueError("doctor_id is required to create a prescription")
-
-        rx = Prescription(
-            tenant_id=self._tenant_id,
-            visit_id=visit.id,
-            patient_id=patient_id,
-            doctor_id=doctor_id,
-            status="draft",
-            form_data={},
-            created_at=now,
-            updated_at=now,
-        )
+        rx = self._new_prescription(visit_id=visit.id, patient_id=patient_id)
         self._session.add(rx)
         self._session.flush()
         return visit, rx
@@ -539,18 +576,10 @@ class PrescriptionRepository:
             )
             self._session.add(visit)
             self._session.flush()
-            doctor_id = self._doctor_id_for_patient(patient_id)
-            if doctor_id is None:
-                raise ValueError("doctor_id is required to create a prescription")
-            rx = Prescription(
-                tenant_id=self._tenant_id,
+            rx = self._new_prescription(
                 visit_id=visit.id,
                 patient_id=patient_id,
-                doctor_id=doctor_id,
-                status="draft",
                 form_data=form_data,
-                created_at=datetime.now(UTC),
-                updated_at=datetime.now(UTC),
             )
             self._session.add(rx)
         else:

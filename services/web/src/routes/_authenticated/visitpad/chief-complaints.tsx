@@ -8,13 +8,16 @@ import { Badge } from '@pulse/ui/badge';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@pulse/ui/select';
-import { Switch } from '@pulse/ui/switch';
 import { Textarea } from '@pulse/ui/textarea';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
-import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
+import { CatalogActiveSwitch } from '@/features/visitpad/components/catalog-active-switch';
+import { FormToggleRow } from '@/features/visitpad/components/form-toggle-row';
+import { RequiredLabel, VISITPAD_CODE_HELPER_TEXT } from '@/features/visitpad/components/required-label';
+import { useCatalogActiveToggleConfirm } from '@/features/visitpad/hooks/use-catalog-active-toggle-confirm';
+import { nextDisplayOrder } from '@/features/visitpad/lib/next-display-order';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import {
   useVisitpadChiefComplaintDescriptor,
@@ -97,7 +100,10 @@ function VisitpadChiefComplaintsPage() {
   const del = useVisitpadDelete(CC_BASE);
   const create = useVisitpadPost(CC_BASE);
   const platformImport = useVisitpadPlatformImport('/chief-complaints/import-from-platform');
-  const { data: tenantCodeKeys } = useVisitpadTenantImportKeys('/chief-complaints', importOpen && tenantCatalog);
+  const { data: tenantCodeKeys, isLoading: tenantCodeKeysLoading } = useVisitpadTenantImportKeys(
+    '/chief-complaints',
+    importOpen && tenantCatalog,
+  );
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);
@@ -140,6 +146,18 @@ function VisitpadChiefComplaintsPage() {
     ],
     [],
   );
+
+  const activeToggle = useCatalogActiveToggleConfirm({
+    disabled: patch.isPending || !canUpdate,
+    onConfirm: async (id, next) => {
+      try {
+        await patch.mutateAsync({ id, body: { is_active: next } });
+        toast.success(next ? 'Chief complaint enabled' : 'Chief complaint disabled');
+      } catch (e) {
+        toast.error(mutationErrorMessage(e));
+      }
+    },
+  });
 
   const runChiefComplaintImport = async (selection: VisitpadChiefComplaint[]) => {
     try {
@@ -232,20 +250,12 @@ function VisitpadChiefComplaintsPage() {
         accessorKey: 'is_active',
         header: 'Enabled',
         meta: { label: 'Enabled' },
-        cell: ({ row }) => (
-          <TableActiveToggle
-            active={row.original.is_active}
-            disabled={patch.isPending || !canUpdate}
-            onCheckedChange={async (next) => {
-              try {
-                await patch.mutateAsync({ id: row.original.id, body: { is_active: next } });
-                toast.success(next ? 'Enabled' : 'Disabled');
-              } catch (e) {
-                toast.error(mutationErrorMessage(e));
-              }
-            }}
-          />
-        ),
+        cell: ({ row }) =>
+          activeToggle.renderToggle({
+            id: row.original.id,
+            displayName: row.original.display_name || row.original.code,
+            isActive: row.original.is_active,
+          }),
       },
       visitpadActionsColumn<VisitpadChiefComplaint>({
         onEdit: setEditing,
@@ -255,7 +265,7 @@ function VisitpadChiefComplaintsPage() {
         canDelete,
       }),
     ],
-    [patch, busy, canUpdate, canDelete],
+    [activeToggle, busy, canUpdate, canDelete],
   );
 
   return (
@@ -271,7 +281,7 @@ function VisitpadChiefComplaintsPage() {
       actions={
         <VisitpadHeaderActions
           catalogModuleSlug={catalogModuleSlug}
-          addLabel={tenantCatalog ? 'Add local complaint' : 'Add complaint'}
+          addLabel="Add complaint"
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
           importFromLibraryPending={platformImport.isPending}
@@ -336,9 +346,12 @@ function VisitpadChiefComplaintsPage() {
         )}
       </div>
 
+      {activeToggle.renderConfirmDialog()}
+
       <ChiefComplaintCreateDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
+        nextOrder={nextDisplayOrder(rows)}
         bodySystemOpts={bodySystemOpts}
         triageOpts={triageOpts}
         isSubmitting={create.isPending}
@@ -363,6 +376,7 @@ function VisitpadChiefComplaintsPage() {
         isLoading={globalLibLoading}
         getRowKey={getRowKey}
         importedKeys={importedKeys}
+        importedKeysLoading={tenantCodeKeysLoading}
         columns={importColumns}
         searchParts={importSearchParts}
         isSubmitting={platformImport.isPending || create.isPending}
@@ -424,9 +438,13 @@ function VisitpadChiefComplaintsPage() {
   );
 }
 
+const CC_BODY_SYSTEM_UNSET = '__unset__';
+const CC_TRIAGE_UNSET = '__unset__';
+
 function ChiefComplaintCreateDialog({
   open,
   onOpenChange,
+  nextOrder,
   bodySystemOpts,
   triageOpts,
   isSubmitting,
@@ -434,6 +452,7 @@ function ChiefComplaintCreateDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  nextOrder: number;
   bodySystemOpts: { value: string; label: string }[];
   triageOpts: { value: string; label: string }[];
   isSubmitting: boolean;
@@ -445,32 +464,32 @@ function ChiefComplaintCreateDialog({
       code: '',
       display_name: '',
       short_name: '',
-      body_system: 'cardiovascular',
-      triage_priority: 'routine',
+      body_system: undefined,
+      triage_priority: undefined,
       synonyms_text: '',
       is_paediatric_relevant: false,
-      display_order: 0,
+      display_order: nextOrder,
       is_active: true,
       snomed_code: null,
     },
   });
 
   useEffect(() => {
-    if (!open) {
+    if (open) {
       form.reset({
         code: '',
         display_name: '',
         short_name: '',
-        body_system: 'cardiovascular',
-        triage_priority: 'routine',
+        body_system: undefined,
+        triage_priority: undefined,
         synonyms_text: '',
         is_paediatric_relevant: false,
-        display_order: 0,
+        display_order: nextOrder,
         is_active: true,
         snomed_code: null,
       });
     }
-  }, [open, form]);
+  }, [open, nextOrder, form]);
 
   const submit: SubmitHandler<VisitpadChiefComplaintCreateFormSchema> = async (v) => {
     const synonyms = (v.synonyms_text ?? '')
@@ -506,17 +525,15 @@ function ChiefComplaintCreateDialog({
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="vp-cc-code">Complaint code *</Label>
-          <Input id="vp-cc-code" maxLength={64} {...form.register('code')} />
-          <p className="text-muted-foreground text-xs">
-            Unique, immutable after save (max 64 characters).
-          </p>
+          <RequiredLabel htmlFor="vp-cc-code">Complaint code</RequiredLabel>
+          <Input id="vp-cc-code" maxLength={9} {...form.register('code')} />
+          <p className="text-muted-foreground text-xs">{VISITPAD_CODE_HELPER_TEXT}</p>
           {form.formState.errors.code ? (
             <p className="text-xs text-destructive">{form.formState.errors.code.message}</p>
           ) : null}
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="vp-cc-name">Display name *</Label>
+          <RequiredLabel htmlFor="vp-cc-name">Display name</RequiredLabel>
           <Input id="vp-cc-name" maxLength={256} {...form.register('display_name')} />
           {form.formState.errors.display_name ? (
             <p className="text-xs text-destructive">{form.formState.errors.display_name.message}</p>
@@ -536,24 +553,27 @@ function ChiefComplaintCreateDialog({
           </p>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="vp-cc-order">Display order</Label>
+          <RequiredLabel htmlFor="vp-cc-order">Display order</RequiredLabel>
           <Input
             id="vp-cc-order"
             type="number"
             {...form.register('display_order', { valueAsNumber: true })}
           />
+          {form.formState.errors.display_order ? (
+            <p className="text-xs text-destructive">{form.formState.errors.display_order.message}</p>
+          ) : null}
         </div>
         <div className="space-y-2">
-          <Label>Body system *</Label>
+          <Label>Body system</Label>
           <Select
-            value={form.watch('body_system')}
+            value={form.watch('body_system') ?? CC_BODY_SYSTEM_UNSET}
             onValueChange={(x) =>
               form.setValue(
                 'body_system',
-                x as VisitpadChiefComplaintCreateFormSchema['body_system'],
-                {
-                  shouldValidate: true,
-                },
+                x === CC_BODY_SYSTEM_UNSET
+                  ? undefined
+                  : (x as VisitpadChiefComplaintCreateFormSchema['body_system']),
+                { shouldValidate: true },
               )
             }
           >
@@ -561,6 +581,7 @@ function ChiefComplaintCreateDialog({
               <SelectValue placeholder="Select system…" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value={CC_BODY_SYSTEM_UNSET}>Select system…</SelectItem>
               {bodySystemOpts.map((o) => (
                 <SelectItem key={o.value} value={o.value}>
                   {o.label}
@@ -570,16 +591,16 @@ function ChiefComplaintCreateDialog({
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Triage priority *</Label>
+          <Label>Triage priority</Label>
           <Select
-            value={form.watch('triage_priority')}
+            value={form.watch('triage_priority') ?? CC_TRIAGE_UNSET}
             onValueChange={(x) =>
               form.setValue(
                 'triage_priority',
-                x as VisitpadChiefComplaintCreateFormSchema['triage_priority'],
-                {
-                  shouldValidate: true,
-                },
+                x === CC_TRIAGE_UNSET
+                  ? undefined
+                  : (x as VisitpadChiefComplaintCreateFormSchema['triage_priority']),
+                { shouldValidate: true },
               )
             }
           >
@@ -587,6 +608,7 @@ function ChiefComplaintCreateDialog({
               <SelectValue placeholder="Select triage…" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value={CC_TRIAGE_UNSET}>Select triage…</SelectItem>
               {triageOpts.map((o) => (
                 <SelectItem key={o.value} value={o.value}>
                   {o.label}
@@ -617,25 +639,17 @@ function ChiefComplaintCreateDialog({
             Stored as an array on the API (max 50 terms).
           </p>
         </div>
-        <div className="flex items-center justify-between rounded-md border p-3 sm:col-span-2">
-          <div>
-            <Label htmlFor="vp-cc-paed">Paediatric relevant</Label>
-            <p className="text-muted-foreground text-xs">Show in paediatric triage flows.</p>
-          </div>
-          <Switch
+        <div className="sm:col-span-2">
+          <FormToggleRow
             id="vp-cc-paed"
+            label="Paediatric relevant"
+            description="Show in paediatric triage flows."
             checked={!!form.watch('is_paediatric_relevant')}
             onCheckedChange={(c) => form.setValue('is_paediatric_relevant', c)}
           />
         </div>
-        <div className="flex items-center justify-between rounded-md border p-3 sm:col-span-2">
-          <div>
-            <Label htmlFor="vp-cc-act">Active</Label>
-            <p className="text-muted-foreground text-xs">
-              Inactive items are hidden from triage pickers.
-            </p>
-          </div>
-          <Switch
+        <div className="sm:col-span-2">
+          <CatalogActiveSwitch
             id="vp-cc-act"
             checked={!!form.watch('is_active')}
             onCheckedChange={(c) => form.setValue('is_active', c)}
@@ -736,7 +750,7 @@ function ChiefComplaintEditDialog({
             <Input id="vp-ce-code" maxLength={64} {...form.register('code')} />
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="vp-ce-name">Display name</Label>
+            <RequiredLabel htmlFor="vp-ce-name">Display name</RequiredLabel>
             <Input id="vp-ce-name" maxLength={256} {...form.register('display_name')} />
           </div>
           <div className="space-y-2 sm:col-span-2">
@@ -803,24 +817,24 @@ function ChiefComplaintEditDialog({
             />
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="vp-ce-order">Display order</Label>
+            <RequiredLabel htmlFor="vp-ce-order">Display order</RequiredLabel>
             <Input
               id="vp-ce-order"
               type="number"
               {...form.register('display_order', { valueAsNumber: true })}
             />
           </div>
-          <div className="flex items-center justify-between rounded-md border p-3 sm:col-span-2">
-            <Label htmlFor="vp-ce-paed">Paediatric relevant</Label>
-            <Switch
+          <div className="sm:col-span-2">
+            <FormToggleRow
               id="vp-ce-paed"
+              label="Paediatric relevant"
+              description="Show in paediatric triage flows."
               checked={!!form.watch('is_paediatric_relevant')}
               onCheckedChange={(c) => form.setValue('is_paediatric_relevant', c)}
             />
           </div>
-          <div className="flex items-center justify-between rounded-md border p-3 sm:col-span-2">
-            <Label htmlFor="vp-ce-act">Active</Label>
-            <Switch
+          <div className="sm:col-span-2">
+            <CatalogActiveSwitch
               id="vp-ce-act"
               checked={!!form.watch('is_active')}
               onCheckedChange={(c) => form.setValue('is_active', c)}

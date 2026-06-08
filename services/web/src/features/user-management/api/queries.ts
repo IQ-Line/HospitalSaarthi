@@ -14,10 +14,23 @@ import type {
   UserCapabilitiesSnapshot,
   UserEffectiveCapabilities,
 } from '../types';
-import { userTenantApiContext, userTenantScopeKey } from '../lib/user-tenant-scope';
+import {
+  resolveUserManagementListTenantScope,
+  userTenantApiContext,
+  userTenantScopeKey,
+} from '../lib/user-tenant-scope';
+import { isPlatformSuperAdminFromAccessToken } from '@/lib/platform-admin';
 import { userManagementKeys } from './keys';
 
 const BASE = '/api/user-management';
+
+/** Shared React Query stale windows for UM reads (mutations still invalidate). */
+export const UM_USER_LIST_STALE_MS = 60_000;
+export const UM_USER_DETAIL_STALE_MS = 30_000;
+export const UM_ROLE_LIST_STALE_MS = 120_000;
+export const UM_ROLE_CAPABILITIES_STALE_MS = 30_000;
+export const UM_USER_CAPABILITIES_STALE_MS = 30_000;
+export const UM_PLATFORM_DIRECTORY_STALE_MS = 30_000;
 
 export function userListOptions(tenantScope?: string | null, filter?: { department?: string }) {
   const params = new URLSearchParams();
@@ -36,6 +49,7 @@ export function userListOptions(tenantScope?: string | null, filter?: { departme
         { method: 'GET' },
         tenantScope ? { tenantIdOverride: tenantScope } : undefined,
       ),
+    staleTime: UM_USER_LIST_STALE_MS,
   });
 }
 
@@ -49,6 +63,7 @@ export function userDetailOptions(userId: string, tenantScope?: string | null) {
         { method: 'GET' },
         userTenantApiContext(tenantScope),
       ),
+    staleTime: UM_USER_DETAIL_STALE_MS,
   });
 }
 
@@ -100,6 +115,7 @@ export function roleListOptions(tenantScope?: string | null) {
         { method: 'GET' },
         tenantScope ? { tenantIdOverride: tenantScope } : undefined,
       ),
+    staleTime: UM_ROLE_LIST_STALE_MS,
   });
 }
 
@@ -112,6 +128,7 @@ export function roleCapabilitiesOptions(roleId: string, tenantScope?: string | n
         { method: 'GET' },
         tenantScope ? { tenantIdOverride: tenantScope } : undefined,
       ),
+    staleTime: UM_ROLE_CAPABILITIES_STALE_MS,
   });
 }
 
@@ -125,6 +142,7 @@ export function userCapabilitiesOptions(userId: string, tenantScope?: string | n
         { method: 'GET' },
         userTenantApiContext(tenantScope),
       ),
+    staleTime: UM_USER_CAPABILITIES_STALE_MS,
   });
 }
 
@@ -184,12 +202,23 @@ export function providerListOptions(
   });
 }
 
+function useUserManagementListTenantScope(): string | null {
+  const homeTenantId = useTenantStore((s) => s.homeTenantId);
+  const activeTenantId = useTenantStore((s) => s.tenantId);
+  const accessToken = useAuthStore((s) => s.accessToken);
+  return resolveUserManagementListTenantScope({
+    isPlatformSuperAdmin: isPlatformSuperAdminFromAccessToken(accessToken),
+    homeTenantId,
+    activeTenantId,
+  });
+}
+
 export function useProviderList(
   tenantScope?: string | null,
   options?: { enabled?: boolean; department?: string },
 ) {
-  const activeTenantId = useTenantStore((s) => s.tenantId);
-  const scope = tenantScope ?? activeTenantId;
+  const listScope = useUserManagementListTenantScope();
+  const scope = tenantScope ?? listScope;
   const filter = options?.department ? { department: options.department } : undefined;
   return useQuery({
     ...providerListOptions(scope, filter),
@@ -201,8 +230,8 @@ export function useUserList(
   tenantScope?: string | null,
   options?: { enabled?: boolean; department?: string },
 ) {
-  const activeTenantId = useTenantStore((s) => s.tenantId);
-  const scope = tenantScope ?? activeTenantId;
+  const listScope = useUserManagementListTenantScope();
+  const scope = tenantScope ?? listScope;
   const filter = options?.department ? { department: options.department } : undefined;
   return useQuery({
     ...userListOptions(scope, filter),
@@ -211,8 +240,8 @@ export function useUserList(
 }
 
 export function useUserListSuspense(tenantScope?: string | null) {
-  const activeTenantId = useTenantStore((s) => s.tenantId);
-  const scope = tenantScope ?? activeTenantId;
+  const listScope = useUserManagementListTenantScope();
+  const scope = tenantScope ?? listScope;
   return useSuspenseQuery(userListOptions(scope));
 }
 
@@ -224,15 +253,19 @@ export function useRuntimeCapabilityCatalogSuspense() {
   return useSuspenseQuery(runtimeCapabilityCatalogOptions());
 }
 
-export function useAssignableCapabilityCatalogSuspense() {
-  return useSuspenseQuery(assignableCapabilityCatalogOptions());
+export function useAssignableCapabilityCatalogSuspense(tenantScope?: string | null) {
+  const listScope = useUserManagementListTenantScope();
+  const scope = tenantScope ?? listScope;
+  return useSuspenseQuery(assignableCapabilityCatalogOptions(scope));
 }
 
 /** @deprecated Use {@link useRuntimeCapabilityCatalogSuspense}. */
 export const useCapabilitiesSuspense = useRuntimeCapabilityCatalogSuspense;
 
-export function useRolesSuspense() {
-  return useSuspenseQuery(roleListOptions());
+export function useRolesSuspense(tenantScope?: string | null) {
+  const listScope = useUserManagementListTenantScope();
+  const scope = tenantScope ?? listScope;
+  return useSuspenseQuery(roleListOptions(scope));
 }
 
 export function useRoleCapabilities(roleId: string, enabled: boolean, tenantScope?: string | null) {

@@ -47,11 +47,13 @@ def get_chronic_illnesses(
     offset: Annotated[int, Query(ge=0)] = 0,
     search: Annotated[str | None, Query()] = None,
     category: Annotated[VisitpadChronicIllnessCategory | None, Query()] = None,
+    is_active: Annotated[bool | None, Query()] = None,
 ) -> VisitpadChronicIllnessListResponse:
     rows, total = list_visitpad_chronic_illnesses(
         repository,
         search=search,
         category=category.value if category is not None else None,
+        is_active=is_active,
         limit=limit,
         offset=offset,
     )

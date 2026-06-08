@@ -49,6 +49,9 @@ const DEFAULT_PAGE: VisitpadCatalogPageParams = {
   pageSize: VISITPAD_CATALOG_DEFAULT_PAGE_SIZE,
 };
 
+/** Platform library import modal: only list active global-master rows. */
+const PLATFORM_LIBRARY_ACTIVE_ONLY: Record<string, string> = { is_active: 'true' };
+
 function normalizePageSize(pageSize: number): number {
   for (const n of VISITPAD_CATALOG_PAGE_SIZES) {
     if (n === pageSize) return n;
@@ -189,7 +192,9 @@ export function useVisitpadVitalsGlobalLibrary(
   return useQuery({
     queryKey: [...visitpadKeys.vitals(), 'global-platform-library', scopeKey, search ?? '', ...pk],
     queryFn: () =>
-      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadVital>>(listUrl('/vitals', { search }, page)),
+      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadVital>>(
+        listUrl('/vitals', { search, ...PLATFORM_LIBRARY_ACTIVE_ONLY }, page),
+      ),
     enabled,
   });
 }
@@ -230,7 +235,7 @@ export function useVisitpadChiefComplaintsGlobalLibrary(
     queryKey: [...visitpadKeys.chiefComplaints(), 'global-platform-library', scopeKey, search ?? '', ...pk],
     queryFn: () =>
       apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadChiefComplaint>>(
-        listUrl('/chief-complaints', { search }, page),
+        listUrl('/chief-complaints', { search, ...PLATFORM_LIBRARY_ACTIVE_ONLY }, page),
       ),
     enabled,
   });
@@ -368,7 +373,9 @@ export function useVisitpadUnitsGlobalLibrary(
   return useQuery({
     queryKey: [...visitpadKeys.units(), 'global-platform-library', scopeKey, search ?? '', ...pk],
     queryFn: () =>
-      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadUnit>>(listUrl('/units', { search }, page)),
+      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadUnit>>(
+        listUrl('/units', { search, ...PLATFORM_LIBRARY_ACTIVE_ONLY }, page),
+      ),
     enabled,
   });
 }
@@ -400,7 +407,9 @@ export function useVisitpadDiagnosesGlobalLibrary(
   return useQuery({
     queryKey: [...visitpadKeys.diagnoses(), 'global-platform-library', scopeKey, search ?? '', ...pk],
     queryFn: () =>
-      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadDiagnosis>>(listUrl('/diagnoses', { search }, page)),
+      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadDiagnosis>>(
+        listUrl('/diagnoses', { search, ...PLATFORM_LIBRARY_ACTIVE_ONLY }, page),
+      ),
     enabled,
   });
 }
@@ -415,7 +424,9 @@ export function useVisitpadAllergensGlobalLibrary(
   return useQuery({
     queryKey: [...visitpadKeys.allergens(), 'global-platform-library', scopeKey, search ?? '', ...pk],
     queryFn: () =>
-      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadAllergen>>(listUrl('/allergens', { search }, page)),
+      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadAllergen>>(
+        listUrl('/allergens', { search, ...PLATFORM_LIBRARY_ACTIVE_ONLY }, page),
+      ),
     enabled,
   });
 }
@@ -431,7 +442,7 @@ export function useVisitpadAllergyReactionsGlobalLibrary(
     queryKey: [...visitpadKeys.reactions(), 'global-platform-library', scopeKey, search ?? '', ...pk],
     queryFn: () =>
       apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadAllergyReaction>>(
-        listUrl('/allergy-reactions', { search }, page),
+        listUrl('/allergy-reactions', { search, ...PLATFORM_LIBRARY_ACTIVE_ONLY }, page),
       ),
     enabled,
   });
@@ -449,7 +460,7 @@ export function useVisitpadRxColumnsGlobalLibrary(
     queryKey: [...visitpadKeys.rxColumns(section), 'global-platform-library', scopeKey, search ?? '', ...pk],
     queryFn: () =>
       apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadRxColumn>>(
-        listUrl('/rx-columns', { search, section }, page),
+        listUrl('/rx-columns', { search, section, ...PLATFORM_LIBRARY_ACTIVE_ONLY }, page),
       ),
     enabled,
   });
@@ -465,7 +476,9 @@ export function useVisitpadMedicinesGlobalLibrary(
   return useQuery({
     queryKey: [...visitpadKeys.medicines(), 'global-platform-library', scopeKey, search ?? '', ...pk],
     queryFn: () =>
-      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadMedicine>>(listUrl('/medicines', { search }, page)),
+      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadMedicine>>(
+        listUrl('/medicines', { search, ...PLATFORM_LIBRARY_ACTIVE_ONLY }, page),
+      ),
     enabled,
   });
 }
@@ -481,7 +494,7 @@ export function useVisitpadChronicIllnessesGlobalLibrary(
     queryKey: [...visitpadKeys.chronicIllnesses(), 'global-platform-library', scopeKey, search ?? '', ...pk],
     queryFn: () =>
       apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadChronicIllness>>(
-        listUrl('/chronic-illnesses', { search }, page),
+        listUrl('/chronic-illnesses', { search, ...PLATFORM_LIBRARY_ACTIVE_ONLY }, page),
       ),
     enabled,
   });
@@ -497,7 +510,9 @@ export function useVisitpadProceduresGlobalLibrary(
   return useQuery({
     queryKey: [...visitpadKeys.procedures(), 'global-platform-library', scopeKey, search ?? '', ...pk],
     queryFn: () =>
-      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadProcedure>>(listUrl('/procedures', { search }, page)),
+      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadProcedure>>(
+        listUrl('/procedures', { search, ...PLATFORM_LIBRARY_ACTIVE_ONLY }, page),
+      ),
     enabled,
   });
 }
@@ -512,7 +527,9 @@ export function useVisitpadVaccinesGlobalLibrary(
   return useQuery({
     queryKey: [...visitpadKeys.vaccines(), 'global-platform-library', scopeKey, search ?? '', ...pk],
     queryFn: () =>
-      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadVaccine>>(listUrl('/vaccines', { search }, page)),
+      apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadVaccine>>(
+        listUrl('/vaccines', { search, ...PLATFORM_LIBRARY_ACTIVE_ONLY }, page),
+      ),
     enabled,
   });
 }
@@ -528,7 +545,7 @@ export function useVisitpadManufacturersGlobalLibrary(
     queryKey: [...visitpadKeys.manufacturers(), 'global-platform-library', scopeKey, search ?? '', ...pk],
     queryFn: () =>
       apiClientGlobalCatalogRead<VisitpadListResponse<VisitpadManufacturer>>(
-        listUrl('/manufacturers', { search }, page),
+        listUrl('/manufacturers', { search, ...PLATFORM_LIBRARY_ACTIVE_ONLY }, page),
       ),
     enabled,
   });

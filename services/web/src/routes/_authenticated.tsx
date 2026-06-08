@@ -1,18 +1,26 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import {
   createFileRoute,
   Outlet,
   redirect,
 } from '@tanstack/react-router';
-import { refreshAuthorizationContext } from '@/lib/authorization-context';
+import {
+  isAuthorizationHydratedForScope,
+  refreshAuthorizationContext,
+} from '@/lib/authorization-context';
+import {
+  isSameAuthPrincipalScope,
+  type AuthPrincipalQueryScope,
+} from '@/lib/auth-principal-query';
 import { queryClient } from '@/lib/query-client';
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
-import { Button } from '@pulse/ui/button';
+import { AppHeader } from '@/components/layout/app-header';
 import { AppSidebar } from '@/components/layout/app-sidebar';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePermissionsStore } from '@/stores/permissions.store';
 import { useTenantStore } from '@/stores/tenant.store';
-import { useUIPrefsStore } from '@/stores/ui-prefs.store';
+
+const EMPTY_CAPABILITY_RETRY_MAX = 3;
+const EMPTY_CAPABILITY_RETRY_INTERVAL_MS = 3000;
 
 export const Route = createFileRoute('/_authenticated')({
   beforeLoad: () => {
@@ -34,8 +42,25 @@ function AuthenticatedLayout() {
   const capabilityKeys = usePermissionsStore((s) => s.capabilityKeys);
   const hasEmptyFallback = isLoaded && capabilityKeys.size === 0;
 
+  const lastLayoutScopeRef = useRef<AuthPrincipalQueryScope | null>(null);
+
   useEffect(() => {
+    const scope: AuthPrincipalQueryScope = { userId, tenantId, activeBranch };
+    const scopeChanged =
+      lastLayoutScopeRef.current === null ||
+      !isSameAuthPrincipalScope(lastLayoutScopeRef.current, scope);
+
+    if (isAuthorizationHydratedForScope(scope)) {
+      lastLayoutScopeRef.current = scope;
+      return;
+    }
+
+    if (isLoaded && !scopeChanged) {
+      return;
+    }
+
     let cancelled = false;
+    let retryCount = 0;
     let retryTimer: ReturnType<typeof setInterval> | undefined;
 
     const hydrate = async () => {
@@ -49,11 +74,19 @@ function AuthenticatedLayout() {
     };
 
     void hydrate();
+    lastLayoutScopeRef.current = scope;
 
     if (hasEmptyFallback) {
       retryTimer = setInterval(() => {
+        if (cancelled || retryCount >= EMPTY_CAPABILITY_RETRY_MAX) {
+          if (retryTimer !== undefined) {
+            clearInterval(retryTimer);
+          }
+          return;
+        }
+        retryCount += 1;
         void hydrate();
-      }, 3000);
+      }, EMPTY_CAPABILITY_RETRY_INTERVAL_MS);
     }
 
     return () => {
@@ -62,10 +95,7 @@ function AuthenticatedLayout() {
         clearInterval(retryTimer);
       }
     };
-  }, [userId, tenantId, activeBranch, hasEmptyFallback]);
-
-  const sidebarCollapsed = useUIPrefsStore((s) => s.sidebarCollapsed);
-  const toggleSidebar = useUIPrefsStore((s) => s.toggleSidebar);
+  }, [userId, tenantId, activeBranch, isLoaded, hasEmptyFallback]);
 
   if (!isLoaded) {
     return (
@@ -76,28 +106,15 @@ function AuthenticatedLayout() {
   }
 
   return (
-    <div className="flex h-screen bg-background">
-      <AppSidebar displayName={displayName} tenantName={tenantName} />
+    <div className="flex h-full min-h-0 overflow-hidden bg-background">
+      <AppSidebar tenantName={tenantName} />
 
-      <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
-        <div className="h-10 border-b bg-background px-3 flex items-center gap-3 min-w-0">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => toggleSidebar()}
-            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            {sidebarCollapsed ? (
-              <PanelLeftOpen className="size-4" />
-            ) : (
-              <PanelLeftClose className="size-4" />
-            )}
-          </Button>
-        </div>
-        <div className="flex-1 overflow-auto">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <AppHeader displayName={displayName} tenantName={tenantName} />
+        <main className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
           <Outlet />
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 }

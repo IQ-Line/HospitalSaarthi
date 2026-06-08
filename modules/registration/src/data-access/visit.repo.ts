@@ -1,6 +1,7 @@
+import { randomUUID } from "node:crypto";
 import type { DbInstance } from "@hims/ts-sdk-db";
-import { and, eq, sql } from "@hims/ts-sdk-db";
-import { desc } from "drizzle-orm";
+import { and, eq, inArray, sql } from "@hims/ts-sdk-db";
+import { asc, desc } from "drizzle-orm";
 import { registrations, visits } from "../schema/tables.js";
 import type { VisitRepo } from "../ports.js";
 import type { DashboardRepoMetrics } from "../domain/dashboard.types.js";
@@ -48,6 +49,7 @@ export class DrizzleVisitRepo implements VisitRepo {
   async insert(
     tenantId: string,
     input: CreateVisitInput,
+    formattedVisitId: string,
     idempotencyKey: string,
     actorId: string,
     status: VisitStatus,
@@ -61,7 +63,9 @@ export class DrizzleVisitRepo implements VisitRepo {
       const rows = await this.db
         .insert(visits)
         .values({
+          id: randomUUID(),
           iq_tenant_id: tenantId,
+          visit_id: formattedVisitId,
           patient_id: input.patient_id,
           visit_type: input.visit_type ?? null,
           facility_id: input.facility_id ?? null,
@@ -94,7 +98,7 @@ export class DrizzleVisitRepo implements VisitRepo {
     const rows = await this.db
       .select()
       .from(visits)
-      .where(and(eq(visits.iq_tenant_id, tenantId), eq(visits.visit_id, visitId)));
+      .where(and(eq(visits.iq_tenant_id, tenantId), eq(visits.id, visitId)));
     return rows[0] ? mapRow(rows[0]) : undefined;
   }
 
@@ -166,7 +170,7 @@ export class DrizzleVisitRepo implements VisitRepo {
     const rows = await this.db
       .update(visits)
       .set(patch)
-      .where(and(eq(visits.iq_tenant_id, tenantId), eq(visits.visit_id, visitId)))
+      .where(and(eq(visits.iq_tenant_id, tenantId), eq(visits.id, visitId)))
       .returning();
     return rows[0] ? mapRow(rows[0]) : undefined;
   }
@@ -174,8 +178,8 @@ export class DrizzleVisitRepo implements VisitRepo {
   async delete(tenantId: string, visitId: string): Promise<boolean> {
     const rows = await this.db
       .delete(visits)
-      .where(and(eq(visits.iq_tenant_id, tenantId), eq(visits.visit_id, visitId)))
-      .returning({ visit_id: visits.visit_id });
+      .where(and(eq(visits.iq_tenant_id, tenantId), eq(visits.id, visitId)))
+      .returning({ id: visits.id });
     return rows.length > 0;
   }
 
@@ -192,7 +196,7 @@ export class DrizzleVisitRepo implements VisitRepo {
         updated_by: actorId,
         updated_at: new Date(),
       })
-      .where(and(eq(visits.iq_tenant_id, tenantId), eq(visits.visit_id, visitId)))
+      .where(and(eq(visits.iq_tenant_id, tenantId), eq(visits.id, visitId)))
       .returning();
     return rows[0] ? mapRow(rows[0]) : undefined;
   }
@@ -210,6 +214,30 @@ export class DrizzleVisitRepo implements VisitRepo {
       .orderBy(desc(visits.created_at))
       .limit(1);
     return rows[0] ? mapRow(rows[0]) : undefined;
+  }
+
+  async findLatestByPatientIds(
+    tenantId: string,
+    patientIds: readonly string[],
+  ): Promise<Map<string, VisitRecord>> {
+    const uniqueIds = [...new Set(patientIds.filter(Boolean))];
+    if (uniqueIds.length === 0) {
+      return new Map();
+    }
+
+    const rows = await this.db
+      .select()
+      .from(visits)
+      .where(and(eq(visits.iq_tenant_id, tenantId), inArray(visits.patient_id, uniqueIds)))
+      .orderBy(asc(visits.patient_id), desc(visits.created_at));
+
+    const latestByPatient = new Map<string, VisitRecord>();
+    for (const row of rows) {
+      if (!latestByPatient.has(row.patient_id)) {
+        latestByPatient.set(row.patient_id, mapRow(row));
+      }
+    }
+    return latestByPatient;
   }
 
   async getDashboardMetrics(tenantId: string, days: number): Promise<DashboardRepoMetrics> {

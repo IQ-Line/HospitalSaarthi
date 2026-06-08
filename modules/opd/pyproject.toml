@@ -5,17 +5,20 @@ description = "OPD module for the HIMS platform."
 requires-python = ">=3.12"
 dependencies = [
     "alembic",
+    "azure-storage-blob",
     "fastapi",
     "pydantic",
     "pydantic-settings",
     "psycopg[binary]",
     "pyjwt",
+    "python-multipart",
     "sqlalchemy",
 ]
 
 [dependency-groups]
 dev = [
     "httpx",
+    "pyright",
     "pytest",
     "pytest-asyncio",
     "ruff",
@@ -39,3 +42,11 @@ select = ["E", "F", "I", "UP", "B"]
 testpaths = ["tests"]
 pythonpath = ["src"]
 asyncio_mode = "auto"
+
+[tool.pyright]
+include = ["src", "tests", "alembic"]
+venvPath = "."
+venv = ".venv"
+extraPaths = ["src"]
+pythonVersion = "3.12"
+typeCheckingMode = "basic"

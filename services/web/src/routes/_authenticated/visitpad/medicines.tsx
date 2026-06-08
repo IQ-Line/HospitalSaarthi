@@ -14,13 +14,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@pulse/ui/select';
-import { Switch } from '@pulse/ui/switch';
 import { Textarea } from '@pulse/ui/textarea';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
-import { TableActiveToggle } from '@/features/master-data/components/table-active-toggle';
+import { CatalogActiveSwitch } from '@/features/visitpad/components/catalog-active-switch';
+import { ControlledFormToggleRow } from '@/features/visitpad/components/form-toggle-row';
+
+const MED_SCHEDULE_UNSET = '__unset__';
+const MED_DOSAGE_FORM_UNSET = '__unset__';
+const MED_ENUM_UNSET = '__unset__';
+import { RequiredLabel, VISITPAD_CODE_HELPER_TEXT } from '@/features/visitpad/components/required-label';
+import { useCatalogActiveToggleConfirm } from '@/features/visitpad/hooks/use-catalog-active-toggle-confirm';
+import { nextDisplayOrder } from '@/features/visitpad/lib/next-display-order';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import {
   useVisitpadDelete,
@@ -29,6 +36,7 @@ import {
   useVisitpadPatch,
   useVisitpadPlatformImport,
   useVisitpadPost,
+  useVisitpadRxColumns,
   useVisitpadTenantImportKeys,
   VISITPAD_CATALOG_DEFAULT_PAGE_SIZE,
   VISITPAD_CATALOG_PAGE_SIZES,
@@ -85,6 +93,61 @@ function FieldSection({ title, children }: { title: string; children: React.Reac
   );
 }
 
+function DosageFormSelect<T extends FieldValues>({
+  control,
+  name,
+  id,
+  orphanValue,
+}: {
+  control: Control<T>;
+  name: FieldPath<T>;
+  id: string;
+  orphanValue?: string | null;
+}) {
+  const { data: medTypesRes, isLoading } = useVisitpadRxColumns(undefined, 'medication_type', {
+    pageIndex: 0,
+    pageSize: 500,
+  });
+  const options = useMemo(() => medTypesRes?.data ?? [], [medTypesRes?.data]);
+  const orphan =
+    orphanValue?.trim() && !options.some((o) => o.display_name === orphanValue.trim())
+      ? orphanValue.trim()
+      : null;
+
+  return (
+    <Controller
+      control={control}
+      name={name}
+      render={({ field }) => (
+        <Select
+          value={
+            field.value && String(field.value).trim().length > 0
+              ? String(field.value)
+              : MED_DOSAGE_FORM_UNSET
+          }
+          onValueChange={(v) => field.onChange(v === MED_DOSAGE_FORM_UNSET ? undefined : v)}
+          disabled={isLoading}
+        >
+          <SelectTrigger id={id}>
+            <SelectValue placeholder={isLoading ? 'Loading forms…' : 'Select dosage form…'} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={MED_DOSAGE_FORM_UNSET}>Select dosage form…</SelectItem>
+            {orphan ? (
+              <SelectItem value={orphan}>{orphan} — not in medication type list</SelectItem>
+            ) : null}
+            {options.map((o) => (
+              <SelectItem key={o.id} value={o.display_name}>
+                {o.display_name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+    />
+  );
+}
+
 function VisitpadMedicinesPage() {
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-medicines');
   const { canUpdate, canDelete, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
@@ -121,7 +184,10 @@ function VisitpadMedicinesPage() {
   const del = useVisitpadDelete(MED_BASE);
   const create = useVisitpadPost(MED_BASE);
   const platformImport = useVisitpadPlatformImport('/medicines/import-from-platform');
-  const { data: tenantCodeKeys } = useVisitpadTenantImportKeys('/medicines', importOpen && tenantCatalog);
+  const { data: tenantCodeKeys, isLoading: tenantCodeKeysLoading } = useVisitpadTenantImportKeys(
+    '/medicines',
+    importOpen && tenantCatalog,
+  );
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);
@@ -145,6 +211,18 @@ function VisitpadMedicinesPage() {
     ],
     [],
   );
+
+  const activeToggle = useCatalogActiveToggleConfirm({
+    disabled: patch.isPending || !canUpdate,
+    onConfirm: async (id, next) => {
+      try {
+        await patch.mutateAsync({ id, body: { is_active: next } });
+        toast.success(next ? 'Medicine enabled' : 'Medicine disabled');
+      } catch (e) {
+        toast.error(mutationErrorMessage(e));
+      }
+    },
+  });
 
   const runMedicineImport = async (selection: VisitpadMedicine[]) => {
     try {
@@ -186,23 +264,26 @@ function VisitpadMedicinesPage() {
         cell: ({ getValue }) => <Badge variant="secondary">{getValue<string>()}</Badge>,
       },
       {
+        accessorKey: 'price',
+        header: 'Price',
+        meta: { label: 'Price' },
+        cell: ({ row }) =>
+          row.original.price != null ? (
+            String(row.original.price)
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+      {
         accessorKey: 'is_active',
         header: 'Active',
         meta: { label: 'Active' },
-        cell: ({ row }) => (
-          <TableActiveToggle
-            active={row.original.is_active}
-            disabled={patch.isPending || !canUpdate}
-            onCheckedChange={async (next) => {
-              try {
-                await patch.mutateAsync({ id: row.original.id, body: { is_active: next } });
-                toast.success(next ? 'Activated' : 'Deactivated');
-              } catch (e) {
-                toast.error(mutationErrorMessage(e));
-              }
-            }}
-          />
-        ),
+        cell: ({ row }) =>
+          activeToggle.renderToggle({
+            id: row.original.id,
+            displayName: row.original.display_name || row.original.code,
+            isActive: row.original.is_active,
+          }),
       },
       visitpadActionsColumn<VisitpadMedicine>({
         onEdit: setEditing,
@@ -212,7 +293,7 @@ function VisitpadMedicinesPage() {
         canDelete,
       }),
     ],
-    [patch, busy, canUpdate, canDelete],
+    [activeToggle, busy, canUpdate, canDelete],
   );
 
   return (
@@ -228,7 +309,7 @@ function VisitpadMedicinesPage() {
       actions={
         <VisitpadHeaderActions
           catalogModuleSlug={catalogModuleSlug}
-          addLabel={tenantCatalog ? 'Add local medicine' : 'Add medicine'}
+          addLabel="Add medicine"
           onAddClick={() => setCreateOpen(true)}
           onImportFromLibrary={tenantCatalog ? () => setImportOpen(true) : undefined}
           importFromLibraryPending={platformImport.isPending}
@@ -276,6 +357,8 @@ function VisitpadMedicinesPage() {
         )}
       </div>
 
+      {activeToggle.renderConfirmDialog()}
+
       <ImportFromPlatformCatalogDialog<VisitpadMedicine>
         open={importOpen}
         onOpenChange={setImportOpen}
@@ -286,6 +369,7 @@ function VisitpadMedicinesPage() {
         isLoading={globalLibLoading}
         getRowKey={getRowKey}
         importedKeys={importedKeys}
+        importedKeysLoading={tenantCodeKeysLoading}
         columns={importColumns}
         searchParts={importSearchParts}
         isSubmitting={platformImport.isPending || create.isPending}
@@ -305,6 +389,7 @@ function VisitpadMedicinesPage() {
       <MedicineCreateDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
+        nextOrder={nextDisplayOrder(rows)}
         isSubmitting={create.isPending}
         onSubmit={async (payload) => {
           try {
@@ -363,24 +448,28 @@ function VisitpadMedicinesPage() {
 function MedicineCreateDialog({
   open,
   onOpenChange,
+  nextOrder,
   isSubmitting,
   onSubmit,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  nextOrder: number;
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
   const form = useForm<VisitpadMedicineCreateFormInput>({
     resolver: zodResolver(visitpadMedicineCreateFormSchema),
-    defaultValues: emptyMedicineCreateForm(),
+    defaultValues: { ...emptyMedicineCreateForm(), display_order: nextOrder },
   });
 
   useEffect(() => {
     if (open) {
-      form.reset(emptyMedicineCreateForm());
+      form.reset({ ...emptyMedicineCreateForm(), display_order: nextOrder });
     }
-  }, [open, form]);
+  }, [open, nextOrder, form]);
+
+  const blackBoxOn = !!form.watch('black_box_warning');
 
   const submit: SubmitHandler<VisitpadMedicineCreateFormSchema> = async (v) => {
     await onSubmit(visitpadMedicineCreatePayloadFromForm(v));
@@ -400,27 +489,25 @@ function MedicineCreateDialog({
         <FieldSection title="Identity">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="vp-mc-code">Medicine code *</Label>
+              <RequiredLabel htmlFor="vp-mc-code">Medicine code</RequiredLabel>
               <Input
                 id="vp-mc-code"
-                placeholder="e.g. met_500_tab"
-                maxLength={8}
+                placeholder="e.g. met_500"
+                maxLength={9}
                 className="font-mono"
                 {...form.register('code')}
               />
-              <p className="text-sm text-muted-foreground">
-                Code must be 3–8 characters, letters, digits, or underscores; unique; cannot be edited after save.
-              </p>
+              <p className="text-sm text-muted-foreground">{VISITPAD_CODE_HELPER_TEXT}</p>
               {form.formState.errors.code ? (
                 <p className="text-sm text-destructive">{form.formState.errors.code.message}</p>
               ) : null}
             </div>
             <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="vp-mc-inn">Generic name (INN) *</Label>
+              <Label htmlFor="vp-mc-inn">Generic name (INN)</Label>
               <Input id="vp-mc-inn" maxLength={512} {...form.register('generic_name')} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="vp-mc-dclass">Drug class *</Label>
+              <Label htmlFor="vp-mc-dclass">Drug class</Label>
               <Input id="vp-mc-dclass" maxLength={256} {...form.register('drug_class')} />
             </div>
             <div className="space-y-2">
@@ -450,7 +537,7 @@ function MedicineCreateDialog({
               />
             </div>
             <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="vp-mc-dn">Display name *</Label>
+              <RequiredLabel htmlFor="vp-mc-dn">Display name</RequiredLabel>
               <Input id="vp-mc-dn" maxLength={512} {...form.register('display_name')} />
             </div>
             <div className="space-y-2">
@@ -458,8 +545,22 @@ function MedicineCreateDialog({
               <Input id="vp-mc-sn" maxLength={256} {...form.register('short_name')} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="vp-mc-ord">Display order</Label>
+              <RequiredLabel htmlFor="vp-mc-ord">Display order</RequiredLabel>
               <Input id="vp-mc-ord" type="number" {...form.register('display_order', { valueAsNumber: true })} />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="vp-mc-price">Price</Label>
+              <Input
+                id="vp-mc-price"
+                type="number"
+                min={0}
+                step="any"
+                placeholder="Optional unit price"
+                {...form.register('price')}
+              />
+              {form.formState.errors.price ? (
+                <p className="text-xs text-destructive">{form.formState.errors.price.message}</p>
+              ) : null}
             </div>
           </div>
         </FieldSection>
@@ -467,8 +568,8 @@ function MedicineCreateDialog({
         <FieldSection title="Formulation">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="vp-mc-form">Dosage form *</Label>
-              <Input id="vp-mc-form" maxLength={128} {...form.register('dosage_form')} />
+              <Label htmlFor="vp-mc-form">Dosage form</Label>
+              <DosageFormSelect control={form.control} name="dosage_form" id="vp-mc-form" />
             </div>
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="vp-mc-routes">Routes of admin (comma-separated codes)</Label>
@@ -512,16 +613,22 @@ function MedicineCreateDialog({
         <FieldSection title="Regulatory (India-centric)">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
-              <Label>Schedule *</Label>
+              <Label>Schedule</Label>
               <Controller
                 control={form.control}
                 name="schedule"
                 render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
+                  <Select
+                    value={field.value ?? MED_SCHEDULE_UNSET}
+                    onValueChange={(v) =>
+                      field.onChange(v === MED_SCHEDULE_UNSET ? undefined : v)
+                    }
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select schedule…" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value={MED_SCHEDULE_UNSET}>Select schedule…</SelectItem>
                       {VISITPAD_MEDICINE_SCHEDULES.map((s) => (
                         <SelectItem key={s.value} value={s.value}>
                           {s.label}
@@ -532,20 +639,25 @@ function MedicineCreateDialog({
                 )}
               />
             </div>
-            <ToggleRow
+            <ControlledFormToggleRow
               control={form.control}
               name="requires_prescription"
               id="vp-mc-rx"
               label="Requires prescription"
             />
-            <ToggleRow
+            <ControlledFormToggleRow
               control={form.control}
               name="is_controlled_substance"
               id="vp-mc-cs"
               label="Controlled substance"
             />
-            <ToggleRow control={form.control} name="is_narcotic" id="vp-mc-ndps" label="Narcotic (NDPS)" />
-            <ToggleRow
+            <ControlledFormToggleRow
+              control={form.control}
+              name="is_narcotic"
+              id="vp-mc-ndps"
+              label="Narcotic (NDPS)"
+            />
+            <ControlledFormToggleRow
               control={form.control}
               name="is_restricted_antibiotic"
               id="vp-mc-h1"
@@ -590,7 +702,23 @@ function MedicineCreateDialog({
               <Label htmlFor="vp-mc-mxdu">Max dose / day unit</Label>
               <Input id="vp-mc-mxdu" maxLength={32} {...form.register('max_dose_per_day_unit')} />
             </div>
-            <ToggleRow control={form.control} name="black_box_warning" id="vp-mc-bbw" label="Black box warning" />
+            <ControlledFormToggleRow
+              control={form.control}
+              name="black_box_warning"
+              id="vp-mc-bbw"
+              label="Black box warning"
+            />
+            {blackBoxOn ? (
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="vp-mc-bbw-text">Black box warning text</Label>
+                <Textarea
+                  id="vp-mc-bbw-text"
+                  rows={3}
+                  maxLength={2048}
+                  {...form.register('black_box_warning_text')}
+                />
+              </div>
+            ) : null}
           </div>
         </FieldSection>
 
@@ -655,44 +783,13 @@ function MedicineCreateDialog({
           </div>
         </FieldSection>
 
-        <div className="flex items-center justify-between gap-4 rounded-md border p-3">
-          <div className="space-y-1">
-            <Label htmlFor="vp-mc-act">Active (visible in library)</Label>
-            <p className="text-sm text-muted-foreground">Inactive medicines stay hidden from prescribing pickers.</p>
-          </div>
-          <Controller
-            control={form.control}
-            name="is_active"
-            render={({ field }) => (
-              <Switch id="vp-mc-act" checked={field.value} onCheckedChange={field.onChange} />
-            )}
-          />
-        </div>
+        <CatalogActiveSwitch
+          id="vp-mc-act"
+          checked={!!form.watch('is_active')}
+          onCheckedChange={(c) => form.setValue('is_active', c)}
+        />
       </div>
     </EntityFormDialog>
-  );
-}
-
-function ToggleRow<T extends FieldValues>({
-  control,
-  name,
-  id,
-  label,
-}: {
-  control: Control<T>;
-  name: FieldPath<T>;
-  id: string;
-  label: string;
-}) {
-  return (
-    <div className="flex items-center justify-between rounded-md border p-3 sm:col-span-2">
-      <Label htmlFor={id}>{label}</Label>
-      <Controller
-        control={control}
-        name={name}
-        render={({ field }) => <Switch id={id} checked={field.value} onCheckedChange={field.onChange} />}
-      />
-    </div>
   );
 }
 
@@ -701,11 +798,13 @@ function EnumSelectRow<T extends FieldValues, V extends string>({
   name,
   label,
   options,
+  placeholder = 'Select…',
 }: {
   control: Control<T>;
   name: FieldPath<T>;
   label: string;
   options: readonly { value: V; label: string }[];
+  placeholder?: string;
 }) {
   return (
     <div className="space-y-2 sm:col-span-2">
@@ -714,16 +813,22 @@ function EnumSelectRow<T extends FieldValues, V extends string>({
         control={control}
         name={name}
         render={({ field }) => (
-          <Select value={field.value} onValueChange={field.onChange}>
+          <Select
+            value={field.value == null || field.value === '' ? MED_ENUM_UNSET : field.value}
+            onValueChange={(v) => field.onChange(v === MED_ENUM_UNSET ? undefined : v)}
+          >
             <SelectTrigger>
-              <SelectValue placeholder="Select…" />
+              <SelectValue placeholder={placeholder} />
             </SelectTrigger>
             <SelectContent>
-              {options.map((o) => (
-                <SelectItem key={o.value} value={o.value}>
-                  {o.label}
-                </SelectItem>
-              ))}
+              <SelectItem value={MED_ENUM_UNSET}>{placeholder}</SelectItem>
+              {options
+                .filter((o) => o.value !== 'not_set')
+                .map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         )}
@@ -756,6 +861,8 @@ function MedicineEditDialog({
     }
   }, [open, row, form]);
 
+  const blackBoxOn = !!form.watch('black_box_warning');
+
   const submit: SubmitHandler<VisitpadMedicineEditFormSchema> = async (v) => {
     await onSave(visitpadMedicinePatchPayloadFromForm(v));
   };
@@ -779,11 +886,11 @@ function MedicineEditDialog({
           <FieldSection title="Identity">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="vp-me-inn">Generic name (INN) *</Label>
+                <Label htmlFor="vp-me-inn">Generic name (INN)</Label>
                 <Input id="vp-me-inn" maxLength={512} {...form.register('generic_name')} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="vp-me-dclass">Drug class *</Label>
+                <Label htmlFor="vp-me-dclass">Drug class</Label>
                 <Input id="vp-me-dclass" maxLength={256} {...form.register('drug_class')} />
               </div>
               <div className="space-y-2">
@@ -803,7 +910,7 @@ function MedicineEditDialog({
                 <Input id="vp-me-sn2" maxLength={64} {...form.register('snomed_product_code')} />
               </div>
               <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="vp-me-dn">Display name *</Label>
+                <RequiredLabel htmlFor="vp-me-dn">Display name</RequiredLabel>
                 <Input id="vp-me-dn" maxLength={512} {...form.register('display_name')} />
               </div>
               <div className="space-y-2">
@@ -814,14 +921,33 @@ function MedicineEditDialog({
                 <Label htmlFor="vp-me-ord">Display order</Label>
                 <Input id="vp-me-ord" type="number" {...form.register('display_order', { valueAsNumber: true })} />
               </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="vp-me-price">Price</Label>
+                <Input
+                  id="vp-me-price"
+                  type="number"
+                  min={0}
+                  step="any"
+                  placeholder="Optional unit price"
+                  {...form.register('price')}
+                />
+                {form.formState.errors.price ? (
+                  <p className="text-xs text-destructive">{form.formState.errors.price.message}</p>
+                ) : null}
+              </div>
             </div>
           </FieldSection>
 
           <FieldSection title="Formulation">
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:col-span-2">
               <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="vp-me-form">Dosage form *</Label>
-                <Input id="vp-me-form" maxLength={128} {...form.register('dosage_form')} />
+                <Label htmlFor="vp-me-form">Dosage form</Label>
+                <DosageFormSelect
+                  control={form.control}
+                  name="dosage_form"
+                  id="vp-me-form"
+                  orphanValue={row.dosage_form}
+                />
               </div>
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="vp-me-routes">Routes of admin (comma-separated)</Label>
@@ -857,16 +983,22 @@ function MedicineEditDialog({
           <FieldSection title="Regulatory (India-centric)">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2 sm:col-span-2">
-                <Label>Schedule *</Label>
+                <Label>Schedule</Label>
                 <Controller
                   control={form.control}
                   name="schedule"
                   render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange}>
+                    <Select
+                      value={field.value ?? MED_SCHEDULE_UNSET}
+                      onValueChange={(v) =>
+                        field.onChange(v === MED_SCHEDULE_UNSET ? undefined : v)
+                      }
+                    >
                       <SelectTrigger>
-                        <SelectValue />
+                        <SelectValue placeholder="Select schedule…" />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value={MED_SCHEDULE_UNSET}>Select schedule…</SelectItem>
                         {VISITPAD_MEDICINE_SCHEDULES.map((s) => (
                           <SelectItem key={s.value} value={s.value}>
                             {s.label}
@@ -877,20 +1009,25 @@ function MedicineEditDialog({
                   )}
                 />
               </div>
-              <ToggleRow
+              <ControlledFormToggleRow
                 control={form.control}
                 name="requires_prescription"
                 id="vp-me-rx"
                 label="Requires prescription"
               />
-              <ToggleRow
+              <ControlledFormToggleRow
                 control={form.control}
                 name="is_controlled_substance"
                 id="vp-me-cs"
                 label="Controlled substance"
               />
-              <ToggleRow control={form.control} name="is_narcotic" id="vp-me-ndps" label="Narcotic (NDPS)" />
-              <ToggleRow
+              <ControlledFormToggleRow
+                control={form.control}
+                name="is_narcotic"
+                id="vp-me-ndps"
+                label="Narcotic (NDPS)"
+              />
+              <ControlledFormToggleRow
                 control={form.control}
                 name="is_restricted_antibiotic"
                 id="vp-me-h1"
@@ -935,7 +1072,23 @@ function MedicineEditDialog({
                 <Label htmlFor="vp-me-mxdu">Max dose / day unit</Label>
                 <Input id="vp-me-mxdu" maxLength={32} {...form.register('max_dose_per_day_unit')} />
               </div>
-              <ToggleRow control={form.control} name="black_box_warning" id="vp-me-bbw" label="Black box warning" />
+              <ControlledFormToggleRow
+                control={form.control}
+                name="black_box_warning"
+                id="vp-me-bbw"
+                label="Black box warning"
+              />
+              {blackBoxOn ? (
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="vp-me-bbw-text">Black box warning text</Label>
+                  <Textarea
+                    id="vp-me-bbw-text"
+                    rows={3}
+                    maxLength={2048}
+                    {...form.register('black_box_warning_text')}
+                  />
+                </div>
+              ) : null}
             </div>
           </FieldSection>
 
@@ -1000,18 +1153,11 @@ function MedicineEditDialog({
             </div>
           </FieldSection>
 
-          <div className="flex items-center justify-between gap-4 rounded-md border p-3">
-            <div className="space-y-1">
-              <Label htmlFor="vp-me-act">Active (visible in library)</Label>
-            </div>
-            <Controller
-              control={form.control}
-              name="is_active"
-              render={({ field }) => (
-                <Switch id="vp-me-act" checked={field.value} onCheckedChange={field.onChange} />
-              )}
-            />
-          </div>
+          <CatalogActiveSwitch
+            id="vp-me-act"
+            checked={!!form.watch('is_active')}
+            onCheckedChange={(c) => form.setValue('is_active', c)}
+          />
         </div>
       ) : null}
     </EntityFormDialog>

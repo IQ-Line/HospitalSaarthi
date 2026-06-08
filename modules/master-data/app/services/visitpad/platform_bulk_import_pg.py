@@ -561,6 +561,7 @@ def _medicine_row(tenant_id: UUID, pl: VisitpadMedicineCreate, now: Any) -> dict
         "default_route": _norm_opt_str(pl.default_route),
         "default_instructions": _norm_opt_str(pl.default_instructions),
         "typical_quantity": pl.typical_quantity,
+        "price": pl.price,
         "notes": _norm_opt_str(pl.notes),
         "display_order": pl.display_order,
         "is_active": pl.is_active,

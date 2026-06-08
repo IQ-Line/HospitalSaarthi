@@ -6,16 +6,19 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from app.core.catalog_schemas import GLOBAL_SCHEMA, TENANT_SCHEMA
+from app.core.catalog_tenant_id import (
+    CATALOG_TENANT_HEADER,
+    IQ_TENANT_ID_HEADER,
+    X_TENANT_ID_HEADER,
+)
 
 TENANT_MASTER_SCHEMA = TENANT_SCHEMA
 GLOBAL_MASTER_SCHEMA = GLOBAL_SCHEMA
-# Single header for catalog tenant scope: UUID string (matches platform ``iq_tenant_id`` / ``ts-sdk-db``).
-CATALOG_TENANT_HEADER = "iq_tenant_id"
 
 
 @dataclass(frozen=True, slots=True)
 class CatalogScope:
-    """Resolved per request from optional ``iq_tenant_id`` (UUID string in the HTTP header)."""
+    """Resolved per request from optional tenant headers (``iq_tenant_id`` or ``x-tenant-id``)."""
 
     iq_tenant_id: UUID | None
 

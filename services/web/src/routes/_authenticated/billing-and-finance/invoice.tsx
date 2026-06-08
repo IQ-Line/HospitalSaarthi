@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Badge } from '@pulse/ui/badge';
 import { Button } from '@pulse/ui/button';
@@ -15,6 +16,7 @@ import { useBills } from '@/features/billing/api';
 import { BillingPageShell } from '@/features/billing/components/billing-page-shell';
 import { formatDateTime, formatMoneyDisplay } from '@/features/billing/lib/format';
 import type { Bill, BillStatus } from '@/features/billing/types';
+import { fetchEmpiPatientLookupMap } from '@/features/opd-patients/api/empi-patients';
 import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
 import { ApiError } from '@/lib/api-client';
 import { mutationErrorMessage } from '@/lib/mutation-error';
@@ -74,6 +76,18 @@ function BillingInvoicePage() {
   });
   const bills = data?.data ?? EMPTY_BILLS;
 
+  const patientIds = useMemo(
+    () => [...new Set(bills.map((bill) => bill.patient_id).filter(Boolean))],
+    [bills],
+  );
+
+  const empiLookupQuery = useQuery({
+    queryKey: ['empi-patient-lookup', patientIds.slice().sort().join('|')],
+    queryFn: () => fetchEmpiPatientLookupMap(patientIds),
+    enabled: canRead && patientIds.length > 0,
+    staleTime: 60_000,
+  });
+
   const columns = useMemo<ColumnDef<Bill, unknown>[]>(
     () => [
       {
@@ -87,13 +101,23 @@ function BillingInvoicePage() {
         cell: ({ getValue }) => getValue<string>(),
       },
       {
-        accessorKey: 'patient_id',
+        id: 'patient',
         header: 'Patient',
-        cell: ({ getValue }) => (
-          <code className="text-xs" title={getValue<string>()}>
-            {shortPatientId(getValue<string>())}
-          </code>
-        ),
+        cell: ({ row }) => {
+          const patientId = row.original.patient_id;
+          const name = empiLookupQuery.data?.get(patientId)?.full_name?.trim();
+          if (name) {
+            return <span title={patientId}>{name}</span>;
+          }
+          if (empiLookupQuery.isLoading) {
+            return <span className="text-muted-foreground">…</span>;
+          }
+          return (
+            <code className="text-xs text-muted-foreground" title={patientId}>
+              {shortPatientId(patientId)}
+            </code>
+          );
+        },
       },
       {
         accessorKey: 'status',
@@ -124,7 +148,7 @@ function BillingInvoicePage() {
         cell: ({ getValue }) => formatDateTime(getValue<string>()),
       },
     ],
-    [],
+    [empiLookupQuery.data, empiLookupQuery.isLoading],
   );
 
   return (

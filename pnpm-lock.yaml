@@ -54,6 +54,9 @@ importers:
       '@hims/ts-sdk-db':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-db
+      '@hims/ts-sdk-sequence':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-sequence
     devDependencies:
       fastify:
         specifier: ^5.3.3
@@ -95,6 +98,9 @@ importers:
       '@hims/ts-sdk-events':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-events
+      '@hims/ts-sdk-sequence':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-sequence
     devDependencies:
       drizzle-kit:
         specifier: ^0.31.4
@@ -188,6 +194,9 @@ importers:
       '@hims/ts-sdk-events':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-events
+      '@hims/ts-sdk-sequence':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-sequence
     devDependencies:
       drizzle-orm:
         specifier: ^0.45.2
@@ -581,6 +590,19 @@ importers:
         specifier: ^5.3.3
         version: 5.8.5
 
+  packages/ts-sdk-sequence:
+    dependencies:
+      '@hims/ts-sdk-db':
+        specifier: workspace:*
+        version: link:../ts-sdk-db
+      drizzle-orm:
+        specifier: '>=0.44.0'
+        version: 0.45.2(@types/pg@8.20.0)(kysely@0.28.17)(pg@8.20.0)(postgres@3.4.9)
+    devDependencies:
+      vitest:
+        specifier: ^3.1.3
+        version: 3.2.4(@types/node@25.6.0)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.8.4)
+
   packages/ts-sdk-tenant:
     dependencies:
       fastify-plugin:
@@ -756,6 +778,9 @@ importers:
       fastify-plugin:
         specifier: ^5.0.1
         version: 5.1.0
+      jose:
+        specifier: ^6.2.3
+        version: 6.2.3
     devDependencies:
       tsx:
         specifier: ^4.20.5
@@ -830,6 +855,9 @@ importers:
       '@hims/user-management':
         specifier: workspace:*
         version: link:../../modules/user-management
+      dotenv:
+        specifier: ^16.6.1
+        version: 16.6.1
       fastify:
         specifier: ^5.3.3
         version: 5.8.5
