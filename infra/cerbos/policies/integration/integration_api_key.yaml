@@ -6,6 +6,24 @@ resourcePolicy:
   resource: "integration_api_key"
   version: default
   rules:
+    - actions:
+        - api_key.read
+        - api_key.issue
+        - api_key.revoke
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+
+    - actions:
+        - api_key.read
+        - api_key.issue
+        - api_key.revoke
+      roles: ["tenant-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id
+
     - actions: ["api_key.read"]
       roles: ["*"]
       effect: EFFECT_ALLOW

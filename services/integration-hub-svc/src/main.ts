@@ -62,7 +62,7 @@ const CONTROL_PLANE_ENABLED = process.env["INTEGRATION_HUB_CONTROL_PLANE"] !== "
 const INBOUND_ENABLED = process.env["INTEGRATION_HUB_INBOUND"] !== "false";
 const REGISTRATION_BASE_URL =
   process.env["REGISTRATION_SVC_URL"] ?? process.env["REGISTRATION_URL"] ?? "http://localhost:3006";
-const EMPI_BASE_URL =
+const INBOUND_EMPI_BASE_URL =
   process.env["EMPI_SVC_URL"] ?? process.env["EMPI_URL"] ?? "http://localhost:3002";
 
 const GATEWAY_BASE_URL =
@@ -73,7 +73,7 @@ const ABHA_API_BASE_URL =
   process.env["INTEGRATION_HUB_ABDM_ABHA_API_BASE_URL"] ??
   process.env["ABDM_ABHA_API_BASE_URL"] ??
   "https://abhasbx.abdm.gov.in/abha/api";
-const EMPI_BASE_URL = process.env["EMPI_BASE_URL"] ?? "";
+const ABDM_EMPI_HTTP_BASE_URL = process.env["EMPI_BASE_URL"] ?? "";
 const RECORD_FOUNDATION_BASE_URL = process.env["RECORD_FOUNDATION_BASE_URL"] ?? "";
 const ABDM_M2_MOCK_PLATFORM =
   (process.env["INTEGRATION_HUB_ABDM_M2_MOCK_PLATFORM"] ??
@@ -129,16 +129,19 @@ async function main() {
   });
 
   if (CONTROL_PLANE_ENABLED) {
-    await registerOpenApiDocs(app, {
-      serviceId: "integration-hub-control-plane",
-      title: "Integration Hub Control Plane API",
-      version: "1.0.0",
-      description: "Partner integration registry, lifecycle, and API key administration.",
-      apiPrefix: "/api/integration-hub/v1",
-      staticSpec: {
-        path: "specs/openapi/integration-hub-control-plane.v1.yaml",
-        baseDir: repoRoot,
-      },
+    await app.register(async (docsScope) => {
+      await registerOpenApiDocs(docsScope, {
+        serviceId: "integration-hub-control-plane",
+        title: "Integration Hub Control Plane API",
+        version: "1.0.0",
+        description: "Partner integration registry, lifecycle, and API key administration.",
+        apiPrefix: "/api/integration-hub/v1",
+        uiRoutePrefix: "/docs/control-plane",
+        staticSpec: {
+          path: "specs/openapi/integration-hub-control-plane.v1.yaml",
+          baseDir: repoRoot,
+        },
+      });
     });
   }
 
@@ -168,8 +171,8 @@ async function main() {
   const consentArtefacts = new DrizzleConsentArtefactsRepo(db);
   const empi = ABDM_M2_MOCK_PLATFORM
     ? new MockEmpiClient(ABDM_MOCK_ABHA_ADDRESS)
-    : EMPI_BASE_URL
-      ? new HttpEmpiClient(EMPI_BASE_URL)
+    : ABDM_EMPI_HTTP_BASE_URL
+      ? new HttpEmpiClient(ABDM_EMPI_HTTP_BASE_URL)
       : new NoOpEmpiClient();
   const recordFoundation = ABDM_M2_MOCK_PLATFORM
     ? new MockRecordFoundationClient(ABDM_MOCK_ABHA_ADDRESS)
@@ -275,12 +278,26 @@ async function main() {
   }
 
   if (INBOUND_ENABLED) {
-    await registerInbound(app, {
-      db,
-      registrationBaseUrl: REGISTRATION_BASE_URL,
-      empiBaseUrl: EMPI_BASE_URL,
-    });
-    app.log.info("Integration Hub inbound data plane mounted at /api/integration-hub/v1/inbound");
+    const partnerJwtIssuer = process.env["PARTNER_JWT_ISSUER"]?.trim() ?? "";
+    const partnerJwtAudience = process.env["PARTNER_JWT_AUDIENCE"]?.trim() ?? "";
+    const partnerJwtKey =
+      process.env["PARTNER_JWT_SIGNING_KEY"]?.trim() ??
+      process.env["PARTNER_JWT_SIGNING_KEY_PATH"]?.trim() ??
+      "";
+    if (!partnerJwtIssuer || !partnerJwtAudience || !partnerJwtKey) {
+      app.log.warn(
+        "INTEGRATION_HUB_INBOUND is enabled but PARTNER_JWT_ISSUER, PARTNER_JWT_AUDIENCE, and signing key are not fully configured — skipping inbound data plane (control plane still available). Set INTEGRATION_HUB_INBOUND=false to silence this warning.",
+      );
+    } else {
+      await registerInbound(app, {
+        db,
+        registrationBaseUrl: REGISTRATION_BASE_URL,
+        empiBaseUrl: INBOUND_EMPI_BASE_URL,
+      });
+      app.log.info(
+        "Integration Hub inbound data plane mounted at /api/integration-hub/v1/inbound",
+      );
+    }
   }
 
   await app.listen({ port: PORT, host: "0.0.0.0" });

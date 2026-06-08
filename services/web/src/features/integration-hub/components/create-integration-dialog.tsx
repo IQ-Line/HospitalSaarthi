@@ -22,13 +22,18 @@ import { integrationTypeCatalogOptions } from '../api/queries';
 import { useCreateIntegration } from '../api/mutations';
 
 type CreateIntegrationDialogProps = {
+  tenantId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 };
 
-export function CreateIntegrationDialog({ open, onOpenChange }: CreateIntegrationDialogProps) {
+export function CreateIntegrationDialog({
+  tenantId,
+  open,
+  onOpenChange,
+}: CreateIntegrationDialogProps) {
   const { data } = useSuspenseQuery(integrationTypeCatalogOptions());
-  const create = useCreateIntegration();
+  const create = useCreateIntegration(tenantId);
   const [displayName, setDisplayName] = useState('');
   const [integrationType, setIntegrationType] = useState(
     data.items[0]?.type ?? 'smart_report',

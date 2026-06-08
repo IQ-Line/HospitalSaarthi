@@ -10,7 +10,12 @@
 
 import { assertValidModuleSlug, normalizeModuleSlug } from "./module-slug.js";
 
-const RAW_PLATFORM_RUNTIME_MODULE_SLUGS = ["user-management", "configurator"] as const;
+const RAW_PLATFORM_RUNTIME_MODULE_SLUGS = [
+  "user-management",
+  "configurator",
+  /** Partner integration control plane — platform infrastructure (Configurator tab). */
+  "integration",
+] as const;
 
 const PLATFORM_RUNTIME_SLUG_SET = new Set<string>();
 for (const raw of RAW_PLATFORM_RUNTIME_MODULE_SLUGS) {

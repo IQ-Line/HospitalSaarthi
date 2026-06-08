@@ -11,50 +11,70 @@ const BASE = '/api/integration-hub/v1';
 
 export const IH_LIST_STALE_MS = 60_000;
 
+function tenantCtx(tenantId: string) {
+  return { tenantIdOverride: tenantId.trim() };
+}
+
 export function integrationTypeCatalogOptions() {
   return queryOptions({
     queryKey: integrationHubKeys.integrationTypes(),
     queryFn: () =>
-      apiClient<{ items: IntegrationTypeCatalogEntry[] }>(`${BASE}/integration-types`),
+      apiClient<{ items: IntegrationTypeCatalogEntry[] }>(
+        `${BASE}/integration-types`,
+        { method: 'GET' },
+        { tenantIdOverride: null },
+      ),
     staleTime: IH_LIST_STALE_MS,
   });
 }
 
-export function integrationListOptions() {
+export function integrationListOptions(tenantId: string) {
   return queryOptions({
-    queryKey: integrationHubKeys.integrations(),
-    queryFn: () => apiClient<{ items: Integration[] }>(`${BASE}/integrations`),
+    queryKey: integrationHubKeys.integrations(tenantId),
+    queryFn: () =>
+      apiClient<{ items: Integration[] }>(
+        `${BASE}/integrations`,
+        { method: 'GET' },
+        tenantCtx(tenantId),
+      ),
     staleTime: IH_LIST_STALE_MS,
   });
 }
 
-export function integrationDetailOptions(integrationId: string) {
+export function integrationDetailOptions(tenantId: string, integrationId: string) {
   return queryOptions({
-    queryKey: integrationHubKeys.integrationDetail(integrationId),
-    queryFn: () => apiClient<Integration>(`${BASE}/integrations/${integrationId}`),
+    queryKey: integrationHubKeys.integrationDetail(tenantId, integrationId),
+    queryFn: () =>
+      apiClient<Integration>(
+        `${BASE}/integrations/${integrationId}`,
+        { method: 'GET' },
+        tenantCtx(tenantId),
+      ),
     staleTime: IH_LIST_STALE_MS,
   });
 }
 
-export function integrationApiKeysOptions(integrationId: string) {
+export function integrationApiKeysOptions(tenantId: string, integrationId: string) {
   return queryOptions({
-    queryKey: integrationHubKeys.apiKeys(integrationId),
+    queryKey: integrationHubKeys.apiKeys(tenantId, integrationId),
     queryFn: () =>
       apiClient<{ items: IntegrationApiKey[] }>(
         `${BASE}/integrations/${integrationId}/api-keys`,
+        { method: 'GET' },
+        tenantCtx(tenantId),
       ),
     staleTime: 30_000,
   });
 }
 
-export function useIntegrationListSuspense() {
-  return useSuspenseQuery(integrationListOptions());
+export function useIntegrationListSuspense(tenantId: string) {
+  return useSuspenseQuery(integrationListOptions(tenantId));
 }
 
-export function useIntegrationDetailSuspense(integrationId: string) {
-  return useSuspenseQuery(integrationDetailOptions(integrationId));
+export function useIntegrationDetailSuspense(tenantId: string, integrationId: string) {
+  return useSuspenseQuery(integrationDetailOptions(tenantId, integrationId));
 }
 
-export function useIntegrationApiKeysSuspense(integrationId: string) {
-  return useSuspenseQuery(integrationApiKeysOptions(integrationId));
+export function useIntegrationApiKeysSuspense(tenantId: string, integrationId: string) {
+  return useSuspenseQuery(integrationApiKeysOptions(tenantId, integrationId));
 }

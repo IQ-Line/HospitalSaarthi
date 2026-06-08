@@ -145,7 +145,7 @@ export function registerHttpErrorHandler(app: {
         return reply.status(503).send({
           error: "Service Unavailable",
           message:
-            "Database schema missing — run: pnpm --filter @hims/integration-hub-svc db:migrate",
+            "Database schema missing — run: npx nx run integration-hub:db-migrate",
         });
       }
       if (

@@ -1,11 +1,41 @@
 ---
 # Integration Hub control plane — integration registry.
 # Capabilities: integration:integration:{read,create,update,delete,activate,disable,reactivate}
+#
+# Platform super-admin: full control plane (Configurator cross-tenant), role-only.
+# Tenant-admin: full control plane within own tenant, role-only.
+# Other principals: capability keys + tenant match.
 apiVersion: api.cerbos.dev/v1
 resourcePolicy:
   resource: "integration"
   version: default
   rules:
+    - actions:
+        - integration.read
+        - integration.create
+        - integration.update
+        - integration.delete
+        - integration.activate
+        - integration.disable
+        - integration.reactivate
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+
+    - actions:
+        - integration.read
+        - integration.create
+        - integration.update
+        - integration.delete
+        - integration.activate
+        - integration.disable
+        - integration.reactivate
+      roles: ["tenant-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id
+
     - actions: ["integration.read"]
       roles: ["*"]
       effect: EFFECT_ALLOW

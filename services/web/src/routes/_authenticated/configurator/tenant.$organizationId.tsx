@@ -31,6 +31,7 @@ import {
 } from '@/features/configurator/api';
 import { CreateBranchWizard } from '@/features/configurator/components/create-branch-wizard';
 import { SequenceConfigurationPanel } from '@/features/configurator/components/sequence-configuration/sequence-configuration-panel';
+import { TenantIntegrationsPanel } from '@/features/configurator/components/tenant-integrations-panel';
 import { TenantModulesPanel } from '@/features/configurator/components/tenant-modules-panel';
 import {
   TenantBillingPanel,
@@ -38,7 +39,7 @@ import {
   TenantRoleTemplatesPanel,
   TenantUsersPanel,
 } from '@/features/configurator/components/tenant-detail-panels';
-import { resolvePlatformSuperAdmin } from '@/lib/platform-admin';
+import { resolvePlatformSuperAdmin, resolveTenantAdmin } from '@/lib/platform-admin';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePermissionsStore } from '@/stores/permissions.store';
 import {
@@ -59,6 +60,7 @@ const TENANT_DETAIL_TABS = [
   'billing',
   'modules',
   'sequence',
+  'integrations',
 ] as const;
 
 type TenantDetailTab = (typeof TENANT_DETAIL_TABS)[number];
@@ -285,8 +287,15 @@ function TenantOrganizationDetailPage() {
     authRoles,
     accessToken,
   });
+  const isTenantAdmin = resolveTenantAdmin({
+    principalRoles,
+    authRoles,
+    accessToken,
+  });
   /** Module on/off toggles are platform-operator only; tenant admins see read-only status. */
   const canEditTenantModules = isPlatformSuperAdmin;
+  /** Platform operator (any tenant) or tenant-admin (own tenant in Configurator). */
+  const canEditIntegrations = isPlatformSuperAdmin || isTenantAdmin;
 
   if (orgError) {
     return (
@@ -410,6 +419,9 @@ function TenantOrganizationDetailPage() {
             </TabsTrigger>
             <TabsTrigger value="sequence" className="shrink-0 text-xs sm:text-sm">
               Sequence
+            </TabsTrigger>
+            <TabsTrigger value="integrations" className="shrink-0 text-xs sm:text-sm">
+              Integrations
             </TabsTrigger>
             {/* <TabsTrigger value="audit-logs" className="shrink-0 text-xs sm:text-sm">
               Audit logs
@@ -645,6 +657,13 @@ function TenantOrganizationDetailPage() {
             </p>
           </div>
           <SequenceConfigurationPanel tenantId={contextTenant.iq_tenant_id} />
+        </TabsContent>
+
+        <TabsContent value="integrations" className="mt-4 space-y-4">
+          <TenantIntegrationsPanel
+            tenantId={contextTenant.iq_tenant_id}
+            canEdit={canEditIntegrations}
+          />
         </TabsContent>
 
         <TabsContent value="audit-logs" className="mt-4">

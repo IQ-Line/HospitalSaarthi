@@ -9,96 +9,137 @@ import { integrationHubKeys } from './keys';
 
 const BASE = '/api/integration-hub/v1';
 
-function invalidateIntegration(qc: ReturnType<typeof useQueryClient>, id: string) {
-  qc.invalidateQueries({ queryKey: integrationHubKeys.integrations() }).catch(() => {});
-  qc.invalidateQueries({ queryKey: integrationHubKeys.integrationDetail(id) }).catch(() => {});
+function tenantCtx(tenantId: string) {
+  return { tenantIdOverride: tenantId.trim() };
 }
 
-export function useCreateIntegration() {
+function invalidateIntegration(
+  qc: ReturnType<typeof useQueryClient>,
+  tenantId: string,
+  id: string,
+) {
+  qc.invalidateQueries({ queryKey: integrationHubKeys.integrations(tenantId) }).catch(() => {});
+  qc.invalidateQueries({ queryKey: integrationHubKeys.integrationDetail(tenantId, id) }).catch(
+    () => {},
+  );
+}
+
+export function useCreateIntegration(tenantId: string) {
   const qc = useQueryClient();
+  const ctx = tenantCtx(tenantId);
   return useMutation({
     mutationFn: (body: CreateIntegrationBody) =>
-      apiClient<Integration>(`${BASE}/integrations`, {
-        method: 'POST',
-        body: JSON.stringify(body),
-      }),
+      apiClient<Integration>(
+        `${BASE}/integrations`,
+        {
+          method: 'POST',
+          body: JSON.stringify(body),
+        },
+        ctx,
+      ),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: integrationHubKeys.integrations() }).catch(() => {});
-    },
-  });
-}
-
-export function useActivateIntegration() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (integrationId: string) =>
-      apiClient<Integration>(`${BASE}/integrations/${integrationId}/activate`, {
-        method: 'POST',
-      }),
-    onSuccess: (_data, id) => invalidateIntegration(qc, id),
-  });
-}
-
-export function useDisableIntegration() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (integrationId: string) =>
-      apiClient<Integration>(`${BASE}/integrations/${integrationId}/disable`, {
-        method: 'POST',
-      }),
-    onSuccess: (_data, id) => invalidateIntegration(qc, id),
-  });
-}
-
-export function useReactivateIntegration() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (integrationId: string) =>
-      apiClient<Integration>(`${BASE}/integrations/${integrationId}/reactivate`, {
-        method: 'POST',
-      }),
-    onSuccess: (_data, id) => invalidateIntegration(qc, id),
-  });
-}
-
-export function useDeleteIntegration() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (integrationId: string) =>
-      apiClient<void>(`${BASE}/integrations/${integrationId}`, { method: 'DELETE' }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: integrationHubKeys.integrations() }).catch(() => {});
-    },
-  });
-}
-
-export function useIssueApiKey() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (integrationId: string) =>
-      apiClient<IssuedIntegrationApiKey>(`${BASE}/integrations/${integrationId}/api-keys`, {
-        method: 'POST',
-        body: JSON.stringify({}),
-      }),
-    onSuccess: (_data, integrationId) => {
-      qc.invalidateQueries({ queryKey: integrationHubKeys.apiKeys(integrationId) }).catch(
+      qc.invalidateQueries({ queryKey: integrationHubKeys.integrations(tenantId) }).catch(
         () => {},
       );
     },
   });
 }
 
-export function useRevokeApiKey() {
+export function useActivateIntegration(tenantId: string) {
   const qc = useQueryClient();
+  const ctx = tenantCtx(tenantId);
+  return useMutation({
+    mutationFn: (integrationId: string) =>
+      apiClient<Integration>(
+        `${BASE}/integrations/${integrationId}/activate`,
+        { method: 'POST' },
+        ctx,
+      ),
+    onSuccess: (_data, id) => invalidateIntegration(qc, tenantId, id),
+  });
+}
+
+export function useDisableIntegration(tenantId: string) {
+  const qc = useQueryClient();
+  const ctx = tenantCtx(tenantId);
+  return useMutation({
+    mutationFn: (integrationId: string) =>
+      apiClient<Integration>(
+        `${BASE}/integrations/${integrationId}/disable`,
+        { method: 'POST' },
+        ctx,
+      ),
+    onSuccess: (_data, id) => invalidateIntegration(qc, tenantId, id),
+  });
+}
+
+export function useReactivateIntegration(tenantId: string) {
+  const qc = useQueryClient();
+  const ctx = tenantCtx(tenantId);
+  return useMutation({
+    mutationFn: (integrationId: string) =>
+      apiClient<Integration>(
+        `${BASE}/integrations/${integrationId}/reactivate`,
+        { method: 'POST' },
+        ctx,
+      ),
+    onSuccess: (_data, id) => invalidateIntegration(qc, tenantId, id),
+  });
+}
+
+export function useDeleteIntegration(tenantId: string) {
+  const qc = useQueryClient();
+  const ctx = tenantCtx(tenantId);
+  return useMutation({
+    mutationFn: (integrationId: string) =>
+      apiClient<void>(
+        `${BASE}/integrations/${integrationId}`,
+        { method: 'DELETE' },
+        ctx,
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: integrationHubKeys.integrations(tenantId) }).catch(
+        () => {},
+      );
+    },
+  });
+}
+
+export function useIssueApiKey(tenantId: string) {
+  const qc = useQueryClient();
+  const ctx = tenantCtx(tenantId);
+  return useMutation({
+    mutationFn: (integrationId: string) =>
+      apiClient<IssuedIntegrationApiKey>(
+        `${BASE}/integrations/${integrationId}/api-keys`,
+        {
+          method: 'POST',
+          body: JSON.stringify({}),
+        },
+        ctx,
+      ),
+    onSuccess: (_data, integrationId) => {
+      qc.invalidateQueries({
+        queryKey: integrationHubKeys.apiKeys(tenantId, integrationId),
+      }).catch(() => {});
+    },
+  });
+}
+
+export function useRevokeApiKey(tenantId: string) {
+  const qc = useQueryClient();
+  const ctx = tenantCtx(tenantId);
   return useMutation({
     mutationFn: (input: { integrationId: string; apiKeyId: string }) =>
-      apiClient(`${BASE}/integrations/${input.integrationId}/api-keys/${input.apiKeyId}/revoke`, {
-        method: 'POST',
-      }),
+      apiClient(
+        `${BASE}/integrations/${input.integrationId}/api-keys/${input.apiKeyId}/revoke`,
+        { method: 'POST' },
+        ctx,
+      ),
     onSuccess: (_data, input) => {
-      qc.invalidateQueries({ queryKey: integrationHubKeys.apiKeys(input.integrationId) }).catch(
-        () => {},
-      );
+      qc.invalidateQueries({
+        queryKey: integrationHubKeys.apiKeys(tenantId, input.integrationId),
+      }).catch(() => {});
     },
   });
 }

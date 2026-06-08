@@ -14,21 +14,25 @@
     },
     "serve": {
       "command": "tsx watch src/main.ts",
-      "dependsOn": ["ts-sdk-fhir:build", "ts-sdk-abha:build"],
+      "dependsOn": [
+        "integration-hub:db-migrate",
+        "ts-sdk-fhir:build",
+        "ts-sdk-abha:build"
+      ],
       "options": {
         "cwd": "services/integration-hub-svc",
         "envFile": "{workspaceRoot}/.env"
       }
     },
     "db:migrate": {
-      "command": "node scripts/migrate.mjs",
+      "command": "tsx ../../modules/integration-hub/scripts/apply-migration.ts",
       "options": {
         "cwd": "services/integration-hub-svc",
         "envFile": "{workspaceRoot}/.env"
       }
     },
     "db-migrate": {
-      "command": "node scripts/migrate.mjs",
+      "command": "tsx ../../modules/integration-hub/scripts/apply-migration.ts",
       "options": {
         "cwd": "services/integration-hub-svc",
         "envFile": "{workspaceRoot}/.env"

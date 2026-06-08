@@ -2,18 +2,57 @@
 ---
 name: integration_control_plane_test
 description: >-
-  Integration Hub control plane — integration registry and API key administration
-  require runtime capability keys and tenant alignment.
+  Integration Hub control plane — super-admin and tenant-admin get full control via
+  role; other principals need capability keys and tenant alignment.
 
 principals:
   integration_reader:
-    id: admin-user
+    id: staff-user
+    roles:
+      - "staff"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities:
+        - "integration:integration:read"
+      delegated_capabilities: []
+
+  tenant_admin_read_only_caps:
+    id: hospital-admin-read
     roles:
       - "tenant-admin"
     attr:
       iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
       capabilities:
         - "integration:integration:read"
+      delegated_capabilities: []
+
+  super_admin_cross_tenant:
+    id: platform-operator
+    roles:
+      - "super-admin"
+    attr:
+      iq_tenant_id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      capabilities:
+        - "integration:integration:read"
+        - "integration:integration:create"
+      delegated_capabilities: []
+
+  super_admin_role_only:
+    id: platform-operator-no-caps
+    roles:
+      - "super-admin"
+    attr:
+      iq_tenant_id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      capabilities: []
+      delegated_capabilities: []
+
+  tenant_admin_same_tenant:
+    id: hospital-admin
+    roles:
+      - "tenant-admin"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: []
       delegated_capabilities: []
 
   integration_admin:
@@ -80,6 +119,50 @@ tests:
         actions:
           integration.read: EFFECT_DENY
 
+  - name: integration.read — super-admin may read another tenant
+    input:
+      principals: [super_admin_cross_tenant]
+      resources: [integration_list_wrong_tenant]
+      actions: [integration.read]
+    expected:
+      - principal: super_admin_cross_tenant
+        resource: integration_list_wrong_tenant
+        actions:
+          integration.read: EFFECT_ALLOW
+
+  - name: integration.create — super-admin role without capability keys
+    input:
+      principals: [super_admin_role_only]
+      resources: [integration_list_wrong_tenant]
+      actions: [integration.create]
+    expected:
+      - principal: super_admin_role_only
+        resource: integration_list_wrong_tenant
+        actions:
+          integration.create: EFFECT_ALLOW
+
+  - name: integration.create — tenant-admin same tenant without capability keys
+    input:
+      principals: [tenant_admin_same_tenant]
+      resources: [integration_list_ok]
+      actions: [integration.create]
+    expected:
+      - principal: tenant_admin_same_tenant
+        resource: integration_list_ok
+        actions:
+          integration.create: EFFECT_ALLOW
+
+  - name: integration.create — tenant-admin denied for other tenant
+    input:
+      principals: [tenant_admin_same_tenant]
+      resources: [integration_list_wrong_tenant]
+      actions: [integration.create]
+    expected:
+      - principal: tenant_admin_same_tenant
+        resource: integration_list_wrong_tenant
+        actions:
+          integration.create: EFFECT_DENY
+
   - name: integration.create — allowed for integration admin
     input:
       principals: [integration_admin]
@@ -113,7 +196,7 @@ tests:
         actions:
           api_key.issue: EFFECT_ALLOW
 
-  - name: api_key.revoke — denied without revoke capability
+  - name: api_key.revoke — denied for staff without revoke capability
     input:
       principals: [integration_reader]
       resources: [api_key_issue_ok]
@@ -123,6 +206,17 @@ tests:
         resource: api_key_issue_ok
         actions:
           api_key.revoke: EFFECT_DENY
+
+  - name: api_key.revoke — tenant-admin may revoke within tenant (role-only)
+    input:
+      principals: [tenant_admin_read_only_caps]
+      resources: [api_key_issue_ok]
+      actions: [api_key.revoke]
+    expected:
+      - principal: tenant_admin_read_only_caps
+        resource: api_key_issue_ok
+        actions:
+          api_key.revoke: EFFECT_ALLOW
 
   - name: api_key.revoke — allowed with revoke capability
     input:

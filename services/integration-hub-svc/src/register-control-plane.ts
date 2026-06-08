@@ -85,7 +85,8 @@ export async function registerControlPlane(
         ...identityAuth,
         skipPathPrefixes: ["/docs"],
       });
-      await api.register(tenantPlugin, { tenantSource: "jwt" });
+      // header-or-jwt: platform super-admin may scope requests to a tenant under Configurator.
+      await api.register(tenantPlugin, { tenantSource: "header-or-jwt" });
       await api.register(principalRoleEnricherPlugin, {
         principalService,
         userRepository,

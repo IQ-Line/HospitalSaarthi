@@ -2,6 +2,20 @@
   "name": "integration-hub",
   "tags": ["type:module", "scope:integration-hub", "language:typescript"],
   "targets": {
+    "db:migrate": {
+      "command": "tsx scripts/apply-migration.ts",
+      "options": {
+        "cwd": "modules/integration-hub",
+        "envFile": "{workspaceRoot}/.env"
+      }
+    },
+    "db-migrate": {
+      "command": "tsx scripts/apply-migration.ts",
+      "options": {
+        "cwd": "modules/integration-hub",
+        "envFile": "{workspaceRoot}/.env"
+      }
+    },
     "test": {
       "executor": "nx:run-commands",
       "options": {

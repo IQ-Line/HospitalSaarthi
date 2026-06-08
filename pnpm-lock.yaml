@@ -144,6 +144,9 @@ importers:
       canonicalize:
         specifier: ^2.1.0
         version: 2.1.0
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@types/pg@8.20.0)(kysely@0.28.17)(pg@8.20.0)(postgres@3.4.9)
       jose:
         specifier: ^6.2.3
         version: 6.2.3

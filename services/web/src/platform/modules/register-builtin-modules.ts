@@ -7,14 +7,12 @@ import { frontdeskModuleManifest } from './manifests/frontdesk.manifest';
 import { nurseModuleManifest } from './manifests/nurse.manifest';
 import { doctorModuleManifest } from './manifests/doctor.manifest';
 import { masterDataModuleManifest } from './manifests/master-data.manifest';
-import { integrationHubModuleManifest } from './manifests/integration-hub.manifest';
 import { userManagementModuleManifest } from './manifests/user-management.manifest';
 import { visitpadModuleManifest } from './manifests/visitpad.manifest';
 
 const BUILTIN_MODULE_MANIFESTS = [
   dashboardModuleManifest,
   masterDataModuleManifest,
-  integrationHubModuleManifest,
   userManagementModuleManifest,
   doctorModuleManifest,
   nurseModuleManifest,
