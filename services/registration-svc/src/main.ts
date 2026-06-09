@@ -12,7 +12,9 @@ import {
   DrizzleUserRepository,
   DrizzlePrincipalRoleProjectionRepository,
   DrizzlePrincipalAuthorizationRepository,
-  createDefaultPrincipalService,
+  DrizzleCapabilityRepository,
+  createPepRuntimeAuthFromUrls,
+  requirePepUpstreamBaseUrl,
   principalRoleEnricherPlugin,
 } from "@hims/user-management";
 import { HttpPdfPlatformRenderer } from "@hims/pdf-client";
@@ -166,10 +168,19 @@ async function main() {
   const userRepository = new DrizzleUserRepository(db);
   const principalRoleProjectionRepository = new DrizzlePrincipalRoleProjectionRepository(db);
   const principalAuthorizationRepository = new DrizzlePrincipalAuthorizationRepository(db);
-  const principalService = createDefaultPrincipalService({
+  const capabilityRepository = new DrizzleCapabilityRepository(db);
+
+  const configuratorUrl = requirePepUpstreamBaseUrl("CONFIGURATOR_URL");
+  const masterDataUrl = requirePepUpstreamBaseUrl("MASTER_DATA_URL");
+
+  const { principalService } = createPepRuntimeAuthFromUrls({
+    configuratorUrl,
+    masterDataUrl,
     userRepository,
     principalRoleProjectionRepository,
     principalAuthorizationRepository,
+    capabilityRepository,
+    log: (event, message) => app.log.info(event, message),
   });
 
   async function registerRegistrationApi(api: FastifyInstance): Promise<void> {

@@ -23,6 +23,7 @@ import {
 } from "./bootstrap/development-bootstrap.js";
 import { HttpModuleCapabilityResolverAdapter } from "./adapters/http-module-capability-resolver-adapter.js";
 import { HttpTenantAdminProvisioningAdapter } from "./adapters/http-tenant-admin-provisioning-adapter.js";
+import { HttpUserManagementEntitlementCacheInvalidator } from "./adapters/http-user-management-entitlement-cache-invalidator.js";
 
 const PORT = Number(
   process.env["CONFIGURATOR_PORT"] ??
@@ -130,14 +131,33 @@ async function main() {
     "MASTER_DATA_URL",
     "http://localhost:8010",
   );
+  const umInternalApiKey = process.env["UM_INTERNAL_API_KEY"]?.trim() ?? "";
 
   const logFn = (event: Record<string, unknown>, message: string) =>
     app.log.info(event, message);
 
+  const entitlementCacheInvalidator =
+    umInternalApiKey.length > 0
+      ? new HttpUserManagementEntitlementCacheInvalidator({
+          baseUrl: userManagementBaseUrl,
+          internalApiKey: umInternalApiKey,
+          log: logFn,
+        })
+      : undefined;
+
+  if (entitlementCacheInvalidator === undefined) {
+    app.log.warn(
+      "UM_INTERNAL_API_KEY unset — tenant entitlement cache will not be busted on module toggle",
+    );
+  }
+
   async function registerConfiguratorApi(api: FastifyInstance): Promise<void> {
     if (identityAuth) {
       const { identityPlugin } = await import("@hims/ts-sdk-identity");
-      await api.register(identityPlugin, identityAuth);
+      await api.register(identityPlugin, {
+        ...identityAuth,
+        skipPathPrefixes: ["/api/configurator/v1/internal"],
+      });
     }
     await api.register(
       createRouter({
@@ -148,6 +168,7 @@ async function main() {
         sequenceConfigurationRepo,
         runConfiguratorTransaction,
         eventBus,
+        entitlementCacheInvalidator,
         createInfrastructureCatalog: (authorization) =>
           new HttpModuleCapabilityResolverAdapter({
             userManagementBaseUrl,

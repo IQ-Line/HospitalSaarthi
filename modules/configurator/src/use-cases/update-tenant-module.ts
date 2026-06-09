@@ -6,11 +6,16 @@ import type {
   UpdateTenantModuleData,
 } from "../domain/tenant-module.types.js";
 
+export type UpdateTenantModuleResult = {
+  updated: TenantModule;
+  previousIsActive: boolean;
+};
+
 export async function updateTenantModule(
   tenantModuleRepo: TenantModuleRepo,
   key: TenantModuleKey,
   data: UpdateTenantModuleData,
-): Promise<TenantModule | null> {
+): Promise<UpdateTenantModuleResult | null> {
   const existing = await tenantModuleRepo.findByKey(key);
   if (!existing) {
     return null;
@@ -23,5 +28,8 @@ export async function updateTenantModule(
   }
 
   const updated = await tenantModuleRepo.update(key, data);
-  return updated ?? null;
+  if (!updated) {
+    return null;
+  }
+  return { updated, previousIsActive: existing.is_active };
 }

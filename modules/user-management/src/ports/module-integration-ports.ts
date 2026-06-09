@@ -55,3 +55,22 @@ export type TenantEntitlementPort = TenantModuleEntitlementPort;
 
 /** @deprecated Use {@link MasterDataModuleCatalogPort}. */
 export type ModuleCatalogPort = MasterDataModuleCatalogPort;
+
+/** Resolved tenant entitlement for runtime principal intersection. */
+export type TenantEntitlementResolution = {
+  entitledCapabilityKeys: ReadonlySet<string>;
+  tenantEntitlementRevision: string;
+};
+
+/**
+ * Tenant-scoped entitlement resolution (cached in service adapters).
+ * Used at principal hydration to intersect stored grants.
+ */
+export interface TenantEntitlementResolverPort {
+  resolveTenantEntitlement(
+    tenantId: string,
+    context?: ModuleEntitlementRequestContext,
+  ): Promise<TenantEntitlementResolution>;
+  /** Drops cached entitlement for one tenant (all tenants when omitted). */
+  invalidateTenantEntitlementCache?(tenantId?: string): void;
+}

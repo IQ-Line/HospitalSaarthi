@@ -22,6 +22,9 @@ Pre-production alignment between **Master Data**, **Configurator**, **User Manag
 | **runtime capability** | UM `capabilities` row (machine + display fields) | `um:user:read` |
 | **capability key** | Cerbos / PDP string on principal | `um:user:read` |
 | **assignable capability** | Runtime capability allowed for role composition for a tenant | Filtered via `GET /capabilities/assignable` |
+| **tenant entitlement** | Capability keys operable for a tenant at runtime | Same resolution as assignable catalog (ADR-0032) |
+| **stored grants** | Persisted UM snapshot rows | `user_capabilities`, `delegated_capability_grants` |
+| **effective capabilities** | Runtime Cerbos/SPA keys | `stored_grants ∩ tenant_entitlement` at principal hydration |
 
 Avoid ambiguous names in UM (`permission list`, `role permission`, `entitlement permission`) unless referring explicitly to **Master Data** catalog APIs.
 
