@@ -33,7 +33,7 @@ export function mapEmpiPatientToVisitRow(patient: EmpiPatient): OpdPatientVisitR
     visitCreatedAt: empiPatientCreatedDate(patient),
     status,
     isOwnPatient: true,
-    actionLabel: status === 'completed' || status === 'cancelled' ? 'View RX' : 'Start RX',
+    actionLabel: status === 'completed' || status === 'cancelled' ? 'View RX' : 'Create Rx',
   };
 }
 

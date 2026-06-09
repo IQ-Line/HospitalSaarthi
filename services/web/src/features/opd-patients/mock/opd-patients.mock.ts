@@ -160,7 +160,7 @@ const MOCK_ROWS: OpdPatientVisitRow[] = [
     visitCreatedAt: '2026-05-12',
     status: 'in-progress',
     isOwnPatient: false,
-    actionLabel: 'Start RX',
+    actionLabel: 'Create Rx',
   },
   {
     id: 'v-8',
@@ -174,7 +174,7 @@ const MOCK_ROWS: OpdPatientVisitRow[] = [
     visitCreatedAt: '2026-05-12',
     status: 'registered',
     isOwnPatient: true,
-    actionLabel: 'Start RX',
+    actionLabel: 'Create Rx',
   },
   {
     id: 'v-7',
@@ -258,7 +258,7 @@ const MOCK_ROWS: OpdPatientVisitRow[] = [
     visitCreatedAt: '2026-05-09',
     status: 'registered',
     isOwnPatient: false,
-    actionLabel: 'Start RX',
+    actionLabel: 'Create Rx',
   },
   {
     id: 'v-1',

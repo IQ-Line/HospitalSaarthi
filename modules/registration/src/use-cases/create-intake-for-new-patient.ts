@@ -8,6 +8,10 @@ import type {
 import type { InsertVisitResult } from "../domain/visit.types.js";
 import { createRegistration } from "./create-registration.js";
 import { createVisit } from "./create-visit.js";
+import {
+  mergeIntakeIntoSnapshot,
+  stripNonEmpiIntakeFields,
+} from "../lib/registration-helpers.js";
 import { visitStatusFromIntakeCompletion } from "../lib/visit-helpers.js";
 
 export type IntakeContext = {
@@ -61,7 +65,7 @@ export async function createIntakeForNewPatient(
   const empiResult = await deps.empiGateway.registerPatient(
     tenantId,
     ctx.idempotencyKey,
-    input.patient,
+    stripNonEmpiIntakeFields(input.patient),
     ctx.bearerToken,
   );
 
@@ -111,7 +115,7 @@ export async function createIntakeForNewPatient(
     {
       patient_id: empiResult.patientId,
       patient_source_record_id: empiResult.sourceRecordId,
-      patient_snapshot: empiResult.snapshot,
+      patient_snapshot: mergeIntakeIntoSnapshot(empiResult.snapshot, input.patient),
     },
     ctx,
   );

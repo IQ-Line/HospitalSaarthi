@@ -5,12 +5,16 @@ import {
   billingLineTaxAmount,
   billingLineTotal,
   computeBillingGrandTotal,
+  FOLLOW_UP_VISIT_TYPE_CODE,
   formatBillingDeduction,
   formatBillingTaxLine,
   formatBillingTaxSummary,
+  isFollowUpVisitType,
   isVisitRegistrationAmountPaidValid,
+  mapVisitRegistrationToExistingPatientIntakeBody,
   visitRegistrationFormBlockers,
 } from '@/features/frontdesk/utils/visit-registration-helpers';
+import type { CreateVisitRequestBody } from '@/features/frontdesk/types';
 
 const baseLine = {
   unit_price: 100,
@@ -85,6 +89,41 @@ describe('formatBillingTaxLine', () => {
 
   it('shows 0 when rate is zero', () => {
     expect(formatBillingTaxLine(0, 0)).toBe('0');
+  });
+});
+
+describe('isFollowUpVisitType', () => {
+  it('recognizes master-data follow-up code variants', () => {
+    expect(isFollowUpVisitType(FOLLOW_UP_VISIT_TYPE_CODE)).toBe(true);
+    expect(isFollowUpVisitType('opd_follow_up')).toBe(true);
+    expect(isFollowUpVisitType('OPD-Follow Up')).toBe(true);
+    expect(isFollowUpVisitType('opd_first')).toBe(false);
+  });
+});
+
+describe('mapVisitRegistrationToExistingPatientIntakeBody', () => {
+  const form = {
+    patient: { phone: '9876543210', first_name: 'Test', gender: 'male' as const },
+    appointment: {
+      visit_type_code: FOLLOW_UP_VISIT_TYPE_CODE,
+      department_id: '550e8400-e29b-41d4-a716-446655440000',
+      provider_id: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
+    },
+  } as CreateVisitRequestBody;
+
+  it('maps patient_id and encounter fields without demographics', () => {
+    const body = mapVisitRegistrationToExistingPatientIntakeBody(
+      form,
+      'e704abf8-6eff-4b46-b431-fc8b05bef006',
+    );
+    expect(body).toEqual({
+      patient_id: 'e704abf8-6eff-4b46-b431-fc8b05bef006',
+      intake_completion: 'partial',
+      visit_type: FOLLOW_UP_VISIT_TYPE_CODE,
+      department_id: '550e8400-e29b-41d4-a716-446655440000',
+      doctor_id: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
+    });
+    expect(body).not.toHaveProperty('patient');
   });
 });
 

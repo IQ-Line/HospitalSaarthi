@@ -30,14 +30,17 @@ import {
   DrizzleUserAccessRepository,
   DrizzleUserProvisioningRepository,
   DrizzleUserRepository,
-  createDefaultPrincipalService,
+  createRuntimeEntitlementPrincipalWiring,
   formatRuntimeAuthorizationStartupFailure,
+  registerTenantEntitlementCacheEventConsumers,
   validateRuntimeAuthorizationStartup,
   principalRoleEnricherPlugin,
 } from "../../../modules/user-management/src/index.js";
 import { deactivateSupersededLegacyCapabilities } from "../../../modules/user-management/src/dev/deactivate-superseded-legacy-capabilities.js";
-import { HttpConfiguratorTenantModuleEntitlementAdapter } from "./adapters/http-configurator-tenant-module-entitlement-adapter.js";
-import { HttpMasterDataModuleCatalogAdapter } from "./adapters/http-master-data-module-catalog-adapter.js";
+import {
+  HttpConfiguratorTenantModuleEntitlementAdapter,
+  HttpMasterDataModuleCatalogAdapter,
+} from "@hims/user-management";
 import { registerUserManagementApi } from "./openapi/register-user-management-api.js";
 
 function requireUpstreamBaseUrl(envKey: string): string {
@@ -162,8 +165,10 @@ async function createApp(): Promise<FastifyInstance> {
     throw new Error(formatRuntimeAuthorizationStartupFailure(startupValidation.diagnostics));
   }
 
+  const umInternalApiKey = process.env.UM_INTERNAL_API_KEY?.trim();
   const tenantModuleEntitlementPort = new HttpConfiguratorTenantModuleEntitlementAdapter({
     baseUrl: configuratorUrl,
+    umInternalApiKey,
     log: (event, message) => app.log.info(event, message),
   });
   const masterDataModuleCatalogPort = new HttpMasterDataModuleCatalogAdapter({
@@ -171,11 +176,21 @@ async function createApp(): Promise<FastifyInstance> {
     log: (event, message) => app.log.info(event, message),
   });
 
-  const principalService = createDefaultPrincipalService({
+  const { tenantEntitlementResolver, principalService } = createRuntimeEntitlementPrincipalWiring({
     userRepository,
     principalRoleProjectionRepository,
     principalAuthorizationRepository,
+    capabilityRepository,
+    tenantModuleEntitlementPort,
+    masterDataModuleCatalogPort,
+    log: (event, message) => app.log.info(event, message),
   });
+
+  await registerTenantEntitlementCacheEventConsumers(
+    eventBus,
+    tenantEntitlementResolver,
+    tenantModuleEntitlementPort,
+  );
 
   const trustedOrigins = [
     ...new Set([
@@ -278,6 +293,8 @@ async function createApp(): Promise<FastifyInstance> {
     authAccountProvisioner,
     tenantModuleEntitlementPort,
     masterDataModuleCatalogPort,
+    tenantEntitlementResolver,
+    internalEntitlementCacheApiKey: umInternalApiKey,
   });
 
   return app;

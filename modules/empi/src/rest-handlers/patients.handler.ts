@@ -20,6 +20,7 @@ import { isDuplicateRegistrationResult } from "../use-cases/register-patient.typ
 import { updatePatient } from "../use-cases/update-patient.js";
 import { searchPatients } from "../use-cases/search-patients.js";
 import { getPatient } from "../use-cases/get-patient.js";
+import { findPatientByAbhaAddress } from "../use-cases/find-patient-by-abha-address.js";
 import { changePatientStatus } from "../use-cases/change-patient-status.js";
 import { linkIdentifier } from "../use-cases/link-identifier.js";
 import {
@@ -30,6 +31,8 @@ import {
   paramsPatientAndAddressSchema,
   paramsPatientAndIdentifierSchema,
   paramsPatientIdSchema,
+  findPatientByAbhaQuerySchema,
+  findPatientByDemographicsBodySchema,
   searchPatientsQuerySchema,
   updateAddressBodySchema,
   updatePatientBodySchema,
@@ -117,6 +120,37 @@ export function registerPatientsHandler(
       );
 
       return reply.send(result);
+    },
+  );
+
+  app.get<{ Querystring: { abha_address: string } }>(
+    "/patients/find",
+    {
+      schema: {
+        querystring: findPatientByAbhaQuerySchema,
+      },
+    },
+    async (request, reply) => {
+      const tenantId = request.tenantId;
+      const match = await findPatientByAbhaAddress(
+        { identifierRepo: deps.identifierRepo },
+        tenantId,
+        request.query.abha_address,
+      );
+      if (!match) return reply.code(404).send({ error: "Patient not found" });
+      return reply.send({ patientId: match.patientId, id: match.patientId });
+    },
+  );
+
+  app.post<{ Body: { identifiers: Array<{ type: string; value: string }> } }>(
+    "/patients/find-by-demographics",
+    {
+      schema: {
+        body: findPatientByDemographicsBodySchema,
+      },
+    },
+    async (_request, reply) => {
+      return reply.code(404).send({ error: "Patient not found" });
     },
   );
 

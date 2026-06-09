@@ -4,9 +4,19 @@ import { MockRecordFoundationClient } from "./mock-platform-clients.js";
 describe("MockRecordFoundationClient", () => {
   it("returns PHR-renderable HealthDocumentRecord bundles per care context", async () => {
     const rf = new MockRecordFoundationClient();
+    const tenantId = "00000000-0000-4000-8000-0000000000aa";
+    const patientId = "00000000-0000-4000-8000-000000000001";
+    await rf.registerUnlinkedCareContexts({
+      iqTenantId: tenantId,
+      patientId,
+      contexts: [
+        { referenceNumber: "VISIT-MOCK-001", display: "OP consultation (mock)", hiType: "OPCONSULTATION" },
+        { referenceNumber: "VISIT-MOCK-002", display: "Lab report (mock)", hiType: "OPCONSULTATION" },
+      ],
+    });
     const bundles = await rf.fetchBundlesForConsent({
-      iqTenantId: "00000000-0000-4000-8000-0000000000aa",
-      patientId: "00000000-0000-4000-8000-000000000001",
+      iqTenantId: tenantId,
+      patientId,
       consentId: "consent-mock",
     });
 

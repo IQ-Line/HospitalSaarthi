@@ -100,6 +100,13 @@ export {
 } from "./use-cases/provision-tenant.js";
 export type { TenantOnboardingCompletedPayload } from "./use-cases/provision-tenant.js";
 
+export {
+  MODULE_DISABLED_EVENT,
+  MODULE_ENABLED_EVENT,
+  publishTenantModuleLifecycleEvent,
+} from "./events/publish-tenant-module-lifecycle-event.js";
+export type { TenantModuleLifecyclePayload } from "./events/publish-tenant-module-lifecycle-event.js";
+
 export type {
   ProvisionTenantInput,
   ProvisionTenantResult,

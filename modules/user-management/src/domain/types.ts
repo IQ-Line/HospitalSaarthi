@@ -169,6 +169,10 @@ export interface AuthContext {
   tenantId: string;
   /** Raw verified identity on the request (`request.user`), shape defined by the host / identity plugin. */
   requestUser?: unknown;
+  /** Forwarded `Authorization` header for Configurator/Master Data entitlement lookups. */
+  authorization?: string;
+  /** When `bypass-cache`, entitlement resolver skips TTL cache (post module toggle). */
+  entitlementCachePolicy?: "use-cache" | "bypass-cache";
 }
 
 /** GET /auth/principal `attributes` object. */
@@ -186,6 +190,11 @@ export interface PrincipalAttributes {
   clearances: Record<string, string>;
   /** Max clearance tier (0–3) derived from the `clearances` map; compared to resource `required_clearance`. */
   um_clearance_effective_tier: number;
+  /**
+   * Fingerprint of tenant entitlement capability keys (ADR-0032). Present when entitlement
+   * intersection is enabled; SPA may compare to detect module enablement changes.
+   */
+  tenant_entitlement_revision?: string;
 }
 
 /** GET /auth/principal response body. */

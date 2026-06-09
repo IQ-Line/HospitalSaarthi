@@ -6,7 +6,7 @@ export function opdVisitStatusToActionLabel(
 ): OpdPatientVisitRow['actionLabel'] {
   if (status === 'completed') return 'View RX';
   if (status === 'in-progress') return 'Edit RX';
-  return 'Start RX';
+  return 'Create Rx';
 }
 
 export function mapOpdVisitSummariesByPatientId(

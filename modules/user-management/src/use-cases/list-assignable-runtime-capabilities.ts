@@ -50,10 +50,11 @@ export async function listAssignableRuntimeCapabilities(
     tenantEnabledModuleIds,
   );
 
-  for (const moduleId of tenantEnabledModuleIds) {
-    if (!moduleSlugById.has(moduleId)) {
-      throw new ModuleEntitlementLookupError("master_data");
-    }
+  const unknownModuleIds = tenantEnabledModuleIds.filter(
+    (moduleId) => !moduleSlugById.has(moduleId),
+  );
+  if (unknownModuleIds.length > 0) {
+    throw new ModuleEntitlementLookupError("master_data", { unknownModuleIds });
   }
 
   const assignableModuleSlugs = new Set<string>();

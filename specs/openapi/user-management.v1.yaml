@@ -63,9 +63,11 @@ paths:
         `request.cerbosPrincipal` (no recomputation). Semantically this matches the Cerbos principal
         used on checks: `id` is `principal.id`, `roles` is `principal.roles`, and `attributes` is
         `principal.attr` (same snake_case keys as `principalAttrsForCerbos` in `@hims/ts-sdk-authz`).
+        Capability arrays are **effective** runtime keys: stored grants intersected with tenant
+        entitlement (ADR-0032). Stored DB grants are unchanged when modules are disabled.
         The HTTP body nests attrs under `attributes` (Cerbos uses `attr`). Session-only JWT fields
-        (`sessionId`, `iat`, `exp`, `iss`, …) are not included here — use the identity layer / token
-        for those. If enrichment did not run, the service responds with 500 `CERBOS_PRINCIPAL_UNAVAILABLE`.
+        are not included — use the identity layer for those. If enrichment did not run, responds
+        with 500 `CERBOS_PRINCIPAL_UNAVAILABLE`.
       parameters:
         - $ref: "#/components/parameters/IqTenantIdHeader"
       responses:
@@ -1123,10 +1125,9 @@ paths:
         - Capabilities
       summary: Get effective runtime capabilities for a user
       description: >
-        Returns the runtime-effective capability keys for Cerbos principal enrichment. Primary
-        source is active `user_capabilities` snapshot rows; delegated overlays and clearances are
-        included. Until issue #60, implementation may temporarily union live `user_roles` join
-        `role_capabilities` for active associations (hybrid PEP — see ADR-0031).
+        Returns runtime-effective capability keys for the user: stored grants intersected with
+        tenant entitlement (same semantics as `GET /auth/principal` capability arrays; ADR-0032).
+        Includes delegated overlays and clearances.
       parameters:
         - $ref: "#/components/parameters/IqTenantIdHeader"
         - $ref: "#/components/parameters/UserIdPath"
@@ -1581,10 +1582,14 @@ components:
               type: array
               items:
                 type: string
+              description: >
+                Effective direct capability keys (stored `user_capabilities` ∩ tenant entitlement).
             delegated_capabilities:
               type: array
               items:
                 type: string
+              description: >
+                Effective delegated keys (stored grants ∩ tenant entitlement).
             clearances:
               type: object
               additionalProperties:
@@ -1597,3 +1602,8 @@ components:
               description: >
                 Highest clearance tier derived from `clearances` for comparison with
                 `resource.attr.required_clearance` on user resources in Cerbos.
+            tenant_entitlement_revision:
+              type: string
+              description: >
+                Fingerprint of tenant entitlement capability keys; changes when Configurator
+                tenant module enablement changes. SPA may compare to bust cached principal.

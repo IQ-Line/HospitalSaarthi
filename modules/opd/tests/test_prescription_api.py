@@ -78,6 +78,7 @@ def test_create_get_finalize_cancel_delete_flow(prescription_client: TestClient)
     by_visit = prescription_client.get(f"{API_PREFIX}/by-visit/{visit_id}", params=_tenant_q())
     assert by_visit.status_code == 200
     assert by_visit.json()["data"]["id"] == rx_id
+    assert by_visit.json()["data"]["visit_status"] is not None
 
     duplicate = prescription_client.post(API_PREFIX, json=create_body)
     assert duplicate.status_code == 409
@@ -116,6 +117,40 @@ def test_create_get_finalize_cancel_delete_flow(prescription_client: TestClient)
     )
     assert recreated.status_code == 201
     assert recreated.json()["data"]["id"] != rx_id
+
+
+def test_batch_overlays_by_visit_ids(prescription_client: TestClient, db_session) -> None:
+    from opd.models.visit import Visit
+
+    visit_a_id = uuid4()
+    visit_b_id = uuid4()
+    visit_a = str(visit_a_id)
+    visit_b = str(visit_b_id)
+    missing_visit = str(uuid4())
+
+    prescription_client.post(API_PREFIX, json=make_create_payload(visit_id=visit_a))
+    prescription_client.post(API_PREFIX, json=make_create_payload(visit_id=visit_b))
+
+    db_session.add(
+        Visit(
+            id=visit_a_id,
+            tenant_id=TENANT_A,
+            patient_id=uuid4(),
+            status="pre_consulted",
+        )
+    )
+    db_session.flush()
+
+    response = prescription_client.get(
+        f"{API_PREFIX}/by-visits",
+        params={**_tenant_q(), "visit_ids": f"{visit_a},{visit_b},{missing_visit}"},
+    )
+    assert response.status_code == 200
+    body = response.json()["data"]
+    assert set(body.keys()) == {visit_a, visit_b}
+    assert body[visit_a]["status"] == "draft"
+    assert body[visit_a]["visit_status"] == "pre_consulted"
+    assert body[visit_b]["visit_status"] is not None
 
 
 def test_update_draft_only(prescription_client: TestClient) -> None:

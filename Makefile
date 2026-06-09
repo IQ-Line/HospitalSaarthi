@@ -93,7 +93,7 @@ db-migrate: ## Run all pending migrations
 	$(NX) run opd:db-migrate
 	$(NX) run billing:db-migrate
 	$(NX) run pharmacy:db-migrate
-	$(NX) run integration-hub-svc:db-migrate
+	$(NX) run integration-hub:db-migrate
 
 .PHONY: seed
 seed: ## Seed Configurator tenant, UM runtime data, Cerbos smoke check (catalog = Alembic)

@@ -123,7 +123,7 @@ export function CurrentMedication() {
           night: 'dosageNight',
         },
       },
-      { key: 'days', label: 'Days', type: 'number', width: '60px', placeholder: '0' },
+      { key: 'days', label: 'Days', type: 'number', width: '4.5rem', placeholder: '0' },
       {
         key: 'frequency',
         label: 'Frequency',
@@ -140,7 +140,7 @@ export function CurrentMedication() {
         emptyOptionLabel: 'Time',
         options: MEDICATION_TOA_OPTIONS,
       },
-      { key: 'quantity', label: 'Quantity', type: 'number', width: '80px' },
+      { key: 'quantity', label: 'Quantity', type: 'number', width: '5rem' },
     ],
     [medicineOptions],
   );

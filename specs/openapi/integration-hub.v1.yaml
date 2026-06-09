@@ -797,6 +797,43 @@ paths:
         "503":
           description: Link token acquisition failed
 
+  /m2/orchestrate/after-care-contexts:
+    post:
+      operationId: abdmM2OrchestrateAfterCareContexts
+      summary: HIP-initiated link plus add-contexts publish after consultation care contexts
+      tags: [M2-HIP-Linking]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [patientId, careContexts]
+              properties:
+                patientId:
+                  type: string
+                eventDate:
+                  type: string
+                  format: date-time
+                careContexts:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [referenceNumber, display, hiType]
+                    properties:
+                      referenceNumber:
+                        type: string
+                      display:
+                        type: string
+                      hiType:
+                        type: string
+      responses:
+        "202":
+          description: Orchestration accepted (best-effort per step)
+
   /m2/add-contexts/publish:
     post:
       operationId: abdmM2AddContextsPublish

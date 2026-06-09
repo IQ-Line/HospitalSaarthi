@@ -44,7 +44,9 @@ import {
   ageYmdSinceBirth,
   birthDateFromAgeYmd,
   computeBillingGrandTotal,
+  FOLLOW_UP_VISIT_TYPE_CODE,
   hasEnteredAgeYmd,
+  isFollowUpVisitType,
   isVisitRegistrationFormComplete,
   visitRegistrationBlockHint,
   visitRegistrationFormBlockers,
@@ -74,6 +76,8 @@ type ReportsModalConfig = {
 
 type FormValues = CreateVisitRequestBody;
 
+type VisitSubmitPayload = CreateVisitRequestBody & { existingPatientId?: string };
+
 function VisitRegistrationRoute() {
   const [abhaDialogOpen, setAbhaDialogOpen] = useState(false);
   const [abhaDialogFlow, setAbhaDialogFlow] = useState<'create' | 'verify'>('create');
@@ -94,6 +98,7 @@ function VisitRegistrationRoute() {
   const branchLabel = [tenantName, branchName].filter(Boolean).join(' — ') || 'Noida — Main Branch';
 
   const [showExtendedPatient, setShowExtendedPatient] = useState(false);
+  const [existingPatientId, setExistingPatientId] = useState<string | null>(null);
   const [phase, setPhase] = useState<'list' | 'form'>('list');
   const [reportsModalOpen, setReportsModalOpen] = useState(false);
   const [reportsModal, setReportsModal] = useState<ReportsModalConfig | null>(null);
@@ -130,6 +135,41 @@ function VisitRegistrationRoute() {
       footerMode: 'list',
     });
     setReportsModalOpen(true);
+  };
+
+  const openFollowUpVisit = (row: RegistrationListItemResponse) => {
+    setExistingPatientId(row.patient_id);
+    const digits = (row.patient_phone_number ?? '').replace(/\D/g, '');
+    const phone = digits.length >= 10 ? digits.slice(-10) : '';
+    form.setValue('patient.phone', phone, { shouldValidate: true });
+    form.setValue('patient.first_name', row.patient_full_name?.trim() ?? '', { shouldValidate: true });
+    const genderRaw = (row.patient_gender ?? '').trim().toLowerCase();
+    const gender =
+      genderRaw === 'male' || genderRaw === 'm'
+        ? 'male'
+        : genderRaw === 'female' || genderRaw === 'f'
+          ? 'female'
+          : genderRaw === 'other'
+            ? 'other'
+            : '';
+    if (gender) form.setValue('patient.gender', gender, { shouldValidate: true });
+    if (row.patient_date_of_birth) {
+      form.setValue('patient.date_of_birth', row.patient_date_of_birth);
+    }
+    const abhaNumber = row.patient_abha_number?.trim() ?? '';
+    const abhaAddress = row.patient_abha_address?.trim() ?? '';
+    form.setValue('patient.abha_number', abhaNumber);
+    form.setValue('patient.abha_address', abhaAddress);
+    form.setValue('appointment.visit_type_code', FOLLOW_UP_VISIT_TYPE_CODE);
+    form.setValue('appointment.department_id', '');
+    form.setValue('appointment.department_name', '');
+    form.setValue('appointment.provider_id', '');
+    setAbhaRegistration(
+      abhaNumber || abhaAddress
+        ? { sessionId: '', abhaNumber, abhaAddress }
+        : null,
+    );
+    setPhase('form');
   };
 
   const openInvoicePreview = async (row: RegistrationListItemResponse) => {
@@ -464,17 +504,19 @@ function VisitRegistrationRoute() {
   };
 
   const mutation = useMutation({
-    mutationFn: (data: CreateVisitRequestBody) => {
+    mutationFn: (data: VisitSubmitPayload) => {
+      const { existingPatientId: patientId, ...formData } = data;
       const idempotencyKey = submitIdempotencyKeyRef.current ?? crypto.randomUUID();
       submitIdempotencyKeyRef.current = idempotencyKey;
-      const providerId = data.appointment?.provider_id?.trim();
+      const providerId = formData.appointment?.provider_id?.trim();
       const doctorName = providerId
         ? providersQuery.data?.find((provider) => provider.id === providerId)?.full_name
         : undefined;
-      return executeCreateVisitFlow(data, {
+      return executeCreateVisitFlow(formData, {
         idempotencyKey,
+        existingPatientId: patientId,
         reportMeta: {
-          departmentName: data.appointment?.department_name,
+          departmentName: formData.appointment?.department_name,
           doctorName,
           facilityName: branchLabel,
         },
@@ -483,14 +525,24 @@ function VisitRegistrationRoute() {
     onSettled: () => {
       submitIdempotencyKeyRef.current = undefined;
     },
-    onSuccess: (res) => {
+    onSuccess: (res, variables) => {
       void queryClient.invalidateQueries({ queryKey: ['registrations', 'list'] });
-      if (res.patient_uhid) {
+      const isFollowUp =
+        Boolean(variables.existingPatientId) ||
+        isFollowUpVisitType(variables.appointment?.visit_type_code);
+      if (isFollowUp) {
+        toast.success(
+          res.visit_id
+            ? `Follow-up visit saved — ${res.visit_id}`
+            : 'Follow-up visit saved.',
+        );
+      } else if (res.patient_uhid) {
         toast.success(`Registration saved — UHID ${res.patient_uhid}`);
       } else {
         toast.success('Registration saved.');
       }
       form.reset();
+      setExistingPatientId(null);
       setAbhaRegistration(null);
       setReportsModal({
         registrationId: res.registration_id,
@@ -575,6 +627,10 @@ function VisitRegistrationRoute() {
       toast.error(visitRegistrationBlockHint(gate) ?? 'Complete all required fields.');
       return;
     }
+    if (isFollowUpVisitType(data.appointment?.visit_type_code) && !existingPatientId) {
+      toast.error('Use Follow-up on the registrations list for an existing patient.');
+      return;
+    }
     form.clearErrors([
       'patient.phone',
       'patient.first_name',
@@ -592,7 +648,10 @@ function VisitRegistrationRoute() {
         ? { ...data.permanent_address }
         : data.residential_address,
     };
-    mutation.mutate(payload);
+    mutation.mutate({
+      ...payload,
+      existingPatientId: existingPatientId ?? undefined,
+    });
   };
 
   return (
@@ -607,7 +666,15 @@ function VisitRegistrationRoute() {
           {phase === 'list' ? (
           <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <h1 className="text-2xl font-semibold tracking-tight">Registration</h1>
-            <Button type="button" size="sm" onClick={() => setPhase('form')}>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                setExistingPatientId(null);
+                setAbhaRegistration(null);
+                setPhase('form');
+              }}
+            >
               + New registration
             </Button>
           </header>
@@ -693,6 +760,17 @@ function VisitRegistrationRoute() {
                               </TableCell>
                               <TableCell className="relative text-right">
                                 <div className="flex flex-wrap justify-end gap-2">
+                                  {canCreate ? (
+                                    <Button
+                                      type="button"
+                                      variant="default"
+                                      size="sm"
+                                      title="Open follow-up visit for this patient"
+                                      onClick={() => openFollowUpVisit(row)}
+                                    >
+                                      Follow-up
+                                    </Button>
+                                  ) : null}
                                   <Button
                                     type="button"
                                     variant="outline"

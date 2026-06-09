@@ -15,6 +15,7 @@ import type {
 import { ConfiguratorError } from "./errors.js";
 import { registerOrganizationsHandler } from "./rest-handlers/organizations.handler.js";
 import { registerTenantsHandler } from "./rest-handlers/tenants.handler.js";
+import { registerInternalTenantEntitlementHandler } from "./rest-handlers/internal-tenant-entitlement.handler.js";
 import { registerTenantModulesHandler } from "./rest-handlers/tenant-modules.handler.js";
 import { registerTenantIntegrationProfilesHandler } from "./rest-handlers/tenant-integration-profiles.handler.js";
 import { registerTenantOnboardingHandler } from "./rest-handlers/tenant-onboarding.handler.js";
@@ -37,6 +38,7 @@ export interface ConfiguratorRouterOptions {
     authorization?: string,
   ) => TenantAdminProvisioningPort;
   eventBus?: EventBus;
+  entitlementCacheInvalidator?: import("./rest-handlers/tenant-modules.handler.js").TenantModuleEntitlementCacheInvalidator;
 }
 
 async function configuratorRouter(
@@ -77,6 +79,11 @@ async function configuratorRouter(
   registerTenantModulesHandler(app, {
     tenantModuleRepo: options.tenantModuleRepo,
     tenantRepo: options.tenantRepo,
+    eventBus: options.eventBus,
+    entitlementCacheInvalidator: options.entitlementCacheInvalidator,
+  });
+  registerInternalTenantEntitlementHandler(app, {
+    tenantModuleRepo: options.tenantModuleRepo,
   });
   registerTenantIntegrationProfilesHandler(app, {
     tenantIntegrationProfilesRepo: options.tenantIntegrationProfilesRepo,
