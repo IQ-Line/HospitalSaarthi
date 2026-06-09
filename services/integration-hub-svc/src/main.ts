@@ -40,6 +40,7 @@ import {
   resolveDatabaseUrlFromEnv,
   serviceRoot,
 } from "./load-env.js";
+import { validateAuthConfig } from "@hims/ts-sdk-identity";
 import { registerHttpErrorHandler } from "./http-errors.js";
 
 normalizeIntegrationHubEnvAliases();
@@ -50,8 +51,6 @@ const PORT = Number(
   process.env["INTEGRATION_HUB_SVC_PORT"] ?? process.env["ABDM_ADAPTER_SVC_PORT"] ?? 3007,
 );
 const DATABASE_URL = resolveDatabaseUrlFromEnv();
-const JWKS_URL =
-  process.env["JWKS_URL"] ?? "http://localhost:3000/.well-known/jwks.json";
 const ENABLE_AUTH = process.env["ENABLE_AUTH"] === "true";
 
 const GATEWAY_BASE_URL =
@@ -96,7 +95,7 @@ async function main() {
     const env = process.env["NODE_ENV"] ?? "development";
     if (env === "production" || env === "staging") {
       app.log.error(
-        "ENABLE_AUTH is false — M1 routes are open to anyone with a tenant UUID. Set ENABLE_AUTH=true and JWKS_URL before staging/production.",
+        "ENABLE_AUTH is false — M1 routes are open to anyone with a tenant UUID. Set ENABLE_AUTH=true and JWT_ISSUER, JWT_AUDIENCE, JWKS_URL before staging/production.",
       );
     } else {
       app.log.warn(
@@ -215,10 +214,12 @@ async function main() {
 
   const abdmRouter = createRouter(sharedInfra);
 
+  const identityAuth = ENABLE_AUTH ? validateAuthConfig() : undefined;
+
   await app.register(async (api) => {
-    if (ENABLE_AUTH) {
+    if (identityAuth) {
       const { identityPlugin } = await import("@hims/ts-sdk-identity");
-      await api.register(identityPlugin, { jwksUrl: JWKS_URL });
+      await api.register(identityPlugin, identityAuth);
     }
     await api.register(tenantPlugin);
 
