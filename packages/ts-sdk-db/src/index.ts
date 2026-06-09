@@ -39,6 +39,7 @@ export {
   bigint,
   boolean,
   date,
+  integer,
   numeric,
   primaryKey,
   smallint,

@@ -54,6 +54,10 @@ class Settings(BaseSettings):
         default="http://localhost:3007",
         description="integration-hub-svc origin (no trailing path).",
     )
+    record_foundation_base_url: str = Field(
+        default="http://localhost:3004",
+        description="record-foundation-svc origin (no trailing path).",
+    )
 
 
 class AzureBlobSettings(BaseSettings):

@@ -31,10 +31,8 @@ function buildDeps(post: ReturnType<typeof vi.fn>): AbdmAdapterDeps {
     consentArtefacts: new DrizzleConsentArtefactsRepo(db),
     empi: new MockEmpiClient(),
     recordFoundation: {
-      registerUnlinkedCareContexts: async () => undefined,
-      listUnlinkedCareContexts: async () => [],
-      markCareContextLinked: async () => undefined,
-      fetchBundlesForConsent: async () => [],
+      listCareContexts: async () => [],
+      listBundles: async () => [],
     },
     payloadEncryptor: { encrypt: (s) => s, decrypt: (s) => s },
     linkOtpStore: new InMemoryLinkOtpStore(),

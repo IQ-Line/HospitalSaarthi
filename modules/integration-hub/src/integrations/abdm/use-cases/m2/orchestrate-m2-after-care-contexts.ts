@@ -76,16 +76,6 @@ export async function orchestrateM2AfterCareContexts(
     return result;
   }
 
-  await deps.recordFoundation.registerUnlinkedCareContexts({
-    iqTenantId: input.iqTenantId,
-    patientId: input.patientId,
-    contexts: input.careContexts.map((c) => ({
-      referenceNumber: c.referenceNumber,
-      display: c.display,
-      hiType: c.hiType,
-    })),
-  });
-
   const eventDate = input.eventDate ?? new Date().toISOString();
   const groups = groupByHiType(input.careContexts);
 

@@ -193,28 +193,14 @@ export interface HealthRecordBundleEntry {
 }
 
 export interface RecordFoundationClient {
-  /** Project care contexts for PHR discover when RF is not deployed (OPD orchestration path). */
-  registerUnlinkedCareContexts(input: {
-    iqTenantId: string;
-    patientId: string;
-    contexts: Array<{ referenceNumber: string; display: string; hiType: string }>;
-  }): Promise<void>;
-  listUnlinkedCareContexts(input: {
+  listCareContexts(input: {
     iqTenantId: string;
     patientId: string;
   }): Promise<CareContextRef[]>;
-  markCareContextLinked(input: {
+
+  listBundles(input: {
     iqTenantId: string;
     careContextId: string;
-  }): Promise<void>;
-  /** Bundles to encrypt and push under consent (M3 §6.3.5). */
-  fetchBundlesForConsent(input: {
-    iqTenantId: string;
-    patientId: string;
-    consentId: string;
-    dateRange?: { from: string; to: string };
-    /** When set, bundle `careContextReference` must match consent (PHR ABDM-7727). */
-    careContextReferences?: string[];
   }): Promise<HealthRecordBundleEntry[]>;
 }
 
