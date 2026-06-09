@@ -101,7 +101,20 @@ export function visitpadMedicineCreatePayloadFromForm(
 export function visitpadMedicinePatchPayloadFromForm(
   v: VisitpadMedicineEditFormSchema,
 ): Record<string, unknown> {
-  return medicineSharedFieldsToApi(v);
+  const payload = medicineSharedFieldsToApi(v);
+  const drugClass = trimOpt(v.drug_class);
+  const dosageForm = trimOpt(v.dosage_form);
+  if (drugClass == null) {
+    delete payload.drug_class;
+  } else {
+    payload.drug_class = drugClass;
+  }
+  if (dosageForm == null) {
+    delete payload.dosage_form;
+  } else {
+    payload.dosage_form = dosageForm;
+  }
+  return payload;
 }
 
 export function joinCsvFromList(value: unknown): string {
