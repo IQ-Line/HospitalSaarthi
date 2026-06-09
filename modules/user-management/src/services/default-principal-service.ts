@@ -1,21 +1,31 @@
 import type { Principal as IdentityPrincipal } from "@hims/ts-sdk-identity";
+import type { TenantEntitlementResolverPort } from "../ports/module-integration-ports.js";
 import type {
   AuthContext,
   Principal,
   PrincipalAuthorizationRepository,
   PrincipalRoleProjectionRepository,
-  PrincipalService,
   UserRepository,
 } from "../ports/index.js";
 import { UserNotFoundError } from "../domain/errors.js";
-import { canonicalizeRuntimeCapabilityKeys } from "../domain/legacy-capability-key-remap.js";
 import { effectiveUmClearanceTierFromClearances } from "../domain/um-clearance-tier.js";
+import {
+  computeEffectivePrincipalCapabilities,
+  computeStoredPrincipalCapabilities,
+  entitlementIntersectionMetrics,
+} from "../use-cases/compute-effective-principal-capabilities.js";
 import { projectPrincipalRoles } from "../use-cases/project-principal-roles.js";
 
 export type DefaultPrincipalServiceDeps = {
   userRepository: UserRepository;
   principalRoleProjectionRepository: PrincipalRoleProjectionRepository;
   principalAuthorizationRepository: PrincipalAuthorizationRepository;
+  /** When set with `runtimeEntitlementIntersection`, intersects stored grants with tenant entitlement. */
+  tenantEntitlementResolver?: TenantEntitlementResolverPort;
+  /** When false, principal emits stored grants only (rollback / tests). Default true when resolver is set. */
+  runtimeEntitlementIntersection?: boolean;
+  /** Optional structured log for entitlement filter metrics (no PII). */
+  logEntitlementIntersection?: (event: Record<string, unknown>, message: string) => void;
 };
 
 function pickJwtDepartment(requestUser: unknown): string | null {
@@ -74,23 +84,15 @@ function asIdentityPrincipal(requestUser: unknown): IdentityPrincipal | null {
 /**
  * Single source of truth for Cerbos-facing principal material.
  *
- * ## Capability enrichment
+ * ## Capability enrichment (ADR-0032)
  *
- * Capabilities (e.g. `"users:users:create"`) are immutable operational identifiers stored in
- * canonical capability composition tables. User Management owns runtime authorization
- * assignments; Cerbos consumes the resolved capability keys as
- * `principal.attr.capabilities`.
- *
- * ```
- * user → user_capabilities (direct grants, not revoked)
- *     ∪ role_capabilities via user_roles (active roles)
- *   → capabilities[] (keys, deduplicated + sorted)
- *   → Cerbos principal.attr.capabilities
- * ```
+ * Stored grants (`user_capabilities`, `delegated_capability_grants`) are intersected with
+ * tenant entitlement (`listAssignableRuntimeCapabilities` capability keys) when
+ * `tenantEntitlementResolver` is wired and intersection is enabled.
  *
  * `department` and `org_id` come only from the authoritative user row — never from JWT claims.
  */
-export class DefaultPrincipalService implements PrincipalService {
+export class DefaultPrincipalService {
   constructor(private readonly deps: DefaultPrincipalServiceDeps) {}
 
   async getPrincipal(context: AuthContext): Promise<Principal> {
@@ -107,7 +109,7 @@ export class DefaultPrincipalService implements PrincipalService {
       context.userId,
     );
 
-    const [capabilityKeys, clearances, delegatedRaw] = await Promise.all([
+    const [storedDirectKeys, clearances, storedDelegatedKeys] = await Promise.all([
       this.deps.principalAuthorizationRepository.listEffectiveCapabilityKeys(
         context.tenantId,
         context.userId,
@@ -161,8 +163,60 @@ export class DefaultPrincipalService implements PrincipalService {
       }
     }
 
-    const delegatedCapabilities = canonicalizeRuntimeCapabilityKeys(delegatedRaw);
-    const capabilities = canonicalizeRuntimeCapabilityKeys(capabilityKeys);
+    const intersectionEnabled =
+      this.deps.tenantEntitlementResolver !== undefined &&
+      (this.deps.runtimeEntitlementIntersection ?? true);
+
+    let capabilities: string[];
+    let delegatedCapabilities: string[];
+    let tenantEntitlementRevision: string | undefined;
+
+    if (intersectionEnabled && this.deps.tenantEntitlementResolver !== undefined) {
+      const entitlementContext =
+        context.authorization !== undefined || context.entitlementCachePolicy !== undefined
+          ? {
+              ...(context.authorization !== undefined
+                ? { authorization: context.authorization }
+                : {}),
+              ...(context.entitlementCachePolicy !== undefined
+                ? { cachePolicy: context.entitlementCachePolicy }
+                : {}),
+            }
+          : undefined;
+      const entitlement = await this.deps.tenantEntitlementResolver.resolveTenantEntitlement(
+        context.tenantId,
+        entitlementContext,
+      );
+      tenantEntitlementRevision = entitlement.tenantEntitlementRevision;
+      const effective = computeEffectivePrincipalCapabilities(
+        storedDirectKeys,
+        storedDelegatedKeys,
+        entitlement.entitledCapabilityKeys,
+      );
+      capabilities = effective.capabilities;
+      delegatedCapabilities = effective.delegated_capabilities;
+
+      const metrics = entitlementIntersectionMetrics(
+        storedDirectKeys,
+        storedDelegatedKeys,
+        effective,
+      );
+      if (metrics.filteredDirectCount > 0 || metrics.filteredDelegatedCount > 0) {
+        this.deps.logEntitlementIntersection?.(
+          {
+            event: "principal_entitlement_intersection_filtered",
+            tenantId: context.tenantId,
+            ...metrics,
+          },
+          "Stored capability grants filtered by tenant entitlement",
+        );
+      }
+    } else {
+      const stored = computeStoredPrincipalCapabilities(storedDirectKeys, storedDelegatedKeys);
+      capabilities = stored.capabilities;
+      delegatedCapabilities = stored.delegated_capabilities;
+    }
+
     const um_clearance_effective_tier = effectiveUmClearanceTierFromClearances(clearances);
 
     return {
@@ -177,6 +231,9 @@ export class DefaultPrincipalService implements PrincipalService {
         delegated_capabilities: delegatedCapabilities,
         clearances,
         um_clearance_effective_tier,
+        ...(tenantEntitlementRevision !== undefined
+          ? { tenant_entitlement_revision: tenantEntitlementRevision }
+          : {}),
       },
     };
   }

@@ -121,8 +121,8 @@ export function TenantModulesPanel({
     <div className="space-y-3">
       {canEditModules ? (
         <p className="text-xs text-muted-foreground">
-          Toggle modules on or off for this tenant. Core modules marked as always-on cannot be
-          disabled.
+          Enable or disable L1 product modules for this tenant. Child features (L2/L3) inherit the
+          parent — use L1 toggles only. Core modules marked as always-on cannot be disabled.
         </p>
       ) : null}
       <div className="rounded-lg border">

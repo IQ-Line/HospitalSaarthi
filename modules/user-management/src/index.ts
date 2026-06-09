@@ -25,6 +25,8 @@ export type {
   ModuleCatalogPort,
   ModuleEntitlementRequestContext,
   TenantEntitlementPort,
+  TenantEntitlementResolverPort,
+  TenantEntitlementResolution,
   TenantModuleEntitlementPort,
   CreatePasswordAuthAccountInput,
   CreatePasswordAuthAccountResult,
@@ -130,6 +132,38 @@ export { InMemoryPrincipalAuthorizationRepository } from "./data-access/in-memor
 export { createDefaultPrincipalService } from "./services/default-principal-service.js";
 export type { DefaultPrincipalServiceDeps } from "./services/default-principal-service.js";
 export { DefaultPrincipalService } from "./services/default-principal-service.js";
+export {
+  CachedTenantEntitlementResolver,
+  isRuntimeEntitlementIntersectionEnabled,
+} from "./services/cached-tenant-entitlement-resolver.js";
+export { createRuntimeEntitlementPrincipalWiring } from "./services/create-runtime-entitlement-principal-wiring.js";
+export type {
+  CreateRuntimeEntitlementPrincipalWiringInput,
+  RuntimeEntitlementPrincipalWiring,
+} from "./services/create-runtime-entitlement-principal-wiring.js";
+export {
+  createPepRuntimeAuthFromUrls,
+  requirePepUpstreamBaseUrl,
+} from "./services/create-pep-runtime-auth-from-urls.js";
+export type {
+  CreatePepRuntimeAuthFromUrlsInput,
+  PepRuntimeAuthWiring,
+} from "./services/create-pep-runtime-auth-from-urls.js";
+export {
+  HttpConfiguratorTenantModuleEntitlementAdapter,
+  HttpConfiguratorTenantModulesAdapter,
+} from "./adapters/http-configurator-tenant-module-entitlement-adapter.js";
+export type { HttpConfiguratorTenantModuleEntitlementAdapterOptions } from "./adapters/http-configurator-tenant-module-entitlement-adapter.js";
+export { HttpMasterDataModuleCatalogAdapter } from "./adapters/http-master-data-module-catalog-adapter.js";
+export type { HttpMasterDataModuleCatalogAdapterOptions } from "./adapters/http-master-data-module-catalog-adapter.js";
+export { intersectCapabilityKeys } from "./domain/intersect-capability-keys.js";
+export { resolveTenantEntitledCapabilityKeys } from "./use-cases/resolve-tenant-entitled-capability-keys.js";
+export {
+  computeEffectivePrincipalCapabilities,
+  computeStoredPrincipalCapabilities,
+  entitlementIntersectionMetrics,
+} from "./use-cases/compute-effective-principal-capabilities.js";
+export { registerTenantEntitlementCacheEventConsumers } from "./events/consumers/tenant-entitlement-cache-consumer.js";
 export {
   capabilities,
   delegated_capability_grants,

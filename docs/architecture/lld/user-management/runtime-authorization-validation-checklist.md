@@ -14,8 +14,21 @@ UM does **not** query MD permissions at runtime. Future MD → UM sync is one-wa
 ## Principal composition
 
 - JWT provides identity (`sub`, `iq_tenant_id`).
-- UM enriches principal with role codes, effective capability keys, clearances, delegated keys.
+- UM enriches principal with role codes, **effective** capability keys (stored grants ∩ tenant entitlement), clearances, delegated keys.
 - Cerbos receives normalized resource attributes from UM handlers.
+- `tenant_entitlement_revision` on principal attributes supports SPA cache busting (ADR-0032).
+
+## Runtime effective capabilities (ADR-0032)
+
+```
+effective_capabilities = stored_grants ∩ tenant_entitlement
+tenant_entitlement     = capability_keys(listAssignableRuntimeCapabilities)
+```
+
+- Stored grants (`user_capabilities`, `delegated_capability_grants`) are never deleted on module disable.
+- Principal hydration intersects before Cerbos and `GET /auth/principal`.
+- Per-tenant entitled-keys cache (60s TTL); bust via Configurator module lifecycle events + HTTP invalidation hook.
+- `RUNTIME_ENTITLEMENT_INTERSECTION=false` disables intersection on PEP services (rollback).
 
 ## Entitlement flow
 
