@@ -16,7 +16,6 @@ function buildUpstreams(): UpstreamRoute[] {
     process.env['USER_MANAGEMENT_URL'] ?? 'http://localhost:3005';
   const integrationHubUrl =
     process.env['INTEGRATION_HUB_URL'] ??
-    process.env['ABDM_ADAPTER_URL'] ??
     'http://localhost:3007';
 
   return [
