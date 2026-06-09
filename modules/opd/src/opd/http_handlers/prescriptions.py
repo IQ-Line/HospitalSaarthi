@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import date
 from typing import Annotated
 from uuid import UUID
 
@@ -9,8 +8,6 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from opd.core.deps import DbSession, TenantId
 from opd.core.principal import resolve_doctor_id
 from opd.core.schemas_api import (
-    OpdCompletedVisitListResponse,
-    OpdCompletedVisitSummary,
     OpdEnsureEncounterRequest,
     OpdPatientEncounterSummary,
     OpdPatientListResponse,
@@ -151,43 +148,6 @@ def ensure_registration_encounter(
     return _to_response(
         db,
         bundle_api.bundle_from_prescription(db, tenant_id, rx),
-    )
-
-
-@router.get("/visits/completed", response_model=OpdCompletedVisitListResponse)
-def list_completed_visits(
-    db: DbSession,
-    tenant_id: TenantId,
-    page: int = Query(default=1, ge=1),
-    limit: int = Query(default=50, ge=1, le=100),
-    queued_from: date | None = Query(default=None),
-    queued_to: date | None = Query(default=None),
-) -> OpdCompletedVisitListResponse:
-    repo = PrescriptionRepository(db, tenant_id)
-    rows, total = repo.list_completed_visits(
-        page=page,
-        limit=limit,
-        queued_from=queued_from,
-        queued_to=queued_to,
-    )
-    return OpdCompletedVisitListResponse(
-        items=[
-            OpdCompletedVisitSummary(
-                visit_id=row.visit_id,
-                patient_id=row.patient_id,
-                prescription_id=row.prescription_id,
-                doctor_id=row.doctor_id,
-                visit_status=row.visit_status,
-                prescription_status=row.prescription_status,
-                updated_at=row.updated_at,
-                finalized_at=row.finalized_at,
-                medicine_count=row.medicine_count,
-            )
-            for row in rows
-        ],
-        total=total,
-        page=page,
-        limit=limit,
     )
 
 

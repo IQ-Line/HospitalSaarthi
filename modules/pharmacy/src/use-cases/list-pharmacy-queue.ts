@@ -25,7 +25,6 @@ export type ListPharmacyQueueInput = {
   queued_to?: string;
   q?: string | null;
   status?: string | null;
-  bearerToken?: string;
 };
 
 export type ListPharmacyQueueResult = {
@@ -158,7 +157,6 @@ export async function listPharmacyQueue(
     queued_to: input.queued_to,
     search,
     status,
-    bearerToken: input.bearerToken,
   };
 
   if (kind === "walk_in") {

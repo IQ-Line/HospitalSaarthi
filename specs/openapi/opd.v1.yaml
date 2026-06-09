@@ -132,38 +132,6 @@ paths:
                     items:
                       $ref: '#/components/schemas/OpdVisitSummary'
 
-  /visits/completed:
-    get:
-      operationId: listCompletedOpdVisits
-      summary: Paginated OPD visits with prescription context (pharmacy queue source)
-      description: |
-        Returns OPD visits with prescriptions plus registered intake visits that do not
-        yet have a prescription. Excludes cancelled visits and prescriptions. Intended
-        for pharmacy and other consumers that need visit, patient, and optional Rx metadata.
-      tags: [OpdVisits]
-      parameters:
-        - name: page
-          in: query
-          schema: { type: integer, minimum: 1, default: 1 }
-        - name: limit
-          in: query
-          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
-        - name: queued_from
-          in: query
-          schema: { type: string, format: date }
-          description: Include visits queued on or after this date (visit updated_at, UTC day bounds).
-        - name: queued_to
-          in: query
-          schema: { type: string, format: date }
-          description: Include visits queued on or before this date (visit updated_at, UTC day bounds).
-      responses:
-        '200':
-          description: Completed visit rows with prescription metadata
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OpdCompletedVisitListResponse'
-
   /visits/{visitId}/encounter:
     put:
       operationId: ensureRegistrationEncounter
@@ -763,51 +731,6 @@ components:
         updated_at:
           type: string
           format: date-time
-
-    OpdCompletedVisitSummary:
-      type: object
-      required:
-        - visit_id
-        - patient_id
-        - visit_status
-        - updated_at
-        - medicine_count
-      properties:
-        visit_id: { type: string, format: uuid }
-        patient_id: { type: string, format: uuid }
-        prescription_id:
-          type: string
-          format: uuid
-          nullable: true
-        doctor_id:
-          type: string
-          format: uuid
-          nullable: true
-        visit_status:
-          type: string
-          enum: [registered, pre_consulted, in_progress, completed]
-        prescription_status:
-          type: string
-          nullable: true
-          enum: [draft, final, cancelled]
-        updated_at: { type: string, format: date-time }
-        finalized_at: { type: string, format: date-time, nullable: true }
-        medicine_count:
-          type: integer
-          minimum: 0
-          description: Number of medicine lines in prescription form_data.
-
-    OpdCompletedVisitListResponse:
-      type: object
-      required: [items, total, page, limit]
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/OpdCompletedVisitSummary'
-        total: { type: integer }
-        page: { type: integer }
-        limit: { type: integer }
 
     OpdPatientEncounterSummary:
       type: object

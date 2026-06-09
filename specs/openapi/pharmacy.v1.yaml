@@ -25,9 +25,9 @@ paths:
       operationId: listPharmacyQueue
       summary: List pharmacy queue rows (OPD prescriptions or walk-in orders)
       description: |
-        OPD prescriptions (`kind=opd`) are read from `pharmacy.opd_queue_projection` (local projection
-        synced from OPD completed visits + pharmacy dispense status). Walk-in orders (`kind=walk_in`)
-        are read from pharmacy dispense records.
+        OPD prescriptions (`kind=opd`) are read from `pharmacy.opd_queue_projection` (rows pushed by
+        OPD on prescription finalize). Walk-in orders (`kind=walk_in`) are read from pharmacy
+        dispense records.
       tags: [Queue]
       parameters:
         - $ref: "#/components/parameters/TenantIdHeader"
@@ -60,15 +60,13 @@ paths:
             type: string
             enum: [opd, walk_in]
             default: opd
-          description: Queue source — OPD prescriptions (paginated via OPD API) or walk-in counter orders (pharmacy DB).
+          description: Queue source — OPD projection table (`opd`) or walk-in counter orders (`walk_in`).
       responses:
         "200":
           description: Queue page
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PharmacyQueueResponse" }
-        "502":
-          description: Upstream OPD unavailable
   /internal/opd-queue-projection/{visitId}:
     put:
       operationId: upsertOpdQueueProjection
@@ -222,7 +220,7 @@ components:
       in: header
       name: x-pharmacy-internal-key
       description: |
-        Shared secret for internal routes (OPD queue projection push/sync). Must match
+        Shared secret for internal routes (OPD queue projection push). Must match
         PHARMACY_INTERNAL_API_KEY on pharmacy-svc. Optional in local dev when unset.
   parameters:
     TenantIdHeader:

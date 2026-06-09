@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
 from dataclasses import dataclass
 
-from sqlalchemy import JSON, DateTime, String, Uuid, cast, exists, func, literal, select, union_all
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from opd.data_access import prescription_bundle as bundle_api
@@ -24,28 +24,6 @@ class PatientEncounterRow:
     prescription_status: str | None
     updated_at: datetime
     created_at: datetime
-
-
-@dataclass(frozen=True)
-class CompletedVisitRow:
-    visit_id: UUID
-    patient_id: UUID
-    prescription_id: UUID | None
-    doctor_id: UUID | None
-    visit_status: str
-    prescription_status: str | None
-    updated_at: datetime
-    finalized_at: datetime | None
-    medicine_count: int
-
-
-def _medicine_count_from_form_data(form_data: dict[str, Any] | None) -> int:
-    if not isinstance(form_data, dict):
-        return 0
-    medicines = form_data.get("medicines")
-    if not isinstance(medicines, list):
-        return 0
-    return len(medicines)
 
 
 class PrescriptionRepository:
@@ -105,155 +83,6 @@ class PrescriptionRepository:
             stmt = stmt.where(Visit.status == status)
         stmt = stmt.order_by(Visit.updated_at.desc()).limit(limit)
         return list(self._session.scalars(stmt).all())
-
-    def _visit_date_filters(
-        self,
-        *,
-        queued_from: date | None,
-        queued_to: date | None,
-        column,
-    ) -> list[Any]:
-        filters: list[Any] = []
-        if queued_from is not None:
-            start = datetime.combine(queued_from, datetime.min.time(), tzinfo=UTC)
-            filters.append(column >= start)
-        if queued_to is not None:
-            end_exclusive = datetime.combine(
-                queued_to + timedelta(days=1),
-                datetime.min.time(),
-                tzinfo=UTC,
-            )
-            filters.append(column < end_exclusive)
-        return filters
-
-    def _completed_visit_queue_union(
-        self,
-        *,
-        queued_from: date | None = None,
-        queued_to: date | None = None,
-    ):
-        from opd.models.registration_visit import RegistrationVisit
-
-        rx_filters = [
-            Visit.tenant_id == self._tenant_id,
-            Prescription.tenant_id == self._tenant_id,
-            Visit.status != "cancelled",
-            Prescription.status != "cancelled",
-            *self._visit_date_filters(
-                queued_from=queued_from,
-                queued_to=queued_to,
-                column=Visit.updated_at,
-            ),
-        ]
-
-        rx_part = (
-            select(
-                Visit.id.label("visit_id"),
-                Visit.patient_id.label("patient_id"),
-                Prescription.id.label("prescription_id"),
-                Prescription.doctor_id.label("doctor_id"),
-                Visit.status.label("visit_status_raw"),
-                Prescription.status.label("prescription_status"),
-                Visit.updated_at.label("updated_at"),
-                Prescription.finalized_at.label("finalized_at"),
-                Prescription.form_data.label("form_data"),
-                literal("with_prescription").label("row_kind"),
-            )
-            .join(Prescription, Prescription.visit_id == Visit.id)
-            .where(*rx_filters)
-        )
-
-        reg_filters = [
-            RegistrationVisit.tenant_id == self._tenant_id,
-            RegistrationVisit.status != "cancelled",
-            *self._visit_date_filters(
-                queued_from=queued_from,
-                queued_to=queued_to,
-                column=RegistrationVisit.updated_at,
-            ),
-            ~exists(
-                select(literal(1)).where(
-                    Prescription.tenant_id == self._tenant_id,
-                    Prescription.visit_id == RegistrationVisit.id,
-                ),
-            ),
-        ]
-
-        null_uuid = cast(literal(None), Uuid(as_uuid=True))
-        null_ts = cast(literal(None), DateTime(timezone=True))
-        null_json = cast(literal(None), JSON())
-        null_status = cast(literal(None), String())
-
-        reg_part = select(
-            RegistrationVisit.id.label("visit_id"),
-            RegistrationVisit.patient_id.label("patient_id"),
-            null_uuid.label("prescription_id"),
-            RegistrationVisit.doctor_id.label("doctor_id"),
-            RegistrationVisit.status.label("visit_status_raw"),
-            null_status.label("prescription_status"),
-            RegistrationVisit.updated_at.label("updated_at"),
-            null_ts.label("finalized_at"),
-            null_json.label("form_data"),
-            literal("registration_only").label("row_kind"),
-        ).where(*reg_filters)
-
-        return union_all(rx_part, reg_part).subquery("completed_visit_queue")
-
-    def _map_completed_visit_queue_row(self, row: Any) -> CompletedVisitRow:
-        form_data = row.form_data if isinstance(row.form_data, dict) else None
-        if row.row_kind == "with_prescription":
-            return CompletedVisitRow(
-                visit_id=row.visit_id,
-                patient_id=row.patient_id,
-                prescription_id=row.prescription_id,
-                doctor_id=row.doctor_id,
-                visit_status=row.visit_status_raw,
-                prescription_status=row.prescription_status,
-                updated_at=row.updated_at,
-                finalized_at=row.finalized_at,
-                medicine_count=_medicine_count_from_form_data(form_data),
-            )
-
-        from opd.data_access.registration_visit_repo import effective_visit_status
-
-        return CompletedVisitRow(
-            visit_id=row.visit_id,
-            patient_id=row.patient_id,
-            prescription_id=None,
-            doctor_id=row.doctor_id,
-            visit_status=effective_visit_status(row.visit_status_raw, None),
-            prescription_status=None,
-            updated_at=row.updated_at,
-            finalized_at=None,
-            medicine_count=0,
-        )
-
-    def list_completed_visits(
-        self,
-        *,
-        page: int = 1,
-        limit: int = 50,
-        queued_from: date | None = None,
-        queued_to: date | None = None,
-    ) -> tuple[list[CompletedVisitRow], int]:
-        """Paginated pharmacy queue visits — OPD Rx rows plus registered intake without Rx."""
-        queue = self._completed_visit_queue_union(
-            queued_from=queued_from,
-            queued_to=queued_to,
-        )
-        total = self._session.scalar(select(func.count()).select_from(queue)) or 0
-        offset = max(page - 1, 0) * limit
-        page_stmt = (
-            select(queue)
-            .order_by(queue.c.updated_at.desc())
-            .offset(offset)
-            .limit(limit)
-        )
-        rows = [
-            self._map_completed_visit_queue_row(row)
-            for row in self._session.execute(page_stmt).all()
-        ]
-        return rows, total
 
     def list_patient_encounters(
         self,

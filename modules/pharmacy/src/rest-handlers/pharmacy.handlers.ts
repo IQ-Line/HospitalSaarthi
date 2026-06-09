@@ -73,7 +73,6 @@ export function registerPharmacyHandlers(app: FastifyInstance, deps: PharmacyHan
             q: request.query.q,
             status: request.query.status,
             kind: request.query.kind,
-            bearerToken: bearerTokenFromHeaders(request.headers),
           },
         );
         return reply.send(result);
