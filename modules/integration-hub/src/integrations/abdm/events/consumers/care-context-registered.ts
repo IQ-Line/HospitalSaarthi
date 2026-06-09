@@ -1,6 +1,6 @@
 import type { DomainEvent } from "@hims/ts-sdk-events";
 import type { AbdmAdapterDeps } from "../../ports.js";
-import { addContextsPublish } from "../../use-cases/m2/add-contexts/publish.js";
+import { orchestrateM2AfterCareContexts } from "../../use-cases/m2/orchestrate-m2-after-care-contexts.js";
 
 /** Payload per record-foundation schema-reference (`care-context.registered`). */
 export interface CareContextRegisteredPayload {
@@ -30,22 +30,20 @@ export async function handleCareContextRegisteredEvent(
   const patientId = event.payload.patient_id;
   const careContextId = event.payload.care_context_id;
   const hiType = event.payload.source_record_type ?? "OPCONSULTATION";
+  const display =
+    event.payload.display?.trim() || `Care context ${careContextId}`;
 
-  const abhaAddress = await deps.empi.findAbhaAddressByPatientId({
-    iqTenantId,
-    patientId,
-  });
-  if (!abhaAddress) {
-    return;
-  }
-
-  await addContextsPublish(
+  await orchestrateM2AfterCareContexts(
     {
       iqTenantId,
-      abhaAddress,
-      patientReference: patientId,
-      careContextReference: careContextId,
-      hiType,
+      patientId,
+      careContexts: [
+        {
+          referenceNumber: careContextId,
+          display,
+          hiType,
+        },
+      ],
     },
     deps,
   );

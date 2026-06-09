@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import type { EventBus } from "@hims/ts-sdk-events";
 import { registerM2EventConsumers } from "./register-m2-consumers.js";
 import type { IntegrationHubSharedInfra } from "../../../lib/build-abdm-deps.js";
@@ -7,7 +7,32 @@ import type { IntegrationProfileRepo } from "../../../lib/integration-profile-re
 const tenantId = "00000000-0000-4000-8000-0000000000aa";
 
 describe("registerM2EventConsumers", () => {
-  it("builds per-tenant deps from event.iq_tenant_id", async () => {
+  const envKeys = [
+    "ABDM_M2_ORCHESTRATE_ON_CARE_CONTEXT_EVENT",
+    "INTEGRATION_HUB_ABDM_M2_ORCHESTRATE_ON_CARE_CONTEXT_EVENT",
+  ] as const;
+
+  beforeEach(() => {
+    for (const key of envKeys) delete process.env[key];
+  });
+
+  afterEach(() => {
+    for (const key of envKeys) delete process.env[key];
+  });
+
+  it("does not subscribe when event orchestration is disabled", async () => {
+    const subscribe = vi.fn();
+    const eventBus: EventBus = {
+      connect: vi.fn(),
+      publish: vi.fn(),
+      subscribe,
+    };
+    await registerM2EventConsumers(eventBus, {} as IntegrationHubSharedInfra);
+    expect(subscribe).not.toHaveBeenCalled();
+  });
+
+  it("builds per-tenant deps from event.iq_tenant_id when enabled", async () => {
+    process.env.ABDM_M2_ORCHESTRATE_ON_CARE_CONTEXT_EVENT = "true";
     const profile = {
       id: "p1",
       iqTenantId: tenantId,
@@ -45,7 +70,14 @@ describe("registerM2EventConsumers", () => {
       m3DataTransfers: {} as IntegrationHubSharedInfra["m3DataTransfers"],
       empi: {
         findAbhaAddressByPatientId: vi.fn(async () => undefined),
+        findM2PatientProfile: vi.fn(async () => null),
       } as IntegrationHubSharedInfra["empi"],
+      registration: {
+        findM2PatientProfile: vi.fn(async () => null),
+      } as IntegrationHubSharedInfra["registration"],
+      gateway: {
+        post: vi.fn(async () => ({})),
+      } as IntegrationHubSharedInfra["gateway"],
       recordFoundation: {} as IntegrationHubSharedInfra["recordFoundation"],
       fidelius: {} as IntegrationHubSharedInfra["fidelius"],
       payloadEncryptor: {} as IntegrationHubSharedInfra["payloadEncryptor"],
@@ -70,9 +102,10 @@ describe("registerM2EventConsumers", () => {
       iq_tenant_id: tenantId,
       event_type: "record-foundation.care-context.registered",
       payload: {
-        requestId: "req-1",
-        abhaAddress: "user@sbx",
-        careContexts: [],
+        care_context_id: "visit-001",
+        patient_id: "patient-001",
+        source_record_type: "OPCONSULTATION",
+        display: "OP visit",
       },
     });
 

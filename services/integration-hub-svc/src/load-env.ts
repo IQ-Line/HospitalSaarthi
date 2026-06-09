@@ -76,6 +76,14 @@ export function normalizeIntegrationHubEnvAliases(): void {
   for (const [oldKey, newKey] of pairs) {
     syncEnvPair(oldKey, newKey);
   }
+
+  if (!process.env["EMPI_BASE_URL"]?.trim() && process.env["EMPI_URL"]?.trim()) {
+    process.env["EMPI_BASE_URL"] = process.env["EMPI_URL"];
+  }
+  if (!process.env["REGISTRATION_BASE_URL"]?.trim() && process.env["REGISTRATION_URL"]?.trim()) {
+    process.env["REGISTRATION_BASE_URL"] = process.env["REGISTRATION_URL"];
+  }
+  syncEnvPair("REGISTRATION_INTERNAL_API_KEY", "INTEGRATION_HUB_REGISTRATION_INTERNAL_API_KEY");
 }
 
 export function resolveDatabaseUrlFromEnv(): string {

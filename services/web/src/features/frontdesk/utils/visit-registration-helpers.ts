@@ -347,6 +347,14 @@ export function mapVisitRegistrationToEmpiCreatePatient(
   const abha = p.abha_number?.trim();
   if (abha) body.abha_number = abha;
 
+  const abhaAddr = p.abha_address?.trim();
+  if (abhaAddr) body.abha_address = abhaAddr;
+
+  if (dob) {
+    const y = new Date(dob).getFullYear();
+    if (!Number.isNaN(y) && y > 1900) body.year_of_birth = y;
+  }
+
   if (o?.education?.trim()) body.education = o.education.trim();
   if (o?.occupation?.trim()) body.occupation = o.occupation.trim();
 
@@ -371,25 +379,44 @@ function optionalUuid(value: string | undefined): string | null {
   return v;
 }
 
+/** Master-data visit-types picklist code for OPD follow-up encounters. */
+export const FOLLOW_UP_VISIT_TYPE_CODE = 'opd_follow_up';
+
+export function isFollowUpVisitType(code: string | undefined | null): boolean {
+  const normalized = (code ?? '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  return normalized === 'opdfollowup';
+}
+
+function mapVisitEncounterFields(
+  apt: CreateVisitRequestBody['appointment'],
+): Record<string, unknown> {
+  const body: Record<string, unknown> = { intake_completion: 'partial' };
+  const visitType = apt?.visit_type_code?.trim();
+  if (visitType) body.visit_type = visitType;
+  const departmentId = optionalUuid(apt?.department_id);
+  if (departmentId) body.department_id = departmentId;
+  const doctorId = optionalUuid(apt?.provider_id);
+  if (doctorId) body.doctor_id = doctorId;
+  return body;
+}
+
 export function mapVisitRegistrationToNewPatientIntakeBody(
   data: CreateVisitRequestBody,
 ): Record<string, unknown> {
-  const body: Record<string, unknown> = {
+  return {
     patient: mapVisitRegistrationToEmpiCreatePatient(data),
-    intake_completion: 'partial',
+    ...mapVisitEncounterFields(data.appointment),
   };
+}
 
-  const apt = data.appointment;
-  const visitType = apt?.visit_type_code?.trim();
-  if (visitType) body.visit_type = visitType;
-
-  const departmentId = optionalUuid(apt?.department_id);
-  if (departmentId) body.department_id = departmentId;
-
-  const doctorId = optionalUuid(apt?.provider_id);
-  if (doctorId) body.doctor_id = doctorId;
-
-  return body;
+export function mapVisitRegistrationToExistingPatientIntakeBody(
+  data: CreateVisitRequestBody,
+  patientId: string,
+): Record<string, unknown> {
+  return {
+    patient_id: patientId,
+    ...mapVisitEncounterFields(data.appointment),
+  };
 }
 
 export function defaultVisitRegistrationAddress(): CreateVisitRequestBody['permanent_address'] {

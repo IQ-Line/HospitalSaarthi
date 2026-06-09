@@ -27,6 +27,26 @@ export class DrizzleIdentifierRepo implements IdentifierRepo {
     return rows as PatientIdentifier[];
   }
 
+  async findActivePatientIdByIdentifier(
+    tenantId: string,
+    identifierType: string,
+    identifierValue: string,
+  ): Promise<string | undefined> {
+    const rows = await this.db
+      .select({ patient_id: patientIdentifiers.patient_id })
+      .from(patientIdentifiers)
+      .where(
+        and(
+          eq(patientIdentifiers.iq_tenant_id, tenantId),
+          eq(patientIdentifiers.identifier_type, identifierType),
+          eq(patientIdentifiers.identifier_value, identifierValue),
+          eq(patientIdentifiers.is_active, true),
+        ),
+      )
+      .limit(1);
+    return rows[0]?.patient_id;
+  }
+
   async create(data: CreateIdentifierData): Promise<PatientIdentifier> {
     const rows = await this.db
       .insert(patientIdentifiers)

@@ -26,6 +26,7 @@ import {
   HttpPicklistGateway,
   createRegistrationAuthzTargetResolver,
   registerDocumentsHandler,
+  registerInternalHandlers,
   registerRegistrationsHandler,
   registerVisitsHandler,
 } from "@hims/registration";
@@ -195,6 +196,11 @@ async function main() {
     });
     registerDocumentsHandler(api, documentDeps);
   }
+
+  await app.register(async (internalApi) => {
+    await internalApi.register(tenantPlugin);
+    registerInternalHandlers(internalApi, { registrationRepo });
+  }, { prefix: "/api/registration/v1" });
 
   await app.register(registerRegistrationApi, { prefix: "/api/registration/v1" });
 

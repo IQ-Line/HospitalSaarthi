@@ -1,7 +1,11 @@
 import { fetchWithTimeout } from "../lib/fetch-with-timeout.js";
 import { abdmWarn } from "../lib/abdm-adapter-log.js";
 import { EmpiClientError } from "../lib/empi-client-error.js";
-import type { EmpiClient } from "../ports.js";
+import { parseEmpiPatientDetail } from "../lib/parse-empi-m2-patient.js";
+import type { EmpiClient, M2PatientProfile } from "../ports.js";
+
+const EMPI_API_PREFIX =
+  process.env["EMPI_API_PREFIX"]?.trim().replace(/\/+$/, "") || "/api/empi/v1";
 
 function isClientError(status: number): boolean {
   return status >= 400 && status < 500;
@@ -19,7 +23,7 @@ export class HttpEmpiClient implements EmpiClient {
     abhaAddress: string;
   }): Promise<{ patientId: string; demographics: Record<string, unknown> } | null> {
     if (!this.baseUrl) return null;
-    const url = new URL("/api/v1/patients/find", this.baseUrl.replace(/\/+$/, ""));
+    const url = new URL(`${EMPI_API_PREFIX}/patients/find`, this.baseUrl.replace(/\/+$/, ""));
     url.searchParams.set("abha_address", input.abhaAddress);
     try {
       const res = await fetchWithTimeout(url.toString(), {
@@ -63,7 +67,7 @@ export class HttpEmpiClient implements EmpiClient {
   }): Promise<{ patientId: string; score: number } | null> {
     if (!this.baseUrl) return null;
     const url = new URL(
-      "/api/v1/patients/find-by-demographics",
+      `${EMPI_API_PREFIX}/patients/find-by-demographics`,
       this.baseUrl.replace(/\/+$/, ""),
     );
     try {
@@ -111,8 +115,16 @@ export class HttpEmpiClient implements EmpiClient {
     iqTenantId: string;
     patientId: string;
   }): Promise<string | null> {
+    const profile = await this.findM2PatientProfile(input);
+    return profile?.abhaAddress ?? null;
+  }
+
+  async findM2PatientProfile(input: {
+    iqTenantId: string;
+    patientId: string;
+  }): Promise<M2PatientProfile | null> {
     if (!this.baseUrl) return null;
-    const url = `${this.baseUrl.replace(/\/+$/, "")}/api/v1/patients/${input.patientId}`;
+    const url = `${this.baseUrl.replace(/\/+$/, "")}${EMPI_API_PREFIX}/patients/${input.patientId}`;
     try {
       const res = await fetchWithTimeout(url, {
         method: "GET",
@@ -126,8 +138,8 @@ export class HttpEmpiClient implements EmpiClient {
         }
         return null;
       }
-      const json = (await res.json()) as { abhaAddress?: string; abha_address?: string };
-      return json.abhaAddress ?? json.abha_address ?? null;
+      const json = (await res.json()) as Parameters<typeof parseEmpiPatientDetail>[0];
+      return parseEmpiPatientDetail(json);
     } catch (e) {
       if (e instanceof EmpiClientError) throw e;
       throw new EmpiClientError(
@@ -147,6 +159,10 @@ export class NoOpEmpiClient implements EmpiClient {
   }
 
   async findAbhaAddressByPatientId(): Promise<null> {
+    return null;
+  }
+
+  async findM2PatientProfile(): Promise<null> {
     return null;
   }
 }

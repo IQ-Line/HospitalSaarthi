@@ -5,8 +5,10 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
+
+from opd.integrations.abdm_m2 import trigger_m2_after_end_consultation
 
 from opd.data_access.prescription_repository import (
     PrescriptionConflictError,
@@ -167,6 +169,7 @@ def update_prescription(
 def finalize_prescription(
     prescription_id: UUID,
     payload: PrescriptionFinalizeRequest,
+    background_tasks: BackgroundTasks,
     tenant_id: Annotated[UUID, Query(description="Tenant isolation key")],
     service: Annotated[PrescriptionService, Depends(get_prescription_service)],
     session: Annotated[Session, Depends(get_session)],
@@ -178,6 +181,12 @@ def finalize_prescription(
     except PrescriptionConflictError as exc:
         raise _conflict(exc) from exc
     session.commit()
+    background_tasks.add_task(
+        trigger_m2_after_end_consultation,
+        tenant_id=tenant_id,
+        patient_id=data.patient_id,
+        visit_id=data.visit_id,
+    )
     return PrescriptionSingleResponse(data=data)
 
 
