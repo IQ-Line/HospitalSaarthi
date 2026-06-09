@@ -9,6 +9,7 @@ import {
 } from "@hims/ts-sdk-db";
 import { createEventBus } from "@hims/ts-sdk-events";
 import {
+  applyConfiguratorSchemaMigration,
   createRouter,
   DrizzleOrganizationRepo,
   DrizzleTenantRepo,
@@ -23,6 +24,7 @@ import {
 } from "./bootstrap/development-bootstrap.js";
 import { HttpModuleCapabilityResolverAdapter } from "./adapters/http-module-capability-resolver-adapter.js";
 import { HttpTenantAdminProvisioningAdapter } from "./adapters/http-tenant-admin-provisioning-adapter.js";
+import { HttpUserManagementEntitlementCacheInvalidator } from "./adapters/http-user-management-entitlement-cache-invalidator.js";
 
 const PORT = Number(
   process.env["CONFIGURATOR_PORT"] ??
@@ -77,6 +79,7 @@ async function main() {
     db,
     connectionString: databaseUrl,
   });
+  await applyConfiguratorSchemaMigration(databaseUrl);
 
   if (shouldRunDevelopmentBootstrap()) {
     app.log.warn(
@@ -130,9 +133,25 @@ async function main() {
     "MASTER_DATA_URL",
     "http://localhost:8010",
   );
+  const umInternalApiKey = process.env["UM_INTERNAL_API_KEY"]?.trim() ?? "";
 
   const logFn = (event: Record<string, unknown>, message: string) =>
     app.log.info(event, message);
+
+  const entitlementCacheInvalidator =
+    umInternalApiKey.length > 0
+      ? new HttpUserManagementEntitlementCacheInvalidator({
+          baseUrl: userManagementBaseUrl,
+          internalApiKey: umInternalApiKey,
+          log: logFn,
+        })
+      : undefined;
+
+  if (entitlementCacheInvalidator === undefined) {
+    app.log.warn(
+      "UM_INTERNAL_API_KEY unset — tenant entitlement cache will not be busted on module toggle",
+    );
+  }
 
   async function registerConfiguratorApi(api: FastifyInstance): Promise<void> {
     if (identityAuth) {
@@ -144,6 +163,7 @@ async function main() {
     }
     await api.register(
       createRouter({
+        db,
         organizationRepo,
         tenantRepo,
         tenantModuleRepo,
@@ -151,6 +171,7 @@ async function main() {
         sequenceConfigurationRepo,
         runConfiguratorTransaction,
         eventBus,
+        entitlementCacheInvalidator,
         createInfrastructureCatalog: (authorization) =>
           new HttpModuleCapabilityResolverAdapter({
             userManagementBaseUrl,

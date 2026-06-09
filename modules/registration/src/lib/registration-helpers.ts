@@ -138,6 +138,49 @@ export function mapEmpiPatientToSnapshot(
   };
 }
 
+function trimString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+/** Year of birth from intake `year_of_birth` or `date_of_birth` (desk form / ABHA profile). */
+export function yearOfBirthFromIntake(patient: Record<string, unknown>): number | null {
+  const explicit = patient.year_of_birth;
+  if (typeof explicit === "number" && explicit > 1900 && !Number.isNaN(explicit)) {
+    return explicit;
+  }
+  const dob = trimString(patient.date_of_birth);
+  if (!dob) return null;
+  const y = new Date(dob).getFullYear();
+  return !Number.isNaN(y) && y > 1900 ? y : null;
+}
+
+/** EMPI create rejects `abha_address`; keep it on the intake row for the registration snapshot only. */
+export function stripNonEmpiIntakeFields(
+  patient: Record<string, unknown>,
+): Record<string, unknown> {
+  const { abha_address: _ignored, ...empiBody } = patient;
+  return empiBody;
+}
+
+/** Overlay desk-captured ABHA + DOB fields onto the EMPI demographics snapshot. */
+export function mergeIntakeIntoSnapshot(
+  snapshot: PatientDemographicsSnapshot,
+  intake: Record<string, unknown>,
+): PatientDemographicsSnapshot {
+  const abhaAddress = trimString(intake.abha_address);
+  const abhaNumber = trimString(intake.abha_number);
+  const intakeDob = trimString(intake.date_of_birth);
+  const yearOfBirth = yearOfBirthFromIntake(intake) ?? snapshot.year_of_birth ?? null;
+
+  return {
+    ...snapshot,
+    abha_number: abhaNumber || snapshot.abha_number || null,
+    abha_address: abhaAddress || snapshot.abha_address || null,
+    date_of_birth: intakeDob || snapshot.date_of_birth || null,
+    year_of_birth: yearOfBirth,
+  };
+}
+
 // ─── HTTP idempotency ───────────────────────────────────────────────────────────
 
 export function readIdempotencyKey(

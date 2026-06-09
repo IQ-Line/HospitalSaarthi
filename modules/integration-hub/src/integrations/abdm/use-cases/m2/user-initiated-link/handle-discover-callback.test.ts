@@ -58,6 +58,9 @@ function mockSessions(): AbdmSessionsPort {
     async findByFlowAndRequestId() {
       return null;
     },
+    async findAddContextsNotifiedByCareContextReference() {
+      return null;
+    },
   };
 }
 

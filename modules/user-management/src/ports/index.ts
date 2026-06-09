@@ -114,6 +114,8 @@ export type {
   ModuleCatalogPort,
   ModuleEntitlementRequestContext,
   TenantEntitlementPort,
+  TenantEntitlementResolverPort,
+  TenantEntitlementResolution,
   TenantModuleEntitlementPort,
 } from "./module-integration-ports.js";
 export type {

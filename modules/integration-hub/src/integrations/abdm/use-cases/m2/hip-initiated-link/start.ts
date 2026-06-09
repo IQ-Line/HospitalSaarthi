@@ -12,6 +12,8 @@ export interface HipInitiatedLinkStartInput {
   abhaAddress: string;
   abhaNumber?: string;
   patientName: string;
+  /** Internal patient id (legacy HIMS: UHID / patient reference in link body). */
+  patientReference?: string;
   phoneNo?: string;
   gender: "M" | "F" | "O" | "D";
   yearOfBirth: number;
@@ -81,7 +83,7 @@ export async function hipInitiatedLinkStart(
     ...(abhaNumberPlain ? { abhaNumber: abhaNumberPlain } : {}),
     patient: [
       {
-        referenceNumber: input.abhaAddress,
+        referenceNumber: input.patientReference ?? input.abhaAddress,
         display: input.patientName,
         careContexts: input.careContexts.map((c) => ({
           referenceNumber: c.referenceNumber,

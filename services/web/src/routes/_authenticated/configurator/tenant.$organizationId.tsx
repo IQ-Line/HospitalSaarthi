@@ -33,6 +33,10 @@ import { CreateBranchWizard } from '@/features/configurator/components/create-br
 import { SequenceConfigurationPanel } from '@/features/configurator/components/sequence-configuration/sequence-configuration-panel';
 import { TenantModulesPanel } from '@/features/configurator/components/tenant-modules-panel';
 import {
+  filterCatalogL1Modules,
+  isCatalogL1Module,
+} from '@/features/configurator/tenant-module-catalog';
+import {
   TenantBillingPanel,
   TenantDepartmentsPanel,
   TenantRoleTemplatesPanel,
@@ -177,11 +181,15 @@ function TenantOrganizationDetailPage() {
   }, [modulesRes?.data]);
 
   const activeModuleNames = useMemo(() => {
+    const catalog = modulesRes?.data ?? [];
+    const l1Ids = new Set(
+      catalog.filter(isCatalogL1Module).map((mod) => mod.id),
+    );
     const rows = tenantModsRes?.data ?? [];
     return rows
-      .filter((r) => r.is_active && moduleNameById.has(r.module_id))
+      .filter((r) => r.is_active && l1Ids.has(r.module_id) && moduleNameById.has(r.module_id))
       .map((r) => moduleNameById.get(r.module_id) ?? r.module_id.slice(0, 8));
-  }, [tenantModsRes?.data, moduleNameById]);
+  }, [tenantModsRes?.data, moduleNameById, modulesRes?.data]);
 
   const planSlug = useMemo(() => {
     const meta = org?.metadata as Record<string, unknown> | null | undefined;
@@ -273,7 +281,7 @@ function TenantOrganizationDetailPage() {
   );
 
   const catalogModules = useMemo(
-    () => (modulesRes?.data ?? []).filter((mod) => !mod.is_deleted),
+    () => filterCatalogL1Modules(modulesRes?.data ?? []),
     [modulesRes?.data],
   );
 

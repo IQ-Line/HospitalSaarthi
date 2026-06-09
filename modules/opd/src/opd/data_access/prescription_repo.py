@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from opd.data_access import prescription_bundle as bundle_api
 from opd.data_access.prescription_form_data import persist_normalized_from_form_data
+from opd.data_access.visit_status import effective_encounter_status
 from opd.models.prescription_row import Prescription
 from opd.models.visit import Visit
 
@@ -23,29 +24,6 @@ class PatientEncounterRow:
     prescription_status: str | None
     updated_at: datetime
     created_at: datetime
-
-
-def effective_encounter_status(visit: Visit | None, rx: Prescription | None) -> str:
-    """Resolve UI status from visit row and/or prescription row (handles legacy rows)."""
-    if visit is not None:
-        if visit.status == "completed":
-            return "completed"
-        if rx is not None and rx.status == "final":
-            return "completed"
-        if visit.status == "cancelled":
-            return "cancelled"
-        if visit.status == "pre_consulted":
-            return "pre_consulted"
-        if visit.status in ("in_progress", "registered"):
-            return "in_progress"
-        return visit.status
-    if rx is not None:
-        if rx.status == "final":
-            return "completed"
-        if rx.status == "cancelled":
-            return "cancelled"
-        return "in_progress"
-    return "registered"
 
 
 class PrescriptionRepository:
@@ -216,7 +194,12 @@ class PrescriptionRepository:
                 raise PermissionError("visit tenant mismatch")
             if visit.patient_id != patient_id:
                 raise ValueError("visit patient mismatch")
-            if visit.status not in ("completed", "cancelled"):
+            if visit.status not in (
+                "completed",
+                "cancelled",
+                "pre_consulted",
+                "in_progress",
+            ):
                 visit.status = "registered"
                 visit.updated_at = now
                 self._session.flush()

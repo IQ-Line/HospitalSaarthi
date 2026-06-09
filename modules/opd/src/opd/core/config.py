@@ -46,6 +46,14 @@ class Settings(BaseSettings):
     api_prefix: str = "/api/v1/opd"
     log_level: str = "INFO"
     cors_origins: str = "http://localhost:4200,http://localhost:5173"
+    abdm_m2_enabled: bool = Field(
+        default=False,
+        description="When true, end-consultation triggers integration-hub M2 orchestration.",
+    )
+    integration_hub_base_url: str = Field(
+        default="http://localhost:3007",
+        description="integration-hub-svc origin (no trailing path).",
+    )
 
 
 class AzureBlobSettings(BaseSettings):

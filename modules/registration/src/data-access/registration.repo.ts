@@ -68,6 +68,48 @@ export class DrizzleRegistrationRepo implements RegistrationRepo {
     return rows[0] ? mapRow(rows[0]) : undefined;
   }
 
+  /** Refresh desk-captured ABHA / DOB on an existing registration row (re-intake). */
+  async patchSnapshotDemographics(
+    tenantId: string,
+    patientId: string,
+    snapshot: ReturnType<typeof snapshotValues>,
+    actorId: string,
+  ): Promise<RegistrationRecord | undefined> {
+    const hasAbha =
+      snapshot.patient_abha_address?.trim() || snapshot.patient_abha_number?.trim();
+    const hasYob = snapshot.patient_year_of_birth != null;
+    if (!hasAbha && !hasYob) {
+      return this.findByPatientId(tenantId, patientId);
+    }
+
+    const patch: Record<string, unknown> = {
+      updated_by: actorId,
+      updated_at: sql`now()`,
+    };
+    const abhaAddr = snapshot.patient_abha_address?.trim();
+    if (abhaAddr) patch.patient_abha_address = abhaAddr;
+    const abhaNum = snapshot.patient_abha_number?.trim();
+    if (abhaNum) patch.patient_abha_number = abhaNum;
+    if (snapshot.patient_year_of_birth != null) {
+      patch.patient_year_of_birth = snapshot.patient_year_of_birth;
+    }
+    if (snapshot.patient_date_of_birth) {
+      patch.patient_date_of_birth = snapshot.patient_date_of_birth;
+    }
+
+    const rows = await this.db
+      .update(registrations)
+      .set(patch as typeof registrations.$inferInsert)
+      .where(
+        and(
+          eq(registrations.iq_tenant_id, tenantId),
+          eq(registrations.patient_id, patientId),
+        ),
+      )
+      .returning();
+    return rows[0] ? mapRow(rows[0]) : undefined;
+  }
+
   async insert(
     tenantId: string,
     input: CreateRegistrationInput,
@@ -81,7 +123,14 @@ export class DrizzleRegistrationRepo implements RegistrationRepo {
 
     const existingPatient = await this.findByPatientId(tenantId, input.patient_id);
     if (existingPatient) {
-      return { record: existingPatient, created: false as const };
+      const snapshot = snapshotValues(input);
+      const patched = await this.patchSnapshotDemographics(
+        tenantId,
+        input.patient_id,
+        snapshot,
+        actorId,
+      );
+      return { record: patched ?? existingPatient, created: false as const };
     }
 
     try {

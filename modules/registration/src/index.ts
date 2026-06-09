@@ -65,3 +65,4 @@ export { registrationSchema, registrations, visits } from "./schema/tables.js";
 export { applyRegistrationSchemaMigration } from "./schema/apply-migration.js";
 
 export { createRegistrationAuthzTargetResolver } from "./authz/registration-authz-target-resolver.js";
+export { registerInternalHandlers } from "./rest-handlers/internal.handler.js";

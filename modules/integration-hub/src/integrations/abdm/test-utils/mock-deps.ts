@@ -58,10 +58,17 @@ export function buildMockAbdmDeps(
         findPatientByAbhaAddress: async () => null,
         findPatientByDemographics: async () => null,
         findAbhaAddressByPatientId: async () => null,
+        findM2PatientProfile: async () => null,
       } as AbdmAdapterDeps["empi"]),
+    registration:
+      overrides.registration ??
+      ({
+        findM2PatientProfile: async () => null,
+      } as AbdmAdapterDeps["registration"]),
     recordFoundation:
       overrides.recordFoundation ??
       ({
+        registerUnlinkedCareContexts: async () => undefined,
         listUnlinkedCareContexts: async () => [],
         markCareContextLinked: async () => undefined,
         fetchBundlesForConsent: async () => [],

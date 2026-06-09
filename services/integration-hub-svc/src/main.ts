@@ -15,10 +15,12 @@ import {
   DrizzleLinkTokensRepo,
   createFideliusEncryptorFromEnv,
   HttpEmpiClient,
+  HttpRegistrationClient,
   HttpRecordFoundationClient,
   MockEmpiClient,
   MockRecordFoundationClient,
   NoOpEmpiClient,
+  NoOpRegistrationClient,
   NoOpRecordFoundationClient,
   registerM2CallbackRoutes,
   registerM3CallbackRoutes,
@@ -61,7 +63,13 @@ const ABHA_API_BASE_URL =
   process.env["INTEGRATION_HUB_ABDM_ABHA_API_BASE_URL"] ??
   process.env["ABDM_ABHA_API_BASE_URL"] ??
   "https://abhasbx.abdm.gov.in/abha/api";
-const EMPI_BASE_URL = process.env["EMPI_BASE_URL"] ?? "";
+const EMPI_BASE_URL = process.env["EMPI_BASE_URL"] ?? process.env["EMPI_URL"] ?? "";
+const REGISTRATION_BASE_URL =
+  process.env["REGISTRATION_BASE_URL"] ?? process.env["REGISTRATION_URL"] ?? "";
+const ABDM_MOCK_PATIENT_ID =
+  process.env["INTEGRATION_HUB_ABDM_MOCK_PATIENT_ID"]?.trim() ||
+  process.env["ABDM_MOCK_PATIENT_ID"]?.trim() ||
+  "00000000-0000-4000-8000-000000000001";
 const RECORD_FOUNDATION_BASE_URL = process.env["RECORD_FOUNDATION_BASE_URL"] ?? "";
 const ABDM_M2_MOCK_PLATFORM =
   (process.env["INTEGRATION_HUB_ABDM_M2_MOCK_PLATFORM"] ??
@@ -141,10 +149,13 @@ async function main() {
   const linkTokens = new DrizzleLinkTokensRepo(db);
   const consentArtefacts = new DrizzleConsentArtefactsRepo(db);
   const empi = ABDM_M2_MOCK_PLATFORM
-    ? new MockEmpiClient(ABDM_MOCK_ABHA_ADDRESS)
+    ? new MockEmpiClient(ABDM_MOCK_ABHA_ADDRESS, ABDM_MOCK_PATIENT_ID)
     : EMPI_BASE_URL
       ? new HttpEmpiClient(EMPI_BASE_URL)
       : new NoOpEmpiClient();
+  const registration = REGISTRATION_BASE_URL
+    ? new HttpRegistrationClient(REGISTRATION_BASE_URL)
+    : new NoOpRegistrationClient();
   const recordFoundation = ABDM_M2_MOCK_PLATFORM
     ? new MockRecordFoundationClient(ABDM_MOCK_ABHA_ADDRESS)
     : RECORD_FOUNDATION_BASE_URL
@@ -176,6 +187,7 @@ async function main() {
     m3ConsentArtefactsHiu,
     m3DataTransfers,
     empi,
+    registration,
     recordFoundation,
     fidelius,
     payloadEncryptor,

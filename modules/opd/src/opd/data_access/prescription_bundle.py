@@ -7,7 +7,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from opd.data_access.prescription_repo import effective_encounter_status
+from opd.data_access.visit_status import effective_encounter_status
 from opd.models.prescription_row import Prescription
 from opd.models.visit import Visit
 

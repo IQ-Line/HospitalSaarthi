@@ -10,6 +10,13 @@ export async function registerM2EventConsumers(
   eventBus: EventBus,
   sharedInfra: IntegrationHubSharedInfra,
 ): Promise<void> {
+  const enabled =
+    process.env["ABDM_M2_ORCHESTRATE_ON_CARE_CONTEXT_EVENT"] === "true" ||
+    process.env["INTEGRATION_HUB_ABDM_M2_ORCHESTRATE_ON_CARE_CONTEXT_EVENT"] === "true";
+  if (!enabled) {
+    return;
+  }
+
   const handler = async (event: Parameters<typeof handleCareContextRegisteredEvent>[0]) => {
     if (!isCareContextRegisteredEvent(event)) return;
     const iqTenantId = event.iq_tenant_id?.trim();

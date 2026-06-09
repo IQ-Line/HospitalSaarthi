@@ -6,7 +6,7 @@ import { resolveDatabaseUrl } from "./resolve-database-url.js";
 const serviceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = path.resolve(serviceRoot, "../..");
 
-// Root `.env` (DATABASE_URL, etc.) then service `.env` wins — same layering as other services.
+// Root `.env` first, then service `.env` may override service-specific values.
 config({ path: path.join(repoRoot, ".env") });
 config({ path: path.join(serviceRoot, ".env"), override: true });
 
@@ -76,6 +76,14 @@ export function normalizeIntegrationHubEnvAliases(): void {
   for (const [oldKey, newKey] of pairs) {
     syncEnvPair(oldKey, newKey);
   }
+
+  if (!process.env["EMPI_BASE_URL"]?.trim() && process.env["EMPI_URL"]?.trim()) {
+    process.env["EMPI_BASE_URL"] = process.env["EMPI_URL"];
+  }
+  if (!process.env["REGISTRATION_BASE_URL"]?.trim() && process.env["REGISTRATION_URL"]?.trim()) {
+    process.env["REGISTRATION_BASE_URL"] = process.env["REGISTRATION_URL"];
+  }
+  syncEnvPair("REGISTRATION_INTERNAL_API_KEY", "INTEGRATION_HUB_REGISTRATION_INTERNAL_API_KEY");
 }
 
 export function resolveDatabaseUrlFromEnv(): string {

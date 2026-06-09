@@ -162,6 +162,28 @@ export interface EmpiClient {
     iqTenantId: string;
     patientId: string;
   }): Promise<string | null>;
+  /** Demographics for M2 HIP-initiated link after consultation / care-context registration. */
+  findM2PatientProfile(input: {
+    iqTenantId: string;
+    patientId: string;
+  }): Promise<M2PatientProfile | null>;
+}
+
+export interface M2PatientProfile {
+  abhaAddress: string;
+  abhaNumber?: string;
+  patientName: string;
+  gender: "M" | "F" | "O" | "D";
+  yearOfBirth: number;
+  phoneNo?: string;
+}
+
+/** Frozen registration snapshot — fallback when EMPI has no `abha_address` identifier yet. */
+export interface RegistrationClient {
+  findM2PatientProfile(input: {
+    iqTenantId: string;
+    patientId: string;
+  }): Promise<M2PatientProfile | null>;
 }
 
 export interface HealthRecordBundleEntry {
@@ -171,6 +193,12 @@ export interface HealthRecordBundleEntry {
 }
 
 export interface RecordFoundationClient {
+  /** Project care contexts for PHR discover when RF is not deployed (OPD orchestration path). */
+  registerUnlinkedCareContexts(input: {
+    iqTenantId: string;
+    patientId: string;
+    contexts: Array<{ referenceNumber: string; display: string; hiType: string }>;
+  }): Promise<void>;
   listUnlinkedCareContexts(input: {
     iqTenantId: string;
     patientId: string;
@@ -473,6 +501,7 @@ export interface AbdmAdapterDeps {
   m3ConsentArtefactsHiu: M3ConsentArtefactsHiuPort;
   m3DataTransfers: M3DataTransfersPort;
   empi: EmpiClient;
+  registration: RegistrationClient;
   recordFoundation: RecordFoundationClient;
   dataPush?: HipDataPushClient;
   payloadEncryptor: PayloadEncryptor;

@@ -55,6 +55,11 @@ export interface IdentifierRepo {
     tenantId: string,
     patientId: string,
   ): Promise<PatientIdentifier[]>;
+  findActivePatientIdByIdentifier(
+    tenantId: string,
+    identifierType: string,
+    identifierValue: string,
+  ): Promise<string | undefined>;
   create(data: CreateIdentifierData): Promise<PatientIdentifier>;
   deactivate(
     tenantId: string,

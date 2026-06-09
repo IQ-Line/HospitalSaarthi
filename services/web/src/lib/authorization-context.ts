@@ -1,6 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 
-import type { AuthPrincipalResponse } from '@/lib/auth-principal';
+import { fetchAuthPrincipal, type AuthPrincipalResponse } from '@/lib/auth-principal';
 import {
   authPrincipalQueryKeys,
   authPrincipalQueryOptions,
@@ -42,7 +42,18 @@ export function isAuthorizationHydratedForScope(scope: AuthPrincipalQueryScope):
  * Single entry point for shell authorization after login, tenant switch, or session restore.
  * Capabilities are loaded only from `GET /auth/principal` (no client-side permission maps).
  */
-export async function refreshAuthorizationContext(queryClient: QueryClient): Promise<void> {
+export type RefreshAuthorizationContextOptions = {
+  bypassEntitlementCache?: boolean;
+  /** Re-hydrate capabilities even when scope unchanged (e.g. tenant module toggle). */
+  forcePrincipalRefresh?: boolean;
+  /** Skip global module catalog refetch (toggle already busted nav cache). */
+  light?: boolean;
+};
+
+export async function refreshAuthorizationContext(
+  queryClient: QueryClient,
+  options?: RefreshAuthorizationContextOptions,
+): Promise<void> {
   const auth = useAuthStore.getState();
   const tenant = useTenantStore.getState();
 
@@ -78,7 +89,10 @@ export async function refreshAuthorizationContext(queryClient: QueryClient): Pro
     !isSameAuthPrincipalScope(lastHydratedPrincipalScope, scope);
 
   const skipPrincipalNetwork =
-    !scopeChanged && cachedPrincipal !== undefined && permissions.isLoaded;
+    options?.forcePrincipalRefresh !== true &&
+    !scopeChanged &&
+    cachedPrincipal !== undefined &&
+    permissions.isLoaded;
 
   if (!skipPrincipalNetwork) {
     if (scopeChanged) {
@@ -89,7 +103,13 @@ export async function refreshAuthorizationContext(queryClient: QueryClient): Pro
     if (!scopeChanged && cachedPrincipal !== undefined) {
       principal = cachedPrincipal;
     } else {
-      principal = await queryClient.fetchQuery(authPrincipalQueryOptions(scope));
+      principal =
+        options?.bypassEntitlementCache === true
+          ? await fetchAuthPrincipal({ bypassEntitlementCache: true })
+          : await queryClient.fetchQuery(authPrincipalQueryOptions(scope));
+      if (options?.bypassEntitlementCache === true) {
+        queryClient.setQueryData(authPrincipalQueryKeys.detail(scope), principal);
+      }
     }
 
     await hydrateCapabilitiesFromPrincipal(principal);
@@ -104,5 +124,7 @@ export async function refreshAuthorizationContext(queryClient: QueryClient): Pro
     lastModulesBootstrappedTenantId = tenantId;
   }
 
-  await queryClient.ensureQueryData(globalModulesCatalogQueryOptions());
+  if (options?.light !== true) {
+    await queryClient.ensureQueryData(globalModulesCatalogQueryOptions());
+  }
 }
