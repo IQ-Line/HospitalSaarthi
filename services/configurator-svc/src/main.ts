@@ -158,7 +158,7 @@ async function main() {
       const { identityPlugin } = await import("@hims/ts-sdk-identity");
       await api.register(identityPlugin, {
         ...identityAuth,
-        skipPathPrefixes: ["/api/configurator/v1/internal"],
+        skipPathPrefixes: ["/api/configurator/v1/integration-profiles/by-"],
       });
     }
     await api.register(

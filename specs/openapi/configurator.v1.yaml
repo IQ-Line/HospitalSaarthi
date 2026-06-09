@@ -9,7 +9,8 @@ info:
 
     ### 1.2.0
     - Tenant integration profiles (ABDM Phase 1a): CRUD under `/tenants/{tenantId}/integration-profiles`.
-    - Internal route `GET /integration-profiles/by-hip/{hipId}` for service-to-service credential lookup
+    - Internal routes `GET /integration-profiles/by-hip/{hipId}` and
+      `GET /integration-profiles/by-tenant/{tenantId}` for service-to-service credential lookup
       (requires `x-configurator-internal-key` when `CONFIGURATOR_INTERNAL_API_KEY` is set).
     ### 1.2.1
     - Revert identifier to platform default via PUT with `is_custom: false` (DELETE endpoint removed).
@@ -525,6 +526,50 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: No active profile for this HIP.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /integration-profiles/by-tenant/{tenantId}:
+    get:
+      operationId: getActiveIntegrationProfileByTenantId
+      summary: Resolve active integration profile by tenant id (internal)
+      description: >
+        **Internal / service-to-service only.** Returns the active ABDM integration profile for a
+        tenant (includes `client_secret` in plaintext for Phase 1a). Not for browser or public clients.
+        When `CONFIGURATOR_INTERNAL_API_KEY` is configured on the service, callers must send matching
+        `x-configurator-internal-key`. In local dev the check is skipped if the env var is unset.
+      tags:
+        - Integration Profiles
+      security:
+        - internalServiceKey: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: integration_kind
+          in: query
+          schema:
+            type: string
+            enum: [abdm]
+      responses:
+        "200":
+          description: Active profile for the tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantIntegrationProfile"
+        "403":
+          description: Missing or invalid internal service key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No active profile for this tenant.
           content:
             application/json:
               schema:

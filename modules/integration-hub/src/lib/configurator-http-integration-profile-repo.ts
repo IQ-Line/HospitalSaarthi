@@ -39,23 +39,25 @@ export class ConfiguratorHttpIntegrationProfileRepo implements IntegrationProfil
 
   async findActiveByTenantId(iqTenantId: string): Promise<TenantIntegrationProfile | undefined> {
     const url = new URL(
-      `${this.baseUrl}/api/configurator/v1/tenants/${encodeURIComponent(iqTenantId)}/integration-profiles`,
+      `${this.baseUrl}/api/configurator/v1/integration-profiles/by-tenant/${encodeURIComponent(iqTenantId)}`,
     );
     url.searchParams.set("integration_kind", "abdm");
-    url.searchParams.set("is_active", "true");
 
-    const res = await this.fetchImpl(url.toString(), { method: "GET" });
+    const headers: Record<string, string> = {};
+    if (this.internalApiKey) {
+      headers[INTERNAL_KEY_HEADER] = this.internalApiKey;
+    }
+
+    const res = await this.fetchImpl(url.toString(), { method: "GET", headers });
     if (res.status === 404) return undefined;
     if (!res.ok) {
       const body = await res.text().catch(() => "");
       throw new Error(
-        `configurator list integration profiles failed: ${res.status}${body ? ` ${body}` : ""}`,
+        `configurator by-tenant profile lookup failed: ${res.status}${body ? ` ${body}` : ""}`,
       );
     }
 
-    const json = (await res.json()) as { data?: Record<string, unknown>[] };
-    const row = json.data?.[0];
-    if (!row) return undefined;
+    const row = (await res.json()) as Record<string, unknown>;
     return mapConfiguratorProfileRow(row);
   }
 

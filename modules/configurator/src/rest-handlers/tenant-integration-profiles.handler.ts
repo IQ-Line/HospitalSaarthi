@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { ConfiguratorError } from "../errors.js";
 import { assertConfiguratorInternalAccess } from "../http/assert-configurator-internal-access.js";
 import type { TenantIntegrationProfilesRepo, TenantRepo } from "../ports.js";
 import type {
@@ -43,7 +44,6 @@ export function registerTenantIntegrationProfilesHandler(
     "/integration-profiles/by-hip/:hipId",
     {
       schema: {
-        security: [{ internalServiceKey: [] }],
         params: {
           type: "object",
           required: ["hipId"],
@@ -64,6 +64,36 @@ export function registerTenantIntegrationProfilesHandler(
         request.params.hipId,
         request.query.integration_kind ?? "abdm",
       );
+    },
+  );
+
+  app.get<{ Params: { tenantId: string }; Querystring: ByHipQuery }>(
+    "/integration-profiles/by-tenant/:tenantId",
+    {
+      schema: {
+        params: {
+          type: "object",
+          required: ["tenantId"],
+          properties: { tenantId: uuidParamSchema.properties.id },
+        },
+        querystring: {
+          type: "object",
+          properties: {
+            integration_kind: { type: "string", enum: ["abdm"] },
+          },
+        },
+      },
+    },
+    async (request) => {
+      assertConfiguratorInternalAccess(request);
+      const row = await tenantIntegrationProfilesRepo.findActiveByTenantId(
+        request.params.tenantId,
+        request.query.integration_kind ?? "abdm",
+      );
+      if (!row) {
+        throw new ConfiguratorError(404, "no active integration profile for tenant");
+      }
+      return row;
     },
   );
 
