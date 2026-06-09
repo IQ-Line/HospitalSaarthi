@@ -1,3 +1,4 @@
+import type { DbInstance } from "@hims/ts-sdk-db";
 import type { FastifyInstance } from "fastify";
 import type { EventBus } from "@hims/ts-sdk-events";
 import fp from "fastify-plugin";
@@ -22,6 +23,7 @@ import { registerTenantOnboardingHandler } from "./rest-handlers/tenant-onboardi
 import { registerSequenceConfigurationHandler } from "./rest-handlers/sequence-configuration.handler.js";
 
 export interface ConfiguratorRouterOptions {
+  db: DbInstance;
   organizationRepo: OrganizationRepo;
   tenantRepo: TenantRepo;
   tenantModuleRepo: TenantModuleRepo;
@@ -83,7 +85,7 @@ async function configuratorRouter(
     entitlementCacheInvalidator: options.entitlementCacheInvalidator,
   });
   registerInternalTenantEntitlementHandler(app, {
-    tenantModuleRepo: options.tenantModuleRepo,
+    db: options.db,
   });
   registerTenantIntegrationProfilesHandler(app, {
     tenantIntegrationProfilesRepo: options.tenantIntegrationProfilesRepo,
