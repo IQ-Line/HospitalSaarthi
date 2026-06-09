@@ -137,7 +137,10 @@ async function main() {
   async function registerConfiguratorApi(api: FastifyInstance): Promise<void> {
     if (identityAuth) {
       const { identityPlugin } = await import("@hims/ts-sdk-identity");
-      await api.register(identityPlugin, identityAuth);
+      await api.register(identityPlugin, {
+        ...identityAuth,
+        skipPathPrefixes: ["/api/configurator/v1/integration-profiles/by-"],
+      });
     }
     await api.register(
       createRouter({

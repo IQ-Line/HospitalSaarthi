@@ -21,22 +21,24 @@ describe("ConfiguratorHttpIntegrationProfileRepo", () => {
     vi.unstubAllGlobals();
   });
 
-  it("findActiveByTenantId returns first active profile from list", async () => {
-    const fetchMock = vi.fn(async () =>
-      Response.json({ data: [profileRow], total: 1 }),
-    );
+  it("findActiveByTenantId uses internal by-tenant route", async () => {
+    const fetchMock = vi.fn(async () => Response.json(profileRow));
     vi.stubGlobal("fetch", fetchMock);
 
     const repo = new ConfiguratorHttpIntegrationProfileRepo({
       baseUrl: "http://localhost:3001",
+      internalApiKey: "secret-key",
       fetchImpl: fetchMock,
     });
 
     const profile = await repo.findActiveByTenantId(tenantId);
     expect(profile?.hipId).toBe("IN3610001625");
     expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining(`/tenants/${tenantId}/integration-profiles`),
-      expect.objectContaining({ method: "GET" }),
+      expect.stringContaining(`/integration-profiles/by-tenant/${tenantId}`),
+      expect.objectContaining({
+        method: "GET",
+        headers: { "x-configurator-internal-key": "secret-key" },
+      }),
     );
   });
 
