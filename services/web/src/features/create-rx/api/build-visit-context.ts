@@ -34,7 +34,10 @@ export function buildCreateRxVisitContext(
       uhid: patient.uhid,
       phone: patient.phone_number,
       abhaNumber: patient.abha_number?.trim() || undefined,
-      abhaAddress: abhaAddress?.identifier_value?.trim() || undefined,
+      abhaAddress:
+        abhaAddress?.identifier_value?.trim() ||
+        registration?.patient_abha_address?.trim() ||
+        undefined,
     },
     visit: {
       id: visitId,

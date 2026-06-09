@@ -1,4 +1,6 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@pulse/ui/tabs';
+import { useSearch } from '@tanstack/react-router';
+import { M3ConsentPanel } from '@/features/abha/components/m3-consent-panel';
 import { useCreateRxStore } from '../create-rx.store';
 import type { CreateRxRightTab } from '../types';
 
@@ -18,8 +20,11 @@ function EmptyPreview({ message }: { message: string }) {
 }
 
 export function RightPanel() {
+  const { mode } = useSearch({ from: '/_authenticated/create-rx/$visitId' });
+  const context = useCreateRxStore((s) => s.context);
   const activeRightTab = useCreateRxStore((s) => s.activeRightTab);
   const setActiveRightTab = useCreateRxStore((s) => s.setActiveRightTab);
+  const readOnly = mode === 'view';
 
   return (
     <aside className="flex h-full min-h-0 w-full flex-col border-l border-gray-200 bg-gray-100">
@@ -53,8 +58,11 @@ export function RightPanel() {
         <TabsContent value="medical-history" className="mt-0 min-h-0 flex-1">
           <EmptyPreview message="Medical history preview will load from the patient record." />
         </TabsContent>
-        <TabsContent value="abha-consent" className="mt-0 min-h-0 flex-1">
-          <EmptyPreview message="ABHA consent status will appear here." />
+        <TabsContent value="abha-consent" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden">
+          <M3ConsentPanel
+            abhaAddress={context?.patient.abhaAddress}
+            readOnly={readOnly}
+          />
         </TabsContent>
         <TabsContent value="lab-reports" className="mt-0 min-h-0 flex-1">
           <EmptyPreview message="No lab reports found" />
