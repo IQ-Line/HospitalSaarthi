@@ -3,7 +3,7 @@ import {
   isTenantApiKeySecret,
 } from "@hims/ts-sdk-api-key";
 import { unauthorized } from "@hims/ts-sdk-http";
-import type { FastifyInstance, FastifyPluginAsync } from "fastify";
+import type { FastifyPluginAsync } from "fastify";
 import fp from "fastify-plugin";
 import type { ApiKeyValidatorPort } from "../ports.js";
 
@@ -11,8 +11,9 @@ export interface ApiKeyAuthPluginOptions {
   validator: ApiKeyValidatorPort;
 }
 
-const OPD_SLIP_PDF_PATH =
+const REGISTRATION_OPD_SLIP_PDF_PATH =
   /\/registrations\/[^/]+\/documents\/opd-slip\.pdf$/;
+const PARTNER_OPD_SLIP_PDF_PATH = /\/documents\/opd-slip\.pdf$/;
 
 function readApiKeyHeader(
   value: string | string[] | undefined,
@@ -21,9 +22,14 @@ function readApiKeyHeader(
   return typeof value === "string" ? value.trim() : undefined;
 }
 
-function isOpdSlipPdfRequest(url: string): boolean {
+function isRegistrationOpdSlipPdfRequest(url: string): boolean {
   const path = url.split("?")[0] ?? "";
-  return OPD_SLIP_PDF_PATH.test(path);
+  return REGISTRATION_OPD_SLIP_PDF_PATH.test(path);
+}
+
+function isPartnerOpdSlipPdfRequest(url: string, method: string): boolean {
+  const path = url.split("?")[0] ?? "";
+  return method === "POST" && PARTNER_OPD_SLIP_PDF_PATH.test(path);
 }
 
 const apiKeyAuthPluginImpl: FastifyPluginAsync<ApiKeyAuthPluginOptions> = async (
@@ -38,23 +44,25 @@ const apiKeyAuthPluginImpl: FastifyPluginAsync<ApiKeyAuthPluginOptions> = async 
   }
 
   fastify.addHook("onRequest", async (request, reply) => {
-    if (!isOpdSlipPdfRequest(request.url)) return;
+    const partnerRequest = isPartnerOpdSlipPdfRequest(request.url, request.method);
+    const registrationRequest = isRegistrationOpdSlipPdfRequest(request.url);
+    if (!partnerRequest && !registrationRequest) return;
 
     const secret = readApiKeyHeader(request.headers["x-api-key"]);
-    if (!secret) return;
-
-    if (!isTenantApiKeySecret(secret)) {
-      unauthorized(reply, request, "API_KEY_INVALID", "Invalid API key");
+    if (!secret) {
+      if (partnerRequest) {
+        unauthorized(reply, request, "API_KEY_REQUIRED", "X-API-Key header is required");
+      }
       return;
     }
 
     const prefix = extractTenantApiKeyPrefix(secret);
-    if (!prefix) {
-      unauthorized(reply, request, "API_KEY_INVALID", "Invalid API key");
-      return;
-    }
+    const validated = await (async () => {
+      if (!isTenantApiKeySecret(secret)) return null;
+      if (!prefix) return null;
+      return options.validator.validateOpdSlipKey(prefix, secret);
+    })();
 
-    const validated = await options.validator.validateOpdSlipKey(prefix, secret);
     if (!validated) {
       unauthorized(reply, request, "API_KEY_INVALID", "Invalid API key");
       return;

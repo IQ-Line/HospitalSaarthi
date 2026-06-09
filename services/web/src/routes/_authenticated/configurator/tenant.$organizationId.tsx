@@ -32,6 +32,7 @@ import {
 import { CreateBranchWizard } from '@/features/configurator/components/create-branch-wizard';
 import { SequenceConfigurationPanel } from '@/features/configurator/components/sequence-configuration/sequence-configuration-panel';
 import { TenantModulesPanel } from '@/features/configurator/components/tenant-modules-panel';
+import { TenantApiKeysPanel } from '@/features/configurator/components/tenant-api-keys-panel';
 import {
   filterCatalogL1Modules,
   isCatalogL1Module,
@@ -63,6 +64,7 @@ const TENANT_DETAIL_TABS = [
   'billing',
   'modules',
   'sequence',
+  'api-keys',
 ] as const;
 
 type TenantDetailTab = (typeof TENANT_DETAIL_TABS)[number];
@@ -419,6 +421,9 @@ function TenantOrganizationDetailPage() {
             <TabsTrigger value="sequence" className="shrink-0 text-xs sm:text-sm">
               Sequence
             </TabsTrigger>
+            <TabsTrigger value="api-keys" className="shrink-0 text-xs sm:text-sm">
+              API keys
+            </TabsTrigger>
             {/* <TabsTrigger value="audit-logs" className="shrink-0 text-xs sm:text-sm">
               Audit logs
             </TabsTrigger> */}
@@ -653,6 +658,13 @@ function TenantOrganizationDetailPage() {
             </p>
           </div>
           <SequenceConfigurationPanel tenantId={contextTenant.iq_tenant_id} />
+        </TabsContent>
+
+        <TabsContent value="api-keys" className="mt-4">
+          <TenantApiKeysPanel
+            iqTenantId={contextTenant.iq_tenant_id}
+            canManageKeys={isPlatformSuperAdmin}
+          />
         </TabsContent>
 
         <TabsContent value="audit-logs" className="mt-4">
