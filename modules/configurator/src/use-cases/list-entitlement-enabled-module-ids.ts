@@ -17,6 +17,7 @@ export async function listEntitlementEnabledModuleIds(
   await db.execute(sql`
     UPDATE configurator.tenant_modules AS tm
     SET
+      is_core_override = false,
       is_active = false,
       updated_at = now()
     WHERE tm.iq_tenant_id = ${iqTenantId}
