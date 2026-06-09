@@ -8,8 +8,8 @@ import {
   formatPatientDisplay,
   formatPharmacyQueuedAt,
   formatQueuePatientSecondaryId,
+  formatQueueVisitDisplay,
   formatRxNumber,
-  formatShortVisitId,
   pharmacyQueueStatusBadgeClass,
   pharmacyQueueStatusLabel,
 } from '../lib/pharmacy-queue-display';
@@ -22,11 +22,21 @@ interface PharmacyQueueTableProps {
   page: number;
   pageSize: number;
   onPageChange: (page: number) => void;
+  emptyTitle?: string;
+  emptyDescription?: string;
 }
 
 function colMeta(width: string, extra = '') {
-  const classes = `${width} whitespace-nowrap px-3 py-2 ${extra}`.trim();
+  const classes = `${width} max-w-full px-3 py-2 overflow-hidden ${extra}`.trim();
   return { headerClassName: classes, cellClassName: classes };
+}
+
+function truncateCell(content: string, className = 'text-sm') {
+  return (
+    <span className={`block truncate ${className}`} title={content}>
+      {content}
+    </span>
+  );
 }
 
 export function PharmacyQueueTable({
@@ -36,6 +46,8 @@ export function PharmacyQueueTable({
   page,
   pageSize,
   onPageChange,
+  emptyTitle = 'No prescriptions in queue',
+  emptyDescription = 'Completed OPD visits with prescriptions appear here.',
 }: PharmacyQueueTableProps) {
   const columns = useMemo<ColumnDef<PharmacyQueueItem, unknown>[]>(
     () => [
@@ -45,44 +57,46 @@ export function PharmacyQueueTable({
         header: () => (
           <span className="text-xs font-semibold tracking-wide text-muted-foreground">RX #</span>
         ),
-        cell: ({ row }) => (
-          <span className="text-sm font-medium tabular-nums">
-            {row.original.walk_in_order ? 'Walk-in' : formatRxNumber(row.original.prescription_id)}
-          </span>
-        ),
+        cell: ({ row }) =>
+          truncateCell(
+            row.original.walk_in_order ? 'Walk-in' : formatRxNumber(row.original.prescription_id),
+            'text-sm font-medium tabular-nums',
+          ),
       },
       {
         id: 'visitId',
-        meta: colMeta('w-[6.5rem]'),
+        meta: colMeta('w-[11rem]'),
         header: () => (
           <span className="text-xs font-semibold tracking-wide text-muted-foreground">VISIT ID</span>
         ),
-        cell: ({ row }) => (
-          <span
-            className="font-mono text-sm tabular-nums"
-            title={row.original.visit_id ?? row.original.record_id ?? undefined}
-          >
-            {formatShortVisitId(row.original.visit_id)}
-          </span>
-        ),
+        cell: ({ row }) => {
+          const label = formatQueueVisitDisplay(row.original);
+          return truncateCell(label, 'text-sm tabular-nums');
+        },
       },
       {
         id: 'patient',
         meta: {
-          headerClassName: 'px-3 py-2',
-          cellClassName: 'px-3 py-2 whitespace-normal',
+          headerClassName: 'min-w-[12rem] px-3 py-2',
+          cellClassName: 'min-w-[12rem] max-w-[16rem] px-3 py-2 overflow-hidden',
         },
         header: () => (
           <span className="text-xs font-semibold tracking-wide text-muted-foreground">PATIENT</span>
         ),
-        cell: ({ row }) => (
-          <div>
-            <p className="text-sm font-semibold text-[#2563EB]">{formatPatientDisplay(row.original)}</p>
-            <p className="text-xs text-muted-foreground tabular-nums">
-              {formatQueuePatientSecondaryId(row.original)}
-            </p>
-          </div>
-        ),
+        cell: ({ row }) => {
+          const secondaryId = formatQueuePatientSecondaryId(row.original);
+          const patientLabel = formatPatientDisplay(row.original);
+          return (
+            <div className="min-w-0 overflow-hidden">
+              <p className="truncate text-sm font-semibold text-[#2563EB]" title={patientLabel}>
+                {patientLabel}
+              </p>
+              <p className="truncate text-xs text-muted-foreground tabular-nums" title={secondaryId}>
+                {secondaryId}
+              </p>
+            </div>
+          );
+        },
       },
       {
         id: 'doctor',
@@ -90,9 +104,8 @@ export function PharmacyQueueTable({
         header: () => (
           <span className="text-xs font-semibold tracking-wide text-muted-foreground">DOCTOR</span>
         ),
-        cell: ({ row }) => (
-          <span className="text-sm">{formatDoctorDisplay(row.original)}</span>
-        ),
+        cell: ({ row }) =>
+          truncateCell(formatDoctorDisplay(row.original)),
       },
       {
         id: 'status',
@@ -151,13 +164,13 @@ export function PharmacyQueueTable({
 
   return (
     <DataTable
-      tableClassName="table-fixed"
-      className="overflow-hidden [&_thead]:bg-[#F8FAFC]"
+      tableClassName="w-full table-fixed"
+      className="overflow-x-auto [&_thead]:bg-[#F8FAFC]"
       columns={columns}
       data={rows}
       isLoading={isLoading}
-      emptyTitle="No prescriptions in queue"
-      emptyDescription="OPD visits with prescriptions and walk-in dispense orders appear here."
+      emptyTitle={emptyTitle}
+      emptyDescription={emptyDescription}
       manualPagination={{
         pageIndex: page - 1,
         pageSize,

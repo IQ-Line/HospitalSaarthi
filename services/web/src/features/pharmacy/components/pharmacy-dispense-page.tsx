@@ -6,7 +6,6 @@ import { Button } from '@pulse/ui/button';
 import { Input } from '@pulse/ui/input';
 import { Skeleton } from '@pulse/ui/skeleton';
 import { Textarea } from '@pulse/ui/textarea';
-import { empiPatientAgeYears, fetchEmpiPatientDetail } from '@/features/opd-patients/api/empi-patients';
 import { useDispenseForVisit, useSaveDispenseForVisit } from '../api/dispense-order';
 import {
   computeDispenseTotals,
@@ -15,14 +14,13 @@ import {
   formatDispenseDecimalInput,
   formatInrAmount,
 } from '../lib/dispense-billing';
-import { dispenseSaveStatusLabel } from '../lib/pharmacy-queue-display';
+import { dispenseSaveStatusLabel, formatDispensePatientHeader, formatDispenseVisitLabel } from '../lib/pharmacy-queue-display';
 import {
   buildSaveDispenseLinesFromDraft,
   firstDispenseValidationMessage,
   validateDispenseDraft,
   type DispenseLineFieldErrors,
 } from '../lib/validate-dispense-draft';
-import { formatShortVisitId } from '../lib/pharmacy-queue-display';
 import type { DispenseLineDraft } from '../types';
 import { PharmacyDispenseLinesTable } from './pharmacy-dispense-lines-table';
 import { PharmacyPrescriptionSidebar } from './pharmacy-prescription-sidebar';
@@ -30,13 +28,6 @@ import { PharmacyPrescriptionSidebar } from './pharmacy-prescription-sidebar';
 type PharmacyDispensePageProps = {
   visitId: string;
 };
-
-function patientGenderLabel(gender: string | undefined): string {
-  if (gender === 'male') return 'Male';
-  if (gender === 'female') return 'Female';
-  if (gender === 'other') return 'Other';
-  return '—';
-}
 
 export function PharmacyDispensePage({ visitId }: PharmacyDispensePageProps) {
   const { data, isLoading, isError, error } = useDispenseForVisit(visitId);
@@ -48,7 +39,16 @@ export function PharmacyDispensePage({ visitId }: PharmacyDispensePageProps) {
   const [discount, setDiscount] = useState('0');
   const [notes, setNotes] = useState('');
   const [initialized, setInitialized] = useState(false);
-  const [patientLabel, setPatientLabel] = useState<string | null>(null);
+
+  const visitLabel = useMemo(
+    () => formatDispenseVisitLabel(visitId, data?.formatted_visit_id),
+    [visitId, data?.formatted_visit_id],
+  );
+
+  const patientLabel = useMemo(() => {
+    if (!data?.patient_id) return null;
+    return formatDispensePatientHeader(data);
+  }, [data]);
 
   useEffect(() => {
     if (!data || initialized) return;
@@ -91,30 +91,6 @@ export function PharmacyDispensePage({ visitId }: PharmacyDispensePageProps) {
     setNotes(data.notes ?? '');
     setInitialized(true);
   }, [data, initialized]);
-
-  useEffect(() => {
-    const patientId = data?.patient_id;
-    if (!patientId) return;
-
-    let cancelled = false;
-    void fetchEmpiPatientDetail(patientId)
-      .then((detail) => {
-        if (cancelled) return;
-        const patient = detail.patient;
-        const age = empiPatientAgeYears(patient);
-        const gender = patientGenderLabel(patient.gender);
-        setPatientLabel(`${patient.full_name || patient.first_name} · ${patient.uhid} · ${age}y · ${gender}`);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setPatientLabel(`Patient ${patientId.slice(0, 8)}…`);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [data?.patient_id]);
 
   const totals = useMemo(() => computeDispenseTotals(lines, discount), [lines, discount]);
 
@@ -199,7 +175,7 @@ export function PharmacyDispensePage({ visitId }: PharmacyDispensePageProps) {
       <div className="mb-6 rounded-lg bg-white p-4 shadow-sm">
         <h1 className="text-xl font-semibold text-foreground">Issue medicines</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Visit {formatShortVisitId(visitId)} · {patientLabel ?? 'Loading patient…'}
+          Visit {visitLabel} · {patientLabel ?? 'Loading patient…'}
         </p>
       </div>
 

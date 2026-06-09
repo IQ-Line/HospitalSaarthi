@@ -24,7 +24,7 @@ describe("saveWalkInDispense", () => {
   it("creates walk-in order with patient and lines", async () => {
     const walkInDispenseRepo: WalkInDispenseRepo = {
       findByRecordId: vi.fn(),
-      listForQueue: vi.fn(async () => []),
+      listForQueue: vi.fn(async () => ({ items: [], total: 0 })),
       create: vi.fn(async () => ({
         record: {
           id: "rec-walk-1",
@@ -88,7 +88,7 @@ describe("saveWalkInDispense", () => {
   it("rejects missing patient first name", async () => {
     const walkInDispenseRepo: WalkInDispenseRepo = {
       findByRecordId: vi.fn(),
-      listForQueue: vi.fn(async () => []),
+      listForQueue: vi.fn(async () => ({ items: [], total: 0 })),
       create: vi.fn(),
       upsert: vi.fn(),
     };

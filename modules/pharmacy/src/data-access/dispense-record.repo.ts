@@ -1,4 +1,4 @@
-import { and, eq, inArray, type DbInstance } from "@hims/ts-sdk-db";
+import { and, eq, inArray, sql, type DbInstance } from "@hims/ts-sdk-db";
 import { asc } from "drizzle-orm";
 import { buildDispenseLineRows } from "./build-dispense-line-rows.js";
 import type { DispenseLineItemRecord, DispenseRecord } from "../domain/pharmacy.types.js";
@@ -41,6 +41,15 @@ function mapLine(row: typeof dispenseLineItems.$inferSelect): DispenseLineItemRe
     line_total: row.line_total,
     created_at: row.created_at,
   };
+}
+
+function isPgUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error != null &&
+    "code" in error &&
+    (error as { code: string }).code === "23505"
+  );
 }
 
 export class DrizzleDispenseRecordRepo implements DispenseRecordRepo {
@@ -91,6 +100,20 @@ export class DrizzleDispenseRecordRepo implements DispenseRecordRepo {
   }
 
   async upsertForVisit(tenantId: string, payload: UpsertDispensePayload): Promise<UpsertDispenseResult> {
+    try {
+      return await this.upsertForVisitTx(tenantId, payload);
+    } catch (error) {
+      if (isPgUniqueViolation(error)) {
+        return this.upsertForVisitTx(tenantId, payload);
+      }
+      throw error;
+    }
+  }
+
+  private async upsertForVisitTx(
+    tenantId: string,
+    payload: UpsertDispensePayload,
+  ): Promise<UpsertDispenseResult> {
     const lineInserts = buildDispenseLineRows(tenantId, "pending", payload.lines);
     const amounts = computeRecordAmounts(
       lineInserts.map((row) => ({ line_total: row.line_total as string })),
@@ -98,6 +121,14 @@ export class DrizzleDispenseRecordRepo implements DispenseRecordRepo {
     );
 
     return this.db.transaction(async (tx) => {
+      await tx.execute(sql`
+        SELECT id FROM pharmacy.dispense_records
+        WHERE iq_tenant_id = ${tenantId}::uuid
+          AND visit_id = ${payload.visit_id}::uuid
+          AND walk_in_order = false
+        FOR UPDATE
+      `);
+
       const existing = await tx
         .select()
         .from(dispenseRecords)

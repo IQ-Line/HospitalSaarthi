@@ -62,10 +62,38 @@ const userLookup = {
   resolveDoctorNames: vi.fn(async () => new Map<string, string>()),
 };
 
+const queueProjection = {
+  visit_id: VISIT,
+  iq_tenant_id: TENANT,
+  patient_id: "patient-1",
+  prescription_id: "rx-1",
+  doctor_id: null,
+  visit_status: "completed",
+  prescription_status: "final",
+  medicine_count: 1,
+  queued_at: new Date("2026-06-01T12:00:00.000Z"),
+  patient_name: "Jane Doe",
+  uhid: "UHID-001",
+  phone: null,
+  age_years: 33,
+  gender: "female",
+  doctor_name: null,
+  formatted_visit_id: "OP2606090000019",
+  dispense_status: "pending" as const,
+  last_synced_at: new Date("2026-06-01T12:00:00.000Z"),
+};
+
+const opdQueueProjectionRepo = {
+  listForQueue: vi.fn(),
+  upsert: vi.fn(),
+  updateDispenseStatus: vi.fn(),
+  deleteByVisitId: vi.fn(),
+  findByVisitId: vi.fn(async () => queueProjection),
+};
+
 describe("getDispenseForVisit", () => {
   it("returns full OPD prescription and filtered dispensable medicines when no record exists", async () => {
     const opdGateway: OpdGatewayPort = {
-      listCompletedVisits: vi.fn(),
       getVisitPrescription: vi.fn(async () => prescription),
     };
     const dispenseRecordRepo: DispenseRecordRepo = {
@@ -76,7 +104,7 @@ describe("getDispenseForVisit", () => {
     };
 
     const result = await getDispenseForVisit(
-      { opdGateway, dispenseRecordRepo, masterDataGateway, userLookup },
+      { opdGateway, dispenseRecordRepo, masterDataGateway, userLookup, opdQueueProjectionRepo },
       TENANT,
       { visitId: VISIT },
     );
@@ -87,6 +115,9 @@ describe("getDispenseForVisit", () => {
     expect(result.opd_prescription?.medicines).toHaveLength(2);
     expect(result.dispensable_medicines).toHaveLength(1);
     expect(result.dispensable_medicines[0]?.medicine_id).toBe("med-1");
+    expect(result.patient_name).toBe("Jane Doe");
+    expect(result.uhid).toBe("UHID-001");
+    expect(result.formatted_visit_id).toBe("OP2606090000019");
   });
 
   it("returns saved record and filtered line items", async () => {
@@ -125,7 +156,6 @@ describe("getDispenseForVisit", () => {
     ];
 
     const opdGateway: OpdGatewayPort = {
-      listCompletedVisits: vi.fn(),
       getVisitPrescription: vi.fn(async () => prescription),
     };
     const dispenseRecordRepo: DispenseRecordRepo = {
@@ -136,7 +166,7 @@ describe("getDispenseForVisit", () => {
     };
 
     const result = await getDispenseForVisit(
-      { opdGateway, dispenseRecordRepo, masterDataGateway, userLookup },
+      { opdGateway, dispenseRecordRepo, masterDataGateway, userLookup, opdQueueProjectionRepo },
       TENANT,
       { visitId: VISIT },
     );
@@ -149,7 +179,6 @@ describe("getDispenseForVisit", () => {
 
   it("throws when OPD prescription is missing", async () => {
     const opdGateway: OpdGatewayPort = {
-      listCompletedVisits: vi.fn(),
       getVisitPrescription: vi.fn(async () => null),
     };
     const dispenseRecordRepo: DispenseRecordRepo = {
@@ -161,7 +190,7 @@ describe("getDispenseForVisit", () => {
 
     await expect(
       getDispenseForVisit(
-        { opdGateway, dispenseRecordRepo, masterDataGateway, userLookup },
+        { opdGateway, dispenseRecordRepo, masterDataGateway, userLookup, opdQueueProjectionRepo },
         TENANT,
         { visitId: VISIT },
       ),

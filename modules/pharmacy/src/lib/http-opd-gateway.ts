@@ -1,11 +1,8 @@
-import type {
-  OpdCompletedVisitSummary,
-  OpdPrescriptionMedicineLine,
-  OpdPrescriptionSnapshot,
-} from "../domain/pharmacy.types.js";
+import type { OpdPrescriptionMedicineLine, OpdPrescriptionSnapshot } from "../domain/pharmacy.types.js";
 import { clinicalSummaryFromFormData } from "./opd-clinical-summary.js";
 import { extractPrescriptionMedicineId } from "./filter-tenant-catalog-medicines.js";
 import type { OpdGatewayPort } from "../ports.js";
+import { truncateUpstreamBody } from "./upstream-log.js";
 
 function joinUrl(base: string, path: string): string {
   const b = base.replace(/\/$/, "");
@@ -24,23 +21,6 @@ function tenantHeaders(tenantId: string, bearerToken?: string): Record<string, s
   }
   return headers;
 }
-
-type OpdCompletedVisitListResponse = {
-  items: Array<{
-    visit_id: string;
-    patient_id: string;
-    prescription_id: string | null;
-    doctor_id: string | null;
-    visit_status: string;
-    prescription_status: string | null;
-    updated_at: string;
-    finalized_at: string | null;
-    medicine_count: number;
-  }>;
-  total: number;
-  page: number;
-  limit: number;
-};
 
 type OpdPrescriptionResponse = {
   prescription_id: string;
@@ -82,84 +62,6 @@ export class HttpOpdGateway implements OpdGatewayPort {
     },
   ) {}
 
-  async listCompletedVisits(
-    tenantId: string,
-    options: {
-      page?: number;
-      limit?: number;
-      queued_from?: string;
-      queued_to?: string;
-      bearerToken?: string;
-    } = {},
-  ): Promise<{
-    items: OpdCompletedVisitSummary[];
-    total: number;
-    page: number;
-    limit: number;
-  }> {
-    const page = Math.max(options.page ?? 1, 1);
-    const limit = Math.min(Math.max(options.limit ?? 50, 1), 100);
-    const search = new URLSearchParams({
-      page: String(page),
-      limit: String(limit),
-    });
-    if (options.queued_from?.trim()) {
-      search.set("queued_from", options.queued_from.trim());
-    }
-    if (options.queued_to?.trim()) {
-      search.set("queued_to", options.queued_to.trim());
-    }
-    const url = joinUrl(this.baseUrl, `/api/v1/opd/visits/completed?${search.toString()}`);
-
-    let response: Response;
-    try {
-      response = await fetch(url, {
-        method: "GET",
-        headers: tenantHeaders(tenantId, options.bearerToken),
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.options?.warn?.({ tenantId, message }, "OPD list completed visits failed");
-      throw error;
-    }
-
-    if (!response.ok) {
-      const body = await response.text();
-      this.options?.warn?.(
-        { tenantId, status: response.status, body },
-        "OPD list completed visits rejected",
-      );
-      throw new Error(`OPD list failed (${response.status})`);
-    }
-
-    const payload = (await response.json()) as OpdCompletedVisitListResponse;
-    const items = payload.items.map((row) => ({
-      visit_id: row.visit_id,
-      patient_id: row.patient_id,
-      prescription_id: row.prescription_id,
-      doctor_id: row.doctor_id,
-      visit_status: row.visit_status,
-      prescription_status: row.prescription_status,
-      updated_at:
-        typeof row.updated_at === "string"
-          ? row.updated_at
-          : new Date(row.updated_at).toISOString(),
-      finalized_at:
-        row.finalized_at == null
-          ? null
-          : typeof row.finalized_at === "string"
-            ? row.finalized_at
-            : new Date(row.finalized_at).toISOString(),
-      medicine_count: row.medicine_count,
-    }));
-    return {
-      total: payload.total,
-      page: payload.page,
-      limit: payload.limit,
-      items,
-    };
-  }
-
   async getVisitPrescription(
     tenantId: string,
     visitId: string,
@@ -189,7 +91,7 @@ export class HttpOpdGateway implements OpdGatewayPort {
     if (!response.ok) {
       const body = await response.text();
       this.options?.warn?.(
-        { tenantId, visitId, status: response.status, body },
+        { tenantId, visitId, status: response.status, body: truncateUpstreamBody(body) },
         "OPD get prescription rejected",
       );
       throw new Error(`OPD prescription fetch failed (${response.status})`);

@@ -22,6 +22,44 @@ export function formatShortVisitId(visitId: string | null): string {
   return visitId.slice(0, 8).toUpperCase();
 }
 
+export function formatDispenseVisitLabel(
+  visitId: string,
+  formattedVisitId: string | null | undefined,
+): string {
+  const formatted = formattedVisitId?.trim();
+  if (formatted) return formatted;
+  return formatShortVisitId(visitId);
+}
+
+function patientGenderLabel(gender: string | null | undefined): string {
+  if (gender === 'male') return 'Male';
+  if (gender === 'female') return 'Female';
+  if (gender === 'other') return 'Other';
+  return '—';
+}
+
+export function formatDispensePatientHeader(input: {
+  patient_id: string;
+  patient_name: string | null;
+  uhid: string | null;
+  age_years: number | null;
+  gender: string | null;
+}): string {
+  const name = input.patient_name?.trim();
+  if (!name) {
+    return `Patient ${input.patient_id.slice(0, 8)}…`;
+  }
+  const uhid = input.uhid?.trim() || '—';
+  const age = input.age_years != null && input.age_years > 0 ? `${input.age_years}y` : '—';
+  const gender = patientGenderLabel(input.gender);
+  return `${name} · ${uhid} · ${age} · ${gender}`;
+}
+
+export function formatQueueVisitDisplay(row: PharmacyQueueItem): string {
+  if (row.walk_in_order) return 'Walk-in';
+  return formatDispenseVisitLabel(row.visit_id ?? '', row.formatted_visit_id);
+}
+
 export function formatQueuePatientSecondaryId(row: PharmacyQueueItem): string {
   if (row.walk_in_order) {
     return row.phone?.trim() || row.record_id?.slice(0, 8) || 'Walk-in';
@@ -77,6 +115,7 @@ export function matchesPharmacyQueueSearch(row: PharmacyQueueItem, query: string
     row.phone,
     row.record_id,
     row.record_id?.slice(0, 8),
+    row.formatted_visit_id,
     row.visit_id,
     row.visit_id?.slice(0, 8),
     row.prescription_id,

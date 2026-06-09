@@ -49,19 +49,6 @@ export const DEVELOPMENT_PHARMACIST: DevelopmentSeedUser = {
   description: "Pharmacy counter — prescription queue and walk-in dispense.",
 };
 
-/** Pharmacy counter staff for the configurator ``demo tenant``. */
-export const DEMO_TENANT_PHARMACIST: DevelopmentSeedUser = {
-  persona: "pharmacist",
-  userId: "a47ac10b-58cc-4372-a567-0e02b2c3d486",
-  roleId: "a47ac10b-58cc-4372-a567-0e02b2c3d487",
-  roleCode: "pharmacist",
-  email: "demopharmacy@gmail.com",
-  password: "password",
-  name: "Demo Pharmacist",
-  username: "demopharmacy",
-  description: "Pharmacy counter for demo tenant.",
-};
-
 /** Dev bootstrap users (re-run `make seed` to refresh roles and capabilities). */
 export const DEVELOPMENT_SEED_USERS: readonly DevelopmentSeedUser[] = [
   DEVELOPMENT_PLATFORM_OPERATOR,

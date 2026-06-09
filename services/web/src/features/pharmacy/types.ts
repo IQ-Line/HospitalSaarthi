@@ -47,6 +47,8 @@ export type WalkInPatientDraft = {
 
 export type PharmacyQueueStatusFilter = 'all' | 'pending' | 'partial_issue' | 'issued';
 
+export type PharmacyQueueKind = 'opd' | 'walk_in';
+
 export type PharmacyDispenseStatus = 'pending' | 'issued' | 'partial_issue';
 
 export type PharmacyQueueDateRange = {
@@ -73,11 +75,13 @@ export type PharmacyQueueItem = {
   age_years: number | null;
   gender: string | null;
   doctor_name: string | null;
+  formatted_visit_id: string | null;
   has_dispense: boolean;
   dispense_status: PharmacyDispenseStatus;
 };
 
 export type PharmacyQueueListParams = {
+  kind?: PharmacyQueueKind;
   page: number;
   limit: number;
   queued_from?: string;
@@ -149,8 +153,12 @@ export type DispenseForVisitResponse = {
   created_at: string | null;
   lines: DispenseLineItem[];
   opd_prescription: OpdPrescriptionSnapshot | null;
-  /** Catalog-backed medicines for the dispense billing table. */
   dispensable_medicines: OpdPrescriptionMedicineLine[];
+  patient_name: string | null;
+  uhid: string | null;
+  age_years: number | null;
+  gender: string | null;
+  formatted_visit_id: string | null;
 };
 
 export type SaveDispenseLineInput = {

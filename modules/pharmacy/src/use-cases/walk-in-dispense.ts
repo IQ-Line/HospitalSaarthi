@@ -17,6 +17,7 @@ import {
   filterDispenseLineRecordsForTenantCatalog,
   normalizeSaveDispenseLinesForCatalog,
 } from "../lib/filter-tenant-catalog-medicines.js";
+import { buildWalkInDispenseResponse } from "../lib/dispense-wire-response.js";
 import type { MasterDataGatewayPort } from "../ports.js";
 
 export class WalkInDispenseNotFoundError extends Error {
@@ -27,19 +28,11 @@ export class WalkInDispenseNotFoundError extends Error {
 }
 
 function toResponse(detail: WalkInDispenseDetail): WalkInDispenseResponse {
-  return {
-    record_id: detail.record.id,
-    walk_in_order: true,
-    walk_in_patient: detail.patient,
-    subtotal: detail.record.subtotal,
-    discount: detail.record.discount,
-    total_amount: detail.record.total_amount,
-    notes: detail.record.notes,
-    has_dispense: true,
-    dispense_status: detail.record.dispense_status,
-    created_at: detail.record.created_at.toISOString(),
-    lines: detail.lines,
-  };
+  return buildWalkInDispenseResponse({
+    record: detail.record,
+    patient: detail.patient,
+    rawLines: detail.lines,
+  });
 }
 
 function validatePayload(
@@ -162,15 +155,16 @@ export async function getWalkInDispense(
     throw new WalkInDispenseNotFoundError(recordId);
   }
 
-  const lines = await filterDispenseLineRecordsForTenantCatalog(
+  const filteredLines = await filterDispenseLineRecordsForTenantCatalog(
     deps.masterDataGateway,
     tenantId,
     detail.lines,
     bearerToken,
   );
 
-  return toResponse({
-    ...detail,
-    lines,
+  return buildWalkInDispenseResponse({
+    record: detail.record,
+    patient: detail.patient,
+    rawLines: filteredLines,
   });
 }

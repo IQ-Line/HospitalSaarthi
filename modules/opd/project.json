@@ -52,13 +52,6 @@
         "cwd": "modules/opd"
       },
       "dependsOn": ["setup"]
-    },
-    "seed-dev": {
-      "command": "uv run python scripts/seed_dev_completed_visits.py",
-      "options": {
-        "cwd": "modules/opd"
-      },
-      "dependsOn": ["setup", "db-migrate"]
     }
   }
 }

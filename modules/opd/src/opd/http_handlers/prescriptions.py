@@ -24,6 +24,8 @@ from opd.data_access.prescription_bundle import PrescriptionBundle
 from opd.data_access.prescription_form_data import effective_form_data
 from opd.data_access.prescription_repo import PrescriptionRepository
 from opd.data_access.registration_visit_repo import RegistrationVisitRepository
+from opd.lib.pharmacy_queue_notify import notify_pharmacy_queue_projection
+from opd.models.prescription_row import Prescription
 from opd.models.registration_visit import RegistrationVisit
 from opd.models.visit import Visit
 
@@ -82,6 +84,17 @@ def _to_response(db: DbSession, bundle: PrescriptionBundle) -> OpdPrescriptionRe
         finalized_at=rx.finalized_at,
         form_data=effective_form_data(db, rx),
     )
+
+
+def _notify_pharmacy_queue_if_final(
+    db: DbSession,
+    tenant_id: TenantId,
+    visit: Visit,
+    rx: Prescription,
+) -> None:
+    if rx.status != "final":
+        return
+    notify_pharmacy_queue_projection(tenant_id, visit, rx, session=db)
 
 
 @router.get("/patients", response_model=OpdPatientListResponse)
@@ -283,6 +296,7 @@ def upsert_visit_prescription(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     db.commit()
+    _notify_pharmacy_queue_if_final(db, tenant_id, visit, rx)
     return _to_response(db, bundle_api.bundle_from_prescription(db, tenant_id, rx))
 
 
@@ -305,6 +319,7 @@ def end_visit_consultation(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     db.commit()
+    _notify_pharmacy_queue_if_final(db, tenant_id, visit, rx)
     return _to_response(db, bundle_api.bundle_from_prescription(db, tenant_id, rx))
 
 
@@ -327,6 +342,7 @@ def upsert_patient_prescription(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     db.commit()
+    _notify_pharmacy_queue_if_final(db, tenant_id, visit, rx)
     return _to_response(db, bundle_api.bundle_from_prescription(db, tenant_id, rx))
 
 
@@ -341,4 +357,5 @@ def end_patient_consultation(
     repo = PrescriptionRepository(db, tenant_id, doctor_id)
     visit, rx = repo.end_consultation(patient_id, body.form_data)
     db.commit()
+    _notify_pharmacy_queue_if_final(db, tenant_id, visit, rx)
     return _to_response(db, bundle_api.bundle_from_prescription(db, tenant_id, rx))

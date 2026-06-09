@@ -18,14 +18,19 @@ function isQuantityShort(dispensed: number, expected: number | null): boolean {
   return dispensed + 1e-9 < expected;
 }
 
-function isLineQuantityShort(
+function isQuantityOver(dispensed: number, expected: number | null): boolean {
+  if (expected == null) return false;
+  return dispensed - expected > 1e-9;
+}
+
+function isLineQuantityOutOfRange(
   prescribedQuantity: string | null | undefined,
   quantityDispensed: string,
 ): boolean {
   const expected = parseQty(prescribedQuantity);
   const dispensed = parseQty(quantityDispensed);
   if (expected == null || dispensed == null) return false;
-  return isQuantityShort(dispensed, expected);
+  return isQuantityShort(dispensed, expected) || isQuantityOver(dispensed, expected);
 }
 
 function aggregateDispensedByMedicineId(
@@ -41,13 +46,18 @@ function aggregateDispensedByMedicineId(
   return totals;
 }
 
-/** OPD visit dispense: partial when qty is short or a dispensable Rx medicine is missing. */
+/** OPD visit dispense: partial when qty is out of range or a dispensable Rx medicine is missing. */
 export function computeOpdDispenseFulfillmentStatus(
   dispensableMedicines: readonly OpdPrescriptionMedicineLine[],
   dispenseLines: readonly SaveDispenseLineInput[],
+  prescriptionMedicineCount = dispensableMedicines.length,
 ): DispenseFulfillmentStatus {
+  if (prescriptionMedicineCount > 0 && dispensableMedicines.length === 0) {
+    return "partial_issue";
+  }
+
   for (const line of dispenseLines) {
-    if (isLineQuantityShort(line.prescribed_quantity, line.quantity_dispensed)) {
+    if (isLineQuantityOutOfRange(line.prescribed_quantity, line.quantity_dispensed)) {
       return "partial_issue";
     }
   }
@@ -64,7 +74,10 @@ export function computeOpdDispenseFulfillmentStatus(
     }
 
     const expectedFromRx = parseQty(medicine.quantity);
-    if (isQuantityShort(dispensed, expectedFromRx)) {
+    if (
+      isQuantityShort(dispensed, expectedFromRx) ||
+      isQuantityOver(dispensed, expectedFromRx)
+    ) {
       return "partial_issue";
     }
   }
@@ -77,7 +90,7 @@ export function computeWalkInDispenseFulfillmentStatus(
   dispenseLines: readonly SaveDispenseLineInput[],
 ): DispenseFulfillmentStatus {
   for (const line of dispenseLines) {
-    if (isLineQuantityShort(line.prescribed_quantity, line.quantity_dispensed)) {
+    if (isLineQuantityOutOfRange(line.prescribed_quantity, line.quantity_dispensed)) {
       return "partial_issue";
     }
   }

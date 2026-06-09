@@ -1,5 +1,7 @@
 import { and, eq, type DbInstance } from "@hims/ts-sdk-db";
-import { asc, desc, gte, inArray, lte, sql } from "drizzle-orm";
+import { asc, count, desc, gte, inArray, lte, sql } from "drizzle-orm";
+import type { PharmacyQueueStatusFilter } from "../lib/pharmacy-queue-filter.js";
+import { buildWalkInQueueSearchCondition } from "../lib/walk-in-queue-filter.js";
 import { buildDispenseLineRows } from "./build-dispense-line-rows.js";
 import type {
   DispenseLineItemRecord,
@@ -69,16 +71,6 @@ function mapLine(row: typeof dispenseLineItems.$inferSelect): DispenseLineItemRe
 function patientInsertValues(tenantId: string, patient: SaveWalkInPatientInput) {
   return {
     iq_tenant_id: tenantId,
-    first_name: patient.first_name.trim(),
-    last_name: patient.last_name?.trim() || null,
-    phone: patient.phone?.trim() || null,
-    gender: patient.gender,
-    date_of_birth: patient.date_of_birth?.trim() || null,
-  };
-}
-
-function patientUpdateValues(patient: SaveWalkInPatientInput) {
-  return {
     first_name: patient.first_name.trim(),
     last_name: patient.last_name?.trim() || null,
     phone: patient.phone?.trim() || null,
@@ -176,8 +168,15 @@ export class DrizzleWalkInDispenseRepo implements WalkInDispenseRepo {
 
   async listForQueue(
     tenantId: string,
-    options: { queued_from?: string; queued_to?: string } = {},
-  ): Promise<WalkInQueueSummary[]> {
+    options: {
+      page: number;
+      limit: number;
+      queued_from?: string;
+      queued_to?: string;
+      search?: string;
+      status?: PharmacyQueueStatusFilter;
+    },
+  ): Promise<{ items: WalkInQueueSummary[]; total: number }> {
     const queuedFrom = parseQueuedDate(options.queued_from);
     const queuedTo = parseQueuedDate(options.queued_to);
 
@@ -191,6 +190,28 @@ export class DrizzleWalkInDispenseRepo implements WalkInDispenseRepo {
     if (queuedTo) {
       conditions.push(lte(sql`date(${dispenseRecords.created_at})`, queuedTo));
     }
+    if (options.status && options.status !== "all") {
+      conditions.push(eq(dispenseRecords.dispense_status, options.status));
+    }
+
+    const search = options.search?.trim().toLowerCase() ?? "";
+    if (search.length > 0) {
+      conditions.push(buildWalkInQueueSearchCondition(search));
+    }
+
+    const whereClause = and(...conditions);
+    const offset = (options.page - 1) * options.limit;
+
+    const joinClause = and(
+      eq(walkInPatients.iq_tenant_id, dispenseRecords.iq_tenant_id),
+      eq(walkInPatients.id, dispenseRecords.walk_in_patient_id),
+    );
+
+    const [totalRow] = await this.db
+      .select({ total: count() })
+      .from(dispenseRecords)
+      .innerJoin(walkInPatients, joinClause)
+      .where(whereClause);
 
     const rows = await this.db
       .select({
@@ -198,15 +219,11 @@ export class DrizzleWalkInDispenseRepo implements WalkInDispenseRepo {
         patient: walkInPatients,
       })
       .from(dispenseRecords)
-      .innerJoin(
-        walkInPatients,
-        and(
-          eq(walkInPatients.iq_tenant_id, dispenseRecords.iq_tenant_id),
-          eq(walkInPatients.id, dispenseRecords.walk_in_patient_id),
-        ),
-      )
-      .where(and(...conditions))
-      .orderBy(desc(dispenseRecords.created_at));
+      .innerJoin(walkInPatients, joinClause)
+      .where(whereClause)
+      .orderBy(desc(dispenseRecords.created_at), desc(dispenseRecords.id))
+      .limit(options.limit)
+      .offset(offset);
 
     const lineCounts = await countLinesByRecordIds(
       this.db,
@@ -214,22 +231,25 @@ export class DrizzleWalkInDispenseRepo implements WalkInDispenseRepo {
       rows.map((row) => row.record.id),
     );
 
-    return rows.map(({ record, patient }) => {
-      const medicineCount = lineCounts.get(record.id) ?? 0;
-      return {
-        record_id: record.id,
-        walk_in_patient_id: patient.id,
-        first_name: patient.first_name,
-        last_name: patient.last_name,
-        phone: patient.phone,
-        gender: patient.gender,
-        date_of_birth: patient.date_of_birth,
-        created_at: record.created_at,
-        medicine_count: medicineCount,
-        has_dispense: medicineCount > 0,
-        dispense_status: medicineCount > 0 ? record.dispense_status : "pending",
-      };
-    });
+    return {
+      items: rows.map(({ record, patient }) => {
+        const medicineCount = lineCounts.get(record.id) ?? 0;
+        return {
+          record_id: record.id,
+          walk_in_patient_id: patient.id,
+          first_name: patient.first_name,
+          last_name: patient.last_name,
+          phone: patient.phone,
+          gender: patient.gender,
+          date_of_birth: patient.date_of_birth,
+          created_at: record.created_at,
+          medicine_count: medicineCount,
+          has_dispense: medicineCount > 0,
+          dispense_status: record.dispense_status,
+        };
+      }),
+      total: Number(totalRow?.total ?? 0),
+    };
   }
 
   async create(tenantId: string, payload: UpsertWalkInDispensePayload): Promise<WalkInDispenseDetail> {
@@ -313,18 +333,26 @@ export class DrizzleWalkInDispenseRepo implements WalkInDispenseRepo {
       }
 
       const [patientRow] = await tx
-        .update(walkInPatients)
-        .set(patientUpdateValues(payload.walk_in_patient))
+        .select()
+        .from(walkInPatients)
         .where(
           and(
             eq(walkInPatients.iq_tenant_id, tenantId),
             eq(walkInPatients.id, existing.walk_in_patient_id),
           ),
         )
-        .returning();
+        .limit(1);
       if (!patientRow) {
-        throw new Error("walk-in patient update failed");
+        throw new Error("walk-in patient not found");
       }
+
+      await tx.execute(sql`
+        SELECT id FROM pharmacy.dispense_records
+        WHERE iq_tenant_id = ${tenantId}::uuid
+          AND id = ${recordId}::uuid
+          AND walk_in_order = true
+        FOR UPDATE
+      `);
 
       const [recordRow] = await tx
         .update(dispenseRecords)

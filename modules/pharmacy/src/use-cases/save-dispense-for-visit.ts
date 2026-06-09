@@ -1,8 +1,5 @@
 import type {
   DispenseForVisitResponse,
-  DispenseLineItemRecord,
-  DispenseRecord,
-  OpdPrescriptionSnapshot,
   SaveDispenseForVisitInput,
 } from "../domain/pharmacy.types.js";
 import {
@@ -13,11 +10,14 @@ import {
 } from "../lib/dispense-amounts.js";
 import {
   filterPrescriptionMedicinesForTenantCatalog,
+  filterDispenseLineRecordsForTenantCatalog,
   normalizeSaveDispenseLinesForCatalog,
 } from "../lib/filter-tenant-catalog-medicines.js";
 import { computeOpdDispenseFulfillmentStatus } from "../lib/dispense-completion.js";
-import type { DispenseRecordRepo, MasterDataGatewayPort, OpdGatewayPort } from "../ports.js";
+import { buildVisitDispenseResponse } from "../lib/dispense-wire-response.js";
+import type { DispenseRecordRepo, MasterDataGatewayPort, OpdGatewayPort, OpdQueueProjectionRepo, UserLookupPort } from "../ports.js";
 import { DispenseVisitNotFoundError } from "./get-dispense-for-visit.js";
+import { updateOpdQueueProjectionDispenseStatus } from "./upsert-opd-queue-projection.js";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -32,6 +32,13 @@ export class DispensePatientMismatchError extends Error {
   constructor() {
     super("patient_id does not match OPD prescription for this visit");
     this.name = "DispensePatientMismatchError";
+  }
+}
+
+export class DispensePrescriptionMismatchError extends Error {
+  constructor() {
+    super("opd_prescription_id does not match the live OPD prescription for this visit");
+    this.name = "DispensePrescriptionMismatchError";
   }
 }
 
@@ -80,27 +87,18 @@ export function assertLine(line: SaveDispenseForVisitInput["lines"][number], ind
   }
 }
 
-function toResponse(
-  visitId: string,
-  opdPrescription: OpdPrescriptionSnapshot,
-  record: DispenseRecord,
-  lines: DispenseLineItemRecord[],
-): DispenseForVisitResponse {
+async function enrichPrescriptionDoctorName(
+  userLookup: UserLookupPort,
+  tenantId: string,
+  prescription: NonNullable<DispenseForVisitResponse["opd_prescription"]>,
+): Promise<NonNullable<DispenseForVisitResponse["opd_prescription"]>> {
+  if (!prescription.doctor_id) {
+    return prescription;
+  }
+  const doctorNames = await userLookup.resolveDoctorNames(tenantId, [prescription.doctor_id]);
   return {
-    visit_id: visitId,
-    patient_id: record.patient_id,
-    opd_prescription_id: record.opd_prescription_id,
-    subtotal: record.subtotal,
-    discount: record.discount,
-    total_amount: record.total_amount,
-    notes: record.notes,
-    has_dispense: true,
-    dispense_status: record.dispense_status,
-    record_id: record.id,
-    created_at: record.created_at.toISOString(),
-    lines,
-    opd_prescription: opdPrescription,
-    dispensable_medicines: [],
+    ...prescription,
+    doctor_name: doctorNames.get(prescription.doctor_id) ?? null,
   };
 }
 
@@ -109,6 +107,8 @@ export async function saveDispenseForVisit(
     opdGateway: OpdGatewayPort;
     dispenseRecordRepo: DispenseRecordRepo;
     masterDataGateway: MasterDataGatewayPort;
+    userLookup: UserLookupPort;
+    opdQueueProjectionRepo: OpdQueueProjectionRepo;
   },
   tenantId: string,
   command: SaveDispenseForVisitCommand,
@@ -136,9 +136,14 @@ export async function saveDispenseForVisit(
   if (command.patient_id !== prescription.patient_id) {
     throw new DispensePatientMismatchError();
   }
+  if (
+    command.opd_prescription_id != null &&
+    command.opd_prescription_id !== prescription.prescription_id
+  ) {
+    throw new DispensePrescriptionMismatchError();
+  }
 
-  const opdPrescriptionId =
-    command.opd_prescription_id ?? prescription.prescription_id;
+  const opdPrescriptionId = prescription.prescription_id;
 
   const catalogLines = await normalizeSaveDispenseLinesForCatalog(
     deps.masterDataGateway,
@@ -156,7 +161,11 @@ export async function saveDispenseForVisit(
     prescription.medicines,
     command.bearerToken,
   );
-  const dispense_status = computeOpdDispenseFulfillmentStatus(dispensableMedicines, catalogLines);
+  const dispense_status = computeOpdDispenseFulfillmentStatus(
+    dispensableMedicines,
+    catalogLines,
+    prescription.medicines.length,
+  );
 
   const previewAmounts = computeRecordAmounts(
     catalogLines.map((line) =>
@@ -184,5 +193,42 @@ export async function saveDispenseForVisit(
     created_by: command.createdBy ?? null,
   });
 
-  return toResponse(command.visitId, prescription, record, lines);
+  const filteredLines = await filterDispenseLineRecordsForTenantCatalog(
+    deps.masterDataGateway,
+    tenantId,
+    lines,
+    command.bearerToken,
+  );
+
+  const enrichedPrescription = await enrichPrescriptionDoctorName(
+    deps.userLookup,
+    tenantId,
+    prescription,
+  );
+
+  const existingProjection = await deps.opdQueueProjectionRepo.findByVisitId(
+    tenantId,
+    command.visitId,
+  );
+  if (existingProjection != null) {
+    await updateOpdQueueProjectionDispenseStatus(
+      { opdQueueProjectionRepo: deps.opdQueueProjectionRepo },
+      tenantId,
+      command.visitId,
+      dispense_status,
+    );
+  }
+
+  const queueProjection =
+    (await deps.opdQueueProjectionRepo.findByVisitId(tenantId, command.visitId)) ??
+    existingProjection;
+
+  return buildVisitDispenseResponse({
+    visitId: command.visitId,
+    opdPrescription: enrichedPrescription,
+    dispensableMedicines,
+    record,
+    rawLines: filteredLines,
+    queueProjection,
+  });
 }

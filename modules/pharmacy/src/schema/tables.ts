@@ -9,6 +9,7 @@ import {
   uuid,
   tenantColumn,
 } from "@hims/ts-sdk-db";
+import { integer } from "drizzle-orm/pg-core";
 
 export const PHARMACY_SCHEMA_NAME = "pharmacy" as const;
 export const pharmacySchema = pgSchema(PHARMACY_SCHEMA_NAME);
@@ -69,4 +70,29 @@ export const dispenseLineItems = pharmacySchema.table(
     created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.iq_tenant_id, t.id] })],
+);
+
+export const opdQueueProjection = pharmacySchema.table(
+  "opd_queue_projection",
+  {
+    visit_id: uuid("visit_id").notNull(),
+    ...tenantColumn(),
+    patient_id: uuid("patient_id").notNull(),
+    prescription_id: uuid("prescription_id").notNull(),
+    doctor_id: uuid("doctor_id"),
+    visit_status: text("visit_status").notNull(),
+    prescription_status: text("prescription_status").notNull(),
+    medicine_count: integer("medicine_count").notNull().default(0),
+    queued_at: timestamp("queued_at", { withTimezone: true }).notNull(),
+    patient_name: text("patient_name"),
+    uhid: text("uhid"),
+    phone: text("phone"),
+    age_years: integer("age_years"),
+    gender: text("gender"),
+    doctor_name: text("doctor_name"),
+    formatted_visit_id: text("formatted_visit_id"),
+    dispense_status: text("dispense_status").notNull().default("pending"),
+    last_synced_at: timestamp("last_synced_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.iq_tenant_id, t.visit_id] })],
 );

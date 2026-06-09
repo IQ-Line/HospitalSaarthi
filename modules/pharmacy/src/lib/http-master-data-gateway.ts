@@ -1,4 +1,5 @@
 import type { MasterDataGatewayPort } from "../ports.js";
+import { truncateUpstreamBody } from "./upstream-log.js";
 
 function joinUrl(base: string, path: string): string {
   const b = base.replace(/\/$/, "");
@@ -47,7 +48,7 @@ export class HttpMasterDataGateway implements MasterDataGatewayPort {
     if (!response.ok) {
       const body = await response.text();
       this.options?.warn?.(
-        { tenantId, medicineId, status: response.status, body },
+        { tenantId, medicineId, status: response.status, body: truncateUpstreamBody(body) },
         "Master Data medicine fetch rejected",
       );
       return null;

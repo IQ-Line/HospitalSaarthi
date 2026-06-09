@@ -23,7 +23,11 @@ paths:
   /queue:
     get:
       operationId: listPharmacyQueue
-      summary: List pharmacy queue rows (OPD visits with Rx and walk-in orders)
+      summary: List pharmacy queue rows (OPD prescriptions or walk-in orders)
+      description: |
+        OPD prescriptions (`kind=opd`) are read from `pharmacy.opd_queue_projection` (local projection
+        synced from OPD completed visits + pharmacy dispense status). Walk-in orders (`kind=walk_in`)
+        are read from pharmacy dispense records.
       tags: [Queue]
       parameters:
         - $ref: "#/components/parameters/TenantIdHeader"
@@ -50,6 +54,13 @@ paths:
             enum: [all, pending, partial_issue, issued]
             default: all
           description: Filter by dispense status (pending = no saved dispense, partial_issue = incomplete fulfillment, issued = fully dispensed).
+        - name: kind
+          in: query
+          schema:
+            type: string
+            enum: [opd, walk_in]
+            default: opd
+          description: Queue source — OPD prescriptions (paginated via OPD API) or walk-in counter orders (pharmacy DB).
       responses:
         "200":
           description: Queue page
@@ -58,6 +69,48 @@ paths:
               schema: { $ref: "#/components/schemas/PharmacyQueueResponse" }
         "502":
           description: Upstream OPD unavailable
+  /internal/opd-queue-projection/{visitId}:
+    put:
+      operationId: upsertOpdQueueProjection
+      summary: Upsert OPD prescription row into pharmacy queue projection (service-to-service)
+      description: |
+        Called by OPD when a consultation is completed with a final prescription. Idempotent on
+        `(iq_tenant_id, visit_id)`. Rows that fail pharmacy eligibility rules are removed.
+        Requires `iq_tenant_id` header and `x-pharmacy-internal-key` when
+        `PHARMACY_INTERNAL_API_KEY` is configured on pharmacy-svc. Cerbos is not enforced.
+      tags: [Queue]
+      security:
+        - internalServiceKey: []
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: visitId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OpdQueueProjectionUpsertRequest" }
+      responses:
+        "200":
+          description: Projection row upserted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OpdQueueProjectionRow" }
+        "204":
+          description: Visit is not eligible for the pharmacy queue; projection row removed if present
+        "400":
+          description: Invalid payload
+    delete:
+      operationId: removeOpdQueueProjection
+      summary: Remove a visit from the pharmacy queue projection
+      tags: [Queue]
+      security:
+        - internalServiceKey: []
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: visitId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204":
+          description: Row removed or already absent
   /visits/{visitId}/dispense-order:
     get:
       operationId: getDispenseForVisit
@@ -164,6 +217,13 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    internalServiceKey:
+      type: apiKey
+      in: header
+      name: x-pharmacy-internal-key
+      description: |
+        Shared secret for internal routes (OPD queue projection push/sync). Must match
+        PHARMACY_INTERNAL_API_KEY on pharmacy-svc. Optional in local dev when unset.
   parameters:
     TenantIdHeader:
       name: iq_tenant_id
@@ -222,6 +282,10 @@ components:
           type: string
           nullable: true
           description: Prescribing doctor display name from user management.
+        formatted_visit_id:
+          type: string
+          nullable: true
+          description: Human-readable visit number from registration (e.g. OP2606090000019).
         has_dispense:
           type: boolean
           description: True when a dispense record exists for this queue row.
@@ -230,6 +294,61 @@ components:
     PharmacyDispenseStatus:
       type: string
       enum: [pending, issued, partial_issue]
+    OpdQueueProjectionUpsertRequest:
+      type: object
+      required:
+        - patient_id
+        - prescription_id
+        - visit_status
+        - prescription_status
+        - medicine_count
+        - updated_at
+      properties:
+        patient_id: { type: string, format: uuid }
+        prescription_id: { type: string, format: uuid }
+        doctor_id: { type: string, format: uuid, nullable: true }
+        visit_status: { type: string }
+        prescription_status: { type: string }
+        medicine_count: { type: integer, minimum: 0 }
+        updated_at: { type: string, format: date-time }
+        finalized_at: { type: string, format: date-time, nullable: true }
+        patient_name: { type: string, nullable: true }
+        uhid: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        age_years: { type: integer, nullable: true }
+        gender: { type: string, nullable: true }
+        doctor_name: { type: string, nullable: true }
+        formatted_visit_id: { type: string, nullable: true }
+    OpdQueueProjectionRow:
+      type: object
+      required:
+        - visit_id
+        - patient_id
+        - prescription_id
+        - visit_status
+        - prescription_status
+        - medicine_count
+        - queued_at
+        - dispense_status
+        - last_synced_at
+      properties:
+        visit_id: { type: string, format: uuid }
+        patient_id: { type: string, format: uuid }
+        prescription_id: { type: string, format: uuid }
+        doctor_id: { type: string, format: uuid, nullable: true }
+        visit_status: { type: string }
+        prescription_status: { type: string }
+        medicine_count: { type: integer }
+        queued_at: { type: string, format: date-time }
+        patient_name: { type: string, nullable: true }
+        uhid: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        age_years: { type: integer, nullable: true }
+        gender: { type: string, nullable: true }
+        doctor_name: { type: string, nullable: true }
+        formatted_visit_id: { type: string, nullable: true }
+        dispense_status: { $ref: "#/components/schemas/PharmacyDispenseStatus" }
+        last_synced_at: { type: string, format: date-time }
     PharmacyQueueResponse:
       type: object
       required: [items, total, page, limit]
@@ -242,7 +361,7 @@ components:
         limit: { type: integer }
     OpdPrescriptionMedicineLine:
       type: object
-      required: [line_no, name, medicine_id]
+      required: [line_no, name]
       properties:
         line_no: { type: integer }
         medicine_id: { type: string, format: uuid, nullable: true }
@@ -374,6 +493,23 @@ components:
           type: array
           description: Prescription medicines that exist in the tenant master catalog (dispense table seed).
           items: { $ref: "#/components/schemas/OpdPrescriptionMedicineLine" }
+        patient_name:
+          type: string
+          nullable: true
+          description: Denormalized patient display name from pharmacy.opd_queue_projection.
+        uhid:
+          type: string
+          nullable: true
+        age_years:
+          type: integer
+          nullable: true
+        gender:
+          type: string
+          nullable: true
+        formatted_visit_id:
+          type: string
+          nullable: true
+          description: Human-readable visit number from registration (e.g. OP2606090000019).
     WalkInPatient:
       type: object
       required: [id, first_name, gender, created_at]

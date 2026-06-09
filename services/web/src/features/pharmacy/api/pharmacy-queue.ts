@@ -22,5 +22,8 @@ export async function fetchPharmacyQueue(
   if (params.status && params.status !== 'all') {
     search.set('status', params.status);
   }
+  if (params.kind && params.kind !== 'opd') {
+    search.set('kind', params.kind);
+  }
   return apiClient<PharmacyQueueListResponse>(`${PHARMACY_QUEUE_PATH}?${search.toString()}`);
 }

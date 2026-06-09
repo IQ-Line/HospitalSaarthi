@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { bearerTokenFromHeaders } from "../lib/bearer-token.js";
+import { assertPharmacyInternalAccess } from "../http/assert-pharmacy-internal-access.js";
 import type { PharmacyHandlerDeps } from "../ports.js";
 import type { SaveDispenseForVisitInput, SaveWalkInDispenseInput } from "../domain/pharmacy.types.js";
 import {
@@ -9,9 +10,16 @@ import {
 import { listPharmacyQueue } from "../use-cases/list-pharmacy-queue.js";
 import {
   DispensePatientMismatchError,
+  DispensePrescriptionMismatchError,
   DispenseValidationError,
   saveDispenseForVisit,
 } from "../use-cases/save-dispense-for-visit.js";
+import {
+  applyOpdQueueProjectionUpsert,
+  mapOpdQueueProjectionRowToWire,
+  removeOpdQueueProjection,
+} from "../use-cases/upsert-opd-queue-projection.js";
+import type { OpdQueueProjectionUpsertRequest } from "../use-cases/upsert-opd-queue-projection.js";
 import {
   WalkInDispenseNotFoundError,
   getWalkInDispense,
@@ -26,6 +34,7 @@ type QueueQuery = {
   queued_to?: string;
   q?: string;
   status?: string;
+  kind?: string;
 };
 
 type VisitParams = {
@@ -52,11 +61,8 @@ export function registerPharmacyHandlers(app: FastifyInstance, deps: PharmacyHan
       try {
         const result = await listPharmacyQueue(
           {
-            opdGateway: deps.opdGateway,
-            empiGateway: deps.empiGateway,
-            userLookup: deps.userLookup,
-            dispenseRecordRepo: deps.dispenseRecordRepo,
             walkInDispenseRepo: deps.walkInDispenseRepo,
+            opdQueueProjectionRepo: deps.opdQueueProjectionRepo,
           },
           request.tenantId,
           {
@@ -66,18 +72,64 @@ export function registerPharmacyHandlers(app: FastifyInstance, deps: PharmacyHan
             queued_to: request.query.queued_to,
             q: request.query.q,
             status: request.query.status,
+            kind: request.query.kind,
             bearerToken: bearerTokenFromHeaders(request.headers),
           },
         );
         return reply.send(result);
       } catch (error) {
         request.log.error({ err: error }, "pharmacy queue failed");
-        return reply.code(502).send({
-          statusCode: 502,
-          error: "Bad Gateway",
+        return reply.code(500).send({
+          statusCode: 500,
+          error: "Internal Server Error",
           message: "Unable to load pharmacy queue",
         });
       }
+    },
+  );
+
+  app.put<{ Params: VisitParams; Body: OpdQueueProjectionUpsertRequest }>(
+    "/internal/opd-queue-projection/:visitId",
+    { config: { authMode: "public" } },
+    async (request, reply) => {
+      assertPharmacyInternalAccess(request);
+      try {
+        const row = await applyOpdQueueProjectionUpsert(
+          {
+            opdQueueProjectionRepo: deps.opdQueueProjectionRepo,
+            dispenseRecordRepo: deps.dispenseRecordRepo,
+            userLookup: deps.userLookup,
+          },
+          request.tenantId,
+          request.params.visitId,
+          request.body,
+        );
+        if (row == null) {
+          return reply.code(204).send();
+        }
+        return reply.send(mapOpdQueueProjectionRowToWire(row));
+      } catch (error) {
+        request.log.error({ err: error }, "pharmacy projection upsert failed");
+        return reply.code(400).send({
+          statusCode: 400,
+          error: "Bad Request",
+          message: "Unable to upsert pharmacy queue projection",
+        });
+      }
+    },
+  );
+
+  app.delete<{ Params: VisitParams }>(
+    "/internal/opd-queue-projection/:visitId",
+    { config: { authMode: "public" } },
+    async (request, reply) => {
+      assertPharmacyInternalAccess(request);
+      await removeOpdQueueProjection(
+        { opdQueueProjectionRepo: deps.opdQueueProjectionRepo },
+        request.tenantId,
+        request.params.visitId,
+      );
+      return reply.code(204).send();
     },
   );
 
@@ -92,6 +144,7 @@ export function registerPharmacyHandlers(app: FastifyInstance, deps: PharmacyHan
             dispenseRecordRepo: deps.dispenseRecordRepo,
             masterDataGateway: deps.masterDataGateway,
             userLookup: deps.userLookup,
+            opdQueueProjectionRepo: deps.opdQueueProjectionRepo,
           },
           request.tenantId,
           {
@@ -128,6 +181,8 @@ export function registerPharmacyHandlers(app: FastifyInstance, deps: PharmacyHan
             opdGateway: deps.opdGateway,
             dispenseRecordRepo: deps.dispenseRecordRepo,
             masterDataGateway: deps.masterDataGateway,
+            userLookup: deps.userLookup,
+            opdQueueProjectionRepo: deps.opdQueueProjectionRepo,
           },
           request.tenantId,
           {
@@ -151,6 +206,13 @@ export function registerPharmacyHandlers(app: FastifyInstance, deps: PharmacyHan
           });
         }
         if (error instanceof DispensePatientMismatchError) {
+          return reply.code(400).send({
+            statusCode: 400,
+            error: "Bad Request",
+            message: error.message,
+          });
+        }
+        if (error instanceof DispensePrescriptionMismatchError) {
           return reply.code(400).send({
             statusCode: 400,
             error: "Bad Request",

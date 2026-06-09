@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  formatDispensePatientHeader,
+  formatDispenseVisitLabel,
   formatDoctorDisplay,
+  formatQueueVisitDisplay,
   formatRxNumber,
   matchesPharmacyQueueSearch,
   matchesPharmacyQueueStatus,
@@ -26,6 +29,7 @@ const row: PharmacyQueueItem = {
   age_years: 33,
   gender: 'female',
   doctor_name: 'Dr. Demo DoctorOne',
+  formatted_visit_id: 'OP2606090000019',
   has_dispense: false,
   dispense_status: 'pending',
 };
@@ -33,6 +37,23 @@ const row: PharmacyQueueItem = {
 describe('pharmacy-queue-display', () => {
   it('formats Rx number from prescription id', () => {
     expect(formatRxNumber(row.prescription_id)).toMatch(/^RX-/);
+  });
+
+  it('shows formatted visit id when present', () => {
+    expect(formatQueueVisitDisplay(row)).toBe('OP2606090000019');
+    expect(formatDispenseVisitLabel(row.visit_id ?? '', null)).toBe('B1111111');
+  });
+
+  it('formats dispense patient header from projection fields', () => {
+    expect(
+      formatDispensePatientHeader({
+        patient_id: row.patient_id ?? '',
+        patient_name: 'Jane Doe',
+        uhid: '123456789012345678',
+        age_years: 33,
+        gender: 'female',
+      }),
+    ).toBe('Jane Doe · 123456789012345678 · 33y · Female');
   });
 
   it('formats doctor display name with fallback', () => {

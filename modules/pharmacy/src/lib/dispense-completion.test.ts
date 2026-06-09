@@ -103,6 +103,23 @@ describe("dispense-completion", () => {
     ).toBe("issued");
   });
 
+  it("marks OPD dispense partial when dispensable medicines are empty but Rx had lines", () => {
+    expect(
+      computeOpdDispenseFulfillmentStatus(
+        [],
+        [
+          {
+            medicine_id: "med-1",
+            medicine_display_name: "Tab A",
+            quantity_dispensed: "1",
+            unit_amount: "10",
+          },
+        ],
+        2,
+      ),
+    ).toBe("partial_issue");
+  });
+
   it("marks walk-in dispense partial when line qty is short", () => {
     expect(
       computeWalkInDispenseFulfillmentStatus([

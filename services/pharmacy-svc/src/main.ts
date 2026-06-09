@@ -10,23 +10,22 @@ import {
   DrizzlePrincipalAuthorizationRepository,
   createDefaultPrincipalService,
   principalRoleEnricherPlugin,
+  resolveEffectiveTenantId,
+  assertTenantHeaderAllowedForPrincipal,
 } from "@hims/user-management";
 import {
   applyPharmacySchemaMigration,
   createPharmacyAuthzTargetResolver,
   createRouter,
-  HttpEmpiGateway,
   HttpMasterDataGateway,
   HttpOpdGateway,
 } from "@hims/pharmacy";
-import { resolvePharmacyRequestTenantId } from "./resolve-pharmacy-tenant-id.js";
 import { createPharmacyUserLookup } from "./adapters/pharmacy-user-lookup.js";
 
 const PORT = Number(process.env["PHARMACY_SVC_PORT"] ?? 3004);
 const DATABASE_URL = process.env["DATABASE_URL"] ?? "";
 const CERBOS_URL = process.env["CERBOS_URL"];
 const OPD_URL = process.env["OPD_URL"] ?? "http://localhost:8020";
-const EMPI_URL = process.env["EMPI_URL"] ?? "http://localhost:3002";
 const MASTER_DATA_URL = process.env["MASTER_DATA_URL"] ?? "http://localhost:8010";
 const PHARMACY_DEV_TENANT_ID =
   process.env["PHARMACY_DEV_TENANT_ID"] ?? "00000000-0000-0000-0000-000000000007";
@@ -44,6 +43,20 @@ async function main() {
     version: "1.0.0",
     description: "Custom pharmacy counter — OPD queue, dispense lines, manual billing.",
     apiPrefix: "/api/pharmacy/v1",
+    securitySchemes: {
+      bearerAuth: {
+        type: "http",
+        scheme: "bearer",
+        bearerFormat: "JWT",
+      },
+      internalServiceKey: {
+        type: "apiKey",
+        in: "header",
+        name: "x-pharmacy-internal-key",
+        description:
+          "Must match PHARMACY_INTERNAL_API_KEY on pharmacy-svc (internal routes only).",
+      },
+    },
   });
 
   app.get("/healthz", async () => ({ status: "ok" }));
@@ -59,9 +72,6 @@ async function main() {
 
   const db = createDb(DATABASE_URL);
   const opdGateway = new HttpOpdGateway(OPD_URL, {
-    warn: (detail, message) => app.log.warn(detail, message),
-  });
-  const empiGateway = new HttpEmpiGateway(EMPI_URL, {
     warn: (detail, message) => app.log.warn(detail, message),
   });
   const masterDataGateway = new HttpMasterDataGateway(MASTER_DATA_URL, {
@@ -83,21 +93,57 @@ async function main() {
   await assertCerbosReachable(CERBOS_URL);
 
   await app.register(async (api) => {
-    api.addHook("onRequest", async (request) => {
-      const tenant = resolvePharmacyRequestTenantId(request.headers, PHARMACY_DEV_TENANT_ID);
-      request.headers["iq_tenant_id"] = tenant;
-      request.headers["x-tenant-id"] = tenant;
-    });
-    await api.register(tenantPlugin);
-
     await api.register(identityPlugin, {
       ...identityAuth,
-      skipPathPrefixes: ["/docs"],
+      // Internal routes use x-pharmacy-internal-key (see assertPharmacyInternalAccess), not user JWT.
+      skipPathPrefixes: ["/docs", "/internal", "/api/pharmacy/v1/internal"],
     });
     await api.register(principalRoleEnricherPlugin, {
       principalService,
       userRepository,
     });
+
+    api.addHook("onRequest", async (request, reply) => {
+      const path = request.url.split("?")[0] ?? "";
+      if (path.endsWith("/docs") || path.includes("/docs/")) {
+        return;
+      }
+
+      const requestUser = (request as { user?: unknown }).user;
+      if (requestUser != null) {
+        const tenantCheck = assertTenantHeaderAllowedForPrincipal(request);
+        if (!tenantCheck.ok) {
+          return reply.code(403).send({
+            statusCode: 403,
+            error: "Forbidden",
+            message: "Tenant header does not match authenticated principal",
+          });
+        }
+        const tenant = resolveEffectiveTenantId(request);
+        request.headers["iq_tenant_id"] = tenant;
+        request.headers["x-tenant-id"] = tenant;
+        return;
+      }
+
+      const headerTenant =
+        typeof request.headers["iq_tenant_id"] === "string"
+          ? request.headers["iq_tenant_id"].trim()
+          : typeof request.headers["x-tenant-id"] === "string"
+            ? request.headers["x-tenant-id"].trim()
+            : "";
+      if (headerTenant.length > 0) {
+        request.headers["iq_tenant_id"] = headerTenant;
+        request.headers["x-tenant-id"] = headerTenant;
+        return;
+      }
+
+      if (process.env["NODE_ENV"] !== "production" && process.env["AUTH_POLICY"] !== "required") {
+        request.headers["iq_tenant_id"] = PHARMACY_DEV_TENANT_ID;
+        request.headers["x-tenant-id"] = PHARMACY_DEV_TENANT_ID;
+      }
+    });
+
+    await api.register(tenantPlugin);
     await api.register(authzPlugin, {
       cerbosUrl: CERBOS_URL,
       resolveTarget: createPharmacyAuthzTargetResolver(),
@@ -107,7 +153,6 @@ async function main() {
       createRouter({
         db,
         opdGateway,
-        empiGateway,
         masterDataGateway,
         userLookup,
       }),

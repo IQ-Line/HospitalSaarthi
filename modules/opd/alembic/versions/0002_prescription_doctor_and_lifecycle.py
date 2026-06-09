@@ -81,23 +81,22 @@ def upgrade() -> None:
             UPDATE {SCHEMA}.prescriptions p
             SET doctor_id = rv.doctor_id
             FROM registration.visit rv
-            WHERE rv.visit_id::uuid = p.visit_id
-              AND rv.iq_tenant_id::uuid = p.tenant_id
+            WHERE rv.id = p.visit_id
+              AND rv.iq_tenant_id = p.tenant_id
               AND p.doctor_id IS NULL
               AND rv.doctor_id IS NOT NULL
             """
         )
     )
 
-    op.execute(
-        sa.text(
-            f"""
-            UPDATE {SCHEMA}.prescriptions
-            SET doctor_id = 'f47ac10b-58cc-4372-a567-0e02b2c3d482'::uuid
-            WHERE doctor_id IS NULL
-            """
+    remaining_null = conn.execute(
+        sa.text(f"SELECT COUNT(*) FROM {SCHEMA}.prescriptions WHERE doctor_id IS NULL")
+    ).scalar()
+    if remaining_null and int(remaining_null) > 0:
+        raise RuntimeError(
+            f"Cannot enforce prescriptions.doctor_id NOT NULL: "
+            f"{remaining_null} row(s) still missing doctor_id after registration.visit backfill"
         )
-    )
 
     nullable = conn.execute(
         sa.text(

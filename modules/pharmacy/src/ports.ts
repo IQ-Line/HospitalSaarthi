@@ -4,42 +4,22 @@ import type {
   DispenseFulfillmentStatus,
   OpdCompletedVisitSummary,
   OpdPrescriptionSnapshot,
+  OpdQueueProjectionRow,
+  OpdQueueProjectionUpsertInput,
+  PharmacyDispenseStatus,
   SaveDispenseForVisitInput,
   SaveWalkInDispenseInput,
   WalkInPatientRecord,
   WalkInQueueSummary,
 } from "./domain/pharmacy.types.js";
+import type { PharmacyQueueStatusFilter } from "./lib/pharmacy-queue-filter.js";
 
 export interface OpdGatewayPort {
-  listCompletedVisits(
-    tenantId: string,
-    options?: {
-      page?: number;
-      limit?: number;
-      queued_from?: string;
-      queued_to?: string;
-      bearerToken?: string;
-    },
-  ): Promise<{
-    items: OpdCompletedVisitSummary[];
-    total: number;
-    page: number;
-    limit: number;
-  }>;
-
   getVisitPrescription(
     tenantId: string,
     visitId: string,
     bearerToken?: string,
   ): Promise<OpdPrescriptionSnapshot | null>;
-}
-
-export interface EmpiGatewayPort {
-  getPatientSummary(
-    tenantId: string,
-    patientId: string,
-    bearerToken?: string,
-  ): Promise<Record<string, unknown> | null>;
 }
 
 export interface MasterDataGatewayPort {
@@ -88,11 +68,15 @@ export interface WalkInDispenseRepo {
   findByRecordId(tenantId: string, recordId: string): Promise<WalkInDispenseDetail | undefined>;
   listForQueue(
     tenantId: string,
-    options?: {
+    options: {
+      page: number;
+      limit: number;
       queued_from?: string;
       queued_to?: string;
+      search?: string;
+      status?: PharmacyQueueStatusFilter;
     },
-  ): Promise<WalkInQueueSummary[]>;
+  ): Promise<{ items: WalkInQueueSummary[]; total: number }>;
   create(tenantId: string, payload: UpsertWalkInDispensePayload): Promise<WalkInDispenseDetail>;
   upsert(
     tenantId: string,
@@ -101,14 +85,40 @@ export interface WalkInDispenseRepo {
   ): Promise<WalkInDispenseDetail>;
 }
 
+export interface OpdQueueProjectionRepo {
+  listForQueue(
+    tenantId: string,
+    options: {
+      page: number;
+      limit: number;
+      queued_from?: string;
+      queued_to?: string;
+      search?: string;
+      status?: PharmacyQueueStatusFilter;
+    },
+  ): Promise<{ items: OpdQueueProjectionRow[]; total: number }>;
+
+  upsert(tenantId: string, input: OpdQueueProjectionUpsertInput): Promise<OpdQueueProjectionRow>;
+
+  updateDispenseStatus(
+    tenantId: string,
+    visitId: string,
+    dispenseStatus: PharmacyDispenseStatus,
+  ): Promise<void>;
+
+  deleteByVisitId(tenantId: string, visitId: string): Promise<void>;
+
+  findByVisitId(tenantId: string, visitId: string): Promise<OpdQueueProjectionRow | undefined>;
+}
+
 export type PharmacyRepos = {
   dispenseRecordRepo: DispenseRecordRepo;
   walkInDispenseRepo: WalkInDispenseRepo;
+  opdQueueProjectionRepo: OpdQueueProjectionRepo;
 };
 
 export type PharmacyGatewayPorts = {
   opdGateway: OpdGatewayPort;
-  empiGateway: EmpiGatewayPort;
   masterDataGateway: MasterDataGatewayPort;
   userLookup: UserLookupPort;
 };

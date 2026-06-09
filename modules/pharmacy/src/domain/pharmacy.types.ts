@@ -48,6 +48,31 @@ export type DispenseLineItemRecord = {
   created_at: Date;
 };
 
+/** Public API dispense line — excludes internal DB fields. */
+export type DispenseLineItem = {
+  id: string;
+  medicine_id: string | null;
+  medicine_display_name: string;
+  prescribed_quantity: string | null;
+  quantity_dispensed: string;
+  unit_amount: string;
+  line_discount: string;
+  tax_percent: string;
+  tax_amount: string;
+  line_total: string;
+};
+
+/** Public API walk-in patient — excludes tenant id. */
+export type WalkInPatient = {
+  id: string;
+  first_name: string;
+  last_name: string | null;
+  phone: string | null;
+  gender: string;
+  date_of_birth: string | null;
+  created_at: string;
+};
+
 export type OpdCompletedVisitSummary = {
   visit_id: string;
   patient_id: string;
@@ -58,6 +83,46 @@ export type OpdCompletedVisitSummary = {
   updated_at: string;
   finalized_at: string | null;
   medicine_count: number;
+};
+
+export type OpdQueueProjectionRow = {
+  visit_id: string;
+  iq_tenant_id: string;
+  patient_id: string;
+  prescription_id: string;
+  doctor_id: string | null;
+  visit_status: string;
+  prescription_status: string;
+  medicine_count: number;
+  queued_at: Date;
+  patient_name: string | null;
+  uhid: string | null;
+  phone: string | null;
+  age_years: number | null;
+  gender: string | null;
+  doctor_name: string | null;
+  formatted_visit_id: string | null;
+  dispense_status: PharmacyDispenseStatus;
+  last_synced_at: Date;
+};
+
+export type OpdQueueProjectionUpsertInput = {
+  visit_id: string;
+  patient_id: string;
+  prescription_id: string;
+  doctor_id: string | null;
+  visit_status: string;
+  prescription_status: string;
+  medicine_count: number;
+  queued_at: Date;
+  patient_name: string | null;
+  uhid: string | null;
+  phone: string | null;
+  age_years: number | null;
+  gender: string | null;
+  doctor_name: string | null;
+  formatted_visit_id: string | null;
+  dispense_status: PharmacyDispenseStatus;
 };
 
 export type WalkInQueueSummary = {
@@ -93,6 +158,7 @@ export type PharmacyQueueItem = {
   age_years: number | null;
   gender: string | null;
   doctor_name: string | null;
+  formatted_visit_id: string | null;
   has_dispense: boolean;
   dispense_status: PharmacyDispenseStatus;
 };
@@ -161,7 +227,7 @@ export type SaveWalkInDispenseInput = {
 export type WalkInDispenseResponse = {
   record_id: string;
   walk_in_order: true;
-  walk_in_patient: WalkInPatientRecord;
+  walk_in_patient: WalkInPatient;
   subtotal: string;
   discount: string;
   total_amount: string;
@@ -169,7 +235,7 @@ export type WalkInDispenseResponse = {
   has_dispense: boolean;
   dispense_status: PharmacyDispenseStatus;
   created_at: string;
-  lines: DispenseLineItemRecord[];
+  lines: DispenseLineItem[];
 };
 
 export type DispenseForVisitResponse = {
@@ -184,9 +250,15 @@ export type DispenseForVisitResponse = {
   dispense_status: PharmacyDispenseStatus;
   record_id: string | null;
   created_at: string | null;
-  lines: DispenseLineItemRecord[];
+  lines: DispenseLineItem[];
   /** Full OPD prescription for sidebar display (all prescribed medicines). */
   opd_prescription: OpdPrescriptionSnapshot | null;
   /** Catalog-backed medicines eligible for the dispense billing table. */
   dispensable_medicines: OpdPrescriptionMedicineLine[];
+  /** Denormalized from pharmacy.opd_queue_projection (no live EMPI read). */
+  patient_name: string | null;
+  uhid: string | null;
+  age_years: number | null;
+  gender: string | null;
+  formatted_visit_id: string | null;
 };
