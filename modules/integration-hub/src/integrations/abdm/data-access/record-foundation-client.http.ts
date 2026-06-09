@@ -6,6 +6,65 @@ import type {
   RecordFoundationClient,
 } from "../ports.js";
 
+type ProjectedCareContextInput = {
+  referenceNumber: string;
+  display: string;
+  hiType: string;
+};
+
+const projectedUnlinkedByPatient = new Map<string, CareContextRef[]>();
+let devProjectionWarned = false;
+
+function warnDevMemoryProjectionOnce(): void {
+  if (devProjectionWarned) return;
+  devProjectionWarned = true;
+  abdmWarn("abdm.rf.dev_memory_projection", {
+    message:
+      "Care contexts stored in-process only (Record Foundation ingest not wired). " +
+      "Not safe for multi-instance or production — restart clears discover projection.",
+  });
+}
+
+function projectionKey(iqTenantId: string, patientId: string): string {
+  return `${iqTenantId}:${patientId}`;
+}
+
+function toCareContextRef(ctx: ProjectedCareContextInput): CareContextRef {
+  return {
+    id: ctx.referenceNumber,
+    referenceNumber: ctx.referenceNumber,
+    display: ctx.display,
+    hiType: ctx.hiType,
+  };
+}
+
+function registerProjectedContexts(input: {
+  iqTenantId: string;
+  patientId: string;
+  contexts: ProjectedCareContextInput[];
+}): void {
+  const key = projectionKey(input.iqTenantId, input.patientId);
+  const existing = projectedUnlinkedByPatient.get(key) ?? [];
+  const byRef = new Map(existing.map((c) => [c.referenceNumber, c]));
+  for (const ctx of input.contexts) {
+    byRef.set(ctx.referenceNumber, toCareContextRef(ctx));
+  }
+  projectedUnlinkedByPatient.set(key, [...byRef.values()]);
+}
+
+function listProjectedContexts(iqTenantId: string, patientId: string): CareContextRef[] {
+  return [...(projectedUnlinkedByPatient.get(projectionKey(iqTenantId, patientId)) ?? [])];
+}
+
+function markProjectedLinked(iqTenantId: string, careContextId: string): void {
+  for (const [key, rows] of projectedUnlinkedByPatient) {
+    if (!key.startsWith(`${iqTenantId}:`)) continue;
+    const next = rows.filter((r) => r.id !== careContextId && r.referenceNumber !== careContextId);
+    if (next.length === 0) projectedUnlinkedByPatient.delete(key);
+    else projectedUnlinkedByPatient.set(key, next);
+  }
+}
+
 export class RecordFoundationHttpError extends Error {
   constructor(
     message: string,
@@ -19,11 +78,24 @@ export class RecordFoundationHttpError extends Error {
 export class HttpRecordFoundationClient implements RecordFoundationClient {
   constructor(private readonly baseUrl: string) {}
 
+  async registerUnlinkedCareContexts(input: {
+    iqTenantId: string;
+    patientId: string;
+    contexts: ProjectedCareContextInput[];
+  }): Promise<void> {
+    if (!this.baseUrl) {
+      warnDevMemoryProjectionOnce();
+    }
+    registerProjectedContexts(input);
+  }
+
   async listUnlinkedCareContexts(input: {
     iqTenantId: string;
     patientId: string;
   }): Promise<CareContextRef[]> {
-    if (!this.baseUrl) return [];
+    const projected = listProjectedContexts(input.iqTenantId, input.patientId);
+    if (!this.baseUrl) return projected;
+
     const url = new URL(
       "/api/v1/timeline-index",
       this.baseUrl.replace(/\/+$/, ""),
@@ -35,6 +107,7 @@ export class HttpRecordFoundationClient implements RecordFoundationClient {
       headers: { "x-tenant-id": input.iqTenantId, Accept: "application/json" },
     });
     if (!res.ok) {
+      if (projected.length > 0) return projected;
       throw new RecordFoundationHttpError(
         `listUnlinkedCareContexts failed: ${res.status}`,
         res.status,
@@ -43,19 +116,26 @@ export class HttpRecordFoundationClient implements RecordFoundationClient {
     const json = (await res.json()) as {
       items?: Array<{ id: string; display?: string; referenceNumber?: string; hiType?: string }>;
     };
-    return (json.items ?? []).map((item) => ({
+    const remote = (json.items ?? []).map((item) => ({
       id: item.id,
       referenceNumber: item.referenceNumber ?? item.id,
       display: item.display ?? item.referenceNumber ?? item.id,
       hiType: item.hiType,
     }));
+    const byRef = new Map(projected.map((c) => [c.referenceNumber, c]));
+    for (const row of remote) byRef.set(row.referenceNumber, row);
+    return [...byRef.values()];
   }
 
   async markCareContextLinked(input: {
     iqTenantId: string;
     careContextId: string;
   }): Promise<void> {
-    if (!this.baseUrl) return;
+    if (!this.baseUrl) {
+      markProjectedLinked(input.iqTenantId, input.careContextId);
+      return;
+    }
+    markProjectedLinked(input.iqTenantId, input.careContextId);
     const url = `${this.baseUrl.replace(/\/+$/, "")}/api/v1/care-context/${input.careContextId}`;
     const res = await fetchWithTimeout(url, {
       method: "PATCH",
@@ -122,12 +202,26 @@ export class HttpRecordFoundationClient implements RecordFoundationClient {
 }
 
 export class NoOpRecordFoundationClient implements RecordFoundationClient {
-  async listUnlinkedCareContexts(): Promise<CareContextRef[]> {
-    return [];
+  async registerUnlinkedCareContexts(input: {
+    iqTenantId: string;
+    patientId: string;
+    contexts: ProjectedCareContextInput[];
+  }): Promise<void> {
+    registerProjectedContexts(input);
   }
 
-  async markCareContextLinked(): Promise<void> {
-    /* no-op */
+  async listUnlinkedCareContexts(input: {
+    iqTenantId: string;
+    patientId: string;
+  }): Promise<CareContextRef[]> {
+    return listProjectedContexts(input.iqTenantId, input.patientId);
+  }
+
+  async markCareContextLinked(input: {
+    iqTenantId: string;
+    careContextId: string;
+  }): Promise<void> {
+    markProjectedLinked(input.iqTenantId, input.careContextId);
   }
 
   async fetchBundlesForConsent(): Promise<HealthRecordBundleEntry[]> {

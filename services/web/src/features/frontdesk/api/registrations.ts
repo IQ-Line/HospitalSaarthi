@@ -1,7 +1,8 @@
-import { apiClient } from '@/lib/api-client';
+import { ApiError, apiClient } from '@/lib/api-client';
 import { executeVisitRegistrationBilling } from '@/features/frontdesk/api/visit-registration-billing';
 import {
   mapVisitRegistrationToAppointmentBody,
+  mapVisitRegistrationToExistingPatientIntakeBody,
   mapVisitRegistrationToNewPatientIntakeBody,
 } from '@/features/frontdesk/utils/visit-registration-helpers';
 import { formatPatientAddressForReport } from '@/features/frontdesk/utils/report-address';
@@ -104,6 +105,64 @@ export async function createNewPatientRegistration(
   );
 }
 
+export async function createExistingPatientRegistration(
+  body: Record<string, unknown>,
+  options?: { idempotencyKey?: string },
+): Promise<CreateNewPatientRegistrationResponse> {
+  return apiClient<CreateNewPatientRegistrationResponse>(
+    `${registrationApiBase()}/workflows/existing-patient/registrations`,
+    {
+      method: 'POST',
+      headers: {
+        'Idempotency-Key': options?.idempotencyKey ?? newIdempotencyKey(),
+      },
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+const PATIENT_ID_UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function patientIdFromAlreadyExistsError(err: ApiError): string | undefined {
+  if (err.status !== 409) return undefined;
+  try {
+    const parsed = JSON.parse(err.body) as { patient_id?: unknown; code?: unknown };
+    if (parsed.code !== 'patient_already_exists') return undefined;
+    const id = typeof parsed.patient_id === 'string' ? parsed.patient_id.trim() : '';
+    return PATIENT_ID_UUID.test(id) ? id : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function registerVisitIntake(
+  form: CreateVisitRequestBody,
+  options: { idempotencyKey: string; existingPatientId?: string },
+): Promise<CreateNewPatientRegistrationResponse> {
+  const { idempotencyKey, existingPatientId } = options;
+  if (existingPatientId) {
+    return createExistingPatientRegistration(
+      mapVisitRegistrationToExistingPatientIntakeBody(form, existingPatientId),
+      { idempotencyKey },
+    );
+  }
+  try {
+    return await createNewPatientRegistration(
+      mapVisitRegistrationToNewPatientIntakeBody(form),
+      { idempotencyKey },
+    );
+  } catch (err) {
+    if (!(err instanceof ApiError)) throw err;
+    const patientId = patientIdFromAlreadyExistsError(err);
+    if (!patientId) throw err;
+    return createExistingPatientRegistration(
+      mapVisitRegistrationToExistingPatientIntakeBody(form, patientId),
+      { idempotencyKey },
+    );
+  }
+}
+
 export interface StubAppointmentResponse {
   appointment_id: string;
   registration_id: string;
@@ -156,19 +215,23 @@ export interface CreateVisitFlowResult extends CreateNewPatientRegistrationRespo
 /**
  * Desk **Create Visit** orchestration (sequential).
  *
- * 1. registration-svc — `POST .../workflows/new-patient/registrations` (real)
+ * 1. registration-svc — new-patient or existing-patient workflow (real)
  * 2. appointment-svc — stub
  * 3. billing-svc — charges, discount, finalize, payment (real)
  * 4. registration-svc — `POST .../visits/:id/complete` (real)
  */
 export async function executeCreateVisitFlow(
   form: CreateVisitRequestBody,
-  options: { idempotencyKey: string; reportMeta?: RegistrationReportMeta },
+  options: {
+    idempotencyKey: string;
+    reportMeta?: RegistrationReportMeta;
+    existingPatientId?: string;
+  },
 ): Promise<CreateVisitFlowResult> {
-  const registration = await createNewPatientRegistration(
-    mapVisitRegistrationToNewPatientIntakeBody(form),
-    { idempotencyKey: options.idempotencyKey },
-  );
+  const registration = await registerVisitIntake(form, {
+    idempotencyKey: options.idempotencyKey,
+    existingPatientId: options.existingPatientId,
+  });
 
   await createAppointmentStub(form, registration);
   const billing = await executeVisitRegistrationBilling(form, {

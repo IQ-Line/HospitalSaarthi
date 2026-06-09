@@ -225,4 +225,25 @@ export class DrizzleAbdmSessionsRepo implements AbdmSessionsPort {
     const row = rows[0];
     return row ? rowToSession(row, this.tokenCrypto) : null;
   }
+
+  async findAddContextsNotifiedByCareContextReference(input: {
+    iqTenantId: string;
+    careContextReference: string;
+  }): Promise<AbdmSession | null> {
+    const refJson = JSON.stringify([input.careContextReference]);
+    const rows = await this.db
+      .select()
+      .from(abdmSessions)
+      .where(
+        and(
+          eq(abdmSessions.iq_tenant_id, input.iqTenantId),
+          eq(abdmSessions.flow_kind, "abdm.m2.add-contexts.v1"),
+          eq(abdmSessions.state, "NOTIFIED"),
+          sql`${abdmSessions.context}->'careContextReferences' @> ${refJson}::jsonb`,
+        ),
+      )
+      .limit(1);
+    const row = rows[0];
+    return row ? rowToSession(row, this.tokenCrypto) : null;
+  }
 }

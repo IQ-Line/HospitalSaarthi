@@ -77,6 +77,10 @@ export {
   NoOpEmpiClient,
 } from "./integrations/abdm/data-access/empi-client.http.js";
 export {
+  HttpRegistrationClient,
+  NoOpRegistrationClient,
+} from "./integrations/abdm/data-access/registration-client.http.js";
+export {
   HttpRecordFoundationClient,
   NoOpRecordFoundationClient,
 } from "./integrations/abdm/data-access/record-foundation-client.http.js";

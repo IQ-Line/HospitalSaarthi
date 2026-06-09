@@ -90,6 +90,7 @@ const demographicsSchema = {
     emergency_contact_relationship: { type: "string" },
     emergency_contact_phone: { type: "string" },
     abha_number: { type: "string" },
+    abha_address: { type: "string" },
     force_create: { type: "boolean" },
   },
 } as const;

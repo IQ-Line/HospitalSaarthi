@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { getAbdmDeps } from "../../../../lib/get-abdm-deps.js";
 import { hipInitiatedLinkStart } from "../../use-cases/m2/hip-initiated-link/start.js";
 import { addContextsPublish } from "../../use-cases/m2/add-contexts/publish.js";
+import { orchestrateM2AfterCareContexts } from "../../use-cases/m2/orchestrate-m2-after-care-contexts.js";
 import { smsNotifyRequest } from "../../use-cases/m2/sms-notify/request.js";
 import { LinkTokenNotAvailable } from "../../lib/link-token-cache.js";
 import { linkTokenAcquire } from "../../use-cases/m2/link-token/acquire.js";
@@ -9,6 +10,7 @@ import { getLinkTokenStatus } from "../../use-cases/m2/link-token/status.js";
 import { getAbdmSession } from "../../use-cases/m2/sessions/get-session.js";
 import {
   addContextsPublishBodySchema,
+  orchestrateM2AfterCareContextsBodySchema,
   hipInitiatedLinkStartBodySchema,
   linkTokenAcquireBodySchema,
   linkTokenStatusQuerySchema,
@@ -121,6 +123,31 @@ export async function registerM2PlatformRoutes(app: FastifyInstance): Promise<vo
       throw e;
     }
   },
+  );
+
+  app.post(
+    "/m2/orchestrate/after-care-contexts",
+    { schema: { body: orchestrateM2AfterCareContextsBodySchema } },
+    async (req, reply) => {
+      const iqTenantId = req.tenantId?.trim() ?? "";
+      if (!iqTenantId) {
+        return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
+      }
+      const body = req.body as {
+        patientId: string;
+        careContexts: Array<{
+          referenceNumber: string;
+          display: string;
+          hiType: string;
+        }>;
+        eventDate?: string;
+      };
+      const result = await orchestrateM2AfterCareContexts(
+        { iqTenantId, ...body },
+        getAbdmDeps(req),
+      );
+      return reply.status(202).send(result);
+    },
   );
 
   app.post(

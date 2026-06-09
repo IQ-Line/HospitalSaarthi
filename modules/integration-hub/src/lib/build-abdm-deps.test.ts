@@ -41,6 +41,7 @@ function mockSharedInfra(profiles: IntegrationProfileRepo): IntegrationHubShared
     m3ConsentArtefactsHiu: {} as IntegrationHubSharedInfra["m3ConsentArtefactsHiu"],
     m3DataTransfers: {} as IntegrationHubSharedInfra["m3DataTransfers"],
     empi: {} as IntegrationHubSharedInfra["empi"],
+    registration: {} as IntegrationHubSharedInfra["registration"],
     recordFoundation: {} as IntegrationHubSharedInfra["recordFoundation"],
     fidelius: {} as IntegrationHubSharedInfra["fidelius"],
     payloadEncryptor: {} as IntegrationHubSharedInfra["payloadEncryptor"],
