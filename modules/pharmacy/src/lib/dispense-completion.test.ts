@@ -120,6 +120,56 @@ describe("dispense-completion", () => {
     ).toBe("partial_issue");
   });
 
+  it("marks OPD dispense issued when dispensed qty exceeds prescribed", () => {
+    expect(
+      computeOpdDispenseFulfillmentStatus(
+        [
+          {
+            line_no: 1,
+            medicine_id: "med-1",
+            name: "Paracetamol",
+            strength: null,
+            dosage: null,
+            duration: null,
+            frequency: null,
+            quantity: "4",
+            route: null,
+          },
+        ],
+        [
+          {
+            medicine_id: "med-1",
+            medicine_display_name: "Paracetamol",
+            prescribed_quantity: "4",
+            quantity_dispensed: "4",
+            unit_amount: "100",
+          },
+          {
+            medicine_id: "med-1",
+            medicine_display_name: "Paracetamol",
+            prescribed_quantity: null,
+            quantity_dispensed: "1",
+            unit_amount: "100",
+          },
+        ],
+      ),
+    ).toBe("issued");
+  });
+
+  it("marks walk-in dispense issued when line qty exceeds prescribed", () => {
+    expect(
+      computeWalkInDispenseFulfillmentStatus([
+        {
+          medicine_id: "med-1",
+          medicine_display_name: "Tab A",
+          prescribed_quantity: "4",
+          quantity_dispensed: "5",
+          unit_amount: "10",
+        },
+      ]),
+    ).toBe("issued");
+  });
+
   it("marks walk-in dispense partial when line qty is short", () => {
     expect(
       computeWalkInDispenseFulfillmentStatus([

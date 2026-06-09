@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react';
 import { Input } from '@pulse/ui/input';
 import { useVisitpadMedicines } from '@/features/visitpad/api';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
+import { formatDispenseDecimalInput } from '../lib/dispense-billing';
 import {
   activeMedicineSuggestions,
   formatMedicineSuggestionLabel,
@@ -167,7 +168,7 @@ export function PharmacyMedicineSearchInput({
   ) => {
     const unitPrice =
       medicine.price != null && Number.isFinite(medicine.price) && medicine.price >= 0
-        ? medicine.price.toFixed(4)
+        ? formatDispenseDecimalInput(String(medicine.price))
         : null;
     onMedicineSelect({ id: medicine.id, displayName, unitPrice });
     setQuery(displayName);
