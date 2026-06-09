@@ -1,18 +1,15 @@
 import type { IntegrationTypeCatalogEntry } from "./integration.types.js";
 import { PARTNER_EXPOSED_OPERATIONS } from "./partner-exposed-operations.js";
 
+/** Single integration type — operators choose allowed operations at create time. */
+export const DEFAULT_INTEGRATION_TYPE = "partner" as const;
+
 export const INTEGRATION_TYPE_CATALOG: readonly IntegrationTypeCatalogEntry[] = [
   {
-    type: "smart_report",
-    display_name: "Smart Report",
-    default_allowed_operations: [
-      "registration.listRegistrations",
-      "empi.getPatient",
-    ],
-    default_suggested_capability_keys: [
-      "registration:registration:read",
-      "empi:patient:read",
-    ],
+    type: DEFAULT_INTEGRATION_TYPE,
+    display_name: "Partner integration",
+    default_allowed_operations: [],
+    default_suggested_capability_keys: [],
   },
 ] as const;
 

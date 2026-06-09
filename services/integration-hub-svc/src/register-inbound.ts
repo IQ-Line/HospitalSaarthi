@@ -6,6 +6,8 @@ export type RegisterInboundOptions = {
   db: DbInstance;
   registrationBaseUrl: string;
   empiBaseUrl: string;
+  configuratorBaseUrl: string;
+  masterDataBaseUrl: string;
 };
 
 export async function registerInbound(
@@ -17,6 +19,8 @@ export async function registerInbound(
     db: options.db,
     registrationBaseUrl: options.registrationBaseUrl,
     empiBaseUrl: options.empiBaseUrl,
+    configuratorBaseUrl: options.configuratorBaseUrl,
+    masterDataBaseUrl: options.masterDataBaseUrl,
     partnerJwt,
   });
 

@@ -64,6 +64,12 @@ const REGISTRATION_BASE_URL =
   process.env["REGISTRATION_SVC_URL"] ?? process.env["REGISTRATION_URL"] ?? "http://localhost:3006";
 const INBOUND_EMPI_BASE_URL =
   process.env["EMPI_SVC_URL"] ?? process.env["EMPI_URL"] ?? "http://localhost:3002";
+const INBOUND_CONFIGURATOR_BASE_URL =
+  process.env["CONFIGURATOR_URL"] ??
+  process.env["CONFIGURATOR_SVC_URL"] ??
+  "http://localhost:3001";
+const INBOUND_MASTER_DATA_BASE_URL =
+  process.env["MASTER_DATA_URL"] ?? process.env["MASTER_DATA_SVC_URL"] ?? "http://localhost:8010";
 
 const GATEWAY_BASE_URL =
   process.env["INTEGRATION_HUB_ABDM_GATEWAY_BASE_URL"] ??
@@ -293,6 +299,8 @@ async function main() {
         db,
         registrationBaseUrl: REGISTRATION_BASE_URL,
         empiBaseUrl: INBOUND_EMPI_BASE_URL,
+        configuratorBaseUrl: INBOUND_CONFIGURATOR_BASE_URL,
+        masterDataBaseUrl: INBOUND_MASTER_DATA_BASE_URL,
       });
       app.log.info(
         "Integration Hub inbound data plane mounted at /api/integration-hub/v1/inbound",

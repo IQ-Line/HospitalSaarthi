@@ -41,8 +41,11 @@ describe("activateIntegration", () => {
       { integrationRepository },
       { tenantId: TENANT, actorId: ACTOR },
       {
-        integration_type: "smart_report",
+        integration_type: "partner",
         display_name: "Smart Report Partner",
+        config: {
+          allowedOperations: ["registration.listRegistrations", "empi.getPatient"],
+        },
       },
     );
     expect(draft.config.suggestedCapabilityKeys?.length).toBeGreaterThan(0);

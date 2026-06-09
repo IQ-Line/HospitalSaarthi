@@ -23,6 +23,19 @@ export type IntegrationTypeCatalogEntry = {
   default_suggested_capability_keys: string[];
 };
 
+export type PartnerOperationCatalogEntry = {
+  id: string;
+  group: string;
+  label: string;
+  description: string;
+  inbound_path: string;
+};
+
+export type IntegrationTypeCatalogResponse = {
+  items: IntegrationTypeCatalogEntry[];
+  partner_operations: PartnerOperationCatalogEntry[];
+};
+
 export type IntegrationApiKey = {
   api_key_id: string;
   integration_id: string;
@@ -41,4 +54,5 @@ export type IssuedIntegrationApiKey = IntegrationApiKey & {
 export type CreateIntegrationBody = {
   integration_type: string;
   display_name: string;
+  config?: Partial<IntegrationConfig>;
 };

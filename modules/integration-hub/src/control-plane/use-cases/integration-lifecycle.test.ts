@@ -66,7 +66,13 @@ describe("integration lifecycle", () => {
     const draft = await createIntegration(
       { integrationRepository },
       { tenantId: TENANT, actorId: ACTOR },
-      { integration_type: "smart_report", display_name: "Lifecycle Partner" },
+      {
+        integration_type: "partner",
+        display_name: "Lifecycle Partner",
+        config: {
+          allowedOperations: ["registration.listRegistrations", "empi.getPatient"],
+        },
+      },
     );
 
     const active = await activateIntegration(
@@ -111,7 +117,11 @@ describe("integration lifecycle", () => {
     const draft = await createIntegration(
       { integrationRepository },
       { tenantId: TENANT, actorId: ACTOR },
-      { integration_type: "smart_report", display_name: "Draft Only" },
+      {
+        integration_type: "partner",
+        display_name: "Draft Only",
+        config: { allowedOperations: ["empi.getPatient"] },
+      },
     );
 
     await expect(

@@ -24,12 +24,16 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [items]
+                required: [items, partner_operations]
                 properties:
                   items:
                     type: array
                     items:
                       $ref: "#/components/schemas/IntegrationTypeCatalogEntry"
+                  partner_operations:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PartnerOperationCatalogEntry"
   /integrations:
     get:
       operationId: integrationHub.listIntegrations
@@ -228,6 +232,7 @@ components:
       properties:
         type:
           type: string
+          enum: [partner]
         display_name:
           type: string
         default_allowed_operations:
@@ -238,6 +243,20 @@ components:
           type: array
           items:
             type: string
+    PartnerOperationCatalogEntry:
+      type: object
+      required: [id, group, label, description, inbound_path]
+      properties:
+        id:
+          type: string
+        group:
+          type: string
+        label:
+          type: string
+        description:
+          type: string
+        inbound_path:
+          type: string
     IntegrationConfig:
       type: object
       required: [allowedOperations]

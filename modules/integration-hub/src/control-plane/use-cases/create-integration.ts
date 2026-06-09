@@ -5,6 +5,7 @@ import {
 } from "../domain/integration-type-catalog.js";
 import { IntegrationValidationError } from "../domain/errors.js";
 import type { CreateIntegrationInput, Integration } from "../domain/integration.types.js";
+import { capabilityKeysForOperations } from "../domain/partner-operation-capabilities.js";
 import { normalizeIntegrationConfig } from "../lib/integration-config.js";
 import type { IntegrationRepository } from "../ports.js";
 
@@ -41,6 +42,20 @@ export async function createIntegration(
     allowedOperations: defaultAllowedOperationsForType(integrationType),
     suggestedCapabilityKeys: defaultSuggestedCapabilityKeysForType(integrationType),
   });
+
+  if (config.allowedOperations.length === 0) {
+    throw new IntegrationValidationError("integration_allowed_operations_required");
+  }
+
+  if (
+    config.suggestedCapabilityKeys === undefined ||
+    config.suggestedCapabilityKeys.length === 0
+  ) {
+    const derived = capabilityKeysForOperations(config.allowedOperations);
+    if (derived.length > 0) {
+      config.suggestedCapabilityKeys = derived;
+    }
+  }
 
   return deps.integrationRepository.create(
     ctx.tenantId,

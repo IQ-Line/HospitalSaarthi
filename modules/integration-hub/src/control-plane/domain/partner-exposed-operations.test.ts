@@ -7,10 +7,13 @@ import {
 } from "./partner-exposed-operations.js";
 
 describe("partner-exposed-operations", () => {
-  it("exposes Smart Report MVP operations", () => {
+  it("exposes partner inbound operations", () => {
     expect(PARTNER_EXPOSED_OPERATIONS).toEqual([
       "registration.listRegistrations",
       "empi.getPatient",
+      "configurator.listTenants",
+      "configurator.listTenantModules",
+      "masterData.listModules",
     ]);
   });
 

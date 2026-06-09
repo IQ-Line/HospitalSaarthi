@@ -3,7 +3,7 @@ import { apiClient } from '@/lib/api-client';
 import type {
   Integration,
   IntegrationApiKey,
-  IntegrationTypeCatalogEntry,
+  IntegrationTypeCatalogResponse,
 } from '../types';
 import { integrationHubKeys } from './keys';
 
@@ -19,7 +19,7 @@ export function integrationTypeCatalogOptions() {
   return queryOptions({
     queryKey: integrationHubKeys.integrationTypes(),
     queryFn: () =>
-      apiClient<{ items: IntegrationTypeCatalogEntry[] }>(
+      apiClient<IntegrationTypeCatalogResponse>(
         `${BASE}/integration-types`,
         { method: 'GET' },
         { tenantIdOverride: null },

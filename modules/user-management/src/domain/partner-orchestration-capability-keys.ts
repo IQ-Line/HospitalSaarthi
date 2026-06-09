@@ -3,12 +3,15 @@ import { UserManagementError } from "./errors.js";
 
 /**
  * Runtime capability keys grantable to partner principals via Integration Hub activate.
- * Must stay aligned with partner-exposed inbound operations (ADR-0032) and `0006_integration_capabilities_seed.sql`.
+ * Must stay aligned with partner-exposed inbound operations (ADR-0032) and Master Data
+ * `module_permissions` rows projected via `syncCapabilitiesFromMasterDataCatalog`.
  * Human admin assignment still uses tenant module entitlement; orchestration validates catalog + allowlist only.
  */
 export const PARTNER_ORCHESTRATION_CAPABILITY_KEYS = [
   "registration:registration:read",
   "empi:patient:read",
+  "tenants:tenants:read",
+  "tenant-modules:tenant-modules:read",
 ] as const;
 
 const ALLOWED_KEY_SET = new Set<string>(

@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { listIntegrationTypeCatalog } from "../domain/integration-type-catalog.js";
+import { listPartnerOperationCatalog } from "../domain/partner-exposed-operations.js";
 import type { CreateIntegrationInput, UpdateIntegrationInput } from "../domain/integration.types.js";
 import { activateIntegration, type ActivateIntegrationDeps } from "../use-cases/activate-integration.js";
 import { createIntegration, type CreateIntegrationDeps } from "../use-cases/create-integration.js";
@@ -72,7 +73,10 @@ export function registerIntegrationHandlers(
   deps: IntegrationHandlersDeps,
 ): void {
   fastify.get("/integration-types", protectedRoute, async (_request, reply) => {
-    return reply.send({ items: listIntegrationTypeCatalog() });
+    return reply.send({
+      items: listIntegrationTypeCatalog(),
+      partner_operations: listPartnerOperationCatalog(),
+    });
   });
 
   fastify.get("/integrations", protectedRoute, async (request, reply) => {
