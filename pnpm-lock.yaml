@@ -70,6 +70,9 @@ importers:
 
   modules/configurator:
     dependencies:
+      '@hims/ts-sdk-api-key':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-api-key
       '@hims/ts-sdk-db':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-db
@@ -163,6 +166,9 @@ importers:
       '@hims/registration-reports':
         specifier: workspace:*
         version: link:../../packages/registration-reports
+      '@hims/ts-sdk-api-key':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-api-key
       '@hims/ts-sdk-authz':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-authz
@@ -172,6 +178,9 @@ importers:
       '@hims/ts-sdk-events':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-events
+      '@hims/ts-sdk-http':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-http
       '@hims/ts-sdk-sequence':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-sequence
@@ -476,6 +485,12 @@ importers:
         specifier: '>=3.23.0'
         version: 3.25.76
 
+  packages/ts-sdk-api-key:
+    devDependencies:
+      vitest:
+        specifier: ^3.1.3
+        version: 3.2.4(@types/node@25.6.0)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.8.4)
+
   packages/ts-sdk-authz:
     dependencies:
       '@cerbos/core':
@@ -769,12 +784,18 @@ importers:
       '@fastify/cors':
         specifier: ^11.0.1
         version: 11.2.0
+      '@hims/configurator':
+        specifier: workspace:*
+        version: link:../../modules/configurator
       '@hims/pdf-client':
         specifier: workspace:*
         version: link:../../packages/pdf-client
       '@hims/registration':
         specifier: workspace:*
         version: link:../../modules/registration
+      '@hims/ts-sdk-api-key':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-api-key
       '@hims/ts-sdk-authz':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-authz

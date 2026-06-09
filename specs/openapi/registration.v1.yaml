@@ -151,10 +151,18 @@ paths:
       description: |
         Returns a PDF generated server-side for desk preview and print once the registration row exists
         (`pending`, `in_progress`, or `completed` visit). Cancelled visits return 409.
+
+        Staff callers use Bearer JWT plus tenant headers. External integrations (e.g. Smart Report) may
+        call with `X-API-Key` (tenant-scoped key with purpose `opd_slip` from Configurator) instead of JWT.
       tags: [EncounterRegistrations]
+      security:
+        - bearerAuth: []
+        - opdSlipApiKey: []
       parameters:
         - $ref: "#/components/parameters/RegistrationId"
       responses:
+        "401":
+          description: Missing or invalid credentials (JWT or API key)
         "200":
           description: OPD slip PDF
           content:
@@ -449,6 +457,16 @@ paths:
           $ref: "#/components/responses/Forbidden"
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    opdSlipApiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Tenant API key with purpose `opd_slip` (Configurator). Alternative to Bearer JWT on opd-slip.pdf only.
   parameters:
     IdempotencyKeyHeader:
       name: Idempotency-Key

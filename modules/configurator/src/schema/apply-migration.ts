@@ -15,6 +15,7 @@ const MIGRATION_FILES = [
   "007_configurator_tenant_integration_profiles.sql",
   "008_configurator_sequence_configuration.sql",
   "009_deactivate_invalid_tenant_modules.sql",
+  "010_tenant_api_keys.sql",
 ] as const;
 
 /**

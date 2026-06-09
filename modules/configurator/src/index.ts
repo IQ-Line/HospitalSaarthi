@@ -66,10 +66,23 @@ export type {
 } from "./domain/tenant-integration-profile.types.js";
 
 export type {
+  TenantApiKey,
+  TenantApiKeyCreateResult,
+  TenantApiKeyEnvironment,
+  TenantApiKeyPurpose,
+  TenantApiKeyStatus,
+} from "./domain/tenant-api-key.types.js";
+
+export { listTenantApiKeys } from "./use-cases/list-tenant-api-keys.js";
+export { createTenantApiKey } from "./use-cases/create-tenant-api-key.js";
+export { updateTenantApiKeyStatus } from "./use-cases/update-tenant-api-key-status.js";
+
+export type {
   OrganizationRepo,
   TenantRepo,
   TenantModuleRepo,
   TenantIntegrationProfilesRepo,
+  TenantApiKeyRepo,
   SequenceConfigurationRepo,
   ConfiguratorTransactionRepos,
   RunConfiguratorTransaction,
@@ -83,6 +96,7 @@ export { DrizzleTenantRepo } from "./data-access/tenant.repo.js";
 export { DrizzleTenantModuleRepo } from "./data-access/tenant-module.repo.js";
 export { DrizzleTenantIntegrationProfilesRepo } from "./data-access/tenant-integration-profile.repo.js";
 export { DrizzleSequenceConfigurationRepo } from "./data-access/sequence-configuration.repo.js";
+export { DrizzleTenantApiKeyRepo } from "./data-access/tenant-api-key.repo.js";
 
 export {
   configuratorSchema,
@@ -91,6 +105,7 @@ export {
   tenantModules,
   tenantIntegrationProfiles,
   sequenceConfiguration,
+  tenantApiKeys,
 } from "./schema/tables.js";
 
 export { provisionTenant } from "./use-cases/provision-tenant.js";

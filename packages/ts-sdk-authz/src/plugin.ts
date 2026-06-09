@@ -175,6 +175,7 @@ async function authzPluginFn(
 
   fastify.addHook("preHandler", async (request, reply) => {
     if (reply.sent) return;
+    if (request.authViaApiKey === true) return;
 
     const routeKey = routeKeyFromRequest(request);
     const authMode = resolveRouteAuthMode(request.routeOptions?.config);

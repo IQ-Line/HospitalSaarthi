@@ -16,6 +16,7 @@ import {
   DrizzleTenantModuleRepo,
   DrizzleTenantIntegrationProfilesRepo,
   DrizzleSequenceConfigurationRepo,
+  DrizzleTenantApiKeyRepo,
   type RunConfiguratorTransaction,
 } from "@hims/configurator";
 import {
@@ -101,6 +102,7 @@ async function main() {
   const tenantModuleRepo = new DrizzleTenantModuleRepo(db);
   const tenantIntegrationProfilesRepo = new DrizzleTenantIntegrationProfilesRepo(db);
   const sequenceConfigurationRepo = new DrizzleSequenceConfigurationRepo(db);
+  const tenantApiKeyRepo = new DrizzleTenantApiKeyRepo(db);
 
   const runConfiguratorTransaction: RunConfiguratorTransaction = (fn) =>
     db.transaction(async (tx) =>
@@ -169,6 +171,7 @@ async function main() {
         tenantModuleRepo,
         tenantIntegrationProfilesRepo,
         sequenceConfigurationRepo,
+        tenantApiKeyRepo,
         runConfiguratorTransaction,
         eventBus,
         entitlementCacheInvalidator,
