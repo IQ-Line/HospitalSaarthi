@@ -1,20 +1,15 @@
 import { ValidationError } from "../domain/errors.js";
 import { isUuid } from "../domain/uuid.js";
 import type { PartnerPrincipal, ProvisionPartnerPrincipalInput } from "../domain/types.js";
-import type {
-  CapabilityRepository,
-  MasterDataModuleCatalogPort,
-  TenantModuleEntitlementPort,
-} from "../ports/index.js";
+import type { CapabilityRepository, UserRepository } from "../ports/index.js";
 import type { PartnerPrincipalRepository } from "../ports/partner-principal-repository.js";
-import type { ModuleEntitlementRequestContext } from "../ports/module-integration-ports.js";
-import { assertRuntimeCapabilityKeysEntitledForTenant } from "./assert-runtime-capability-keys-entitled-for-tenant.js";
+import { assertPartnerOrchestrationCapabilityKeys } from "./assert-partner-orchestration-capability-keys.js";
+import { resolveGrantActorIdForTenant } from "./resolve-grant-actor-id-for-tenant.js";
 
 export type ProvisionPartnerPrincipalDeps = {
   partnerPrincipalRepository: PartnerPrincipalRepository;
   capabilityRepository: CapabilityRepository;
-  tenantModuleEntitlementPort: TenantModuleEntitlementPort;
-  masterDataModuleCatalogPort: MasterDataModuleCatalogPort;
+  userRepository: UserRepository;
 };
 
 export type ProvisionPartnerPrincipalContext = {
@@ -33,7 +28,6 @@ export async function provisionPartnerPrincipal(
   deps: ProvisionPartnerPrincipalDeps,
   ctx: ProvisionPartnerPrincipalContext,
   input: ProvisionPartnerPrincipalInput,
-  entitlementContext?: ModuleEntitlementRequestContext,
 ): Promise<PartnerPrincipal> {
   const integrationId = input.integration_id?.trim() ?? "";
   if (!isUuid(integrationId)) {
@@ -50,21 +44,21 @@ export async function provisionPartnerPrincipal(
     throw new ValidationError("partner_capability_keys_invalid");
   }
 
-  const capabilityIds = await assertRuntimeCapabilityKeysEntitledForTenant(
-    {
-      capabilityRepository: deps.capabilityRepository,
-      tenantModuleEntitlementPort: deps.tenantModuleEntitlementPort,
-      masterDataModuleCatalogPort: deps.masterDataModuleCatalogPort,
-    },
-    ctx.tenantId,
+  const capabilityIds = await assertPartnerOrchestrationCapabilityKeys(
+    { capabilityRepository: deps.capabilityRepository },
     suggestedKeys,
-    entitlementContext,
+  );
+
+  const grantActorId = await resolveGrantActorIdForTenant(
+    deps.userRepository,
+    ctx.tenantId,
+    ctx.actorId,
   );
 
   return deps.partnerPrincipalRepository.provisionPartnerPrincipal(ctx.tenantId, {
     integrationId,
     displayName,
     capabilityIds,
-    actorId: ctx.actorId,
+    actorId: grantActorId,
   });
 }

@@ -5,7 +5,6 @@ import { afterEach, describe, expect, it } from "vitest";
 import { InMemoryCapabilityRepository } from "../data-access/in-memory-capability-repository.js";
 import { InMemoryPartnerPrincipalRepository } from "../data-access/in-memory-partner-principal-repository.js";
 import { userManagementPlugin } from "../router.js";
-import { createMasterDataModuleCatalogPortStub } from "../test-support/master-data-catalog-port-stub.js";
 import { InMemoryUserProvisioningRepository } from "../data-access/in-memory-user-provisioning-repository.js";
 import { InMemoryPrincipalAuthorizationRepository } from "../data-access/in-memory-principal-authorization-repository.js";
 import { InMemoryPrincipalRoleProjectionRepository } from "../data-access/in-memory-principal-role-projection-repository.js";
@@ -16,7 +15,6 @@ import { InMemoryUserRepository } from "../data-access/in-memory-user-repository
 
 const apps: Array<ReturnType<typeof Fastify>> = [];
 const TENANT = "tenant-a";
-const MODULE_ID = randomUUID();
 const CAP_ID = randomUUID();
 const INTEGRATION_ID = randomUUID();
 
@@ -63,13 +61,13 @@ async function createApp(partnerRepo = new InMemoryPartnerPrincipalRepository())
           {
             capability: {
               id: CAP_ID,
-              capability_key: "integration:integration:read",
-              module: "integration",
-              feature: "integration",
+              capability_key: "registration:registration:read",
+              module: "registration",
+              feature: "registration",
               action: "read",
-              display_name: "Read integrations",
+              display_name: "Read registrations",
               is_active: true,
-              source_module_slug: "integration",
+              source_module_slug: "registration",
               source_permission_slug: "read",
               source_catalog: "master_data",
             },
@@ -81,12 +79,6 @@ async function createApp(partnerRepo = new InMemoryPartnerPrincipalRepository())
         principalRoleProjectionRepository: new InMemoryPrincipalRoleProjectionRepository(),
         principalAuthorizationRepository: new InMemoryPrincipalAuthorizationRepository(),
         authAccountProvisioner: { async provision() {} },
-        tenantModuleEntitlementPort: {
-          listTenantEnabledModuleIds: async () => [MODULE_ID],
-        },
-        masterDataModuleCatalogPort: createMasterDataModuleCatalogPortStub({
-          resolveModuleSlugsByIds: async () => new Map([[MODULE_ID, "integration"]]),
-        }),
         partnerPrincipalRepository: partnerRepo,
       });
     },
@@ -106,7 +98,7 @@ describe("partner principal routes", () => {
       payload: {
         integration_id: INTEGRATION_ID,
         integration_display_name: "Smart Report",
-        suggested_capability_keys: ["integration:integration:read"],
+        suggested_capability_keys: ["registration:registration:read"],
       },
     });
 

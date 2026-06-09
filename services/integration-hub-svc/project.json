@@ -13,13 +13,14 @@
       "cache": true
     },
     "serve": {
-      "command": "tsx watch src/main.ts",
+      "executor": "nx:run-commands",
       "dependsOn": [
         "integration-hub:db-migrate",
         "ts-sdk-fhir:build",
         "ts-sdk-abha:build"
       ],
       "options": {
+        "command": "tsx watch src/main.ts",
         "cwd": "services/integration-hub-svc",
         "envFile": "{workspaceRoot}/.env"
       }

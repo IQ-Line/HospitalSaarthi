@@ -1,5 +1,4 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import fp from "fastify-plugin";
 import type { DbInstance } from "@hims/ts-sdk-db";
 import { verifyApiKeySecret } from "../control-plane/lib/api-key-crypto.js";
 import { DrizzleIntegrationApiKeyRepository } from "../control-plane/data-access/integration-api-key-repository.js";
@@ -112,7 +111,7 @@ export function createInboundRouter(options: InboundRouterOptions) {
       : options.empiBaseUrl;
   }
 
-  return fp(async (fastify: FastifyInstance) => {
+  return async function inboundDataPlaneRouter(fastify: FastifyInstance) {
     fastify.get("/.well-known/jwks.json", async (_request, reply) => {
       return reply.send({ keys: [options.partnerJwt.publicJwk] });
     });
@@ -174,5 +173,5 @@ export function createInboundRouter(options: InboundRouterOptions) {
         return reply.send(body.length > 0 ? body : undefined);
       },
     );
-  });
+  };
 }

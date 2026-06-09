@@ -37,6 +37,25 @@ function isWriteHttpMethod(method: string | undefined): boolean {
   return m === 'POST' || m === 'PUT' || m === 'PATCH' || m === 'DELETE';
 }
 
+function isJsonBodyWriteMethod(method: string | undefined): boolean {
+  const m = (method ?? 'GET').toUpperCase();
+  return m === 'POST' || m === 'PUT' || m === 'PATCH';
+}
+
+/** Fastify rejects `Content-Type: application/json` with an empty body (FST_ERR_CTP_EMPTY_JSON_BODY). */
+function withJsonBodyForWrite(options: RequestInit): RequestInit {
+  if (options.body instanceof FormData) {
+    return options;
+  }
+  if (!isJsonBodyWriteMethod(options.method)) {
+    return options;
+  }
+  if (options.body != null && options.body !== '') {
+    return options;
+  }
+  return { ...options, body: '{}' };
+}
+
 /** JWT `sub` for OPD doctor_id when the gateway does not inject x-user-id. */
 function jwtSubjectFromAccessToken(token: string): string | undefined {
   const parts = token.split('.');
@@ -324,8 +343,9 @@ async function fetchWithAuthRetry(
     }
   }
 
+  const requestInit = withJsonBodyForWrite(options);
   const response = await fetch(resolveRequestUrl(path), {
-    ...options,
+    ...requestInit,
     headers,
     credentials: 'include',
   });

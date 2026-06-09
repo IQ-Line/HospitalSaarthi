@@ -190,11 +190,10 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
     provisionPartnerPrincipalDeps: {
       partnerPrincipalRepository,
       capabilityRepository,
-      tenantModuleEntitlementPort,
-      masterDataModuleCatalogPort,
+      userRepository,
     },
-    deactivatePartnerPrincipalDeps: { partnerPrincipalRepository },
-    reactivatePartnerPrincipalDeps: { partnerPrincipalRepository },
+    deactivatePartnerPrincipalDeps: { partnerPrincipalRepository, userRepository },
+    reactivatePartnerPrincipalDeps: { partnerPrincipalRepository, userRepository },
   });
 
   registerAuthHandlers(fastify, {

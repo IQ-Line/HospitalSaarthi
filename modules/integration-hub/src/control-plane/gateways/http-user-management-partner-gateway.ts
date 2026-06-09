@@ -28,6 +28,7 @@ export class HttpUserManagementPartnerGateway implements UserManagementPartnerGa
   private headers(tenantId: string, authorization: string): Record<string, string> {
     return {
       iq_tenant_id: tenantId,
+      "x-tenant-id": tenantId,
       "Content-Type": "application/json",
       Authorization: authorization,
     };
@@ -101,6 +102,7 @@ export class HttpUserManagementPartnerGateway implements UserManagementPartnerGa
     const res = await fetch(url, {
       method: "POST",
       headers: this.headers(ctx.tenantId, ctx.authorization),
+      body: "{}",
     });
     if (res.status === 404) {
       return null;
@@ -128,6 +130,7 @@ export class HttpUserManagementPartnerGateway implements UserManagementPartnerGa
     const res = await fetch(url, {
       method: "POST",
       headers: this.headers(ctx.tenantId, ctx.authorization),
+      body: "{}",
     });
     if (res.status === 404) {
       return null;

@@ -1,11 +1,33 @@
 ---
 # User Management partner principal orchestration (called by Integration Hub on activate/disable).
-# Gated on integration admin capabilities — UM owns grants; IH orchestrates only.
+# Platform super-admin: orchestrate for any tenant (Configurator cross-tenant), role-only.
+# Tenant-admin: orchestrate within own tenant, role-only.
+# Other principals: integration admin capability keys + tenant match.
 apiVersion: api.cerbos.dev/v1
 resourcePolicy:
   resource: "partner_principal"
   version: default
   rules:
+    - actions:
+        - partner_principal.provision
+        - partner_principal.deactivate
+        - partner_principal.reactivate
+        - partner_principal.read
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+
+    - actions:
+        - partner_principal.provision
+        - partner_principal.deactivate
+        - partner_principal.reactivate
+        - partner_principal.read
+      roles: ["tenant-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id
+
     - actions: ["partner_principal.provision", "partner_principal.reactivate"]
       roles: ["*"]
       effect: EFFECT_ALLOW

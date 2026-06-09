@@ -281,8 +281,8 @@ async function main() {
     const partnerJwtIssuer = process.env["PARTNER_JWT_ISSUER"]?.trim() ?? "";
     const partnerJwtAudience = process.env["PARTNER_JWT_AUDIENCE"]?.trim() ?? "";
     const partnerJwtKey =
-      process.env["PARTNER_JWT_SIGNING_KEY"]?.trim() ??
-      process.env["PARTNER_JWT_SIGNING_KEY_PATH"]?.trim() ??
+      process.env["PARTNER_JWT_SIGNING_KEY"]?.trim() ||
+      process.env["PARTNER_JWT_SIGNING_KEY_PATH"]?.trim() ||
       "";
     if (!partnerJwtIssuer || !partnerJwtAudience || !partnerJwtKey) {
       app.log.warn(

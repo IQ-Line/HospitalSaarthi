@@ -6,8 +6,9 @@ import { resolveDatabaseUrl } from "./resolve-database-url.js";
 const serviceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = path.resolve(serviceRoot, "../..");
 
-// Root `.env` (DATABASE_URL, etc.) then service `.env` wins — same layering as other services.
-config({ path: path.join(repoRoot, ".env") });
+// Root `.env` then service `.env` wins. Use override so file values replace empty
+// placeholders Nx/envFile may inject before this module runs.
+config({ path: path.join(repoRoot, ".env"), override: true });
 config({ path: path.join(serviceRoot, ".env"), override: true });
 
 export { serviceRoot };

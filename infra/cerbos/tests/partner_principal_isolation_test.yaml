@@ -2,10 +2,28 @@
 ---
 name: partner_principal_isolation_test
 description: >-
-  Partner principal orchestration — provision/deactivate gated on integration admin
-  capabilities with tenant isolation.
+  Partner principal orchestration — super-admin and tenant-admin via role; other
+  principals need integration admin capability keys and tenant alignment.
 
 principals:
+  super_admin_cross_tenant:
+    id: platform-operator
+    roles:
+      - "super-admin"
+    attr:
+      iq_tenant_id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      capabilities: []
+      delegated_capabilities: []
+
+  tenant_admin_role_only:
+    id: hospital-admin
+    roles:
+      - "tenant-admin"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: []
+      delegated_capabilities: []
+
   activator_aa:
     id: admin-aa
     roles:
@@ -27,9 +45,9 @@ principals:
       delegated_capabilities: []
 
   reader_only:
-    id: admin-aa
+    id: staff-user
     roles:
-      - "tenant-admin"
+      - "staff"
     attr:
       iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
       capabilities:
@@ -50,6 +68,39 @@ resources:
       iq_tenant_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
 
 tests:
+  - name: partner_principal.provision — super-admin cross-tenant without capability keys
+    input:
+      principals: [super_admin_cross_tenant]
+      resources: [partner_bb]
+      actions: [partner_principal.provision]
+    expected:
+      - principal: super_admin_cross_tenant
+        resource: partner_bb
+        actions:
+          partner_principal.provision: EFFECT_ALLOW
+
+  - name: partner_principal.provision — tenant-admin same tenant without capability keys
+    input:
+      principals: [tenant_admin_role_only]
+      resources: [partner_aa]
+      actions: [partner_principal.provision]
+    expected:
+      - principal: tenant_admin_role_only
+        resource: partner_aa
+        actions:
+          partner_principal.provision: EFFECT_ALLOW
+
+  - name: partner_principal.provision — tenant-admin denied cross-tenant
+    input:
+      principals: [tenant_admin_role_only]
+      resources: [partner_bb]
+      actions: [partner_principal.provision]
+    expected:
+      - principal: tenant_admin_role_only
+        resource: partner_bb
+        actions:
+          partner_principal.provision: EFFECT_DENY
+
   - name: partner_principal.provision — allowed with activate capability
     input:
       principals: [activator_aa]

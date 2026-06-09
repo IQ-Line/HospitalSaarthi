@@ -57,7 +57,17 @@ export function replyWithControlPlaneError(
     return;
   }
   if (err instanceof PartnerOrchestrationError) {
-    send(reply, 502, err.code, err.message, correlationId);
+    const upstream = err.upstreamBody;
+    let message = err.message;
+    if (upstream && typeof upstream === "object" && upstream !== null) {
+      const row = upstream as Record<string, unknown>;
+      const upstreamCode = typeof row.code === "string" ? row.code : undefined;
+      const upstreamMessage = typeof row.message === "string" ? row.message : undefined;
+      if (upstreamCode !== undefined) {
+        message = `${message} (${upstreamCode}${upstreamMessage ? `: ${upstreamMessage}` : ""})`;
+      }
+    }
+    send(reply, 502, err.code, message, correlationId);
     return;
   }
   throw err;

@@ -342,4 +342,24 @@ describe('apiClient', () => {
     expect(retryHeaders.get('iq_tenant_id')).toBe(OTHER_TENANT);
     expect(retryHeaders.get('x-tenant-id')).toBe(OTHER_TENANT);
   });
+
+  it('sends {} body for POST without body when Content-Type is application/json', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ status: 'active' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    await apiClient(
+      '/api/integration-hub/v1/integrations/b5fba711-534b-4c22-b7cb-662e3fa2d4d4/activate',
+      { method: 'POST' },
+      { tenantIdOverride: OTHER_TENANT },
+    );
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(init.body).toBe('{}');
+    const headers = new Headers(init.headers);
+    expect(headers.get('Content-Type')).toBe('application/json');
+  });
 });
