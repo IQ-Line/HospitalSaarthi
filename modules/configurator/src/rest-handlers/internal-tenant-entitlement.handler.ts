@@ -1,10 +1,10 @@
+import type { DbInstance } from "@hims/ts-sdk-db";
 import type { FastifyInstance } from "fastify";
 import { assertUmInternalServiceAccess } from "../http/assert-um-internal-service-access.js";
-import type { TenantModuleRepo } from "../ports.js";
-import { listTenantModules } from "../use-cases/list-tenant-modules.js";
+import { listEntitlementEnabledModuleIds } from "../use-cases/list-entitlement-enabled-module-ids.js";
 
 export type InternalTenantEntitlementHandlerDeps = {
-  tenantModuleRepo: TenantModuleRepo;
+  db: DbInstance;
 };
 
 /**
@@ -19,10 +19,10 @@ export function registerInternalTenantEntitlementHandler(
     "/internal/tenants/:tenantId/enabled-module-ids",
     async (request) => {
       assertUmInternalServiceAccess(request);
-      const modules = await listTenantModules(deps.tenantModuleRepo, {
-        iq_tenant_id: request.params.tenantId,
-        is_active: true,
-      });
+      const modules = await listEntitlementEnabledModuleIds(
+        deps.db,
+        request.params.tenantId,
+      );
       return {
         data: modules.map((row) => ({
           module_id: row.module_id,

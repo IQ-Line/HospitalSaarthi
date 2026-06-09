@@ -206,15 +206,15 @@ export class HttpMasterDataModuleCatalogAdapter implements MasterDataModuleCatal
         continue;
       }
       const normalized = normalizeModuleSlug(row.slug);
+      slugByModuleId.set(row.id, normalized);
       if (normalizedSlugs.has(normalized)) {
         this.log?.(
-          { source: "master_data", slug: normalized },
-          "Master Data module catalog contains duplicate normalized slug; skipping row",
+          { source: "master_data", slug: normalized, moduleId: row.id },
+          "Master Data module catalog contains duplicate normalized slug; id still mapped for entitlement resolution",
         );
         continue;
       }
       normalizedSlugs.add(normalized);
-      slugByModuleId.set(row.id, normalized);
       if (row.module_kind) {
         kindBySlug.set(normalized, row.module_kind);
       }

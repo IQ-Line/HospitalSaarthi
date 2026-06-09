@@ -9,6 +9,7 @@ import {
 } from "@hims/ts-sdk-db";
 import { createEventBus } from "@hims/ts-sdk-events";
 import {
+  applyConfiguratorSchemaMigration,
   createRouter,
   DrizzleOrganizationRepo,
   DrizzleTenantRepo,
@@ -78,6 +79,7 @@ async function main() {
     db,
     connectionString: databaseUrl,
   });
+  await applyConfiguratorSchemaMigration(databaseUrl);
 
   if (shouldRunDevelopmentBootstrap()) {
     app.log.warn(
@@ -161,6 +163,7 @@ async function main() {
     }
     await api.register(
       createRouter({
+        db,
         organizationRepo,
         tenantRepo,
         tenantModuleRepo,

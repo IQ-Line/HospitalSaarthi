@@ -1,5 +1,6 @@
 export { createRouter } from "./router.js";
 export type { ConfiguratorRouterOptions } from "./router.js";
+export { applyConfiguratorSchemaMigration } from "./schema/apply-migration.js";
 
 export { ConfiguratorError } from "./errors.js";
 
