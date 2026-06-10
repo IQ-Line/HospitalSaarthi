@@ -85,6 +85,65 @@ kubectl -n himsv2 exec deploy/registration-svc -- wget -qO- http://pdf-worker.hi
 kubectl -n himsv2 logs deploy/registration-svc | grep "Registration PDF platform configured"
 ```
 
+## Configurator branding logos
+
+Tenant wizard organisation/tenant logo uploads (`POST /api/configurator/v1/branding-logos/*`) are served by **configurator-svc** and stored in Azure Blob Storage (same container as OPD patient documents).
+
+**Required in `hims-secrets` (configurator-svc Deployment):**
+
+| Key | Purpose |
+| --- | --- |
+| `AZURE_STORAGE_CONNECTION_STRING` | Blob upload/download |
+| `AZURE_STORAGE_ACCOUNT` | Optional; used with account key fallback |
+| `AZURE_STORAGE_ACCOUNT_KEY` | Optional; used with account key fallback |
+| `AZURE_BLOB_CONTAINER` | Optional; defaults to `hmis-patient-docs` when unset |
+
+These are wired explicitly on the `configurator-svc` container in `hims-platform.yaml` (same pattern as `opd-svc`).
+
+**Dev rollout after merging `logo-upload` / commit `d83ece94` or later:**
+
+The dev Deployment image tag is `acriqline.azurecr.io/configurator-svc:dev-latest`. Rebuild and push that tag from current `origin/dev`, then roll the pod:
+
+```bash
+# After Jenkins (or manual docker build/push) updates dev-latest:
+kubectl apply -f infra/k8s/base/hims-platform.yaml
+kubectl -n himsv2 rollout restart deployment/configurator-svc
+kubectl -n himsv2 rollout status deployment/configurator-svc
+```
+
+**Verify (expect 200 with `version`, not 404):**
+
+```bash
+curl -sS "https://dev.v2.hospitalsaarthi.com/api/configurator/v1/branding-logos/ready"
+# 200 + {"feature":"branding-logos","version":"1.0.1",...} = new image live
+# 404 = stale configurator-svc image — rebuild from origin/dev and roll pod
+```
+
+**Verify upload route registered (expect 401 without auth, not 404):**
+
+```bash
+curl -sS -o /dev/null -w "%{http_code}\n" \
+  -X POST "https://dev.v2.hospitalsaarthi.com/api/configurator/v1/branding-logos/organization"
+# 401 = route registered; 404 = stale configurator-svc image
+```
+
+**Pod logs after rollout** (should include `Configurator branding logos API registered`):
+
+```bash
+kubectl -n himsv2 logs deploy/configurator-svc | grep -i "branding logos"
+```
+
+**Smoke test with super-admin JWT and a PNG file** (multipart `slug` + `file`):
+
+```bash
+curl -sS -X POST "https://dev.v2.hospitalsaarthi.com/api/configurator/v1/branding-logos/organization" \
+  -H "Authorization: Bearer <jwt>" \
+  -H "iq_tenant_id: <platform-tenant-uuid>" \
+  -F "slug=my-org" \
+  -F "file=@./logo.png"
+# Expect HTTP 201 with logo.storage_key in JSON body
+```
+
 ## ABDM (integration-hub) routing
 
 Browser and NHA callbacks use the same public host; BFF proxies to `integration-hub-svc`:

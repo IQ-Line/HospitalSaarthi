@@ -257,6 +257,26 @@ spec:
                 secretKeyRef:
                   name: hims-secrets
                   key: DATABASE_URL
+            - name: AZURE_STORAGE_CONNECTION_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: AZURE_STORAGE_CONNECTION_STRING
+            - name: AZURE_STORAGE_ACCOUNT
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: AZURE_STORAGE_ACCOUNT
+            - name: AZURE_STORAGE_ACCOUNT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: AZURE_STORAGE_ACCOUNT_KEY
+            - name: AZURE_BLOB_CONTAINER
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: AZURE_BLOB_CONTAINER
           livenessProbe:
             httpGet:
               path: /healthz

@@ -1,11 +1,14 @@
 openapi: 3.1.0
 info:
   title: HIMS Configurator API
-  version: 1.3.0
+  version: 1.3.1
   description: |
     Configurator module — tenant registry, module enablement, feature flag overrides, configuration management.
 
     ## Changelog
+
+    ### 1.3.1
+    - Branding logos readiness probe: `GET /branding-logos/ready` (no auth) for deploy verification and Azure Blob config status.
 
     ### 1.3.0
     - Tenant API keys for external integrations (OPD slip PDF): CRUD under `/tenants/{tenantId}/api-keys`.
@@ -166,6 +169,22 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /branding-logos/ready:
+    get:
+      operationId: getBrandingLogosReady
+      summary: Branding logos feature readiness
+      description: >
+        Unauthenticated deploy probe. Returns 200 when branding-logo routes are registered in the running
+        configurator-svc image. Use after rollout — 404 means stale image; check `azure_blob_configured` before uploads.
+      tags:
+        - Branding
+      responses:
+        "200":
+          description: Branding logos API is registered in this service instance.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrandingLogosReadyResponse"
   /branding-logos/organization:
     post:
       operationId: uploadOrganizationBrandingLogo
@@ -1170,6 +1189,30 @@ components:
       properties:
         logo:
           $ref: "#/components/schemas/BrandingLogoMetadata"
+    BrandingLogosReadyResponse:
+      type: object
+      required:
+        - feature
+        - version
+        - azure_blob_configured
+        - blob_container
+        - routes
+      properties:
+        feature:
+          type: string
+          const: branding-logos
+        version:
+          type: string
+          description: Feature version baked into configurator-svc (bump on route/behaviour changes).
+        azure_blob_configured:
+          type: boolean
+          description: True when AZURE_STORAGE_CONNECTION_STRING or account+key env vars are set.
+        blob_container:
+          type: string
+        routes:
+          type: array
+          items:
+            type: string
     OrganizationWithDefaultTenantResponse:
       deprecated: true
       description: >
