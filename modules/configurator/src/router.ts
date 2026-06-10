@@ -22,6 +22,7 @@ import { registerTenantModulesHandler } from "./rest-handlers/tenant-modules.han
 import { registerTenantIntegrationProfilesHandler } from "./rest-handlers/tenant-integration-profiles.handler.js";
 import { registerTenantOnboardingHandler } from "./rest-handlers/tenant-onboarding.handler.js";
 import { registerSequenceConfigurationHandler } from "./rest-handlers/sequence-configuration.handler.js";
+import { registerBrandingLogosHandler } from "./rest-handlers/branding-logos.handler.js";
 import { registerTenantApiKeysHandler } from "./rest-handlers/tenant-api-keys.handler.js";
 
 export interface ConfiguratorRouterOptions {
@@ -98,6 +99,7 @@ async function configuratorRouter(
     tenantRepo: options.tenantRepo,
     sequenceConfigurationRepo: options.sequenceConfigurationRepo,
   });
+  registerBrandingLogosHandler(app);
   registerTenantApiKeysHandler(app, {
     tenantApiKeyRepo: options.tenantApiKeyRepo,
     tenantRepo: options.tenantRepo,

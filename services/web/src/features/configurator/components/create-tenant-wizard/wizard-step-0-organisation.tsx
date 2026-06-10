@@ -22,6 +22,7 @@ import {
 } from '@/features/configurator/create-tenant-wizard-schema';
 import { organizationTypeOptions } from '@/features/configurator/validation';
 import type { Organization } from '@/features/configurator/types';
+import { LogoUploadField } from '@/features/configurator/components/logo-upload-field';
 
 export interface WizardStep0OrganisationProps {
   register: UseFormRegister<WizardFormValues>;
@@ -31,6 +32,8 @@ export interface WizardStep0OrganisationProps {
   organisationsLoading: boolean;
   organisationSlugInputProps: React.ComponentProps<'input'>;
   onOrganisationSelectionChange: (selectionId: string) => void;
+  organisationLogoFile: File | null;
+  onOrganisationLogoFileChange: (file: File | null) => void;
 }
 
 export function WizardStep0Organisation({
@@ -41,6 +44,8 @@ export function WizardStep0Organisation({
   organisationsLoading,
   organisationSlugInputProps,
   onOrganisationSelectionChange,
+  organisationLogoFile,
+  onOrganisationLogoFileChange,
 }: WizardStep0OrganisationProps) {
   const organisationSelectionId = useWatch({ control, name: 'organisationSelectionId' });
   const isExistingOrgSelection =
@@ -214,6 +219,16 @@ export function WizardStep0Organisation({
             />
           </FieldContent>
         </Field>
+
+        {organisationSelectionId === NEW_ORGANISATION_VALUE ? (
+          <LogoUploadField
+            id="wiz-org-logo"
+            label="Organisation logo (optional)"
+            description="Upload a PNG or JPEG logo for this organisation. Stored in Azure Blob Storage."
+            file={organisationLogoFile}
+            onFileChange={onOrganisationLogoFileChange}
+          />
+        ) : null}
       </div>
     </FieldGroup>
   );
