@@ -3,13 +3,33 @@ import { CerbosPrincipalUnavailableError, UserNotFoundError } from "../domain/er
 import { replyWithUserManagementError } from "../http/map-user-management-error.js";
 import { getUserById } from "../use-cases/get-user.js";
 import type { GetUserDeps } from "../use-cases/get-user.js";
+import {
+  validateUserApiKey,
+  type ValidateUserApiKeyDeps,
+} from "../use-cases/validate-user-api-key.js";
+
+function readApiKeyHeader(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) return value[0]?.trim();
+  return typeof value === "string" ? value.trim() : undefined;
+}
+
+function resolveApiKeyFromRequest(request: FastifyRequest): string | undefined {
+  return (
+    readApiKeyHeader(request.headers["x-api-key"]) ??
+    (typeof request.body === "object" &&
+    request.body !== null &&
+    "api_key" in request.body &&
+    typeof (request.body as { api_key?: unknown }).api_key === "string"
+      ? (request.body as { api_key: string }).api_key.trim()
+      : undefined)
+  );
+}
 
 export type AuthHandlersDeps = {
-  /** Tenant from verified JWT (`iq_tenant_id` / `tenantId` on `request.user`). */
   getTenantId: (request: FastifyRequest) => string;
-  /** Platform user id from verified JWT (`sub` / `userId` on `request.user`). */
   getUserId: (request: FastifyRequest) => string;
   getUserDeps: GetUserDeps;
+  validateUserApiKeyDeps: ValidateUserApiKeyDeps;
 };
 
 export function registerAuthHandlers(fastify: FastifyInstance, deps: AuthHandlersDeps): void {
@@ -40,4 +60,45 @@ export function registerAuthHandlers(fastify: FastifyInstance, deps: AuthHandler
       return reply.send(snapshot);
     },
   );
+
+  void fastify.register(async (scope) => {
+    scope.removeContentTypeParser("application/json");
+    scope.addContentTypeParser(
+      "application/json",
+      { parseAs: "string" },
+      (_request, body, done) => {
+        const text = typeof body === "string" ? body : body.toString();
+        if (text.trim() === "") {
+          done(null, {});
+          return;
+        }
+        try {
+          done(null, JSON.parse(text) as unknown);
+        } catch (error) {
+          done(error as Error, undefined);
+        }
+      },
+    );
+
+    const routeConfig = { config: { authMode: "public" as const } };
+    const handler = async (request: FastifyRequest, reply: { status: (n: number) => { send: (b: unknown) => unknown }; send: (b: unknown) => unknown }) => {
+      const cid = request.correlationId ?? request.id;
+      const apiKey = resolveApiKeyFromRequest(request);
+      if (!apiKey) {
+        return reply.status(400).send({
+          code: "API_KEY_REQUIRED",
+          message: "X-API-Key header or api_key body field is required",
+          correlation_id: cid,
+        });
+      }
+      try {
+        return reply.send(await validateUserApiKey(deps.validateUserApiKeyDeps, apiKey));
+      } catch (err) {
+        return replyWithUserManagementError(reply, err, cid);
+      }
+    };
+
+    scope.post("/auth/api-key/validate", routeConfig, handler);
+    scope.get("/auth/api-key/validate", routeConfig, handler);
+  });
 }

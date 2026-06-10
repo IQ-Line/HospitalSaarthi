@@ -1,6 +1,7 @@
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 
 export type TenantApiKeyEnvironment = "live" | "test";
+export type UserApiKeyEnvironment = "live" | "test";
 
 /** Visible prefix length used for DB lookup (includes `hs_opd_{env}_` + random segment). */
 export const TENANT_API_KEY_PREFIX_LENGTH = 20;
@@ -70,4 +71,18 @@ export function verifyTenantApiKeySecret(secret: string, storedHash: string): bo
 
   if (actual.length !== expected.length) return false;
   return timingSafeEqual(actual, expected);
+}
+
+/** Visible prefix for user API key lookup (`hs_user_{env}_` + random segment). */
+export const USER_API_KEY_PREFIX_LENGTH = 20;
+
+const USER_SECRET_PATTERN = /^hs_user_(live|test)_[A-Za-z0-9_-]{32}$/;
+
+export function isUserApiKeySecret(value: string): boolean {
+  return USER_SECRET_PATTERN.test(value);
+}
+
+export function extractUserApiKeyPrefix(secret: string): string | null {
+  if (!isUserApiKeySecret(secret)) return null;
+  return secret.slice(0, USER_API_KEY_PREFIX_LENGTH);
 }

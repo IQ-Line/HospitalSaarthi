@@ -10,6 +10,7 @@ import type {
   RoleCapabilityRepository,
   RoleRepository,
   PrincipalAuthorizationRepository,
+  AccessTokenIssuerPort,
   TenantEntitlementResolverPort,
   TenantModuleEntitlementPort,
   UserAccessRepository,
@@ -77,6 +78,7 @@ export interface UserManagementPluginOptions {
   runtimeEntitlementIntersection?: boolean;
   /** For Configurator → UM cache bust HTTP hook (`x-um-internal-key`). */
   internalEntitlementCacheApiKey?: string;
+  accessTokenIssuer: AccessTokenIssuerPort;
   getTenantId?: (request: FastifyRequest) => string;
   getUserId?: (request: FastifyRequest) => string;
 }
@@ -101,6 +103,7 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
     tenantEntitlementResolver,
     runtimeEntitlementIntersection,
     internalEntitlementCacheApiKey,
+    accessTokenIssuer,
   } = options;
 
   const getTenantId = options.getTenantId ?? ((request) => resolveEffectiveTenantId(request));
@@ -108,6 +111,11 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
   const getActorId = getUserId;
 
   fastify.addHook("preHandler", async (request, reply) => {
+    const authMode = (request.routeOptions?.config as { authMode?: string } | undefined)?.authMode;
+    if (authMode === "public") {
+      return;
+    }
+
     const headerCheck = assertTenantHeaderAllowedForPrincipal(request);
     if (!headerCheck.ok) {
       return replyWithUserManagementError(
@@ -199,6 +207,10 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
     getTenantId,
     getUserId,
     getUserDeps: { userRepository },
+    validateUserApiKeyDeps: {
+      userRepository,
+      accessTokenIssuer,
+    },
   });
 
   registerInternalDiagnosticsHandlers(fastify, {

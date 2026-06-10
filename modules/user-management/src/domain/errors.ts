@@ -310,6 +310,12 @@ export class TenantMismatchError extends UserManagementError {
   }
 }
 
+export class ApiKeyInvalidError extends UserManagementError {
+  constructor() {
+    super("API_KEY_INVALID", "Invalid API key");
+  }
+}
+
 export class RbacIntegrityViolationError extends UserManagementError {
   constructor(public readonly reason: "orphan_user_role_template") {
     super(
