@@ -14,18 +14,13 @@ export const RUNTIME_CAPABILITY_KEY_PATTERN =
 /** Canonical actions for the third segment of runtime capability keys. */
 export const RUNTIME_CAPABILITY_ACTIONS = [
   "access",
-  "activate",
   "assign",
   "compose",
   "create",
   "deactivate",
   "delete",
-  "disable",
-  "issue",
   "manage",
-  "reactivate",
   "read",
-  "revoke",
   "update",
   "view",
 ] as const;

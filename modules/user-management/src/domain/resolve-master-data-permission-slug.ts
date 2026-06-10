@@ -18,18 +18,13 @@ const GENERIC_PERMISSION_SLUGS = new Set([
 
 const COMPOUND_PERMISSION_ACTION_SUFFIXES = [
   "access",
-  "activate",
   "assign",
   "compose",
   "create",
   "deactivate",
   "delete",
-  "disable",
-  "issue",
   "manage",
-  "reactivate",
   "read",
-  "revoke",
   "update",
   "view",
   "write",
