@@ -131,8 +131,10 @@ export function AdmissionFormPage({ admissionId }: AdmissionFormPageProps) {
       void queryClient.invalidateQueries({ queryKey: ipdQueryKeys.admissions() });
       if (isEdit) {
         void queryClient.invalidateQueries({ queryKey: ipdQueryKeys.admissionDetail(admissionId!) });
+        void navigate({ to: '/ipd/admissions/$admissionId', params: { admissionId: admissionId! } });
+      } else {
+        void navigate({ to: '/ipd/admissions' });
       }
-      void navigate({ to: '/ipd/admissions' });
     },
     onError: (err) => toast.error(mutationErrorMessage(err)),
   });
@@ -204,12 +206,21 @@ export function AdmissionFormPage({ admissionId }: AdmissionFormPageProps) {
         title={isEdit ? 'Edit Admission' : 'New Admission'}
         description={isEdit ? admission?.episodeNumber : undefined}
         actions={
-          <Button type="button" variant="outline" asChild className="gap-1.5">
-            <Link to="/ipd/admissions">
-              <ArrowLeft className="size-4" />
-              Back
-            </Link>
-          </Button>
+          isEdit ? (
+            <Button type="button" variant="outline" asChild className="gap-1.5">
+              <Link to="/ipd/admissions/$admissionId" params={{ admissionId: admissionId! }}>
+                <ArrowLeft className="size-4" />
+                Back
+              </Link>
+            </Button>
+          ) : (
+            <Button type="button" variant="outline" asChild className="gap-1.5">
+              <Link to="/ipd/admissions">
+                <ArrowLeft className="size-4" />
+                Back
+              </Link>
+            </Button>
+          )
         }
       />
 
