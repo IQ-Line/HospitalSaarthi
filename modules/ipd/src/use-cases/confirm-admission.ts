@@ -32,6 +32,10 @@ export async function confirmAdmission(
     throw new ConfirmAdmissionError("Bed must be assigned before confirming admission");
   }
 
+  // Phase 0: bed occupy → episode transition → event publish are not one transaction.
+  // InProcessEventBus swallows handler failures; retry is self-healing via canOccupy idempotency.
+  // Phase 1: wrap in db.transaction() or transactional outbox when using a remote event bus.
+
   const bed = await deps.bedRepo.occupyForEpisode(
     tenantId,
     episode.bed_id,

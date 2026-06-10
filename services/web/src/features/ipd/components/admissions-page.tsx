@@ -50,13 +50,17 @@ export function AdmissionsPage() {
     placeholderData: (prev) => prev,
   });
 
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+
   const confirmMutation = useMutation({
     mutationFn: (id: string) => confirmAdmission(id),
+    onMutate: (id) => setConfirmingId(id),
     onSuccess: (result) => {
       toast.success(`Admission confirmed · ${result.episodeNumber}`);
       void queryClient.invalidateQueries({ queryKey: ipdQueryKeys.admissions() });
     },
     onError: (err) => toast.error(mutationErrorMessage(err)),
+    onSettled: () => setConfirmingId(null),
   });
 
   const columns = useMemo<ColumnDef<AdmissionRow, unknown>[]>(
@@ -125,11 +129,11 @@ export function AdmissionsPage() {
                 variant="default"
                 size="sm"
                 className="h-8 gap-1.5"
-                disabled={confirmMutation.isPending}
+                disabled={confirmingId === row.original.id}
                 onClick={() => confirmMutation.mutate(row.original.id)}
               >
                 <Check className="size-3.5" />
-                Confirm
+                {confirmingId === row.original.id ? 'Confirming…' : 'Confirm'}
               </Button>
               <Button
                 type="button"
@@ -150,7 +154,7 @@ export function AdmissionsPage() {
           ) : null,
       },
     ],
-    [confirmMutation],
+    [confirmingId, confirmMutation],
   );
 
   const patch = (p: Partial<AdmissionsFilters>) => {

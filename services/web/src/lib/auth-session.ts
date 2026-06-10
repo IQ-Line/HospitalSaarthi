@@ -1,6 +1,7 @@
 import { authClient } from '@/lib/auth-client';
 import { applyTenantSessionFromAuth } from '@/lib/tenant-session';
 import { catalogIqTenantHeaderValue, jwtIqTenantHeaderValue } from '@/lib/catalog-tenant';
+import { resolveTenantDisplayName } from '@/lib/tenant-display-name';
 import { useAuthStore } from '@/stores/auth.store';
 import { useTenantStore } from '@/stores/tenant.store';
 
@@ -69,7 +70,7 @@ function syncTenantStoreFromAccessToken(accessToken: string): void {
   const prev = useTenantStore.getState();
   useTenantStore.getState().setTenant({
     tenantId: jwtTenant,
-    tenantName: prev.tenantName ?? 'Dev Hospital',
+    tenantName: resolveTenantDisplayName(prev.tenantName, 'Dev Hospital'),
     branches:
       prev.branches.length > 0
         ? prev.branches

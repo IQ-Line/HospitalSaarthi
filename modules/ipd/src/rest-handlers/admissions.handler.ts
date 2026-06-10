@@ -4,7 +4,7 @@ import type { EventBus } from "@hims/ts-sdk-events";
 import { toApi } from "../domain/episode.js";
 import type { CreateAdmissionInput } from "../use-cases/create-admission.js";
 import { createAdmission } from "../use-cases/create-admission.js";
-import { confirmAdmission, ConfirmAdmissionError } from "../use-cases/confirm-admission.js";
+import { confirmAdmission } from "../use-cases/confirm-admission.js";
 import { updateAdmission } from "../use-cases/update-admission.js";
 import type { IpdRepos } from "../create-repos.js";
 import {
@@ -63,16 +63,18 @@ export function registerAdmissionsHandler(
         const existing = await episodeRepo.getByIdempotencyKey(req.tenantId, key);
         if (existing) return reply.code(201).send(toApi(existing));
       }
-      const created = await createAdmission(
-        { episodeRepo },
-        req.tenantId,
-        req.body,
-        key,
-      );
-      if (created.bed_id) {
-        await repos.bedRepo.reserveForEpisode(req.tenantId, created.bed_id, created.id);
+      try {
+        const created = await createAdmission(
+          repos,
+          req.tenantId,
+          req.body,
+          key,
+        );
+        return reply.code(201).send(toApi(created));
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Conflict";
+        return conflict(reply, message);
       }
-      return reply.code(201).send(toApi(created));
     },
   );
 
@@ -122,10 +124,7 @@ export function registerAdmissionsHandler(
         if (!updated) return notFound(reply);
         return reply.send(toApi(updated));
       } catch (err) {
-        const message =
-          err instanceof ConfirmAdmissionError || err instanceof Error
-            ? err.message
-            : "Conflict";
+        const message = err instanceof Error ? err.message : "Conflict";
         return conflict(reply, message);
       }
     },

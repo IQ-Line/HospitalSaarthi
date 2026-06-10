@@ -93,4 +93,19 @@ describe("confirmAdmission", () => {
       ),
     ).rejects.toThrow(/scheduled/);
   });
+
+  it("rejects when bed is reserved for another episode", async () => {
+    const episodeRepo = new InMemoryEpisodeRepo();
+    const bedRepo = new InMemoryBedRepo();
+    await episodeRepo.insert(scheduledEpisode());
+    await bedRepo.reserveForEpisode("tenant-1", "bed-1", "other-ep");
+
+    await expect(
+      confirmAdmission(
+        { episodeRepo, bedRepo, eventBus: mockEventBus() },
+        "tenant-1",
+        "ep-1",
+      ),
+    ).rejects.toThrow(ConfirmAdmissionError);
+  });
 });

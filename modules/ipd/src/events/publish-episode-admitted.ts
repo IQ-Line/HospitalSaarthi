@@ -36,7 +36,7 @@ function toPayload(episode: Episode): EpisodeAdmittedPayload {
     attending_consultant_id: episode.attending_consultant_id,
     provisional_diagnosis: episode.provisional_diagnosis,
     financial_class: episode.financial_class,
-    admitted_at: episode.admitted_at!,
+    admitted_at: episode.admitted_at ?? new Date().toISOString(),
   };
 }
 

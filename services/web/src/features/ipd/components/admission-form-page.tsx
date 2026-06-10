@@ -3,7 +3,7 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
-import { ArrowLeft, BedDouble, Search } from 'lucide-react';
+import { ArrowLeft, BedDouble, Check, Search } from 'lucide-react';
 import { Button } from '@pulse/ui/button';
 import { Checkbox } from '@pulse/ui/checkbox';
 import { Input } from '@pulse/ui/input';
@@ -112,11 +112,16 @@ export function AdmissionFormPage({ admissionId }: AdmissionFormPageProps) {
     queryFn: fetchWardBeds,
   });
 
-  const { data: patientResults } = useQuery({
+  const { data: patientResults, isFetching: patientSearchLoading } = useQuery({
     queryKey: ['ipd', 'patient-search', debouncedPatientQuery],
     queryFn: () => searchIpdPatients(debouncedPatientQuery, 1, 8),
     enabled: !isEdit && debouncedPatientQuery.trim().length >= 2 && !selectedPatientId,
   });
+
+  const patientSearchAttempted =
+    !isEdit && !selectedPatientId && debouncedPatientQuery.trim().length >= 2;
+  const patientSearchEmpty =
+    patientSearchAttempted && !patientSearchLoading && (patientResults?.data.length ?? 0) === 0;
 
   useEffect(() => {
     if (admission) form.reset(detailToFormValues(admission));
@@ -266,6 +271,21 @@ export function AdmissionFormPage({ admissionId }: AdmissionFormPageProps) {
                 </ul>
               ) : null}
             </div>
+            {selectedPatientId ? (
+              <p className="mt-1.5 flex items-center gap-1.5 text-xs text-emerald-700">
+                <Check className="size-3.5 shrink-0" />
+                Patient selected — you can create the admission.
+              </p>
+            ) : (
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Type at least 2 characters, then click a patient from the dropdown.
+              </p>
+            )}
+            {patientSearchEmpty ? (
+              <p className="mt-1 text-xs text-amber-700">
+                No patients found for &ldquo;{debouncedPatientQuery.trim()}&rdquo;. Try name or UHID.
+              </p>
+            ) : null}
           </FormField>
         </FormSection>
       )}
@@ -423,6 +443,11 @@ export function AdmissionFormPage({ admissionId }: AdmissionFormPageProps) {
               : 'Create Admission'}
         </Button>
       </div>
+      {!isEdit && !selectedPatientId ? (
+        <p className="text-right text-xs text-muted-foreground">
+          Create Admission is enabled after you select a patient above.
+        </p>
+      ) : null}
       {isEdit && admission?.status === 'scheduled' && form.formState.isDirty ? (
         <p className="text-right text-xs text-muted-foreground">
           Save changes before confirming admission.

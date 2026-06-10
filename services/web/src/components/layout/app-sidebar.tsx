@@ -2,6 +2,7 @@ import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { Button } from '@pulse/ui/button';
 import { BrandMark } from '@/components/layout/brand-mark';
 import { GenericSidebarRenderer } from '@/components/navigation/generic-sidebar-renderer';
+import { resolveTenantDisplayName } from '@/lib/tenant-display-name';
 import { useFilteredNavigation } from '@/navigation/use-filtered-navigation';
 import { useUIPrefsStore } from '@/stores/ui-prefs.store';
 
@@ -13,6 +14,7 @@ export function AppSidebar({ tenantName }: AppSidebarProps) {
   const sidebarCollapsed = useUIPrefsStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUIPrefsStore((s) => s.toggleSidebar);
   const navNodes = useFilteredNavigation();
+  const tenantLabel = resolveTenantDisplayName(tenantName, '');
 
   return (
     <aside
@@ -29,8 +31,8 @@ export function AppSidebar({ tenantName }: AppSidebarProps) {
         {!sidebarCollapsed && (
           <div className="min-w-0">
             <h2 className="text-sm font-semibold truncate">HIMS</h2>
-            {tenantName ? (
-              <p className="text-xs text-muted-foreground truncate">{tenantName}</p>
+            {tenantLabel ? (
+              <p className="text-xs text-muted-foreground truncate">{tenantLabel}</p>
             ) : null}
           </div>
         )}

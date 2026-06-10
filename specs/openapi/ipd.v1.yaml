@@ -307,6 +307,9 @@ components:
 
     Episode:
       type: object
+      description: |
+        API response shape returned by all admission endpoints (`toApi()`).
+        `deposit_amount` is coerced to number (DB stores numeric string).
       required:
         - id
         - iq_tenant_id

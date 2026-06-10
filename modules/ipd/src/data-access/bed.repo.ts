@@ -1,4 +1,4 @@
-import { and, eq, type DbInstance } from "@hims/ts-sdk-db";
+import { and, eq, or, type DbInstance } from "@hims/ts-sdk-db";
 import { beds } from "../schema/tables.js";
 import type { Bed, BedStatus } from "../domain/bed.js";
 import type { BedRepo } from "../ports.js";
@@ -29,6 +29,39 @@ function canOccupy(bed: Bed, episodeId: string): boolean {
   if (bed.bed_status === "reserved" && bed.reserved_for_episode_id === episodeId) return true;
   if (bed.bed_status === "occupied" && bed.current_episode_id === episodeId) return true;
   return false;
+}
+
+/** Atomic UPDATE preconditions — evaluated at write time in Postgres. */
+export function reserveBedWhere(tenantId: string, bedId: string, episodeId: string) {
+  return and(
+    eq(beds.iq_tenant_id, tenantId),
+    eq(beds.id, bedId),
+    or(
+      eq(beds.bed_status, "available"),
+      and(eq(beds.bed_status, "reserved"), eq(beds.reserved_for_episode_id, episodeId)),
+    ),
+  );
+}
+
+export function occupyBedWhere(tenantId: string, bedId: string, episodeId: string) {
+  return and(
+    eq(beds.iq_tenant_id, tenantId),
+    eq(beds.id, bedId),
+    or(
+      eq(beds.bed_status, "available"),
+      and(eq(beds.bed_status, "reserved"), eq(beds.reserved_for_episode_id, episodeId)),
+      and(eq(beds.bed_status, "occupied"), eq(beds.current_episode_id, episodeId)),
+    ),
+  );
+}
+
+export function releaseBedReservationWhere(tenantId: string, bedId: string, episodeId: string) {
+  return and(
+    eq(beds.iq_tenant_id, tenantId),
+    eq(beds.id, bedId),
+    eq(beds.bed_status, "reserved"),
+    eq(beds.reserved_for_episode_id, episodeId),
+  );
 }
 
 export class InMemoryBedRepo implements BedRepo {
@@ -116,8 +149,6 @@ export class DrizzleBedRepo implements BedRepo {
   }
 
   async reserveForEpisode(tenantId: string, bedId: string, episodeId: string) {
-    const bed = await this.getById(tenantId, bedId);
-    if (!bed || !canReserve(bed, episodeId)) return null;
     const [row] = await this.db
       .update(beds)
       .set({
@@ -125,7 +156,7 @@ export class DrizzleBedRepo implements BedRepo {
         reserved_for_episode_id: episodeId,
         updated_at: new Date(),
       })
-      .where(and(eq(beds.iq_tenant_id, tenantId), eq(beds.id, bedId)))
+      .where(reserveBedWhere(tenantId, bedId, episodeId))
       .returning();
     return row ? fromDb(row) : null;
   }
@@ -136,8 +167,6 @@ export class DrizzleBedRepo implements BedRepo {
     episodeId: string,
     patientId: string,
   ) {
-    const bed = await this.getById(tenantId, bedId);
-    if (!bed || !canOccupy(bed, episodeId)) return null;
     const [row] = await this.db
       .update(beds)
       .set({
@@ -147,16 +176,12 @@ export class DrizzleBedRepo implements BedRepo {
         reserved_for_episode_id: null,
         updated_at: new Date(),
       })
-      .where(and(eq(beds.iq_tenant_id, tenantId), eq(beds.id, bedId)))
+      .where(occupyBedWhere(tenantId, bedId, episodeId))
       .returning();
     return row ? fromDb(row) : null;
   }
 
   async releaseReservation(tenantId: string, bedId: string, episodeId: string) {
-    const bed = await this.getById(tenantId, bedId);
-    if (!bed || bed.bed_status !== "reserved" || bed.reserved_for_episode_id !== episodeId) {
-      return;
-    }
     await this.db
       .update(beds)
       .set({
@@ -164,7 +189,7 @@ export class DrizzleBedRepo implements BedRepo {
         reserved_for_episode_id: null,
         updated_at: new Date(),
       })
-      .where(and(eq(beds.iq_tenant_id, tenantId), eq(beds.id, bedId)));
+      .where(releaseBedReservationWhere(tenantId, bedId, episodeId));
   }
 }
 
