@@ -215,6 +215,9 @@ importers:
       '@hims/dev-bootstrap':
         specifier: workspace:*
         version: link:../../packages/dev-bootstrap
+      '@hims/ts-sdk-api-key':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-api-key
       '@hims/ts-sdk-authz':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-authz
@@ -224,6 +227,9 @@ importers:
       '@hims/ts-sdk-events':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-events
+      '@hims/ts-sdk-http':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-http
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@types/pg@8.20.0)(kysely@0.28.17)(pg@8.20.0)(postgres@3.4.9)
@@ -237,9 +243,6 @@ importers:
       '@fastify/sensible':
         specifier: ^6.0.4
         version: 6.0.4
-      '@hims/ts-sdk-http':
-        specifier: workspace:*
-        version: link:../../packages/ts-sdk-http
       '@hims/ts-sdk-identity':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-identity
@@ -857,9 +860,15 @@ importers:
       '@fastify/sensible':
         specifier: ^6.0.4
         version: 6.0.4
+      '@hims/configurator':
+        specifier: workspace:*
+        version: link:../../modules/configurator
       '@hims/dev-bootstrap':
         specifier: workspace:*
         version: link:../../packages/dev-bootstrap
+      '@hims/ts-sdk-api-key':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-api-key
       '@hims/ts-sdk-authz':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-authz

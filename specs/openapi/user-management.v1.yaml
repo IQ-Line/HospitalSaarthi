@@ -254,6 +254,13 @@ paths:
       tags:
         - Roles
       summary: List tenant-scoped roles
+      description: >
+        Tenant scope is JWT-derived for bearer sessions. Integration callers may use
+        `X-API-Key` (Configurator tenant API key with `opd_slip` purpose); the key
+        binds tenant scope — do not send a conflicting `iq_tenant_id` header.
+      security:
+        - bearerAuth: []
+        - tenantApiKey: []
       parameters:
         - $ref: "#/components/parameters/IqTenantIdHeader"
       responses:
@@ -597,6 +604,11 @@ paths:
         Returns users for the active tenant. Route access is gated on `user.list` (PEP); the list
         body is filtered using a single Cerbos PlanResources call for `user.read` and the returned
         query-plan AST (evaluated locally against each row), not per-row CheckResources.
+        With `X-API-Key` (tenant `opd_slip` integration key), Cerbos is bypassed and all active
+        users for the key's tenant are returned.
+      security:
+        - bearerAuth: []
+        - tenantApiKey: []
       parameters:
         - $ref: "#/components/parameters/IqTenantIdHeader"
       responses:
@@ -869,7 +881,10 @@ paths:
         Returns the role templates applied to the specified user (`user_roles` associations).
         Runtime authorization resolves from active rows in `user_capabilities` (snapshot grants).
         See ADR-0031 for snapshot semantics; PEP may temporarily union live template capabilities
-        until issue #60.
+        until issue #60. Integration callers may authenticate with `X-API-Key` (`opd_slip` tenant key).
+      security:
+        - bearerAuth: []
+        - tenantApiKey: []
       parameters:
         - $ref: "#/components/parameters/IqTenantIdHeader"
         - $ref: "#/components/parameters/UserIdPath"
@@ -1226,6 +1241,14 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: Platform JWT; runtime rejects missing/malformed bearer tokens and invalid/expired tokens.
+    tenantApiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: >
+        Configurator tenant integration key (`tenant_api_keys`, purpose `opd_slip`). Tenant scope
+        is derived from the key; Cerbos PEP is skipped on supported read routes (`GET /roles`,
+        `GET /users`, `GET /users/{id}/roles`).
   parameters:
     IqTenantIdHeader:
       name: iq_tenant_id
