@@ -26,6 +26,18 @@ export async function applyConfiguratorSchemaMigration(
   const db = createDb(connectionString);
   for (const file of MIGRATION_FILES) {
     const ddl = readFileSync(join(MIGRATIONS_DIR, file), "utf8");
-    await db.execute(sql.raw(ddl));
+    try {
+      await db.execute(sql.raw(ddl));
+    } catch (error) {
+      // Data backfill only — Citus may reject cross-schema UPDATE on non-distributed tables.
+      if (file === "009_deactivate_invalid_tenant_modules.sql") {
+        console.warn(
+          `[configurator] skipped ${file} (non-fatal data backfill):`,
+          error instanceof Error ? error.message : error,
+        );
+        continue;
+      }
+      throw error;
+    }
   }
 }

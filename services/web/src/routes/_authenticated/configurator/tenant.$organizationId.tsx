@@ -3,7 +3,6 @@ import { useMemo, useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
 import {
   ArrowLeft,
-  Building2,
   Calendar,
   GitBranch,
   Globe,
@@ -29,6 +28,8 @@ import {
   useTenantModules,
   useTenants,
 } from '@/features/configurator/api';
+import { parseBrandingLogoMetadata } from '@/features/configurator/api/branding-logos';
+import { BrandingLogoImage } from '@/features/configurator/components/branding-logo-image';
 import { CreateBranchWizard } from '@/features/configurator/components/create-branch-wizard';
 import { SequenceConfigurationPanel } from '@/features/configurator/components/sequence-configuration/sequence-configuration-panel';
 import { TenantModulesPanel } from '@/features/configurator/components/tenant-modules-panel';
@@ -199,6 +200,22 @@ function TenantOrganizationDetailPage() {
     if (slug === 'starter') return 'Starter Plan';
     return typeof slug === 'string' ? slug : '—';
   }, [org?.metadata]);
+
+  const organisationLogo = useMemo(
+    () => parseBrandingLogoMetadata(org?.metadata ?? null),
+    [org?.metadata],
+  );
+
+  const tenantLogo = useMemo(() => {
+    const parsed = parseBrandingLogoMetadata(contextTenant?.metadata ?? null);
+    if (!parsed) {
+      return null;
+    }
+    if (organisationLogo && parsed.storage_key === organisationLogo.storage_key) {
+      return null;
+    }
+    return parsed;
+  }, [contextTenant?.metadata, organisationLogo]);
 
   const branchColumns = useMemo<ColumnDef<TenantTreeRow, unknown>[]>(
     () => [
@@ -379,6 +396,12 @@ function TenantOrganizationDetailPage() {
                 <ArrowLeft className="size-4" />
               </Link>
             </Button>
+            <BrandingLogoImage
+              logo={tenantLogo}
+              alt={`${contextTenant.name} logo`}
+              className="size-9 shrink-0 rounded-lg border bg-background p-1"
+              showFallbackIcon={false}
+            />
             <h1 className="text-xl font-semibold tracking-tight">{contextTenant.name}</h1>
           </div>
           {contextTenant.parent_tenant_id ? (
@@ -428,9 +451,12 @@ function TenantOrganizationDetailPage() {
         <TabsContent value="overview" className="mt-4 space-y-6">
           {/* Status banner */}
           <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-card px-5 py-4 shadow-sm">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
-              <Building2 className="size-5 text-primary" />
-            </div>
+            <BrandingLogoImage
+              logo={organisationLogo}
+              alt={`${org.name} logo`}
+              className="size-10 shrink-0 rounded-full border bg-background p-1"
+              fallbackClassName="size-10"
+            />
             <div className="flex-1 min-w-0">
               <h2 className="text-base font-semibold truncate">{org.name}</h2>
               <p className="text-sm text-muted-foreground truncate">
@@ -513,6 +539,28 @@ function TenantOrganizationDetailPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
+                {organisationLogo ? (
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Organisation logo</span>
+                    <BrandingLogoImage
+                      logo={organisationLogo}
+                      alt={`${org.name} logo`}
+                      className="size-12 border bg-background p-1"
+                      showFallbackIcon={false}
+                    />
+                  </div>
+                ) : null}
+                {tenantLogo ? (
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Tenant logo</span>
+                    <BrandingLogoImage
+                      logo={tenantLogo}
+                      alt={`${contextTenant.name} logo`}
+                      className="size-12 border bg-background p-1"
+                      showFallbackIcon={false}
+                    />
+                  </div>
+                ) : null}
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Organization ID</span>
                   <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{org.id.slice(0, 8)}…</code>

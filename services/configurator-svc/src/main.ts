@@ -1,4 +1,8 @@
+import { loadWorkspaceEnv } from "./load-workspace-env.js";
 import Fastify, { type FastifyInstance } from "fastify";
+import multipart from "@fastify/multipart";
+
+loadWorkspaceEnv();
 import { validateAuthConfig } from "@hims/ts-sdk-identity";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import {
@@ -154,6 +158,13 @@ async function main() {
   }
 
   async function registerConfiguratorApi(api: FastifyInstance): Promise<void> {
+    await api.register(multipart, {
+      limits: {
+        fileSize: 2 * 1024 * 1024,
+        files: 1,
+      },
+    });
+
     if (identityAuth) {
       const { identityPlugin } = await import("@hims/ts-sdk-identity");
       await api.register(identityPlugin, {

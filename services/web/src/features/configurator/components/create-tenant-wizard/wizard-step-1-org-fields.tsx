@@ -18,12 +18,15 @@ import {
   SelectValue,
 } from '@pulse/ui/select';
 import { INDIAN_STATE_OPTIONS, type WizardFormValues } from '@/features/configurator/create-tenant-wizard-schema';
+import { LogoUploadField } from '@/features/configurator/components/logo-upload-field';
 
 export interface WizardStep1OrgFieldsProps {
   register: UseFormRegister<WizardFormValues>;
   control: Control<WizardFormValues>;
   errors: FieldErrors<WizardFormValues>;
   tenantSlugInputProps: ComponentProps<'input'>;
+  tenantLogoFile: File | null;
+  onTenantLogoFileChange: (file: File | null) => void;
 }
 
 export function WizardStep1OrgFields({
@@ -31,6 +34,8 @@ export function WizardStep1OrgFields({
   control,
   errors,
   tenantSlugInputProps,
+  tenantLogoFile,
+  onTenantLogoFileChange,
 }: WizardStep1OrgFieldsProps) {
   return (
     <FieldGroup className="@container/field-group mx-auto max-w-none gap-4">
@@ -159,6 +164,14 @@ export function WizardStep1OrgFields({
             />
           </FieldContent>
         </Field>
+
+        <LogoUploadField
+          id="wiz-tenant-logo"
+          label="Tenant logo (optional)"
+          description="Upload a PNG or JPEG logo for this tenant. Stored in Azure Blob Storage."
+          file={tenantLogoFile}
+          onFileChange={onTenantLogoFileChange}
+        />
       </div>
     </FieldGroup>
   );

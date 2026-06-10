@@ -1,12 +1,16 @@
 openapi: 3.1.0
 info:
   title: HIMS Configurator API
-  version: 1.2.1
+  version: 1.2.2
   description: |
     Configurator module — tenant registry, module enablement, feature flag overrides, configuration management.
 
     ## Changelog
 
+    ### 1.2.2
+    - Branding logo upload APIs for organisation and tenant creation (`POST /branding-logos/organization`,
+      `POST /branding-logos/tenant`, `GET /branding-logos/download`). Logos are stored in Azure Blob Storage
+      (same container as OPD patient documents) and referenced from `metadata.logo` on organisation/tenant rows.
     ### 1.2.0
     - Tenant integration profiles (ABDM Phase 1a): CRUD under `/tenants/{tenantId}/integration-profiles`.
     - Internal routes `GET /integration-profiles/by-hip/{hipId}` and
@@ -154,6 +158,149 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
           description: Duplicate slug.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /branding-logos/organization:
+    post:
+      operationId: uploadOrganizationBrandingLogo
+      summary: Upload organisation branding logo
+      description: >
+        Multipart upload for organisation logos during tenant onboarding. Stores the file in Azure Blob
+        Storage and returns metadata to embed in `organization.metadata.logo` when calling POST /tenant-onboarding.
+      tags:
+        - Branding
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+                - slug
+              properties:
+                slug:
+                  type: string
+                  minLength: 3
+                  description: Organisation slug used for blob path namespacing.
+                file:
+                  type: string
+                  format: binary
+                  description: PNG or JPEG image up to 2 MB.
+      responses:
+        "201":
+          description: Logo uploaded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrandingLogoUploadResponse"
+        "400":
+          description: Validation failure.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Platform super-admin role required.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Azure Blob Storage unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /branding-logos/tenant:
+    post:
+      operationId: uploadTenantBrandingLogo
+      summary: Upload tenant branding logo
+      description: >
+        Multipart upload for tenant logos during tenant onboarding. Stores the file in Azure Blob Storage
+        and returns metadata to embed in `tenant.metadata.logo` when calling POST /tenant-onboarding.
+      tags:
+        - Branding
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+                - slug
+              properties:
+                slug:
+                  type: string
+                  minLength: 3
+                  description: Tenant slug used for blob path namespacing.
+                file:
+                  type: string
+                  format: binary
+                  description: PNG or JPEG image up to 2 MB.
+      responses:
+        "201":
+          description: Logo uploaded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrandingLogoUploadResponse"
+        "400":
+          description: Validation failure.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Authentication required.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Azure Blob Storage unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /branding-logos/download:
+    get:
+      operationId: downloadBrandingLogo
+      summary: Download branding logo
+      description: >
+        Streams a branding logo from Azure Blob Storage by `storage_key` (same-origin proxy; avoids browser CORS to Azure).
+      tags:
+        - Branding
+      parameters:
+        - name: storage_key
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Blob storage key returned from a branding logo upload response.
+      responses:
+        "200":
+          description: Logo image bytes.
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Invalid storage key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Azure Blob Storage unavailable.
           content:
             application/json:
               schema:
@@ -905,6 +1052,37 @@ components:
       enum:
         - shared
         - isolated
+    BrandingLogoMetadata:
+      type: object
+      required:
+        - storage_key
+        - blob_url
+        - mime_type
+        - file_name
+        - uploaded_at
+      properties:
+        storage_key:
+          type: string
+          description: Azure Blob storage key under the shared patient-documents container.
+        blob_url:
+          type: string
+          format: uri
+          description: Direct blob URL (use download endpoint for browser display).
+        mime_type:
+          type: string
+          description: image/png or image/jpeg
+        file_name:
+          type: string
+        uploaded_at:
+          type: string
+          format: date-time
+    BrandingLogoUploadResponse:
+      type: object
+      required:
+        - logo
+      properties:
+        logo:
+          $ref: "#/components/schemas/BrandingLogoMetadata"
     OrganizationWithDefaultTenantResponse:
       deprecated: true
       description: >
