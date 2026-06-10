@@ -6,6 +6,7 @@ import { validateAuthConfig } from "@hims/ts-sdk-identity";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import { tenantPlugin } from "@hims/ts-sdk-tenant";
 import { createDb } from "@hims/ts-sdk-db";
+import { InProcessEventBus } from "@hims/ts-sdk-events";
 import { applyIpdSchemaMigration, createRouter } from "@hims/ipd";
 
 const PORT = Number(process.env["IPD_SVC_PORT"] ?? process.env["IPD_PORT"] ?? 3008);
@@ -57,7 +58,8 @@ async function main() {
     }
   }
 
-  const ipdRouter = createRouter({ db, useMock: USE_MOCK_DATA });
+  const eventBus = new InProcessEventBus();
+  const ipdRouter = createRouter({ db, useMock: USE_MOCK_DATA, eventBus });
 
   await app.register(async (api) => {
     if (ENABLE_AUTH) {

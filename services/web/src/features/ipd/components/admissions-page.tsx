@@ -1,8 +1,9 @@
 import { useMemo, useState, type MouseEvent } from 'react';
 import { Link } from '@tanstack/react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Pencil, Plus, Search } from 'lucide-react';
+import { Check, Pencil, Plus, Search } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@pulse/ui/button';
 import { Input } from '@pulse/ui/input';
 import {
@@ -15,7 +16,8 @@ import {
 import { PageHeader } from '@/components/page-header';
 import { DataTable } from '@/components/data-table';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
-import { fetchAdmissionsList } from '../api/admissions';
+import { mutationErrorMessage } from '@/lib/mutation-error';
+import { confirmAdmission, fetchAdmissionsList } from '../api/admissions';
 import { ipdQueryKeys } from '../api/query-keys';
 import {
   admissionStatusBadgeClass,
@@ -31,6 +33,7 @@ const NONE = '__all__';
 const defaultFilters = (): AdmissionsFilters => ({ search: '', status: '', type: '' });
 
 export function AdmissionsPage() {
+  const queryClient = useQueryClient();
   const [filters, setFilters] = useState(defaultFilters);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
@@ -45,6 +48,15 @@ export function AdmissionsPage() {
     queryKey: ipdQueryKeys.admissionsList(listParams),
     queryFn: () => fetchAdmissionsList(listParams),
     placeholderData: (prev) => prev,
+  });
+
+  const confirmMutation = useMutation({
+    mutationFn: (id: string) => confirmAdmission(id),
+    onSuccess: (result) => {
+      toast.success(`Admission confirmed · ${result.episodeNumber}`);
+      void queryClient.invalidateQueries({ queryKey: ipdQueryKeys.admissions() });
+    },
+    onError: (err) => toast.error(mutationErrorMessage(err)),
   });
 
   const columns = useMemo<ColumnDef<AdmissionRow, unknown>[]>(
@@ -104,26 +116,41 @@ export function AdmissionsPage() {
         enableHiding: false,
         cell: ({ row }) =>
           row.original.status === 'scheduled' ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 gap-1.5"
-              asChild
+            <div
+              className="flex items-center gap-1.5"
               onClick={(e: MouseEvent) => e.stopPropagation()}
             >
-              <Link
-                to="/ipd/admissions/$admissionId"
-                params={{ admissionId: row.original.id }}
+              <Button
+                type="button"
+                variant="default"
+                size="sm"
+                className="h-8 gap-1.5"
+                disabled={confirmMutation.isPending}
+                onClick={() => confirmMutation.mutate(row.original.id)}
               >
-                <Pencil className="size-3.5" />
-                Edit
-              </Link>
-            </Button>
+                <Check className="size-3.5" />
+                Confirm
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5"
+                asChild
+              >
+                <Link
+                  to="/ipd/admissions/$admissionId"
+                  params={{ admissionId: row.original.id }}
+                >
+                  <Pencil className="size-3.5" />
+                  Edit
+                </Link>
+              </Button>
+            </div>
           ) : null,
       },
     ],
-    [],
+    [confirmMutation],
   );
 
   const patch = (p: Partial<AdmissionsFilters>) => {

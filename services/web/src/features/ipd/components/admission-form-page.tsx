@@ -27,6 +27,7 @@ import { mutationErrorMessage } from '@/lib/mutation-error';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
 import { searchIpdPatients, type EmpiPatient } from '../api/patient-search';
 import {
+  confirmAdmission,
   createAdmission,
   fetchAdmissionById,
   fetchWardBeds,
@@ -136,6 +137,20 @@ export function AdmissionFormPage({ admissionId }: AdmissionFormPageProps) {
     },
     onError: (err) => toast.error(mutationErrorMessage(err)),
   });
+
+  const confirmMutation = useMutation({
+    mutationFn: () => confirmAdmission(admissionId!),
+    onSuccess: (result) => {
+      toast.success(`Patient admitted · ${result.episodeNumber}`);
+      void queryClient.invalidateQueries({ queryKey: ipdQueryKeys.admissions() });
+      void queryClient.invalidateQueries({ queryKey: ipdQueryKeys.admissionDetail(admissionId!) });
+      void navigate({ to: '/ipd/admissions' });
+    },
+    onError: (err) => toast.error(mutationErrorMessage(err)),
+  });
+
+  const canConfirmAdmission =
+    isEdit && admission?.status === 'scheduled' && !!selectedBedId && !form.formState.isDirty;
 
   const toggleFlag = (flag: string, checked: boolean) => {
     const next = checked ? [...flags, flag] : flags.filter((f) => f !== flag);
@@ -388,7 +403,16 @@ export function AdmissionFormPage({ admissionId }: AdmissionFormPageProps) {
         </FormField>
       </FormSection>
 
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {isEdit && admission?.status === 'scheduled' ? (
+          <Button
+            type="button"
+            disabled={!canConfirmAdmission || confirmMutation.isPending || saveMutation.isPending}
+            onClick={() => confirmMutation.mutate()}
+          >
+            {confirmMutation.isPending ? 'Confirming…' : 'Confirm Admission'}
+          </Button>
+        ) : null}
         <Button type="submit" disabled={!selectedPatientId || saveMutation.isPending}>
           {saveMutation.isPending
             ? isEdit
@@ -399,6 +423,11 @@ export function AdmissionFormPage({ admissionId }: AdmissionFormPageProps) {
               : 'Create Admission'}
         </Button>
       </div>
+      {isEdit && admission?.status === 'scheduled' && form.formState.isDirty ? (
+        <p className="text-right text-xs text-muted-foreground">
+          Save changes before confirming admission.
+        </p>
+      ) : null}
     </form>
   );
 }

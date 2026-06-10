@@ -1,6 +1,7 @@
 import { and, desc, eq, ilike, inArray, or, sql, type DbInstance } from "@hims/ts-sdk-db";
 import { episodes } from "../schema/tables.js";
-import type { Episode, EpisodeListQuery, EpisodeRepo, DashboardStats } from "../domain/episode.js";
+import type { Episode, EpisodeListQuery, DashboardStats } from "../domain/episode.js";
+import type { EpisodeRepo } from "../ports.js";
 import { ALLOWED_PATCH_FIELDS } from "../domain/episode.js";
 
 const seq = new Map<string, number>();
@@ -134,6 +135,19 @@ export class InMemoryEpisodeRepo implements EpisodeRepo {
     return next;
   }
 
+  async transitionToAdmitted(tenantId: string, episodeId: string, admittedAt: string) {
+    const cur = await this.getById(tenantId, episodeId);
+    if (!cur || cur.status !== "scheduled") return null;
+    const next: Episode = {
+      ...cur,
+      status: "admitted",
+      admitted_at: admittedAt,
+      updated_at: admittedAt,
+    };
+    this.store.set(this.k(tenantId, episodeId), next);
+    return next;
+  }
+
   async dashboardStats(tenantId: string) {
     return stats(this.tenantRows(tenantId));
   }
@@ -231,6 +245,25 @@ export class DrizzleEpisodeRepo implements EpisodeRepo {
       .update(episodes)
       .set(values)
       .where(and(eq(episodes.iq_tenant_id, tenantId), eq(episodes.id, episodeId)))
+      .returning();
+    return r ? fromDb(r) : null;
+  }
+
+  async transitionToAdmitted(tenantId: string, episodeId: string, admittedAt: string) {
+    const [r] = await this.db
+      .update(episodes)
+      .set({
+        status: "admitted",
+        admitted_at: new Date(admittedAt),
+        updated_at: new Date(admittedAt),
+      })
+      .where(
+        and(
+          eq(episodes.iq_tenant_id, tenantId),
+          eq(episodes.id, episodeId),
+          eq(episodes.status, "scheduled"),
+        ),
+      )
       .returning();
     return r ? fromDb(r) : null;
   }

@@ -89,6 +89,33 @@ paths:
         "409":
           description: Idempotency conflict
 
+  /admissions/{admissionId}/confirm:
+    post:
+      operationId: confirmAdmission
+      summary: Confirm admission (US-06)
+      description: |
+        Transitions episode `scheduled` → `admitted`, sets `admitted_at`,
+        occupies the assigned bed (`reserved` → `occupied`), and publishes `ipd.episode.admitted`.
+        Requires `bed_id` on the episode (US-04).
+      tags: [Admissions]
+      parameters:
+        - $ref: "#/components/parameters/AdmissionId"
+      responses:
+        "200":
+          description: Episode admitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Episode"
+        "404":
+          description: Not found
+        "409":
+          description: Invalid state for confirm (not scheduled, no bed, bed unavailable)
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /admissions/{admissionId}:
     get:
       operationId: getAdmission
