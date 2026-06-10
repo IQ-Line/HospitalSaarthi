@@ -174,6 +174,7 @@ async function main() {
         skipPathPrefixes: [
           "/api/configurator/v1/integration-profiles/by-",
           "/api/configurator/v1/internal/",
+          "/api/configurator/v1/branding-logos/ready",
         ],
       });
     }

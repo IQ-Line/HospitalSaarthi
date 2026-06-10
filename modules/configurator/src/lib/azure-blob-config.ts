@@ -16,3 +16,11 @@ export function getAzureBlobSettings(): AzureBlobSettings {
       process.env["AZURE_BLOB_CONTAINER"]?.trim() || "hmis-patient-docs",
   };
 }
+
+export function isAzureBlobStorageConfigured(): boolean {
+  const settings = getAzureBlobSettings();
+  return (
+    settings.connectionString.length > 0 ||
+    (settings.accountName.length > 0 && settings.accountKey.length > 0)
+  );
+}

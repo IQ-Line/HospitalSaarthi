@@ -3,9 +3,16 @@ import type { MultipartFile } from "@fastify/multipart";
 import { ConfiguratorError } from "../errors.js";
 import { getRequestAuthContext } from "../http/request-auth-context.js";
 import { assertPlatformSuperAdmin } from "../http/request-auth-context.js";
+import {
+  getAzureBlobSettings,
+  isAzureBlobStorageConfigured,
+} from "../lib/azure-blob-config.js";
 import { assertAllowedBrandingStorageKey } from "../lib/logo-upload-validation.js";
 import { downloadBrandingLogoBytes } from "../lib/azure-blob-storage.js";
 import { uploadBrandingLogo } from "../use-cases/upload-branding-logo.js";
+
+/** Bump when branding-logo routes or behaviour change (visible in logs + /ready). */
+export const BRANDING_LOGOS_FEATURE_VERSION = "1.0.1";
 
 async function readMultipartFile(file: MultipartFile): Promise<{
   bytes: Buffer;
@@ -52,6 +59,23 @@ function assertAuthenticatedConfiguratorOperator(request: Parameters<typeof getR
 }
 
 export function registerBrandingLogosHandler(app: FastifyInstance): void {
+  app.get("/branding-logos/ready", async (_request, reply) => {
+    const azureConfigured = isAzureBlobStorageConfigured();
+    const settings = getAzureBlobSettings();
+    return reply.send({
+      feature: "branding-logos",
+      version: BRANDING_LOGOS_FEATURE_VERSION,
+      azure_blob_configured: azureConfigured,
+      blob_container: settings.containerName,
+      routes: [
+        "POST /branding-logos/organization",
+        "POST /branding-logos/tenant",
+        "GET /branding-logos/download",
+        "GET /branding-logos/ready",
+      ],
+    });
+  });
+
   app.post("/branding-logos/organization", async (request, reply) => {
     assertPlatformSuperAdmin(request);
     const part = await request.file();
@@ -65,6 +89,11 @@ export function registerBrandingLogosHandler(app: FastifyInstance): void {
       throw new ConfiguratorError(400, "slug must be at least 3 characters");
     }
 
+    request.log.info(
+      { scope: "organization", slug, byteLength: bytes.length, mimeType },
+      "Branding logo upload requested",
+    );
+
     const result = await uploadBrandingLogo({
       scope: "organization",
       slug,
@@ -72,6 +101,12 @@ export function registerBrandingLogosHandler(app: FastifyInstance): void {
       originalFileName: filename,
       mimeType,
     });
+
+    request.log.info(
+      { scope: "organization", slug, storageKey: result.logo.storage_key },
+      "Branding logo uploaded",
+    );
+
     return reply.code(201).send(result);
   });
 
@@ -88,6 +123,11 @@ export function registerBrandingLogosHandler(app: FastifyInstance): void {
       throw new ConfiguratorError(400, "slug must be at least 3 characters");
     }
 
+    request.log.info(
+      { scope: "tenant", slug, byteLength: bytes.length, mimeType },
+      "Branding logo upload requested",
+    );
+
     const result = await uploadBrandingLogo({
       scope: "tenant",
       slug,
@@ -95,6 +135,12 @@ export function registerBrandingLogosHandler(app: FastifyInstance): void {
       originalFileName: filename,
       mimeType,
     });
+
+    request.log.info(
+      { scope: "tenant", slug, storageKey: result.logo.storage_key },
+      "Branding logo uploaded",
+    );
+
     return reply.code(201).send(result);
   });
 
@@ -126,4 +172,20 @@ export function registerBrandingLogosHandler(app: FastifyInstance): void {
       }
     },
   );
+
+  const azureConfigured = isAzureBlobStorageConfigured();
+  app.log.info(
+    {
+      feature: "branding-logos",
+      version: BRANDING_LOGOS_FEATURE_VERSION,
+      azureBlobConfigured: azureConfigured,
+      blobContainer: getAzureBlobSettings().containerName,
+    },
+    "Configurator branding logos API registered",
+  );
+  if (!azureConfigured) {
+    app.log.warn(
+      "AZURE_STORAGE_CONNECTION_STRING (or AZURE_STORAGE_ACCOUNT + AZURE_STORAGE_ACCOUNT_KEY) unset — branding logo uploads will return 503",
+    );
+  }
 }

@@ -53,15 +53,15 @@ export function MedicalHistory() {
       {
         key: 'allergen',
         label: 'Allergies',
-        type: 'select',
-        placeholder: 'Select allergen',
+        type: 'creatable-select',
+        placeholder: 'Search or type allergen',
         options: allergenOptions,
       },
       {
         key: 'reaction',
         label: 'Reactions',
-        type: 'select',
-        placeholder: 'Select reaction',
+        type: 'creatable-select',
+        placeholder: 'Search or type reaction',
         options: allergyReactionOptions,
       },
       {
