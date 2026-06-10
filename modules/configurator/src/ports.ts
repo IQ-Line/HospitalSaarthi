@@ -24,12 +24,19 @@ import type {
   TenantIntegrationProfileFilters,
   IntegrationKind,
 } from "./domain/tenant-integration-profile.types.js";
+import type {
   IdentifierOverrides,
   IdentifierType,
   SequenceConfiguration,
   SequenceConfigurationFilters,
   SequenceConfigurationSummary,
 } from "./domain/sequence-configuration.js";
+import type {
+  TenantApiKey,
+  CreateTenantApiKeyData,
+  UpdateTenantApiKeyStatusData,
+  TenantApiKeyFilters,
+} from "./domain/tenant-api-key.types.js";
 
 export interface OrganizationRepo {
   findAll(filters?: OrganizationFilters): Promise<Organization[]>;
@@ -81,6 +88,21 @@ export interface TenantIntegrationProfilesRepo {
     data: UpdateTenantIntegrationProfileData,
   ): Promise<TenantIntegrationProfile | undefined>;
   delete(id: string): Promise<boolean>;
+}
+
+export interface TenantApiKeyRepo {
+  findAll(filters: TenantApiKeyFilters): Promise<TenantApiKey[]>;
+  findById(tenantId: string, apiKeyId: string): Promise<TenantApiKey | undefined>;
+  findByPrefix(prefix: string): Promise<(TenantApiKey & { key_hash: string }) | undefined>;
+  create(data: CreateTenantApiKeyData): Promise<TenantApiKey>;
+  updateStatus(
+    tenantId: string,
+    apiKeyId: string,
+    data: UpdateTenantApiKeyStatusData,
+  ): Promise<TenantApiKey | undefined>;
+  touchLastUsed(apiKeyId: string): Promise<void>;
+}
+
 export interface SequenceConfigurationRepo {
   findByTenantId(tenantId: string): Promise<SequenceConfiguration | undefined>;
   listSummaries(filters?: SequenceConfigurationFilters): Promise<SequenceConfigurationSummary[]>;

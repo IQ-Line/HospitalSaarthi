@@ -5,8 +5,10 @@
   "type": "module",
   "dependencies": {
     "@fastify/cors": "^11.0.1",
+    "@hims/configurator": "workspace:*",
     "@hims/pdf-client": "workspace:*",
     "@hims/registration": "workspace:*",
+    "@hims/ts-sdk-api-key": "workspace:*",
     "@hims/ts-sdk-authz": "workspace:*",
     "@hims/ts-sdk-openapi": "workspace:*",
     "@hims/ts-sdk-db": "workspace:*",

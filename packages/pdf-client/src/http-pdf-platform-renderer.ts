@@ -1,5 +1,6 @@
 import type {
   HttpPdfPlatformRendererConfig,
+  OpdSlipReportRequest,
   PdfRendererPort,
   RenderHtmlRequest,
 } from "./types.js";
@@ -24,6 +25,24 @@ export class HttpPdfPlatformRenderer implements PdfRendererPort {
   }
 
   async renderHtml(request: RenderHtmlRequest): Promise<Buffer> {
+    return this.postPdf("/v1/pdf/render-html", {
+      html: request.html,
+      headerHtml: request.headerHtml,
+      footerHtml: request.footerHtml,
+      options: request.options,
+    }, request.requestId);
+  }
+
+  async renderOpdSlipReport(request: OpdSlipReportRequest): Promise<Buffer> {
+    const { requestId, ...body } = request;
+    return this.postPdf("/v1/pdf/reports/opd-slip", body, requestId);
+  }
+
+  private async postPdf(
+    path: string,
+    body: Record<string, unknown>,
+    requestId?: string,
+  ): Promise<Buffer> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
@@ -32,31 +51,26 @@ export class HttpPdfPlatformRenderer implements PdfRendererPort {
         "Content-Type": "application/json",
         Accept: "application/pdf",
       };
-      if (request.requestId) {
-        headers["x-request-id"] = request.requestId;
+      if (requestId) {
+        headers["x-request-id"] = requestId;
       }
       if (this.apiKey) {
         headers.Authorization = `Bearer ${this.apiKey}`;
       }
 
-      const response = await fetch(joinUrl(this.baseUrl, "/v1/pdf/render-html"), {
+      const response = await fetch(joinUrl(this.baseUrl, path), {
         method: "POST",
         headers,
-        body: JSON.stringify({
-          html: request.html,
-          headerHtml: request.headerHtml,
-          footerHtml: request.footerHtml,
-          options: request.options,
-        }),
+        body: JSON.stringify(body),
         signal: controller.signal,
       });
 
       if (!response.ok) {
-        const body = await response.text().catch(() => "");
+        const responseBody = await response.text().catch(() => "");
         throw new PdfPlatformRenderError(
           `pdf-platform render failed: ${String(response.status)} ${response.statusText}`,
           response.status,
-          body,
+          responseBody,
         );
       }
 

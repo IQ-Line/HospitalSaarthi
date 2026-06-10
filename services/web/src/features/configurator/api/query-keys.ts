@@ -18,4 +18,6 @@ export const configuratorKeys = {
     [...configuratorKeys.all, 'tenant-modules', tenantId] as const,
   tenantUsers: (iqTenantId: string) =>
     [...configuratorKeys.all, 'tenant-users', iqTenantId] as const,
+  tenantApiKeys: (tenantId: string) =>
+    [...configuratorKeys.all, 'tenant-api-keys', tenantId] as const,
 };
