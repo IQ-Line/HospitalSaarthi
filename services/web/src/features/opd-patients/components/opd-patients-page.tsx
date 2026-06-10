@@ -3,7 +3,9 @@ import { useQuery } from '@tanstack/react-query';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
 import { fetchOpdPatientsList } from '../api/opd-patients';
 import { opdPatientsQueryKeys } from '../api/query-keys';
+import { ClinicalReportModal } from '@/components/clinical-report-modal';
 import { useOpdPatientDetailsDialog } from '../hooks/use-opd-patient-details-dialog';
+import { usePatientReports } from '../hooks/use-patient-reports';
 import { OpdPatientDetailsDialog } from './opd-patient-details-dialog';
 import { OpdPatientsFiltersBar } from './opd-patients-filters';
 import {
@@ -54,6 +56,7 @@ export function OpdPatientsPage() {
   const [filters, setFilters] = useState<OpdPatientsFilters>(defaultFilters);
   const [page, setPage] = useState(1);
   const patientDetailsDialog = useOpdPatientDetailsDialog();
+  const patientReports = usePatientReports();
   const debouncedSearch = useDebouncedValue(filters.search, 400);
 
   const doctorScope: OpdDoctorScope =
@@ -121,8 +124,23 @@ export function OpdPatientsPage() {
           pageSize={PAGE_SIZE}
           onPageChange={setPage}
           onPatientRowClick={patientDetailsDialog.onRowClick}
+          onOpenReport={(row, reportType) =>
+            patientReports.openReport(row.id, reportType, {
+              doctor_name: row.doctorName !== '—' ? row.doctorName : undefined,
+            })
+          }
         />
       </div>
+
+      <ClinicalReportModal
+        open={patientReports.open}
+        onOpenChange={(open) => {
+          if (!open) patientReports.closeReport();
+        }}
+        visitId={patientReports.selection?.visitId ?? null}
+        reportType={patientReports.selection?.reportType ?? null}
+        reportContext={patientReports.selection?.reportContext}
+      />
 
       <OpdPatientDetailsDialog
         open={patientDetailsDialog.open}

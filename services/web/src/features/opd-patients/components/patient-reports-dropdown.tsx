@@ -1,0 +1,52 @@
+import { ChevronDown, FileText, Printer } from 'lucide-react';
+import type { MouseEvent } from 'react';
+import { Button } from '@pulse/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@pulse/ui/dropdown-menu';
+import {
+  CLINICAL_REPORT_LABELS,
+  type ClinicalReportType,
+} from '../api/clinical-documents';
+
+const REPORT_OPTIONS: ClinicalReportType[] = [
+  'op-consultation',
+  'prescription',
+  'immunization',
+];
+
+interface PatientReportsDropdownProps {
+  onSelectReport: (reportType: ClinicalReportType) => void;
+  onClick?: (event: MouseEvent) => void;
+}
+
+export function PatientReportsDropdown({
+  onSelectReport,
+  onClick,
+}: PatientReportsDropdownProps) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild onClick={onClick}>
+        <Button type="button" variant="outline" size="sm" className="h-8 gap-1 text-xs">
+          <Printer className="size-3.5" />
+          Print
+          <ChevronDown className="size-3.5 opacity-60" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {REPORT_OPTIONS.map((reportType) => (
+          <DropdownMenuItem
+            key={reportType}
+            onSelect={() => onSelectReport(reportType)}
+          >
+            <FileText className="size-4" />
+            {CLINICAL_REPORT_LABELS[reportType]}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
