@@ -23,30 +23,44 @@ interface PatientReportsDropdownProps {
   onClick?: (event: MouseEvent) => void;
 }
 
+function stopRowClick(event: MouseEvent) {
+  event.stopPropagation();
+}
+
 export function PatientReportsDropdown({
   onSelectReport,
   onClick,
 }: PatientReportsDropdownProps) {
+  const handleTriggerClick = (event: MouseEvent) => {
+    stopRowClick(event);
+    onClick?.(event);
+  };
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild onClick={onClick}>
-        <Button type="button" variant="outline" size="sm" className="h-8 gap-1 text-xs">
-          <Printer className="size-3.5" />
-          Print
-          <ChevronDown className="size-3.5 opacity-60" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {REPORT_OPTIONS.map((reportType) => (
-          <DropdownMenuItem
-            key={reportType}
-            onSelect={() => onSelectReport(reportType)}
-          >
+    <div onClick={stopRowClick} onPointerDown={stopRowClick}>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild onClick={handleTriggerClick}>
+          <Button type="button" variant="outline" size="sm" className="h-8 gap-1 text-xs">
+            <Printer className="size-3.5" />
+            Print
+            <ChevronDown className="size-3.5 opacity-60" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {REPORT_OPTIONS.map((reportType) => (
+            <DropdownMenuItem
+              key={reportType}
+              onSelect={(event) => {
+                event.preventDefault();
+                onSelectReport(reportType);
+              }}
+            >
             <FileText className="size-4" />
             {CLINICAL_REPORT_LABELS[reportType]}
           </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }
