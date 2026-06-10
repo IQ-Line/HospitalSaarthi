@@ -20,6 +20,7 @@ import {
   DrizzleTenantModuleRepo,
   DrizzleTenantIntegrationProfilesRepo,
   DrizzleSequenceConfigurationRepo,
+  DrizzleTenantApiKeyRepo,
   type RunConfiguratorTransaction,
 } from "@hims/configurator";
 import {
@@ -105,6 +106,7 @@ async function main() {
   const tenantModuleRepo = new DrizzleTenantModuleRepo(db);
   const tenantIntegrationProfilesRepo = new DrizzleTenantIntegrationProfilesRepo(db);
   const sequenceConfigurationRepo = new DrizzleSequenceConfigurationRepo(db);
+  const tenantApiKeyRepo = new DrizzleTenantApiKeyRepo(db);
 
   const runConfiguratorTransaction: RunConfiguratorTransaction = (fn) =>
     db.transaction(async (tx) =>
@@ -169,7 +171,10 @@ async function main() {
       const { identityPlugin } = await import("@hims/ts-sdk-identity");
       await api.register(identityPlugin, {
         ...identityAuth,
-        skipPathPrefixes: ["/api/configurator/v1/integration-profiles/by-"],
+        skipPathPrefixes: [
+          "/api/configurator/v1/integration-profiles/by-",
+          "/api/configurator/v1/internal/",
+        ],
       });
     }
     await api.register(
@@ -180,6 +185,7 @@ async function main() {
         tenantModuleRepo,
         tenantIntegrationProfilesRepo,
         sequenceConfigurationRepo,
+        tenantApiKeyRepo,
         runConfiguratorTransaction,
         eventBus,
         entitlementCacheInvalidator,

@@ -78,6 +78,7 @@ async function identityPluginFn(
       reply.header("x-correlation-id", correlationId);
 
       if (shouldSkipIdentityVerification(request.url, options.skipPathPrefixes)) return;
+      if (request.authViaApiKey === true) return;
 
       const header = request.headers.authorization;
       if (!header?.startsWith("Bearer ")) {

@@ -10,6 +10,7 @@ const MIGRATION_FILES = [
   "0001_better_auth_auth_schema.sql",
   "0001_capability_catalog_provenance.sql",
   "0004_roles_role_type.sql",
+  "0005_deactivate_noncanonical_capability_actions.sql",
 ] as const;
 
 /**

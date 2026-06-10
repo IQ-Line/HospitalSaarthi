@@ -26,12 +26,14 @@ import {
   HttpEmpiGateway,
   HttpOpdGateway,
   HttpPicklistGateway,
+  apiKeyAuthPlugin,
   createRegistrationAuthzTargetResolver,
   registerDocumentsHandler,
   registerInternalHandlers,
   registerRegistrationsHandler,
   registerVisitsHandler,
 } from "@hims/registration";
+import { DrizzleApiKeyValidator } from "./adapters/drizzle-api-key-validator.js";
 
 const PORT = Number(process.env["REGISTRATION_SVC_PORT"] ?? 3006);
 const DATABASE_URL = process.env["DATABASE_URL"] ?? "";
@@ -62,6 +64,7 @@ async function main() {
       "iq_tenant_id",
       "x-tenant-id",
       "Idempotency-Key",
+      "x-api-key",
     ],
     origin: (
       origin: string | undefined,
@@ -183,7 +186,10 @@ async function main() {
     log: (event, message) => app.log.info(event, message),
   });
 
+  const apiKeyValidator = new DrizzleApiKeyValidator(db);
+
   async function registerRegistrationApi(api: FastifyInstance): Promise<void> {
+    await api.register(apiKeyAuthPlugin, { validator: apiKeyValidator });
     await api.register(identityPlugin, {
       ...identityAuth,
       skipPathPrefixes: ["/docs"],

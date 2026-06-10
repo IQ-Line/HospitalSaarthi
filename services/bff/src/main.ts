@@ -101,6 +101,7 @@ async function main() {
       'x-user-id',
       'Idempotency-Key',
       'x-bypass-entitlement-cache',
+      'x-api-key',
     ],
     origin: (origin, cb) => {
       if (!isProduction) {
