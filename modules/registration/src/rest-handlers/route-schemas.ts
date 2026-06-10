@@ -99,13 +99,44 @@ const nullableUuid = {
   anyOf: [uuidParam, { type: "null" as const }],
 } as const;
 
+const consultationTypeEnum = ["new", "followup", "free-followup"] as const;
+
 const visitEncounterFields = {
   facility_id: nullableUuid,
   visit_type: { type: "string" },
+  consultation_type: { type: "string", enum: [...consultationTypeEnum] },
   department_id: nullableUuid,
   doctor_id: nullableUuid,
   appointment_id: nullableUuid,
   intake_completion: { type: "string", enum: [...intakeCompletionEnum] },
+} as const;
+
+export const visitTypeDecisionBodySchema = {
+  type: "object" as const,
+  required: ["department_id"],
+  additionalProperties: false,
+  properties: {
+    department_id: uuidParam,
+    patient: {
+      type: "object" as const,
+      additionalProperties: false,
+      properties: {
+        patient_id: uuidParam,
+        uhid: { type: "string" },
+        abha_number: { type: "string" },
+        abha_address: { type: "string" },
+        phone_number: { type: "string" },
+        first_name: { type: "string" },
+        middle_name: { type: "string" },
+        last_name: { type: "string" },
+        gender: { type: "string", enum: ["male", "female", "other"] },
+        date_of_birth: { type: "string" },
+        age_years: { type: "integer" },
+        age_months: { type: "integer" },
+        age_days: { type: "integer" },
+      },
+    },
+  },
 } as const;
 
 export const existingPatientVisitBodySchema = {

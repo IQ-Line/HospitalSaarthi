@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { EventBus } from "@hims/ts-sdk-events";
 import type { PatientRepo } from "../ports.js";
 import type { Patient } from "../domain/patient.types.js";
-import { registerPatient } from "./register-patient.js";
+import { findPatientByDedupDemographics, registerPatient } from "./register-patient.js";
 import { isDuplicateRegistrationResult } from "./register-patient.types.js";
 
 const TENANT = "11111111-2222-4333-8444-555555555555";
@@ -26,7 +26,7 @@ function basePatient(overrides: Partial<Patient> = {}): Patient {
     age_months: null,
     age_days: null,
     gender: "male",
-    phone_number: "9999999999",
+    phone_number: "+919999999999",
     alternate_phone: null,
     blood_group: null,
     occupation: null,
@@ -69,7 +69,7 @@ describe("registerPatient deduplication (Phase 2)", () => {
         first_name: "John",
         last_name: "Smith",
         gender: "male",
-        phone_number: "9999999999",
+        phone_number: "+919999999999",
         nationality: "Indian",
         date_of_birth: "1990-06-01",
       },
@@ -121,7 +121,7 @@ describe("registerPatient deduplication (Phase 2)", () => {
         first_name: "John",
         last_name: "Smith",
         gender: "male",
-        phone_number: "9999999999",
+        phone_number: "+919999999999",
         nationality: "Indian",
         date_of_birth: "1990-06-01",
       },
@@ -157,7 +157,7 @@ describe("registerPatient deduplication (Phase 2)", () => {
         first_name: "John",
         last_name: "Smith",
         gender: "male",
-        phone_number: "9999999999",
+        phone_number: "+919999999999",
         nationality: "Indian",
         date_of_birth: "1990-06-01",
         force_create: true,
@@ -167,5 +167,74 @@ describe("registerPatient deduplication (Phase 2)", () => {
     expect(isDuplicateRegistrationResult(result)).toBe(false);
     expect(patientRepo.findDedupCandidates).not.toHaveBeenCalled();
     expect(patientRepo.create).toHaveBeenCalled();
+  });
+});
+
+describe("findPatientByDedupDemographics", () => {
+  it("returns null when name differs on same phone and gender", async () => {
+    const existing = basePatient();
+    const patientRepo = {
+      findDedupCandidates: vi.fn().mockResolvedValue([existing]),
+    } as unknown as PatientRepo;
+
+    const match = await findPatientByDedupDemographics(
+      { patientRepo },
+      TENANT,
+      {
+        first_name: "Different",
+        gender: "male",
+        phone_number: "+919999999999",
+        age_years: 34,
+      },
+    );
+
+    expect(match).toBeNull();
+  });
+
+  it("returns candidate when dedup rules match", async () => {
+    const existing = basePatient();
+    const patientRepo = {
+      findDedupCandidates: vi.fn().mockResolvedValue([existing]),
+    } as unknown as PatientRepo;
+
+    const match = await findPatientByDedupDemographics(
+      { patientRepo },
+      TENANT,
+      {
+        first_name: "John",
+        last_name: "Smith",
+        gender: "male",
+        phone_number: "+919999999999",
+        date_of_birth: "1990-06-01",
+      },
+    );
+
+    expect(match?.id).toBe(existing.id);
+  });
+
+  it("matches dedup when query phone is 10-digit and EMPI stores +91", async () => {
+    const existing = basePatient();
+    const patientRepo = {
+      findDedupCandidates: vi.fn().mockResolvedValue([existing]),
+    } as unknown as PatientRepo;
+
+    const match = await findPatientByDedupDemographics(
+      { patientRepo },
+      TENANT,
+      {
+        first_name: "Jon",
+        last_name: "Smyth",
+        gender: "male",
+        phone_number: "9999999999",
+        date_of_birth: "1991-06-01",
+      },
+    );
+
+    expect(patientRepo.findDedupCandidates).toHaveBeenCalledWith(
+      TENANT,
+      "+919999999999",
+      "male",
+    );
+    expect(match?.id).toBe(existing.id);
   });
 });

@@ -14,6 +14,7 @@ const MIGRATION_FILES = [
   "0005_visit_provider_to_doctor.sql",
   "0006_visit_id_format.sql",
   "0007_visit_id_column_default.sql",
+  "0008_visit_follow_up_columns.sql",
 ] as const;
 /**
  * Applies `registration` schema DDL (idempotent — safe to run on every dev boot).

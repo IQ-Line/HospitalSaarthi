@@ -32,7 +32,7 @@ import { EntityFormDialog } from '@/components/entity-table/entity-form-dialog';
 import { EntityRowActions } from '@/components/entity-table/entity-row-actions';
 import { EntityTableToolbar } from '@/components/entity-table/entity-table-toolbar';
 import { TableActiveToggle } from '@/components/entity-table/table-active-toggle';
-import { configuratorKeys, useTenantUsers } from '@/features/configurator/api';
+import { configuratorKeys, useTenantUsers, useTenant, useUpdateTenant } from '@/features/configurator/api';
 import { CapabilityGate } from '@/components/capability-gate';
 import { useCapability, useAnyCapability } from '@/hooks/use-capability';
 import {
@@ -1349,6 +1349,83 @@ export function TenantBillingPanel({ iqTenantId }: { iqTenantId: string }) {
           />
         ) : null}
       </EntityFormDialog>
+    </div>
+  );
+}
+
+export function TenantFollowUpPanel({ iqTenantId }: { iqTenantId: string }) {
+  const { data: tenant, isLoading } = useTenant(iqTenantId);
+  const updateMutation = useUpdateTenant(iqTenantId);
+  const [days, setDays] = useState('15');
+  const [visits, setVisits] = useState('1');
+
+  useEffect(() => {
+    if (!tenant) return;
+    setDays(String(tenant.free_follow_up_days ?? 15));
+    setVisits(String(tenant.free_follow_up_visits ?? 1));
+  }, [tenant]);
+
+  const handleSave = () => {
+    const free_follow_up_days = Number(days);
+    const free_follow_up_visits = Number(visits);
+    if (!Number.isFinite(free_follow_up_days) || free_follow_up_days < 0) {
+      toast.error('Free follow-up days must be a non-negative number');
+      return;
+    }
+    if (!Number.isFinite(free_follow_up_visits) || free_follow_up_visits < 0) {
+      toast.error('Free follow-up visits must be a non-negative number');
+      return;
+    }
+    updateMutation.mutate(
+      {
+        free_follow_up_days: Math.trunc(free_follow_up_days),
+        free_follow_up_visits: Math.trunc(free_follow_up_visits),
+      },
+      {
+        onSuccess: () => toast.success('Follow-up configuration saved'),
+        onError: () => toast.error('Failed to save follow-up configuration'),
+      },
+    );
+  };
+
+  if (isLoading && !tenant) {
+    return <p className="text-sm text-muted-foreground">Loading follow-up settings…</p>;
+  }
+
+  return (
+    <div className="max-w-lg space-y-4 rounded-lg border bg-card p-4 shadow-sm">
+      <div>
+        <h2 className="text-base font-semibold tracking-tight">OPD follow-up policy</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Applies to this tenant. Free follow-up is same department within the window; paid
+          follow-up is after the window.
+        </p>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="follow-up-days">Free follow-up window (days)</Label>
+          <Input
+            id="follow-up-days"
+            type="number"
+            min={0}
+            value={days}
+            onChange={(e) => setDays(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="follow-up-visits">Free follow-ups allowed (per department)</Label>
+          <Input
+            id="follow-up-visits"
+            type="number"
+            min={0}
+            value={visits}
+            onChange={(e) => setVisits(e.target.value)}
+          />
+        </div>
+      </div>
+      <Button type="button" onClick={handleSave} disabled={updateMutation.isPending}>
+        {updateMutation.isPending ? 'Saving…' : 'Save configuration'}
+      </Button>
     </div>
   );
 }

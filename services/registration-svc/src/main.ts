@@ -24,6 +24,7 @@ import {
   DrizzleVisitRepo,
   HttpBillingGateway,
   HttpEmpiGateway,
+  HttpConfiguratorGateway,
   HttpOpdGateway,
   HttpPicklistGateway,
   createRegistrationAuthzTargetResolver,
@@ -39,6 +40,7 @@ const EMPI_URL = process.env["EMPI_URL"] ?? "http://localhost:3002";
 const BILLING_URL = process.env["BILLING_URL"] ?? "http://localhost:3003";
 const OPD_URL = process.env["OPD_URL"] ?? "http://localhost:8020";
 const MASTER_DATA_URL = process.env["MASTER_DATA_URL"] ?? "http://localhost:8010";
+const CONFIGURATOR_URL = process.env["CONFIGURATOR_URL"] ?? "http://localhost:3001";
 const PDF_PLATFORM_URL = process.env["PDF_PLATFORM_URL"] ?? "http://localhost:8091";
 const PDF_PLATFORM_API_KEY = process.env["PDF_PLATFORM_API_KEY"];
 
@@ -115,6 +117,7 @@ async function main() {
   const empiGateway = new HttpEmpiGateway(EMPI_URL, {
     warn: (detail, message) => app.log.warn(detail, message),
   });
+  const configuratorGateway = new HttpConfiguratorGateway(CONFIGURATOR_URL);
   const eventBus = new InProcessEventBus();
   await eventBus.connect();
 
@@ -143,6 +146,7 @@ async function main() {
     visitRepo,
     allocateOpVisitId,
     empiGateway,
+    configuratorGateway,
     eventBus,
     opdGateway,
     picklistReadPort,
@@ -204,6 +208,7 @@ async function main() {
       allocateOpVisitId,
       eventBus,
       opdGateway,
+      configuratorGateway,
     });
     registerDocumentsHandler(api, documentDeps);
   }

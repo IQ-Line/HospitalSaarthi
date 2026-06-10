@@ -11,6 +11,7 @@ import {
   primaryKey,
   tenantColumn,
   timestamp,
+  smallint,
   sql,
 } from "@hims/ts-sdk-db";
 
@@ -73,6 +74,8 @@ export const tenants = configuratorSchema.table(
     contact_phone: text("contact_phone"),
     contact_email: text("contact_email"),
     tenant_numeric_code: text("tenant_numeric_code"),
+    free_follow_up_days: smallint("free_follow_up_days").notNull().default(15),
+    free_follow_up_visits: smallint("free_follow_up_visits").notNull().default(1),
     ...auditColumns(),
   },
   (t) => [

@@ -79,7 +79,10 @@ export async function seedConfigurator(
           now()
         )
         ON CONFLICT (iq_tenant_id, module_id) DO UPDATE
-        SET is_active = true, is_core_override = false, updated_at = now()
+        SET
+          is_active = EXCLUDED.is_active,
+          is_core_override = EXCLUDED.is_core_override,
+          updated_at = EXCLUDED.updated_at
       `));
       tenantModuleCount += 1;
     }

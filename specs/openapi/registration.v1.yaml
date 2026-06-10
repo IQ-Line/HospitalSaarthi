@@ -66,6 +66,37 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
+  /visit-type-decision:
+    post:
+      operationId: getVisitTypeDecision
+      summary: Resolve OPD visit type before registration submit
+      description: |
+        Advisory endpoint for the registration desk. Resolves the patient (local snapshot or EMPI),
+        loads tenant free follow-up policy from Configurator, and returns the visit type code,
+        consultation fee (0 or 1), and whether the UI should lock the visit-type dropdown.
+
+        Decision uses **patient + department only** (doctor does not affect visit type).
+      tags: [EncounterRegistrations]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VisitTypeDecisionRequest"
+      responses:
+        "200":
+          description: Visit type decision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VisitTypeDecisionResponse"
+        "400":
+          description: Invalid request body
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /registrations:
     get:
       operationId: listRegistrations
@@ -581,12 +612,96 @@ components:
         facility_id: { type: string, format: uuid, nullable: true }
         visit_type:
           type: string
-          description: Phase 1 free string; align with Master Data visit_types catalog later.
+          description: Master Data visit_types picklist code (e.g. `opd_first`, `opd_free_follow_up`).
+        consultation_type:
+          type: string
+          enum: [new, followup, free-followup]
+          description: Derived consultation category; server validates on free follow-up create.
         department_id: { type: string, format: uuid, nullable: true }
         doctor_id: { type: string, format: uuid, nullable: true }
         appointment_id: { type: string, format: uuid, nullable: true }
         intake_completion:
           $ref: "#/components/schemas/IntakeCompletion"
+
+    VisitTypeDecisionPatient:
+      type: object
+      additionalProperties: false
+      properties:
+        patient_id: { type: string, format: uuid }
+        uhid: { type: string }
+        abha_number: { type: string }
+        abha_address: { type: string }
+        phone_number: { type: string }
+        first_name: { type: string }
+        middle_name: { type: string }
+        last_name: { type: string }
+        gender:
+          type: string
+          enum: [male, female, other]
+        date_of_birth: { type: string }
+        age_years: { type: integer }
+        age_months: { type: integer }
+        age_days: { type: integer }
+
+    VisitTypeDecisionRequest:
+      type: object
+      required: [department_id]
+      additionalProperties: false
+      properties:
+        department_id:
+          type: string
+          format: uuid
+        patient:
+          $ref: "#/components/schemas/VisitTypeDecisionPatient"
+
+    VisitTypeDecisionResult:
+      type: object
+      required:
+        - consultation_type
+        - visit_type_code
+        - fee
+        - is_locked
+        - resolved_patient_id
+        - free_follow_up_visit_count
+        - free_follow_up_visits_allowed
+        - free_follow_up_visits_remaining
+        - valid_till
+      additionalProperties: false
+      properties:
+        consultation_type:
+          type: string
+          enum: [new, followup, free-followup]
+        visit_type_code:
+          type: string
+          description: Picklist code to set on the registration form.
+        fee:
+          type: integer
+          enum: [0, 1]
+          description: Consultation fee in rupees (0 = free follow-up).
+        is_locked:
+          type: boolean
+        resolved_patient_id:
+          type: string
+          format: uuid
+          nullable: true
+        free_follow_up_visit_count: { type: integer, minimum: 0 }
+        free_follow_up_visits_allowed: { type: integer, minimum: 0 }
+        free_follow_up_visits_remaining: { type: integer, minimum: 0 }
+        valid_till:
+          type: string
+          format: date-time
+          nullable: true
+
+    VisitTypeDecisionResponse:
+      type: object
+      required: [success, data]
+      additionalProperties: false
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          $ref: "#/components/schemas/VisitTypeDecisionResult"
 
     ExistingPatientVisitRequest:
       type: object
